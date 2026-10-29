@@ -46,7 +46,7 @@ function panelFor(
       return (
         <>
           {scripted ? <GuestScriptHost /> : null}
-          {role === "host" ? (
+          {role === "host" && !guestShare ? (
             <CommentsPanel />
           ) : (
             <GuestComments guestShare={guestShare} />

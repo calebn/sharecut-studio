@@ -36,7 +36,10 @@ function GuestComposer({ naming }: { naming: Naming }) {
     useCallback((s: { playheadSec: number }) => Math.floor(s.playheadSec), []),
   );
   const [body, setBody] = useState("");
-  const [pinned, setPinned] = useState<ComposerAnchor | null>(null);
+  const [pin, setPin] = useState<{
+    anchor: ComposerAnchor;
+    draft: typeof draft;
+  } | null>(null);
   const { busy, error, run } = useProjectMutation();
   const posting = useRef(false);
   const playhead = {
@@ -46,6 +49,7 @@ function GuestComposer({ naming }: { naming: Naming }) {
         ? { start: draft.startSec, end: draft.endSec }
         : undefined,
   };
+  const pinned = pin && pin.draft === draft ? pin.anchor : null;
   const anchor: ComposerAnchor =
     pinned ??
     (draft
@@ -62,6 +66,11 @@ function GuestComposer({ naming }: { naming: Naming }) {
     const state = useDawStore.getState();
     const exact = anchor.kind === "follow" ? state.playheadSec : undefined;
     const span = anchorSpan(anchor) ?? { start: 0, end: duration };
+    const fromDraft =
+      draft !== null &&
+      anchor.kind === "pinned" &&
+      anchor.start === draft.startSec &&
+      (anchor.end ?? null) === draft.endSec;
     const author = naming.chosen ? naming.name : naming.choose(naming.draft);
     const comment = await run(() =>
       createComment(state.projectPath, {
@@ -70,14 +79,14 @@ function GuestComposer({ naming }: { naming: Naming }) {
         timelineStart: clampToSession(exact ?? span.start, duration),
         timelineEnd:
           span.end === undefined ? null : clampToSession(span.end, duration),
-        trackIds: anchor.kind === "pinned" ? (draft?.trackIds ?? []) : [],
-        timelineSpans: anchor.kind === "pinned" ? draft?.intervals : undefined,
+        trackIds: fromDraft ? (draft?.trackIds ?? []) : [],
+        timelineSpans: fromDraft ? draft?.intervals : undefined,
       }),
     );
     posting.current = false;
     if (comment === undefined) return;
     setBody("");
-    setPinned(null);
+    setPin(null);
     state.setCommentDraft(null);
     state.announceStatus(commentPostedStatus(comment));
   };
@@ -93,7 +102,7 @@ function GuestComposer({ naming }: { naming: Naming }) {
         onSubmit={() => void submit()}
         anchor={anchor}
         onAnchor={(intent) =>
-          setPinned((now) => nextAnchor(now ?? anchor, intent, playhead))
+          setPin({ anchor: nextAnchor(anchor, intent, playhead), draft })
         }
         name={
           naming.chosen
