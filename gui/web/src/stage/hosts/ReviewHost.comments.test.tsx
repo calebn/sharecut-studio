@@ -298,6 +298,107 @@ describe("Review host comments", () => {
     expect(heading()).toBe("Comment from Sam");
   });
 
+  it("resolves the next comment on a second Enter and Undo reopens only that one", async () => {
+    mount();
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(1));
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(2));
+    await waitFor(() => expect(toast()).toMatch(/^Resolved comment at 1:30/));
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(3));
+    expect(sent("ResolveComment")[2].payload).toMatchObject({
+      comment_id: "c2",
+      resolved: false,
+    });
+    expect(server.comments.find((c) => c.id === "c1")?.resolved).toBe(true);
+    await userEvent.click(
+      within(await decided()).getAllByRole("button", { name: /Resolved/ })[0],
+    );
+    expect(screen.getByRole("button", { name: "Reopen" })).toBeInTheDocument();
+  });
+
+  it("drops the optimistic resolve once a later snapshot shows it open", async () => {
+    mount();
+    wire.post.mockImplementationOnce(async () => ({
+      ok: true,
+      data: {
+        history_head_id: "h0",
+        command: { payload: { result: OPEN } },
+        snapshot: { server_seq: ++server.seq, project: projectOf() },
+      },
+    }));
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(1));
+    await waitFor(() => expect(toast()).toMatch(/^Resolved comment/));
+    act(() => {
+      server.comments = [...server.comments];
+      applyDocumentSnapshot({ server_seq: ++server.seq, project: projectOf() });
+    });
+    expect(
+      within(screen.getByRole("region", { name: "Comments" })).getByText(
+        "Lose the cough",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves the selection alone when a refusal arrives after the host moved on", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    mount([OPEN, LATER, { ...LATER, id: "c4", author: "Lee" }]);
+    wire.post.mockImplementationOnce(async (_path: string, body) => {
+      await gate;
+      return answer(body);
+    });
+    server.refuse.add("ResolveComment");
+    act(() => {
+      press("Enter");
+    });
+    expect(heading()).toBe("Comment from Sam");
+    act(() => {
+      press("ArrowDown");
+    });
+    expect(heading()).toBe("Comment from Lee");
+    release();
+    await waitFor(() => expect(toast()).toBeTruthy());
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("region", { name: "Comments" })).getByText(
+          "Lose the cough",
+        ),
+      ).toBeInTheDocument(),
+    );
+    expect(heading()).toBe("Comment from Lee");
+  });
+
+  it("shows a reply error only on the thread it belongs to", async () => {
+    server.refuse.add("AddReply");
+    mount();
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Reply to Rosa" }),
+      "Hi{Enter}",
+    );
+    await waitFor(() => expect(sent("AddReply")).toHaveLength(1));
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("article")).getByRole("alert"),
+      ).toBeTruthy(),
+    );
+    act(() => {
+      press("ArrowDown");
+    });
+    expect(heading()).toBe("Comment from Sam");
+    expect(within(screen.getByRole("article")).queryByRole("alert")).toBeNull();
+  });
+
   it("puts a comment back when the resolve is refused", async () => {
     server.refuse.add("ResolveComment");
     mount();
@@ -361,6 +462,19 @@ describe("Review host comments", () => {
 
   it("selects the comment the timeline or Deliver picked", () => {
     mount([OPEN, LATER, DONE], "c2");
+    expect(heading()).toBe("Comment from Sam");
+  });
+
+  it("moves the queue again when the same comment is picked a second time", async () => {
+    mount([OPEN, LATER, DONE], "c2");
+    expect(heading()).toBe("Comment from Sam");
+    act(() => {
+      press("ArrowUp");
+    });
+    expect(heading()).toBe("Comment from Rosa");
+    act(() => {
+      useDawStore.getState().setSelection({ kind: "comment", id: "c2" });
+    });
     expect(heading()).toBe("Comment from Sam");
   });
 

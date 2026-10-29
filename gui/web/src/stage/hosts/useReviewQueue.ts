@@ -89,7 +89,7 @@ export function useReviewQueue() {
     projectPath: s.projectPath,
     shell: s.shellBreakpoint,
     guestMode: s.guestMode,
-    picked: s.selection?.kind === "comment" ? s.selection.id : null,
+    picked: s.selection?.kind === "comment" ? s.selection : null,
   }));
   const comments = useReviewComments(
     commentRole(projectPath, guestMode) === "host",
@@ -166,8 +166,9 @@ export function useReviewQueue() {
   const session = useReviewSession(open);
   const { revert } = session;
   const select = useStableCallback(session.props.onSelect);
+  const selected = useStableCallback(() => session.props.selectedId);
   useEffect(() => {
-    if (picked) select(commentItemId(picked));
+    if (picked) select(commentItemId(picked.id));
   }, [picked, select]);
   const head = project?.history.head_id;
   useEffect(() => {
@@ -523,7 +524,8 @@ export function useReviewQueue() {
       onDecide,
       onHear,
       onOpenInEdit,
-      onResolve: (id: string) => comments.onResolve(id, session.props),
+      onResolve: (id: string) =>
+        comments.onResolve(id, { ...session.props, selected }),
       onHandOff: () => runPointerCommand("stage.deliver"),
     },
   };
