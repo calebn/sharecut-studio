@@ -219,6 +219,32 @@ describe("GuestComments", () => {
     expect(useDawStore.getState().commentDraft).toBeNull();
   });
 
+  it("lets a range the ruler sets after typing replace the pin, with its own tracks", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    render(<GuestComments guestShare />);
+    act(() => useDawStore.setState({ playheadSec: 5 }));
+    await user.type(field(), "x");
+    act(() =>
+      useDawStore.getState().setCommentDraft({
+        startSec: 30,
+        endSec: 40,
+        trackIds: ["t1"],
+        intervals: [{ start: 30, end: 40 }],
+      }),
+    );
+    await user.click(post());
+    expect(createComment).toHaveBeenCalledWith(
+      "share:tok",
+      expect.objectContaining({
+        timelineStart: 30,
+        timelineEnd: 40,
+        trackIds: ["t1"],
+        timelineSpans: [{ start: 30, end: 40 }],
+      }),
+    );
+  });
+
   it("replies under the chosen name, else Guest, with no extra prompt", async () => {
     const user = userEvent.setup();
     join("comment", [sampleComment({ id: "c1" })]);
