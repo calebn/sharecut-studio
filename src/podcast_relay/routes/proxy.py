@@ -76,6 +76,7 @@ _ALLOWED_RESP_HEADERS = _PENDING_PREVIEW_RESP_HEADERS | frozenset(
         "content-range",
         "last-modified",
         "vary",
+        "retry-after",
         "x-sharecut-error-code",
         "x-robots-tag",
     }
