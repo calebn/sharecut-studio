@@ -124,7 +124,7 @@ export function importStoppedLine(stop: ImportStop): string {
   const reason = /[.!?]$/.test(stop.reason) ? stop.reason : `${stop.reason}.`;
   const folder = stop.projectPath.replace(/[\\/][^\\/]*$/, "");
   if (stop.added === 0) {
-    return `${reason} Nothing was added. The new episode is empty and still in Recent. Its folder is ${folder}.`;
+    return `${reason} Nothing was added. The new episode has no audio yet and is still in Recent. Its folder is ${folder}.`;
   }
   return `${reason} ${stop.added} of ${stop.total} ${plural(stop.total, "file")} were added to "${stop.name}". Open it from Recent to add the rest. Its folder is ${folder}.`;
 }

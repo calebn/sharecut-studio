@@ -28,6 +28,8 @@ vi.mock("../../api", async (importOriginal) => ({
   listRecentProjects: vi.fn(),
   forgetRecentProject: vi.fn(),
   createEpisodeProject: vi.fn(),
+  addTrackCommand: vi.fn(),
+  uploadMediaFile: vi.fn(),
   openEpisodeProject: vi.fn(),
   pickEpisodeProject: vi.fn(),
   fetchDiagnosticsMeta: vi.fn(async () => ({
@@ -452,11 +454,32 @@ describe("HomeScreen", () => {
         await screen.findByRole("button", { name: /^Import audio/ }),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        `Disk full. Nothing was added. The new episode is empty and still in Recent. Its folder is /ws/rosa.`,
+        `Disk full. Nothing was added. The new episode has no audio yet and is still in Recent. Its folder is /ws/rosa.`,
       );
       expect(forget).not.toHaveBeenCalled();
       expect(assign).not.toHaveBeenCalled();
       expect(takeAutoRun(EP)).toBe(false);
+    });
+
+    it("a first upload that really fails leaves an empty track and says the episode has no audio", async () => {
+      const user = userEvent.setup();
+      const real = await vi.importActual<
+        typeof import("../../ingest/ingestFiles")
+      >("../../ingest/ingestFiles");
+      ingestInto.mockImplementationOnce(real.ingestIntoNewProject);
+      vi.mocked(api.addTrackCommand).mockResolvedValue({});
+      vi.mocked(api.uploadMediaFile).mockRejectedValue(new Error("Disk full."));
+      pickFiles.mockResolvedValue([new File(["x"], "a.wav")]);
+      create.mockResolvedValue({ project_path: EP, name: "a" });
+      render(<HomeScreen />);
+      await user.click(
+        await screen.findByRole("button", { name: /^Import audio/ }),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        `Disk full. Nothing was added. The new episode has no audio yet and is still in Recent. Its folder is /ws/rosa.`,
+      );
+      expect(api.addTrackCommand).toHaveBeenCalledTimes(1);
+      expect(assign).not.toHaveBeenCalled();
     });
 
     it("a later failed upload says how many files were added", async () => {
