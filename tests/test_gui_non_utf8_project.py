@@ -144,3 +144,37 @@ def test_ensure_utf8_path_unit():
     ensure_utf8_path("/x/café/episode.project.json")
     with pytest.raises(ValueError, match="not valid UTF-8"):
         ensure_utf8_path("/x/caf\udce9/episode.project.json")
+
+
+def test_post_body_path_with_unencodable_surrogate_is_refused(client):
+    res = _post(client, "/api/shares", path="/tmp/caf\ud800/episode.project.json", role="viewer")
+    assert res.status_code == 400, res.text
+    assert res.headers[CODE] == "project_path_invalid"
+
+
+@pytest.mark.parametrize("given", [False, True])
+def test_create_with_surrogate_name_is_refused_and_leaves_nothing(
+    client, tmp_path, monkeypatch, given
+):
+    monkeypatch.setenv("PODCAST_WORKSPACE_ROOT", str(tmp_path / "root"))
+    target = tmp_path / "given" / "ep"
+    res = _post(
+        client,
+        "/api/project/create",
+        name=BAD,
+        workspace_dir=str(target) if given else "",
+    )
+    _refused(res)
+    assert not target.exists()
+    assert not (tmp_path / "root").exists() or not os.listdir(tmp_path / "root")
+    assert client.app.state.served_project is None
+
+
+def test_ensure_viewer_refuses_non_utf8_project(bad_project, monkeypatch):
+    from podcast_mcp.services.app import gui_launch
+
+    monkeypatch.setattr(gui_launch, "packaged_cli_gui_refusal", lambda: None)
+    result = gui_launch.ensure_viewer(bad_project, open_browser=False)
+    assert result.ok is False
+    assert "not valid UTF-8" in result.error
+    result.to_json().encode("utf-8")

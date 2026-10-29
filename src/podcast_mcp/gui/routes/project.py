@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import threading
 from dataclasses import asdict
@@ -117,11 +118,16 @@ def create_project(
     name = body.name.strip() or "episode"
     reserved: Path | None = None
     requested = body.workspace_dir.strip()
-    if requested:
-        try:
-            ensure_utf8_path(Path(requested).expanduser().resolve())
-        except ValueError as exc:
-            raise coded_exception_error(400, exc, code="project_path_invalid") from exc
+    created_here: Path | None = None
+    try:
+        ensure_utf8_path(name)
+        if requested:
+            target = Path(requested).expanduser().resolve()
+            ensure_utf8_path(target)
+            if not os.path.lexists(target):
+                created_here = target
+    except ValueError as exc:
+        raise coded_exception_error(400, exc, code="project_path_invalid") from exc
     try:
         if requested:
             workspace_dir = requested
@@ -133,8 +139,9 @@ def create_project(
                 raise FileExistsError(f"{workspace_dir} already holds an episode")
         ws = ProjectWorkspace.create(workspace_dir, name=name)
     except Exception as exc:
-        if reserved is not None:
-            shutil.rmtree(reserved, ignore_errors=True)
+        for leftover in (reserved, created_here):
+            if leftover is not None:
+                shutil.rmtree(leftover, ignore_errors=True)
         raise coded_exception_error(400, exc, code="project_create_failed") from exc
     pin_served_if_allowed(request, ws.path)
     record_recent(ws.path)
