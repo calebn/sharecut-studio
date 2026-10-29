@@ -83,10 +83,11 @@ const running = (state: object) => ({
 const OPEN_COMMENT = { kind: "comment", id: "comment-1" } as const;
 
 const commentThreadPlay: Story["play"] = async ({ canvasElement }) => {
-  const card = await within(canvasElement).findByRole("article");
-  await expect(
-    within(card).getByRole("heading", { name: "Comment from Ines" }),
-  ).toBeVisible();
+  const title = await within(canvasElement).findByRole("heading", {
+    name: "Comment from Ines",
+  });
+  const card = title.closest("article") as HTMLElement;
+  await expect(title).toBeVisible();
   await expect(within(card).getByText("Looking at it now.")).toBeVisible();
   await expect(
     within(card).getByRole("checkbox", { name: "Review the cut" }),
