@@ -185,6 +185,24 @@ export const UnsureWord: Story = {
   },
 };
 
+export const UnsureWordWithHear: Story = {
+  args: {
+    ...UnsureWord.args,
+    unsure: {
+      word: "uncle",
+      guess: "uncle",
+      onFix: fn(),
+      onHear: fn(),
+    },
+  },
+  play: async ({ args, canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Hear" }),
+    );
+    await expect(args.unsure?.onHear).toHaveBeenCalledOnce();
+  },
+};
+
 export const CutWithUnsureWord: Story = {
   args: {
     title: "Remove “uh, my”",
