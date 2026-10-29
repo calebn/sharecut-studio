@@ -550,6 +550,96 @@ def test_host_ws_attaches_record_plane_after_room_mint(
         assert rec["snapshot"]["state"] == "lobby"
 
 
+def test_host_ws_joins_a_room_minted_after_it_opened_without_a_frame(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from urllib.parse import quote
+
+    from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
+
+    _isolate()
+    monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
+    ws = _seed_premix(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
+    with client.websocket_connect(url) as host:
+        assert host.receive_json()["type"] == "Snapshot"
+        created = ShareService(ws).create_record_room()
+        rec = _drain_until(host, lambda m: m.get("plane") == "record", n=40)
+        assert rec["snapshot"]["state"] == "lobby"
+        svc = RecordSessionService(ws.project, session_id=created["session_id"])
+        roster = {p["participant_id"]: p for p in svc.snapshot()["participants"]}
+        assert roster[HOST_PARTICIPANT_ID]["display_name"] == "Host"
+        assert roster[HOST_PARTICIPANT_ID]["connected"] is True
+
+
+def test_host_record_watcher_survives_a_failed_poll(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import threading
+    from urllib.parse import quote
+
+    from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
+
+    _isolate()
+    monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
+    real = RecordSessionService.active_session_id
+    calls: list[int] = []
+
+    def flaky(project):
+        if not threading.current_thread().name.startswith("AnyIO worker"):
+            return real(project)
+        calls.append(1)
+        if len(calls) == 2:
+            raise OSError("share store unavailable")
+        return real(project)
+
+    monkeypatch.setattr(RecordSessionService, "active_session_id", staticmethod(flaky))
+    ws = _seed_premix(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
+    with client.websocket_connect(url) as host:
+        assert host.receive_json()["type"] == "Snapshot"
+        created = ShareService(ws).create_record_room()
+        rec = _drain_until(host, lambda m: m.get("plane") == "record", n=40)
+        assert rec["snapshot"]["state"] == "lobby"
+        assert len(calls) > 2
+        svc = RecordSessionService(ws.project, session_id=created["session_id"])
+        roster = {p["participant_id"]: p for p in svc.snapshot()["participants"]}
+        assert roster[HOST_PARTICIPANT_ID]["connected"] is True
+
+
+def test_host_record_watcher_detaches_when_the_room_closes(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import threading
+    from urllib.parse import quote
+
+    from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
+
+    _isolate()
+    monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
+    real = RecordSessionService.disconnect
+    left = threading.Event()
+
+    def spy(self, participant_id, *, connection_id=None):
+        if participant_id == HOST_PARTICIPANT_ID:
+            left.set()
+        return real(self, participant_id, connection_id=connection_id)
+
+    monkeypatch.setattr(RecordSessionService, "disconnect", spy)
+    ws = _seed_premix(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
+    with client.websocket_connect(url) as host:
+        assert host.receive_json()["type"] == "Snapshot"
+        created = ShareService(ws).create_record_room()
+        _drain_until(host, lambda m: m.get("plane") == "record", n=40)
+        assert not left.is_set()
+        ShareService(ws).revoke_room(created["session_id"])
+        assert left.wait(5.0)
+
+
 def test_two_host_session_sockets_survive_record_attach(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
