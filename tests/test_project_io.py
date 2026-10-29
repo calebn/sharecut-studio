@@ -128,6 +128,7 @@ def test_adopt_warns_once_when_the_retired_file_is_newer_than_the_current_one(tm
     os.utime(retired, (2_000, 2_000))
     with caplog.at_level(logging.WARNING, logger="podcast_mcp.project.io"):
         assert adopt_retired_entry_file(tmp_path) == current.resolve()
+        assert adopt_retired_entry_file(retired) == current.resolve()
     assert [r.getMessage() for r in caplog.records] == [
         f"{retired.resolve()} is newer than {current.resolve()} and is ignored; "
         "edits saved by an older build are not loaded"

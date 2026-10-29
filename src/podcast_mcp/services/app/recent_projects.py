@@ -31,7 +31,11 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp import settings
-from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME, ensure_utf8_path
+from podcast_mcp.project.io import (
+    EPISODE_PROJECT_FILENAME,
+    RETIRED_PROJECT_FILENAME,
+    ensure_utf8_path,
+)
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.fingerprint import file_stamp
@@ -105,13 +109,34 @@ def _parse(raw: object) -> list[RecentEntry]:
     return entries[:RECENT_LIMIT]
 
 
+def _adopted(entries: list[RecentEntry]) -> list[RecentEntry]:
+    """Present a retired-name entry as its ``episode.sharecut`` once that file exists.
+
+    Another opener (the CLI, MCP) may have renamed the project before Studio did. The
+    entry then merges into an existing ``episode.sharecut`` entry, keeping the newer
+    ``opened_at``. A retired entry whose folder still holds only the old file stays as is.
+    Reads never write: the stored file changes at the next record or forget.
+    """
+    merged: dict[str, RecentEntry] = {}
+    for entry in entries:
+        path = Path(entry.path)
+        if path.name == RETIRED_PROJECT_FILENAME:
+            adopted = path.with_name(EPISODE_PROJECT_FILENAME)
+            if adopted.is_file():
+                entry = RecentEntry(str(adopted), entry.opened_at)
+        kept = merged.get(entry.path)
+        if kept is None or entry.opened_at > kept.opened_at:
+            merged[entry.path] = entry
+    return list(merged.values())
+
+
 def read_recent() -> list[RecentEntry]:
     """The saved list, newest first. Empty when the file is missing or corrupt."""
     try:
         raw = json.loads(recent_projects_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
-    return _parse(raw)
+    return _adopted(_parse(raw))
 
 
 def _write(entries: list[RecentEntry]) -> None:
