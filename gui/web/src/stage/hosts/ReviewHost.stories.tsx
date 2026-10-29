@@ -75,6 +75,17 @@ export const Queue: Story = { play: queuePlay };
 
 export const QueuePhone: Story = { ...phone, play: queuePlay };
 
+const unsureWordsPlay: Story["play"] = async ({ canvasElement }) => {
+  const group = await within(canvasElement).findByRole("region", {
+    name: "Unsure words",
+  });
+  await expect(within(group).getAllByRole("button").length).toBeGreaterThan(0);
+};
+
+export const UnsureWords: Story = { play: unsureWordsPlay };
+
+export const UnsureWordsPhone: Story = { ...phone, play: queuePlay };
+
 export const SwitchSection: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
