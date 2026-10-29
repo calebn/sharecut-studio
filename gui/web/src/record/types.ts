@@ -168,6 +168,9 @@ export function shouldApplyRecordSnapshot(
   return incomingNs != null && incomingNs >= currentNs;
 }
 
+/** Server clamp on a reported segment count (`MAX_REPORTED_SEGMENTS`). */
+export const MAX_REPORTED_SEGMENTS = 5000;
+
 export const LOCAL_KEEPER_COPY = "Recording in full quality on this device.";
 export const KEEPER_RECLAIM_MISMATCH_COPY =
   "This device's copy could not be checked against the file saved to the project, so it was kept. Download your full-quality recording before leaving.";

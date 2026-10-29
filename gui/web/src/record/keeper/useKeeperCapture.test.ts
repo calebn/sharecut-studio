@@ -1214,4 +1214,27 @@ describe("useKeeperCapture segment reports", () => {
     await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1));
     expect(report).not.toHaveBeenCalledWith(1, 1);
   });
+
+  it("clamps an oversized count to the server cap and stops resending once the room has it", async () => {
+    const report = vi.fn<Report>();
+    const { rerender } = mount(report, { snapshot: snap });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1));
+    const spy = vi
+      .spyOn(KeeperSession.prototype, "segmentsOpened")
+      .mockReturnValue(5001);
+    rerender({ snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(report).toHaveBeenLastCalledWith(0, 5000));
+    spy.mockRestore();
+    const take = {
+      take_index: 0,
+      session_start_wall_ms: 0,
+      session_start_iso: "",
+      pauses: [],
+      consented_participant_ids: ["p_g"],
+      segment_reports: { p_g: 5000 },
+    };
+    const calls = report.mock.calls.length;
+    rerender({ snapshot: { ...snap, state: "stopped", takes: [take] } });
+    expect(report).toHaveBeenCalledTimes(calls);
+  });
 });
