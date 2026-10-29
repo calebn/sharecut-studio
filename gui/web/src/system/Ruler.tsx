@@ -15,7 +15,12 @@ import { edgeBounds, within } from "./dragBounds";
 import type { MarkerAttrs } from "./Marker";
 import { round3, rulerStep, rulerTicks, timeAtX, xAtTime } from "./rulerMath";
 import type { TimeRange } from "./seconds";
-import { type GrabMove, type GrabPointer, useGrab } from "./useGrab";
+import {
+  type GrabMove,
+  type GrabPointer,
+  swallowsDuringDrag,
+  useGrab,
+} from "./useGrab";
 
 export type RulerEdge = "start" | "end";
 type RulerGrip = "scrub" | RulerEdge;
@@ -221,9 +226,17 @@ export const Ruler = memo(function Ruler({
     return true;
   };
 
+  const swallowedMidDrag = (event: KeyboardEvent<HTMLElement>) => {
+    if (!grab.dragging() || !swallowsDuringDrag(event)) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  };
+
   const bodyKey = (event: KeyboardEvent<HTMLElement>) => {
     if (walkFocus(event, "body")) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (swallowedMidDrag(event)) return;
     const direction =
       event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
     let target: number | null = null;
@@ -245,6 +258,7 @@ export const Ruler = memo(function Ruler({
   const edgeKey = (edge: RulerEdge) => (event: KeyboardEvent<HTMLElement>) => {
     if (walkFocus(event, edge)) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (swallowedMidDrag(event)) return;
     const direction =
       event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
     if (direction === 0) return;

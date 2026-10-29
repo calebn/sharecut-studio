@@ -898,3 +898,39 @@ describe("MarkerLane drag limits", () => {
     expect(edge("End")).toHaveAttribute("aria-valuenow", "40");
   });
 });
+
+describe("MarkerLane keys during a drag", () => {
+  const SWALLOWED = ["ArrowLeft", "ArrowRight", "Home", "End", "Enter", " "];
+
+  it("ignores the nudge and select keys while a drag is moving, keeps Escape live, and nudges after", () => {
+    const { onNudge, onSelect, onDragEnd } = setup({
+      selected: ["ch-interview"],
+    });
+    press(chapter(), 150);
+    for (const key of ["Home", "End"]) {
+      expect(fireEvent.keyDown(chapter(), { key })).toBe(true);
+    }
+    fireEvent.keyDown(chapter(), { key: "ArrowRight" });
+    expect(onNudge).toHaveBeenCalledTimes(1);
+    moveTo(chapter(), 190);
+    for (const key of SWALLOWED) {
+      expect(fireEvent.keyDown(chapter(), { key })).toBe(false);
+    }
+    expect(onNudge).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(document.body, { key: "Escape" })).toBe(false);
+    expect(onDragEnd.mock.calls).toEqual([["ch-interview", "move", false]]);
+    fireEvent.keyDown(chapter(), { key: "ArrowRight" });
+    expect(onNudge).toHaveBeenCalledTimes(2);
+  });
+
+  it("swallows the keys on any marker mid-drag, and still walks a bracket's focus with Alt", () => {
+    setup({ selected: ["sc-joke"] });
+    press(joke(), 200);
+    moveTo(joke(), 230);
+    const comment = screen.getByRole("button", { name: /^Comment by Maya/ });
+    expect(fireEvent.keyDown(comment, { key: "Enter" })).toBe(false);
+    fireEvent.keyDown(joke(), { key: "ArrowRight", altKey: true });
+    expect(edge("Start")).toHaveFocus();
+  });
+});

@@ -27,7 +27,12 @@ import {
 import { ReadoutChip } from "./ReadoutChip";
 import { round3, timeAtX } from "./rulerMath";
 import { SystemIcon } from "./SystemIcon";
-import { type GrabMove, type GrabPointer, useGrab } from "./useGrab";
+import {
+  type GrabMove,
+  type GrabPointer,
+  swallowsDuringDrag,
+  useGrab,
+} from "./useGrab";
 
 export type { LaneMarker } from "./markerLayout";
 
@@ -584,6 +589,11 @@ export const MarkerLane = memo(function MarkerLane({
   const keys =
     (id: string, grip: MarkerGrip) => (event: KeyboardEvent<HTMLElement>) => {
       const direction = arrowOf(event);
+      if (grab.dragging() && swallowsDuringDrag(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (direction === 0 || event.ctrlKey || event.metaKey) return;
       const marker = byId.get(id);
       if (!marker || !movable(id, grip)) return;
