@@ -151,9 +151,17 @@ test.describe("core flow", () => {
             ).toBeVisible();
           });
 
-          await test.step("review: the queue opens on its empty state", async () => {
+          await test.step("review: the queue opens with no suggestions to decide", async () => {
             await openPanel(host, "queue");
-            await expect(host.getByText("Nothing to decide")).toBeVisible();
+            await expect(
+              host.getByRole("region", { name: "Review queue" }),
+            ).toBeVisible();
+            await expect(
+              host.getByRole("button", { name: "Suggestions, 0" }),
+            ).toBeVisible();
+            await expect(
+              host.getByRole("button", { name: "Find more" }),
+            ).toBeEnabled();
           });
 
           await test.step("edit: correct a transcript word, then undo it", async () => {
