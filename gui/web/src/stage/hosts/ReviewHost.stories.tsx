@@ -80,6 +80,40 @@ const running = (state: object) => ({
   episode: { state: { stage: "review", ...state } },
 });
 
+const OPEN_COMMENT = { kind: "comment", id: "comment-1" } as const;
+
+const commentThreadPlay: Story["play"] = async ({ canvasElement }) => {
+  const card = await within(canvasElement).findByRole("article");
+  await expect(
+    within(card).getByRole("heading", { name: "Comment from Ines" }),
+  ).toBeVisible();
+  await expect(within(card).getByText("Looking at it now.")).toBeVisible();
+  await expect(
+    within(card).getByRole("checkbox", { name: "Review the cut" }),
+  ).toBeVisible();
+  await expect(
+    within(card).getByRole("textbox", { name: "Reply to Ines" }),
+  ).toBeVisible();
+  await expect(
+    within(card).getByRole("button", { name: "Resolve" }),
+  ).toBeEnabled();
+};
+
+export const CommentThread: Story = {
+  parameters: {
+    episode: { state: { stage: "review" }, selection: OPEN_COMMENT },
+  },
+  play: commentThreadPlay,
+};
+
+export const CommentThreadPhone: Story = {
+  ...phone,
+  parameters: {
+    episode: { state: { stage: "review" }, selection: OPEN_COMMENT },
+  },
+  play: commentThreadPlay,
+};
+
 export const FindMore: Story = {
   parameters: running({
     pipelineJob: pipelineJobSnapshot({ id: "find", current: 2, total: 5 }),

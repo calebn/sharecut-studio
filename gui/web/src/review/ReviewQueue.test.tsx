@@ -1,4 +1,5 @@
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { reviewContent } from "../storybook/reviewContent";
 import { QUEUE_WITHOUT_CHECKS } from "../storybook/reviewFixtures";
@@ -173,5 +174,31 @@ describe("ReviewQueue", () => {
       "aria-describedby",
       getByText("Wait for the settings to load.").id,
     );
+  });
+
+  it("lets a resolved comment be selected from Decided but not a decided cut", async () => {
+    const onSelect = vi.fn();
+    const items: typeof QUEUE_WITHOUT_CHECKS = [
+      { id: "m", kind: "comment", at: 5, savedSeconds: 0, result: "applied" },
+      { id: "f", kind: "filler", at: 9, savedSeconds: 1, result: "applied" },
+    ];
+    render(
+      <ReviewQueue
+        items={items}
+        content={reviewContent}
+        selectedId="m"
+        filter="all"
+        onFilter={vi.fn()}
+        onSelect={onSelect}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Decided/ }));
+    const comment = screen.getByRole("button", { name: /Resolved/ });
+    expect(comment).toHaveAttribute("aria-current", "true");
+    await userEvent.click(comment);
+    expect(onSelect).toHaveBeenCalledWith("m");
+    expect(
+      screen.getAllByRole("button", { name: /Cut|Resolved/ }),
+    ).toHaveLength(1);
   });
 });

@@ -64,14 +64,24 @@ export function QueueRow({
   );
   const meta = KIND_META[kind];
   if (decided) {
+    const Row = onSelect ? "button" : "div";
     return (
-      <div className="sys-queue-row sys-queue-row--decided" data-kind={kind}>
+      <Row
+        className="sys-queue-row sys-queue-row--decided"
+        data-kind={kind}
+        {...(onSelect && {
+          type: "button" as const,
+          onClick: onSelect,
+          "aria-current": selected ? ("true" as const) : undefined,
+          "data-selected": selected || undefined,
+        })}
+      >
         <SystemIcon name={RESULT_ICON[decided.result]} size={16} />
         <span className="sys-queue-decided-text">{decided.text}</span>
         {time !== undefined ? (
           <span className="sys-mono sys-queue-time">{time}</span>
         ) : null}
-      </div>
+      </Row>
     );
   }
   const offset = swipe.drag

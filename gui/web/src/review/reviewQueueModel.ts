@@ -190,6 +190,7 @@ export function progressLine(items: readonly ReviewItem[]): string {
 /** "Cut 0.8 s", "Looks right", "Kept". */
 export function resultText(item: ReviewItem): string {
   if (item.result === "kept") return "Kept";
+  if (item.kind === "comment") return "Resolved";
   const verb = verbOf(item);
   const word =
     verb === KIND_META[item.kind].verb

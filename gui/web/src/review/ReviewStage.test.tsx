@@ -697,3 +697,85 @@ describe("ReviewStage host seams", () => {
     expect(screen.getByText("Open it in Edit to resolve.")).toBeVisible();
   });
 });
+
+describe("ReviewStage comments", () => {
+  const comment = (over: Partial<ReviewStageHarnessProps> = {}) =>
+    setup({
+      initialItems: QUEUE_ITEMS,
+      initialSelectedId: "m1",
+      thread: () => <p>thread of m1</p>,
+      ...over,
+    });
+
+  it("shows the thread in place of the quote", () => {
+    comment();
+    expect(screen.getByText("thread of m1")).toBeInTheDocument();
+    expect(document.querySelector(".sys-decision-comment")).toBeNull();
+  });
+
+  it("resolves through its own handler, never as a Review decision", () => {
+    const onResolve = vi.fn();
+    const onDecide = vi.fn();
+    const { press } = comment({ onResolve, onDecide });
+    press("Enter");
+    expect(onResolve).toHaveBeenCalledWith("m1");
+    expect(onDecide).not.toHaveBeenCalled();
+    press("x");
+    expect(onDecide).not.toHaveBeenCalled();
+  });
+
+  it("offers no Keep and no second Resolve on a resolved comment", async () => {
+    const onResolve = vi.fn();
+    const items = QUEUE_ITEMS.map((i) =>
+      i.id === "m1" ? { ...i, result: "applied" as const } : i,
+    );
+    const { press } = comment({ initialItems: items, onResolve });
+    expect(screen.queryByRole("button", { name: /^Keep/ })).toBeNull();
+    press("Enter");
+    expect(onResolve).not.toHaveBeenCalled();
+  });
+
+  it("asks to focus the reply on R and leaves R alone in a field", () => {
+    const onReply = vi.fn();
+    const { press } = comment({
+      onReply,
+      thread: () => <textarea aria-label="Reply" />,
+    });
+    press("r");
+    expect(onReply).toHaveBeenCalledWith("m1");
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Reply" }), {
+      key: "r",
+    });
+    expect(onReply).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves a comment by swiping right on the phone card, and left does nothing", () => {
+    const onResolve = vi.fn();
+    const onDecide = vi.fn();
+    comment({ layout: "phone", onResolve, onDecide });
+    const body = document.querySelector(".sys-decision-body") as Element;
+    const drag = (dx: number) => {
+      fireEvent.pointerDown(body, {
+        clientX: 200,
+        clientY: 100,
+        isPrimary: true,
+        pointerId: 1,
+      });
+      fireEvent.pointerMove(body, {
+        clientX: 200 + dx,
+        clientY: 100,
+        pointerId: 1,
+      });
+      fireEvent.pointerUp(body, {
+        clientX: 200 + dx,
+        clientY: 100,
+        pointerId: 1,
+      });
+    };
+    drag(-150);
+    expect(onResolve).not.toHaveBeenCalled();
+    drag(150);
+    expect(onResolve).toHaveBeenCalledWith("m1");
+    expect(onDecide).not.toHaveBeenCalled();
+  });
+});

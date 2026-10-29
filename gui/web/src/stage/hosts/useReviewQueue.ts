@@ -18,6 +18,7 @@ import type { ReviewIntent } from "../../review/ReviewStage";
 import {
   CHECK_ID,
   checkEntryOf,
+  commentItemId,
   editIdOf,
   type ReviewEntry,
   reviewEntriesOf,
@@ -28,7 +29,7 @@ import {
 } from "../../review/reviewItems";
 import { verbOf } from "../../review/reviewQueueModel";
 import { useReviewSession } from "../../review/reviewSession";
-import { isShareProjectKey } from "../../shareMode";
+import { commentRole, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { AuditionSide } from "../../system/auditionWindow";
@@ -50,6 +51,7 @@ import {
 } from "../../utils/pendingReviewPass";
 import { playTimelineRange } from "../../utils/playRange";
 import { useStableCallback } from "../../utils/useStableCallback";
+import { useReviewComments } from "./useReviewComments";
 
 const WAIVE_NOTE = "Approved after listening in Review";
 const CHANGED_MESSAGE =
@@ -82,11 +84,16 @@ type Reply = {
 };
 
 export function useReviewQueue() {
-  const { project, projectPath, shell } = useDaw((s) => ({
+  const { project, projectPath, shell, guestMode, picked } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
     shell: s.shellBreakpoint,
+    guestMode: s.guestMode,
+    picked: s.selection?.kind === "comment" ? s.selection.id : null,
   }));
+  const comments = useReviewComments(
+    commentRole(projectPath, guestMode) === "host",
+  );
   const [status, setStatus] = useState<TranscriptCheckStatus | null>(null);
   const [bulkRunning, setBulkRunning] = useState<BulkProgress | null>(null);
   const [held, setHeld] = useState<ReadonlyMap<string, Held>>(new Map());
@@ -149,10 +156,19 @@ export function useReviewQueue() {
           };
     });
     const check = status && checkEntryOf(status);
-    return [...entries, ...words.entries, ...(check ? [check] : [])];
-  }, [pending, held, status, words]);
+    return [
+      ...entries,
+      ...words.entries,
+      ...(check ? [check] : []),
+      ...comments.entries,
+    ];
+  }, [pending, held, status, words, comments.entries]);
   const session = useReviewSession(open);
   const { revert } = session;
+  const select = useStableCallback(session.props.onSelect);
+  useEffect(() => {
+    if (picked) select(commentItemId(picked));
+  }, [picked, select]);
   const head = project?.history.head_id;
   useEffect(() => {
     const listed = new Set(open.map((e) => e.item.id));
@@ -503,9 +519,11 @@ export function useReviewQueue() {
       duration: project?.timeline_duration_sec ?? 0,
       layout: shell === "phone" ? ("phone" as const) : ("desktop" as const),
       bulkRunning: bulkRunning ?? undefined,
+      ...comments.stageProps,
       onDecide,
       onHear,
       onOpenInEdit,
+      onResolve: (id: string) => comments.onResolve(id, session.props),
       onHandOff: () => runPointerCommand("stage.deliver"),
     },
   };

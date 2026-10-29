@@ -11,6 +11,7 @@ import { fakeExportServer } from "../../test/fakeExportServer";
 import {
   minimalProject,
   pipelineJobSnapshot,
+  sampleComment,
   sampleTrack,
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
@@ -278,15 +279,7 @@ describe("Review host", () => {
       HOST_PATH,
       minimalProject({
         tracks: [sampleTrack()],
-        comments: [
-          {
-            id: "c1",
-            time_sec: 1,
-            body: "x",
-            author: "Host",
-            resolved: false,
-          } as never,
-        ],
+        comments: [sampleComment({ id: "c1", body: "x", author: "Host" })],
       }),
     );
     mount();
