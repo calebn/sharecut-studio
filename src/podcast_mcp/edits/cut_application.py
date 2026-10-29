@@ -1882,7 +1882,9 @@ def apply_edit_plan(
             float(raw["start"]),
             float(raw["end"]),
             reason=str(raw.get("reason", "agent:plan")),
-            review_required=bool(raw.get("review_required", review_required)),
+            review_required=review_required
+            if raw.get("review_required") is None
+            else bool(raw["review_required"]),
             crossfade_ms=int(raw.get("crossfade_ms", crossfade_ms)),
             use_inaudible_opt=raw.get("use_inaudible_opt", use_inaudible_opt),
             merge_ids=merge_ids,
