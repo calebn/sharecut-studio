@@ -584,15 +584,18 @@ def test_host_record_watcher_survives_a_failed_poll(
     _isolate()
     monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
     real = RecordSessionService.active_session_id
+    looked = threading.Event()
     armed = threading.Event()
     raised = threading.Event()
 
     def flaky(project):
         sid = real(project)
-        on_worker = threading.current_thread().name.startswith("AnyIO worker")
-        if sid and on_worker and armed.is_set() and not raised.is_set():
+        if not threading.current_thread().name.startswith("AnyIO worker"):
+            return sid
+        if sid and armed.is_set() and not raised.is_set():
             raised.set()
             raise OSError("share store unavailable")
+        looked.set()
         return sid
 
     monkeypatch.setattr(RecordSessionService, "active_session_id", staticmethod(flaky))
@@ -601,6 +604,7 @@ def test_host_record_watcher_survives_a_failed_poll(
     url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
     with client.websocket_connect(url) as host:
         assert host.receive_json()["type"] == "Snapshot"
+        assert looked.wait(10)
         armed.set()
         created = ShareService(ws).create_record_room()
         rec = _drain_until(host, lambda m: m.get("plane") == "record", n=40)
@@ -622,6 +626,16 @@ def test_host_record_watcher_gives_up_on_a_room_whose_join_keeps_failing(
     monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
     joins: list[int] = []
     first = threading.Event()
+    looked = threading.Event()
+    real = RecordSessionService.active_session_id
+
+    def spy(project):
+        sid = real(project)
+        if threading.current_thread().name.startswith("AnyIO worker"):
+            looked.set()
+        return sid
+
+    monkeypatch.setattr(RecordSessionService, "active_session_id", staticmethod(spy))
 
     def broken_join(self, **kwargs):
         joins.append(1)
@@ -634,6 +648,7 @@ def test_host_record_watcher_gives_up_on_a_room_whose_join_keeps_failing(
     url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
     with client.websocket_connect(url) as host:
         assert host.receive_json()["type"] == "Snapshot"
+        assert looked.wait(10)
         ShareService(ws).create_record_room()
         assert first.wait(10)
         time.sleep(0.5)
