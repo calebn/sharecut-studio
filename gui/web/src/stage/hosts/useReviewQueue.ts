@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   applySuggestedActions,
   approveEdits,
+  correctTranscriptWord,
   loadTranscriptCheck,
   markTranscriptChecked,
   rejectEdits,
@@ -20,6 +21,8 @@ import {
   type ReviewEntry,
   reviewEntriesOf,
   reviewIdOf,
+  unsureEntriesOf,
+  type WordTarget,
 } from "../../review/reviewItems";
 import { verbOf } from "../../review/reviewQueueModel";
 import { useReviewSession } from "../../review/reviewSession";
@@ -43,10 +46,13 @@ import {
   type HeldCut,
   heldReasonText,
 } from "../../utils/pendingReviewPass";
+import { playTimelineRange } from "../../utils/playRange";
 import { useStableCallback } from "../../utils/useStableCallback";
 
 const WAIVE_NOTE = "Approved after listening in Review";
 const CLOSER_LOOK = "Needs a closer look in Edit";
+const UNSURE_REASON = "unsure_word";
+const HEAR_PAD_SEC = 2;
 const CUT_AGAIN = "The transcript isn't checked yet. Cut again to cut anyway.";
 
 const rangeOf = (e: PendingEditView) =>
@@ -90,19 +96,36 @@ export function useReviewQueue() {
     const ranges = new Map(
       (pending ?? []).map((e) => [reviewIdOf(e.id), rangeOf(e)]),
     );
+    const resolved = new Set(
+      (pending ?? [])
+        .filter((e) => !e.unsure_words?.length)
+        .map((e) => reviewIdOf(e.id)),
+    );
     setHeld((prev) => {
-      const kept = [...prev].filter(([id, h]) => ranges.get(id) === h.range);
+      const kept = [...prev].filter(
+        ([id, h]) =>
+          ranges.get(id) === h.range &&
+          !(h.reason === UNSURE_REASON && resolved.has(id)),
+      );
       return kept.length === prev.size ? prev : new Map(kept);
     });
   }, [pending]);
 
+  const utterances = project?.transcript?.utterances;
+  const words = useMemo(
+    () => unsureEntriesOf(pending ?? [], utterances ?? []),
+    [pending, utterances],
+  );
   const open = useMemo<ReviewEntry[]>(() => {
     const entries = reviewEntriesOf(pending ?? []).map(({ item, content }) => {
       const why = held.get(item.id)?.reason;
-      return why === undefined
+      return why === undefined || (why === UNSURE_REASON && !item.unsure)
         ? { item, content }
         : {
-            item: { ...item, blocked: true },
+            item:
+              why === UNSURE_REASON
+                ? { ...item, unsure: true }
+                : { ...item, blocked: true },
             content: {
               ...content,
               card: { ...content.card, why: heldReasonText(why) },
@@ -110,8 +133,8 @@ export function useReviewQueue() {
           };
     });
     const check = status && checkEntryOf(status);
-    return check ? [...entries, check] : entries;
-  }, [pending, held, status]);
+    return [...entries, ...words.entries, ...(check ? [check] : [])];
+  }, [pending, held, status, words]);
   const session = useReviewSession(open);
   const { revert } = session;
   const head = project?.history.head_id;
@@ -125,11 +148,32 @@ export function useReviewQueue() {
     if (back.length) revert(back.map(([id]) => id));
   }, [open, head, revert]);
 
-  const send = async (path: string, intent: ReviewIntent, ids: string[]) => {
+  const send = async (
+    path: string,
+    intent: ReviewIntent,
+    ids: string[],
+    word?: { target: WordTarget; text: string },
+    check?: boolean,
+  ) => {
     if (intent.waive)
       await waiveTranscriptRefine(path, intent.waive.note || WAIVE_NOTE);
+    if (word) {
+      const { target, text } = word;
+      const historyHead = await correctTranscriptWord(
+        path,
+        target.trackId,
+        target.wordIndex,
+        text,
+        target.text,
+        target.sourceId,
+      );
+      return { queued: false, count: null, historyHead } satisfies Reply;
+    }
+    if (ids.length === 0) {
+      if (check) await markTranscriptChecked(path);
+      return;
+    }
     if (intent.result === "kept") return rejectEdits(path, ids);
-    if (ids.length === 0) return void (await markTranscriptChecked(path));
     const item = session.props.items.find((i) => i.id === intent.ids[0]);
     if (ids.length === 1 && item && verbOf(item) === "lower")
       return { ...(await applySuggestedActions(path, ids)), count: null };
@@ -140,6 +184,37 @@ export function useReviewQueue() {
       true,
       intent.group || ids.length > 1 ? { skipUnsure: true } : undefined,
     );
+  };
+
+  const settleCheck = async (
+    path: string,
+    seen: TranscriptCheckStatus | null,
+    closes: boolean,
+    changed: boolean,
+  ) => {
+    const sayError = (error: unknown) =>
+      useDawStore
+        .getState()
+        .announceStatus(errorMessage(error), { tone: "error" });
+    if (closes) {
+      if (
+        useDawStore.getState().project?.meta?.hydration?.transcript_words ===
+        false
+      )
+        return revert([CHECK_ID]);
+      try {
+        const next = await markTranscriptChecked(path);
+        requests.current++;
+        setStatus(next);
+      } catch (error) {
+        revert([CHECK_ID]);
+        sayError(error);
+      }
+    } else if (changed && seen?.clear) {
+      if (seen.status === "done") await markTranscriptChecked(path);
+      else if (seen.status === "waived")
+        await waiveTranscriptRefine(path, seen.notes || WAIVE_NOTE);
+    }
   };
 
   const onDecide = useStableCallback(async (intent: ReviewIntent) => {
@@ -155,16 +230,33 @@ export function useReviewQueue() {
       return s.projectPath === path && s.projectEpoch === epoch;
     };
     const ids = plan.decidedIds.flatMap((id) => editIdOf(id) ?? []);
+    const target = words.targets.get(intent.ids[0]);
+    const text = intent.text?.trim() || target?.text || "";
+    const changed = !!target && text !== target.text;
+    const word = target && { target, text };
+    const closes = plan.decidedIds.includes(CHECK_ID);
+    const seen = status;
+    const message =
+      target && changed ? `Fixed “${target.text}” to “${text}”` : plan.message;
     try {
-      const reply: Reply | void | null = await send(path, intent, ids);
+      const reply: Reply | void | null = await send(
+        path,
+        intent,
+        ids,
+        word,
+        closes,
+      );
       if (!current()) return;
-      if (intent.waive || plan.decidedIds.includes(CHECK_ID))
-        void refreshStatus();
+      if (word)
+        await settleCheck(path, seen, closes, changed).catch(() => null);
+      if (intent.waive || closes || changed) void refreshStatus();
+      if (!current()) return;
       if (!reply) return say(plan.message);
       if (reply.queued) return say(PENDING_REVIEW_QUEUED_MESSAGE);
       const heldCuts = [...(reply.held ?? [])];
       const left = ids.length - heldCuts.length;
       if (
+        ids.length > 0 &&
         intent.result === "applied" &&
         (reply.count === null || reply.count < left)
       ) {
@@ -212,11 +304,12 @@ export function useReviewQueue() {
               reply.count ?? ids.length - heldCuts.length,
               heldCuts,
             )
-          : plan.message,
+          : message,
         {
           undo: reply.historyHead,
           onUndone: () => {
             session.revert(plan.decidedIds);
+            if (closes || changed) void refreshStatus();
             stageRef.current?.focus({ preventScroll: true });
           },
           returnFocus: () => stageRef.current,
@@ -241,6 +334,27 @@ export function useReviewQueue() {
   });
 
   const onHear = useStableCallback(async (id: string, side: AuditionSide) => {
+    const word = words.targets.get(id);
+    if (word) {
+      const { at, endSec } = word;
+      if (at === null)
+        return useDawStore
+          .getState()
+          .announceStatus("This word is not on the timeline.", {
+            tone: "error",
+          });
+      const { beginAudition, setPlayheadSec, setPlayUntilSec, setIsPlaying } =
+        useDawStore.getState();
+      return playTimelineRange({
+        start: at,
+        end: endSec ?? at,
+        padSec: HEAR_PAD_SEC,
+        beginAudition,
+        setPlayheadSec,
+        setPlayUntilSec,
+        setIsPlaying,
+      });
+    }
     const editId = editIdOf(id);
     if (!editId) return;
     const mode = side === "A" ? "current" : "suggested";
@@ -252,6 +366,19 @@ export function useReviewQueue() {
   });
 
   const onOpenInEdit = useStableCallback((id: string) => {
+    const word = words.targets.get(id);
+    if (word) {
+      const state = useDawStore.getState();
+      state.setSelection({
+        kind: "transcriptRange",
+        trackId: word.trackId,
+        sourceId: word.sourceId,
+        startWordIndex: word.wordIndex,
+        endWordIndex: word.wordIndex,
+      });
+      if (word.at !== null) state.setPlayheadSec(word.at);
+      return runPointerCommand("stage.edit");
+    }
     const editId = editIdOf(id);
     const edit = pending?.find((e) => e.id === editId);
     if (!editId || !edit) return;

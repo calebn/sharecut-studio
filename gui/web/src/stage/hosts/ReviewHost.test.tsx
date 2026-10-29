@@ -75,7 +75,11 @@ import {
   wavResponse,
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
-import type { HistoryEntryId, PendingEditView } from "../../types/project";
+import type {
+  HistoryEntryId,
+  PendingEditView,
+  PendingUnsureWord,
+} from "../../types/project";
 import { ApiError } from "../../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../../utils/pendingEditLabels";
 import { StageHost } from "./StageHost";
@@ -100,6 +104,13 @@ const edit = (
     ...over,
   });
 
+const W1: PendingUnsureWord = {
+  track_id: "host",
+  source_id: null,
+  word_index: 4,
+  text: "uncle",
+  confidence: 0.4,
+};
 const F1 = edit("f1", "filler", 10, { why: "Jon restarts." });
 const F2 = edit("f2", "filler", 20);
 const F3 = edit("f3", "filler", 30);
@@ -192,6 +203,11 @@ function answer(body: { type: string; payload: Record<string, unknown> }) {
       : server.pending.map((e) =>
           take.includes(e.id) ? { ...e, applied: true } : e,
         );
+  server.pending = server.pending.map((e) =>
+    server.held.some((h) => h.id === e.id && h.reason === "unsure_word")
+      ? { ...e, unsure_words: [W1] }
+      : e,
+  );
   return reply(done, server.held);
 }
 
@@ -352,7 +368,8 @@ describe("Review host decisions", () => {
       hold_blocked: true,
       skip_unsure: true,
     });
-    const why = "It has a word we're not sure of. Open it in Edit.";
+    const why =
+      "It has a word we're not sure of. Check the word first, then cut.";
     expect(toast()).toMatch(new RegExp(`held 1. filler f2 is held: ${why}$`));
     expect(screen.getAllByRole("button", { name: "Undo" })).toHaveLength(1);
     await userEvent.click(screen.getByRole("tab", { name: /Tighten/ }));
