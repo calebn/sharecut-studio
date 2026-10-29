@@ -20,17 +20,21 @@ def _rows(path) -> list[dict]:
 
 
 @pytest.mark.parametrize(
-    ("kwargs", "keys"),
-    [({"track_id": "host"}, {"track_id"}), ({"speaker": "Host"}, {"speaker"})],
+    ("kwargs", "payload"),
+    [
+        ({"track_id": "host"}, {"track_id": "host", "speaker": None}),
+        ({"speaker": "Host"}, {"track_id": None, "speaker": "Host"}),
+    ],
 )
-def test_whole_track_fill_journals_one_fill_room_tone_command_without_unset_keys(
-    minimal_project, monkeypatch, kwargs, keys
+def test_whole_track_fill_journals_one_fill_room_tone_command_with_unset_keys_null(
+    minimal_project, monkeypatch, kwargs, payload
 ):
     gap_project(minimal_project, monkeypatch)
     mcp_timeline.fill_with_room_tone_tool(str(minimal_project), **kwargs)
     rows = _rows(minimal_project)
     assert [row["type"] for row in rows] == ["FillRoomTone"]
-    assert set(rows[0]["payload"]) - {"result"} == keys
+    stored = {key: value for key, value in rows[0]["payload"].items() if key != "result"}
+    assert stored == {**payload, "start_sec": None, "end_sec": None}
 
 
 def test_range_fill_journals_one_fill_room_tone_command_with_its_range(
@@ -43,7 +47,7 @@ def test_range_fill_journals_one_fill_room_tone_command_with_its_range(
     assert [row["type"] for row in rows] == ["FillRoomTone"]
     payload = rows[0]["payload"]
     assert (payload["track_id"], payload["start_sec"], payload["end_sec"]) == ("host", 0.5, 1.5)
-    assert "speaker" not in payload
+    assert payload["speaker"] is None
 
 
 def test_whole_track_fill_journals_the_tool_reply_as_the_result(minimal_project, monkeypatch):
