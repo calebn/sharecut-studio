@@ -1204,7 +1204,6 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
     mastered = ensure_current_master(project, defaults)
     eng = ffmpeg()
     from podcast_mcp.export.episode import export_episode_deliverables
-    from podcast_mcp.export.names import sanitize_export_stem
 
     with resolve_progress_task(
         "export_deliverables",
@@ -1220,15 +1219,7 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
             cancel_check=current_cancel_check(),
         )
         extras: list[str] = []
-        if project.chapters:
-            prog.set_phase("chapters", "Writing chapters…")
-            chapters_path = (
-                project.export_dir() / f"{sanitize_export_stem(project.name)}.chapters.json"
-            )
-            chapters_path.write_text(
-                json.dumps([c.model_dump() for c in project.chapters], indent=2),
-                encoding="utf-8",
-            )
+        if any(path.name.endswith(".chapters.json") for path in written):
             extras.append(f"{len(project.chapters)} chapters")
 
         if any(path.suffix == ".srt" for path in written):
@@ -1236,7 +1227,7 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
 
         prog.set_phase("qc", "Writing export QC…")
         qc = write_export_qc(project, defaults=defaults)
-    parts = [f"{sum(path.suffix not in {'.srt', '.md'} for path in written)} audio files"]
+    parts = [f"{sum(path.suffix not in {'.srt', '.md', '.json'} for path in written)} audio files"]
     parts.extend(extras)
     if qc.get("ok"):
         parts.append("QC ok")
