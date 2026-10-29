@@ -147,9 +147,7 @@ returns the same hits, under the same ids, each run. An Ask thread
    yourself. To change one sound afterward (say a cut to leave) without undoing
    the rest, call it again with `revise=true` (`--revise`) and `overrides` for
    that sound and no ids: it steps back to before the batch, which must still be
-   the latest edit, and applies it again as one undo step. Studio's Tighten tab
-   offers the same as **Just applied (N)**: a select per sound of the latest
-   batch.
+   the latest edit, and applies it again as one undo step.
    Use `apply_edits` / `podcast apply-edits` only after explicit sign-off on the
    whole batch — not as the default on a real episode.
    After approving, `render_preview` and run **`audition_context_tool` on every

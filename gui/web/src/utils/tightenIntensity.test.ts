@@ -7,8 +7,6 @@ import {
   currentTightenIntensity,
   findHitsConfirm,
   findHitsRunError,
-  tightenIntensityLabel,
-  tightenIntensityOptions,
   tightenProposeRunOptions,
 } from "./tightenIntensity";
 
@@ -38,25 +36,12 @@ function cfg(config: Record<string, unknown> = {}): PipelineConfigResponse {
 }
 
 describe("tightenIntensity helpers", () => {
-  it("reads options from the server catalog", () => {
-    expect(tightenIntensityOptions(null)).toEqual([]);
-    expect(tightenIntensityOptions(cfg())).toEqual([
-      "light",
-      "medium",
-      "aggressive",
-    ]);
-  });
-
   it("prefers the working set, then the catalog default", () => {
     expect(currentTightenIntensity(null)).toBeNull();
     expect(currentTightenIntensity(cfg())).toBe("medium");
     expect(
       currentTightenIntensity(cfg({ tighten: { intensity: "light" } })),
     ).toBe("light");
-  });
-
-  it("capitalizes labels", () => {
-    expect(tightenIntensityLabel("aggressive")).toBe("Aggressive");
   });
 
   it("builds a one-step run that forces tighten on without mutating input", () => {

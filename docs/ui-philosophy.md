@@ -105,7 +105,7 @@ a paywall.
 ## Scope and implementation
 
 This philosophy guides future surface work. It does not itself implement the
-Tighten review queue, save and sync chrome, mutation undo controls, export job
+Review queue, save and sync chrome, mutation undo controls, export job
 UI, mobile waveform precision, collaboration review mode, or free-tier UI
 audit. Plan and track those changes by surface; keep unrelated surfaces out of
 one PR. See [issue #84](https://github.com/calebn/sharecut-studio/issues/84)

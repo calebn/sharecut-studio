@@ -359,6 +359,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Spec:** the class filter becomes the queue's group headers; track filter becomes a speaker swatch filter in the Queue header's more menu; "Harsh cuts only" becomes a sort option "Most noticeable first". Apply suggested = each group's bulk verb with a Job row and one Undo (see SCR-REVIEW).
 - **Shared elements used:** Review queue, Job row.
 - **Story to build:** covered by `Stages/Review/Review` `BulkRunning` and `Stages/Review/Queue` `Groups`.
+- **Shipped in PR 4 (#2293):** Find more, the Job row, the group bulk running row and `Cut all`; the Tighten tab, panel and `tighten.*` commands and keys are removed. A wire tab `tighten` from an older client lands on Queue. Not built, tracked in #2650: the speaker swatch filter, the "Most noticeable first" sort and the Just applied list.
 
 ### PNL-HISTORY · History
 
