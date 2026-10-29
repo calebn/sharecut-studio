@@ -247,7 +247,6 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
     ):
         svc = svc_cls.return_value
-        svc.strip_silence.return_value = {"operation": "strip_silence", "removed_sec": 0.3}
         svc.split_clip.return_value = {"operation": "split_clip", "clip_id": "c1"}
         svc.check_loudness.return_value = {"integrated_lufs": -16.0}
         svc.analyze_cleanup.return_value = {"tracks": ["host"], "issues": []}
@@ -258,11 +257,15 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         }
         svc.recommend_fades.return_value = [{"clip_id": "c1", "recommended_fade_in_ms": 15}]
 
-        strip = json.loads(
-            mcp_timeline.strip_silence_tool(
-                path, track_id="host", over_voice_floor_db=3.0, min_duration_sec=0.4
+        with patch(
+            "podcast_mcp.mcp.tools.timeline.submit_host_command_result",
+            return_value={"operation": "strip_silence", "removed_sec": 0.3},
+        ) as strip_submit:
+            strip = json.loads(
+                mcp_timeline.strip_silence_tool(
+                    path, track_id="host", over_voice_floor_db=3.0, min_duration_sec=0.4
+                )
             )
-        )
         with patch(
             "podcast_mcp.mcp.tools.timeline.submit_host_command_result",
             return_value={"operation": "fill_with_room_tone", "filled_sec": 0.2},
@@ -304,12 +307,16 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
     assert recs[0]["clip_id"] == "c1"
     assert applied["applied_fade_updates"] == 1
 
-    svc.strip_silence.assert_called_once_with(
-        track_id="host",
-        speaker=None,
-        over_voice_floor_db=3.0,
-        min_duration_sec=0.4,
-        use_inaudible_opt=None,
+    strip_submit.assert_called_once_with(
+        path,
+        "StripSilence",
+        {
+            "track_id": "host",
+            "speaker": None,
+            "over_voice_floor_db": 3.0,
+            "min_duration_sec": 0.4,
+            "use_inaudible_opt": None,
+        },
     )
     submit.assert_called_once_with(
         path,
@@ -428,19 +435,22 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
     ):
         svc = svc_cls.return_value
-        svc.strip_silence.return_value = {"operation": "strip_silence"}
         svc.split_clip.return_value = {"operation": "split_clip"}
         svc.check_loudness.return_value = {"integrated_lufs": -14.0}
         svc.cut_range.return_value = {"operation": "ripple_delete"}
         svc.preview_suppress_bleed.return_value = {"suppressed": 0}
 
-        json.loads(
-            mcp_timeline.strip_silence_tool(
-                path,
-                speaker="Host",
-                use_inaudible_opt=True,
+        with patch(
+            "podcast_mcp.mcp.tools.timeline.submit_host_command_result",
+            return_value={"operation": "strip_silence", "removed_sec": 0.3},
+        ) as strip_submit:
+            json.loads(
+                mcp_timeline.strip_silence_tool(
+                    path,
+                    speaker="Host",
+                    use_inaudible_opt=True,
+                )
             )
-        )
         json.loads(mcp_timeline.check_loudness_tool(path, audio_path="/tmp/mix.wav"))
         json.loads(
             mcp_timeline.add_effect_tool(
@@ -495,12 +505,16 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
     split = json.loads(mcp_timeline.split_clip_tool(path, 2.0, speaker="Host"))
     assert split["operation"] == "split_clips_at"
 
-    svc.strip_silence.assert_called_once_with(
-        track_id=None,
-        speaker="Host",
-        over_voice_floor_db=0.0,
-        min_duration_sec=0.5,
-        use_inaudible_opt=True,
+    strip_submit.assert_called_once_with(
+        path,
+        "StripSilence",
+        {
+            "track_id": None,
+            "speaker": "Host",
+            "over_voice_floor_db": 0.0,
+            "min_duration_sec": 0.5,
+            "use_inaudible_opt": True,
+        },
     )
     svc.check_loudness.assert_called_once_with("/tmp/mix.wav")
     assert batch["track_id"] == "host"

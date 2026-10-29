@@ -229,25 +229,12 @@ def test_over_voice_floor_db_moves_the_silence_threshold(tmp_path):
 @pytest.mark.parametrize(
     ("kwargs", "intervals", "clips"),
     [
-        ({"over_voice_floor_db": float("inf")}, 1, 2),
-        ({"over_voice_floor_db": float("-inf")}, 0, 1),
-        ({"over_voice_floor_db": float("nan")}, 0, 1),
         ({"min_duration_sec": 0.0}, 2, 3),
         ({"min_duration_sec": -1.0}, 2, 3),
-        ({"min_duration_sec": float("nan")}, 0, 1),
-        ({"min_duration_sec": float("inf")}, 0, 1),
     ],
-    ids=[
-        "floor-inf",
-        "floor-minus-inf",
-        "floor-nan",
-        "min-0",
-        "min-negative",
-        "min-nan",
-        "min-inf",
-    ],
+    ids=["min-0", "min-negative"],
 )
-def test_non_finite_and_negative_numbers_are_accepted_as_given(tmp_path, kwargs, intervals, clips):
+def test_finite_and_negative_numbers_are_accepted_as_given(tmp_path, kwargs, intervals, clips):
     path = _path(tmp_path)
     reply = _run(path, track_id="host", **kwargs)
     assert reply["silence_intervals"] == intervals
@@ -256,12 +243,16 @@ def test_non_finite_and_negative_numbers_are_accepted_as_given(tmp_path, kwargs,
 
 
 @pytest.mark.parametrize("name", ["over_voice_floor_db", "min_duration_sec"])
-def test_a_null_number_is_a_plain_type_error_and_changes_nothing(tmp_path, name):
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), None])
+def test_a_non_finite_or_null_number_is_a_coded_invalid_payload_and_changes_nothing(
+    tmp_path, name, bad
+):
     path = _path(tmp_path)
     before = Path(path).read_bytes()
-    with pytest.raises(TypeError) as raised:
-        _run(path, track_id="host", **{name: None})
-    assert not isinstance(raised.value, CodedError)
+    with pytest.raises(CodedValueError) as raised:
+        _run(path, track_id="host", **{name: bad})
+    assert raised.value.code == "invalid_payload"
+    assert name in str(raised.value)
     assert Path(path).read_bytes() == before
     assert _history(path)["total"] == 0
     assert _journal(path) == []
@@ -327,8 +318,10 @@ def test_neither_track_nor_speaker_is_missing_argument(tmp_path):
 def test_unknown_track_id_is_track_not_found(tmp_path):
     path = _path(tmp_path)
     before = Path(path).read_bytes()
-    with pytest.raises(CodedValueError) as raised:
+    with pytest.raises(CodedError) as raised:
         _run(path, track_id="nope")
+    assert isinstance(raised.value, ValueError)
+    assert raised.value.conflict is True
     assert raised.value.code == "track_not_found"
     assert str(raised.value) == "unknown track_id: 'nope'"
     assert Path(path).read_bytes() == before
@@ -338,8 +331,10 @@ def test_unknown_track_id_is_track_not_found(tmp_path):
 
 def test_unknown_speaker_is_track_not_found(tmp_path):
     path = _path(tmp_path)
-    with pytest.raises(CodedValueError) as raised:
+    with pytest.raises(CodedError) as raised:
         _run(path, speaker="Nobody")
+    assert isinstance(raised.value, ValueError)
+    assert raised.value.conflict is True
     assert raised.value.code == "track_not_found"
     assert str(raised.value).startswith("no track for speaker 'Nobody'; available: host (")
 
@@ -360,8 +355,10 @@ def test_a_track_without_media_is_track_has_no_media(tmp_path):
     result.tracks.append(Track(id="bare", label="Bare", role=TrackRole.DIALOGUE, media=None))
     path = str(workspace(result).path)
     before = Path(path).read_bytes()
-    with pytest.raises(CodedValueError) as raised:
+    with pytest.raises(CodedError) as raised:
         _run(path, track_id="bare")
+    assert isinstance(raised.value, ValueError)
+    assert raised.value.conflict is True
     assert raised.value.code == "track_has_no_media"
     assert str(raised.value) == "track 'bare' not found or has no media"
     assert Path(path).read_bytes() == before
@@ -475,19 +472,19 @@ def test_editor_with_the_mcp_capability_is_also_refused(tmp_path):
     assert raised.value.code == "share_capability_required"
 
 
-def test_direct_tool_call_journals_nothing_on_the_document_plane(tmp_path):
+def test_direct_tool_call_journals_one_strip_silence_row(tmp_path):
     path = _path(tmp_path)
     _run(path, track_id="host")
-    assert _journal(path) == []
+    assert _journal(path) == ["StripSilence"]
 
 
-def test_registered_tool_journals_one_external_mutate_row_per_applying_call(tmp_path):
+def test_registered_tool_journals_one_strip_silence_row_per_applying_call(tmp_path):
     path = _path(tmp_path)
     result = _registered({"project_path": path, "track_id": "host"})
     assert not result.is_error
-    assert _journal(path) == ["ExternalMutate"]
+    assert _journal(path) == ["StripSilence"]
     rows = DocumentSyncService.open(path).store.commands_after(0)
-    assert [r["client_id"] for r in rows] == ["server:external"]
+    assert [r["client_id"] for r in rows] == ["mcp-agent"]
 
 
 def test_registered_tool_journals_one_row_even_when_no_silence_is_found(tmp_path):
@@ -495,11 +492,11 @@ def test_registered_tool_journals_one_row_even_when_no_silence_is_found(tmp_path
     result = _registered({"project_path": path, "track_id": "host", "min_duration_sec": 2.0})
     assert not result.is_error
     assert json.loads(result.content[0].text)["silence_intervals"] == 0
-    assert _journal(path) == ["ExternalMutate"]
+    assert _journal(path) == ["StripSilence"]
 
 
 def test_registered_tool_second_call_journals_a_second_row(tmp_path):
     path = _path(tmp_path)
     _registered({"project_path": path, "track_id": "host"})
     _registered({"project_path": path, "track_id": "host"})
-    assert _journal(path) == ["ExternalMutate", "ExternalMutate"]
+    assert _journal(path) == ["StripSilence", "StripSilence"]
