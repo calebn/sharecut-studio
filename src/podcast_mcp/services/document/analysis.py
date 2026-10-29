@@ -40,7 +40,11 @@ from podcast_mcp.edits.silence_islands import (
 from podcast_mcp.edits.silence_islands import (
     suggest_handoff_cut as suggest_handoff_cut_bounds,
 )
-from podcast_mcp.edits.strip_silence import strip_silence
+from podcast_mcp.edits.strip_silence import (
+    DEFAULT_STRIP_MIN_DURATION_SEC,
+    DEFAULT_STRIP_OVER_VOICE_FLOOR_DB,
+    strip_silence,
+)
 from podcast_mcp.edits.transcript_bleed_mute import apply_transcript_bleed_mute
 from podcast_mcp.edits.transcript_reconcile import (
     audibility_map as build_audibility_map,
@@ -79,8 +83,8 @@ class AnalysisService(EffectsService):
         *,
         track_id: str | None = None,
         speaker: str | None = None,
-        over_voice_floor_db: float = 0.0,
-        min_duration_sec: float = 0.5,
+        over_voice_floor_db: float = DEFAULT_STRIP_OVER_VOICE_FLOOR_DB,
+        min_duration_sec: float = DEFAULT_STRIP_MIN_DURATION_SEC,
         use_inaudible_opt: bool | None = None,
     ) -> dict:
         """Strip silence islands; ``use_inaudible_opt`` is ignored (API compat)."""
