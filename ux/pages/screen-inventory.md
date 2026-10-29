@@ -55,7 +55,7 @@ flowchart TB
   end
 
   subgraph review [Review stage]
-    RV[Queue · Comments · Tighten]
+    RV[Queue · Comments]
   end
 
   ST --> edit
@@ -192,14 +192,14 @@ error inline; timeline handles and phone nudges show the same recovery in a toas
 |--|--|
 | **Purpose** | Guest-style review: play the mix, scan comments, jump from badges |
 | **Primary actions** | Player scrub and ±15s · type a comment and **Post comment** · open comment · tap a Stage bar badge |
-| **Always visible** | App header · Review sections (Queue · Comments · Tighten; guests see Comments) · Player bar · the five-tab Stage bar (none for a Commenter link). A comment field with the **at 0:12** chip and **Post comment** |
+| **Always visible** | App header · Review sections (Queue · Comments; guests see Comments) · Player bar · the five-tab Stage bar (none for a Commenter link). A comment field with the **at 0:12** chip and **Post comment** |
 | **Data shown** | Mix playhead · `review.comments[]` (time, body, resolved) · pending/stale badges |
 | **Empty** | “No comments yet.” (the shared quiet empty state). With no tracks yet and no playback to finish, Play and Stop are unavailable (“Import audio to play.”). If the final track disappears during playback, Pause remains available |
 | **Out of scope** | Multitrack waveform editing |
 
 ```
 ┌─ Project ▾   ●   ↶ ↷        ◉ +2 ┐
-│ Comments · Tighten                  │
+│ Comments                            │
 │ ● 04:12  “level feels low”          │
 │ ○ 11:02  “cut cold open?”           │
 ├─────────────────────────────────────┤
@@ -324,13 +324,12 @@ The More hub was removed. Its destinations:
 | Comments | Review → Comments: thread list / detail | `review.comments` |
 | History | Edit → History sheet (right-click the header's Undo, or the palette): undo/redo · grouped steps (follows document snapshots) | `history` |
 | Review queue | Review → Queue: pending suggestions decided one at a time or by group | `editorial.edit_decisions` |
-| Tighten | Review → Tighten: searchable filler/pause/repetition/restart list · preview/skip/apply · apply-all avoiding harsh cuts (a pause trim that waits for review is never in the batch: apply it alone after listening) · **Applying N suggested actions…** with a pulse |
 | Pipeline | Prepare: Sources · Getting ready · Help the transcriber · Cleanup; Advanced steps behind a button | working-set config + live job |
 | Commands and shortcuts | Header search | command catalog |
 | Gestures | Commands and shortcuts → Gestures | static |
 | Overlay legend | Eye sheet | static |
 
-**Guest** (Commenter): Review alone, with Comments and the Overlay legend. History / Tighten / Pipeline and the host queue stay host-only.
+**Guest** (Commenter): Review alone, with Comments and the Overlay legend. History / Pipeline and the host queue stay host-only.
 
 Long-lived panels are stages or sections; do not stack sheets to reach them.
 

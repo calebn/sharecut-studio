@@ -321,7 +321,6 @@ describe("TrackHeader", () => {
     },
   ];
 
-  // Space would toggle playback if the key reached the window keymap.
   const activationKeys: {
     key: string;
     typed: string;
