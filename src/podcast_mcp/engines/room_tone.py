@@ -30,9 +30,11 @@ spaced points along the track, keeps the samples that passed, and records them u
 project's ``artifacts``, keyed on the recording's identity. A request on a track with a pool
 takes the nearest pooled sample that is clear of ``avoid``, preferring one that no clip
 or mute fill within ``TAKEN_WINDOW_SEC`` of the cut already plays, reading no audio; a track
-without one picks as above. Spectral flatness is not a check: on the lab tape the room floor's flatness (median
-0.019, 10th percentile 0.005) overlaps voice and bleed (median 0.005), so no threshold
-separates them; the floor band does.
+without one picks as above. A pick, the pool's included, also rejects a window whose level
+envelope follows another track's voice: that voice reaches this microphone as bleed under
+the level checks. Spectral flatness is not a check: on the lab tape the room floor's
+flatness (median 0.019, 10th percentile 0.005) overlaps voice and bleed (median 0.005), so
+no threshold separates them; the floor band does.
 """
 
 from __future__ import annotations
