@@ -18,7 +18,11 @@ from podcast_mcp.edits.acoustic_gap import (
     find_voiced_gap_runs,
 )
 from podcast_mcp.edits.acoustic_laugh import burst_count, has_laugh_bursts
-from podcast_mcp.edits.acoustic_word import flag_possible_words, heard_a_word
+from podcast_mcp.edits.acoustic_word import (
+    flag_possible_words,
+    heard_a_word,
+    whisper_span_transcriber,
+)
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.audition_context import _build_hypotheses
 from podcast_mcp.edits.cut_placement import CutRejected
@@ -1664,6 +1668,48 @@ def test_a_probe_decode_that_does_not_loop_is_decoded_once() -> None:
 
     assert engine.transcribe_samples(np.zeros(1600), language="en") == "Okay."
     assert len(calls) == 1
+
+
+def test_an_empty_probe_decode_returns_empty_text_without_a_retry() -> None:
+    calls: list[dict[str, object]] = []
+
+    class _Model:
+        def transcribe(self, audio: np.ndarray, **kwargs: object):
+            calls.append(kwargs)
+            return iter([]), None
+
+    engine = TranscriptionEngine(model_size="base", defaults=load_defaults())
+    engine._model = _Model()
+
+    assert engine.transcribe_samples(np.zeros(1600), language="en") == ""
+    assert len(calls) == 1
+
+
+def test_a_still_looping_probe_retry_is_kept_without_a_third_decode() -> None:
+    calls: list[dict[str, object]] = []
+
+    class _Model:
+        def transcribe(self, audio: np.ndarray, **kwargs: object):
+            calls.append(kwargs)
+            if len(calls) > 2:
+                pytest.fail("The word probe decoded more than twice")
+            text = " First looping text. " if len(calls) == 1 else " Second looping text. "
+            return iter([SimpleNamespace(text=text, compression_ratio=26.0)]), None
+
+    engine = TranscriptionEngine(model_size="base", defaults=load_defaults())
+    engine._model = _Model()
+
+    assert engine.transcribe_samples(np.zeros(1600), language="en") == "Second looping text."
+    assert len(calls) == 2
+    assert calls[1]["repetition_penalty"] == 1.3
+
+
+def test_the_word_probe_factory_pins_its_cpu_threads() -> None:
+    with patch("podcast_mcp.engines.transcribe.TranscriptionEngine") as factory:
+        whisper_span_transcriber(load_defaults())
+
+    assert factory.call_count == 1
+    assert factory.call_args.kwargs["cpu_threads"] == 4
 
 
 def test_the_word_probe_engine_pins_its_cpu_threads() -> None:
