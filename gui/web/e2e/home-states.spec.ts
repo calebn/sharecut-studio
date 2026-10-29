@@ -118,12 +118,20 @@ test.describe("Home at a large root font", () => {
     await mockBootstrap(page);
     await mockRecents(page, [RECENT]);
     await openHome(page);
-    const record = page.getByRole("button", { name: /^Record/ });
-    const normal = (await record.boundingBox())!.height;
+    const row = ["Help", "More", "Record"].map((name) =>
+      page.getByRole("button", { name, exact: name !== "Record" }).first(),
+    );
+    const heights = () =>
+      Promise.all(
+        row.map(async (button) => (await button.boundingBox())!.height),
+      );
+    const normal = await heights();
     await setRootFontSize(page, 32);
     await expect
-      .poll(async () => (await record.boundingBox())!.height)
-      .toBeGreaterThan(normal * 1.5);
+      .poll(async () =>
+        (await heights()).every((height, i) => height > normal[i]! * 1.5),
+      )
+      .toBe(true);
     await expectNoHorizontalScroll(page);
     for (const name of ["Help", "More", "Record"]) {
       const box = (await page
