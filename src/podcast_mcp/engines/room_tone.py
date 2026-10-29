@@ -231,8 +231,9 @@ def room_tone_span(
     source of a cut that has not been applied yet makes that cut play in two places, and
     approving it then removes everything between them. ``also_taken`` is source time the
     caller has already filled in this pass but not yet applied: it ranks like a fill that
-    the project plays. The track's recorded bed wins (its ``source_id``); otherwise a sample of the track's own audio
-    that may be shorter than ``duration_sec``, for the caller to tile.
+    the project plays. The track's recorded bed wins (its ``source_id``); otherwise a
+    sample of the track's own audio that may be shorter than ``duration_sec``, for the
+    caller to tile.
     """
     if duration_sec <= 0:
         return SampleAbsent("no_fill_requested")
@@ -268,23 +269,20 @@ def room_tone_span(
     clear = _no_foreign_voice(project, track_id)
     # Off the pool's clock the cut's position means nothing here: start from the first run.
     near = near_sec if on_primary or not read.floor.runs else read.floor.runs[0][0]
-    selected = _pick_sample(
-        read.floor,
-        near_sec=near,
-        duration_sec=duration_sec,
-        avoid=[*avoid, *taken],
-        min_sec=POOL_MIN_SAMPLE_SEC,
-        clear=clear,
-    )
-    if isinstance(selected, SampleAbsent) and taken:
-        selected = _pick_sample(
+
+    def pick(avoiding: Sequence[Span]) -> OwnQuietSample | SampleAbsent:
+        return _pick_sample(
             read.floor,
             near_sec=near,
             duration_sec=duration_sec,
-            avoid=avoid,
+            avoid=avoiding,
             min_sec=POOL_MIN_SAMPLE_SEC,
             clear=clear,
         )
+
+    selected = pick([*avoid, *taken])
+    if isinstance(selected, SampleAbsent) and taken:
+        selected = pick(avoid)
     return _after_bed(bed, selected)
 
 
@@ -303,29 +301,31 @@ _POOL_REV = 4
 TAKEN_WINDOW_SEC = 120.0
 _POOLS_KEPT = 64
 _POOL_RECORDS_KEPT = 64
+# The track's file, then every other track's: a peer that appears or changes can bleed.
 PoolKey = tuple[str, FileRevision, tuple[tuple[str, FileRevision], ...]]
-"""The track's file, then every other track's: a peer that appears or changes can bleed."""
 
 _POOLS: dict[PoolKey, tuple[Sample, ...]] = {}
 _POOLS_LOCK = threading.Lock()
 
 
-def _pool_key(project: EpisodeProject, track_id: str) -> PoolKey | None:
+def _file_key(project: EpisodeProject, track_id: str) -> tuple[str, FileRevision] | None:
     try:
         resolved = track_audio_path(project, track_id).resolve(strict=True)
-        own = str(resolved), file_revision(resolved)
+        return str(resolved), file_revision(resolved)
     except (OSError, ValueError):
         return None
-    peers: list[tuple[str, FileRevision]] = []
-    for other in project.tracks:
-        if other.id == track_id or other.media is None:
-            continue
-        try:
-            path = track_audio_path(project, other.id).resolve(strict=True)
-            peers.append((str(path), file_revision(path)))
-        except (OSError, ValueError):
-            continue
-    return (*own, tuple(sorted(peers)))
+
+
+def _pool_key(project: EpisodeProject, track_id: str) -> PoolKey | None:
+    own = _file_key(project, track_id)
+    if own is None:
+        return None
+    peers = (
+        _file_key(project, other.id)
+        for other in project.tracks
+        if other.id != track_id and other.media is not None
+    )
+    return (*own, tuple(sorted(key for key in peers if key is not None)))
 
 
 def _remember_pool(key: PoolKey, pool: tuple[Sample, ...]) -> None:
