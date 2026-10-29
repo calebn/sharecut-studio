@@ -231,10 +231,16 @@ export function joinMic(
     levelDb: number;
     clipped?: boolean;
     inputLocked?: boolean;
+    switching?: boolean;
     detail?: string;
   },
 ): JoinMic {
-  if (mic.status === "granted" && mic.stream) {
+  const switching =
+    !!options.switching &&
+    !mic.stream &&
+    (mic.status === "prompting" || mic.status === "idle") &&
+    mic.devices.length > 1;
+  if ((mic.status === "granted" && mic.stream) || switching) {
     const device =
       mic.devices.find((entry) => entry.deviceId === options.deviceId) ??
       mic.devices[0];
@@ -243,6 +249,7 @@ export function joinMic(
       input: device?.label || "Microphone",
       level: dbToFraction(options.levelDb),
       clipped: options.clipped,
+      switching: switching || undefined,
     };
     if (mic.devices.length > 1) {
       ready.devices = mic.devices.map((entry) => ({

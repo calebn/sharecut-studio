@@ -38,6 +38,7 @@ type Overrides = {
   me?: typeof me;
   producer?: boolean;
   mic?: Partial<GuestRoom["mic"]>;
+  deviceId?: string;
   keeper?: Partial<GuestRoom["keeper"]>;
   upload?: Partial<RecordUploadProgress>;
   takeClipping?: GuestRoom["takeClipping"];
@@ -124,7 +125,7 @@ function fakeRoom(over: Overrides = {}) {
     setName: vi.fn(),
     headphonesOk: true,
     setHeadphonesOk: vi.fn(),
-    deviceId: "",
+    deviceId: over.deviceId ?? "",
     setDeviceId: vi.fn(),
     producerJoined: true,
     setProducerJoined: vi.fn(),
@@ -419,6 +420,53 @@ describe("GuestRoomApp in the room", () => {
           name: "Record 3 seconds of room tone",
         }),
       ).toBeDisabled();
+    });
+
+    it("keeps the Input menu mounted and focused while the new input opens", async () => {
+      const stream = {} as MediaStream;
+      fakeRoom({
+        snapshot: { state: "lobby", take_index: -1 },
+        mic: { devices, stream },
+      });
+      const { rerender } = render(<GuestRoomApp token="t" />);
+      await userEvent.click(screen.getByRole("button", { name: "Devices" }));
+      const dialog = await screen.findByRole("dialog", { name: "Devices" });
+      const select = within(dialog).getByLabelText("Input");
+      select.focus();
+      fakeRoom({
+        snapshot: { state: "lobby", take_index: -1 },
+        mic: { devices, stream },
+        deviceId: "b",
+      });
+      rerender(<GuestRoomApp token="t" />);
+      fakeRoom({
+        snapshot: { state: "lobby", take_index: -1 },
+        mic: { devices, status: "idle", stream: null },
+        deviceId: "b",
+      });
+      rerender(<GuestRoomApp token="t" />);
+      const open = screen.getByRole("dialog", { name: "Devices" });
+      expect(within(open).getByLabelText("Input")).toBe(select);
+      expect(select).toHaveFocus();
+      expect(
+        within(open).queryByRole("button", { name: "Allow microphone" }),
+      ).toBeNull();
+    });
+
+    it("does not bring the Devices sheet back after the Join sheet takes over", async () => {
+      fakeRoom({ snapshot: { state: "lobby", take_index: -1 } });
+      const { rerender } = render(<GuestRoomApp token="t" />);
+      await userEvent.click(screen.getByRole("button", { name: "Devices" }));
+      await screen.findByRole("dialog", { name: "Devices" });
+      fakeRoom({
+        snapshot: { state: "lobby", take_index: -1 },
+        me: { ...me, consented: null },
+      });
+      rerender(<GuestRoomApp token="t" />);
+      expect(screen.queryByRole("dialog", { name: "Devices" })).toBeNull();
+      fakeRoom({ snapshot: { state: "lobby", take_index: -1 } });
+      rerender(<GuestRoomApp token="t" />);
+      expect(screen.queryByRole("dialog", { name: "Devices" })).toBeNull();
     });
 
     it("gives a listening producer no device entry", () => {

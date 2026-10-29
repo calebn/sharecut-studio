@@ -6,9 +6,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { Button, ToggleButton } from "../ui";
+import { Button } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import { BUSY_REASON } from "../ui/disabledReason";
+import { HeadphonesToggle } from "./HeadphonesToggle";
 import {
   consentDetails,
   consentLine,
@@ -291,13 +292,10 @@ export function JoinSheet({
               />
             </Row>
             <Row row={rowOf("headphones")}>
-              <ToggleButton
+              <HeadphonesToggle
                 pressed={headphones}
-                onClick={() => onHeadphonesChange?.(!headphones)}
-              >
-                <SystemIcon name="headphones" size={16} />
-                {JOIN_TEXT.headphones}
-              </ToggleButton>
+                onChange={onHeadphonesChange}
+              />
             </Row>
             <Consent host={host} listeners={listenersLine(here)} />
           </>

@@ -281,3 +281,15 @@ describe("joinGuestModel blocker and notes", () => {
     ]);
   });
 });
+
+describe("joinGuestModel while the input switches", () => {
+  it("holds Join until the picked input opens", () => {
+    const model = joinGuestModel({
+      name: "Maya",
+      headphones: true,
+      mic: { status: "ready", input: "Headset", level: 0, switching: true },
+    });
+    expect(model.ready).toBe(false);
+    expect(model.primary.reason).toBe("Wait for your microphone first");
+  });
+});

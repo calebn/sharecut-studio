@@ -49,6 +49,7 @@ import { leaveBlocked } from "./upload/useRecordUpload";
 import { useGuestRoom } from "./useGuestRoom";
 import { useGuestRoomTone } from "./useGuestRoomTone";
 import { useInputPeakDb } from "./useInputPeakDb";
+import { useInputSwitching } from "./useInputSwitching";
 import { useLateRoomTone } from "./useLateRoomTone";
 import { recordSyncErrorCopy } from "./useRecordSync";
 import { useRosterAnnouncer } from "./useRosterAnnouncer";
@@ -125,6 +126,8 @@ function GuestRoomSession({
     setProducerJoined,
     resumeUpload,
   } = room;
+  const micDeviceId = staleMic ? "" : deviceId;
+  const switching = useInputSwitching(mic.stream, mic.status, micDeviceId);
 
   const shell = useViewportClass();
   const landscape = useMediaQueryStore(
@@ -203,6 +206,11 @@ function GuestRoomSession({
     ((consented === null && !recovering) || (rejoinOpen && consented !== true));
   const producerSheet = producer && !producerJoined && !producerDismissed;
   const sheetOpen = guestSheet || producerSheet;
+  useEffect(() => {
+    if (sheetOpen) {
+      setDeviceOpen(false);
+    }
+  }, [sheetOpen]);
 
   const join = () => {
     meterRef.current.resume();
@@ -354,7 +362,8 @@ function GuestRoomSession({
     devices: mic.devices,
   };
   const micOptions = {
-    deviceId: staleMic ? "" : deviceId,
+    deviceId: micDeviceId,
+    switching,
     levelDb: meter.levelDb,
     clipped: meter.clipped,
     inputLocked: onAir,

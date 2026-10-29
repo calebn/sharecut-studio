@@ -640,3 +640,33 @@ describe("guestTakes", () => {
     });
   });
 });
+
+describe("joinMic while the input switches", () => {
+  const devices = [
+    { deviceId: "a", label: "USB Mic" },
+    { deviceId: "b", label: "Headset" },
+  ] as MediaDeviceInfo[];
+  const options = { deviceId: "b", levelDb: -60, switching: true };
+
+  it("keeps the menu on the picked input, not ready to join", () => {
+    for (const status of ["prompting", "idle"] as const) {
+      expect(joinMic({ status, stream: null, devices }, options)).toMatchObject(
+        {
+          status: "ready",
+          input: "Headset",
+          inputId: "b",
+          switching: true,
+        },
+      );
+    }
+  });
+
+  it("falls back to the plain state without a menu to keep", () => {
+    expect(
+      joinMic({ status: "prompting", stream: null, devices: [] }, options),
+    ).toEqual({ status: "prompting" });
+    expect(
+      joinMic({ status: "denied", stream: null, devices }, options),
+    ).toEqual({ status: "denied" });
+  });
+});

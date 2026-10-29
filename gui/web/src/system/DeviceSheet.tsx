@@ -1,16 +1,17 @@
 import { useState } from "react";
-import { Button, ToggleButton } from "../ui";
+import { Button } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import {
+  DEVICE_TEXT,
   type DeviceMic,
   type DeviceTone,
   deviceSheetModel,
 } from "./deviceSheetModel";
-import { JOIN_TEXT, type JoinMicAction } from "./joinSheetModel";
+import { HeadphonesToggle } from "./HeadphonesToggle";
+import type { JoinMicAction } from "./joinSheetModel";
 import { MicRow } from "./MicRow";
 import { Sheet } from "./Sheet";
 import { StatusRow } from "./StatusRow";
-import { SystemIcon } from "./SystemIcon";
 
 export type DeviceSheetProps = {
   /** `phone` is the bottom sheet; `desktop` a centred card. */
@@ -53,7 +54,7 @@ export function DeviceSheet({
   return (
     <Sheet
       form={viewerWidth === "phone" ? "bottom" : "centered"}
-      title="Devices"
+      title={DEVICE_TEXT.title}
       panelClassName="sys-join-sheet"
       detent={detent}
       onDetentChange={setDetent}
@@ -92,13 +93,10 @@ export function DeviceSheet({
               title={model.headphones.title}
             />
             <div className="sys-join-control">
-              <ToggleButton
+              <HeadphonesToggle
                 pressed={headphones}
-                onClick={() => onHeadphonesChange(!headphones)}
-              >
-                <SystemIcon name="headphones" size={16} />
-                {JOIN_TEXT.headphones}
-              </ToggleButton>
+                onChange={onHeadphonesChange}
+              />
             </div>
           </div>
         ) : null}

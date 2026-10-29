@@ -27,6 +27,8 @@ export type JoinMic =
       inputId?: string;
       /** A take is running, so the input cannot change now. */
       inputLocked?: boolean;
+      /** The picked input is opening; the menu stays so focus is not lost. */
+      switching?: boolean;
     };
 
 export type JoinInput = { id: string; label: string };
@@ -100,6 +102,7 @@ export const JOIN_TEXT = {
   tooLoud: "Too loud. Move back a little.",
   defaultInput: "Default",
   inputLocked: "Can't change while a take is running.",
+  switching: "Wait for your microphone first",
   lowStorage: "Low space on this device. Close other tabs.",
 } as const;
 
@@ -220,7 +223,7 @@ export function micRow(mic: JoinMic): JoinRow {
     case "ready":
       return {
         key: "mic",
-        state: "done",
+        state: mic.switching ? "running" : "done",
         title: "Microphone",
         detail: mic.input,
       };
@@ -287,7 +290,11 @@ export function joinGuestModel(input: JoinGuestInput): JoinGuestModel {
           : STORAGE_PENDING_REASON
         : next === "mic" && input.mic.status !== "ready"
           ? MIC_REASON[input.mic.status]
-          : REASON[next];
+          : next === "mic" &&
+              input.mic.status === "ready" &&
+              input.mic.switching
+            ? JOIN_TEXT.switching
+            : REASON[next];
   const micNotes = micNoteList(input.mic, input.micNotes);
   if (input.lowStorage) {
     micNotes.push({ tone: "warning", text: JOIN_TEXT.lowStorage });
