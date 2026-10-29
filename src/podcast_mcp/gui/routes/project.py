@@ -116,14 +116,15 @@ def create_project(
         )
     name = body.name.strip() or "episode"
     reserved: Path | None = None
-    if body.workspace_dir.strip():
+    requested = body.workspace_dir.strip()
+    if requested:
         try:
-            ensure_utf8_path(Path(body.workspace_dir.strip()).expanduser().resolve())
+            ensure_utf8_path(Path(requested).expanduser().resolve())
         except ValueError as exc:
             raise coded_exception_error(400, exc, code="project_path_invalid") from exc
     try:
-        if body.workspace_dir.strip():
-            workspace_dir = body.workspace_dir.strip()
+        if requested:
+            workspace_dir = requested
         else:
             reserved = default_workspace_dir(name)
             workspace_dir = str(reserved)
