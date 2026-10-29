@@ -552,7 +552,10 @@ describe("HomeScreen", () => {
         await screen.findByRole("button", { name: /^Import audio/ }),
       );
       await waitFor(() => expect(create).toHaveBeenCalled());
-      expect(create).toHaveBeenCalledWith("", expect.stringMatching(/^Episode, /));
+      expect(create).toHaveBeenCalledWith(
+        "",
+        expect.stringMatching(/^Episode, /),
+      );
     });
 
     it("names a reserved Windows name instead of the generic failure", async () => {
