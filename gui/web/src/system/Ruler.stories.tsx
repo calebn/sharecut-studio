@@ -201,7 +201,7 @@ export const Zoomed: Story = {
 };
 
 export const EndTickRightAligned: Story = {
-  args: { start: 0, pxPerSecond: 12, width: 360, duration: 36, playhead: 5 },
+  args: { start: 0, pxPerSecond: 10, width: 300, duration: 30, playhead: 5 },
   render: (args) => (
     <div style={stage}>
       <div style={{ inlineSize: args.width }}>

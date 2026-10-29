@@ -1326,25 +1326,45 @@ test("System/Ruler is 24 px tall with 11 px mono labels 64 px apart, a 2 px play
   const ruler = page.locator(".sys-ruler");
   await expect(ruler).toBeVisible();
   expect((await ruler.boundingBox())?.height).toBe(24);
-  const ticks = await page.locator(".sys-ruler-tick").evaluateAll((els) =>
-    els.map((el) => {
-      const style = getComputedStyle(el);
-      return {
-        left: el.getBoundingClientRect().left,
-        size: style.fontSize,
-        mono: style.fontFamily.toLowerCase().includes("mono"),
-      };
-    }),
-  );
+  const { ticks, rulerRight } = await page.evaluate(() => {
+    const rulerBox = document.querySelector(".sys-ruler");
+    return {
+      rulerRight: rulerBox?.getBoundingClientRect().right ?? 0,
+      ticks: [...document.querySelectorAll<HTMLElement>(".sys-ruler-tick")].map(
+        (el) => {
+          const style = getComputedStyle(el);
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const label = range.getBoundingClientRect();
+          return {
+            left: el.getBoundingClientRect().left,
+            end: el.dataset.align === "end",
+            labelLeft: label.left,
+            labelRight: label.right,
+            size: style.fontSize,
+            mono: style.fontFamily.toLowerCase().includes("mono"),
+          };
+        },
+      ),
+    };
+  });
   expect(ticks.length).toBeGreaterThan(4);
   for (const tick of ticks) {
     expect(tick.size).toBe("11px");
     expect(tick.mono).toBe(true);
   }
+  // Ticks are 64 px apart; an end-aligned tick draws its label to the left of
+  // its line, so its box is compared by the label (no overlap) instead.
   for (let i = 1; i < ticks.length; i++) {
-    expect(
-      (ticks[i]?.left ?? 0) - (ticks[i - 1]?.left ?? 0),
-    ).toBeGreaterThanOrEqual(64);
+    const tick = ticks[i];
+    const prev = ticks[i - 1];
+    if (!tick || !prev) continue;
+    if (tick.end) {
+      expect(tick.labelLeft).toBeGreaterThanOrEqual(prev.labelRight);
+      expect(tick.labelRight).toBeLessThanOrEqual(rulerRight);
+    } else {
+      expect(tick.left - prev.left).toBeGreaterThanOrEqual(64);
+    }
   }
   const look = await page.evaluate(() => {
     const box = (selector: string) => {
