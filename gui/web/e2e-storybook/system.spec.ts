@@ -296,9 +296,11 @@ test("System/ScriptPane header buttons and the Back to playhead pill reach 44 px
 async function coarsePage(
   browser: import("@playwright/test").Browser,
   id: string,
+  viewport?: { width: number; height: number },
 ) {
   const context = await browser.newContext({
     ...devices["Pixel 5"],
+    ...(viewport ? { viewport } : {}),
     baseURL: "http://127.0.0.1:6010",
   });
   const page = await context.newPage();
@@ -2290,11 +2292,14 @@ for (const mode of ["light", "dark", "forced"] as const) {
   });
 }
 
-test("System/Player the collapsed Play button, AppHeader project button and StatusRow toggle measure 44 px on a phone", async ({
+test("System/Player the collapsed Play button, AppHeader project button and StatusRow toggle measure 44 px on a coarse pointer", async ({
   browser,
 }) => {
   const size = async (id: string, name: RegExp | string) => {
-    const { context, page } = await coarsePage(browser, id);
+    const { context, page } = await coarsePage(browser, id, {
+      width: 900,
+      height: 800,
+    });
     const target = page.getByRole("button", { name });
     await expect(target.first()).toBeVisible();
     const box = await target.first().boundingBox();
@@ -2322,6 +2327,7 @@ test("System/AppHeader a failed save leaves the title 120 px at 360", async ({
   await page.setViewportSize({ width: 360, height: 800 });
   const title = page.locator(".sys-header-project .sys-header-title");
   await expect(title).toBeVisible();
+  await expect(page.locator(".sys-header-right")).toBeHidden();
   const shown = await title.evaluate((el) => el.clientWidth);
   const retry = await page
     .getByRole("button", { name: /Retry/ })
