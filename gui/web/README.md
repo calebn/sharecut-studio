@@ -181,6 +181,11 @@ view the live `ShareDialog` adapter renders. Stories use fictional
 `hostShareRow` fixtures and local callbacks; the adapter keeps the API calls,
 clipboard and the record-panel handoff, and the view owns the in-place Stop
 sharing and End room confirmations.
+`Stages/Deliver/Share` renders the props-only `ShareSection` of the Deliver
+stage. `ShareFlowProvider` in `DawApp` (`stage/hosts/shareFlow.tsx`) lists,
+makes, copies and stops the links and runs record rooms; `deliverShare.ts` maps
+its state to the section. The link is made and its copy started from the same
+click, so the clipboard keeps its user gesture.
 `Stages/Deliver/Bounce` renders the props-only `BounceSection` of the Deliver
 stage. The Deliver host (`stage/hosts/DeliverStage.tsx`) hands it the project's
 selected tracks, solo set, session region and fixed range, and

@@ -142,6 +142,13 @@ Storybook `Templates/ShareDialog` previews the production `ShareDialogView`
 with fictional links, including its in-place confirmations. The live
 `ShareDialog` keeps the API calls, clipboard and record-panel handoff.
 
+Deliver carries the same actions as a **Share** section (`Stages/Deliver/Share`):
+the role, MCP and Freeze choices, **Create review link**, the live links with
+**Copy**, **Copy MCP URL** and **Stop sharing** (confirmed in place), the online
+sharing line, and record rooms. The link is made and copied from the click on
+Create; if the browser refuses the copy, the row reads “Press Ctrl C” with the
+whole link selected. The header **Invite** still opens the dialog.
+
 ---
 
 ## Host: Connect agent dialog
