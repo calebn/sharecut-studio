@@ -68,6 +68,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `RejectEdits` | `ids` (array[string]) | — |
 | `RemoveEffect` | `track_id` (string) | `effect` (string \| null) |
 | `RemoveTrack` | `track_id` (string) | — |
+| `RenameProject` | `name` (string) | — |
 | `ReorderTrack` | `index` (integer), `track_id` (string) | — |
 | `ReplaceTranscriptMatches` | `preview_token` (string), `replacement` (string), `search` (string) | `match_case` (boolean) |
 | `ResolveComment` | `by` (string), `comment_id` (string) | `resolved` (boolean) |
@@ -108,7 +109,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 76 command types._
+_Generated 77 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

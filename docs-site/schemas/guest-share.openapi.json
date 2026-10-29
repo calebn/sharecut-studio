@@ -5282,6 +5282,109 @@
         "title": "RemoveTrackPayload",
         "type": "object"
       },
+      "RenameProjectCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RenameProjectPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "RenameProject",
+            "default": "RenameProject",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "RenameProjectCommand",
+        "type": "object"
+      },
+      "RenameProjectPayload": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "RenameProjectPayload",
+        "type": "object"
+      },
       "ReorderTrackCommand": {
         "properties": {
           "causation_id": {
@@ -11525,6 +11628,7 @@
                     "RejectEdits": "#/components/schemas/RejectEditsCommand",
                     "RemoveEffect": "#/components/schemas/RemoveEffectCommand",
                     "RemoveTrack": "#/components/schemas/RemoveTrackCommand",
+                    "RenameProject": "#/components/schemas/RenameProjectCommand",
                     "ReorderTrack": "#/components/schemas/ReorderTrackCommand",
                     "ReplaceTranscriptMatches": "#/components/schemas/ReplaceTranscriptMatchesCommand",
                     "ResolveComment": "#/components/schemas/ResolveCommentCommand",
@@ -11774,6 +11878,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/RippleDeleteTextCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RenameProjectCommand"
                   },
                   {
                     "$ref": "#/components/schemas/AddTrackCommand"

@@ -42,6 +42,10 @@ def add_track(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def rename_project(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return EpisodeService(ws).rename_project(str(p["name"]))
+
+
 def set_track_media(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     track_id = str(p["track_id"])
     candidate = resolve_workspace_raw_audio(Path(ws.project.workspace_dir), str(p["rel_path"]))

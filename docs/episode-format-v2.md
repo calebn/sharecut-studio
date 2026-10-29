@@ -159,7 +159,7 @@ Untrimmed `podcast ingest consolidate` places each speaker's primary clip on the
 
 ## History
 
-Each undo point stores a **full snapshot** of editable sections (not a diff): `sources`, `timeline`, `editorial`, `transcripts`, `mix`, `social`, `review`, `render_last_completed_step`, and `meta.ingest_alignment` when present.
+Each undo point stores a **full snapshot** of editable sections (not a diff): `sources`, `timeline`, `editorial`, `transcripts`, `mix`, `social`, `review`, `render_last_completed_step`, `meta.name` and `meta.ingest_alignment` when present, so undoing a project rename restores the old name.
 
 ## Review comments
 

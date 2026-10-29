@@ -74,6 +74,7 @@ HANDLERS: dict[str, Handler] = {
     "PasteSegment": edits.paste_segment,
     "CutRange": edits.cut_range,
     "RippleDeleteText": edits.ripple_delete_text,
+    "RenameProject": episode.rename_project,
     "AddTrack": episode.add_track,
     "SetTrackMedia": episode.set_track_media,
     "SetTrackMeta": episode.set_track_meta,

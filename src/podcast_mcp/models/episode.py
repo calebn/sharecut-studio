@@ -787,6 +787,9 @@ class SpeakerIngestAlignment(BaseModel):
         )
 
 
+PROJECT_NAME_MAX_CHARS = 120
+
+
 class ProjectMeta(BaseModel):
     name: str
     workspace_dir: str
