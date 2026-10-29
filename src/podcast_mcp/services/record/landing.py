@@ -602,35 +602,18 @@ class RecordLandingService:
         }
         roles = {person.participant_id: person.role for person in snap.participants}
         status = self._upload.status(session_id=self.session_id)
-        pending = [
-            row
-            for row in status["segments"]
-            if row.get("file_ack")
-            and int(row["take_index"]) not in tombstoned
-            and (not row.get("landed") or (staged and self._staged_source_missing(row, roles)))
-        ]
-        pending.sort(
-            key=lambda row: (
-                int(row["take_index"]),
-                str(row["participant_id"]),
-                int(row["segment_index"]),
-            )
-        )
         removed = {person.participant_id for person in snap.participants if person.removed}
-        kept = {
-            str(row["participant_id"])
-            for row in status["segments"]
-            if row.get("file_ack") and int(row["take_index"]) not in tombstoned
-        }
-        pending_room_tone = [
-            row
-            for row in self._upload.room_tone_status(session_id=self.session_id)
-            if row.get("file_ack")
-            and (str(row["participant_id"]) not in removed or str(row["participant_id"]) in kept)
-            and (
-                not row.get("landed") or self._room_tone_missing(str(row["participant_id"]), staged)
-            )
-        ]
+        pending, pending_room_tone = pending_rows(
+            self.workspace.project,
+            self._upload,
+            self.session_id,
+            roles,
+            staged=staged,
+            track_id_for=self._track_id_for,
+            segments=status["segments"],
+            tombstoned=tombstoned,
+            removed=removed,
+        )
         refuse_closed = session_closed is None
         closed = staged and (
             self._suggestion_closed() if session_closed is None else session_closed
@@ -1172,18 +1155,6 @@ class RecordLandingService:
         landed["discarded_take"] = take
         return landed
 
-    def _staged_source_missing(self, row: Mapping[str, Any], roles: Mapping[str, str]) -> bool:
-        """A landed keeper of a staged session whose source the project no longer holds.
-
-        Undoing the staging land removes the source but leaves the upload row landed; staging
-        again re-registers it.
-        """
-        pid = str(row["participant_id"])
-        if roles.get(pid) == "producer":
-            return False
-        source_id = self._landed_source_id(pid, int(row["take_index"]), int(row["segment_index"]))
-        return self.workspace.project.source_by_id(source_id) is None
-
     def _close_start_tail(self, project: EpisodeProject, extent_before: float) -> bool:
         """After dropping clips of a session that starts the episode, take back the time they filled."""
         if not is_start_session(project, self.session_id):
@@ -1369,16 +1340,6 @@ class RecordLandingService:
         plan = self._plan if self._plan is not None else self._track_matches(self.workspace.project)
         match = plan.get(participant_id)
         return match.track_id if match is not None else slug_track_id(participant_id)
-
-    def _room_tone_missing(self, participant_id: str, staged: bool = False) -> bool:
-        track_id = self._track_id_for(participant_id)
-        if staged:
-            suggestion = session_suggestion_for(self.workspace.project, self.session_id)
-            return suggestion is None or all(
-                bed.track_id != track_id for bed in suggestion.room_tone
-            )
-        track = self.workspace.project.track_by_id(track_id)
-        return track is None or track.room_tone is None
 
     def _landed_source_id(self, participant_id: str, take_index: int, segment_index: int) -> str:
         if take_index == ROOM_TONE_TAKE_INDEX:
@@ -1894,6 +1855,90 @@ def _registered_source_file(project: EpisodeProject, source_id: str) -> tuple[Pa
         return None
     dest = (Path(project.workspace_dir) / existing.path).resolve()
     return (dest, existing.path) if dest.is_file() else None
+
+
+def _staged_source_missing(
+    project: EpisodeProject, session_id: str, row: Mapping[str, Any], roles: Mapping[str, str]
+) -> bool:
+    """A landed keeper of a staged session whose source the project no longer holds.
+
+    Undoing the staging land removes the source but leaves the upload row landed; staging
+    again re-registers it. Segment rows never carry the room-tone take index (``status``
+    filters it out), so the source id is always a take's.
+    """
+    pid = str(row["participant_id"])
+    if roles.get(pid) == "producer":
+        return False
+    source_id = record_source_id(session_id, int(row["take_index"]), pid, int(row["segment_index"]))
+    return project.source_by_id(source_id) is None
+
+
+def _room_tone_missing(
+    project: EpisodeProject, session_id: str, track_id: str, staged: bool = False
+) -> bool:
+    if staged:
+        suggestion = session_suggestion_for(project, session_id)
+        return suggestion is None or all(bed.track_id != track_id for bed in suggestion.room_tone)
+    track = project.track_by_id(track_id)
+    return track is None or track.room_tone is None
+
+
+def pending_rows(
+    project: EpisodeProject,
+    upload: RecordUploadService,
+    session_id: str,
+    roles: Mapping[str, str],
+    *,
+    staged: bool,
+    track_id_for: Callable[[str], str],
+    segments: Sequence[dict[str, Any]],
+    tombstoned: Collection[int],
+    removed: Collection[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The acknowledged takes and room-tone beds a land would still copy, takes in landing order.
+
+    ``segments`` is one read of ``upload.status`` shared with the caller, so a late ack cannot
+    change the answer between the two uses. A removed person's bed counts only when they also
+    have a kept take. A landed row counts again when the staged source is gone; a landed bed
+    when its track has none. Called from ``assign`` without the room land lock, a source
+    already in the project with its row not yet marked landed still counts as pending: that
+    errs toward holding the track, never toward a double claim.
+    """
+    pending = [
+        row
+        for row in segments
+        if row.get("file_ack")
+        and int(row["take_index"]) not in tombstoned
+        and (
+            not row.get("landed")
+            or (staged and _staged_source_missing(project, session_id, row, roles))
+        )
+    ]
+    pending.sort(
+        key=lambda row: (
+            int(row["take_index"]),
+            str(row["participant_id"]),
+            int(row["segment_index"]),
+        )
+    )
+    kept = {
+        str(row["participant_id"])
+        for row in segments
+        if row.get("file_ack") and int(row["take_index"]) not in tombstoned
+    }
+    beds = [
+        row
+        for row in upload.room_tone_status(session_id=session_id)
+        if row.get("file_ack")
+        and (str(row["participant_id"]) not in removed or str(row["participant_id"]) in kept)
+        and (
+            not row.get("landed")
+            or _room_tone_missing(
+                project, session_id, track_id_for(str(row["participant_id"])), staged
+            )
+        )
+    ]
+    return pending, beds
 
 
 def room_tone_raw_rel(session_id: str, participant_id: str) -> str:
