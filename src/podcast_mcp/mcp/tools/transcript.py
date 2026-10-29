@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
+
 from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
@@ -36,10 +39,39 @@ def get_transcript(
     return TranscriptService(ws).get(combined=combined, format=format)
 
 
-def export_transcript(project_path: str) -> str:
-    """Export the transcript as Markdown and return the file path."""
+def export_transcript(
+    project_path: str,
+    formats: list[str] | None = None,
+    dry_run: bool = False,
+    with_text: bool = False,
+) -> str:
+    """Write the edited episode's transcript next to the audio; return JSON.
+
+    formats: any of "txt", "md", "srt", "vtt" (default ["md", "srt"]). Files go to the
+    project's export folder under the episode name, all written together or none, and
+    reflect the edited timeline (cut material omitted). dry_run writes nothing and returns
+    the preview only; with_text adds the full reading text. Result keys: language, turns,
+    duration_sec, preview, cue_sample, files (format, path, name, bytes, language, written,
+    current), text. Errors: export_busy (another export is running), transcript_empty.
+    """
     ws = ProjectWorkspace.open(project_path)
-    return str(TranscriptService(ws).export_markdown())
+    return to_json(
+        TranscriptService(ws).export(
+            formats if formats is not None else ["md", "srt"],
+            dry_run=dry_run,
+            with_text=with_text,
+        )
+    )
+
+
+def list_exported_transcripts(project_path: str) -> str:
+    """List transcript files already exported next to the audio (txt, md, srt, vtt) as JSON.
+
+    Each entry: format, path, name, mime, language, bytes, modified (UTC), current (false
+    when the transcript was edited since the file was written). Read-only.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return json.dumps([asdict(f) for f in TranscriptService(ws).exported()], indent=2)
 
 
 def get_transcript_vocabulary_tool(project_path: str) -> str:
@@ -127,6 +159,7 @@ def register(mcp: MCPServer) -> None:
     mcp.tool()(get_transcript_vocabulary_tool)
     mcp.tool()(set_transcript_vocabulary_tool)
     mcp.tool()(export_transcript)
+    mcp.tool()(list_exported_transcripts)
     mcp.tool()(precorrect_transcript_tool)
     mcp.tool()(transcript_refine_status_tool)
     mcp.tool()(transcript_refine_brief_tool)

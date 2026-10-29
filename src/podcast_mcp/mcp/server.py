@@ -219,6 +219,7 @@ from podcast_mcp.mcp.tools.transcript import (  # noqa: E402, F401
     export_transcript,
     get_transcript,
     get_transcript_vocabulary_tool,
+    list_exported_transcripts,
     precorrect_transcript_tool,
     set_transcript_vocabulary_tool,
     transcribe_track,

@@ -364,7 +364,7 @@ A running export can be cancelled from either one, the way Studio's Deliver page
 
 ### Caption cue limits
 
-`export_deliverables`' SRT (and `transcript export-srt`/`export-vtt`) split cues at word
+`export_deliverables`' SRT (and `transcript export --format srt|vtt`) split cues at word
 timings under `export.captions` in `pipeline.yaml`:
 
 ```yaml

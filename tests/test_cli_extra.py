@@ -275,13 +275,13 @@ def test_transcript_export_srt_vtt(tmp_path):
     save_project(proj, project)
     srt = runner.invoke(
         transcript_app,
-        ["export-srt", "--project", str(project)],
+        ["export", "--format", "srt", "--project", str(project)],
     )
     assert srt.exit_code == 0
     assert srt.stdout.strip().endswith(".srt")
     vtt = runner.invoke(
         transcript_app,
-        ["export-vtt", "--project", str(project)],
+        ["export", "--format", "vtt", "--project", str(project)],
     )
     assert vtt.exit_code == 0
 
@@ -302,7 +302,9 @@ def test_transcript_export_srt_caption_limit_options(tmp_path):
     result = runner.invoke(
         transcript_app,
         [
-            "export-srt",
+            "export",
+            "--format",
+            "srt",
             "--project",
             str(project),
             "--max-duration-sec",
@@ -326,17 +328,17 @@ def test_transcript_export_srt_rejects_non_positive_max_duration_sec(tmp_path):
     project = _init_project(tmp_path)
     result = runner.invoke(
         transcript_app,
-        ["export-srt", "--project", str(project), "--max-duration-sec", "0"],
+        ["export", "--format", "srt", "--project", str(project), "--max-duration-sec", "0"],
     )
     assert result.exit_code == 2
     assert "--max-duration-sec" in click.unstyle(result.output)
 
 
-def test_transcript_export_vtt_rejects_max_lines_below_one(tmp_path):
+def test_transcript_export_rejects_max_lines_below_one(tmp_path):
     project = _init_project(tmp_path)
     result = runner.invoke(
         transcript_app,
-        ["export-vtt", "--project", str(project), "--max-lines", "0"],
+        ["export", "--format", "vtt", "--project", str(project), "--max-lines", "0"],
     )
     assert result.exit_code == 2
     assert "--max-lines" in click.unstyle(result.output)
@@ -349,7 +351,9 @@ def test_transcript_export_srt_rejects_bad_captions_yaml_as_domain_error(tmp_pat
     cfg = tmp_path / "pipeline.yaml"
     cfg.write_text("export:\n  captions:\n    max_lines: 0\n", encoding="utf-8")
     monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(cfg))
-    result = runner.invoke(app, ["transcript", "export-srt", "--project", str(project)])
+    result = runner.invoke(
+        app, ["transcript", "export", "--format", "srt", "--project", str(project)]
+    )
     assert result.exit_code == 1
     assert "export.captions.max_lines must be >= 1" in click.unstyle(result.output)
 
@@ -361,7 +365,7 @@ def test_transcript_export_srt_rejects_max_duration_sec_below_configured_min(tmp
     project = _init_project(tmp_path)
     result = runner.invoke(
         transcript_app,
-        ["export-srt", "--project", str(project), "--max-duration-sec", "0.5"],
+        ["export", "--format", "srt", "--project", str(project), "--max-duration-sec", "0.5"],
     )
     assert result.exit_code == 2
     output = click.unstyle(result.output)
@@ -611,3 +615,73 @@ def test_transcript_context_vocabulary_parity_rejects_non_mapping_file(tmp_path,
     )
     assert result.exit_code == 2
     assert "mapping" in result.output
+
+
+def _transcript_project(tmp_path):
+    project = _init_project(tmp_path)
+    proj = load_project(project)
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text=w, start=3 + i * 0.5, end=3 + i * 0.5 + 0.4)
+                for i, w in enumerate(["Reading", "text", "here."])
+            ],
+        )
+    ]
+    save_project(proj, project)
+    return project
+
+
+def test_transcript_export_default_formats_and_json(tmp_path):
+    project = _transcript_project(tmp_path)
+    result = runner.invoke(transcript_app, ["export", "--project", str(project)])
+    assert result.exit_code == 0
+    assert [line.rsplit(".", 1)[1] for line in result.stdout.split()] == ["md", "srt"]
+    as_json = runner.invoke(
+        transcript_app,
+        ["export", "--project", str(project), "--format", "txt", "--format", "vtt", "--json"],
+    )
+    data = json.loads(as_json.stdout)
+    assert [f["format"] for f in data["files"]] == ["txt", "vtt"]
+    assert data["turns"] == 1 and data["language"] == "en"
+
+
+def test_transcript_export_dry_run_and_text(tmp_path):
+    project = _transcript_project(tmp_path)
+    dry = runner.invoke(transcript_app, ["export", "--project", str(project), "--dry-run"])
+    assert dry.exit_code == 0
+    assert "Reading text here." in dry.stdout and "0:03" in dry.stdout
+    assert not (project.parent / "export").exists() or not any(
+        (project.parent / "export").iterdir()
+    )
+    text = runner.invoke(
+        transcript_app, ["export", "--project", str(project), "--dry-run", "--text"]
+    )
+    assert "Language: en" in text.stdout
+
+
+def test_transcript_export_rejects_unknown_format_and_empty(tmp_path):
+    project = _init_project(tmp_path)
+    bad = runner.invoke(transcript_app, ["export", "--project", str(project), "--format", "html"])
+    assert bad.exit_code == 2
+    empty = runner.invoke(app, ["transcript", "export", "--project", str(project)])
+    assert empty.exit_code == 1
+    assert "transcript_empty" in click.unstyle(empty.output)
+
+
+def test_transcript_exports_lists_files(tmp_path):
+    project = _transcript_project(tmp_path)
+    assert (
+        json.loads(
+            runner.invoke(transcript_app, ["exports", "--project", str(project), "--json"]).stdout
+        )
+        == []
+    )
+    runner.invoke(transcript_app, ["export", "--project", str(project), "--format", "txt"])
+    listed = json.loads(
+        runner.invoke(transcript_app, ["exports", "--project", str(project), "--json"]).stdout
+    )
+    assert [(e["format"], e["current"]) for e in listed] == [("txt", True)]
+    human = runner.invoke(transcript_app, ["exports", "--project", str(project)])
+    assert human.stdout.strip().endswith(".txt")

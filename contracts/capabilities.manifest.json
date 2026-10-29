@@ -1977,6 +1977,28 @@
       }
     },
     {
+      "id": "daw.export.transcript",
+      "label": "Export transcript",
+      "effect": "project",
+      "service": "TranscriptService.export",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "mcp": [
+          "export_transcript",
+          "list_exported_transcripts"
+        ],
+        "cli": "podcast transcript export",
+        "skill": "podcast-transcript-workflow"
+      },
+      "omit": {
+        "keyboard_reason": "Deliver page action; the web command and gui surface land with the Transcript section",
+        "guest": true
+      }
+    },
+    {
       "id": "daw.project.new",
       "label": "New project\u2026",
       "effect": "project",
@@ -2141,7 +2163,6 @@
           "get_transcript",
           "get_transcript_vocabulary_tool",
           "set_transcript_vocabulary_tool",
-          "export_transcript",
           "precorrect_transcript_tool",
           "transcript_refine_status_tool",
           "transcript_refine_brief_tool",
