@@ -551,3 +551,122 @@ def test_a_second_decode_track_of_a_raw_file_does_not_decode_again(
     assert np.array_equal(first.jump.samples, second.jump.samples)
     assert np.array_equal(first.waveform.samples, second.waveform.samples)
     assert second.jump is not first.jump
+
+
+class Clock:
+    """The idle clock, in seconds, moved by hand."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.now = 1000.0
+        monkeypatch.setattr(decode_memo, "_monotonic", lambda: self.now)
+
+
+def test_the_memo_is_released_after_it_sits_idle(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = Clock(monkeypatch)
+    TrackRmsCache.from_recording(_recording(tmp_path), sample_rate=RATE)
+    memo = decode_memo._MEMO
+    assert memo._timer is not None and memo._timer.daemon
+    clock.now += decode_memo.DEFAULT_IDLE_S - 1
+    memo._release_if_idle()
+    assert len(memo) == 1 and memo._timer is not None
+    clock.now += 1
+    memo._release_if_idle()
+    assert len(memo) == 0 and memo.held_bytes() == 0 and memo._timer is None
+
+
+def test_no_release_while_a_decode_is_in_flight(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = Clock(monkeypatch)
+    TrackRmsCache.from_recording(_recording(tmp_path), sample_rate=RATE)
+    memo = decode_memo._MEMO
+    key = ("other", None, RATE, ())
+    memo._building[key] = decode_memo._Flight()  # type: ignore[index]
+    clock.now += 10 * decode_memo.DEFAULT_IDLE_S
+    memo._release_if_idle()
+    assert len(memo) == 1 and memo._timer is not None
+    del memo._building[key]  # type: ignore[arg-type]
+    memo._release_if_idle()
+    assert len(memo) == 0
+
+
+def test_activity_postpones_the_release(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = Clock(monkeypatch)
+    path = _recording(tmp_path)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    clock.now += 60
+    TrackRmsCache.from_recording(path, sample_rate=RATE)  # a hit
+    clock.now += 60
+    decode_memo._MEMO._release_if_idle()
+    assert len(decode_memo._MEMO) == 1
+    assert len(decoder.calls) == 1
+    clock.now += 30
+    decode_memo._MEMO._release_if_idle()
+    assert len(decode_memo._MEMO) == 0
+
+
+@pytest.mark.parametrize("value", ["0", "-5"])
+def test_an_idle_of_zero_or_less_never_arms_a_timer(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    clock = Clock(monkeypatch)
+    monkeypatch.setenv(decode_memo.IDLE_ENV, value)
+    TrackRmsCache.from_recording(_recording(tmp_path), sample_rate=RATE)
+    assert decode_memo._MEMO._timer is None
+    clock.now += 10**6
+    decode_memo._MEMO._release_if_idle()
+    assert len(decode_memo._MEMO) == 1
+
+
+def test_clear_cancels_the_timer(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Clock(monkeypatch)
+    TrackRmsCache.from_recording(_recording(tmp_path), sample_rate=RATE)
+    timer = decode_memo._MEMO._timer
+    assert timer is not None
+    decode_memo._MEMO.clear()
+    assert decode_memo._MEMO._timer is None and timer.finished.is_set()
+
+
+def test_an_empty_memo_arms_no_timer(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Clock(monkeypatch)
+    monkeypatch.setattr(decode_memo, "cap_bytes", lambda: 1000)
+    TrackRmsCache.from_recording(_recording(tmp_path), sample_rate=RATE)  # over the cap
+    assert len(decode_memo._MEMO) == 0 and decode_memo._MEMO._timer is None
+
+
+@pytest.mark.parametrize("value", ["inf", "-inf", "nan", "1e400", "junk", ""])
+def test_an_idle_that_is_not_a_finite_number_is_the_default(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv(decode_memo.IDLE_ENV, value)
+    assert decode_memo.idle_seconds() == decode_memo.DEFAULT_IDLE_S
+
+
+def test_a_hit_after_a_release_decodes_again_to_the_same_bits(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = Clock(monkeypatch)
+    monkeypatch.setattr(audio_audit, "load_mono_full", lambda *a, **k: _fixed(decoder, *a, **k))
+    path = _recording(tmp_path)
+    first = TrackRmsCache.from_recording(path, sample_rate=RATE)
+    clock.now += decode_memo.DEFAULT_IDLE_S
+    decode_memo._MEMO._release_if_idle()
+    assert len(decode_memo._MEMO) == 0
+    again = TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 2
+    assert decode_memo._same_bits(again.samples, first.samples)
+    assert len(decode_memo._MEMO) == 1 and decode_memo._MEMO._timer is not None
+
+
+def _fixed(decoder: Decoder, path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None):  # type: ignore[no-untyped-def]
+    """Counts the call like ``Decoder`` but returns the same samples every time."""
+    decoder.calls.append((path, sample_rate))
+    return np.linspace(-0.5, 0.5, sample_rate, dtype=np.float32)

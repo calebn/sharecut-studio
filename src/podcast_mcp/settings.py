@@ -163,6 +163,11 @@ VARIABLES: tuple[Variable, ...] = (
             "768",
         ),
         (
+            "PODCAST_DECODE_MEMO_IDLE_S",
+            "Seconds without a decode memo hit or store, and no decode running, before the memo releases its recordings; 0 never releases.",
+            "90",
+        ),
+        (
             "PODCAST_EVIDENCE_VERIFY",
             "On every cache hit, rebuild the track evidence and fail if it differs from the cached copy (tests, lab). Also re-decodes on every decode memo hit.",
         ),
