@@ -1,49 +1,46 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
-import { FeedSection } from "./FeedSection";
+import { FeedLive } from "./FeedLive";
 import {
   AGENT_PIN,
-  applyEdit,
   CHECKS,
+  CHOOSE_SHOW,
   DRIFTED,
   FIRST_RUN,
   ITEM_XML,
+  NOTES_HTML,
   PENDING,
   READY,
   STALE,
+  WRITE_FAILED,
+  WRITING,
 } from "./feedFixture";
 import type { FeedView } from "./feedView";
 
 function setup(first: FeedView = READY) {
-  const calls = {
-    onEdit: vi.fn(),
-    onCreateShow: vi.fn(),
-    onFix: vi.fn(),
-    onOpenSource: vi.fn(),
-    onCopyNotes: vi.fn(),
-    onCopyItem: vi.fn(),
-    onWrite: vi.fn(),
-  };
-  function Host() {
-    const [view, setView] = useState(first);
-    return (
-      <FeedSection
-        {...calls}
-        view={view}
-        itemXml={ITEM_XML}
-        onEdit={(edit) => {
-          calls.onEdit(edit);
-          setView((now) => applyEdit(now, edit));
-        }}
-      />
-    );
-  }
-  const utils = render(<Host />);
-  return { ...utils, ...calls, user: userEvent.setup() };
+  const onAction = vi.fn();
+  const onOpenSource = vi.fn();
+  const announce = vi.fn();
+  useDawStore.setState({ announceStatus: announce });
+  const user = userEvent.setup();
+  const utils = render(
+    <FeedLive
+      view={first}
+      itemXml={ITEM_XML}
+      onAction={onAction}
+      onOpenSource={onOpenSource}
+    />,
+  );
+  return { ...utils, user, onAction, onOpenSource, announce };
 }
+
+const edit = (op: "set" | "unset", key: string, value?: string) => ({
+  kind: "edit",
+  edit: op === "set" ? { op, key, value } : { op, key },
+});
 
 const title = () =>
   screen.getByRole("button", { name: "Nobody asked the river" });
@@ -56,7 +53,10 @@ describe("FeedSection", () => {
       CHECKS,
       DRIFTED,
       FIRST_RUN,
+      CHOOSE_SHOW,
       AGENT_PIN,
+      WRITING,
+      WRITE_FAILED,
     ]) {
       const { container, unmount } = setup(view);
       await expectNoA11yViolations(container);
@@ -64,105 +64,181 @@ describe("FeedSection", () => {
     }
   });
 
-  it("Enter commits a pin and drops the Auto mark", async () => {
-    const { user, onEdit } = setup();
+  it("Enter commits a pin and swaps the Auto mark for Edited", async () => {
+    const { user, onAction } = setup();
+    expect(screen.getByText("Auto")).toBeInTheDocument();
     await user.click(title());
     await user.keyboard("{End} live{Enter}");
-    expect(onEdit).toHaveBeenCalledExactlyOnceWith({
-      op: "set",
-      key: "item.title",
-      value: "Nobody asked the river live",
-    });
+    expect(onAction).toHaveBeenCalledExactlyOnceWith(
+      edit("set", "item.title", "Nobody asked the river live"),
+    );
     expect(
       screen.getByRole("button", { name: "Nobody asked the river live" }),
     ).toHaveFocus();
     expect(screen.queryByText("Auto")).toBeNull();
+    expect(screen.getAllByText("Edited").length).toBeGreaterThan(0);
   });
 
   it("Escape cancels without an edit and returns focus", async () => {
-    const { user, onEdit } = setup();
+    const { user, onAction } = setup();
     await user.click(title());
     await user.keyboard("zzz{Escape}");
-    expect(onEdit).not.toHaveBeenCalled();
+    expect(onAction).not.toHaveBeenCalled();
     expect(title()).toHaveFocus();
   });
 
-  it("Use auto resets a pinned title with one unset", async () => {
-    const { user, onEdit } = setup();
+  it("Use auto hands the title back and Undo puts the typed text back", async () => {
+    const { user, onAction, announce } = setup();
     await user.click(title());
     await user.keyboard("{End} live{Enter}");
     await user.click(
       screen.getByRole("button", { name: "Nobody asked the river live" }),
     );
-    await user.keyboard("more");
     await user.click(screen.getByRole("button", { name: "Use auto" }));
-    expect(onEdit).toHaveBeenLastCalledWith({ op: "unset", key: "item.title" });
-    expect(onEdit).toHaveBeenCalledTimes(2);
-    expect(title()).toBeInTheDocument();
+    expect(onAction).toHaveBeenLastCalledWith(edit("unset", "item.title"));
+    expect(onAction).toHaveBeenCalledTimes(2);
     expect(screen.getByText("Auto")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your episode title is back to auto."),
+    ).toBeInTheDocument();
+    expect(announce).toHaveBeenCalledWith(
+      "Your episode title is back to auto.",
+      { toast: false },
+    );
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(onAction).toHaveBeenLastCalledWith(
+      edit("set", "item.title", "Nobody asked the river live"),
+    );
+    expect(
+      screen.getByRole("button", { name: "Nobody asked the river live" }),
+    ).toBeInTheDocument();
   });
 
-  it("emptying a value hands it back", async () => {
-    const { user, onEdit } = setup();
-    await user.click(title());
+  it("emptying a pinned value hands it back with Undo", async () => {
+    const { user, onAction } = setup();
+    await user.click(
+      screen.getByRole("button", { name: /^Ana walks the old mill/ }),
+    );
     await user.clear(
-      screen.getByRole("textbox", { name: "Edit episode title" }),
+      screen.getByRole("textbox", { name: "Edit episode intro" }),
     );
     await user.keyboard("{Enter}");
-    expect(onEdit).toHaveBeenCalledWith({ op: "unset", key: "item.title" });
+    expect(onAction).toHaveBeenCalledWith(edit("unset", "item.intro"));
+    expect(screen.getByText("Cleared the episode intro.")).toBeInTheDocument();
   });
 
-  it("the strip fix opens the first missing value for editing", async () => {
-    const { user, onEdit } = setup(PENDING);
+  it("Done commits and closes the editor", async () => {
+    const { user, onAction } = setup();
+    await user.click(title());
+    await user.keyboard("!");
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(onAction).toHaveBeenCalledWith(
+      edit("set", "item.title", "Nobody asked the river!"),
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Edit episode title" }),
+    ).toBeNull();
+  });
+
+  it("the strip button is the one fix button and it opens the value", async () => {
+    const { user, onAction } = setup(PENDING);
     expect(screen.getByText("2 things left")).toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: "Add address" })[0]);
+    const buttons = screen.getAllByRole("button", { name: "Add address" });
+    expect(buttons).toHaveLength(1);
+    expect(
+      screen.queryAllByRole("button", { name: "Export episode" }),
+    ).toHaveLength(0);
+    await user.click(buttons[0]);
+    expect(
+      screen.getByRole("textbox", { name: "Edit hosting address" }),
+    ).toHaveFocus();
     await user.keyboard("https://cdn.example.test/a.mp3{Enter}");
-    expect(onEdit).toHaveBeenCalledExactlyOnceWith({
-      op: "set",
-      key: "item.enclosure.url",
-      value: "https://cdn.example.test/a.mp3",
-    });
+    expect(onAction).toHaveBeenCalledExactlyOnceWith(
+      edit("set", "item.enclosure.url", "https://cdn.example.test/a.mp3"),
+    );
     expect(screen.getByText("1 thing left")).toBeInTheDocument();
   });
 
-  it("hands host fixes and source jumps to the host", async () => {
-    const { user, onFix, onOpenSource } = setup(PENDING);
+  it("the pending sentence is itself a way in to the value", async () => {
+    const { user } = setup(PENDING);
     await user.click(
-      screen.getAllByRole("button", { name: "Export episode" })[0],
+      screen.getByRole("button", { name: "Where will this be hosted?" }),
     );
-    expect(onFix).toHaveBeenCalledWith({ kind: "export" });
+    expect(
+      screen.getByRole("textbox", { name: "Edit hosting address" }),
+    ).toHaveFocus();
+  });
+
+  it("hands commands and source jumps to the host", async () => {
+    const { user, onAction, onOpenSource } = setup(CHECKS);
+    await user.click(screen.getByText("Checks"));
+    await user.click(screen.getByRole("button", { name: /^Choose artwork:/ }));
+    expect(onAction).toHaveBeenCalledWith({
+      kind: "command",
+      command: "choose_art",
+    });
     await user.click(screen.getByRole("button", { name: "Edit chapters" }));
     expect(onOpenSource).toHaveBeenCalledWith("chapters");
     await user.click(
       screen.getByRole("button", { name: "2 soundbites. Open clips" }),
     );
     expect(onOpenSource).toHaveBeenCalledWith("clips");
+    expect(
+      screen.getByRole("button", {
+        name: "Transcript SRT · VTT. Open transcript",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("Keep mine re-pins the same text and clears the drift", async () => {
-    const { user, onEdit } = setup(DRIFTED);
+    const { user, onAction } = setup(DRIFTED);
+    expect(screen.queryByText("Ready to publish")).toBeNull();
+    expect(screen.getByText("Check the notes")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Keep mine" }));
-    expect(onEdit).toHaveBeenCalledWith(
-      expect.objectContaining({ op: "set", key: "item.notes" }),
-    );
+    const [call] = onAction.mock.calls[0];
+    expect(call).toMatchObject({
+      kind: "edit",
+      edit: { op: "set", key: "item.notes" },
+    });
+    expect(call.edit.value).toContain("19:40 Listener mail");
     expect(screen.queryByText(/changed since you edited/)).toBeNull();
+    expect(screen.getByText("Ready to publish")).toBeInTheDocument();
   });
 
-  it("Use new unsets the pin and shows the live notes", async () => {
-    const { user, onEdit } = setup(DRIFTED);
+  it("says what changed when the view supplies it", () => {
+    setup(DRIFTED);
+    expect(
+      screen.getByText(/Listener mail.{1,4}is now.{1,4}What the river wanted/),
+    ).toBeInTheDocument();
+  });
+
+  it("Use new hands the pin back, shows the live notes, and Undo restores it", async () => {
+    const { user, onAction } = setup(DRIFTED);
     await user.click(screen.getByRole("button", { name: "Use new" }));
-    expect(onEdit).toHaveBeenCalledWith({ op: "unset", key: "item.notes" });
+    expect(onAction).toHaveBeenCalledWith(edit("unset", "item.notes"));
     expect(screen.getByText("What the river wanted")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(onAction).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        edit: expect.objectContaining({ op: "set", key: "item.notes" }),
+      }),
+    );
+    expect(screen.getByText(/19:40 Listener mail/)).toBeInTheDocument();
   });
 
-  it("creates the show from the name alone", async () => {
-    const { user, onCreateShow } = setup(FIRST_RUN);
+  it("creates the show from the name alone with one command", async () => {
+    const { user, onAction } = setup(FIRST_RUN);
     expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+    expect(screen.getByText("Name your show to create it.")).toBeVisible();
     await user.type(
       screen.getByLabelText("Show name"),
       "The Long River{Enter}",
     );
-    expect(onCreateShow).toHaveBeenCalledExactlyOnceWith("The Long River");
+    expect(onAction).toHaveBeenCalledExactlyOnceWith({
+      kind: "command",
+      command: "create_show",
+      args: { title: "The Long River" },
+    });
   });
 
   it("the show fix focuses the name field", async () => {
@@ -171,27 +247,67 @@ describe("FeedSection", () => {
     expect(screen.getByLabelText("Show name")).toHaveFocus();
   });
 
-  it("blocks Copy item and Write while a blocker stands", () => {
-    setup(CHECKS);
-    expect(screen.getByRole("button", { name: "Copy item" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Write feed file" }),
-    ).toBeDisabled();
+  it("links one of the shows you have", async () => {
+    const { user, onAction } = setup(CHOOSE_SHOW);
+    await user.click(screen.getByRole("button", { name: "Field Notes" }));
+    expect(onAction).toHaveBeenCalledExactlyOnceWith({
+      kind: "command",
+      command: "link_show",
+      args: { id: "field-notes" },
+    });
   });
 
-  it("writes a stale file and reports it out of date until then", async () => {
-    const { user, onWrite } = setup(STALE);
+  it("blocks Copy feed item and Write and says why in view", () => {
+    setup(CHECKS);
+    const copy = screen.getByRole("button", { name: "Copy feed item" });
+    const write = screen.getByRole("button", { name: "Write feed file" });
+    expect(copy).toBeDisabled();
+    expect(write).toBeDisabled();
+    const note = screen.getByText("Fix the blocker first.", { selector: "p" });
+    expect(note).toBeVisible();
+    expect(copy).toHaveAccessibleDescription("Fix the blocker first.");
+  });
+
+  it("writes a stale file through one command", async () => {
+    const { user, onAction } = setup(STALE);
     expect(screen.getByText("Feed file is out of date.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Write" }));
-    expect(onWrite).toHaveBeenCalledOnce();
+    expect(onAction).toHaveBeenCalledExactlyOnceWith({
+      kind: "command",
+      command: "write_feed",
+    });
+    expect(screen.getByText("Feed file is up to date.")).toBeInTheDocument();
   });
 
-  it("shows the item XML in the XML view", async () => {
+  it("shows a write in progress and a failed write with a way to retry", () => {
+    const first = setup(WRITING);
+    expect(screen.getByText("Writing the feed file.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Write" })).toBeNull();
+    first.unmount();
+    setup(WRITE_FAILED);
+    expect(
+      screen.getByText("Could not write the feed file."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+  });
+
+  it("copies the notes the service rendered and confirms it", async () => {
+    const { user, announce } = setup();
+    await user.click(screen.getByRole("button", { name: "Copy notes" }));
+    expect(await navigator.clipboard.readText()).toBe(NOTES_HTML);
+    expect(await screen.findByText("Copied notes")).toBeInTheDocument();
+    expect(announce).toHaveBeenCalledWith("Copied notes", { toast: false });
+  });
+
+  it("shows the item XML with CDATA text left as content", async () => {
     const { user } = setup();
     await user.click(screen.getByRole("button", { name: "XML" }));
-    expect(screen.getByLabelText("Item XML")).toHaveTextContent(
+    const xml = screen.getByLabelText("Item XML");
+    expect(xml).toHaveTextContent(
       '<enclosure url="https://cdn.example.test/long-river/ep-12.mp3"',
     );
+    const inCdata = screen.getByText(/^<p>Ana walks/);
+    expect(inCdata).not.toHaveClass("fd-xml-tag");
     expect(screen.queryByRole("article")).toBeNull();
   });
 
@@ -201,5 +317,14 @@ describe("FeedSection", () => {
     await user.click(screen.getByRole("button", { name: /^A walk along/ }));
     await user.keyboard(" Listen.{Enter}");
     expect(screen.queryByText("Agent")).toBeNull();
+  });
+
+  it("marks inherited art and a minted id, and a measured length carries no mark", () => {
+    setup();
+    expect(screen.getByText("From your show")).toBeInTheDocument();
+    expect(
+      screen.getByText("Assigned Oct 23, 2026. It never changes."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("52 min").nextElementSibling).toBeNull();
   });
 });

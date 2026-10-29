@@ -1,73 +1,82 @@
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { InlineEdit, type InlineEditEnd } from "../../system/InlineEdit";
 import { Button } from "../../ui";
-import { isKnown, markOf, PIN_FIELDS } from "./feedLogic";
-import type { Fact, FeedEdit, Fix, PinKey } from "./feedView";
+import { isKnown, markOf, needsInput, PIN_FIELDS } from "./feedLogic";
+import type { Fact, FeedEdit, FieldKey, Pending, Resolved } from "./feedView";
 
 export type EditControls = {
-  active: PinKey | null;
-  begin: (key: PinKey) => void;
+  active: FieldKey | null;
+  begin: (key: FieldKey) => void;
   end: () => void;
 };
 
-/** A missing fact says what it needs and carries the button that supplies it. */
-export function PendingNote({
-  why,
-  fix,
-  onFix,
-}: {
-  why: string;
-  fix: Fix | null;
-  onFix: (fix: Fix) => void;
-}) {
-  return (
-    <span className="fd-pending">
-      <span>{why}</span>
-      {fix ? <Button onClick={() => onFix(fix)}>{fix.label}</Button> : null}
-    </span>
-  );
+/** The edit that puts a value back, offered beside the toast after the value is handed back. */
+export type Undo = { message: string; edit: FeedEdit };
+export type OnEdit = (edit: FeedEdit, undo?: Undo) => void;
+
+/** A missing fact says what it needs. The readiness strip and Checks carry the button that supplies it. */
+export function PendingNote({ why }: { why: string }) {
+  return <span className="fd-pending">{why}</span>;
+}
+
+type FactViewProps<T> = {
+  fact: Fact<T>;
+  children: (value: T, source: Resolved) => ReactNode;
+  pending?: (source: Pending) => ReactNode;
+};
+
+/** Every fact is either known or says what it is waiting for. This is the one place that branches. */
+export function FactView<T>({ fact, children, pending }: FactViewProps<T>) {
+  if (isKnown(fact)) return children(fact.value, fact.source);
+  return pending ? pending(fact.source) : <PendingNote why={fact.source.why} />;
 }
 
 type Props = {
-  field: PinKey;
+  field: FieldKey;
   fact: Fact<string>;
   edit: EditControls;
-  onEdit: (edit: FeedEdit) => void;
-  onFix: (fix: Fix) => void;
+  onEdit: OnEdit;
 };
 
 /**
  * A text fact read as text. A click edits it in place: Enter or leaving the
  * field commits, Escape puts the old value back, and emptying it hands the
- * value back to the listing.
+ * value back to the listing. Handing a person's own text back offers Undo.
  */
-export function FeedValue({ field, fact, edit, onEdit, onFix }: Props) {
+export function FeedValue({ field, fact, edit, onEdit }: Props) {
   const spec = PIN_FIELDS[field];
   const row = useRef<HTMLDivElement>(null);
   const restore = useRef(false);
-  const reset = useRef(false);
   const editing = edit.active === field;
   useEffect(() => {
-    if (editing) reset.current = false;
-    else if (restore.current) {
-      restore.current = false;
-      row.current?.querySelector("button")?.focus();
-    }
+    if (editing || !restore.current) return;
+    restore.current = false;
+    row.current?.querySelector<HTMLElement>(".fd-value")?.focus();
   }, [editing]);
   const end = (how: InlineEditEnd) => {
     restore.current = how !== "blur";
     edit.end();
   };
-  const commit = (text: string) => {
-    if (reset.current) return;
+  const own =
+    isKnown(fact) && fact.source.kind === "pinned" ? fact.value : null;
+  const handBack = () =>
     onEdit(
-      text.trim() === ""
-        ? { op: "unset", key: field }
-        : { op: "set", key: field, value: text },
+      { op: "unset", key: field },
+      own === null
+        ? undefined
+        : {
+            message:
+              spec.reset === "Use auto"
+                ? `Your ${spec.label} is back to auto.`
+                : `Cleared the ${spec.label}.`,
+            edit: { op: "set", key: field, value: own },
+          },
     );
+  const commit = (text: string) => {
+    if (text.trim() === "") handBack();
+    else onEdit({ op: "set", key: field, value: text });
   };
   if (editing) {
-    const pinned = isKnown(fact) && fact.source.kind === "pinned";
     return (
       <div className="fd-editing" ref={row}>
         <InlineEdit
@@ -79,46 +88,71 @@ export function FeedValue({ field, fact, edit, onEdit, onFix }: Props) {
           onCommit={commit}
           onEnd={end}
         />
-        {pinned ? (
+        <div className="fd-editing-actions">
+          {own === null ? null : (
+            <Button
+              variant="link"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                handBack();
+                restore.current = true;
+                edit.end();
+              }}
+            >
+              {spec.reset}
+            </Button>
+          )}
           <Button
-            variant="link"
+            className="fd-done"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => {
-              reset.current = true;
-              onEdit({ op: "unset", key: field });
+              row.current
+                ?.querySelector<HTMLElement>(".sys-inline-edit")
+                ?.blur();
               restore.current = true;
-              edit.end();
             }}
           >
-            {spec.reset}
+            Done
           </Button>
-        ) : null}
+        </div>
       </div>
     );
   }
-  if (!isKnown(fact)) {
-    return (
-      <div ref={row}>
-        <PendingNote
-          why={fact.source.why}
-          fix={fact.source.fix}
-          onFix={onFix}
-        />
-      </div>
-    );
-  }
-  const mark = markOf(fact.source);
   return (
     <div className="fd-value-row" ref={row}>
-      <button
-        type="button"
-        className="fd-value"
-        title={`Edit ${spec.label}`}
-        onClick={() => edit.begin(field)}
+      <FactView
+        fact={fact}
+        pending={({ why, fix }) =>
+          fix && needsInput(fix) === field ? (
+            <button
+              type="button"
+              className="fd-value fd-value--empty"
+              onClick={() => edit.begin(field)}
+            >
+              {why}
+            </button>
+          ) : (
+            <PendingNote why={why} />
+          )
+        }
       >
-        {fact.value}
-      </button>
-      {mark ? <span className="fd-mark">{mark}</span> : null}
+        {(value, source) => {
+          const mark = markOf(source);
+          return (
+            <>
+              <button
+                type="button"
+                className="fd-value"
+                title={`Edit ${spec.label}`}
+                onClick={() => edit.begin(field)}
+              >
+                {value}
+              </button>
+              {mark ? <span className="fd-mark">{mark}</span> : null}
+            </>
+          );
+        }}
+      </FactView>
     </div>
   );
 }

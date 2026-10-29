@@ -350,8 +350,8 @@ bouncing, done, failed, cancelled, the model prompt and 360px.
 typed `FeedView` (`feedView.ts`): facts that say where each value came from,
 findings tagged by platform, and the state of the feed file. Fictional show and
 episode fixtures (`feedFixture.ts`) cover preview, in-place editing, a drifted
-pin, missing values, first-run show setup, checks, a stale file, the XML view
-and an agent pin. The section is story only: Deliver does not mount it yet.
+pin with Undo, missing values, first-run show setup and show picking, checks,
+stale, writing and failed feed files, the XML view, an agent pin and 360px. The section is story only: Deliver does not mount it yet.
 Its in-place edit is `System/InlineEdit`, shared with the chapter title.
 
 ### Shell chrome

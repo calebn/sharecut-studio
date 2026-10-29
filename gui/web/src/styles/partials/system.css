@@ -6162,8 +6162,7 @@ input.sys-edit-fix {
 }
 
 /* InlineEdit: a value that reads as text until hovered or focused. */
-.sys-inline-edit,
-.dv-clip-title {
+.sys-inline-edit {
   min-block-size: var(--control-height);
   padding-inline: var(--space-3);
   border: 1px solid transparent;
@@ -6179,7 +6178,6 @@ textarea.sys-inline-edit {
   resize: none;
 }
 
-.sys-inline-edit:hover,
-.dv-clip-title:hover {
+.sys-inline-edit:hover {
   border-color: var(--color-border-subtle);
 }

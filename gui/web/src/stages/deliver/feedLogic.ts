@@ -1,54 +1,143 @@
+import { plural, thingsLeft } from "./deliverLogic";
 import type {
-  Credit,
-  DriftSource,
   Fact,
+  FeedCommand,
   FeedView,
+  FieldKey,
+  FieldValue,
   Finding,
+  Fix,
   Known,
-  PinKey,
   Resolved,
   Severity,
 } from "./feedView";
+
+export { plural };
+
+/** The stages that own the facts the listing reads but never edits. */
+export type SourceOwner = "chapters" | "clips" | "speakers" | "transcript";
+
+export const KEY = {
+  title: "item.title",
+  intro: "item.intro",
+  notes: "item.notes",
+  published: "item.pubDate",
+  duration: "item.duration",
+  guid: "item.guid",
+  hosting: "item.enclosure.url",
+  showTitle: "channel.title",
+} as const;
 
 export function isKnown<T>(fact: Fact<T>): fact is Known<T> {
   return fact.source.kind !== "pending";
 }
 
+type Record_ = FeedView["item"];
+
+function missing(key: FieldKey): Fact<never> {
+  return {
+    value: null,
+    source: { kind: "pending", why: `${key} is not in the view.`, fix: null },
+  };
+}
+
+/** A string fact by key. A value of another type reads as missing, so a wrong shape never reaches the screen. */
+export function textFact(record: Record_, key: FieldKey): Fact<string> {
+  const fact = record[key] ?? missing(key);
+  if (!isKnown(fact)) return fact;
+  return typeof fact.value === "string"
+    ? { value: fact.value, source: fact.source }
+    : missing(key);
+}
+
+export function numberFact(record: Record_, key: FieldKey): Fact<number> {
+  const fact = record[key] ?? missing(key);
+  if (!isKnown(fact)) return fact;
+  return typeof fact.value === "number"
+    ? { value: fact.value, source: fact.source }
+    : missing(key);
+}
+
 type PinField = {
   /** Names the field for assistive technology and the reset button. */
   label: string;
+  /** The button that supplies a missing value. */
+  add: string;
   multiline: boolean;
   /** `Use auto` where the value falls back to a derived one, `Clear` where nothing stands in. */
   reset: "Use auto" | "Clear";
 };
 
-export const PIN_FIELDS: Record<PinKey, PinField> = {
-  "item.title": { label: "episode title", multiline: false, reset: "Use auto" },
-  "item.intro": { label: "episode intro", multiline: true, reset: "Clear" },
-  "item.notes": { label: "show notes", multiline: true, reset: "Use auto" },
-  "item.enclosure.url": {
+/** The rows a click can edit. A key not listed here is shown, never edited. */
+export const PIN_FIELDS: Readonly<Record<FieldKey, PinField>> = {
+  [KEY.title]: {
+    label: "episode title",
+    add: "Add a title",
+    multiline: false,
+    reset: "Use auto",
+  },
+  [KEY.intro]: {
+    label: "episode intro",
+    add: "Add a line about this episode",
+    multiline: true,
+    reset: "Clear",
+  },
+  [KEY.notes]: {
+    label: "notes",
+    add: "Add notes",
+    multiline: true,
+    reset: "Use auto",
+  },
+  [KEY.hosting]: {
     label: "hosting address",
+    add: "Add address",
     multiline: false,
     reset: "Clear",
   },
 };
 
-/** Auto values say so where a click would pin them. A person's own pin carries no mark. */
-export function markOf(source: Resolved): "Auto" | "Agent" | null {
-  if (source.kind !== "pinned") return "Auto";
-  return source.by === "agent" ? "Agent" : null;
-}
-
-const DRIFT_LABEL: Record<DriftSource, string> = {
-  chapters: "Chapters",
-  speakers: "Speakers",
-  soundbites: "Soundbites",
-  transcript: "Transcripts",
+const COMMAND_LABEL: Record<FeedCommand, string> = {
+  export_episode: "Export episode",
+  create_show: "Set up your show",
+  link_show: "Choose a show",
+  choose_art: "Choose artwork",
+  write_feed: "Write",
 };
 
-export function driftCopy(source: DriftSource): string {
-  return `${DRIFT_LABEL[source]} changed since you edited this`;
+/** The words on a fix's button. They live here so the wire carries none. */
+export function fixLabel(fix: Fix): string {
+  if (fix.kind === "command") return COMMAND_LABEL[fix.command];
+  return PIN_FIELDS[fix.edit.key]?.add ?? "Add";
 }
+
+/** The key a fix still needs a value for, so a click opens its editor instead of sending. */
+export function needsInput(fix: Fix): FieldKey | null {
+  if (fix.kind !== "edit" || fix.edit.op !== "set") return null;
+  return fix.edit.value === "" ? fix.edit.key : null;
+}
+
+type Mark = (source: Resolved) => string | null;
+const MARKS: { [K in Resolved["kind"]]: Mark } = {
+  derived: () => "Auto",
+  inherited: () => "From your show",
+  measured: () => null,
+  minted: () => null,
+  pinned: (source) =>
+    source.kind === "pinned" && source.by === "agent" ? "Agent" : "Edited",
+};
+
+/** What a value says about itself. A measured or minted value is a fact, so it carries no mark. */
+export function markOf(source: Resolved): string | null {
+  return MARKS[source.kind](source);
+}
+
+export function isDrifted(fact: Fact<FieldValue> | undefined): boolean {
+  return (
+    fact !== undefined && fact.source.kind === "pinned" && fact.source.drifted
+  );
+}
+
+export const DRIFT_COPY = "This changed since you edited it";
 
 const SEVERITY_RANK: Record<Severity, number> = {
   blocker: 0,
@@ -64,44 +153,61 @@ export function sortFindings(findings: readonly Finding[]): Finding[] {
 
 export type Readiness =
   | { kind: "ready" }
-  | { kind: "open"; left: number; first: Finding; blockers: number };
+  | { kind: "open"; left: number; first: Finding; blockers: number }
+  | { kind: "check"; first: Finding };
 
-/** Info never counts: it names optional tags that are absent. */
-export function readiness(findings: readonly Finding[]): Readiness {
-  const open = sortFindings(findings).filter((f) => f.severity !== "info");
-  if (open.length === 0) return { kind: "ready" };
-  return {
-    kind: "open",
-    left: open.length,
-    first: open[0],
-    blockers: open.filter((f) => f.severity === "blocker").length,
-  };
+/**
+ * Info does not count toward what is left. An info finding on a pin whose
+ * auto value changed still holds the strip back from "Ready to publish".
+ */
+export function readiness(view: FeedView): Readiness {
+  const sorted = sortFindings(view.findings);
+  const open = sorted.filter((f) => f.severity !== "info");
+  if (open.length > 0)
+    return {
+      kind: "open",
+      left: open.length,
+      first: open[0],
+      blockers: open.filter((f) => f.severity === "blocker").length,
+    };
+  const drift = sorted.find((f) => f.key && isDrifted(view.item[f.key]));
+  return drift ? { kind: "check", first: drift } : { kind: "ready" };
 }
 
 export function readinessTitle(state: Readiness): string {
   if (state.kind === "ready") return "Ready to publish";
-  return `${state.left} ${state.left === 1 ? "thing" : "things"} left`;
+  if (state.kind === "check") {
+    const field = state.first.key ? PIN_FIELDS[state.first.key] : undefined;
+    return `Check the ${field?.label ?? "listing"}`;
+  }
+  return thingsLeft(state.left);
 }
 
 export type WriteLine = {
   status: string;
   action: string | null;
-  /** Why Write and Copy item wait; undefined when they can run. */
+  writing: boolean;
+  /** Why Write and Copy feed item wait; undefined when they can run. */
   blockedReason: string | undefined;
 };
 
+const FILE_LINE: Record<
+  FeedView["file"],
+  { status: string; action: string | null }
+> = {
+  none: { status: "No feed file yet.", action: "Write feed file" },
+  writing: { status: "Writing the feed file.", action: null },
+  stale: { status: "Feed file is out of date.", action: "Write" },
+  current: { status: "Feed file is up to date.", action: null },
+  error: { status: "Could not write the feed file.", action: "Try again" },
+};
+
 export function writeLine(view: FeedView): WriteLine {
-  const state = readiness(view.findings);
+  const state = readiness(view);
   const blockers = state.kind === "open" ? state.blockers : 0;
   return {
-    status: {
-      none: "No feed file yet.",
-      stale: "Feed file is out of date.",
-      current: "Feed file is up to date.",
-    }[view.file],
-    action: { none: "Write feed file", stale: "Write", current: null }[
-      view.file
-    ],
+    ...FILE_LINE[view.file],
+    writing: view.file === "writing",
     blockedReason:
       blockers === 0
         ? undefined
@@ -117,15 +223,6 @@ export function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / HOUR);
   const minutes = Math.round((seconds % HOUR) / MINUTE);
   return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
-}
-
-/** The stamp a podcast app prints beside a chapter: 5:12, or 1:05:09 past the hour. */
-export function formatStamp(seconds: number): string {
-  const whole = Math.floor(Math.max(0, seconds));
-  const h = Math.floor(whole / HOUR);
-  const m = Math.floor((whole % HOUR) / MINUTE);
-  const s = String(whole % MINUTE).padStart(2, "0");
-  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
 }
 
 const DATE = new Intl.DateTimeFormat("en-US", {
@@ -147,12 +244,15 @@ export function audioLabel(mime: string): string {
   return AUDIO_LABEL[mime] ?? mime;
 }
 
-export function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+export function roleLabel(role: string): string {
+  return role === "host" ? "Host" : role === "guest" ? "Guest" : role;
 }
 
-export function roleLabel(role: Credit["role"]): string {
-  return role === "host" ? "Host" : "Guest";
+/** The avatar hue is a rendering choice, so it comes from the name and never from the wire. */
+export function colorIndexOf(name: string): number {
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) % 8;
+  return hash;
 }
 
 export type XmlLine = {
@@ -160,13 +260,23 @@ export type XmlLine = {
   segments: { id: number; text: string; tag: boolean }[];
 };
 
-/** The XML split into lines of markup and content, so the view can tint them apart. */
+/** The XML split into lines of markup and content. Text inside CDATA is content, so it is never tinted as markup. */
 export function xmlLines(xml: string): XmlLine[] {
-  return xml.split("\n").map((line, id) => ({
-    id,
-    segments: line
-      .split(/(<[^>]*>)/)
-      .filter((text) => text !== "")
-      .map((text, at) => ({ id: at, text, tag: text.startsWith("<") })),
-  }));
+  let cdata = false;
+  return xml.split("\n").map((line, id) => {
+    const segments: XmlLine["segments"] = [];
+    const push = (text: string, tag: boolean) => {
+      if (text !== "") segments.push({ id: segments.length, text, tag });
+    };
+    for (const part of line.split(/(<!\[CDATA\[|\]\]>)/)) {
+      if (part === "<![CDATA[" || part === "]]>") {
+        cdata = part === "<![CDATA[";
+        push(part, true);
+      } else if (cdata) push(part, false);
+      else
+        for (const piece of part.split(/(<[^>]*>)/))
+          push(piece, piece.startsWith("<"));
+    }
+    return { id, segments };
+  });
 }

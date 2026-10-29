@@ -1,7 +1,7 @@
 import type { SystemIconName } from "../../system/icons";
 import { SystemIcon } from "../../system/SystemIcon";
 import { Button, Pill } from "../../ui";
-import { sortFindings } from "./feedLogic";
+import { fixLabel, sortFindings } from "./feedLogic";
 import type { Finding, Fix, Severity } from "./feedView";
 
 const GLYPH: Record<Severity, { icon: SystemIconName; word: string }> = {
@@ -29,11 +29,12 @@ export function FeedChecks({ findings, onFix }: Props) {
         </span>
       </summary>
       <ul className="fd-findings">
-        {sortFindings(findings).map((finding) => {
+        {sortFindings(findings).map((finding, at) => {
           const glyph = GLYPH[finding.severity];
+          const fix = finding.fix;
           return (
             <li
-              key={finding.id}
+              key={`${finding.key}-${at}`}
               className="fd-finding"
               data-severity={finding.severity}
             >
@@ -44,12 +45,12 @@ export function FeedChecks({ findings, onFix }: Props) {
                   {finding.platform}
                 </Pill>
               ) : null}
-              {finding.fix ? (
+              {fix ? (
                 <Button
-                  onClick={() => onFix(finding.fix as Fix)}
-                  aria-label={`${finding.fix.label}: ${finding.message}`}
+                  onClick={() => onFix(fix)}
+                  aria-label={`${fixLabel(fix)}: ${finding.message}`}
                 >
-                  {finding.fix.label}
+                  {fixLabel(fix)}
                 </Button>
               ) : null}
             </li>

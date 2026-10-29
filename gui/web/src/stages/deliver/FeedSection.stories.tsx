@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import {
   studioViewports,
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
+import { FeedLive } from "./FeedLive";
 import { FeedSection } from "./FeedSection";
 import {
   AGENT_PIN,
-  applyEdit,
   CHECKS,
+  CHOOSE_SHOW,
   DRIFTED,
   FIRST_RUN,
   ITEM_XML,
@@ -17,48 +17,20 @@ import {
   READY,
   SHOW_TITLE,
   STALE,
+  WRITE_FAILED,
+  WRITING,
 } from "./feedFixture";
-import type { FeedView } from "./feedView";
-
-type Args = React.ComponentProps<typeof FeedSection>;
-
-function Live({ view: first, ...rest }: Args) {
-  const [view, setView] = useState<FeedView>(first);
-  return (
-    <FeedSection
-      {...rest}
-      view={view}
-      onEdit={(edit) => {
-        rest.onEdit(edit);
-        setView((now) => applyEdit(now, edit));
-      }}
-      onCreateShow={(title) => {
-        rest.onCreateShow(title);
-        setView((now) => ({ ...now, show: { kind: "ready", title } }));
-      }}
-      onWrite={() => {
-        rest.onWrite();
-        setView((now) => ({ ...now, file: "current" }));
-      }}
-    />
-  );
-}
 
 const meta: Meta<typeof FeedSection> = {
   title: "Stages/Deliver/Podcast listing",
   component: FeedSection,
   tags: ["autodocs"],
-  render: (args) => <Live {...args} />,
+  render: (args) => <FeedLive {...args} />,
   args: {
     view: READY,
     itemXml: ITEM_XML,
-    onEdit: fn(),
-    onCreateShow: fn(),
-    onFix: fn(),
+    onAction: fn(),
     onOpenSource: fn(),
-    onCopyNotes: fn(),
-    onCopyItem: fn(),
-    onWrite: fn(),
   },
   decorators: [
     (Story) => (
@@ -74,7 +46,7 @@ const meta: Meta<typeof FeedSection> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The episode as a podcast app will show it, with the feed file behind it. No inputs show until you click a value. An Auto mark sits on a value a click would pin, Agent marks a pin an agent made, and your own pins carry no mark. A missing value says what it needs and carries the button that supplies it. The strip leads with the first thing left, Checks keeps the rest closed, and the footer writes the feed file.\n\n**Not mounted yet.** Deliver does not render this section until the listing API lands.",
+          "The episode as a podcast app will show it, with the feed file behind it. No inputs show until you click a value. Auto sits on a value a click would pin, Edited on one you wrote, and Agent on one an agent wrote. A missing value says what it needs, and the strip above leads with the one button that supplies the first. Checks keeps the rest closed, and the footer writes the feed file. Every edit and command leaves through `onAction` in the vocabulary the CLI and MCP share.\n\n**Story only.** The GUI is the only surface that speaks this view today.\n\n**Not mounted yet.** Deliver does not render this section until the listing API lands.",
       },
     },
   },
@@ -91,7 +63,15 @@ export const Preview: Story = {
       view.getByRole("heading", { name: /^Nobody asked the river/ }),
     ).toBeInTheDocument();
     await expect(view.getByText("52 min")).toBeInTheDocument();
-    await expect(view.getByText("Transcript SRT · VTT")).toBeInTheDocument();
+    await expect(view.getByText("From your show")).toBeInTheDocument();
+    await expect(
+      view.getByText("Assigned Oct 23, 2026. It never changes."),
+    ).toBeInTheDocument();
+    await expect(
+      view.getByRole("button", {
+        name: "Transcript SRT · VTT. Open transcript",
+      }),
+    ).toBeInTheDocument();
   },
 };
 
@@ -104,6 +84,9 @@ export const EditingInPlace: Story = {
     const field = view.getByRole("textbox", { name: "Edit episode title" });
     await expect(field).toHaveFocus();
     await userEvent.type(field, " (extended)");
+    await expect(
+      view.getByRole("button", { name: "Done" }),
+    ).toBeInTheDocument();
   },
 };
 
@@ -111,15 +94,30 @@ export const DriftedPin: Story = {
   args: { view: DRIFTED },
   play: async ({ canvasElement }) => {
     const view = within(canvasElement);
+    await expect(view.getByText("Check the notes")).toBeInTheDocument();
     await expect(
-      view.getByText("Chapters changed since you edited this"),
+      view.getByText(/This changed since you edited it\./),
     ).toBeInTheDocument();
     await expect(
       view.getByRole("button", { name: "Keep mine" }),
     ).toBeInTheDocument();
+  },
+};
+
+export const UseNewThenUndo: Story = {
+  args: { view: DRIFTED },
+  play: async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await userEvent.click(view.getByRole("button", { name: "Use new" }));
+    await expect(args.onAction).toHaveBeenCalledWith({
+      kind: "edit",
+      edit: { op: "unset", key: "item.notes" },
+    });
     await expect(
-      view.getByRole("button", { name: "Use new" }),
+      view.getByText("Your notes are back to auto."),
     ).toBeInTheDocument();
+    await userEvent.click(view.getByRole("button", { name: "Undo" }));
+    await expect(view.getByText(/0:00 Cold open/)).toBeInTheDocument();
   },
 };
 
@@ -130,7 +128,7 @@ export const Pending: Story = {
     await expect(view.getByText("2 things left")).toBeInTheDocument();
     await expect(
       view.getAllByRole("button", { name: "Add address" }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   },
 };
 
@@ -150,14 +148,31 @@ export const ShowSetupEmpty: Story = {
   },
 };
 
+export const ShowPick: Story = {
+  args: { view: CHOOSE_SHOW },
+  play: async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await userEvent.click(view.getByRole("button", { name: "Field Notes" }));
+    await expect(args.onAction).toHaveBeenCalledWith({
+      kind: "command",
+      command: "link_show",
+      args: { id: "field-notes" },
+    });
+    await expect(view.getByText("Field Notes")).toBeInTheDocument();
+  },
+};
+
 export const Checks: Story = {
   args: { view: CHECKS },
   play: async ({ canvasElement }) => {
     const view = within(canvasElement);
     await expect(view.getByText("2 things left")).toBeInTheDocument();
     await expect(
-      view.getByRole("button", { name: "Copy item" }),
+      view.getByRole("button", { name: "Copy feed item" }),
     ).toBeDisabled();
+    await expect(view.getAllByText("Fix the blocker first.")).not.toHaveLength(
+      0,
+    );
     await userEvent.click(view.getByText("Checks"));
     await expect(view.getAllByText("Apple")).toHaveLength(2);
     await expect(view.getByText("Spotify")).toBeInTheDocument();
@@ -172,6 +187,26 @@ export const StaleFile: Story = {
       view.getByText("Feed file is out of date."),
     ).toBeInTheDocument();
     await expect(view.getByRole("button", { name: "Write" })).toBeEnabled();
+  },
+};
+
+export const Writing: Story = {
+  args: { view: WRITING },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText("Writing the feed file."),
+    ).toBeInTheDocument();
+  },
+};
+
+export const WriteFailed: Story = {
+  args: { view: WRITE_FAILED },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(
+      view.getByText("Could not write the feed file."),
+    ).toBeInTheDocument();
+    await expect(view.getByRole("button", { name: "Try again" })).toBeEnabled();
   },
 };
 
@@ -196,3 +231,14 @@ export const AgentPin: Story = {
 };
 
 export const Loading: Story = { args: { state: "loading" } };
+
+export const Phone: Story = {
+  args: { view: PENDING },
+  decorators: [
+    (Story) => (
+      <div style={{ inlineSize: "22.5rem", maxInlineSize: "100%" }}>
+        <Story />
+      </div>
+    ),
+  ],
+};

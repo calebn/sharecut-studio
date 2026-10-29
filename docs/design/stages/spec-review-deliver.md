@@ -556,16 +556,17 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Status:** story only. `FeedSection` (`Stages/Deliver/Podcast listing`) is not mounted in `DeliverStage`, calls no API and has no backend. It renders a typed view model (`stages/deliver/feedView.ts`) that the host will resolve on the server.
 - **Spec:**
   - The section opens on a listing preview shaped like a podcast app: art, title, show, date, duration, transcript and soundbite badges, the notes with live chapters, and the people with their roles. No input shows until a value is clicked.
-  - A quiet **Auto** mark sits on a value a click would pin. **Agent** marks a pin an agent made. A person's own pin has no mark.
-  - A click edits a value in place with the same control as a chapter title (`system/InlineEdit`). Enter or leaving the field commits, Escape puts the value back, and emptying it hands the value back. **Use auto** (or **Clear** where nothing stands in) unsets a pin.
-  - A pin whose source changed shows "Chapters changed since you edited this" with **Keep mine** and **Use new**.
-  - A missing value says what it needs and carries the button that supplies it. It is never an empty box.
-  - One strip says "Ready to publish" or "2 things left" and its button is the first finding's fix. Checks stays closed and tags each finding with the platform it protects. Blockers hold back Copy item and Write.
+  - A quiet **Auto** mark sits on a value a click would pin. **Edited** marks a pin a person made, so editing is discoverable, and **Agent** marks a pin an agent made. Inherited art says "From your show". A measured or minted value carries no mark.
+  - A click edits a value in place with the same control as a chapter title (`system/InlineEdit`). Enter or leaving the field commits, Escape puts the value back, and emptying it hands the value back. **Use auto** (or **Clear** where nothing stands in) unsets a pin and offers Undo through a toast. On touch an explicit **Done** ends the edit.
+  - A pin whose auto value changed shows "This changed since you edited it" (with what changed, when the view supplies display text) and **Keep mine** and **Use new**. **Use new** offers Undo. The strip reads "Check the notes", never "Ready to publish", while such a pin stands.
+  - A missing value says what it needs and is never an empty box. The strip carries the one button that supplies it. Inline, a missing value you can type is a dashed placeholder that opens the editor.
+  - One strip says "Ready to publish" or "2 things left" and its button is the first finding's fix. Checks stays closed and tags each finding with the platform it protects. Blockers hold back Copy feed item and Write, and the reason shows as a visible note.
   - Chapters, clips, speakers and transcripts jump to the stage that owns them. The section never edits them.
   - First run with no show shows one "Set up your show" card with the language and hosts taken from the speakers, a show name and Create.
-  - Actions: Listing and XML toggle, Copy notes, Copy item, and Write feed file (or "Feed file is out of date. Write").
+  - Actions: Listing and XML toggle, Copy notes, Copy feed item, and Write feed file (or "Feed file is out of date. Write").
+- **Interaction checklist (`docs/interaction-system.md`) for the edits:** n/a, story only. The section has no `CommandDef`, manifest row, keymap or gesture because nothing is mounted and no service exists to run a command. Mount answers these. The shared wire is `FeedEdit` (set or unset over an open field key) and the `Fix` command vocabulary (`export_episode`, `create_show`, `link_show`, `choose_art`, `write_feed`). Button labels live in a UI table in `feedLogic`, never on the wire, so the CLI and MCP can speak the same view. The GUI is the only surface today. The fixture's `applyEdit` stands in for the service and must become a contract test when the API lands.
 - **Shared elements used:** `DeliverSection`, `StatusRow`, `PersonAvatar`, `Button`, `SegmentedControl`, `InlineEdit` (extracted from the chapter title).
-- **Story to build:** `Stages/Deliver/Podcast listing` stories `Preview`, `EditingInPlace`, `DriftedPin`, `Pending`, `ShowSetupEmpty`, `Checks`, `StaleFile`, `XmlView`, `AgentPin`, `Loading`.
+- **Story to build:** `Stages/Deliver/Podcast listing` stories `Preview`, `EditingInPlace`, `DriftedPin`, `UseNewThenUndo`, `Pending`, `ShowSetupEmpty`, `ShowPick`, `Checks`, `StaleFile`, `Writing`, `WriteFailed`, `XmlView`, `AgentPin`, `Loading`, `Phone`.
 
 ---
 

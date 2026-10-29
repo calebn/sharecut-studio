@@ -1,14 +1,18 @@
+import { isDrifted, KEY } from "./feedLogic";
 import type {
   Art,
   Credit,
   Fact,
   FeedEdit,
   FeedView,
+  FieldKey,
+  FieldValue,
   Finding,
-  ItemFacts,
+  Fix,
   Known,
   Missing,
   Pinned,
+  Sections,
   ShowState,
 } from "./feedView";
 
@@ -24,12 +28,10 @@ export const ART: Art = {
   alt: "The Long River cover art: a low sun over layered blue water",
 };
 
-export const ANA: Credit = { name: "Ana Reyes", role: "host", colorIndex: 0 };
-export const MIRA: Credit = {
-  name: "Dr. Mira Calder",
-  role: "guest",
-  colorIndex: 3,
-};
+export const ANA: Credit = { name: "Ana Reyes", role: "host" };
+export const MIRA: Credit = { name: "Dr. Mira Calder", role: "guest" };
+
+type Scalars = Record<FieldKey, Fact<FieldValue>>;
 
 function derived<T>(value: T, rule: string): Known<T> {
   return { value, source: { kind: "derived", rule } };
@@ -38,32 +40,29 @@ function derived<T>(value: T, rule: string): Known<T> {
 function pinned<T>(
   value: T,
   by: Pinned["by"] = "person",
-  drifted: Pinned["drifted"] = null,
+  drifted = false,
 ): Known<T> {
   return { value, source: { kind: "pinned", by, drifted } };
 }
 
-const missing = (why: string, fix: Missing["source"]["fix"]): Missing => ({
+const missing = (
+  why: string,
+  fix: Missing["source"]["fix"] = null,
+): Missing => ({
   value: null,
   source: { kind: "pending", why, fix },
 });
 
-export const FIX_INTRO = {
-  label: "Add a line about this episode",
-  action: { kind: "edit", key: "item.intro" },
-} as const;
-export const FIX_HOSTING = {
-  label: "Add address",
-  action: { kind: "edit", key: "item.enclosure.url" },
-} as const;
-export const FIX_EXPORT = {
-  label: "Export episode",
-  action: { kind: "export" },
-} as const;
-export const FIX_SHOW = {
-  label: "Set up your show",
-  action: { kind: "show" },
-} as const;
+const askFor = (key: FieldKey): Fix => ({
+  kind: "edit",
+  edit: { op: "set", key, value: "" },
+});
+
+export const FIX_INTRO = askFor(KEY.intro);
+export const FIX_HOSTING = askFor(KEY.hosting);
+export const FIX_EXPORT: Fix = { kind: "command", command: "export_episode" };
+export const FIX_SHOW: Fix = { kind: "command", command: "create_show" };
+export const FIX_ART: Fix = { kind: "command", command: "choose_art" };
 
 export const NO_INTRO = missing("Say what this episode is about.", FIX_INTRO);
 export const NO_HOSTING = missing("Where will this be hosted?", FIX_HOSTING);
@@ -72,18 +71,27 @@ export const NO_FILE = missing(
   FIX_EXPORT,
 );
 
-const READY_ITEM: ItemFacts = {
-  title: derived(EPISODE_TITLE, "the project name"),
-  intro: pinned(INTRO),
-  notes: null,
-  publishedAt: derived("2026-10-23T09:00:00Z", "the first export"),
-  duration: {
+const READY_ITEM: Scalars = {
+  [KEY.title]: derived(EPISODE_TITLE, "the project name"),
+  [KEY.intro]: pinned(INTRO),
+  [KEY.published]: derived("2026-10-23T09:00:00Z", "the first export"),
+  [KEY.duration]: {
     value: 3120,
     source: { kind: "measured", file: "episode.wav" },
   },
-  art: { value: ART, source: { kind: "inherited", from: "show" } },
-  hosting: pinned("https://cdn.example.test/long-river/ep-12.mp3"),
-  file: {
+  [KEY.guid]: {
+    value: "urn:uuid:7c0e5a1e-4f3b-4a52-9d0e-6a1b2c3d4e5f",
+    source: { kind: "minted", at: "2026-10-23T09:00:00Z" },
+  },
+  [KEY.hosting]: pinned("https://cdn.example.test/long-river/ep-12.mp3"),
+};
+
+const READY_SECTIONS: Sections = {
+  art: {
+    value: ART,
+    source: { kind: "inherited", from: "channel.image" },
+  },
+  audio: {
     value: { mime: "audio/mpeg", bytes: 49_920_000 },
     source: { kind: "measured", file: "ep-12.mp3" },
   },
@@ -96,7 +104,13 @@ const READY_ITEM: ItemFacts = {
     "3 chapters",
   ),
   credits: derived([ANA, MIRA], "2 speakers"),
-  transcripts: derived(["SRT", "VTT"], "the exported transcripts"),
+  transcripts: derived(
+    [
+      { format: "SRT", language: "en" },
+      { format: "VTT", language: "en" },
+    ],
+    "the exported transcripts",
+  ),
   soundbites: derived(
     [
       { title: "Nobody asked the river", start: 612, end: 653 },
@@ -106,16 +120,18 @@ const READY_ITEM: ItemFacts = {
   ),
 };
 
+export const NOTES_HTML = `<p>${INTRO}</p><p>Chapters</p><ol><li>0:00 Cold open</li><li>5:12 The old mill</li><li>19:40 What the river wanted</li></ol><p>With</p><ul><li>Ana Reyes, host</li><li>Dr. Mira Calder, guest</li></ul>`;
+
 const INFO: readonly Finding[] = [
   {
-    id: "info-funding",
+    key: null,
     severity: "info",
     platform: "Podcasting 2.0",
     message: "No funding link. Add one if listeners can support the show.",
     fix: null,
   },
   {
-    id: "info-season",
+    key: null,
     severity: "info",
     platform: "Apple",
     message: "No season or episode number. Apple groups numbered episodes.",
@@ -123,56 +139,83 @@ const INFO: readonly Finding[] = [
   },
 ];
 
-const EDIT_FINDINGS = ["needs-show", "needs-hosting", "needs-intro"];
+const isEditFinding = (f: Finding) =>
+  f.key === KEY.hosting ||
+  f.key === KEY.intro ||
+  f.key === KEY.notes ||
+  (f.fix?.kind === "command" && f.fix.command === "create_show");
 
-/** Stands in for the server's rules, for the two facts a person can fill in on this page. */
-export function editFindings(item: ItemFacts, show: ShowState): Finding[] {
+/** Stands in for the service's rules, for the values a person can fill in on this page. */
+export function editFindings(item: Scalars, show: ShowState): Finding[] {
   const found: Finding[] = [];
-  if (show.kind === "none")
+  if (show.kind !== "ready")
     found.push({
-      id: "needs-show",
+      key: null,
       severity: "blocker",
       platform: "RSS",
       message: "The feed needs a show to belong to.",
-      fix: FIX_SHOW,
+      fix:
+        show.kind === "none"
+          ? FIX_SHOW
+          : { kind: "command", command: "link_show" },
     });
-  if (item.hosting.source.kind === "pending")
+  const hosting = item[KEY.hosting];
+  if (hosting?.source.kind === "pending")
     found.push({
-      id: "needs-hosting",
+      key: KEY.hosting,
       severity: "blocker",
       platform: "RSS",
       message: "The feed needs an address for the audio file.",
-      fix: FIX_HOSTING,
+      fix: hosting.source.fix,
     });
-  if (item.intro.source.kind === "pending")
+  const intro = item[KEY.intro];
+  if (intro?.source.kind === "pending")
     found.push({
-      id: "needs-intro",
+      key: KEY.intro,
       severity: "warn",
       platform: "Apple",
       message: "Apple shows the intro as the episode description.",
-      fix: FIX_INTRO,
+      fix: intro.source.fix,
+    });
+  if (isDrifted(item[KEY.notes]))
+    found.push({
+      key: KEY.notes,
+      severity: "info",
+      platform: null,
+      message: "The notes changed since you edited them.",
+      fix: null,
     });
   return found;
 }
 
 type Parts = {
-  item?: Partial<ItemFacts>;
+  item?: Scalars;
+  sections?: Partial<Sections>;
   show?: ShowState;
   file?: FeedView["file"];
   extra?: readonly Finding[];
+  driftDetail?: FeedView["driftDetail"];
 };
 
 export function feedView({
   item = {},
+  sections = {},
   show = { kind: "ready", title: SHOW_TITLE },
   file = "current",
   extra = [],
+  driftDetail,
 }: Parts = {}): FeedView {
-  const facts = { ...READY_ITEM, ...item };
+  const scalars = { ...READY_ITEM, ...item };
   return {
     show,
-    item: facts,
-    findings: [...editFindings(facts, show), ...extra, ...INFO],
+    channel: {
+      [KEY.showTitle]: pinned(SHOW_TITLE),
+    },
+    item: scalars,
+    sections: { ...READY_SECTIONS, ...sections },
+    notesHtml: NOTES_HTML,
+    driftDetail,
+    findings: [...editFindings(scalars, show), ...extra, ...INFO],
     file,
   };
 }
@@ -181,7 +224,7 @@ export const READY: FeedView = feedView();
 
 export const AGENT_PIN: FeedView = feedView({
   item: {
-    intro: pinned(
+    [KEY.intro]: pinned(
       "A walk along the old mill road, and the question nobody put to the river: who decided where it should run?",
       "agent",
     ),
@@ -191,38 +234,42 @@ export const AGENT_PIN: FeedView = feedView({
 export const DRIFTED: FeedView = feedView({
   file: "stale",
   item: {
-    notes: pinned(
-      "Ana walks the old mill road with hydrologist Mira Calder to ask who decided where the river should go.\n\n0:00 Cold open\n5:12 The old mill\n19:40 Listener mail",
+    [KEY.notes]: pinned(
+      `${INTRO}\n\n0:00 Cold open\n5:12 The old mill\n19:40 Listener mail`,
       "person",
-      "chapters",
+      true,
     ),
+  },
+  driftDetail: {
+    [KEY.notes]:
+      "A chapter was renamed: \u201cListener mail\u201d is now \u201cWhat the river wanted\u201d.",
   },
 });
 
 export const PENDING: FeedView = feedView({
   file: "none",
   item: {
-    intro: NO_INTRO,
-    hosting: NO_HOSTING,
-    file: NO_FILE,
-    publishedAt: missing("Set when you export.", FIX_EXPORT),
-    duration: missing("", null),
+    [KEY.intro]: NO_INTRO,
+    [KEY.hosting]: NO_HOSTING,
+    [KEY.published]: missing("Set when you export.", FIX_EXPORT),
+    [KEY.duration]: missing("Measured from the export."),
   },
+  sections: { audio: NO_FILE },
 });
 
 export const CHECKS: FeedView = feedView({
   file: "none",
-  item: { hosting: NO_HOSTING },
+  item: { [KEY.hosting]: NO_HOSTING },
   extra: [
     {
-      id: "warn-art",
+      key: null,
       severity: "warn",
       platform: "Apple",
       message: "The cover art is under 1400 by 1400 pixels. Apple rejects it.",
-      fix: { label: "Replace artwork", action: { kind: "art" } },
+      fix: FIX_ART,
     },
     {
-      id: "warn-length",
+      key: KEY.title,
       severity: "info",
       platform: "Spotify",
       message: "Spotify shows only the first 100 characters of a title.",
@@ -231,23 +278,40 @@ export const CHECKS: FeedView = feedView({
   ],
 });
 
+const FIRST_RUN_ITEM: Scalars = {
+  [KEY.intro]: NO_INTRO,
+  [KEY.hosting]: NO_HOSTING,
+  [KEY.published]: missing("Set when you export.", FIX_EXPORT),
+  [KEY.duration]: missing("Measured from the export."),
+};
+const FIRST_RUN_SECTIONS: Partial<Sections> = {
+  audio: NO_FILE,
+  art: missing("Artwork comes from your show.", FIX_ART),
+};
+
 export const FIRST_RUN: FeedView = feedView({
   file: "none",
   show: { kind: "none", suggest: { language: "English", hosts: [ANA] } },
-  item: {
-    intro: NO_INTRO,
-    hosting: NO_HOSTING,
-    file: NO_FILE,
-    art: missing("Artwork comes from your show.", {
-      label: "Add artwork",
-      action: { kind: "art" },
-    }),
-    publishedAt: missing("Set when you export.", FIX_EXPORT),
-    duration: missing("", null),
+  item: FIRST_RUN_ITEM,
+  sections: FIRST_RUN_SECTIONS,
+});
+
+export const CHOOSE_SHOW: FeedView = feedView({
+  file: "none",
+  show: {
+    kind: "choose",
+    shows: [
+      { id: "long-river", title: SHOW_TITLE },
+      { id: "field-notes", title: "Field Notes" },
+    ],
   },
+  item: FIRST_RUN_ITEM,
+  sections: FIRST_RUN_SECTIONS,
 });
 
 export const STALE: FeedView = feedView({ file: "stale" });
+export const WRITING: FeedView = feedView({ file: "writing" });
+export const WRITE_FAILED: FeedView = feedView({ file: "error" });
 
 export const ITEM_XML = `<item>
   <title>Nobody asked the river</title>
@@ -266,26 +330,53 @@ export const ITEM_XML = `<item>
   <podcast:soundbite startTime="1840" duration="28">The boat was still there</podcast:soundbite>
 </item>`;
 
-const AUTO_TITLE: Fact<string> = derived(EPISODE_TITLE, "the project name");
+const AUTO: Record<FieldKey, Fact<FieldValue> | null> = {
+  [KEY.title]: derived(EPISODE_TITLE, "the project name"),
+  [KEY.intro]: NO_INTRO,
+  [KEY.hosting]: NO_HOSTING,
+  [KEY.notes]: null,
+};
 
-/** What the server does with an edit, for stories and tests: pin it or hand it back. */
+/** What the service does with an edit, for stories and tests: pin it or hand it back. */
 export function applyEdit(view: FeedView, edit: FeedEdit): FeedView {
   const item = { ...view.item };
-  if (edit.op === "set") {
-    const value = pinned(edit.value);
-    if (edit.key === "item.title") item.title = value;
-    else if (edit.key === "item.intro") item.intro = value;
-    else if (edit.key === "item.notes") item.notes = value;
-    else item.hosting = value;
-  } else if (edit.key === "item.title") item.title = AUTO_TITLE;
-  else if (edit.key === "item.intro") item.intro = NO_INTRO;
-  else if (edit.key === "item.notes") item.notes = null;
-  else item.hosting = NO_HOSTING;
-  const kept = view.findings.filter((f) => !EDIT_FINDINGS.includes(f.id));
+  let driftDetail = view.driftDetail;
+  if (edit.op === "set") item[edit.key] = pinned(edit.value);
+  else {
+    const auto = AUTO[edit.key];
+    if (auto === undefined)
+      throw new Error(`applyEdit: no auto value for ${edit.key}`);
+    if (auto === null) {
+      delete item[edit.key];
+      driftDetail = undefined;
+    } else item[edit.key] = auto;
+  }
+  if (edit.op === "set") driftDetail = undefined;
+  const kept = view.findings.filter((f) => !isEditFinding(f));
   return {
     ...view,
     item,
+    driftDetail,
     findings: [...editFindings(item, view.show), ...kept],
     file: view.file === "current" ? "stale" : view.file,
+  };
+}
+
+/** The commands the harness answers: creating or linking a show, and writing the file. */
+export function applyFix(view: FeedView, fix: Fix): FeedView {
+  if (fix.kind === "edit") return applyEdit(view, fix.edit);
+  const args = fix.args ?? {};
+  let next = view;
+  if (fix.command === "create_show" && args.title)
+    next = { ...view, show: { kind: "ready", title: args.title } };
+  else if (fix.command === "link_show" && view.show.kind === "choose") {
+    const chosen = view.show.shows.find((s) => s.id === args.id);
+    if (chosen)
+      next = { ...view, show: { kind: "ready", title: chosen.title } };
+  } else if (fix.command === "write_feed") next = { ...view, file: "current" };
+  const kept = next.findings.filter((f) => !isEditFinding(f));
+  return {
+    ...next,
+    findings: [...editFindings(next.item, next.show), ...kept],
   };
 }

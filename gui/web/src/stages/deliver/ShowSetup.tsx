@@ -1,32 +1,98 @@
-import { type RefObject, useId, useState } from "react";
+import { useId, useState } from "react";
 import { PersonAvatar } from "../../system/Person";
 import { Button, Field } from "../../ui";
 import { useDisabledReasonNote } from "../../ui/disabledReason";
-import type { ShowState } from "./feedView";
+import { colorIndexOf } from "./feedLogic";
+import type { Fix, ShowState } from "./feedView";
 
 type Props = {
-  suggest: Extract<ShowState, { kind: "none" }>["suggest"];
-  inputRef: RefObject<HTMLInputElement | null>;
-  onCreate: (title: string) => void;
+  show: Exclude<ShowState, { kind: "ready" }>;
+  onAction: (fix: Fix) => void;
 };
 
-/** First run: the show needs a name, and the speakers already told us the rest. */
-export function ShowSetup({ suggest, inputRef, onCreate }: Props) {
-  const heading = useId();
+function NewShow({ onCreate }: { onCreate: (title: string) => void }) {
   const [title, setTitle] = useState("");
   const name = title.trim();
-  const reason = useDisabledReasonNote(
-    name ? undefined : "Name your show to create it.",
+  const why = name ? undefined : "Name your show to create it.";
+  const reason = useDisabledReasonNote(why);
+  return (
+    <form
+      className="fd-setup-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (name) onCreate(name);
+      }}
+    >
+      <Field label="Show name" className="fd-setup-field">
+        {(control) => (
+          <input
+            {...control}
+            value={title}
+            autoComplete="off"
+            onChange={(event) => setTitle(event.target.value)}
+          />
+        )}
+      </Field>
+      <Button
+        type="submit"
+        variant="primary"
+        disabledReason={why}
+        {...reason.describedBy}
+      >
+        Create
+      </Button>
+      {reason.note}
+    </form>
   );
+}
+
+/** First run: the show needs a name, or one of the shows you have. The speakers already told us the rest. */
+export function ShowSetup({ show, onAction }: Props) {
+  const heading = useId();
+  const [adding, setAdding] = useState(false);
+  const create = (title: string) =>
+    onAction({ kind: "command", command: "create_show", args: { title } });
+  if (show.kind === "choose") {
+    return (
+      <section className="fd-setup" aria-labelledby={heading}>
+        <h3 id={heading} className="fd-setup-title">
+          Which show is this episode in?
+        </h3>
+        <ul className="fd-shows">
+          {show.shows.map((one) => (
+            <li key={one.id}>
+              <Button
+                onClick={() =>
+                  onAction({
+                    kind: "command",
+                    command: "link_show",
+                    args: { id: one.id },
+                  })
+                }
+              >
+                {one.title}
+              </Button>
+            </li>
+          ))}
+          {adding ? null : (
+            <li>
+              <Button variant="link" onClick={() => setAdding(true)}>
+                New show
+              </Button>
+            </li>
+          )}
+        </ul>
+        {adding ? <NewShow onCreate={create} /> : null}
+      </section>
+    );
+  }
+  const { suggest } = show;
   return (
     <section className="fd-setup" aria-labelledby={heading}>
       <h3 id={heading} className="fd-setup-title">
         Set up your show
       </h3>
-      <p className="fd-setup-lead">
-        Every episode listing belongs to a show. Name yours and the rest fills
-        in as you go.
-      </p>
+      <p className="fd-setup-lead">Name it and the rest fills in as you go.</p>
       <dl className="fd-setup-known">
         <div>
           <dt>Language</dt>
@@ -38,7 +104,13 @@ export function ShowSetup({ suggest, inputRef, onCreate }: Props) {
             <ul className="fd-people">
               {suggest.hosts.map((host) => (
                 <li key={host.name} className="fd-person">
-                  <PersonAvatar person={host} size={24} />
+                  <PersonAvatar
+                    person={{
+                      name: host.name,
+                      colorIndex: colorIndexOf(host.name),
+                    }}
+                    size={24}
+                  />
                   <span className="fd-person-name">{host.name}</span>
                 </li>
               ))}
@@ -46,34 +118,7 @@ export function ShowSetup({ suggest, inputRef, onCreate }: Props) {
           </dd>
         </div>
       </dl>
-      <form
-        className="fd-setup-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (name) onCreate(name);
-        }}
-      >
-        <Field label="Show name" className="fd-setup-field">
-          {(control) => (
-            <input
-              {...control}
-              ref={inputRef}
-              value={title}
-              autoComplete="off"
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          )}
-        </Field>
-        <Button
-          type="submit"
-          variant="primary"
-          disabledReason={name ? undefined : "Name your show to create it."}
-          {...reason.describedBy}
-        >
-          Create
-        </Button>
-        {reason.note}
-      </form>
+      <NewShow onCreate={create} />
     </section>
   );
 }

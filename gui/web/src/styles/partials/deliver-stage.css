@@ -141,10 +141,25 @@
   color: var(--color-text-secondary);
 }
 
-.dv-chapter-title,
+.dv-chapter-title {
+  flex: 1;
+  min-inline-size: 0;
+}
+
 .dv-clip-title {
   flex: 1;
   min-inline-size: 0;
+  min-block-size: var(--control-height);
+  padding-inline: var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.dv-clip-title:hover {
+  border-color: var(--color-border-subtle);
 }
 
 .dv-clip-title--static {

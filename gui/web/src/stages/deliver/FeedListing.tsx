@@ -2,59 +2,52 @@ import { useId } from "react";
 import { formatBytes } from "../../models";
 import { PersonAvatar } from "../../system/Person";
 import { Button } from "../../ui";
-import { type EditControls, FeedValue, PendingNote } from "./FeedValue";
+import { formatClock } from "./deliverLogic";
+import {
+  type EditControls,
+  FactView,
+  FeedValue,
+  type OnEdit,
+} from "./FeedValue";
 import {
   audioLabel,
-  driftCopy,
+  colorIndexOf,
+  DRIFT_COPY,
   formatDate,
   formatDuration,
-  formatStamp,
+  isDrifted,
   isKnown,
+  KEY,
+  markOf,
+  numberFact,
   plural,
   roleLabel,
+  type SourceOwner,
+  textFact,
 } from "./feedLogic";
-import type { FeedEdit, FeedView, Fix, SourceOwner } from "./feedView";
+import type { FeedEdit, FeedView } from "./feedView";
 
 type Props = {
   view: FeedView;
   edit: EditControls;
-  onEdit: (edit: FeedEdit) => void;
-  onFix: (fix: Fix) => void;
+  onEdit: OnEdit;
   onOpenSource: (owner: SourceOwner) => void;
 };
 
-function Art({
-  item,
-  onFix,
-}: {
-  item: FeedView["item"];
-  onFix: Props["onFix"];
-}) {
-  const art = item.art;
-  if (isKnown(art)) {
-    return <img className="fd-art" src={art.value.src} alt={art.value.alt} />;
-  }
-  return (
-    <div className="fd-art fd-art--empty">
-      <PendingNote why={art.source.why} fix={art.source.fix} onFix={onFix} />
-    </div>
-  );
-}
-
 function Badge({
   label,
-  name,
+  action,
   onClick,
 }: {
   label: string;
-  name: string;
+  action: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       className="fd-badge"
-      aria-label={name}
+      aria-label={`${label}. ${action}`}
       onClick={onClick}
     >
       {label}
@@ -62,22 +55,35 @@ function Badge({
   );
 }
 
+function SourceLink({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button variant="link" className="fd-source" onClick={onClick}>
+      {label}
+    </Button>
+  );
+}
+
 function Drift({
-  source,
+  detail,
   onKeep,
   onUseNew,
 }: {
-  source: Parameters<typeof driftCopy>[0];
+  detail: string | undefined;
   onKeep: () => void;
   onUseNew: () => void;
 }) {
   return (
-    <div
-      className="fd-drift"
-      role="group"
-      aria-label="Changed since you edited this"
-    >
-      <p>{driftCopy(source)}</p>
+    <div className="fd-drift" role="group" aria-label={DRIFT_COPY} data-drift>
+      <p>
+        {DRIFT_COPY}.
+        {detail ? <span className="fd-drift-detail"> {detail}</span> : null}
+      </p>
       <div className="fd-drift-actions">
         <Button onClick={onKeep}>Keep mine</Button>
         <Button onClick={onUseNew}>Use new</Button>
@@ -86,168 +92,179 @@ function Drift({
   );
 }
 
-export function FeedListing({
-  view,
-  edit,
-  onEdit,
-  onFix,
-  onOpenSource,
-}: Props) {
-  const { item, show } = view;
-  const { notes, chapters, credits, transcripts, soundbites } = item;
+export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
+  const { item, show, sections } = view;
+  const notes = textFact(item, KEY.notes);
   const open = (owner: SourceOwner) => () => onOpenSource(owner);
   const chaptersId = useId();
   const withId = useId();
+  const keepMine = (value: string): FeedEdit => ({
+    op: "set",
+    key: KEY.notes,
+    value,
+  });
   return (
     <article
       className="fd-listing"
       aria-label="How it will look in a podcast app"
     >
       <div className="fd-hero">
-        <Art item={item} onFix={onFix} />
+        <div className="fd-art-cell">
+          <FactView
+            fact={sections.art}
+            pending={({ why }) => (
+              <div className="fd-art fd-art--empty">
+                <span className="fd-pending">{why}</span>
+              </div>
+            )}
+          >
+            {(art, source) => (
+              <>
+                <img className="fd-art" src={art.src} alt={art.alt} />
+                {markOf(source) ? (
+                  <span className="fd-mark">{markOf(source)}</span>
+                ) : null}
+              </>
+            )}
+          </FactView>
+        </div>
         <div className="fd-head">
           <h3 className="fd-title">
             <FeedValue
-              field="item.title"
-              fact={item.title}
+              field={KEY.title}
+              fact={textFact(item, KEY.title)}
               edit={edit}
               onEdit={onEdit}
-              onFix={onFix}
             />
           </h3>
           <p className="fd-meta">
             {show.kind === "ready" ? <span>{show.title}</span> : null}
-            {isKnown(item.publishedAt) ? (
-              <span>{formatDate(item.publishedAt.value)}</span>
-            ) : (
-              <PendingNote
-                why={item.publishedAt.source.why}
-                fix={item.publishedAt.source.fix}
-                onFix={onFix}
-              />
-            )}
-            {isKnown(item.duration) ? (
-              <span>{formatDuration(item.duration.value)}</span>
-            ) : null}
+            <FactView fact={textFact(item, KEY.published)}>
+              {(iso) => <span>{formatDate(iso)}</span>}
+            </FactView>
+            <FactView
+              fact={numberFact(item, KEY.duration)}
+              pending={() => null}
+            >
+              {(seconds) => <span>{formatDuration(seconds)}</span>}
+            </FactView>
           </p>
           <div className="fd-badges">
-            {isKnown(transcripts) ? (
-              <Badge
-                label={`Transcript ${transcripts.value.join(" · ")}`}
-                name={`Transcript in ${transcripts.value.join(" and ")}. Open transcript`}
-                onClick={open("transcript")}
-              />
-            ) : (
-              <PendingNote
-                why={transcripts.source.why}
-                fix={transcripts.source.fix}
-                onFix={onFix}
-              />
-            )}
-            {isKnown(soundbites) ? (
-              <Badge
-                label={plural(soundbites.value.length, "soundbite")}
-                name={`${plural(soundbites.value.length, "soundbite")}. Open clips`}
-                onClick={open("clips")}
-              />
-            ) : (
-              <PendingNote
-                why={soundbites.source.why}
-                fix={soundbites.source.fix}
-                onFix={onFix}
-              />
-            )}
+            <FactView fact={sections.transcripts}>
+              {(files) => (
+                <Badge
+                  label={`Transcript ${files.map((f) => f.format).join(" · ")}`}
+                  action="Open transcript"
+                  onClick={open("transcript")}
+                />
+              )}
+            </FactView>
+            <FactView fact={sections.soundbites}>
+              {(bites) => (
+                <Badge
+                  label={plural(bites.length, "soundbite")}
+                  action="Open clips"
+                  onClick={open("clips")}
+                />
+              )}
+            </FactView>
           </div>
         </div>
       </div>
 
       <div className="fd-notes">
-        {notes && isKnown(notes) ? (
+        {isKnown(notes) ? (
           <>
             <FeedValue
-              field="item.notes"
+              field={KEY.notes}
               fact={notes}
               edit={edit}
               onEdit={onEdit}
-              onFix={onFix}
             />
-            {notes.source.kind === "pinned" && notes.source.drifted ? (
+            {isDrifted(item[KEY.notes]) ? (
               <Drift
-                source={notes.source.drifted}
-                onKeep={() =>
-                  onEdit({ op: "set", key: "item.notes", value: notes.value })
+                detail={view.driftDetail?.[KEY.notes]}
+                onKeep={() => onEdit(keepMine(notes.value))}
+                onUseNew={() =>
+                  onEdit(
+                    { op: "unset", key: KEY.notes },
+                    {
+                      message: "Your notes are back to auto.",
+                      edit: keepMine(notes.value),
+                    },
+                  )
                 }
-                onUseNew={() => onEdit({ op: "unset", key: "item.notes" })}
               />
             ) : null}
           </>
         ) : (
           <>
             <FeedValue
-              field="item.intro"
-              fact={item.intro}
+              field={KEY.intro}
+              fact={textFact(item, KEY.intro)}
               edit={edit}
               onEdit={onEdit}
-              onFix={onFix}
             />
             <section className="fd-block" aria-labelledby={chaptersId}>
               <div className="fd-block-head">
                 <h4 id={chaptersId} className="fd-label">
                   Chapters
                 </h4>
-                {isKnown(chapters) ? (
-                  <Button variant="link" onClick={open("chapters")}>
-                    Edit chapters
-                  </Button>
+                {isKnown(sections.chapters) ? (
+                  <SourceLink
+                    label="Edit chapters"
+                    onClick={open("chapters")}
+                  />
                 ) : null}
               </div>
-              {isKnown(chapters) ? (
-                <ol className="fd-chapters">
-                  {chapters.value.map((chapter) => (
-                    <li key={chapter.at}>
-                      <span className="fd-time">{formatStamp(chapter.at)}</span>
-                      {chapter.title}
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <PendingNote
-                  why={chapters.source.why}
-                  fix={chapters.source.fix}
-                  onFix={onFix}
-                />
-              )}
+              <FactView fact={sections.chapters}>
+                {(chapters) => (
+                  <ol className="fd-chapters">
+                    {chapters.map((chapter) => (
+                      <li key={chapter.at}>
+                        <span className="fd-time">
+                          {formatClock(chapter.at, true)}
+                        </span>
+                        {chapter.title}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </FactView>
             </section>
             <section className="fd-block" aria-labelledby={withId}>
               <div className="fd-block-head">
                 <h4 id={withId} className="fd-label">
                   With
                 </h4>
-                {isKnown(credits) ? (
-                  <Button variant="link" onClick={open("speakers")}>
-                    Edit speakers
-                  </Button>
+                {isKnown(sections.credits) ? (
+                  <SourceLink
+                    label="Edit speakers"
+                    onClick={open("speakers")}
+                  />
                 ) : null}
               </div>
-              {isKnown(credits) ? (
-                <ul className="fd-people">
-                  {credits.value.map((credit) => (
-                    <li key={credit.name} className="fd-person">
-                      <PersonAvatar person={credit} size={28} />
-                      <span className="fd-person-name">{credit.name}</span>
-                      <span className="fd-person-role">
-                        {roleLabel(credit.role)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <PendingNote
-                  why={credits.source.why}
-                  fix={credits.source.fix}
-                  onFix={onFix}
-                />
-              )}
+              <FactView fact={sections.credits}>
+                {(credits) => (
+                  <ul className="fd-people">
+                    {credits.map((credit) => (
+                      <li key={credit.name} className="fd-person">
+                        <PersonAvatar
+                          person={{
+                            name: credit.name,
+                            colorIndex: colorIndexOf(credit.name),
+                          }}
+                          size={28}
+                        />
+                        <span className="fd-person-name">{credit.name}</span>
+                        <span className="fd-person-role">
+                          {roleLabel(credit.role)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </FactView>
             </section>
           </>
         )}
@@ -258,29 +275,37 @@ export function FeedListing({
           <dt>Hosting address</dt>
           <dd>
             <FeedValue
-              field="item.enclosure.url"
-              fact={item.hosting}
+              field={KEY.hosting}
+              fact={textFact(item, KEY.hosting)}
               edit={edit}
               onEdit={onEdit}
-              onFix={onFix}
             />
           </dd>
         </div>
         <div className="fd-fact">
           <dt>Audio file</dt>
           <dd>
-            {isKnown(item.file) ? (
-              <span>
-                {audioLabel(item.file.value.mime)} ·{" "}
-                {formatBytes(item.file.value.bytes)}
-              </span>
-            ) : (
-              <PendingNote
-                why={item.file.source.why}
-                fix={item.file.source.fix}
-                onFix={onFix}
-              />
-            )}
+            <FactView fact={sections.audio}>
+              {(audio) => (
+                <span>
+                  {audioLabel(audio.mime)} · {formatBytes(audio.bytes)}
+                </span>
+              )}
+            </FactView>
+          </dd>
+        </div>
+        <div className="fd-fact">
+          <dt>Episode ID</dt>
+          <dd>
+            <FactView fact={textFact(item, KEY.guid)}>
+              {(_, source) => (
+                <span>
+                  {source.kind === "minted"
+                    ? `Assigned ${formatDate(source.at)}. It never changes.`
+                    : null}
+                </span>
+              )}
+            </FactView>
           </dd>
         </div>
       </dl>

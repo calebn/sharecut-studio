@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type InlineEditEnd = "enter" | "escape" | "blur";
 
@@ -6,9 +6,9 @@ type Props = {
   /** Accessible name; the field shows no visible label. */
   label: string;
   value: string;
-  /** Called once per changed value, on Enter, on blur and when the field goes away. */
+  /** Called with a text that differs from `value`, on Enter and on blur. A parent that ignores it sees the same text sent again on the next end. */
   onCommit: (value: string) => void;
-  /** After the field finishes by Enter, Escape or blur. Not called when it unmounts. */
+  /** After the field finishes by Enter, Escape or blur. A blur that follows Enter or Escape is not reported. */
   onEnd?: (how: InlineEditEnd) => void;
   /** Enter commits; Shift+Enter breaks the line. */
   multiline?: boolean;
@@ -19,8 +19,8 @@ type Props = {
 
 /**
  * A text value edited where it is read. It looks like text until hovered or
- * focused. Enter and blur commit, Escape puts the value back, and a value
- * already sent is never sent twice.
+ * focused. Enter and blur commit a text that differs from `value`, and Escape
+ * puts `value` back.
  */
 export function InlineEdit({
   label,
@@ -38,33 +38,25 @@ export function InlineEdit({
     setSeen(value);
     setText(value);
   }
-  const sent = useRef(value);
-  const cancelled = useRef(false);
-  const field = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const ended = useRef(false);
+  const field = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   useEffect(() => {
     const el = field.current;
     if (!focusOnMount || !el) return;
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
   }, [focusOnMount]);
-  useEffect(() => {
-    sent.current = value;
-  }, [value]);
   const commit = () => {
-    if (cancelled.current || text === sent.current) return;
-    sent.current = text;
-    onCommit(text);
+    if (text !== value) onCommit(text);
   };
-  const leave = useEffectEvent(commit);
-  useEffect(() => () => leave(), []);
   const change = (next: string) => {
-    cancelled.current = false;
+    ended.current = false;
     setText(next);
   };
   const keys = (event: React.KeyboardEvent) => {
     if (event.key === "Escape") {
       event.preventDefault();
-      cancelled.current = true;
+      ended.current = true;
       setText(value);
       onEnd?.("escape");
     } else if (
@@ -73,6 +65,7 @@ export function InlineEdit({
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
+      ended.current = true;
       commit();
       onEnd?.("enter");
     }
@@ -82,9 +75,15 @@ export function InlineEdit({
     "aria-label": label,
     value: text,
     placeholder,
-    ref: field,
+    ref: (el: HTMLInputElement | HTMLTextAreaElement | null) => {
+      field.current = el;
+    },
     onKeyDown: keys,
+    onFocus: () => {
+      ended.current = false;
+    },
     onBlur: () => {
+      if (ended.current) return;
       commit();
       onEnd?.("blur");
     },

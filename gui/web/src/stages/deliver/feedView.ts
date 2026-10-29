@@ -1,48 +1,46 @@
 /**
- * What the Podcast listing section draws. The host resolves the feed on the
- * server and sends this view; the section never derives a value itself.
- * Every fact says where its value came from, so the UI can mark auto values,
- * flag a pin whose source changed, and show the fix for a missing one.
+ * The wire shape of the Podcast listing. The service resolves the feed and
+ * sends this view; the CLI and MCP read and edit the same shape. The GUI
+ * story is the only surface that speaks it today, and no service exists yet.
+ * Every fact says where its value came from, so a surface can mark auto
+ * values, flag a pin whose source changed, and name the fix for a missing one.
+ * Button labels are not on the wire: `feedLogic` looks them up.
  */
 
-export const PIN_KEYS = [
-  "item.title",
-  "item.intro",
-  "item.notes",
-  "item.enclosure.url",
-] as const;
-export type PinKey = (typeof PIN_KEYS)[number];
+export type FieldKey = string;
+export type FieldValue = string | number | boolean | readonly string[];
 
-/** Owners of the facts the listing reads but never edits. */
-export type SourceOwner = "chapters" | "clips" | "speakers" | "transcript";
-
-/** A change to a pinned fact. Both ends of the wire, and every surface, speak only this. */
+/** The one edit vocabulary. A set with an empty value asks for input before it can run. */
 export type FeedEdit =
-  | { op: "set"; key: PinKey; value: string }
-  | { op: "unset"; key: PinKey };
+  | { op: "set"; key: FieldKey; value: FieldValue }
+  | { op: "unset"; key: FieldKey };
 
-export type DriftSource = "chapters" | "speakers" | "soundbites" | "transcript";
+export type FeedCommand =
+  | "export_episode"
+  | "create_show"
+  | "link_show"
+  | "choose_art"
+  | "write_feed";
+
+export type Fix =
+  | { kind: "edit"; edit: FeedEdit }
+  | {
+      kind: "command";
+      command: FeedCommand;
+      args?: Readonly<Record<string, string>>;
+    };
 
 export type Derived = { kind: "derived"; rule: string };
-export type Inherited = { kind: "inherited"; from: "show" };
+export type Inherited = { kind: "inherited"; from: FieldKey };
 export type Measured = { kind: "measured"; file: string };
 export type Minted = { kind: "minted"; at: string };
 export type Pinned = {
   kind: "pinned";
   by: "person" | "agent";
-  /** The source that changed since the pin was made. */
-  drifted: DriftSource | null;
+  /** The auto value changed since the pin was made. */
+  drifted: boolean;
 };
 export type Resolved = Derived | Inherited | Measured | Minted | Pinned;
-
-export type FixAction =
-  | { kind: "edit"; key: PinKey }
-  | { kind: "show" }
-  | { kind: "export" }
-  | { kind: "art" }
-  | { kind: "open"; owner: SourceOwner };
-export type Fix = { label: string; action: FixAction };
-
 export type Pending = { kind: "pending"; why: string; fix: Fix | null };
 
 export type Known<T> = { value: T; source: Resolved };
@@ -51,59 +49,47 @@ export type Fact<T> = Known<T> | Missing;
 
 export type Art = { src: string; alt: string };
 export type FeedChapter = { at: number; title: string };
-export type CreditRole = "host" | "guest";
-export type Credit = { name: string; role: CreditRole; colorIndex: number };
-export type TranscriptFormat = "SRT" | "VTT";
+export type Credit = { name: string; role: string };
+export type Transcript = { format: "SRT" | "VTT"; language: string };
 export type Soundbite = { title: string; start: number; end: number };
 export type AudioFile = { mime: string; bytes: number };
 
-export type ItemFacts = {
-  title: Fact<string>;
-  intro: Fact<string>;
-  /** A whole-text pin over the notes the listing composes from intro, chapters and credits. */
-  notes: Fact<string> | null;
-  /** ISO timestamp. */
-  publishedAt: Fact<string>;
-  /** Seconds. */
-  duration: Fact<number>;
+/** The facts that are not one scalar. Scalars live in `item` and `channel`. */
+export type Sections = {
   art: Fact<Art>;
-  hosting: Fact<string>;
-  file: Fact<AudioFile>;
+  audio: Fact<AudioFile>;
   chapters: Fact<readonly FeedChapter[]>;
   credits: Fact<readonly Credit[]>;
-  transcripts: Fact<readonly TranscriptFormat[]>;
+  transcripts: Fact<readonly Transcript[]>;
   soundbites: Fact<readonly Soundbite[]>;
 };
 
 export type ShowState =
-  | { kind: "ready"; title: string }
-  | {
-      kind: "none";
-      /** What the speakers already tell us. */
-      suggest: { language: string; hosts: readonly Credit[] };
-    };
+  | { kind: "none"; suggest: { language: string; hosts: readonly Credit[] } }
+  | { kind: "choose"; shows: readonly { id: string; title: string }[] }
+  | { kind: "ready"; title: string };
 
 export type Severity = "blocker" | "warn" | "info";
-export type Platform =
-  | "Apple"
-  | "Spotify"
-  | "YouTube"
-  | "Podcasting 2.0"
-  | "RSS";
 
 export type Finding = {
-  id: string;
+  key: FieldKey | null;
   severity: Severity;
-  platform: Platform | null;
+  platform: string | null;
   message: string;
   fix: Fix | null;
 };
 
-export type FileState = "none" | "current" | "stale";
+export type FileState = "none" | "writing" | "current" | "stale" | "error";
 
 export type FeedView = {
   show: ShowState;
-  item: ItemFacts;
+  channel: Readonly<Record<FieldKey, Fact<FieldValue>>>;
+  item: Readonly<Record<FieldKey, Fact<FieldValue>>>;
+  sections: Sections;
+  /** The notes the service renders for Copy notes and the feed: intro, live chapters and credits. */
+  notesHtml: string;
+  /** Display text for a drifted pin: what changed. Not part of the digest compare. */
+  driftDetail?: Readonly<Record<FieldKey, string>>;
   findings: readonly Finding[];
   file: FileState;
 };
