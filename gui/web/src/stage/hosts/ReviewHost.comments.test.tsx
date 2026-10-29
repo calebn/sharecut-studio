@@ -513,7 +513,7 @@ describe("Review host comments", () => {
     expect(filterPressed()).toBe("All, 2");
   });
 
-  it("names each Decided comment row by its author and excerpt", async () => {
+  it("names each Decided comment row by its visible text, author and excerpt", async () => {
     mount([
       OPEN,
       DONE,
@@ -522,11 +522,13 @@ describe("Review host comments", () => {
     const region = await decided();
     expect(
       within(region).getByRole("button", {
-        name: "Resolved, Ana, Fixed already",
+        name: /^Resolved \d+:\d\d, Ana, Fixed already$/,
       }),
     ).toBeInTheDocument();
     expect(
-      within(region).getByRole("button", { name: "Resolved, Lee, Also fixed" }),
+      within(region).getByRole("button", {
+        name: /^Resolved \d+:\d\d, Lee, Also fixed$/,
+      }),
     ).toBeInTheDocument();
   });
 
@@ -664,6 +666,27 @@ describe("Review host comments", () => {
       applyDocumentSnapshot({ server_seq: ++server.seq, project: projectOf() });
     });
     expect(within(await decided()).getAllByText("Resolved")).toHaveLength(1);
+  });
+
+  it("keeps the Resolved state when Undo is refused before the Resolve snapshot lands", async () => {
+    mount();
+    wire.post.mockImplementationOnce(async () => ({
+      ok: true,
+      data: {
+        history_head_id: "h0",
+        command: { payload: { result: OPEN } },
+        snapshot: { server_seq: ++server.seq, project: projectOf() },
+      },
+    }));
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(toast()).toMatch(/^Resolved comment/));
+    server.refuse.add("ResolveComment");
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(2));
+    await waitFor(() => expect(toast()).toBeTruthy());
+    expect(within(await decided()).getAllByText("Resolved")).toHaveLength(2);
   });
 
   it("puts the comment back when Undo is refused", async () => {
