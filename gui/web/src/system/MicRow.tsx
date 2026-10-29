@@ -19,10 +19,15 @@ export function MicRow({
 }) {
   return (
     <>
-      {mic.status === "ready" && mic.devices?.length ? (
+      {(mic.status === "ready" || mic.status === "lost") &&
+      mic.devices?.length ? (
         <Field
           label="Input"
-          hint={mic.inputLocked ? JOIN_TEXT.inputLocked : undefined}
+          hint={
+            mic.status === "ready" && mic.inputLocked
+              ? JOIN_TEXT.inputLocked
+              : undefined
+          }
           className="sys-join-field"
         >
           {(control) => (
@@ -30,7 +35,7 @@ export function MicRow({
               {...control}
               className="sys-join-input"
               value={mic.inputId ?? ""}
-              disabled={mic.inputLocked}
+              disabled={mic.status === "ready" && mic.inputLocked}
               onChange={(event) => onInputChange?.(event.target.value)}
             >
               <option value="">{JOIN_TEXT.defaultInput}</option>

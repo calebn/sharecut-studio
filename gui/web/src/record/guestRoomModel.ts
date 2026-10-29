@@ -238,7 +238,9 @@ export function joinMic(
   const switching =
     !!options.switching &&
     !mic.stream &&
-    (mic.status === "prompting" || mic.status === "idle") &&
+    (mic.status === "prompting" ||
+      mic.status === "idle" ||
+      mic.status === "granted") &&
     mic.devices.length > 1;
   if ((mic.status === "granted" && mic.stream) || switching) {
     const device =
@@ -268,9 +270,16 @@ export function joinMic(
     return { status: "denied" };
   }
   if (LOST_STATUSES.includes(mic.status)) {
-    return options.detail
-      ? { status: "lost", detail: options.detail }
-      : { status: "lost" };
+    const lost: JoinMic = { status: "lost" };
+    if (options.detail) lost.detail = options.detail;
+    if (options.deviceId && mic.devices.length > 0) {
+      lost.devices = mic.devices.map((entry) => ({
+        id: entry.deviceId,
+        label: entry.label || "Microphone",
+      }));
+      lost.inputId = options.deviceId;
+    }
+    return lost;
   }
   return { status: "idle" };
 }

@@ -12,6 +12,10 @@ export type JoinMic =
       status: "lost";
       /** Why, in the caller's words: "Microphone disconnected." */
       detail?: string;
+      /** The inputs to pick from, kept so a failing pick can be changed. */
+      devices?: JoinInput[];
+      /** The failing pick's id. */
+      inputId?: string;
     }
   | {
       status: "ready";
