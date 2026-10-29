@@ -138,9 +138,6 @@ to UX partners; for UI copy, this table wins.
 | Review files need attention | The guest's line when the host's review files are not private to the host's account, so publishing a review mix refuses to run: "The host's review files need attention; ask the host to check them." The host sees the folder and fix on their own computer (CLI, owner tools). Never a path, `chmod` or command in guest copy | "internal error", "permissions", "staging", a raw path or `chmod` line |
 | Isn't available right now | The guest's line when the host's review audio or project is missing: "This review's audio isn't available right now; ask the host to republish." or "This link isn't available right now; ask the host to check it." A refusal that would name a host path and has no line of its own reads "That didn't work; ask the host to check this episode." Fixed copy, never a path, folder name or part of one | "not found", "missing", "internal error", a raw path |
 | Online sharing is off | Set up but not running, or stopped on purpose. Neutral, not an error. A host with no online sharing set up sees no line at all | "Offline", "Disconnected" |
-| Podcast listing | How one episode looks in a podcast app, with the notes, chapters and people behind it. The Deliver section that edits it | "RSS editor", "feed form", "metadata" |
-| Feed file | The file the listing is written to. It is out of date when the listing changed after the last write | "RSS file", "XML export" |
-| Auto / Agent | The mark on a listing value: filled in automatically, or pinned by an AI assistant. A person's own pin has no mark | "Default", "Generated" |
 
 Why this matters: Surface 2's audit found users confusing producer
 (a record-room link) with the review-role dropdown — the table above

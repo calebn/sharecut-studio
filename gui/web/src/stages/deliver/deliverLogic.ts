@@ -62,12 +62,14 @@ export function estimateBytes(
   return Math.round((entry?.bytesPerSecond ?? 0) * seconds);
 }
 
-/** 83.5 is "1:23.5". */
-export function formatClock(seconds: number): string {
+/** 83.5 is "1:23.5", or "1:23" when `whole`. */
+export function formatClock(seconds: number, whole = false): string {
   const tenths = Math.round(Math.max(0, seconds) * 10);
   const minutes = Math.floor(tenths / 600);
-  const rest = ((tenths % 600) / 10).toFixed(1).padStart(4, "0");
-  return `${minutes}:${rest}`;
+  const rest = (tenths % 600) / 10;
+  return whole
+    ? `${minutes}:${String(Math.floor(rest)).padStart(2, "0")}`
+    : `${minutes}:${rest.toFixed(1).padStart(4, "0")}`;
 }
 
 /** "1:23.5", "83.5" or "1:23" in seconds, or null. */
@@ -195,11 +197,19 @@ export function readinessRows(facts: ReadinessFacts): ReadinessRow[] {
   ];
 }
 
+export function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+export function thingsLeft(count: number): string {
+  return `${plural(count, "thing")} left`;
+}
+
 /** Nothing blocks Export, so the sentence only says how much is left. */
 export function readinessSummary(rows: readonly ReadinessRow[]): string {
   const open = rows.filter((row) => row.state === "needs-you").length;
   if (open === 0) return "Ready to export";
-  return `${open} ${open === 1 ? "thing" : "things"} left. You can still export.`;
+  return `${thingsLeft(open)}. You can still export.`;
 }
 
 export type ExportFile = { name: string; bytes?: number; format: FormatId };
