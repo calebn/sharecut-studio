@@ -26,9 +26,10 @@ A request ranks the quiet runs by distance from the cut (all of them sit at the 
 so the nearest matches the room at the cut best), takes the window of its length nearest
 the cut from each, and returns the first window that passes every row of ``CHECKS``.
 Picking is done once per recording: :func:`record_room_tone_pool` runs that pick at evenly
-spaced points along the track, keeps the samples that passed, and records them under the
+spaced points along the track, keeps the samples that passed (each at least
+``POOL_MIN_SAMPLE_SEC`` long), and records them under the
 project's ``artifacts``, keyed on the recording's identity. A request on a track with a pool
-takes the nearest pooled sample that is clear of ``avoid``, preferring one that no clip
+takes the nearest pooled sample with a piece of at least ``MIN_SAMPLE_SEC`` clear of ``avoid``, preferring one that no clip
 or mute fill within ``TAKEN_WINDOW_SEC`` of the cut already plays, reading no audio; a track
 without one picks as above. A pick, the pool's included, also rejects a window whose level
 envelope follows another track's voice: that voice reaches this microphone as bleed under
@@ -276,7 +277,6 @@ def room_tone_span(
             near_sec=near,
             duration_sec=duration_sec,
             avoid=avoiding,
-            min_sec=POOL_MIN_SAMPLE_SEC,
             clear=clear,
         )
 
@@ -569,13 +569,13 @@ def _from_pool(
     avoid: Sequence[Span],
     taken: Sequence[Span],
 ) -> OwnQuietSample | None:
-    """The unused pooled sample nearest ``near_sec`` with a clear piece long enough, else None.
+    """The unused pooled sample nearest ``near_sec`` with a clear piece of ``MIN_SAMPLE_SEC``, else None.
 
     A sample that overlaps ``taken`` ranks after every sample that does not. With no
     ``near_sec`` (the cut is not on the pool's recording) the samples are taken in recording
     order, rotated by the cut's ``TAKEN_WINDOW_SEC`` slot so distant cuts spread over the pool.
     """
-    need = min(duration_sec, POOL_MIN_SAMPLE_SEC)
+    need = min(duration_sec, MIN_SAMPLE_SEC)
     ordered = sorted(pool, key=lambda x: x.start)
     if near_sec is None and ordered:
         turn = int(timeline_sec // TAKEN_WINDOW_SEC) % len(ordered)

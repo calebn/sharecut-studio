@@ -946,7 +946,7 @@ def test_distant_cuts_on_a_later_recording_spread_over_the_pool(
     assert [(x.start, x.end) for x in picks] == [(20.75, 21.25), (10.75, 11.25), (0.75, 1.25)]
 
 
-def test_a_request_never_tiles_a_scrap_an_avoid_carved_out_of_a_pool_sample(
+def test_a_pool_sample_cut_down_by_an_avoid_to_a_quarter_second_is_still_tiled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _pooled_project(tmp_path, monkeypatch, (Sample(0.0, 2.0, -75.0, 0.0),))
@@ -961,8 +961,37 @@ def test_a_request_never_tiles_a_scrap_an_avoid_carved_out_of_a_pool_sample(
         avoid=[(0.0, 1.75), (2.0, 10.0)],
     )
 
-    assert isinstance(selected, SampleAbsent)
-    assert selected.cause == "excluded"
+    assert isinstance(selected, OwnQuietSample)
+    assert (selected.sample.start, selected.sample.end) == (1.75, 2.0)
+
+
+def test_a_quarter_second_vetted_sample_is_tiled_for_a_longer_pad_without_a_pool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines import room_tone
+
+    host = _noise(FLOOR_DB, seed=1054)
+    for start in (0.0, 1.05, 2.1, 3.15, 4.2, 5.25, 6.3, 7.35, 8.4, 9.45):
+        _add_voice(host, start, min(start + 0.5, DURATION_SEC), VOICE_DB)
+    project = _project(tmp_path, host=host)
+    monkeypatch.setattr(room_tone, "read_room_tone_pool", lambda _project, _track: ())
+
+    selected = room_tone_span(
+        project, "host", near_sec=3.3, near_source_id=None, timeline_sec=3.3, duration_sec=0.6
+    )
+
+    assert isinstance(selected, OwnQuietSample)
+    assert (selected.sample.start, selected.sample.end) == pytest.approx((2.75, 3.0))
+
+
+def test_every_recorded_pool_sample_is_at_least_one_second(tmp_path: Path) -> None:
+    from podcast_mcp.engines import room_tone
+
+    project = _project(tmp_path, host=_host_audio())
+    pool = room_tone.record_room_tone_pool(project, "host")
+
+    assert pool
+    assert all(x.end - x.start >= 1.0 - 1e-9 for x in pool)
 
 
 def test_a_later_recording_cut_with_no_pool_picks_from_the_first_quiet_run(
