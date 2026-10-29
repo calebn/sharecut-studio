@@ -21,6 +21,7 @@ import {
   useHostRoom,
   useHostRoomContext,
   useInputPeakDb,
+  useInputSwitching,
   useRecordHostStore,
 } from "../../record";
 import { useDawStore } from "../../state/dawStore";
@@ -74,6 +75,9 @@ function RecordStageBody({
   const ticking = state === "recording" || state === "lobby";
   const elapsed = useElapsedSince(receivedAtMs, ticking);
   const meter = useInputPeakDb(cap.stream);
+  const micStatus = hostMicStatus(cap.micStatus, cap.micLost);
+  const micDeviceId = cap.staleMic ? "" : cap.deviceId;
+  const switching = useInputSwitching(cap.stream, micStatus, micDeviceId);
   const level = dbToFraction(meter.levelDb, -60);
 
   const phase = hostRoomPhase(snapshot, {
@@ -254,12 +258,13 @@ function RecordStageBody({
         viewerWidth={viewerWidthOf(shell) === "desktop" ? "desktop" : "phone"}
         mic={deviceMic(
           {
-            status: hostMicStatus(cap.micStatus, cap.micLost),
+            status: micStatus,
             stream: cap.stream,
             devices: cap.devices,
           },
           {
-            deviceId: cap.staleMic ? "" : cap.deviceId,
+            deviceId: micDeviceId,
+            switching,
             levelDb: meter.levelDb,
             clipped: meter.clipped,
             inputLocked: live || paused,

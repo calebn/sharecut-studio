@@ -52,3 +52,4 @@ export {
 export { UploadStatus } from "./UploadStatus";
 export { type HostRoom, useHostRoom } from "./useHostRoom";
 export { useInputPeakDb } from "./useInputPeakDb";
+export { useInputSwitching } from "./useInputSwitching";
