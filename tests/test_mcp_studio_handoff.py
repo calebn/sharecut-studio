@@ -308,6 +308,22 @@ def test_initialized_tool_can_outlast_the_initialization_deadline(
         assert [report[0] for report in context.reports] == list(range(7))
 
 
+def test_same_file_alias_tool_call_runs_in_studio(studio: Path) -> None:
+    alias = studio.with_name("project-alias.json")
+    alias.hardlink_to(studio)
+    assert alias.resolve() != studio.resolve()
+    assert alias.samefile(studio)
+    before = studio.read_bytes()
+    server = _wrapped()
+
+    result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(alias)}))
+
+    assert isinstance(result, CallToolResult)
+    assert not result.is_error
+    assert server.calls == []
+    assert studio.read_bytes() == before
+
+
 def test_tool_call_runs_in_the_studio_serving_the_project(studio: Path) -> None:
     server = _wrapped()
     result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))

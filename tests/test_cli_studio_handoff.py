@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -436,14 +437,130 @@ def test_settings_that_differ_from_studios_run_directly_and_say_so(studio: Studi
     assert "Writing directly instead" in result.stderr
 
 
-def test_the_run_and_ping_routes_need_the_announced_token(studio: StudioRun) -> None:
-    url = f"http://127.0.0.1:{studio.port}/api/handoff/ping?project={studio.project}"
-    with pytest.raises(urllib.error.HTTPError) as denied:
-        urllib.request.urlopen(url, timeout=5)
-    assert denied.value.code == 401
+def test_cli_reads_a_same_file_alias_in_studio(studio: StudioRun) -> None:
+    alias = studio.project.with_name("project-alias.json")
+    alias.hardlink_to(studio.project)
+    assert alias.resolve() != studio.project.resolve()
+    assert alias.samefile(studio.project)
+    before = studio.project.read_bytes()
+
+    result = podcast("info", "--project", str(alias))
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["name"] == "test_episode"
+    assert studio.commands == [["info", "--project", str(alias)]]
+    assert studio.project.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("case", "ping_serves", "refusal"),
+    [
+        ("alias_body", True, None),
+        ("alias_argv", True, None),
+        ("workspace", True, None),
+        ("different", False, "not_served"),
+        ("missing", False, "not_served"),
+        ("served_missing", False, "not_served"),
+        ("both_missing", False, "not_served"),
+        ("unserved", False, "not_served"),
+        ("invalid", False, "not_served"),
+        ("argv_other", True, "not_eligible"),
+    ],
+)
+def test_handoff_checks_existing_project_identity(
+    studio: StudioRun, case: str, ping_serves: bool, refusal: str | None
+) -> None:
     host = read_studio_host(studio.project)
     assert host is not None
-    request = urllib.request.Request(url, headers={HANDOFF_TOKEN_HEADER: host.token})
+    project = argv_project = str(studio.project)
+    if case.startswith("alias_"):
+        alias = studio.project.with_name("project-alias.json")
+        alias.hardlink_to(studio.project)
+        if case == "alias_body":
+            project = str(alias)
+        else:
+            argv_project = str(alias)
+    elif case == "workspace":
+        project = argv_project = str(studio.project.parent)
+    elif case in {"different", "argv_other"}:
+        other = studio.project.with_name("other.project.json")
+        other.write_bytes(studio.project.read_bytes())
+        assert not other.samefile(studio.project)
+        if case == "different":
+            project = str(other)
+        else:
+            argv_project = str(other)
+    elif case == "missing":
+        project = str(studio.project.with_name("missing.json"))
+    elif case in {"served_missing", "both_missing"}:
+        studio.project.unlink()
+        if case == "served_missing":
+            other = studio.project.with_name("other.json")
+            other.write_text("{}")
+            project = str(other)
+    elif case == "unserved":
+        handoff_route.set_served_project(studio.app, None)
+    elif case == "invalid":
+        project = "\0"
+
+    query = urllib.parse.urlencode({"project": project})
+    headers = {HANDOFF_TOKEN_HEADER: host.token, "Content-Type": "application/json"}
+    ping = urllib.request.Request(
+        f"http://127.0.0.1:{studio.port}/api/handoff/ping?{query}", headers=headers
+    )
+    with urllib.request.urlopen(ping, timeout=5) as response:
+        assert json.load(response)["serves"] is ping_serves
+
+    argv = ["info", "--project", argv_project]
+    body = json.dumps(
+        {"protocol": 1, "argv": argv, "project": project, "cwd": str(studio.project.parent)}
+    ).encode()
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{studio.port}/api/handoff/run", data=body, headers=headers
+    )
+    if refusal is not None:
+        with pytest.raises(urllib.error.HTTPError) as denied:
+            urllib.request.urlopen(request, timeout=5)
+        assert denied.value.code == 409
+        assert json.load(denied.value)["code"] == refusal
+        assert studio.commands == []
+    else:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            events = [json.loads(line) for line in response]
+        assert events[-1] == {"t": "exit", "code": 0}
+        assert studio.commands == [argv]
+
+
+@pytest.mark.parametrize("route", ["ping", "run"])
+@pytest.mark.parametrize("token", [None, "wrong"])
+def test_the_run_and_ping_routes_need_the_announced_token(
+    studio: StudioRun, route: str, token: str | None
+) -> None:
+    url = f"http://127.0.0.1:{studio.port}/api/handoff/ping?project={studio.project}"
+    headers = {} if token is None else {HANDOFF_TOKEN_HEADER: token}
+    data = None
+    if route == "run":
+        url = f"http://127.0.0.1:{studio.port}/api/handoff/run"
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(
+            {
+                "protocol": 1,
+                "argv": ["info", "--project", str(studio.project)],
+                "project": str(studio.project),
+                "cwd": str(studio.project.parent),
+            }
+        ).encode()
+    with pytest.raises(urllib.error.HTTPError) as denied:
+        urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers), timeout=5)
+    assert denied.value.code == 401
+    assert json.load(denied.value)["code"] == "bad_token"
+    assert studio.commands == []
+    host = read_studio_host(studio.project)
+    assert host is not None
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{studio.port}/api/handoff/ping?project={studio.project}",
+        headers={HANDOFF_TOKEN_HEADER: host.token},
+    )
     with urllib.request.urlopen(request, timeout=5) as ok:
         assert json.load(ok)["serves"] is True
 
