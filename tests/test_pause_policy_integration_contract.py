@@ -606,7 +606,9 @@ def test_public_selection_preserves_mixed_real_rejection_and_window_decode_evide
 
     monkeypatch.setattr(room_tone, "load_mono_window", fail_first_window)
 
-    selected = room_tone_span(result, "host", near_sec=0, duration_sec=0.25)
+    selected = room_tone_span(
+        result, "host", near_sec=0, near_source_id=None, timeline_sec=0, duration_sec=0.25
+    )
 
     assert selected is not None
     assert getattr(selected, "cause", None) == "rejected"
@@ -616,7 +618,9 @@ def test_public_selection_preserves_mixed_real_rejection_and_window_decode_evide
     clean = room(seconds=2.4, seed=1262)
     voice(clean, 0.7, 1)
     write_wav(path, clean)
-    accepted = room_tone_span(result, "host", near_sec=0, duration_sec=0.25)
+    accepted = room_tone_span(
+        result, "host", near_sec=0, near_source_id=None, timeline_sec=0, duration_sec=0.25
+    )
     assert accepted is not None
     assert (accepted.sample.start, accepted.sample.end) == pytest.approx((0, 0.25))
     assert accepted.sample.speech_prob is None
@@ -634,13 +638,17 @@ def test_real_seventeen_run_inventory_exposes_candidate_limit_and_clean_distant_
     write_wav(tmp_path / "raw/host.wav", audio)
     result.track_by_id("host").media.duration_sec = 17
 
-    selected = room_tone_span(result, "host", near_sec=0, duration_sec=0.25)
+    selected = room_tone_span(
+        result, "host", near_sec=0, near_source_id=None, timeline_sec=0, duration_sec=0.25
+    )
 
     assert selected is not None
     assert getattr(selected, "cause", None) == "candidate_limit"
     assert selected.rejected_checks == ("near_speech",)
     assert selected.unreadable_windows == 0
-    accepted = room_tone_span(result, "host", near_sec=16.4, duration_sec=0.25)
+    accepted = room_tone_span(
+        result, "host", near_sec=16.4, near_source_id=None, timeline_sec=16.4, duration_sec=0.25
+    )
     assert accepted is not None
     assert (accepted.sample.start, accepted.sample.end) == pytest.approx((16.275, 16.525))
     assert accepted.sample.speech_prob is None

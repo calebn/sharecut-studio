@@ -1294,8 +1294,9 @@ def fill_with_room_tone(
             project,
             track_id,
             near_sec=clip.source_end,
-            duration_sec=min(sample_duration_sec, gap),
             near_source_id=clip.source_id,
+            timeline_sec=gap_start,
+            duration_sec=min(sample_duration_sec, gap),
         )
         if isinstance(span, SampleAbsent):
             absent = span
@@ -1368,8 +1369,9 @@ def mute_room_tone_fill(
         project,
         clip.track_id,
         near_sec=(lo + hi) / 2.0,
-        duration_sec=hi - lo,
         near_source_id=clip.source_id,
+        timeline_sec=clip.timeline_start + (lo - clip.source_start),
+        duration_sec=hi - lo,
     )
     if isinstance(span, SampleAbsent):
         return None
@@ -1606,6 +1608,7 @@ def room_tone_pad(
             tid,
             near_sec=near,
             near_source_id=seam.source_id,
+            timeline_sec=at_time,
             duration_sec=min(seconds, sample_duration_sec) if sample_duration_sec else seconds,
             avoid=excluded,
         )

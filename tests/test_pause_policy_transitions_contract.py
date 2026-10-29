@@ -315,7 +315,13 @@ def test_above_floor_inventory_reports_actual_pcm_rejection_and_a_clean_positive
     avoid = [(0, 0.9), (1.4, 6)]
 
     rejected = room_tone.room_tone_span(
-        result, "host", near_sec=1.15, duration_sec=0.25, avoid=avoid
+        result,
+        "host",
+        near_sec=1.15,
+        near_source_id=None,
+        timeline_sec=1.15,
+        duration_sec=0.25,
+        avoid=avoid,
     )
 
     assert rejected is not None
@@ -324,7 +330,13 @@ def test_above_floor_inventory_reports_actual_pcm_rejection_and_a_clean_positive
     audio[round(0.9 * RATE) : round(1.4 * RATE)] = room(0.5, seed=1425)
     write_wav(tmp_path / "raw/host.wav", audio)
     accepted = room_tone.room_tone_span(
-        result, "host", near_sec=1.15, duration_sec=0.25, avoid=avoid
+        result,
+        "host",
+        near_sec=1.15,
+        near_source_id=None,
+        timeline_sec=1.15,
+        duration_sec=0.25,
+        avoid=avoid,
     )
     assert accepted.sample is not None
     assert (accepted.sample.start, accepted.sample.end) == pytest.approx((1.025, 1.275))
