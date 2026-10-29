@@ -15,8 +15,6 @@ import {
   shareRowsOf,
 } from "./shareLogic";
 
-const outsidePrivateBlock = ["172", "32", "0", "4"].join(".");
-
 const tunnel = (state: TunnelStatus["state"]): TunnelStatus => ({
   state,
   reason: null,
@@ -163,9 +161,8 @@ describe("reachOf", () => {
       expect(reachOf(status, "https://share.example.test/r/a")).toBe(
         "anywhere",
       );
-      expect(reachOf(status, `http://${outsidePrivateBlock}/r/a`)).toBe(
-        "anywhere",
-      );
+      expect(reachOf(status, "http://172.31.255.254/r/a")).toBe("network");
+      expect(reachOf(status, "http://203.0.113.9/r/a")).toBe("anywhere");
     }
   });
   it("says anywhere for a row with no address", () => {
