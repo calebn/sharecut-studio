@@ -15,6 +15,17 @@ export async function expectPreviewFooterTouchBounds(inspector: Locator) {
   ]);
   await expect(preview.getByRole("button")).toHaveCount(3);
   await inspector.page().evaluate(() => document.fonts.ready);
+  // Opened by Inspect, the card is still settling; measure once it has stopped.
+  let settled = "";
+  await expect
+    .poll(async () => {
+      const last = settled;
+      const box = await footer.boundingBox();
+      const actionsNow = await actions.boundingBox();
+      settled = JSON.stringify([box, actionsNow]);
+      return settled === last;
+    })
+    .toBe(true);
 
   const footerBox = (await footer.boundingBox())!;
   const actionsBox = (await actions.boundingBox())!;
