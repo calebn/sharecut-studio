@@ -114,8 +114,7 @@ def _adopted(entries: list[RecentEntry]) -> list[RecentEntry]:
 
     Another opener (the CLI, MCP) may have renamed the project before Studio did. The
     entry then merges into an existing ``episode.sharecut`` entry, keeping the newer
-    ``opened_at``. A retired entry whose folder still holds only the old file stays as is.
-    Reads never write: the stored file changes at the next record or forget.
+    ``opened_at``. Reads never write: the stored file changes at the next record or forget.
     """
     merged: dict[str, RecentEntry] = {}
     for entry in entries:
