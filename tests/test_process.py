@@ -81,8 +81,8 @@ def test_windows_liveness_is_false_only_when_the_process_is_certainly_gone(
     kernel32: _Kernel32, alive: bool
 ) -> None:
     assert process_module._windows_pid_alive(4321, kernel32, lambda: kernel32.error) is alive
-    assert kernel32.asked == [(0x1000, False, 4321)]
-    assert kernel32.closed == [HANDLE] * kernel32.opens
+    assert kernel32.asked == [(process_module._PROCESS_QUERY_LIMITED_INFORMATION, False, 4321)]
+    assert kernel32.closed == ([HANDLE] if kernel32.opens else [])
 
 
 def test_pid_is_alive_on_windows_asks_the_windows_probe_and_never_signals(
