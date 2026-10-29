@@ -288,6 +288,16 @@ describe("Review host comments", () => {
     expect(server.comments.find((c) => c.id === "c1")?.resolved).toBe(false);
   });
 
+  it("sends one resolve for two Enters in the same frame", async () => {
+    mount();
+    act(() => {
+      press("Enter");
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(1));
+    expect(heading()).toBe("Comment from Sam");
+  });
+
   it("puts a comment back when the resolve is refused", async () => {
     server.refuse.add("ResolveComment");
     mount();

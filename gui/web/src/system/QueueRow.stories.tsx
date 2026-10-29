@@ -125,7 +125,10 @@ export const Offline: Story = {
 };
 
 export const Decided: Story = {
-  args: { decided: { result: "applied", text: "Cut 0.8 s" } },
+  args: {
+    decided: { result: "applied", text: "Cut 0.8 s" },
+    onSelect: undefined,
+  },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByText("Cut 0.8 s")).toBeVisible();
     await expect(within(canvasElement).queryByRole("button")).toBeNull();
@@ -133,7 +136,21 @@ export const Decided: Story = {
 };
 
 export const DecidedKept: Story = {
-  args: { decided: { result: "kept", text: "Kept" } },
+  args: { decided: { result: "kept", text: "Kept" }, onSelect: undefined },
+};
+
+export const DecidedComment: Story = {
+  args: {
+    kind: "comment",
+    decided: { result: "applied", text: "Resolved" },
+    selected: true,
+  },
+  play: async ({ args, canvasElement }) => {
+    const row = within(canvasElement).getByRole("button", { name: /Resolved/ });
+    await expect(row).toHaveAttribute("aria-current", "true");
+    await userEvent.click(row);
+    await expect(args.onSelect).toHaveBeenCalledOnce();
+  },
 };
 
 export const LongSnippet: Story = {

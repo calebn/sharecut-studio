@@ -315,6 +315,7 @@ describe("stable callback source governance", () => {
       "stage/hosts/useReviewQueue.ts:onHear",
       "stage/hosts/useReviewQueue.ts:onOpenInEdit",
       "stage/hosts/useReviewQueue.ts:refreshStatus",
+      "stage/hosts/useReviewQueue.ts:select",
       "stages/edit/FixTextField.tsx:finish",
       "system/Clip.tsx:abort",
       "system/Clip.tsx:endNudge",

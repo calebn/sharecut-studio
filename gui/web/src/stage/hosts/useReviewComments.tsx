@@ -61,6 +61,7 @@ export function useReviewComments(enabled: boolean) {
   const [replies, setReplies] = useState<Readonly<Record<string, string>>>({});
   const actions = useCommentActions({ role: COMMENT_ROLE });
   const replyRef = useRef<HTMLTextAreaElement>(null);
+  const sending = useRef(new Set<string>());
 
   useEffect(() => {
     setFlipped((prev) => {
@@ -91,7 +92,12 @@ export function useReviewComments(enabled: boolean) {
   ) => {
     const c = comments?.find((x) => x.id === commentId);
     const { announceStatus: say } = useDawStore.getState();
-    if (!c || (flipped.get(c.id) ?? c.resolved) === resolved) return;
+    if (
+      !c ||
+      sending.current.has(c.id) ||
+      (flipped.get(c.id) ?? c.resolved) === resolved
+    )
+      return;
     const path = projectPath;
     const itemId = commentItemId(c.id);
     flip(c.id, resolved);
@@ -107,6 +113,7 @@ export function useReviewComments(enabled: boolean) {
         ),
       );
     const by = commitCommentActor(null, COMMENT_ROLE);
+    sending.current.add(c.id);
     try {
       await setCommentResolved(c.id, resolved, by);
     } catch (error) {
@@ -114,6 +121,8 @@ export function useReviewComments(enabled: boolean) {
       nav?.onSelect(itemId);
       say(errorMessage(error), { tone: "error" });
       return;
+    } finally {
+      sending.current.delete(c.id);
     }
     say(
       resolved
