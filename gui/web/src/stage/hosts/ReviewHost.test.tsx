@@ -144,6 +144,7 @@ const fresh = () => ({
   count: null as number | null,
   held: [] as Held[],
   omitSnapshot: false,
+  holdStatus: null as Promise<void> | null,
   status: "clear" as "clear" | "pending" | "done" | "waived",
   waiveFails: false,
   down: false,
@@ -304,7 +305,13 @@ const fetchStub = vi.fn(
     const url = String(input instanceof Request ? input.url : input);
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), { status });
-    if (url.includes("/refine/status")) return json(statusBody());
+    if (url.includes("/refine/status")) {
+      const body = statusBody();
+      const hold = server.holdStatus;
+      server.holdStatus = null;
+      await hold;
+      return json(body);
+    }
     if (url.includes("/refine/done")) {
       order.push("done");
       marks.push(JSON.parse(init?.body as string));
@@ -736,14 +743,14 @@ describe("Review host unsure words", () => {
       unsure_words: [word(2, "orc")],
     }),
   ];
-  const setup = (status: typeof server.status = "pending") => {
+  const setup = (status: typeof server.status = "pending", edits = cuts()) => {
     server.status = status;
     server.words = [
       { text: "uncle", unsure: true, at: 5, listed: true },
       { text: "gnu", unsure: true, at: 10, listed: true },
       { text: "orc", unsure: true, at: 30, listed: false },
     ];
-    mount(cuts());
+    mount(edits);
   };
   const rows = () =>
     within(screen.getByRole("region", { name: "Unsure words" }))
@@ -847,6 +854,48 @@ describe("Review host unsure words", () => {
     await waitFor(() =>
       expect(screen.queryByRole("region", { name: "Checks" })).toBeNull(),
     );
+  });
+
+  it("closes the check with a fresh fingerprint while the status after a Fix is still in flight", async () => {
+    setup();
+    let release = () => {};
+    await pick(/uncle/);
+    server.holdStatus = new Promise((resolve) => {
+      release = resolve;
+    });
+    await fix("oncle");
+    for (let i = 0; i < 2; i++)
+      act(() => {
+        press("Enter");
+      });
+    await waitFor(() => expect(order).toContain("done"));
+    release();
+    expect(marks[0].expected_fingerprint).toBe("fp:oncle|gnu|orc");
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Checks" })).toBeNull(),
+    );
+  });
+
+  it("holds a two-word cut again after Undo of one word, however the other is decided", async () => {
+    setup("done", [
+      edit("f1", "filler", 10, {
+        unsure_words: [word(0, "uncle"), word(1, "gnu")],
+      }),
+    ]);
+    await pick(/gnu/);
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(1));
+    await userEvent.click(await undoButton());
+    await waitFor(() => expect(sent("UndoHistory")).toHaveLength(1));
+    await pick(/uncle/);
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(2));
+    await userEvent.click(screen.getByRole("button", { name: /filler f1/ }));
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
   });
 
   it("keeps the check, with an error toast, when the closing mark fails", async () => {
