@@ -14,7 +14,7 @@ import { RoomView } from "../system/RoomView";
 import { TakesTray } from "../system/TakesTray";
 import { LoadingScreen } from "../ui";
 import { dbToFraction } from "../ui/metering";
-import { deviceMic, deviceTone } from "./deviceSheet";
+import { deviceMic, deviceTone, useSheetMic } from "./deviceSheet";
 import { GuestCovers } from "./GuestCovers";
 import {
   guestCoverProps,
@@ -49,7 +49,6 @@ import { leaveBlocked } from "./upload/useRecordUpload";
 import { useGuestRoom } from "./useGuestRoom";
 import { useGuestRoomTone } from "./useGuestRoomTone";
 import { useInputPeakDb } from "./useInputPeakDb";
-import { useInputSwitching } from "./useInputSwitching";
 import { useLateRoomTone } from "./useLateRoomTone";
 import { recordSyncErrorCopy } from "./useRecordSync";
 import { useRosterAnnouncer } from "./useRosterAnnouncer";
@@ -126,8 +125,6 @@ function GuestRoomSession({
     setProducerJoined,
     resumeUpload,
   } = room;
-  const micDeviceId = staleMic ? "" : deviceId;
-  const switching = useInputSwitching(mic.stream, mic.status, micDeviceId);
 
   const shell = useViewportClass();
   const landscape = useMediaQueryStore(
@@ -153,6 +150,24 @@ function GuestRoomSession({
     state === "recording" || state === "lobby",
   );
   const meter = useInputPeakDb(producer ? null : mic.stream);
+  const lostDetail =
+    mic.status === "lost" ||
+    mic.status === "unavailable" ||
+    mic.status === "error"
+      ? (mic.error ?? copyForMicStatus(mic.status) ?? undefined)
+      : undefined;
+  const sheetMic = useSheetMic(
+    { status: mic.status, stream: mic.stream, devices: mic.devices },
+    {
+      deviceId,
+      stale: staleMic,
+      levelDb: meter.levelDb,
+      clipped: meter.clipped,
+      // The keeper's Stop flush may still settle after the room is stopped.
+      inputLocked: onAir || keeper.finalizing,
+      detail: lostDetail,
+    },
+  );
   const level = dbToFraction(meter.levelDb, -60);
   const headroom = useStorageHeadroom();
 
@@ -206,11 +221,9 @@ function GuestRoomSession({
     ((consented === null && !recovering) || (rejoinOpen && consented !== true));
   const producerSheet = producer && !producerJoined && !producerDismissed;
   const sheetOpen = guestSheet || producerSheet;
-  useEffect(() => {
-    if (sheetOpen) {
-      setDeviceOpen(false);
-    }
-  }, [sheetOpen]);
+  if (sheetOpen && deviceOpen) {
+    setDeviceOpen(false);
+  }
 
   const join = () => {
     meterRef.current.resume();
@@ -333,12 +346,6 @@ function GuestRoomSession({
     mic.settingsWarning,
     mic.status === "denied" ? copyForMicStatus("denied") : null,
   ].filter((note): note is string => !!note);
-  const lostDetail =
-    mic.status === "lost" ||
-    mic.status === "unavailable" ||
-    mic.status === "error"
-      ? (mic.error ?? copyForMicStatus(mic.status) ?? undefined)
-      : undefined;
   const storageBlocker = !storageRequired
     ? undefined
     : sinkError
@@ -355,19 +362,6 @@ function GuestRoomSession({
       // retry once the site is unblocked, so both ask again.
       mic.retry();
     }
-  };
-  const micInput = {
-    status: mic.status,
-    stream: mic.stream,
-    devices: mic.devices,
-  };
-  const micOptions = {
-    deviceId: micDeviceId,
-    switching,
-    levelDb: meter.levelDb,
-    clipped: meter.clipped,
-    inputLocked: onAir,
-    detail: lostDetail,
   };
   const heldLeave = !producer && leaveBlocked(state ?? "", upload);
 
@@ -413,7 +407,7 @@ function GuestRoomSession({
           host={host}
           name={name}
           onNameChange={setName}
-          mic={joinMic(micInput, micOptions)}
+          mic={joinMic(sheetMic.input, sheetMic.options)}
           micNotes={micNotes}
           headphones={headphonesOk}
           onHeadphonesChange={setHeadphonesOk}
@@ -431,7 +425,7 @@ function GuestRoomSession({
       {deviceOpen && !sheetOpen && !producer ? (
         <DeviceSheet
           viewerWidth={viewerWidth === "desktop" ? "desktop" : "phone"}
-          mic={deviceMic(micInput, micOptions)}
+          mic={deviceMic(sheetMic.input, sheetMic.options)}
           micNotes={micNotes}
           onMicAction={micAction}
           onInputChange={setDeviceId}

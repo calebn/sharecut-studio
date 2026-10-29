@@ -1,7 +1,12 @@
 // The editor's only door into record/: its store, wire, host room and helpers.
 
 export { recordingClockMs } from "./clock";
-export { deviceMic, deviceTone, hostMicStatus } from "./deviceSheet";
+export {
+  deviceMic,
+  deviceTone,
+  hostMicStatus,
+  useSheetMic,
+} from "./deviceSheet";
 export {
   type LandGate,
   landGate,
@@ -20,6 +25,7 @@ export {
   postLiveComment,
 } from "./liveCommentQueue";
 export {
+  copyForMicStatus,
   MIC_RETRY_LABEL,
   MIC_SAVED_DEVICE_MISSING_COPY,
 } from "./micPermission";
@@ -53,4 +59,3 @@ export {
 export { UploadStatus } from "./UploadStatus";
 export { type HostRoom, useHostRoom } from "./useHostRoom";
 export { useInputPeakDb } from "./useInputPeakDb";
-export { useInputSwitching } from "./useInputSwitching";

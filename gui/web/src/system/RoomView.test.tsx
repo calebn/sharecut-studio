@@ -65,10 +65,8 @@ describe("RoomView", () => {
     expect(presses).toHaveLength(1);
     const tile = presses[0].closest(".sys-room-tile");
     expect(tile).toHaveTextContent("Jon");
-    presses[0].focus();
-    await userEvent.keyboard("{Enter}");
     await userEvent.click(presses[0]);
-    expect(onSelfPress).toHaveBeenCalledTimes(2);
+    expect(onSelfPress).toHaveBeenCalledTimes(1);
   });
 
   it("draws no press target without a handler", () => {

@@ -10,14 +10,35 @@ import {
   ROOM_TONE_PROMPT_COPY,
   ROOM_TONE_TOO_LOUD_COPY,
 } from "./types";
+import { useInputSwitching } from "./useInputSwitching";
 
 const MIC_REASON = "Allow the microphone before recording room tone.";
 const TAKE_REASON = "Record room tone between takes.";
 
+type JoinMicInput = Parameters<typeof joinMic>[0];
+type JoinMicOptions = Parameters<typeof joinMic>[1];
+
+/**
+ * What the Join and Device sheets read the mic from: the input in use (a stale
+ * saved id counts as Default) and whether a pick is still opening.
+ */
+export function useSheetMic(
+  mic: JoinMicInput,
+  pick: Omit<JoinMicOptions, "deviceId" | "switching"> & {
+    deviceId: string;
+    stale: boolean;
+  },
+): { input: JoinMicInput; options: JoinMicOptions } {
+  const { stale, ...rest } = pick;
+  const deviceId = stale ? "" : pick.deviceId;
+  const switching = useInputSwitching(mic.stream, mic.status, deviceId);
+  return { input: mic, options: { ...rest, deviceId, switching } };
+}
+
 /** The Join sheet's mic, with a missing input told apart from a lost one. */
 export function deviceMic(
-  mic: Parameters<typeof joinMic>[0],
-  options: Parameters<typeof joinMic>[1],
+  mic: JoinMicInput,
+  options: JoinMicOptions,
 ): DeviceMic {
   return mic.status === "unavailable"
     ? { status: "none" }

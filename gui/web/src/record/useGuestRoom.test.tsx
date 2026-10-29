@@ -14,6 +14,16 @@ import { MIC_SAVED_DEVICE_MISSING_COPY } from "./micPermission";
 import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
 import { useGuestRoom } from "./useGuestRoom";
 
+vi.mock("./encodeRoomTone", () => ({
+  encodeRoomToneWav: (
+    _stream: MediaStream,
+    { signal }: { signal: AbortSignal },
+  ) =>
+    new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason));
+    }),
+}));
+
 vi.mock("../desktop/useDesktopCloseGuard", () => ({
   useDesktopCloseGuard: () => undefined,
 }));
@@ -392,6 +402,43 @@ describe("useGuestRoom", () => {
       await waitFor(() => expect(result.current.bootstrap).not.toBeNull());
       expect(result.current.storageRequired).toBe(false);
       expect(createOpfsSink).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("room tone", () => {
+    it("cancels a capture in flight when a take starts", async () => {
+      stubFetch({
+        ...guestBootstrap,
+        build: { capture: false, monitor: false, upload: true },
+      });
+      const { result } = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(result.current.me).not.toBeNull());
+      act(() =>
+        sockets[0]?.emit({
+          type: "Snapshot",
+          snapshot: snapshotOf({
+            participants: [{ ...guest, consented: true }],
+          }),
+        }),
+      );
+      act(() => result.current.mic.request());
+      await waitFor(() => expect(result.current.mic.stream).not.toBeNull());
+      await waitFor(() =>
+        expect(result.current.roomTone.captureReady).toBe(true),
+      );
+      act(() => result.current.roomTone.record());
+      expect(result.current.roomTone.status).toBe("capturing");
+      act(() =>
+        sockets[0]?.emit({
+          type: "Snapshot",
+          snapshot: snapshotOf({
+            state: "recording",
+            take_index: 0,
+            participants: [{ ...guest, consented: true }],
+          }),
+        }),
+      );
+      await waitFor(() => expect(result.current.roomTone.status).toBe("idle"));
     });
   });
 

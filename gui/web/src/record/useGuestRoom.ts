@@ -271,7 +271,8 @@ export function useGuestRoom(
       !producer &&
       !accessEnded &&
       !!me?.participant_id &&
-      me.consented !== false,
+      me.consented !== false &&
+      (snapshot?.state === "lobby" || snapshot?.state === "stopped"),
     canUpload: !accessEnded && me?.consented === true,
     stream: mic.stream,
     sessionId: snapshot?.session_id ?? null,

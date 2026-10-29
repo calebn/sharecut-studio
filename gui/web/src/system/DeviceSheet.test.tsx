@@ -153,5 +153,7 @@ describe("DeviceSheet", () => {
   it("is a bottom sheet on the phone", () => {
     render(sheet({ viewerWidth: "phone" }));
     expect(screen.getByRole("dialog", { name: "Devices" })).toBeInTheDocument();
+    expect(document.querySelector(".sys-sheet-bottom")).not.toBeNull();
+    expect(document.querySelector(".sys-sheet-centered")).toBeNull();
   });
 });

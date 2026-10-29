@@ -201,6 +201,10 @@ export function useRoomToneCapture(args: {
         setStatus("recorded");
       } catch (err) {
         if (controller.signal.aborted || abortRef.current !== controller) {
+          // Cancelled with nothing taking its place, such as a take starting.
+          if (abortRef.current === controller) {
+            setStatus((now) => (now === "capturing" ? "idle" : now));
+          }
           return;
         }
         setStatus("error");

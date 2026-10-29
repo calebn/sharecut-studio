@@ -3,6 +3,7 @@ import { runPointerCommand } from "../../commands/pointer";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import {
+  copyForMicStatus,
   deviceMic,
   deviceTone,
   HEARING_COPY,
@@ -21,8 +22,8 @@ import {
   useHostRoom,
   useHostRoomContext,
   useInputPeakDb,
-  useInputSwitching,
   useRecordHostStore,
+  useSheetMic,
 } from "../../record";
 import { useDawStore } from "../../state/dawStore";
 import { DeviceSheet } from "../../system/DeviceSheet";
@@ -76,8 +77,23 @@ function RecordStageBody({
   const elapsed = useElapsedSince(receivedAtMs, ticking);
   const meter = useInputPeakDb(cap.stream);
   const micStatus = hostMicStatus(cap.micStatus, cap.micLost);
-  const micDeviceId = cap.staleMic ? "" : cap.deviceId;
-  const switching = useInputSwitching(cap.stream, micStatus, micDeviceId);
+  const paused = state === "paused";
+  const live = state === "recording";
+  const sheetMic = useSheetMic(
+    { status: micStatus, stream: cap.stream, devices: cap.devices },
+    {
+      deviceId: cap.deviceId,
+      stale: cap.staleMic,
+      levelDb: meter.levelDb,
+      clipped: meter.clipped,
+      // The keeper's Stop flush may still settle after the room is stopped.
+      inputLocked: live || paused || cap.keeperFinalizing,
+      detail: cap.micError ?? undefined,
+    },
+  );
+  if (!snapshot && deviceOpen) {
+    setDeviceOpen(false);
+  }
   const level = dbToFraction(meter.levelDb, -60);
 
   const phase = hostRoomPhase(snapshot, {
@@ -147,8 +163,6 @@ function RecordStageBody({
     />
   );
 
-  const paused = state === "paused";
-  const live = state === "recording";
   const canRecord = snapshot !== null && room.control !== null;
   const roomProps: RoomViewProps | null = snapshot
     ? {
@@ -252,26 +266,16 @@ function RecordStageBody({
       }}
     />
   ) : undefined;
+  const micNotes = [
+    cap.staleMic ? MIC_SAVED_DEVICE_MISSING_COPY : null,
+    micStatus === "denied" ? copyForMicStatus("denied") : null,
+  ].filter((note): note is string => !!note);
   const devices =
     snapshot && deviceOpen ? (
       <DeviceSheet
         viewerWidth={viewerWidthOf(shell) === "desktop" ? "desktop" : "phone"}
-        mic={deviceMic(
-          {
-            status: micStatus,
-            stream: cap.stream,
-            devices: cap.devices,
-          },
-          {
-            deviceId: micDeviceId,
-            switching,
-            levelDb: meter.levelDb,
-            clipped: meter.clipped,
-            inputLocked: live || paused,
-            detail: cap.micError ?? undefined,
-          },
-        )}
-        micNotes={cap.staleMic ? [MIC_SAVED_DEVICE_MISSING_COPY] : undefined}
+        mic={deviceMic(sheetMic.input, sheetMic.options)}
+        micNotes={micNotes}
         onMicAction={() => cap.onRetryMic?.()}
         onInputChange={cap.onDeviceChange}
         tone={deviceTone({
