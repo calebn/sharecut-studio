@@ -434,7 +434,7 @@ def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
     _host_dialogue(ws)
     from podcast_mcp.models import Transcript, TranscriptWord
 
-    with patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(
                 track_id="host",
@@ -455,7 +455,7 @@ def test_transcript_service_applies_saved_vocabulary(minimal_project):
     TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
         ws.project.workspace_path()
     )
-    with patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -475,7 +475,7 @@ def test_transcript_service_single_track_stamps_vocabulary_revision(minimal_proj
     TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
         ws.project.workspace_path()
     )
-    with patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -504,7 +504,7 @@ def test_transcript_service_single_track_returns_only_processed_id(minimal_proje
     ws.project.transcripts = [Transcript(track_id="guest", words=[])]
     _host_dialogue(ws)
 
-    with patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -529,7 +529,7 @@ def test_transcript_service_keeps_other_sources_and_warns_on_edited(minimal_proj
     ]
     ws.save()
     with (
-        patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls,
+        patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls,
         caplog.at_level("WARNING"),
     ):
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
