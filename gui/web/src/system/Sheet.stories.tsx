@@ -167,7 +167,7 @@ function PushedOverlay({
   );
 }
 
-/** The overlay hook takes focus back to Close on the frame after a title change, so a check made at once misses it. */
+/** The bottom sheet's overlay hook can take focus back to Close a frame after a title change, so a check made at once misses it. */
 function nextFrames(count: number) {
   return new Promise<void>((resolve) => {
     const step = (left: number) =>
