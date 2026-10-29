@@ -169,3 +169,24 @@ def test_a_retry_with_a_new_command_id_stays_idempotent_after_normalising(
     again = DocumentSyncService.open(path).submit(_command(payload, 1, command_id="retry"))
     assert again["idempotent"] is True
     assert len(_rows(path)) == 1
+
+
+def test_a_whole_track_fill_on_fewer_than_two_clips_is_an_unchanged_no_op(
+    minimal_project, monkeypatch
+):
+    from podcast_mcp.mcp.tools.history import history_status_tool
+    from podcast_mcp.models import save_project
+
+    gap_project(minimal_project, monkeypatch)
+    path = str(minimal_project)
+    project = load_project(Path(path))
+    project.clips = project.clips[:1]
+    save_project(project, minimal_project)
+    before = Path(path).read_bytes()
+    reply = json.loads(mcp_timeline.fill_with_room_tone_tool(path, track_id="host"))
+    assert reply["operation"] == "fill_with_room_tone"
+    assert reply["pad_samples"] == []
+    assert reply["unchanged"] is True
+    assert Path(path).read_bytes() == before
+    assert [row["type"] for row in _rows(path)] == ["FillRoomTone"]
+    assert json.loads(history_status_tool(path))["total"] == 0
