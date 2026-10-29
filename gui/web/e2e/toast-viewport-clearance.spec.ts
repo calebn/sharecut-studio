@@ -11,19 +11,45 @@ test("keeps desktop feedback above the Player after resizing a side composer", a
     const composer = page.locator(".pending-ask-thread .comment-compose");
     await composer.scrollIntoViewIfNeeded();
     const textarea = composer.locator("textarea");
-    const before = await textarea.boundingBox();
-    expect(before).not.toBeNull();
-    if (!before) throw new Error("The native comment textarea must be visible");
-    await page.mouse.move(
-      before.x + before.width - 3,
-      before.y + before.height - 3,
-    );
-    await page.mouse.down();
-    await page.mouse.move(before.x + before.width - 3, 854, { steps: 25 });
-    await page.mouse.up();
-    await expect
-      .poll(async () => (await textarea.boundingBox())?.height ?? 0)
-      .toBeGreaterThan(before.height + 100);
+    const settled = async () => {
+      let last = await textarea.boundingBox();
+      await expect
+        .poll(async () => {
+          const now = await textarea.boundingBox();
+          const still =
+            !!now &&
+            !!last &&
+            now.x === last.x &&
+            now.y === last.y &&
+            now.width === last.width &&
+            now.height === last.height;
+          last = now;
+          return still;
+        })
+        .toBe(true);
+      if (!last) throw new Error("The native comment textarea must be visible");
+      return last;
+    };
+    const before = await settled();
+    await expect(async () => {
+      await textarea.evaluate((el) =>
+        el.scrollIntoView({ block: "center", inline: "nearest" }),
+      );
+      const grip = await settled();
+      const x = grip.x + grip.width - 3;
+      const y = grip.y + grip.height - 3;
+      const gripFree = await textarea.evaluate(
+        (el, [px, py]) => document.elementFromPoint(px, py) === el,
+        [x, y],
+      );
+      expect(gripFree).toBe(true);
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x, 854, { steps: 25 });
+      await page.mouse.up();
+      const height = (await textarea.boundingBox())?.height ?? 0;
+      expect(height).toBeGreaterThan(before.height + 100);
+    }).toPass({ timeout: 15_000 });
     await page.route("**/api/pipeline/render-preview", (route) =>
       route.fulfill({
         status: 400,
