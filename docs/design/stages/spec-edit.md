@@ -853,7 +853,7 @@ Each interaction uses the object selection model above. Every edit is one undo s
 
 ### INT-SPLIT · Split and blade
 
-- **Today:** CMP-TOOLRAIL shots; touch blade asks for confirmation.
+- **Today:** CMP-TOOLRAIL shots; touch blade asked for confirmation (removed in #2294).
 - **Fate:** restyle.
 - **Spec:** Mod+K splits at the playhead on the targeted tracks (scope chip; default all); Alt-click at the pointer splits at that time on the same targeted tracks (W1a; no Blade tool). Phone: Split here in the playhead dock. No confirm. After a split, the right-hand piece is selected (anticipating trim, move or Cut).
 - **Story to build:** `Edit/PhoneEdit` story `WaveNothingSelected`.
