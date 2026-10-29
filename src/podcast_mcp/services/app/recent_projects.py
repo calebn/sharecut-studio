@@ -9,8 +9,8 @@ that triggered it. Project state stays in the project file.
 
 :func:`recent_project_cards` turns each entry into the card Home draws from a cheap
 read of the project file (JSON only, no model validation, no media). The parsed summary
-is cached per file by its revision stamp (device, inode, size, mtime), so a list that has
-not changed since the last read parses nothing; only the job state and the delivered date
+is cached per file by its revision stamp plus ctime, so a list that has not changed since
+the last read parses nothing; only the job state and the delivered date
 are looked up per request. The list is read-modify-written under a process lock only: two
 processes that record at once can drop each other's entry, but the file is never left half
 written.
