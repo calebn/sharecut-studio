@@ -150,7 +150,6 @@ export const reviewEntriesOf = (
 ): ReviewEntry[] =>
   pending.filter((e) => !e.applied && e.review_required).map(entryOf);
 
-/** The word's own start in the transcript, if the transcript has it. */
 function ownStart(
   utterances: readonly CombinedUtterance[],
   track: string,
