@@ -62,7 +62,11 @@ export function useReviewComments(enabled: boolean) {
   const [replies, setReplies] = useState<Readonly<Record<string, string>>>({});
   const actions = useCommentActions({ role: COMMENT_ROLE });
   const replyRef = useRef<HTMLTextAreaElement>(null);
-  const sending = useRef(new Set<string>());
+  const sending = useRef(
+    new Map<string, { to: boolean; done: Promise<boolean> }>(),
+  );
+  const posting = useRef(new Set<string>());
+  const [postingIds, setPostingIds] = useState<ReadonlySet<string>>(new Set());
   const sent = useRef(new Set<string>());
   const [asked, setAsked] = useState<string | null>(null);
 
@@ -98,12 +102,11 @@ export function useReviewComments(enabled: boolean) {
   ) => {
     const c = comments?.find((x) => x.id === commentId);
     const { announceStatus: say } = useDawStore.getState();
-    if (
-      !c ||
-      sending.current.has(c.id) ||
-      (flipped.get(c.id) ?? c.resolved) === resolved
-    )
-      return;
+    if (!c) return;
+    // Same target in flight: a duplicate. The opposite target waits its turn.
+    const flight = sending.current.get(c.id);
+    if (flight && (flight.to === resolved || !(await flight.done))) return;
+    if (!flight && (flipped.get(c.id) ?? c.resolved) === resolved) return;
     const itemId = commentItemId(c.id);
     sent.current.delete(c.id);
     flip(c.id, resolved);
@@ -120,18 +123,27 @@ export function useReviewComments(enabled: boolean) {
         : null;
     if (nav && resolved) nav.onSelect(next);
     const by = commitCommentActor(null, COMMENT_ROLE);
-    sending.current.add(c.id);
+    let settle: (ok: boolean) => void = () => {};
+    const mine = {
+      to: resolved,
+      done: new Promise<boolean>((r) => {
+        settle = r;
+      }),
+    };
+    sending.current.set(c.id, mine);
     try {
       await setCommentResolved(c.id, resolved, by);
     } catch (error) {
       flip(c.id, null);
       if (nav?.selected() === next) nav.onSelect(itemId);
       say(errorMessage(error), { tone: "error" });
+      settle(false);
       return;
     } finally {
-      sending.current.delete(c.id);
+      if (sending.current.get(c.id) === mine) sending.current.delete(c.id);
     }
     sent.current.add(c.id);
+    settle(true);
     say(
       resolved
         ? `Resolved comment at ${commentTimeLabel(c)}`
@@ -142,9 +154,14 @@ export function useReviewComments(enabled: boolean) {
               run: async () => {
                 if (useDawStore.getState().projectPath !== projectPath)
                   return false;
-                await setCommentResolved(c.id, false, by);
-                sent.current.add(c.id);
                 flip(c.id, false);
+                try {
+                  await setCommentResolved(c.id, false, by);
+                  sent.current.add(c.id);
+                } catch (error) {
+                  flip(c.id, null);
+                  throw error;
+                }
                 nav?.onSelect(itemId);
                 return true;
               },
@@ -177,13 +194,17 @@ export function useReviewComments(enabled: boolean) {
             onBodyChange: (next) =>
               setReplies((prev) => ({ ...prev, [c.id]: next })),
             onSubmit: () => {
-              if (actions.busy) return;
+              if (posting.current.has(c.id)) return;
+              posting.current.add(c.id);
+              setPostingIds(new Set(posting.current));
               setAsked(c.id);
               void actions.reply(c, draft).then((ok) => {
+                posting.current.delete(c.id);
+                setPostingIds(new Set(posting.current));
                 if (ok) setReplies((prev) => ({ ...prev, [c.id]: "" }));
               });
             },
-            state: mine && actions.busy ? "posting" : "idle",
+            state: postingIds.has(c.id) ? "posting" : "idle",
             inputRef: replyRef,
           }}
         />
