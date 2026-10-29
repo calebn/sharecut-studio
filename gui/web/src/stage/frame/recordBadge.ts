@@ -25,6 +25,8 @@ type RecordBadgeSource = {
   captureHealth: CaptureHealth;
   /** `performance.now()` when the snapshot arrived; the live clock counts on from it. */
   receivedAtMs: number | null;
+  /** The record socket closed after being open; a local clock is no longer the room's. */
+  dropped: boolean;
   /** Alerts are the Record stage's own to show; away from it they earn a dot. */
   away: boolean;
 };
@@ -39,6 +41,7 @@ function waitingCount(room: RecordBadgeRoom): number {
     room.snapshot?.participants.filter(
       (person) =>
         person.role !== "host" &&
+        person.role !== "producer" &&
         !person.removed &&
         person.connected &&
         person.consented !== false,
@@ -76,6 +79,9 @@ export function recordBadge(
       muted: room.host?.muted ?? false,
       micCheckFailed: room.capture.micCheckFailed,
     }).length > 0;
+  if (source.dropped && (state === "recording" || state === "paused")) {
+    return { kind: "reconnecting", alert };
+  }
   if (state === "recording") {
     return {
       kind: "live",
@@ -91,7 +97,9 @@ export function recordBadge(
   if (phase.kind === "saving") {
     return {
       kind: "saving",
-      progress: phase.totalPeople ? phase.savedPeople / phase.totalPeople : 0,
+      progress: phase.totalPeople
+        ? phase.savedPeople / phase.totalPeople
+        : undefined,
       alert,
     };
   }

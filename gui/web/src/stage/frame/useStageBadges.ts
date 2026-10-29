@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { useHostRoomContext, useRecordHostStore } from "../../record";
+import { shallow } from "zustand/shallow";
+import { useHostRoomSelector, useRecordHostStore } from "../../record";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { RecordBadge, StageBadge } from "../../system/StageBar";
@@ -45,16 +46,18 @@ function stageBadges(
 }
 
 export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
-  const room = useHostRoomContext();
   const onRecord = useDawStore((s) => s.stage === "record");
-  const recordAttention =
-    room != null &&
-    !onRecord &&
-    (room.micLossNeedsAttention ||
-      room.captureUnavailable ||
-      room.noAudioNeedsAttention);
+  const micLost = useHostRoomSelector(
+    (room) => room?.micLossNeedsAttention ?? false,
+    Object.is,
+  );
+  const otherAttention = useHostRoomSelector(
+    (room) => room?.captureUnavailable || room?.noAudioNeedsAttention || false,
+    Object.is,
+  );
+  const recordAttention = !onRecord && (micLost || otherAttention);
   const announceStatus = useDawStore((s) => s.announceStatus);
-  const micLostAway = room != null && !onRecord && room.micLossNeedsAttention;
+  const micLostAway = !onRecord && micLost;
   useEffect(() => {
     if (micLostAway) {
       announceStatus("Your mic stopped. Open Record to reconnect it.");
@@ -73,11 +76,15 @@ export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
 
 /** The Record item's room badge: the take, saving, people waiting or an alert. */
 export function useRecordBadge(): RecordBadge {
-  const room = useHostRoomContext();
   const away = useDawStore((s) => s.stage !== "record");
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const receivedAtMs = useRecordHostStore((s) => s.receivedAtMs);
-  return room
-    ? recordBadge(room, { captureHealth, receivedAtMs, away })
-    : { kind: "idle" };
+  const dropped = useRecordHostStore((s) => s.dropped);
+  return useHostRoomSelector(
+    (room): RecordBadge =>
+      room
+        ? recordBadge(room, { captureHealth, receivedAtMs, dropped, away })
+        : { kind: "idle" },
+    shallow,
+  );
 }

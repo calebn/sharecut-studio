@@ -1,10 +1,10 @@
-import { renderHook } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { type ReactNode, useState } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HostRoom } from "../../record";
 import { HostRoomProvider } from "../../record/hostRoomContext";
 import { useDawStore } from "../../state/dawStore";
-import { useStageBadges } from "./useStageBadges";
+import { useRecordBadge, useStageBadges } from "./useStageBadges";
 
 const room = (micLossNeedsAttention: boolean) =>
   ({
@@ -44,5 +44,57 @@ describe("useStageBadges mic loss", () => {
     });
     expect(result.current.record).toBeUndefined();
     expect(useDawStore.getState().statusAnnouncement).toBe("");
+  });
+});
+
+describe("useRecordBadge", () => {
+  beforeEach(() => {
+    useDawStore.setState({ stage: "edit" });
+  });
+
+  it("re-renders its reader only when the badge changes", () => {
+    const renders = vi.fn();
+    const waiting = (extra: object = {}) =>
+      ({
+        snapshot: {
+          session_id: "s1",
+          state: "lobby",
+          take_index: -1,
+          participants: [
+            {
+              participant_id: "a",
+              role: "guest",
+              display_name: "a",
+              connected: true,
+              consented: null,
+            },
+          ],
+        },
+        state: "lobby",
+        capture: {},
+        upload: { error: null, recoverable: false },
+        hostSegments: [],
+        ...extra,
+      }) as unknown as HostRoom;
+    let setRoom: (room: HostRoom) => void = () => {};
+    function Switchable({ children }: { children: ReactNode }) {
+      const [value, set] = useState(waiting());
+      setRoom = set;
+      return <HostRoomProvider value={value}>{children}</HostRoomProvider>;
+    }
+    const { result } = renderHook(
+      () => {
+        renders();
+        return useRecordBadge();
+      },
+      { wrapper: Switchable },
+    );
+    expect(result.current).toEqual({ kind: "waiting", count: 1 });
+    const before = renders.mock.calls.length;
+    act(() => setRoom(waiting({ unrelated: 1 })));
+    expect(renders).toHaveBeenCalledTimes(before);
+    act(() => setRoom(waiting({ state: "paused" })));
+    expect(result.current).toEqual({ kind: "paused", alert: false });
+    expect(renders.mock.calls.length).toBeGreaterThan(before);
   });
 });

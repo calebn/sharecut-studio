@@ -7,7 +7,7 @@ export {
   STOP_CONFIRM_COPY,
   type StartBlockerItem,
 } from "./hostControls";
-export { useHostRoomContext } from "./hostRoomContext";
+export { useHostRoomContext, useHostRoomSelector } from "./hostRoomContext";
 export { hostRoomPhase } from "./hostRoomPhase";
 export { useRecordHostStore } from "./hostStore";
 export { submitHostRecordTransport } from "./hostTransport";

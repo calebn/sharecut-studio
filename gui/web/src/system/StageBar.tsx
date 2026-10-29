@@ -23,7 +23,8 @@ export type RecordBadge =
       alert?: boolean;
     }
   | { kind: "paused"; alert?: boolean }
-  | { kind: "saving"; progress: number; alert?: boolean }
+  | { kind: "reconnecting"; alert?: boolean }
+  | { kind: "saving"; progress?: number; alert?: boolean }
   | { kind: "alert" };
 
 export type StageBarProps = {
@@ -90,6 +91,8 @@ function recordName(badge: RecordBadge): string {
       return `Live${alert}`;
     case "paused":
       return `Paused${alert}`;
+    case "reconnecting":
+      return `Reconnecting${alert}`;
     case "saving":
       return `Saving${alert}`;
     case "alert":
@@ -114,6 +117,9 @@ export function RecordBadgeView({ badge }: { badge: RecordBadge }) {
         <span aria-hidden="true">
           <RoomStatusPill compact phase={{ kind: "paused", clockSec: 0 }} />
         </span>
+      ) : null}
+      {badge.kind === "reconnecting" ? (
+        <StatusGlyph state="offline" dot text={false} />
       ) : null}
       {badge.kind === "saving" ? (
         <StatusGlyph
