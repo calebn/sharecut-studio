@@ -8,9 +8,13 @@ from podcast_mcp.edits.cut_speech import APPLY_ANYWAY
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.mcp.args import JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
-from podcast_mcp.mcp.tools.agent_notify import agent_mutated
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import AnalysisService, EditService, TimelineService
+from podcast_mcp.services.document import (
+    AnalysisService,
+    EditService,
+    TimelineService,
+    with_audio_check,
+)
 from podcast_mcp.services.document_sync import (
     host_command_result,
     submit_host_command_result,
@@ -510,6 +514,13 @@ def edit_impact_report_tool(project_path: str, markdown: bool = False) -> str:
     return report if isinstance(report, str) else to_json(report)
 
 
+def _audit(project_path: str, ids: list[str]) -> tuple[dict[str, str], bool]:
+    try:
+        return EditService(ProjectWorkspace.open(project_path)).check_proposed(ids)
+    except Exception:  # advisory: the proposal is committed, the check must not fail the call
+        return {}, False
+
+
 def propose_edits(
     project_path: str, edit_mode: str | None = None, intensity: str | None = None
 ) -> str:
@@ -543,10 +554,11 @@ def propose_edits(
     approve_edits. Not NL cut-by-text (cut_* tools) or narrative focus (focus
     tools).
     """
-    ws = ProjectWorkspace.open(project_path)
-    proposal = EditService(ws).propose_tighten(edit_mode=edit_mode, intensity=intensity)
-    agent_mutated(ws)
-    return to_json(proposal.to_payload())
+    result = submit_host_command_result(
+        project_path, "ProposeTighten", {"edit_mode": edit_mode, "intensity": intensity}
+    )
+    held, checked = _audit(project_path, [e["id"] for e in result["edits"]])
+    return to_json(with_audio_check(result, held, checked))
 
 
 def apply_edits(project_path: str) -> str:

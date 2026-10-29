@@ -331,6 +331,14 @@ def apply_auto_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return {"operation": "apply_auto_edits", "applied_count": EditService(ws).apply_auto()}
 
 
+def propose_tighten(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return (
+        EditService(ws)
+        .propose_tighten_unchecked(edit_mode=p.get("edit_mode"), intensity=p.get("intensity"))
+        .to_payload()
+    )
+
+
 def apply_edit_plan(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     n = EditService(ws).apply_plan(
         p["edits"],

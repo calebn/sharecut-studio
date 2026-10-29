@@ -715,6 +715,21 @@ class ApplyAutoEditsPayload(BaseModel):
     pass
 
 
+class ProposeTightenPayload(BaseModel):
+    edit_mode: str | None = Field(
+        default=None,
+        description=(
+            "ripple (default, from tighten.edit_mode) or mute; anything else means ripple."
+        ),
+    )
+    intensity: str | None = Field(
+        default=None,
+        description=(
+            "light, medium or aggressive (default from tighten.intensity); unknown values raise."
+        ),
+    )
+
+
 def _whole_ms(value: Any) -> int:
     try:
         return int(value)
@@ -1180,6 +1195,11 @@ class ApplyAutoEditsCommand(DocumentCommandEnvelope):
     payload: ApplyAutoEditsPayload = Field(default_factory=ApplyAutoEditsPayload)
 
 
+class ProposeTightenCommand(DocumentCommandEnvelope):
+    type: Literal["ProposeTighten"] = "ProposeTighten"
+    payload: ProposeTightenPayload = Field(default_factory=ProposeTightenPayload)
+
+
 class ApplyEditPlanCommand(DocumentCommandEnvelope):
     type: Literal["ApplyEditPlan"] = "ApplyEditPlan"
     payload: ApplyEditPlanPayload
@@ -1314,6 +1334,7 @@ DocumentCommandBody = Annotated[
     | InsertGapCommand
     | FillRoomToneCommand
     | ApplyAutoEditsCommand
+    | ProposeTightenCommand
     | ApplyEditPlanCommand
     | ShortenWordGapsCommand
     | StripSilenceCommand
@@ -1447,6 +1468,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "InsertGap": InsertGapPayload,
     "FillRoomTone": FillRoomTonePayload,
     "ApplyAutoEdits": ApplyAutoEditsPayload,
+    "ProposeTighten": ProposeTightenPayload,
     "ApplyEditPlan": ApplyEditPlanPayload,
     "ShortenWordGaps": ShortenWordGapsPayload,
     "StripSilence": StripSilencePayload,
@@ -1476,6 +1498,7 @@ _CODED_PAYLOAD_TYPES = frozenset(
         "ApplyEditPlan",
         "ShortenWordGaps",
         "StripSilence",
+        "ProposeTighten",
     }
 )
 
