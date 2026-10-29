@@ -58,8 +58,8 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
     resetGate();
   }, [projectPath, resetGate]);
 
-  // Leaving Deliver ends this visit, as closing the old dialog did: a range
-  // fixed from Edit and the bounce choices do not carry to the next visit.
+  // Leaving Deliver ends this visit: a range fixed from Edit and the bounce
+  // choices do not carry to the next visit.
   const stage = useDawStore((s) => s.stage);
   const wasDeliver = useRef(stage === "deliver");
   useEffect(() => {
@@ -131,7 +131,10 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (scope.signal.aborted) return;
-      useDawStore.getState().setBounceRangeTarget(null);
+      // A range fixed while this run was going is a new request: keep it.
+      if (useDawStore.getState().bounceRangeTarget === range) {
+        useDawStore.getState().setBounceRangeTarget(null);
+      }
       setRun({ kind: "done", paths: jobResultPaths(ran.value) });
     } catch (err) {
       if (isAbortError(err)) {

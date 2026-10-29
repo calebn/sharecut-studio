@@ -235,6 +235,19 @@ describe("BounceFlowProvider", () => {
     expect(useDawStore.getState().bounceRangeTarget).toBeNull();
   });
 
+  it("keeps a range fixed while a bounce runs, so it can be bounced next", async () => {
+    const settle = heldFollow();
+    mount();
+    act(() => flow.start());
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
+    act(() => useDawStore.getState().setBounceRangeTarget(RANGE));
+    act(() => flow.start());
+    expect(startBounceJob).toHaveBeenCalledTimes(1);
+    await act(async () => settle().ok(finished));
+    expect(flow.run).toMatchObject({ kind: "done" });
+    expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);
+  });
+
   it("ignores a second start while one runs", async () => {
     heldFollow();
     mount();
