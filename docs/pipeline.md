@@ -628,13 +628,20 @@ and the ungated evidence render stay on `from_timeline_stem`, which keeps nothin
 - **Key**: resolved path, device, inode, size, mtime, ctime, sample rate and the ffmpeg build. A change to
   any part is a miss; `ctime` catches a copy that restores size and mtime.
 - **No stale store**: the file is stat'd before and after a decode and stored only if the stamps match;
-  a file modified in the last 2 seconds is neither stored nor served.
+  a file whose mtime or ctime is in the last 2 seconds is neither stored nor served (`cp -p` keeps an
+  old mtime but not the ctime).
 - **Single flight**: one lock per key, so two callers of one file decode once while the 8 kHz and 16 kHz
-  decodes of a track still overlap. An error is never stored.
+  decodes of a track still overlap. An error is never stored; callers queued behind a failed decode retry
+  one at a time, never in parallel.
 - **Cap**: `PODCAST_DECODE_MEMO_MB`, default 768, least recently used out first by array bytes; an
-  entry over the cap is not stored, and a rewritten file frees its earlier decode at once. A 3100 s
+  entry over the cap is not stored. Reading a rewritten file drops its earlier decode (same path and rate)
+  even when the new decode is not stored (over the cap, racy, or changed during the decode). A 3100 s
   track is 99 MB at 8 kHz and 198 MB at 16 kHz. `PODCAST_DECODE_MEMO_MB=0` keeps nothing and every call is the
-  uncached build. Memory held after a batch ends is up to the cap, where the batch scope frees at exit.
+  uncached build; a value that is not a finite number (`inf`, `nan`, `1e400`, text) is the default. The
+  memo keeps up to the cap after a batch ends, which the batch scope's own caches do not.
+- **Read-only**: with the memo on, the samples a caller receives are read-only on every path (stored,
+  served, over the cap, racy, changed during the decode, or a stat failure), so the first caller sees
+  what later callers see. Only the memo-off path returns the decoder's writable array.
 - **Hits** return a fresh `TrackRmsCache` over a read-only view of the stored samples, so a caller cannot
   change another caller's audio; `speech_profile` is measured again per wrapper.
 - **Verify**: with `PODCAST_VERDICT_VERIFY=1` or `PODCAST_EVIDENCE_VERIFY=1` each hit decodes the file
