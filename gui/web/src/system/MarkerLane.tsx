@@ -14,6 +14,7 @@ import { Menu, MenuItem } from "../ui";
 import { clamp } from "../utils/math";
 import { formatRulerTime, formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
+import { type Bounds, boundedDelta, spanBounds, within } from "./dragBounds";
 import { Marker, type MarkerAttrs } from "./Marker";
 import {
   isRange,
@@ -220,14 +221,15 @@ const MarkerItem = memo(function MarkerItem({
     if (!(grip === "start" ? placed.startVisible : placed.endVisible)) {
       return null;
     }
-    const [min, max, now] =
-      grip === "start"
-        ? [0, Math.max(0, marker.end - MARKER_MIN_SPAN), marker.start]
-        : [
-            Math.min(duration, marker.start + MARKER_MIN_SPAN),
-            duration,
-            marker.end,
-          ];
+    const bounds = spanBounds(
+      grip,
+      marker.start,
+      marker.end,
+      duration,
+      MARKER_MIN_SPAN,
+    );
+    const [min, max] = bounds;
+    const now = within(bounds, grip === "start" ? marker.start : marker.end);
     return (
       <span
         key={grip}
@@ -451,6 +453,7 @@ export const MarkerLane = memo(function MarkerLane({
   const root = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
   const nudging = useRef<Held | null>(null);
+  const limits = useRef<{ from: number; bounds: Bounds } | null>(null);
   const [held, setHeld] = useState<Dragged | null>(null);
 
   const selectedIds = useMemo(() => new Set(selected ?? []), [selected]);
@@ -486,6 +489,19 @@ export const MarkerLane = memo(function MarkerLane({
     captureOnStart: () => track.current,
     onStart: ({ id, grip }, pointer) => {
       if (onDragStart?.(id, grip, pointer) === false) return false;
+      const marker = byId.get(id);
+      limits.current = marker
+        ? {
+            from: valueOf(id, grip),
+            bounds: spanBounds(
+              grip,
+              marker.start,
+              markerEnd(marker),
+              duration,
+              MARKER_MIN_SPAN,
+            ),
+          }
+        : null;
       setHeld({
         id,
         grip,
@@ -499,7 +515,13 @@ export const MarkerLane = memo(function MarkerLane({
       setHeld((now) => (now ? { ...now, x } : now));
       onDrag?.(id, grip, {
         ...move,
-        delta: move.dx / pxPerSecond,
+        delta: limits.current
+          ? boundedDelta(
+              limits.current.bounds,
+              limits.current.from,
+              move.dx / pxPerSecond,
+            )
+          : move.dx / pxPerSecond,
         seconds: secondsAt(move.clientX),
       });
     },

@@ -845,3 +845,56 @@ describe("MarkerLane passthrough", () => {
     ).not.toHaveAttribute("data-movable");
   });
 });
+
+describe("MarkerLane drag limits", () => {
+  const moves = (calls: unknown[][]) =>
+    calls.map(([, , drag]) => {
+      const { delta, seconds } = drag as { delta: number; seconds: number };
+      return [Number(delta.toFixed(3)), Number(seconds.toFixed(3))];
+    });
+
+  it("keeps a chapter dragged off the episode inside it, with the delta that gets it there", () => {
+    const { onDrag } = setup({ duration: 40 });
+    press(chapter(), 150);
+    moveTo(chapter(), 160);
+    moveTo(track(), -3000);
+    moveTo(track(), 3000);
+    fireEvent.pointerUp(track(), { pointerId: 1, clientX: 3000 });
+    expect(moves(onDrag.mock.calls)).toEqual([
+      [1.667, 26.667],
+      [-24, 0],
+      [16, 40],
+    ]);
+  });
+
+  it("keeps a whole clip inside the episode and a clip edge off the opposite edge", () => {
+    const { onDrag } = setup({ duration: 50, selected: ["sc-joke"] });
+    press(joke(), 200);
+    moveTo(track(), 3000);
+    moveTo(track(), -3000);
+    fireEvent.pointerUp(track(), { pointerId: 1, clientX: -3000 });
+    press(edge("End"), 252, 2);
+    moveTo(track(), 0, 2);
+    fireEvent.pointerUp(track(), { pointerId: 2, clientX: 0 });
+    press(edge("Start"), 180, 3);
+    moveTo(track(), 3000, 3);
+    fireEvent.pointerUp(track(), { pointerId: 3, clientX: 3000 });
+    expect(moves(onDrag.mock.calls)).toEqual([
+      [8, 50],
+      [-30, 0],
+      [-11.9, 0],
+      [11.9, 50],
+    ]);
+  });
+
+  it("reads an edge slider inside its limits", () => {
+    setup({
+      selected: ["sc-joke"],
+      markers: [
+        { kind: "clip", id: "sc-joke", start: 30, end: 42, title: "Best joke" },
+      ],
+      duration: 40,
+    });
+    expect(edge("End")).toHaveAttribute("aria-valuenow", "40");
+  });
+});
