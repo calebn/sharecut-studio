@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -29,6 +29,31 @@ afterEach(() => {
 });
 
 describe("Composer", () => {
+  it("calls onEscape from the name, the comment, the chip and Post, but not during an IME composition", async () => {
+    const onEscape = vi.fn();
+    render(
+      <Harness
+        start="x"
+        onEscape={onEscape}
+        name={{ value: "Host", onChange: noop }}
+        anchor={{ kind: "pinned", start: 4 }}
+        onAnchor={noop}
+      />,
+    );
+    const controls = [
+      screen.getByRole("textbox", { name: "Your name" }),
+      field(),
+      screen.getByRole("button", { name: /^Pinned/ }),
+      submit(),
+    ];
+    for (const control of controls)
+      fireEvent.keyDown(control, { key: "Escape" });
+    expect(onEscape).toHaveBeenCalledTimes(4);
+    fireEvent.keyDown(field(), { key: "Escape", isComposing: true });
+    fireEvent.keyDown(field(), { key: "Escape", keyCode: 229 });
+    expect(onEscape).toHaveBeenCalledTimes(4);
+  });
+
   it("keeps Post off until the body has text, and says why", async () => {
     render(<Harness />);
     expect(submit()).toBeDisabled();

@@ -51,6 +51,7 @@ export function usePostComment(): {
     if (!body) return { ok: false };
     const state = useDawStore.getState();
     const { draft } = resolveCommentAnchor(state);
+    const started = state.commentDraft;
     setBusy(true);
     try {
       if (commentRole(state.projectPath, state.guestMode) === "host") {
@@ -65,7 +66,9 @@ export function usePostComment(): {
         timelineSpans: draft.intervals,
         actionTexts: input.actionTexts ?? [],
       });
-      useDawStore.getState().setCommentDraft(null);
+      // A newer draft (Escape, then C, while this was in flight) is not ours to drop.
+      if (useDawStore.getState().commentDraft === started)
+        useDawStore.getState().setCommentDraft(null);
       return { ok: true, comment };
     } catch (e) {
       setError(errorMessage(e));
