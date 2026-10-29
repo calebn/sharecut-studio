@@ -8,6 +8,7 @@ import {
   editIdOf,
   reviewEntriesOf,
   reviewIdOf,
+  unsureEntriesOf,
 } from "./reviewItems";
 import { fullOrder, type ReviewItem } from "./reviewQueueModel";
 
@@ -234,5 +235,102 @@ describe("checkEntryOf", () => {
     expect(
       checkEntryOf(status({ hint: "Run the CLI." }))?.content.check?.detail,
     ).toBe("3 words the transcript is unsure of.");
+  });
+});
+
+describe("unsureEntriesOf", () => {
+  const word = (index: number, text: string) => ({
+    track_id: "host",
+    source_id: null,
+    word_index: index,
+    text,
+    confidence: 0.4,
+  });
+  const cut = (id: string, start: number | null, words = [word(1, "gnu")]) =>
+    pendingEditView({
+      id,
+      label: `cut ${id}`,
+      review_required: true,
+      timeline_start: start as never,
+      unsure_words: words,
+    });
+  const utterance = (words: object[]) =>
+    [
+      {
+        track_id: "host",
+        speaker: "Jon",
+        start: 0,
+        end: 9,
+        text: "",
+        mappable: true,
+        words,
+      },
+    ] as never;
+
+  it("lists a shared word once, adds transcript-only words, and orders by time", () => {
+    const { entries, targets } = unsureEntriesOf(
+      [cut("a", 20), cut("b", 30), cut("c", null, [word(2, "orc")])],
+      utterance([
+        {
+          text: "uncle",
+          start: 1,
+          end: 2,
+          timeline_start: 1,
+          timeline_end: 1.5,
+          word_index: 0,
+          unsure: true,
+        },
+        {
+          text: "gnu",
+          start: 5,
+          end: 6,
+          timeline_start: 5,
+          timeline_end: 5.5,
+          word_index: 1,
+          unsure: true,
+        },
+        { text: "fine", start: 7, end: 8, timeline_start: 7, word_index: 3 },
+      ]),
+    );
+    expect(entries.map((e) => [e.item.id, e.item.at])).toEqual([
+      ["word:host::0", 1],
+      ["word:host::1", 5],
+      ["word:host::2", Number.POSITIVE_INFINITY],
+    ]);
+    expect(entries[1]?.content.card).toMatchObject({
+      title: "Is this “gnu”?",
+      why: "Inside “cut a”",
+      unsure: { word: "gnu", guess: "gnu" },
+    });
+    expect(entries[2]?.content.row.time).toBe("Unplaced");
+    expect(targets.get("word:host::1")).toMatchObject({
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 1,
+      endSec: 5.5,
+    });
+  });
+
+  it("puts a word with no placement last, and ignores applied cuts", () => {
+    const { entries } = unsureEntriesOf(
+      [cut("a", null), { ...cut("b", 3, [word(7, "no")]), applied: true }],
+      [],
+    );
+    expect(
+      entries.map((e) => [e.item.id, e.item.at, e.content.row.time]),
+    ).toEqual([["word:host::1", Number.POSITIVE_INFINITY, "Unplaced"]]);
+  });
+
+  it("marks a cut unsure and points its card at the first word", () => {
+    const [entry] = reviewEntriesOf([
+      cut("a", 2, [word(4, "uncle"), word(5, "gnu")]),
+    ]);
+    expect(entry?.item.unsure).toBe(true);
+    expect(entry?.content.card.unsure).toEqual({
+      word: "uncle",
+      guess: "uncle",
+      id: "word:host::4",
+      step: { index: 1, total: 2 },
+    });
   });
 });
