@@ -414,6 +414,60 @@ describe("ReviewStage", () => {
   });
 });
 
+describe("ReviewStage unsure words", () => {
+  const fix = async (text: string) => {
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    const field = screen.getByRole("textbox", { name: "Fix text" });
+    await userEvent.clear(field);
+    await userEvent.type(field, text);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  };
+
+  it("sends the fixed text with the word's own decision, and gives a word no Keep", async () => {
+    const onDecide = vi.fn();
+    setup({ initialItems: QUEUE_ITEMS, initialSelectedId: "u1", onDecide });
+    expect(screen.queryByRole("button", { name: /^Keep/ })).toBeNull();
+    await fix("oncle");
+    expect(onDecide).toHaveBeenCalledWith({
+      ids: ["u1"],
+      result: "applied",
+      text: "oncle",
+    });
+  });
+
+  it("fixes a cut's word through its card and keeps the cut selected with its verb free", async () => {
+    const onDecide = vi.fn();
+    const content = (item: ReviewItem) => {
+      const body = reviewContent(item);
+      return item.id === "f3" && body.card.unsure
+        ? {
+            ...body,
+            card: { ...body.card, unsure: { ...body.card.unsure, id: "u1" } },
+          }
+        : body;
+    };
+    setup({
+      initialItems: QUEUE_WITHOUT_CHECKS.concat({
+        id: "u1",
+        kind: "unsure-word",
+        at: 614,
+        savedSeconds: 0,
+      }),
+      initialSelectedId: "f3",
+      content,
+      onDecide,
+    });
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+    await fix("oncle");
+    expect(onDecide).toHaveBeenCalledWith({
+      ids: ["u1"],
+      result: "applied",
+      text: "oncle",
+    });
+    expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
+  });
+});
+
 describe("ReviewStage host seams", () => {
   const withoutWave =
     (change?: { start: number; end: number }) => (item: ReviewItem) => {
