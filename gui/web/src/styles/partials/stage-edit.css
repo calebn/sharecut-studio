@@ -175,6 +175,12 @@
   max-inline-size: none;
 }
 
+/* The dock's Inspect grip hangs above the bar; in the sheet that is over the
+   row before it, so the bar leaves room for it. */
+.tools-sheet .sys-actions--dock-grip {
+  margin-block-start: calc(var(--touch-min) - var(--space-4));
+}
+
 /* An open join's length rail sits at the foot of the timeline; it stays above the
    floating corner so its grip is never covered. */
 .stage-frame .join-edit-rail {
