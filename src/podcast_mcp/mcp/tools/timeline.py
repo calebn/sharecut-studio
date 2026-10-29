@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from mcp.server import MCPServer
 
-from podcast_mcp.edits.timeline_ops import DEFAULT_SHORTEN_GAP_SEC
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.mcp.args import JsonObject, JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
@@ -20,6 +19,7 @@ from podcast_mcp.services.document import (
     TrimBoundaryTarget,
 )
 from podcast_mcp.services.document_sync import (
+    DEFAULT_SHORTEN_GAP_SEC,
     host_command_result,
     submit_host_command_result,
     submit_host_document_command,
