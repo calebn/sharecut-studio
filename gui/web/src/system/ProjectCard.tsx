@@ -85,6 +85,8 @@ function ProjectCard({
         <Button
           className="sys-project-find"
           onClick={() => onFind(project.id)}
+          onKeyDown={onKeyDown}
+          onFocus={onFocus}
           aria-label={`Find ${project.name}`}
         >
           Find…
