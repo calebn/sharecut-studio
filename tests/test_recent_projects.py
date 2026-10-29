@@ -7,6 +7,7 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -512,6 +513,10 @@ def test_unchanged_project_file_is_parsed_once(tmp_path, monkeypatch):
     assert len(calls) == 2
 
 
+def _write_bytes(data: bytes, handle) -> None:
+    handle.write(data)
+
+
 def test_same_size_rewrite_with_restored_mtime_is_parsed_again(tmp_path, monkeypatch):
     project = _make(tmp_path, "aaaa")
     _edit_project(project, _with_track)
@@ -521,12 +526,24 @@ def test_same_size_rewrite_with_restored_mtime_is_parsed_again(tmp_path, monkeyp
     monkeypatch.setattr(recent, "_summarize", lambda p: calls.append(p) or real(p))
     before = project.stat()
     assert recent.recent_project_cards()[0]["name"] == "aaaa"
-    swapped = project.read_text(encoding="utf-8").replace("aaaa", "bbbb")
-    atomic_write(project, lambda handle: handle.write(swapped.encode()))
+    # Atomic writes cycle through a few inodes, so a few rewrites between reads bring back the
+    # cached (dev, ino, size, mtime) revision; only the ctime tells them apart.
+    atomic_write(project, lambda handle: handle.write(project.read_bytes()))
     os.utime(project, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert recent.recent_project_cards()[0]["name"] == "aaaa"
+    before, current = project.stat(), "aaaa"
+    for name in ("bbbb", "cccc", "dddd", "eeee", "ffff", "gggg"):
+        swapped = project.read_text(encoding="utf-8").replace(current, name).encode()
+        atomic_write(project, partial(_write_bytes, swapped))
+        os.utime(project, ns=(before.st_atime_ns, before.st_mtime_ns))
+        current = name
+        if project.stat().st_ino == before.st_ino:
+            break
+    else:
+        pytest.skip("this filesystem hands out a fresh inode for every rewrite")
     assert project.stat().st_size == before.st_size
-    assert recent.recent_project_cards()[0]["name"] == "bbbb"
-    assert len(calls) == 2
+    assert recent.recent_project_cards()[0]["name"] == current
+    assert len(calls) == 3
 
 
 def test_running_state_is_not_cached_with_the_summary(tmp_path):

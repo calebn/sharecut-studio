@@ -52,7 +52,7 @@ _WINDOWS_RESERVED = frozenset(
 _LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 _LOCK = threading.Lock()
 _RESERVE_LOCK = threading.Lock()
-_SUMMARIES: dict[str, tuple[tuple[int, int, int, int], _Summary | None]] = {}
+_SUMMARIES: dict[str, tuple[tuple[int, int, int, int, int], _Summary | None]] = {}
 _SUMMARIES_LOCK = threading.Lock()
 
 
@@ -271,7 +271,8 @@ def _finite(value: object) -> float | None:
 
 def _summary_for(project_file: Path, stat: os.stat_result) -> _Summary | None:
     key = str(project_file)
-    signature = file_stamp(stat).revision
+    stamp = file_stamp(stat)
+    signature = (*stamp.revision, stamp.ctime_ns)  # utime cannot set ctime, so inode reuse shows
     with _SUMMARIES_LOCK:
         cached = _SUMMARIES.get(key)
     if cached is not None and cached[0] == signature:
