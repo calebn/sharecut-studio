@@ -329,7 +329,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Rows: kind glyph and struck snippet.
 - Pauses draw a hatched gap glyph. Pickups draw a hatched region with the Record glyph.
 - Hatch means proposed. Solid strike or a Seam means applied.
-- Used: OVL-PENDING, INS-PENDING, PNL-TIGHTEN results, guest suggestions, pickup and insert sessions, clip ideas, Decision card.
+- Used: OVL-PENDING, INS-PENDING, PNL-REVIEW-QUEUE results, guest suggestions, pickup and insert sessions, clip ideas, Decision card.
 - Story: `System/Suggestion`: Text, Waveform, Row, Pause, Pickup, Guest.
 
 **20. Seam**
@@ -355,7 +355,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Groups, each with a bulk primary in its header ("Cut all 11", plain "Cut" for one item, Shift+Enter; held items add "N to decide one by one" for editors; the Find bar's Cut all is Mod+Shift+Enter).
   - Sorts: by kind (default) or chronological.
 - Placements: Review left 360 px; Record right rail (Comments filter, chronological, Composer at the bottom); guest Review left (Comments and Your suggestions); phone Queue sheet.
-- Used: SCR-REVIEW, PNL-REVIEW-QUEUE, PNL-TIGHTEN, PNL-COMMENTS, CMP-REC-LIVECOMMENTS, SCR-GUEST-COMMENTER.
+- Used: SCR-REVIEW, PNL-REVIEW-QUEUE, PNL-COMMENTS, CMP-REC-LIVECOMMENTS, SCR-GUEST-COMMENTER.
 - Replaces: Review queue (rdp), Notes rail (record).
 - Story: `System/ReviewQueue`: Groups, CommentsChronological, Guest, PhoneSheet, BulkRunning.
 

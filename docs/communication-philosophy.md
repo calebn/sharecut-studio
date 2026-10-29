@@ -94,9 +94,9 @@ to UX partners; for UI copy, this table wins.
 | Target track | The destination lane for the anchor clip; selected clips shift by lane order | "source track" for the destination |
 | Timeline start (seconds) | The anchor clip's exact destination on the episode clock | Source start, which trims recorded audio |
 | Shorter / Taller / Reset panel size | Local editor-panel sizing buttons. Steps are 1 rem; Reset clears the browser preference | A project edit or History action |
-| Tighten hit | One candidate tightening decision | — |
-| Likely laugh | The label on a Tighten hit whose sound rises and falls like a laugh. It is a hint, and its suggested action is Lower (when another speaker talks over it, otherwise it is left) | "Laugh detected", "filler:acoustic:likely_laugh" |
-| Possible missed word | The label on a Tighten hit that the project's speech recogniser, hearing that sound alone, writes down as a word the transcript missed. It is a hint, and its suggested action is Leave, so Apply suggested actions keeps the audio and dismisses the hit (#1434) | "Missed word detected", "Rejected", "filler:acoustic:possible_word" |
+| Queue suggestion | One candidate tightening decision in the Review Queue | — |
+| Likely laugh | The label on a Queue suggestion whose sound rises and falls like a laugh. It is a hint, and its suggested action is Lower (when another speaker talks over it, otherwise it is left) | "Laugh detected", "filler:acoustic:likely_laugh" |
+| Possible missed word | The label on a Queue suggestion that the project's speech recogniser, hearing that sound alone, writes down as a word the transcript missed. It is a hint, and its suggested action is Leave, so applying suggested actions (agent and CLI only) keeps the audio and dismisses the suggestion (#1434) | "Missed word detected", "Rejected", "filler:acoustic:possible_word" |
 | Edit marker | The in-lane symbol for one join at any zoom: `|` cut, `╲╱` fade, `✕` crossfade, each in its own hue. Tapping one opens the join's popover. Named like "Fade join at 0:05.0" | "badge", "join badge" |
 | Edit group | The count chip that stands in for joins closer than 24 px. Named like "3 edits: 2 cuts, 1 crossfade. Zoom in"; tapping it zooms until they separate | "cluster", "stack" |
 | Cut all | A Review Queue group's bulk button: the verb and the count, `Cut all 3`; one cuttable item says plain `Cut`. One undo reverts the group. Each row's own Cut and Keep decide one hit | "Apply all", "Accept all", "Apply eligible" |

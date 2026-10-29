@@ -49,7 +49,7 @@ export function tightenProposeRunOptions(
   };
 }
 
-/** The question before Find hits replaces the pending hits; null when there are none to lose. */
+/** The question before Find more replaces the undecided suggestions; null when there are none to lose. */
 export function findHitsConfirm(
   pendingCount: number,
 ): Omit<ConfirmQuestion, "kind"> | null {
@@ -59,19 +59,19 @@ export function findHitsConfirm(
       ? "the 1 pending hit"
       : `the ${pendingCount} pending hits`;
   return {
-    title: "Find hits again?",
+    title: "Find more again?",
     message: `Tighten analysis runs again and replaces ${hits} in this list, including ones you nudged.`,
-    keepLabel: "Keep hits",
-    actionLabel: "Find hits",
+    keepLabel: "Keep suggestions",
+    actionLabel: "Find more",
     danger: true,
   };
 }
 
-/** Error of the Find hits job this panel started, once that job fails. */
+/** Error of the Find more job this view started, once that job fails. */
 export function findHitsRunError(
   jobId: string | null,
   job: PipelineJobSnapshot | null,
-  fallback = "Find hits failed.",
+  fallback = "Finding more suggestions failed.",
 ): string | null {
   if (!jobId || job?.id !== jobId || job.status !== "error") return null;
   return jobErrorText(job) || fallback;

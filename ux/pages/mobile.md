@@ -170,7 +170,7 @@ To stop following, scrub the timeline or tap **Stop following** in the banner.
 A few things live in different places on mobile:
 
 - **Comments** are in Review, and the player has a comment button at the playhead
-- **History** is a sheet in Edit; **Tighten** and the **Queue** are in Review, and the pipeline steps are in Prepare
+- **History** is a sheet in Edit; the **Queue** and Comments are in Review, and the pipeline steps are in Prepare
 - **Gestures** has a reference list behind the search button (Commands and shortcuts)
 - **Mute/Solo and Volume** for a track: tap its header row on the left side of Timeline
 - **Solo on · Clear solo** sits above every tab while a track is soloed, so you can see why other voices are silent and turn solo off in one tap
