@@ -72,7 +72,7 @@ def _warn_if_retired_is_newer(entry: Path, retired: Path) -> None:
     if retired in _WARNED_STRANDED:
         return
     try:
-        newer = retired.stat().st_mtime_ns > entry.stat().st_mtime_ns
+        newer = retired.stat().st_mtime > entry.stat().st_mtime
     except OSError:
         return
     if newer:
