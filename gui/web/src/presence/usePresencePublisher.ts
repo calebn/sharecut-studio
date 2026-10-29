@@ -149,8 +149,8 @@ export function usePresencePublisher(
     const publishUi = (s: DawStore) => {
       push({
         ui: {
-          // A guest sees Comments whatever the store holds.
-          tab: tabForStage(s.stage, s.guestMode ? "comments" : s.reviewSection),
+          // A guest sees Comments and a host the Queue, whatever the store holds.
+          tab: tabForStage(s.stage, s.guestMode ? "comments" : "queue"),
           mobile_mode:
             s.shellBreakpoint === "phone" || s.pointerKind === "coarse"
               ? mobileModeForStage(s.stage, s.editSurface)

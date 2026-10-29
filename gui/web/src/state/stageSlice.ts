@@ -76,6 +76,8 @@ export const createStageSlice: StateCreator<
       }
       const saved = s.stageViews[next];
       return {
+        // A comment draft belongs to the Review stage it opened.
+        ...(prev === "review" ? { commentDraft: null } : {}),
         stage: next,
         reviewSection: section,
         openSheet: sheet,

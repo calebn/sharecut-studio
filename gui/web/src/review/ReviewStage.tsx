@@ -252,8 +252,11 @@ export function ReviewStage({
     else if (action === "verb") verb(selected.id);
     else if (action === "keep") keep(selected.id);
     else if (action === "openInEdit" && !guest) onOpenInEdit?.(selected.id);
-    else if (action === "comment") onComment?.(selected.id);
-    else if (action === "reply") onReply?.(selected.id);
+    else if (action === "comment") {
+      // The window keymap also binds C to comment.draftAt; one of them opens it.
+      if (onComment) event.stopPropagation();
+      onComment?.(selected.id);
+    } else if (action === "reply") onReply?.(selected.id);
   });
   useLayoutEffect(() => {
     const el = root.current;
