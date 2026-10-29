@@ -48,6 +48,9 @@ def test_a_pad_operation_is_a_pad_record(operation: str) -> None:
         ({"replace_gap_sec": True}, False),
         ({"replace_gap_sec": "0.5"}, False),
         ({"replace_gap_sec": 0.5, "mute": True}, False),
+        ({"replace_gap_sec": 0.5, "mute": False}, True),
+        ({"replace_gap_sec": 0.5, "mute": None}, True),
+        ({"replace_gap_sec": 0.5, "mute": 1}, True),
         ({}, False),
     ],
 )
@@ -98,6 +101,7 @@ def test_a_pad_sample_must_name_a_non_empty_track_and_a_none_or_non_empty_source
         (1.0, float("inf"), None),
         (True, 2.0, None),
         (1.0, True, None),
+        (0.5, True, None),
         ("1", 2.0, None),
         (1.0, None, None),
         (None, 2.0, None),
