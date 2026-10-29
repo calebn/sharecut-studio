@@ -37,10 +37,13 @@ from podcast_mcp.util.project_state import file_revision_key
 MAIN_MEDIA_KEY = "aaa47cb2e786ca55e370"
 MAIN_SILENCE_FINGERPRINT = "bdfa08a23038fd29f56cb4216a1ef6b3f352a2292fdfa83c195ee14c3949948f"
 MAIN_BALANCE_DIGEST = "e240b20362847f7f6656bc8b6a8eab18da442e6bb316305db92eee82a4e8f6b1"
-MAIN_RENDER_DIGESTS = {
-    "stem": "18baeb3885571f5a695c8dada056482aed527d214885f7445a16e704f1208c71",
-    "proxy": "e834252c259238f496fc0a9785e407d9c2d8e24d462311ef114c89539599e640",
-    "gate": "db54399009b2b4e9be66f5272cfb8e4ace7f29729f14427886afacc35075e621",
+# Single-stream render keys. Each one hashes BLEED_FILL_REV, so they moved once, when it went
+# 1 -> 2 (#2556); with the revision at 1 they equal main's values (stem 18baeb38, proxy e834252c,
+# gate db543990). Regenerate only for an intended revision bump, never for other drift.
+RENDER_DIGESTS = {
+    "stem": "e8b1ae45e863b3117f1b814633e93a9b54a5afd38ec2bc6cf8c2ad50155e4ff6",
+    "proxy": "22bea67c70ce597bf5350ba8067ad3e266978d291e6bf94b6ed5d12692b01d05",
+    "gate": "477c81fd42d46dd3178f5d4a0f15a115c1489de6d12755a71a6b2d082669daa6",
 }
 MAIN_POOL_RECORD_NAME = "e8336a18ee202c0f.json"
 MAIN_ALIGN_NAME = "asr.word_align_8ddd9e4881f64893.json"
@@ -131,11 +134,11 @@ def _render_digests(
     return {"stem": digest(captured[0]), "proxy": digest(captured[1]), "gate": digest(gate)}
 
 
-def test_single_stream_render_hashes_match_main(
+def test_single_stream_render_hashes_keep_their_pinned_values(
     tmp_path: Path, mono_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     got = _render_digests(monkeypatch, _project(tmp_path, mono_wav), tmp_path)
-    assert got == MAIN_RENDER_DIGESTS
+    assert got == RENDER_DIGESTS
 
 
 def test_several_stream_render_hashes_carry_the_first_stream(
@@ -156,7 +159,7 @@ def test_several_stream_render_hashes_carry_the_first_stream(
     play_audit.proxy_render_hash(project, "t", defaults=defaults)
     assert len(captured) == 2
     assert all('"audio_stream":0' in raw for raw in captured)
-    assert _render_digests(monkeypatch, project, tmp_path) != MAIN_RENDER_DIGESTS
+    assert _render_digests(monkeypatch, project, tmp_path) != RENDER_DIGESTS
 
 
 def test_balance_digest_adds_a_term_for_several_streams_only(

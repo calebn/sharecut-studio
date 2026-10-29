@@ -564,6 +564,8 @@ a seamless loop of at least 20 s (random phases, one inverse FFT), with nothing 
 20 Hz. Each hole reads the loop at its own position on the media's clock, so no two holes
 start on the same noise and the texture never repeats on a short cycle. The fill's level,
 `gate_fill.level_db`, is the loop's level.
+The noise is seeded from the lane, the fill source and the rate, never from the measured
+spectrum, so a last-bit difference in the measurement cannot change the fill.
 
 **Own audio is never touched.** The step writes one FLAC per track on the media's clock,
 `artifacts/gate_fill/{track}_{digest}.flac`. It holds the fill inside each hole and

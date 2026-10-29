@@ -425,7 +425,7 @@ def _hold_noise(path: Path, holes: GateHoles) -> _Noise | str:
 def _comfort_noise(
     project: EpisodeProject, track: Track, path: Path, holes: GateHoles
 ) -> FillLoop | str:
-    del project, track
+    del project
     read = track_floor(path)
     if not isinstance(read, LiveFloor):
         return "no noise measured under its speech"
@@ -436,7 +436,12 @@ def _comfort_noise(
         return noise
     if floor.speech_db is None:
         return "no speech above its noise"
-    loop = synthesise_noise(noise.psd, noise.nfft, holes.sample_rate)
+    loop = synthesise_noise(
+        noise.psd,
+        noise.nfft,
+        holes.sample_rate,
+        seed_key=f"{track.id}:{GateFillSource.COMFORT_NOISE.value}",
+    )
     noise_db = rms_db(loop)
     if noise_db > floor.speech_db - MIN_BELOW_SPEECH_DB:
         return (
@@ -455,7 +460,12 @@ def _comfort_noise(
 
 
 def synthesise_noise(
-    psd: np.ndarray, nfft: int, sample_rate: int, *, source_rate: int | None = None
+    psd: np.ndarray,
+    nfft: int,
+    sample_rate: int,
+    *,
+    source_rate: int | None = None,
+    seed_key: str = "",
 ) -> np.ndarray:
     """A seamless loop of Gaussian noise with power spectrum ``psd`` (random phase, one IFFT),
     with nothing under ``MIN_FILL_HZ``.
@@ -463,9 +473,13 @@ def synthesise_noise(
     ``psd`` is read at ``source_rate`` (default ``sample_rate``). At another rate the same
     noise is realised: the band above the source's Nyquist is empty, and the level follows
     the band that is there, so the noise keeps its spectral density (#1734).
+
+    The draw is seeded from ``seed_key`` and ``sample_rate``, never from the spectrum, so a
+    last-bit difference in a measurement cannot change the noise (#2556).
     """
     length = 1 << math.ceil(math.log2(LOOP_SEC * sample_rate))
-    seed = int.from_bytes(hashlib.sha256(psd.astype("<f8").tobytes()).digest()[:8], "little")
+    seed_text = f"gate-fill:{seed_key}:{sample_rate}"
+    seed = int.from_bytes(hashlib.sha256(seed_text.encode()).digest()[:8], "little")
     white = np.random.default_rng(seed).standard_normal(length)
     freqs = np.fft.rfftfreq(length, 1.0 / sample_rate)
     source = source_rate or sample_rate
@@ -515,7 +529,7 @@ FILL_SOURCES: tuple[tuple[GateFillSource, FillSourceFn], ...] = (
 
 
 def _quiet_run_noise(
-    path: Path, holes: GateHoles, runs: Sequence[tuple[float, float]]
+    track_id: str, path: Path, holes: GateHoles, runs: Sequence[tuple[float, float]]
 ) -> FillLoop | str:
     """Comfort noise read from ``runs``: stretches the caller knows hold no speech.
 
@@ -535,7 +549,12 @@ def _quiet_run_noise(
     noise = _noise_over_runs(path, holes, trimmed)
     if noise is None:
         return "no quiet stretch of its own long enough to read its room from"
-    loop = synthesise_noise(noise.psd, noise.nfft, holes.sample_rate)
+    loop = synthesise_noise(
+        noise.psd,
+        noise.nfft,
+        holes.sample_rate,
+        seed_key=f"{track_id}:{GateFillSource.COMFORT_NOISE.value}",
+    )
     noise_db = rms_db(loop)
     if noise_db > read.floor.speech_db - MIN_BELOW_SPEECH_DB:
         return (
@@ -571,7 +590,7 @@ def measure_track_fill(
     reasons: list[str] = []
     attempts: list[Callable[[], FillLoop | str]] = [
         lambda: _room_tone_bed(project, track, path, holes),
-        *([lambda: _quiet_run_noise(path, holes, quiet_runs)] if quiet_runs else []),
+        *([lambda: _quiet_run_noise(track.id, path, holes, quiet_runs)] if quiet_runs else []),
         lambda: _comfort_noise(project, track, path, holes),
     ]
     for attempt in attempts:
