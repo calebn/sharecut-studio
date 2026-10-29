@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
+from podcast_mcp.util.coded_error import AccessDeniedError, HostSetupError
 
 CODE = "X-Sharecut-Error-Code"
 LOOPBACK = ("127.0.0.1", 50000)
@@ -407,3 +408,23 @@ def test_diagnostics_submit_relay_failures(local, tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "get_report_status", fail(ValueError("bad")))
     res = local.get("/api/diagnostics/report-status", params={"url": "https://x.example/s"})
     _assert(res, 502, "report_status_unavailable")
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="needs a lone surrogate path")
+@pytest.mark.parametrize(
+    ("exc", "status"),
+    [
+        (HostSetupError("folder caf\udce9 is not private", code="registry_not_private"), 500),
+        (AccessDeniedError("no caf\udce9", code="forbidden_thing"), 403),
+    ],
+)
+def test_app_wide_refusal_with_a_lone_surrogate_keeps_its_status(exc, status):
+    app = create_app()
+
+    @app.get("/api/_boom")
+    def boom() -> None:
+        raise exc
+
+    res = TestClient(app, client=LOOPBACK, raise_server_exceptions=False).get("/api/_boom")
+    assert res.status_code == status
+    assert "\\udce9" in res.text
