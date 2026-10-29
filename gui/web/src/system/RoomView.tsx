@@ -75,6 +75,8 @@ export type RoomViewProps = {
    * producer, whose notes carry no visibility on the wire until #2419 adds it.
    */
   noteVisibility?: boolean;
+  /** The Session target chip, shown in the header beside the status pill. */
+  target?: ReactNode;
   /** A bare page: the room fills 100dvh and clears the top safe area. */
   page?: boolean;
 };
@@ -156,6 +158,7 @@ export function RoomView({
   takes,
   notesDisabledReason,
   noteVisibility,
+  target,
   page = false,
 }: RoomViewProps) {
   const tabId = useId();
@@ -257,12 +260,14 @@ export function RoomView({
     >
       {embedded ? (
         <div className="sys-room-view-header sys-room-view-header--embedded">
+          {target ? <div className="sys-room-view-target">{target}</div> : null}
           <RoomStatusPill phase={phase} />
         </div>
       ) : (
         <header className="sys-room-view-header">
           <BrandLockup name="ShareCut" className="sys-room-view-wordmark" />
           <h1 className="sys-room-view-title">{title}</h1>
+          {target ? <div className="sys-room-view-target">{target}</div> : null}
           <RoomStatusPill phase={phase} />
         </header>
       )}

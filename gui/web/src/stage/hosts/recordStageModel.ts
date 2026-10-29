@@ -1,13 +1,16 @@
 import type {
   RecordSnapshot,
   SegmentAckRow,
+  SessionTarget,
   StartBlockerItem,
   TakeInput as TrayInput,
 } from "../../record";
 import type { ShellBreakpoint } from "../../state/types";
 import { clockText } from "../../system/roomPhase";
 import type { ViewerWidth } from "../../system/roomViewModel";
+import type { SessionTargetView } from "../../system/sessionTargetText";
 import type { TakeInput, TakeLineInput } from "../../system/takesTrayModel";
+import type { ProjectView } from "../../types/project";
 
 export function viewerWidthOf(shell: ShellBreakpoint): ViewerWidth {
   return shell === "phone" ? "phone" : "desktop";
@@ -114,4 +117,65 @@ export function firstClipped(
 
 export function takeIndexOf(id: string): number {
   return Number(id.replace("take-", ""));
+}
+
+/** The end of the last clip on the timeline, or undefined for an empty one. */
+export function lastClipEndSec(
+  project: ProjectView | null,
+): number | undefined {
+  let end: number | undefined;
+  for (const clips of Object.values(project?.clips.tracks ?? {})) {
+    for (const clip of clips) {
+      end = Math.max(end ?? 0, clip.timeline_end);
+    }
+  }
+  return end;
+}
+
+/** The server's target as the chip shows it; no snapshot target is the server's default, the end. */
+export function targetViewOf(
+  target: SessionTarget | undefined,
+  afterSec: number | undefined,
+): SessionTargetView {
+  switch (target?.kind) {
+    case "start":
+      return { kind: "start" };
+    case "insert":
+      return { kind: "insert", atSec: target.at_sec };
+    case "replace":
+      return {
+        kind: "replace",
+        fromSec: target.from_sec,
+        toSec: target.to_sec,
+      };
+    default:
+      return { kind: "end", afterSec };
+  }
+}
+
+/** The chip's pick as the SetTarget payload; a replace carries the tracks Edit selected. */
+export function wireTargetOf(
+  view: SessionTargetView,
+  trackIds: readonly string[],
+): SessionTarget {
+  switch (view.kind) {
+    case "start":
+      return { kind: "start" };
+    case "insert":
+      return { kind: "insert", at_sec: view.atSec };
+    case "replace":
+      return {
+        kind: "replace",
+        from_sec: view.fromSec,
+        to_sec: view.toSec,
+        track_ids: [...trackIds],
+      };
+    case "end":
+      return { kind: "end" };
+  }
+}
+
+/** Whether a take landed: the server refuses SetTarget once the session has any take. */
+export function targetLocked(snapshot: RecordSnapshot): boolean {
+  return (snapshot.takes?.length ?? 0) > 0;
 }

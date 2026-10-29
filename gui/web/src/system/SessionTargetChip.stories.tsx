@@ -7,9 +7,9 @@ import {
   viewportStoryParameters,
 } from "../storybook/storyLayout";
 import {
-  type SessionTarget,
   SessionTargetChip,
   type SessionTargetChipProps,
+  type SessionTargetView,
 } from "./SessionTargetChip";
 
 const meta: Meta<typeof SessionTargetChip> = {
@@ -41,7 +41,7 @@ export default meta;
 type Story = StoryObj<typeof SessionTargetChip>;
 
 function Choosing(props: SessionTargetChipProps) {
-  const [target, setTarget] = useState<SessionTarget>(props.target);
+  const [target, setTarget] = useState(props.target);
   return (
     <SessionTargetChip
       {...props}
@@ -50,9 +50,15 @@ function Choosing(props: SessionTargetChipProps) {
         setTarget(next);
         props.onTarget?.(next);
       }}
+      onChange={(next) => {
+        setTarget(next);
+        props.onChange?.(next);
+      }}
     />
   );
 }
+
+const MID_EPISODE: SessionTargetView = { kind: "end", afterSec: 3130 };
 
 export const Menu: Story = {
   render: (args) => <Choosing {...args} />,
@@ -87,6 +93,56 @@ export const MenuOpen: Story = {
     );
     await expect(await within(document.body).findByRole("menu")).toBeVisible();
   },
+};
+
+export const Placements: Story = {
+  args: {
+    target: MID_EPISODE,
+    onChange: fn(),
+    endAfterSec: 3130,
+    playheadSec: 724,
+    selection: { fromSec: 724, toSec: 749 },
+  },
+  render: (args) => <Choosing {...args} />,
+  play: async ({ args, canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", {
+        name: "Where this session goes: Lands at the end · after 52:10",
+      }),
+    );
+    const body = within(document.body);
+    await expect(
+      (await body.findAllByRole("menuitem")).map((item) => item.textContent),
+    ).toEqual([
+      "At the end",
+      "At the start",
+      "At the playhead (12:04)",
+      "Replace selection",
+    ]);
+    await userEvent.click(
+      body.getByRole("menuitem", { name: "Replace selection" }),
+    );
+    await expect(args.onChange).toHaveBeenCalledWith({
+      kind: "replace",
+      fromSec: 724,
+      toSec: 749,
+    });
+    await waitFor(() => expect(body.queryByRole("menu")).toBeNull());
+    await expect(
+      within(canvasElement).getByRole("button", {
+        name: "Where this session goes: Replaces 12:04-12:29",
+      }),
+    ).toBeVisible();
+  },
+};
+
+export const NoEditState: Story = {
+  args: { target: MID_EPISODE, onChange: fn(), endAfterSec: 3130 },
+  render: (args) => <Choosing {...args} />,
+};
+
+export const LockedInsert: Story = {
+  args: { target: { kind: "insert", atSec: 724 }, locked: true },
 };
 
 export const Locked: Story = {

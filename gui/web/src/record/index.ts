@@ -55,6 +55,7 @@ export {
   ROOM_TONE_NOT_READY_COPY,
   ROOM_TONE_PROMPT_COPY,
   ROOM_TONE_TOO_LOUD_COPY,
+  type SessionTarget,
 } from "./types";
 export { UploadStatus } from "./UploadStatus";
 export { type HostRoom, useHostRoom } from "./useHostRoom";

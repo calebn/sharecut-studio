@@ -654,6 +654,12 @@
   block-size: 2.5rem;
 }
 
+.sys-room-view-target {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  margin-inline-end: auto;
+}
+
 .sys-room-view-railtabs {
   display: flex;
   flex-direction: column;

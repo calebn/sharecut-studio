@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
 import { runPointerCommand } from "../../commands/pointer";
+import { selectionSpan } from "../../edit/editSelection";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import {
@@ -28,6 +29,7 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import { DeviceSheet } from "../../system/DeviceSheet";
 import type { RoomViewProps } from "../../system/RoomView";
+import { SessionTargetChip } from "../../system/SessionTargetChip";
 import { TakesTray } from "../../system/TakesTray";
 import { dbToFraction } from "../../ui/metering";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
@@ -40,10 +42,14 @@ import {
 } from "./RecordStageView";
 import {
   firstClipped,
+  lastClipEndSec,
   startDisabledReason,
   takeIndexOf,
+  targetLocked,
+  targetViewOf,
   trayTakes,
   viewerWidthOf,
+  wireTargetOf,
 } from "./recordStageModel";
 
 export type RecordStageProps = {
@@ -66,6 +72,9 @@ function RecordStageBody({
 }: RecordStageProps & { room: HostRoom }) {
   const project = useDawStore((s) => s.project);
   const announceStatus = useDawStore((s) => s.announceStatus);
+  // Whole seconds, so playback does not re-render the stage on every frame.
+  const playheadSec = useDawStore((s) => Math.floor(s.playheadSec));
+  const editSelection = useDawStore((s) => s.selection);
   const receivedAtMs = useRecordHostStore((s) => s.receivedAtMs);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const shell = useViewportClass();
@@ -163,6 +172,32 @@ function RecordStageBody({
     />
   );
 
+  const endSec = lastClipEndSec(project);
+  const selected =
+    project && editSelection ? selectionSpan(editSelection, project) : null;
+  const replaceable =
+    selected && selected.end > selected.start && selected.trackIds.length > 0
+      ? selected
+      : null;
+  const targetChip = snapshot ? (
+    <SessionTargetChip
+      target={targetViewOf(snapshot.target, endSec)}
+      locked={targetLocked(snapshot)}
+      endAfterSec={endSec}
+      playheadSec={endSec === undefined ? undefined : playheadSec}
+      selection={
+        replaceable
+          ? { fromSec: replaceable.start, toSec: replaceable.end }
+          : undefined
+      }
+      onChange={(next) =>
+        room.runCommand("record.setTarget", {
+          target: wireTargetOf(next, replaceable?.trackIds ?? []),
+        })
+      }
+    />
+  ) : undefined;
+
   const canRecord = snapshot !== null && room.control !== null;
   const roomProps: RoomViewProps | null = snapshot
     ? {
@@ -196,6 +231,7 @@ function RecordStageBody({
         onMore: () => setMoreOpen(true),
         onSelfPress: () => setDeviceOpen(true),
         takes,
+        target: targetChip,
       }
     : null;
 

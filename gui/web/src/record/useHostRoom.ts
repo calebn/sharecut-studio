@@ -196,13 +196,16 @@ export function useHostRoom(
     void retryHostKeeperStorage().catch(() => undefined);
   }, []);
 
-  const runCommand = (commandId: string) => {
+  const runCommand = (
+    commandId: string,
+    args: Record<string, unknown> = {},
+  ) => {
     if (transportBusy) {
       return;
     }
     setTransportBusy(true);
     setDoneNotice(null);
-    void executePointerCommand(commandId, {})
+    void executePointerCommand(commandId, args)
       .then((result) => {
         if (result.status === "ok" && SHOWN_RESULTS.has(commandId)) {
           setDoneNotice(useDawStore.getState().statusAnnouncement);
