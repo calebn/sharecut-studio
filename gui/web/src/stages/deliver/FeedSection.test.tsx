@@ -10,17 +10,16 @@ import {
   CHOOSE_SHOW,
   DRIFTED,
   FIRST_RUN,
-  ITEM_XML,
-  NOTES_HTML,
   PENDING,
   READY,
   STALE,
-  WRITE_FAILED,
-  WRITING,
 } from "./feedFixture";
-import type { FeedView } from "./feedView";
+import type { FeedView, WriteRequest } from "./feedView";
 
-function setup(first: FeedView = READY) {
+function setup(
+  first: FeedView = READY,
+  extra: { request?: WriteRequest; state?: "ready" | "loading" } = {},
+) {
   const onAction = vi.fn();
   const onOpenSource = vi.fn();
   const announce = vi.fn();
@@ -29,7 +28,7 @@ function setup(first: FeedView = READY) {
   const utils = render(
     <FeedLive
       view={first}
-      itemXml={ITEM_XML}
+      {...extra}
       onAction={onAction}
       onOpenSource={onOpenSource}
     />,
@@ -55,8 +54,6 @@ describe("FeedSection", () => {
       FIRST_RUN,
       CHOOSE_SHOW,
       AGENT_PIN,
-      WRITING,
-      WRITE_FAILED,
     ]) {
       const { container, unmount } = setup(view);
       await expectNoA11yViolations(container);
@@ -280,11 +277,11 @@ describe("FeedSection", () => {
   });
 
   it("shows a write in progress and a failed write with a way to retry", () => {
-    const first = setup(WRITING);
+    const first = setup(STALE, { request: "writing" });
     expect(screen.getByText("Writing the feed file.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Write" })).toBeNull();
     first.unmount();
-    setup(WRITE_FAILED);
+    setup(STALE, { request: "failed" });
     expect(
       screen.getByText("Could not write the feed file."),
     ).toBeInTheDocument();
@@ -294,7 +291,7 @@ describe("FeedSection", () => {
   it("copies the notes the service rendered and confirms it", async () => {
     const { user, announce } = setup();
     await user.click(screen.getByRole("button", { name: "Copy notes" }));
-    expect(await navigator.clipboard.readText()).toBe(NOTES_HTML);
+    expect(await navigator.clipboard.readText()).toBe(READY.notesHtml);
     expect(await screen.findByText("Copied notes")).toBeInTheDocument();
     expect(announce).toHaveBeenCalledWith("Copied notes", { toast: false });
   });
@@ -325,6 +322,68 @@ describe("FeedSection", () => {
     expect(
       screen.getByText("Assigned Oct 23, 2026. It never changes."),
     ).toBeInTheDocument();
-    expect(screen.getByText("52 min").nextElementSibling).toBeNull();
+    expect(screen.getByText("52m 0s").nextElementSibling).toBeNull();
+  });
+
+  it("has no a11y violations while writing or after a failed write", async () => {
+    for (const request of ["writing", "failed"] as const) {
+      const { container, unmount } = setup(STALE, { request });
+      await expectNoA11yViolations(container);
+      unmount();
+    }
+  });
+
+  it("says Enter and Esc beside an open editor and ties it to the field", async () => {
+    const { user } = setup();
+    await user.click(title());
+    expect(
+      screen.getByRole("textbox", { name: "Edit episode title" }),
+    ).toHaveAccessibleDescription("Enter to save, Esc to cancel");
+  });
+
+  it("keeps focus on the edited value after Keep mine", async () => {
+    const { user } = setup(DRIFTED);
+    await user.click(screen.getByRole("button", { name: "Keep mine" }));
+    expect(
+      screen.getByRole("button", { name: /^Ana walks the old mill/ }),
+    ).toHaveFocus();
+  });
+
+  it("moves focus to Undo after Use new, then to the restored notes after Undo", async () => {
+    const { user } = setup(DRIFTED);
+    await user.click(screen.getByRole("button", { name: "Use new" }));
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).toHaveFocus();
+    await user.click(undo);
+    expect(
+      screen.getByRole("button", { name: /^Ana walks the old mill/ }),
+    ).toHaveFocus();
+  });
+
+  it("an edit shows in the XML pane and in the notes Copy notes sends", async () => {
+    const { user } = setup(DRIFTED);
+    await user.click(screen.getByRole("button", { name: "Keep mine" }));
+    await user.click(screen.getByRole("button", { name: "Copy notes" }));
+    expect(await navigator.clipboard.readText()).toContain(
+      "19:40 Listener mail",
+    );
+    await user.click(screen.getByRole("button", { name: "XML" }));
+    expect(screen.getByLabelText("Item XML")).toHaveTextContent(
+      "19:40 Listener mail",
+    );
+  });
+
+  it("names the show beside the episode from the channel", () => {
+    setup();
+    expect(screen.getByText("The Long River")).toBeInTheDocument();
+  });
+
+  it("says it is loading while the skeleton shows", () => {
+    const { container } = setup(READY, { state: "loading" });
+    expect(screen.getByText("Loading the listing")).toHaveAttribute(
+      "role",
+      "status",
+    );
+    expect(container.querySelector(".sys-skeleton")).not.toBeNull();
   });
 });

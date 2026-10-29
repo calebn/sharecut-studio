@@ -2,26 +2,27 @@ import { useId } from "react";
 import { formatBytes } from "../../models";
 import { PersonAvatar } from "../../system/Person";
 import { Button } from "../../ui";
+import { formatDurationLabel } from "../../utils/time";
 import { formatClock } from "./deliverLogic";
 import {
   type EditControls,
   FactView,
   FeedValue,
+  Mark,
   type OnEdit,
 } from "./FeedValue";
 import {
   audioLabel,
   colorIndexOf,
+  creditRoleLabel,
   DRIFT_COPY,
   formatDate,
-  formatDuration,
   isDrifted,
   isKnown,
   KEY,
   markOf,
   numberFact,
   plural,
-  roleLabel,
   type SourceOwner,
   textFact,
 } from "./feedLogic";
@@ -93,7 +94,7 @@ function Drift({
 }
 
 export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
-  const { item, show, sections } = view;
+  const { item, sections } = view;
   const notes = textFact(item, KEY.notes);
   const open = (owner: SourceOwner) => () => onOpenSource(owner);
   const chaptersId = useId();
@@ -121,9 +122,7 @@ export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
             {(art, source) => (
               <>
                 <img className="fd-art" src={art.src} alt={art.alt} />
-                {markOf(source) ? (
-                  <span className="fd-mark">{markOf(source)}</span>
-                ) : null}
+                {markOf(source) ? <Mark text={markOf(source) ?? ""} /> : null}
               </>
             )}
           </FactView>
@@ -138,7 +137,12 @@ export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
             />
           </h3>
           <p className="fd-meta">
-            {show.kind === "ready" ? <span>{show.title}</span> : null}
+            <FactView
+              fact={textFact(view.channel, KEY.showTitle)}
+              pending={() => null}
+            >
+              {(title) => <span>{title}</span>}
+            </FactView>
             <FactView fact={textFact(item, KEY.published)}>
               {(iso) => <span>{formatDate(iso)}</span>}
             </FactView>
@@ -146,7 +150,7 @@ export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
               fact={numberFact(item, KEY.duration)}
               pending={() => null}
             >
-              {(seconds) => <span>{formatDuration(seconds)}</span>}
+              {(seconds) => <span>{formatDurationLabel(seconds)}</span>}
             </FactView>
           </p>
           <div className="fd-badges">
@@ -258,7 +262,7 @@ export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
                         />
                         <span className="fd-person-name">{credit.name}</span>
                         <span className="fd-person-role">
-                          {roleLabel(credit.role)}
+                          {creditRoleLabel(credit.role)}
                         </span>
                       </li>
                     ))}

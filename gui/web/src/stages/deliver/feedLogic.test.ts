@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { CHECKS, DRIFTED, PENDING, READY } from "./feedFixture";
 import {
+  checksSummary,
   colorIndexOf,
   fixLabel,
-  formatDuration,
   markOf,
   needsInput,
   readiness,
   readinessTitle,
+  readinessTone,
   sortFindings,
   textFact,
   writeLine,
@@ -70,14 +71,14 @@ describe("writeLine", () => {
 
   it("offers nothing when the file is current or being written", () => {
     expect(writeLine(READY).action).toBeNull();
-    expect(writeLine({ ...READY, file: "writing" })).toMatchObject({
+    expect(writeLine(READY, "writing")).toMatchObject({
       action: null,
       writing: true,
     });
   });
 
   it("offers a retry after a failed write", () => {
-    expect(writeLine({ ...READY, file: "error" }).action).toBe("Try again");
+    expect(writeLine(READY, "failed").action).toBe("Try again");
   });
 
   it("names the blocker as the reason", () => {
@@ -102,12 +103,9 @@ describe("marks and fixes", () => {
   });
 
   it("looks button words up from the fix and keeps them off the wire", () => {
-    const edit = {
-      kind: "edit",
-      edit: { op: "set", key: "item.enclosure.url", value: "" },
-    } as const;
-    expect(fixLabel(edit)).toBe("Add address");
-    expect(needsInput(edit)).toBe("item.enclosure.url");
+    const input = { kind: "input", key: "item.enclosure.url" } as const;
+    expect(fixLabel(input)).toBe("Add address");
+    expect(needsInput(input)).toBe("item.enclosure.url");
     expect(fixLabel({ kind: "command", command: "export_episode" })).toBe(
       "Export episode",
     );
@@ -134,13 +132,26 @@ describe("marks and fixes", () => {
   });
 });
 
-describe("formatting", () => {
-  it("rounds a duration to minutes and adds hours", () => {
-    expect(formatDuration(3120)).toBe("52 min");
-    expect(formatDuration(3900)).toBe("1 hr 5 min");
-    expect(formatDuration(7200)).toBe("2 hr");
+describe("readiness tone and checks", () => {
+  it("is red only for a blocker", () => {
+    expect(readinessTone(readiness(CHECKS))).toBe("blocker");
+    expect(readinessTone(readiness(DRIFTED))).toBe("warn");
+    expect(readinessTone(readiness(READY))).toBe("ok");
+    const warnOnly = {
+      ...CHECKS,
+      findings: CHECKS.findings.filter((f) => f.severity !== "blocker"),
+    };
+    expect(readinessTone(readiness(warnOnly))).toBe("warn");
   });
 
+  it("counts what to fix, then what to check", () => {
+    expect(checksSummary(CHECKS)).toBe("2 to fix");
+    expect(checksSummary(DRIFTED)).toBe("1 to check");
+    expect(checksSummary(READY)).toBe("All clear");
+  });
+});
+
+describe("formatting", () => {
   it("splits xml into markup and content", () => {
     expect(xmlLines("<a>hi</a>\n<b/>")).toEqual([
       {

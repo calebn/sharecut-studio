@@ -77,6 +77,7 @@ export function ChaptersList({
                   onChange={(at) => onRetime(chapter.id, at)}
                 />
                 <InlineEdit
+                  commitOnUnmount
                   className="dv-chapter-title"
                   label={`Title of ${names[index]}`}
                   value={chapter.title}

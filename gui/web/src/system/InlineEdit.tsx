@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 export type InlineEditEnd = "enter" | "escape" | "blur";
 
@@ -13,6 +13,10 @@ type Props = {
   /** Enter commits; Shift+Enter breaks the line. */
   multiline?: boolean;
   focusOnMount?: boolean;
+  /** Sends text typed but not yet committed when the field unmounts, unless Enter or Escape already ended it. For a field whose stage can close under it. */
+  commitOnUnmount?: boolean;
+  /** The id of text that says how to finish, such as a key hint. */
+  describedBy?: string;
   placeholder?: string;
   className?: string;
 };
@@ -29,6 +33,8 @@ export function InlineEdit({
   onEnd,
   multiline = false,
   focusOnMount = false,
+  commitOnUnmount = false,
+  describedBy,
   placeholder,
   className,
 }: Props) {
@@ -49,6 +55,13 @@ export function InlineEdit({
   const commit = () => {
     if (text !== value) onCommit(text);
   };
+  const leave = useEffectEvent(() => {
+    if (!ended.current) commit();
+  });
+  useEffect(() => {
+    if (!commitOnUnmount) return;
+    return () => leave();
+  }, [commitOnUnmount]);
   const change = (next: string) => {
     ended.current = false;
     setText(next);
@@ -73,6 +86,7 @@ export function InlineEdit({
   const shared = {
     className: className ? `sys-inline-edit ${className}` : "sys-inline-edit",
     "aria-label": label,
+    "aria-describedby": describedBy,
     value: text,
     placeholder,
     ref: (el: HTMLInputElement | HTMLTextAreaElement | null) => {
