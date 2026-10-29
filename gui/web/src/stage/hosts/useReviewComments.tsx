@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { commentTimeLabel } from "../../comments/commentTimeLabel";
 import { playComment } from "../../comments/playComment";
 import {
   setCommentResolved,
   useCommentActions,
 } from "../../comments/useCommentActions";
+import {
+  commentPostedStatus,
+  usePostComment,
+} from "../../comments/usePostComment";
 import { stepUndecided } from "../../review/advance";
 import {
   commentEntriesOf,
@@ -15,10 +20,15 @@ import type { ReviewFilter, ReviewItem } from "../../review/reviewQueueModel";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard, type CommentCardData } from "../../system/CommentCard";
+import { Composer } from "../../system/Composer";
 import type { TimelineComment } from "../../types/project";
 import { InlineError } from "../../ui";
 import { errorMessage } from "../../utils/apiError";
-import { commitCommentActor } from "../../utils/commentAuthor";
+import {
+  commitCommentActor,
+  limitCommentName,
+  sessionDisplayName,
+} from "../../utils/commentAuthor";
 
 const COMMENT_ROLE = "host";
 
@@ -47,13 +57,15 @@ const cardOf = (c: TimelineComment, resolved: boolean): CommentCardData => ({
 });
 
 /**
- * Resolving is server state, not a Review decision, so it keeps its own
+ * The host's comments in the Review queue: one item per comment, the thread
+ * on its card, and the field that posts a new one. Resolving is server state, not a Review decision, so it keeps its own
  * optimistic state and Undo.
  */
 export function useReviewComments(enabled: boolean) {
-  const { project, projectPath } = useDaw((s) => ({
+  const { project, projectPath, commentDraft } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
+    commentDraft: s.commentDraft,
   }));
   const comments = enabled ? project?.comments : undefined;
   const [flipped, setFlipped] = useState<ReadonlyMap<string, boolean>>(
@@ -67,6 +79,10 @@ export function useReviewComments(enabled: boolean) {
   );
   const posting = useRef(new Set<string>());
   const [postingIds, setPostingIds] = useState<ReadonlySet<string>>(new Set());
+  const composeRef = useRef<HTMLTextAreaElement>(null);
+  const postComment = usePostComment();
+  const [body, setBody] = useState("");
+  const [name, setName] = useState(() => sessionDisplayName(COMMENT_ROLE));
   const sent = useRef(new Set<string>());
   const [replyErrors, setReplyErrors] = useState<
     Readonly<Record<string, string | null>>
@@ -84,6 +100,11 @@ export function useReviewComments(enabled: boolean) {
       return kept.length === prev.size ? prev : new Map(kept);
     });
   }, [comments]);
+
+  // A new draft, from C or the Edit verb, opens the field with focus.
+  useEffect(() => {
+    if (enabled && commentDraft) composeRef.current?.focus();
+  }, [enabled, commentDraft]);
 
   const entries = useMemo(
     () => commentEntriesOf(comments ?? [], flipped),
@@ -185,6 +206,56 @@ export function useReviewComments(enabled: boolean) {
     );
   };
 
+  const open = () => {
+    const state = useDawStore.getState();
+    if (!state.commentDraft)
+      state.setCommentDraft(resolveCommentAnchor(state).draft);
+  };
+
+  const close = () => {
+    setBody("");
+    postComment.setError(null);
+    useDawStore.getState().setCommentDraft(null);
+  };
+
+  const post = async () => {
+    const result = await postComment.post({
+      body,
+      author: commitCommentActor(name, COMMENT_ROLE, setName),
+    });
+    if (!result.ok) return;
+    setBody("");
+    useDawStore.getState().announceStatus(commentPostedStatus(result.comment));
+  };
+
+  const composer =
+    enabled && commentDraft ? (
+      <div
+        className="rv-compose"
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          event.stopPropagation();
+          close();
+        }}
+      >
+        <Composer
+          compact
+          body={body}
+          onBodyChange={setBody}
+          onSubmit={() => void post()}
+          anchor={{
+            kind: "pinned",
+            start: commentDraft.startSec,
+            end: commentDraft.endSec ?? undefined,
+          }}
+          name={{ value: name, onChange: (v) => setName(limitCommentName(v)) }}
+          state={postComment.busy ? "posting" : "idle"}
+          inputRef={composeRef}
+        />
+        <InlineError message={postComment.error} />
+      </div>
+    ) : undefined;
+
   const thread = (item: ReviewItem) => {
     const id = commentIdOf(item.id);
     const c = comments?.find((x) => x.id === id);
@@ -235,8 +306,10 @@ export function useReviewComments(enabled: boolean) {
     entries,
     stageProps: {
       thread,
+      composer,
       onReply: () => replyRef.current?.focus(),
     },
+    onComment: open,
     onResolve: (id: string, nav: CommentNav) => {
       const commentId = commentIdOf(id);
       if (commentId) void resolve(commentId, true, nav);

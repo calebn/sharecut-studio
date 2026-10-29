@@ -125,6 +125,17 @@
   min-block-size: 0;
 }
 
+.rv-compose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block-end: var(--space-4);
+}
+
+.rv-stage[data-layout="phone"] .rv-compose {
+  padding: var(--space-3) var(--space-4) 0;
+}
+
 .rv-foot {
   flex: none;
   display: flex;

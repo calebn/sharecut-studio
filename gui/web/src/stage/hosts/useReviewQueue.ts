@@ -530,6 +530,7 @@ export function useReviewQueue() {
       onDecide,
       onHear,
       onOpenInEdit,
+      onComment: comments.onComment,
       onResolve: (id: string) =>
         comments.onResolve(id, { ...session.props, selected }),
       onHandOff: () => runPointerCommand("stage.deliver"),
