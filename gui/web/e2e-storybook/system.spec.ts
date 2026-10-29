@@ -2317,7 +2317,7 @@ test("System/Player the collapsed Play button, AppHeader project button and Stat
   expect(project.width).toBeGreaterThanOrEqual(44);
 });
 
-test("System/AppHeader a failed save leaves the title 120 px at 360 and 430", async ({
+test("System/AppHeader a failed save leaves the title 120 px from 360 to 570", async ({
   browser,
 }) => {
   const { context, page } = await coarsePage(
@@ -2335,12 +2335,15 @@ test("System/AppHeader a failed save leaves the title 120 px at 360 and 430", as
   const retry = await page
     .getByRole("button", { name: /Retry/ })
     .evaluate((el) => el.getBoundingClientRect().height);
-  await page.setViewportSize({ width: 430, height: 900 });
-  const wide = await title.evaluate((el) => el.clientWidth);
+  const wider: number[] = [];
+  for (const width of [430, 450, 480, 540, 570]) {
+    await page.setViewportSize({ width, height: 900 });
+    wider.push(await title.evaluate((el) => el.clientWidth));
+  }
   await context.close();
   expect(shown).toBeGreaterThanOrEqual(120);
   expect(retry).toBeGreaterThanOrEqual(44);
-  expect(wide).toBeGreaterThanOrEqual(120);
+  for (const wide of wider) expect(wide).toBeGreaterThanOrEqual(120);
 });
 
 test("System/AppHeader a failed save keeps Invite and search in the Project menu, and a guest link keeps its search button", async ({
