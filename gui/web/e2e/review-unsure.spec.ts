@@ -65,7 +65,9 @@ test("unsure words: Looks right, Undo, Fix text, and the last word closes the ch
 
       await words(page).filter({ hasText: "uncle" }).click();
       await stage.getByRole("button", { name: "Fix text" }).click();
-      await stage.getByRole("textbox", { name: "Fix text" }).fill("Uncle");
+      await stage
+        .getByRole("textbox", { name: /^Corrected text for/ })
+        .fill("Uncle");
       await stage.getByRole("button", { name: "Save" }).click();
       await expect(toast(page).getByText(/^Fixed/)).toBeVisible();
 

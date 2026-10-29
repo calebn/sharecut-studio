@@ -178,10 +178,30 @@ export const UnsureWord: Story = {
       canvas.getByRole("button", { name: "Looks right" }),
     ).toBeEnabled();
     await userEvent.click(canvas.getByRole("button", { name: "Fix text" }));
-    const field = canvas.getByRole("textbox", { name: "Fix text" });
+    const field = canvas.getByRole("textbox", {
+      name: "Corrected text for “uncle”",
+    });
     await userEvent.clear(field);
     await userEvent.type(field, "Uncle{Enter}");
     await expect(args.unsure?.onFix).toHaveBeenCalledWith("Uncle");
+  },
+};
+
+export const UnsureWordEmptySave: Story = {
+  args: UnsureWord.args,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Fix text" }));
+    const field = canvas.getByRole("textbox", {
+      name: "Corrected text for “uncle”",
+    });
+    await userEvent.clear(field);
+    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+    await expect(canvas.getByRole("alert")).toHaveTextContent(
+      "Type the corrected word.",
+    );
+    await expect(field).toHaveFocus();
+    await expect(args.unsure?.onFix).not.toHaveBeenCalled();
   },
 };
 
@@ -402,6 +422,17 @@ export const Phone390: Story = {
 export const PhoneGuest: Story = {
   args: { layout: "phone", readOnly: true },
   decorators: phoneFrame("22.5rem"),
+};
+
+export const PhoneUnsureWordOpenInEdit: Story = {
+  args: { ...UnsureWord.args, layout: "phone" },
+  decorators: phoneFrame("22.5rem"),
+  play: async ({ args, canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Open in Edit" }),
+    );
+    await expect(args.onOpenInEdit).toHaveBeenCalledOnce();
+  },
 };
 
 export const PhoneEmpty: Story = {
