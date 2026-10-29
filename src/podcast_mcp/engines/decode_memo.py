@@ -21,6 +21,10 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
 * **Cap**: ``PODCAST_DECODE_MEMO_MB`` (default 768); least recently used out first, by array
   bytes. ``0`` (or a negative number) turns the memo off and every call is the uncached build;
   a value that is not a finite number falls back to the default.
+* **Idle release**: ``PODCAST_DECODE_MEMO_IDLE_S`` (default 90) seconds with no hit or store and no
+  decode in flight, and the memo clears itself, so a finished session does not keep the cap's worth
+  of RSS. ``0`` (or a negative number) never releases; a value that is not a finite number falls back
+  to the default. A daemon timer, armed only while the memo holds an entry, does the check.
 * **Read-only**: with the memo on, every call returns samples that are read-only, whether the
   decode was stored, served, too big, racy or changed under the decode. Only the cap-0 path
   returns the build untouched.
@@ -50,6 +54,8 @@ from podcast_mcp.util.fingerprint import FileStamp, file_stamp
 CAP_ENV = "PODCAST_DECODE_MEMO_MB"
 DEFAULT_CAP_MB = 768
 VERIFY_ENVS = ("PODCAST_VERDICT_VERIFY", "PODCAST_EVIDENCE_VERIFY")
+IDLE_ENV = "PODCAST_DECODE_MEMO_IDLE_S"
+DEFAULT_IDLE_S = 90.0
 RACY_SECONDS = 2.0
 
 
@@ -73,8 +79,21 @@ def cap_bytes() -> int:
     return max(0, int(megabytes * (1 << 20)))
 
 
+def idle_seconds() -> float:
+    """The idle time after which the memo releases; read live. ``0`` or less never releases.
+
+    A value that is not finite is the default, as an unparsable one is.
+    """
+    seconds = settings.number(IDLE_ENV, DEFAULT_IDLE_S)
+    return seconds if math.isfinite(seconds) else DEFAULT_IDLE_S
+
+
 def _now_ns() -> int:
     return time.time_ns()
+
+
+def _monotonic() -> float:
+    return time.monotonic()
 
 
 def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
@@ -101,6 +120,8 @@ class DecodeMemo:
         self._bytes = 0
         self._lock = threading.Lock()
         self._building: dict[_Key, _Flight] = {}
+        self._timer: threading.Timer | None = None
+        self._active = 0.0
 
     def get_or_decode(self, path: Path, sample_rate: int, build: Callable[[], T]) -> T:
         """``build()``, or a wrapper of the stored result for this file stamp and rate.
@@ -168,6 +189,7 @@ class DecodeMemo:
             self._bytes += nbytes
             while self._bytes > cap:
                 self._drop(next(iter(self._entries)))
+            self._touch()
         return dataclasses.replace(cast(Any, entry))
 
     def _forget(self, key: _Key, keep: _Key | None) -> None:
@@ -182,13 +204,44 @@ class DecodeMemo:
         entry = self._entries.get(key)
         if entry is not None:
             self._entries.move_to_end(key)
+            self._touch()
         return entry
+
+    def _touch(self) -> None:
+        """Note activity and arm the idle timer if none is pending; the lock is held."""
+        self._active = _monotonic()
+        idle = idle_seconds()
+        if self._timer is None and self._entries and idle > 0:
+            self._arm(idle)
+
+    def _arm(self, delay: float) -> None:
+        timer = threading.Timer(delay, self._release_if_idle)
+        timer.daemon = True
+        self._timer = timer
+        timer.start()
+
+    def _release_if_idle(self) -> None:
+        """The timer's body: clear if idle long enough and nothing is decoding, else look again."""
+        with self._lock:
+            self._timer = None
+            idle = idle_seconds()
+            if not self._entries or idle <= 0:
+                return
+            remaining = idle - (_monotonic() - self._active)
+            if self._building or remaining > 0:
+                self._arm(max(remaining, 0.0) or idle)
+                return
+            self._entries.clear()
+            self._bytes = 0
 
     def _drop(self, key: _Key) -> None:
         self._bytes -= int(self._entries.pop(key).samples.nbytes)
 
     def clear(self) -> None:
         with self._lock:
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
             self._entries.clear()
             self._bytes = 0
 

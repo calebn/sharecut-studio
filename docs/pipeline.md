@@ -639,6 +639,11 @@ and the ungated evidence render stay on `from_timeline_stem`, which keeps nothin
   track is 99 MB at 8 kHz and 198 MB at 16 kHz. `PODCAST_DECODE_MEMO_MB=0` keeps nothing and every call is the
   uncached build; a value that is not a finite number (`inf`, `nan`, `1e400`, text) is the default. The
   memo keeps up to the cap after a batch ends, which the batch scope's own caches do not.
+- **Idle release**: `PODCAST_DECODE_MEMO_IDLE_S` (default 90) seconds with no hit or store and no decode
+  running, and the memo clears itself so a finished session does not hold the cap's worth of RSS. A daemon
+  timer, armed only while the memo holds an entry, checks the idle clock (`time.monotonic`) and re-arms for
+  the remainder if it fired early or a decode is in flight. `0` (or a negative number) never releases; a
+  value that is not a finite number is the default. The next call after a release decodes again.
 - **Read-only**: with the memo on, the samples a caller receives are read-only on every path (stored,
   served, over the cap, racy, changed during the decode, or a stat failure), so the first caller sees
   what later callers see. Only the memo-off path returns the decoder's writable array.
