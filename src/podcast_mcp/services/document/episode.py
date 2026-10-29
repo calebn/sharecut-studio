@@ -26,6 +26,13 @@ from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedValueError
 from podcast_mcp.util.tracks import unknown_track
 
 
+def _is_hidden_char(char: str) -> bool:
+    # ZWJ stays: it joins emoji sequences such as family emoji.
+    if char == "\u200d":
+        return False
+    return unicodedata.category(char) in {"Cc", "Cf", "Zl", "Zp"}
+
+
 def _clean_project_name(name: str) -> str:
     cleaned = name.strip()
     if not cleaned:
@@ -35,9 +42,10 @@ def _clean_project_name(name: str) -> str:
             f"project name must be at most {PROJECT_NAME_MAX_CHARS} characters",
             code="invalid_project_name",
         )
-    if any(unicodedata.category(char) in {"Cc", "Cf"} for char in cleaned):
+    if any(_is_hidden_char(char) for char in cleaned):
         raise CodedValueError(
-            "project name must not contain control characters", code="invalid_project_name"
+            "project name must not contain control or invisible formatting characters",
+            code="invalid_project_name",
         )
     return cleaned
 
