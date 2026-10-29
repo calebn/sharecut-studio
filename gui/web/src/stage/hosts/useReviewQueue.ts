@@ -239,7 +239,7 @@ export function useReviewQueue() {
         else if (seen.status === "waived")
           await waiveTranscriptRefine(path, seen.notes || WAIVE_NOTE);
       } catch (error) {
-        return `The transcript check could not be kept: ${changedMessage(error) ?? errorMessage(error)}`;
+        return `The transcript check could not be kept. ${changedMessage(error) ?? "Mark it checked again."}`;
       }
     }
   };
