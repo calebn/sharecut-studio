@@ -1295,6 +1295,7 @@ def fill_with_room_tone(
             track_id,
             near_sec=clip.source_end,
             duration_sec=min(sample_duration_sec, gap),
+            near_source_id=clip.source_id,
         )
         if isinstance(span, SampleAbsent):
             absent = span
@@ -1363,7 +1364,13 @@ def mute_room_tone_fill(
     lo, hi = max(src_start, clip.source_start), min(src_end, clip.source_end)
     if hi <= lo:
         return None
-    span = room_tone_span(project, clip.track_id, near_sec=(lo + hi) / 2.0, duration_sec=hi - lo)
+    span = room_tone_span(
+        project,
+        clip.track_id,
+        near_sec=(lo + hi) / 2.0,
+        duration_sec=hi - lo,
+        near_source_id=clip.source_id,
+    )
     if isinstance(span, SampleAbsent):
         return None
     if isinstance(span, OwnQuietSample):
@@ -1589,14 +1596,16 @@ def room_tone_pad(
         if not right:
             after = [c for c in clips if c.timeline_start >= at_time - 1e-6]
             right = [min(after, key=lambda c: c.timeline_start)] if after else []
-        near = left[-1].source_end if left else right[0].source_start if right else None
-        if near is None:
+        seam = left[-1] if left else right[0] if right else None
+        if seam is None:
             lanes.append(LaneUnavailable(tid, "missing_seam"))
             continue
+        near = seam.source_end if left else seam.source_start
         selected = room_tone_span(
             project,
             tid,
             near_sec=near,
+            near_source_id=seam.source_id,
             duration_sec=min(seconds, sample_duration_sec) if sample_duration_sec else seconds,
             avoid=excluded,
         )

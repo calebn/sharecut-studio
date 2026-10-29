@@ -875,7 +875,7 @@ def test_fill_with_room_tone_two_clips() -> None:
     ) as span:
         summary = fill_with_room_tone(p, "host", sample_duration_sec=0.25, defaults=load_defaults())
     assert summary["operation"] == "fill_with_room_tone"
-    span.assert_called_once_with(p, "host", near_sec=2.0, duration_sec=0.25)
+    span.assert_called_once_with(p, "host", near_sec=2.0, near_source_id=None, duration_sec=0.25)
     host = sorted((c for c in p.clips if c.track_id == "host"), key=lambda c: c.timeline_start)
     # 1s gap at 2.0-3.0 tiled with 0.25s samples → 4 fill clips + 2 speech
     assert len(host) == 6

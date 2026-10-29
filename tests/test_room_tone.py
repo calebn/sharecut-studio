@@ -21,7 +21,9 @@ from podcast_mcp.edits.timeline_ops import (
 from podcast_mcp.engines.room_tone import (
     OwnQuietSample,
     RecordedBedSample,
+    Sample,
     SampleAbsent,
+    _from_pool,
     room_tone_bed_digest,
     room_tone_span,
 )
@@ -785,3 +787,30 @@ def test_scheduling_a_pool_records_it_in_the_background_once(tmp_path: Path) -> 
     assert room_tone.read_room_tone_pool(project, "host") is not None
     assert room_tone.schedule_room_tone_pool(project, "host") is False
     assert room_tone.schedule_room_tone_pool(project, "missing") is False
+
+
+def test_a_peer_voice_bleeding_below_the_level_checks_is_not_room_tone(tmp_path: Path) -> None:
+    # The guest talks 5.0-7.0 s and reaches the host's mic 2 dB over the host's floor,
+    # nearest to the cut, under every level check. Only the guest's own track shows it.
+    guest = _noise(-64.0, seed=2)
+    _add_voice(guest, 5.0, 7.0, -25.0)
+    host = _host_audio()
+    _add_voice(host, 5.0, 7.0, -68.0)
+    project = _project(tmp_path, host=host, guest=guest)
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
+    assert fill.end_s <= 5.0 or fill.start_s >= 7.0
+
+
+def test_a_cut_in_another_recording_is_not_ranked_by_its_position_in_the_primary() -> None:
+    pool = tuple(Sample(10.0 * i, 10.0 * i + 1.0, -75.0, 0.0) for i in range(30))
+
+    picked = {
+        _from_pool(pool, near_sec=None, spread_key=float(key), duration_sec=0.5, avoid=())
+        for key in range(2300, 2400, 3)
+    }
+    starts = {p.sample.start for p in picked if p is not None}
+
+    assert len(starts) > 10
