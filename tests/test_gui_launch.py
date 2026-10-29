@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -263,3 +266,43 @@ def test_packaged_cli_refuses_gui_after_root_options(
     assert PACKAGED_CLI_GUI_REFUSAL in result.stderr
     ensure.assert_not_called()
     serve.assert_not_called()
+
+
+_NON_UTF8 = os.fsdecode(b"caf\xe9")
+linux_only = pytest.mark.skipif(sys.platform != "linux", reason="needs a non-UTF-8 file name")
+
+
+@linux_only
+@pytest.mark.parametrize("extra", [[], ["--background"]])
+def test_gui_cli_refuses_unencodable_project_path(tmp_path: Path, extra: list[str]) -> None:
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.gui import gui_app
+
+    proj = tmp_path / _NON_UTF8 / "episode.project.json"
+    proj.parent.mkdir()
+    proj.write_text("{}", encoding="utf-8")
+    with patch("podcast_mcp.services.app.gui_launch.popen") as spawn:
+        result = CliRunner().invoke(gui_app, ["--project", str(proj), "--no-open", *extra])
+    assert result.exit_code == 1
+    assert "UTF-8" in result.output
+    assert not isinstance(result.exception, UnicodeEncodeError)
+    spawn.assert_not_called()
+
+
+@linux_only
+def test_gui_cli_subprocess_unencodable_project_path(tmp_path: Path) -> None:
+    proj = tmp_path / _NON_UTF8 / "episode.project.json"
+    proj.parent.mkdir()
+    proj.write_text("{}", encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, "-m", "podcast_mcp.cli.main", "gui", "--project", str(proj), "--no-open"],
+        capture_output=True,
+        text=True,
+        errors="backslashreplace",
+        timeout=60,
+        check=False,
+    )
+    assert done.returncode == 1
+    assert "UTF-8" in done.stdout + done.stderr
+    assert "Traceback" not in done.stderr

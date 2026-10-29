@@ -131,8 +131,8 @@ def record_recent(project_path: Path | str, *, now: datetime | None = None) -> N
         with _LOCK:
             kept = [e for e in read_recent() if e.path != resolved]
             _write([RecentEntry(resolved, stamp), *kept][:RECENT_LIMIT])
-    except (OSError, ValueError):
-        log.warning("Cannot save the recent projects list at %s", recent_projects_path())
+    except (OSError, ValueError) as exc:
+        log.warning("Cannot save the recent projects list at %s: %s", recent_projects_path(), exc)
 
 
 def forget_recent(project_path: Path | str) -> bool:
@@ -146,8 +146,8 @@ def forget_recent(project_path: Path | str) -> bool:
                 return False
             _write(kept)
             return True
-    except (OSError, ValueError):
-        log.warning("Cannot save the recent projects list at %s", recent_projects_path())
+    except (OSError, ValueError) as exc:
+        log.warning("Cannot save the recent projects list at %s: %s", recent_projects_path(), exc)
         return False
 
 

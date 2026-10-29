@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -10,11 +11,14 @@ from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from filelock import Timeout
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
 
 from podcast_mcp import __version__, settings
 from podcast_mcp.config.runtime import normalize_exact_origin
@@ -121,6 +125,22 @@ async def _validation_error_handler(request: Request, exc: Exception) -> JSONRes
         content=format_validation_errors(exc.errors()),
         headers={ERROR_CODE_HEADER: "invalid_request"},
     )
+
+
+class _AsciiJSONResponse(JSONResponse):
+    def render(self, content: Any) -> bytes:
+        return json.dumps(content, allow_nan=False, separators=(",", ":")).encode("ascii")
+
+
+async def _http_exception_handler(request: Request, exc: Exception) -> Response:
+    """FastAPI's HTTPException response; a lone surrogate in the detail renders as a \\udcXX escape."""
+    assert isinstance(exc, StarletteHTTPException)
+    try:
+        return await http_exception_handler(request, exc)
+    except UnicodeEncodeError:
+        return _AsciiJSONResponse(
+            {"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers
+        )
 
 
 def _accepts_html(request: Request) -> bool:
@@ -274,6 +294,7 @@ def create_app(
         app, served_project.resolve() if served_project is not None else None
     )
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
+    app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
     # The one busy mapping (#488, #1810): routes let a lock timeout propagate to it.
     app.add_exception_handler(Timeout, project_busy_exception_handler)
     app.add_exception_handler(TranscriptContextBusyError, project_busy_exception_handler)

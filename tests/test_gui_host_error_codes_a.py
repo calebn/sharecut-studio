@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import sys
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -53,6 +56,23 @@ def test_open_project_bad_paths(local, tmp_path):
     _assert(local.post("/api/project/open", json={"path": str(missing)}), 404, "project_not_found")
     missing.write_text("not json")
     _assert(local.post("/api/project/open", json={"path": str(missing)}), 400, "project_unreadable")
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="needs a non-UTF-8 directory name")
+def test_open_project_lone_surrogate_dir_matches_clean_twin(tmp_path):
+    client = TestClient(create_app(), client=LOOPBACK, raise_server_exceptions=False)
+
+    def post(directory: str):
+        raw = json.dumps({"path": directory + "/episode.project.json"}, ensure_ascii=True).encode()
+        return client.post(
+            "/api/project/open", content=raw, headers={"content-type": "application/json"}
+        )
+
+    twin = post(str(tmp_path / "cafe"))
+    res = post(str(tmp_path / "caf\udce9"))
+    assert (res.status_code, res.headers.get(CODE)) == (twin.status_code, twin.headers.get(CODE))
+    assert res.status_code in (400, 404)
+    assert "\\udce9" in res.text
 
 
 def test_create_project_failure(local, tmp_path):
