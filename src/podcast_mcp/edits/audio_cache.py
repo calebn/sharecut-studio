@@ -183,9 +183,10 @@ def track_level_profile(
 
 
 def decode_track(path: Path) -> TrackAudioCache:
+    """Both rates of a raw recording, each decoded once per process while the file is unchanged."""
     jump, waveform = run_parallel(
         [JUMP_SAMPLE_RATE, WAVEFORM_SAMPLE_RATE],
-        lambda rate: TrackRmsCache.from_timeline_stem(path, sample_rate=rate),
+        lambda rate: TrackRmsCache.from_recording(path, sample_rate=rate),
     )
     return TrackAudioCache(jump=jump, waveform=waveform)
 

@@ -238,8 +238,8 @@ def test_a_build_is_calibrated_once(monkeypatch):
 
 def test_a_different_build_is_calibrated_again(monkeypatch):
     resampler_locality(SOURCE_RATE, 8000)
-    build = ungated_audio._ffmpeg_build_id()
-    monkeypatch.setattr(ungated_audio, "_ffmpeg_build_id", lambda: (*build, "other"))
+    build = ungated_audio.ffmpeg_build_id()
+    monkeypatch.setattr(ungated_audio, "ffmpeg_build_id", lambda: (*build, "other"))
     calls = []
     real = FFmpegEngine.resample_streams
     monkeypatch.setattr(
