@@ -282,6 +282,9 @@ describe("BounceSection", () => {
     expect(screen.queryByText("Bouncing")).toBeNull();
     expect(screen.queryByRole("group", { name: "Source" })).toBeNull();
     expect(screen.getByRole("button", { name: "Download" })).toBeTruthy();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Download" }),
+    );
   });
 
   it("moves focus to Bounce once when asked", () => {

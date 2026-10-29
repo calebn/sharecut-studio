@@ -21,3 +21,26 @@ test("Bounce on Deliver writes a WAV, says so, and the shortcut brings it into v
     await expect.poll(() => bouncedWavs(projectPath)).toHaveLength(1);
   });
 });
+
+test("a refused Bounce names the failure, and Try again bounces", async ({
+  page,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    let refuse = true;
+    await page.route("**/api/export/bounce", async (route) => {
+      if (refuse) await route.abort();
+      else await route.continue();
+    });
+    await startBounce(page);
+    const deliver = deliverPage(page);
+    await expect(deliver.getByText("Bounce failed")).toBeVisible();
+    expect(await bouncedWavs(projectPath)).toHaveLength(0);
+
+    refuse = false;
+    await deliver.getByRole("button", { name: "Try again" }).click();
+    await deliver.getByRole("button", { name: "Bounce", exact: true }).click();
+    await expect(deliver).toContainText("Bounced 1 file(s) to export/bounces/");
+    await expect.poll(() => bouncedWavs(projectPath)).toHaveLength(1);
+  });
+});
