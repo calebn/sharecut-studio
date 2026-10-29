@@ -13,10 +13,10 @@ noise under speech. It never reads another track (bleed is never the main audio,
 a track whose noise is not a floor stays silent: ``measure_bleed_fill`` returns the reason.
 
 Only the power spectrum is kept, and it shapes the noise without seeding it: the draw is
-seeded from the lane and the fill source (#2556). The noise is synthesised at the rate of the audio it is
-added to (``BleedFill.noise``), as a seamless loop read at ``frame % len(loop)`` on the
-clock the gain is applied on, so preview, stems, proxies and export of one plan agree
-sample for sample, in whatever chunks they are read.
+seeded from the track id and the fill source (#2556). The noise is synthesised at the
+rate of the audio it is added to (``BleedFill.noise``), as a seamless loop read at
+``frame % len(loop)`` on the clock the gain is applied on, so preview, stems, proxies and
+export of one plan agree sample for sample, in whatever chunks they are read.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ class BleedFill:
     sample_rate: int
     nfft: int
     psd: tuple[float, ...] = field(repr=False)
-    seed_key: str = ""
+    seed_key: str
 
     @cached_property
     def digest(self) -> str:

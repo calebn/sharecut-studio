@@ -565,7 +565,8 @@ a seamless loop of at least 20 s (random phases, one inverse FFT), with nothing 
 start on the same noise and the texture never repeats on a short cycle. The fill's level,
 `gate_fill.level_db`, is the loop's level.
 The noise is seeded from the lane, the fill source and the rate, never from the measured
-spectrum, so a last-bit difference in the measurement cannot change the fill.
+spectrum, so a last-bit difference in the measurement does not change the noise sequence.
+The spectrum still shapes the amplitude, so the level can move by a tiny fraction.
 
 **Own audio is never touched.** The step writes one FLAC per track on the media's clock,
 `artifacts/gate_fill/{track}_{digest}.flac`. It holds the fill inside each hole and
@@ -631,7 +632,9 @@ switches this fill off with the other. An `attenuate` gate has no hole to fill a
 of the audio it is added to, as a seamless loop of at least 20 s read at `frame % length` on
 the clock the gain is applied on. Stems, play segments, source proxies and export read the same
 plan the same way, so any chunking of one clock lands on the same samples. A spectrum measured
-at 48 kHz keeps its density at 16 kHz, with nothing above the band it was measured in.
+at 48 kHz keeps its density at 16 kHz, with nothing above the band it was measured in. The
+noise sequence is seeded from the track id and the fill source, so each lane has its own
+noise and the same lane reads the same noise on every run.
 
 **Bleed Restore.** A restored span is the recording's own sound again. The fill leaves as the
 restore gain comes in (weight `1 - restore gain`), so a restored span carries no fill under it.

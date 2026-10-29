@@ -440,7 +440,7 @@ def _comfort_noise(
         noise.psd,
         noise.nfft,
         holes.sample_rate,
-        seed_key=f"{track.id}:{GateFillSource.COMFORT_NOISE.value}",
+        seed_key=f"recorder-gate:{track.id}:{GateFillSource.COMFORT_NOISE.value}",
     )
     noise_db = rms_db(loop)
     if noise_db > floor.speech_db - MIN_BELOW_SPEECH_DB:
@@ -465,7 +465,7 @@ def synthesise_noise(
     sample_rate: int,
     *,
     source_rate: int | None = None,
-    seed_key: str = "",
+    seed_key: str,
 ) -> np.ndarray:
     """A seamless loop of Gaussian noise with power spectrum ``psd`` (random phase, one IFFT),
     with nothing under ``MIN_FILL_HZ``.
@@ -553,7 +553,7 @@ def _quiet_run_noise(
         noise.psd,
         noise.nfft,
         holes.sample_rate,
-        seed_key=f"{track_id}:{GateFillSource.COMFORT_NOISE.value}",
+        seed_key=f"recorder-gate:{track_id}:{GateFillSource.COMFORT_NOISE.value}",
     )
     noise_db = rms_db(loop)
     if noise_db > read.floor.speech_db - MIN_BELOW_SPEECH_DB:
