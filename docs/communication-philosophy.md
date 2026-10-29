@@ -237,7 +237,8 @@ choice; phone and tablet keep their existing editing rail and compact inspector.
   externally visible artifacts (e.g. "Allow AI assistants (MCP)" minting an
   MCP URL on every share) starts OFF. The consequence is disclosed
   adjacent to the control so the opt-in is informed: in ShareDialog the
-  helper text sits under the checkbox and is its accessible description.
+  helper text sits under the checkbox and is its accessible description; in
+  the Deliver Share section it sits under the toggle and is described by it.
   (Surface 2; maintainer decision 2026-09-21: MCP stays opt-in.)
 
 ## Empty states
@@ -741,3 +742,4 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   "Add a comment", "Clear filters").
 - 2026-10-20 — Names and chrome (#1794): every control shows its command's catalog label or one declared short form, and a Vitest walk compares buttons, menu rows, palette rows and the capabilities manifest. Select tool, Blade tool and Toggle comment mode name the pointer tools, and the rail's cut reads Blade cut. The status row and Activity chip read as sentences. The clip inspector drops the monospace ID rows and the fade sliders for number fields with Apply and nudges, and its Delete pair says which leaves a gap and which ripples. The phone help copy names taps and holds, panel tabs are a tablist, and the Ripple and Leave a gap rows name the Delete buttons. The Needs attention banner shows that one string as its heading and the Comments panel's mode button uses the command's name, Toggle comment mode.
 - 2026-10-23 — A job that fails for a missing model says which one and offers the download (#2046): Export and Bounce ask inside their own dialog and run once more after **Download**, and every other failed job shows **Download {model}** beside the Activity chip, which opens its prompt only when pressed. A failed Refresh mix resumes once after the download; nothing downloads on its own.
+- 2026-10-29 — Share in Deliver (#2450): the Share section carries the Share dialog's words unchanged (role descriptions, "Allow AI assistants (MCP)" and its help, the Stop sharing and End room confirms, "No review links yet.", the Refresh mix recovery copy). A copy the browser refuses no longer shows the browser's error: the row says "Press Ctrl C" and selects the whole link, and a record or MCP address that cannot be copied is named in the message so it can be copied by hand.

@@ -336,6 +336,10 @@ open episode, the no-episode warning, the gesture sheet's callback handoff
 to Commands and shortcuts, and a 360px phone viewport without app or network
 context.
 
+`Stages/Deliver/Share` renders the props-only `ShareSection`, which carries the
+same actions inside the Deliver stage; `ShareFlowProvider` owns listing,
+making, copying and stopping, and `deliverShare.ts` maps it to the section.
+
 `Templates/ShareDialog` renders the production `ShareDialogView` that the live
 `ShareDialog` adapter renders. The adapter keeps listing, minting and revoking
 links (`../api`), clipboard writes, the copied-flash timer and the
