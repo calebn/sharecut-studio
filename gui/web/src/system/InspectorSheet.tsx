@@ -10,7 +10,7 @@ import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
 import { CloseButton } from "../ui";
 import type { SystemIconName } from "./icons";
 import {
-  detentHeight,
+  DOCK_PX,
   dragHeight,
   INSPECTOR_DETENTS,
   type InspectorBounds,
@@ -237,7 +237,12 @@ function Card({
   );
 }
 
-type Drag = { start: number; container: number; height: number };
+type Drag = {
+  start: number;
+  container: number;
+  dock: number;
+  height: number;
+};
 
 function Phone({
   icon,
@@ -264,7 +269,10 @@ function Phone({
       const container = el?.parentElement?.clientHeight;
       if (!el || !container) return false;
       const start = el.getBoundingClientRect().height;
-      drag.current = { start, container, height: start };
+      const dock =
+        el.querySelector<HTMLElement>(".sys-inspector-dock")?.offsetHeight ||
+        DOCK_PX;
+      drag.current = { start, container, dock, height: start };
       samples.current = [{ t: performance.now(), height: start }];
       setDragging(start);
       return true;
@@ -288,7 +296,8 @@ function Phone({
         gesture.height,
         riseVelocity(samples.current, performance.now()),
         gesture.container,
-        gesture.start <= detentHeight("dock", gesture.container),
+        gesture.start <= gesture.dock,
+        gesture.dock,
       );
       if (next === "dismiss") onDismiss();
       else if (next !== detent) onDetentChange(next);
