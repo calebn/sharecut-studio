@@ -60,6 +60,13 @@ const args = {
   consented: true,
 };
 
+async function recordAudio(sink: MemorySink, path: string): Promise<void> {
+  await waitFor(() => {
+    act(() => graphEmit.fn(new Float32Array(480).fill(0.1)));
+    expect((sink.files.get(path)?.length ?? 0) > 44).toBe(true);
+  });
+}
+
 describe("useKeeperCapture", () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -558,6 +565,13 @@ describe("useKeeperCapture", () => {
         }
         return originalApply.call(this, gate);
       });
+    const path = (segmentIndex: number) =>
+      keeperWavPath({
+        sessionId: snap.session_id,
+        takeIndex: 0,
+        participantId: "p_g",
+        segmentIndex,
+      });
     try {
       const { rerender, result, unmount } = renderHook(
         ({ stream, muted }: { stream: MediaStream | null; muted: boolean }) =>
@@ -567,6 +581,7 @@ describe("useKeeperCapture", () => {
         },
       );
       await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+      await recordAudio(sink, path(0));
 
       blockNext = true;
       rerender({ stream: streamA, muted: true });
@@ -583,14 +598,8 @@ describe("useKeeperCapture", () => {
         { streamAvailable: false, recordingMs: 5_000 },
         { streamAvailable: true, recordingMs: 7_000 },
       ]);
-      const path = (segmentIndex: number) =>
-        keeperWavPath({
-          sessionId: snap.session_id,
-          takeIndex: 0,
-          participantId: "p_g",
-          segmentIndex,
-        });
       await waitFor(() => expect(sink.files.has(path(1))).toBe(true));
+      await recordAudio(sink, path(1));
       expect(sink.files.has(keeperMetaPath(path(0)))).toBe(true);
       unmount();
       await waitFor(() =>
@@ -646,6 +655,15 @@ describe("useKeeperCapture", () => {
       vi.setSystemTime(3_500);
       act(() => result.current.retry());
       await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+      await recordAudio(
+        sink,
+        keeperWavPath({
+          sessionId: snap.session_id,
+          takeIndex: 0,
+          participantId: "p_g",
+          segmentIndex: 1,
+        }),
+      );
       rerender({ enabled: false });
       await waitFor(() =>
         expect(
@@ -1116,13 +1134,24 @@ describe("useKeeperCapture segment reports", () => {
       { initialProps: props },
     );
 
-  it("reports each opened segment and sends nothing new at Stop", async () => {
+  const audio = () => act(() => graphEmit.fn(new Float32Array(480).fill(0.1)));
+  const reported = async (
+    report: ReturnType<typeof vi.fn<Report>>,
+    n: number,
+    takeIndex = 0,
+  ) =>
+    waitFor(() => {
+      audio();
+      expect(report).toHaveBeenCalledWith(takeIndex, n);
+    });
+
+  it("reports each segment once it has audio and sends nothing new at Stop", async () => {
     const report = vi.fn<Report>();
     const { rerender } = mount(report, { snapshot: snap });
-    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1));
+    await reported(report, 1);
     rerender({ snapshot: { ...snap, state: "paused" } });
     rerender({ snapshot: { ...snap, state: "recording" } });
-    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 2));
+    await reported(report, 2);
     rerender({ snapshot: { ...snap, state: "stopped" } });
     await waitFor(() => expect(report).toHaveBeenCalledWith(0, 2));
     expect(report.mock.calls).toEqual([
@@ -1131,15 +1160,68 @@ describe("useKeeperCapture segment reports", () => {
     ]);
   });
 
-  it("counts a segment opened after a consent flip", async () => {
+  it("does not count a segment opened after a consent flip that never got audio", async () => {
     const report = vi.fn<Report>();
-    const { rerender } = mount(report, { snapshot: snap });
-    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1));
+    const { result, rerender } = mount(report, { snapshot: snap });
+    await reported(report, 1);
+    rerender({ snapshot: snap, consented: false });
+    await waitFor(() => expect(result.current.recordingLocally).toBe(false));
+    rerender({ snapshot: snap, consented: true });
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    rerender({ snapshot: { ...snap, state: "stopped" }, consented: true });
+    await waitFor(() => expect(result.current.recordingLocally).toBe(false));
+    expect(report.mock.calls).toEqual([[0, 1]]);
+  });
+
+  it("reports only audio segments when a consent flip lands right at Stop", async () => {
+    const report = vi.fn<Report>();
+    const { result, rerender } = mount(report, { snapshot: snap });
+    await reported(report, 1);
     rerender({ snapshot: snap, consented: false });
     rerender({ snapshot: snap, consented: true });
-    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 2));
+    rerender({ snapshot: { ...snap, state: "stopped" }, consented: true });
+    await waitFor(() => expect(result.current.recordingLocally).toBe(false));
+    expect(report.mock.calls).toEqual([[0, 1]]);
+  });
+
+  it("reports zero when the only segment closed without audio", async () => {
+    const report = vi.fn<Report>();
+    const { result, rerender } = mount(report, { snapshot: snap });
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
     rerender({ snapshot: { ...snap, state: "stopped" } });
-    await waitFor(() => expect(report).toHaveBeenLastCalledWith(0, 2));
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 0));
+    expect(report.mock.calls).toEqual([[0, 0]]);
+  });
+
+  it("matches the room's rows without resending once they catch up", async () => {
+    const report = vi.fn<Report>();
+    const { rerender } = mount(report, { snapshot: snap });
+    await reported(report, 1);
+    rerender({ snapshot: { ...snap, state: "paused" } });
+    rerender({ snapshot: { ...snap, state: "recording" } });
+    await reported(report, 2);
+    rerender({ snapshot: { ...snap, state: "stopped" } });
+    const caught = {
+      ...snap,
+      state: "stopped" as const,
+      takes: [
+        {
+          take_index: 0,
+          session_start_wall_ms: 0,
+          session_start_iso: "",
+          pauses: [],
+          consented_participant_ids: ["p_g"],
+          segment_reports: { p_g: 2 },
+        },
+      ],
+    };
+    rerender({ snapshot: caught });
+    rerender({ snapshot: { ...caught } });
+    await act(async () => {});
+    expect(report.mock.calls).toEqual([
+      [0, 1],
+      [0, 2],
+    ]);
   });
 
   it("reports zero when no segment ever opened", async () => {
@@ -1155,7 +1237,8 @@ describe("useKeeperCapture segment reports", () => {
   it("resends while the room's entry is behind and stops once it catches up", async () => {
     const report = vi.fn<Report>();
     const { rerender } = mount(report, { snapshot: snap });
-    await waitFor(() => expect(report).toHaveBeenCalledTimes(1));
+    await reported(report, 1);
+    expect(report).toHaveBeenCalledTimes(1);
     const behind = {
       ...snap,
       takes: [
@@ -1198,11 +1281,11 @@ describe("useKeeperCapture segment reports", () => {
       segment_reports: reports,
     });
     const { rerender } = mount(report, { snapshot: snap });
-    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1));
+    await reported(report, 1);
     const next = { ...snap, take_index: 1, state: "paused" as const };
     rerender({ snapshot: next });
     rerender({ snapshot: { ...next, state: "recording" } });
-    await waitFor(() => expect(report).toHaveBeenCalledWith(1, 1));
+    await reported(report, 1, 1);
     report.mockClear();
     rerender({
       snapshot: {
@@ -1218,7 +1301,7 @@ describe("useKeeperCapture segment reports", () => {
   it("clamps an oversized count to the server cap and stops resending once the room has it", async () => {
     const report = vi.fn<Report>();
     const { rerender } = mount(report, { snapshot: snap });
-    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1));
+    await reported(report, 1);
     const spy = vi
       .spyOn(KeeperSession.prototype, "segmentsOpened")
       .mockReturnValue(5001);

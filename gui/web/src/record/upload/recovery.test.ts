@@ -590,6 +590,7 @@ describe("keeper recovery", () => {
       Array.from(retainedPcm),
     );
     await restored.apply({ ...gate, recordingMs: 2250 });
+    restored.push(new Float32Array([0.25, -0.25]), KEEPER_SAMPLE_RATE);
     await restored.dispose();
     expect(restored.files[0]?.segmentIndex).toBe(1);
     expect((await sink.read(interrupted))!.length).toBe(
