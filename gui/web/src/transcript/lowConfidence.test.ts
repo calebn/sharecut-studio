@@ -22,14 +22,10 @@ function u(partial: Partial<CombinedUtterance>): CombinedUtterance {
 }
 
 describe("isLowConfidenceWord", () => {
-  it("treats null or undefined confidence as not flagged", () => {
-    expect(isLowConfidenceWord({ confidence: null })).toBe(false);
-    expect(isLowConfidenceWord({ confidence: undefined })).toBe(false);
-  });
-
-  it("flags below 0.7 and not at 0.7", () => {
-    expect(isLowConfidenceWord({ confidence: 0.69 })).toBe(true);
-    expect(isLowConfidenceWord({ confidence: 0.7 })).toBe(false);
+  it("follows the server flag, not the confidence", () => {
+    expect(isLowConfidenceWord({ unsure: true })).toBe(true);
+    expect(isLowConfidenceWord({ unsure: false })).toBe(false);
+    expect(isLowConfidenceWord({})).toBe(false);
   });
 });
 
@@ -46,9 +42,10 @@ describe("lowConfidenceStops", () => {
           end: 1,
           word_index: 1,
           confidence: 0.4,
+          unsure: true,
           timeline_start: 5,
         },
-        { text: "no-index", start: 1, end: 1.5, confidence: 0.1 },
+        { text: "no-index", start: 1, end: 1.5, confidence: 0.1, unsure: true },
       ],
     }),
     u({
@@ -62,6 +59,7 @@ describe("lowConfidenceStops", () => {
           end: 2.5,
           word_index: 0,
           confidence: 0.3,
+          unsure: true,
           mappable: false,
         },
       ],
@@ -93,6 +91,7 @@ describe("lowConfidenceStops", () => {
             end: 0.2,
             word_index: 0,
             confidence: 0.3,
+            unsure: true,
             suppressed: true,
           },
         ],
@@ -101,7 +100,7 @@ describe("lowConfidenceStops", () => {
         track_id: "host",
         text: "so",
         words: [
-          { text: "so", start: 1, end: 1.2, word_index: 0, confidence: 0.4 },
+          { text: "so", start: 1, end: 1.2, word_index: 0, confidence: 0.4, unsure: true },
         ],
       }),
     ];
@@ -122,6 +121,7 @@ describe("lowConfidenceStops", () => {
             end: 0.5,
             word_index: 0,
             confidence: 0.3,
+            unsure: true,
             mappable: false,
           },
         ],
@@ -136,6 +136,7 @@ describe("lowConfidenceStops", () => {
             end: 2,
             word_index: 1,
             confidence: 0.4,
+            unsure: true,
             timeline_start: 5,
           },
         ],
@@ -164,6 +165,7 @@ describe("selectLowConfidenceStops", () => {
           end: 1,
           word_index: 1,
           confidence: 0.4,
+          unsure: true,
           timeline_start: 5,
         },
       ],
@@ -179,6 +181,7 @@ describe("selectLowConfidenceStops", () => {
           end: 2.5,
           word_index: 0,
           confidence: 0.3,
+          unsure: true,
           mappable: false,
         },
       ],

@@ -37,6 +37,7 @@ function project(): ProjectView {
               end: 1,
               word_index: 1,
               confidence: 0.4,
+              unsure: true,
               timeline_start: 0.5,
             },
             {
@@ -45,6 +46,7 @@ function project(): ProjectView {
               end: 1.5,
               word_index: 2,
               confidence: 0.5,
+              unsure: true,
               timeline_start: 1,
             },
           ],
@@ -63,6 +65,7 @@ function project(): ProjectView {
               end: 3.5,
               word_index: 0,
               confidence: 0.3,
+              unsure: true,
               timeline_start: 3,
             },
           ],
@@ -81,6 +84,7 @@ function project(): ProjectView {
               end: 4.5,
               word_index: 1,
               confidence: 0.2,
+              unsure: true,
               mappable: false,
             },
           ],
@@ -205,7 +209,7 @@ describe("transcript.next/prevLowConfidence", () => {
     });
 
     const p = project();
-    p.transcript!.utterances[0].words![2].confidence = 1.0;
+    p.transcript!.utterances[0].words![2].unsure = false;
     useDawStore.setState({ project: p });
 
     const result = await execute("transcript.nextLowConfidence", {});
@@ -228,8 +232,8 @@ describe("transcript.next/prevLowConfidence", () => {
     });
 
     const p = project();
-    p.transcript!.utterances[0].words![2].confidence = 1.0;
-    p.transcript!.utterances[1].words![0].confidence = 1.0;
+    p.transcript!.utterances[0].words![2].unsure = false;
+    p.transcript!.utterances[1].words![0].unsure = false;
     useDawStore.setState({ project: p });
 
     const result = await execute("transcript.nextLowConfidence", {});
@@ -253,7 +257,7 @@ describe("transcript.next/prevLowConfidence", () => {
   it("is disabled with no low-confidence words", async () => {
     const p = project();
     for (const u of p.transcript!.utterances) {
-      for (const w of u.words ?? []) w.confidence = 0.9;
+      for (const w of u.words ?? []) w.unsure = false;
     }
     useDawStore.setState({ project: p });
     const result = await execute("transcript.nextLowConfidence", {});
