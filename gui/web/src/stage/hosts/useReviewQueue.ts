@@ -404,9 +404,7 @@ export function useReviewQueue() {
         error.code === TRANSCRIPT_REFINE_REQUIRED_CODE;
       const changedText = changedMessage(error);
       const next =
-        (gate && !intent.waive) || intent.waive || changedText
-          ? await refreshStatus()
-          : null;
+        gate || intent.waive || changedText ? await refreshStatus() : null;
       if (!current()) return false;
       if (next && checkEntryOf(next) && !changedText && !intent.waive)
         say(CUT_AGAIN);
