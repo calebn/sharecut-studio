@@ -22,6 +22,7 @@ from podcast_mcp.services.record import (
     unsaved_takes,
 )
 from podcast_mcp.services.record.landing import RecordLandingService
+from podcast_mcp.services.record.state import MAX_REPORTED_SEGMENTS
 from podcast_mcp.services.record.upload import RecordUploadService, sha256_hex
 from podcast_mcp.util.wav import pcm_wav_header
 from test_record_returning_people import _ack, _clips_by_track, _join_guest, _room, _tracks
@@ -697,6 +698,44 @@ def test_a_room_with_only_stalled_recordings_is_not_closed(
     unsaved = unsaved_takes(ws.project, now_wall_ms=STOP_AT + GRACE + 1)
     assert (unsaved.stalled, unsaved.landable, unsaved.saving) == (1, 0, 0)
     assert unsaved.closed is False
+
+
+def test_a_report_with_no_final_is_saving_inside_the_window_then_stalled(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], svc = _stopped_room(ws, ["Ava"])
+    _ack_segment(ws, old, ava, 0)
+    _report(svc, ava, 1, final=False)
+    _at(monkeypatch, STOP_AT + 60_000)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
+    assert ShareService(ws).create_record_room(land_first=True)["left_behind"] == 1
+
+
+def test_a_final_report_that_matches_the_rows_adds_nothing(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], svc = _stopped_room(ws, ["Ava"])
+    _ack_segment(ws, old, ava, 0)
+    _report(svc, ava, 1, final=False)
+    _report(svc, ava, 1, final=True)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0, 0)
+
+
+def test_a_count_above_the_cap_still_owes_the_trailing_segment(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], svc = _stopped_room(ws, ["Ava"])
+    _ack_segment(ws, old, ava, 0)
+    _report(svc, ava, 10**6, final=True)
+    snap = _stalled_after_grace(ws, monkeypatch)
+    assert snap["unlanded_stalled"] == MAX_REPORTED_SEGMENTS - 1
 
 
 def test_a_part_that_disappears_between_listing_and_stat_does_not_stall_a_live_upload(

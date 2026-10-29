@@ -8,7 +8,7 @@ from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record import RecordSessionService, RecordStateError
 from podcast_mcp.services.record.commands import RecordAuthzError
 from podcast_mcp.services.record.service import _store_for, apply_record_ws_message
-from podcast_mcp.services.record.state import RecordSnapshot
+from podcast_mcp.services.record.state import MAX_REPORTED_SEGMENTS, RecordSnapshot
 from podcast_mcp.util.coded_error import CodedValueError
 from test_record_returning_people import CAPS, _join_guest, _seed
 from test_record_staging import _cmd
@@ -74,7 +74,7 @@ def test_a_bad_take_index_is_refused(minimal_project, sample_wav, tmp_workspace,
         _send(svc, ava, {"take_index": take_index, "segments": 1, "final": False})
 
 
-@pytest.mark.parametrize("segments", [-1, True, "1", 1.5, None, 10**6])
+@pytest.mark.parametrize("segments", [-1, True, "1", 1.5, None])
 def test_a_bad_segment_count_is_refused(minimal_project, sample_wav, tmp_workspace, segments):
     _ws, svc, ava, _bea = _room(minimal_project, sample_wav)
     with pytest.raises(CodedValueError):
@@ -132,3 +132,9 @@ def test_reports_survive_the_snapshot_round_trip_and_old_snapshots_load_empty(
     for take in stored["takes"]:
         take.pop("segment_reports", None)
     assert RecordSnapshot.model_validate(stored).takes[0].segment_reports == {}
+
+
+def test_a_count_above_the_cap_is_clamped_not_dropped(minimal_project, sample_wav, tmp_workspace):
+    _ws, svc, ava, _bea = _room(minimal_project, sample_wav)
+    _send(svc, ava, {"take_index": 0, "segments": 10**6, "final": False})
+    assert _reports(svc) == {ava: (MAX_REPORTED_SEGMENTS, False)}
