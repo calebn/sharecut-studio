@@ -92,15 +92,3 @@ export function planDecision(
     message: decisionMessage(items, ids, result),
   };
 }
-
-export function undoDecisions(
-  items: readonly ReviewItem[],
-  ids: readonly string[],
-): { items: ReviewItem[]; selectedId: string | null } {
-  return {
-    items: items.map((item) =>
-      ids.includes(item.id) ? { ...item, result: undefined } : item,
-    ),
-    selectedId: ids[0] ?? null,
-  };
-}

@@ -60,7 +60,7 @@ const QUEUE_KIND: Readonly<Record<DecisionKind, ReturnType<typeof kind>>> = {
   suggestion: kind("Other suggestions", "suggestions", true, false),
 };
 
-export const KIND_ORDER = Object.keys(QUEUE_KIND) as DecisionKind[];
+const KIND_ORDER = Object.keys(QUEUE_KIND) as DecisionKind[];
 
 export const holdsGateKind = (item: ReviewItem) => QUEUE_KIND[item.kind].gated;
 
@@ -78,7 +78,7 @@ export function verbOf(item: ReviewItem): VerbId {
 }
 
 /** The verb the items share, or Approve when they differ (cut with shorten). */
-export function groupVerbOf(items: readonly ReviewItem[]): VerbId {
+function groupVerbOf(items: readonly ReviewItem[]): VerbId {
   const first = items[0] && verbOf(items[0]);
   return first && items.every((item) => verbOf(item) === first)
     ? first

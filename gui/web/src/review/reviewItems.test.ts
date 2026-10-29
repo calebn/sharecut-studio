@@ -4,7 +4,6 @@ import type { PendingKind, TranscriptCheckStatus } from "../types/project";
 import {
   CHECK_ID,
   checkEntryOf,
-  decisionKindOf,
   editIdOf,
   reviewEntriesOf,
   reviewIdOf,
@@ -18,7 +17,7 @@ const itemOf = (over: Parameters<typeof pendingEditView>[0] = {}) => {
   return entry.item;
 };
 
-describe("decisionKindOf", () => {
+describe("kind of a pending edit", () => {
   it.each([
     ["filler", "filler"],
     ["pause", "pause"],
@@ -27,13 +26,13 @@ describe("decisionKindOf", () => {
     ["sound", "sound"],
     ["other", "suggestion"],
   ] satisfies [PendingKind, string][])("maps %s to %s", (wire, kind) => {
-    expect(decisionKindOf(wire)).toBe(kind);
+    expect(itemOf({ kind: wire }).kind).toBe(kind);
   });
 
   it.each([undefined, null, "mystery", "constructor", "__proto__", 7])(
     "gives suggestion for %s",
     (wire) => {
-      expect(decisionKindOf(wire)).toBe("suggestion");
+      expect(itemOf({ kind: wire as never }).kind).toBe("suggestion");
     },
   );
 });

@@ -238,7 +238,7 @@ part of the existing route.
 
 Shared dialogs mount outside inert app chrome. On phones, Pipeline parameters
 use the shared modal and suspend while model-download confirmation is open.
-Guest status summaries for Impact and Pipeline remain readable without offering
+Guest status summaries for Pipeline remain readable without offering
 unavailable host panels. Editable chapter and reply fields have persistent
 accessible names; long comments, vocabulary terms, and inspector metadata wrap
 within their panes. The guest review reading column stays within its shell;
@@ -321,8 +321,8 @@ readable reason; in-flight mutations block duplicates. Play uses the owned
 transport preview; Bounce captures a detached target with ordinary configuration.
 
 The idle desktop inspector collapses and restores when an inspector object is
-selected. **Edits in removed audio** in the footer opens the Review Queue, where every
-review-required pending item remains selectable. The transport holds the single mix freshness
+selected. The idle inspector lists **Edits in removed audio** (pending edits with no place on the timeline); every
+review-required pending item remains selectable in the Review Queue. The transport holds the single mix freshness
 cue (**Mix out of date**, which hosts never have to click); the footer retains transcript,
 pending, comment and job status.
 
