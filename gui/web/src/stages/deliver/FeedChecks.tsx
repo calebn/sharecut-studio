@@ -12,21 +12,19 @@ const GLYPH: Record<Severity, { icon: SystemIconName; word: string }> = {
 
 type Props = {
   findings: readonly Finding[];
+  summary: string;
   onFix: (fix: Fix) => void;
 };
 
 /** Every finding, closed by default: the readiness strip already leads with the first one. */
-export function FeedChecks({ findings, onFix }: Props) {
+export function FeedChecks({ findings, summary, onFix }: Props) {
   if (findings.length === 0) return null;
-  const open = findings.filter((f) => f.severity !== "info").length;
   return (
     <details className="fd-checks">
       <summary>
         <SystemIcon name="chevron-down" size={14} />
         <span>Checks</span>
-        <span className="fd-checks-count">
-          {open === 0 ? "All clear" : `${open} to fix`}
-        </span>
+        <span className="fd-checks-count">{summary}</span>
       </summary>
       <ul className="fd-findings">
         {sortFindings(findings).map((finding, at) => {
@@ -47,6 +45,7 @@ export function FeedChecks({ findings, onFix }: Props) {
               ) : null}
               {fix ? (
                 <Button
+                  className="fd-finding-fix"
                   onClick={() => onFix(fix)}
                   aria-label={`${fixLabel(fix)}: ${finding.message}`}
                 >

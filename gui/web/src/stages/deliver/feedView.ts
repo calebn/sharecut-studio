@@ -10,7 +10,11 @@
 export type FieldKey = string;
 export type FieldValue = string | number | boolean | readonly string[];
 
-/** The one edit vocabulary. A set with an empty value asks for input before it can run. */
+/**
+ * The one edit vocabulary. Setting a value to the empty string means unset on
+ * every surface, so a surface never pins an empty text. Unsetting a key that
+ * holds no pin changes nothing.
+ */
 export type FeedEdit =
   | { op: "set"; key: FieldKey; value: FieldValue }
   | { op: "unset"; key: FieldKey };
@@ -24,6 +28,8 @@ export type FeedCommand =
 
 export type Fix =
   | { kind: "edit"; edit: FeedEdit }
+  /** The fix is a value only a person can supply for `key`. A surface asks for it, then sends a set. */
+  | { kind: "input"; key: FieldKey }
   | {
       kind: "command";
       command: FeedCommand;
@@ -67,7 +73,7 @@ export type Sections = {
 export type ShowState =
   | { kind: "none"; suggest: { language: string; hosts: readonly Credit[] } }
   | { kind: "choose"; shows: readonly { id: string; title: string }[] }
-  | { kind: "ready"; title: string };
+  | { kind: "ready"; id: string };
 
 export type Severity = "blocker" | "warn" | "info";
 
@@ -79,10 +85,14 @@ export type Finding = {
   fix: Fix | null;
 };
 
-export type FileState = "none" | "writing" | "current" | "stale" | "error";
+/** What the service knows about the file on disk. Writing and failing are a surface's own request states. */
+export type FileState = "none" | "current" | "stale";
+
+export type WriteRequest = "writing" | "failed";
 
 export type FeedView = {
   show: ShowState;
+  /** Show-level facts, such as `channel.title`, which names the show beside the episode. */
   channel: Readonly<Record<FieldKey, Fact<FieldValue>>>;
   item: Readonly<Record<FieldKey, Fact<FieldValue>>>;
   sections: Sections;

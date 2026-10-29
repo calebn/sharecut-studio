@@ -1,4 +1,5 @@
-import { isDrifted, KEY } from "./feedLogic";
+import { formatClock } from "./deliverLogic";
+import { isDrifted, isKnown, KEY, numberFact, textFact } from "./feedLogic";
 import type {
   Art,
   Credit,
@@ -19,17 +20,17 @@ import type {
 const COVER = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240"><rect width="240" height="240" fill="#14343b"/><circle cx="170" cy="72" r="30" fill="#f2b45a"/><path d="M0 150 C40 120 80 180 120 150 S200 120 240 150 V240 H0Z" fill="#2a6f78"/><path d="M0 188 C40 158 80 218 120 188 S200 158 240 188 V240 H0Z" fill="#3f9aa3"/></svg>`;
 
 export const SHOW_TITLE = "The Long River";
-export const EPISODE_TITLE = "Nobody asked the river";
-export const INTRO =
+const EPISODE_TITLE = "Nobody asked the river";
+const INTRO =
   "Ana walks the old mill road with hydrologist Mira Calder to ask who decided where the river should go.";
 
-export const ART: Art = {
+const ART: Art = {
   src: `data:image/svg+xml;utf8,${encodeURIComponent(COVER)}`,
   alt: "The Long River cover art: a low sun over layered blue water",
 };
 
-export const ANA: Credit = { name: "Ana Reyes", role: "host" };
-export const MIRA: Credit = { name: "Dr. Mira Calder", role: "guest" };
+const ANA: Credit = { name: "Ana Reyes", role: "host" };
+const MIRA: Credit = { name: "Dr. Mira Calder", role: "guest" };
 
 type Scalars = Record<FieldKey, Fact<FieldValue>>;
 
@@ -53,23 +54,15 @@ const missing = (
   source: { kind: "pending", why, fix },
 });
 
-const askFor = (key: FieldKey): Fix => ({
-  kind: "edit",
-  edit: { op: "set", key, value: "" },
-});
+const askFor = (key: FieldKey): Fix => ({ kind: "input", key });
 
-export const FIX_INTRO = askFor(KEY.intro);
-export const FIX_HOSTING = askFor(KEY.hosting);
-export const FIX_EXPORT: Fix = { kind: "command", command: "export_episode" };
-export const FIX_SHOW: Fix = { kind: "command", command: "create_show" };
-export const FIX_ART: Fix = { kind: "command", command: "choose_art" };
+const FIX_EXPORT: Fix = { kind: "command", command: "export_episode" };
+const FIX_SHOW: Fix = { kind: "command", command: "create_show" };
+const FIX_ART: Fix = { kind: "command", command: "choose_art" };
 
-export const NO_INTRO = missing("Say what this episode is about.", FIX_INTRO);
-export const NO_HOSTING = missing("Where will this be hosted?", FIX_HOSTING);
-export const NO_FILE = missing(
-  "Size and length come from the export.",
-  FIX_EXPORT,
-);
+const NO_INTRO = missing("Say what this episode is about.", askFor(KEY.intro));
+const NO_HOSTING = missing("Where will this be hosted?", askFor(KEY.hosting));
+const NO_FILE = missing("Size and length come from the export.", FIX_EXPORT);
 
 const READY_ITEM: Scalars = {
   [KEY.title]: derived(EPISODE_TITLE, "the project name"),
@@ -120,8 +113,6 @@ const READY_SECTIONS: Sections = {
   ),
 };
 
-export const NOTES_HTML = `<p>${INTRO}</p><p>Chapters</p><ol><li>0:00 Cold open</li><li>5:12 The old mill</li><li>19:40 What the river wanted</li></ol><p>With</p><ul><li>Ana Reyes, host</li><li>Dr. Mira Calder, guest</li></ul>`;
-
 const INFO: readonly Finding[] = [
   {
     key: null,
@@ -143,10 +134,11 @@ const isEditFinding = (f: Finding) =>
   f.key === KEY.hosting ||
   f.key === KEY.intro ||
   f.key === KEY.notes ||
-  (f.fix?.kind === "command" && f.fix.command === "create_show");
+  (f.fix?.kind === "command" &&
+    (f.fix.command === "create_show" || f.fix.command === "link_show"));
 
 /** Stands in for the service's rules, for the values a person can fill in on this page. */
-export function editFindings(item: Scalars, show: ShowState): Finding[] {
+function editFindings(item: Scalars, show: ShowState): Finding[] {
   const found: Finding[] = [];
   if (show.kind !== "ready")
     found.push({
@@ -188,6 +180,113 @@ export function editFindings(item: Scalars, show: ShowState): Finding[] {
   return found;
 }
 
+const escapeHtml = (text: string) =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+const known = <T>(fact: Fact<T>): T | null =>
+  isKnown(fact) ? fact.value : null;
+
+/** Stands in for the service's notes renderer: the pinned text, or the intro with live chapters and credits. */
+function renderNotes(view: FeedView): string {
+  const notes = textFact(view.item, KEY.notes);
+  if (isKnown(notes))
+    return notes.value
+      .split(/\n{2,}/)
+      .map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
+      .join("");
+  const intro = textFact(view.item, KEY.intro);
+  const chapters = known(view.sections.chapters) ?? [];
+  const credits = known(view.sections.credits) ?? [];
+  return [
+    isKnown(intro) ? `<p>${escapeHtml(intro.value)}</p>` : "",
+    chapters.length > 0
+      ? `<p>Chapters</p><ol>${chapters
+          .map(
+            (c) => `<li>${formatClock(c.at, true)} ${escapeHtml(c.title)}</li>`,
+          )
+          .join("")}</ol>`
+      : "",
+    credits.length > 0
+      ? `<p>With</p><ul>${credits
+          .map((c) => `<li>${escapeHtml(c.name)}, ${c.role}</li>`)
+          .join("")}</ul>`
+      : "",
+  ].join("");
+}
+
+/** Stands in for the service's item renderer, so the XML pane and Copy notes follow an edit. */
+function renderItemXml(view: FeedView): string {
+  const { item, sections } = view;
+  const title = textFact(item, KEY.title);
+  const published = textFact(item, KEY.published);
+  const guid = textFact(item, KEY.guid);
+  const hosting = textFact(item, KEY.hosting);
+  const duration = known(numberFact(item, KEY.duration));
+  const audio = known(sections.audio);
+  const line = (text: string | null) => (text === null ? [] : [`  ${text}`]);
+  return [
+    "<item>",
+    ...line(
+      isKnown(title) ? `<title>${escapeHtml(title.value)}</title>` : null,
+    ),
+    `  <description><![CDATA[${view.notesHtml}]]></description>`,
+    ...line(
+      isKnown(published)
+        ? `<pubDate>${new Date(published.value).toUTCString()}</pubDate>`
+        : null,
+    ),
+    ...line(
+      isKnown(guid)
+        ? `<guid isPermaLink="false">${escapeHtml(guid.value)}</guid>`
+        : null,
+    ),
+    ...line(
+      isKnown(hosting) && audio
+        ? `<enclosure url="${escapeHtml(hosting.value)}" length="${audio.bytes}" type="${audio.mime}"/>`
+        : null,
+    ),
+    ...line(
+      duration === null
+        ? null
+        : `<itunes:duration>${duration}</itunes:duration>`,
+    ),
+    ...line(
+      isKnown(sections.art)
+        ? '<itunes:image href="https://cdn.example.test/long-river/cover.jpg"/>'
+        : null,
+    ),
+    ...line(
+      isKnown(sections.chapters)
+        ? '<podcast:chapters url="https://cdn.example.test/long-river/ep-12.chapters.json" type="application/json+chapters"/>'
+        : null,
+    ),
+    ...(known(sections.transcripts) ?? []).flatMap((t) =>
+      line(
+        `<podcast:transcript url="https://cdn.example.test/long-river/ep-12.${t.format.toLowerCase()}" type="${t.format === "SRT" ? "application/x-subrip" : "text/vtt"}" language="${t.language}"/>`,
+      ),
+    ),
+    ...(known(sections.credits) ?? []).flatMap((c) =>
+      line(
+        `<podcast:person role="${c.role}">${escapeHtml(c.name)}</podcast:person>`,
+      ),
+    ),
+    ...(known(sections.soundbites) ?? []).flatMap((b) =>
+      line(
+        `<podcast:soundbite startTime="${b.start}" duration="${b.end - b.start}">${escapeHtml(b.title)}</podcast:soundbite>`,
+      ),
+    ),
+    "</item>",
+  ].join("\n");
+}
+
+/** What a surface holds from the service: the view and the item as the feed file will carry it. */
+export type Served = { view: FeedView; itemXml: string };
+
+function serve(view: FeedView): Served {
+  const rendered = { ...view, notesHtml: renderNotes(view) };
+  return { view: rendered, itemXml: renderItemXml(rendered) };
+}
+
 type Parts = {
   item?: Scalars;
   sections?: Partial<Sections>;
@@ -197,27 +296,26 @@ type Parts = {
   driftDetail?: FeedView["driftDetail"];
 };
 
-export function feedView({
+function feedView({
   item = {},
   sections = {},
-  show = { kind: "ready", title: SHOW_TITLE },
+  show = { kind: "ready", id: "long-river" },
   file = "current",
   extra = [],
   driftDetail,
 }: Parts = {}): FeedView {
   const scalars = { ...READY_ITEM, ...item };
-  return {
+  return serve({
     show,
-    channel: {
-      [KEY.showTitle]: pinned(SHOW_TITLE),
-    },
+    channel:
+      show.kind === "ready" ? { [KEY.showTitle]: pinned(SHOW_TITLE) } : {},
     item: scalars,
     sections: { ...READY_SECTIONS, ...sections },
-    notesHtml: NOTES_HTML,
+    notesHtml: "",
     driftDetail,
     findings: [...editFindings(scalars, show), ...extra, ...INFO],
     file,
-  };
+  }).view;
 }
 
 export const READY: FeedView = feedView();
@@ -310,25 +408,8 @@ export const CHOOSE_SHOW: FeedView = feedView({
 });
 
 export const STALE: FeedView = feedView({ file: "stale" });
-export const WRITING: FeedView = feedView({ file: "writing" });
-export const WRITE_FAILED: FeedView = feedView({ file: "error" });
 
-export const ITEM_XML = `<item>
-  <title>Nobody asked the river</title>
-  <description><![CDATA[<p>Ana walks the old mill road with hydrologist Mira Calder to ask who decided where the river should go.</p><p>Chapters</p><ol><li>0:00 Cold open</li><li>5:12 The old mill</li><li>19:40 What the river wanted</li></ol>]]></description>
-  <pubDate>Fri, 23 Oct 2026 09:00:00 GMT</pubDate>
-  <guid isPermaLink="false">urn:uuid:7c0e5a1e-4f3b-4a52-9d0e-6a1b2c3d4e5f</guid>
-  <enclosure url="https://cdn.example.test/long-river/ep-12.mp3" length="49920000" type="audio/mpeg"/>
-  <itunes:duration>3120</itunes:duration>
-  <itunes:image href="https://cdn.example.test/long-river/cover.jpg"/>
-  <podcast:chapters url="https://cdn.example.test/long-river/ep-12.chapters.json" type="application/json+chapters"/>
-  <podcast:transcript url="https://cdn.example.test/long-river/ep-12.srt" type="application/x-subrip" language="en"/>
-  <podcast:transcript url="https://cdn.example.test/long-river/ep-12.vtt" type="text/vtt" language="en"/>
-  <podcast:person role="host">Ana Reyes</podcast:person>
-  <podcast:person role="guest">Dr. Mira Calder</podcast:person>
-  <podcast:soundbite startTime="612" duration="41">Nobody asked the river</podcast:soundbite>
-  <podcast:soundbite startTime="1840" duration="28">The boat was still there</podcast:soundbite>
-</item>`;
+export { serve };
 
 const AUTO: Record<FieldKey, Fact<FieldValue> | null> = {
   [KEY.title]: derived(EPISODE_TITLE, "the project name"),
@@ -337,46 +418,81 @@ const AUTO: Record<FieldKey, Fact<FieldValue> | null> = {
   [KEY.notes]: null,
 };
 
-/** What the service does with an edit, for stories and tests: pin it or hand it back. */
-export function applyEdit(view: FeedView, edit: FeedEdit): FeedView {
-  const item = { ...view.item };
+const slug = (title: string) =>
+  title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+const inChannel = (key: FieldKey) => key.startsWith("channel.");
+
+/**
+ * What the service does with an edit, for stories, tests and the shared golden:
+ * pin it or hand it back. An empty set is an unset, and unsetting what holds
+ * no pin changes nothing.
+ */
+function applyEdit(served: Served, edit: FeedEdit): Served {
+  const { view } = served;
+  const bucket = inChannel(edit.key) ? "channel" : "item";
+  const facts = { ...view[bucket] };
   let driftDetail = view.driftDetail;
-  if (edit.op === "set") item[edit.key] = pinned(edit.value);
-  else {
+  if (edit.op === "set" && edit.value !== "") {
+    facts[edit.key] = pinned(edit.value);
+    driftDetail = undefined;
+  } else {
+    if (facts[edit.key]?.source.kind !== "pinned") return served;
     const auto = AUTO[edit.key];
-    if (auto === undefined)
-      throw new Error(`applyEdit: no auto value for ${edit.key}`);
-    if (auto === null) {
-      delete item[edit.key];
-      driftDetail = undefined;
-    } else item[edit.key] = auto;
+    if (auto) facts[edit.key] = auto;
+    else delete facts[edit.key];
+    driftDetail = undefined;
   }
-  if (edit.op === "set") driftDetail = undefined;
-  const kept = view.findings.filter((f) => !isEditFinding(f));
-  return {
-    ...view,
-    item,
-    driftDetail,
-    findings: [...editFindings(item, view.show), ...kept],
+  const next = { ...view, [bucket]: facts, driftDetail };
+  return serve({
+    ...next,
+    findings: [
+      ...editFindings(next.item, next.show),
+      ...view.findings.filter((f) => !isEditFinding(f)),
+    ],
     file: view.file === "current" ? "stale" : view.file,
-  };
+  });
 }
 
 /** The commands the harness answers: creating or linking a show, and writing the file. */
-export function applyFix(view: FeedView, fix: Fix): FeedView {
-  if (fix.kind === "edit") return applyEdit(view, fix.edit);
+function applyCommand(
+  served: Served,
+  fix: Extract<Fix, { kind: "command" }>,
+): Served {
+  const { view } = served;
   const args = fix.args ?? {};
   let next = view;
+  const ready = (id: string, title: string): FeedView => ({
+    ...view,
+    show: { kind: "ready", id },
+    channel: { ...view.channel, [KEY.showTitle]: pinned(title) },
+  });
   if (fix.command === "create_show" && args.title)
-    next = { ...view, show: { kind: "ready", title: args.title } };
+    next = ready(slug(args.title), args.title);
   else if (fix.command === "link_show" && view.show.kind === "choose") {
     const chosen = view.show.shows.find((s) => s.id === args.id);
-    if (chosen)
-      next = { ...view, show: { kind: "ready", title: chosen.title } };
-  } else if (fix.command === "write_feed") next = { ...view, file: "current" };
-  const kept = next.findings.filter((f) => !isEditFinding(f));
-  return {
+    if (chosen) next = ready(chosen.id, chosen.title);
+  } else if (
+    fix.command === "write_feed" &&
+    !view.findings.some((f) => f.severity === "blocker")
+  )
+    next = { ...view, file: "current" };
+  return serve({
     ...next,
-    findings: [...editFindings(next.item, next.show), ...kept],
-  };
+    findings: [
+      ...editFindings(next.item, next.show),
+      ...next.findings.filter((f) => !isEditFinding(f)),
+    ],
+  });
+}
+
+/** One action as the service takes it. An input fix carries no value, so it changes nothing until a set arrives. */
+export function applyFix(served: Served, fix: Fix): Served {
+  if (fix.kind === "input") return served;
+  return fix.kind === "edit"
+    ? applyEdit(served, fix.edit)
+    : applyCommand(served, fix);
 }

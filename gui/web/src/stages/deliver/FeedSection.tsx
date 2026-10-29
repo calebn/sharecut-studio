@@ -1,9 +1,8 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useDawStore } from "../../state/dawStore";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusGlyph } from "../../system/StatusGlyph";
 import { StatusRow } from "../../system/StatusRow";
-import type { StatusState } from "../../system/statusText";
 import {
   Button,
   SegmentedControl,
@@ -17,15 +16,24 @@ import { FeedChecks } from "./FeedChecks";
 import { FeedListing } from "./FeedListing";
 import type { EditControls, OnEdit } from "./FeedValue";
 import {
+  checksSummary,
+  FILE_LINE_STATE,
   fixLabel,
   needsInput,
   readiness,
   readinessTitle,
+  readinessTone,
   type SourceOwner,
   writeLine,
   xmlLines,
 } from "./feedLogic";
-import type { FeedEdit, FeedView, FieldKey, Fix } from "./feedView";
+import type {
+  FeedEdit,
+  FeedView,
+  FieldKey,
+  Fix,
+  WriteRequest,
+} from "./feedView";
 import { ShowSetup } from "./ShowSetup";
 
 type Props = {
@@ -33,6 +41,8 @@ type Props = {
   /** The item as the feed file will carry it. */
   itemXml: string;
   state?: "ready" | "loading";
+  /** A write this surface has sent and not heard back from, or one that failed. The service's own file state is none, current or stale. */
+  request?: WriteRequest;
   /** Every edit and command the section can start, in the vocabulary the CLI and MCP share. */
   onAction: (fix: Fix) => void;
   /** Opens the stage that owns a fact the listing reads but never edits. */
@@ -40,14 +50,6 @@ type Props = {
 };
 
 type Pane = "listing" | "xml";
-
-const FILE_STATE: Record<FeedView["file"], StatusState> = {
-  none: "not-yet",
-  writing: "running",
-  stale: "needs-you",
-  current: "done",
-  error: "failed",
-};
 
 const editFix = (edit: FeedEdit): Fix => ({ kind: "edit", edit });
 
@@ -59,6 +61,7 @@ export function FeedSection({
   view,
   itemXml,
   state = "ready",
+  request,
   onAction,
   onOpenSource,
 }: Props) {
@@ -67,12 +70,35 @@ export function FeedSection({
   const [toast, setToast] = useState<ToastState | null>(null);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const file = writeLine(view);
+  const file = writeLine(view, request);
   const reason = useDisabledReasonNote(file.blockedReason);
+  const refocus = useRef<string | null>(null);
+  const back = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    back.current = el.querySelector<HTMLElement>(".fd-notes .fd-value");
+    const want = refocus.current;
+    if (want === null) return;
+    const target =
+      want === "undo"
+        ? [...el.querySelectorAll<HTMLElement>(".ui-toast button")].find(
+            (button) => button.textContent === "Undo",
+          )
+        : el.querySelector<HTMLElement>(`[data-field="${want}"] .fd-value`);
+    if (!target) return;
+    refocus.current = null;
+    target.focus();
+  });
   if (state === "loading") {
     return (
       <DeliverSection title="Podcast listing">
-        <Skeleton layout="list" rows={4} />
+        <div className="fd-loading">
+          <p className="fd-loading-text" role="status">
+            Loading the listing
+          </p>
+          <Skeleton layout="list" rows={4} blankMs={0} />
+        </div>
       </DeliverSection>
     );
   }
@@ -88,10 +114,15 @@ export function FeedSection({
     );
     useDawStore.getState().announceStatus(message, { toast: false });
   };
-  const onEdit: OnEdit = (edit, undoWith) => {
-    onAction(editFix(edit));
+  const onEdit: OnEdit = (change, undoWith) => {
+    const fromDrift = editing === null;
+    onAction(editFix(change));
+    if (fromDrift) refocus.current = undoWith ? "undo" : change.key;
     if (undoWith)
-      notify(undoWith.message, () => onAction(editFix(undoWith.edit)));
+      notify(undoWith.message, () => {
+        onAction(editFix(undoWith.edit));
+        refocus.current = undoWith.edit.key;
+      });
   };
   const edit: EditControls = {
     active: editing,
@@ -123,6 +154,7 @@ export function FeedSection({
     }
   };
   const ready = readiness(view);
+  const tone = readinessTone(ready);
   const first = ready.kind === "ready" ? null : ready.first;
   const firstFix = first?.fix ?? null;
   const action =
@@ -154,12 +186,14 @@ export function FeedSection({
       }
     >
       <div className="fd" ref={root}>
-        <StatusRow
-          state={ready.kind === "ready" ? "done" : "needs-you"}
-          title={readinessTitle(ready)}
-          detail={first?.message}
-          action={action}
-        />
+        <div className="fd-strip" data-tone={tone}>
+          <StatusRow
+            state={ready.kind === "ready" ? "done" : "needs-you"}
+            title={readinessTitle(ready)}
+            detail={first?.message}
+            action={action}
+          />
+        </div>
         {view.show.kind === "ready" ? null : (
           <ShowSetup show={view.show} onAction={onAction} />
         )}
@@ -194,11 +228,18 @@ export function FeedSection({
             </code>
           </pre>
         )}
-        <FeedChecks findings={view.findings} onFix={runFix} />
+        <FeedChecks
+          findings={view.findings}
+          summary={checksSummary(view)}
+          onFix={runFix}
+        />
         <div className="fd-foot">
           <p className="fd-file-status">
-            <StatusGlyph state={FILE_STATE[view.file]} colon />
+            <StatusGlyph state={FILE_LINE_STATE[request ?? view.file]} colon />
             {file.status}
+            {file.writing ? (
+              <span className="fd-writing" aria-hidden="true" />
+            ) : null}
           </p>
           <div className="fd-actions">
             <Button onClick={() => void copy(view.notesHtml, "notes")}>
@@ -213,7 +254,11 @@ export function FeedSection({
             </Button>
             {file.action ? (
               <Button
-                variant={file.blockedReason ? "default" : "primary"}
+                variant={
+                  file.blockedReason || request === "failed"
+                    ? "default"
+                    : "primary"
+                }
                 disabledReason={file.blockedReason}
                 {...reason.describedBy}
                 onClick={() =>
@@ -230,6 +275,7 @@ export function FeedSection({
           className="sys-toast-dock"
           toast={toast}
           onUndo={undo ?? undefined}
+          returnFocusRef={back}
           onDismiss={() => setToast(null)}
         />
       </div>

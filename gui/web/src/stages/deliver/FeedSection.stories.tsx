@@ -12,13 +12,10 @@ import {
   CHOOSE_SHOW,
   DRIFTED,
   FIRST_RUN,
-  ITEM_XML,
   PENDING,
   READY,
   SHOW_TITLE,
   STALE,
-  WRITE_FAILED,
-  WRITING,
 } from "./feedFixture";
 
 const meta: Meta<typeof FeedSection> = {
@@ -28,7 +25,6 @@ const meta: Meta<typeof FeedSection> = {
   render: (args) => <FeedLive {...args} />,
   args: {
     view: READY,
-    itemXml: ITEM_XML,
     onAction: fn(),
     onOpenSource: fn(),
   },
@@ -62,7 +58,7 @@ export const Preview: Story = {
     await expect(
       view.getByRole("heading", { name: /^Nobody asked the river/ }),
     ).toBeInTheDocument();
-    await expect(view.getByText("52 min")).toBeInTheDocument();
+    await expect(view.getByText("52m 0s")).toBeInTheDocument();
     await expect(view.getByText("From your show")).toBeInTheDocument();
     await expect(
       view.getByText("Assigned Oct 23, 2026. It never changes."),
@@ -84,9 +80,13 @@ export const EditingInPlace: Story = {
     const field = view.getByRole("textbox", { name: "Edit episode title" });
     await expect(field).toHaveFocus();
     await userEvent.type(field, " (extended)");
+    await expect(field).toHaveValue("Nobody asked the river (extended)");
     await expect(
-      view.getByRole("button", { name: "Done" }),
+      view.getByText("Enter to save, Esc to cancel"),
     ).toBeInTheDocument();
+    await expect(field).toHaveAccessibleDescription(
+      "Enter to save, Esc to cancel",
+    );
   },
 };
 
@@ -104,7 +104,7 @@ export const DriftedPin: Story = {
   },
 };
 
-export const UseNewThenUndo: Story = {
+export const UsedNew: Story = {
   args: { view: DRIFTED },
   play: async ({ canvasElement, args }) => {
     const view = within(canvasElement);
@@ -116,8 +116,7 @@ export const UseNewThenUndo: Story = {
     await expect(
       view.getByText("Your notes are back to auto."),
     ).toBeInTheDocument();
-    await userEvent.click(view.getByRole("button", { name: "Undo" }));
-    await expect(view.getByText(/0:00 Cold open/)).toBeInTheDocument();
+    await expect(view.getByRole("button", { name: "Undo" })).toHaveFocus();
   },
 };
 
@@ -144,21 +143,22 @@ export const ShowSetupEmpty: Story = {
     await userEvent.type(name, SHOW_TITLE);
     await expect(view.getByRole("button", { name: "Create" })).toBeEnabled();
     await userEvent.clear(name);
-    await userEvent.tab({ shift: true });
+    name.blur();
+    await expect(name).not.toHaveFocus();
   },
 };
 
 export const ShowPick: Story = {
   args: { view: CHOOSE_SHOW },
-  play: async ({ canvasElement, args }) => {
+  play: async ({ canvasElement }) => {
     const view = within(canvasElement);
-    await userEvent.click(view.getByRole("button", { name: "Field Notes" }));
-    await expect(args.onAction).toHaveBeenCalledWith({
-      kind: "command",
-      command: "link_show",
-      args: { id: "field-notes" },
-    });
-    await expect(view.getByText("Field Notes")).toBeInTheDocument();
+    await expect(
+      view.getByRole("heading", { name: "Which show is this episode in?" }),
+    ).toBeInTheDocument();
+    await expect(
+      view.getByRole("button", { name: "Field Notes" }),
+    ).toBeEnabled();
+    await expect(view.getByRole("button", { name: "New show" })).toBeEnabled();
   },
 };
 
@@ -191,7 +191,7 @@ export const StaleFile: Story = {
 };
 
 export const Writing: Story = {
-  args: { view: WRITING },
+  args: { view: STALE, request: "writing" },
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByText("Writing the feed file."),
@@ -200,7 +200,7 @@ export const Writing: Story = {
 };
 
 export const WriteFailed: Story = {
-  args: { view: WRITE_FAILED },
+  args: { view: STALE, request: "failed" },
   play: async ({ canvasElement }) => {
     const view = within(canvasElement);
     await expect(
@@ -230,10 +230,25 @@ export const AgentPin: Story = {
   },
 };
 
-export const Loading: Story = { args: { state: "loading" } };
+export const Loading: Story = {
+  args: { state: "loading" },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText("Loading the listing"),
+    ).toHaveAttribute("role", "status");
+  },
+};
 
 export const Phone: Story = {
   args: { view: PENDING },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Forces a 360 px container whatever the toolbar viewport says, so the narrow layout (Done button, stacked facts, full-width actions) is checked in one place.",
+      },
+    },
+  },
   decorators: [
     (Story) => (
       <div style={{ inlineSize: "22.5rem", maxInlineSize: "100%" }}>

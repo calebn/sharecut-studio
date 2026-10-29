@@ -1,3 +1,4 @@
+import type { StatusState } from "../../system/statusText";
 import { plural, thingsLeft } from "./deliverLogic";
 import type {
   Fact,
@@ -10,6 +11,7 @@ import type {
   Known,
   Resolved,
   Severity,
+  WriteRequest,
 } from "./feedView";
 
 export { plural };
@@ -107,14 +109,16 @@ const COMMAND_LABEL: Record<FeedCommand, string> = {
 /** The words on a fix's button. They live here so the wire carries none. */
 export function fixLabel(fix: Fix): string {
   if (fix.kind === "command") return COMMAND_LABEL[fix.command];
+  if (fix.kind === "input") return PIN_FIELDS[fix.key]?.add ?? "Add";
   return PIN_FIELDS[fix.edit.key]?.add ?? "Add";
 }
 
 /** The key a fix still needs a value for, so a click opens its editor instead of sending. */
 export function needsInput(fix: Fix): FieldKey | null {
-  if (fix.kind !== "edit" || fix.edit.op !== "set") return null;
-  return fix.edit.value === "" ? fix.edit.key : null;
+  return fix.kind === "input" ? fix.key : null;
 }
+
+export const AGENT_MARK = "Agent";
 
 type Mark = (source: Resolved) => string | null;
 const MARKS: { [K in Resolved["kind"]]: Mark } = {
@@ -123,7 +127,7 @@ const MARKS: { [K in Resolved["kind"]]: Mark } = {
   measured: () => null,
   minted: () => null,
   pinned: (source) =>
-    source.kind === "pinned" && source.by === "agent" ? "Agent" : "Edited",
+    source.kind === "pinned" && source.by === "agent" ? AGENT_MARK : "Edited",
 };
 
 /** What a value says about itself. A measured or minted value is a fact, so it carries no mark. */
@@ -174,6 +178,22 @@ export function readiness(view: FeedView): Readiness {
   return drift ? { kind: "check", first: drift } : { kind: "ready" };
 }
 
+/** What the Checks summary counts: findings to fix, else pins whose auto value changed. */
+export function checksSummary(view: FeedView): string {
+  const open = view.findings.filter((f) => f.severity !== "info").length;
+  if (open > 0) return `${open} to fix`;
+  const drift = view.findings.filter(
+    (f) => f.key && isDrifted(view.item[f.key]),
+  ).length;
+  return drift > 0 ? `${drift} to check` : "All clear";
+}
+
+/** The strip's tone: only a blocker stops the feed, so warnings and drift read as a check, not a failure. */
+export function readinessTone(state: Readiness): "blocker" | "warn" | "ok" {
+  if (state.kind === "ready") return "ok";
+  return state.kind === "open" && state.blockers > 0 ? "blocker" : "warn";
+}
+
 export function readinessTitle(state: Readiness): string {
   if (state.kind === "ready") return "Ready to publish";
   if (state.kind === "check") {
@@ -191,38 +211,36 @@ export type WriteLine = {
   blockedReason: string | undefined;
 };
 
-const FILE_LINE: Record<
-  FeedView["file"],
-  { status: string; action: string | null }
-> = {
+export type FileLine = FeedView["file"] | WriteRequest;
+
+const FILE_LINE: Record<FileLine, { status: string; action: string | null }> = {
   none: { status: "No feed file yet.", action: "Write feed file" },
   writing: { status: "Writing the feed file.", action: null },
   stale: { status: "Feed file is out of date.", action: "Write" },
   current: { status: "Feed file is up to date.", action: null },
-  error: { status: "Could not write the feed file.", action: "Try again" },
+  failed: { status: "Could not write the feed file.", action: "Try again" },
 };
 
-export function writeLine(view: FeedView): WriteLine {
+export const FILE_LINE_STATE: Record<FileLine, StatusState> = {
+  none: "not-yet",
+  writing: "running",
+  stale: "needs-you",
+  current: "done",
+  failed: "failed",
+};
+
+export function writeLine(view: FeedView, request?: WriteRequest): WriteLine {
+  const line = request ?? view.file;
   const state = readiness(view);
   const blockers = state.kind === "open" ? state.blockers : 0;
   return {
-    ...FILE_LINE[view.file],
-    writing: view.file === "writing",
+    ...FILE_LINE[line],
+    writing: line === "writing",
     blockedReason:
       blockers === 0
         ? undefined
         : `Fix ${blockers === 1 ? "the blocker" : `the ${blockers} blockers`} first.`,
   };
-}
-
-const MINUTE = 60;
-const HOUR = 3600;
-
-export function formatDuration(seconds: number): string {
-  if (seconds < HOUR) return `${Math.max(1, Math.round(seconds / MINUTE))} min`;
-  const hours = Math.floor(seconds / HOUR);
-  const minutes = Math.round((seconds % HOUR) / MINUTE);
-  return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
 }
 
 const DATE = new Intl.DateTimeFormat("en-US", {
@@ -244,7 +262,7 @@ export function audioLabel(mime: string): string {
   return AUDIO_LABEL[mime] ?? mime;
 }
 
-export function roleLabel(role: string): string {
+export function creditRoleLabel(role: string): string {
   return role === "host" ? "Host" : role === "guest" ? "Guest" : role;
 }
 
