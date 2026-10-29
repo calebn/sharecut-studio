@@ -41,6 +41,7 @@ from podcast_mcp.edits.transcript_cuts import coalesce_edits
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
 from podcast_mcp.engines.transcribe import TranscriptionEngine
+from podcast_mcp.engines.whisper_device import WhisperPlacement
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -1619,9 +1620,29 @@ def test_the_engine_hands_the_model_only_the_samples_it_was_given() -> None:
         "initial_prompt": "Umm.",
         "vad_filter": False,
         "condition_on_previous_text": False,
+        "temperature": 0.0,
         "dtype": np.dtype("float32"),
         "size": 1600,
     }
+
+
+def test_the_word_probe_engine_pins_its_cpu_threads() -> None:
+    seen: dict[str, object] = {}
+
+    def factory(path: str, **kwargs: object) -> object:
+        seen.update(kwargs)
+        return object()
+
+    placement = WhisperPlacement("cpu", "int8")
+    pinned = TranscriptionEngine(model_size="base", defaults=load_defaults(), cpu_threads=4)
+    pinned._load_model(factory, "m", placement)
+    assert seen["cpu_threads"] == 4
+
+    seen.clear()
+    TranscriptionEngine(model_size="base", defaults=load_defaults())._load_model(
+        factory, "m", placement
+    )
+    assert "cpu_threads" not in seen
 
 
 def test_burst_count_is_one_for_a_hum_and_counts_each_pulse_at_any_level() -> None:

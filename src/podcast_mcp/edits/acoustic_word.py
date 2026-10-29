@@ -40,6 +40,8 @@ WHISPER_SAMPLE_RATE = 16_000
 SPAN_PAD_SEC = 0.3
 # Keeps the model from tidying a hesitation away and lets it write the sound it hears.
 DISFLUENCY_PROMPT = "Umm, uh, hmm. Uh, um, mm-hmm. Uhh."
+# A fixed count, so the same span reads the same on any machine (#2632).
+PROBE_CPU_THREADS = 4
 
 # Sounds a model writes down that are not words: hesitations, laughs, backchannels, breaths.
 _NON_WORD = re.compile(
@@ -129,7 +131,9 @@ def whisper_span_transcriber(defaults: dict[str, Any]) -> SpanTranscriber:
     model = (defaults.get("transcribe") or {}).get("model", DEFAULT_WHISPER_MODEL)
     # The span check compares short phrases against a threshold: keep it on the CPU until
     # GPU output is proven equivalent there (#2248).
-    engine = TranscriptionEngine(model_size=model, device="cpu", defaults=defaults)
+    engine = TranscriptionEngine(
+        model_size=model, device="cpu", defaults=defaults, cpu_threads=PROBE_CPU_THREADS
+    )
 
     def transcribe(samples: np.ndarray, language: str | None) -> str:
         return engine.transcribe_samples(
