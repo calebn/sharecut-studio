@@ -314,3 +314,84 @@
   block-size: 2.5rem;
   background: var(--color-accent);
 }
+
+/* Share */
+.dv-share-heading {
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.dv-share-recovery {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.dv-share-recovery > p {
+  margin: 0;
+}
+
+.dv-share-primary {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dv-share-feedback {
+  min-inline-size: 0;
+}
+
+.dv-share-feedback:empty {
+  display: none;
+}
+
+.dv-share-list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dv-share-row {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.dv-share-main,
+.dv-share-link {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.dv-share-link {
+  gap: var(--space-3);
+}
+
+.dv-share-title {
+  font-weight: 600;
+}
+
+/* The slug is the link's address, kept so a host can match a URL they sent. */
+.dv-share-address {
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.dv-share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Danger gets distance: the end action trails the row, apart from copies. */
+.dv-share-actions > .dv-share-danger {
+  margin-inline-start: auto;
+}

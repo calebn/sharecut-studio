@@ -28,6 +28,7 @@ import {
   STALE,
   TOTAL,
 } from "./deliverFixture";
+import { SHARE_DEFAULTS } from "./shareLogic";
 
 const MOD_E = isApplePlatform() ? "{Meta>}e{/Meta}" : "{Control>}e{/Control}";
 const REVEAL = isApplePlatform() ? "Reveal in Finder" : "Show in folder";
@@ -244,6 +245,38 @@ export const WithBounce: Story = {
     await expect(view.getByRole("heading", { name: "Bounce" })).toBeVisible();
     await expect(
       view.getByRole("button", { name: "Entire mix" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  }),
+};
+
+export const WithShare: Story = {
+  args: {
+    share: {
+      rows: [],
+      loaded: true,
+      choices: SHARE_DEFAULTS,
+      onChoices: fn(),
+      busy: false,
+      recovery: { kind: "idle" },
+      error: null,
+      status: null,
+      copiedKey: null,
+      blockedKey: null,
+      onCreate: fn(),
+      onRefreshMix: fn(),
+      onCopy: fn(),
+      onStop: fn(),
+      onCreateRecord: fn(),
+      onReplaceInvite: fn(),
+      onEndRoom: fn(),
+      onOpenRecord: fn(),
+    },
+  },
+  play: playInCanvas(async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(view.getByRole("heading", { name: "Share" })).toBeVisible();
+    await expect(
+      view.getByRole("button", { name: "Commenter" }),
     ).toHaveAttribute("aria-pressed", "true");
   }),
 };

@@ -44,6 +44,8 @@ import { EpisodeFile } from "./EpisodeFile";
 import { ExportButton } from "./ExportButton";
 import { ListenLink } from "./ListenLink";
 import { Readiness } from "./Readiness";
+import { ShareSection } from "./ShareSection";
+import type { ShareOptions } from "./shareLogic";
 import { useFocusRecovery } from "./useFocusRecovery";
 import { useWriteBack } from "./useWriteBack";
 
@@ -91,6 +93,8 @@ export type DeliverStageProps = {
   exportOptions?: ExportOptions;
   /** Without it the Bounce section is not shown. */
   bounce?: BounceOptions;
+  /** Without it the Share section is not shown, and the Listen link section stands in when `showLink` is on. */
+  share?: ShareOptions;
   /** False when the host cannot put a removed clip back into the project. */
   clipUndo?: boolean;
   /** False when the host cannot save a clip's title or approval. */
@@ -145,6 +149,7 @@ export function DeliverStage({
   showPlayer = true,
   exportOptions,
   bounce,
+  share,
   clipUndo = true,
   showClipEdits = true,
   onChapters,
@@ -423,7 +428,9 @@ export function DeliverStage({
             )}
           </div>
           <div className="dv-col">
-            {!showLink ? null : state === "loading" ? (
+            {share ? (
+              <ShareSection options={share} state={sharedState} />
+            ) : !showLink ? null : state === "loading" ? (
               <Skeleton layout="list" rows={2} />
             ) : (
               <ListenLink
