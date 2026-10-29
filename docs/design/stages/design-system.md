@@ -182,7 +182,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **9. Sheet.** Every non-modal surface that is not a menu.
 - Anatomy: header 40 px (object icon, title or inline rename, close), body of rows (label left, control right), optional footer with one primary in the thumb zone.
-- Desktop placements: Anchored card, 320 px, to a selection or button, at most 60 % of the viewport (the Inspector). Side panel, 400 px, on the right (Settings). Centered card, 400 px (Join).
+- Desktop placements: Anchored card, 320 px, to a selection or button, at most 60 % of the box it is placed in (the Inspector). Side panel, 400 px, on the right (Settings). Centered card, 400 px (Join).
 - Phone: a bottom sheet with detents (4.3).
 - Values apply as they change. There are no Apply buttons.
 - Instances:
