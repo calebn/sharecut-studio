@@ -68,6 +68,9 @@ export function useReviewComments(enabled: boolean) {
   const posting = useRef(new Set<string>());
   const [postingIds, setPostingIds] = useState<ReadonlySet<string>>(new Set());
   const sent = useRef(new Set<string>());
+  const [replyErrors, setReplyErrors] = useState<
+    Readonly<Record<string, string | null>>
+  >({});
   const [asked, setAsked] = useState<string | null>(null);
 
   useEffect(() => {
@@ -105,8 +108,11 @@ export function useReviewComments(enabled: boolean) {
     if (!c) return;
     // Same target in flight: a duplicate. The opposite target waits its turn.
     const flight = sending.current.get(c.id);
-    if (flight && (flight.to === resolved || !(await flight.done))) return;
-    if (!flight && (flipped.get(c.id) ?? c.resolved) === resolved) return;
+    if (flight) {
+      if (flight.to === resolved || !(await flight.done)) return;
+      // Another waiter may have sent its own by now.
+      if (sending.current.has(c.id)) return;
+    } else if ((flipped.get(c.id) ?? c.resolved) === resolved) return;
     const itemId = commentItemId(c.id);
     sent.current.delete(c.id);
     flip(c.id, resolved);
@@ -154,6 +160,7 @@ export function useReviewComments(enabled: boolean) {
               run: async () => {
                 if (useDawStore.getState().projectPath !== projectPath)
                   return false;
+                sent.current.delete(c.id);
                 flip(c.id, false);
                 try {
                   await setCommentResolved(c.id, false, by);
@@ -198,7 +205,10 @@ export function useReviewComments(enabled: boolean) {
               posting.current.add(c.id);
               setPostingIds(new Set(posting.current));
               setAsked(c.id);
-              void actions.reply(c, draft).then((ok) => {
+              const fail = (msg: string) =>
+                setReplyErrors((prev) => ({ ...prev, [c.id]: msg }));
+              setReplyErrors((prev) => ({ ...prev, [c.id]: null }));
+              void actions.reply(c, draft, fail).then((ok) => {
                 posting.current.delete(c.id);
                 setPostingIds(new Set(posting.current));
                 if (ok) setReplies((prev) => ({ ...prev, [c.id]: "" }));
@@ -208,7 +218,9 @@ export function useReviewComments(enabled: boolean) {
             inputRef: replyRef,
           }}
         />
-        <InlineError message={mine ? actions.error : null} />
+        <InlineError
+          message={replyErrors[c.id] ?? (mine ? actions.error : null)}
+        />
       </>
     );
   };

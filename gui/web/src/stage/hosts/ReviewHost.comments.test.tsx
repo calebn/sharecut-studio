@@ -598,6 +598,127 @@ describe("Review host comments", () => {
     await waitFor(() => expect(heading()).toBe("Comment from Rosa"));
   });
 
+  const reopenDuringResolve = async () => {
+    mount();
+    const release = gateNext();
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(1));
+    await userEvent.click(
+      within(await decided()).getByRole("button", { name: /Rosa/ }),
+    );
+    const reopen = screen.getByRole("button", { name: "Reopen" });
+    await userEvent.click(reopen);
+    await userEvent.click(reopen);
+    return release;
+  };
+
+  it("sends one Reopen when it is pressed twice during a slow Resolve", async () => {
+    const release = await reopenDuringResolve();
+    release();
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(2));
+    await waitFor(() =>
+      expect(server.comments.find((c) => c.id === "c1")?.resolved).toBe(false),
+    );
+    expect(sent("ResolveComment")).toHaveLength(2);
+  });
+
+  it("drops a Reopen when the Resolve it waited for fails", async () => {
+    const release = await reopenDuringResolve();
+    server.refuse.add("ResolveComment");
+    release();
+    await waitFor(() => expect(toast()).toBeTruthy());
+    await waitFor(async () =>
+      expect(within(await decided()).getAllByText("Resolved")).toHaveLength(1),
+    );
+    expect(sent("ResolveComment")).toHaveLength(1);
+  });
+
+  it("keeps Undo's open state when a late snapshot still shows Resolved", async () => {
+    mount();
+    wire.post.mockImplementationOnce(async () => ({
+      ok: true,
+      data: {
+        history_head_id: "h0",
+        command: { payload: { result: OPEN } },
+        snapshot: { server_seq: ++server.seq, project: projectOf() },
+      },
+    }));
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(toast()).toMatch(/^Resolved comment/));
+    gateNext();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(2));
+    act(() => {
+      server.comments = server.comments.map((c) =>
+        c.id === "c1" ? { ...c, resolved: true } : c,
+      );
+      applyDocumentSnapshot({ server_seq: ++server.seq, project: projectOf() });
+    });
+    expect(within(await decided()).getAllByText("Resolved")).toHaveLength(1);
+  });
+
+  it("puts the comment back when Undo is refused", async () => {
+    mount();
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(toast()).toMatch(/^Resolved comment/));
+    server.refuse.add("ResolveComment");
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(2));
+    await waitFor(async () =>
+      expect(within(await decided()).getAllByText("Resolved")).toHaveLength(2),
+    );
+  });
+
+  it("shows a failed reply on its own thread after the host moved on and replied elsewhere", async () => {
+    mount();
+    const release = gateNext();
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Reply to Rosa" }),
+      "One{Enter}",
+    );
+    await waitFor(() => expect(sent("AddReply")).toHaveLength(1));
+    act(() => {
+      press("ArrowDown");
+    });
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Reply to Sam" }),
+      "Two{Enter}",
+    );
+    server.refuse.add("AddReply");
+    release();
+    await waitFor(() => expect(sent("AddReply")).toHaveLength(2));
+    act(() => {
+      press("ArrowUp");
+    });
+    expect(heading()).toBe("Comment from Rosa");
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("article")).getByRole("alert"),
+      ).toBeTruthy(),
+    );
+  });
+
+  it("shows the posting state while a reply is sent and clears it after", async () => {
+    mount();
+    const release = gateNext();
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Reply to Rosa" }),
+      "One{Enter}",
+    );
+    await waitFor(() => expect(sent("AddReply")).toHaveLength(1));
+    expect(screen.getByRole("button", { name: /Posting/ })).toBeTruthy();
+    release();
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /Posting/ })).toBeNull(),
+    );
+  });
+
   it("gives a guest the Comments section and no queue comments", () => {
     server.comments = [OPEN];
     useDawStore.getState().hydrate(PATH, projectOf());

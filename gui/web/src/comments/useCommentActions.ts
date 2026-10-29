@@ -34,7 +34,11 @@ export function useCommentActions(opts: {
   error: string | null;
   setError: (msg: string | null) => void;
   resolve: (c: TimelineComment, resolved: boolean) => Promise<boolean>;
-  reply: (c: TimelineComment, body: string) => Promise<boolean>;
+  reply: (
+    c: TimelineComment,
+    body: string,
+    onError?: (msg: string) => void,
+  ) => Promise<boolean>;
   toggleAction: (
     c: TimelineComment,
     actionId: string,
@@ -53,14 +57,17 @@ export function useCommentActions(opts: {
   );
 
   const wrap = useCallback(
-    async (fn: () => Promise<void>): Promise<boolean> => {
+    async (
+      fn: () => Promise<void>,
+      onError: (msg: string) => void = setError,
+    ): Promise<boolean> => {
       setBusy(true);
       setError(null);
       try {
         await fn();
         return true;
       } catch (e) {
-        setError(errorMessage(e));
+        onError(errorMessage(e));
         return false;
       } finally {
         setBusy(false);
@@ -78,7 +85,11 @@ export function useCommentActions(opts: {
   );
 
   const reply = useCallback(
-    async (c: TimelineComment, body: string) => {
+    async (
+      c: TimelineComment,
+      body: string,
+      onError?: (msg: string) => void,
+    ) => {
       const text = body.trim();
       if (!text) {
         setError("Reply body is required");
@@ -87,7 +98,7 @@ export function useCommentActions(opts: {
       const by = actor();
       return wrap(async () => {
         await addCommentReply(projectPath, c.id, { body: text, author: by });
-      });
+      }, onError);
     },
     [actor, projectPath, wrap],
   );
