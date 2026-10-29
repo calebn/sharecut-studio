@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
@@ -28,6 +29,7 @@ from podcast_mcp.services.document import (
 from podcast_mcp.services.media.speaker import SpeakerService
 from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 from podcast_mcp.services.pipeline import PipelineService
+from podcast_mcp.util.coded_error import CodedError
 
 
 @pytest.fixture(autouse=True)
@@ -376,7 +378,7 @@ def test_transcript_service_transcribe_uses_working_set_asr_options(minimal_proj
         store.put(ws.path, reset=True)
 
 
-def test_transcript_service_export_subtitles(minimal_project):
+def test_transcript_service_export_srt_vtt(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.transcripts = [
         Transcript(
@@ -398,21 +400,22 @@ def test_transcript_service_export_subtitles(minimal_project):
             )
         ]
     )
-    srt = TranscriptService(ws).export_subtitles("srt")
-    vtt = TranscriptService(ws).export_subtitles("vtt")
+    result = TranscriptService(ws).export(["srt", "vtt"])
+    srt, vtt = (Path(f.path) for f in result.files)
     assert srt.suffix == ".srt"
     assert vtt.suffix == ".vtt"
     assert "line one" in srt.read_text(encoding="utf-8")
 
 
-def test_transcript_service_export_subtitles_builds_missing_combined(minimal_project):
+def test_transcript_service_export_builds_missing_combined(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
-    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.merge_transcripts.return_value = CombinedTranscript(utterances=[])
-        out = TranscriptService(ws).export_subtitles("srt")
+        # No dialogue words: the merge ran (mocked), found no turns, and nothing is written.
+        with pytest.raises(CodedError, match="Nothing to export"):
+            TranscriptService(ws).export(["srt"])
 
-    assert out.is_file()
-    eng_cls.return_value.merge_transcripts.assert_called_once_with(ws.project)
+    eng_cls.return_value.merge_transcripts.assert_called()
 
 
 def _host_dialogue(ws):
@@ -431,7 +434,7 @@ def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
     _host_dialogue(ws)
     from podcast_mcp.models import Transcript, TranscriptWord
 
-    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(
                 track_id="host",
@@ -452,7 +455,7 @@ def test_transcript_service_applies_saved_vocabulary(minimal_project):
     TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
         ws.project.workspace_path()
     )
-    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -472,7 +475,7 @@ def test_transcript_service_single_track_stamps_vocabulary_revision(minimal_proj
     TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
         ws.project.workspace_path()
     )
-    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -501,7 +504,7 @@ def test_transcript_service_single_track_returns_only_processed_id(minimal_proje
     ws.project.transcripts = [Transcript(track_id="guest", words=[])]
     _host_dialogue(ws)
 
-    with patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -526,7 +529,7 @@ def test_transcript_service_keeps_other_sources_and_warns_on_edited(minimal_proj
     ]
     ws.save()
     with (
-        patch("podcast_mcp.services.document.transcript.TranscriptionEngine") as eng_cls,
+        patch("podcast_mcp.edits.transcript_search.TranscriptionEngine") as eng_cls,
         caplog.at_level("WARNING"),
     ):
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
@@ -540,7 +543,7 @@ def test_transcript_service_keeps_other_sources_and_warns_on_edited(minimal_proj
     assert "overwrites edited transcript" in caplog.text
 
 
-def test_transcript_service_export_markdown_and_vtt(minimal_project):
+def test_transcript_service_export_md_and_vtt(minimal_project):
     from podcast_mcp.models import CombinedTranscript, CombinedUtterance
 
     ws = ProjectWorkspace.open(minimal_project)
@@ -560,10 +563,9 @@ def test_transcript_service_export_markdown_and_vtt(minimal_project):
         "podcast_mcp.services.document.transcript.TranscriptionEngine.merge_transcripts",
         return_value=combined,
     ):
-        path = TranscriptService(ws).export_markdown()
-        vtt = TranscriptService(ws).export_subtitles("vtt")
-    assert path.suffix == ".md"
-    assert vtt.suffix == ".vtt"
+        result = TranscriptService(ws).export(["md", "vtt"])
+    assert [f.format for f in result.files] == ["md", "vtt"]
+    assert all(Path(f.path).is_file() for f in result.files)
 
 
 def test_transcript_precorrect_service_dry_run(minimal_project):

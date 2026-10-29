@@ -496,7 +496,7 @@ export:
   # Optional per-format: format (container -f), sample_rate, channels, extra_args.
   # SRT/VTT cue-splitting limits (word-timed, on the timeline clock). Common caption
   # guidance: ~2 lines of ~42 characters, ~7s on screen. `podcast transcript
-  # export-srt`/`export-vtt` accept the same limits as CLI options.
+  # export --format srt|vtt` accepts the same limits as CLI options.
   captions:
     max_duration_sec: 7.0
     max_chars_per_line: 42

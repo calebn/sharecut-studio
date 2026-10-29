@@ -69,7 +69,7 @@ def test_mcp_transcript_get_combined(tmp_path):
     assert out["utterances"][0]["text"] == "Hi"
 
 
-def test_mcp_transcript_export_markdown(tmp_path):
+def test_mcp_transcript_export_and_list(tmp_path):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     proj = load_project(Path(path))
     proj.combined_transcript = CombinedTranscript(
@@ -84,8 +84,10 @@ def test_mcp_transcript_export_markdown(tmp_path):
         ]
     )
     save_project(proj, Path(path))
-    out_path = mcp_transcript.export_transcript(path)
-    assert Path(out_path).is_file()
+    out = json.loads(mcp_transcript.export_transcript(path, formats=["md"]))
+    assert Path(out["files"][0]["path"]).is_file()
+    listed = json.loads(mcp_transcript.list_exported_transcripts(path))
+    assert [f["format"] for f in listed] == ["md"]
 
 
 def test_mcp_pipeline_run_only_step(tmp_path, sample_wav):

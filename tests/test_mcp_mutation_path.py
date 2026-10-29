@@ -53,7 +53,7 @@ _READ_ONLY = frozenset(
 )
 
 # TranscriptService also carries ASR and export entry points that predate the edit services.
-_ASR_AND_EXPORT = frozenset({"transcribe", "seed", "get", "export_markdown", "export_subtitles"})
+_ASR_AND_EXPORT = frozenset({"transcribe", "seed", "get", "export", "exported"})
 _EDIT_SERVICES = frozenset(
     {"EditService", "TimelineService", "AnalysisService", "TranscriptService"}
 )

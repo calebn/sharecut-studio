@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections import Counter
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -76,7 +77,7 @@ def resolve_caption_limits(export_cfg: Mapping[str, Any]) -> CaptionLimits:
 
 
 @dataclass(frozen=True)
-class _TimelineUtterance:
+class TimelineUtterance:
     """A combined utterance projected onto the session/deliverable clock."""
 
     speaker: str
@@ -85,9 +86,9 @@ class _TimelineUtterance:
     end: float
 
 
-def _timeline_utterances(
+def timeline_utterances(
     project: EpisodeProject, defaults: EffectiveConfig
-) -> list[_TimelineUtterance]:
+) -> list[TimelineUtterance]:
     """Combined utterances mapped from source to timeline, sorted, gaps dropped.
 
     Exports ship alongside the mastered (timeline-clock) audio, but utterance
@@ -96,7 +97,7 @@ def _timeline_utterances(
     """
     combined = ensure_combined_transcript(project, defaults=defaults)
     st = SessionTimeline(project)
-    out: list[_TimelineUtterance] = []
+    out: list[TimelineUtterance] = []
     for u in combined.utterances:
         lane_clips = [clip for clip in project.clips if clip_plays_lane(project, clip, u.track_id)]
         source_ids = project.equivalent_source_ids(u.track_id, u.source_id)
@@ -109,7 +110,7 @@ def _timeline_utterances(
         if not spans:
             continue
         out.append(
-            _TimelineUtterance(
+            TimelineUtterance(
                 speaker=u.speaker,
                 text=u.text,
                 start=float(spans[0][0]),
@@ -122,9 +123,73 @@ def _timeline_utterances(
 
 def combined_transcript_markdown(project: EpisodeProject, defaults: EffectiveConfig) -> str:
     lines = [f"# {project.name}\n"]
-    for u in _timeline_utterances(project, defaults):
-        lines.append(f"**{u.speaker}** [{u.start:.1f}s]: {u.text}\n")
+    for u in timeline_utterances(project, defaults):
+        lines.append(f"**{u.speaker}** [{format_clock(u.start)}]: {u.text}\n")
     return "\n".join(lines)
+
+
+def format_clock(seconds: float) -> str:
+    """Whole-second clock: ``m:ss``, or ``h:mm:ss`` from one hour (fractions truncate)."""
+    total = max(0, int(seconds))
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def transcript_language(project: EpisodeProject) -> str:
+    """The most common ``Transcript.language`` (first seen wins a tie); ``en`` with none."""
+    langs = Counter(t.language for t in project.transcripts if t.language)
+    return langs.most_common(1)[0][0] if langs else "en"
+
+
+def render_reading_text(project: EpisodeProject, defaults: EffectiveConfig) -> str:
+    """Plain reading text of the edited episode: what the preview, Copy and ``.txt`` share.
+
+    A ``Title`` line, ``Language: xx``, then one ``Speaker  m:ss`` block per turn.
+    """
+    lines = [project.name, f"Language: {transcript_language(project)}", ""]
+    for u in timeline_utterances(project, defaults):
+        lines.extend([f"{u.speaker}  {format_clock(u.start)}", u.text, ""])
+    return "\n".join(lines)
+
+
+TRANSCRIPT_FORMATS = ("txt", "md", "srt", "vtt")
+TRANSCRIPT_MIME = {
+    "txt": "text/plain",
+    "md": "text/markdown",
+    "srt": "application/x-subrip",
+    "vtt": "text/vtt",
+}
+
+
+def render_transcript_formats(
+    project: EpisodeProject,
+    defaults: EffectiveConfig,
+    formats: Sequence[str],
+    limits: CaptionLimits | None = None,
+) -> dict[str, str]:
+    """Render each of ``formats`` (``txt|md|srt|vtt``) from the edited timeline.
+
+    The one place a transcript file's text is produced: audio Export and
+    ``TranscriptService.export`` both call it.
+    """
+    renderers = {
+        "txt": lambda: render_reading_text(project, defaults),
+        "md": lambda: combined_transcript_markdown(project, defaults),
+        "srt": lambda: utterances_to_srt(project, limits=limits),
+        "vtt": lambda: utterances_to_vtt(project, limits=limits),
+    }
+    return {fmt: renderers[fmt]() for fmt in formats}
+
+
+def first_cue_sample(project: EpisodeProject, limits: CaptionLimits | None = None) -> str | None:
+    """The first SRT cue on one line (``1 00:00:03,000 --> 00:00:06,200 text``), or ``None``."""
+    cues = _timeline_cues(project, limits or CaptionLimits())
+    if not cues:
+        return None
+    c = cues[0]
+    text = " ".join(c.text.split())
+    return f"1 {_format_srt_time(c.start)} --> {_format_srt_time(c.end)} {text}"
 
 
 def write_combined_transcript_markdown(project: EpisodeProject, defaults: EffectiveConfig) -> Path:
@@ -163,7 +228,7 @@ class _Cue:
 def _timeline_word_runs(project: EpisodeProject) -> list[tuple[str, list[_CueWord]]]:
     """Per-utterance-run ``(track_id, words)`` pairs, sorted, fully-cut words dropped.
 
-    Same clock mapping and drop-if-cut policy as ``_timeline_utterances``, but keeps
+    Same clock mapping and drop-if-cut policy as ``timeline_utterances``, but keeps
     per-word timing (from ``transcript_word_runs``, the shared kept-word grouping
     behind ``merge_transcripts``) so a cue can be split inside a run instead of only
     inside a whole utterance.

@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Any
 
 from fastapi import APIRouter, Header, Query, Request
 
 from podcast_mcp.gui.routes.deps import coded_exception_error, require_host, resolve_project
-from podcast_mcp.gui.schemas import BounceRequestBody, ExportDeliverablesRequest
+from podcast_mcp.gui.schemas import (
+    BounceRequestBody,
+    ExportDeliverablesRequest,
+    TranscriptExportRequest,
+)
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import TranscriptService
+from podcast_mcp.services.document.transcript import ExportBusyError, TranscriptEmptyError
 from podcast_mcp.services.jobs import JobManager
 
 router = APIRouter()
@@ -67,3 +75,39 @@ def export_deliverables(
         raise coded_exception_error(400, exc, code="export_request_invalid") from exc
     snap = job.snapshot()
     return {"job_id": job.id, "job": snap}
+
+
+@router.post("/api/transcript/export")
+def export_transcript(
+    body: TranscriptExportRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    """Write (or, with ``dry_run``, preview) the edited transcript. Synchronous, not a job."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(body.path, request))
+    try:
+        result = TranscriptService(ws).export(
+            body.formats, dry_run=body.dry_run, with_text=body.with_text
+        )
+    except ExportBusyError as exc:
+        raise coded_exception_error(503, exc, code="export_busy") from exc
+    except TranscriptEmptyError as exc:
+        raise coded_exception_error(409, exc, code="transcript_empty") from exc
+    except ValueError as exc:
+        raise coded_exception_error(400, exc, code="export_request_invalid") from exc
+    return asdict(result)
+
+
+@router.get("/api/transcript/exports")
+def list_exported_transcripts(
+    request: Request,
+    path: str = Query(...),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> list[dict[str, Any]]:
+    """Transcript files already written next to the audio, with ``current`` per file."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(path, request))
+    return [asdict(f) for f in TranscriptService(ws).exported()]

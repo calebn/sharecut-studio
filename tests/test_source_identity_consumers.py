@@ -839,10 +839,7 @@ def test_combined_markdown_uses_each_take_placement_and_drops_unplaced_or_suppre
     markdown = combined_transcript_markdown(project, defaults=load_defaults())
 
     assert markdown == (
-        "# two-takes\n\n"
-        "**Host** [0.1s]: alpha\n\n"
-        "**Host** [10.1s]: beta\n\n"
-        "**Host** [20.1s]: later\n"
+        "# two-takes\n\n**Host** [0:00]: alpha\n\n**Host** [0:10]: beta\n\n**Host** [0:20]: later\n"
     )
     assert "hidden" not in markdown
     assert "deleted" not in markdown
@@ -976,7 +973,7 @@ def test_combined_only_primary_alias_maps_pending_preview_and_markdown(tmp_path)
     approval_project = project.model_copy(deep=True)
     assert approve_edits(approval_project, [decision.id], defaults=load_defaults()) == 1
     assert combined_transcript_markdown(project, defaults=load_defaults()) == (
-        "# primary-alias\n\n**Host** [6.0s]: hello\n"
+        "# primary-alias\n\n**Host** [0:06]: hello\n"
     )
 
 
@@ -992,7 +989,7 @@ def test_combined_only_literal_primary_clip_maps_pending_preview_and_markdown(tm
     assert row["timeline_spans"] == [{"start": 6.0, "end": 6.4}]
     assert _timeline_span(project, decision) == (6.0, 6.4, True)
     assert combined_transcript_markdown(project, defaults=load_defaults()) == (
-        "# primary-alias\n\n**Host** [6.0s]: hello\n"
+        "# primary-alias\n\n**Host** [0:06]: hello\n"
     )
 
 
@@ -1031,7 +1028,7 @@ def test_explicit_primary_alias_without_clips_uses_primary_media(tmp_path) -> No
     )
 
     assert combined_transcript_markdown(markdown_project, defaults=load_defaults()) == (
-        "# primary-alias\n\n**Host** [1.0s]: hello\n"
+        "# primary-alias\n\n**Host** [0:01]: hello\n"
     )
 
 
