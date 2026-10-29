@@ -5,7 +5,8 @@ A small JSON most-recently-used list next to the other per-install config
 ``{path, opened_at}`` entries, newest first, deduplicated by resolved path and
 capped at :data:`RECENT_LIMIT`. The list is a convenience: a missing, unreadable
 or corrupt file reads as empty, an entry whose path JSON cannot carry is dropped, and a
-failed write never fails the open or create that triggered it. Project state stays in the project file.
+failed write never fails the open or create that triggered it. Project state stays in the
+project file.
 
 :func:`recent_project_cards` turns each entry into the card Home draws from a cheap
 read of the project file (JSON only, no model validation, no media). The parsed summary
@@ -361,14 +362,13 @@ def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
 def recent_project_cards(jobs: Any = None) -> list[dict[str, Any]]:
     """Card data for Home, newest first. *jobs* is the host job manager when one is running."""
     with _LOCK:
-        entries = read_recent()
-        kept = [e for e in entries if e.path == _clean(e.path)]
-        if len(kept) != len(entries):
+        stored = read_recent()
+        entries = [e for e in stored if e.path == _clean(e.path)]
+        if len(entries) != len(stored):
             try:
-                _write(kept)
+                _write(entries)
             except OSError:
                 log.warning("Cannot save the recent projects list at %s", recent_projects_path())
-    entries = kept
     _prune_summaries(entries)
     return [_card(entry, jobs) for entry in entries]
 
