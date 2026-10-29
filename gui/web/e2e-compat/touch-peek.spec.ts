@@ -99,16 +99,20 @@ const chooser = (page: Page) =>
   page.locator(".target-chooser:not(.is-closing)");
 const sheet = (page: Page) => page.locator(".bottom-sheet");
 
+/** A tap that selects shuts the sheet it found; wait for that, if it happens. */
+async function settleSheetShut(page: Page): Promise<void> {
+  await expect(page.locator(".bottom-sheet"))
+    .toHaveCount(0, { timeout: 3000 })
+    .catch(() => undefined);
+}
+
 /**
  * Inspect opens the sheet for the selection. The key toggles, and a tap that
  * retargets a sheet already up may leave it up or shut it, so look again and
  * press it once more if the sheet did not end up open.
  */
 async function ensureInspected(page: Page): Promise<void> {
-  if ((await page.locator(".bottom-sheet").count()) > 0) {
-    await page.waitForTimeout(300);
-    if ((await page.locator(".bottom-sheet").count()) > 0) return;
-  }
+  if ((await page.locator(".bottom-sheet").count()) > 0) return;
   await inspectSelectionByKey(page);
 }
 
@@ -1222,7 +1226,7 @@ test("a timeline tap while a track's sheet is open selects, and Inspect opens th
   await frame(page, info, `tap-while-track-sheet-1-track-${browserName}`);
   await tapClipBody(page, finger);
   // Selecting shuts the track's sheet; Inspect opens the clip's strip.
-  await page.waitForTimeout(800);
+  await settleSheetShut(page);
   await ensureInspected(page);
   await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   const clip = await sheetState(page);
@@ -1231,7 +1235,7 @@ test("a timeline tap while a track's sheet is open selects, and Inspect opens th
   expect(clip).toMatchObject({ compact: true, size: "peek", stowed: false });
   expect(await page.locator(".bottom-sheet .inspector").count()).toBe(0);
   await tapTarget(page, finger, envC);
-  await page.waitForTimeout(800);
+  await settleSheetShut(page);
   await ensureInspected(page);
   await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
   expect(await sheetState(page)).toMatchObject({
