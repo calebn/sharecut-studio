@@ -533,7 +533,7 @@
    at 360. On the phone the right side gives way as it does under 20 rem (the
    Project menu keeps people, Invite and search). A guest link has no Project
    menu, so it keeps its search button. */
-@container sys-app-header (max-width: 28rem) {
+@container sys-app-header (max-width: 36rem) {
   :root[data-shell="phone"]
     .sys-app-header:has(.sys-save--failed):not(:has(.sys-header-guest))
     .sys-header-right {
