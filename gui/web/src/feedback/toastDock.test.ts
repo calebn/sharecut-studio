@@ -90,7 +90,7 @@ describe("toastDockBottomPx (phone)", () => {
   });
 });
 
-describe("toastDockBottomPx keeps the comment field and name step clear (#2199)", () => {
+describe("toastDockBottomPx keeps the comment field and its name field clear (#2199)", () => {
   const landscape = {
     viewportHeight: 390,
     ceilingPx: 0,
@@ -323,7 +323,7 @@ describe("useToastDock", () => {
     "comment-compose",
     "comment-author-line",
     "comment-author-edit",
-    "comment-name-step",
+    "sys-composer",
   ])("ignores a disjoint protected %s", (className) => {
     const H = window.innerHeight;
     const { readBottom } = mountRegion();

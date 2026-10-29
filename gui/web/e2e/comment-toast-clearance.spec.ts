@@ -16,7 +16,7 @@ const PHONES = [
 ] as const;
 
 const COMPOSER =
-  ".comment-compose, .comment-author-line, .comment-author-edit, .comment-name-step";
+  ".sys-composer, .comment-compose, .comment-author-line, .comment-author-edit";
 
 async function settle(page: Page) {
   await page.evaluate(
@@ -56,7 +56,7 @@ async function overlaps(page: Page): Promise<string[]> {
 }
 
 for (const { cell: phone, theme } of withAppearance(PHONES)) {
-  test(`the posted toast stays off the comment field and name step: ${phone.name} ${phone.width}x${phone.height} ${theme}`, async ({
+  test(`the posted toast stays off the comment field and name field: ${phone.name} ${phone.width}x${phone.height} ${theme}`, async ({
     browser,
   }) => {
     await withShareableProject(async (projectPath) => {

@@ -124,10 +124,6 @@ function GuestComposer({ naming }: { naming: Naming }) {
   );
 }
 
-/**
- * A guest's comments: the Composer for a commenter or editor, and every
- * comment as a card. A viewer gets the cards alone, with no reply field.
- */
 function GuestCommentsAdapter({ guestShare }: { guestShare: boolean }) {
   const {
     project,
