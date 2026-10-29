@@ -226,7 +226,7 @@ describe("shared range action policy and commands", () => {
       intervals: [{ start: 11, end: 12 }],
     });
     expect(useDawStore.getState().stage).toBe("review");
-    expect(useDawStore.getState().reviewSection).toBe("comments");
+    expect(useDawStore.getState().reviewSection).toBe("queue");
   });
   it("hands Bounce a detached fixed target on the Deliver stage", async () => {
     expect(await runRangeAction("bounce")).toEqual({ status: "ok" });

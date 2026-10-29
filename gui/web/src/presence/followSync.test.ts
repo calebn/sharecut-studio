@@ -254,7 +254,7 @@ describe("followSync", () => {
       },
       { guestShare: false, breakpoint: "desktop" },
     );
-    expect(plan.apply.stage).toEqual({ stage: "review", section: "comments" });
+    expect(plan.apply.stage).toEqual({ stage: "review", section: "queue" });
     expect(plan.apply.audition).toBe("fx");
     expect(plan.apply.viewerMute).toEqual({ host: true });
     expect(plan.apply.soloTracks).toEqual({ guest: true });
@@ -306,8 +306,18 @@ describe("followSync", () => {
     );
     expect(comments.apply.stage).toEqual({
       stage: "review",
-      section: "comments",
+      section: "queue",
     });
+    const tighten = planFollowUi(
+      { tab: "tighten" },
+      { guestShare: false, breakpoint: "phone" },
+    );
+    expect(tighten.apply.stage).toEqual({ stage: "review", section: "queue" });
+    const guest = planFollowUi(
+      { tab: "comments" },
+      { guestShare: true, breakpoint: "phone", role: "commenter" },
+    );
+    expect(guest.degraded.tab).toBeUndefined();
     const text = planFollowUi(
       { tab: "transcript" },
       { guestShare: false, breakpoint: "phone" },

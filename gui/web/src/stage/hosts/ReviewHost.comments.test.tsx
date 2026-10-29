@@ -44,6 +44,7 @@ vi.mock("../edit/EditWorkspace", () => ({
   EditWorkspace: () => <div>edit workspace</div>,
 }));
 
+import { openCommentDraft } from "../../commands/comments";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { applyDocumentSnapshot } from "../../document/applyDocumentUpdate";
@@ -745,6 +746,80 @@ describe("Review host comments", () => {
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: /Posting/ })).toBeNull(),
     );
+  });
+
+  describe("composer", () => {
+    const field = () => screen.getByRole("textbox", { name: "Comment" });
+
+    it("opens on C at the playhead with focus and posts on Enter under the saved name", async () => {
+      mount();
+      useDawStore.setState({ playheadSec: 12 });
+      expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+      act(() => {
+        press("c");
+      });
+      await waitFor(() => expect(field()).toHaveFocus());
+      expect(screen.getByText("0:12")).toBeVisible();
+      await userEvent.type(field(), "Too loud jk{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+      expect(sent("AddComment")[0].payload).toMatchObject({
+        body: "Too loud jk",
+        author: "Host",
+        timeline_start: 12,
+      });
+      await waitFor(() =>
+        expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull(),
+      );
+      expect(useDawStore.getState().commentDraft).toBeNull();
+      expect(heading()).toBe("Comment from Rosa");
+    });
+
+    it("posts under a changed name", async () => {
+      mount();
+      act(() => {
+        press("c");
+      });
+      const who = screen.getByRole("textbox", { name: "Your name" });
+      await userEvent.clear(who);
+      await userEvent.type(who, "Dana");
+      await userEvent.type(field(), "Hi{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+      expect(sent("AddComment")[0].payload).toMatchObject({ author: "Dana" });
+    });
+
+    it("lands on the composer when Edit opens a draft", async () => {
+      mount();
+      act(() => {
+        useDawStore.setState({ stage: "edit" });
+        openCommentDraft({ startSec: 42, endSec: 47 });
+      });
+      expect(useDawStore.getState().stage).toBe("review");
+      await waitFor(() => expect(field()).toHaveFocus());
+      expect(screen.getByText("0:42 to 0:47")).toBeVisible();
+    });
+
+    it("closes on Escape and drops the draft", async () => {
+      mount();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "never mind{Escape}");
+      expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+      expect(useDawStore.getState().commentDraft).toBeNull();
+      expect(sent("AddComment")).toHaveLength(0);
+    });
+
+    it("stays open with the text when the post is refused", async () => {
+      server.refuse.add("AddComment");
+      mount();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "Keep me{Enter}");
+      await waitFor(() => expect(screen.getByRole("alert")).toBeVisible());
+      expect(field()).toHaveValue("Keep me");
+      expect(useDawStore.getState().commentDraft).not.toBeNull();
+    });
   });
 
   it("gives a guest the Comments section and no queue comments", () => {
