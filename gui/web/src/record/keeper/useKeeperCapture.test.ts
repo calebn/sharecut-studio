@@ -1196,4 +1196,32 @@ describe("useKeeperCapture segment reports", () => {
     });
     expect(report).toHaveBeenCalledTimes(2);
   });
+
+  it("resends an earlier take's lost report after a later take has reported", async () => {
+    const report = vi.fn<Report>();
+    const take = (take_index: number, reports = {}) => ({
+      take_index,
+      session_start_wall_ms: 0,
+      session_start_iso: "",
+      pauses: [],
+      consented_participant_ids: ["p_g"],
+      segment_reports: reports,
+    });
+    const { rerender } = mount(report, { snapshot: snap });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1, false));
+    const next = { ...snap, take_index: 1, state: "paused" as const };
+    rerender({ snapshot: next });
+    rerender({ snapshot: { ...next, state: "recording" } });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(1, 1, false));
+    report.mockClear();
+    rerender({
+      snapshot: {
+        ...next,
+        state: "recording",
+        takes: [take(0), take(1, { p_g: { segments: 1, final: false } })],
+      },
+    });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1, false));
+    expect(report).not.toHaveBeenCalledWith(1, 1, false);
+  });
 });

@@ -121,8 +121,13 @@ class HeadphonesAckPayload(BaseModel):
 class SegmentReportPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
     take_index: StrictInt = Field(ge=0)
-    segments: StrictInt = Field(ge=0, le=MAX_REPORTED_SEGMENTS)
+    segments: StrictInt = Field(ge=0)
     final: StrictBool
+
+    @field_validator("segments")
+    @classmethod
+    def _clamp(cls, value: int) -> int:
+        return min(value, MAX_REPORTED_SEGMENTS)
 
 
 class SetTargetPayload(BaseModel):

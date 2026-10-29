@@ -120,12 +120,17 @@ export function useKeeperCapture({
   const sessionId = snapshot?.session_id ?? null;
   const reportRef = useRef(reportSegments);
   reportRef.current = reportSegments;
-  const reportedRef = useRef<{
-    participantId: string;
-    takeIndex: number;
-    segments: number;
-    final: boolean;
-  } | null>(null);
+  const reportedRef = useRef(
+    new Map<
+      number,
+      {
+        participantId: string;
+        takeIndex: number;
+        segments: number;
+        final: boolean;
+      }
+    >(),
+  );
   const sendReport = useCallback(
     (
       participantId: string,
@@ -134,7 +139,7 @@ export function useKeeperCapture({
       final: boolean,
       force = false,
     ) => {
-      const last = reportedRef.current;
+      const last = reportedRef.current.get(takeIndex);
       const same =
         last?.participantId === participantId &&
         last.takeIndex === takeIndex &&
@@ -143,7 +148,12 @@ export function useKeeperCapture({
       if (same && !force) {
         return;
       }
-      reportedRef.current = { participantId, takeIndex, segments, final };
+      reportedRef.current.set(takeIndex, {
+        participantId,
+        takeIndex,
+        segments,
+        final,
+      });
       reportRef.current?.(takeIndex, segments, final);
     },
     [],
@@ -473,26 +483,25 @@ export function useKeeperCapture({
   ]);
 
   useEffect(() => {
-    const local = reportedRef.current;
-    const take = snapshot?.takes?.find(
-      (row) => row.take_index === local?.takeIndex,
-    );
-    if (!local || !take) {
-      return;
-    }
-    const known = take.segment_reports?.[local.participantId];
-    if (
-      !known ||
-      known.segments < local.segments ||
-      (local.final && !known.final)
-    ) {
-      sendReport(
-        local.participantId,
-        local.takeIndex,
-        local.segments,
-        local.final,
-        true,
+    for (const local of [...reportedRef.current.values()]) {
+      const take = snapshot?.takes?.find(
+        (row) => row.take_index === local.takeIndex,
       );
+      const known = take?.segment_reports?.[local.participantId];
+      if (
+        take &&
+        (!known ||
+          known.segments < local.segments ||
+          (local.final && !known.final))
+      ) {
+        sendReport(
+          local.participantId,
+          local.takeIndex,
+          local.segments,
+          local.final,
+          true,
+        );
+      }
     }
   }, [snapshot, sendReport]);
 

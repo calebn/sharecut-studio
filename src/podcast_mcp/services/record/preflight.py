@@ -127,6 +127,12 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
                     stalled.add((index, pid, segment))
                 else:
                     saving.add(index)
+            report = take.segment_reports.get(pid)
+            if report is not None and not report.final:
+                if stopped_quiet is None or stopped_quiet > UPLOAD_GRACE_MS:
+                    stalled.add((index, pid, -1))
+                else:
+                    saving.add(index)
     landable -= saving
     all_takes = landable | saving | {index for index, _pid, _seg in stalled}
     if not all_takes:
