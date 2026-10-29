@@ -1035,10 +1035,7 @@ one authorization check, one unavailable-action message and the existing
 tab's edit saves (it queues behind a save that is still out, says "Undo runs after save", and never refuses for the wait). History controls stay
 at least 44 CSS pixels square and do not overlap the resize or Close controls.
 
-The blade confirmation is a `fit` sheet, as tall as its question and its
-actions and no taller, with Cancel and Cut pinned to the bottom of its scroll
-area. On a phone held sideways its slot lies above the bottom tabs, and the
-half height it had left Cut scrolled out of a 49 px body, under the tab bar.
+The blade confirmation sheet this round fitted was removed in #2294: Split cuts at once and the toast carries Undo.
 
 ### Collapse stays in reach (#1051 round 4)
 

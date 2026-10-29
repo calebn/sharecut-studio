@@ -148,7 +148,7 @@ is the fix, enforced in copy review.
 - **Bottom zone is for doing; top zone is for knowing.** Primary and
   frequent actions live in the bottom easy-reach zone; the top is
   reserved for titles, status, and infrequent controls. (Surfaces 1,
-  3, 5 — the phone Stage tab bar, the Player bar and the blade confirm sheet are the reference
+  3, 5 — the phone Stage tab bar, the Player bar and the Remove-track confirm sheet are the reference
   implementations, with Undo and Redo in the compact inspector header
   while a selection is open and Zoom beside them; the REC chip stranded in
   the top bar is the violation, and zoom buried in the top overflow menu was
@@ -271,7 +271,7 @@ the empty state, not a separate discovery task.
   (Open other…), never in a dialog. #1027
   and #1031 replaced every native dialog, and oxlint's `no-alert` rule
   rejects new ones (see Governance). The
-  blade-cut confirm sheet (`edit.bladeCut`) (named target, time,
+  Remove-track confirm sheet (named target,
   Cancel safe-left, action right) is the model. Inside an open
   `Dialog`, confirm in place with `ui/InlineConfirm` instead of
   stacking a second dialog: the row swaps its actions for the
