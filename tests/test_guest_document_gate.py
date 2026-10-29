@@ -948,3 +948,39 @@ def test_strip_silence_is_refused_on_every_guest_surface(
     token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
     assert not guest_submitter(surface)(token, "StripSilence", STRIP)
     assert journal_types(minimal_project) == []
+
+
+PROPOSE: dict = {}
+
+
+@pytest.mark.parametrize(
+    "caps",
+    [VIEWER, EDITOR, [*COMMENTER, "mcp"], [*EDITOR, "mcp"]],
+    ids=["viewer", "editor", "commenter-mcp", "editor-mcp"],
+)
+def test_propose_tighten_is_host_only(minimal_project, monkeypatch, caps):
+    svc = gap_project(minimal_project, monkeypatch)
+    before = deepcopy(svc.ws.project.edit_decisions)
+    total = history_total(minimal_project)
+    with pytest.raises(PermissionError) as raised:
+        svc.submit(guest_command("ProposeTighten", PROPOSE), capabilities=caps)
+    assert raised.value.code == "share_capability_required"
+    assert load_project(minimal_project).edit_decisions == before
+    assert history_total(minimal_project) == total
+    assert journal_types(minimal_project) == []
+
+
+def test_host_propose_tighten_passes(minimal_project, monkeypatch):
+    svc = gap_project(minimal_project, monkeypatch)
+    svc.submit(guest_command("ProposeTighten", PROPOSE), capabilities=None)
+    assert journal_types(minimal_project) == ["ProposeTighten"]
+
+
+@pytest.mark.parametrize("surface", ["browser", "mcp"])
+def test_propose_tighten_is_refused_on_every_guest_surface(
+    minimal_project, sample_wav, monkeypatch, surface
+):
+    gap_project(minimal_project, monkeypatch)
+    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
+    assert not guest_submitter(surface)(token, "ProposeTighten", PROPOSE)
+    assert journal_types(minimal_project) == []
