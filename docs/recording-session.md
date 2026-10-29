@@ -1272,10 +1272,11 @@ cannot. Every button runs the same `record.*` command as the palette.
   ACK calls `RecordLandingService.land` directly and still runs while a later
   take is open.
 - Mute, the Record button and **More** sit in the dock under the room, so they
-  stay in reach on a phone; Comment joins them once a take is live. **More** holds **Stop take**, Land, **Record room
-  tone**, the upload status, a note when a removed participant's invite is closed
-  and, last, **Invite and links…** (opens Share). **Record room tone** appears
-  there only in the lobby or after Stop. **Create record room**
+  stay in reach on a phone; Comment joins them once a take is live. **More** holds **Stop take**, Land, the upload
+  status, a note when a removed participant's invite is closed, **Devices…**
+  and, last, **Invite and links…** (opens Share). **Record 3 seconds of room
+  tone** is in the Devices sheet and works only in the lobby or after Stop;
+  otherwise it is disabled ("Record room tone between takes."). **Create record room**
   announces "Record room created and guest link copied" ("Record room created" if
   the copy failed); from the stage button the same words also show as a note on
   the stage. The palette's **Copy guest link** (not a stage button) announces
