@@ -650,12 +650,14 @@ pads, which must equal what the entry recorded or the full check runs. A check t
 unreadable file is never stored. A batch applied from the end backward builds its timeline audio
 once and carries it while each next cut lies beyond that same reach of every applied cut
 (`CarriedTimelineRms`); a cut within reach builds the audio again from the project as the earlier
-cuts left it (#2357). At a 48 kHz source, a track with an effects chain whose tree the evaluator
-takes is evaluated only over the cut's reach (`WindowedTrackRmsCache`, which holds those samples
-bit for bit and raises `WindowMiss` for any read outside them, on which the check is made again on
-whole tracks); every other track is built whole. A 44.1 kHz or other source rate, a tree the
-evaluator declines, and a track whose evidence is already stored take the whole-track build, with
-no speed-up (44.1 kHz windows are a follow-up). The auto-apply of tighten removes
+cuts left it (#2357). At a 48 or 44.1 kHz source, a track with an effects chain whose tree
+the evaluator takes is evaluated only over the cut's reach (`WindowedTrackRmsCache`, which holds
+those samples bit for bit and raises `WindowMiss` for any read outside them, on which the check is
+made again on whole tracks); every other track is built whole. The windows are built from the
+resampler's calibrated warm-up and guard, which are whole resampling periods (`resampler_grid`:
+6:1 into 8 kHz and 3:1 into 16 kHz at 48 kHz, 441:80 into 8 kHz and 441:160 into 16 kHz at
+44.1 kHz). Any other source rate, a tree the evaluator declines, and a track whose evidence is
+already stored take the whole-track build, with no speed-up. The auto-apply of tighten removes
 (`RebuiltTimelineRms`) rebuilds whole tracks on every check and gets only the profile definition
 below, no speed-up.
 
