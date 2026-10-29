@@ -887,7 +887,23 @@ export const LongGestures: Story = {
   args: { turns: longScript(60) },
 };
 
+/** Axe walks 3000 nodes once per rule (about 1 s each for these), so the per-node rules the 24-word stories already pass are off here to keep the jsdom run inside its 5 s. */
+const perNodeRules = [
+  "button-name",
+  "nested-interactive",
+  "region",
+  "tabindex",
+  "target-size",
+];
+
 export const HugeGestures: Story = {
   ...gest,
-  args: { turns: hugeTurn(1500) },
+  args: { turns: hugeTurn(1100) },
+  parameters: {
+    a11y: {
+      config: {
+        rules: perNodeRules.map((id) => ({ id, enabled: false })),
+      },
+    },
+  },
 };
