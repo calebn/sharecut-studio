@@ -24,6 +24,12 @@ export type LinkRowProps = {
   note?: ReactNode;
   compact?: boolean;
   reach?: "anywhere" | "network";
+  /** Names the link for assistive technology when a page has several rows: "Copy Commenter link". */
+  linkName?: string;
+  /** Copy waits, and says why. */
+  disabledReason?: string;
+  /** Shown while there is no link; the default says the first Copy makes it. */
+  placeholder?: string;
   onCopy: () => void;
 };
 
@@ -38,6 +44,9 @@ export function LinkRow({
   note,
   compact = false,
   reach = "anywhere",
+  linkName,
+  disabledReason,
+  placeholder = "Made when you copy it",
   onCopy,
 }: LinkRowProps) {
   if (noMix) {
@@ -69,7 +78,7 @@ export function LinkRow({
           data-selected={copyState === "blocked" || undefined}
           title={link ?? undefined}
         >
-          {link ? middleTruncate(link) : "Made when you copy it"}
+          {link ? middleTruncate(link) : placeholder}
         </span>
       </div>
       {note ? <span className="sys-link-note">{note}</span> : null}
@@ -97,7 +106,13 @@ export function LinkRow({
             ))}
           </span>
         ) : null}
-        <Button variant="default" onClick={onCopy} aria-live="polite">
+        <Button
+          variant="default"
+          disabledReason={disabledReason}
+          aria-label={linkName ? `${label} ${linkName}` : undefined}
+          onClick={onCopy}
+          aria-live="polite"
+        >
           <SystemIcon name={iconOf("copyLink")} size={14} />
           {label}
         </Button>

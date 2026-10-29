@@ -22,6 +22,7 @@ import {
 } from "./deliverFixture";
 import type { ExportState } from "./deliverLogic";
 import { formatClock } from "./deliverLogic";
+import { SHARE_DEFAULTS, type ShareOptions } from "./shareLogic";
 
 const platform = vi.hoisted(() => ({ apple: false }));
 vi.mock("../../utils/platform", () => ({
@@ -5389,5 +5390,64 @@ describe("Bounce section", () => {
     unmount();
     setup({ bounce, guest: true });
     expect(screen.queryByRole("heading", { name: "Bounce" })).toBeNull();
+  });
+});
+
+describe("Share section", () => {
+  const share: ShareOptions = {
+    rows: [],
+    loaded: true,
+    choices: SHARE_DEFAULTS,
+    onChoices: vi.fn(),
+    busy: false,
+    recovery: { kind: "idle" },
+    error: null,
+    status: null,
+    copiedKey: null,
+    blockedKey: null,
+    onCreate: vi.fn(),
+    onRefreshMix: vi.fn(),
+    onCopy: vi.fn(),
+    onStop: vi.fn(),
+    onCreateRecord: vi.fn(),
+    onReplaceInvite: vi.fn(),
+    onEndRoom: vi.fn(),
+    onOpenRecord: vi.fn(),
+  };
+
+  it("sits in the side column after the episode and bounce when the host offers it", () => {
+    setup({ share });
+    const titles = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((h) => h.textContent);
+    expect(titles.indexOf("Share")).toBeGreaterThan(
+      titles.indexOf("Episode file"),
+    );
+    expect(
+      screen.getByRole("button", { name: "Create review link" }),
+    ).toBeTruthy();
+  });
+
+  it("stands in for the Listen link section", () => {
+    setup({ share, showLink: true, link: { url: "https://x.test/r/a" } });
+    expect(screen.getByRole("heading", { name: "Share" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Listen link" })).toBeNull();
+  });
+
+  it("is absent without the host's share, and the Listen link stays", () => {
+    setup({ showLink: true });
+    expect(screen.queryByRole("heading", { name: "Share" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Listen link" })).toBeTruthy();
+  });
+
+  it("is a skeleton while the page loads, and absent for a guest", () => {
+    const { unmount } = setup({ share, state: "loading" });
+    expect(
+      screen.queryByRole("button", { name: "Create review link" }),
+    ).toBeNull();
+    expect(screen.getByRole("heading", { name: "Share" })).toBeTruthy();
+    unmount();
+    setup({ share, guest: true });
+    expect(screen.queryByRole("heading", { name: "Share" })).toBeNull();
   });
 });

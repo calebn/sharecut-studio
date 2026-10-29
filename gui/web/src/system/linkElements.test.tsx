@@ -28,6 +28,39 @@ describe("RoleChip", () => {
 });
 
 describe("LinkRow", () => {
+  it("names its link for assistive technology when a page has several rows", () => {
+    render(
+      <LinkRow
+        access="editor"
+        link={LINK}
+        linkName="Editor link"
+        copyState="copied"
+        onCopy={() => {}}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Copied Editor link" }),
+    ).toBeInTheDocument();
+  });
+
+  it("waits to copy with the reason, and says what is missing in place of a link", () => {
+    render(
+      <LinkRow
+        access="viewer"
+        link={null}
+        placeholder="No address yet."
+        disabledReason="This link has no address to copy yet."
+        onCopy={() => {}}
+      />,
+    );
+    expect(screen.getByText("No address yet.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Copy" })).toHaveAttribute(
+      "title",
+      "This link has no address to copy yet.",
+    );
+  });
+
   const LINK = "https://share.example.app/l/7Hq2mXk9TnP4vLr8Za3w";
 
   it("shows the link cut in the middle, and nothing when nobody opened it", () => {

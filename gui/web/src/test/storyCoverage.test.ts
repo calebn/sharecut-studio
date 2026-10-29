@@ -150,7 +150,7 @@ const COVERED: Record<string, string[]> = {
   "EMPTY-STATES": ["Atoms/EmptyState"],
   "CMP-INLINE-ERROR": ["Atoms/InlineError"],
   "DLG-HELP": ["Templates/HelpDialog"],
-  "CMP-TUNNEL": ["Templates/ShareDialog"],
+  "CMP-TUNNEL": ["Templates/ShareDialog", "Stages/Deliver/Share"],
   "SCR-SETUP": ["Stages/Home/SetupCard"],
   "SCR-SETUP-CHECKING": ["Stages/Home/SetupCard"],
   "SCR-SETUP-DOWNLOAD": ["Stages/Home/SetupCard"],
