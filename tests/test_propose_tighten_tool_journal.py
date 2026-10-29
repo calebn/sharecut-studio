@@ -310,21 +310,22 @@ def _meta_command() -> DocumentCommand:
 
 def test_the_audio_check_runs_outside_the_locks(tmp_path, monkeypatch):
     path = _path(tmp_path, monkeypatch)
-    outcome: dict[str, object] = {}
+    finished: list[bool] = []
 
     def spy(self, ids=None):
         def meta() -> None:
-            outcome["meta"] = DocumentSyncService.open(path).submit(_meta_command())
+            DocumentSyncService.open(path).submit(_meta_command())
 
         worker = threading.Thread(target=meta)
         worker.start()
         worker.join(30)
-        outcome["finished"] = not worker.is_alive()
+        finished.append(not worker.is_alive())
         return [], []
 
     monkeypatch.setattr(EditService, "held_by_checks", spy)
     _run(path)
-    assert outcome["finished"] is True
+    assert finished
+    assert all(finished)
     assert _journal(path) == ["ProposeTighten", "SetTrackMeta"]
 
 
