@@ -631,6 +631,7 @@ def test_studio_that_stops_answering_after_the_send_reports_a_possible_change(
     assert isinstance(result, CallToolResult)
     assert result.is_error
     assert "may have changed the project" in result.content[0].text  # type: ignore[union-attr]
+    assert "(ConnectionError)" in result.content[0].text  # type: ignore[union-attr]
     assert server.calls == []
 
 

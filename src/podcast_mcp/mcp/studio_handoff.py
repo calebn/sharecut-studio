@@ -189,7 +189,10 @@ async def _run_in_studio(
             log.debug("Studio at %s:%s did not take the call", host.host, host.port, exc_info=True)
             return _not_taken_result(host, name)
         log.warning("Studio stopped answering %s", name, exc_info=True)
-        return _lost_result(host, name, f"it stopped answering ({type(exc).__name__})")
+        cause: BaseException = exc
+        while isinstance(cause, BaseExceptionGroup) and len(cause.exceptions) == 1:
+            cause = cause.exceptions[0]
+        return _lost_result(host, name, f"it stopped answering ({type(cause).__name__})")
 
 
 def install_studio_handoff(server: Any) -> None:
