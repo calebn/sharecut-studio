@@ -372,7 +372,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | CMP-WORDBAR | Select one word, region "Word timing" in the inspector (see `e2e/wordbarFlow.ts`). |
 | CMP-EDITBOUNDARY, DLG-PRECISION | After a cut, boundary mark in the transcript; precision button opens dialog "Precision boundary" (see `e2e/edit-boundary-precision.spec.ts`, `e2e/boundaryFixture.ts`). |
 | PNL-COMMENTS, CMP-COMMENT-*, CMP-GUEST-NAME | Tab Comments; field label per CommentCompose; for the name step use a guest context with no stored name. |
-| PNL-HISTORY, PNL-REVIEW-QUEUE, PNL-TIGHTEN, PNL-PIPELINE | Tab by name. Pipeline needs `/api/pipeline/config` (see `e2e/pipeline-*.spec.ts`); the Review Queue needs hits from Find more. |
+| PNL-HISTORY, PNL-REVIEW-QUEUE, PNL-PIPELINE | Tab by name. Pipeline needs `/api/pipeline/config` (see `e2e/pipeline-*.spec.ts`); the Review Queue needs hits from Find more. |
 | DLG-STEP-PARAMS | Phone: More > Pipeline > tap a step. |
 | INS-* | Click the object: clip (`.clip-block`), pending region, track header, chapter marker, comment pin, word, envelope point. Tablet: `.bottom-sheet[role=dialog]`; phone: compact inspector at the remembered detent. |
 | DLG-SHARE | Menu > `Share…`; dialog name "Share" (exact). Button `Create review link`, copy buttons, `Stop sharing`, `End room` confirm (`e2e/share-dialog.spec.ts`). On Deliver, the Share section: `Create review link`, `Copy <Role> link`, `Stop sharing`, `End room` confirm (`e2e/share-deliver.spec.ts`, `e2e/share-deliver-phone.spec.ts`). |
@@ -422,7 +422,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | POP-WORD-EDIT, POP-SPEAKER, CMP-FINDREPLACE, CMP-WORDBAR, CMP-WORDRANGE, CMP-VOCAB | no | |
 | DLG-PRECISION | no | |
 | PNL-COMMENTS | partial | Card and compose; panel and name step no |
-| PNL-HISTORY, PNL-REVIEW-QUEUE, PNL-TIGHTEN, PNL-PIPELINE, DLG-STEP-PARAMS | no | All store-bound; no View split |
+| PNL-HISTORY, PNL-REVIEW-QUEUE, PNL-PIPELINE, DLG-STEP-PARAMS | no | All store-bound; no View split |
 | INS-CLIP | yes | Multi-select no |
 | INS-ENVELOPE, INS-BLEED | yes | |
 | INS-EMPTY, INS-PENDING, INS-APPLIED, INS-TRACK, INS-CHAPTER, INS-SOCIAL, INS-COMMENT, INS-WORD, INS-RANGE, INS-PEEK | no | |
@@ -472,7 +472,7 @@ Tally of the 153 non-interaction items, counted from the Story columns: 65 yes, 
 17. **SCR-REC-ACCESS-ENDED, CMP-REC-NOTICES** (small).
 18. **SCR-LAYOUT-* modes and CMP-DRAWER-HANDLE, CMP-LAYOUT-CHIP**: add three StudioShellView stories for Timeline/Text/Review layouts.
 19. **TOAST dock** over a sheet and over the tool rail (phone and tablet).
-20. **Interactions with no frozen-state story**: INT-RANGE, INT-WORD-*, INT-TIGHTEN, INT-CREATE, INT-TOUCH-CHOOSE, INT-PINCH, INT-CLIPBOARD. Prefer Playwright captures for these.
+20. **Interactions with no frozen-state story**: INT-RANGE, INT-WORD-*, INT-CREATE, INT-TOUCH-CHOOSE, INT-PINCH, INT-CLIPBOARD. Prefer Playwright captures for these.
 
 ---
 

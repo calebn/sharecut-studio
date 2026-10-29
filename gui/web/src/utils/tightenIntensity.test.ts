@@ -63,11 +63,11 @@ describe("findHitsConfirm", () => {
   it("asks only when hits are listed", () => {
     expect(findHitsConfirm(0)).toBeNull();
     expect(findHitsConfirm(3)).toEqual({
-      title: "Find hits again?",
+      title: "Find more again?",
       message:
         "Tighten analysis runs again and replaces the 3 pending hits in this list, including ones you nudged.",
-      keepLabel: "Keep hits",
-      actionLabel: "Find hits",
+      keepLabel: "Keep suggestions",
+      actionLabel: "Find more",
       danger: true,
     });
     expect(findHitsConfirm(1)?.message).toContain("the 1 pending hit in");
@@ -99,7 +99,7 @@ describe("findHitsRunError", () => {
     expect(findHitsRunError("other", snap())).toBeNull();
     expect(findHitsRunError("j1", snap({ status: "running" }))).toBeNull();
     expect(findHitsRunError("j1", snap({ error: null }))).toBe(
-      "Find hits failed.",
+      "Finding more suggestions failed.",
     );
   });
 });
