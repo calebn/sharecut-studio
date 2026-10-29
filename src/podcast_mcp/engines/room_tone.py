@@ -52,10 +52,15 @@ from typing import Literal
 import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
-from podcast_mcp.engines.alignment_key import ingest_alignment_entry
+from podcast_mcp.engines.alignment_key import (
+    ingest_alignment_entry,
+    speaker_key_unique,
+    speaker_label,
+)
 from podcast_mcp.engines.media_probe import has_several_audio_streams
+from podcast_mcp.engines.session_timeline import clip_source_to_timeline_shift
 from podcast_mcp.engines.ungated_audio import held_mono_full
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db_stream, rms_db
 from podcast_mcp.util.intervals import subtract_intervals
@@ -301,6 +306,7 @@ POOL_SAMPLE_SEC = 2.0
 # A pooled sample shorter than this is a scrap that a pad tiles into a stutter.
 POOL_MIN_SAMPLE_SEC = 1.0
 _POOL_REV = 5
+_SHIFT_EPS_SEC = 1e-3
 # A pooled sample that a clip or mute fill this close to a pad (timeline seconds, either
 # side) already plays ranks after the unused ones: the listener hears both fills together.
 TAKEN_WINDOW_SEC = 120.0
@@ -322,19 +328,55 @@ def _file_key(project: EpisodeProject, track_id: str) -> tuple[str, FileRevision
         return None
 
 
+def _peer_tracks(project: EpisodeProject, track_id: str) -> list[Track]:
+    return [
+        other
+        for other in project.tracks
+        if other.id != track_id and other.media is not None and other.role == TrackRole.DIALOGUE
+    ]
+
+
 def _ingest_shift(project: EpisodeProject, track_id: str) -> float:
-    """Timeline minus source seconds that ingest placed the track's primary recording at."""
+    """Timeline minus source seconds that ingest placed the track's primary recording at.
+
+    An entry counts only while it matches where the earliest primary clip sits: a trimmed
+    ingest records the untrimmed shift but places every clip at 0.
+    """
     track = project.track_by_id(track_id)
-    if track is None:
+    entries = project.meta.ingest_alignment
+    if track is None or not entries:
         return 0.0
-    for clip in sorted(project.clips, key=lambda c: c.timeline_start):
-        if clip.track_id == track_id and None in project.equivalent_source_ids(
-            track_id, clip.source_id
-        ):
-            entry = ingest_alignment_entry(project, track, clip)
-            if entry is not None:
-                return entry.source_to_timeline_shift_sec
-    return 0.0
+    on_primary: dict[str | None, bool] = {}
+    primary: list[Clip] = []
+    for clip in project.clips:
+        if clip.track_id != track_id:
+            continue
+        if clip.source_id not in on_primary:
+            on_primary[clip.source_id] = None in project.equivalent_source_ids(
+                track_id, clip.source_id
+            )
+        if on_primary[clip.source_id]:
+            primary.append(clip)
+    if not primary:
+        return 0.0
+    first = min(primary, key=lambda c: c.timeline_start)
+    entry = ingest_alignment_entry(project, track, first)
+    if entry is not None:
+        shifts = [entry.source_to_timeline_shift_sec]
+    else:
+        # A split mints new clip ids, so the entries written for the original clips remain.
+        shifts = [
+            e.source_to_timeline_shift_sec
+            for key, e in entries.items()
+            if key.startswith(f"{track_id}:")
+        ]
+        if speaker_key_unique(project, track) and speaker_label(track) in entries:
+            shifts.append(entries[speaker_label(track)].source_to_timeline_shift_sec)
+    if not shifts or max(shifts) - min(shifts) > _SHIFT_EPS_SEC:
+        return 0.0
+    if abs(shifts[0] - clip_source_to_timeline_shift(first)) > _SHIFT_EPS_SEC:
+        return 0.0
+    return shifts[0]
 
 
 def _pool_key(project: EpisodeProject, track_id: str) -> PoolKey | None:
@@ -344,8 +386,7 @@ def _pool_key(project: EpisodeProject, track_id: str) -> PoolKey | None:
     shift = _ingest_shift(project, track_id)
     peers = (
         (key, shift - _ingest_shift(project, other.id))
-        for other in project.tracks
-        if other.id != track_id and other.media is not None
+        for other in _peer_tracks(project, track_id)
         if (key := _file_key(project, other.id)) is not None
     )
     return (*own, tuple(sorted((*key, offset) for key, offset in peers)))
@@ -559,7 +600,7 @@ def _pool_spans_in_use(
         if clip.track_id != track_id:
             continue
         for region in clip.mute_regions:
-            at = clip.timeline_start + (region.start_s - clip.source_start)
+            at = region.start_s + clip_source_to_timeline_shift(clip)
             if (
                 region.fill is not None
                 and region.fill.source_id is None
@@ -651,9 +692,7 @@ def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span]
     own_path = track_audio_path(project, track_id)
     own_shift = _ingest_shift(project, track_id)
     others: list[tuple[Path, float, float]] = []
-    for other in project.tracks:
-        if other.id == track_id or other.media is None:
-            continue
+    for other in _peer_tracks(project, track_id):
         read = track_floor(track_audio_path(project, other.id))
         if isinstance(read, LiveFloor):
             # A gated peer's live frames are all speech: any live frame is its voice.
