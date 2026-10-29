@@ -9,13 +9,10 @@ def require_v2_document(data: dict[str, Any]) -> None:
     version = data.get("version")
     if version != SUPPORTED_PROJECT_VERSION:
         raise ValueError(
-            f"Unsupported episode.project.json version {version!r}; "
-            f"expected {SUPPORTED_PROJECT_VERSION!r}."
+            f"Unsupported project file version {version!r}; expected {SUPPORTED_PROJECT_VERSION!r}."
         )
     if "meta" not in data or "timeline" not in data:
-        raise ValueError(
-            "Invalid episode.project.json: missing required v2 sections (meta, timeline)."
-        )
+        raise ValueError("Invalid project file: missing required v2 sections (meta, timeline).")
 
 
 def snapshot_editable_state(project: Any) -> dict[str, Any]:

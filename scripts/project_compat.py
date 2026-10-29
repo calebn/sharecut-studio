@@ -17,7 +17,7 @@ from typing import Any, get_args
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from podcast_mcp.models import EpisodeProject, load_project, save_project
-from podcast_mcp.models.episode import ProjectMeta, RenderSection
+from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, ProjectMeta, RenderSection
 from podcast_mcp.models.history import ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, snapshot_editable_state
 from podcast_mcp.project.history.manager import HistoryManager, apply_snapshot_to_project
@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCK = Path("schemas/episode.project.shape.lock.json")
 CORPUS = Path("tests/fixtures/project_compat")
 LEDGER = CORPUS / "releases.json"
-PROJECT = "episode.project.json"
+PROJECT = EPISODE_PROJECT_FILENAME
 
 
 class ReleaseProvenance(BaseModel):
@@ -395,7 +395,7 @@ def assert_upgrade(directory: Path) -> None:
             load_project(source / PROJECT)
         except ValueError as exc:
             require(
-                "Unsupported episode.project.json version" in str(exc),
+                "Unsupported project file version" in str(exc),
                 "Old format failed for the wrong reason",
             )
         else:
