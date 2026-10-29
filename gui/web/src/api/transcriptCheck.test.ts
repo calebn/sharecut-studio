@@ -48,6 +48,17 @@ describe("transcript check client", () => {
     expect(JSON.parse(init?.body as string)).toEqual({ path: "/tmp/p.json" });
   });
 
+  it("sends the expected fingerprint when given", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(status)));
+    await markTranscriptChecked("/tmp/p.json", undefined, "fp1");
+    expect(JSON.parse(fetch.mock.calls[0]?.[1]?.body as string)).toEqual({
+      path: "/tmp/p.json",
+      expected_fingerprint: "fp1",
+    });
+  });
+
   it("surfaces a refusal from the server", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify({ detail: "Not allowed" }), { status: 403 }),
