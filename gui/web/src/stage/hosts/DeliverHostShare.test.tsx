@@ -58,14 +58,16 @@ function Stages() {
 
 function Host({
   features = [FEATURE_SHARE_UI_MENU],
+  ready = true,
   children = <Stages />,
 }: {
   features?: string[];
+  ready?: boolean;
   children?: React.ReactNode;
 }) {
   return (
     <FeaturesContext.Provider
-      value={{ ready: true, manifest: { api_version: 1, features } }}
+      value={{ ready, manifest: { api_version: 1, features } }}
     >
       <ExportFlowProvider>
         <BounceFlowProvider>
@@ -341,6 +343,16 @@ describe("Share entry button", () => {
   it("focuses Share when a share request is waiting, then clears it", async () => {
     useDawStore.getState().setShareRequested(true);
     render(<Host />);
+    await waitFor(() => expect(button("Create review link")).toHaveFocus());
+    expect(useDawStore.getState().chrome.shareRequested).toBe(false);
+  });
+
+  it("keeps a share request until the features have loaded", async () => {
+    useDawStore.getState().setShareRequested(true);
+    const view = render(<Host features={[]} ready={false} />);
+    await screen.findByText("Episode file");
+    expect(useDawStore.getState().chrome.shareRequested).toBe(true);
+    view.rerender(<Host ready />);
     await waitFor(() => expect(button("Create review link")).toHaveFocus());
     expect(useDawStore.getState().chrome.shareRequested).toBe(false);
   });
