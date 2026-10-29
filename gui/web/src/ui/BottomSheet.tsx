@@ -39,7 +39,7 @@ const DETENT_TEXT: Record<DrawerDetent, string> = {
 /**
  * A swipeable drawer (#1051 round 4b): the sheet's header drags it between
  * `detents`, lowest first, and a flick carries it on (`useDrawerSwipe`).
- * Expand and Collapse stay as buttons, and a native range input (visually
+ * Expand and Collapse stay as icon buttons, and a native range input (visually
  * hidden, named `label`) gives keyboards and screen readers the same detents.
  */
 export interface SheetDrawer {
@@ -68,7 +68,6 @@ type Props = {
   resizeLabels?: { expand: string; collapse: string };
   /** Additional actions for a compact inspector header. */
   compactHeaderActions?: ReactNode;
-  compactResizeIcons?: boolean;
   /** Detents the header swipes between; replaces the expand toggle. */
   drawer?: SheetDrawer;
   /**
@@ -85,7 +84,7 @@ type Props = {
  * Transient bottom sheet for phone/tablet inspector and quick actions.
  * Peek / non-modal: Escape + focus restore; no chrome inert / Tab trap.
  * NN/G: visible Close, no stacking (parent must not nest sheets). Sizes
- * change with visible Expand and Collapse buttons; a `drawer` also swipes.
+ * change with Expand and Collapse icon buttons; a `drawer` also swipes.
  */
 export function BottomSheet({
   open,
@@ -100,7 +99,6 @@ export function BottomSheet({
   onExpandedChange,
   resizeLabels,
   compactHeaderActions,
-  compactResizeIcons = false,
   drawer: requestedDrawer,
   stowed = false,
   className,
@@ -176,7 +174,7 @@ export function BottomSheet({
           title={`Collapse to ${DETENT_TEXT[lowest].toLowerCase()}`}
           onClick={() => drawer.onDetentChange(lowest)}
         >
-          {compactResizeIcons ? <Icon name="restore" size={20} /> : "Collapse"}
+          <Icon name="restore" size={20} />
         </Button>
       ) : null}
       {higher ? (
@@ -188,7 +186,7 @@ export function BottomSheet({
           title={`Expand to ${DETENT_TEXT[higher].toLowerCase()}`}
           onClick={() => drawer.onDetentChange(higher)}
         >
-          {compactResizeIcons ? <Icon name="maximize" size={20} /> : "Expand"}
+          <Icon name="maximize" size={20} />
         </Button>
       ) : null}
     </>
@@ -197,10 +195,14 @@ export function BottomSheet({
       className="bottom-sheet-resize-action"
       variant="link"
       type="button"
-      aria-label={isExpanded ? resizeLabels?.collapse : resizeLabels?.expand}
+      aria-label={
+        isExpanded
+          ? (resizeLabels?.collapse ?? "Collapse")
+          : (resizeLabels?.expand ?? "Expand")
+      }
       onClick={() => onExpandedChange(!isExpanded)}
     >
-      {isExpanded ? "Collapse" : "Expand"}
+      <Icon name={isExpanded ? "restore" : "maximize"} size={20} />
     </Button>
   ) : null;
 
