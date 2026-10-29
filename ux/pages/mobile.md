@@ -114,7 +114,7 @@ These sheets use a taller half height and have no drag handle.
 The compact inspector keeps its header and actions pinned outside one bounded
 body scroller. Feedback and fields scroll together below that header. Its half
 height leaves room for the timeline, with a minimum height for its controls on
-short screens. Drag its header or use **Expand** and **Collapse** to resize it.
+short screens. Drag its header or use the **Expand** and **Collapse** icon buttons to resize it.
 A short sheet, such as the Tools sheet on a phone held sideways at large text, keeps
 enough half height for a scrollable body. On the Prepare stage, resizing the window
 keeps the focused control in view.
