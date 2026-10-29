@@ -4,10 +4,9 @@ A small JSON most-recently-used list next to the other per-install config
 (``PODCAST_CONFIG_DIR``, default ``~/.config/podcast_mcp``). It holds only
 ``{path, opened_at}`` entries, newest first, deduplicated by resolved path and
 capped at :data:`RECENT_LIMIT`. The list is a convenience: a missing, unreadable
-or corrupt file reads as empty, an entry whose path the HTTP response cannot carry (a lone
-surrogate, from a non-UTF-8 folder name) is skipped when the list is read, before the cap, and
-left out of the file at the next write, and a failed write never fails the open or create that triggered it. Project state stays in the
-project file.
+or corrupt file reads as empty, an entry whose path the response cannot carry (a lone
+surrogate) is skipped on read, before the cap, and dropped at the next write, and a failed
+write never fails the open or create that triggered it. Project state stays in the project file.
 
 :func:`recent_project_cards` turns each entry into the card Home draws from a cheap
 read of the project file (JSON only, no model validation, no media). The parsed summary
