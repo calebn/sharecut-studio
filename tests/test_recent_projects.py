@@ -514,15 +514,27 @@ def test_an_unreachable_entry_on_top_does_not_evict_a_valid_one(local, tmp_path)
     assert [c["name"] for c in res.json()["projects"]] == [f"g{n}" for n in range(20)]
 
 
-def test_the_next_forget_or_record_drops_the_unreachable_entry_from_the_file(local, tmp_path):
+def test_a_save_that_rewrites_the_list_drops_the_unreachable_entry_from_the_file(local, tmp_path):
     a, b, c = (_make(tmp_path, n) for n in "abc")
     saved = _seed_unencodable(a, b)
+    before = saved.read_bytes()
+    assert [e.path for e in recent.read_recent()] == [str(a.resolve()), str(b.resolve())]
+    assert saved.read_bytes() == before
+    assert not recent.forget_recent(c)
+    assert saved.read_bytes() == before
     assert any("\ud800" in p for p in _saved_paths(saved))
     assert recent.forget_recent(b)
     assert _saved_paths(saved) == [str(a.resolve())]
     saved = _seed_unencodable(a)
     recent.record_recent(c)
     assert _saved_paths(saved) == [str(c.resolve()), str(a.resolve())]
+
+
+def test_record_recent_does_not_raise_on_a_lone_surrogate_path(tmp_path):
+    good = _make(tmp_path, "good")
+    recent.record_recent(good)
+    recent.record_recent("/x/\ud800/episode.project.json")
+    assert [e.path for e in recent.read_recent()] == [str(good.resolve())]
 
 
 def test_a_real_replacement_character_folder_is_kept(tmp_path):

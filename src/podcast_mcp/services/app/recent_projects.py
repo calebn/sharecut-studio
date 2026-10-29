@@ -4,7 +4,7 @@ A small JSON most-recently-used list next to the other per-install config
 (``PODCAST_CONFIG_DIR``, default ``~/.config/podcast_mcp``). It holds only
 ``{path, opened_at}`` entries, newest first, deduplicated by resolved path and
 capped at :data:`RECENT_LIMIT`. The list is a convenience: a missing, unreadable
-or corrupt file reads as empty, an entry whose path the response cannot carry (a lone
+or corrupt file reads as empty, an entry whose path JSON cannot carry (a lone
 surrogate) is skipped on read, before the cap, and dropped at the next write, and a failed
 write never fails the open or create that triggered it. Project state stays in the project file.
 
@@ -131,7 +131,7 @@ def record_recent(project_path: Path | str, *, now: datetime | None = None) -> N
         with _LOCK:
             kept = [e for e in read_recent() if e.path != resolved]
             _write([RecentEntry(resolved, stamp), *kept][:RECENT_LIMIT])
-    except OSError:
+    except (OSError, ValueError):
         log.warning("Cannot save the recent projects list at %s", recent_projects_path())
 
 
