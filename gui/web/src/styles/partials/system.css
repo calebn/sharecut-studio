@@ -3793,6 +3793,11 @@ button.sys-picker-option:focus-visible {
   cursor: pointer;
 }
 
+.sys-actions--dock .sys-actions-dock-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .sys-actions--dock .sys-actions-dock-btn:hover:not(:disabled) {
   background: var(--color-hover);
   color: var(--color-text-primary);

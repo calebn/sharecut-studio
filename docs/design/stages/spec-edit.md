@@ -492,7 +492,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
   - Drag anywhere on the header (not on a control) to reorder. The drag starts from the whole header; only its controls refuse it.
   - Widen the column by dragging its right edge to 280 px: rows then show the full fader with dB and a meter (desktop mixer view).
   - Phone: 56 px column, avatar only with level ring; tap selects the track (action bar: Mute, Solo, Hear, Inspect); mix controls in SHEET-PHONE-MIX.
-- **Keyboard:** M mute, S solo on the focused or targeted track; Shift+↑/↓ reorder.
+- **Keyboard:** M mute, Shift+S solo on the focused or targeted track; Shift+↑/↓ reorder.
 - **Shared elements used:** Person tile (avatar + live level), NEW: Scrub field (level bar), Icon language.
 - **Story to build:** `Edit/TrackHeader` stories `Default`, `Hover`, `Muted`, `Soloed`, `ImpliedMute`, `Rebuilding`, `Wide`, `Phone`, `Reordering`.
 
@@ -819,7 +819,7 @@ Each interaction uses the object selection model above. Every edit is one undo s
 ### INT-AUDITION · Audition mode
 
 - **Today:** CMP-TRANSPORT shots. Language: "Full mix / Edited stems / Original".
-- **Fate:** replace with Hear original (hold O or the A/B button) and A/B on any change.
+- **Fate:** replace with Hear original (hold A or the A/B button) and A/B on any change.
 - **Spec:** hold A with nothing selected: hear original at the playhead (not built yet; W2); release returns. A and B on a selected suggestion or seam: hear before / after with 1.5 s pre-roll.
 - **Story to build:** `Shell/PlayerBar` story `HearOriginalHeld`.
 

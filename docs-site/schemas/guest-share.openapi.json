@@ -8355,8 +8355,10 @@
             "anyOf": [
               {
                 "items": {
+                  "minimum": 0.0,
                   "type": "number"
                 },
+                "maxItems": 16,
                 "type": "array"
               },
               {
