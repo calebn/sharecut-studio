@@ -5,11 +5,13 @@ import subprocess
 import sys
 import textwrap
 import time
+import types
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from podcast_mcp.engines import decoded_source
 from podcast_mcp.engines.decoded_source import decoded_sources
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.ungated_audio import load_mono_full
@@ -116,3 +118,25 @@ def test_a_new_process_sweeps_spools_whose_owner_is_gone(tmp_path: Path) -> None
     assert not old_unowned.exists()
     assert live.exists() or os.name == "nt"
     assert fresh_unowned.exists()
+
+
+def test_a_sweep_on_windows_asks_whether_the_owner_is_alive_not_how_old_the_directory_is(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    gone = tmp_path / f"sharecut-decoded-{dead.pid}-abc"
+    idle = tmp_path / "sharecut-decoded-4242-abc"
+    for directory in (gone, idle):
+        directory.mkdir()
+        (directory / "0-1.f32").write_bytes(b"\0" * 64)
+    day_ago = time.time() - 86400
+    os.utime(idle, (day_ago, day_ago))
+    monkeypatch.setattr(decoded_source.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(decoded_source, "pid_is_alive", lambda pid: pid == 4242)
+    monkeypatch.setattr(decoded_source, "os", types.SimpleNamespace(**{**vars(os), "name": "nt"}))
+
+    decoded_source._sweep_orphans()
+
+    assert not gone.exists()
+    assert idle.exists()

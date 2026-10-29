@@ -78,10 +78,7 @@ def _sweep_orphans() -> None:
             continue
         if owner:
             pid = int(owner[1])
-            orphaned = pid != os.getpid() and (
-                (os.name != "nt" and not pid_is_alive(pid))
-                or (os.name == "nt" and age > _ORPHAN_AGE_SEC)
-            )
+            orphaned = pid != os.getpid() and not pid_is_alive(pid)
         else:
             orphaned = age > _ORPHAN_AGE_SEC
         if orphaned:
