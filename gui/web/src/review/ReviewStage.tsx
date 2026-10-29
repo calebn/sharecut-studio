@@ -304,7 +304,6 @@ export function ReviewStage({
               });
             const word = body.card.unsure?.id;
             if (word) void onDecide({ ids: [word], result: "applied", text });
-            onLooksRight(selected.id);
             onSelect(selected.id);
           },
           onLooksRight: () => !guest && onLooksRight(selected.id),
