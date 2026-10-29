@@ -531,6 +531,33 @@ describe("Review host decisions", () => {
     expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
   });
 
+  it("shows Cutting in place of the group while Cut all runs, then one Undo for the group", async () => {
+    const release = holdNextPost();
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(await screen.findByText("Cutting 3…")).toBeVisible();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Cut all/ })).toBeNull();
+    await act(async () =>
+      release(
+        answer({ type: "ApproveEdits", payload: { ids: ["f1", "f2", "f3"] } }),
+      ),
+    );
+    await undoButton();
+    expect(screen.queryByText("Cutting 3…")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Undo" })).toHaveLength(1);
+  });
+
+  it("clears Cutting when the group request fails", async () => {
+    server.approveFails = true;
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
+    await waitFor(() => expect(toast()).toMatch(/Broke/));
+    expect(screen.queryByText("Cutting 3…")).toBeNull();
+    expect(screen.getByRole("button", { name: "Cut all 3" })).toBeEnabled();
+  });
+
   it("offers Cut all for real-shape harsh fillers, keeps join-risk ones out, and sends skip_unsure", async () => {
     const real = {
       review_required: true,

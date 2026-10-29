@@ -134,6 +134,12 @@ export const BulkRunning: Story = {
   args: { bulkRunning: { kind: "filler", total: 11, done: 4 } },
 };
 
+export const BulkRunningIndeterminate: Story = {
+  args: {
+    bulkRunning: { kind: "filler", total: 11, startedAtSec: Date.now() / 1000 },
+  },
+};
+
 export const Processing: Story = {
   args: { job: { title: "Finding more suggestions", progress: 0.4 } },
 };

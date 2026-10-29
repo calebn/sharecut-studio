@@ -16,6 +16,7 @@ import { stepUndecided } from "./advance";
 import { ContextStrip } from "./ContextStrip";
 import {
   type BulkProgress,
+  type QueueJob,
   type ReviewContent,
   ReviewQueue,
 } from "./ReviewQueue";
@@ -59,12 +60,13 @@ export type ReviewStageProps = {
   guest?: boolean;
   layout?: "desktop" | "phone";
   state?: "ready" | "loading" | "error";
-  job?: { title: string; progress: number };
+  job?: QueueJob;
   bulkRunning?: BulkProgress;
   onOpenInEdit?: (id: string) => void;
   onHear?: (id: string, side: AuditionSide) => void;
   onComment?: (id: string) => void;
   onFindMore?: () => void;
+  findMoreDisabled?: string;
   onHandOff?: () => void;
   onRetry?: () => void;
 };
@@ -99,6 +101,7 @@ export function ReviewStage({
   onHear,
   onComment,
   onFindMore,
+  findMoreDisabled,
   onHandOff,
   onRetry,
 }: ReviewStageProps) {
@@ -336,6 +339,7 @@ export function ReviewStage({
         setSheetOpen(false);
       }}
       onFindMore={onFindMore}
+      findMoreDisabled={findMoreDisabled}
       onRetry={onRetry}
     />
   );

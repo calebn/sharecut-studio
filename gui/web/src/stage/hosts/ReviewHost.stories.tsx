@@ -7,6 +7,7 @@ import {
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
 import { episode } from "../../test/episodeFixture";
+import { pipelineJobSnapshot } from "../../test/fixtures";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import { StageFrame } from "../frame/StageFrame";
 import { StageHost, type StageHostProps } from "./StageHost";
@@ -74,6 +75,37 @@ const queuePlay: Story["play"] = async ({ canvasElement }) => {
 export const Queue: Story = { play: queuePlay };
 
 export const QueuePhone: Story = { ...phone, play: queuePlay };
+
+const running = (state: object) => ({
+  episode: { state: { stage: "review", ...state } },
+});
+
+export const FindMore: Story = {
+  parameters: running({
+    pipelineJob: pipelineJobSnapshot({ id: "find", current: 2, total: 5 }),
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("Finding suggestions")).toBeVisible();
+    await expect(canvas.getByText("40%")).toBeVisible();
+  },
+};
+
+export const FindMoreBusy: Story = {
+  parameters: running({
+    pipelineJob: pipelineJobSnapshot({ id: "bounce", kind: "export" }),
+  }),
+  play: async ({ canvasElement }) => {
+    const find = await within(canvasElement).findByRole("button", {
+      name: "Find more",
+    });
+    await expect(find).toBeDisabled();
+    await expect(find).toHaveAttribute(
+      "title",
+      "Wait for the current action to finish.",
+    );
+  },
+};
 
 const unsureWordsPlay: Story["play"] = async ({ canvasElement }) => {
   const group = await within(canvasElement).findByRole("region", {

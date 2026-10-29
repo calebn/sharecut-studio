@@ -13,6 +13,7 @@ import { runPointerCommand } from "../../commands/pointer";
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../../document/cursor";
 import { REFINE_GATE_GUI_MESSAGE } from "../../inspector/TranscriptRefineRecovery";
+import type { BulkProgress } from "../../review/ReviewQueue";
 import type { ReviewIntent } from "../../review/ReviewStage";
 import {
   CHECK_ID,
@@ -87,6 +88,7 @@ export function useReviewQueue() {
     shell: s.shellBreakpoint,
   }));
   const [status, setStatus] = useState<TranscriptCheckStatus | null>(null);
+  const [bulkRunning, setBulkRunning] = useState<BulkProgress | null>(null);
   const [held, setHeld] = useState<ReadonlyMap<string, Held>>(new Map());
   const settled = useRef(
     new Map<string, { head: HistoryEntryId; seq: number }>(),
@@ -309,6 +311,15 @@ export function useReviewQueue() {
     const complete =
       useDawStore.getState().project?.meta?.hydration?.transcript_words !==
       false;
+    const group = intent.group
+      ? session.props.items.find((i) => i.id === intent.ids[0])
+      : undefined;
+    if (group)
+      setBulkRunning({
+        kind: group.kind,
+        total: ids.length,
+        startedAtSec: Date.now() / 1000,
+      });
     const said =
       target && changed ? `Fixed “${target.text}” to “${text}”` : plan.message;
     try {
@@ -422,6 +433,8 @@ export function useReviewQueue() {
           },
         );
       return false;
+    } finally {
+      if (group) setBulkRunning(null);
     }
   });
 
@@ -486,6 +499,7 @@ export function useReviewQueue() {
       ref: stageRef,
       duration: project?.timeline_duration_sec ?? 0,
       layout: shell === "phone" ? ("phone" as const) : ("desktop" as const),
+      bulkRunning: bulkRunning ?? undefined,
       onDecide,
       onHear,
       onOpenInEdit,

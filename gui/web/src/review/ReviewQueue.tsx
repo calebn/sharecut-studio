@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from "react";
+import { useNowSec } from "../hooks/useNowSec";
 import type { DecisionCardProps } from "../system/DecisionCard";
 import { type DecisionKind, KIND_META } from "../system/decisionKinds";
 import { QueueRow, type QueueRowProps } from "../system/QueueRow";
@@ -10,6 +11,8 @@ import { VerbButton } from "../system/VerbButton";
 import { hintOf, iconOf, verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
 import { Button, EmptyState, SegmentedControl, ToggleButton } from "../ui";
+import { disabledAttrs } from "../ui/disabledReason";
+import { formatTimeShort } from "../utils/time";
 import {
   decidedItems,
   filterCounts,
@@ -49,15 +52,23 @@ export type ReviewContent = {
   };
 };
 
-export type BulkProgress = { kind: DecisionKind; total: number; done: number };
+/** `done` is absent when the host reports no count: the row then says how long it has run. */
+export type BulkProgress = {
+  kind: DecisionKind;
+  total: number;
+  done?: number;
+  startedAtSec?: number;
+};
+
+export type QueueJob = { title: string; progress?: number; error?: string };
 
 export type ReviewQueueProps = {
   items: readonly ReviewItem[];
   content: (item: ReviewItem) => ReviewContent;
   selectedId: string | null;
   filter: ReviewFilter;
-  /** The Prepare job still finding suggestions. */
-  job?: { title: string; progress: number };
+  /** The pipeline job finding suggestions, or the error of the one that failed. */
+  job?: QueueJob;
   bulkRunning?: BulkProgress;
   /** A guest reads the queue: no bulk verbs, no Find more, no swipes. */
   guest?: boolean;
@@ -68,6 +79,8 @@ export type ReviewQueueProps = {
   onKeep?: (id: string) => void;
   onBulk?: (group: ReviewGroup) => void;
   onFindMore?: () => void;
+  /** Why Find more cannot start now. */
+  findMoreDisabled?: string;
   onRetry?: () => void;
 };
 
@@ -100,6 +113,32 @@ const GERUND: Partial<Record<VerbId, string>> = {
   lower: "Lowering",
 };
 
+/** Seconds a bulk cut stays quiet about elapsed time; a fast one never shows a clock. */
+const ELAPSED_AFTER_SEC = 2;
+
+/** Shown even after the group has left the queue, because a decision hides it at once. */
+function BulkRow({ running }: { running: BulkProgress }) {
+  const { done, startedAtSec, total } = running;
+  const { verb: id } = KIND_META[running.kind];
+  const nowSec = useNowSec(startedAtSec !== undefined);
+  const elapsed = Math.max(0, nowSec - (startedAtSec ?? nowSec));
+  return (
+    <StatusRow
+      state="running"
+      density="inline"
+      title={`${GERUND[id] ?? verbOf(id).label} ${total}${done === undefined ? "…" : ""}`}
+      detail={
+        done !== undefined
+          ? `${done} done`
+          : elapsed >= ELAPSED_AFTER_SEC
+            ? `${formatTimeShort(elapsed)} so far`
+            : undefined
+      }
+      progress={done === undefined ? undefined : done / total}
+    />
+  );
+}
+
 function GroupHeader({
   group,
   running,
@@ -112,18 +151,7 @@ function GroupHeader({
   onBulk?: (group: ReviewGroup) => void;
 }) {
   const meta = KIND_META[group.kind];
-  if (running) {
-    const verb = verbOf(meta.verb);
-    return (
-      <StatusRow
-        state="running"
-        density="inline"
-        title={`${GERUND[meta.verb] ?? verb.label} ${running.total}`}
-        detail={`${running.done} done`}
-        progress={running.done / running.total}
-      />
-    );
-  }
+  if (running) return <BulkRow running={running} />;
   const bulk = guest ? null : group.bulk;
   const verb = bulk ? verbOf(bulk.verb) : null;
   const heldId = `rv-held-${group.kind}`;
@@ -179,6 +207,7 @@ export function ReviewQueue({
   onKeep,
   onBulk,
   onFindMore,
+  findMoreDisabled,
   onRetry,
 }: ReviewQueueProps) {
   const [showDecided, setShowDecided] = useState(false);
@@ -230,7 +259,12 @@ export function ReviewQueue({
           ))}
         </SegmentedControl>
         {guest ? null : (
-          <VerbButton verb="propose" label="Find more" onClick={onFindMore} />
+          <VerbButton
+            verb="propose"
+            label="Find more"
+            onClick={onFindMore}
+            {...disabledAttrs(findMoreDisabled)}
+          />
         )}
       </div>
     </header>
@@ -239,16 +273,37 @@ export function ReviewQueue({
   return (
     <section className="rv-queue" aria-label="Review queue">
       {header}
-      {job ? (
+      {job?.error ? (
+        <StatusRow
+          state="failed"
+          density="alert"
+          title="Could not find more suggestions"
+          details={job.error}
+          action={
+            onFindMore && !findMoreDisabled
+              ? { label: "Try again", onAction: onFindMore }
+              : undefined
+          }
+        />
+      ) : job ? (
         <StatusRow
           state="running"
           density="alert"
           title={job.title}
-          detail={`${Math.round(job.progress * 100)}%`}
+          detail={
+            job.progress === undefined
+              ? undefined
+              : `${Math.round(job.progress * 100)}%`
+          }
           progress={job.progress}
         />
       ) : null}
-      {groups.length === 0 ? (
+      {bulkRunning && !groups.some((g) => g.kind === bulkRunning.kind) ? (
+        <section className="rv-group" aria-label="Cutting" aria-busy>
+          <BulkRow running={bulkRunning} />
+        </section>
+      ) : null}
+      {groups.length === 0 && !bulkRunning ? (
         <EmptyState as="div" role="status">
           {filter === "all" ? "Nothing to decide" : "Nothing here"}
         </EmptyState>
