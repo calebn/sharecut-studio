@@ -55,6 +55,7 @@ from podcast_mcp.edits.join_continuity import (
 )
 from podcast_mcp.edits.range_edits import RangeAction, RangeEditResult
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
+from podcast_mcp.edits.tighten.propose import with_audio_check as with_audio_check
 from podcast_mcp.edits.timeline_ops import (
     plan_ripple_delete,
     plan_ripple_delete_text,
@@ -626,6 +627,11 @@ class EditService(CutMutatingService):
     def propose_tighten(
         self, edit_mode: str | None = None, intensity: str | None = None
     ) -> TightenProposal:
+        return self._with_audio_check(self.propose_tighten_unchecked(edit_mode, intensity))
+
+    def propose_tighten_unchecked(
+        self, edit_mode: str | None = None, intensity: str | None = None
+    ) -> TightenProposal:
         self._require_refine_clear()
 
         def mutate(p) -> TightenProposal:
@@ -633,18 +639,12 @@ class EditService(CutMutatingService):
                 p, self.ws.effective_config(), edit_mode=edit_mode, intensity=intensity
             )
 
-        proposal = self.ws.mutate("before propose edits", "after propose edits", mutate)
-        return self._with_audio_check(proposal)
+        return self.ws.mutate("before propose edits", "after propose edits", mutate)
 
-    def _with_audio_check(self, proposal: TightenProposal) -> TightenProposal:
-        """Run Approve all on a scratch copy and record which proposals it would hold.
-
-        A proposal the approval then refuses is not offered as ready: each carries its reason.
-        Nothing is saved. When the audio cannot be read the proposal is returned unchecked.
-        """
-        ids = [d.id for d in proposal.decisions]
+    def check_proposed(self, ids: list[str]) -> tuple[dict[str, str], bool]:
+        """Which of ``ids`` Approve all would hold, found on a scratch copy; ``({}, False)`` if unread."""
         if not ids:
-            return proposal
+            return {}, False
         reasons: dict[str, str] = {}
         try:
             remaining = ids
@@ -652,18 +652,20 @@ class EditService(CutMutatingService):
             # are checked again without it until a pass finds nothing more.
             while remaining:
                 held, asked = self.held_by_checks(remaining)
-                found = {h.edit_id: h.reason for h in held}
-                for group in asked:
-                    for edit_id in group.edit_ids:
-                        found.setdefault(edit_id, group.confirmation.message)
+                found = {i: g.confirmation.message for g in asked for i in g.edit_ids}
+                found |= {h.edit_id: h.reason for h in held}
                 if not found:
                     break
                 reasons.update(found)
                 remaining = [i for i in remaining if i not in reasons]
         except Exception:  # advisory: the proposals are saved, the check must not fail the call
             log.warning("propose_edits: could not run the approval check", exc_info=True)
-            return proposal
-        return replace(proposal, held=reasons, checked=True)
+            return {}, False
+        return reasons, True
+
+    def _with_audio_check(self, proposal: TightenProposal) -> TightenProposal:
+        reasons, checked = self.check_proposed([d.id for d in proposal.decisions])
+        return replace(proposal, held=reasons, checked=True) if checked else proposal
 
     def apply_auto(self) -> int:
         with self.ws.transaction() as project:
