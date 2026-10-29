@@ -379,6 +379,39 @@ export const LoadError: Story = {
   },
 };
 
+const compactFrame = [
+  (Story: () => React.ReactElement) => (
+    <div style={{ inlineSize: "20rem", maxInlineSize: "100%" }}>
+      <Story />
+    </div>
+  ),
+];
+
+export const CompactInEdit: Story = {
+  args: { layout: "compact" },
+  decorators: compactFrame,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: /Open in/ })).toBeNull();
+    await expect(canvas.getByRole("group", { name: "Audition" })).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Cut" }));
+    await expect(args.onVerb).toHaveBeenCalledOnce();
+    await userEvent.click(canvas.getByRole("button", { name: "Keep" }));
+    await expect(args.onKeep).toHaveBeenCalledOnce();
+  },
+};
+
+export const CompactComment: Story = {
+  args: { ...Comment.args, layout: "compact" },
+  decorators: compactFrame,
+  play: Comment.play,
+};
+
+export const CompactGuest: Story = {
+  args: { layout: "compact", readOnly: true },
+  decorators: compactFrame,
+};
+
 const phoneFrame = (width: string) => [
   (Story: () => React.ReactElement) => (
     <div

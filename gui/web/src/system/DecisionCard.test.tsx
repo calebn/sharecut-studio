@@ -483,4 +483,41 @@ describe("DecisionCard verb", () => {
     render(<DecisionCard {...base()} onKeep={undefined} />);
     expect(screen.queryByRole("button", { name: /^Keep/ })).toBeNull();
   });
+
+  it("compact drops Open in Edit, keeps A/B in the body and does not swipe", () => {
+    const props = base();
+    const { container } = render(<DecisionCard {...props} layout="compact" />);
+    expect(container.querySelector(".sys-decision")).toHaveAttribute(
+      "data-layout",
+      "compact",
+    );
+    const bar = screen.getByRole("group", { name: "Actions" });
+    expect(
+      within(bar)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["Keep", "Later", "Cut"]);
+    expect(within(bar).queryByRole("group", { name: "Audition" })).toBeNull();
+    expect(screen.getByRole("group", { name: "Audition" })).toBeInTheDocument();
+    swipe(container.querySelector(".sys-decision-body") as Element, 100, 0);
+    expect(props.onVerb).not.toHaveBeenCalled();
+  });
+
+  it("compact still holds the verb behind an unsure word and lets a guest comment", () => {
+    const { rerender } = render(
+      <DecisionCard
+        {...base()}
+        layout="compact"
+        unsure={{ word: "uncl", guess: "uncle", onFix: vi.fn() }}
+      />,
+    );
+    expect(
+      screen
+        .getByRole("button", { name: "Cut" })
+        .getAttribute("aria-describedby"),
+    ).toBeTruthy();
+    rerender(<DecisionCard {...base()} layout="compact" readOnly />);
+    expect(screen.getByRole("button", { name: "Comment" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
+  });
 });

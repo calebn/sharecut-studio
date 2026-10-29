@@ -208,7 +208,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Grip: a 36 by 5 px bar in a 44 by 44 px hit area that reaches 36 px above the sheet and 8 px into it, so it never covers the dock's 48 px verbs. A tap toggles half and dock (full steps down to half). A drag (3 px slop for a mouse and 8 px for a finger or pen, so a tap that drifts still toggles; along Y, `touch-action: none`) makes the sheet follow the pointer from the height it had, between nothing and full, and on release it settles on the detent nearest to where a flick would carry it 120 ms on (a finger that rested 80 ms before lifting carries nothing). Escape, a blur, a cancel, a lost capture or an unmount puts the sheet back and reports nothing; a second pointer is ignored. The grip is a vertical slider for the keyboard: Up and Down step, Home and End go to the ends, Enter and Space toggle, and Escape closes.
 - Motion: the phone height settles over `--motion-panel` and a section's chevron turns over `--motion-hover`; reduced motion turns both off. Forced colors draw the grip in `ButtonText`.
 - Wiring prerequisite: the keys it handles (Escape from a control, the grip's keys) are stopped before the window keymap, so the listener must stay bubble-phase, as for 17a. A host mounts the card in a positioned box and the phone sheet in the box above the Player bar. Focus stays host-owned: on Inspect or I (W3) the host moves focus into the sheet and on close returns it to the opener. A real dock slotted into `dock` must leave Inspect out of its items, or its own grip stacks on the sheet's.
-- Not built yet: wiring and removing the legacy inspector (W3), the compact Decision card layout (S8b), a word's waveform with draggable start and end handles, and the content for each object kind (the stories' bodies are demos).
+- Not built yet: wiring and removing the legacy inspector (W3), a word's waveform with draggable start and end handles, and the content for each object kind (the stories' bodies are demos).
 - Used: SHEET-INSPECTOR, INS-CLIP, INS-TRACK, INS-RANGE, INS-WORD, CMP-WORDBAR, DLG-PRECISION (the Seam).
 - Replaces: the Inspector sheet's frame, grip, Expand and Collapse (edit).
 - Story: `System/InspectorSheet`: DesktopCard, TabletCard, PhoneDock, PhoneHalf, PhoneFull, LongContent, WordTiming, Seam, Range, Closing.
@@ -376,7 +376,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Placements: Review center (max 760 px); Edit Inspect on a suggestion or comment (anchored Sheet, 320 px compact); phone Review full screen, with swipes.
 - Used: SCR-REVIEW, INS-PENDING, INS-COMMENT, CMP-COMMENT-CARD, PNL-REVIEW-QUEUE-REFINE-GATE, FLOW-REC-LATER pickups.
 - Replaces: Decision card and comment thread (rdp), comment popover and suggestion inspector (edit).
-- Story: `System/DecisionCard`: Filler, Pause, Sound, Pickup, Comment, Check, Adjusting, CompactInEdit, Phone, PhoneSwipe.
+- Story: `System/DecisionCard`: Filler, Pause, Sound, Pickup, Comment, Check, Adjusting, CompactInEdit, Phone, PhoneSwipe. Built (S8b, #2294): `layout="compact"` (CompactInEdit, CompactComment, CompactGuest); not yet placed in an Edit Sheet.
 
 **25. Composer**
 - One field with a leading time chip, which pins when typing starts or takes the selection. Tap the chip to re-anchor, or clear it to make a whole-episode note.

@@ -76,8 +76,8 @@ export type DecisionCardProps = {
   readOnly?: boolean;
   /** Editor guests and the owner. Defaults to everyone but a read-only guest. */
   canEdit?: boolean;
-  /** `phone` fills the screen, swipes, and moves the Action bar into a dock. */
-  layout?: "card" | "phone";
+  /** `phone` fills the screen, swipes, and moves the Action bar into a dock. `compact` is the 320 px card in an Edit Sheet: no Open in Edit, a shorter waveform. */
+  layout?: "card" | "phone" | "compact";
   state?: DecisionCardState;
   emptyAction?: { label: string; onClick: () => void };
   onRetry?: () => void;
@@ -224,6 +224,7 @@ export function DecisionCard(props: DecisionCardProps) {
   const verbNoteId = useId();
   const meta = KIND_META[kind];
   const phone = layout === "phone";
+  const compact = layout === "compact";
   const holdVerb =
     unsure !== undefined && kind !== "unsure-word" && !unsure.resolved;
   const verbReason = holdVerb
@@ -401,7 +402,7 @@ export function DecisionCard(props: DecisionCardProps) {
         verbNoteId={verbNoteId}
         verbDisabledReason={verbReason}
         readOnly={readOnly}
-        canEdit={canEdit}
+        canEdit={compact ? false : canEdit}
         promptOpen={prompt !== undefined}
         center={abInBar ? ab : undefined}
         onKeep={onKeep}
