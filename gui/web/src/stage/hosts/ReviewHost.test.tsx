@@ -210,7 +210,7 @@ const projectOf = () =>
 const statusBody = () => ({
   status: server.status,
   clear: server.status !== "pending",
-  fingerprint: "fp1",
+  fingerprint: `fp:${server.words.map((w) => w.text)}`,
   notes: server.notes,
   hint: "Run the CLI refine.",
   low_confidence_words: 3,
@@ -308,6 +308,8 @@ const fetchStub = vi.fn(
     if (url.includes("/refine/done")) {
       order.push("done");
       marks.push(JSON.parse(init?.body as string));
+      if (marks.at(-1)?.expected_fingerprint !== statusBody().fingerprint)
+        server.markChanged = true;
       if (server.markChanged)
         return new Response(JSON.stringify({ detail: "changed" }), {
           status: 409,
@@ -831,6 +833,22 @@ describe("Review host unsure words", () => {
     );
   });
 
+  it("closes the check with the fingerprint of the text after a Fix on the last word", async () => {
+    setup();
+    await pick(/uncle/);
+    for (let i = 0; i < 2; i++)
+      act(() => {
+        press("Enter");
+      });
+    await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(2));
+    await fix("orc2");
+    await waitFor(() => expect(order).toContain("done"));
+    expect(marks[0].expected_fingerprint).toBe("fp:uncle,gnu,orc2");
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Checks" })).toBeNull(),
+    );
+  });
+
   it("keeps the check, with an error toast, when the closing mark fails", async () => {
     server.markFails = true;
     setup();
@@ -853,7 +871,7 @@ describe("Review host unsure words", () => {
         press("Enter");
       });
     await waitFor(() => expect(order).toContain("done"));
-    expect(marks[0].expected_fingerprint).toBe("fp1");
+    expect(marks[0].expected_fingerprint).toBe("fp:uncle,gnu,orc");
     await waitFor(() =>
       expect(toast()).toBe(
         "The transcript changed after you reviewed it. Review it again, then mark it checked.",
@@ -896,7 +914,7 @@ describe("Review host unsure words", () => {
     });
     expect(toast()).toBe("Fixed “uncle” to “oncle”");
     await waitFor(() => expect(order).toContain("done"));
-    expect(marks[0].expected_fingerprint).toBe("fp1");
+    expect(marks[0].expected_fingerprint).toBe("fp:oncle,gnu,orc");
     expect(server.waived).toEqual([]);
   });
 
