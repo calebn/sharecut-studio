@@ -190,7 +190,7 @@ export class KeeperSession {
     });
   }
 
-  /** A tab that died within ms of opening leaves a header-only WAV that was never reported. */
+  /** A tab that died within ms of opening leaves a header-only WAV (with or without its pending meta) that was never reported. */
   private async dropEmptyPending(
     sessionId: string,
     takeIndex: number,
@@ -209,7 +209,7 @@ export class KeeperSession {
         "segment scan",
       ),
     );
-    if (!meta || meta.complete || meta.samplesWritten !== 0) {
+    if (meta && (meta.complete || meta.samplesWritten !== 0)) {
       return false;
     }
     const wav = await this.bounded(
@@ -224,10 +224,11 @@ export class KeeperSession {
     if (size > WAV_HEADER_BYTES) {
       return false;
     }
-    return (
-      (await removeBestEffort(this.sink, keeperMetaPath(wavPath))) &&
-      (await removeBestEffort(this.sink, wavPath))
-    );
+    if (!(await removeBestEffort(this.sink, wavPath))) {
+      return false;
+    }
+    await removeBestEffort(this.sink, keeperMetaPath(wavPath));
+    return true;
   }
 
   async apply(
@@ -520,11 +521,12 @@ export class KeeperSession {
       return;
     }
     this.clearOpenSegment();
-    const removed = [
-      await removeBestEffort(this.sink, keeperMetaPath(wavPath)),
-      await removeBestEffort(this.sink, wavPath),
-    ];
-    if (removed.every(Boolean)) {
+    // The WAV goes first: the index scan counts WAVs, so a failed removal must
+    // leave the meta that lets a reload recognise and drop the empty pair.
+    if (
+      (await removeBestEffort(this.sink, wavPath)) &&
+      (await removeBestEffort(this.sink, keeperMetaPath(wavPath)))
+    ) {
       this.cursor = { ...this.cursor, nextSegmentIndex: open.segmentIndex };
     }
   }
