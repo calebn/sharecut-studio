@@ -9,6 +9,7 @@ import {
   formatDuration,
   formatEdited,
   importingLine,
+  importStoppedLine,
   setupOf,
   toolsMissing,
   untitledEpisodeName,
@@ -245,5 +246,21 @@ describe("bundleToGet", () => {
       ]),
     ).toEqual(["whisper", "fix"]);
     expect(bundleToGet(null)).toEqual([]);
+  });
+});
+
+describe("importStoppedLine", () => {
+  it("names the folder of a Windows path and keeps a reason's own full stop", () => {
+    expect(
+      importStoppedLine({
+        reason: "Upload failed",
+        added: 1,
+        total: 2,
+        name: "Rosa",
+        projectPath: "C:\\ShareCut\\Rosa\\episode.project.json",
+      }),
+    ).toBe(
+      'Upload failed. 1 of 2 files were added to "Rosa". Open it from Recent to add the rest. Its folder is C:\\ShareCut\\Rosa.',
+    );
   });
 });

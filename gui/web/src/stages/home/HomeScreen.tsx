@@ -30,6 +30,7 @@ import {
   cardsOf,
   episodeNameFromFiles,
   importingLine,
+  importStoppedLine,
   setupOf,
   toolsMissing,
   untitledEpisodeName,
@@ -244,12 +245,20 @@ export function HomeScreen() {
         async () => {
           if (files.length === 0) return undefined;
           const created = await createEpisodeProject("", name);
-          try {
-            await ingestIntoNewProject(created.project_path, files);
-          } catch (error: unknown) {
+          const ingested = await ingestIntoNewProject(
+            created.project_path,
+            files,
+          );
+          if (ingested.failed !== undefined) {
             setReload((n) => n + 1);
             setNotice(
-              `${errorMessage(error)} The episode was started: open it from Recent.`,
+              importStoppedLine({
+                reason: errorMessage(ingested.failed),
+                added: ingested.added,
+                total: files.length,
+                name: created.name,
+                projectPath: created.project_path,
+              }),
             );
             return undefined;
           }

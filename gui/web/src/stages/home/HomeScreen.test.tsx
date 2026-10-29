@@ -394,7 +394,7 @@ describe("HomeScreen", () => {
       const file = new File(["x"], "Rosa.wav", { type: "audio/wav" });
       pickFiles.mockResolvedValue([file]);
       create.mockResolvedValue({ project_path: EP, name: "Rosa" });
-      ingestInto.mockResolvedValue(undefined);
+      ingestInto.mockResolvedValue({ added: 1 });
       render(<HomeScreen />);
       await user.click(
         await screen.findByRole("button", { name: /^Import audio/ }),
@@ -417,20 +417,47 @@ describe("HomeScreen", () => {
       expect(create).not.toHaveBeenCalled();
     });
 
-    it("a failed upload stays on Home and points to Recent", async () => {
+    it("a failed first upload says nothing was added and where the folder is", async () => {
       const user = userEvent.setup();
       pickFiles.mockResolvedValue([new File(["x"], "a.wav")]);
       create.mockResolvedValue({ project_path: EP, name: "a" });
-      ingestInto.mockRejectedValue(new Error("Disk full."));
+      ingestInto.mockResolvedValue({
+        added: 0,
+        failed: new Error("Disk full."),
+      });
       render(<HomeScreen />);
       await user.click(
         await screen.findByRole("button", { name: /^Import audio/ }),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Disk full. The episode was started: open it from Recent.",
+        `Disk full. Nothing was added. The new episode is empty and still in Recent. Its folder is ${EP.replace(/\/[^/]*$/, "")}.`,
       );
+      expect(forget).not.toHaveBeenCalled();
       expect(assign).not.toHaveBeenCalled();
       expect(takeAutoRun(EP)).toBe(false);
+    });
+
+    it("a later failed upload says how many files were added", async () => {
+      const user = userEvent.setup();
+      pickFiles.mockResolvedValue([
+        new File(["x"], "a.wav"),
+        new File(["y"], "b.wav"),
+        new File(["z"], "c.wav"),
+      ]);
+      create.mockResolvedValue({ project_path: EP, name: "Episode, 29 Oct" });
+      ingestInto.mockResolvedValue({
+        added: 2,
+        failed: new Error("Disk full."),
+      });
+      render(<HomeScreen />);
+      await user.click(
+        await screen.findByRole("button", { name: /^Import audio/ }),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        `Disk full. 2 of 3 files were added to "Episode, 29 Oct". Open it from Recent to add the rest. Its folder is ${EP.replace(/\/[^/]*$/, "")}.`,
+      );
+      expect(forget).not.toHaveBeenCalled();
+      expect(assign).not.toHaveBeenCalled();
     });
 
     it("says Starting an episode… while Record creates it", async () => {
