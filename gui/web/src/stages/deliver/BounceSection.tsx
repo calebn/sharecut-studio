@@ -46,6 +46,7 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
     onFocused,
   } = options;
   const button = useRef<HTMLButtonElement>(null);
+  const gatePanel = useRef<HTMLDivElement>(null);
   const asking = gate?.prompt != null;
   const state = asking ? IDLE : run;
   const running = state.phase === "running";
@@ -56,6 +57,14 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   );
   const unavailable = blockedReason ?? blocker;
   const reason = useDisabledReasonNote(running ? undefined : unavailable);
+
+  const askPhase = gate?.prompt?.phase ?? null;
+  useEffect(() => {
+    if (!askPhase) return;
+    const first = gatePanel.current?.querySelector("button");
+    first?.scrollIntoView?.({ block: "center" });
+    first?.focus();
+  }, [askPhase]);
 
   useEffect(() => {
     if (!focusRequested) return;
@@ -84,7 +93,11 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
         A quick mix of the project, written to export/bounces/ without
         mastering.
       </p>
-      {gate?.prompt ? <ModelGatePanel gate={gate} /> : null}
+      {gate?.prompt ? (
+        <div ref={gatePanel}>
+          <ModelGatePanel gate={gate} />
+        </div>
+      ) : null}
       {asking ? null : (
         <>
           {fixedRange !== undefined ? (
