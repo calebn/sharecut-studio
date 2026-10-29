@@ -887,22 +887,29 @@ export const LongGestures: Story = {
   args: { turns: longScript(60) },
 };
 
-/** Axe walks 3000 nodes once per rule (about 1 s each for these), so the per-node rules the 24-word stories already pass are off here to keep the jsdom run inside its 5 s. */
-const perNodeRules = [
+/**
+ * Axe rules the jsdom run (allStories.test.tsx) turns off for HugeGestures. The story is one 1500-word turn, about 3000 nodes under
+ * one parent, and each of these four costs 4.5 to 5.6 s on its own there (unloaded, node 22, 4 cores), against a 5 s limit for the
+ * whole story. Their cost grows faster than the word count: button-name takes 1.0 s at 500 words, 1.9 s at 1000 and 5.6 s at 1500.
+ * It is the single long turn, not the word count, that does it: for LongGestures (60 turns of 24 words, 1440 words) axe takes 1.3 s
+ * with every rule on, and the whole story 3 s under load in the full run, so it keeps them all. Turning off three of the four still leaves 4 to 4.7 s, so all four go; the whole run then takes 0.6 s unloaded and
+ * 0.8 s under three busy loops. Every other rule stays on. Playwright (e2e/axe.ts, wcag2a and wcag2aa) still runs button-name and
+ * nested-interactive on this story; region and tabindex are best practices that only this jsdom run checks.
+ */
+const slowSharedCostRules = [
   "button-name",
   "nested-interactive",
   "region",
   "tabindex",
-  "target-size",
 ];
 
 export const HugeGestures: Story = {
   ...gest,
-  args: { turns: hugeTurn(1100) },
+  args: { turns: hugeTurn(1500) },
   parameters: {
     a11y: {
       config: {
-        rules: perNodeRules.map((id) => ({ id, enabled: false })),
+        rules: slowSharedCostRules.map((id) => ({ id, enabled: false })),
       },
     },
   },
