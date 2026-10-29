@@ -161,13 +161,16 @@ checked against the episode after the land, which can change its length).
 segments it opened for a take with a `SegmentReport` command (`take_index`, `segments`):
 at every segment's first saved audio, and at Stop (0 when none had audio). A segment that
 closes before any audio (a consent or mic-gate flip within milliseconds of Pause or Stop) is
-never reported: the keeper deletes its files and reuses the index, and a reload drops a
-header-only pending segment the same way. A failed or timed-out segment keeps its index, so a
-real loss still stalls. It is self-only (the server stores it under the sender's own participant id),
+never reported: the keeper deletes its files (WAV first) and reuses the index, and a reload
+drops a trailing header-only WAV the same way, with or without its pending metadata. A failed
+or timed-out segment keeps its index, so a real loss still stalls, and so does an empty one
+whose files could not be removed until a reload removes them. A kill before the sink commits
+a segment's first audio (the `createWritable()` fallback commits on close) can still stall
+that segment. It is self-only (the server stores it under the sender's own participant id),
 needs the join capability, never shrinks, and a count above 5000 is clamped to 5000. The keeper
-resends it, for every take, when the room's snapshot shows an older count. For each consented or reporting, not
-removed person (a guest who reported and then declined still owes what they reported) the server owes `max(reported segments, highest uploaded segment + 1)`
-segments, so an upload row the report does not mention still counts. A segment with no upload yet counts as saving for
+resends it, for every take, when the room's snapshot shows an older count. Each person who
+consented or reported, and was not removed, owes `max(reported segments, highest uploaded
+segment + 1)` segments (so a guest who reported and then declined still owes what they reported), so an upload row the report does not mention still counts. A segment with no upload yet counts as saving for
 `UPLOAD_GRACE_MS` (10 minutes) after Stop, and as stalled after it. A report of 0 owes
 nothing (a host whose mic was denied, a guest who consented late and never recorded). A client that dies before its
 last report is judged by the last count it sent, so a segment it opened but never reported is

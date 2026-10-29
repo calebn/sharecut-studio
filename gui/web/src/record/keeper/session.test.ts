@@ -189,6 +189,59 @@ describe("KeeperSession", () => {
     expect(sink.files.has(keeperMetaPath(segmentPath(1)))).toBe(false);
   });
 
+  it("keeps the index counted when the empty WAV cannot be removed, and drops it on reload", async () => {
+    const sink = new MemorySink();
+    const originalRemove = sink.remove.bind(sink);
+    let failWav = true;
+    sink.remove = async (path) => {
+      if (failWav && path.endsWith(".wav")) {
+        throw new Error("NoModificationAllowedError");
+      }
+      return originalRemove(path);
+    };
+    const session = new KeeperSession(sink);
+    await session.apply(recordingGate());
+    await session.apply(recordingGate({ roomState: "stopped" }));
+    expect(session.segmentsOpened(0)).toBe(1);
+    expect(sink.files.has(segmentPath(0))).toBe(true);
+    expect(sink.files.has(keeperMetaPath(segmentPath(0)))).toBe(true);
+    failWav = false;
+    const reloaded = new KeeperSession(sink);
+    await reloaded.restoreCursor(ids.sessionId, 0, ids.participantId);
+    expect(reloaded.segmentsOpened(0)).toBe(0);
+    expect([...sink.files.keys()]).toEqual([]);
+  });
+
+  it("drops a header-only WAV with no metadata on reload", async () => {
+    const sink = new MemorySink();
+    const session = new KeeperSession(sink);
+    await session.apply(recordingGate());
+    session.push(tone(440, 0.1), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    await session.apply(recordingGate({ roomState: "paused" }));
+    await session.apply(recordingGate());
+    await session.flush();
+    sink.files.delete(keeperMetaPath(segmentPath(1)));
+    expect(sink.files.has(segmentPath(1))).toBe(true);
+    const reloaded = new KeeperSession(sink);
+    await reloaded.restoreCursor(ids.sessionId, 0, ids.participantId);
+    expect(reloaded.segmentsOpened(0)).toBe(1);
+    expect(sink.files.has(segmentPath(1))).toBe(false);
+  });
+
+  it("keeps a meta-less WAV that holds audio on reload", async () => {
+    const sink = new MemorySink();
+    const session = new KeeperSession(sink);
+    await session.apply(recordingGate());
+    session.push(tone(440, 0.1), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    sink.files.delete(keeperMetaPath(segmentPath(0)));
+    const reloaded = new KeeperSession(sink);
+    await reloaded.restoreCursor(ids.sessionId, 0, ids.participantId);
+    expect(reloaded.segmentsOpened(0)).toBe(1);
+    expect(sink.files.has(segmentPath(0))).toBe(true);
+  });
+
   it("keeps a pending segment that already holds audio on reload", async () => {
     const sink = new MemorySink();
     const session = new KeeperSession(sink);
