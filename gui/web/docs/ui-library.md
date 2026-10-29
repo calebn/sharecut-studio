@@ -76,7 +76,7 @@ use `Button variant="link"`, including the shortcut/gesture cross-links.
 | Script resize (ArrowLeft/Right)         | [`stage/edit/ScriptDivider.tsx`](../src/stage/edit/ScriptDivider.tsx) — allowlisted separator widget |
 | Pointer → same actions as keys          | **Command bridge** (`CommandButton`, `CommandMenuItem`) → `execute`                                  |
 
-Do **not** add a second window shortcut listener for DAW commands. While a modal dialog is open, the keymap listener no-ops (`commandPaletteOpen` / `bounceDialogOpen` / `shareDialogOpen` with a project). Open menus set a non-reactive overlay gate so Space/`B` do not fire under the menu.
+Do **not** add a second window shortcut listener for DAW commands. While a modal dialog is open, the keymap listener no-ops (`commandPaletteOpen` / `shareDialogOpen` with a project). Open menus set a non-reactive overlay gate so Space/`B` do not fire under the menu.
 
 ## Command bridge (SOLID / DRY)
 

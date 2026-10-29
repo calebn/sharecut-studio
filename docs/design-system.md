@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditToolStrip, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ShareDialog, ToolModeToggle, EditToolStrip, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -345,10 +345,11 @@ fixtures and local callbacks, covering empty, live review links with and
 without an MCP URL, a record room, a missing producer link, a just-created
 link, busy, clipboard error, and a 360px phone.
 
-`Templates/BounceDialog` renders `BounceDialogView`. The live `BounceDialog`
-keeps selection and solo resolution, `startBounceJob` / `followExportJob`,
-abort-on-close and the status announcement. Stories cover ready, no region,
-bouncing, a nothing-selected error and 360px.
+`Stages/Deliver/Bounce` renders the props-only `BounceSection`. The Deliver
+host keeps selection and solo resolution, and `BounceFlowProvider` keeps
+`startBounceJob` / the job follow, project-switch abort and the status
+announcement. Stories cover ready, no tracks, no region, a fixed range,
+bouncing, done, failed, cancelled, the model prompt and 360px.
 
 ### Shell chrome
 
@@ -407,7 +408,7 @@ one page and the stories would overwrite each other's hydration.
 and `MenuItem`, which already have stories and need none of their own. Views
 extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
 examples are `TimeRulerView`, `TranscriptTurnView`, `FollowBannerView`,
-`GuestAttentionBannerView`, `ShareDialogView`, `BounceDialogView`,
+`GuestAttentionBannerView`, `ShareDialogView`,
 `EditCornerView`, `CommandPaletteView`,
 `ClipBlockView`, `MarkerLaneView`, `PendingEditOverlayView`,
 `EditBoundaryMarkView` and `InspectorSeekFooterView`.
@@ -701,7 +702,8 @@ jsdom visibility checks.
 
 - 2026-09-27 — Added `Templates/ShareDialog` and `Templates/BounceDialog`
   with the props-only `ShareDialogView` and `BounceDialogView` rendered by
-  their live adapters, closing #608. Dialog stories (including
+  their live adapters, closing #608. (`Templates/BounceDialog` was replaced by
+  `Stages/Deliver/Bounce` in #2449.) Dialog stories (including
   `Organisms/Dialog` and `Organisms/BottomSheet`) now share `DialogLauncher`,
   and their play functions open the dialog through `openDialogByLauncher`
   outside autodocs.

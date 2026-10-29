@@ -96,13 +96,24 @@ Menu panels (the Project menu, the hear menu) open below their trigger, flip abo
 ├─ ▶  12:34 / 58:39      Hear original   mix ring ───────────────┤
 ```
 
-Storybook `Templates/BounceDialog` previews the production `BounceDialogView`
-behind Deliver and `Mod+Shift+B`; the live `BounceDialog` keeps the job
-start/follow and DAW selection.
-Source choices and export checkboxes share aligned control/text columns and
-44 px minimum label targets. Source, the two export options, and the action
-footer use separate spacing groups; wrapped labels keep the control beside
-their first line. Errors appear above the right-aligned Bounce action.
+Bounce is a section of the Deliver stage, below Episode file, not a dialog.
+It writes a quick mix to `export/bounces/` without mastering or captions.
+Source is a choice of Entire mix, Selected tracks (n) or Soloed tracks (n); a
+source with no tracks greys Bounce and says "Select one or more tracks first."
+or "Solo one or more tracks first." Two toggles follow: Limit to session region
+(greyed with "No session region set." when there is none) and Also write MP3.
+A range chosen in Edit (Range actions → Bounce) is shown as "Selected range · …
+This selection is fixed for this bounce." in place of the Source choice and the
+region toggle, with "Bounce the whole mix instead" to let it go. `Mod+Shift+B`,
+the palette and Range actions go to Deliver and put focus on Bounce; they never
+start a bounce. While it runs the section shows "Bouncing" with the job's step
+progress, elapsed time and Cancel (greyed with its reason until the job has
+started); leaving Deliver does not stop it. It ends with "Bounced" and the file
+names, "Bounce failed" with the cause and Try again, or "Bounce cancelled"
+(listing any files a late cancel could not stop) with Bounce again. A missing
+model is asked for inside the section. A project switch stops following the
+job and returns the section to its choices. A range from Edit stays until it is
+bounced or let go. Storybook: `Stages/Deliver/Bounce`.
 
 ---
 
