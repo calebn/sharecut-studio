@@ -23,6 +23,7 @@ from podcast_mcp.engines.audio_eval import Piece
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.level_profile import LevelProfile
 from podcast_mcp.engines.ungated_audio import resampler_grid, resampler_locality
+from podcast_mcp.util.parallel import run_parallel
 
 _NO_SAMPLES = np.empty(0, dtype=np.float32)
 
@@ -159,10 +160,8 @@ def resampled_window(
     inputs, outputs = resampler_grid(from_rate, rate)
     size = piece.size
 
-    def convert(begin: int, stop: int) -> np.ndarray:
-        return FFmpegEngine.resample_streams(iter([piece.read(begin, stop)]), from_rate, [rate])[
-            rate
-        ]
+    def convert(samples: np.ndarray) -> np.ndarray:
+        return FFmpegEngine.resample_streams(iter([samples]), from_rate, [rate])[rate]
 
     # A run of under a couple of hundred samples emits fewer outputs than its length implies, so
     # every run is at least a few widths long, whatever the window asks.
@@ -175,13 +174,19 @@ def resampled_window(
     begin = min(begin, max(0, (size - shortest) // inputs * inputs))
     last_input = -(-last // outputs) * inputs
     stop = min(size, max(last_input + guard, begin + shortest))
-    got = convert(begin, stop)
+    tail = max(0, (size - shortest) // inputs * inputs)
+    runs = [(begin, stop)] if stop == size else [(begin, stop), (tail, size)]
+    # The reads stay on this thread; only the two ffmpeg conversions run together.
+    converted = run_parallel(
+        [piece.read(first_sample, last_sample) for first_sample, last_sample in runs],
+        convert,
+        max_workers=len(runs),
+    )
+    got = converted[0]
     begin_out = begin // inputs * outputs
-    if stop == size:
-        total = begin_out + got.size
-    else:
-        tail = max(0, (size - shortest) // inputs * inputs)
-        total = tail // inputs * outputs + convert(tail, size).size
+    total = begin_out + got.size
+    if stop != size:
+        total = tail // inputs * outputs + converted[1].size
     kept_first = min(max(first, 0), total)
     kept_last = min(last, total)
     lo = kept_first - begin_out
