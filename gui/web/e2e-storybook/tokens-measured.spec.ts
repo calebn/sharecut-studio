@@ -90,7 +90,8 @@ for (const theme of ["light", "dark"] as const) {
     }, list);
     const wrong = measured
       .map((entry, i) => ({ ...entry, want: list[i].want }))
-      .filter((entry) => Math.abs(entry.value - entry.want) > 0.01);
+      // NaN (a token that did not resolve) must fail, so negate the match.
+      .filter((entry) => !(Math.abs(entry.value - entry.want) <= 0.01));
     expect(wrong).toEqual([]);
   });
 }
