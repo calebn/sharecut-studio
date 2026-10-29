@@ -46,7 +46,11 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.session_suggestion import SessionSuggestionService
     from podcast_mcp.services.document.timeline import TimelineService
-    from podcast_mcp.services.document.transcript import TranscriptService
+    from podcast_mcp.services.document.transcript import (
+        ExportBusyError,
+        TranscriptEmptyError,
+        TranscriptService,
+    )
 
 __all__ = [
     "DEFAULT_LIMIT",
@@ -65,6 +69,7 @@ __all__ = [
     "EditService",
     "EmptyHistoryDiffResult",
     "EpisodeService",
+    "ExportBusyError",
     "HistoryDiffResult",
     "HistoryListResult",
     "HistoryService",
@@ -75,6 +80,7 @@ __all__ = [
     "RollBoundaryTarget",
     "SessionSuggestionService",
     "TimelineService",
+    "TranscriptEmptyError",
     "TranscriptService",
     "TransportPath",
     "TrimBoundaryTarget",
@@ -124,6 +130,8 @@ _MODULE_BY_NAME = {
     "SessionSuggestionService": "session_suggestion",
     "TimelineService": "timeline",
     "TranscriptService": "transcript",
+    "TranscriptEmptyError": "transcript",
+    "ExportBusyError": "transcript",
 }
 
 
