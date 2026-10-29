@@ -258,6 +258,58 @@ def test_a_rate_the_resampler_is_not_calibrated_for_has_no_window() -> None:
     assert resampled_window(_Array(_noise(1, 1.0)), 16_000, RATE, 0, 10) is None
 
 
+def test_a_conversion_shorter_than_its_input_implies_has_no_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ffmpeg_or_skip()
+    samples = _noise(5, 6.0)
+    first, last = 4000, 6000
+    _, guard = resampler_locality(SOURCE_RATE, RATE) or (0, 0)
+    missing = guard // GRID + 2  # more than the guard feeds past the last output wanted
+    real = FFmpegEngine.resample_streams
+    assert resampled_window(_Array(samples), SOURCE_RATE, RATE, first, last) is not None
+
+    def shorter(streams, from_rate, rates):  # type: ignore[no-untyped-def]
+        converted = real(streams, from_rate, rates)
+        return {rate: out[: out.size - missing] for rate, out in converted.items()}
+
+    monkeypatch.setattr(FFmpegEngine, "resample_streams", staticmethod(shorter))
+
+    assert resampled_window(_Array(samples), SOURCE_RATE, RATE, first, last) is None
+
+
+@pytest.mark.parametrize("extra", range(GRID))
+def test_a_one_sample_read_inside_and_at_the_end_of_the_resampled_track_is_the_whole_resample(
+    extra: int,
+) -> None:
+    _ffmpeg_or_skip()
+    samples = _noise(9 + extra, 1.0)[: SOURCE_RATE // 2 - 3 + extra]
+    whole = _whole(samples)
+
+    for first in [*range(1, whole.size, 211), *range(whole.size - 60, whole.size)]:
+        got = resampled_window(_Array(samples), SOURCE_RATE, RATE, first, first + 1)
+        assert got is not None, first
+        window, at, total = got
+        assert total == whole.size, first
+        assert _same(window, whole[at : min(first + 1, total)]), first
+
+
+@pytest.mark.parametrize("extra", [0, 1, 80, 220, 440])
+def test_a_one_sample_read_inside_and_at_the_end_of_a_44_1_khz_track_is_the_whole_resample(
+    extra: int,
+) -> None:
+    _ffmpeg_or_skip()
+    samples = _cd_noise(9 + extra, CD_RATE // 2 - 3 + extra)
+    whole = FFmpegEngine.resample_streams(iter([samples]), CD_RATE, [RATE])[RATE]
+
+    for first in [*range(1, whole.size, 211), *range(whole.size - 60, whole.size)]:
+        got = resampled_window(_Array(samples), CD_RATE, RATE, first, first + 1)
+        assert got is not None, first
+        window, at, total = got
+        assert total == whole.size, first
+        assert _same(window, whole[at : min(first + 1, total)]), first
+
+
 def test_a_window_is_built_from_the_calibrated_warm_up_and_guard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
