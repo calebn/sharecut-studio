@@ -1305,7 +1305,7 @@
         "cli": "podcast review share"
       },
       "omit": {
-        "keyboard_reason": "dialog from Menu",
+        "keyboard_reason": "Invite, or Menu",
         "guest": true
       },
       "tooltip": "Share\u2026",
