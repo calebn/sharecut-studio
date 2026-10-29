@@ -55,10 +55,38 @@ export const Narrow: Story = {
       <Bar active="prepare" />
     </div>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByRole("tab")).toHaveLength(5);
+    const prepare = canvas.getByRole("tab", { name: /Prepare/ });
+    await expect(prepare).toHaveAttribute("aria-selected", "true");
+    await expect(prepare).toHaveAttribute("tabindex", "0");
+    await expect(canvas.getByRole("tab", { name: /Edit/ })).toHaveAttribute(
+      "tabindex",
+      "-1",
+    );
+    await userEvent.click(canvas.getByRole("tab", { name: /Review/ }));
+    await expect(canvas.getByRole("tab", { name: /Review/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(prepare).toHaveAttribute("aria-selected", "false");
+  },
 };
 
 export const Phone: Story = {
   render: () => <Bar form="tabs" active="review" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvasElement.querySelector(".sys-stage-bar--tabs"),
+    ).not.toBeNull();
+    await expect(canvas.getAllByRole("tab")).toHaveLength(5);
+    await expect(canvas.getByRole("tab", { name: /Review/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  },
 };
 
 export const AllBadges: Story = {
@@ -89,12 +117,39 @@ export const AllBadges: Story = {
 
 export const DoneBadge: Story = {
   render: () => <Bar active="deliver" badges={{ prepare: { kind: "done" } }} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const prepare = canvas.getByRole("tab", { name: /Prepare/ });
+    await expect(prepare.querySelector(".sys-stage-badge")).not.toBeNull();
+    await expect(
+      canvas
+        .getByRole("tab", { name: /Edit/ })
+        .querySelector(".sys-stage-badge"),
+    ).toBeNull();
+  },
 };
 
 export const RecordLive: Story = {
   render: () => <Bar active="record" live />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const record = canvas.getByRole("tab", { name: /Record/ });
+    await expect(record).toHaveClass("sys-stage-tab--live");
+    await expect(record.querySelector(".sys-stage-badge")).not.toBeNull();
+    await expect(canvas.getByRole("tab", { name: /Edit/ })).not.toHaveClass(
+      "sys-stage-tab--live",
+    );
+  },
 };
 
 export const GuestEditor: Story = {
   render: () => <Bar stages={["edit", "review"]} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const tabs = canvas.getAllByRole("tab");
+    await expect(tabs).toHaveLength(2);
+    await expect(tabs[0]).toHaveTextContent("Edit");
+    await expect(tabs[1]).toHaveTextContent("Review");
+    await expect(canvas.queryByRole("tab", { name: /Record/ })).toBeNull();
+  },
 };

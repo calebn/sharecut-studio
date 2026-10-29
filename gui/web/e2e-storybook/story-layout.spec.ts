@@ -46,9 +46,8 @@ for (const width of [1440, 360]) {
           exact: true,
         });
         await expect(trigger).toBeVisible();
-        if ((await trigger.getAttribute("aria-expanded")) !== "true") {
-          await trigger.click();
-        }
+        if (story === "default") await trigger.click();
+        await expect(page.getByRole("menu")).toBeVisible();
         await expectInside(page.getByRole("menu"), "viewport");
       });
     }
