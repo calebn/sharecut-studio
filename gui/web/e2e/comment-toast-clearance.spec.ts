@@ -77,7 +77,7 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
           const token = await createReviewShare(host, projectPath, "commenter");
           await openGuestShare(guest, token);
 
-          const dock = guest.locator(".comments-panel");
+          const dock = guest.locator(".stage-host-guest-comments");
           const field = dock.getByRole("textbox", {
             name: "Comment",
             exact: true,
@@ -94,9 +94,8 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
 
           await field.tap();
           await field.fill("Loved the intro");
-          await dock.getByRole("button", { name: "Post comment" }).tap();
           await dock.getByRole("textbox", { name: "Your name" }).fill("Riley");
-          await dock.getByRole("button", { name: "Post comment" }).tap();
+          await dock.getByRole("button", { name: "Post", exact: true }).tap();
 
           await expect(toast).toContainText("Comment posted at");
           await expect(toast).toBeInViewport({ ratio: 1 });

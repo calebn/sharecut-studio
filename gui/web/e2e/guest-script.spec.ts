@@ -42,7 +42,7 @@ for (const size of SIZES) {
             await expect(script).toHaveCount(0);
           }
           const field = guest
-            .locator(".comments-panel")
+            .locator(".stage-host-guest-comments")
             .getByRole("textbox", { name: "Comment", exact: true });
           await expect(field).toBeInViewport();
           await expect
@@ -64,7 +64,7 @@ test("a Viewer link shows no Script, because its guests are not sent word timing
       await openHostShare(host, projectPath);
       const token = await createReviewShare(host, projectPath, "viewer");
       await openGuestShare(guest, token);
-      await expect(guest.locator(".comments-panel")).toBeVisible();
+      await expect(guest.locator(".stage-host-guest-comments")).toBeVisible();
       await expect(guest.locator(".stage-host-guest-script")).toHaveCount(0);
       await expect(guest.getByText("Nothing to read yet")).toHaveCount(0);
     });

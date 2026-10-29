@@ -19,9 +19,8 @@ import {
 import type { ReviewFilter, ReviewItem } from "../../review/reviewQueueModel";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
-import { CommentCard, type CommentCardData } from "../../system/CommentCard";
+import { CommentCard } from "../../system/CommentCard";
 import { Composer } from "../../system/Composer";
-import type { TimelineComment } from "../../types/project";
 import { InlineError } from "../../ui";
 import { errorMessage } from "../../utils/apiError";
 import {
@@ -29,6 +28,7 @@ import {
   limitCommentName,
   sessionDisplayName,
 } from "../../utils/commentAuthor";
+import { commentCardOf } from "./commentCardData";
 
 const COMMENT_ROLE = "host";
 
@@ -42,22 +42,6 @@ export type CommentNav = {
   root?: () => HTMLElement | null;
 };
 
-const cardOf = (c: TimelineComment, resolved: boolean): CommentCardData => ({
-  id: c.id,
-  author: c.author,
-  at: { start: c.timeline_start, end: c.timeline_end ?? undefined },
-  body: c.body,
-  resolved,
-  resolvedBy: c.resolved_by ?? undefined,
-  replies: c.replies.map(({ id, author, body }) => ({ id, author, body })),
-  actions: c.action_items.map((a) => ({
-    id: a.id,
-    text: a.text,
-    done: a.done,
-    doneBy: a.completed_by ?? undefined,
-  })),
-});
-
 /**
  * The host's comments in the Review queue: one item per comment, the thread
  * on its card, and the field that posts a new one. Resolving is server state, not a Review decision, so it keeps its own
@@ -69,6 +53,7 @@ export function useReviewComments(enabled: boolean) {
     projectPath: s.projectPath,
     commentDraft: s.commentDraft,
   }));
+  const duration = project?.timeline_duration_sec ?? Number.NaN;
   const comments = enabled ? project?.comments : undefined;
   const [flipped, setFlipped] = useState<ReadonlyMap<string, boolean>>(
     new Map(),
@@ -293,7 +278,7 @@ export function useReviewComments(enabled: boolean) {
     return (
       <>
         <CommentCard
-          comment={cardOf(c, resolved)}
+          comment={commentCardOf(c, resolved, duration)}
           onSelect={() => playComment(c)}
           onResolve={resolved ? () => void resolve(c.id, false) : undefined}
           onToggleAction={(actionId, done) => {

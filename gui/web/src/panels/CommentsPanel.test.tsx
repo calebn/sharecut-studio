@@ -27,10 +27,10 @@ vi.mock("../api", () => ({
   setCommentActionDone: (...args: unknown[]) => setCommentActionDone(...args),
 }));
 
-function renderPanel(props: { guestShare?: boolean } = {}) {
+function renderPanel() {
   return render(
     <>
-      <CommentsPanel {...props} />
+      <CommentsPanel />
       <FeedbackToast />
     </>,
   );
@@ -139,14 +139,6 @@ describe("CommentsPanel", () => {
     );
   });
 
-  it("hides Resolve and the status toast for a guest share", () => {
-    renderPanel({ guestShare: true });
-    expect(
-      screen.queryByRole("button", { name: "Resolve" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  });
-
   it("comments as Host by default", () => {
     renderPanel();
     expect(screen.getByText(/Commenting as/)).toBeInTheDocument();
@@ -157,165 +149,6 @@ describe("CommentsPanel", () => {
     localStorage.setItem("podcast-mcp-comment-author", "Caleb");
     renderPanel();
     expect(screen.getByText("Caleb")).toBeInTheDocument();
-  });
-
-  it("comments as Guest by default for a guest share", () => {
-    renderPanel({ guestShare: true });
-    expect(screen.getByText("Guest")).toBeInTheDocument();
-  });
-
-  it("asks a guest for a name on the first post, once, in the panel too", async () => {
-    const user = userEvent.setup();
-    localStorage.clear();
-    createComment.mockResolvedValue(sampleComment());
-    renderPanel({ guestShare: true });
-    await user.type(
-      screen.getByRole("textbox", { name: "Comment" }),
-      "From landscape",
-    );
-    await user.click(screen.getByRole("button", { name: "Post comment" }));
-    expect(createComment).not.toHaveBeenCalled();
-    await user.type(
-      screen.getByRole("textbox", { name: "Your name" }),
-      "Dana{Enter}",
-    );
-    expect(createComment).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ author: "Dana" }),
-    );
-    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
-  });
-
-  it("works with storage blocked: asks once per page load and still posts", async () => {
-    const user = userEvent.setup();
-    createComment.mockResolvedValue(sampleComment());
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new DOMException("blocked", "SecurityError");
-    });
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new DOMException("blocked", "SecurityError");
-    });
-    renderPanel({ guestShare: true });
-    await user.type(screen.getByRole("textbox", { name: "Comment" }), "One");
-    await user.click(screen.getByRole("button", { name: "Post comment" }));
-    expect(createComment).not.toHaveBeenCalled();
-    await user.type(
-      screen.getByRole("textbox", { name: "Your name" }),
-      "Ola{Enter}",
-    );
-    expect(createComment).toHaveBeenCalledTimes(1);
-    expect(createComment).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({ author: "Ola" }),
-    );
-
-    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Two");
-    await user.click(screen.getByRole("button", { name: "Post comment" }));
-    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
-    expect(createComment).toHaveBeenCalledTimes(2);
-    expect(createComment).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({ author: "Ola" }),
-    );
-  });
-
-  it("a guest's reply uses the chosen name, else Guest, with no extra prompt", async () => {
-    const user = userEvent.setup();
-    localStorage.clear();
-    addCommentReply.mockResolvedValue({});
-    useDawStore
-      .getState()
-      .hydrate(
-        "share:tok",
-        minimalProject({ comments: [sampleComment({ id: "c1" })] }),
-      );
-    useDawStore.setState({
-      guestMode: "comment",
-      shareCapabilities: ["view", "comment"],
-    });
-    renderPanel({ guestShare: true });
-    await user.type(screen.getByPlaceholderText("Reply…"), "thanks");
-    await user.click(screen.getByRole("button", { name: "Reply" }));
-    expect(addCommentReply).toHaveBeenCalledWith("share:tok", "c1", {
-      body: "thanks",
-      author: "Guest",
-    });
-    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
-    expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBeNull();
-  });
-
-  it("a guest who taps Change before the first Post is not asked again and keeps that name", async () => {
-    const user = userEvent.setup();
-    localStorage.clear();
-    createComment.mockResolvedValue(sampleComment());
-    renderPanel({ guestShare: true });
-    await user.click(
-      screen.getByRole("button", { name: "Change your comment name" }),
-    );
-    const field = screen.getByRole("textbox", { name: "Your name" });
-    await user.clear(field);
-    await user.type(field, "Alex{Enter}");
-    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Note");
-    await user.click(screen.getByRole("button", { name: "Post comment" }));
-    expect(screen.queryByRole("textbox", { name: "Your name" })).toBeNull();
-    expect(createComment).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ author: "Alex" }),
-    );
-    expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBe("Alex");
-  });
-
-  it("Post as Guest posts this comment as Guest even after Change set a name, and keeps that name", async () => {
-    const user = userEvent.setup();
-    localStorage.clear();
-    createComment.mockResolvedValue(sampleComment());
-    renderPanel({ guestShare: true });
-    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Note");
-    await user.click(screen.getByRole("button", { name: "Post comment" }));
-    localStorage.setItem("podcast-mcp-guest-comment-name", "Ann");
-    await user.click(screen.getByRole("button", { name: "Post as Guest" }));
-    expect(createComment).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({ author: "Guest" }),
-    );
-    expect(localStorage.getItem("podcast-mcp-guest-comment-name")).toBe("Ann");
-  });
-
-  it("a failed post that followed the name step returns focus to the comment field and shows the error", async () => {
-    const user = userEvent.setup();
-    localStorage.clear();
-    createComment.mockRejectedValueOnce(new Error("Server said no"));
-    renderPanel({ guestShare: true });
-    await user.type(screen.getByRole("textbox", { name: "Comment" }), "Try");
-    await user.click(screen.getByRole("button", { name: "Post comment" }));
-    await user.click(screen.getByRole("button", { name: "Post as Guest" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Server said no",
-    );
-    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveFocus();
-    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveValue("Try");
-  });
-
-  it("text typed while the post is in flight survives the post's clear", async () => {
-    const user = userEvent.setup();
-    localStorage.clear();
-    let release: (c: unknown) => void = () => undefined;
-    createComment.mockReturnValueOnce(
-      new Promise((resolve) => {
-        release = resolve;
-      }),
-    );
-    renderPanel({ guestShare: true });
-    const field = () => screen.getByRole("textbox", { name: "Comment" });
-    await user.type(field(), "One");
-    await user.click(screen.getByRole("button", { name: "Post comment" }));
-    await user.click(screen.getByRole("button", { name: "Post as Guest" }));
-    await user.type(field(), " more");
-    await act(async () => {
-      release(sampleComment({ id: "c9" }));
-    });
-    await screen.findByRole("button", { name: "Post comment" });
-    expect(field()).toHaveValue("One more");
   });
 
   it("Change then a new name saves it and is used on the next post", async () => {
@@ -629,22 +462,6 @@ describe("CommentsPanel", () => {
       screen.getByRole("button", { name: "Comment at 0:00. Change time" }),
     ).toHaveFocus();
     expect(useDawStore.getState().commentDraft).toBeNull();
-  });
-
-  it("shows a Viewer link no comment field", () => {
-    useDawStore
-      .getState()
-      .hydrate("share:tok", minimalProject(), "view", ["view"]);
-    render(<CommentsPanel guestShare />);
-    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
-  });
-
-  it("opens a Commenter link on the Comments tab with its field", () => {
-    useDawStore
-      .getState()
-      .hydrate("share:tok", minimalProject(), "comment", ["view", "comment"]);
-    render(<CommentsPanel guestShare />);
-    expect(screen.getByRole("textbox", { name: "Comment" })).toBeVisible();
   });
 
   it("names action items while composing and includes them in the post", async () => {

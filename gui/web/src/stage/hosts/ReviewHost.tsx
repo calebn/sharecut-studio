@@ -8,10 +8,11 @@ import { ReviewStage } from "../../review/ReviewStage";
 import { isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
-import type { ReviewSection } from "../../types/stage";
+import type { ReviewSection, StageRole } from "../../types/stage";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 
+import { GuestComments } from "./GuestComments";
 import { GuestScriptHost } from "./GuestScriptHost";
 import { effectiveSection, hostStateOf, reviewSectionsFor } from "./hostModels";
 import { ReviewStageView } from "./ReviewStageView";
@@ -28,7 +29,8 @@ function panelFor(
   guestShare: boolean,
   queue: ReturnType<typeof useReviewQueue>,
   find: ReturnType<typeof useFindMore>,
-  guest: boolean,
+  role: StageRole,
+  scripted: boolean,
 ) {
   switch (section) {
     case "queue":
@@ -43,8 +45,12 @@ function panelFor(
     case "comments":
       return (
         <>
-          {guest ? <GuestScriptHost /> : null}
-          <CommentsPanel guestShare={guestShare} />
+          {scripted ? <GuestScriptHost /> : null}
+          {role === "host" ? (
+            <CommentsPanel />
+          ) : (
+            <GuestComments guestShare={guestShare} />
+          )}
         </>
       );
   }
@@ -88,6 +94,7 @@ function ReviewHostAdapter({
           guestShare,
           queue,
           find,
+          role,
           role !== "host" &&
             project?.meta.hydration?.transcript_words !== false,
         )}

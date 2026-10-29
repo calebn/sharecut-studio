@@ -981,6 +981,6 @@ describe("Review host comments", () => {
     useDawStore.setState({ stage: "review", guestMode: "comment" });
     render(<App />);
     expect(document.querySelector(".rv-stage")).toBeNull();
-    expect(document.querySelector(".comments-panel")).not.toBeNull();
+    expect(document.querySelector(".stage-host-guest-comments")).not.toBeNull();
   });
 });

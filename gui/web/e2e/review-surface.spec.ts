@@ -45,19 +45,16 @@ for (const theme of ["light", "dark"] as const) {
             .getByRole("textbox", { name: "Comment", exact: true })
             .fill(body);
           await guest
-            .getByRole("button", { name: "Post comment", exact: true })
-            .click();
-          await guest
-            .getByRole("button", { name: "Post as Guest", exact: true })
+            .getByRole("button", { name: "Post", exact: true })
             .click();
           const comment = guest
-            .locator(".comments-list > li")
+            .locator(".stage-host-guest-comment-list > li")
             .filter({ hasText: body });
           await expect(comment).toBeVisible();
-          await comment.getByPlaceholder("Reply…").fill("This is the reply.");
           await comment
-            .getByRole("button", { name: "Reply", exact: true })
-            .click();
+            .getByRole("textbox", { name: /^Reply/ })
+            .fill("This is the reply.");
+          await comment.getByRole("button", { name: /^Reply/ }).click();
           await expect(
             comment.getByText("This is the reply.", { exact: true }),
           ).toBeVisible();
@@ -97,27 +94,26 @@ for (const theme of ["light", "dark"] as const) {
             guest.getByRole("dialog", { name: "Inspector" }),
           ).toHaveCount(0);
 
-          const dock = guest.locator(".comments-panel");
+          const dock = guest.locator(".stage-host-guest-comments");
           const field = dock.getByRole("textbox", {
             name: "Comment",
             exact: true,
           });
-          const post = dock.getByRole("button", { name: "Post comment" });
+          const post = dock.getByRole("button", { name: "Post", exact: true });
           await expect(field).toBeInViewport();
           await expect(post).toBeInViewport();
           await expect(post).toBeDisabled();
           await expect(
-            dock.getByRole("button", { name: "Comment at 0:00. Change time" }),
+            dock.getByRole("button", { name: /^Comment at 0:00, follows/ }),
           ).toBeVisible();
 
           const body = `Phone guest feedback in ${theme}`;
           await field.tap();
           await field.fill(body);
           await post.tap();
-          await dock.getByRole("button", { name: "Post as Guest" }).tap();
           await expect(field).toHaveValue("");
           await expect(
-            guest.locator(".comment-card").filter({ hasText: body }),
+            guest.locator(".sys-comment").filter({ hasText: body }),
           ).toContainText("0:00");
           await expect(
             guest.getByRole("dialog", { name: "Inspector" }),
@@ -130,7 +126,9 @@ for (const theme of ["light", "dark"] as const) {
 
           await expect(guest.getByText("Commenting as")).toContainText("Guest");
           await expect(
-            guest.locator(".comments-list > li").filter({ hasText: body }),
+            guest
+              .locator(".stage-host-guest-comment-list > li")
+              .filter({ hasText: body }),
           ).toBeVisible();
           await expectNoHorizontalScroll(guest, 320);
         },

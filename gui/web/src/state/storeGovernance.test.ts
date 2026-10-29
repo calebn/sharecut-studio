@@ -475,6 +475,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "leaf that reads the live playhead and the Edit selection for the chip's menu entries, so the Record stage does not re-render with them",
   },
   {
+    file: "stage/hosts/GuestComments.tsx",
+    reason:
+      "the selector floors the live playhead to whole seconds, so the guest Composer's time chip re-renders once a second and the comment list not at all",
+  },
+  {
     file: "stage/hosts/GuestScriptHost.tsx",
     reason:
       "the selector turns the live playhead into a key of the playing words, so the Script re-renders only when a word changes",

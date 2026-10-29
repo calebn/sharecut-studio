@@ -21,9 +21,10 @@ import { StageHost } from "./StageHost";
 import { ShareFlowProvider } from "./shareFlow";
 
 vi.mock("../../panels/CommentsPanel", () => ({
-  CommentsPanel: ({ guestShare }: { guestShare?: boolean }) => (
-    <div>{guestShare ? "guest comments panel" : "comments panel"}</div>
-  ),
+  CommentsPanel: () => <div>comments panel</div>,
+}));
+vi.mock("./GuestComments", () => ({
+  GuestComments: () => <div>guest comments panel</div>,
 }));
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
