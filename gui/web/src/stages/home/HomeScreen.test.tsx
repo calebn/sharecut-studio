@@ -430,7 +430,7 @@ describe("HomeScreen", () => {
         await screen.findByRole("button", { name: /^Import audio/ }),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        `Disk full. Nothing was added. The new episode is empty and still in Recent. Its folder is ${EP.replace(/\/[^/]*$/, "")}.`,
+        `Disk full. Nothing was added. The new episode is empty and still in Recent. Its folder is /ws/rosa.`,
       );
       expect(forget).not.toHaveBeenCalled();
       expect(assign).not.toHaveBeenCalled();
@@ -454,7 +454,7 @@ describe("HomeScreen", () => {
         await screen.findByRole("button", { name: /^Import audio/ }),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        `Disk full. 2 of 3 files were added to "Episode, 29 Oct". Open it from Recent to add the rest. Its folder is ${EP.replace(/\/[^/]*$/, "")}.`,
+        `Disk full. 2 of 3 files were added to "Episode, 29 Oct". Open it from Recent to add the rest. Its folder is /ws/rosa.`,
       );
       expect(forget).not.toHaveBeenCalled();
       expect(assign).not.toHaveBeenCalled();
