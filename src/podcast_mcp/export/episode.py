@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 
 from podcast_mcp.config.defaults import EffectiveConfig
@@ -33,8 +34,8 @@ def export_episode_deliverables(
 ) -> list[Path]:
     """Publish episode audio, edited transcripts and chapters after all files are prepared.
 
-    A project without chapters has its previous ``.chapters.json`` removed once the new
-    set is published, so a stale chapter list never outlives the edit that emptied it.
+    A project without chapters has its previous ``.chapters.json`` removed after the new
+    set is published. A crash or a locked file in between leaves the previous list behind.
 
     Callers hold render_lock. Preparation failure or cancellation before publication
     preserves previous outputs. Final replacements are not a cross-file transaction.
@@ -74,5 +75,6 @@ def export_episode_deliverables(
         reap_partials=True,
     )
     if chapters_path not in sidecars:
-        chapters_path.unlink(missing_ok=True)
+        with suppress(OSError):
+            chapters_path.unlink(missing_ok=True)
     return written
