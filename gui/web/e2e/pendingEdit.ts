@@ -51,8 +51,12 @@ export async function openSuggestedPendingEdit(
   const panels = page.getByRole("main", { name: "Review" });
   await openPanel(page, "queue");
   // Every spec suggests the same 0 to 2 s range, so the first row (earliest
-  // time) is an equivalent edit whichever earlier spec left it behind.
-  await panels.locator(".sys-queue-main").first().click();
+  // time) is an equivalent edit whichever earlier spec left it behind. Comment
+  // rows share the queue, so they are skipped.
+  await panels
+    .locator('[data-kind]:not([data-kind="comment"]) > .sys-queue-main')
+    .first()
+    .click();
   await panels.getByRole("button", { name: "Open in Edit" }).click();
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
