@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from podcast_mcp import settings
+from podcast_mcp.project.io import ensure_utf8_path
 from podcast_mcp.util.process import DEVNULL, popen
 
 PACKAGED_CLI_ENV = "PODCAST_PACKAGED_CLI"
@@ -131,6 +132,19 @@ def ensure_viewer(
             already_running=False,
             opened_browser=False,
             error=f"Project not found: {path}",
+        )
+    try:
+        ensure_utf8_path(path)
+    except ValueError as exc:
+        return GuiLaunchResult(
+            ok=False,
+            url="",
+            host=host,
+            port=port,
+            project_path=ascii(str(path)),
+            already_running=False,
+            opened_browser=False,
+            error=str(exc),
         )
 
     from podcast_mcp.services.session_sync import ensure_non_loopback_session_auth

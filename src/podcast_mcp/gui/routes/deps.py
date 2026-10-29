@@ -219,8 +219,14 @@ def resolve_project(path: str, request: Request | WebSocket | None = None) -> Pa
     *request* may be a FastAPI ``Request`` or Starlette ``WebSocket`` (both expose
     ``.app``). When the GUI was started with ``--project``, other paths are 403.
     """
-    project_path = Path(path).expanduser().resolve()
-    if not project_path.is_file():
+    try:
+        project_path = Path(path).expanduser().resolve()
+        exists = project_path.is_file()
+    except ValueError as exc:
+        raise coded_http_error(
+            400, f"project path is not valid UTF-8: {path!a}", code="project_path_invalid"
+        ) from exc
+    if not exists:
         raise coded_http_error(404, f"Project not found: {project_path}", code="project_not_found")
     try:
         ensure_utf8_path(project_path)
