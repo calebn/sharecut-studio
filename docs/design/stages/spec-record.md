@@ -40,7 +40,7 @@ Facts from the code that shape this spec (each one checked in the files above):
 
 **Leaving.** The host switches stage at any time, including during a take. Recording continues. The Record item in the Stage bar turns into the Live badge (red dot and take clock) so the take is never out of sight, and one click returns. Ending the session is a separate, explicit action in the room's overflow menu. Leaving the stage never ends it. Guests leave with the Leave button, which is held back only while their recording is still saving.
 
-**What the stage replaces.** DLG-RECORD (the Record room dialog), CHIP-REC-TRANSPORT, the Menu > Project > Record room… entry, the record half of DLG-SHARE, and the separate `/rec` lobby, waiting, room and dead-end pages.
+**What the stage replaces.** DLG-RECORD (the Record room dialog), CHIP-REC-TRANSPORT, the Menu > Project > Record room… entry, the record half of the old Share dialog, and the separate `/rec` lobby, waiting, room and dead-end pages.
 
 **Data shape (Model the Domain).** Today the guest page (now GuestRoomApp, formerly RecordApp) switches between four views and RecordPanel carries a dozen booleans. The redesign drives one `RoomView` from one discriminated union:
 

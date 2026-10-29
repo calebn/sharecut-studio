@@ -148,11 +148,6 @@ export async function expectMenuLastItemReachable(
 }
 
 /**
- * Share's Record rooms section lives below the fold of the Dialog body
- * scroller. Assert the panel fits, only the shared body scrolls, and the rooms
- * target stays reachable.
- */
-/**
  * Generic Dialog reachability for `.command-palette-body` consumers: the panel
  * fits the viewport, the body scrolls, and the lowest action/content target is
  * reachable through the scroller, or sits in the pinned footer. The dialog is

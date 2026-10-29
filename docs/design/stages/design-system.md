@@ -189,7 +189,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Inspector: INS-CLIP, INS-CLIP-MULTI, INS-TRACK, INS-CHAPTER, INS-SOCIAL, INS-RANGE, INS-WORD, INS-BLEED, the Seam, CMP-WORDBAR, DLG-PRECISION.
   - Your own Person tile: CMP-REC-DEVICE, the Device sheet.
   - Join: SCR-REC-LOBBY-GUEST, -PRODUCER, CMP-REC-CONSENT.
-  - Invite: MENU-PEOPLE invite, DLG-SHARE.
+  - Invite: MENU-PEOPLE invite, the Deliver Share section.
   - Person: presence, Follow, Go to.
   - View (the eye): MENU-VIEW.
   - History: PNL-HISTORY, INT-UNDO.
@@ -464,7 +464,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - The **Invite sheet** is a Sheet of Link rows grouped Review links / Record links / Listen link, opened from the header Invite on every stage.
   - The Record empty tile opens it at Record links.
   - Deliver embeds the Listen link row in place.
-- Used: DLG-SHARE, DLG-SHARE-CREATED, MENU-PEOPLE invite, INT-REC-INVITE, the Deliver listen link.
+- Used: the Deliver Share section, MENU-PEOPLE invite, INT-REC-INVITE, the Deliver listen link.
 - Replaces: Link row (rdp), Invite popover (edit), Invite tile popover (record).
 - Story: `System/LinkRow`, `Stages/Frame/InviteSheet`.
 
