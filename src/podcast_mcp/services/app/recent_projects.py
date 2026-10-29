@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp import settings
+from podcast_mcp.project.io import ensure_utf8_path
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.fingerprint import file_stamp
@@ -383,6 +384,10 @@ def default_workspace_dir(name: str) -> Path:
             f'Windows can\'t use "{word}" as a folder name. Choose another episode name.',
             code="project_name_reserved",
         )
+    try:
+        ensure_utf8_path(clean)
+    except ValueError as exc:
+        raise CodedError(str(exc), code="project_path_invalid") from exc
     with _RESERVE_LOCK:
         base.mkdir(parents=True, exist_ok=True)
         n = 1
