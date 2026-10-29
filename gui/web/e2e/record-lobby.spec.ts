@@ -604,11 +604,13 @@ test.describe("record lobby", () => {
         ).toBeVisible();
         await goToStage(host, "edit");
         await expect(roomDlg).toBeHidden();
-        // The Stage bar's Record tab turns red while a take is on.
+        // The Stage bar's Record tab carries the live pill while a take is on.
         const recTab = stageTab(host, "record");
-        await expect(recTab).toHaveClass(/sys-stage-tab--live/);
+        await expect(recTab).toHaveAccessibleName(/^Record Live\b/);
+        await expect(recTab.locator(".sys-stage-badge--pill")).toBeVisible();
         await host.setViewportSize({ width: 390, height: 844 });
-        await expect(recTab).toHaveClass(/sys-stage-tab--live/);
+        await expect(recTab).toHaveAccessibleName(/^Record Live\b/);
+        await expect(recTab.locator(".sys-stage-badge--pill")).toBeVisible();
         await phone.showTimeline(host);
         for (const width of [390, 320]) {
           await host.setViewportSize({ width, height: 844 });

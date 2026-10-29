@@ -1,7 +1,8 @@
 import { type ReactNode, useState } from "react";
 import { Menu, MenuItem } from "../ui";
-import { type StageBarProps, stageBadge } from "./StageBar";
+import type { StageBarProps } from "./StageBar";
 import { SystemIcon } from "./SystemIcon";
+import { stageBadge } from "./stageBadge";
 import { STAGES } from "./verbs";
 
 type StageMenuProps = Partial<

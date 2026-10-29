@@ -111,7 +111,7 @@ describe("recordBadge", () => {
     });
   });
 
-  it("drops the ring's fill when a stopped take has nobody to save", () => {
+  it("leaves the ring unfilled when a stopped take has nobody to save", () => {
     const room = roomOf({
       state: "stopped",
       take_index: 0,
@@ -119,7 +119,25 @@ describe("recordBadge", () => {
     } as unknown as Partial<RecordSnapshot>);
     expect(recordBadge(room, source)).toEqual({
       kind: "saving",
-      progress: undefined,
+      progress: 0,
+      alert: false,
+    });
+  });
+
+  it("dots a take that can be recovered once it has stopped", () => {
+    const room = roomOf(
+      {
+        state: "stopped",
+        take_index: 0,
+        takes: [{ take_index: 0, consented_participant_ids: [] }],
+      } as unknown as Partial<RecordSnapshot>,
+      { upload: { error: null, recoverable: true } },
+    );
+    expect(recordBadge(room, source)).toMatchObject({
+      kind: "saving",
+      alert: true,
+    });
+    expect(recordBadge(room, { ...source, away: false })).toMatchObject({
       alert: false,
     });
   });
