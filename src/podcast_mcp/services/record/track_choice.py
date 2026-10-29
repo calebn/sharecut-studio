@@ -20,6 +20,7 @@ from podcast_mcp.services.record.track_match import (
     resolve_session_tracks,
     suggestion_for_session,
 )
+from podcast_mcp.services.record.upload import RecordUploadService
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 
 NEW_TRACK = "new"
@@ -50,7 +51,7 @@ class RecordTrackService:
         Allowed until the session is accepted or placed on the timeline. When their takes are
         already staged in a pending suggestion that is one undo step; before landing only the
         host's choice is kept. Refusals: ``unknown_participant``, ``unknown_track``,
-        ``track_taken``, ``replace_target_track``, ``participant_removed``,
+        ``track_taken``, ``replace_target_track``, ``person_removed``,
         ``session_already_accepted``, ``session_skipped``.
         """
         with self.workspace.transaction() as project:
@@ -72,7 +73,7 @@ class RecordTrackService:
                 raise CodedValueError(
                     f"{match.display_name} was removed from this session, so their track cannot "
                     "be changed.",
-                    code="participant_removed",
+                    code="person_removed",
                 )
             target, label = self._target(project, current, match, track, held)
             sources = _own_sources(project, self.session_id, participant_id, suggestion)
@@ -125,7 +126,8 @@ class RecordTrackService:
                         "title": title,
                     },
                 )
-            self._room.set_track_choice(participant_id, target)
+            if not has_staged_recording:
+                self._room.set_track_choice(participant_id, target)
             after = self._matches(self.workspace.project)[participant_id]
             out = {**after.as_dict(), "changed": True}
             if follows:
@@ -170,6 +172,21 @@ class RecordTrackService:
                 code="session_already_accepted",
             )
 
+    def _with_acked_unlanded(self, participant_ids: set[str]) -> set[str]:
+        """People among *participant_ids* with a file-acked recording that has not landed."""
+        if not participant_ids:
+            return set()
+        uploads = RecordUploadService(self.workspace.project)
+        tombstoned = uploads.tombstoned_takes(self.session_id)
+        return {
+            str(row["participant_id"])
+            for row in uploads.status(session_id=self.session_id)["segments"]
+            if str(row["participant_id"]) in participant_ids
+            and row.get("file_ack")
+            and not row.get("landed")
+            and int(row["take_index"]) not in tombstoned
+        }
+
     def _target(
         self,
         project: EpisodeProject,
@@ -194,13 +211,16 @@ class RecordTrackService:
                     code="unknown_track",
                 )
             target, label = track, pool[track]
-        removed = {
+        # A removed person only frees their track when nothing of theirs can still land on it:
+        # no staged or placed take (held) and no acked upload that has not landed yet.
+        gone = {
             p.participant_id
             for p in RecordSnapshot.model_validate(self._room.snapshot()).participants
-            if p.removed
+            if p.removed and p.participant_id not in held
         }
+        gone -= self._with_acked_unlanded(gone)
         for other in current.values():
-            if other.participant_id in removed and other.participant_id not in held:
+            if other.participant_id in gone:
                 continue
             if other.participant_id != match.participant_id and other.track_id == target:
                 raise CodedValueError(
