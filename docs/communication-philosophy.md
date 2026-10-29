@@ -637,7 +637,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   shows its consequence note, and the example confirm lists Keep first. Six
   native dialogs remain for #1031.
 - 2026-10-07 — Added "Stop take" and "Start blocker" and tightened "Land"
-  (#1026): the Record room panel's in-place empty state, one take control,
+  (#1026): the Record stage's in-place empty state (then the Record room panel), one take control,
   Stop's one-time question (the shared `ui/InlineConfirm`), and Land and
   Start reasons in place.
 - 2026-10-07 — Escape inside an open `InlineConfirm` keeps the choice instead of
@@ -652,7 +652,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   (formats, progress with Cancel export, then the written files) instead of
   starting from one menu tap; the phone Listen hero carries the Menu; the Menu
   keeps Bounce… and Export deliverables… together between New / Open and
-  Share / Record room; the command palette is **Commands and shortcuts**,
+  Share (Record is a stage in the Stage bar); the command palette is **Commands and shortcuts**,
   searchable from **?** or More → **Search commands**.
 - 2026-10-07 — Feedback primitives (#1031): every announcement shows in the
   app toast with a scoped Undo where history recorded the change; the last
