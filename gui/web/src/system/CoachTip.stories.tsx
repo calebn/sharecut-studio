@@ -29,7 +29,10 @@ function Demo({ placement }: { placement: "below" | "above" }) {
   return (
     <div
       style={{
-        paddingBlock: "var(--space-8)",
+        paddingBlock:
+          placement === "above"
+            ? "calc(var(--space-8) + var(--space-8))"
+            : "var(--space-8)",
         paddingInline: "var(--space-5)",
         display: "flex",
         justifyContent: "flex-start",

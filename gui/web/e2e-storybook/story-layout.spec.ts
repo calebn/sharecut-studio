@@ -1,4 +1,4 @@
-import { expect, type Locator, test } from "@playwright/test";
+import { devices, expect, type Locator, test } from "@playwright/test";
 import { storyUrl } from "./storyUrl";
 
 async function expectInside(element: Locator, bounds: "viewport" | "story") {
@@ -154,3 +154,23 @@ for (const width of [1440, 360]) {
     }
   }
 }
+
+test("Menu rows are 44 px under a coarse pointer without the phone shell", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    ...devices["Pixel 5"],
+    baseURL: "http://127.0.0.1:6010",
+  });
+  const page = await context.newPage();
+  await page.goto(storyUrl("molecules-menu--default", { theme: "light" }));
+  await page.getByRole("button", { name: "Actions", exact: true }).click();
+  const heights = await page
+    .getByRole("menuitem")
+    .evaluateAll((rows) =>
+      rows.map((row) => row.getBoundingClientRect().height),
+    );
+  await context.close();
+  expect(heights.length).toBeGreaterThan(0);
+  for (const height of heights) expect(height).toBeGreaterThanOrEqual(44);
+});

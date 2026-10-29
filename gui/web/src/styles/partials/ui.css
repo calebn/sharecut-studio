@@ -565,6 +565,12 @@ html[data-shell="phone"] .ui-menu-root {
   --menu-item-min-block-size: var(--touch-min);
 }
 
+@media (pointer: coarse) {
+  .ui-menu-root {
+    --menu-item-min-block-size: var(--touch-min);
+  }
+}
+
 html[data-shell="phone"] .ui-menu-shortcut {
   display: none;
 }
