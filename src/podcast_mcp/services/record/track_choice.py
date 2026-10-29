@@ -20,7 +20,6 @@ from podcast_mcp.services.record.track_match import (
     resolve_session_tracks,
     suggestion_for_session,
 )
-from podcast_mcp.services.record.upload import RecordUploadService
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 
 NEW_TRACK = "new"
@@ -75,7 +74,7 @@ class RecordTrackService:
                     "be changed.",
                     code="person_removed",
                 )
-            target, label = self._target(project, current, match, track, held)
+            target, label = self._target(project, current, match, track)
             sources = _own_sources(project, self.session_id, participant_id, suggestion)
             has_staged_recording = suggestion is not None and (
                 bool(sources) or _has_bed(suggestion, self.session_id, participant_id)
@@ -172,28 +171,8 @@ class RecordTrackService:
                 code="session_already_accepted",
             )
 
-    def _with_acked_unlanded(self, participant_ids: set[str]) -> set[str]:
-        """People among *participant_ids* with a file-acked recording that has not landed."""
-        if not participant_ids:
-            return set()
-        uploads = RecordUploadService(self.workspace.project)
-        tombstoned = uploads.tombstoned_takes(self.session_id)
-        return {
-            str(row["participant_id"])
-            for row in uploads.status(session_id=self.session_id)["segments"]
-            if str(row["participant_id"]) in participant_ids
-            and row.get("file_ack")
-            and not row.get("landed")
-            and int(row["take_index"]) not in tombstoned
-        }
-
     def _target(
-        self,
-        project: EpisodeProject,
-        current: dict[str, TrackMatch],
-        match: TrackMatch,
-        track: str,
-        held: dict[str, str],
+        self, project: EpisodeProject, current: dict[str, TrackMatch], match: TrackMatch, track: str
     ) -> tuple[str, str]:
         if track.strip().lower() == NEW_TRACK:
             target, label = slug_track_id(match.participant_id), match.display_name
@@ -211,17 +190,7 @@ class RecordTrackService:
                     code="unknown_track",
                 )
             target, label = track, pool[track]
-        # A removed person only frees their track when nothing of theirs can still land on it:
-        # no staged or placed take (held) and no acked upload that has not landed yet.
-        gone = {
-            p.participant_id
-            for p in RecordSnapshot.model_validate(self._room.snapshot()).participants
-            if p.removed and p.participant_id not in held
-        }
-        gone -= self._with_acked_unlanded(gone)
         for other in current.values():
-            if other.participant_id in gone:
-                continue
             if other.participant_id != match.participant_id and other.track_id == target:
                 raise CodedValueError(
                     f'{other.display_name} is already on "{other.track_label}". Move them first, '
