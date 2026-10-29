@@ -18,6 +18,7 @@ function lower(body: Record<string, unknown>): void {
       const key = `${trackId}:${String(w.word_index)}`;
       if (targets.has(key)) {
         w.confidence = 0.4;
+        w.unsure = true;
       }
     }
   }

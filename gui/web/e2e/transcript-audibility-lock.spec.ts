@@ -33,6 +33,7 @@ function lockAndLowerWord(body: Record<string, unknown>): void {
     for (const w of (u.words as Array<Record<string, unknown>>) ?? []) {
       if (w.word_index === 3) {
         w.confidence = 0.4;
+        w.unsure = true;
       }
     }
   }

@@ -124,6 +124,7 @@ function buildUtterances(): CombinedUtterance[] {
           timeline_end: wordStart + step,
           word_index: wordIndex,
           confidence: LOW_CONFIDENCE.has(word) ? 0.42 : 0.96,
+          unsure: LOW_CONFIDENCE.has(word),
           mappable: true,
         };
       }),
