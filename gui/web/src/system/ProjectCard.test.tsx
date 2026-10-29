@@ -108,6 +108,19 @@ describe("ProjectCardList", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it("leaves a Find button with the arrow keys like its card", async () => {
+    const { cards, user } = setup([PROJECTS[0], MISSING, PROJECTS[1]]);
+    const find = screen.getByRole("button", { name: `Find ${MISSING.name}` });
+    await user.tab();
+    await user.tab();
+    expect(find).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(cards[2]).toHaveFocus();
+    find.focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(cards[0]).toHaveFocus();
+  });
+
   it("keeps the tab stop on the same card when a card is added before it", async () => {
     const user = userEvent.setup();
     const props = { label: "Recent episodes", onOpen: vi.fn() };
