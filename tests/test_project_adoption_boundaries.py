@@ -1,4 +1,4 @@
-"""The retired ``episode.project.json`` is renamed only where a project is really opened.
+"""The retired entry file is renamed only where a project is really opened.
 
 Discovery and polls resolve the name without touching the disk; every opener adopts it once
 before its first read.
