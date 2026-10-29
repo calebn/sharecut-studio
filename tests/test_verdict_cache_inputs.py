@@ -1025,7 +1025,8 @@ def test_pad_samples_that_are_not_a_list_move_the_key_whatever_their_truthiness(
 def test_a_cached_pause_verdict_equals_a_cold_check_for_pad_samples_that_are_not_a_list(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: Any
 ) -> None:
-    _, cold, cached = _compare(
+    before, cold, cached = _compare(
         tmp_path, monkeypatch, False, _tile_the_pause, _falsy_or_odd_samples(value)
     )
+    assert before != cold, "the change must move the cold verdict"
     assert cached == cold
