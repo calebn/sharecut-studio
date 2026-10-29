@@ -495,7 +495,7 @@ mutes, cuts and pads are not in the media, so they are never holes.
 
 **Fill sources**, tried in order:
 
-1. the track's recorded room-tone bed (`track.room_tone`, registered, audible and clean: a bed with speech in it fails the same level and voice rows as an own-audio sample, against its own floor, and the fill moves on to comfort noise, #1216), tiled;
+1. the track's recorded room-tone bed (`track.room_tone`, registered, audible and clean: a bed with speech throughout fails the same level and voice rows as an own-audio sample, against its own floor, and the fill moves on to comfort noise, #1216; one cough or word costs only the windows it touches and the pad uses the bed's longest quiet stretch, #2699), tiled;
 2. comfort noise matched to the track's own noise under its speech;
 3. never another track. Bleed is never the main audio (#945). No source reads a peer.
 
@@ -615,7 +615,7 @@ the two always sum to the room.
 
 **Sources**, tried in order, all the lane's own (`engines/bleed_fill.py`, `engines/gate_fill.py`):
 
-1. the lane's recorded room-tone bed (`track.room_tone`);
+1. the lane's recorded room-tone bed (`track.room_tone`), read from its usable stretch (the longest run of 0.5 s windows that pass its own levels and voice check, at least 3 s or the whole live bed when shorter), so one cough in a long bed does not discard it (#2699);
 2. comfort noise read from the stretches the plan found to hold neither a foreign copy nor
    the lane's own voice, trimmed 150 ms from each end. A copy that fills the lane's pauses
    is never read as its room, and the plan, not the audio, says where the copies are. It
