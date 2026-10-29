@@ -1,6 +1,6 @@
 # Natural language editing
 
-Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing is **non-destructive**: decisions live in `episode.project.json`; raw audio in `raw/` is never overwritten.
+Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing is **non-destructive**: decisions live in `episode.sharecut`; raw audio in `raw/` is never overwritten.
 
 ## Editing MCP tools
 
@@ -135,7 +135,7 @@ Stored transcript/edit times are **source-media seconds**; rendered audio (stems
 ## Editing CLI
 
 ```bash
-podcast edit-context --project episode.project.json
+podcast edit-context --project episode.sharecut
 podcast edit search --project ... --query "coffee"
 podcast edit cut-text --project ... --query "coffee"
 podcast edit preview-cut --project ... --track host --start 32.4 --end 34.8

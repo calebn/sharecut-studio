@@ -1137,9 +1137,9 @@ Tune behavior in `.agents/defaults/pipeline.yaml` (or a project-local override).
 Start from defaults, **propose without apply**, listen, then adjust one knob at a time.
 
 ```bash
-podcast propose-edits --project episode.project.json
+podcast propose-edits --project episode.sharecut
 # Review edit_decisions; audition with play --compare or processed stems
-podcast apply-edits --project episode.project.json   # when happy
+podcast apply-edits --project episode.sharecut   # when happy
 ```
 
 Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / `render:` into your project's pipeline config or pass defaults when calling MCP tools.

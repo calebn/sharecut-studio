@@ -25,7 +25,7 @@ import type {
 import { ApiError } from "../../utils/apiError";
 import { ReviewHost } from "./ReviewHost";
 
-const PATH = "/tmp/find-more/episode.project.json";
+const PATH = "/tmp/find-more/episode.sharecut";
 const confirm = vi.fn<(question: Question) => boolean | null>();
 
 vi.mock("../../api", async (importOriginal) => ({

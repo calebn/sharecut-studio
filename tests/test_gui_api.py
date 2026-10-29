@@ -1497,10 +1497,7 @@ def _fixture_project():
     from pathlib import Path
 
     fixture = (
-        Path(__file__).resolve().parents[0]
-        / "fixtures"
-        / "aligned_dialogue"
-        / "episode.project.json"
+        Path(__file__).resolve().parents[0] / "fixtures" / "aligned_dialogue" / "episode.sharecut"
     )
     if not fixture.is_file():
         pytest.skip("aligned_dialogue fixture missing")
@@ -1573,7 +1570,7 @@ def test_api_project_create_and_open(tmp_path, monkeypatch) -> None:
     assert opened.status_code == 200
     assert opened.json()["project_path"] == project_path
 
-    # Open via workspace directory resolves to episode.project.json
+    # Open via workspace directory resolves to episode.sharecut
     by_dir = client.post(
         "/api/project/open",
         json={"path": str(Path(project_path).parent)},
@@ -1592,15 +1589,15 @@ def test_api_project_create_and_open(tmp_path, monkeypatch) -> None:
         json={"path": str(tmp_path / "missing.json")},
     )
     assert wrong_name.status_code == 400
-    assert "episode.project.json" in wrong_name.json()["detail"]
+    assert "episode.sharecut" in wrong_name.json()["detail"]
 
     missing = client.post(
         "/api/project/open",
-        json={"path": str(tmp_path / "nope" / "episode.project.json")},
+        json={"path": str(tmp_path / "nope" / "episode.sharecut")},
     )
     assert missing.status_code == 404
 
-    junk = tmp_path / "episode.project.json"
+    junk = tmp_path / "episode.sharecut"
     junk.write_text("not-a-project", encoding="utf-8")
     invalid = client.post("/api/project/open", json={"path": str(junk)})
     assert invalid.status_code == 400
@@ -1685,7 +1682,7 @@ def test_api_project_pick(tmp_path, monkeypatch) -> None:
     assert unavailable.json()["unavailable"] is True
     assert unavailable.json()["detail"] == "no dialog"
 
-    missing = tmp_path / "gone" / "episode.project.json"
+    missing = tmp_path / "gone" / "episode.sharecut"
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.project.pick_episode_project_path",
         lambda: HostPickResult(path=str(missing)),
@@ -1700,7 +1697,7 @@ def test_api_project_pick(tmp_path, monkeypatch) -> None:
     )
     bad_name = client.post("/api/project/pick")
     assert bad_name.status_code == 400
-    assert "episode.project.json" in bad_name.json()["detail"]
+    assert "episode.sharecut" in bad_name.json()["detail"]
 
     from podcast_mcp.gui.routes import project as project_routes
 
@@ -1865,7 +1862,7 @@ def test_api_audio_project_lock_timeout_hides_the_lock_path(minimal_project, mon
     from podcast_mcp.gui.server import create_app
 
     def busy(*_args: object, **_kwargs: object) -> None:
-        raise Timeout("/secret/ws/artifacts/episode.project.json.lock")
+        raise Timeout("/secret/ws/artifacts/episode.sharecut.lock")
 
     monkeypatch.setattr("podcast_mcp.gui.routes.project.resolve_viewer_transport", busy)
     res = TestClient(create_app()).get(
@@ -1898,9 +1895,7 @@ def test_api_project_meta(minimal_project) -> None:
     data = res.json()
     assert data["mtime_ns"] > 0
     assert data["size"] > 0
-    assert "episode.project.json" in data["path"] or data["path"].endswith(
-        str(minimal_project.name)
-    )
+    assert "episode.sharecut" in data["path"] or data["path"].endswith(str(minimal_project.name))
 
 
 def test_api_session_meta_missing(minimal_project) -> None:
@@ -2112,7 +2107,7 @@ def test_api_comment_noop_patch_journals_nothing(minimal_project) -> None:
 @pytest.mark.parametrize(
     "make_exc",
     [
-        lambda: ProjectBusyError("/artifacts/episode.project.json.lock"),
+        lambda: ProjectBusyError("/artifacts/episode.sharecut.lock"),
         lambda: RenderBusyError("/artifacts/render.lock"),
         lambda: Timeout("/artifacts/transcript_context.yaml.lock"),
     ],
@@ -2204,8 +2199,8 @@ def test_pipeline_status_scoped_to_project(tmp_path) -> None:
     from podcast_mcp.services.jobs import Job, JobManager
 
     mgr = JobManager()
-    project_a = (tmp_path / "proj-a" / "episode.project.json").resolve()
-    project_b = (tmp_path / "proj-b" / "episode.project.json").resolve()
+    project_a = (tmp_path / "proj-a" / "episode.sharecut").resolve()
+    project_b = (tmp_path / "proj-b" / "episode.sharecut").resolve()
     job_a = Job(
         id="jobaaa",
         project_path=str(project_a),
@@ -2245,7 +2240,7 @@ def test_api_pipeline_status_scopes_to_served_project(minimal_project, tmp_path)
     from podcast_mcp.gui.server import create_app
     from podcast_mcp.services.jobs import Job
 
-    other = tmp_path / "other" / "episode.project.json"
+    other = tmp_path / "other" / "episode.sharecut"
     other.parent.mkdir()
     other.write_text(minimal_project.read_text())
     client = TestClient(create_app(served_project=other))
@@ -3958,10 +3953,7 @@ def test_build_project_view_aligned_fixture() -> None:
     from podcast_mcp.gui.assembler import build_project_view
 
     fixture = (
-        Path(__file__).resolve().parents[0]
-        / "fixtures"
-        / "aligned_dialogue"
-        / "episode.project.json"
+        Path(__file__).resolve().parents[0] / "fixtures" / "aligned_dialogue" / "episode.sharecut"
     )
     if not fixture.is_file():
         pytest.skip("aligned_dialogue fixture missing")
@@ -4136,7 +4128,7 @@ def test_index_project_mismatch_returns_recovery_page(minimal_project, tmp_path)
 
     from podcast_mcp.gui.server import create_app
 
-    other = minimal_project.parent / "other" / "episode.project.json"
+    other = minimal_project.parent / "other" / "episode.sharecut"
     client = TestClient(
         create_app(static_dir=_recovery_static_root(tmp_path), served_project=minimal_project)
     )
@@ -4160,7 +4152,7 @@ def test_index_project_mismatch_keeps_json_for_non_html_accept(minimal_project, 
 
     from podcast_mcp.gui.server import create_app
 
-    other = minimal_project.parent / "other" / "episode.project.json"
+    other = minimal_project.parent / "other" / "episode.sharecut"
     client = TestClient(
         create_app(static_dir=_recovery_static_root(tmp_path), served_project=minimal_project)
     )
@@ -4186,7 +4178,7 @@ def test_index_project_mismatch_requires_remote_token_and_preserves_it(
 
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
     monkeypatch.setenv("PODCAST_SESSION_TOKEN", "recovery-token")
-    other = minimal_project.parent / "other" / "episode.project.json"
+    other = minimal_project.parent / "other" / "episode.sharecut"
     client = TestClient(
         create_app(
             static_dir=_recovery_static_root(tmp_path),
@@ -4226,7 +4218,7 @@ def test_index_project_mismatch_refuses_relayed_request(
     from podcast_mcp.services.session_sync.authz import HOST_ROLE_RELAYED_REASON
 
     monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
-    other = minimal_project.parent / "other" / "episode.project.json"
+    other = minimal_project.parent / "other" / "episode.sharecut"
     client = TestClient(
         create_app(static_dir=_recovery_static_root(tmp_path), served_project=minimal_project)
     )
@@ -4332,7 +4324,7 @@ def test_recovery_home_link_keeps_the_pin(minimal_project, tmp_path) -> None:
     """The recovery page's home link shows home and never unpins (#533)."""
     served = Path(minimal_project).resolve()
     client = _root_client(tmp_path, minimal_project)
-    other = minimal_project.parent / "other" / "episode.project.json"
+    other = minimal_project.parent / "other" / "episode.sharecut"
     page = client.get(
         "/",
         params={"project": str(other)},
@@ -4370,7 +4362,7 @@ def test_index_bare_root_redirect_refuses_relayed_request(minimal_project, tmp_p
 
 
 def test_index_bare_root_skips_redirect_when_pinned_file_is_gone(tmp_path) -> None:
-    client = _root_client(tmp_path, tmp_path / "gone" / "episode.project.json")
+    client = _root_client(tmp_path, tmp_path / "gone" / "episode.sharecut")
     res = client.get("/", follow_redirects=False)
     assert res.status_code == 200
 
@@ -4389,7 +4381,7 @@ def test_api_project_mismatch_still_json_403(minimal_project, tmp_path) -> None:
 
     from podcast_mcp.gui.server import create_app
 
-    other = tmp_path / "other" / "episode.project.json"
+    other = tmp_path / "other" / "episode.sharecut"
     other.parent.mkdir(parents=True)
     other.write_text(minimal_project.read_text())
     client = TestClient(create_app(served_project=minimal_project))

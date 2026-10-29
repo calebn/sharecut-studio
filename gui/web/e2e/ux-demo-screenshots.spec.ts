@@ -9,7 +9,7 @@ const screensDir =
   process.env.UX_DEMO_SCREENS_DIR ?? path.join(repoRoot, "ux/assets/screens");
 const uxDemoPath = path.join(
   repoRoot,
-  "tests/fixtures/sharecut_ux_demo/episode.project.json",
+  "tests/fixtures/sharecut_ux_demo/episode.sharecut",
 );
 const guestTokensPath =
   process.env.UX_DEMO_GUEST_TOKENS ??

@@ -133,7 +133,7 @@ def test_tracks_and_labels_match_recorded_corpus(
 
 @pytest.mark.parametrize("track", TRACKS)
 def test_transcript_mirrors_match_project(track: str) -> None:
-    project = load_project(FIXTURE / "episode.project.json")
+    project = load_project(FIXTURE / "episode.sharecut")
     transcript = next(t for t in project.transcript_data.per_track if t.track_id == track)
     mirror_path = FIXTURE / "transcripts" / f"{track}.json"
     from podcast_mcp.models.episode import Transcript

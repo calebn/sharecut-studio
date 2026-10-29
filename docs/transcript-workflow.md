@@ -62,9 +62,9 @@ non-empty reason, then retry approval intentionally.
 Resume examples:
 
 ```bash
-podcast pipeline run --project episode.project.json --from precorrect_transcript
-podcast pipeline run --project episode.project.json --from assemble_timeline   # includes pass 2 reconcile
-podcast pipeline run --project episode.project.json --unattended              # auto-waive refine gate
+podcast pipeline run --project episode.sharecut --from precorrect_transcript
+podcast pipeline run --project episode.sharecut --from assemble_timeline   # includes pass 2 reconcile
+podcast pipeline run --project episode.sharecut --unattended              # auto-waive refine gate
 ```
 
 ## What reconcile fixes (and does not)
@@ -396,7 +396,7 @@ which MCP tools, CLI (`podcast transcript correct`, `correct-phrase`, `suppress-
 use, and only when the words actually changed. Automated passes stay unmarked on
 purpose because re-running the pipeline re-derives them: precorrect (glossary and
 cross-track), reconciliation, speaker attribution, audio-quality and bleed
-suppression, and transcript sync. Editing `episode.project.json` by hand is not
+suppression, and transcript sync. Editing `episode.sharecut` by hand is not
 detected; set `"user_edited": true` on that transcript to protect it.
 
 **Stale-index guard (#650, #744):** the `CorrectTranscriptWord` / `CorrectTranscriptPhrase` /
@@ -490,7 +490,7 @@ transcripts, and log a warning when they replace a `user_edited` one.
 Set context before transcribe when possible:
 
 ```bash
-podcast transcript context set --project episode.project.json \
+podcast transcript context set --project episode.sharecut \
   --show-title "Shot of Truth Podcast" --guest-name "Olga Araceli" --term "Puro Pinché Party"
 ```
 

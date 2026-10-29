@@ -90,7 +90,7 @@ describe("host document command queue", () => {
     vi.stubGlobal("fetch", fetchSpy);
     const { setClipFade, submitDocumentCommand } = await import("./api");
     const expected = { fade_in_ms: 1, fade_out_ms: 0 };
-    await setClipFade("/tmp/episode.project.json", "c1", 1, 1, expected);
+    await setClipFade("/tmp/episode.sharecut", "c1", 1, 1, expected);
     expected.fade_in_ms = 0;
     const command = enqueueHostCommand.mock.calls[0][1] as {
       command_id: string;
@@ -107,7 +107,7 @@ describe("host document command queue", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     await expect(
       submitDocumentCommand(
-        "/tmp/episode.project.json",
+        "/tmp/episode.sharecut",
         "SetClipFade",
         command.payload,
         { ...command, replaying: true },
@@ -123,7 +123,7 @@ describe("host document command queue", () => {
       expected: { fade_in_ms: 1, fade_out_ms: 0 },
     });
     expect(settleHostCommandOutcome).toHaveBeenCalledWith(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       command.command_id,
       expect.objectContaining({
         kind: "refused",
@@ -165,7 +165,7 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
     const { isModelNeeded } = await import("./utils/apiError");
     const error = await submitDocumentCommand(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       "AddEffect",
       { clip_id: "c1" },
       { replaying: true, command_id: "fx", client_id: "host", client_seq: 1 },
@@ -228,14 +228,14 @@ describe("host document command queue", () => {
     const { createComment, patchComment } = await import("./api");
 
     await expect(
-      createComment("/tmp/episode.project.json", {
+      createComment("/tmp/episode.sharecut", {
         body: "Review note",
         author: "Host",
         timelineStart: 2,
       }),
     ).resolves.toBeNull();
     await expect(
-      patchComment("/tmp/episode.project.json", "comment-1", {
+      patchComment("/tmp/episode.sharecut", "comment-1", {
         resolved: true,
       }),
     ).resolves.toBeNull();
@@ -243,7 +243,7 @@ describe("host document command queue", () => {
   });
 
   describe("the history head a command's reply left", () => {
-    const path = "/tmp/episode.project.json";
+    const path = "/tmp/episode.sharecut";
 
     it("is recorded for a landed command, so an Undo behind it expects it", async () => {
       vi.stubGlobal(
@@ -289,7 +289,7 @@ describe("host document command queue", () => {
   });
 
   describe("live sends behind this tab's in-flight send", () => {
-    const path = "/tmp/episode.project.json";
+    const path = "/tmp/episode.sharecut";
     const refine409 = () =>
       new Response(JSON.stringify({ detail: "Refine required" }), {
         status: 409,
@@ -771,7 +771,7 @@ describe("host document command queue", () => {
 
     await expect(
       submitDocumentCommand(
-        "/tmp/episode.project.json",
+        "/tmp/episode.sharecut",
         "SetTrackMeta",
         {},
         {
@@ -797,7 +797,7 @@ describe("host document command queue", () => {
 
       await expect(
         submitDocumentCommand(
-          "/tmp/episode.project.json",
+          "/tmp/episode.sharecut",
           "SetTrackMeta",
           {},
           {
@@ -809,7 +809,7 @@ describe("host document command queue", () => {
         ),
       ).resolves.toMatchObject({ queued: true });
       expect(settleHostCommandOutcome).toHaveBeenCalledWith(
-        "/tmp/episode.project.json",
+        "/tmp/episode.sharecut",
         "limited",
         expect.objectContaining({ kind: "unknown" }),
         false,
@@ -836,7 +836,7 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     await expect(
-      submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
+      submitDocumentCommand("/tmp/episode.sharecut", "SetTrackMeta"),
     ).rejects.toThrow("older offline edits are pending");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -852,7 +852,7 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     await expect(
-      submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
+      submitDocumentCommand("/tmp/episode.sharecut", "SetTrackMeta"),
     ).resolves.toEqual({ ok: true });
   });
 
@@ -917,7 +917,7 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     const result = await submitDocumentCommand(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       "SetTrackMeta",
       {
         label: "Host",
@@ -927,7 +927,7 @@ describe("host document command queue", () => {
     expect(result).toEqual({ ok: true });
     expect(calls).toEqual(["enqueue", "fetch"]);
     expect(settleHostCommandOutcome).toHaveBeenCalledWith(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       expect.any(String),
       null,
       true,
@@ -942,14 +942,14 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     const result = await submitDocumentCommand(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       "SetTrackMeta",
     );
 
     expect(result.queued).toBe(true);
     expect(removeHostQueuedCommand).not.toHaveBeenCalled();
     expect(settleHostCommandOutcome).toHaveBeenCalledWith(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       expect.any(String),
       expect.objectContaining({ kind: "unknown" }),
       false,
@@ -968,9 +968,7 @@ describe("host document command queue", () => {
     vi.stubGlobal("fetch", fetchSpy);
     const { approveEdits, submitDocumentCommand } = await import("./api");
 
-    expect(
-      await approveEdits("/tmp/episode.project.json", ["a"], false),
-    ).toEqual({
+    expect(await approveEdits("/tmp/episode.sharecut", ["a"], false)).toEqual({
       queued: true,
       count: null,
       historyHead: null,
@@ -987,7 +985,7 @@ describe("host document command queue", () => {
     });
 
     await submitDocumentCommand(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       "ApproveEdits",
       command.payload,
       { ...command, replaying: true },
@@ -1005,14 +1003,14 @@ describe("host document command queue", () => {
     });
     vi.stubGlobal("fetch", vi.fn());
     const { approveEdits } = await import("./api");
-    await expect(
-      approveEdits("/tmp/episode.project.json", ["a"]),
-    ).resolves.toEqual({
-      queued: true,
-      count: null,
-      historyHead: null,
-      held: [],
-    });
+    await expect(approveEdits("/tmp/episode.sharecut", ["a"])).resolves.toEqual(
+      {
+        queued: true,
+        count: null,
+        historyHead: null,
+        held: [],
+      },
+    );
   });
 
   it("reports a sent approval as not queued, with the history entry it recorded", async () => {
@@ -1031,14 +1029,14 @@ describe("host document command queue", () => {
       ),
     );
     const { approveEdits } = await import("./api");
-    await expect(
-      approveEdits("/tmp/episode.project.json", ["a"]),
-    ).resolves.toEqual({
-      queued: false,
-      count: 1,
-      historyHead: "a1b2c3d4e5f6",
-      held: [],
-    });
+    await expect(approveEdits("/tmp/episode.sharecut", ["a"])).resolves.toEqual(
+      {
+        queued: false,
+        count: 1,
+        historyHead: "a1b2c3d4e5f6",
+        held: [],
+      },
+    );
   });
 
   it("asks the host to hold blocked cuts and reports which it held", async () => {
@@ -1065,7 +1063,7 @@ describe("host document command queue", () => {
     vi.stubGlobal("fetch", fetchSpy);
     const { approveEdits } = await import("./api");
     const outcome = await approveEdits(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       ["a", "e2"],
       true,
     );
@@ -1101,7 +1099,7 @@ describe("host document command queue", () => {
       );
       const { approveEdits, rejectEdits } = await import("./api");
       const result = await (action === "approve" ? approveEdits : rejectEdits)(
-        "/tmp/episode.project.json",
+        "/tmp/episode.sharecut",
         ["a"],
       );
       expect(result).toEqual({
@@ -1130,9 +1128,9 @@ describe("host document command queue", () => {
         ),
       );
       const { rejectEdits } = await import("./api");
-      await expect(
-        rejectEdits("/tmp/episode.project.json", ["a"]),
-      ).rejects.toThrow("The review reply is missing its affected edit count.");
+      await expect(rejectEdits("/tmp/episode.sharecut", ["a"])).rejects.toThrow(
+        "The review reply is missing its affected edit count.",
+      );
     },
   );
 
@@ -1173,7 +1171,7 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     const result = await submitDocumentCommand(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       "SetTrackMeta",
     );
 
@@ -1191,7 +1189,7 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     await expect(
-      submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
+      submitDocumentCommand("/tmp/episode.sharecut", "SetTrackMeta"),
     ).resolves.toMatchObject({ queued: true });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -1215,7 +1213,7 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     await expect(
-      submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
+      submitDocumentCommand("/tmp/episode.sharecut", "SetTrackMeta"),
     ).rejects.toThrow("offline");
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
@@ -1231,7 +1229,7 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     await submitDocumentCommand(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       "SetTrackMeta",
       {},
       {
@@ -1264,7 +1262,7 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     await expect(
-      submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
+      submitDocumentCommand("/tmp/episode.sharecut", "SetTrackMeta"),
     ).resolves.toEqual({ ok: true });
   });
 
@@ -1288,10 +1286,10 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     await expect(
-      submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
+      submitDocumentCommand("/tmp/episode.sharecut", "SetTrackMeta"),
     ).rejects.toThrow("network down");
     expect(settleHostCommandOutcome).toHaveBeenCalledWith(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       expect.any(String),
       expect.objectContaining({ kind: "unknown", reason: expect.any(String) }),
       false,
@@ -1324,7 +1322,7 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     await expect(
-      submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
+      submitDocumentCommand("/tmp/episode.sharecut", "SetTrackMeta"),
     ).rejects.toThrow("stale revision");
     expect(settleHostCommandOutcome).toHaveBeenCalledOnce();
   });
@@ -1340,7 +1338,7 @@ describe("host document command queue", () => {
 
     await expect(
       submitDocumentCommand(
-        "/tmp/episode.project.json",
+        "/tmp/episode.sharecut",
         "SetEnvelope",
         {},
         {
@@ -1352,7 +1350,7 @@ describe("host document command queue", () => {
       ),
     ).rejects.toMatchObject({ status: 422 });
     expect(settleHostCommandOutcome).toHaveBeenCalledWith(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       "rejected-replay",
       expect.objectContaining({
         kind: "refused",
@@ -1370,10 +1368,10 @@ describe("host document command queue", () => {
     const { submitDocumentCommand } = await import("./api");
 
     await expect(
-      submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
+      submitDocumentCommand("/tmp/episode.sharecut", "SetTrackMeta"),
     ).rejects.toThrow("bad payload");
     expect(settleHostCommandOutcome).toHaveBeenCalledWith(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       expect.any(String),
       expect.objectContaining({ kind: "refused", reason: "bad payload" }),
       true,
@@ -1390,7 +1388,7 @@ describe("host document command queue", () => {
     const { minimalProject } = await import("./test/fixtures");
     const pan = { track_id: "host", parameter: "pan", points: [] };
     useDawStore.getState().hydrate(
-      "/tmp/episode.project.json",
+      "/tmp/episode.sharecut",
       minimalProject({
         envelopes: [
           pan,
@@ -1410,7 +1408,7 @@ describe("host document command queue", () => {
     const { setEnvelope } = await import("./api");
     const next = [{ id: "a", time: 0, value: 0.5 }];
 
-    await setEnvelope("/tmp/episode.project.json", "host", next, [
+    await setEnvelope("/tmp/episode.sharecut", "host", next, [
       { id: "a", time: 0, value: 1 },
     ]);
 
@@ -1439,15 +1437,15 @@ describe("host document command queue", () => {
     );
     vi.stubGlobal("fetch", fetchSpy);
     const { useDawStore } = await import("./state/dawStore");
-    useDawStore.setState({ projectPath: "/tmp/episode.project.json" });
+    useDawStore.setState({ projectPath: "/tmp/episode.sharecut" });
     const { setEnvelope } = await import("./api");
 
     await expect(
-      setEnvelope("/tmp/episode.project.json", "host", [], []),
+      setEnvelope("/tmp/episode.sharecut", "host", [], []),
     ).rejects.toThrow("changed");
     expect(applyDocumentSnapshot).toHaveBeenCalledWith(
       { server_seq: 4, state_token: "a".repeat(64), patch: { envelopes } },
-      { scope: expect.objectContaining({ path: "/tmp/episode.project.json" }) },
+      { scope: expect.objectContaining({ path: "/tmp/episode.sharecut" }) },
     );
     useDawStore.setState({ projectPath: "" });
   });

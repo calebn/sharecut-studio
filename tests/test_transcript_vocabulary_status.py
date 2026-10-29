@@ -210,7 +210,7 @@ def test_metadata_cache_is_bounded_without_retaining_live_projects(
     assert state.workspace == minimal_project.parent.resolve()
     project = load_project(minimal_project)
     for index in range(17):
-        path = tmp_path / f"other-{index}" / "episode.project.json"
+        path = tmp_path / f"other-{index}" / "episode.sharecut"
         save_project(project, path)
         ProjectStore(path).transcript_vocabulary_state()
     last = ProjectStore(path)
@@ -264,7 +264,7 @@ def test_cache_miss_preserves_app_busy_error_mapping(minimal_project, monkeypatc
 def test_cached_status_keeps_missing_and_pinned_path_gates(minimal_project, tmp_path):
     from podcast_mcp.models import EpisodeProject
 
-    other = tmp_path / "other" / "episode.project.json"
+    other = tmp_path / "other" / "episode.sharecut"
     save_project(EpisodeProject.create("other", str(other.parent)), other)
     TranscriptPrecorrectService.vocabulary_status(other)
     app = create_app()
@@ -277,7 +277,7 @@ def test_cached_status_keeps_missing_and_pinned_path_gates(minimal_project, tmp_
 def test_workspace_with_symlinked_project_keeps_canonical_context(minimal_project, tmp_path):
     alias = tmp_path / "alias"
     alias.mkdir()
-    (alias / "episode.project.json").symlink_to(minimal_project)
+    (alias / "episode.sharecut").symlink_to(minimal_project)
     TranscriptContext(show_title="Canonical").save(minimal_project.parent)
     TranscriptContext(show_title="Alias").save(alias)
     expected = _expected(alias)

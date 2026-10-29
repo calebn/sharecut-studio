@@ -648,7 +648,7 @@ def test_scoped_override_preserves_per_clip_manual_lock_on_other_phrase_after_re
         api.apply_retained_bleed_alignment(p, first, defaults=load_defaults())["applied_count"] == 1
     )
     assert p.editorial.retained_bleed_alignments[0].provenance == "requested_scoped_override"
-    ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
+    ws = ProjectWorkspace(tmp_path / "episode.sharecut", p)
     ws.save()
     reopened = ProjectWorkspace.open(ws.path).project
     snapshot = reopened.model_dump(by_alias=True)
@@ -742,7 +742,7 @@ def test_default_gate_preview_reports_unresolved_direct_phrase_without_mutation(
 
     p = _episode(tmp_path)
     reason = _remove_matching_direct_phrase(p, case)
-    ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
+    ws = ProjectWorkspace(tmp_path / "episode.sharecut", p)
     ws.save()
     before = p.model_dump(by_alias=True)
     preview = AnalysisService(ws).apply_bleed_mute(
@@ -762,7 +762,7 @@ def test_default_gate_preview_accepts_supported_implicit_full_media_timeline(
 
     p = _episode(tmp_path)
     p.clips = []
-    ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
+    ws = ProjectWorkspace(tmp_path / "episode.sharecut", p)
     ws.save()
     before = p.model_dump(by_alias=True)
     preview = AnalysisService(ws).apply_bleed_mute(track_id="uncertain", apply=False)
@@ -1309,7 +1309,7 @@ def test_declined_primary_phrase_remains_protected_after_same_file_pin_and_reope
     assert original.source_id is not None
     if absolute_source_path:
         p.source_by_id(original.source_id).path = str(tmp_path / "raw" / "direct.wav")
-    ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
+    ws = ProjectWorkspace(tmp_path / "episode.sharecut", p)
     ws.save()
     reopened = ProjectWorkspace.open(ws.path).project
     before = reopened.model_dump(by_alias=True)

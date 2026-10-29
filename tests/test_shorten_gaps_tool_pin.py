@@ -364,7 +364,7 @@ def test_registered_tool_rejects_a_non_numeric_max_gap_before_the_service(tmp_pa
 
 
 def test_missing_project_file_raises_project_not_found(tmp_path):
-    missing = str(tmp_path / "nope" / "episode.project.json")
+    missing = str(tmp_path / "nope" / "episode.sharecut")
     with pytest.raises(FileNotFoundError) as raised:
         mcp_timeline.shorten_gaps_tool(missing)
     assert isinstance(raised.value, CodedError)
@@ -376,7 +376,7 @@ def test_directory_without_a_project_raises_project_not_found(tmp_path):
     with pytest.raises(FileNotFoundError) as raised:
         mcp_timeline.shorten_gaps_tool(str(tmp_path))
     assert raised.value.code == "project_not_found"
-    assert str(raised.value) == f"Project not found: {tmp_path / 'episode.project.json'}"
+    assert str(raised.value) == f"Project not found: {tmp_path / 'episode.sharecut'}"
 
 
 def test_registered_tool_reports_a_missing_project_as_an_error(tmp_path):

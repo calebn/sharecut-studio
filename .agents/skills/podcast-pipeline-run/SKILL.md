@@ -55,14 +55,14 @@ The default pipeline cuts no content: focus and tighten are off, so a raw sessio
 1. **Content cut** (after sign-off; it usually exceeds the 15% guard). Remove off-topic runs and meta talk, then the dead start, on every dialogue track with **podcast-edit-natural-language**. Work from the end of the episode toward the start; the dead start (`--start 0`) is always last:
    ```bash
    # each off-topic run / meta talk, latest first
-   podcast edit suggest-handoff-cut --project episode.project.json --keep-left-end <L> --keep-right-start <R>
-   podcast edit ripple-delete --project episode.project.json --start <cut_start> --end <cut_end> --no-inaudible-opt
+   podcast edit suggest-handoff-cut --project episode.sharecut --keep-left-end <L> --keep-right-start <R>
+   podcast edit ripple-delete --project episode.sharecut --start <cut_start> --end <cut_end> --no-inaudible-opt
    # last: the dead start shifts everything after it
-   podcast edit search --project episode.project.json --query "<first kept line>"   # timeline_start
-   podcast edit ripple-delete --project episode.project.json --start 0 --end <timeline_start-0.5>
+   podcast edit search --project episode.sharecut --query "<first kept line>"   # timeline_start
+   podcast edit ripple-delete --project episode.sharecut --start 0 --end <timeline_start-0.5>
    ```
    MCP: `suggest_handoff_cut_tool`, `ripple_delete_tool`, `search_transcript_tool`.
-2. **Tighten the kept range:** `podcast propose-edits --project episode.project.json` (**podcast-tighten-dialogue**). Removed words are gone, so proposals fall only in kept material. Reject tighten proposals made before the cut (`podcast edit reject --ids …`). The refine decision stays clear: cuts and renders never stale it.
+2. **Tighten the kept range:** `podcast propose-edits --project episode.sharecut` (**podcast-tighten-dialogue**). Removed words are gone, so proposals fall only in kept material. Reject tighten proposals made before the cut (`podcast edit reject --ids …`). The refine decision stays clear: cuts and renders never stale it.
 3. `analyze_focus_cuts` is an outline, not a cut list (see step 11 above). Use **podcast-focus-episode** for the editorial judgment.
 
 Rationale and details: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
@@ -78,15 +78,15 @@ Rationale and details: [docs/pipeline.md § Long raw sessions](../../../docs/pip
 ```bash
 podcast pipeline list
 podcast pipeline list --json
-podcast pipeline run --project episode.project.json
-podcast pipeline run --project episode.project.json --unattended
-podcast pipeline run --project episode.project.json --from precorrect_transcript
-podcast pipeline run --project episode.project.json --from tighten_from_transcript
-podcast pipeline run --project episode.project.json --from assemble_timeline
-podcast pipeline run --project episode.project.json --only transcribe_tracks
-podcast pipeline run --project episode.project.json --force   # re-run ASR over existing transcripts
-podcast pipeline run --project episode.project.json --retime-words  # re-time stored transcripts from the ASR cache, no Whisper (fails with the download command when the word aligner is not installed)
-podcast pipeline run --project episode.project.json --no-strict  # report a failed QC verdict but still exit 0
+podcast pipeline run --project episode.sharecut
+podcast pipeline run --project episode.sharecut --unattended
+podcast pipeline run --project episode.sharecut --from precorrect_transcript
+podcast pipeline run --project episode.sharecut --from tighten_from_transcript
+podcast pipeline run --project episode.sharecut --from assemble_timeline
+podcast pipeline run --project episode.sharecut --only transcribe_tracks
+podcast pipeline run --project episode.sharecut --force   # re-run ASR over existing transcripts
+podcast pipeline run --project episode.sharecut --retime-words  # re-time stored transcripts from the ASR cache, no Whisper (fails with the download command when the word aligner is not installed)
+podcast pipeline run --project episode.sharecut --no-strict  # report a failed QC verdict but still exit 0
 ```
 
 Forced word alignment is on by default when the word aligner is downloaded (`podcast bootstrap --component word-aligner`); without it the summary says "forced alignment unavailable: …" and word times are Whisper's own (`transcripts[].word_aligner: null`), so audition cut points before trusting them (#780). In Studio, an explicit saved request blocked by a missing model stays checked and can be turned off; the unset missing-model default stays unavailable. Existing transcripts are reused (a second run does not call Whisper). On seeded projects use `--from merge_transcript` or rely on the skip. `--force` / MCP `force_transcribe=true` re-transcribes; if a hand-edited transcript would be replaced (forced, or its audio changed) and the run is unattended, it fails with `TranscriptOverwriteRefused` naming each track and reason — rerun attended, or have the user click Studio Re-transcribe and accept its replace prompt (the only path that confirms replacing edits in Batch mode). `--retime-words` / MCP `pipeline_run(retime_words=true)` re-times reused transcripts whose ASR cache is present for `transcribe.forced_alignment.enabled` (turned on for that run) without re-running Whisper (not with `--force` / `force_transcribe`, which is rejected); hand-edited transcripts are always skipped from the CLI/MCP (no confirmation to send) and reported in the summary. After a `--retime-words` / `retime_words=true` run, read `artifacts/transcript_timing.json` → `forced_alignment.retime` (`retimed`, `failed`, `skipped_edited`, `skipped_no_asr_cache`), not only the summary line. Tell the user about each `skipped_edited` track: only Studio **Re-time words**, after its replace prompt, can re-time those. Re-transcribe (`--force`) the `skipped_no_asr_cache` tracks.
@@ -120,7 +120,7 @@ and `podcast pipeline run ... --set k=v` (repeatable, run-only override never sa
 
 ```
 episode/
-├── episode.project.json
+├── episode.sharecut
 ├── raw/
 ├── transcripts/
 ├── artifacts/

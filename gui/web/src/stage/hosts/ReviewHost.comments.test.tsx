@@ -202,7 +202,7 @@ const mount = (comments = [OPEN, LATER, DONE], picked?: string) => {
 
 beforeEach(() => {
   runs += 1;
-  PATH = `/tmp/review-comments/${runs}/episode.project.json`;
+  PATH = `/tmp/review-comments/${runs}/episode.sharecut`;
   vi.clearAllMocks();
   Object.defineProperty(navigator, "locks", {
     configurable: true,

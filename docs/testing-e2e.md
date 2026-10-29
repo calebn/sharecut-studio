@@ -221,7 +221,7 @@ tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 uv run python scripts/build_large_project_fixture.py --out "$tmp_dir/project"
 (cd gui/web && npm run build)
-DAW_E2E_PROJECT="$tmp_dir/project/episode.project.json" \
+DAW_E2E_PROJECT="$tmp_dir/project/episode.sharecut" \
   DAW_BENCHMARK_PROJECT=1 \
   npm --prefix gui/web run test:e2e -- large-project.spec.ts
 ```
@@ -287,7 +287,7 @@ Part of #879. The small profiling preset is 120 seconds, two tracks, 24 clips,
 uv run python scripts/build_large_project_fixture.py \
 	--out /tmp/editor-small-1 --duration 120 --tracks 2 \
 	--clips 24 --utterances 200 --history 20
-DAW_E2E_PROJECT=/tmp/editor-small-1/episode.project.json \
+DAW_E2E_PROJECT=/tmp/editor-small-1/episode.sharecut \
 	DAW_BENCHMARK_PROJECT=1 DAW_PROFILE_OUT=/tmp/editor-small-1-report \
 	npm --prefix gui/web run test:e2e -- large-project.spec.ts --retries=0 --trace=off
 ```

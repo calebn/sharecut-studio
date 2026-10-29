@@ -11,7 +11,7 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 
 **Shells and breakpoints.** Phone < 768 px, tablet 768 to 1180 px, desktop > 1180 px (`hooks/useViewportClass.ts`, `layout/useEffectiveLayout.ts`). Roots are `.daw-shell--phone`, `.daw-shell--tablet` (inspector in a sheet or column), `.daw-shell--desktop`; guest adds `.daw-shell-guest`.
 
-**Routing (`App.tsx`, `shareRoute.ts`).** `/` with no `?project=` is Home. `/?project=<abs path to episode.project.json>` is the host editor (`dawApp.tsx` then `layout/StudioShell.tsx`, which swaps in `layout/MobileShell.tsx` on phone). `/r/<token>` (or `?review=<token>`) is guest review. `/rec/<token>` is the record room (guest or producer). `/?home=1` forces Home when a project is pinned.
+**Routing (`App.tsx`, `shareRoute.ts`).** `/` with no `?project=` is Home. `/?project=<abs path to episode.sharecut>` is the host editor (`dawApp.tsx` then `layout/StudioShell.tsx`, which swaps in `layout/MobileShell.tsx` on phone). `/r/<token>` (or `?review=<token>`) is guest review. `/rec/<token>` is the record room (guest or producer). `/?home=1` forces Home when a project is pinned.
 
 ---
 
@@ -336,7 +336,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-open` (see `gui/web/e2e/guiCommand.ts`), then `npm --prefix gui/web run build` once. Tests start it through `npm --prefix gui/web run test:e2e -- <spec>`. Storybook: `npm --prefix gui/web run storybook` (6006). Story ids come from the title, for example `Stages/Deliver/Share` + story `Empty` = `stages-deliver-share--empty`; use `e2e-storybook/storyUrl.ts`.
 
 **Common setup**
-- **R-HOST.** `page.goto('/?project=' + encodeURIComponent('<abs>/tests/fixtures/sharecut_ux_demo/episode.project.json'))`. The title h1 reads "ShareCut Studio UX demo", the total timecode reads `01:00.000`, tracks `reference` and `guest` appear as `.lane-row[data-track-id="reference"]`. Wait for `getByRole('button', {name:'Play', exact:true})` enabled. Fixture `tests/fixtures/aligned_dialogue/episode.project.json` is the e2e default and has words for the transcript.
+- **R-HOST.** `page.goto('/?project=' + encodeURIComponent('<abs>/tests/fixtures/sharecut_ux_demo/episode.sharecut'))`. The title h1 reads "ShareCut Studio UX demo", the total timecode reads `01:00.000`, tracks `reference` and `guest` appear as `.lane-row[data-track-id="reference"]`. Wait for `getByRole('button', {name:'Play', exact:true})` enabled. Fixture `tests/fixtures/aligned_dialogue/episode.sharecut` is the e2e default and has words for the transcript.
 - **Viewports.** Desktop 1440x900 (`.daw-shell--desktop`), tablet 820x1024 (`.daw-shell--tablet`), phone 360x800 or 390x844 (`.daw-shell--phone`).
 - **Fresh state.** `localStorage` keys that matter: `sharecut.bootstrap.skip`, `sharecut.compactInspector` (peek, half, full), the auto-mix pref (`hooks/autoMixPref.ts`; the config sets it to off so no history entry is written).
 - **Host panel tabs.** Desktop/tablet: `page.getByLabel('Editor panels').getByRole('tab', {name:'Comments'|'History'|'Pipeline'|'Transcript', exact:true})`. Phone: `getByRole('navigation',{name:'Primary'}).getByRole('button',{name:'More',exact:true})`, press "← More" if shown, then `.mobile-more-list` button by name.

@@ -21,7 +21,7 @@ export type DocumentSnapshot = {
   project?: ProjectView;
   patch?: Partial<ProjectView>;
   resync?: boolean;
-  /** Identity of the episode.project.json this snapshot was built from (#657). */
+  /** Identity of the episode.sharecut this snapshot was built from (#657). */
   file?: DocumentFileSignature;
   /** The file the command applied on top of, present only on a submit's Applied (#657). */
   file_before?: DocumentFileSignature;

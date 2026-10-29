@@ -1067,7 +1067,7 @@ def test_transport_stem_build_commit_lock_timeout_serves_the_fresh_stem_without_
     stem.parent.mkdir(parents=True, exist_ok=True)
     stem.write_bytes(sample_wav.read_bytes())
     with patch.object(
-        PlayService, "ensure_stem", MagicMock(side_effect=Timeout("episode.project.json.lock"))
+        PlayService, "ensure_stem", MagicMock(side_effect=Timeout("episode.sharecut.lock"))
     ):
         tp = PlayService(ws).resolve_transport_path("stem", track_id="host", build_stem=True)
     assert tp.path == stem.resolve()
@@ -1121,7 +1121,7 @@ def test_play_rerender_segment_renders_when_the_project_lock_is_busy(
 
     with (
         patch.object(
-            PlayService, "ensure_stem", MagicMock(side_effect=Timeout("episode.project.json.lock"))
+            PlayService, "ensure_stem", MagicMock(side_effect=Timeout("episode.sharecut.lock"))
         ) as ensure,
         patch_play("render_track_segment", side_effect=_seg) as seg,
     ):

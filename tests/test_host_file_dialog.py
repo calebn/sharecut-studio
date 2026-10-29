@@ -30,11 +30,11 @@ def test_normalize_chosen_wrong_basename(tmp_path: Path) -> None:
 
 def test_normalize_chosen_directory(tmp_path: Path) -> None:
     out = _normalize_chosen(str(tmp_path))
-    assert out.path == str((tmp_path / "episode.project.json").resolve())
+    assert out.path == str((tmp_path / "episode.sharecut").resolve())
 
 
 def test_normalize_chosen_valid_file(tmp_path: Path) -> None:
-    target = tmp_path / "episode.project.json"
+    target = tmp_path / "episode.sharecut"
     target.write_text("{}", encoding="utf-8")
     out = _normalize_chosen(str(target))
     assert out.path == str(target.resolve())
@@ -72,7 +72,7 @@ def test_pick_linux_zenity_cancel(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_pick_linux_zenity_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    target = tmp_path / "episode.project.json"
+    target = tmp_path / "episode.sharecut"
     target.write_text("{}", encoding="utf-8")
     monkeypatch.setattr(
         "podcast_mcp.gui.host_file_dialog.shutil.which",
@@ -127,7 +127,7 @@ def test_pick_macos_osascript_missing(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_pick_windows_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    target = tmp_path / "episode.project.json"
+    target = tmp_path / "episode.sharecut"
     target.write_text("{}", encoding="utf-8")
     monkeypatch.setattr(
         "podcast_mcp.gui.host_file_dialog.shutil.which",

@@ -22,13 +22,13 @@ From `.agents/defaults/pipeline.yaml`:
 ## Workflow
 
 ```bash
-podcast pipeline run --project episode.project.json --only compress_tracks
+podcast pipeline run --project episode.sharecut --only compress_tracks
 ```
 
 Then re-render:
 
 ```bash
-podcast pipeline run --project episode.project.json --from assemble_timeline
+podcast pipeline run --project episode.sharecut --from assemble_timeline
 ```
 
 ## Guidelines

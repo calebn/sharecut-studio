@@ -11,9 +11,10 @@ from podcast_mcp.models.episode import (
 )
 from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.util.atomic_json import write_json_atomic
-from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedValueError
 
 WORKSPACE_COPY_IGNORE = ("artifacts", "history", "_build", ".git")
+RETIRED_PROJECT_FILENAME = "episode.project.json"
 
 
 def resolve_project_path(path: Path | str) -> Path:
@@ -34,13 +35,19 @@ def ensure_utf8_path(path: Path | str) -> None:
 
 
 def require_episode_project_file(path: Path | str) -> Path:
-    """Resolve *path* (file or workspace dir) and require episode.project.json basename.
+    """Resolve *path* (file or workspace dir) and require episode.sharecut basename.
 
     Used by host GUI ``POST /api/project/open`` and ``pick``. CLI ``--project``,
-    MCP, and :func:`open_project` still load any JSON path the caller passes.
+    MCP, and :func:`open_project` still load any project file path the caller passes.
     """
     original = Path(path).expanduser()
     resolved = resolve_project_path(path)
+    if resolved.name == RETIRED_PROJECT_FILENAME:
+        raise CodedValueError(
+            f"{RETIRED_PROJECT_FILENAME} is the retired project file name; "
+            f"this version opens {EPISODE_PROJECT_FILENAME}",
+            code="project_old_filename",
+        )
     if resolved.name != EPISODE_PROJECT_FILENAME:
         raise ValueError(f"expected {EPISODE_PROJECT_FILENAME}, got {resolved.name!r}")
     if not resolved.is_file():

@@ -55,26 +55,26 @@ use the same path). Comments land as ordinary `review.comments[]` at
 **CLI:**
 
 ```bash
-podcast review share --kind record --project episode.project.json   # optional: --target end, --land-first
-podcast record state --project episode.project.json
-podcast record roster --project episode.project.json
-podcast record start --project episode.project.json
-podcast record pause --project episode.project.json
-podcast record resume --project episode.project.json
-podcast record stop --project episode.project.json
-podcast record room-tone --project episode.project.json
-podcast record target end --project episode.project.json
-podcast review session-suggestions --project episode.project.json   # optional: --status pending
-podcast review skip-session-suggestion --project episode.project.json --id ss-<session_id>
-podcast review preview-session-suggestion --project episode.project.json --id ss-<session_id>   # hear it first: --mode current|suggested|ab, --take N, --pad S (0-10), --gap S (0-5), --dry-run
-podcast review session-takes --project episode.project.json --id ss-<session_id>   # the takes: length, words, chosen, default
-podcast review select-session-take --project episode.project.json --id ss-<session_id> --take N   # pick the take a replace places
-podcast review accept-session-suggestion --project episode.project.json --id ss-<session_id>   # replace: --take N, --override-audio-checks
-podcast record marker --project episode.project.json --body "Retake intro"
-podcast record land --project episode.project.json
-podcast record discard-take --project episode.project.json --take-index 0
-podcast record tracks --project episode.project.json   # who lands on which track (returning people match by name)
-podcast record assign-track --project episode.project.json --participant p_ab12cd34 --track new   # or an existing track id
+podcast review share --kind record --project episode.sharecut   # optional: --target end, --land-first
+podcast record state --project episode.sharecut
+podcast record roster --project episode.sharecut
+podcast record start --project episode.sharecut
+podcast record pause --project episode.sharecut
+podcast record resume --project episode.sharecut
+podcast record stop --project episode.sharecut
+podcast record room-tone --project episode.sharecut
+podcast record target end --project episode.sharecut
+podcast review session-suggestions --project episode.sharecut   # optional: --status pending
+podcast review skip-session-suggestion --project episode.sharecut --id ss-<session_id>
+podcast review preview-session-suggestion --project episode.sharecut --id ss-<session_id>   # hear it first: --mode current|suggested|ab, --take N, --pad S (0-10), --gap S (0-5), --dry-run
+podcast review session-takes --project episode.sharecut --id ss-<session_id>   # the takes: length, words, chosen, default
+podcast review select-session-take --project episode.sharecut --id ss-<session_id> --take N   # pick the take a replace places
+podcast review accept-session-suggestion --project episode.sharecut --id ss-<session_id>   # replace: --take N, --override-audio-checks
+podcast record marker --project episode.sharecut --body "Retake intro"
+podcast record land --project episode.sharecut
+podcast record discard-take --project episode.sharecut --take-index 0
+podcast record tracks --project episode.sharecut   # who lands on which track (returning people match by name)
+podcast record assign-track --project episode.sharecut --participant p_ab12cd34 --track new   # or an existing track id
 ```
 
 ## Workflow

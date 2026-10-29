@@ -1,7 +1,7 @@
 {
   "purpose": "GET /api/transcript/vocabulary repeated-read latency; cold validation remains required",
   "fixture": {
-    "path": "/private/tmp/transcript-tool-run/vocabulary-status-100k/episode.project.json",
+    "path": "/private/tmp/transcript-tool-run/vocabulary-status-100k/episode.sharecut",
     "bytes": 67628066,
     "words": 100000,
     "utterances": 100000,

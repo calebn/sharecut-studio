@@ -1037,7 +1037,7 @@ def document_server_seq(project_path: str | Path) -> int | None:
 def document_poll_meta(project_path: Path) -> dict[str, Any]:
     """Poll meta shared by host ``GET /api/project/meta`` and guest ``.../daw/meta``.
 
-    mtime/size of episode.project.json plus document.db's ``server_seq``, which is
+    mtime/size of episode.sharecut plus document.db's ``server_seq``, which is
     omitted when document.db cannot be read, so the client poll skips that tick.
     """
     size, mtime_ns = file_stamp(project_path).content

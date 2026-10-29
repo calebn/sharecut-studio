@@ -35,4 +35,4 @@ For **batches**, grammar review, or post-precorrect work, use **[podcast-transcr
 2. One word → `search_transcript_tool` → `correct_transcript_tool`, passing `expected_text` set to the matched word; on a "changed since you read it" error (`error_code` `transcript_changed`), search again and retry with the current text
 3. More than one word → switch to **podcast-transcript-refine**
 
-Corrections update `episode.project.json` only; audio is unchanged.
+Corrections update `episode.sharecut` only; audio is unchanged.

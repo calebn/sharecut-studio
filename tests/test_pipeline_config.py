@@ -125,7 +125,7 @@ def test_working_set_put_rejects_unknown_filler_pad_mode_without_staging(tmp_pat
     from podcast_mcp.services.pipeline.config import PipelineConfigStore
 
     store = PipelineConfigStore()
-    project = tmp_path / "episode.project.json"
+    project = tmp_path / "episode.sharecut"
     with pytest.raises(ValueError, match="valid values: silence, room_tone"):
         store.put(project, config={"tighten": {"filler_pad_mode": "silense"}})
     assert store.peek(project) is None

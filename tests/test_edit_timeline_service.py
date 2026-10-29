@@ -64,8 +64,8 @@ def _ws_with_audio(tmp_path, sample_wav) -> ProjectWorkspace:
     )
     from podcast_mcp.models import save_project
 
-    save_project(p, ws_dir / "episode.project.json")
-    return ProjectWorkspace.open(ws_dir / "episode.project.json")
+    save_project(p, ws_dir / "episode.sharecut")
+    return ProjectWorkspace.open(ws_dir / "episode.sharecut")
 
 
 def test_edit_service_timeline_and_transcript(tmp_path, sample_wav) -> None:

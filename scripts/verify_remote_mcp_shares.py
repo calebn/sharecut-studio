@@ -3,12 +3,12 @@
 
 Assumes::
 
-    podcast gui --project <episode.project.json> --no-open
+    podcast gui --project <episode.sharecut> --no-open
 
 Example::
 
     uv run python scripts/verify_remote_mcp_shares.py \\
-      --project /path/to/episode.project.json
+      --project /path/to/episode.sharecut
 
 Without ``--project`` the committed ``aligned_dialogue`` fixture is copied into a
 temporary relocated workspace first, so publishing the review version never
@@ -33,7 +33,7 @@ from podcast_mcp.services.collaboration import ReviewService, ShareService, capa
 from podcast_mcp.services.remote_mcp import tools_for_capabilities
 
 _ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PROJECT = _ROOT / "tests" / "fixtures" / "aligned_dialogue" / "episode.project.json"
+DEFAULT_PROJECT = _ROOT / "tests" / "fixtures" / "aligned_dialogue" / "episode.sharecut"
 
 TIERS: list[tuple[str, list[str]]] = [
     ("viewer", capabilities_for_role("viewer", with_mcp=True)),

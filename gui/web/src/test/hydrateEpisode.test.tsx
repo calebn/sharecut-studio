@@ -29,7 +29,7 @@ describe("hydrateEpisode", () => {
   it("opens a host by path and a guest by share key with the role's capabilities", async () => {
     hydrate();
     expect(useDawStore.getState().projectPath).toBe(
-      "/episodes/after-hours/episode.project.json",
+      "/episodes/after-hours/episode.sharecut",
     );
     expect(useDawStore.getState().guestMode).toBeNull();
     expect(useDawStore.getState().project?.tracks).toHaveLength(2);

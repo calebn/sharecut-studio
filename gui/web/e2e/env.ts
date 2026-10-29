@@ -11,7 +11,7 @@ export const repoRoot = path.resolve(webRoot, "../..");
 
 export const committedE2eProjectPath = path.join(
   repoRoot,
-  "tests/fixtures/aligned_dialogue/episode.project.json",
+  "tests/fixtures/aligned_dialogue/episode.sharecut",
 );
 
 export const e2eProjectPath =

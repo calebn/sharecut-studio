@@ -27,8 +27,8 @@ The premix is a unity sum (no 1/N) trimmed to `mix.premix_peak_ceiling_db` (true
 ## Workflow
 
 ```bash
-podcast track add --project episode.project.json --id bed --file music/bed.wav --role music
-podcast pipeline run --project episode.project.json --only mix_with_music
+podcast track add --project episode.sharecut --id bed --file music/bed.wav --role music
+podcast pipeline run --project episode.sharecut --only mix_with_music
 ```
 
 ## Custom envelopes

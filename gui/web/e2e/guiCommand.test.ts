@@ -6,7 +6,7 @@ describe("guiCommand", () => {
     ci: false,
     host: "127.0.0.1",
     port: 43123,
-    projectPath: "/tmp/sharecut-e2e/episode.project.json",
+    projectPath: "/tmp/sharecut-e2e/episode.sharecut",
   };
 
   it.each([
@@ -37,7 +37,7 @@ describe("guiCommand", () => {
       "podcast",
       "gui",
       "--project",
-      "/tmp/sharecut-e2e/episode.project.json",
+      "/tmp/sharecut-e2e/episode.sharecut",
       "--host",
       "127.0.0.1",
       "--port",

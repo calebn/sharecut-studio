@@ -411,7 +411,7 @@ const mount = (pending: PendingEditView[] = [F1, F2, F3]) => {
 
 beforeEach(() => {
   runs += 1;
-  PATH = `/tmp/review-host/${runs}/episode.project.json`;
+  PATH = `/tmp/review-host/${runs}/episode.sharecut`;
   vi.clearAllMocks();
   Object.defineProperty(navigator, "locks", {
     configurable: true,

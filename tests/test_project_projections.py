@@ -471,7 +471,7 @@ def test_document_server_seq_read_errors_return_none(tmp_path, exc) -> None:
 
     from podcast_mcp.services.document_sync.service import document_server_seq
 
-    project_path = tmp_path / "episode.project.json"
+    project_path = tmp_path / "episode.sharecut"
     db_path = tmp_path / "artifacts" / "session" / "document.db"
     db_path.parent.mkdir(parents=True)
     db_path.touch()
@@ -500,7 +500,7 @@ def test_document_server_seq_path_resolution_error_is_unreadable(monkeypatch, ex
         raise exc
 
     monkeypatch.setattr(session_service, "resolve_project_path", _boom)
-    assert document_server_seq("/loop/episode.project.json") is None
+    assert document_server_seq("/loop/episode.sharecut") is None
 
 
 def test_document_server_seq_never_raises_on_a_real_symlink_loop(tmp_path) -> None:
@@ -510,7 +510,7 @@ def test_document_server_seq_never_raises_on_a_real_symlink_loop(tmp_path) -> No
     a.symlink_to(b)
     b.symlink_to(a)
     # 3.11/3.12 raise on resolve (-> None); 3.13+ resolve non-strictly (-> no db, 0).
-    assert document_server_seq(a / "episode.project.json") in (0, None)
+    assert document_server_seq(a / "episode.sharecut") in (0, None)
 
 
 def test_track_views_expose_fade_cap(minimal_project, monkeypatch) -> None:

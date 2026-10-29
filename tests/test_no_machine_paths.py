@@ -19,7 +19,7 @@ _SCAN_GLOBS = (
     "src/**/*.py",
     "tests/**/*.py",
     "scripts/**/*.py",
-    "tests/fixtures/**/episode.project.json",
+    "tests/fixtures/**/episode.sharecut",
 )
 
 

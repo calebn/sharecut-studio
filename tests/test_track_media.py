@@ -118,7 +118,7 @@ def test_resolve_workspace_raw_audio_rejects_escape(minimal_project, sample_wav)
     with pytest.raises(ValueError, match="raw/"):
         resolve_workspace_raw_audio(root, "../secrets.wav")
     with pytest.raises(ValueError, match="raw/"):
-        resolve_workspace_raw_audio(root, "raw/../episode.project.json")
+        resolve_workspace_raw_audio(root, "raw/../episode.sharecut")
     with pytest.raises(ValueError, match="raw/"):
         resolve_workspace_raw_audio(root, "")
     with pytest.raises(ValueError, match="raw/"):

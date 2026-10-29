@@ -198,7 +198,7 @@ def test_the_approve_tool_refuses_a_held_cut_and_leaves_the_project_as_it_was(
 
     project = _project(tmp_path, burst=(25.2, 25.8))
     project.edit_decisions = [_trim("b", 25.0, 26.0)]
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     save_project(project, path)
 
     reply = json.loads(mcp_server.approve_edits_tool(str(path), ["b"]))
@@ -263,7 +263,7 @@ def test_original_auto_trims_keep_the_intervening_guest_without_replaying_source
     from podcast_mcp.models import load_project, save_project
 
     project = _original_trims_project(tmp_path)
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     save_project(project, path)
 
     result = json.loads(mcp_server.apply_suggested_actions_tool(str(path)))

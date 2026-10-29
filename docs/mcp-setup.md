@@ -58,7 +58,7 @@ server environment:
     "sharecut": {
       "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp",
       "env": {
-        "PODCAST_MCP_PROJECT": "/absolute/path/to/episode.project.json"
+        "PODCAST_MCP_PROJECT": "/absolute/path/to/episode.sharecut"
       }
     }
   }
@@ -94,7 +94,7 @@ To set the default episode from a shell, prefix the client command with the
 environment variable (or add the JSON `env` block above to its MCP config):
 
 ```bash
-PODCAST_MCP_PROJECT=/absolute/path/to/episode.project.json \
+PODCAST_MCP_PROJECT=/absolute/path/to/episode.sharecut \
   claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
 ```
 

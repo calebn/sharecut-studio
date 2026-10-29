@@ -8,11 +8,9 @@ describe("lazy drain requests", () => {
   it("requests a host drain for the project", async () => {
     requestHostDrain.mockResolvedValue(undefined);
     const { requestHostDrainLazy } = await import("./requestDrainLazy");
-    requestHostDrainLazy("/tmp/episode.project.json");
+    requestHostDrainLazy("/tmp/episode.sharecut");
     await vi.waitFor(() =>
-      expect(requestHostDrain).toHaveBeenCalledWith(
-        "/tmp/episode.project.json",
-      ),
+      expect(requestHostDrain).toHaveBeenCalledWith("/tmp/episode.sharecut"),
     );
   });
 

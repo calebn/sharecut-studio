@@ -5,6 +5,7 @@ import json
 import pytest
 
 from podcast_mcp.project.io import (
+    RETIRED_PROJECT_FILENAME,
     copy_relocated_workspace,
     open_project,
     require_episode_project_file,
@@ -18,7 +19,7 @@ from podcast_mcp.services.app.workspace import ProjectWorkspace
 def test_resolve_project_path_dir(tmp_path):
     ws = tmp_path / "ep"
     ws.mkdir()
-    (ws / "episode.project.json").write_text(
+    (ws / "episode.sharecut").write_text(
         json.dumps(
             {
                 "version": "2.0",
@@ -31,7 +32,7 @@ def test_resolve_project_path_dir(tmp_path):
         ),
         encoding="utf-8",
     )
-    assert resolve_project_path(ws).name == "episode.project.json"
+    assert resolve_project_path(ws).name == "episode.sharecut"
 
 
 def test_open_and_persist_roundtrip(minimal_project):
@@ -119,11 +120,19 @@ def test_require_episode_project_file_basename(tmp_path):
         require_episode_project_file(junk)
         raise AssertionError("expected ValueError")
     except ValueError as exc:
-        assert "episode.project.json" in str(exc)
+        assert "episode.sharecut" in str(exc)
+
+
+def test_require_episode_project_file_refuses_the_retired_name(tmp_path):
+    retired = tmp_path / RETIRED_PROJECT_FILENAME
+    retired.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="retired project file name") as raised:
+        require_episode_project_file(retired)
+    assert raised.value.code == "project_old_filename"
 
 
 def test_require_episode_project_file_dir(tmp_path):
-    target = tmp_path / "episode.project.json"
+    target = tmp_path / "episode.sharecut"
     target.write_text("{}", encoding="utf-8")
     assert require_episode_project_file(tmp_path) == target.resolve()
 
@@ -133,13 +142,13 @@ def test_require_episode_project_file_empty_dir(tmp_path):
         require_episode_project_file(tmp_path)
         raise AssertionError("expected FileNotFoundError")
     except FileNotFoundError as exc:
-        assert "episode.project.json" in str(exc)
+        assert "episode.sharecut" in str(exc)
         assert str(tmp_path.resolve()) in str(exc)
 
 
 def test_require_episode_project_file_missing(tmp_path):
     try:
-        require_episode_project_file(tmp_path / "episode.project.json")
+        require_episode_project_file(tmp_path / "episode.sharecut")
         raise AssertionError("expected FileNotFoundError")
     except FileNotFoundError:
         pass
@@ -148,7 +157,7 @@ def test_require_episode_project_file_missing(tmp_path):
 def test_copy_relocated_workspace_rewrites_dir_and_rejects_source(tmp_path):
     src = tmp_path / "src"
     src.mkdir()
-    (src / "episode.project.json").write_text(
+    (src / "episode.sharecut").write_text(
         json.dumps(
             {
                 "version": "2.0",
@@ -164,7 +173,7 @@ def test_copy_relocated_workspace_rewrites_dir_and_rejects_source(tmp_path):
     (src / "keep.txt").write_text("ok", encoding="utf-8")
     dest = tmp_path / "dest"
     copied = copy_relocated_workspace(src, dest)
-    assert copied == dest / "episode.project.json"
+    assert copied == dest / "episode.sharecut"
     data = json.loads(copied.read_text(encoding="utf-8"))
     assert data["meta"]["workspace_dir"] == str(dest.resolve())
     assert (dest / "keep.txt").read_text(encoding="utf-8") == "ok"
@@ -187,7 +196,7 @@ def test_copy_relocated_workspace_rewrites_dir_and_rejects_source(tmp_path):
 
 
 def test_rewrite_workspace_dir_rejects_non_object(tmp_path):
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     path.write_text("[1]", encoding="utf-8")
     try:
         rewrite_workspace_dir(path)

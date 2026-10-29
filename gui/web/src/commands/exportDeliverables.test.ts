@@ -18,7 +18,7 @@ describe("export.deliverables", () => {
     vi.mocked(api.startExportJob).mockReset();
     setChrome({ exportRequested: false });
     useDawStore.setState({
-      projectPath: "/tmp/test/episode.project.json",
+      projectPath: "/tmp/test/episode.sharecut",
       project: minimalProject(),
       guestMode: null,
       stage: "edit",

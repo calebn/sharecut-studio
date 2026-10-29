@@ -47,7 +47,7 @@ vi.mock("./offlineQueue/offlineStore", () => ({
  * when a command stays queued, is removed, or throws.
  */
 describe.each([
-  { side: "host", path: "/tmp/episode.project.json", col: 0 },
+  { side: "host", path: "/tmp/episode.sharecut", col: 0 },
   { side: "guest", path: "share:tok", col: 1 },
 ])("$side command outcomes", ({ side, path, col }) => {
   const settle =
@@ -362,7 +362,7 @@ describe.each([
 });
 
 describe.each([
-  { side: "host", path: "/tmp/episode.project.json" },
+  { side: "host", path: "/tmp/episode.sharecut" },
   { side: "guest", path: "share:tok" },
 ])("$side behind an earlier command", ({ side, path }) => {
   const host = side === "host";
@@ -440,7 +440,7 @@ describe.each([
 });
 
 describe("host persistence fallback", () => {
-  const path = "/tmp/episode.project.json";
+  const path = "/tmp/episode.sharecut";
 
   beforeEach(() => {
     Object.defineProperty(navigator, "locks", {

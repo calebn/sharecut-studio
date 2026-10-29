@@ -169,7 +169,7 @@ Add checklist rows for AMI bleed window and `test_fixture_5min` intro bleed (~20
 1. `scripts/import_ami_words.py` — AMI `*.words.xml` → `TranscriptWord` JSON
 2. `scripts/download_fixture_ami.sh` — fetch AMI word labels, synthesize a 60s calibration, write `tests/fixtures/ami_bleed_60s/`
 3. `scripts/download_fixture_asr_gold.sh` — Mini LibriSpeech 3-file WER regression slice
-4. `tests/fixtures/ami_bleed_60s/episode.project.json` + `ground_truth.json`
+4. `tests/fixtures/ami_bleed_60s/episode.sharecut` + `ground_truth.json`
 5. `test_asr_gold_wer.py`, `test_ami_bleed_reconcile.py`
 
 ### Phase 2 — Pipeline on real speech (2–3 days)

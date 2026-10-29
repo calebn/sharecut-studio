@@ -403,10 +403,10 @@ def test_direct_write_when_studio_serves_another_project(studio: StudioRun, tmp_
     announcement = studio_host_path(other)
     announcement.parent.mkdir(parents=True, exist_ok=True)
     announcement.write_text(studio_host_path(studio.project).read_text(encoding="utf-8"))
-    result = comment_add(other / "episode.project.json")
+    result = comment_add(other / "episode.sharecut")
     assert result.returncode == 0, result.stderr
     assert studio.commands == []
-    assert comment_bodies(other / "episode.project.json") == ["hello"]
+    assert comment_bodies(other / "episode.sharecut") == ["hello"]
 
 
 def test_direct_write_when_the_announcing_studio_is_gone(minimal_project: Path) -> None:
@@ -664,12 +664,12 @@ def test_plan_makes_paths_absolute_and_keeps_everything_else(tmp_path: Path) -> 
     root = typer.main.get_command(cli_app)
     plan = plan_handoff(
         root,
-        ["--no-progress", "comment", "add", "--project", "ep/episode.project.json", "--body=x",
+        ["--no-progress", "comment", "add", "--project", "ep/episode.sharecut", "--body=x",
          "--author", "a", "--start", "-1.5"],
         tmp_path,
     )  # fmt: skip
     assert plan is not None
-    assert plan.project == tmp_path / "ep" / "episode.project.json"
+    assert plan.project == tmp_path / "ep" / "episode.sharecut"
     assert plan.argv[:5] == ["--no-progress", "comment", "add", "--project", str(plan.project)]
     assert plan.argv[5:] == ["--body=x", "--author", "a", "--start", "-1.5"]
 
@@ -712,7 +712,7 @@ def test_no_input_is_forwarded_to_studio(tmp_path: Path) -> None:
     assert flags == ["--no-input"]
     plan = plan_handoff(
         typer.main.get_command(cli_app),
-        [*flags, "comment", "add", "--project", "ep/episode.project.json", "--body=x"],
+        [*flags, "comment", "add", "--project", "ep/episode.sharecut", "--body=x"],
         tmp_path.resolve(),
     )
     assert plan is not None

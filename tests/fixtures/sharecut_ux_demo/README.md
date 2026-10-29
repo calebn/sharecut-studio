@@ -15,7 +15,7 @@ python3 scripts/build_ux_demo_fixture.py
 **Open the UI:**
 
 ```bash
-podcast gui --project tests/fixtures/sharecut_ux_demo/episode.project.json
+podcast gui --project tests/fixtures/sharecut_ux_demo/episode.sharecut
 ```
 
 Do not write into this tree from mutating tests - copy via `e2e_workspace` patterns if needed.

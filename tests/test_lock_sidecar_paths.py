@@ -30,7 +30,7 @@ def test_lock_sidecars_keep_their_names_on_disk(tmp_path: Path) -> None:
     root = project.workspace_path().resolve()
     artifacts = root / "artifacts"
 
-    assert _rel(project_commit_lock_path(project), root) == "artifacts/episode.project.json.lock"
+    assert _rel(project_commit_lock_path(project), root) == "artifacts/episode.sharecut.lock"
     assert _rel(render_lock_path(project), root) == "artifacts/render.lock"
     assert (
         _rel(transcript_context_lock_path(root), root) == "artifacts/transcript_context.yaml.lock"

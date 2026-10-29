@@ -913,7 +913,7 @@ def test_clips_cli_approve_and_export_paths(tmp_path, monkeypatch):
 
     from podcast_mcp.cli.clips import clips_app
 
-    project = tmp_path / "episode.project.json"
+    project = tmp_path / "episode.sharecut"
     project.write_text("{}")
 
     class FakeWS:
@@ -992,7 +992,7 @@ def test_play_cli_paths_cover_misses(tmp_path, monkeypatch):
     from podcast_mcp.cli.play import play_app
     from podcast_mcp.services.document.play import PlayResult
 
-    project = tmp_path / "episode.project.json"
+    project = tmp_path / "episode.sharecut"
     project.write_text("{}")
 
     class FakeWS:

@@ -18,7 +18,7 @@ python3 scripts/build_bleed_band_fixture.py
 **Open the UI:**
 
 ```bash
-podcast gui --project tests/fixtures/bleed_band_demo/episode.project.json
+podcast gui --project tests/fixtures/bleed_band_demo/episode.sharecut
 ```
 
 Select the `reference` clip, then **Inspect automatic audio reduction**. Do not write

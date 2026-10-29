@@ -27,7 +27,7 @@ def _now() -> str:
 
 
 def main() -> int:
-    if not (SRC / "episode.project.json").is_file():
+    if not (SRC / "episode.sharecut").is_file():
         print(f"missing source fixture: {SRC}", file=sys.stderr)
         return 1
     if not (SRC / "raw" / "reference.wav").is_file():
@@ -45,7 +45,7 @@ def main() -> int:
             link.unlink()
         link.symlink_to(target)
 
-    data = json.loads((SRC / "episode.project.json").read_text(encoding="utf-8"))
+    data = json.loads((SRC / "episode.sharecut").read_text(encoding="utf-8"))
     data["meta"]["name"] = "ShareCut Studio UX demo"
     data["meta"]["workspace_dir"] = "."
     data["meta"]["created_at"] = _now()
@@ -197,7 +197,7 @@ def main() -> int:
     # Drop duplicated top-level edit_decisions if present on older dumps
     data.pop("edit_decisions", None)
 
-    out = DEST / "episode.project.json"
+    out = DEST / "episode.sharecut"
     out.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
     (DEST / "README.md").write_text(
@@ -218,7 +218,7 @@ python3 scripts/build_ux_demo_fixture.py
 **Open the UI:**
 
 ```bash
-podcast gui --project tests/fixtures/sharecut_ux_demo/episode.project.json
+podcast gui --project tests/fixtures/sharecut_ux_demo/episode.sharecut
 ```
 
 Do not write into this tree from mutating tests - copy via `e2e_workspace` patterns if needed.

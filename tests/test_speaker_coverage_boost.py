@@ -35,7 +35,7 @@ def _two_track_project(tmp_path: Path, sample_wav: Path) -> EpisodeProject:
     raw.mkdir(exist_ok=True)
     for tid in ("host", "guest"):
         (raw / f"{tid}.wav").write_bytes(sample_wav.read_bytes())
-    project_path = tmp_path / "episode.project.json"
+    project_path = tmp_path / "episode.sharecut"
     proj = EpisodeProject.create("spk_test", str(tmp_path))
     proj.tracks = [
         Track(
@@ -696,7 +696,7 @@ def test_mcp_speaker_gate_track_tool(tmp_path, sample_wav) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()
     (raw / "host.wav").write_bytes(sample_wav.read_bytes())
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     proj = EpisodeProject.create("gate", str(tmp_path))
     proj.tracks = [
         Track(

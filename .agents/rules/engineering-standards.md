@@ -31,7 +31,7 @@ Long-running work uses the shared progress framework ([docs/progress.md](../../d
 Episode workspaces have two protection layers:
 
 1. **Source media** — `raw/` is read-only at render time; never write processed audio back into `raw/`.
-2. **Editable state** — tracks, transcripts, `edit_decisions`, effects, clips, etc. live in `episode.project.json` and are snapshotted under `history/snapshots/` for undo/redo.
+2. **Editable state** — tracks, transcripts, `edit_decisions`, effects, clips, etc. live in `episode.sharecut` and are snapshotted under `history/snapshots/` for undo/redo.
 
 **When adding or changing tools, services, or skills:**
 
@@ -40,7 +40,7 @@ Episode workspaces have two protection layers:
 - Adapters in `cli/` and `mcp/tools/` call **one** service method; they do not call `save()` or domain mutators directly.
 - Skills compose MCP/CLI primitives and must point users to `history_undo` when a workflow batches mutations.
 
-**Anti-patterns:** `ws.save()` after changing transcripts or edit decisions; one-off Python scripts that call `correct_word` / `cut_time_range` on a loaded project without `mutate`; hand-editing mirrored `transcripts/{track}.json` (canonical data is `episode.project.json`).
+**Anti-patterns:** `ws.save()` after changing transcripts or edit decisions; one-off Python scripts that call `correct_word` / `cut_time_range` on a loaded project without `mutate`; hand-editing mirrored `transcripts/{track}.json` (canonical data is `episode.sharecut`).
 
 GUI move feedback uses the nullable history entry from its own command reply.
 Its captured document scope guards queued work, feedback, and rollback across

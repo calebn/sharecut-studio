@@ -301,7 +301,7 @@ def _write_tree(
 ) -> None:
     project.meta.workspace_dir = str(staging)
     _seed_history(project, history_steps)
-    ProjectStore(staging / "episode.project.json").commit(project)
+    ProjectStore(staging / "episode.sharecut").commit(project)
     for folder in ("raw", "sources"):
         (staging / folder).mkdir()
         for track_id in track_ids:
@@ -352,7 +352,7 @@ def build_project(
         raise ValueError("tone_seconds must be finite and between zero and duration")
     duration_sec = frames / SAMPLE_RATE
     track_ids = _track_ids(track_count)
-    project = load_project(SOURCE_FIXTURE / "episode.project.json")
+    project = load_project(SOURCE_FIXTURE / "episode.sharecut")
     _shape_project(project, duration_sec, clip_count, utterance_count, track_ids)
 
     final = output.resolve()
@@ -372,7 +372,7 @@ def build_project(
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
-    return final / "episode.project.json"
+    return final / "episode.sharecut"
 
 
 def main() -> None:

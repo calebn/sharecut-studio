@@ -64,14 +64,14 @@ The frontend CI suite uses a [locked exporter dependency group](docs/setup.md#fr
 | `.agents/` | Skills, rules, MCP template, pipeline defaults |
 | `docs/` | Architecture and feature docs |
 | `tests/` | Pytest suite and fixtures (`aligned_dialogue`, …) |
-| `schemas/` | `episode.project.json` JSON Schema |
+| `schemas/` | `episode.sharecut` JSON Schema |
 
 ## Episode workspace
 
 ```bash
 podcast episode init --dir /path/to/my_episode
-podcast track add --project /path/to/my_episode/episode.project.json --id host --file raw/host.wav --role dialogue
-podcast pipeline run --project /path/to/my_episode/episode.project.json
+podcast track add --project /path/to/my_episode/episode.sharecut --id host --file raw/host.wav --role dialogue
+podcast pipeline run --project /path/to/my_episode/episode.sharecut
 ```
 
 **ShareCut Studio (editor):**
@@ -79,7 +79,7 @@ podcast pipeline run --project /path/to/my_episode/episode.project.json
 ```bash
 uv sync --extra gui
 cd gui/web && npm install && npm run build && cd ../..
-podcast gui --project /path/to/my_episode/episode.project.json
+podcast gui --project /path/to/my_episode/episode.sharecut
 ```
 
 Release wheels include the web build (the `release-wheel` workflow runs `npm run build` before `uv build`). A wheel built without it makes `podcast gui` warn at startup and `/` explain how to build it and set `PODCAST_GUI_DIST` ([docs/setup.md](docs/setup.md#web-build-in-wheels)). Hot reload: `podcast gui --project … --dev --no-open` plus `cd gui/web && npm run dev`. Agents: MCP `open_gui_tool` / skill `podcast-open-gui` (or `podcast gui --background`). Details: [docs/gui-integration.md](docs/gui-viewer.md#gui-viewer), [docs/setup.md](docs/setup.md#read-only-gui-viewer).
@@ -119,7 +119,7 @@ Host MCP agents can read and replace it with revision checks. See the
 - [Architecture](docs/architecture.md) — layers and timebase
 - [Contributing](docs/contributing.md) — where new code goes; [Git workflow](docs/contributing.md#git-workflow) (feature branch → PR → `main`)
 - [Agent instructions](AGENTS.md) — SOLID/DRY, tests-as-you-go, docs in sync
-- [Episode format v2](docs/episode-format-v2.md) — canonical `episode.project.json` (see also [project-format.md](docs/project-format.md))
+- [Episode format v2](docs/episode-format-v2.md) — canonical `episode.sharecut` (see also [project-format.md](docs/project-format.md))
 - [Multitrack ingest & alignment](docs/multitrack-ingest.md) — raw files → one track per speaker
 - [Transcript workflow](docs/transcript-workflow.md) — reconcile → precorrect → refine → audition
 - [Natural language editing](docs/nl-editing.md)
@@ -156,7 +156,7 @@ Beta policy (local audio unless you mint a share; relay is a pass-through that d
 ## Play audio (listen while developing)
 
 ```bash
-podcast play --project tests/fixtures/aligned_dialogue/episode.project.json \
+podcast play --project tests/fixtures/aligned_dialogue/episode.sharecut \
   --source processed:reference --start 0 --end 15   # edits + FX (stem or segment render)
 podcast play --project ... --source track:guest --start 0 --end 15  # raw alignment
 podcast play --project ... --compare --start 18 --end 28  # alignment check

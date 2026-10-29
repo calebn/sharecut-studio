@@ -44,7 +44,7 @@ Tools that accept `project_path` can use a default set on the stdio server:
     "sharecut": {
       "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp",
       "env": {
-        "PODCAST_MCP_PROJECT": "/absolute/path/to/episode.project.json"
+        "PODCAST_MCP_PROJECT": "/absolute/path/to/episode.sharecut"
       }
     }
   }
@@ -65,7 +65,7 @@ For a shell-configured client, set the same environment variable before the
 client command:
 
 ```bash
-PODCAST_MCP_PROJECT=/absolute/path/to/episode.project.json \
+PODCAST_MCP_PROJECT=/absolute/path/to/episode.sharecut \
   claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
 ```
 

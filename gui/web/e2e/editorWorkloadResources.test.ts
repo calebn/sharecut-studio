@@ -29,7 +29,7 @@ function fixture() {
   header.writeUInt32LE(pcm.length, 40);
   const media = path.join(root, "source.wav");
   fs.writeFileSync(media, Buffer.concat([header, pcm]));
-  const project = path.join(root, "episode.project.json");
+  const project = path.join(root, "episode.sharecut");
   fs.writeFileSync(
     project,
     JSON.stringify({

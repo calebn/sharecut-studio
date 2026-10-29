@@ -178,7 +178,7 @@ inserted sample tiles. See [filler cut quality](filler-cut-quality.md#policy).
 ## Inaudible-cuts CLI
 
 ```bash
-podcast edit preview-cut --project episode.project.json --track host --start 32.4 --end 34.8
+podcast edit preview-cut --project episode.sharecut --track host --start 32.4 --end 34.8
 podcast edit suggest-handoff-cut --project ... --keep-left-end 2154.0 --keep-right-start 2167.0
 podcast edit suggest-handoff-cut --project ... --keep-left-end 2154.0 --keep-right-start 2167.0 --retain-sec 0.4  # tighter conversational join
 podcast edit join-quality --project ... --track host --join 12.5 --timebase timeline

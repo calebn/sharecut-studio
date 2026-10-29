@@ -83,7 +83,7 @@ for (let repeat = 1; repeat <= Number(values.repeat); repeat++) {
         force: true,
       });
     Object.assign(process.env, {
-      DAW_E2E_PROJECT: path.join(fixture, "episode.project.json"),
+      DAW_E2E_PROJECT: path.join(fixture, "episode.sharecut"),
       DAW_PROFILE_OUT: root,
       DAW_PROFILE_SCENE: scene,
       DAW_PROFILE_TRACE: values.trace ? "1" : "",

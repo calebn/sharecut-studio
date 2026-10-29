@@ -35,7 +35,7 @@ LAB_CASE = Path(__file__).parent / "fixtures" / "lab_tighten" / "caleb_um_pause"
 
 def _lab_case(tmp_path: Path) -> ProjectWorkspace:
     shutil.copytree(LAB_CASE, tmp_path / "episode")
-    return ProjectWorkspace.open(tmp_path / "episode" / "episode.project.json")
+    return ProjectWorkspace.open(tmp_path / "episode" / "episode.sharecut")
 
 
 def _with_words(minimal_project: Path) -> object:

@@ -901,7 +901,7 @@ def test_collect_logs_skips_symlink_to_forbidden(
 ) -> None:
     logs = tmp_path / "logs"
     logs.mkdir()
-    secret = tmp_path / "episode.project.json"
+    secret = tmp_path / "episode.sharecut"
     secret.write_text('{"token": "fantastic-acoustic-whale"}', encoding="utf-8")
     leak = logs / "leak.log"
     leak.symlink_to(secret)

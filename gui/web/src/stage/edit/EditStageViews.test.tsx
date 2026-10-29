@@ -10,7 +10,7 @@ import { stubViewportShell } from "../../test/viewportShell";
 import { StageFrame } from "../frame/StageFrame";
 import { EditWorkspace } from "./EditWorkspace";
 
-const PROJECT_PATH = "/tmp/edit-views/episode.project.json";
+const PROJECT_PATH = "/tmp/edit-views/episode.sharecut";
 
 /** jsdom drops a scrollLeft write; a browser keeps it, so emulate the browser. */
 function emulateScrollLeft() {

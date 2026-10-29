@@ -31,7 +31,7 @@ runner = CliRunner()
 def _raw_only_fixture(tmp_path: Path) -> Path:
     workspace = tmp_path / "synthetic_bleed_60s"
     shutil.copytree(FIXTURE, workspace, ignore=shutil.ignore_patterns("artifacts"))
-    project_path = workspace / "episode.project.json"
+    project_path = workspace / "episode.sharecut"
     project = load_project(project_path)
     project.clips = [
         Clip(

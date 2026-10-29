@@ -560,9 +560,9 @@ def test_history_entry_operation_params() -> None:
     ws.mkdir(parents=True, exist_ok=True)
     from podcast_mcp.project.store import ProjectStore
 
-    store = ProjectStore(ws / "episode.project.json")
+    store = ProjectStore(ws / "episode.sharecut")
     store.commit(p)
-    mgr = HistoryManager(ws / "episode.project.json")
+    mgr = HistoryManager(ws / "episode.sharecut")
     entry = mgr.record(
         p,
         "after ripple delete",

@@ -208,7 +208,7 @@ def build_from_words_dir(
     project.combined_transcript = TranscriptionEngine(defaults=load_defaults()).merge_transcripts(
         project
     )
-    project_path = out_root / "episode.project.json"
+    project_path = out_root / "episode.sharecut"
     ProjectStore(project_path).commit(project)
 
     expected = {

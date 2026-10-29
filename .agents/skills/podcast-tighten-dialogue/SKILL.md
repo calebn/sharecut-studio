@@ -102,9 +102,9 @@ without the user signing off.
 3. Propose (does not apply):
 
 ```bash
-podcast propose-edits --project episode.project.json
-podcast propose-edits --project episode.project.json --intensity light
-podcast propose-edits --project episode.project.json --json
+podcast propose-edits --project episode.sharecut
+podcast propose-edits --project episode.sharecut --intensity light
+podcast propose-edits --project episode.sharecut --json
 ```
 
 MCP `propose_edits` returns `{operation, edits, skip_counts, summary}`

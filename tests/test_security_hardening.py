@@ -474,7 +474,7 @@ def test_guest_review_route_accepts_relayed(published_share, monkeypatch) -> Non
 
 
 def test_viewer_url_with_session_token(tmp_path: Path):
-    proj = tmp_path / "episode.project.json"
+    proj = tmp_path / "episode.sharecut"
     proj.write_text("{}", encoding="utf-8")
     url = viewer_url("0.0.0.0", 8765, proj, session_token="abc")
     assert "session_token=abc" in url

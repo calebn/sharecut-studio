@@ -19,7 +19,7 @@ const NOW = new Date(2026, 9, 27, 15, 30);
 
 function recent(overrides: Partial<RecentProject> = {}): RecentProject {
   return {
-    path: "/ep/episode.project.json",
+    path: "/ep/episode.sharecut",
     name: "Rosa and Maya",
     opened_at: "2026-10-27T10:00:00+00:00",
     edited_at: new Date(2026, 9, 27, 13, 30).toISOString(),
@@ -84,7 +84,7 @@ describe("formatEdited", () => {
 describe("cardOf", () => {
   it("builds the card from a recent entry", () => {
     expect(cardOf(recent(), NOW)).toEqual({
-      id: "/ep/episode.project.json",
+      id: "/ep/episode.sharecut",
       name: "Rosa and Maya",
       meta: "52:10 · edited 2 h ago",
       stage: "review",
@@ -271,7 +271,7 @@ describe("importStoppedLine", () => {
         added: 1,
         total: 2,
         name: "Rosa",
-        projectPath: "C:\\ShareCut\\Rosa\\episode.project.json",
+        projectPath: "C:\\ShareCut\\Rosa\\episode.sharecut",
       }),
     ).toBe(
       'Upload failed. 1 of 2 files were added to "Rosa". Open it from Recent to add the rest. Its folder is C:\\ShareCut\\Rosa.',

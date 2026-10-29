@@ -42,7 +42,7 @@ vi.mock("../../commands/trackMix", () => ({
   flushPendingMix: vi.fn(async () => {}),
 }));
 
-const path = "/tmp/bleed/episode.project.json";
+const path = "/tmp/bleed/episode.sharecut";
 const head = parseHistoryEntryId("restore-head")!;
 const occurrence = { trackId: "host", clipId: "clip-1", clipLabel: "Host" };
 const otherOccurrence = {

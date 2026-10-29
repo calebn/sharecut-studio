@@ -86,10 +86,10 @@ def test_clip_rejects_tampered_audio_or_labels(tmp_path: Path, suffix: str) -> N
 
 def test_builder_reproduces_checked_in_audio_labels_and_mirrors(tmp_path: Path) -> None:
     builder = _load_builder()
-    shutil.copy(FIXTURE / "episode.project.json", tmp_path)
+    shutil.copy(FIXTURE / "episode.sharecut", tmp_path)
     canned = tmp_path / "canned.json"
     assert builder.main(["--fixture", str(tmp_path), "--canned", str(canned)]) == 0
-    project = load_project(tmp_path / "episode.project.json")
+    project = load_project(tmp_path / "episode.sharecut")
     expected_canned = json.loads(DEFAULT_CANNED.read_text())
     assert json.loads(canned.read_text()) == expected_canned
     manifest = json.loads((tmp_path / "provenance.json").read_text())
@@ -127,8 +127,8 @@ def test_builder_reproduces_checked_in_audio_labels_and_mirrors(tmp_path: Path) 
     for relative, digest in manifest["output_sha256"].items():
         assert builder.sha256(tmp_path / relative) == digest
         assert (tmp_path / relative).read_bytes() == (FIXTURE / relative).read_bytes()
-    first_project = (tmp_path / "episode.project.json").read_bytes()
+    first_project = (tmp_path / "episode.sharecut").read_bytes()
     first_manifest = (tmp_path / "provenance.json").read_bytes()
     builder.main(["--fixture", str(tmp_path), "--canned", str(canned)])
-    assert (tmp_path / "episode.project.json").read_bytes() == first_project
+    assert (tmp_path / "episode.sharecut").read_bytes() == first_project
     assert (tmp_path / "provenance.json").read_bytes() == first_manifest

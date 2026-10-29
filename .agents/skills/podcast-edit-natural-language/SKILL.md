@@ -13,7 +13,7 @@ description: >-
 
 ## Harness
 
-Use **podcast-mcp** tools (stdio MCP). Raw files in `raw/` are never modified; only `episode.project.json` and rendered artifacts change.
+Use **podcast-mcp** tools (stdio MCP). Raw files in `raw/` are never modified; only `episode.sharecut` and rendered artifacts change.
 
 1. `build_edit_context` — start here for transcript + pending edits.
 2. `get_transcript` with `format=timestamps` — readable lines for the model.
@@ -118,7 +118,7 @@ On a raw session, remove the dead start, off-topic runs and meta talk **before**
 - Do not remove >15% of duration without explicit user approval.
 - NL cuts use `review_required=true` by default; use `approve_edits_tool` before final export.
 - Every applied join gets an `audition_context_tool` check (or one `join_qa_sweep_tool`) before export; a `speech_crosses_cut` or `clip_skew` you did not act on is a defect you shipped blind. An `echo_risk` is confirmed by listening or by its per-pair evidence before you gate anything.
-- Never hand-edit `episode.project.json`; use MCP tools only.
+- Never hand-edit `episode.sharecut`; use MCP tools only.
 - After `history_undo`, use `rerender=true` or `render_preview` to refresh premix.
 
 ## Bulk plan from agent

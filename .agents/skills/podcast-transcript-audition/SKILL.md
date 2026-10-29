@@ -64,7 +64,7 @@ Pick the **first unresolved** entry. Do not show the full backlog unless the use
 ### Step 1 — Play one clip
 
 ```bash
-podcast play --project episode.project.json \
+podcast play --project episode.sharecut \
   --source track:<track_id> \
   --start <start_sec> --end <end_sec>
 ```

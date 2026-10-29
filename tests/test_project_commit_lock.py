@@ -139,7 +139,7 @@ def test_commit_lock_does_not_rewrap_a_timeout_raised_in_the_held_body(minimal_p
 
 
 def test_busy_message_never_leaks_the_lock_path():
-    secret_path = "/workspace/artifacts/episode.project.json.lock"
+    secret_path = "/workspace/artifacts/episode.sharecut.lock"
     assert secret_path not in busy_message(ProjectBusyError(secret_path))
     assert secret_path not in busy_message(RenderBusyError(secret_path))
     generic = busy_message(Timeout(secret_path))
@@ -476,10 +476,8 @@ def test_external_mutate_from_another_process_advances_meta_server_seq(minimal_p
 
 @pytest.mark.parametrize("error", [ProjectBusyError, RenderBusyError])
 def test_contention_diagnostics_stay_out_of_shared_and_guest_refusals(error):
-    fixed = error("/private/host/episode.project.json.lock")
-    observed = error(
-        "/private/host/episode.project.json.lock", contention=LockContention(30.25, 4242)
-    )
+    fixed = error("/private/host/episode.sharecut.lock")
+    observed = error("/private/host/episode.sharecut.lock", contention=LockContention(30.25, 4242))
     assert str(observed) == str(fixed)
     assert busy_message(observed) == busy_message(fixed)
     for for_guest in (False, True):

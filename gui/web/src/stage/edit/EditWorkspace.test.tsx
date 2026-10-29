@@ -8,7 +8,7 @@ import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import { EditWorkspace } from "./EditWorkspace";
 
-const PROJECT_PATH = "/tmp/edit-workspace/episode.project.json";
+const PROJECT_PATH = "/tmp/edit-workspace/episode.sharecut";
 
 function hydrateWithTracks() {
   useDawStore

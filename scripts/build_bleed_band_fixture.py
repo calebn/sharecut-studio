@@ -28,7 +28,7 @@ BAND = {"start_s": 8.0, "end_s": 11.0, "fade_out_ms": 5, "fade_in_ms": 5}
 
 def build(dest: Path) -> Path | None:
     """Write the fixture into `dest` and return its project file, or None if the source is missing."""
-    if not (SRC / "episode.project.json").is_file():
+    if not (SRC / "episode.sharecut").is_file():
         print(f"missing source fixture: {SRC}", file=sys.stderr)
         return None
     if not (SRC / "raw" / "reference.wav").is_file():
@@ -46,7 +46,7 @@ def build(dest: Path) -> Path | None:
             link.unlink()
         link.symlink_to(target)
 
-    data = json.loads((SRC / "episode.project.json").read_text(encoding="utf-8"))
+    data = json.loads((SRC / "episode.sharecut").read_text(encoding="utf-8"))
     data["meta"]["name"] = "ShareCut Studio automatic-reduction demo"
     data["meta"]["workspace_dir"] = "."
 
@@ -58,7 +58,7 @@ def build(dest: Path) -> Path | None:
         clip["timeline_start"] + clip["source_end"] - clip["source_start"] for clip in clips
     )
 
-    out = dest / "episode.project.json"
+    out = dest / "episode.sharecut"
     out.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
     (dest / "README.md").write_text(
@@ -82,7 +82,7 @@ python3 scripts/build_bleed_band_fixture.py
 **Open the UI:**
 
 ```bash
-podcast gui --project tests/fixtures/bleed_band_demo/episode.project.json
+podcast gui --project tests/fixtures/bleed_band_demo/episode.sharecut
 ```
 
 Select the `reference` clip, then **Inspect automatic audio reduction**. Do not write

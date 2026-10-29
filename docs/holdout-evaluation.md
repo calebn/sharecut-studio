@@ -627,7 +627,7 @@ catalog in the same PR.
 ## Commands
 
 `$H` is the holdout copy folder (`recreate.sh` rebuilds it from the owner's
-catalogue), `$R` a scratch project folder, `$P` `$R/episode.project.json`. All
+catalogue), `$R` a scratch project folder, `$P` `$R/episode.sharecut`. All
 run with `nice -n 10`. The ingest manifest lists each file once per speaker with
 `session_start_in_file_sec: 0` and `session_offset_sec: 0` (locked Zoom or
 same-recorder tracks).

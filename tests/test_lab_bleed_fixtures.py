@@ -96,7 +96,7 @@ def make_workspace(tmp_path: Path) -> ProjectWorkspace:
             project.timeline.duration_sec or 0.0,
             case["historical_reviewed_timeline_interval"][1] + CLIP_PADDING_SEC,
         )
-    ws = ProjectWorkspace(tmp_path / "episode.project.json", project)
+    ws = ProjectWorkspace(tmp_path / "episode.sharecut", project)
     ws.save()
     return ws
 

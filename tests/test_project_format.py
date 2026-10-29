@@ -19,7 +19,7 @@ def test_v2_round_trip(tmp_path: Path):
 
 
 def test_rejects_v1_project_file(tmp_path: Path):
-    v1_path = tmp_path / "episode.project.json"
+    v1_path = tmp_path / "episode.sharecut"
     v1_path.write_text(
         json.dumps(
             {

@@ -25,7 +25,7 @@ router = APIRouter()
 @router.post("/api/media/upload")
 async def upload_media(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     filename: str = Query(..., description="Original filename (extension required)"),
     upload_id: str | None = Query(None),
     chunk_index: int = Query(0, ge=0),

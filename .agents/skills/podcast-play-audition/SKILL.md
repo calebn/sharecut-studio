@@ -60,8 +60,8 @@ catches the clipped entry, with or without the aligner model installed.
 **CLI:**
 
 ```bash
-podcast play context --project episode.project.json --start 924 --end 930
-podcast play --project episode.project.json --query "family"
+podcast play context --project episode.sharecut --start 924 --end 930
+podcast play --project episode.sharecut --query "family"
 podcast play --project ... --query "pricing" --match 1 --padding 2
 podcast play --project ... --source processed:host --start 12 --end 25
 podcast play --project ... --source track:host --start 0 --end 10   # raw, no FX
@@ -127,7 +127,7 @@ CLI: `podcast session status|seek|stop|mode|region`. Prefer real play (`dry_run=
 
 ## Workflow
 
-1. Confirm `episode.project.json` path and that transcripts exist (`transcribe_track` or `get_transcript` — if empty, transcribe first).
+1. Confirm `episode.sharecut` path and that transcripts exist (`transcribe_track` or `get_transcript` — if empty, transcribe first).
 2. **Section / time range** (default) → `play_audio_tool` with `source="premix"` and timeline `start_sec` / `end_sec` (run `render_preview` first if premix missing, or `rerender=true`). All tracks at once.
 3. **Topic / quote request** → `play_transcript_query_tool(project_path, query="…")` when the user wants the speaker who said it; otherwise get `timeline_start`/`timeline_end` from `search_transcript_tool` and play that window on `premix`.
 4. **Multiple matches** → `search_transcript_tool` → show snippets → `play_audio_tool` on the chosen `timeline_*` window (or `play_transcript_query_tool` with `match_index` for single-speaker audition).

@@ -19,7 +19,7 @@ runner = CliRunner()
 def _init_with_transcript(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws), "--name", "demo"])
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
     proj = load_project(project)
     finite_primary_recording(proj, 20)
     proj.transcripts.append(

@@ -1,5 +1,5 @@
 """Crash consistency of document submit: kill a writer at each handoff between history,
-``episode.project.json`` and ``document.db``, then restart and check what survived.
+``episode.sharecut`` and ``document.db``, then restart and check what survived.
 
 A crash between the project commit and the journal INSERT/COMMIT still gets journaled by
 the next submit (#575). The handoff matrix, the first-commit history case and the
@@ -10,7 +10,7 @@ TerminateProcess on win32.
 one open ``document.db`` write transaction:
 
 1. history snapshots + ``history/index.json`` (``HistoryManager.record``)
-2. ``episode.project.json`` with ``document_sync.last_command`` (``ProjectStore.commit``)
+2. ``episode.sharecut`` with ``document_sync.last_command`` (``ProjectStore.commit``)
 3. the journal row (``SyncStore.append_and_apply``), then ``Applied`` is published
 4. ``COMMIT`` of ``document.db``, then the project lock is released
 """
@@ -283,10 +283,10 @@ WAITER_LOCK_TIMEOUT_SEC = 15.0
 
 @dataclass(frozen=True)
 class Handoff:
-    saved: bool  # episode.project.json holds the edit and its last_command when the writer dies
+    saved: bool  # episode.sharecut holds the edit and its last_command when the writer dies
     journaled: bool  # a fresh document.db connection sees its row
     in_transaction: bool  # the dying writer's own connection sees its row
-    index_ahead: bool  # history/index.json lists entries episode.project.json does not
+    index_ahead: bool  # history/index.json lists entries episode.sharecut does not
 
 
 HANDOFFS = {
@@ -331,7 +331,7 @@ def _committed_journal(project_path: str | Path) -> list[list[Any]]:
 
 
 def _history_ids(project_path: str | Path) -> tuple[list[str], list[str] | None]:
-    """(entry ids saved in episode.project.json, entry ids in history/index.json)."""
+    """(entry ids saved in episode.sharecut, entry ids in history/index.json)."""
     project = load_project(project_path)
     index = read_history_index(history_index_path(project))
     saved = [entry.id for entry in project.history.entries]

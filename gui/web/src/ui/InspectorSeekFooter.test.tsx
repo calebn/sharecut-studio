@@ -21,7 +21,7 @@ describe("InspectorSeekFooter", () => {
   beforeEach(() => {
     useDawStore
       .getState()
-      .hydrate("/tmp/test/episode.project.json", minimalProject());
+      .hydrate("/tmp/test/episode.sharecut", minimalProject());
     useDawStore.setState({
       playheadSec: 0,
       playUntilSec: null,

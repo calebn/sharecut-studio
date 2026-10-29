@@ -127,7 +127,7 @@ def _project(tmp_path: Path, layout: str, *, mono_rate: int | None = None) -> Ep
             check=True,
         )
         shutil.move(converted, source)
-    project = load_project(workspace / "episode.project.json")
+    project = load_project(workspace / "episode.sharecut")
     project.timeline.clips = [c for c in project.clips if c.track_id != "caleb"] + [
         Clip(
             id=f"c{i}",

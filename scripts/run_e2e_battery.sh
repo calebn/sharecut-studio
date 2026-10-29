@@ -6,7 +6,7 @@ cd "$ROOT"
 
 PROJECT="${PODCAST_E2E_PROJECT:-$ROOT/tests/fixtures/aligned_dialogue}"
 if [[ -d "$PROJECT" ]]; then
-  PROJECT="$PROJECT/episode.project.json"
+  PROJECT="$PROJECT/episode.sharecut"
 fi
 
 PODCAST="${PODCAST_BIN:-$ROOT/.venv/bin/podcast}"

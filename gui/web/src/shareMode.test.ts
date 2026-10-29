@@ -29,7 +29,7 @@ describe("shareMode", () => {
     const key = shareProjectKey("abcToken");
     expect(isShareProjectKey(key)).toBe(true);
     expect(shareTokenFromKey(key)).toBe("abcToken");
-    expect(isShareProjectKey("/tmp/episode.project.json")).toBe(false);
+    expect(isShareProjectKey("/tmp/episode.sharecut")).toBe(false);
   });
 
   it("mirrors view→play and comment→reply aliases", () => {

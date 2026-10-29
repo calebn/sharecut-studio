@@ -10,13 +10,13 @@ from podcast_mcp.project.store import ProjectStore
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "tests" / "fixtures" / "sharecut_ux_demo"
-PROJECT = DEMO / "episode.project.json"
+PROJECT = DEMO / "episode.sharecut"
 
 
 @pytest.mark.parametrize(
     "rel",
     [
-        "episode.project.json",
+        "episode.sharecut",
         "README.md",
         "raw/reference.wav",
         "raw/guest.wav",
@@ -47,7 +47,7 @@ def test_ux_demo_fixture_loads_and_has_showcase_data() -> None:
 def test_ux_demo_audio_and_words_share_the_source_fixture() -> None:
     from podcast_mcp.models import load_project
 
-    source = load_project(DEMO.parent / "aligned_dialogue" / "episode.project.json")
+    source = load_project(DEMO.parent / "aligned_dialogue" / "episode.sharecut")
     demo = load_project(PROJECT)
     for original, showcased in zip(source.transcripts, demo.transcripts, strict=True):
         assert original.track_id == showcased.track_id

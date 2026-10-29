@@ -27,7 +27,7 @@ missing status means the track has not been measured. The report does not compar
 requested LUFS target; per-run target overrides are not saved.
 
 ```bash
-podcast pipeline run --project episode.project.json --only balance_tracks
+podcast pipeline run --project episode.sharecut --only balance_tracks
 ```
 
 This sets per-track staging `gain_db` so the track hits the target loudness

@@ -28,7 +28,7 @@ def _project_in(parent: Path, name: str, source: Path) -> Path:
         os.mkdir(raw)
     except OSError:
         pytest.skip("filesystem refuses this directory name")
-    dest = Path(os.fsdecode(raw)) / "episode.project.json"
+    dest = Path(os.fsdecode(raw)) / "episode.sharecut"
     shutil.copy(source, dest)
     return dest
 
@@ -141,13 +141,13 @@ def test_cli_project_flag_fails_fast(bad_project, monkeypatch):
 
 
 def test_ensure_utf8_path_unit():
-    ensure_utf8_path("/x/café/episode.project.json")
+    ensure_utf8_path("/x/café/episode.sharecut")
     with pytest.raises(ValueError, match="not valid UTF-8"):
-        ensure_utf8_path("/x/caf\udce9/episode.project.json")
+        ensure_utf8_path("/x/caf\udce9/episode.sharecut")
 
 
 def test_post_body_path_with_unencodable_surrogate_is_refused(client):
-    res = _post(client, "/api/shares", path="/tmp/caf\ud800/episode.project.json", role="viewer")
+    res = _post(client, "/api/shares", path="/tmp/caf\ud800/episode.sharecut", role="viewer")
     assert res.status_code == 400, res.text
     assert res.headers[CODE] == "project_path_invalid"
 

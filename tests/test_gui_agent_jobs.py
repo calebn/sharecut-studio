@@ -105,8 +105,8 @@ def test_rich_mcp_wrap_creates_agent_job_and_sse_payload(stepping_clock) -> None
 def test_agent_fanin_inherits_served_project_and_scopes_status(tmp_path) -> None:
     """Standalone agent wraps belong to the currently served project (#170)."""
     mgr = JobManager()
-    served = (tmp_path / "served" / "episode.project.json").resolve()
-    other = (tmp_path / "other" / "episode.project.json").resolve()
+    served = (tmp_path / "served" / "episode.sharecut").resolve()
+    other = (tmp_path / "other" / "episode.sharecut").resolve()
     mgr.set_served_project(served)
     sink = AgentJobFanInReporter(mgr)
     sink.start("align_tracks", "Align tracks")
@@ -464,8 +464,8 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
     reporter.update("pipeline", 1, message="m")
     long_fail = short_fail_message("x" * 250)
     assert long_fail is not None and len(long_fail) == 200
-    assert short_fail_message("/Users/host/secret/episode.project.json", phase="align") == "align"
-    assert short_fail_message("failed at /Users/host/secret/episode.project.json") == "failed at"
+    assert short_fail_message("/Users/host/secret/episode.sharecut", phase="align") == "align"
+    assert short_fail_message("failed at /Users/host/secret/episode.sharecut") == "failed at"
 
 
 def test_ensure_job_completes_orphan_when_post_adopt_raises() -> None:
@@ -681,7 +681,7 @@ def test_wait_timeout_and_sse_helpers() -> None:
     from podcast_mcp.services.jobs.job import _token_looks_like_abs_path, short_fail_message
 
     assert _token_looks_like_abs_path(".,;") is False
-    assert short_fail_message(r"C:\host\secret\episode.project.json", phase="align") == "align"
+    assert short_fail_message(r"C:\host\secret\episode.sharecut", phase="align") == "align"
     studio_job_manager()
 
     mgr = JobManager()

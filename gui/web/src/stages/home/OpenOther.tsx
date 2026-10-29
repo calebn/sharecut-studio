@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { Button, InlineError } from "../../ui";
+import { EPISODE_PROJECT_FILENAME } from "../../utils/projectFile";
 
 export type OpenOtherProps = {
   /** `picker`: the OS folder picker exists. `path`: a plain browser, so a path field. */
@@ -23,8 +24,7 @@ export type OpenOtherProps = {
 };
 
 /** The error copy for a folder with no episode in it. */
-export const NOT_AN_EPISODE =
-  "That folder has no ShareCut episode. Choose the folder that holds episode.project.json.";
+export const NOT_AN_EPISODE = `That folder has no ShareCut episode. Choose the folder that holds ${EPISODE_PROJECT_FILENAME}.`;
 
 /**
  * "Open other…": the OS folder picker where there is one, otherwise a popover

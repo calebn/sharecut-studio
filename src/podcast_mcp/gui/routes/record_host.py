@@ -49,7 +49,7 @@ class RecordCommandBody(BaseModel):
 @router.get("/api/record/state")
 def get_record_state(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
@@ -97,7 +97,7 @@ def _host_upload(request: Request, path: str) -> tuple[RecordUploadService, str,
 @router.get("/api/record/upload")
 def get_host_record_upload(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
@@ -109,7 +109,7 @@ def get_host_record_upload(
 @router.post("/api/record/upload")
 async def post_host_record_upload(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     take_index: int = Query(...),
     segment_index: int = Query(...),
     part_seq: int = Query(...),
@@ -152,7 +152,7 @@ async def post_host_record_upload(
 @router.delete("/api/record/upload")
 def delete_host_record_upload(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     kind: UploadKindParam = None,
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
@@ -179,7 +179,7 @@ class RecordDiscardTakeBody(BaseModel):
 @router.post("/api/record/land")
 def post_host_record_land(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
@@ -221,7 +221,7 @@ class RecordAssignTrackBody(BaseModel):
 @router.get("/api/record/tracks")
 def get_host_record_tracks(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:

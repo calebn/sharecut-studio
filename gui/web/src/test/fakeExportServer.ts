@@ -5,7 +5,7 @@ import type {
 } from "../types/pipeline";
 import type { HostShareRow } from "../types/shares";
 
-export const EXPORT_PATH = "/tmp/ep/episode.project.json";
+export const EXPORT_PATH = "/tmp/ep/episode.sharecut";
 
 const EXPORT_CONFIG = {
   config: {

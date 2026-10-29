@@ -391,7 +391,7 @@ def test_an_unreadable_media_file_fails_and_changes_nothing(tmp_path):
 
 
 def test_missing_project_is_project_not_found(tmp_path):
-    missing = tmp_path / "nope" / "episode.project.json"
+    missing = tmp_path / "nope" / "episode.sharecut"
     with pytest.raises(FileNotFoundError) as raised:
         _run(str(missing), track_id="host")
     assert isinstance(raised.value, CodedError)

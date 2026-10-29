@@ -114,7 +114,7 @@ def test_doctor_does_not_offer_the_mock_as_a_backend(unloadable_override: None) 
 def _service(tmp_path: Path) -> SpeakerService:
     project = EpisodeProject.create("spk_unavailable", str(tmp_path))
     project.tracks = [Track(id="host", role=TrackRole.DIALOGUE, label="Host")]
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     save_project(project, path)
     return SpeakerService(ProjectWorkspace.open(path))
 

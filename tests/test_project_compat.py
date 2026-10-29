@@ -75,7 +75,7 @@ def test_committed_lock_and_complete_development_corpus() -> None:
 
 PROJECT_ONLY_FIXTURES = sorted(
     p
-    for p in (ROOT / "tests/fixtures").rglob("episode.project.json")
+    for p in (ROOT / "tests/fixtures").rglob("episode.sharecut")
     if compat.CORPUS not in p.relative_to(ROOT).parents
 )
 

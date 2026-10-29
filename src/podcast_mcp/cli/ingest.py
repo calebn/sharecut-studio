@@ -194,7 +194,7 @@ def ingest_verify_cmd(
 def ingest_consolidate_cmd(
     audio_dir: Path = typer.Option(..., "--audio-dir", help="Folder of raw recordings"),
     manifest: Path = typer.Option(..., "--manifest", help="ingest.yaml speaker/source map"),
-    project: Path = typer.Option(..., "--project", help="episode.project.json"),
+    project: Path = typer.Option(..., "--project", help="episode.sharecut"),
     analysis_start: float | None = typer.Option(
         None, "--analysis-start", help="Correlation window start (sec); defaults to --extract-start"
     ),

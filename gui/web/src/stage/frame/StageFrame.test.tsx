@@ -8,7 +8,7 @@ import { minimalProject } from "../../test/fixtures";
 import { stubMatchMedia } from "../../test/matchMedia";
 import { StageFrame } from "./StageFrame";
 
-const PROJECT_PATH = "/tmp/stage-frame/episode.project.json";
+const PROJECT_PATH = "/tmp/stage-frame/episode.sharecut";
 
 function mount() {
   return render(

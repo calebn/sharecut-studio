@@ -10,7 +10,7 @@ e2eRuntimeEnv(process.env, e2eInvocationId);
 
 const uxDemoPath = path.join(
   repoRoot,
-  "tests/fixtures/sharecut_ux_demo/episode.project.json",
+  "tests/fixtures/sharecut_ux_demo/episode.sharecut",
 );
 const capturingUxScreens = !!process.env.UX_DEMO_SCREENSHOTS;
 const guiProject = capturingUxScreens

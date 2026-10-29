@@ -46,7 +46,7 @@ class DiagnosticsSubmitRequest(BaseModel):
 
 class DiagnosticsBundleRequest(BaseModel):
     out_dir: str | None = Field(default=None)
-    path: str | None = Field(default=None, description="Optional episode.project.json")
+    path: str | None = Field(default=None, description="Optional episode.sharecut")
 
 
 def _jobs(request: Request) -> JobManager | None:

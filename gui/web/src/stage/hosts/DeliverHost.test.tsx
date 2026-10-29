@@ -194,7 +194,7 @@ afterEach(() => {
 beforeEach(() => {
   fakeExportServer();
   runs += 1;
-  PATH = `/tmp/deliver-host/${runs}/episode.project.json`;
+  PATH = `/tmp/deliver-host/${runs}/episode.sharecut`;
   OTHER = `/tmp/deliver-host/${runs}/other.project.json`;
   vi.clearAllMocks();
   Object.defineProperty(navigator, "locks", {

@@ -74,9 +74,9 @@ def _workspace(tmp_path: Path) -> ProjectWorkspace:
             ],
         )
     ]
-    save_project(project, tmp_path / "episode.project.json")
+    save_project(project, tmp_path / "episode.sharecut")
     REFINE_GATE.mark_done(project, notes="Inspected literal source fixture")
-    return ProjectWorkspace.open(tmp_path / "episode.project.json")
+    return ProjectWorkspace.open(tmp_path / "episode.sharecut")
 
 
 def _cut(edit_id: str = "cut", *, reason: str = "filler:um", scope: str = "session"):
@@ -791,7 +791,7 @@ def test_public_range_cut_preserves_repeated_source_occurrences(tmp_path, occurr
             ],
         )
     ]
-    project_path = tmp_path / "episode.project.json"
+    project_path = tmp_path / "episode.sharecut"
     save_project(project, project_path)
     REFINE_GATE.mark_done(project, notes="literal quiet source fixture")
     ws = ProjectWorkspace.open(project_path)

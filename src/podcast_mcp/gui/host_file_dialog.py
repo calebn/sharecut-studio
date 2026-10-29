@@ -1,4 +1,4 @@
-"""Host OS file dialog for picking episode.project.json (loopback GUI).
+"""Host OS file dialog for picking episode.sharecut (loopback GUI).
 
 Runs outside the browser: Chromium/Safari never expose filesystem paths.
 Callers must keep this loopback-only — the dialog is a privileged local agent.
@@ -29,7 +29,7 @@ class HostPickResult:
 
 
 def pick_episode_project_path(*, system: str | None = None) -> HostPickResult:
-    """Show a native open dialog filtered toward episode.project.json.
+    """Show a native open dialog filtered toward episode.sharecut.
 
     Returns a path string when the user confirms, ``cancelled`` on dismiss,
     or ``unavailable`` when no dialog tool exists (e.g. headless Linux).
@@ -70,7 +70,7 @@ def _run_dialog_process(argv: list[str]) -> HostPickResult | process.CompletedPr
         name = Path(argv[0]).name
         return HostPickResult(
             unavailable=True,
-            detail=f"{name} not found; paste the path to episode.project.json.",
+            detail=f"{name} not found; paste the path to episode.sharecut.",
         )
 
 
@@ -78,7 +78,7 @@ def _pick_macos() -> HostPickResult:
     script = f"""
 try
   set theFile to choose file with prompt "Open {EPISODE_PROJECT_FILENAME}" ¬
-    of type {{"public.json", "json"}}
+    of type {{"sharecut"}}
   return POSIX path of theFile
 on error number -128
   return ""
@@ -102,7 +102,7 @@ def _pick_windows() -> HostPickResult:
     ps = f"""
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 $d = New-Object System.Windows.Forms.OpenFileDialog
-$d.Filter = 'Episode project|{EPISODE_PROJECT_FILENAME}|JSON (*.json)|*.json'
+$d.Filter = 'Episode project|{EPISODE_PROJECT_FILENAME}|ShareCut project (*.sharecut)|*.sharecut'
 $d.Title = 'Open episode project'
 $d.FileName = '{EPISODE_PROJECT_FILENAME}'
 $d.CheckFileExists = $true
@@ -115,7 +115,7 @@ if ($r -eq [System.Windows.Forms.DialogResult]::OK) {{
     if not exe:
         return HostPickResult(
             unavailable=True,
-            detail="PowerShell not found; paste the path to episode.project.json.",
+            detail="PowerShell not found; paste the path to episode.sharecut.",
         )
     completed = _run_dialog_process([exe, "-NoProfile", "-STA", "-Command", ps])
     if isinstance(completed, HostPickResult):
@@ -137,7 +137,7 @@ def _pick_linux() -> HostPickResult:
                 "--file-selection",
                 "--title=Open episode project",
                 f"--file-filter={EPISODE_PROJECT_FILENAME} | {EPISODE_PROJECT_FILENAME}",
-                "--file-filter=JSON | *.json",
+                "--file-filter=ShareCut project | *.sharecut",
             ]
         )
     kdialog = shutil.which("kdialog")
@@ -147,14 +147,14 @@ def _pick_linux() -> HostPickResult:
                 kdialog,
                 "--getopenfilename",
                 ".",
-                f"{EPISODE_PROJECT_FILENAME}|*.json",
+                f"{EPISODE_PROJECT_FILENAME}|*.sharecut",
             ]
         )
     return HostPickResult(
         unavailable=True,
         detail=(
             "No OS file dialog available (install zenity or kdialog); "
-            "paste the path to episode.project.json."
+            "paste the path to episode.sharecut."
         ),
     )
 

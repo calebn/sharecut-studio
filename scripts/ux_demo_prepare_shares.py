@@ -5,7 +5,7 @@ Writes:
   - PODCAST_SHARE_REGISTRY (default /tmp/podcast_ux_demo_shares.sqlite)
   - Token manifest for Playwright (default ux/assets/screens/.guest-tokens.json)
 
-May mutate tests/fixtures/sharecut_ux_demo/episode.project.json (adds a review
+May mutate tests/fixtures/sharecut_ux_demo/episode.sharecut (adds a review
 version). Callers should restore the fixture after capture if needed.
 
 Usage:
@@ -24,7 +24,7 @@ from pathlib import Path
 from podcast_mcp.util.registry_backup import _anchor_path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEMO = ROOT / "tests" / "fixtures" / "sharecut_ux_demo" / "episode.project.json"
+DEMO = ROOT / "tests" / "fixtures" / "sharecut_ux_demo" / "episode.sharecut"
 DEFAULT_REGISTRY = Path("/tmp/podcast_ux_demo_shares.sqlite")
 DEFAULT_TOKENS = ROOT / "ux" / "assets" / "screens" / ".guest-tokens.json"
 
@@ -35,7 +35,7 @@ def main() -> int:
         "--project",
         type=Path,
         default=DEMO,
-        help="Path to episode.project.json",
+        help="Path to episode.sharecut",
     )
     parser.add_argument(
         "--base-url",

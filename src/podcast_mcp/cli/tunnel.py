@@ -20,7 +20,7 @@ def tunnel_cmd(
     project: Path | None = typer.Option(
         None,
         "--project",
-        help="episode.project.json to advertise shares from.",
+        help="episode.sharecut to advertise shares from.",
     ),
     relay_url: str | None = typer.Option(
         None,

@@ -160,7 +160,7 @@ def test_parse_and_bound_helpers():
     with pytest.raises(ValueError, match="between"):
         bound_limit(501)
     with pytest.raises(FileNotFoundError):
-        resolve_project_file(Path("/tmp/missing-golden-ear-project/episode.project.json"))
+        resolve_project_file(Path("/tmp/missing-golden-ear-project/episode.sharecut"))
 
 
 def test_copy_rejects_out_inside_source(tmp_path):
@@ -192,13 +192,13 @@ def test_copy_reuses_matching_fingerprint_and_refuses_mismatch(tmp_path):
     marker.write_text(json.dumps({"path": "other", "mtime_ns": 1, "size": 1}), encoding="utf-8")
     with pytest.raises(FileExistsError, match="different source fingerprint"):
         copy_relocated_project(FIXTURE, dest)
-    assert source_fingerprint(FIXTURE / "episode.project.json")["size"] > 0
+    assert source_fingerprint(FIXTURE / "episode.sharecut")["size"] > 0
 
 
 def test_build_on_aligned_dialogue_is_blinded_and_does_not_write_fixture(
     tmp_path, sample_wav, monkeypatch
 ):
-    fixture_json = FIXTURE / "episode.project.json"
+    fixture_json = FIXTURE / "episode.sharecut"
     before = fixture_json.read_bytes()
     mtime = fixture_json.stat().st_mtime_ns
     before_files = _fixture_files()
@@ -784,7 +784,7 @@ def test_copy_premix_partial_and_project_symlink(tmp_path, sample_wav):
     assert (dest / "artifacts" / "premix.hash").read_text(encoding="utf-8") == "abc123\n"
     linked = tmp_path / "linked-file"
     linked.mkdir()
-    (linked / "episode.project.json").symlink_to(src / "episode.project.json")
+    (linked / "episode.sharecut").symlink_to(src / "episode.sharecut")
     with pytest.raises(ValueError, match="source project"):
         copy_relocated_project(src, linked)
 
@@ -852,14 +852,14 @@ def test_pad_and_workspace_helpers(tmp_path, sample_wav, monkeypatch):
     _publish_pair_dir(staging, dest)
     assert (dest / "1.wav").is_file()
     assert not dest.joinpath("old.wav").exists()
-    src_file = FIXTURE / "episode.project.json"
+    src_file = FIXTURE / "episode.sharecut"
     assert _reuse_workspace(src_file, tmp_path / "no-ws", tmp_path / "dest-a") is None
     linked_ws = tmp_path / "sym-ws"
     linked_ws.symlink_to(FIXTURE)
     assert _reuse_workspace(src_file, linked_ws, tmp_path / "dest-b") is None
     alias = tmp_path / "alias-ws"
     alias.mkdir()
-    (alias / "episode.project.json").symlink_to(src_file)
+    (alias / "episode.sharecut").symlink_to(src_file)
     assert _reuse_workspace(src_file, alias, tmp_path / "dest-alias") is None
     other = tmp_path / "other-ws"
     copy_relocated_project(FIXTURE, other)

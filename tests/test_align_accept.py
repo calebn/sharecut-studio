@@ -121,7 +121,7 @@ def test_align_accept_service_reloads_before_stamp(tmp_path: Path) -> None:
 
     p = _proj(tmp_path)
     p.ensure_dirs()
-    proj_path = tmp_path / "episode.project.json"
+    proj_path = tmp_path / "episode.sharecut"
     save_project(p, proj_path)
     ws = ProjectWorkspace.open(proj_path)
     svc = AlignAcceptService(ws)
@@ -166,7 +166,7 @@ def test_align_accept_service_status_brief_waive(tmp_path: Path) -> None:
 
     p = _proj(tmp_path)
     p.ensure_dirs()
-    proj_path = tmp_path / "episode.project.json"
+    proj_path = tmp_path / "episode.sharecut"
     save_project(p, proj_path)
     ws = ProjectWorkspace.open(proj_path)
     svc = AlignAcceptService(ws)
@@ -191,7 +191,7 @@ def test_align_cli_and_mcp_tools(tmp_path: Path) -> None:
 
     p = _proj(tmp_path)
     p.ensure_dirs()
-    proj_path = tmp_path / "episode.project.json"
+    proj_path = tmp_path / "episode.sharecut"
     ALIGN_GATE.mark_pending(p)
     save_project(p, proj_path)
 
@@ -249,7 +249,7 @@ def test_cli_pipeline_run_realign_passes_config(tmp_path: Path, monkeypatch) -> 
 
     monkeypatch.setattr(PipelineService, "run", fake_run)
     proj = _proj(tmp_path)
-    path = tmp_path / "episode.project.json"
+    path = tmp_path / "episode.sharecut"
     from podcast_mcp.models.episode import save_project
 
     save_project(proj, path)

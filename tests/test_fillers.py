@@ -3618,7 +3618,7 @@ def test_a_real_word_the_transcript_dropped_is_not_proposed_as_a_filler_decaying
     with wave.open(str(guest), "wb") as handle:
         handle.setparams(params)
         handle.writeframes(np.clip(np.round(scaled), -32768, 32767).astype("<i2").tobytes())
-    project = load_project(workspace / "episode.project.json")
+    project = load_project(workspace / "episode.sharecut")
     transcript = next(t for t in project.transcripts if t.track_id == "guest")
     transcript.words = [w for w in transcript.words if w.text.strip(".,") != "antonia"]
     found: dict[str, int] = {}

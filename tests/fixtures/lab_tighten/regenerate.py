@@ -137,7 +137,7 @@ def write_project(
     project.transcript_data.combined = TranscriptionEngine(
         defaults=load_defaults()
     ).merge_transcripts(project)
-    ProjectStore(case_dir / "episode.project.json").commit(project)
+    ProjectStore(case_dir / "episode.sharecut").commit(project)
 
 
 def main() -> int:
@@ -189,7 +189,7 @@ def main() -> int:
     for case in CASES:
         write_project(output_dir / case["name"], case, words_by_track)
         if args.verify_dir:
-            project_file = Path(case["name"]) / "episode.project.json"
+            project_file = Path(case["name"]) / "episode.sharecut"
             if (output_dir / project_file).read_text() != (
                 args.verify_dir / project_file
             ).read_text():

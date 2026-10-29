@@ -15,7 +15,7 @@ ShareCut Studio (`gui/web/`) uses plain CSS + React (no Tailwind/shadcn). Semant
 ```bash
 uv sync --extra gui
 cd gui/web && npm install && npm run build && cd ../..
-podcast gui --project /path/to/episode.project.json
+podcast gui --project /path/to/episode.sharecut
 ```
 
 When the web build is missing (a source tree before `npm run build`, or a wheel built without it), `podcast gui` prints one startup warning, `GET /` returns a 503 HTML page with the build steps, and `open_gui_tool` returns `static_built: false` with the same text as `hint`; the API and `/mcp` keep working. See [setup.md](setup.md#web-build-in-wheels).
@@ -53,9 +53,9 @@ Keep ShareCut Studio running. Host `tools/call` applies to the **pinned** episod
 Dev mode (API `:8765`, Vite `:5173` with `/api` proxy):
 
 ```bash
-podcast gui --project /path/to/episode.project.json --dev --no-open
+podcast gui --project /path/to/episode.sharecut --dev --no-open
 cd gui/web && npm run dev
-# open http://127.0.0.1:5173/?project=/absolute/path/to/episode.project.json
+# open http://127.0.0.1:5173/?project=/absolute/path/to/episode.sharecut
 # or omit ?project= for host New/Open home (loopback API)
 ```
 
@@ -65,7 +65,7 @@ Host and share **`edit`** guests may add tracks, attach/replace audio, edit trac
 
 | Path | Role |
 |------|------|
-| `POST /api/project/create` · `POST /api/project/open` · `POST /api/project/close` | Host loopback — create empty episode (a blank `workspace_dir` means `<PODCAST_WORKSPACE_ROOT or ~/ShareCut>/<name>`, numbered " 2", " 3" when taken; a name Windows reserves for a device, such as `con`, `nul.wav` or `com1`, is refused with 400 `project_name_reserved` and never renamed, on every OS so a folder moves between machines; Home's drop names an episode after the day when its file is called that), open existing `episode.project.json` (basename required; workspace **directory** also accepted), or unpin `served_project` (Studio New project). CLI `--project`, MCP, and `open_project` still load any JSON path. A folder name that is not valid UTF-8 is refused **400** `project_path_invalid` before anything is pinned or recorded. |
+| `POST /api/project/create` · `POST /api/project/open` · `POST /api/project/close` | Host loopback — create empty episode (a blank `workspace_dir` means `<PODCAST_WORKSPACE_ROOT or ~/ShareCut>/<name>`, numbered " 2", " 3" when taken; a name Windows reserves for a device, such as `con`, `nul.wav` or `com1`, is refused with 400 `project_name_reserved` and never renamed, on every OS so a folder moves between machines; Home's drop names an episode after the day when its file is called that), open existing `episode.sharecut` (basename required; workspace **directory** also accepted), or unpin `served_project` (Studio New project). CLI `--project`, MCP, and `open_project` still load any JSON path. A folder name that is not valid UTF-8 is refused **400** `project_path_invalid` before anything is pinned or recorded. |
 | `GET /api/projects/recent` · `DELETE /api/projects/recent?path=` | Host loopback (same guards as the project-switching routes; other peers get **403** `project_recent_not_allowed`, relayed requests **403** `authz_denied`) — Home's list: the last 20 episodes opened or created on this machine, newest first, as cards `{path, name, opened_at, edited_at, duration_sec, stage, chip: {text, state}, peaks, folder_missing}`. The server reads each project file as plain JSON (no media, no model validation; the parsed summary is cached per file on its revision (device, inode, size, mtime and ctime), and a job's running state is read per request); `edited_at` is the file's mtime, `stage` and `chip` are the Home rule, decided on the server, and a card opens on its `stage` (a running job or a failed run: Prepare; no audio: Prepare; undecided suggestions: Review; a master exists: Deliver; else Edit), so Home does not return to the last stage the person used and a project opened any other way follows `landingStage` instead, `peaks` is empty until a cache exists (Home draws a flat strip), and `folder_missing` marks a project file that is gone (the entry stays so Home can offer Find). The list is `recent_projects.json` in `PODCAST_CONFIG_DIR`; a missing or corrupt file reads as empty, and an entry whose path the response cannot carry (a non-UTF-8 folder name on Linux, an unpaired surrogate on Windows) is never listed and never recorded; it leaves the file at the next save that rewrites the list (a record of another project, or a forget that removes one); reading the list never writes the file. `DELETE` drops one entry (Find calls it after the picked folder opens) and never touches a project. |
 | `POST /api/project/pick` | Host loopback — OS file dialog (Finder / Explorer / zenity); returns a path without pinning `served_project`. Home's **Open other…** and **Find…** use this then `open`; Mod+O opens Home. Overlapping pick returns **409**. Cancelled responses may include `detail` (timeout). Home shows a path field when the dialog is unavailable (a Find keeps the moved card to replace). |
 | `POST /api/media/upload` | Host — stream audio into `raw/` (allowlisted extensions; size via `PODCAST_GUI_MEDIA_*`) |
@@ -502,7 +502,7 @@ Agent, CLI, local DAW tabs, and future remote web users are **clients** of one s
 
 **First Snapshot:** the DAW applies agent transport from the connect snapshot **before** recording `last_command_id` as applied (see `gui/web/src/session/dedupe.ts`), so an in-flight agent play still seeks/highlights when a tab opens mid-command.
 
-Keep the viewer pointed at the same `episode.project.json`.
+Keep the viewer pointed at the same `episode.sharecut`.
 
 ## Presence (avatars and ghosts)
 

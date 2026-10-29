@@ -74,7 +74,7 @@ function createCaseRoot(): {
   fs.mkdirSync(inputDir, { recursive: true });
   fs.mkdirSync(repoRoot, { recursive: true });
   fs.mkdirSync(tmpDir, { recursive: true });
-  const projectPath = path.join(inputDir, "episode.project.json");
+  const projectPath = path.join(inputDir, "episode.sharecut");
   fs.writeFileSync(
     projectPath,
     `${JSON.stringify({ meta: { workspace_dir: inputDir } }, null, 2)}\n`,

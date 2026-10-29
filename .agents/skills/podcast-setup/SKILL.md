@@ -86,7 +86,7 @@ podcast setup --global-skills
 
 ```bash
 cd gui/web && npm ci && npm run build && cd ../..
-podcast gui --project /path/to/episode.project.json
+podcast gui --project /path/to/episode.sharecut
 ```
 
 On first open of the host home screen (no project), Sharecut Studio checks audio
@@ -101,7 +101,7 @@ Optional native window: see `gui/desktop/` and `docs/desktop-packaging.md`.
 
 ```bash
 podcast episode init --dir /path/to/my_episode
-podcast track add --project /path/to/my_episode/episode.project.json \
+podcast track add --project /path/to/my_episode/episode.sharecut \
   --id host --file /path/to/host.wav --role dialogue --speaker Host
 ```
 

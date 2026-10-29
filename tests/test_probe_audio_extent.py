@@ -118,7 +118,7 @@ def test_add_track_stores_audio_extent_everywhere(eng, tmp_path):
     truth = decoded_extent(eng, src)
     ws = tmp_path / "ep"
     assert runner.invoke(app, ["episode", "init", "--dir", str(ws), "--name", "lab"]).exit_code == 0
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
     result = runner.invoke(
         app,
         ["episode", "add-track", "--project", str(project), "--id", "t1", "--file", str(src)],
@@ -184,7 +184,7 @@ def test_late_audio_still_exports_its_samples(eng, tmp_path):
     src = _as_m4a(_av(eng, tmp_path, "late.mp4", 8, 2, offset=3))
     ws = tmp_path / "ep"
     assert runner.invoke(app, ["episode", "init", "--dir", str(ws), "--name", "lab"]).exit_code == 0
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
     args = ["--project", str(project)]
     assert (
         runner.invoke(
@@ -290,7 +290,7 @@ def test_multistream_import_uses_known_first_audio_extent(eng, tmp_path):
     assert (
         runner.invoke(app, ["episode", "init", "--dir", str(ws), "--name", "multi"]).exit_code == 0
     )
-    project = ws / "episode.project.json"
+    project = ws / "episode.sharecut"
     result = runner.invoke(
         app, ["episode", "add-track", "--project", str(project), "--id", "t1", "--file", str(path)]
     )

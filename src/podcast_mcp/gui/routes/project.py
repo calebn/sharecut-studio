@@ -94,7 +94,7 @@ def _require_episode_path(path_raw: str) -> Path:
 
 
 def _open_validated(path_raw: str) -> ProjectWorkspace:
-    """Resolve workspace/file path, require episode.project.json, load project."""
+    """Resolve workspace/file path, require episode.sharecut, load project."""
     path = _require_episode_path(path_raw)
     try:
         return ProjectWorkspace.open(path)
@@ -268,7 +268,7 @@ def health(request: Request) -> dict[str, bool]:
 @router.get("/api/project")
 def get_project(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     phase: str | None = Query(
         None,
         description=VIEW_PROJECTION_QUERY_DESCRIPTION,
@@ -290,7 +290,7 @@ def get_project(
 @router.get("/api/project/meta")
 def get_project_meta(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
@@ -303,7 +303,7 @@ def get_project_meta(
 def get_pending_cut_suggestion(
     request: Request,
     edit_id: str,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> JSONResponse:
@@ -325,7 +325,7 @@ def get_pending_cut_suggestion(
 @router.get("/api/waveform-snap")
 def get_waveform_snap(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     track_id: str = Query(...),
     start: float = Query(...),
     end: float = Query(...),
@@ -355,7 +355,7 @@ def get_waveform_snap(
 @router.get("/api/project/prosody")
 def get_project_prosody(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
@@ -368,7 +368,7 @@ def get_project_prosody(
 @router.get("/api/audio")
 def get_audio(
     request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
+    path: str = Query(..., description="Path to episode.sharecut"),
     kind: str = Query(
         "premix",
         description=(

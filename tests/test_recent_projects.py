@@ -58,11 +58,11 @@ def test_record_puts_newest_first_and_dedupes(tmp_path):
 
 def test_record_caps_the_list_at_twenty(tmp_path):
     for i in range(recent.RECENT_LIMIT + 3):
-        recent.record_recent(tmp_path / f"p{i}" / "episode.project.json")
+        recent.record_recent(tmp_path / f"p{i}" / "episode.sharecut")
     entries = recent.read_recent()
     assert len(entries) == recent.RECENT_LIMIT
-    assert entries[0].path.endswith("p22/episode.project.json")
-    assert not any(e.path.endswith("p0/episode.project.json") for e in entries)
+    assert entries[0].path.endswith("p22/episode.sharecut")
+    assert not any(e.path.endswith("p0/episode.sharecut") for e in entries)
 
 
 @pytest.mark.parametrize(
@@ -93,8 +93,8 @@ def test_unwritable_config_dir_never_fails_the_caller(tmp_path, monkeypatch):
     blocker = tmp_path / "blocked"
     blocker.write_text("a file, not a directory")
     monkeypatch.setenv("PODCAST_CONFIG_DIR", str(blocker / "sub"))
-    recent.record_recent(tmp_path / "x" / "episode.project.json")
-    assert recent.forget_recent(tmp_path / "x" / "episode.project.json") is False
+    recent.record_recent(tmp_path / "x" / "episode.sharecut")
+    assert recent.forget_recent(tmp_path / "x" / "episode.sharecut") is False
     assert recent.read_recent() == []
 
 
@@ -261,8 +261,8 @@ def test_create_without_a_folder_uses_the_default_workspace(local, tmp_path):
     first = local.post("/api/project/create", json={"name": "Pilot"}).json()
     second = local.post("/api/project/create", json={"name": "Pilot"}).json()
     root = tmp_path / "workspaces"
-    assert Path(first["project_path"]) == (root / "Pilot" / "episode.project.json").resolve()
-    assert Path(second["project_path"]) == (root / "Pilot 2" / "episode.project.json").resolve()
+    assert Path(first["project_path"]) == (root / "Pilot" / "episode.sharecut").resolve()
+    assert Path(second["project_path"]) == (root / "Pilot 2" / "episode.sharecut").resolve()
 
 
 def test_switching_by_pin_records_the_project(local, tmp_path):
@@ -487,7 +487,7 @@ def _seed_unencodable(*good: Path) -> Path:
         recent.record_recent(path)
     saved = recent.recent_projects_path()
     data = json.loads(saved.read_text(encoding="utf-8"))
-    data["projects"].insert(0, {"path": "/x/\ud800/episode.project.json", "opened_at": "t\ud800"})
+    data["projects"].insert(0, {"path": "/x/\ud800/episode.sharecut", "opened_at": "t\ud800"})
     saved.write_text(json.dumps(data), encoding="utf-8")
     return saved
 
@@ -533,7 +533,7 @@ def test_a_save_that_rewrites_the_list_drops_the_unreachable_entry_from_the_file
 def test_record_recent_does_not_raise_on_a_lone_surrogate_path(tmp_path):
     good = _make(tmp_path, "good")
     recent.record_recent(good)
-    recent.record_recent("/x/\ud800/episode.project.json")
+    recent.record_recent("/x/\ud800/episode.sharecut")
     assert [e.path for e in recent.read_recent()] == [str(good.resolve())]
 
 
@@ -666,7 +666,7 @@ def test_a_transient_read_failure_is_not_cached(tmp_path, monkeypatch):
     failing = {"on": True}
 
     def flaky(self, *args, **kwargs):
-        if failing["on"] and self.name == "episode.project.json":
+        if failing["on"] and self.name == "episode.sharecut":
             raise PermissionError("busy")
         return real(self, *args, **kwargs)
 

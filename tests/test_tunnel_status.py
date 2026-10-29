@@ -356,7 +356,7 @@ async def test_host_and_share_tokens_never_reach_a_line_or_the_snapshot(tmp_path
 def test_known_share_tokens_are_masked_even_without_a_path(tmp_path: Path):
     h = Harness(tmp_path)
     rows = [{"token": SHARE_TOKEN, "capabilities": ["play"]}]
-    h.client._project_path = Path("episode.project.json")
+    h.client._project_path = Path("episode.sharecut")
     with (
         patch("podcast_mcp.services.collaboration.tunnel.load_project", return_value=object()),
         patch("podcast_mcp.services.collaboration.tunnel.list_usable_shares", return_value=rows),

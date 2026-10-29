@@ -22,7 +22,7 @@ Connect a remote MCP client (e.g. Cursor) to a **review share token** so an agen
    `PODCAST_EXTENSIONS=collaboration`. Use
    `PODCAST_EXTENSIONS=collaboration,online` only when a provider extension is
    installed and its account surface is wanted.
-2. `podcast gui --project <episode.project.json> --no-open`
+2. `podcast gui --project <episode.sharecut> --no-open`
 3. `podcast tunnel --project … --relay-url wss://<relay>/tunnel --host-token …`
    Read its stderr: `Tunnel connected: <url> (N shares)` means guests can reach you;
    `Tunnel reconnecting …` means they see "Host offline" until the next `connected`.

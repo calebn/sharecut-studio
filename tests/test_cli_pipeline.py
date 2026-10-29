@@ -18,7 +18,7 @@ runner = CliRunner()
 def _init_project(tmp_path):
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws), "--name", "cli-test"])
-    return ws / "episode.project.json"
+    return ws / "episode.sharecut"
 
 
 def test_pipeline_run_prints_summaries_and_verdict(tmp_path):

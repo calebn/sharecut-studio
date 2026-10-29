@@ -7,7 +7,7 @@ from typing import Any
 
 
 def project_meta(project_path: Path) -> dict[str, Any]:
-    """mtime/size of episode.project.json plus document.db's server_seq.
+    """mtime/size of episode.sharecut plus document.db's server_seq.
 
     Stats the project file directly and reads ``document_server_seq``, which
     itself is stat + one row on document.db. Neither parses the project, and

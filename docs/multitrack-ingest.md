@@ -283,7 +283,7 @@ podcast ingest report \
 
 # Post-consolidate VAD verify
 podcast ingest verify \
-  --project ./my_episode/episode.project.json \
+  --project ./my_episode/episode.sharecut \
   --window 0:90 \
   --fail-on-warn
 
@@ -292,12 +292,12 @@ podcast episode init --dir ./my_episode --name "Episode"
 podcast ingest consolidate \
   --audio-dir "/path/to/Audio Files" \
   --manifest ingest.yaml \
-  --project ./my_episode/episode.project.json \
+  --project ./my_episode/episode.sharecut \
   --extract-start 0 \
   --extract-duration 300
 
 # Listen: each dialogue track, then premix
-podcast play --project ./my_episode/episode.project.json \
+podcast play --project ./my_episode/episode.sharecut \
   --compare --start 0 --end 90
 ```
 

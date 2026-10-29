@@ -1,6 +1,6 @@
 {
   "before": {
-    "project_path": "/private/tmp/realtime-594-run/prototype/production-small-move/episode.project.json",
+    "project_path": "/private/tmp/realtime-594-run/prototype/production-small-move/episode.sharecut",
     "meta": {
       "name": "production-small-move",
       "workspace_dir": "/private/tmp/realtime-594-run/prototype/production-small-move",
@@ -332,7 +332,7 @@
     "transcript": null
   },
   "after": {
-    "project_path": "/private/tmp/realtime-594-run/prototype/production-small-move/episode.project.json",
+    "project_path": "/private/tmp/realtime-594-run/prototype/production-small-move/episode.sharecut",
     "meta": {
       "name": "production-small-move",
       "workspace_dir": "/private/tmp/realtime-594-run/prototype/production-small-move",

@@ -251,11 +251,11 @@ ShareCut Studio Pipeline pane and MCP tools share a **working set** of enabled s
 ## Resume from a step
 
 ```bash
-podcast pipeline run --project episode.project.json --from precorrect_transcript
-podcast pipeline run --project episode.project.json --unattended
-podcast pipeline run --project episode.project.json --from tighten_from_transcript
-podcast pipeline run --project episode.project.json --from assemble_timeline
-podcast pipeline run --project episode.project.json --only master_loudness
+podcast pipeline run --project episode.sharecut --from precorrect_transcript
+podcast pipeline run --project episode.sharecut --unattended
+podcast pipeline run --project episode.sharecut --from tighten_from_transcript
+podcast pipeline run --project episode.sharecut --from assemble_timeline
+podcast pipeline run --project episode.sharecut --only master_loudness
 ```
 
 `--from reconcile_transcript` resumes at pass 1. Pass 2 reconcile is included when resuming from `assemble_timeline`.
@@ -331,8 +331,8 @@ Each `formats` entry is passed to FFmpeg (`-codec:a`, `-b:a`, optional `-f`, `sa
 One-off encode without re-running the full pipeline:
 
 ```bash
-podcast pipeline export-audio --project episode.project.json
-podcast pipeline export-audio --project episode.project.json \
+podcast pipeline export-audio --project episode.sharecut
+podcast pipeline export-audio --project episode.sharecut \
   --formats '[{"ext":"opus","codec":"libopus","bitrate_kbps":96}]'
 ```
 

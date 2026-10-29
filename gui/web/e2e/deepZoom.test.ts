@@ -71,7 +71,7 @@ const validateEpisodeProject = new Ajv2020({
 
 describe("stretchProjectToSession", () => {
   function copy(): string {
-    const dest = path.join(tempWorkspace("deep-zoom-"), "episode.project.json");
+    const dest = path.join(tempWorkspace("deep-zoom-"), "episode.sharecut");
     fs.copyFileSync(committedE2eProjectPath, dest);
     return dest;
   }

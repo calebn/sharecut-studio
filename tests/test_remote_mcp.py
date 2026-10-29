@@ -597,7 +597,7 @@ def test_remote_mcp_context_helpers(minimal_project, sample_wav, tmp_workspace, 
     ws = _seed_premix(minimal_project, sample_wav)
     share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="ctx")
     ctx = resolve_remote_mcp_context(share["token"])
-    assert ctx.project_path.endswith("episode.project.json") or "episode" in ctx.project_path
+    assert ctx.project_path.endswith("episode.sharecut") or "episode" in ctx.project_path
     set_remote_mcp_context(ctx)
     assert get_remote_mcp_context() is ctx
     clear_remote_mcp_context()
@@ -998,7 +998,7 @@ def test_document_command_sanitizes_snapshot_project(
                 "ok": True,
                 "snapshot": {
                     "project": {
-                        "project_path": "/Users/secret/episode.project.json",
+                        "project_path": "/Users/secret/episode.sharecut",
                         "meta": {"name": "x"},
                     }
                 },
@@ -1025,7 +1025,7 @@ def test_guest_render_preview_strips_host_paths(monkeypatch):
     monkeypatch.setattr(rt, "_require_tool", lambda _n: None)
 
     class FakeWs:
-        path = Path("/tmp/episode.project.json")
+        path = Path("/tmp/episode.sharecut")
 
     monkeypatch.setattr(
         rt,
@@ -1038,7 +1038,7 @@ def test_guest_render_preview_strips_host_paths(monkeypatch):
     class FakeJob:
         id = "render-1"
         kind = "render_preview"
-        project_path = "/tmp/episode.project.json"
+        project_path = "/tmp/episode.sharecut"
         status = "ok"
         error = None
 
@@ -1112,7 +1112,7 @@ def test_guest_render_preview_non_dict_ok(monkeypatch):
     monkeypatch.setattr(rt, "_require_tool", lambda _n: None)
 
     class FakeWs:
-        path = Path("/tmp/episode.project.json")
+        path = Path("/tmp/episode.sharecut")
 
     monkeypatch.setattr(
         rt,
@@ -1125,7 +1125,7 @@ def test_guest_render_preview_non_dict_ok(monkeypatch):
     class FakeJob:
         id = "render-1"
         kind = "render_preview"
-        project_path = "/tmp/episode.project.json"
+        project_path = "/tmp/episode.sharecut"
         status = "ok"
         error = None
 
