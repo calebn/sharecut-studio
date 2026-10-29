@@ -10,6 +10,7 @@ import {
   openProjectDialog,
 } from "./stageNav";
 
+// Matches TUNNEL_STATUS_POLL_MS in src/stage/hosts/useTunnelStatus.ts.
 const TUNNEL_POLL_MS = 5_000;
 
 type Row = {
@@ -227,17 +228,29 @@ test.describe("Share on Deliver", () => {
         polls += 1;
         return route.fulfill({ json: tunnel("online") });
       });
+      await page.route("**/api/test-barrier", (route) =>
+        route.fulfill({ json: {} }),
+      );
+      // Requests reach routes in order, so once the barrier has answered every
+      // earlier poll has been counted.
+      const settled = () => page.evaluate(() => fetch("/api/test-barrier"));
       await page.clock.install();
       const section = await openShare(page, projectPath);
       await expect(
         section.getByText("Guests can open your links"),
       ).toBeVisible();
+      await page.clock.pauseAt(Date.now() + 1_000);
+      await settled();
       const shown = polls;
-      await page.clock.runFor(TUNNEL_POLL_MS + 100);
-      await expect.poll(() => polls).toBeGreaterThan(shown);
+      await page.clock.runFor(TUNNEL_POLL_MS);
+      await settled();
+      expect(polls).toBe(shown + 1);
+      await page.clock.resume();
       await goToStage(page, "edit");
+      await settled();
       const left = polls;
       await page.clock.runFor(2 * TUNNEL_POLL_MS + 100);
+      await settled();
       expect(polls).toBe(left);
     });
   });
