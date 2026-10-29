@@ -564,7 +564,7 @@ class DocumentSyncService:
 
         from podcast_mcp.services.document_sync.projections import projection_for_command
 
-        if command.type == "SetEnvelope":
+        if command.type in {"SetEnvelope", "FillRoomTone"}:
             from podcast_mcp.services.document_sync.payloads import validate_payload
 
             # Normalize first so a retry compares the stored payload.
