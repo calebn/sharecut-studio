@@ -194,7 +194,7 @@ export function ClipPlacementControls({
           ref={entryRef}
           disabledReason={
             !allowed
-              ? "Clip moves require edit permission in Select mode."
+              ? "Clip moves require edit permission."
               : busy
                 ? "Wait for the current edit to finish."
                 : undefined
