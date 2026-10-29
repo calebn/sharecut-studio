@@ -20,15 +20,15 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Kind | Count |
 |---|---|
 | Screens (SCR-) | 38 |
-| Dialogs, sheets and popovers (DLG- 16, SHEET- 3, POP- 4) | 23 |
+| Dialogs, sheets and popovers (DLG- 15, SHEET- 3, POP- 4) | 22 |
 | Panels and inspector variants (PNL- 6, INS- 14) | 20 |
 | Menus (MENU-) | 4 |
 | Components, overlays, banners, toasts, status items, empty states (CMP- 48, OVL- 11, BAN- 6, TOAST/STAT/EMPTY/CHIP 4) | 69 |
 | Interactions (INT-) | 46 |
-| Total catalogued items | 200 |
+| Total catalogued items | 199 |
 | Story files / exported stories | 89 files / 446 stories |
 
-Of the 154 non-interaction items: 67 have a story (yes), 32 partial, 55 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
+Of the 153 non-interaction items: 66 have a story (yes), 32 partial, 55 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
 
 ---
 
@@ -446,7 +446,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | BAN-LOADFAIL, STAT-LIVE, CMP-RAIL-PEEK | no | |
 | CMP-TUNNEL, CMP-PRESENCE-STATUS | yes | |
 
-Tally of the 154 non-interaction items, counted from the Story columns: 67 yes, 32 partial, 55 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
+Tally of the 153 non-interaction items, counted from the Story columns: 66 yes, 32 partial, 55 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
 
 ---
 

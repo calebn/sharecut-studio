@@ -58,8 +58,9 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
     resetGate();
   }, [projectPath, resetGate]);
 
-  // Leaving Deliver ends this visit: a range fixed from Edit and the bounce
-  // choices do not carry to the next visit.
+  // Leaving Deliver ends this visit: a range fixed from Edit, the bounce
+  // choices and a failed or cancelled outcome (its retry would bounce the whole
+  // mix once the range is gone) do not carry to the next visit.
   const stage = useDawStore((s) => s.stage);
   const wasDeliver = useRef(stage === "deliver");
   useEffect(() => {
@@ -68,6 +69,9 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
     if (!was || stage === "deliver") return;
     useDawStore.getState().setBounceRangeTarget(null);
     setChoices(BOUNCE_DEFAULTS);
+    setRun((r) =>
+      r.kind === "failed" || r.kind === "cancelled" ? { kind: "idle" } : r,
+    );
   }, [stage]);
 
   const start = useCallback(async () => {
@@ -126,18 +130,20 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
           throw err;
         }
       });
+      if (scope.signal.aborted) return;
       if (ran.kind === "declined") {
         // Declining is a choice, not a failure: back to idle.
         setRun({ kind: "idle" });
         return;
       }
-      if (scope.signal.aborted) return;
       // A range fixed while this run was going is a new request: keep it.
       if (useDawStore.getState().bounceRangeTarget === range) {
         useDawStore.getState().setBounceRangeTarget(null);
       }
       setRun({ kind: "done", paths: jobResultPaths(ran.value) });
     } catch (err) {
+      // The project changed: this outcome belongs to the old one.
+      if (scope.signal.aborted) return;
       if (isAbortError(err)) {
         setRun({ kind: "idle" });
       } else if (err instanceof JobCancelledError) {

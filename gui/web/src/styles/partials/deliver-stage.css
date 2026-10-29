@@ -285,14 +285,6 @@
   text-align: center;
 }
 
-/* Touch targets: the Bounce source and option toggles are 44px tall on touch. */
-@media (pointer: coarse) {
-  .dv-field .ui-segmented > *,
-  .dv-chips > * {
-    min-block-size: var(--touch-min);
-  }
-}
-
 .dv-clip-trim {
   display: flex;
   flex-direction: column;
