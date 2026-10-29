@@ -137,6 +137,7 @@ describe("BounceFlowProvider", () => {
       jobId: null,
       cancelling: false,
       cancelError: null,
+      range: null,
     });
     await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
     expect(startBounceJob).toHaveBeenCalledWith(PATH, {
@@ -243,6 +244,7 @@ describe("BounceFlowProvider", () => {
     act(() => useDawStore.getState().setBounceRangeTarget(RANGE));
     act(() => flow.start());
     expect(startBounceJob).toHaveBeenCalledTimes(1);
+    expect(flow.run).toMatchObject({ kind: "running", range: null });
     await act(async () => settle().ok(finished));
     expect(flow.run).toMatchObject({ kind: "done" });
     expect(useDawStore.getState().bounceRangeTarget).toBe(RANGE);

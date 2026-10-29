@@ -95,6 +95,10 @@ export function bounceOptionsOf(
     soloCount: project.soloCount,
     hasRegion: project.hasRegion,
     fixedRange: project.range ? bounceRangeSummary(project.range) : undefined,
+    rangeIsRunning:
+      run.kind === "running" &&
+      project.range !== null &&
+      run.range === project.range,
     onClearRange: project.range ? project.clearRange : undefined,
     gate: flow.gate,
     blockedReason: project.blockedReason,
