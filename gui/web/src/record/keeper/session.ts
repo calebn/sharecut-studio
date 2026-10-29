@@ -13,7 +13,10 @@ import {
   type ByteSink,
   type ByteStream,
   type KeeperMeta,
+  keeperMetaPath,
   keeperWavPath,
+  parseKeeperMeta,
+  removeBestEffort,
   writeKeeperMeta,
 } from "./store";
 
@@ -50,7 +53,7 @@ export type KeeperClipEvent = {
 
 export type KeeperSessionOptions = {
   onClipping?: (event: KeeperClipEvent) => void;
-  /** A segment is open and its pending record is on disk: `segments` opened so far this take. */
+  /** A segment's first samples are on disk: `segments` with audio so far this take. */
   onSegmentOpen?: (takeIndex: number, segments: number) => void;
   maxQueuedSamples?: number;
   operationTimeoutMs?: number;
@@ -162,10 +165,21 @@ export class KeeperSession {
     participantId: string,
   ): Promise<void> {
     await this.lock(async () => {
-      const next = await this.bounded(
+      let next = await this.bounded(
         this.sink.nextSegmentIndex(sessionId, takeIndex, participantId),
         "segment scan",
       );
+      if (
+        next > 0 &&
+        (await this.dropEmptyPending(
+          sessionId,
+          takeIndex,
+          participantId,
+          next - 1,
+        ))
+      ) {
+        next -= 1;
+      }
       this.sessionId = sessionId;
       this.participantId = participantId;
       this.cursor = {
@@ -174,6 +188,46 @@ export class KeeperSession {
         open: null,
       };
     });
+  }
+
+  /** A tab that died within ms of opening leaves a header-only WAV that was never reported. */
+  private async dropEmptyPending(
+    sessionId: string,
+    takeIndex: number,
+    participantId: string,
+    segmentIndex: number,
+  ): Promise<boolean> {
+    const wavPath = keeperWavPath({
+      sessionId,
+      takeIndex,
+      participantId,
+      segmentIndex,
+    });
+    const meta = parseKeeperMeta(
+      await this.bounded(
+        this.sink.read(keeperMetaPath(wavPath)),
+        "segment scan",
+      ),
+    );
+    if (!meta || meta.complete || meta.samplesWritten !== 0) {
+      return false;
+    }
+    const wav = await this.bounded(
+      Promise.resolve(
+        this.sink.readBlob
+          ? this.sink.readBlob(wavPath)
+          : this.sink.read(wavPath),
+      ),
+      "segment scan",
+    );
+    const size = wav instanceof Blob ? wav.size : (wav?.byteLength ?? 0);
+    if (size > WAV_HEADER_BYTES) {
+      return false;
+    }
+    return (
+      (await removeBestEffort(this.sink, keeperMetaPath(wavPath))) &&
+      (await removeBestEffort(this.sink, wavPath))
+    );
   }
 
   async apply(
@@ -273,8 +327,15 @@ export class KeeperSession {
         if (epoch !== this.epoch) {
           return;
         }
+        const first = this.samples === 0;
         this.samples += count;
         this.inFlightSamples = 0;
+        if (first && this.current) {
+          this.onSegmentOpen?.(
+            this.current.takeIndex,
+            this.current.segmentIndex + 1,
+          );
+        }
       }
     } catch (error) {
       if (epoch === this.epoch) {
@@ -296,13 +357,15 @@ export class KeeperSession {
       this.writing = false;
       return;
     }
-    const plan = planKeeperSegment(gate, this.cursor);
+    let plan = planKeeperSegment(gate, this.cursor);
     this.writing = false;
     if (plan.close) {
       await this.finalizeOpen();
       if (this.failure) {
         return;
       }
+      this.cursor = { ...this.cursor, open: null };
+      plan = planKeeperSegment(gate, this.cursor);
     }
     // Reserve the segment before opening the writable. If opening or writing
     // the header fails, retry must advance past this segment rather than
@@ -345,10 +408,7 @@ export class KeeperSession {
       // Record the pending segment without holding capture closed: samples
       // pushed while this OPFS round trip runs are kept. finalizeOpen awaits
       // it so it can never land after (and overwrite) the complete record.
-      const open = plan.open;
-      const segments = plan.cursor.nextSegmentIndex;
-      this.pendingMeta = this.writeMeta(wavPath, open, 0, false).then(
-        () => this.onSegmentOpen?.(open.takeIndex, segments),
+      this.pendingMeta = this.writeMeta(wavPath, plan.open, 0, false).catch(
         (error: unknown) => this.fail(error),
       );
     }
@@ -374,6 +434,10 @@ export class KeeperSession {
     if (this.failure) {
       await this.closeBounded(stream, samplesWritten);
       this.clearOpenSegment();
+      return;
+    }
+    if (samplesWritten === 0) {
+      await this.discardEmpty(open, stream, wavPath);
       return;
     }
     let closing = false;
@@ -433,6 +497,39 @@ export class KeeperSession {
       throw error;
     }
     this.clearOpenSegment();
+  }
+
+  /**
+   * A segment that never received audio was never reported, so it leaves no
+   * files and gives its index back; the server owes contiguous indices. Only
+   * a close that resolved is safe to undo: a late close could recreate the path.
+   */
+  private async discardEmpty(
+    open: OpenSegment,
+    stream: ByteStream,
+    wavPath: string,
+  ): Promise<void> {
+    try {
+      await this.bounded(stream.close(), "close", this.closeTimeoutMs(0));
+    } catch (error) {
+      this.fail(error);
+      void Promise.resolve()
+        .then(() => stream.abort?.())
+        .catch(() => undefined);
+      this.clearOpenSegment();
+      return;
+    }
+    this.clearOpenSegment();
+    const removed = [
+      await removeBestEffort(this.sink, keeperMetaPath(wavPath)),
+      await removeBestEffort(this.sink, wavPath),
+    ];
+    if (
+      removed.every(Boolean) &&
+      this.cursor.nextSegmentIndex === open.segmentIndex + 1
+    ) {
+      this.cursor = { ...this.cursor, nextSegmentIndex: open.segmentIndex };
+    }
   }
 
   private async writeMeta(

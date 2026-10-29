@@ -87,7 +87,7 @@ afterEach(() => {
 });
 
 describe("KeeperSession", () => {
-  it("announces each opened segment once its pending record is on disk", async () => {
+  it("announces each segment once its first samples are on disk", async () => {
     const sink = new MemorySink();
     const opened: [number, number][] = [];
     const session = new KeeperSession(sink, undefined, {
@@ -96,8 +96,15 @@ describe("KeeperSession", () => {
     });
     await session.apply(recordingGate());
     await session.flush();
+    expect(opened).toEqual([]);
+    session.push(tone(440, 0.1), KEEPER_SAMPLE_RATE);
+    session.push(tone(440, 0.1), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    expect(opened).toEqual([[0, 1]]);
     await session.apply(recordingGate({ roomState: "paused" }));
     await session.apply(recordingGate());
+    session.push(tone(440, 0.1), KEEPER_SAMPLE_RATE);
+    await session.flush();
     await session.apply(recordingGate({ roomState: "stopped" }));
     expect(opened).toEqual([
       [0, 1],
@@ -107,10 +114,118 @@ describe("KeeperSession", () => {
     expect(session.segmentsOpened(1)).toBe(0);
   });
 
+  it("never reports or keeps files for a segment that closes without samples", async () => {
+    const sink = new MemorySink();
+    const opened: [number, number][] = [];
+    const session = new KeeperSession(sink, undefined, {
+      onSegmentOpen: (takeIndex, segments) =>
+        opened.push([takeIndex, segments]),
+    });
+    await session.apply(recordingGate());
+    await session.apply(recordingGate({ roomState: "stopped" }));
+    expect(opened).toEqual([]);
+    expect(session.segmentsOpened(0)).toBe(0);
+    expect([...sink.files.keys()]).toEqual([]);
+    expect(session.files).toEqual([]);
+    expect(session.error).toBeNull();
+  });
+
+  it("keeps segment indices contiguous around an empty middle segment", async () => {
+    const sink = new MemorySink();
+    const opened: [number, number][] = [];
+    const session = new KeeperSession(sink, undefined, {
+      onSegmentOpen: (takeIndex, segments) =>
+        opened.push([takeIndex, segments]),
+    });
+    await session.apply(recordingGate());
+    session.push(tone(440, 0.1), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    await session.apply(recordingGate({ roomState: "paused" }));
+    await session.apply(recordingGate());
+    await session.apply(recordingGate({ roomState: "paused" }));
+    await session.apply(recordingGate());
+    session.push(tone(440, 0.1), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    await session.apply(recordingGate({ roomState: "stopped" }));
+    expect(opened).toEqual([
+      [0, 1],
+      [0, 2],
+    ]);
+    expect(session.segmentsOpened(0)).toBe(2);
+    expect(sink.files.has(segmentPath(0))).toBe(true);
+    expect(sink.files.has(segmentPath(1))).toBe(true);
+    expect(sink.files.has(segmentPath(2))).toBe(false);
+    expect(sink.files.has(keeperMetaPath(segmentPath(2)))).toBe(false);
+    const reloaded = new KeeperSession(sink);
+    await reloaded.restoreCursor(ids.sessionId, 0, ids.participantId);
+    expect(reloaded.segmentsOpened(0)).toBe(2);
+  });
+
+  it("gives the index back when a take change closes an empty segment", async () => {
+    const sink = new MemorySink();
+    const session = new KeeperSession(sink);
+    await session.apply(recordingGate());
+    await session.apply(recordingGate({ takeIndex: 1 }));
+    expect(session.segmentsOpened(0)).toBe(0);
+    expect(session.segmentsOpened(1)).toBe(1);
+    expect([...sink.files.keys()].some((k) => k.includes("/0/"))).toBe(false);
+    expect(sink.files.has(segmentPath(0, 1))).toBe(true);
+  });
+
+  it("reloads clean after a tab dies with an empty pending segment", async () => {
+    const sink = new MemorySink();
+    const session = new KeeperSession(sink);
+    await session.apply(recordingGate());
+    session.push(tone(440, 0.1), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    await session.apply(recordingGate({ roomState: "paused" }));
+    await session.apply(recordingGate());
+    await session.flush();
+    expect(sink.files.has(segmentPath(1))).toBe(true);
+    const reloaded = new KeeperSession(sink);
+    await reloaded.restoreCursor(ids.sessionId, 0, ids.participantId);
+    expect(reloaded.segmentsOpened(0)).toBe(1);
+    expect(sink.files.has(segmentPath(1))).toBe(false);
+    expect(sink.files.has(keeperMetaPath(segmentPath(1)))).toBe(false);
+  });
+
+  it("keeps a pending segment that already holds audio on reload", async () => {
+    const sink = new MemorySink();
+    const session = new KeeperSession(sink);
+    await session.apply(recordingGate());
+    session.push(tone(440, 0.1), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    const reloaded = new KeeperSession(sink);
+    await reloaded.restoreCursor(ids.sessionId, 0, ids.participantId);
+    expect(reloaded.segmentsOpened(0)).toBe(1);
+    expect(sink.files.has(segmentPath(0))).toBe(true);
+  });
+
+  it("does not roll the index back when finalizing an empty segment fails", async () => {
+    const sink = new MemorySink();
+    wrapSinkOpen(sink, (stream) => ({
+      close: async () => {
+        throw new Error("close failed");
+      },
+      abort: async () => stream.close(),
+    }));
+    const opened: number[] = [];
+    const session = new KeeperSession(sink, () => undefined, {
+      onSegmentOpen: (_take, segments) => opened.push(segments),
+    });
+    await session.apply(recordingGate());
+    await session.apply(recordingGate({ roomState: "stopped" }));
+    expect(session.error).not.toBeNull();
+    expect(opened).toEqual([]);
+    expect(session.segmentsOpened(0)).toBe(1);
+    expect(sink.files.has(segmentPath(0))).toBe(true);
+  });
+
   it("counts the segments a reloaded session finds on disk", async () => {
     const sink = new MemorySink();
     const first = new KeeperSession(sink);
     await first.apply(recordingGate());
+    first.push(tone(440, 0.1), KEEPER_SAMPLE_RATE);
     await first.apply(recordingGate({ roomState: "stopped" }));
     const reloaded = new KeeperSession(sink);
     await reloaded.restoreCursor(ids.sessionId, 0, ids.participantId);
