@@ -1439,7 +1439,7 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 /* Toast */
 
 .sys-toast-dock {
-  inset-block-end: var(--space-4);
+  inset-block-end: max(var(--space-4), env(safe-area-inset-bottom));
   inline-size: min(
     30rem,
     calc(

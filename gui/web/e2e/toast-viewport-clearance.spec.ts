@@ -14,18 +14,21 @@ test("keeps desktop feedback above the Player after resizing a side composer", a
     const settled = async () => {
       let last = await textarea.boundingBox();
       await expect
-        .poll(async () => {
-          const now = await textarea.boundingBox();
-          const still =
-            !!now &&
-            !!last &&
-            now.x === last.x &&
-            now.y === last.y &&
-            now.width === last.width &&
-            now.height === last.height;
-          last = now;
-          return still;
-        })
+        .poll(
+          async () => {
+            const now = await textarea.boundingBox();
+            const still =
+              !!now &&
+              !!last &&
+              now.x === last.x &&
+              now.y === last.y &&
+              now.width === last.width &&
+              now.height === last.height;
+            last = now;
+            return still;
+          },
+          { timeout: 2_000 },
+        )
         .toBe(true);
       if (!last) throw new Error("The native comment textarea must be visible");
       return last;
@@ -45,8 +48,11 @@ test("keeps desktop feedback above the Player after resizing a side composer", a
       expect(gripFree).toBe(true);
       await page.mouse.move(x, y);
       await page.mouse.down();
-      await page.mouse.move(x, 854, { steps: 25 });
-      await page.mouse.up();
+      try {
+        await page.mouse.move(x, 854, { steps: 25 });
+      } finally {
+        await page.mouse.up();
+      }
       const height = (await textarea.boundingBox())?.height ?? 0;
       expect(height).toBeGreaterThan(before.height + 100);
     }).toPass({ timeout: 15_000 });
