@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import AlignAcceptService, EditService, PlayService
 from podcast_mcp.services.media import TranscriptRefineService
@@ -112,3 +113,25 @@ def test_the_governance_check_sees_a_fallback() -> None:
     assert _load_defaults_calls("cfg = defaults or load_defaults()") == [1]
     assert _load_defaults_calls("cfg = config.load_defaults()") == [1]
     assert _load_defaults_calls("cfg = defaults") == []
+
+
+@pytest.mark.refine_gate
+def test_mark_checked_reads_the_gate_with_the_project_effective_config(
+    minimal_project: Path, monkeypatch
+):
+    workspace = ProjectWorkspace.open(minimal_project)
+    store = config_store()
+    store.put(workspace.path, config={"analysis": {"transcript_refine": {"mode": "require"}}})
+    modes: list[str] = []
+    real = REFINE_GATE.report
+
+    def report(project, defaults):
+        modes.append(defaults["analysis"]["transcript_refine"]["mode"])
+        return real(project, defaults)
+
+    monkeypatch.setattr(REFINE_GATE, "report", report)
+    try:
+        TranscriptRefineService(workspace).mark_checked()
+    finally:
+        store._by_path.pop(store._key(workspace.path), None)
+    assert modes[0] == "require"
