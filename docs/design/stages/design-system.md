@@ -814,7 +814,7 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | L35 | History: popover with preview (D) versus history popover (E) | A Sheet instance, with D's preview behaviour | Same thing |
 | L36 | Following: ring, pill and a 2 px content frame (D) versus banner and a ring on Play (E) | Thicker avatar ring, a Following Status pill, and the ring on Play. No frame | A coloured frame competes with selection |
 | L37 | Presence avatars 24 (E) versus 28 (D) | 24 | Fits the 48 px header |
-| L38 | Swipe left on a comment row resolves (D) | Swipe right resolves (it is the primary). Left is Keep or Remove | Gesture grammar |
+| L38 | Swipe left on a comment row resolves (D) | Swipe right resolves (it is the primary). Left is Keep or Remove; swipe left does nothing on a comment | Gesture grammar |
 | L39 | Phone Review: Keep and verb at 56, plus a 48 A/B row (two rows) | One 64 px dock row: Keep, A/B, verb | Saves 48 px. One dock height |
 | L40 | Record "Notes" versus Review "Comments" | Comments. Record's rail is the Review queue (Comments, chronological) and Takes | One object before and after landing (R said the same) |
 | L41 | Rails: Record 320 right, Prepare 360 left and 320 right, Review 360 left | List rails 360 on the left, companion rails 360 on the right | Two rail roles, one width |
