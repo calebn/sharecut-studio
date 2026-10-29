@@ -45,6 +45,7 @@ _detached: weakref.WeakSet[subprocess.Popen[Any]] = weakref.WeakSet()
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _ERROR_INVALID_PARAMETER = 87
 _STILL_ACTIVE = 259
+_MAX_WINDOWS_PID = 0xFFFFFFFF
 
 
 def _kernel32() -> tuple[Any, Callable[[], int]] | None:
@@ -78,6 +79,8 @@ def pid_is_alive(pid: int) -> bool:
     if pid <= 0:
         return True
     if sys.platform == "win32":
+        if pid > _MAX_WINDOWS_PID:
+            return True
         probe = _kernel32()
         if probe is None:
             return True

@@ -30,6 +30,7 @@ from podcast_mcp.services.collaboration.tunnel_status import (
     TunnelStatusTracker,
     read_tunnel_status,
 )
+from podcast_mcp.util import process as process_module
 from podcast_mcp.util.process import pid_is_alive
 from test_tunnel_status import ACK, PUBLIC, FakeRelay, Harness, _scripted_connect
 
@@ -253,6 +254,7 @@ def test_the_probe_never_signals_a_process_on_windows(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(os, "kill", never)
+    monkeypatch.setattr(process_module, "_kernel32", lambda: None)
 
     assert pid_is_alive(DEAD_PID) is True
 
