@@ -30,12 +30,7 @@ def _retired_name_refusal() -> CodedValueError:
 
 
 def resolve_project_path(path: Path | str) -> Path:
-    """The ``episode.sharecut`` path *path* names. Pure: it looks at the disk but never changes it.
-
-    A workspace folder maps to its entry file, a retired ``episode.project.json`` maps to
-    the sibling entry file, anything else is returned as given. Opening a project goes
-    through :func:`adopt_retired_entry_file` first.
-    """
+    """The entry path *path* names. Never renames: see :func:`adopt_retired_entry_file`."""
     p = Path(path).expanduser().resolve()
     if p.is_dir():
         return p / EPISODE_PROJECT_FILENAME
@@ -45,14 +40,13 @@ def resolve_project_path(path: Path | str) -> Path:
 
 
 def adopt_retired_entry_file(location: Path | str) -> Path:
-    """Rename a workspace's retired ``episode.project.json`` to ``episode.sharecut``; return the entry path.
+    """Rename a workspace's retired ``episode.project.json`` to ``episode.sharecut``.
 
-    The only mutator of the entry file name, called once at each open boundary before the
-    first read. *location* is the workspace folder or either entry path. The bytes are
-    untouched. When ``episode.sharecut`` already exists it wins and the retired file is
-    left alone, with a warning when the retired file is newer (an older build saved after
-    the rename). Losing a race to another process doing the same rename counts as
-    success. A failed rename raises ``project_old_filename``. Safe to call repeatedly.
+    *location* is the workspace folder or either entry path. The bytes are untouched.
+    When ``episode.sharecut`` already exists it wins and the retired file is left alone,
+    with a warning when the retired file is newer (an older build saved after the rename).
+    Losing a race to another process doing the same rename counts as success. A failed
+    rename raises ``project_old_filename``.
     """
     entry = resolve_project_path(location)
     if entry.name != EPISODE_PROJECT_FILENAME:
@@ -120,7 +114,7 @@ def require_episode_project_file(path: Path | str) -> Path:
 
 
 def open_project(path: Path | str) -> tuple[Path, EpisodeProject]:
-    """Load the project at *path*. A reader: openers call :func:`adopt_retired_entry_file` first."""
+    """Read the project at *path* without adopting it. Openers call :func:`adopt_retired_entry_file` first."""
     resolved = resolve_project_path(path)
     return resolved, ProjectStore(resolved).load()
 
@@ -144,7 +138,7 @@ def copy_relocated_workspace(
 ) -> Path:
     """Copy an episode tree and rewrite ``workspace_dir``.
 
-    Adopts a retired entry file name in *src_project* first; otherwise nothing is written into it.
+    The source is only written to by adopting its retired entry name, which runs first.
     """
     src_file = require_episode_project_file(src_project)
     src_ws = src_file.parent.resolve()
