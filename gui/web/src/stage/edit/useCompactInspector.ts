@@ -233,12 +233,7 @@ export function useCompactInspector(
 /** `BottomSheet` props that make the inspector sheet the compact one. */
 export type CompactSheetProps = Pick<
   ComponentProps<typeof BottomSheet>,
-  | "title"
-  | "drawer"
-  | "stowed"
-  | "className"
-  | "compactHeaderActions"
-  | "compactResizeIcons"
+  "title" | "drawer" | "stowed" | "className" | "compactHeaderActions"
 >;
 
 /**
@@ -252,7 +247,6 @@ export function compactSheetProps(
   return {
     title: compact.peek.title,
     compactHeaderActions: createElement(CompactHistoryControls),
-    compactResizeIcons: true,
     drawer: {
       detents: compact.detents,
       detent: compact.view,

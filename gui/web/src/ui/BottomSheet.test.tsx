@@ -91,7 +91,6 @@ describe("BottomSheet", () => {
           label: "Inspector height",
         }}
         compactHeaderActions={<button type="button">Undo</button>}
-        compactResizeIcons
       >
         <p>Inspector body</p>
       </BottomSheet>,
@@ -719,7 +718,6 @@ describe("BottomSheet", () => {
           title="Inspector"
           drawer={drawer}
           onExpandedChange={onExpandedChange}
-          compactResizeIcons
         >
           <p>Fields</p>
         </BottomSheet>,
