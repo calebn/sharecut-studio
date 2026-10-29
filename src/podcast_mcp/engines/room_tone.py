@@ -52,6 +52,7 @@ from typing import Literal
 import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.alignment_key import ingest_alignment_entry
 from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.ungated_audio import held_mono_full
 from podcast_mcp.models import EpisodeProject
@@ -323,8 +324,6 @@ def _file_key(project: EpisodeProject, track_id: str) -> tuple[str, FileRevision
 
 def _ingest_shift(project: EpisodeProject, track_id: str) -> float:
     """Timeline minus source seconds that ingest placed the track's primary recording at."""
-    from podcast_mcp.edits.conversation_align import ingest_alignment_entry
-
     track = project.track_by_id(track_id)
     if track is None:
         return 0.0

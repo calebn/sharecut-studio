@@ -23,7 +23,11 @@ import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines import bleed_lag_segments, bleed_latency
-from podcast_mcp.engines.alignment_key import ingest_alignment_key, speaker_label
+from podcast_mcp.engines.alignment_key import (
+    ingest_alignment_entry,
+    ingest_alignment_key,
+    speaker_key_unique,
+)
 from podcast_mcp.engines.clips_ops import clips_for_track, set_track_clips, split_clip_at
 from podcast_mcp.engines.envelope_lag import (
     LEVEL_FLOOR_DB,
@@ -551,32 +555,12 @@ def equal_duration_dialogue(project: EpisodeProject) -> tuple[list[str], float] 
     return _equal_duration_units(dialogue_align_units(project))
 
 
-def _speaker_key_unique(project: EpisodeProject, track: Track) -> bool:
-    """True when no other dialogue track shares this track's speaker label."""
-    label = speaker_label(track)
-    return (
-        sum(1 for t in project.tracks if t.role == TrackRole.DIALOGUE and speaker_label(t) == label)
-        == 1
-    )
-
-
 def ingest_alignment_meta_key(
     project: EpisodeProject, track: Track, clip: Clip, *, multi_clip: bool
 ) -> str:
     """Key ingest and align write: per clip for a multi-clip track or a shared speaker label."""
-    per_clip = multi_clip or not _speaker_key_unique(project, track)
+    per_clip = multi_clip or not speaker_key_unique(project, track)
     return ingest_alignment_key(track, clip, per_clip=per_clip)
-
-
-def ingest_alignment_entry(
-    project: EpisodeProject, track: Track, clip: Clip
-) -> SpeakerIngestAlignment | None:
-    """This clip's ``meta.ingest_alignment`` entry: its own key, else a unique speaker key."""
-    meta = project.meta.ingest_alignment or {}
-    entry = meta.get(ingest_alignment_key(track, clip, per_clip=True))
-    if entry is None and _speaker_key_unique(project, track):
-        entry = meta.get(ingest_alignment_key(track, clip, per_clip=False))
-    return entry
 
 
 def _manifest_pinned(project: EpisodeProject, track: Track, clip: Clip) -> bool:
