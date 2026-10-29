@@ -113,7 +113,6 @@ const GERUND: Partial<Record<VerbId, string>> = {
   lower: "Lowering",
 };
 
-/** Seconds a bulk cut stays quiet about elapsed time; a fast one never shows a clock. */
 const ELAPSED_AFTER_SEC = 2;
 
 /** Shown even after the group has left the queue, because a decision hides it at once. */
