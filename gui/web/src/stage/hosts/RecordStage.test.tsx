@@ -566,6 +566,28 @@ describe("Record stage capture and storage", () => {
     expect(screen.getByLabelText("Input")).toBeEnabled();
   });
 
+  it("lets the Input change again when the keeper flush failed", async () => {
+    const devices = [
+      { deviceId: "a", label: "USB Mic", kind: "audioinput" },
+      { deviceId: "b", label: "Headset", kind: "audioinput" },
+    ] as MediaDeviceInfo[];
+    setRoom({
+      state: "stopped",
+      take_index: 0,
+      participants: [hostPerson()],
+    });
+    mount({
+      stream: {} as MediaStream,
+      micStatus: "granted",
+      devices,
+      deviceId: "a",
+      keeperFinalizing: true,
+      keeperError: "disk full",
+    });
+    await openDevices();
+    expect(screen.getByLabelText("Input")).toBeEnabled();
+  });
+
   it("closes Devices when the room goes away, so the next room starts without it", async () => {
     setRoom({ participants: [hostPerson()] });
     mount({ stream: {} as MediaStream });
