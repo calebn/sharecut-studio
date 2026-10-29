@@ -316,7 +316,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 | ID | Interaction | Old cost | New cost | Keys | Touch |
 |---|---|---|---|---|---|
 | INT-REC-OPEN | Open recording | Menu, Record room…, Create record room | One tap on Stage bar Record (room auto-created, idempotent) | Stage bar key | Stage switcher |
-| INT-REC-INVITE | Send the guest link | Share dialog or Copy guest link | Tap an Invite tile, Copy (or share sheet, or QR for a phone guest beside the host) | none | Share sheet |
+| INT-REC-INVITE | Send the guest link | Deliver Share section or Copy guest link | Tap an Invite tile, Copy (or share sheet, or QR for a phone guest beside the host) | none | Share sheet |
 | INT-REC-JOIN | Guest joins | 5 sections, 6+ presses | Allow mic, Join and record (name prefilled) | Enter | Thumb-zone primary |
 | INT-REC-START | Start a take | Start (blocked without a guest) | Record; 3 s pre-roll with group room tone on the first take | R | Tap |
 | INT-REC-PAUSE | Pause or resume | Pause, Resume buttons | Pause button; Record button resumes | P, R | Tap |
@@ -328,7 +328,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 | INT-REC-DEVICE | Change mic | Lobby and after Stop; held while a take is live, paused or still flushing | Tap own tile, Device sheet | none | Tap own tile |
 | INT-REC-END | End the session | End room confirm in Share | ⋯ End session, undoable for 10 s as a toast ("Session ended · Undo" reopens the same links) | none | ⋯ |
 | INT-REC-RETURN | Return from another stage | Record chip | Stage bar Record (Live badge) | Stage bar key | Stage switcher |
-| INT-REC-REMOVE | Remove a person | Share dialog | Tile menu (right-click or long-press) Remove, InlineConfirm since it can't be undone | none | Long-press tile |
+| INT-REC-REMOVE | Remove a person | Record stage | Tile menu (right-click or long-press) Remove, InlineConfirm since it can't be undone | none | Long-press tile |
 
 ---
 

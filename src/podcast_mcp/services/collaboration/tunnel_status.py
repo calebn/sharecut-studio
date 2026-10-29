@@ -54,7 +54,7 @@ class TunnelPhase(StrEnum):
 
 
 class TunnelState(StrEnum):
-    """What the host's Share dialog says about guests reaching their links.
+    """What the host's Share section says about guests reaching their links.
 
     ``OFF`` is a tunnel stopped on purpose, or online sharing set up but never
     started. ``NOT_SET_UP`` is a local-only host: no relay settings and no tunnel
@@ -442,7 +442,7 @@ def read_tunnel_status(
     now: float | None = None,
     pid_alive: Callable[[int], bool] = pid_is_alive,
 ) -> dict[str, Any]:
-    """The tunnel snapshot for the GUI's Share dialog.
+    """The tunnel snapshot for the GUI's Share section.
 
     With no snapshot on disk, a host with relay settings reads Off and a local-only
     host reads Not set up. Each file reads through ``_RULES``: a tunnel that stopped,

@@ -322,8 +322,7 @@ flowchart TD
    After Stop, microphone loss no longer stays on the host stage. A take where
    the host never captured a full-quality recording warns "No full-quality
    recording was captured", even if the mic never became available. If a host record command (Start, Pause, Resume, Stop,
-   Land) fails, the failure shows in the Record stage when it is up, is announced and kept for the stage elsewhere, and is only announced over the
-   Share dialog; the stage shows it
+   Land) fails, the failure shows in the Record stage when it is up, is announced and kept for the stage elsewhere; the stage shows it
    without announcing it a second time. The next record command or a project
    change clears it.
 8. Host Stop. The Record stage dock has one Record button (Record, then Stop

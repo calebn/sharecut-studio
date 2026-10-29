@@ -207,54 +207,6 @@ describe("listing", () => {
     expect(listHostShares).not.toHaveBeenCalled();
   });
 
-  it("drops a pending Refresh mix retry when the Share dialog closes", async () => {
-    createHostShare.mockRejectedValueOnce(
-      new ApiError("premix.wav is stale", "stale_mix", 409),
-    );
-    mount();
-    act(() => flow.create());
-    await waitFor(() => expect(flow.recovery.kind).toBe("needs_refresh"));
-    act(() => useDawStore.getState().setShareDialogOpen(true));
-    act(() => useDawStore.getState().setShareDialogOpen(false));
-    expect(flow.recovery).toEqual({ kind: "idle" });
-    act(() => flow.refreshMix());
-    expect(execute).not.toHaveBeenCalled();
-  });
-
-  it("keeps a Refresh mix that is running when the Share dialog closes", async () => {
-    const refresh = deferred<{ status: "disabled"; reason: string }>();
-    execute.mockReturnValue(refresh.promise);
-    createHostShare.mockRejectedValueOnce(
-      new ApiError("premix.wav is stale", "stale_mix", 409),
-    );
-    mount();
-    act(() => flow.create());
-    await waitFor(() => expect(flow.recovery.kind).toBe("needs_refresh"));
-    act(() => flow.refreshMix());
-    act(() => useDawStore.getState().setShareDialogOpen(true));
-    act(() => useDawStore.getState().setShareDialogOpen(false));
-    expect(flow.recovery).toEqual({ kind: "refreshing" });
-    await act(async () =>
-      refresh.resolve({ status: "disabled", reason: "No mix to refresh" }),
-    );
-    await waitFor(() => expect(flow.recovery.kind).toBe("needs_refresh"));
-    execute.mockResolvedValue({ status: "ok" });
-    act(() => flow.refreshMix());
-    expect(execute).toHaveBeenCalledTimes(2);
-  });
-
-  it("lists again when the Share dialog closes on Deliver", async () => {
-    mount();
-    act(() => flow.reload());
-    await waitFor(() => expect(listHostShares).toHaveBeenCalledTimes(1));
-    act(() => useDawStore.getState().setShareDialogOpen(true));
-    expect(listHostShares).toHaveBeenCalledTimes(1);
-    listHostShares.mockResolvedValue(listed([liveRow]));
-    act(() => useDawStore.getState().setShareDialogOpen(false));
-    await waitFor(() => expect(flow.rows).toEqual([liveRow]));
-    expect(listHostShares).toHaveBeenCalledTimes(2);
-  });
-
   it("keeps the last listed links when Deliver is left, and forgets them for another project", async () => {
     listHostShares.mockResolvedValue(listed([liveRow]));
     mount();

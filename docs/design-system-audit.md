@@ -37,7 +37,7 @@ The domain composition inventory covered 42 story families. This is a snapshot f
 
 Domain coverage was a source/composition review, with deeper inspection of forms,
 dialogs, recording screens, and control consumers. Representative browser checks
-covered quiet ToggleButton, DefinitionList, phone ShareDialog, and mobile Lobby.
+covered quiet ToggleButton, DefinitionList, phone Share section, and mobile Lobby.
 The new guide was checked at 360px and 1200px in light and dark themes, including
 catalog links, horizontal overflow, and axe WCAG A/AA checks with contrast enabled.
 This is not an interactive certification of every domain state or browser.

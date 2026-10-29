@@ -261,8 +261,12 @@ export const createProjectSlice: StateCreator<
     shareAuthor = null,
   ) => {
     const samePath = get().projectPath === projectPath;
-    const { bounceRequested, exportRequested, transcriptFindReplaceOpen } =
-      chromeInitial();
+    const {
+      bounceRequested,
+      exportRequested,
+      shareRequested,
+      transcriptFindReplaceOpen,
+    } = chromeInitial();
     if (!samePath) {
       timelineViewportRegistry.setVisualPan(null);
       timelineViewportRegistry.setLayoutProjection(null);
@@ -292,6 +296,7 @@ export const createProjectSlice: StateCreator<
               ...get().chrome,
               bounceRequested,
               exportRequested,
+              shareRequested,
               transcriptFindReplaceOpen,
             },
             ...waveformViewState(projectPath),

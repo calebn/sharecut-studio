@@ -2,18 +2,11 @@ import { expect, type Locator, test } from "@playwright/test";
 import {
   expectDialogLowerTargetReachable,
   expectMenuLastItemReachable,
-  expectShareRecordRoomsReachable,
   expectVisibleInOverlay,
   openDialogFromMenu,
   openHostProject,
   SHORT_VIEWPORTS,
 } from "./overlayReachability";
-
-function expectTouchHeight(height: number, layoutHeight: number): void {
-  expect(layoutHeight).toBeGreaterThanOrEqual(44);
-  // Translated DOM rectangles can report 43.999996px for a 44px layout box.
-  expect(height).toBeGreaterThanOrEqual(44 - 0.001);
-}
 
 test("reports scroll evaluator failures from overlay reachability", async ({
   page,
@@ -41,30 +34,6 @@ test.describe("overlay viewport scroll", () => {
       await page.setViewportSize(viewport);
       await openHostProject(page);
       await expectMenuLastItemReachable(page);
-    });
-
-    test(`Share dialog Record rooms is reachable at ${label}`, async ({
-      page,
-    }) => {
-      await page.setViewportSize(viewport);
-      await openHostProject(page);
-      await openDialogFromMenu(page, "Share…");
-      const share = page.getByRole("dialog", { name: "Share", exact: true });
-      const targets = await share
-        .locator(".ui-control, .share-dialog-check")
-        .evaluateAll((elements) =>
-          elements.map((element) => ({
-            height: element.getBoundingClientRect().height,
-            layoutHeight:
-              element instanceof HTMLElement ? element.offsetHeight : 0,
-          })),
-        );
-      expect(targets.length).toBeGreaterThan(0);
-      for (const target of targets) {
-        expectTouchHeight(target.height, target.layoutHeight);
-      }
-      await share.getByRole("button", { name: "Close", exact: true }).click();
-      await expectShareRecordRoomsReachable(page);
     });
   }
 });
