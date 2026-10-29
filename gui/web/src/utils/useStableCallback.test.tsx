@@ -311,7 +311,9 @@ describe("stable callback source governance", () => {
         .map(({ source, callback }) => `${source.rel}:${callback}`)
         .sort(),
     ).toEqual([
+      "stage/hosts/useReviewQueue.ts:land",
       "stage/hosts/useReviewQueue.ts:onDecide",
+      "stage/hosts/useReviewQueue.ts:onFilter",
       "stage/hosts/useReviewQueue.ts:onHear",
       "stage/hosts/useReviewQueue.ts:onOpenInEdit",
       "stage/hosts/useReviewQueue.ts:refreshStatus",

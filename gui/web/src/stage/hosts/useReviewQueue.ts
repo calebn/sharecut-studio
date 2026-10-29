@@ -167,9 +167,15 @@ export function useReviewQueue() {
   const { revert } = session;
   const select = useStableCallback(session.props.onSelect);
   const selected = useStableCallback(() => session.props.selectedId);
+  const onFilter = useStableCallback(session.props.onFilter);
+  const land = useStableCallback((id: string) => {
+    if (open.find((e) => e.item.id === id)?.item.result) return;
+    onFilter("all");
+    select(id);
+  });
   useEffect(() => {
-    if (picked) select(commentItemId(picked.id));
-  }, [picked, select]);
+    if (picked) land(commentItemId(picked.id));
+  }, [picked, land]);
   const head = project?.history.head_id;
   useEffect(() => {
     const listed = new Set(open.map((e) => e.item.id));
