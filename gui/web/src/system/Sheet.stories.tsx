@@ -167,6 +167,15 @@ function PushedOverlay({
   );
 }
 
+/** The overlay hook takes focus back to Close on the frame after a title change, so a check made at once misses it. */
+function nextFrames(count: number) {
+  return new Promise<void>((resolve) => {
+    const step = (left: number) =>
+      requestAnimationFrame(() => (left <= 1 ? resolve() : step(left - 1)));
+    step(count);
+  });
+}
+
 function pushedOverlayStory(form: "centered" | "bottom"): Story {
   return {
     parameters: isolatedStoryParameters,
@@ -185,12 +194,18 @@ function pushedOverlayStory(form: "centered" | "bottom"): Story {
       await waitFor(() =>
         expect(inside.getByRole("button", { name: "Back" })).toHaveFocus(),
       );
+      await nextFrames(2);
+      await expect(inside.getByRole("button", { name: "Back" })).toHaveFocus();
       await userEvent.click(inside.getByRole("button", { name: "Back" }));
       await waitFor(() =>
         expect(
           inside.getByRole("button", { name: "Lower gain" }),
         ).toHaveFocus(),
       );
+      await nextFrames(2);
+      await expect(
+        inside.getByRole("button", { name: "Lower gain" }),
+      ).toHaveFocus();
     },
   };
 }

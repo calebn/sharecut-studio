@@ -2346,3 +2346,16 @@ test("System/Toast the dock keeps the page gutter at 360", async ({ page }) => {
   expect(box.x).toBeGreaterThanOrEqual(16);
   expect(360 - (box.x + box.width)).toBeGreaterThanOrEqual(16);
 });
+
+test("System/CoachTip Above leaves room for the tip and its shadow inside the frame", async ({
+  page,
+}) => {
+  await open(page, "system-coachtip--above", 360);
+  const tip = page.getByRole("note");
+  await expect(tip).toBeVisible();
+  const clearance = await tip.evaluate((el) => {
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    return el.getBoundingClientRect().top - 1 * rem;
+  });
+  expect(clearance).toBeGreaterThanOrEqual(0);
+});
