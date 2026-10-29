@@ -47,6 +47,7 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   } = options;
   const button = useRef<HTMLButtonElement>(null);
   const gatePanel = useRef<HTMLDivElement>(null);
+  const clearRange = useRef<HTMLButtonElement>(null);
   const asking = gate?.prompt != null;
   const state = asking ? IDLE : run;
   const running = state.phase === "running";
@@ -71,11 +72,14 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   useEffect(() => {
     if (!focusRequested) return;
     // A disabled button cannot take focus, so land on the first enabled
-    // control in the section; the reason note beside Bounce says why.
+    // control in the section, never the link that drops the fixed range,
+    // else the section heading; the reason note beside Bounce says why.
+    const section = button.current?.closest("section");
     const target = button.current?.disabled
-      ? button.current
-          .closest("section")
-          ?.querySelector<HTMLElement>("button:not(:disabled)")
+      ? (Array.from(
+          section?.querySelectorAll<HTMLElement>("button:not(:disabled)") ?? [],
+        ).find((el) => el !== clearRange.current) ??
+        section?.querySelector<HTMLElement>("h2"))
       : button.current;
     target?.focus();
     target?.scrollIntoView?.({ block: "nearest" });
@@ -112,11 +116,11 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
           {fixedRange !== undefined ? (
             <>
               <p className="dv-note">
-                Selected range · {fixedRange}. This selection is fixed for this
-                bounce.
+                Selected range · {fixedRange}. This selection is fixed for{" "}
+                {running ? "the next bounce" : "this bounce"}.
               </p>
               {onClearRange ? (
-                <Button variant="link" onClick={onClearRange}>
+                <Button ref={clearRange} variant="link" onClick={onClearRange}>
                   Bounce the whole mix instead
                 </Button>
               ) : null}

@@ -235,7 +235,6 @@ test.describe("core flow", () => {
             await deliver
               .getByRole("button", { name: "Bounce", exact: true })
               .click();
-            // A failure shows "Bounce failed" in the section instead.
             await expect(
               deliver.getByText("Bounced", { exact: true }),
             ).toBeVisible({ timeout: 60_000 });
