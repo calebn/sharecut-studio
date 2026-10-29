@@ -159,11 +159,14 @@ checked against the episode after the land, which can change its length).
 
 "Saving" is bounded. Each browser keeper (guest and host) tells the room how many upload
 segments it opened for a take with a `SegmentReport` command (`take_index`, `segments`):
-at every segment open, once the segment's start is saved on the device, and at Stop (0 when
-none opened). It is self-only (the server stores it under the sender's own participant id),
+at every segment's first saved audio, and at Stop (0 when none had audio). A segment that
+closes before any audio (a consent or mic-gate flip within milliseconds of Pause or Stop) is
+never reported: the keeper deletes its files and reuses the index, and a reload drops a
+header-only pending segment the same way. A failed or timed-out segment keeps its index, so a
+real loss still stalls. It is self-only (the server stores it under the sender's own participant id),
 needs the join capability, never shrinks, and a count above 5000 is clamped to 5000. The keeper
-resends it, for every take, when the room's snapshot shows an older count. For each consented, not
-removed person the server owes `max(reported segments, highest uploaded segment + 1)`
+resends it, for every take, when the room's snapshot shows an older count. For each consented or reporting, not
+removed person (a guest who reported and then declined still owes what they reported) the server owes `max(reported segments, highest uploaded segment + 1)`
 segments, so an upload row the report does not mention still counts. A segment with no upload yet counts as saving for
 `UPLOAD_GRACE_MS` (10 minutes) after Stop, and as stalled after it. A report of 0 owes
 nothing (a host whose mic was denied, a guest who consented late and never recorded). A client that dies before its
@@ -207,7 +210,7 @@ route that is a 400 carrying the land's own code (`record_land_refused`, or e.g.
 `session_suggestion_closed`, `insert_anchor_taken`). A land that ran stays saved;
 retrying is safe. `land_first` with nothing to save just mints.
 
-Known gaps (#2416). A segment opened and closed with no audio (for example a consent or mic-gate flip within milliseconds of Pause or Stop) is counted in the report but never uploads, so it shows as saving and then stalled for that person. A client can over-report its own count; only its own take then warns. A keeper that dies before its first report is judged by the Resume
+Known gaps (#2416). A client can over-report its own count; only its own take then warns. A keeper that dies before its first report is judged by the Resume
 inference (a guest) or not at all (the host). Two devices that share one
 participant id share one report and one set of segment indices, so the server cannot tell their
 segments apart. A removed guest with no upload row is not reported (only a partial row
