@@ -1123,7 +1123,7 @@ outside its actual body clip, and waits nine seconds without card hover or
 focus. It then exposes Dismiss and verifies expiry within the remaining visible
 time. Unit tests cover portal continuity, focus, remaining time and guarded
 Undo through host movement. Run `npm run test:e2e:compat --
-compact-history-persistence.spec.ts compact-save-refusal.spec.ts compact-feedback-lifetime.spec.ts compact-feedback-focus.spec.ts touch-chrome-reach.spec.ts compact-form-scroll.spec.ts` from `gui/web` after
+compact-history-persistence.spec.ts compact-save-refusal.spec.ts compact-feedback-lifetime.spec.ts compact-feedback-focus.spec.ts compact-form-scroll.spec.ts` from `gui/web` after
 building the production app. These browser receipts do not establish physical
 device behavior or Linux CI results.
 

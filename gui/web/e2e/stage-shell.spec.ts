@@ -328,11 +328,6 @@ for (const width of [1024, 1440]) {
       const before = await clipCount();
       const clip = page.locator(".clip-hit").first();
       await altClickSplit(page, clip);
-      // A tablet asks first; a desktop cuts straight away.
-      const confirm = page.getByRole("dialog", { name: /^Cut at/ });
-      if (await confirm.isVisible().catch(() => false)) {
-        await confirm.getByRole("button", { name: "Cut", exact: true }).click();
-      }
       await expect.poll(clipCount).toBeGreaterThan(before);
       await expect(page.locator(".clip-hit").first()).toHaveAttribute(
         "aria-pressed",

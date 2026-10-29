@@ -80,14 +80,6 @@ async function selectRange(page: Page, from: string, to: string) {
     .click();
 }
 
-/** Touch shells ask before a cut; a desktop cuts straight away. */
-async function confirmCut(page: Page): Promise<void> {
-  await page
-    .getByRole("dialog", { name: /^Cut at/ })
-    .getByRole("button", { name: "Cut", exact: true })
-    .click();
-}
-
 async function expectInside(page: Page, box: Locator): Promise<void> {
   const rect = await box.boundingBox();
   const view = page.viewportSize();
@@ -372,7 +364,6 @@ test.describe("Create menu", () => {
     await selectFirstClip(page);
     await seekTo(page, 30);
     await page.keyboard.press("s");
-    await confirmCut(page);
     await expect.poll(() => clipCount(page)).toBe(3);
     await lane.locator(".clip-hit").last().click();
     await page.keyboard.press("Backspace");
@@ -388,7 +379,6 @@ test.describe("Create menu", () => {
     await touch(cdp, "touchEnd");
     await expect(menu.getByRole("menuitem").first()).toHaveText(/Split here/);
     await menu.getByRole("menuitem", { name: /Split here/ }).click();
-    await confirmCut(page);
     await expect.poll(() => clipCount(page)).toBeGreaterThan(before);
   });
 });
@@ -435,7 +425,6 @@ test.describe("Phone dock", () => {
     await dockBar(page)
       .getByRole("button", { name: /^Split/ })
       .tap();
-    await confirmCut(page);
     await expect.poll(() => clipCount(page)).toBeGreaterThan(before);
     await page.locator(".clip-hit").first().tap();
     await expect(page.getByRole("dialog")).toHaveCount(0);

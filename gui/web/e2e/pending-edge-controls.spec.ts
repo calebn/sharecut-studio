@@ -443,10 +443,6 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     .click({ position: { x: 300, y: 12 } });
   await expect(page.locator(".pending-actionbar")).toHaveCount(0);
   await altClickSplit(page, page.locator(".clip-block").first());
-  const bladeConfirmation = page.getByRole("dialog", { name: /^Cut at / });
-  await expect(bladeConfirmation).toBeVisible();
-  await bladeConfirmation.getByRole("button", { name: "Don't cut" }).click();
-  await expect(bladeConfirmation).toHaveCount(0);
   const reselectHit = dragRegion.first().locator(".pending-hit");
   await reselectHit.focus();
   await reselectHit.press("Enter");
