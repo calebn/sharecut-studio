@@ -28,7 +28,7 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Total catalogued items | 199 |
 | Story files / exported stories | 89 files / 446 stories |
 
-Of the 153 non-interaction items: 66 have a story (yes), 32 partial, 55 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
+Of the 153 non-interaction items: 66 have a story (yes), 33 partial, 54 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
 
 ---
 
@@ -251,11 +251,11 @@ Guest-specific interactions: INT-COMMENT-MODE, INT-COMMENT-RESOLVE (host only), 
 | CMP-REC-INDICATOR | Room status pill (waiting, countdown, live, paused, saving, saved, reconnecting) | Room and host stage | `system/RoomStatusPill.tsx` | `system/RoomStatusPill.stories.tsx` (Waiting, Countdown, Live, Paused, Saving, Saved, Reconnecting, Compact) | Props | Capture state |
 | CMP-REC-ROSTER | Participant tiles (joining, live, speaking, muted, weak, lost, saving, saved, declined, left) | Room and host stage | `system/RoomTile.tsx`, `ui/ParticipantMeter.tsx` | `system/RoomTile.stories.tsx` (Joining, Live, Speaking, Muted, Weak, Lost, Saving, Saved, Failed, Declined, Left, Self, FourPeopleGrid, PhoneWidth); `ui/ParticipantMeter.stories.tsx` | Props | Who is here |
 | CMP-REC-LIVECOMMENTS | Notes rail (marker, note draft, paused, private to host) | Room and host stage | `system/NotesRail.tsx`, `record/useRecordLiveComments.ts` | `system/NotesRail.stories.tsx` (Empty, WithNotesAndMarkers, Drafting, Paused, PrivateToHost, Phone, PhoneSheetHalf) | Props | Mark moments live |
-| CMP-REC-UPLOAD | Upload status and recovery | Room, lobby recovery, host panel | `record/UploadStatus.tsx` | `record/UploadStatus.stories.tsx` (Uploading, WaitingToLand, Landed, LandFailed, UploadFailed, PartialKeeper, RecoveryBusy, RecoveryFailed, ReclaimFailed, FingerprintMismatch) | Props | Show local-to-host upload |
+| CMP-REC-UPLOAD | Upload status and recovery | Room, lobby recovery, host Record stage More sheet | `record/UploadStatus.tsx` | `record/UploadStatus.stories.tsx` (Uploading, WaitingToLand, Landed, LandFailed, UploadFailed, PartialKeeper, RecoveryBusy, RecoveryFailed, ReclaimFailed, FingerprintMismatch) | Props | Show local-to-host upload |
 | CMP-REC-CLIPPING | Clipping badge on a person tile | Room and host stage | `system/RoomTile.tsx`, `system/RoomAlert.tsx` | `system/RoomTile.stories.tsx` (Clipping); `system/RoomAlert.stories.tsx` (Clipping) | Props | Warn about clipped audio |
 | CMP-REC-NOTICES | Room alerts (mic lost, no audio, storage failed, saving failed, recovery, host offline) and the storage headroom warning; save announcer | Room, Join sheet | `system/RoomAlert.tsx`, `record/StorageHeadroomWarning.tsx`, `record/SaveAnnouncer.tsx` | `system/RoomAlert.stories.tsx`; `record/RecordNotices.stories.tsx` (StorageLow, StorageUnknown) | Props | Fail loudly and recoverably |
 | CMP-REC-HOSTROSTER | Removed: the host upload roster is no longer a component; per-person saving state shows on the Record stage room | none | none | none | n/a | Host sees every upload |
-| CMP-REC-STOP | Removed: the Stop take inline confirm is no longer a component; Stop is the dock Record button, labelled "Stop take" while a take runs (hold it), with a confirm prompt | none | none | none | n/a | Prevent accidental stop |
+| CMP-REC-STOP | Removed: the Stop take inline confirm is no longer a component; Stop is the dock Record button, labelled "Stop take" while a take runs (hold it), with a confirm prompt; the More sheet also has a "Stop take" button with the same confirm step | none | none | none | n/a | Prevent accidental stop |
 | CHIP-REC-TRANSPORT | Removed: the recording chip in the transport (the Record stage status replaces it) | none | none | none | n/a | Persistent recording status |
 
 ---
@@ -457,7 +457,7 @@ Tally of the 153 non-interaction items, counted from the Story columns: 66 yes, 
 2. **SCR-SETUP** (first-run). Done (#2295): `SetupCard` stories Needed, Downloading, Failed, CheckError, Phone.
 3. **DLG-MODELS** and **DLG-MODEL-GATE** (own stories for Ask, Downloading, Failed, Ready). Both already use props-driven `ModelRow`; split the `useModels` read from the render.
 4. **DLG-HELP**. Stories: Empty, BundleCreated, Consent, Submitting, Queued, Published, Failed, NoRelay. Move the api calls into an adapter.
-5. **DLG-RECORD (host Record room panel)**. Done: the dialog became the Record stage, with `RecordStage` stories NoRoom, LookingForRoom, LookupFailed, Lobby, Live, Paused, SavingTakes, MoreSheet, Loading, LoadError, PhoneLive and GuestViewer.
+5. **DLG-RECORD (the removed Record room dialog)**. Done: the dialog became the Record stage, with `RecordStage` stories NoRoom, LookingForRoom, LookupFailed, Lobby, Live, Paused, SavingTakes, MoreSheet, Loading, LoadError, PhoneLive and GuestViewer.
 6. **SCR-SHELL with real parts.** Add story-level composition that mounts real `TransportBar`, `Inspector`, panels against a hydrated store (reuse the ClipInspector hydrate pattern) so desktop, tablet and phone full screens can be seen and screenshotted; keep the fixture stand-ins for the isolated-chrome stories.
 7. **PNL-TRANSCRIPT** (the main host surface). Hydrate store with `aligned_dialogue`-like fixture. Stories: Navigate, Correct, Select with range, Annotate, Ignored restore chip, Find and replace open, Low confidence stepping, Empty or loading, Phone.
 8. **DLG-PRECISION**. Stories: Loading, Editing, Saving, Queued, Error, Guest-hidden.
