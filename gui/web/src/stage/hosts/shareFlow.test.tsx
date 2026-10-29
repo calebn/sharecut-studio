@@ -402,6 +402,18 @@ describe("creating a link", () => {
     expect(listHostShares).not.toHaveBeenCalled();
   });
 
+  it("lists the new link when Deliver was left and re-entered before it arrived", async () => {
+    const minted = deferred<HostShareRow>();
+    createHostShare.mockReturnValue(minted.promise);
+    mount();
+    act(() => flow.create());
+    leaveDeliver();
+    enterDeliver();
+    listHostShares.mockResolvedValue(listed([liveRow]));
+    await act(async () => minted.resolve(liveRow));
+    await waitFor(() => expect(flow.rows).toEqual([liveRow]));
+  });
+
   it("ignores a create completion after Deliver is left", async () => {
     const minted = deferred<HostShareRow>();
     createHostShare.mockReturnValue(minted.promise);

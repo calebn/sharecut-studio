@@ -25,7 +25,7 @@ export type ShareFlow = {
   reload: () => void;
   /** Makes the link the choices say and copies it. Call it from the click so the copy keeps its user gesture. */
   create: () => void;
-  /** Refreshes the mix after a refused create, then makes the same link once. */
+  /** Refreshes the mix after a refused create, then makes one more create with the choices now shown. */
   refreshMix: () => void;
   copy: (
     kind: ShareCopyKind,

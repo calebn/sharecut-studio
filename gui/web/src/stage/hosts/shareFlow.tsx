@@ -74,6 +74,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const [recovery, setRecovery] = useState<ShareCreateRecovery>({
     kind: "idle",
   });
+  const mounted = useRef(true);
   const generation = useRef(0);
   const loadGeneration = useRef(0);
   const busyOwner = useRef<Owner | null>(null);
@@ -173,6 +174,23 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     [isCurrent],
   );
 
+  /** Lists again after a result the visit that made it no longer shows, when the same project is back on Deliver. */
+  const relist = useCallback(
+    (scope: Scope) => {
+      const s = useDawStore.getState();
+      if (
+        mounted.current &&
+        scope.projectPath === s.projectPath &&
+        scope.projectEpoch === s.projectEpoch &&
+        s.project !== null &&
+        s.stage === "deliver"
+      ) {
+        void load(scopeNow());
+      }
+    },
+    [load, scopeNow],
+  );
+
   // A new project or leaving Deliver ends the visit: what was in flight is
   // dropped. Only a new project forgets the listed links.
   useLayoutEffect(() => {
@@ -206,15 +224,16 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     }
   }, [projectPath, projectEpoch, onDeliver, clearCopiedTimer]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       clearCopiedTimer();
       generation.current += 1;
       loadGeneration.current += 1;
       busyOwner.current = null;
-    },
-    [clearCopiedTimer],
-  );
+    };
+  }, [clearCopiedTimer]);
 
   const reload = useCallback(() => void load(scopeNow()), [load, scopeNow]);
 
@@ -264,7 +283,10 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      if (!isCurrent(request.scope)) return;
+      if (!isCurrent(request.scope)) {
+        relist(request.scope);
+        return;
+      }
       staleRequest.current = null;
       setRecovery({ kind: "idle" });
       if (share.url) {
@@ -287,7 +309,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       const cors = corsWarning(share);
       if (cors && isCurrent(request.scope)) setError(cors);
     },
-    [announce, isCurrent, load, markCopied],
+    [announce, isCurrent, load, markCopied, relist],
   );
 
   const startCreate = useCallback(
@@ -368,7 +390,6 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     })();
   }, [begin, finish, isCurrent, startCreate]);
 
-  /** Runs one action on the project, with its failure shown plainly. */
   const act = useCallback(
     (run: (scope: Scope) => Promise<void>) => {
       const scope = scopeNow();
@@ -403,7 +424,10 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         const room = await made;
-        if (!isCurrent(scope)) return;
+        if (!isCurrent(scope)) {
+          relist(scope);
+          return;
+        }
         if (room.guest.url) {
           try {
             await copying;
@@ -427,7 +451,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         finish(owner);
       }
     })();
-  }, [announce, begin, finish, isCurrent, load, markCopied, scopeNow]);
+  }, [announce, begin, finish, isCurrent, load, markCopied, relist, scopeNow]);
 
   const replaceInvite = useCallback(
     (sourceToken: string) => {
@@ -446,7 +470,10 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       void (async () => {
         try {
           const share = await made;
-          if (!isCurrent(scope)) return;
+          if (!isCurrent(scope)) {
+            relist(scope);
+            return;
+          }
           const who = share.record_role === "producer" ? "Producer" : "Guest";
           if (share.url) {
             try {
@@ -472,7 +499,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         }
       })();
     },
-    [announce, begin, finish, isCurrent, load, markCopied, scopeNow],
+    [announce, begin, finish, isCurrent, load, markCopied, relist, scopeNow],
   );
 
   const copy = useCallback(

@@ -390,7 +390,6 @@
   gap: var(--space-3);
 }
 
-/* Danger gets distance: the end action trails the row, apart from copies. */
 .dv-share-actions > .dv-share-danger {
   margin-inline-start: auto;
 }

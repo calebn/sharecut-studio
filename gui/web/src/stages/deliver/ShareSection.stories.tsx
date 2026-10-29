@@ -43,7 +43,6 @@ const producerRow = hostShareRow({
   session_id: "sample-room",
 });
 
-/** Chooses, creates, copies and stops in place on local state. */
 function Live({ options, ...rest }: Args) {
   const [choices, setChoices] = useState<ShareChoices>(options.choices);
   const [rows, setRows] = useState<readonly HostShareRow[]>(options.rows);

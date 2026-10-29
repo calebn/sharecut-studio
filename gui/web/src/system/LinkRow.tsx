@@ -26,7 +26,6 @@ export type LinkRowProps = {
   reach?: "anywhere" | "network";
   /** Names the link for assistive technology when a page has several rows: "Copy Commenter link". */
   linkName?: string;
-  /** Copy waits, and says why. */
   disabledReason?: string;
   /** Shown while there is no link; the default says the first Copy makes it. */
   placeholder?: string;

@@ -105,11 +105,9 @@ export function fakeExportServer() {
     bounceRequests: [] as Record<string, unknown>[],
     bounceAnswer: null as Answer | null,
     cancelRequests: [] as { job_id: string | null }[],
-    /** The project's share rows, as `GET /api/shares` lists them. */
     shares: [] as HostShareRow[],
     shareListRequests: 0,
     shareRequests: [] as Record<string, unknown>[],
-    /** Fails `POST /api/shares` (a refused create) when set. */
     shareAnswer: null as Answer | null,
     revokeRequests: [] as string[],
     settle(job: PipelineJobSnapshot) {
