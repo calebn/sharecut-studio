@@ -269,6 +269,13 @@ describe("ShareSection review links", () => {
     rerender(<ShareSection options={options({ loaded: false })} />);
     expect(screen.queryByText("No review links yet.")).toBeNull();
     expect(screen.getByText("Looking for your links…")).toBeTruthy();
+    rerender(
+      <ShareSection
+        options={options({ loaded: false, error: "List failed" })}
+      />,
+    );
+    expect(screen.queryByText("Looking for your links…")).toBeNull();
+    expect(screen.getByText("Could not list your links.")).toBeTruthy();
   });
 
   it("lists each live link with its role, version, dates, address and MCP", async () => {

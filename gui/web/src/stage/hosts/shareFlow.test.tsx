@@ -209,6 +209,28 @@ describe("listing", () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it("keeps a Refresh mix that is running when the Share dialog closes", async () => {
+    const refresh = deferred<{ status: "disabled"; reason: string }>();
+    execute.mockReturnValue(refresh.promise);
+    createHostShare.mockRejectedValueOnce(
+      new ApiError("premix.wav is stale", "stale_mix", 409),
+    );
+    mount();
+    act(() => flow.create());
+    await waitFor(() => expect(flow.recovery.kind).toBe("needs_refresh"));
+    act(() => flow.refreshMix());
+    act(() => useDawStore.getState().setShareDialogOpen(true));
+    act(() => useDawStore.getState().setShareDialogOpen(false));
+    expect(flow.recovery).toEqual({ kind: "refreshing" });
+    await act(async () =>
+      refresh.resolve({ status: "disabled", reason: "No mix to refresh" }),
+    );
+    await waitFor(() => expect(flow.recovery.kind).toBe("needs_refresh"));
+    execute.mockResolvedValue({ status: "ok" });
+    act(() => flow.refreshMix());
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
   it("lists again when the Share dialog closes on Deliver", async () => {
     mount();
     act(() => flow.reload());

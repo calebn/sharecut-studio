@@ -147,7 +147,7 @@ export type ShareCreateRecovery =
   | { kind: "retrying" };
 
 /** API error codes whose fix is Refresh mix, with the copy that pairs each with it. */
-export const REFRESH_MIX_MESSAGES: ReadonlyMap<string, string> = new Map([
+const REFRESH_MIX_MESSAGES: ReadonlyMap<string, string> = new Map([
   [
     "no_mix",
     "This project has no mix yet. Refresh the mix to create the link.",
@@ -248,7 +248,7 @@ export type ShareOptions = {
   onReplaceInvite: (sourceToken: string) => void;
   onEndRoom: (sessionId: string) => void;
   onOpenRecord: () => void;
-  /** Something asked to bring Share into view: focus its first control, then call `onFocused`. */
+  /** Something asked to bring Share into view: focus Create review link (or the first enabled button), then call `onFocused`. */
   focusRequested?: boolean;
   onFocused?: () => void;
 };
