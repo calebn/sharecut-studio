@@ -4,7 +4,7 @@
 
 Primary file: `episode.sharecut` in the episode workspace directory.
 
-The file is the same version `2.0` JSON document. `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`, mirrored in `gui/web/src/utils/projectFile.ts`) is the source for engine code. The previous name `episode.project.json` is not read. The first time Studio opens that file, or a folder that holds it but no `episode.sharecut`, it renames the file to `episode.sharecut` in place (same bytes, logged once) and carries on, from every entry point (Home, `--project`, MCP and the GUI data routes). The rename is one-way: an older build can no longer open the folder. When both files exist, `episode.sharecut` is used and the old file is left alone. If the rename fails (a read-only folder, for example), the entry point returns the coded error `project_old_filename` and the file must be renamed by hand.
+The file is the same version `2.0` JSON document. `EPISODE_PROJECT_FILENAME` (`src/podcast_mcp/models/episode.py`, mirrored in `gui/web/src/utils/projectFile.ts`) is the source for engine code. The previous name `episode.project.json` is not read as a project. Studio adopts it at the first real open: opening a project (Home, `--project`, MCP, the GUI open, pick and share-guest routes, `podcast gui`) renames `episode.project.json` to `episode.sharecut` in place (same bytes, logged once) before the first read. Discovery and polls never rename: the Studio hand-off lookup, the meta polls, Recents listing and the handoff ping only map the old name to `episode.sharecut`. Copy and relocate operations (golden-ear, workspace relocation) adopt the source first, so the source folder is renamed before it is copied. The rename is one-way: an older build can no longer open the folder. When both files exist, `episode.sharecut` is used and the old file is left alone. If the old file is newer, Studio logs a warning, because an older build saved after the rename and those edits are not loaded; copy them over by hand if you need them. If the rename fails (a read-only folder, for example), the open returns the coded error `project_old_filename` and the file must be renamed by hand.
 
 ## Layout
 
@@ -134,9 +134,7 @@ python -m podcast_mcp.cli.main --no-progress episode upgrade \
 	--output /path/to/new-workspace
 ```
 
-`--project` names a file called `episode.sharecut`. A workspace saved before the
-rename holds `episode.project.json`: Studio renames it to `episode.sharecut` in place
-on first open, or the command refuses with `project_old_filename` when that rename fails. `--output` names a new workspace directory. The command
+`--project` names a file called `episode.sharecut`. `--output` names a new workspace directory. The command
 must publish its current `episode.sharecut`, history index, every retained upgraded snapshot, and
 unchanged raw media there. It must leave the source unchanged. The guard first
 requires ordinary loading to reject the source version. A missing command,
