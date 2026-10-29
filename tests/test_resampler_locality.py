@@ -178,7 +178,31 @@ def test_a_truncation_that_keeps_nothing_proves_nothing():
     period, _ = resampler_grid(44100, 8000)
 
     assert ungated_audio._truncation_matches(samples, whole, 44100, 8000, period)
+    whole_cut = 60000 // period * period
+    assert not ungated_audio._truncation_matches(samples, whole, 44100, 8000, whole_cut)
     assert not ungated_audio._truncation_matches(samples, whole, 44100, 8000, 8 * 8192)
+
+
+@pytest.mark.parametrize(("source", "rate"), CASES)
+def test_the_stitched_blocks_include_the_one_period_seam(source, rate, monkeypatch):
+    samples = SIGNALS[source]["noise"][: 2 * source]
+    inputs, outputs = resampler_grid(source, rate)
+    warm_up, guard = resampler_locality(source, rate)
+    whole = _resample(samples, source, rate)
+    assert ungated_audio._blocks_match(samples, whole, source, rate, warm_up, guard)
+
+    real = ungated_audio._resample_array
+    seam_block = inputs + warm_up + guard  # the block from the second edge to one period after
+
+    def broken_at_the_seam(block, from_rate, to_rate):
+        out = real(block, from_rate, to_rate)
+        if block.size == seam_block:
+            out = out.copy()
+            out[warm_up // inputs * outputs] += 1
+        return out
+
+    monkeypatch.setattr(ungated_audio, "_resample_array", broken_at_the_seam)
+    assert not ungated_audio._blocks_match(samples, whole, source, rate, warm_up, guard)
 
 
 def test_the_search_reaches_the_documented_ceiling():
