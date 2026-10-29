@@ -223,7 +223,8 @@ flowchart TD
    click), then the device picker and your own level with a clip light; nobody
    else's meter is shown. A blocked microphone reads "Microphone blocked" with
    **How to allow**, which retries; a lost device offers **Retry**. Then the
-   **Storage** check and the **I'm wearing headphones** toggle. **Join and record**
+   **I'm wearing headphones** toggle. A **Storage** row comes first when the storage
+   check has a problem. **Join and record**
    stays disabled and names the first open row ("Add your name first", "Allow your
    microphone first", "Put on headphones first", "Fix storage first").
    The desktop host's Record stage also shows microphone permission
@@ -299,7 +300,7 @@ flowchart TD
    "No sound is reaching the recorder." alert with **Check mic** appears.
    Real audio, or a Check mic that finds a running,
    unmuted microphone, clears it. A sleeping or throttled tab restarts the
-   5-second wait instead of alarming. The wait also starts only once the recorder is attached, and restarts if it reopens. Check mic with no recorder attached reopens it and says so if that fails. If the alert returns after Check mic, it adds unmute-or-reconnect guidance until audio arrives. The host can close the record dialog while the alert shows; the host's transport chip keeps the same capture state. Hardware checks for this alert are listed in the recording-session golden-ear checklist.
+   5-second wait instead of alarming. The wait also starts only once the recorder is attached, and restarts if it reopens. Check mic with no recorder attached reopens it and says so if that fails. If the alert returns after Check mic, it adds unmute-or-reconnect guidance until audio arrives. On the host the alert shows in the Record stage room, where it can be dismissed, and the stage status keeps the same capture state. Hardware checks for this alert are listed in the recording-session golden-ear checklist.
    Reconnect opens a new segment at the current room clock; if a selected device was
    unplugged, recovery can use the default available input. In the Join sheet,
    microphone loss disables Join and record until recovery.
@@ -318,12 +319,13 @@ flowchart TD
    If the host's connection to the record room drops mid-take, the control
    reads "REC (reconnecting)" without the dot until the socket returns (not
    while the page is still making its first connection).
-   After Stop, microphone loss no longer locks the host dialog. A take where
+   After Stop, microphone loss no longer stays on the host stage. A take where
    the host never captured a full-quality recording warns "No full-quality
    recording was captured", even if the mic never became available. If a host record command (Start, Pause, Resume, Stop,
    Land) fails, the failure shows in the Record stage when it is up, is announced and kept for the stage elsewhere, and is only announced over the
    Share dialog; the stage shows it
-   without announcing it a second time. Closing the panel clears it.
+   without announcing it a second time. The next record command or a project
+   change clears it.
 8. Host Stop. The Record stage dock has one Record button (Record, then Stop
    take while recording by holding it, Resume recording while paused) and Pause
    beside it; **More** also has **Stop take**. Either way Stop asks once ("Stop
@@ -355,9 +357,9 @@ flowchart TD
    small completion marker remains to preserve segment numbering; recovery
    downloads skip cleared segments rather than reporting them missing. If
    landing fails, the guest sees "Saved to project, but not on the timeline
-   yet." and keeps this device's copy while the host uses **Retry land**. The Join sheet and host Start panel warn when browser storage
+   yet." and keeps this device's copy while the host uses **Retry land**. The Join sheet and the host Record stage warn when browser storage
    headroom is low or cannot be estimated; this advisory never blocks recording.
-   If a rejoin finds a readable pending PCM segment, the panel also offers
+   If a rejoin finds a readable pending PCM segment, the room also offers
    **Finish saving** before saving and announces what it recovered;
    zero-byte or malformed files explain that uncommitted PCM cannot be
    reconstructed and remain available for export.
@@ -422,7 +424,7 @@ flowchart TD
    A metadata-free partial is eligible for cleanup seven days after its last
    write. When a room is stopped and capture settles, background cleanup scans
    all rooms on this device, including older rooms. It does not delay saving
-   or status checks. When you revisit an expired segment, the panel says its
+   or status checks. When you revisit an expired segment, the room says its
    copy on this device expired, and the segment number remains reserved. An active
    capture or recovery download holds an origin-wide lock so cleanup cannot
    delete its WAV. If Web Locks are unavailable, cleanup leaves WAVs in place.
