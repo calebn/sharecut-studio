@@ -286,7 +286,6 @@ export async function openProjectMenu(page: Page): Promise<Locator> {
 const MOVED_MENU_ITEMS: Record<string, ProjectDialog> = {
   "Share…": "share",
   "Bounce…": "bounce",
-  "Record room…": "record",
   "Commands and shortcuts": "palette",
 };
 
