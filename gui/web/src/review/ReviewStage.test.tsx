@@ -417,7 +417,7 @@ describe("ReviewStage", () => {
 describe("ReviewStage unsure words", () => {
   const fix = async (text: string) => {
     await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
-    const field = screen.getByRole("textbox", { name: "Fix text" });
+    const field = screen.getByRole("textbox", { name: /^Corrected text for/ });
     await userEvent.clear(field);
     if (text) await userEvent.type(field, text);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -457,7 +457,9 @@ describe("ReviewStage unsure words", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Type the corrected word.",
     );
-    expect(screen.getByRole("textbox", { name: "Fix text" })).toHaveFocus();
+    expect(
+      screen.getByRole("textbox", { name: /^Corrected text for/ }),
+    ).toHaveFocus();
     expect(onDecide).not.toHaveBeenCalled();
   });
 

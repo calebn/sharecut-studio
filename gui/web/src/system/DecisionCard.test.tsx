@@ -118,7 +118,9 @@ describe("DecisionCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Hear" }));
     expect(onHear).toHaveBeenCalledTimes(1);
     await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
-    await userEvent.clear(screen.getByRole("textbox", { name: "Fix text" }));
+    await userEvent.clear(
+      screen.getByRole("textbox", { name: "Corrected text for “uncle”" }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onFix).not.toHaveBeenCalled();
   });

@@ -172,7 +172,7 @@ function UnsureWord({
         >
           <input
             ref={field}
-            aria-label="Fix text"
+            aria-label={`Corrected text for “${unsure.word}”`}
             aria-invalid={empty}
             value={text}
             onChange={(event) => {

@@ -765,7 +765,7 @@ describe("Review host unsure words", () => {
     );
   const fix = async (text: string) => {
     await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
-    const field = screen.getByRole("textbox", { name: "Fix text" });
+    const field = screen.getByRole("textbox", { name: /^Corrected text for/ });
     await userEvent.clear(field);
     await userEvent.type(field, text);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
