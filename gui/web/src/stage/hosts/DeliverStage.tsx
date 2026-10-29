@@ -9,7 +9,10 @@ import {
 } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
-import { useHasFeature } from "../../extensions/FeaturesContext";
+import {
+  useFeaturesReady,
+  useHasFeature,
+} from "../../extensions/FeaturesContext";
 import {
   FEATURE_SHARE_UI_MENU,
   FEATURE_TUNNEL_STATUS,
@@ -151,6 +154,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const shareFlow = useShareFlow();
   const reloadShares = shareFlow.reload;
   const shareOffered = useHasFeature(FEATURE_SHARE_UI_MENU);
+  const featuresReady = useFeaturesReady();
   const tunnel = useTunnelStatus(
     useHasFeature(FEATURE_TUNNEL_STATUS) && shareOffered,
   );
@@ -281,10 +285,10 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const [focusShare, setFocusShare] = useState(false);
   const clearShareFocus = useCallback(() => setFocusShare(false), []);
   useEffect(() => {
-    if (!shareRequested || state !== "ready") return;
+    if (!shareRequested || state !== "ready" || !featuresReady) return;
     setShareRequested(false);
     if (shareOffered) setFocusShare(true);
-  }, [shareRequested, state, shareOffered, setShareRequested]);
+  }, [shareRequested, state, featuresReady, shareOffered, setShareRequested]);
   // The links are listed as Deliver shows, and again for a reopened project.
   useEffect(() => {
     if (state !== "ready" || !shareOffered || !projectPath) return;

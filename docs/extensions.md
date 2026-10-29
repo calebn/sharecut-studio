@@ -57,7 +57,7 @@ share minting, guest routes, or remote MCP.
 | `share.routes` | FastAPI routers (review, record, remote MCP, host `/api/shares`) |
 | `share.mcp_tools` | Share mint MCP tools |
 | `share.cli` | Share mint CLI (`podcast review share*`, `backup-registry`) |
-| `share.ui.menu` | Host Menu → Share… dialog |
+| `share.ui.menu` | Host Menu → Share… (the Deliver Share section) |
 | `share.ui.banner` | Guest/host share banner |
 | `share.ui.routes` | Guest `/r/{token}` SPA |
 | `share.remote_mcp` | Remote MCP bridge (`/mcp/{token}/mcp`). `collaboration` contributes it; each link opts in with `--with-mcp` and revoking the link ends it. |
