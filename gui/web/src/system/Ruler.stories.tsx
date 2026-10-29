@@ -200,6 +200,27 @@ export const Zoomed: Story = {
   },
 };
 
+export const EndTickRightAligned: Story = {
+  args: { start: 0, pxPerSecond: 12, width: 360, duration: 36, playhead: 5 },
+  render: (args) => (
+    <div style={stage}>
+      <div style={{ inlineSize: args.width }}>
+        <Ruler {...args} />
+      </div>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const tick = canvasElement.querySelector<HTMLElement>(
+      '.sys-ruler-tick[data-align="end"]',
+    );
+    const ruler = canvasElement.querySelector<HTMLElement>(".sys-ruler");
+    await expect(tick).toHaveTextContent("0:30");
+    await expect(
+      Math.ceil(tick?.getBoundingClientRect().right ?? 0),
+    ).toBeLessThanOrEqual(Math.ceil(ruler?.getBoundingClientRect().right ?? 0));
+  },
+};
+
 export const WithSelection: Story = {
   render: (args) => (
     <LiveRuler

@@ -40,8 +40,9 @@ describe("rulerMath", () => {
       "4:00:00",
       "6:00:00",
       "8:00:00",
-      "10:00:00",
+      "",
     ]);
+    expect(ticks.at(-1)?.align).toBe("end");
     expect(ticks.map((t) => t.x)).toEqual([0, 72, 144, 216, 288, 360]);
   });
 
@@ -58,8 +59,31 @@ describe("rulerMath", () => {
       time: 604,
       x: -40,
       label: "10:04",
+      align: "start",
     });
     expect(rulerTicks(606, 40, 360, 2)[0]?.time).toBe(606);
+  });
+
+  it("right-aligns a label that would pass the window's right edge", () => {
+    const ticks = rulerTicks(0, 12, 360, 10, 36);
+    expect(ticks.map((t) => [t.time, t.x, t.label, t.align])).toEqual([
+      [0, 0, "0:00", "start"],
+      [10, 120, "0:10", "start"],
+      [20, 240, "0:20", "start"],
+      [30, 360, "0:30", "end"],
+    ]);
+    expect(rulerTicks(0, 12, 280, 10, 36).at(-1)?.align).toBe("start");
+    expect(rulerTicks(0, 12, 270, 10, 36).at(-1)?.align).toBe("end");
+  });
+
+  it("drops the label of a right-aligned tick that would sit on its neighbour's", () => {
+    const ticks = rulerTicks(0, 18, 162, 3, 9);
+    expect(ticks.map((t) => [t.x, t.label, t.align])).toEqual([
+      [0, "0:00", "start"],
+      [54, "0:03", "start"],
+      [108, "0:06", "start"],
+      [162, "", "end"],
+    ]);
   });
 
   it("does not drift at a deep zoom", () => {
