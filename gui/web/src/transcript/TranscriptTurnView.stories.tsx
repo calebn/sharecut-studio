@@ -132,6 +132,7 @@ export const SuppressedLowConfidence: Story = {
               start: 12.4,
               end: 12.8,
               confidence: 0.41,
+              unsure: true,
               word_index: 1,
             },
             trackId: "mira",

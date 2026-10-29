@@ -7,13 +7,11 @@ import {
   wordsForUtterance,
 } from "../utils/transcript";
 
-/** ASR confidence below which a word is flagged for review (Annotate underline, WORD inspector note, walkthrough stops); same default as MCP `low_confidence_words_tool`. */
-export const LOW_CONFIDENCE = 0.7;
-
+/** The server's flag (`analysis.unsure_word_confidence`, suppressed words excluded) drives the Annotate underline, WORD inspector note, walkthrough stops and Review. */
 export function isLowConfidenceWord(
-  w: Pick<TranscriptWordView, "confidence">,
+  w: Pick<TranscriptWordView, "unsure">,
 ): boolean {
-  return w.confidence != null && w.confidence < LOW_CONFIDENCE;
+  return w.unsure === true;
 }
 
 /** One stop of the low-confidence walkthrough (#634). */
@@ -24,6 +22,8 @@ export interface LowConfidenceStop {
   text: string;
   /** Timeline seek; null for a cut-away word (scroll only). */
   seekSec: number | null;
+  /** Timeline end of the word, when placed. */
+  endSec?: number;
   /** Transcript-order ordinal among every indexed word of the full utterance list (listed or not), so it survives corrections and a Show cut away toggle. */
   order: number;
 }
@@ -58,6 +58,9 @@ export function lowConfidenceStops(
         wordIndex: w.word_index,
         text: w.text,
         seekSec: wordSeekSec(w),
+        ...(w.mappable !== false && w.timeline_end != null
+          ? { endSec: w.timeline_end }
+          : {}),
         order: wordOrder,
       });
     }

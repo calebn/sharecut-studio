@@ -1757,6 +1757,7 @@ describe("TranscriptPanel", () => {
     function lowConfidenceProject() {
       const base = project();
       base.transcript!.utterances[0].words![1].confidence = 0.4;
+      base.transcript!.utterances[0].words![1].unsure = true;
       return base;
     }
 
