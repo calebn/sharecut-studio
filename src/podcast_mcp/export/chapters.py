@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Sequence
 from typing import NotRequired, TypedDict
 
@@ -23,15 +24,15 @@ class ChaptersDocument(TypedDict):
     chapters: list[ChapterEntry]
 
 
-def _start_time(seconds: float) -> float:
-    rounded = round(seconds, START_TIME_DECIMALS)
+def _start_time(seconds: float) -> int | float:
+    rounded = round(max(seconds, 0.0), START_TIME_DECIMALS)
     return int(rounded) if rounded.is_integer() else rounded
 
 
 def chapters_document(chapters: Sequence[ChapterMarker]) -> ChaptersDocument:
     """Marker times are timeline seconds, the clock the exported audio plays on."""
     entries: list[ChapterEntry] = []
-    for marker in sorted(chapters, key=lambda c: c.time):
+    for marker in sorted((c for c in chapters if math.isfinite(c.time)), key=lambda c: c.time):
         entry: ChapterEntry = {"startTime": _start_time(marker.time), "title": marker.title}
         if marker.image_url:
             entry["img"] = marker.image_url
@@ -40,4 +41,7 @@ def chapters_document(chapters: Sequence[ChapterMarker]) -> ChaptersDocument:
 
 
 def render_chapters_json(chapters: Sequence[ChapterMarker]) -> str:
-    return json.dumps(chapters_document(chapters), indent=2, ensure_ascii=False) + "\n"
+    return (
+        json.dumps(chapters_document(chapters), indent=2, ensure_ascii=False, allow_nan=False)
+        + "\n"
+    )

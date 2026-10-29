@@ -159,7 +159,7 @@ def test_export_reaps_temps_a_crashed_export_left(tmp_path: Path):
     assert _export_listing(project) == {"ep.mp3": b"MP3", "ep.wav": b"NEW-WAV"}
 
 
-def test_chapters_json_matches_podcasting_2_golden_for_unsorted_markers_with_image():
+def test_chapters_json_renders_the_v1_2_layout_for_unsorted_markers_with_image():
     markers = [
         ChapterMarker(time=61.23456, title="Café ☕ 日本語", image_url="https://cdn.example/b.jpg"),
         ChapterMarker(time=0.1 + 0.2, title="Intro"),
@@ -185,6 +185,18 @@ def test_chapters_json_matches_podcasting_2_golden_for_unsorted_markers_with_ima
         "  ]\n"
         "}\n"
     )
+
+
+def test_chapters_json_drops_non_finite_times_and_clamps_negative_ones_to_zero():
+    markers = [
+        ChapterMarker(time=float("nan"), title="Broken"),
+        ChapterMarker(time=float("inf"), title="Endless"),
+        ChapterMarker(time=-4.0, title="Early"),
+    ]
+    assert json.loads(render_chapters_json(markers)) == {
+        "version": "1.2.0",
+        "chapters": [{"startTime": 0, "title": "Early"}],
+    }
 
 
 def test_chapters_json_for_no_chapters_is_an_empty_list():

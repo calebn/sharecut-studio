@@ -346,7 +346,7 @@ export refreshes SRT captions and Markdown alongside the selected audio formats.
 They use the current edited timeline, so removed words and their old timestamps do
 not survive a re-export. The returned paths and Studio's result include these files.
 When the project has chapters, the same export writes `<name>.chapters.json` in
-[Podcasting 2.0 JSON chapters](https://github.com/Podcastindexorg/podcast-namespace/blob/main/chapters/jsonChapters.md)
+[Podcasting 2.0 JSON chapters](https://github.com/Podcastindex-org/podcast-namespace/blob/main/chapters/jsonChapters.md)
 v1.2 shape (`export/chapters.py`): `{"version": "1.2.0", "chapters": [{"startTime": <seconds>,
 "title": "...", "img": "<url>"}]}`. Chapters are timeline seconds, the clock of the exported
 audio, so `startTime` is the marker time rounded to milliseconds, sorted by time. `img` appears
