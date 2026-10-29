@@ -1373,7 +1373,6 @@ def mute_room_tone_fill(
         clip.track_id,
         near_sec=(lo + hi) / 2.0,
         near_source_id=clip.source_id,
-        timeline_sec=clip.timeline_start + (lo - clip.source_start),
         duration_sec=hi - lo,
     )
     if isinstance(span, SampleAbsent):
