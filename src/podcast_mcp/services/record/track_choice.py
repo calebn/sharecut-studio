@@ -12,9 +12,10 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.landing import record_source_id, room_tone_raw_rel
 from podcast_mcp.services.record.landing_math import record_source_prefix
 from podcast_mcp.services.record.service import RecordSessionService
-from podcast_mcp.services.record.state import RecordSnapshot
+from podcast_mcp.services.record.state import RecordSnapshot, find_participant
 from podcast_mcp.services.record.track_match import (
     TrackMatch,
+    held_tracks,
     known_tracks,
     resolve_session_tracks,
     suggestion_for_session,
@@ -49,7 +50,8 @@ class RecordTrackService:
         Allowed until the session is accepted or placed on the timeline. When their takes are
         already staged in a pending suggestion that is one undo step; before landing only the
         host's choice is kept. Refusals: ``unknown_participant``, ``unknown_track``,
-        ``track_taken``, ``replace_target_track``, ``session_already_accepted``, ``session_skipped``.
+        ``track_taken``, ``replace_target_track``, ``participant_removed``,
+        ``session_already_accepted``, ``session_skipped``.
         """
         with self.workspace.transaction() as project:
             current = self._matches(project)
@@ -62,7 +64,17 @@ class RecordTrackService:
                 )
             suggestion = suggestion_for_session(project, self.session_id)
             self._require_open(project, suggestion, match)
-            target, label = self._target(project, current, match, track)
+            held = held_tracks(project, self.session_id)
+            person = find_participant(
+                RecordSnapshot.model_validate(self._room.snapshot()), participant_id
+            )
+            if person is not None and person.removed and participant_id not in held:
+                raise CodedValueError(
+                    f"{match.display_name} was removed from this session, so their track cannot "
+                    "be changed.",
+                    code="participant_removed",
+                )
+            target, label = self._target(project, current, match, track, held)
             sources = _own_sources(project, self.session_id, participant_id, suggestion)
             has_staged_recording = suggestion is not None and (
                 bool(sources) or _has_bed(suggestion, self.session_id, participant_id)
@@ -80,6 +92,17 @@ class RecordTrackService:
                 and suggestion.kind == "replace"
                 and match.track_id in suggestion.track_ids
             )
+            if (
+                follows
+                and suggestion is not None
+                and target != match.track_id
+                and target in suggestion.track_ids
+            ):
+                raise CodedValueError(
+                    f'This replace already covers "{label}". Choose a track it does not cover, '
+                    "or change the session target instead.",
+                    code="replace_target_track",
+                )
             if suggestion is not None and has_staged_recording:
                 title = f"Moved {match.display_name} to {label}"
                 self.workspace.mutate(
@@ -102,15 +125,16 @@ class RecordTrackService:
                         "title": title,
                     },
                 )
-            if not has_staged_recording:
-                self._room.set_track_choice(participant_id, target)
+            self._room.set_track_choice(participant_id, target)
             after = self._matches(self.workspace.project)[participant_id]
             out = {**after.as_dict(), "changed": True}
             if follows:
-                out["note"] = (
-                    f'This replace now covers "{label}" instead of "{match.track_label}"; '
-                    f"it follows {match.display_name}."
+                covered = (
+                    f'"{label}" on its new track'
+                    if label == match.track_label
+                    else f'"{label}" instead of "{match.track_label}"'
                 )
+                out["note"] = f"This replace now covers {covered}; it follows {match.display_name}."
             return out
 
     def _require_target_stays(self, match: TrackMatch) -> None:
@@ -147,7 +171,12 @@ class RecordTrackService:
             )
 
     def _target(
-        self, project: EpisodeProject, current: dict[str, TrackMatch], match: TrackMatch, track: str
+        self,
+        project: EpisodeProject,
+        current: dict[str, TrackMatch],
+        match: TrackMatch,
+        track: str,
+        held: dict[str, str],
     ) -> tuple[str, str]:
         if track.strip().lower() == NEW_TRACK:
             target, label = slug_track_id(match.participant_id), match.display_name
@@ -165,7 +194,14 @@ class RecordTrackService:
                     code="unknown_track",
                 )
             target, label = track, pool[track]
+        removed = {
+            p.participant_id
+            for p in RecordSnapshot.model_validate(self._room.snapshot()).participants
+            if p.removed
+        }
         for other in current.values():
+            if other.participant_id in removed and other.participant_id not in held:
+                continue
             if other.participant_id != match.participant_id and other.track_id == target:
                 raise CodedValueError(
                     f'{other.display_name} is already on "{other.track_label}". Move them first, '
@@ -200,4 +236,7 @@ def _on_timeline(project: EpisodeProject, session_id: str, participant_id: str) 
     pattern = re.compile(
         rf"^{re.escape(record_source_prefix(session_id))}\d+-{re.escape(participant_id)}-\d+$"
     )
-    return any(pattern.match(clip.source_id or "") for clip in project.clips)
+    bed = room_tone_raw_rel(session_id, participant_id)
+    return any(pattern.match(clip.source_id or "") for clip in project.clips) or any(
+        track.room_tone is not None and track.room_tone.path == bed for track in project.tracks
+    )
