@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 import unicodedata
 from pathlib import Path
 from typing import Any
@@ -34,7 +35,7 @@ def _is_hidden_char(char: str) -> bool:
 
 
 def _clean_project_name(name: str) -> str:
-    cleaned = name.strip()
+    cleaned = re.sub(r"^[\s\u200d]+|[\s\u200d]+$", "", name)
     if not cleaned:
         raise CodedValueError("project name must not be empty", code="invalid_project_name")
     if len(cleaned) > PROJECT_NAME_MAX_CHARS:

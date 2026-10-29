@@ -85,6 +85,19 @@ def test_rename_accepts_a_zwj_emoji_sequence(minimal_project):
     assert apply_command(ws, "RenameProject", {"name": name}) == {"name": name}
 
 
+@pytest.mark.parametrize("name", ["\u200d", " \u200d ", "\u200d\u200d"])
+def test_rename_refuses_a_name_of_only_joiners(minimal_project, name):
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(CodedValueError, match="must not be empty"):
+        apply_command(ws, "RenameProject", {"name": name})
+
+
+def test_rename_trims_joiners_from_the_edges(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    result = apply_command(ws, "RenameProject", {"name": "\u200d Show \u200d"})
+    assert result == {"name": "Show"}
+
+
 def test_rename_accepts_the_longest_name(minimal_project):
     name = "n" * PROJECT_NAME_MAX_CHARS
     ws = ProjectWorkspace.open(minimal_project)
