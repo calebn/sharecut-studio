@@ -1083,8 +1083,8 @@ once capture has settled and the keeper store offers that action.
 
 The upload route enforces consent per take, not just per participant. Each
 take stores `consented_participant_ids`, captured from the currently-consented
-roster at host Start and updated live by a mid-take Accept (adds the
-participant to the **current** take) or Decline (removes them from the
+roster at host Start and updated live by a mid-take Join and record (adds the
+participant to the **current** take) or Not now (removes them from the
 **current** take only — earlier takes keep their recorded roster). A keeper
 chunk (`kind=keeper`, the default) is accepted only when the uploader is in
 that take's roster; an upload for a take that does not exist in the snapshot
@@ -1228,33 +1228,34 @@ stateDiagram-v2
 
 ### Host Record stage
 
-The host panel offers only actions that can succeed and says why the rest
+The Record stage offers only actions that can succeed and says why the rest
 cannot. Every button runs the same `record.*` command as the palette.
 
-- **No room.** When `GET /api/record/state` reports no room (404), the panel
+- **No room.** When `GET /api/record/state` reports no room (404), the stage
   drops any stale snapshot and shows "No record room yet. Creating one copies a
   guest link you can send." with **Create record room** (`record.createRoom`).
   It mints the guest and producer links in place, copies the guest link and
   loads the room; the same mint as Share's **Create record links**, CLI
   `podcast review share --kind record` and MCP `create_record_room_tool`.
-- **One take control.** Lobby and stopped rooms show **Start**, a recording
-  room **Pause**, a paused room **Resume** (`TAKE_CONTROL` in
-  `record/hostControls.ts`). Pause and Resume are never shown together.
-- **Start blockers.** A disabled Start lists its reasons right under it
-  (`aria-describedby`): "Joining the room." (`no_recorder`: nobody recorded is
-  in the room yet, so Start waits for the host's own automatic Join),
-  "Waiting for {name} to accept recording.", the device storage check (with
-  **Retry storage check** when it failed) and "Recording room tone. Start is
-  available when it finishes."
-- **Stop.** Stop sits alone at the end of the controls behind a divider and asks
-  once: "Stop this take? Recording ends for everyone in the room." with **Keep
-  recording** (focused) and **Stop take**. Keep returns focus to Stop. The
-  palette's **Stop recording** runs without the question.
+- **One Record button.** The dock's Record button starts a take, shows **Stop take**
+  while one is open (hold it to stop) and **Resume recording** while paused;
+  **Pause** (and Resume while paused) sits beside it while a take runs. Each runs `record.start`, `pause`,
+  `resume` or `stop` (`TAKE_CONTROL` in `record/hostControls.ts`).
+- **Start blockers.** A disabled Record button gives its reasons as one sentence
+  run (`recordStageModel.startDisabledReason`): "Joining the room."
+  (`no_recorder`: nobody recorded is in the room yet, so Start waits for the
+  host's own automatic Join), "Waiting for {name} to accept recording.", the
+  device storage check and "Recording room tone. Start is available when it
+  finishes."
+- **Stop.** Holding the Record button while live stops the take; Enter or Space
+  asks first ("Stop this take? Recording ends for everyone in the room."). **More**
+  also has **Stop take**, which asks once with **Keep recording** (focused) and
+  **Stop take**. The palette's **Stop recording** runs without the question.
 - **Saving status.** After Stop, a list names each recorded participant (never
   a producer) with "Saving to project…" or "Saved to project", one line per
   segment when a participant has several (`saveStatus.ts`).
   The host's own recording reads the same way beside it.
-- **Land.** Shown once the room has a take. It is disabled with its reason beside
+- **Land.** In **More**, shown once the room has a take. It is disabled with its reason beside
   it while a take is open ("Stop the take to land it on the timeline."), while
   recordings are still saving and none is ready to land ("Recordings are still
   saving to the project."),
@@ -1269,14 +1270,15 @@ cannot. Every button runs the same `record.*` command as the palette.
   `X-Sharecut-Error-Code: take_open`. Landing a finished take's keeper on file
   ACK calls `RecordLandingService.land` directly and still runs while a later
   take is open.
-- Mute my mic, the take control, Land, the blockers and Stop stay in a sticky
-  footer of the scrolling panel, so they remain in reach on a phone, with
-  44 px targets on touch. **Invite and links…** (open Share) sits just above it.
-  After **Create record room** or the palette's **Copy guest link** the footer
-  repeats the announcement ("Guest link copied") as visible text.
+- Mute, Comment, the Record button and **More** sit in the dock under the room, so
+  they stay in reach on a phone. **More** holds **Stop take**, Land, **Record room
+  tone**, the upload status, a note when a removed participant's invite is closed
+  and, last, **Invite and links…** (opens Share). After **Create record room** or
+  the palette's **Copy guest link** the stage shows the announcement ("Guest link
+  copied") as a visible note.
 - If the room lookup fails, the error comes with **Check again**.
 - Live comments announce what a new comment says ("Sam: Cut the cough"), never a
-  count. Comments present when the panel opens and your own stay silent.
+  count. Comments present when the stage opens and your own stay silent.
 
 ## Host offline and disconnect
 
@@ -1505,7 +1507,7 @@ sequences. Roles and participant IDs still determine authorization and actor ide
 | Participant leases | `RecordParticipantStore` (`record_participants`); Echo-only plaintext lease |
 | Live comments | `record_live_comments` in the same sqlite (`sync.db`); PK `(session_id, comment_id)` |
 | Local keeper WAV | Guest/host OPFS `Sharecut Recordings/{session}/{take}/{participant}/{segment}.wav` (+ `.json` tags). Not a host sidecar. |
-| Room-tone bed | OPFS `Sharecut Recordings/{session}/room-tone/{participant}.wav` (local until Accept); upload `kind=room_tone` after consent (storage take `2147483647`); assembled `artifacts/record/acked/{session}/room_tone/{participant}.wav` until landing atomically copies `raw/room-tone/{session}/{participant}.wav` and sets `track.room_tone` |
+| Room-tone bed | OPFS `Sharecut Recordings/{session}/room-tone/{participant}.wav` (local until the guest consents); upload `kind=room_tone` after consent (storage take `2147483647`); assembled `artifacts/record/acked/{session}/room_tone/{participant}.wav` until landing atomically copies `raw/room-tone/{session}/{participant}.wav` and sets `track.room_tone` |
 | Chunk / ACK manifests | `record_upload_parts` / `record_upload_files` in the same `sync.db`; finalized file rows persist `expected_parts` and file ACK requires that count. Current clients declare it; older open tabs infer it from the final part sequence, still requiring contiguous parts and the whole-file hash. Part bytes live in `artifacts/record/uploads/`; assembled WAV in `artifacts/record/acked/` until landing copies to `raw/`. `land_failed_ns` records a failed landing attempt and keeps the staged WAV available for retry. |
 | Timeline landing | `RecordLandingService` copies ACK'd WAV into `raw/`, one clip per segment at `take_offset_s + join_offset_ms/1000`, 2 s take gap. A session's first take starts where `session_placement` puts it for the room's target (`end`: the end of the last clip the session did not land itself plus the 2 s gap, 0 s in an empty project; `start` is 0 and moves the existing episode later, see Sessions that start the episode; `insert` and `replace` stage instead, see Staged sessions), so a later session lands after the existing episode (#2287) and leaves the earlier sessions' clips and cuts untouched. The first land numbers the session and titles its undo step "Added Session N" (see Session numbers and the history step). **Known limitation:** the origin is recomputed on every land, so concurrent sessions or edits that extend the episode between a session's takes can offset a later take (or a re-ACK'd segment) from the session's already-landed clips; anchoring the origin to those clips is a follow-up. `join_offset_ms` is stored on `record_upload_files`. The UI reads "Saving to project…" until the file ACK and "Saved to project" after it, and the Land control reports landed and land-failed; only confirmed `landed` permits clearing the device's copy of the keeper. Host `Retry land` reuses the existing `record.land` command. A corrupt registered raw file is replaced at a fresh path on retry, and its track media path follows the replaced source. A new clip is registered and returned only after its raw WAV matches the row's `file_sha256`; missing or mismatched raw stays land-failed. Landed and failed writes compare the expected ACK hash so a concurrent replacement remains pending. Landing publishes `landed` only after the project JSON commits; the source check, project commit, and landed-state write share the project mutation lock. The registered-source re-check and the landed mark run inside `ProjectWorkspace.transaction()`, so they are atomic against writers in other processes too (#309, #213). **Lock/latency boundary (#365):** each copied keeper and room-tone bed is hashed once before any project lock, with a stat before and after the hash. The locked section (`mutate` plus the landed marks) only stats and compares the file revision, so project mutations and snapshots wait for the registration commit, not for disk reads of large keepers (a 512 MiB keeper no longer blocks edits for its read time). Lock order: land lock (`artifacts/record/land-<session_id>.lock`) first, then the project commit lock, then sidecar locks. Land and discard also hold a per-room file lock (`artifacts/record/land-<session_id>.lock`), so a land in another process (GUI ACK auto-land vs. CLI/MCP `record land`) waits, then re-reads the saved project. The wait is bounded (`RECORD_LAND_LOCK_TIMEOUT_SEC`, 120 s); on timeout the land fails with `land in progress` and can be retried. The lock file is deleted when the room is revoked, unless a land still holds it. This relies on an OS advisory lock (`filelock`); on network or cloud-synced workspace folders (SMB, NFS, Dropbox/iCloud-style sync) such locks may not exclude across machines or processes, so run only one landing process per room there (normally the GUI). Other writers in separate processes and direct filesystem changes still need their own coordination. **Cross-plane boundary:** the `sync.db` upload row and the project JSON commit share no transaction (and landing may run in a different process from GUI ingest), so a re-ACK or revoke can land between the raw-file copy and project registration. Landing checks each item's whole-file ACK hash against the upload row again right before registering it, skipping any item whose generation has already moved on; if the row instead changes *while* the project commit is in flight, a follow-up `record_land_rollback` mutation reverts that item's source, clip, and `track.media`/`track.room_tone`, newest first, only while the project still points at the raw path it registered. A room-tone bed whose prior registration reused that same raw path is cleared rather than restored, since the stale copy already overwrote it in place. Because beds share that fixed path, the rollback first confirms the on-disk bed still hashes to the stale generation; if a newer bed has already been copied over it, the registration is kept. A newer ACK or keeper is never marked landed or land-failed by this path — it stays pending for the next `land()`. If the rollback mutation itself fails, it is logged and the land still returns its confirmed clips. Before the rollback runs, the stale item is persisted in `record_land_rollbacks` in `sync.db` (keyed by session, take, participant, segment, and stale file hash; first deferral wins; it survives a re-ACK or revoke, which rewrites or deletes the upload row). This write happens after the `record_land` commit, so a crash between that commit and the deferral still loses the rollback (the same window as before #422): the stale registration stays, and a later land neither retries it nor counts it in `deferred_rollbacks_pending`; undo the `record_land` step through history. Persisting is best effort: if the row cannot be written, the rollback still runs. If the rollback fails, a best-effort `record_land_media_repair` mutation sets `track.media` to what the rollback would leave (the prior media, else the earliest non-stale clip's source), so a later retry ends with the same media as an immediate rollback. The next `land()` (and `delete_take`, which lands too) retries the rollback at its start, after reloading the project and before planning. A deferred row is dropped without mutating when its ACK generation is current again, when the project no longer registers the stale path, or, for a bed, when the file revision changed or was never recorded; each drop is logged with its reason (a bed whose revision changed or was never recorded logs a warning, since its stale registration is kept). An unreadable row is kept, logged, backed off like a failed retry, and counted in `deferred_rollbacks_pending`. A retry that fails is logged, keeps its rows without failing the land, and backs them off exponentially (`attempts` / `retry_after_ns`: 30 s doubling to at most 30 min); a land skips rows still backing off. Land JSON reports `deferred_rollbacks_pending`: rows still deferred for the room after that land, including ones backing off or unreadable (`null` if the store cannot be read), so hosts and agents can see that a stale registration may remain. No path here marks a row landed or land-failed, and no raw file is deleted. Rows are purged when their take is discarded (the discard already removed its sources) or the room is revoked (logged with the count; the purge holds the room's land lock, so an in-flight land defers its rows before they are purged, and a purge that fails is logged with the same undo-through-history hint); a room whose links only expired keeps its rows until it is revoked. Rows of a room that is no longer active are not retried, because landing requires an active room; undo the `record_land` step through history in that case. Raw files copied under a since-superseded generation are not deleted, since project history can still reference them; only the undone project registration is undoable via the normal history stack. |
 
@@ -1521,7 +1523,7 @@ every live recorded person declined (no blocker row), "cannot start: nobody has
 accepted recording";
 room caps 4 recorded / 2 producers; host Join auto-consents as `p_host`; no host
 admit step. Each take's `consented_participant_ids` roster (set at Start,
-updated by mid-take Accept/Decline) gates that take's guest keeper uploads
+updated by a mid-take Join and record / Not now) gates that take's guest keeper uploads
 server-side, independent of the participant's live `consented` flag.
 
 Room-tone raw artifact: each record session lands its room-tone bed to its

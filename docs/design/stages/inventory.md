@@ -232,7 +232,7 @@ Guest-specific interactions: INT-COMMENT-MODE, INT-COMMENT-RESOLVE (host only), 
 
 ---
 
-## 10. Record room (`/rec/<token>`; host panel is DLG-RECORD)
+## 10. Record room (`/rec/<token>`; the host side is the Record stage, see the removed DLG-RECORD)
 
 `record/GuestRoomApp.tsx` renders the shared `system/RoomView` page with the Join sheet over it; a Cover (`record/GuestCovers.tsx`) replaces the room for invalid, full and ended links. A producer joins listen-only.
 
@@ -256,7 +256,7 @@ Guest-specific interactions: INT-COMMENT-MODE, INT-COMMENT-RESOLVE (host only), 
 | CMP-REC-CLIPPING | Clipping badge on a person tile | Room and host stage | `system/RoomTile.tsx`, `system/RoomAlert.tsx` | `system/RoomTile.stories.tsx` (Clipping); `system/RoomAlert.stories.tsx` (Clipping) | Props | Warn about clipped audio |
 | CMP-REC-NOTICES | Room alerts (mic lost, no audio, storage failed, saving failed, recovery, host offline) and the storage headroom warning; save announcer | Room, Join sheet | `system/RoomAlert.tsx`, `record/StorageHeadroomWarning.tsx`, `record/SaveAnnouncer.tsx` | `system/RoomAlert.stories.tsx`; `record/RecordNotices.stories.tsx` (StorageLow, StorageUnknown) | Props | Fail loudly and recoverably |
 | CMP-REC-HOSTROSTER | Removed: the host upload roster is no longer a component; per-person saving state shows on the Record stage room | none | none | none | n/a | Host sees every upload |
-| CMP-REC-STOP | Removed: the Stop take inline confirm is no longer a component; Stop is the Record button while a take runs, with its confirm prompt | none | none | none | n/a | Prevent accidental stop |
+| CMP-REC-STOP | Removed: the Stop take inline confirm is no longer a component; Stop is the dock Record button, labelled "Stop take" while a take runs (hold it), with a confirm prompt | none | none | none | n/a | Prevent accidental stop |
 | CHIP-REC-TRANSPORT | Removed: the recording chip in the transport (the Record stage status replaces it) | none | none | none | n/a | Persistent recording status |
 
 ---
@@ -329,7 +329,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-TOUCH-CHOOSE | Resolve overlapping touch targets | Hold finger over several targets | POP-CHOOSER | long-press | NONE |
 | INT-INSPECT-LONGPRESS | Open inspector by long-press; compact inspector detents | Long-press on touch | SHEET-INSPECTOR | long-press | partial |
 | INT-PALETTE | Open command palette, search, run, remap | `?` | DLG-PALETTE | ? | yes |
-| INT-RECORD | Create room, start, pause, resume, stop, land; marker | Record room panel | DLG-RECORD, CMP-REC-* | M (marker while panel open) | partial |
+| INT-RECORD | Create room, start, pause, resume, stop, land; marker | Record stage | Record stage (`stage/hosts/RecordStage.tsx`), CMP-REC-* | M (marker while the Record stage is active) | partial |
 | INT-SHARE | Create and copy review or record links; stop sharing | Share dialog | DLG-SHARE | none | yes |
 
 ---
@@ -430,7 +430,8 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | INS-EMPTY, INS-PENDING, INS-APPLIED, INS-TRACK, INS-CHAPTER, INS-SOCIAL, INS-COMMENT, INS-WORD, INS-RANGE, INS-PEEK | no | |
 | SHEET-INSPECTOR, CMP-SEEK-FOOTER | yes | |
 | DLG-BOUNCE, DLG-SHARE, DLG-MCP, DLG-SPLIT, DLG-PALETTE, DLG-GESTURES, DLG-ASK-CONFIRM, DLG-ASK-TEXT | yes | |
-| DLG-HELP, DLG-MODELS, DLG-WHISPER, DLG-RECORD | no | |
+| DLG-HELP, DLG-MODELS, DLG-WHISPER | no | |
+| DLG-RECORD | partial | Removed; the Record stage stories (`stage/hosts/RecordStage.stories.tsx`) cover its states |
 | DLG-MODEL-GATE | partial | Embedded in Deliver/Split stories only |
 | SCR-PHONE-LISTEN | partial | Hero yes; body no |
 | SCR-PHONE-TIMELINE, -TEXT, -MORE, -MORE-PANEL | partial | Shell views with fixtures |
@@ -440,15 +441,15 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | SCR-GUEST-LINK-INVALID | yes | ErrorScreen |
 | SCR-GUEST-OFFLINE, BAN-GUEST-ATTENTION, BAN-FOLLOW | yes | |
 | BAN-GUEST-ROLE, BAN-GUEST-VERSION, CMP-GUEST-NAME, CMP-GUEST-COMMENT | partial | Compose yes; others no |
-| SCR-REC-LOADING, -INVALID, -FULL, -DECLINED, -LOBBY-*, -ROOM-*, CMP-REC-DEVICE/CONSENT/INDICATOR/ROSTER/LIVECOMMENTS/UPLOAD/CLIPPING/HOSTROSTER | yes | |
-| SCR-REC-ACCESS-ENDED | no | |
+| SCR-REC-LOADING, -INVALID, -FULL, -DECLINED, -LOBBY-*, -ROOM-*, CMP-REC-DEVICE/CONSENT/INDICATOR/ROSTER/LIVECOMMENTS/UPLOAD/CLIPPING | yes | |
+| SCR-REC-ACCESS-ENDED, CMP-REC-HOSTROSTER, CMP-REC-STOP, CHIP-REC-TRANSPORT | no | The last three are removed |
 | CMP-REC-NOTICES | Room alerts (mic lost, no audio, storage failed, saving failed, recovery, host offline) and the storage headroom warning; save announcer | Room, Join sheet | `system/RoomAlert.tsx`, `record/StorageHeadroomWarning.tsx`, `record/SaveAnnouncer.tsx` | `system/RoomAlert.stories.tsx`; `record/RecordNotices.stories.tsx` (StorageLow, StorageUnknown) | Props | Fail loudly and recoverably |
 | TOAST-MAIN | partial | Toast yes, dock no |
 | EMPTY-STATES, CMP-INLINE-ERROR, CMP-INLINE-CONFIRM | yes | |
 | BAN-LOADFAIL, STAT-LIVE, CMP-RAIL-PEEK | no | |
 | CMP-TUNNEL, CMP-PRESENCE-STATUS | yes | |
 
-Tally of the 154 non-interaction items, counted from the Story columns: 67 yes, 32 partial, 55 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
+Tally of the 154 non-interaction items, counted from the Story columns: 66 yes, 33 partial, 55 no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
 
 ---
 
@@ -458,7 +459,7 @@ Tally of the 154 non-interaction items, counted from the Story columns: 67 yes, 
 2. **SCR-SETUP** (first-run). Done (#2295): `SetupCard` stories Needed, Downloading, Failed, CheckError, Phone.
 3. **DLG-MODELS** and **DLG-MODEL-GATE** (own stories for Ask, Downloading, Failed, Ready). Both already use props-driven `ModelRow`; split the `useModels` read from the render.
 4. **DLG-HELP**. Stories: Empty, BundleCreated, Consent, Submitting, Queued, Published, Failed, NoRelay. Move the api calls into an adapter.
-5. **DLG-RECORD (host Record room panel)**. Largest host-side surface with no story; compose the existing record parts (RoomStatusPill, RoomTile, NotesRail, UploadStatus) into a `RecordPanelView`: NoRoom, Checking, Lobby, Recording, Paused, Stopped, Landing.
+5. **DLG-RECORD (host Record room panel)**. Done: the dialog became the Record stage, with `RecordStage` stories NoRoom, LookingForRoom, LookupFailed, Lobby, Live, Paused, SavingTakes, MoreSheet, Loading, LoadError, PhoneLive and GuestViewer.
 6. **SCR-SHELL with real parts.** Add story-level composition that mounts real `TransportBar`, `Inspector`, panels against a hydrated store (reuse the ClipInspector hydrate pattern) so desktop, tablet and phone full screens can be seen and screenshotted; keep the fixture stand-ins for the isolated-chrome stories.
 7. **PNL-TRANSCRIPT** (the main host surface). Hydrate store with `aligned_dialogue`-like fixture. Stories: Navigate, Correct, Select with range, Annotate, Ignored restore chip, Find and replace open, Low confidence stepping, Empty or loading, Phone.
 8. **DLG-PRECISION**. Stories: Loading, Editing, Saving, Queued, Error, Guest-hidden.
@@ -479,7 +480,7 @@ Tally of the 154 non-interaction items, counted from the Story columns: 67 yes, 
 
 ## Doc drift (prose vs code)
 
-- `ux/pages/screen-inventory.md` lists Share, Connect agent and Help as the host dialogs; code also has Models, Model gate, Whisper picker, Split speakers, Export, Bounce, Precision boundary, Record room, Gestures, Commands and shortcuts, Step parameters, and Ask (confirm and text).
+- `ux/pages/screen-inventory.md` lists Share, Connect agent and Help as the host dialogs; code also has Models, Model gate, Whisper picker, Split speakers, Export, Bounce, Precision boundary, Gestures, Commands and shortcuts, Step parameters, and Ask (confirm and text).
 - `docs/design-system.md` says the live `TransportBar`, full Listen and More bodies, connected panels and full DAW page remain outside Storybook. This inventory confirms it: every full panel (Transcript, Comments, History, Impact, Tighten, Pipeline) has no story, and 11 of the 14 inspector rows have none.
 - "Manage models…" has no menu item; it exists as a command (palette) and as a Home button.
 - Quirk: the `?` shortcut and Menu > Help > "Commands and shortcuts" both open DLG-PALETTE; the phone More hub exposes it as the search row.
