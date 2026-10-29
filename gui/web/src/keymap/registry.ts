@@ -12,7 +12,6 @@
  */
 
 import type { ContextPredicateId } from "../commands/types";
-import { useDawStore } from "../state/dawStore";
 import { isApplePlatform } from "../utils/platform";
 import { getKeymapOverride } from "./remaps";
 import { hasCommandModifier } from "./typing";
@@ -21,7 +20,6 @@ import { hasCommandModifier } from "./typing";
 export const KEYMAP_CATEGORY_ORDER = [
   "transport",
   "navigation",
-  "review",
   "history",
   "edit",
   "view",
@@ -301,44 +299,6 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireShift: false,
     when: "editStagePass12",
     notes: "Mod+V: same-track at playhead",
-  },
-  {
-    id: "tighten.applyHit",
-    category: "review",
-    label: "Apply tighten hit",
-    keys: ["Enter"],
-    bareKey: true,
-    when: "tightenPanelOpen",
-    notes: "Enter: selected tighten hit",
-  },
-  {
-    id: "tighten.skipHit",
-    category: "review",
-    label: "Skip tighten hit",
-    keys: ["Backspace"],
-    bareKey: true,
-    when: "tightenPanelOpen",
-    notes: "Backspace: selected tighten hit",
-  },
-  {
-    id: "tighten.applySuggested",
-    category: "review",
-    label: "Apply suggested actions",
-    keys: ["Enter"],
-    bareKey: false,
-    requireMod: true,
-    requireShift: true,
-    when: "tightenPanelOpen",
-    notes: "Mod+Shift+Enter: every listed sound gets its own suggested action",
-  },
-  {
-    id: "tighten.previewHit",
-    category: "review",
-    label: "Preview tighten hit",
-    keys: ["P"],
-    bareKey: true,
-    when: "tightenPanelOpen",
-    notes: "P: rendered Suggested preview when possible",
   },
   {
     id: "track.remove",
@@ -683,8 +643,8 @@ export const SHARED_KEY_ORDER: readonly SharedKeyOrder[] = [
   },
   {
     key: "Backspace",
-    order: ["tighten.skipHit", "track.remove", "edit.delete"],
-    why: "an open Tighten panel owns Backspace for its selected hit, then the inspector track, then the clip",
+    order: ["track.remove", "edit.delete"],
+    why: "the inspector track is removed before a clip is deleted",
   },
   {
     key: "Delete",
@@ -977,9 +937,6 @@ export function argsFromKeyEvent(
     commandId === "navigation.nudgePlayheadForward"
   ) {
     return { shift: e.shiftKey };
-  }
-  if (commandId === "tighten.applySuggested") {
-    return { ids: [...useDawStore.getState().tightenApplyScope.ids] };
   }
   return {};
 }

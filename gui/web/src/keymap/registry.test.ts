@@ -168,12 +168,12 @@ describe("keymap registry", () => {
     ).toBe("edit.bladeCut");
     expect(
       matchKeymapCommand(keyEvent({ key: "Backspace", code: "Backspace" }))?.id,
-    ).toBe("tighten.skipHit");
+    ).toBe("track.remove");
     expect(
       matchKeymapCommands(
         keyEvent({ key: "Backspace", code: "Backspace" }),
       ).map((c) => c.id),
-    ).toEqual(["tighten.skipHit", "track.remove", "edit.delete"]);
+    ).toEqual(["track.remove", "edit.delete"]);
     expect(
       matchKeymapCommand(keyEvent({ key: "Delete", code: "Delete" }))?.id,
     ).toBe("track.remove");

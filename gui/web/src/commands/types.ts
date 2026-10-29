@@ -42,7 +42,6 @@ export type ContextPredicateId =
   | "hasInspectorSelection"
   | "following"
   | "recordStageActive"
-  | "tightenPanelOpen"
   | "canUndo"
   | "canRedo";
 

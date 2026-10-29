@@ -161,8 +161,7 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["pause-suggestion"],
-    status: "conflict",
-    replaces: ["tighten.applyHit"],
+    status: "new",
   },
   {
     id: "lower",
@@ -171,8 +170,7 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["sound-suggestion"],
-    status: "conflict",
-    replaces: ["tighten.applyHit"],
+    status: "new",
   },
   {
     id: "replace",
@@ -181,8 +179,7 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["pickup-suggestion", "session-suggestion"],
-    status: "conflict",
-    replaces: ["tighten.applyHit"],
+    status: "new",
   },
   {
     id: "insert",
@@ -191,8 +188,7 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["pickup-suggestion", "session-suggestion"],
-    status: "conflict",
-    replaces: ["tighten.applyHit"],
+    status: "new",
   },
   {
     id: "approve",
@@ -201,8 +197,7 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["check-row", "clip-idea"],
-    status: "conflict",
-    replaces: ["tighten.applyHit"],
+    status: "new",
   },
   {
     id: "resolve",
@@ -211,9 +206,8 @@ export const VERBS = [
     keys: [k("Enter")],
     touch: "swipe-right",
     surfaces: ["decision-card", "queue-row"],
-    status: "conflict",
+    status: "new",
     commandId: "comment.resolve",
-    replaces: ["tighten.applyHit"],
   },
   {
     id: "later",
@@ -244,9 +238,8 @@ export const VERBS = [
     keys: [k("Enter", { shift: true })],
     touch: "tap",
     surfaces: ["queue-group", "find-bar", "toast"],
-    status: "conflict",
-    replaces: ["tighten.applyHit"],
-    note: "Shows the verb's own icon with a count. The Tighten row ignores Shift, so Shift+Enter applies a hit today.",
+    status: "new",
+    note: "Shows the verb's own icon with a count. Review binds it locally.",
   },
   {
     id: "split",
@@ -384,9 +377,8 @@ export const VERBS = [
     keys: [k("P")],
     touch: "tap",
     surfaces: ["record-dock"],
-    status: "conflict",
+    status: "new",
     commandId: "record.pause",
-    replaces: ["tighten.previewHit"],
   },
   {
     id: "invite",

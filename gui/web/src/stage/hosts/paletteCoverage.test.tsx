@@ -50,9 +50,6 @@ vi.mock("../../ingest/ingestFiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../ingest/ingestFiles")>()),
   pickAudioFiles: vi.fn(async () => []),
 }));
-vi.mock("../../panels/TightenPanel", () => ({
-  TightenPanel: () => <div>tighten panel</div>,
-}));
 vi.mock("../../panels/CommentsPanel", () => ({
   CommentsPanel: () => <div>comments panel</div>,
 }));
@@ -478,7 +475,6 @@ const REMOVED_SURFACES: Entry[] = [
     reviewSection(/Comments/, "comments panel"),
   ]),
   component("More hub", "Queue", [reviewSection(/Queue/, "Nothing to decide")]),
-  component("More hub", "Tighten", [reviewSection(/Tighten/, "tighten panel")]),
   component("More hub", "Pipeline", [pipeline]),
   entry("More hub", "History", "edit.history", [historySheet]),
   entry("More hub", "Import audio", "media.import"),

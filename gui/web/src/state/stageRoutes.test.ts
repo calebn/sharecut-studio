@@ -93,7 +93,7 @@ describe("tab and stage mapping", () => {
       transcript: { stage: "edit" },
       history: { stage: "edit", sheet: "history" },
       impact: { stage: "review", section: "queue" },
-      tighten: { stage: "review", section: "tighten" },
+      tighten: { stage: "review", section: "queue" },
       comments: { stage: "review", section: "comments" },
       pipeline: { stage: "prepare" },
     });
@@ -103,26 +103,26 @@ describe("tab and stage mapping", () => {
     for (const tab of TABS) {
       const { stage, section, sheet } = STAGE_FOR_TAB[tab];
       const back = tabForStage(stage, section ?? "comments");
-      // History is a sheet on Edit, so it reads back as the Edit tab.
-      expect(back).toBe(sheet ? "transcript" : tab);
+      // History is a sheet on Edit, so it reads back as the Edit tab; the
+      // retired Tighten tab reads back as Queue (`impact`).
+      const expected = tab === "tighten" ? "impact" : tab;
+      expect(back).toBe(sheet ? "transcript" : expected);
     }
   });
 
   it("gives Record and Deliver no tab", () => {
     expect(tabForStage("record", "queue")).toBeNull();
-    expect(tabForStage("deliver", "tighten")).toBeNull();
+    expect(tabForStage("deliver", "comments")).toBeNull();
   });
 
   it("follows the review section", () => {
     expect(tabForStage("review", "queue")).toBe("impact");
     expect(tabForStage("review", "comments")).toBe("comments");
-    expect(tabForStage("review", "tighten")).toBe("tighten");
   });
 
   it("keeps the wire name impact for the Queue section only", () => {
     expect(wireTabOf("queue")).toBe("impact");
     expect(wireTabOf("comments")).toBe("comments");
-    expect(wireTabOf("tighten")).toBe("tighten");
   });
 
   it("derives the legacy phone mode", () => {

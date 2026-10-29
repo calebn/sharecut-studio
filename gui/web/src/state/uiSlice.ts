@@ -243,8 +243,6 @@ type UiSlice = Pick<
   | "prepareFocusTrackId"
   | "setPrepareFocusTrackId"
   | "setShareDialogOpen"
-  | "tightenApplyScope"
-  | "setTightenApplyScope"
   | "setHostMcpDialogOpen"
   | "setHelpDialogOpen"
   | "setModelsDialogOpen"
@@ -726,8 +724,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ prepareFocusTrackId }),
     setShareDialogOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, shareDialogOpen: on } })),
-    tightenApplyScope: { ids: [] },
-    setTightenApplyScope: (tightenApplyScope) => set({ tightenApplyScope }),
     setHostMcpDialogOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, hostMcpDialogOpen: on } })),
     setHelpDialogOpen: (on) =>

@@ -113,11 +113,11 @@ def test_mcp_name_repeated_within_a_row_is_an_error() -> None:
     assert mod.mcp_surface_errors(_row("project", {"mcp": ["approve_edits_tool"]})) == []
 
 
-def test_manifest_shares_one_mcp_tool_across_capabilities() -> None:
+def test_manifest_gives_the_suggested_actions_tool_a_row() -> None:
     data = json.loads((ROOT / "contracts" / "capabilities.manifest.json").read_text())
     rows = {c["id"]: c["surfaces"].get("mcp") for c in data["capabilities"]}
-    assert "approve_edits_tool" in rows["daw.tighten.applyHit"]
-    assert "apply_suggested_actions_tool" in rows["daw.tighten.applySuggested"]
+    assert "apply_suggested_actions_tool" in rows["daw.review.applySuggestedActions"]
+    assert "approve_edits_tool" in rows["agent.edits"]
 
 
 def test_agent_reason_beside_an_agent_surface_is_an_error() -> None:

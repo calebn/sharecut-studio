@@ -43,7 +43,6 @@ const FILE_SURFACES: Record<string, string[]> = {
   "inspector/views/ClipInspector.tsx": ["clipInspector"],
   "stage/frame/HistoryControls.tsx": ["historyPanel"],
   "inspector/views/TrackInspector.tsx": ["trackInspector"],
-  "panels/TightenPanel.tsx": ["tightenPanel"],
   "panels/TranscriptPanel.tsx": [
     "transcript.findReplace",
     "transcript.ignore",

@@ -241,165 +241,29 @@
       }
     },
     {
-      "id": "daw.tighten.applyHit",
-      "label": "Apply tighten hit",
-      "effect": "project",
-      "service": "ShareCut Studio command bus \u2192 ApproveEdits",
-      "industry_standard_key": false,
-      "gates": [
-        "tightenPanelOpen"
-      ],
-      "surfaces": {
-        "command": "tighten.applyHit",
-        "gui": [
-          "tightenPanel"
-        ],
-        "keyboard": "Enter",
-        "mcp": [
-          "approve_edits_tool"
-        ],
-        "cli": "podcast edit approve",
-        "skill": "podcast-tighten-dialogue"
-      },
-      "omit": {},
-      "tooltip": "Apply the selected tighten cut",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.tighten.skipHit",
-      "label": "Skip tighten hit",
-      "effect": "project",
-      "service": "ShareCut Studio command bus \u2192 RejectEdits",
-      "industry_standard_key": false,
-      "gates": [
-        "tightenPanelOpen"
-      ],
-      "surfaces": {
-        "command": "tighten.skipHit",
-        "gui": [
-          "tightenPanel"
-        ],
-        "keyboard": "Backspace",
-        "mcp": [
-          "reject_edits_tool"
-        ],
-        "cli": "podcast edit reject",
-        "skill": "podcast-tighten-dialogue"
-      },
-      "omit": {},
-      "tooltip": "Skip the selected tighten cut",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.tighten.applySuggested",
+      "id": "daw.review.applySuggestedActions",
       "label": "Apply suggested actions",
       "effect": "project",
-      "service": "ShareCut Studio command bus \u2192 ApplySuggestedActions",
+      "service": "ApplySuggestedActions",
       "industry_standard_key": false,
       "gates": [
-        "tightenPanelOpen"
+        "canManageProjects"
       ],
       "surfaces": {
-        "command": "tighten.applySuggested",
-        "gui": [
-          "tightenPanel"
-        ],
-        "keyboard": "Mod+Shift+Enter",
+        "cli": "podcast edit apply-suggested",
         "mcp": [
           "apply_suggested_actions_tool"
-        ],
-        "cli": "podcast edit apply-suggested",
-        "skill": "podcast-tighten-dialogue"
-      },
-      "omit": {},
-      "tooltip": "Give every listed sound its own suggested action in one undo step",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.tighten.reviseSuggested",
-      "label": "Change an applied sound",
-      "effect": "project",
-      "service": "ShareCut Studio command bus \u2192 ApplySuggestedActions (revise)",
-      "industry_standard_key": false,
-      "gates": [
-        "tightenPanelOpen"
-      ],
-      "surfaces": {
-        "command": "tighten.reviseSuggested",
-        "gui": [
-          "tightenPanel"
-        ],
-        "mcp": [
-          "apply_suggested_actions_tool"
-        ],
-        "cli": "podcast edit apply-suggested",
-        "skill": "podcast-tighten-dialogue"
-      },
-      "omit": {
-        "keyboard_reason": "per-sound select in the last applied batch"
-      },
-      "tooltip": "Change one sound of the batch just applied, keeping the others",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.tighten.previewHit",
-      "label": "Preview tighten hit",
-      "effect": "session",
-      "service": "ShareCut Studio command bus \u2192 listen-first preview",
-      "industry_standard_key": false,
-      "gates": [
-        "tightenPanelOpen"
-      ],
-      "surfaces": {
-        "command": "tighten.previewHit",
-        "gui": [
-          "tightenPanel"
-        ],
-        "keyboard": "P",
-        "skill": "podcast-tighten-dialogue"
-      },
-      "omit": {},
-      "tooltip": "Preview the selected tighten hit",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.tighten.goToHit",
-      "label": "Go to tighten hit",
-      "effect": "session",
-      "service": "ShareCut Studio command bus",
-      "industry_standard_key": false,
-      "gates": [
-        "tightenPanelOpen"
-      ],
-      "surfaces": {
-        "command": "tighten.goToHit",
-        "gui": [
-          "tightenPanel"
         ],
         "skill": "podcast-tighten-dialogue"
       },
       "omit": {
-        "keyboard_reason": "pointer/row action; seek+select"
+        "keyboard_reason": "host CLI/MCP only; Review applies a single Lower from its own row",
+        "guest": true
       },
-      "tooltip": "Seek the playhead to a tighten hit",
+      "tooltip": "Give a list of sounds each its own suggested action in one undo step",
       "presence": {
-        "cursor": "time",
-        "follow": "look"
+        "cursor": "none",
+        "follow": "none"
       }
     },
     {

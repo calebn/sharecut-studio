@@ -438,12 +438,10 @@ async function pressOnCanvas(key: string, code: string): Promise<string[]> {
   return vi.mocked(execute).mock.calls.map(([id]) => id);
 }
 
-it("runs the Tighten hit on Backspace while the panel is open, and the clip delete once it closes", async () => {
+it("deletes the clip on Backspace on Edit and runs nothing on Review", async () => {
   render(<KeymapHost />);
-  useDawStore.setState({ stage: "review", reviewSection: "tighten" });
-  expect(await pressOnCanvas("Backspace", "Backspace")).toEqual([
-    "tighten.skipHit",
-  ]);
+  useDawStore.setState({ stage: "review", reviewSection: "queue" });
+  expect(await pressOnCanvas("Backspace", "Backspace")).toEqual([]);
   useDawStore.setState({ stage: "edit" });
   expect(await pressOnCanvas("Backspace", "Backspace")).toEqual([
     "edit.delete",

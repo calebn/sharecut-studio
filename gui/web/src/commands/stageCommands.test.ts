@@ -44,8 +44,8 @@ describe("stage commands", () => {
   });
 
   it("takes a Review section and a phone Edit surface as arguments", async () => {
-    await execute("stage.review", { section: "tighten" });
-    expect(useDawStore.getState().reviewSection).toBe("tighten");
+    await execute("stage.review", { section: "comments" });
+    expect(useDawStore.getState().reviewSection).toBe("comments");
     await execute("stage.edit", { surface: "text" });
     expect(useDawStore.getState().editSurface).toBe("text");
     await execute("stage.edit", { surface: "nope" });

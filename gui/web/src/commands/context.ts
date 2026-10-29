@@ -55,7 +55,6 @@ export type CommandContext = {
   hasInspectorSelection: boolean;
   following: boolean;
   recordStageActive: boolean;
-  tightenPanelOpen: boolean;
 };
 
 function editUnsaved(projectPath: string): boolean {
@@ -136,7 +135,6 @@ export function buildCommandContext(): CommandContext {
     hasInspectorSelection: selection != null,
     following: s.followingClientId != null,
     recordStageActive: s.stage === "record",
-    tightenPanelOpen: s.stage === "review" && s.reviewSection === "tighten",
   };
 }
 
@@ -339,10 +337,6 @@ export function evaluateWhen(
       return ctx.recordStageActive
         ? { ok: true }
         : { ok: false, reason: "Record stage is not open" };
-    case "tightenPanelOpen":
-      return ctx.tightenPanelOpen
-        ? { ok: true }
-        : { ok: false, reason: "Tighten panel is not open" };
     default:
       return { ok: false, reason: `Unknown when: ${String(when)}` };
   }

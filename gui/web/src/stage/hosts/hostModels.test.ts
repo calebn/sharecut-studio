@@ -25,14 +25,14 @@ describe("stageAvailable", () => {
 });
 
 describe("review sections", () => {
-  it("gives the host all three and a guest Comments", () => {
-    expect(reviewSectionsFor("host")).toEqual(["queue", "comments", "tighten"]);
+  it("gives the host both and a guest Comments", () => {
+    expect(reviewSectionsFor("host")).toEqual(["queue", "comments"]);
     expect(reviewSectionsFor("commenter")).toEqual(["comments"]);
     expect(reviewSectionsFor("editor")).toEqual(["comments"]);
   });
 
   it("falls back to the first section the role has", () => {
-    expect(effectiveSection("tighten", ["comments"])).toBe("comments");
+    expect(effectiveSection("queue", ["comments"])).toBe("comments");
     expect(effectiveSection("queue", reviewSectionsFor("host"))).toBe("queue");
     expect(effectiveSection("queue", ["comments"])).toBe("comments");
   });

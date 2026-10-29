@@ -35,10 +35,11 @@ def test_gui_pending_kind_union_matches_the_backend_review_kinds() -> None:
     assert sorted(re.findall(r'"([\w-]+)"', union)) == sorted(get_args(ReviewKind))
 
 
-def test_gui_tighten_filter_chips_are_the_non_other_review_kinds() -> None:
-    ts = _web("panels/TightenPanel.tsx")
-    block = ts[ts.index("const CLASS_FILTERS") :].split("];", 1)[0]
-    ids = re.findall(r'id: "([\w-]+)"', block)
-    assert sorted(i for i in ids if i != "all") == sorted(
+def test_gui_queue_groups_are_the_non_other_review_kinds() -> None:
+    ts = _web("review/reviewQueueModel.ts")
+    block = ts[ts.index("const QUEUE_KIND") :].split("};", 1)[0]
+    kinds = re.findall(r'^\s+"?([\w-]+)"?: kind\("[^"]+", "suggestions"', block, re.M)
+    # `suggestion` is the group for kind `other`.
+    assert sorted(k for k in kinds if k != "suggestion") == sorted(
         k for k in get_args(ReviewKind) if k != "other"
     )

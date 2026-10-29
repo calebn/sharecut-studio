@@ -51,7 +51,6 @@ describe("paletteCommands", () => {
     ["loudness", "export.deliverables"],
     ["razor", "edit.bladeCut"],
     ["invite", "share.manage"],
-    ["filler", "tighten.applySuggested"],
   ])("finds what people call it: %s → %s", (query, id) => {
     expect(searchPaletteCommands(rowsNow(), query).map((r) => r.id)).toContain(
       id,
