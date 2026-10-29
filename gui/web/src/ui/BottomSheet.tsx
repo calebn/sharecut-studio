@@ -160,6 +160,9 @@ export function BottomSheet({
     return null;
   }
 
+  const resizeLabel = isExpanded
+    ? (resizeLabels?.collapse ?? "Collapse")
+    : (resizeLabels?.expand ?? "Expand");
   const at = drawer ? drawer.detents.indexOf(drawer.detent) : -1;
   const lowest = drawer?.detents[0];
   const higher = drawer?.detents[at + 1];
@@ -195,11 +198,8 @@ export function BottomSheet({
       className="bottom-sheet-resize-action"
       variant="link"
       type="button"
-      aria-label={
-        isExpanded
-          ? (resizeLabels?.collapse ?? "Collapse")
-          : (resizeLabels?.expand ?? "Expand")
-      }
+      aria-label={resizeLabel}
+      title={resizeLabel}
       onClick={() => onExpandedChange(!isExpanded)}
     >
       <Icon name={isExpanded ? "restore" : "maximize"} size={20} />
