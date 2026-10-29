@@ -124,7 +124,7 @@ export interface PendingJoinRisk {
 /**
  * What a pending edit is, as the server groups it (`edits/cut_policy.py::review_kind`).
  * The client never parses `reason` to group. The Review stage keeps its own `DecisionKind` and maps from this.
- * `other` covers guest suggestions and agent or manual edits.
+ * `other` covers missing or unrecognized reasons.
  * Unsure words are NOT a kind: they are a separate per-edit list added by a later slice.
  */
 export type PendingKind =
