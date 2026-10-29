@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     from podcast_mcp.services.document_sync.payloads import (
         COMMENT_BODY_MAX,
         DEFAULT_SHORTEN_GAP_SEC,
+        DEFAULT_STRIP_MIN_DURATION_SEC,
+        DEFAULT_STRIP_OVER_VOICE_FLOOR_DB,
         DocumentCommandBody,
         TranscriptReplacementOptions,
         WordTimingTargetPayload,
@@ -58,6 +60,8 @@ if TYPE_CHECKING:
 __all__ = [
     "COMMENT_BODY_MAX",
     "DEFAULT_SHORTEN_GAP_SEC",
+    "DEFAULT_STRIP_MIN_DURATION_SEC",
+    "DEFAULT_STRIP_OVER_VOICE_FLOOR_DB",
     "INTERACTIVE_COMMAND",
     "PROGRAMMATIC_COMMAND",
     "VIEW_PROJECTION_QUERY_DESCRIPTION",
@@ -100,6 +104,8 @@ __all__ = [
 _MODULE_BY_NAME = {
     "COMMENT_BODY_MAX": "payloads",
     "DEFAULT_SHORTEN_GAP_SEC": "payloads",
+    "DEFAULT_STRIP_MIN_DURATION_SEC": "payloads",
+    "DEFAULT_STRIP_OVER_VOICE_FLOOR_DB": "payloads",
     "DocumentCommand": "commands",
     "DocumentCommandBody": "payloads",
     "DocumentCommandType": "commands",

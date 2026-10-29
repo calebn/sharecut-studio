@@ -25,6 +25,10 @@ from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.edits.decisions import PendingEditBaseline
+from podcast_mcp.edits.strip_silence import (
+    DEFAULT_STRIP_MIN_DURATION_SEC,
+    DEFAULT_STRIP_OVER_VOICE_FLOOR_DB,
+)
 from podcast_mcp.edits.timeline_ops import DEFAULT_SHORTEN_GAP_SEC
 from podcast_mcp.models.episode import (
     FADER_MAX_DB,
@@ -746,6 +750,16 @@ class ShortenWordGapsPayload(BaseModel):
     override_audio_checks: bool = Field(default=False, description=OVERRIDE_DESCRIPTION)
 
 
+class StripSilencePayload(BaseModel):
+    track_id: str | None = None
+    speaker: str | None = None
+    over_voice_floor_db: float = Field(DEFAULT_STRIP_OVER_VOICE_FLOOR_DB, allow_inf_nan=False)
+    min_duration_sec: float = Field(DEFAULT_STRIP_MIN_DURATION_SEC, allow_inf_nan=False)
+    use_inaudible_opt: bool | None = Field(
+        default=None, description="Accepted and ignored (API compatibility)."
+    )
+
+
 class FadeJoinsPayload(BaseModel):
     track_id: str | None = None
     speaker: str | None = None
@@ -1176,6 +1190,11 @@ class ShortenWordGapsCommand(DocumentCommandEnvelope):
     payload: ShortenWordGapsPayload
 
 
+class StripSilenceCommand(DocumentCommandEnvelope):
+    type: Literal["StripSilence"] = "StripSilence"
+    payload: StripSilencePayload
+
+
 class FadeJoinsCommand(DocumentCommandEnvelope):
     type: Literal["FadeJoins"] = "FadeJoins"
     payload: FadeJoinsPayload
@@ -1297,6 +1316,7 @@ DocumentCommandBody = Annotated[
     | ApplyAutoEditsCommand
     | ApplyEditPlanCommand
     | ShortenWordGapsCommand
+    | StripSilenceCommand
     | FadeJoinsCommand
     | CrossfadeJoinsCommand
     | MoveByTextCommand
@@ -1429,6 +1449,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "ApplyAutoEdits": ApplyAutoEditsPayload,
     "ApplyEditPlan": ApplyEditPlanPayload,
     "ShortenWordGaps": ShortenWordGapsPayload,
+    "StripSilence": StripSilencePayload,
     "FadeJoins": FadeJoinsPayload,
     "CrossfadeJoins": CrossfadeJoinsPayload,
     "MoveByText": MoveByTextPayload,
@@ -1454,6 +1475,7 @@ _CODED_PAYLOAD_TYPES = frozenset(
         "FillRoomTone",
         "ApplyEditPlan",
         "ShortenWordGaps",
+        "StripSilence",
     }
 )
 
