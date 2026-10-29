@@ -34,7 +34,7 @@ import { type BounceFlow, type BounceRun, Flow } from "./bounceFlowContext";
 
 /**
  * The host bounce, outside any stage so it outlives them: the same
- * `BounceService` job as MCP `bounce_audio` and CLI `podcast pipeline bounce`.
+ * `BounceService` job as MCP `bounce_audio_tool` and CLI `podcast pipeline bounce`.
  * Switching stage leaves the bounce running on the Activity chip, and Deliver
  * shows its progress or outcome again. A project switch stops following the
  * job and returns to idle.

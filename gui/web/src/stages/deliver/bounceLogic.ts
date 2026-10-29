@@ -89,7 +89,7 @@ export function bounceResultCopy(paths: readonly string[]): string {
   return `Bounced ${paths.length} file(s) to export/bounces/`;
 }
 
-/** `POST /api/export/bounce`, the same fields as MCP `bounce_audio` and `podcast pipeline bounce`, plus `exact_range`. */
+/** `POST /api/export/bounce`, the same fields as MCP `bounce_audio_tool` and `podcast pipeline bounce`, plus `exact_range`. */
 type BounceBody = {
   track_ids: string[] | null;
   start_s: number | null;
