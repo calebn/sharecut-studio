@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import wave
 from collections.abc import Callable
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -815,6 +816,87 @@ def test_a_far_pad_sample_on_a_recording_that_vanishes_from_disk_moves_the_key(
     assert present != _key_of(tmp_path, _far_missing_file)
 
 
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [
+        pytest.param(41.0, 42.0, id="near_valid"),
+        pytest.param(42.0, 41.0, id="near_invalid"),
+        pytest.param(500.0, 400.0, id="far_invalid"),
+        pytest.param(1.0, 2.0, id="far_valid"),
+    ],
+)
+def test_cached_pause_tracks_pad_recording_loss_and_restoration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, start: float, end: float
+) -> None:
+    project = _project(tmp_path, sourced=True, mutate=_nothing)
+    foreign = tmp_path / "raw" / "foreign.wav"
+    write_wav(foreign, room(1.0))
+    project.sources.append(SourceRecording(id="foreign", path="raw/foreign.wav", duration_sec=1.0))
+    _pad(project, start, end, source_id="foreign")
+    original = project.model_dump(mode="json")
+    receipt = deepcopy(project.editorial.edit_log[0].params)
+    host = tmp_path / "raw" / "host.wav"
+    host_bytes, host_stat = host.read_bytes(), host.stat()
+    foreign_bytes = foreign.read_bytes()
+    hits: list[bool] = []
+    lookup = verdict_cache.lookup
+
+    def spy(key: str | None) -> Any:
+        found = lookup(key)
+        hits.append(found is not None)
+        return found
+
+    def key() -> str | None:
+        edit = project.edit_decisions[0]
+        return verdict_cache.verdict_key(
+            project,
+            edit,
+            defaults=load_defaults(),
+            manual=False,
+            batch=[],
+            span=(edit.start, edit.end),
+            base_profile="test-base",
+        )
+
+    monkeypatch.setattr(verdict_cache, "lookup", spy)
+    monkeypatch.delenv(verdict_cache.VERIFY_ENV, raising=False)
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "0")
+    healthy = _outcome(project.model_copy(deep=True))
+    assert healthy[0] == 1
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    verdict_cache._STORE.clear()
+    assert _outcome(project.model_copy(deep=True)) == healthy
+    assert _outcome(project.model_copy(deep=True)) == healthy
+    assert hits == [False, True], "unchanged approval must reuse a real verdict"
+    present_key = key()
+    assert present_key is not None
+
+    foreign.unlink()
+    missing_key = key()
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "0")
+    missing_cold = _outcome(project.model_copy(deep=True))
+    assert missing_cold[0] == 0
+    assert missing_cold != healthy
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    missing_cached = _outcome(project.model_copy(deep=True))
+
+    foreign.write_bytes(foreign_bytes)
+    restored_key = key()
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "0")
+    restored_cold = _outcome(project.model_copy(deep=True))
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    restored_cached = _outcome(project.model_copy(deep=True))
+    assert restored_cold == restored_cached == healthy
+    assert restored_key == present_key
+    assert hits[-1], "restoration must reuse the healthy verdict"
+    assert project.model_dump(mode="json") == original
+    assert project.editorial.edit_log[0].params == receipt
+    assert host.read_bytes() == host_bytes
+    assert host.stat() == host_stat
+    assert missing_cached == missing_cold
+    assert missing_key != present_key
+
+
 def _far_tuple_samples(p: EpisodeProject) -> None:
     _pad_record(
         p, ({"track_id": "host", "source_id": None, "source_start": 1.0, "source_end": 2.0},)
@@ -997,10 +1079,11 @@ def test_an_invalid_range_pad_sample_is_hashed_with_the_recording_it_names(
     assert base != _key_of(tmp_path, lambda p: _pad(p, 500.0, 400.0, **other))
 
 
-def test_an_unexpected_error_resolving_a_far_pad_sample_propagates(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("pad", [_far_pad, _near_pad, _far_inverted])
+def test_an_unexpected_error_resolving_a_pad_sample_propagates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pad: Callable[[EpisodeProject], None]
 ) -> None:
-    project = _project(tmp_path, sourced=True, mutate=_far_pad)
+    project = _project(tmp_path, sourced=True, mutate=pad)
     edit = project.edit_decisions[0]
 
     def broken(*_: Any) -> None:
