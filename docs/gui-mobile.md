@@ -566,7 +566,7 @@ content in those other workflows. Desktop and ordinary tablet feedback rests
 above the status bar.
 
 On every shell, visible parts of the comment composer, the **Commenting as**
-line, its **Change** field and the guest name step take protection priority when
+line, its **Change** field and the guest name field take protection priority when
 they intersect the card's horizontal footprint. The dock moves the card above
 or below them when a clear position fits, including above the top chrome when
 needed (#2199, proven at 844x390 and 390x340 in

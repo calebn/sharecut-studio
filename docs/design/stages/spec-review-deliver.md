@@ -391,7 +391,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### CMP-GUEST-NAME · Guest name step (and CMP-GUEST-COMMENT)
 
-- **Today:** `CMP-GUEST-NAME--desktop-light.png`, `CMP-GUEST-NAME--phone-light.png`. A full-width "Your name" field with an error-red border before any error, plus two post buttons ("Post as Guest", "Post comment").
+- **Before #2298 (replaced by the Composer name field):** `CMP-GUEST-NAME--desktop-light.png`, `CMP-GUEST-NAME--phone-light.png`. A full-width "Your name" field with an error-red border before any error, plus two post buttons ("Post as Guest", "Post comment").
 - **Fate:** restyle into the composer.
 - **Spec:** on a guest's first post, the composer grows a second line above the field: an avatar placeholder and "Your name" field (placeholder "Name, so the host knows who said it"), prefilled from this browser if known. One Post action; blank name posts as "Guest". The name is then shown as the guest's Person tile in presence and on every comment; change it by tapping their own avatar in the header.
 - **Shared elements used:** Composer, Person tile.

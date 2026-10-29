@@ -223,7 +223,7 @@ Guest mode comes from `guest_mode` in the review bootstrap: Viewer `view`, Comme
 | BAN-GUEST-VERSION | Guest "newer version available" notice | Host republishes while the guest is open | `layout/GuestVersionNotice.tsx`, `layout/GuestVersionNoticeView.tsx` | NONE | View | Prompt refresh |
 | BAN-GUEST-ATTENTION | Offline / pending host edits / conflicts attention banner | Guest with queued or conflicting edits | `layout/GuestAttentionBanner.tsx`, `layout/GuestAttentionBannerView.tsx` | `layout/GuestAttentionBannerView.stories.tsx` | View | Surface sync state |
 | BAN-FOLLOW | "Following X" banner (host, guest, agent leader; host-only-tab notice; Esc to stop) | Click an avatar > Follow | `layout/FollowBanner.tsx`, `layout/FollowBannerView.tsx` | `layout/FollowBannerView.stories.tsx` (Following, AgentLeader, GuestHostOnlyTab, HostMirrorsAudition, PhoneLongName) | View | Follow someone else's view |
-| CMP-GUEST-COMMENT | Guest comment compose and name step | Comments tab or Listen composer | `comments/CommentCompose.tsx`, `system/Composer.tsx`, `layout/ListenCommentComposer.tsx` | CommentCompose and Composer yes; Listen composer NONE | Props | Leave feedback |
+| CMP-GUEST-COMMENT | Guest comment compose and name field | Comments tab or Listen composer | `comments/CommentCompose.tsx`, `system/Composer.tsx`, `layout/ListenCommentComposer.tsx` | CommentCompose and Composer yes; Listen composer NONE | Props | Leave feedback |
 
 Guest-specific interactions: INT-COMMENT-MODE, INT-COMMENT-RESOLVE (host only), INT-FOLLOW, INT-PENDING-SUGGEST (Commenter blade or select-range proposes edits for host review).
 
@@ -369,7 +369,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | PNL-TRANSCRIPT, CMP-TURN, POP-SPEAKER, POP-WORD-EDIT, CMP-FINDREPLACE | R-HOST (aligned_dialogue for words). Wait for `[data-transcript-word]`. Toolbar toggles: `Correct`, `Select`, `Annotate`. Speaker: button "Change speaker <name>". Correct: set Correct, click a word, field "Correct word “…”" (or focus a word and press F2). Find: command `Find and replace transcript` (region "Find and replace transcript"). Phone: nav > Text. |
 | CMP-WORDBAR | Select one word, region "Word timing" in the inspector (see `e2e/wordbarFlow.ts`). |
 | CMP-EDITBOUNDARY, DLG-PRECISION | After a cut, boundary mark in the transcript; precision button opens dialog "Precision boundary" (see `e2e/edit-boundary-precision.spec.ts`, `e2e/boundaryFixture.ts`). |
-| PNL-COMMENTS, CMP-COMMENT-*, CMP-GUEST-NAME | Tab Comments; field label per CommentCompose; for the name step use a guest context with no stored name. |
+| PNL-COMMENTS, CMP-COMMENT-*, CMP-GUEST-NAME | Tab Comments; field label per CommentCompose; for the name field use a guest context with no stored name. |
 | PNL-HISTORY, PNL-REVIEW-QUEUE, PNL-PIPELINE | Tab by name. Pipeline needs `/api/pipeline/config` (see `e2e/pipeline-*.spec.ts`); the Review Queue needs hits from Find more. |
 | DLG-STEP-PARAMS | Phone: More > Pipeline > tap a step. |
 | INS-* | Click the object: clip (`.clip-block`), pending region, track header, chapter marker, comment pin, word, envelope point. Tablet: `.bottom-sheet[role=dialog]`; phone: compact inspector at the remembered detent. |
@@ -418,7 +418,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | PNL-TRANSCRIPT | partial | Turn, ghost chips, boundary mark only |
 | POP-WORD-EDIT, POP-SPEAKER, CMP-FINDREPLACE, CMP-WORDBAR, CMP-WORDRANGE, CMP-VOCAB | no | |
 | DLG-PRECISION | no | |
-| PNL-COMMENTS | partial | Card and compose; panel and name step no |
+| PNL-COMMENTS | partial | Card and compose; panel no |
 | PNL-HISTORY, PNL-REVIEW-QUEUE, PNL-PIPELINE, DLG-STEP-PARAMS | no | All store-bound; no View split |
 | INS-CLIP | yes | Multi-select no |
 | INS-ENVELOPE, INS-BLEED | yes | |
@@ -459,7 +459,7 @@ Tally of the 153 non-interaction items, counted from the Story columns: 65 yes, 
 7. **PNL-TRANSCRIPT** (the main host surface). Hydrate store with `aligned_dialogue`-like fixture. Stories: Navigate, Correct, Select with range, Annotate, Ignored restore chip, Find and replace open, Low confidence stepping, Empty or loading, Phone.
 8. **DLG-PRECISION**. Stories: Loading, Editing, Saving, Queued, Error, Guest-hidden.
 9. **INS-PENDING** (core review action) and **INS-TRACK**, **INS-WORD**, **INS-COMMENT**, **INS-APPLIED**, **INS-CHAPTER**, **INS-SOCIAL**. All need store hydration only.
-10. **PNL-REVIEW-QUEUE, PNL-HISTORY, PNL-COMMENTS** as full panels (each has empty, populated, busy, error, guest variants; Comments has the guest name step).
+10. **PNL-REVIEW-QUEUE, PNL-HISTORY, PNL-COMMENTS** as full panels (each has empty, populated, busy, error, guest variants; Comments has the guest name field).
 11. **PNL-PIPELINE and DLG-STEP-PARAMS, DLG-WHISPER**. Largest panel (1435 lines); needs a pipeline-config fixture and a split.
 12. **SCR-PHONE-MORE and SCR-PHONE-LISTEN bodies.** Extract `MoreHub` as a View (it is already a separate function in `MobileShell.tsx`), add Listen body stories with chips and comments list, guest variant.
 13. **MENU-MAIN and MENU-VIEW as real menus.** Story with Menu open for host, guest, collapsed (tablet/phone) and menu-only (Listen).

@@ -129,6 +129,8 @@ describe("GuestComments", () => {
       "Server said no",
     );
     expect(field()).toHaveValue("Try");
+    expect(screen.getByRole("textbox", { name: "Your name" })).toBeVisible();
+    expect(localStorage.getItem(NAME_KEY)).toBeNull();
   });
 
   it("anchors at the playhead, follows it until typing, then pins", async () => {
