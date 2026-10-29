@@ -211,8 +211,8 @@ export function useReviewComments(enabled: boolean) {
 
   const open = () => {
     const state = useDawStore.getState();
-    if (!state.commentDraft)
-      state.setCommentDraft(resolveCommentAnchor(state).draft);
+    if (state.commentDraft) composeRef.current?.focus();
+    else state.setCommentDraft(resolveCommentAnchor(state).draft);
   };
 
   // The field unmounts when the draft clears, so focus goes back to the stage
@@ -220,7 +220,9 @@ export function useReviewComments(enabled: boolean) {
   const stageOf = () =>
     composeRef.current?.closest<HTMLElement>(".rv-stage") ?? null;
 
+  const session = useRef(0);
   const close = () => {
+    session.current += 1;
     const stage = stageOf();
     setBody("");
     postComment.setError(null);
@@ -233,11 +235,17 @@ export function useReviewComments(enabled: boolean) {
     if (postBusy.current) return;
     postBusy.current = true;
     const stage = stageOf();
+    const started = session.current;
     try {
       const result = await postComment.post({
         body,
         author: commitCommentActor(name, COMMENT_ROLE, setName),
       });
+      // Escape closed the field while this was in flight: its outcome is moot.
+      if (started !== session.current) {
+        postComment.setError(null);
+        return;
+      }
       if (!result.ok) return;
       setBody("");
       useDawStore
@@ -251,21 +259,10 @@ export function useReviewComments(enabled: boolean) {
 
   const composer =
     enabled && commentDraft ? (
-      <div
-        className="rv-compose"
-        onKeyDown={(event) => {
-          if (
-            event.key !== "Escape" ||
-            event.nativeEvent.isComposing ||
-            event.keyCode === 229
-          )
-            return;
-          event.stopPropagation();
-          close();
-        }}
-      >
+      <div className="rv-compose">
         <Composer
           compact
+          onEscape={close}
           body={body}
           onBodyChange={setBody}
           onSubmit={() => void post()}
@@ -274,7 +271,11 @@ export function useReviewComments(enabled: boolean) {
             start: commentDraft.startSec,
             end: commentDraft.endSec ?? undefined,
           }}
-          name={{ value: name, onChange: (v) => setName(limitCommentName(v)) }}
+          name={{
+            value: name,
+            onChange: (v) => setName(limitCommentName(v)),
+            placeholder: "Your name",
+          }}
           state={postComment.busy ? "posting" : "idle"}
           inputRef={composeRef}
         />

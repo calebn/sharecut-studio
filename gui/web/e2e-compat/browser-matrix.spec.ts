@@ -18,7 +18,7 @@ import {
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
 import {
-  openPanel,
+  openCommentCard,
   openProject,
   projectMenuButton,
   setAudition,
@@ -88,8 +88,7 @@ test.describe("browser compatibility matrix", () => {
         )
         .toBe(true);
       await expect.poll(queuedCount).toBe(0);
-      await openPanel(page, "comments");
-      await expect(page.getByText(note, { exact: true }).first()).toBeVisible();
+      await expect(await openCommentCard(page, note)).toBeVisible();
     });
     expect(
       JSON.parse(fs.readFileSync(e2eProjectPath, "utf8")).review.comments,
@@ -176,10 +175,7 @@ test.describe("browser compatibility matrix", () => {
             ),
           )
           .toBe(true);
-        await openPanel(page, "comments");
-        await expect(
-          page.locator(".comment-card-body").getByText(note, { exact: true }),
-        ).toBeVisible();
+        await expect(await openCommentCard(page, note)).toBeVisible();
       } finally {
         await sender.close();
       }

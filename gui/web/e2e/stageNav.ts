@@ -544,3 +544,24 @@ export async function inspectSelectionByKey(page: Page): Promise<void> {
   });
   await page.keyboard.press("i");
 }
+
+/**
+ * Select the host's queue row for the comment whose text is `body` and return
+ * the Decision card that shows its thread. A phone keeps the queue in a sheet.
+ */
+export async function openCommentCard(
+  page: Page,
+  body: string,
+): Promise<Locator> {
+  await openPanel(page, "comments");
+  const row = page
+    .locator('.sys-queue-row[data-kind="comment"]')
+    .filter({ hasText: body });
+  if (!(await row.isVisible())) {
+    await page.getByRole("button", { name: / of \d+$/ }).click();
+  }
+  await row.getByRole("button").click();
+  const card = page.locator("article.sys-decision");
+  await expect(card.locator(".sys-comment-body").first()).toHaveText(body);
+  return card;
+}
