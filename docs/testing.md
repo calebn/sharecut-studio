@@ -1012,7 +1012,7 @@ unavailable.
 
 The same file guards the adapter seam. `cli/`, `mcp/` and `gui/` may import
 `edits/`, `engines/` and `pipeline/` only through the pairs in
-`_ADAPTER_DOMAIN_ALLOWLIST` (37 entries; `if TYPE_CHECKING:` imports are
+`_ADAPTER_DOMAIN_ALLOWLIST` (36 entries; `if TYPE_CHECKING:` imports are
 typed-only and exempt), adapters may not import each other beyond the two
 deletion entries and the launcher wiring, and `util/` may not import an
 adapter. Inline imports count. A new edge fails the test; the fix is a service
