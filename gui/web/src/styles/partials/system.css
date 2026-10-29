@@ -1421,12 +1421,9 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   inline-size: min(
     30rem,
     calc(
-      100% - 2 *
-        max(
-          var(--space-5),
-          env(safe-area-inset-left),
-          env(safe-area-inset-right)
-        )
+      100% -
+      2 *
+      max(var(--space-5), env(safe-area-inset-left), env(safe-area-inset-right))
     )
   );
   margin-inline: auto;
