@@ -309,7 +309,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### SCR-REVIEW (new) · Review stage (host)
 
-- **Today:** Review is spread across PNL-REVIEW-QUEUE, PNL-TIGHTEN, PNL-COMMENTS, INS-PENDING and OVL-PENDING. Shots: `PNL-REVIEW-QUEUE--*`, `PNL-TIGHTEN--*`, `PNL-COMMENTS--*`, `INS-PENDING--*`.
+- **Today:** Review is spread across PNL-REVIEW-QUEUE, PNL-TIGHTEN, PNL-COMMENTS, INS-PENDING and OVL-PENDING. Shots: `PNL-IMPACT--*` (the Impact tab, now PNL-REVIEW-QUEUE), `PNL-TIGHTEN--*`, `PNL-COMMENTS--*`, `INS-PENDING--*`.
   - Purpose: decisions are split across four places with four vocabularies ("pending edit", "tighten hit", "comment", "applied").
   - Interaction cost: approving one cut needs the timeline, an inspector and a 409 recovery (desktop F03).
   - Feedback: Apply suggested runs 65 to 79 s with no progress (real-recording F01).
@@ -337,11 +337,11 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
   - Comment thread on the same moment (if any) shows below the action row, collapsed to its first line.
   - Unsure word inside the range: the word has a dotted underline and the card shows "Unsure word: is this “uncle”?" with Fix text (inline field) before the primary verb is enabled; this keeps unsure words out of blind approval (ui-philosophy §1).
 - **Shared elements used:** Suggestion, A/B audition, Decision card (NEW), Object selection verbs (Cut, Keep, Comment, Hear, Fix text).
-- **Story to build:** `Stages/Review/DecisionCard` stories `Filler`, `Pause`, `Sound`, `Adjusting`, `UnsureWord`, `UnsureWordEmptySave`, `UnsureWordWithHear`, `CutWithUnsureWord`, `WithComment`, `Check`, `CutAnywayPrompt`, `Comment`, `GuestSuggestion`, `GuestReadOnly`, `GuestEditor`, `Empty`, `Loading`, `Phone`, `PhoneUnsureWordOpenInEdit`.
+- **Stories:** `Stages/Review/DecisionCard` stories `Filler`, `Pause`, `Sound`, `Adjusting`, `UnsureWord`, `UnsureWordEmptySave`, `UnsureWordWithHear`, `CutWithUnsureWord`, `WithComment`, `Check`, `CutAnywayPrompt`, `Comment`, `GuestSuggestion`, `GuestReadOnly`, `GuestEditor`, `Empty`, `Loading`, `LoadError`, `Phone`, `Phone390`, `PhoneGuest`, `PhoneUnsureWordOpenInEdit`, `PhoneEmpty`, `PhoneSwipe`.
 
 ### PNL-REVIEW-QUEUE · Impact, now the Review queue (incl. refine-gate state, PNL-REVIEW-QUEUE-REFINE-GATE)
 
-- **Today:** `PNL-REVIEW-QUEUE--*`, `PNL-REVIEW-QUEUE-REFINE-GATE--*`. Totals as a definition list ("Total removed 0.00 s"), Approve all / Reject all, links like "guest's cut at 0:20.0 · agent:suggest"; the refine gate shows "Transcript refinement is required before approval…" and a required Waiver reason textarea (desktop F03, narrow F04, phone F01, F03).
+- **Today (before #2293, as the Impact tab; the shots keep their original `PNL-IMPACT--*` and `PNL-IMPACT-REFINE-GATE--*` names):** Totals as a definition list ("Total removed 0.00 s"), Approve all / Reject all, links like "guest's cut at 0:20.0 · agent:suggest"; the refine gate shows "Transcript refinement is required before approval…" and a required Waiver reason textarea (desktop F03, narrow F04, phone F01, F03).
 - **Fate:** merged into SCR-REVIEW (shipped in #2293 as the Queue tab) and Deliver's readiness check ("Edits"). The refine gate is a Check row and an in-card Cut anyway prompt.
 - **Spec (refine gate):**
   - What it is in user terms: cuts are placed by words, so someone should glance at the transcript before cut suggestions are applied.
