@@ -1491,3 +1491,64 @@ def test_restore_followed_tracks_restores_a_swap_in_one_pass(tmp_path):
     assert (row.track_ids, row.track_follows) == (["tx", "ta"], {"tx": "ta", "ta": "tb"})
     restore_followed_tracks(project, "s1")
     assert (row.track_ids, row.track_follows) == (["ta", "tb"], {})
+
+
+def _swapped_row(tmp_path, name: str, ids: list[str], follows: dict[str, str]):
+    from podcast_mcp.models import EpisodeProject, SessionSuggestion
+
+    project = EpisodeProject.create(name, str(tmp_path / name))
+    row = SessionSuggestion(
+        id="ss-s1", kind="replace", session_id="s1", session_number=2, track_ids=ids,
+        track_follows=follows,
+    )  # fmt: skip
+    project.editorial.session_suggestions.append(row)
+    return project, row
+
+
+def test_restore_followed_tracks_does_not_narrow_a_partly_restorable_swap(tmp_path):
+    from podcast_mcp.edits.session_suggestions import restore_followed_tracks
+
+    follows = {"tx": "ta", "ta": "tb"}
+    project, row = _swapped_row(tmp_path, "partial_contested", ["tx", "ta"], dict(follows))
+    restore_followed_tracks(project, "s1", contested={"tb"}, only={"tx", "ta"})
+    assert (row.track_ids, row.track_follows) == (["tx", "ta"], follows)
+    project, row = _swapped_row(tmp_path, "partial_only", ["tx", "ta"], dict(follows))
+    restore_followed_tracks(project, "s1", only={"tx"})
+    assert (row.track_ids, row.track_follows) == (["tx", "ta"], follows)
+
+
+def test_restore_followed_tracks_restores_a_three_cycle(tmp_path):
+    from podcast_mcp.edits.session_suggestions import restore_followed_tracks
+
+    project, row = _swapped_row(
+        tmp_path, "cycle", ["tb", "tc", "ta"], {"tb": "ta", "tc": "tb", "ta": "tc"}
+    )
+    restore_followed_tracks(project, "s1")
+    assert (row.track_ids, row.track_follows) == (["ta", "tb", "tc"], {})
+
+
+def test_restore_followed_tracks_restores_a_chain_only_from_its_end(tmp_path):
+    from podcast_mcp.edits.session_suggestions import restore_followed_tracks
+
+    project, row = _swapped_row(tmp_path, "chain", ["tx", "ta"], {"tx": "ta", "ta": "tb"})
+    restore_followed_tracks(project, "s1", only={"ta"})
+    assert (row.track_ids, row.track_follows) == (["tx", "tb"], {"tx": "ta"})
+    restore_followed_tracks(project, "s1", only={"tx"})
+    assert (row.track_ids, row.track_follows) == (["ta", "tb"], {})
+
+
+def test_a_removed_persons_bed_only_ack_does_not_block_the_restore(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track_a, _track_b, target = _replace_setup(ws)
+    room, zoe, _ben = _late_replace_room(ws, target, land=False, late="Zoe")
+    RecordControlService(ws).assign_track(zoe, track_a)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    RecordControlService(ws).assign_track(zoe, "new")
+    ghost = _late_guest(ws, room, "Ava")
+    _bed_only(ws, room, ghost)
+    _remove(ws, room, ghost)
+    RecordControlService(ws).discard_take(1)
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([track_a], {})
