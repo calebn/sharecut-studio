@@ -184,7 +184,7 @@ All use `ui/Dialog.tsx` (phone renders as a bottom sheet) unless noted. Export d
 | DLG-PALETTE | "Commands and shortcuts": search, category groups, shortcuts, remaps, Gestures handoff | `?` key, Menu > Help > Commands and shortcuts, phone More > search row | `layout/CommandPalette.tsx`, `layout/CommandPaletteView.tsx`, `layout/commandPaletteRows.ts`, `layout/paletteSearch.ts` | `layout/CommandPaletteView.stories.tsx` (Browse, Search, NoMatch, ShowRemaps, GesturesHandoff, Phone) | View | Discover and run commands |
 | DLG-GESTURES | "Gestures" cheatsheet (two-finger tap, long-press, pinch, swipe left on comment, hold-drag word, double-tap word) | Phone More > Gestures; palette link | `ui/GesturesSheet.tsx`, `commands/gestures.ts`, `layout/CheatsheetDialogs.tsx` | `ui/GesturesSheet.stories.tsx` (Open, KeyboardShortcutsHandoff, Phone) | Props | Teach touch gestures |
 | DLG-PRECISION | "Precision boundary": exact offset, fine adjustment, Listen current/proposed, Apply, Cancel; queued-for-sync state | Edit boundary mark > precision edit (host only) | `transcript/PrecisionBoundaryDialog.tsx` (768 lines) | NONE (`transcript/EditBoundaryMark.stories.tsx` shows the mark only) | Store | Exact boundary edits with audition |
-| DLG-RECORD | "Record room" (host): create room, Start/Pause/Resume/Stop, Land on timeline, mute, markers, roster, upload status, live comments, room tone, mic notices | Menu > Project > Record room…; record chip | `record/RecordPanel.tsx`, `record/StopTakeControl.tsx`, `record/RecordTransportChip.tsx` | Parts only (see section 10). Panel itself NONE | Store + Hook | Host recording control |
+| DLG-RECORD | Removed: the Record room dialog became the Record stage (`stage/hosts/RecordStage.tsx`); there is no Menu entry. Create room, Start/Pause/Resume/Stop, Land on timeline, mute, markers, roster, upload status, live comments, room tone and mic notices live in the stage and its More sheet | Stage bar > Record; Share > Open Record stage | `stage/hosts/RecordStage.tsx`, `stage/hosts/RecordStageView.tsx`, `stage/hosts/RecordMoreSheet.tsx` | `stage/hosts/RecordStage.stories.tsx` | Store + Hook | Host recording control |
 | DLG-ASK-CONFIRM | Confirm dialogs via `askConfirm`: "Remove the X track?" (Keep track / Remove track), "Cut at 0:12?" (phone and tablet blade; Don't cut / Cut), "Replace audio on X?", bulk Approve/Reject all, Apply suggested tighten | Remove track; blade on touch; import onto a track with audio; Impact bulk buttons; Tighten apply suggested | `feedback/AskDialog.tsx`, `feedback/AskDialogView.tsx`, `feedback/ask.ts`, `utils/pendingReviewPass.ts` | `feedback/AskDialogView.stories.tsx` (Confirm) | View | Safety check before a risky action |
 | DLG-ASK-TEXT | Removed (#2295): the "Open project" path prompt. With no OS picker, Open project… goes to Home, which shows the Open other… path field | Menu > Open project… when the OS file picker is unavailable | `stages/home/OpenOther.tsx` | `stages/home/OpenOther.stories.tsx` (PathFallback) | View | Ask for an episode folder |
 | CMP-INLINE-CONFIRM | Inline confirm (Keep first and focused, then action) inside Share and Record stop | Stop sharing; End room; Stop take | `ui/InlineConfirm.tsx` | `ui/InlineConfirm.stories.tsx` (Default, Busy) | Props | Cheap confirm inside a dialog |
@@ -255,9 +255,9 @@ Guest-specific interactions: INT-COMMENT-MODE, INT-COMMENT-RESOLVE (host only), 
 | CMP-REC-UPLOAD | Upload status and recovery | Room, lobby recovery, host panel | `record/UploadStatus.tsx` | `record/UploadStatus.stories.tsx` (Uploading, WaitingToLand, Landed, LandFailed, UploadFailed, PartialKeeper, RecoveryBusy, RecoveryFailed, ReclaimFailed, FingerprintMismatch) | Props | Show local-to-host upload |
 | CMP-REC-CLIPPING | Clipping badge on a person tile | Room and host stage | `system/RoomTile.tsx`, `system/RoomAlert.tsx` | `system/RoomTile.stories.tsx` (Clipping); `system/RoomAlert.stories.tsx` (Clipping) | Props | Warn about clipped audio |
 | CMP-REC-NOTICES | Room alerts (mic lost, no audio, storage failed, saving failed, recovery, host offline) and the storage headroom warning; save announcer | Room, Join sheet | `system/RoomAlert.tsx`, `record/StorageHeadroomWarning.tsx`, `record/SaveAnnouncer.tsx` | `system/RoomAlert.stories.tsx`; `record/RecordNotices.stories.tsx` (StorageLow, StorageUnknown) | Props | Fail loudly and recoverably |
-| CMP-REC-HOSTROSTER | Host upload roster (per participant saving, expected parts, landed, land failed) | Host Record room panel | `record/HostUploadRoster.tsx` | `record/HostUploadRoster.stories.tsx` (Saving, ExpectedParts, SavedAwaitingLand, Landed, LandFailed, MultipleSegments, UnknownParticipant, ProducerExcluded, TwelveTakeParticipants, StressLongNamesMobile) | Props | Host sees every upload |
-| CMP-REC-STOP | Stop take with inline confirm (Keep first) | Host record panel | `record/StopTakeControl.tsx` | NONE | Props | Prevent accidental stop |
-| CHIP-REC-TRANSPORT | Recording chip in transport | Host, while a take records | `record/RecordTransportChip.tsx` | NONE | Store | Persistent recording status |
+| CMP-REC-HOSTROSTER | Removed: the host upload roster is no longer a component; per-person saving state shows on the Record stage room | none | none | none | n/a | Host sees every upload |
+| CMP-REC-STOP | Removed: the Stop take inline confirm is no longer a component; Stop is the Record button while a take runs, with its confirm prompt | none | none | none | n/a | Prevent accidental stop |
+| CHIP-REC-TRANSPORT | Removed: the recording chip in the transport (the Record stage status replaces it) | none | none | none | n/a | Persistent recording status |
 
 ---
 
@@ -388,7 +388,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | DLG-GESTURES | Phone: More > `Gestures`; or palette > link. |
 | DLG-ASK-CONFIRM | Remove track: select a track, press Delete, or Track inspector > Remove; dialog title "Remove the <label> track?". Touch blade: phone, Blade cut from the command palette. Bulk review: Impact > `Approve all (n)`. |
 | DLG-ASK-TEXT | Removed. Menu > `Open project…` with the OS file picker unavailable (mock `pickEpisodeProject` to `{unavailable:true}`) goes to `/?home=1&openOther=1`, where the path field is open. |
-| DLG-RECORD | R-HOST; Menu > `Record room…`; dialog "Record room". |
+| DLG-RECORD | Removed. R-HOST; Stage bar > `Record` (the Record stage, main "Record"). |
 | SCR-PHONE-LISTEN/TIMELINE/TEXT/MORE | R-HOST at 390x844; `navigation "Primary"` buttons `Listen`, `Timeline`, `Text`, `More` (see `e2e/phoneTimeline.ts`). Timeline waits for `.timeline-scroll .track-headers:not([aria-busy=true])`. |
 | SCR-GUEST-* | R-GUEST for each role at 1440x900 and 390x844. Offline: block `**/api/review/**` after a first load so the cached snapshot path runs (`e2e/offlineQueue.ts`, `e2e/networkOutage.ts`). Version notice: bump the project from the host while the guest is open. |
 | BAN-FOLLOW | Two pages (host + guest); click the other person's avatar in `group "People in session"`; see `e2e/presence-follow.spec.ts`. |
@@ -441,7 +441,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | SCR-GUEST-OFFLINE, BAN-GUEST-ATTENTION, BAN-FOLLOW | yes | |
 | BAN-GUEST-ROLE, BAN-GUEST-VERSION, CMP-GUEST-NAME, CMP-GUEST-COMMENT | partial | Compose yes; others no |
 | SCR-REC-LOADING, -INVALID, -FULL, -DECLINED, -LOBBY-*, -ROOM-*, CMP-REC-DEVICE/CONSENT/INDICATOR/ROSTER/LIVECOMMENTS/UPLOAD/CLIPPING/HOSTROSTER | yes | |
-| SCR-REC-ACCESS-ENDED, CMP-REC-STOP, CHIP-REC-TRANSPORT | no | |
+| SCR-REC-ACCESS-ENDED | no | |
 | CMP-REC-NOTICES | Room alerts (mic lost, no audio, storage failed, saving failed, recovery, host offline) and the storage headroom warning; save announcer | Room, Join sheet | `system/RoomAlert.tsx`, `record/StorageHeadroomWarning.tsx`, `record/SaveAnnouncer.tsx` | `system/RoomAlert.stories.tsx`; `record/RecordNotices.stories.tsx` (StorageLow, StorageUnknown) | Props | Fail loudly and recoverably |
 | TOAST-MAIN | partial | Toast yes, dock no |
 | EMPTY-STATES, CMP-INLINE-ERROR, CMP-INLINE-CONFIRM | yes | |
@@ -470,7 +470,7 @@ Tally of the 154 non-interaction items, counted from the Story columns: 67 yes, 
 14. **MENU-CREATE, POP-CHOOSER, CMP-RANGE-ACTIONS** (touch-first, core editing) with phone frames.
 15. **SCR-GUEST role banners and GuestVersionNotice, LoadFailureBanner, BAN-GUEST-ROLE**: one story file `Templates/GuestBanners` covering Viewer, Commenter, Editor, version notice, load failure.
 16. **POP-WORD-EDIT, POP-SPEAKER, CMP-FINDREPLACE, CMP-WORDBAR**: prop-only components; quick wins.
-17. **SCR-REC-ACCESS-ENDED, CMP-REC-STOP, CHIP-REC-TRANSPORT, CMP-REC-NOTICES** (small).
+17. **SCR-REC-ACCESS-ENDED, CMP-REC-NOTICES** (small).
 18. **SCR-LAYOUT-* modes and CMP-DRAWER-HANDLE, CMP-LAYOUT-CHIP**: add three StudioShellView stories for Timeline/Text/Review layouts.
 19. **TOAST dock** over a sheet and over the tool rail (phone and tablet).
 20. **Interactions with no frozen-state story**: INT-RANGE, INT-WORD-*, INT-TIGHTEN, INT-CREATE, INT-TOUCH-CHOOSE, INT-PINCH, INT-CLIPBOARD. Prefer Playwright captures for these.
