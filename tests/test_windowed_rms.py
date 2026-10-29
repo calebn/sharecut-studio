@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import shutil
 import threading
 from pathlib import Path
 
@@ -35,11 +36,13 @@ from podcast_mcp.engines.windowed_rms import (
     WindowMiss,
     resampled_window,
 )
+from podcast_mcp.models import Clip
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.project_state import project_state_lock
 from test_audio_eval import (
     CLIP_LAYOUTS,
     _chained,
+    _convert,
     _ffmpeg_or_skip,
     _project,
     _with_envelope,
@@ -578,6 +581,17 @@ def test_a_missing_window_is_not_an_error_a_consumer_may_swallow() -> None:
 # --- the builder ------------------------------------------------------------------------
 
 
+def _window(project, track_id: str, defaults, start: float, end: float):  # type: ignore[no-untyped-def]
+    """The planned, built and verified window, as ``_windowed_caches`` takes it for one track."""
+    plan = track_evidence.plan_window(project, track_id, defaults)
+    if plan is None:
+        return None
+    cache = track_evidence.build_window(plan, start, end, profile=BASE)
+    if cache is not None:
+        plan.verify(cache)
+    return cache
+
+
 def _full(project) -> np.ndarray:
     entry = track_evidence._entry(project, "caleb", load_defaults(), locked=False)
     assert not isinstance(entry, Declined)
@@ -594,7 +608,7 @@ def test_the_window_of_a_track_is_the_track_evidence_there(layout: str, tmp_path
     for _ in range(6):
         t0 = float(rng.uniform(0.0, seconds - 1.0))
         t1 = float(min(seconds + 1.0, t0 + rng.uniform(0.2, 8.0)))
-        cache = track_evidence.rms_window(project, "caleb", load_defaults(), t0, t1, profile=BASE)
+        cache = _window(project, "caleb", load_defaults(), t0, t1)
         assert cache is not None
         assert cache.total_size == whole.size
         reference = TrackRmsCache(samples=whole, sample_rate=RATE)
@@ -609,9 +623,7 @@ def test_a_window_reaching_the_ends_of_the_track_is_the_track_there(tmp_path: Pa
     whole = _full(project)
     reference = TrackRmsCache(samples=whole, sample_rate=RATE)
     seconds = whole.size / RATE
-    cache = track_evidence.rms_window(
-        project, "caleb", load_defaults(), -3.0, seconds + 3.0, profile=BASE
-    )
+    cache = _window(project, "caleb", load_defaults(), -3.0, seconds + 3.0)
     assert cache is not None and cache.coverage == (0, whole.size)
     assert _same(cache.window(0.0, seconds + 1.0), reference.window(0.0, seconds + 1.0))
 
@@ -620,7 +632,7 @@ def test_the_window_is_not_kept_with_the_tracks_whole_evidence(tmp_path: Path) -
     _ffmpeg_or_skip()
     project = _project(tmp_path, "mixed joins and pads")
     with batch_scope():
-        track_evidence.rms_window(project, "caleb", load_defaults(), 2.0, 5.0, profile=BASE)
+        _window(project, "caleb", load_defaults(), 2.0, 5.0)
         store = track_evidence._store()
         planned = track_evidence._plan(project, "caleb", load_defaults())
         assert not isinstance(planned, Declined)
@@ -631,7 +643,7 @@ def test_a_window_holds_the_slack_either_side_of_the_seconds_asked(tmp_path: Pat
     _ffmpeg_or_skip()
     project = _project(tmp_path, "mixed joins and pads")
     with batch_scope():
-        found = track_evidence.rms_window(project, "caleb", load_defaults(), 2.0, 6.0, profile=BASE)
+        found = _window(project, "caleb", load_defaults(), 2.0, 6.0)
     assert found is not None
     first, last = found.coverage
     assert first == 2 * RATE - track_evidence._WINDOW_SLACK
@@ -643,10 +655,7 @@ def test_a_track_the_store_already_holds_is_read_whole(tmp_path: Path) -> None:
     project = _project(tmp_path, "mixed joins and pads")
     with batch_scope():
         _full(project)
-        assert (
-            track_evidence.rms_window(project, "caleb", load_defaults(), 2.0, 5.0, profile=BASE)
-            is None
-        )
+        assert _window(project, "caleb", load_defaults(), 2.0, 5.0) is None
 
 
 def test_verifying_evidence_compares_a_window_with_the_whole_track(
@@ -656,10 +665,7 @@ def test_verifying_evidence_compares_a_window_with_the_whole_track(
     monkeypatch.setenv(track_evidence.VERIFY_ENV, "1")
     project = _project(tmp_path, "mixed joins and pads")
     with batch_scope():
-        assert (
-            track_evidence.rms_window(project, "caleb", load_defaults(), 2.0, 5.0, profile=BASE)
-            is not None
-        )
+        assert _window(project, "caleb", load_defaults(), 2.0, 5.0) is not None
         # a corrupted window must be caught
         broken = WindowedTrackRmsCache(
             np.zeros(10, dtype=np.float32),
@@ -677,14 +683,11 @@ def test_a_44_1_khz_track_is_windowed_and_verified_against_the_whole_track(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _ffmpeg_or_skip()
-    # With VERIFY_ENV set, rms_window itself raises AssertionError on any difference from the whole.
+    # With VERIFY_ENV set, the window check raises AssertionError on any difference from the whole.
     monkeypatch.setenv(track_evidence.VERIFY_ENV, "1")
     project = _project(tmp_path, "mixed joins and pads", mono_rate=44100)
     with batch_scope():
-        assert (
-            track_evidence.rms_window(project, "caleb", load_defaults(), 2.0, 5.0, profile=BASE)
-            is not None
-        )
+        assert _window(project, "caleb", load_defaults(), 2.0, 5.0) is not None
 
 
 # --- declines: the full path serves them ------------------------------------------------
@@ -695,7 +698,7 @@ def _window_of(project, curve: str | None = None):
     if curve is not None:
         defaults = copy.deepcopy(defaults)
         defaults["render"]["crossfade_curve"] = curve
-    return track_evidence.rms_window(project, "caleb", defaults, 2.0, 6.0, profile=BASE)
+    return _window(project, "caleb", defaults, 2.0, 6.0)
 
 
 def test_a_volume_envelope_keeps_the_render(tmp_path: Path) -> None:
@@ -798,8 +801,8 @@ def test_a_chained_track_is_windowed_and_the_rest_are_not(tmp_path: Path) -> Non
 # --- the windows of one rebuild are built together (#2359) --------------------------------
 
 
-def _two_tracks(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Track ids ``a`` and ``b`` that both stand for the project's one track."""
+def _alias_two_ids_by_patching_plan_window(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Patch ``plan_window`` so ids ``a`` and ``b`` both plan the project's one track (``caleb``)."""
     real = track_evidence.plan_window
 
     def plan(project, track_id, defaults, **kwargs):  # type: ignore[no-untyped-def]
@@ -807,6 +810,28 @@ def _two_tracks(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     monkeypatch.setattr(track_evidence, "plan_window", plan)
     return ["a", "b"]
+
+
+def _distinct_tracks(project, workspace: Path, rate: int | None) -> list[str]:
+    """``caleb`` and ``audra``: different recordings under different clip layouts."""
+    if rate is not None:
+        source = workspace / "raw" / "audra.flac"
+        _convert(source, workspace / "audra.tmp.flac", rate=rate)
+        shutil.move(workspace / "audra.tmp.flac", source)
+    project.timeline.clips = [c for c in project.clips if c.track_id != "audra"] + [
+        Clip(
+            id=f"audra{i}",
+            track_id="audra",
+            source_start=start,
+            source_end=end,
+            timeline_start=at,
+            fade_in_ms=fade_in,
+            fade_out_ms=fade_out,
+            join_in_mode=mode,
+        )
+        for i, (start, end, at, fade_in, fade_out, mode) in enumerate(CLIP_LAYOUTS["fade joins"])
+    ]
+    return ["caleb", "audra"]
 
 
 def _windowed(project, ids: list[str], *, private: bool = True) -> dict:
@@ -820,7 +845,7 @@ def test_windows_built_together_are_those_built_one_after_another(
 ) -> None:
     _ffmpeg_or_skip()
     project = _project(tmp_path, "mixed joins and pads", mono_rate=mono_rate)
-    ids = _two_tracks(monkeypatch)
+    ids = _alias_two_ids_by_patching_plan_window(monkeypatch)
     with monkeypatch.context() as serial:
         serial.setattr(audio_audit, "cpu_budget", lambda: 1)
         one_by_one = _windowed(project, ids)
@@ -836,12 +861,35 @@ def test_windows_built_together_are_those_built_one_after_another(
         assert _same(got.held, want.held)
 
 
+@pytest.mark.parametrize("rate", [48000, 44100])
+def test_windows_of_distinct_tracks_built_together_are_those_built_one_after_another(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rate: int
+) -> None:
+    _ffmpeg_or_skip()
+    project = _project(tmp_path, "mixed joins and pads", mono_rate=None if rate == 48000 else rate)
+    ids = _distinct_tracks(project, tmp_path / "project", None if rate == 48000 else rate)
+    with monkeypatch.context() as serial:
+        serial.setattr(audio_audit, "cpu_budget", lambda: 1)
+        one_by_one = _windowed(project, ids)
+    monkeypatch.setattr(audio_audit, "cpu_budget", lambda: 2)
+
+    together = _windowed(project, ids)
+
+    assert list(together) == list(one_by_one) == ids
+    for tid in ids:
+        got, want = together[tid], one_by_one[tid]
+        assert isinstance(got, WindowedTrackRmsCache) and isinstance(want, WindowedTrackRmsCache)
+        assert (got.coverage, got.total_size) == (want.coverage, want.total_size)
+        assert _same(got.held, want.held)
+    assert not _same(together["caleb"].held, together["audra"].held)
+
+
 def test_windows_are_built_while_the_caller_holds_the_project_lock(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _ffmpeg_or_skip()
     project = _project(tmp_path, "mixed joins and pads")
-    ids = _two_tracks(monkeypatch)
+    ids = _alias_two_ids_by_patching_plan_window(monkeypatch)
     monkeypatch.setattr(audio_audit, "cpu_budget", lambda: 2)
     result: dict = {}
 
@@ -862,7 +910,7 @@ def test_a_track_whose_window_cannot_be_built_is_skipped_and_the_other_is_built(
 ) -> None:
     _ffmpeg_or_skip()
     project = _project(tmp_path, "mixed joins and pads")
-    ids = _two_tracks(monkeypatch)
+    ids = _alias_two_ids_by_patching_plan_window(monkeypatch)
     monkeypatch.setattr(audio_audit, "cpu_budget", lambda: 2)
     profiles = {"a": BASE, "b": LevelProfile(room_db=-61.0, speech_db=-21.0, loud_db=-13.0)}
     real = track_evidence.build_window
@@ -897,7 +945,7 @@ def test_the_first_error_by_track_order_is_the_one_raised(
 ) -> None:
     _ffmpeg_or_skip()
     project = _project(tmp_path, "mixed joins and pads")
-    ids = _two_tracks(monkeypatch)
+    ids = _alias_two_ids_by_patching_plan_window(monkeypatch)
     monkeypatch.setattr(audio_audit, "cpu_budget", lambda: 2)
     profiles = {"a": BASE, "b": LevelProfile(room_db=-61.0, speech_db=-21.0, loud_db=-13.0)}
     by_profile = {id(profile): tid for tid, profile in profiles.items()}
