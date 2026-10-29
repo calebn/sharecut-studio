@@ -20,6 +20,8 @@ from podcast_mcp.edits.timeline_ops import (
     mute_room_tone_fill,
 )
 from podcast_mcp.engines.room_tone import (
+    SPEECH_GUARD_SEC,
+    BedUnavailable,
     OwnQuietSample,
     RecordedBedSample,
     Sample,
@@ -280,6 +282,44 @@ def test_short_burst_in_a_long_bed_is_not_averaged_away(tmp_path: Path) -> None:
 
     assert isinstance(selected, RecordedBedSample)
     assert not (selected.start < 3.6 and selected.end > 3.0)
+
+
+def test_a_bed_whose_longest_quiet_run_is_too_short_to_tile_is_rejected(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = _noise(-62.0, seed=7)
+    for second in range(len(bed) // SR):
+        if second % 2 == 1:
+            _add_voice(bed, second + 0.1, second + 0.9, VOICE_DB)
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_bed(project, "host")
+
+    assert isinstance(selected, BedUnavailable)
+    assert selected.cause == "contaminated_bed"
+
+
+def test_a_bed_stretch_starts_a_guard_after_the_cough_that_precedes_it(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = _noise(-62.0, seed=7)
+    _add_voice(bed, 3.0, 3.6, VOICE_DB)
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_bed(project, "host")
+
+    assert isinstance(selected, RecordedBedSample)
+    assert selected.start >= 3.6 + 2 * SPEECH_GUARD_SEC - 1e-6
+
+
+def test_the_bed_stretch_is_the_longest_quiet_run(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = _minute_noise(7)
+    _add_voice(bed, 41.0, 41.6, VOICE_DB)
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_bed(project, "host")
+
+    assert isinstance(selected, RecordedBedSample)
+    assert (selected.start, selected.end) == pytest.approx((0.0, 41.0), abs=0.5)
 
 
 def test_a_bed_loud_throughout_is_still_rejected(tmp_path: Path) -> None:
