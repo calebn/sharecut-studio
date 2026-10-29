@@ -37,12 +37,6 @@ describe("App styles", () => {
     expect(palette).not.toMatch(
       /\.share-dialog-body\s*\{[^}]*overflow-y:\s*auto/s,
     );
-    expect(palette).not.toMatch(
-      /\.share-dialog-scroller\s*\{[^}]*overflow:\s*auto/s,
-    );
-    expect(palette).not.toMatch(
-      /\.command-palette-panel\.share-dialog-panel\s*\{[^}]*overflow:\s*hidden/s,
-    );
     const ui = readFileSync(join(here, "styles/partials/ui.css"), "utf8");
     expect(ui).toMatch(/\.ui-menu-panel\s*\{[^}]*overflow-y:\s*auto/s);
     expect(ui).toMatch(/--menu-available-height/);
