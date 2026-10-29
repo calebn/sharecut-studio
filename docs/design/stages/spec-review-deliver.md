@@ -356,7 +356,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 - **Today:** `PNL-TIGHTEN--desktop-light.png`, `PNL-TIGHTEN--phone-light.png`. Search field, class chips, Track select, "Harsh cuts only", Intensity select, "Find hits", a disabled "Apply suggested actions (0)" and "0 of 0 hits". Pauses barely shorten (real-recording F06); apply-all has no progress (F01).
 - **Fate:** merge. Finding runs automatically in Prepare (row 5) with "How tight" in Prepare's Cleanup; results become suggestion groups in the Review queue; "Find more" in the queue header reruns.
-- **Spec:** the class filter becomes the queue's group headers; track filter becomes a speaker swatch filter in the Queue header's more menu; "Harsh cuts only" becomes a sort option "Most noticeable first". Apply suggested = each group's bulk verb with a Job row and one Undo (see SCR-REVIEW).
+- **Spec:** the class filter becomes the queue's group headers. Apply suggested = each group's bulk verb with a Job row and one Undo (see SCR-REVIEW). The speaker swatch filter and the "Most noticeable first" sort are not built, and no Studio surface reads `harsh`.
 - **Shared elements used:** Review queue, Job row.
 - **Story to build:** covered by `Stages/Review/Review` `BulkRunning` and `Stages/Review/Queue` `Groups`.
 - **Shipped in PR 4 (#2293):** Find more, the Job row, the group bulk running row and `Cut all`; the Tighten tab, panel and `tighten.*` commands and keys are removed. A wire tab `tighten` from an older client lands on Queue. Not built, tracked in #2650: the speaker swatch filter, the "Most noticeable first" sort and the Just applied list.
@@ -385,7 +385,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
   - Comment row (queue, 56 px): avatar 24 px, first line of body, time in monospace, reply count glyph. Unread: 8 px accent dot.
   - Comment thread (card): author line = avatar + display name + relative time; body 15/22; anchor shown once as a time range button with a play glyph; edit own comment by clicking the body (InlineEditInput, Enter saves, Esc cancels); action items as checkboxes with the item text; reply composer; Resolve primary. Resolved threads show the comment-check icon and "Reopen" text button.
   - Composer: a single field with the anchor time as a leading chip inside the field ("18:36"), tap the chip to re-anchor to the playhead; Enter posts, ⇧Enter newline; on phone the Post button is an arrow icon 44 px inside the field's right edge.
-  - Swipe left on a comment row (touch) = Resolve, with Undo toast.
+  - Swipe right on a comment card (touch) = Resolve, with Undo toast. Swipe left does nothing on a comment: Keep does not apply, and Remove would delete it.
 - **Shared elements used:** Person tile avatar, Comment verb, Toast with Undo.
 - **Story to build:** `Stages/Review/CommentCard` (as above) and `Stages/Review/Composer` stories `Empty`, `Anchored`, `Posting`, `Offline`, `GuestFirstPost`, `Phone`.
 

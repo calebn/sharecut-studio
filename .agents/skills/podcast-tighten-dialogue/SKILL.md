@@ -127,7 +127,7 @@ returns the same hits, under the same ids, each run. An Ask thread
      `sound_kind`, `label` and `suggested_action`, like `propose_edits` rows; group by `kind`, not the reason prefix.
    Entries with `review_required: true` need `approve_edits_tool` before render.
 5. Approve **per hit** (`approve_edits_tool` with ids) after the user hears it.
-   When the user asks for Studio's Apply suggested actions, call
+   When the user asks to apply the suggested actions, call
    `propose_edits`, read each edit's `label` and `suggested_action` (cut,
    shorten, lower or leave, from one table per kind of sound), then call
    `apply_suggested_actions_tool(project_path, ids=None, overrides=None)`
