@@ -90,7 +90,7 @@ export function bounceResultCopy(paths: readonly string[]): string {
 }
 
 /** `POST /api/export/bounce`, the same body as MCP `bounce_audio` and `podcast pipeline bounce`. */
-export type BounceBody = {
+type BounceBody = {
   track_ids: string[] | null;
   start_s: number | null;
   end_s: number | null;
