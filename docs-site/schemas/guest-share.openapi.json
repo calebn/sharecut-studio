@@ -4536,6 +4536,125 @@
         "title": "PhraseCorrectionItem",
         "type": "object"
       },
+      "ProposeTightenCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ProposeTightenPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ProposeTighten",
+            "default": "ProposeTighten",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id"
+        ],
+        "title": "ProposeTightenCommand",
+        "type": "object"
+      },
+      "ProposeTightenPayload": {
+        "properties": {
+          "edit_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ripple (default, from tighten.edit_mode) or mute; anything else means ripple.",
+            "title": "Edit Mode"
+          },
+          "intensity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "light, medium or aggressive (default from tighten.intensity); unknown values raise.",
+            "title": "Intensity"
+          }
+        },
+        "title": "ProposeTightenPayload",
+        "type": "object"
+      },
       "RangeAudioInput": {
         "additionalProperties": false,
         "properties": {
@@ -11383,6 +11502,7 @@
                     "MoveClips": "#/components/schemas/MoveClipsCommand",
                     "MoveSegment": "#/components/schemas/MoveSegmentCommand",
                     "PasteSegment": "#/components/schemas/PasteSegmentCommand",
+                    "ProposeTighten": "#/components/schemas/ProposeTightenCommand",
                     "ReconcileTranscript": "#/components/schemas/ReconcileTranscriptCommand",
                     "RedoHistory": "#/components/schemas/RedoHistoryCommand",
                     "RejectEdits": "#/components/schemas/RejectEditsCommand",
@@ -11604,6 +11724,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/ApplyAutoEditsCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ProposeTightenCommand"
                   },
                   {
                     "$ref": "#/components/schemas/ApplyEditPlanCommand"
