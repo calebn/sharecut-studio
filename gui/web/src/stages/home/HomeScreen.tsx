@@ -208,7 +208,6 @@ export function HomeScreen() {
 
   const pick = useCallback(
     (replaces?: string) => {
-      setReplacing(replaces);
       return guarded(
         async () => {
           const picked = await pickEpisodeProject();
@@ -219,6 +218,7 @@ export function HomeScreen() {
           }
           if ("unavailable" in picked && picked.unavailable) {
             if (replaces) setNotice(NO_PICKER);
+            setReplacing(replaces);
             setPathMode(true);
             return;
           }
