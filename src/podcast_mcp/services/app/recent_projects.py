@@ -375,9 +375,11 @@ def default_workspace_dir(name: str) -> Path:
     root = settings.text("PODCAST_WORKSPACE_ROOT")
     base = (Path(root).expanduser() if root else Path.home() / "ShareCut").resolve()
     clean = "".join(c for c in name if c not in '/\\:*?"<>|\0').strip(" .") or "episode"
-    if clean.split(".", 1)[0].upper() in _WINDOWS_RESERVED:
+    word = clean.split(".", 1)[0]
+    if word.upper() in _WINDOWS_RESERVED:
+        # The reserved word, not the name: the rest of the name may hold a lone surrogate.
         raise CodedError(
-            f'Windows can\'t use "{clean}" as a folder name. Choose another episode name.',
+            f'Windows can\'t use "{word}" as a folder name. Choose another episode name.',
             code="project_name_reserved",
         )
     with _RESERVE_LOCK:
