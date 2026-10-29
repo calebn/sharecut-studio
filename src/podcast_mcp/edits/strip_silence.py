@@ -53,12 +53,16 @@ def _kept_source_ranges(
     ]
 
 
+DEFAULT_STRIP_OVER_VOICE_FLOOR_DB = 0.0
+DEFAULT_STRIP_MIN_DURATION_SEC = 0.5
+
+
 def strip_silence(
     project: EpisodeProject,
     track_id: str,
     *,
-    over_voice_floor_db: float = 0.0,
-    min_duration_sec: float = 0.5,
+    over_voice_floor_db: float = DEFAULT_STRIP_OVER_VOICE_FLOOR_DB,
+    min_duration_sec: float = DEFAULT_STRIP_MIN_DURATION_SEC,
     keep_padding_sec: float = 0.05,
     use_inaudible_opt: bool | None = None,
     defaults: EffectiveConfig,
