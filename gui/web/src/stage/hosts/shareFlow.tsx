@@ -47,12 +47,14 @@ type CreateRequest = { scope: Scope; choices: ShareChoices };
 type Owner = { scope: Scope };
 
 const NO_ADDRESS = new Error("The link has no address to copy yet.");
+const ABANDONED = new Error(
+  "The project or stage changed before the link arrived.",
+);
 
 /**
  * The host's review links and record rooms, outside any stage so a result
  * that arrives after a click is still tied to the project and visit that made
- * it. Opening a project, reopening it at the same path, or leaving Deliver
- * starts over: the choices, a pending Refresh mix retry and any result still on
+ * it. Opening another project or leaving Deliver starts over: the choices, a pending Refresh mix retry and any result still on
  * its way are dropped. The listed links stay across a visit and are listed
  * again as Deliver shows.
  */
@@ -171,8 +173,8 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     [isCurrent],
   );
 
-  // A new project, the same one reopened, or leaving Deliver ends the visit:
-  // what was in flight is dropped. Only a new project forgets the listed links.
+  // A new project or leaving Deliver ends the visit: what was in flight is
+  // dropped. Only a new project forgets the listed links.
   useLayoutEffect(() => {
     const before = seen.current;
     if (
@@ -216,6 +218,15 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(() => void load(scopeNow()), [load, scopeNow]);
 
+  // The Share dialog makes and stops links too; list again when it closes.
+  const dialogOpen = useDawStore((s) => s.chrome.shareDialogOpen);
+  const dialogWasOpen = useRef(dialogOpen);
+  useEffect(() => {
+    const wasOpen = dialogWasOpen.current;
+    dialogWasOpen.current = dialogOpen;
+    if (wasOpen && !dialogOpen && onDeliver) reload();
+  }, [dialogOpen, onDeliver, reload]);
+
   /**
    * Mints and copies. `minted` is already running: the copy starts with it,
    * inside the click, and takes the link when it arrives.
@@ -224,6 +235,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     async (request: CreateRequest, minted: Promise<HostShareRow>) => {
       const copying = copyWhenReady(
         minted.then((share) => {
+          if (!isCurrent(request.scope)) throw ABANDONED;
           if (!share.url) throw NO_ADDRESS;
           return share.url;
         }),
@@ -312,8 +324,12 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     const current = recoveryRef.current;
     if (current.kind !== "needs_refresh") return;
     const { message } = current;
-    const retry = staleRequest.current;
-    if (!retry || !isCurrent(retry.scope)) return;
+    const stale = staleRequest.current;
+    if (!stale || !isCurrent(stale.scope)) return;
+    const retry: CreateRequest = {
+      scope: stale.scope,
+      choices: choicesRef.current,
+    };
     const owner = begin(retry.scope);
     if (!owner) return;
     setRecovery({ kind: "refreshing" });
@@ -378,6 +394,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     const made = createHostRecordRoom(scope.projectPath);
     const copying = copyWhenReady(
       made.then((room) => {
+        if (!isCurrent(scope)) throw ABANDONED;
         if (!room.guest.url) throw NO_ADDRESS;
         return room.guest.url;
       }),
@@ -420,6 +437,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       const made = replaceHostRecordInvite(scope.projectPath, sourceToken);
       const copying = copyWhenReady(
         made.then((share) => {
+          if (!isCurrent(scope)) throw ABANDONED;
           if (!share.url) throw NO_ADDRESS;
           return share.url;
         }),

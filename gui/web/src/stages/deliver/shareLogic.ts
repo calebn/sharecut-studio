@@ -119,15 +119,17 @@ const PRIVATE_HOST =
   /^(localhost|\[?::1\]?|0\.0\.0\.0|127\.[\d.]+|10\.[\d.]+|192\.168\.[\d.]+|172\.(1[6-9]|2\d|3[01])\.[\d.]+|169\.254\.[\d.]+|[^.]+|.+\.local|.+\.lan|.+\.home\.arpa)$/i;
 
 /**
- * Who can open a link: anyone when online sharing is on, or when the link is
- * not on this computer or its network; otherwise only people on this network.
+ * Whether a row says "only people on this network": when online sharing is
+ * off, or unset and the link is on this computer or its network. While it is
+ * connecting, reconnecting or offline, the status line above says so and a row
+ * adds no note.
  */
 export function reachOf(
   tunnel: TunnelStatus | null | undefined,
   url: string | null,
 ): "anywhere" | "network" {
   if (tunnel && tunnel.state !== "not_set_up") {
-    return tunnel.state === "online" ? "anywhere" : "network";
+    return tunnel.state === "off" ? "network" : "anywhere";
   }
   if (!url) return "anywhere";
   try {

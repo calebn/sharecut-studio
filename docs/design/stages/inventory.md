@@ -375,7 +375,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | PNL-HISTORY, PNL-REVIEW-QUEUE, PNL-TIGHTEN, PNL-PIPELINE | Tab by name. Pipeline needs `/api/pipeline/config`; Tighten needs hits (see `e2e/gui-surfaces.spec.ts`, `e2e/pipeline-*.spec.ts`). |
 | DLG-STEP-PARAMS | Phone: More > Pipeline > tap a step. |
 | INS-* | Click the object: clip (`.clip-block`), pending region, track header, chapter marker, comment pin, word, envelope point. Tablet: `.bottom-sheet[role=dialog]`; phone: compact inspector at the remembered detent. |
-| DLG-SHARE | Menu > `Share…`; dialog name "Share" (exact). Button `Create review link`, copy buttons, `Stop sharing`, `End room` confirm (`e2e/share-dialog.spec.ts`).. On Deliver, the Share section: `Create review link`, `Copy <Role> link`, `Stop sharing`, `End room` confirm (`e2e/share-deliver.spec.ts`, `e2e/share-deliver-phone.spec.ts`). |
+| DLG-SHARE | Menu > `Share…`; dialog name "Share" (exact). Button `Create review link`, copy buttons, `Stop sharing`, `End room` confirm (`e2e/share-dialog.spec.ts`). On Deliver, the Share section: `Create review link`, `Copy <Role> link`, `Stop sharing`, `End room` confirm (`e2e/share-deliver.spec.ts`, `e2e/share-deliver-phone.spec.ts`). |
 | DLG-MCP | Home or Menu > `Connect agent…`; dialog "Connect agent". |
 | DLG-HELP | Home > `Help`, or Menu > Help > `Export diagnostics…`; dialog "Help"; button `Create diagnostics bundle`. |
 | DLG-MODELS | Home > `Models`, or command palette "Manage models…"; dialog "Models" (mock `/api/bootstrap/*`). |
