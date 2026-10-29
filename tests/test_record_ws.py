@@ -565,19 +565,18 @@ def test_host_ws_joins_a_room_minted_after_it_opened_without_a_frame(
     with client.websocket_connect(url) as host:
         assert host.receive_json()["type"] == "Snapshot"
         created = ShareService(ws).create_record_room()
-        rec = _drain_until(
-            host,
-            lambda m: (
-                m.get("plane") == "record"
-                and any(
-                    p["participant_id"] == HOST_PARTICIPANT_ID
-                    for p in m["snapshot"].get("participants") or []
-                )
-            ),
-            n=60,
-        )
-        assert rec["snapshot"]["state"] == "lobby"
         svc = RecordSessionService(ws.project, session_id=created["session_id"])
+
+        def host_on_roster(message):
+            if message.get("plane") != "record":
+                return False
+            return any(
+                person["participant_id"] == HOST_PARTICIPANT_ID
+                for person in svc.snapshot()["participants"]
+            )
+
+        rec = _drain_until(host, host_on_roster, n=60)
+        assert rec["snapshot"]["state"] == "lobby"
         roster = {p["participant_id"]: p for p in svc.snapshot()["participants"]}
         assert roster[HOST_PARTICIPANT_ID]["display_name"] == "Host"
         assert roster[HOST_PARTICIPANT_ID]["connected"] is True
