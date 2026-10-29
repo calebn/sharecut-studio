@@ -402,7 +402,7 @@ def _pad_records_seen(
     """What a pause reads from the edit log: its pad records (#2439).
 
     ``original_pause_support`` rejects a pad-purpose record with no ``pad_samples``, any record
-    whose ``pad_samples`` is not a list, a malformed sample (``pad_sample_well_formed``), a sample
+    whose ``pad_samples`` is neither a list nor a tuple, a malformed sample (``pad_sample_well_formed``), a sample
     on a recording it cannot resolve (``pad_sample_recording``), and a sample on the pause's own
     recording whose range is invalid (``pad_sample_range``). A valid sample's range marks tiles
     that are not original quiet. A record is hashed for what the check reads of it. Skipped: a
