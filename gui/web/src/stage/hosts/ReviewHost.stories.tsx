@@ -37,7 +37,7 @@ const meta: Meta<StageHostProps> = {
     docs: {
       description: {
         component:
-          "The Review stage host: Queue and Comments as sections of one stage, with the open section kept in the stage slice. A Viewer or Commenter link gets Comments only and no Stage bar.\n\n**Motion.** Switching section swaps the panel in one frame. The saved scroll position of each section returns when it is reopened.",
+          "The Review stage host: the host's Queue, where comments are items next to suggestions and checks, and the comment field opens above the card. A Viewer or Commenter link gets the Comments section only and no Stage bar.\n\n**Motion.** Selecting a comment swaps the card in one frame. The comment field opens with focus and closes on Escape.",
       },
     },
   },
@@ -55,13 +55,14 @@ const FAILURE = { message: "The server did not answer.", onRetry: fn() };
 
 export const Default: Story = {
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+    await waitFor(() =>
+      expect(canvasElement.querySelector(".rv-stage")).not.toBeNull(),
+    );
     await expect(
-      await canvas.findByRole("tablist", { name: "Review sections" }),
-    ).toBeVisible();
-    await expect(
-      canvas.getAllByRole("tab", { name: /Queue|Comments/ }).length,
-    ).toBeGreaterThanOrEqual(2);
+      within(canvasElement).queryByRole("tablist", {
+        name: "Review sections",
+      }),
+    ).toBeNull();
   },
 };
 
@@ -153,14 +154,34 @@ export const UnsureWords: Story = { play: unsureWordsPlay };
 
 export const UnsureWordsPhone: Story = { ...phone, play: unsureWordsPlay };
 
-export const SwitchSection: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole("tab", { name: /Queue/ }));
-    await waitFor(() =>
-      expect(useDawStore.getState().reviewSection).toBe("queue"),
-    );
-  },
+export const StaleCommentsSection: Story = {
+  parameters: running({ reviewSection: "comments" }),
+  play: queuePlay,
+};
+
+const composingPlay: Story["play"] = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  const field = await canvas.findByRole("textbox", { name: "Comment" });
+  await waitFor(() => expect(field).toHaveFocus());
+  await expect(canvas.getByText("0:40")).toBeVisible();
+  await userEvent.type(field, "Trim this{Escape}");
+  await waitFor(() =>
+    expect(canvas.queryByRole("textbox", { name: "Comment" })).toBeNull(),
+  );
+  await expect(useDawStore.getState().commentDraft).toBeNull();
+};
+
+const composing = running({ commentDraft: { startSec: 40.2, endSec: null } });
+
+export const Composing: Story = {
+  parameters: composing,
+  play: composingPlay,
+};
+
+export const ComposingPhone: Story = {
+  ...phone,
+  parameters: composing,
+  play: composingPlay,
 };
 
 export const Empty: Story = {
@@ -174,11 +195,9 @@ export const Empty: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("tablist", {
-        name: "Review sections",
-      }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(canvasElement.querySelector(".rv-stage")).not.toBeNull(),
+    );
   },
 };
 
@@ -211,11 +230,9 @@ export const LoadError: Story = {
 export const Phone: Story = {
   ...phone,
   play: async ({ canvasElement }) => {
-    await expect(
-      await within(canvasElement).findByRole("tablist", {
-        name: "Review sections",
-      }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(canvasElement.querySelector(".rv-stage")).not.toBeNull(),
+    );
   },
 };
 
