@@ -3,11 +3,15 @@ import { runPointerCommand } from "../../commands/pointer";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import {
+  deviceMic,
+  deviceTone,
   HEARING_COPY,
   type HostRoom,
+  hostMicStatus,
   hostRoomPhase,
   LOCAL_KEEPER_COPY,
   MIC_RETRY_LABEL,
+  MIC_SAVED_DEVICE_MISSING_COPY,
   noteItems,
   RECORD_ROOM_RECONNECTING_COPY,
   roomAlerts,
@@ -20,6 +24,7 @@ import {
   useRecordHostStore,
 } from "../../record";
 import { useDawStore } from "../../state/dawStore";
+import { DeviceSheet } from "../../system/DeviceSheet";
 import type { RoomViewProps } from "../../system/RoomView";
 import { TakesTray } from "../../system/TakesTray";
 import { dbToFraction } from "../../ui/metering";
@@ -64,6 +69,7 @@ function RecordStageBody({
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const shell = useViewportClass();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [deviceOpen, setDeviceOpen] = useState(false);
   const { snapshot, state, host, capture: cap } = room;
   const ticking = state === "recording" || state === "lobby";
   const elapsed = useElapsedSince(receivedAtMs, ticking);
@@ -170,6 +176,7 @@ function RecordStageBody({
         onPause: () =>
           room.runCommand(paused ? "record.resume" : "record.pause"),
         onMore: () => setMoreOpen(true),
+        onSelfPress: () => setDeviceOpen(true),
         takes,
       }
     : null;
@@ -226,15 +233,6 @@ function RecordStageBody({
       onLand={() => room.runCommand("record.land")}
       canStop={room.control?.stop === true}
       onStop={() => room.runCommand("record.stop")}
-      roomTone={{
-        available: toneAvailable,
-        status: room.roomTone.status,
-        delivery: room.roomTone.delivery,
-        error: room.roomTone.error,
-        micReady: !!cap.stream,
-        captureReady: room.sink !== null && room.roomTone.captureReady,
-        onRecord: room.roomTone.record,
-      }}
       upload={room.upload}
       keeperActions={room.keeperActions}
       stopped={state === "stopped"}
@@ -244,8 +242,45 @@ function RecordStageBody({
         setMoreOpen(false);
         setShareDialogOpen(true);
       }}
+      onDevices={() => {
+        setMoreOpen(false);
+        setDeviceOpen(true);
+      }}
     />
   ) : undefined;
+  const devices =
+    snapshot && deviceOpen ? (
+      <DeviceSheet
+        viewerWidth={viewerWidthOf(shell) === "desktop" ? "desktop" : "phone"}
+        mic={deviceMic(
+          {
+            status: hostMicStatus(cap.micStatus, cap.micLost),
+            stream: cap.stream,
+            devices: cap.devices,
+          },
+          {
+            deviceId: cap.staleMic ? "" : cap.deviceId,
+            levelDb: meter.levelDb,
+            clipped: meter.clipped,
+            inputLocked: live || paused,
+            detail: cap.micError ?? undefined,
+          },
+        )}
+        micNotes={cap.staleMic ? [MIC_SAVED_DEVICE_MISSING_COPY] : undefined}
+        onMicAction={() => cap.onRetryMic?.()}
+        onInputChange={cap.onDeviceChange}
+        tone={deviceTone({
+          status: room.roomTone.status,
+          delivery: room.roomTone.delivery,
+          error: room.roomTone.error,
+          micReady: !!cap.stream,
+          captureReady: room.sink !== null && room.roomTone.captureReady,
+          takeRunning: !toneAvailable,
+        })}
+        onRecordRoomTone={room.roomTone.record}
+        onClose={() => setDeviceOpen(false)}
+      />
+    ) : null;
 
   return (
     <RecordStageView
@@ -264,7 +299,12 @@ function RecordStageBody({
         />
       }
       notices={notices}
-      more={more}
+      more={
+        <>
+          {more}
+          {devices}
+        </>
+      }
       onCreateRoom={() => room.runCommand("record.createRoom")}
       onCheckAgain={room.recheck}
     />

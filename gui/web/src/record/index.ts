@@ -1,6 +1,7 @@
 // The editor's only door into record/: its store, wire, host room and helpers.
 
 export { recordingClockMs } from "./clock";
+export { deviceMic, deviceTone, hostMicStatus } from "./deviceSheet";
 export {
   type LandGate,
   landGate,
@@ -18,7 +19,10 @@ export {
   MARKER_BODY,
   postLiveComment,
 } from "./liveCommentQueue";
-export { MIC_RETRY_LABEL } from "./micPermission";
+export {
+  MIC_RETRY_LABEL,
+  MIC_SAVED_DEVICE_MISSING_COPY,
+} from "./micPermission";
 export { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
 export { noteItems } from "./noteItems";
 export {

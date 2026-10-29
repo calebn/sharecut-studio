@@ -24,6 +24,8 @@ export type RoomTileProps =
       alert?: boolean;
       /** The self tile adds a meter bar under the name. */
       isMe?: boolean;
+      /** The self tile only: pressing it opens the Device sheet. */
+      onPress?: () => void;
       saving?: RoomSaving | null;
     };
 

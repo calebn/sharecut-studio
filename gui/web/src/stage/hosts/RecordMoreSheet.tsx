@@ -1,22 +1,8 @@
 import { type ComponentProps, useState } from "react";
-import {
-  type LandGate,
-  ROOM_TONE_CAPTURING_COPY,
-  ROOM_TONE_DEVICE_COPY,
-  ROOM_TONE_HOST_COPY,
-  ROOM_TONE_NOT_READY_COPY,
-  ROOM_TONE_PROMPT_COPY,
-  ROOM_TONE_TOO_LOUD_COPY,
-  type RoomToneDelivery,
-  type RoomToneStatus,
-  STOP_CONFIRM_COPY,
-  UploadStatus,
-} from "../../record";
+import { type LandGate, STOP_CONFIRM_COPY, UploadStatus } from "../../record";
 import { Sheet } from "../../system/Sheet";
 import { Button, InlineConfirm } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
-
-const MIC_REASON = "Allow the microphone before recording room tone.";
 
 export type RecordMoreSheetProps = {
   open: boolean;
@@ -26,29 +12,14 @@ export type RecordMoreSheetProps = {
   onLand: () => void;
   canStop: boolean;
   onStop: () => void;
-  roomTone: {
-    available: boolean;
-    status: RoomToneStatus;
-    delivery: RoomToneDelivery;
-    error: string | null;
-    micReady: boolean;
-    captureReady: boolean;
-    onRecord: () => void;
-  };
   upload: ComponentProps<typeof UploadStatus>["progress"];
   keeperActions: ComponentProps<typeof UploadStatus>["actions"];
   stopped: boolean;
   onResumeUpload: () => void;
   removedInvite: boolean;
   onInvite: () => void;
+  onDevices: () => void;
 };
-
-function roomToneReason(tone: RecordMoreSheetProps["roomTone"]) {
-  if (!tone.micReady) return MIC_REASON;
-  if (!tone.captureReady) return ROOM_TONE_NOT_READY_COPY;
-  if (tone.status === "capturing") return ROOM_TONE_CAPTURING_COPY;
-  return undefined;
-}
 
 export function RecordMoreSheet({
   open,
@@ -58,13 +29,13 @@ export function RecordMoreSheet({
   onLand,
   canStop,
   onStop,
-  roomTone,
   upload,
   keeperActions,
   stopped,
   onResumeUpload,
   removedInvite,
   onInvite,
+  onDevices,
 }: RecordMoreSheetProps) {
   const [confirming, setConfirming] = useState(false);
   return (
@@ -107,31 +78,6 @@ export function RecordMoreSheet({
             {land.label}
           </Button>
         ) : null}
-        {roomTone.available ? (
-          <div className="stack" aria-live="polite">
-            <Button
-              disabledReason={roomToneReason(roomTone)}
-              onClick={roomTone.onRecord}
-            >
-              {roomTone.status === "capturing"
-                ? ROOM_TONE_CAPTURING_COPY
-                : ROOM_TONE_PROMPT_COPY}
-            </Button>
-            {roomTone.status === "too_loud" ? (
-              <p className="stage-host-note">{ROOM_TONE_TOO_LOUD_COPY}</p>
-            ) : null}
-            {roomTone.status === "recorded" ? (
-              <p className="stage-host-note">
-                {roomTone.delivery === "host"
-                  ? ROOM_TONE_HOST_COPY
-                  : ROOM_TONE_DEVICE_COPY}
-              </p>
-            ) : null}
-            {roomTone.error ? (
-              <p className="stage-host-note">{roomTone.error}</p>
-            ) : null}
-          </div>
-        ) : null}
         <UploadStatus
           progress={upload}
           stopped={stopped}
@@ -147,6 +93,7 @@ export function RecordMoreSheet({
             lease.
           </p>
         ) : null}
+        <Button onClick={onDevices}>Devices…</Button>
         <Button onClick={onInvite}>Invite and links…</Button>
       </div>
     </Sheet>

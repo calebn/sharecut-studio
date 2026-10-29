@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations, expectOutsideLiveRegions } from "../test/a11y";
@@ -105,7 +105,13 @@ function fakeRoom(over: Overrides = {}) {
       recover: vi.fn(),
       ...over.keeperActions,
     },
-    roomTone: { captureReady: false, record: vi.fn() },
+    roomTone: {
+      status: "idle",
+      delivery: "device",
+      error: null,
+      captureReady: false,
+      record: vi.fn(),
+    },
     liveComments: {
       note: "",
       setNote: vi.fn(),
@@ -364,6 +370,62 @@ describe("GuestRoomApp in the room", () => {
     });
     rerender(<GuestRoomApp token="t" />);
     expect(container.querySelector(".sys-room-clip")).toBeNull();
+  });
+
+  describe("Devices", () => {
+    const devices = [
+      { deviceId: "a", label: "USB Mic", kind: "audioinput" },
+      { deviceId: "b", label: "Headset", kind: "audioinput" },
+    ] as MediaDeviceInfo[];
+
+    it("opens from the guest's own tile with the mic, headphones and room tone", async () => {
+      const room = fakeRoom({
+        snapshot: { state: "lobby", take_index: -1 },
+        mic: { devices },
+      });
+      room.roomTone.captureReady = true;
+      const { baseElement } = render(<GuestRoomApp token="t" />);
+      expect(screen.queryByRole("dialog", { name: "Devices" })).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Devices" }));
+      const dialog = await screen.findByRole("dialog", { name: "Devices" });
+      await userEvent.selectOptions(
+        within(dialog).getByLabelText("Input"),
+        "b",
+      );
+      expect(room.setDeviceId).toHaveBeenCalledWith("b");
+      await userEvent.click(
+        within(dialog).getByRole("button", {
+          name: "I'm wearing headphones",
+        }),
+      );
+      expect(room.setHeadphonesOk).toHaveBeenCalledWith(false);
+      await userEvent.click(
+        within(dialog).getByRole("button", {
+          name: "Record 3 seconds of room tone",
+        }),
+      );
+      expect(room.roomTone.record).toHaveBeenCalledOnce();
+      await expectNoA11yViolations(baseElement);
+    });
+
+    it("locks the input menu and room tone while a take is running", async () => {
+      fakeRoom({ mic: { devices } });
+      render(<GuestRoomApp token="t" />);
+      await userEvent.click(screen.getByRole("button", { name: "Devices" }));
+      const dialog = await screen.findByRole("dialog", { name: "Devices" });
+      expect(within(dialog).getByLabelText("Input")).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", {
+          name: "Record 3 seconds of room tone",
+        }),
+      ).toBeDisabled();
+    });
+
+    it("gives a listening producer no device entry", () => {
+      fakeRoom({ producer: true, me: { ...me, role: "producer" } });
+      render(<GuestRoomApp token="t" />);
+      expect(screen.queryByRole("button", { name: "Devices" })).toBeNull();
+    });
   });
 
   describe("post-take clipping summary", () => {

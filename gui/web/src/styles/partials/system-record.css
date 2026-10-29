@@ -218,6 +218,19 @@
   cursor: pointer;
 }
 
+/* The self tile's press target covers the tile; the tile's text stays readable under it. */
+.sys-room-press {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
 .sys-room-main {
   display: flex;
   flex-direction: column;

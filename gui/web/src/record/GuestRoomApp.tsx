@@ -7,11 +7,14 @@ import {
   useMediaQueryStore,
 } from "../hooks/useMediaQueryStore";
 import { useViewportClass } from "../hooks/useViewportClass";
+import { DeviceSheet } from "../system/DeviceSheet";
 import { JoinSheet } from "../system/JoinSheet";
+import type { JoinMicAction } from "../system/joinSheetModel";
 import { RoomView } from "../system/RoomView";
 import { TakesTray } from "../system/TakesTray";
 import { LoadingScreen } from "../ui";
 import { dbToFraction } from "../ui/metering";
+import { deviceMic, deviceTone } from "./deviceSheet";
 import { GuestCovers } from "./GuestCovers";
 import {
   guestCoverProps,
@@ -85,6 +88,7 @@ function GuestRoomSession({
   const [rejoinOpen, setRejoinOpen] = useState(false);
   const [joining, setJoining] = useState(false);
   const [producerDismissed, setProducerDismissed] = useState(false);
+  const [deviceOpen, setDeviceOpen] = useState(false);
   const room = useGuestRoom(token, { rejoining: rejoinOpen });
   const {
     bootstrap,
@@ -334,6 +338,28 @@ function GuestRoomSession({
       : sink === null
         ? { text: LOCAL_KEEPER_PENDING_COPY }
         : undefined;
+  const micAction = (action: JoinMicAction) => {
+    if (action === "allow") {
+      meterRef.current.resume();
+      mic.request();
+    } else {
+      // A blocked mic shows "How to allow" and tells the guest to
+      // retry once the site is unblocked, so both ask again.
+      mic.retry();
+    }
+  };
+  const micInput = {
+    status: mic.status,
+    stream: mic.stream,
+    devices: mic.devices,
+  };
+  const micOptions = {
+    deviceId: staleMic ? "" : deviceId,
+    levelDb: meter.levelDb,
+    clipped: meter.clipped,
+    inputLocked: onAir,
+    detail: lostDetail,
+  };
   const heldLeave = !producer && leaveBlocked(state ?? "", upload);
 
   return (
@@ -360,6 +386,7 @@ function GuestRoomSession({
         }
         onComment={liveComments.postMarker}
         onLeave={() => send("Leave", {})}
+        onSelfPress={producer || !me ? undefined : () => setDeviceOpen(true)}
         leaveDisabledReason={heldLeave ? LEAVE_HELD_REASON : undefined}
         status={producer ? undefined : (savingStatus(upload) ?? undefined)}
         declined={declined}
@@ -377,37 +404,40 @@ function GuestRoomSession({
           host={host}
           name={name}
           onNameChange={setName}
-          mic={joinMic(
-            { status: mic.status, stream: mic.stream, devices: mic.devices },
-            {
-              deviceId: staleMic ? "" : deviceId,
-              levelDb: meter.levelDb,
-              clipped: meter.clipped,
-              inputLocked: onAir,
-              detail: lostDetail,
-            },
-          )}
+          mic={joinMic(micInput, micOptions)}
           micNotes={micNotes}
           headphones={headphonesOk}
           onHeadphonesChange={setHeadphonesOk}
           lowStorage={headroom.status === "low"}
           blocker={storageBlocker}
           onBlockerAction={retryStorage}
-          onMicAction={(action) => {
-            if (action === "allow") {
-              meterRef.current.resume();
-              mic.request();
-            } else {
-              // A blocked mic shows "How to allow" and tells the guest to
-              // retry once the site is unblocked, so both ask again.
-              mic.retry();
-            }
-          }}
+          onMicAction={micAction}
           onInputChange={setDeviceId}
           joining={joining && consented !== true}
           rejoin={rejoinOpen}
           onJoin={join}
           onDecline={decline}
+        />
+      ) : null}
+      {deviceOpen && !sheetOpen && !producer ? (
+        <DeviceSheet
+          viewerWidth={viewerWidth === "desktop" ? "desktop" : "phone"}
+          mic={deviceMic(micInput, micOptions)}
+          micNotes={micNotes}
+          onMicAction={micAction}
+          onInputChange={setDeviceId}
+          headphones={headphonesOk}
+          onHeadphonesChange={setHeadphonesOk}
+          tone={deviceTone({
+            status: roomTone.status,
+            delivery: roomTone.delivery,
+            error: roomTone.error,
+            micReady: !!mic.stream,
+            captureReady: roomTone.captureReady,
+            takeRunning: onAir,
+          })}
+          onRecordRoomTone={roomTone.record}
+          onClose={() => setDeviceOpen(false)}
         />
       ) : null}
       <div aria-live="polite" className="sr-only">

@@ -1,5 +1,4 @@
 import {
-  type CSSProperties,
   type FormEvent,
   type ReactNode,
   type RefObject,
@@ -7,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Button, Field, ToggleButton } from "../ui";
+import { Button, ToggleButton } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import { BUSY_REASON } from "../ui/disabledReason";
 import {
@@ -25,6 +24,7 @@ import {
   joinProducerModel,
   listenersLine,
 } from "./joinSheetModel";
+import { MicRow } from "./MicRow";
 import { PersonAvatar, type PersonData } from "./Person";
 import type { RoomRole } from "./roomViewModel";
 import { Sheet } from "./Sheet";
@@ -284,53 +284,11 @@ export function JoinSheet({
             {blocker ? <Row row={rowOf("storage")} onAction={act} /> : null}
             <Row row={rowOf("name")}>{nameField}</Row>
             <Row row={rowOf("mic")} onAction={act}>
-              {mic.status === "ready" && mic.devices?.length ? (
-                <Field
-                  label="Input"
-                  hint={mic.inputLocked ? JOIN_TEXT.inputLocked : undefined}
-                  className="sys-join-field"
-                >
-                  {(control) => (
-                    <select
-                      {...control}
-                      className="sys-join-input"
-                      value={mic.inputId ?? ""}
-                      disabled={mic.inputLocked}
-                      onChange={(event) => onInputChange?.(event.target.value)}
-                    >
-                      <option value="">{JOIN_TEXT.defaultInput}</option>
-                      {mic.devices?.map((device) => (
-                        <option key={device.id} value={device.id}>
-                          {device.label}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </Field>
-              ) : null}
-              {mic.status === "ready" ? (
-                <span
-                  className="sys-room-meter sys-join-meter"
-                  aria-hidden="true"
-                >
-                  <span
-                    className="sys-room-meter-fill"
-                    style={{ "--sys-room-level": mic.level } as CSSProperties}
-                  />
-                  <span
-                    className="sys-join-clip"
-                    data-lit={mic.clipped ? "" : undefined}
-                  />
-                </span>
-              ) : null}
-              <div role="status" className="sys-join-notes">
-                {guestModel.micNotes.map((note) => (
-                  <p key={note.text} className="sys-join-note">
-                    <SystemIcon name="triangle-alert" size={16} />
-                    {note.text}
-                  </p>
-                ))}
-              </div>
+              <MicRow
+                mic={mic}
+                notes={guestModel.micNotes}
+                onInputChange={onInputChange}
+              />
             </Row>
             <Row row={rowOf("headphones")}>
               <ToggleButton

@@ -40,6 +40,8 @@ export type RecordRoomLookup = "checking" | "none" | "found" | "failed";
 
 const SHOWN_RESULTS = new Set(["record.createRoom", "record.copyGuestLink"]);
 
+const NO_DEVICES: MediaDeviceInfo[] = [];
+
 export type HostRoomCapture = {
   recordingLocally?: boolean;
   keeperFinalizing?: boolean;
@@ -55,6 +57,10 @@ export type HostRoomCapture = {
   onRetryMic?: () => void;
   onCheckMic?: () => void;
   micCheckFailed?: boolean;
+  devices?: MediaDeviceInfo[];
+  deviceId?: string;
+  staleMic?: boolean;
+  onDeviceChange?: (deviceId: string) => void;
 };
 
 export function useHostRoom(
@@ -77,6 +83,10 @@ export function useHostRoom(
     onRetryMic,
     onCheckMic,
     micCheckFailed = false,
+    devices = NO_DEVICES,
+    deviceId = "",
+    staleMic = false,
+    onDeviceChange,
   } = input;
   const { projectPath, project, selectClip } = useDaw((s) => ({
     projectPath: s.projectPath,
@@ -307,6 +317,10 @@ export function useHostRoom(
       onRetryMic,
       onCheckMic,
       micCheckFailed,
+      devices,
+      deviceId,
+      staleMic,
+      onDeviceChange,
     },
     snapshot,
     state,

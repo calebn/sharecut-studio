@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
+import { readLocal, writeLocal } from "../utils/storage";
 import { prepareHostKeeperStorage } from "./hostKeeperStorage";
 import { useRecordHostStore } from "./hostStore";
 import { sendRecordHostCommand } from "./hostWire";
@@ -11,6 +12,8 @@ import { hostKeeperResetKey, type RecordSnapshot } from "./types";
 import { keeperCaptureSettled } from "./upload/useRecordUpload";
 import { useMicStream } from "./useMicStream";
 import { useTakeClipping } from "./useTakeClipping";
+
+const HOST_MIC_KEY = "record:host:mic";
 
 export function useHostKeeperCapture(enabled = true): {
   error: string | null;
@@ -26,6 +29,10 @@ export function useHostKeeperCapture(enabled = true): {
   snapshot: RecordSnapshot | null;
   micLost: boolean;
   retryMic: () => void;
+  devices: MediaDeviceInfo[];
+  deviceId: string;
+  staleMic: boolean;
+  setDeviceId: (deviceId: string) => void;
   noAudio: boolean;
   micCheckFailed: boolean;
   checkMic: () => void;
@@ -77,7 +84,13 @@ export function useHostKeeperCapture(enabled = true): {
     }
   }, [hostOn, keeperLive, sink]);
 
-  const mic = useMicStream(micLive, "", resetKey);
+  const [deviceId, setDeviceId] = useState(() => readLocal(HOST_MIC_KEY) || "");
+  const mic = useMicStream(micLive, deviceId, resetKey);
+  const staleMic = mic.staleDeviceId !== null;
+  useEffect(() => {
+    // A dead id is forgotten in storage without re-opening the stream.
+    writeLocal(HOST_MIC_KEY, staleMic ? "" : deviceId);
+  }, [deviceId, staleMic]);
   const keeper = useKeeperCapture({
     enabled: hostOn && keeperLive && sink !== null,
     role: "host",
@@ -167,6 +180,10 @@ export function useHostKeeperCapture(enabled = true): {
     snapshot,
     micLost: mic.lost,
     retryMic: mic.retry,
+    devices: mic.devices,
+    deviceId,
+    staleMic,
+    setDeviceId,
     noAudio: keeper.noAudio,
     micCheckFailed: keeper.micCheckFailed,
     checkMic: keeper.checkMic,

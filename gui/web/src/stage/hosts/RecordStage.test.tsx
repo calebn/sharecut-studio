@@ -157,6 +157,12 @@ async function openMore() {
   return screen.findByRole("dialog", { name: "More" });
 }
 
+async function openDevices() {
+  const more = await openMore();
+  await userEvent.click(within(more).getByRole("button", { name: "Devices…" }));
+  return screen.findByRole("dialog", { name: "Devices" });
+}
+
 beforeEach(() => {
   stubViewportShell("desktop");
   clearRegisteredCommands();
@@ -462,19 +468,76 @@ describe("Record stage capture and storage", () => {
     );
   });
 
-  it("offers room tone in More only outside a take", async () => {
+  it("offers room tone in Devices and holds it during a take", async () => {
     setRoom({ participants: [avaGuest()] });
     const { unmount } = mount({ stream: {} as MediaStream });
-    const dialog = await openMore();
+    await openDevices();
     await userEvent.click(
-      within(dialog).getByRole("button", { name: ROOM_TONE_PROMPT_COPY }),
+      screen.getByRole("button", { name: ROOM_TONE_PROMPT_COPY }),
     );
     expect(roomTone.record).toHaveBeenCalledOnce();
     unmount();
     setRoom({ state: "recording", take_index: 0 });
     mount({ stream: {} as MediaStream });
-    const during = await openMore();
-    expect(within(during).queryByText(ROOM_TONE_PROMPT_COPY)).toBeNull();
+    await openDevices();
+    expect(
+      screen.getByRole("button", { name: ROOM_TONE_PROMPT_COPY }),
+    ).toBeDisabled();
+  });
+
+  it("opens Devices from the host's own tile and from More", async () => {
+    setRoom({ participants: [hostPerson()] });
+    mount({ stream: {} as MediaStream });
+    await userEvent.click(screen.getByRole("button", { name: "Devices" }));
+    await screen.findByRole("dialog", { name: "Devices" });
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Devices" })).toBeNull(),
+    );
+    await openDevices();
+  });
+
+  it("picks the host's input, and locks it while a take is live", async () => {
+    const devices = [
+      { deviceId: "a", label: "USB Mic", kind: "audioinput" },
+      { deviceId: "b", label: "Headset", kind: "audioinput" },
+    ] as MediaDeviceInfo[];
+    const onDeviceChange = vi.fn();
+    const capture = {
+      stream: {} as MediaStream,
+      micStatus: "granted" as const,
+      devices,
+      deviceId: "a",
+      onDeviceChange,
+    };
+    setRoom({ participants: [hostPerson()] });
+    const { unmount } = mount(capture);
+    await openDevices();
+    await userEvent.selectOptions(screen.getByLabelText("Input"), "b");
+    expect(onDeviceChange).toHaveBeenCalledWith("b");
+    unmount();
+    setRoom({
+      state: "recording",
+      take_index: 0,
+      participants: [hostPerson()],
+    });
+    mount(capture);
+    await openDevices();
+    expect(screen.getByLabelText("Input")).toBeDisabled();
+  });
+
+  it("offers Retry in Devices when the host mic is denied", async () => {
+    const onRetryMic = vi.fn();
+    setRoom({ participants: [hostPerson()] });
+    mount({ micStatus: "denied", onRetryMic });
+    await openDevices();
+    const dialog = screen.getByRole("dialog", { name: "Devices" });
+    await userEvent.click(
+      within(dialog).getByRole("button", {
+        name: "How to allow the microphone",
+      }),
+    );
+    expect(onRetryMic).toHaveBeenCalledOnce();
   });
 
   it("shows microphone denial guidance and retries it", async () => {
