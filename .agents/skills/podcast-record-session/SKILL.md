@@ -82,12 +82,13 @@ podcast record assign-track --project episode.project.json --participant p_ab12c
    silent listener.
 2. Open the **Record** stage in the Stage bar (or Share → **Open Record stage**). The host browser will ask for a mic; that dry tap is
    the host's full-quality recording (`p_host`).
-3. Guests enter a name, check headphones, click **Allow microphone**, preview
-   the mic, optionally record 3 s of room tone (or Skip), then **Accept**
-   consent. Accept stays disabled until the mic is granted. Room tone stays on
-   this device until Accept; the recorder is armed on Accept and writes **zero
-   bytes** until Start. Producers enter a name and
-   **Join** (no mic, no room tone, no consent, no full-quality recording).
+3. Guests enter a name, check headphones and click **Allow microphone**, then
+   **Join and record**, which is their consent. It stays disabled until the mic
+   is granted and names the first row still open. The recorder is armed on Join
+   and record and writes **zero bytes** until Start. Guests are not asked for
+   room tone: the host triggers it with `record_room_tone_tool` (see the tool table below Harness).
+   Producers enter a name and **Join** (no mic, no room tone, no consent, no
+   full-quality recording).
 4. `record_state_tool` / the panel: Start stays disabled while `start_blockers`
    is non-empty. Each row has a `code`:
    - `{"code": "no_recorder"}` — nobody recorded yet (the host's Join
