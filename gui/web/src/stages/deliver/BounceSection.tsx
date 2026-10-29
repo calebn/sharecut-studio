@@ -59,7 +59,7 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   const reason = useDisabledReasonNote(running ? undefined : unavailable);
 
   const askPhase = gate?.prompt?.phase ?? null;
-  // Focus the prompt once when it appears, not again on each download phase.
+  // Focus the prompt when it first appears.
   const asked = askPhase !== null;
   useEffect(() => {
     if (!asked) return;
@@ -70,8 +70,8 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
 
   useEffect(() => {
     if (!focusRequested) return;
-    // A disabled button cannot take focus, so land on the nearest control
-    // that can; the reason note beside Bounce says why it is off.
+    // A disabled button cannot take focus, so land on the first enabled
+    // control in the section; the reason note beside Bounce says why.
     const target = button.current?.disabled
       ? button.current
           .closest("section")
