@@ -456,6 +456,34 @@ def test_non_finite_duration_is_dropped_and_the_response_renders(local, tmp_path
     assert res.json()["projects"][0]["duration_sec"] is None
 
 
+def test_a_lone_surrogate_path_never_fails_the_list(local, tmp_path):
+    good = _make(tmp_path, "good")
+    recent.record_recent(good)
+    bad = tmp_path / "config" / "recent_projects.json"
+    data = json.loads(bad.read_text(encoding="utf-8"))
+    data["projects"].append({"path": "/x/\ud800/episode.project.json", "opened_at": "t\ud800"})
+    bad.write_text(json.dumps(data), encoding="utf-8")
+    res = local.get("/api/projects/recent")
+    assert res.status_code == 200
+    by_name = {c["name"]: c for c in res.json()["projects"]}
+    broken = by_name["\ufffd"]
+    assert broken["path"] == "/x/\ufffd/episode.project.json"
+    assert broken["opened_at"] == "t\ufffd"
+    assert broken["chip"]["text"] == "Needs attention"
+    assert broken["folder_missing"] is False
+    assert by_name["good"]["path"] == str(good.resolve())
+    assert [e.path for e in recent.read_recent()][-1] == "/x/\ud800/episode.project.json"
+
+
+def test_a_lone_surrogate_project_name_is_cleaned_on_its_card(local, tmp_path):
+    project = _make(tmp_path, "named")
+    _edit_project(project, lambda d: d["meta"].update(name="ep\ud800"))
+    recent.record_recent(project)
+    res = local.get("/api/projects/recent")
+    assert res.status_code == 200
+    assert res.json()["projects"][0]["name"] == "ep\ufffd"
+
+
 def test_unchanged_project_file_is_parsed_once(tmp_path, monkeypatch):
     project = _make(tmp_path, "cached")
     recent.record_recent(project)

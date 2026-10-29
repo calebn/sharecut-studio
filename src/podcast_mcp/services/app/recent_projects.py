@@ -21,6 +21,7 @@ import json
 import logging
 import math
 import os
+import re
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -36,6 +37,7 @@ log = logging.getLogger(__name__)
 RECENT_FILENAME = "recent_projects.json"
 RECENT_LIMIT = 20
 
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 _LOCK = threading.Lock()
 _RESERVE_LOCK = threading.Lock()
 _SUMMARIES: dict[str, tuple[tuple[int, int, int, int], _Summary | None]] = {}
@@ -291,19 +293,25 @@ def _attention_card(base: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _clean(text: str) -> str:
+    return _LONE_SURROGATE.sub("\ufffd", text)
+
+
 def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
     project_file = Path(entry.path)
     base: dict[str, Any] = {
-        "path": entry.path,
-        "name": project_file.parent.name or entry.path,
-        "opened_at": entry.opened_at,
+        "path": _clean(entry.path),
+        "name": _clean(project_file.parent.name or entry.path),
+        "opened_at": _clean(entry.opened_at),
         "duration_sec": None,
         "edited_at": None,
         "peaks": [],
     }
+    if base["path"] != entry.path:
+        return _attention_card(base)
     try:
         stat = project_file.stat()
-    except OSError:
+    except (OSError, ValueError):
         return {
             **base,
             "stage": "edit",
@@ -329,7 +337,7 @@ def _card(entry: RecentEntry, jobs: Any) -> dict[str, Any]:
         return _attention_card(base)
     return {
         **base,
-        "name": summary.name or base["name"],
+        "name": _clean(summary.name) if summary.name else base["name"],
         "duration_sec": summary.duration_sec,
         "stage": stage,
         "chip": chip,
