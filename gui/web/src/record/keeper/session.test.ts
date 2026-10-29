@@ -87,6 +87,36 @@ afterEach(() => {
 });
 
 describe("KeeperSession", () => {
+  it("announces each opened segment once its pending record is on disk", async () => {
+    const sink = new MemorySink();
+    const opened: [number, number][] = [];
+    const session = new KeeperSession(sink, undefined, {
+      onSegmentOpen: (takeIndex, segments) =>
+        opened.push([takeIndex, segments]),
+    });
+    await session.apply(recordingGate());
+    await session.flush();
+    await session.apply(recordingGate({ roomState: "paused" }));
+    await session.apply(recordingGate());
+    await session.apply(recordingGate({ roomState: "stopped" }));
+    expect(opened).toEqual([
+      [0, 1],
+      [0, 2],
+    ]);
+    expect(session.segmentsOpened(0)).toBe(2);
+    expect(session.segmentsOpened(1)).toBe(0);
+  });
+
+  it("counts the segments a reloaded session finds on disk", async () => {
+    const sink = new MemorySink();
+    const first = new KeeperSession(sink);
+    await first.apply(recordingGate());
+    await first.apply(recordingGate({ roomState: "stopped" }));
+    const reloaded = new KeeperSession(sink);
+    await reloaded.restoreCursor(ids.sessionId, 0, ids.participantId);
+    expect(reloaded.segmentsOpened(0)).toBe(1);
+  });
+
   it("leaves recoverable PCM on disk when the tab dies mid-segment", async () => {
     // MemorySink stream writes land immediately, like the sync-access writer.
     const sink = new MemorySink();

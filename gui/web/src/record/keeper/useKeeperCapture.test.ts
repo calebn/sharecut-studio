@@ -1092,3 +1092,108 @@ describe("useKeeperCapture silent PCM watchdog", () => {
     expect(result.current.micCheckFailed).toBe(false);
   });
 });
+
+describe("useKeeperCapture segment reports", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const stream = { getTracks: () => [] } as unknown as MediaStream;
+  type Report = (takeIndex: number, segments: number, final: boolean) => void;
+  type Props = {
+    snapshot: RecordSnapshot;
+    enabled?: boolean;
+    consented?: boolean | null;
+  };
+  const mount = (reportSegments: Report, props: Props) =>
+    renderHook(
+      ({ snapshot, enabled = true, consented = true }: Props) =>
+        useKeeperCapture({
+          ...args,
+          snapshot,
+          enabled,
+          consented,
+          stream,
+          reportSegments,
+        }),
+      { initialProps: props },
+    );
+
+  it("reports each opened segment, then the final count at Stop", async () => {
+    const report = vi.fn<Report>();
+    const { rerender } = mount(report, { snapshot: snap });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1, false));
+    rerender({ snapshot: { ...snap, state: "paused" } });
+    rerender({ snapshot: { ...snap, state: "recording" } });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 2, false));
+    expect(report).not.toHaveBeenCalledWith(0, expect.anything(), true);
+    rerender({ snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 2, true));
+    expect(report.mock.calls).toEqual([
+      [0, 1, false],
+      [0, 2, false],
+      [0, 2, true],
+    ]);
+  });
+
+  it("counts a segment opened after a consent flip", async () => {
+    const report = vi.fn<Report>();
+    const { rerender } = mount(report, { snapshot: snap });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1, false));
+    rerender({ snapshot: snap, consented: false });
+    rerender({ snapshot: snap, consented: true });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 2, false));
+    rerender({ snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(report).toHaveBeenLastCalledWith(0, 2, true));
+  });
+
+  it("reports zero when no segment ever opened", async () => {
+    const report = vi.fn<Report>();
+    const { rerender } = mount(report, {
+      snapshot: { ...snap, state: "paused" },
+    });
+    rerender({ snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 0, true));
+    expect(report).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends the final count once the disabled keeper has finalized", async () => {
+    const report = vi.fn<Report>();
+    const { rerender } = mount(report, { snapshot: snap });
+    await waitFor(() => expect(report).toHaveBeenCalledWith(0, 1, false));
+    rerender({ snapshot: { ...snap, state: "stopped" }, enabled: false });
+    await waitFor(() => expect(report).toHaveBeenLastCalledWith(0, 1, true));
+  });
+
+  it("resends while the room's entry is behind and stops once it catches up", async () => {
+    const report = vi.fn<Report>();
+    const { rerender } = mount(report, { snapshot: snap });
+    await waitFor(() => expect(report).toHaveBeenCalledTimes(1));
+    const behind = {
+      ...snap,
+      takes: [
+        {
+          take_index: 0,
+          session_start_wall_ms: 0,
+          session_start_iso: "",
+          pauses: [],
+          consented_participant_ids: ["p_g"],
+          segment_reports: {},
+        },
+      ],
+    };
+    rerender({ snapshot: behind });
+    await waitFor(() => expect(report).toHaveBeenCalledTimes(2));
+    expect(report).toHaveBeenLastCalledWith(0, 1, false);
+    const [take] = behind.takes;
+    rerender({
+      snapshot: {
+        ...behind,
+        takes: [
+          {
+            ...take,
+            segment_reports: { p_g: { segments: 1, final: false } },
+          },
+        ],
+      },
+    });
+    expect(report).toHaveBeenCalledTimes(2);
+  });
+});

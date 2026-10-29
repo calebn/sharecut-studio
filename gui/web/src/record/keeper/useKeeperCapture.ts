@@ -26,6 +26,12 @@ type Args = {
   sink?: ByteSink | null;
   resetKey?: number;
   onActivity?: () => void;
+  /** Tell the room how many segments this take opened; `final` once the take has stopped. */
+  reportSegments?: (
+    takeIndex: number,
+    segments: number,
+    final: boolean,
+  ) => void;
 };
 
 type CapturedGate = {
@@ -49,6 +55,7 @@ export function useKeeperCapture({
   sink,
   resetKey = 0,
   onActivity,
+  reportSegments,
 }: Args): {
   error: string | null;
   recordingLocally: boolean;
@@ -111,6 +118,50 @@ export function useKeeperCapture({
   const tapFailedRef = useRef(false);
   const applyChain = useRef(Promise.resolve());
   const sessionId = snapshot?.session_id ?? null;
+  const reportRef = useRef(reportSegments);
+  reportRef.current = reportSegments;
+  const reportedRef = useRef<{
+    participantId: string;
+    takeIndex: number;
+    segments: number;
+    final: boolean;
+  } | null>(null);
+  const sendReport = useCallback(
+    (
+      participantId: string,
+      takeIndex: number,
+      segments: number,
+      final: boolean,
+      force = false,
+    ) => {
+      const last = reportedRef.current;
+      const same =
+        last?.participantId === participantId &&
+        last.takeIndex === takeIndex &&
+        last.segments === segments &&
+        last.final === final;
+      if (same && !force) {
+        return;
+      }
+      reportedRef.current = { participantId, takeIndex, segments, final };
+      reportRef.current?.(takeIndex, segments, final);
+    },
+    [],
+  );
+  const reportStopped = useCallback(
+    (session: KeeperSession, gate: CapturedGate) => {
+      if (gate.snapshot?.state === "stopped" && gate.participantId) {
+        const takeIndex = gate.snapshot.take_index;
+        sendReport(
+          gate.participantId,
+          takeIndex,
+          session.segmentsOpened(takeIndex),
+          true,
+        );
+      }
+    },
+    [sendReport],
+  );
   const clockRef = useRef({ snapshot, receivedAt: Date.now() });
   if (clockRef.current.snapshot !== snapshot) {
     clockRef.current = { snapshot, receivedAt: Date.now() };
@@ -197,12 +248,14 @@ export function useKeeperCapture({
       // The previous writable remains at risk until apply() has settled.
       markUnfinalizedCapture(session.isWriting);
       setWriting(session.isWriting && !tapFailedRef.current);
+      reportStopped(session, gate);
     },
-    [markUnfinalizedCapture],
+    [markUnfinalizedCapture, reportStopped],
   );
 
   const disposeSession = useCallback(
     (session: KeeperSession) => {
+      const stopped = gateRef.current;
       const guardDuringDispose =
         session.isWriting ||
         writingRef.current ||
@@ -219,6 +272,7 @@ export function useKeeperCapture({
           if (session.error) {
             throw session.error;
           }
+          reportStopped(session, stopped);
         })
         .catch((err: unknown) => {
           disposalFailed.current = true;
@@ -244,7 +298,7 @@ export function useKeeperCapture({
           }
         });
     },
-    [markUnfinalizedCapture, mountedRef],
+    [markUnfinalizedCapture, mountedRef, reportStopped],
   );
 
   useEffect(() => {
@@ -271,7 +325,15 @@ export function useKeeperCapture({
             setWriting(false);
             setError(failure.message);
           },
-          { onClipping },
+          {
+            onClipping,
+            onSegmentOpen: (takeIndex, segments) => {
+              const id = gateRef.current.participantId;
+              if (id && !cancelled) {
+                sendReport(id, takeIndex, segments, false);
+              }
+            },
+          },
         );
         await session.restoreCursor(
           sessionId,
@@ -319,6 +381,7 @@ export function useKeeperCapture({
     captureGate,
     disposeSession,
     onClipping,
+    sendReport,
   ]);
 
   useEffect(() => {
@@ -408,6 +471,30 @@ export function useKeeperCapture({
     snapshot?.take_index,
     sessionId,
   ]);
+
+  useEffect(() => {
+    const local = reportedRef.current;
+    const take = snapshot?.takes?.find(
+      (row) => row.take_index === local?.takeIndex,
+    );
+    if (!local || !take) {
+      return;
+    }
+    const known = take.segment_reports?.[local.participantId];
+    if (
+      !known ||
+      known.segments < local.segments ||
+      (local.final && !known.final)
+    ) {
+      sendReport(
+        local.participantId,
+        local.takeIndex,
+        local.segments,
+        local.final,
+        true,
+      );
+    }
+  }, [snapshot, sendReport]);
 
   const retry = () => {
     const session = sessionRef.current;

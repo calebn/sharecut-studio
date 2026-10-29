@@ -50,6 +50,8 @@ export type KeeperClipEvent = {
 
 export type KeeperSessionOptions = {
   onClipping?: (event: KeeperClipEvent) => void;
+  /** A segment is open and its pending record is on disk: `segments` opened so far this take. */
+  onSegmentOpen?: (takeIndex: number, segments: number) => void;
   maxQueuedSamples?: number;
   operationTimeoutMs?: number;
   closeBytesPerMs?: number;
@@ -113,6 +115,10 @@ export class KeeperSession {
   private mutex: Promise<void> = Promise.resolve();
   private readonly clipping = new ClipRegionTracker();
   private readonly onClipping?: (event: KeeperClipEvent) => void;
+  private readonly onSegmentOpen?: (
+    takeIndex: number,
+    segments: number,
+  ) => void;
   readonly files: KeeperMeta[] = [];
   private readonly sink: ByteSink;
   private readonly maxQueuedSamples: number;
@@ -127,6 +133,7 @@ export class KeeperSession {
     this.sink = sink;
     this.onFailure = onFailure;
     this.onClipping = options.onClipping;
+    this.onSegmentOpen = options.onSegmentOpen;
     this.maxQueuedSamples =
       options.maxQueuedSamples ?? KEEPER_MAX_QUEUED_SAMPLES;
     this.operationTimeoutMs =
@@ -140,6 +147,13 @@ export class KeeperSession {
 
   get error(): Error | null {
     return this.failure;
+  }
+
+  /** Segments opened for `takeIndex` by this participant, including any reserved before a reload. */
+  segmentsOpened(takeIndex: number): number {
+    return this.cursor.takeIndex === takeIndex
+      ? this.cursor.nextSegmentIndex
+      : 0;
   }
 
   async restoreCursor(
@@ -332,7 +346,9 @@ export class KeeperSession {
       // pushed while this OPFS round trip runs are kept. finalizeOpen awaits
       // it so it can never land after (and overwrite) the complete record.
       const open = plan.open;
-      this.pendingMeta = this.writeMeta(wavPath, open, 0, false).catch(
+      const segments = plan.cursor.nextSegmentIndex;
+      this.pendingMeta = this.writeMeta(wavPath, open, 0, false).then(
+        () => this.onSegmentOpen?.(open.takeIndex, segments),
         (error: unknown) => this.fail(error),
       );
     }
