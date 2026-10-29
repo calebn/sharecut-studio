@@ -17,10 +17,23 @@ WORKSPACE_COPY_IGNORE = ("artifacts", "history", "_build", ".git")
 RETIRED_PROJECT_FILENAME = "episode.project.json"
 
 
+def _retired_name_refusal() -> CodedValueError:
+    return CodedValueError(
+        f"{RETIRED_PROJECT_FILENAME} is no longer opened. "
+        f"Rename it to {EPISODE_PROJECT_FILENAME} and open it again.",
+        code="project_old_filename",
+    )
+
+
 def resolve_project_path(path: Path | str) -> Path:
     p = Path(path).expanduser().resolve()
     if p.is_dir():
-        return p / EPISODE_PROJECT_FILENAME
+        entry = p / EPISODE_PROJECT_FILENAME
+        if not entry.exists() and (p / RETIRED_PROJECT_FILENAME).is_file():
+            raise _retired_name_refusal()
+        return entry
+    if p.name == RETIRED_PROJECT_FILENAME:
+        raise _retired_name_refusal()
     return p
 
 
@@ -42,12 +55,6 @@ def require_episode_project_file(path: Path | str) -> Path:
     """
     original = Path(path).expanduser()
     resolved = resolve_project_path(path)
-    if resolved.name == RETIRED_PROJECT_FILENAME:
-        raise CodedValueError(
-            f"{RETIRED_PROJECT_FILENAME} is the retired project file name; "
-            f"this version opens {EPISODE_PROJECT_FILENAME}",
-            code="project_old_filename",
-        )
     if resolved.name != EPISODE_PROJECT_FILENAME:
         raise ValueError(f"expected {EPISODE_PROJECT_FILENAME}, got {resolved.name!r}")
     if not resolved.is_file():

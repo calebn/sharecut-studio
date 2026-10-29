@@ -8,6 +8,7 @@ from filelock import Timeout
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
+from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError
@@ -355,6 +356,13 @@ def test_info_command(tmp_path):
     )
     assert result.exit_code == 0
     assert "episode" in result.stdout
+
+
+def test_info_command_refuses_a_folder_holding_only_the_retired_file(tmp_path):
+    (tmp_path / RETIRED_PROJECT_FILENAME).write_text("{}", encoding="utf-8")
+    result = runner.invoke(app, ["info", "--project", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "Rename it to episode.sharecut" in result.output
 
 
 def test_info_command_prints_summary_by_default(tmp_path):

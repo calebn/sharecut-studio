@@ -30,10 +30,10 @@ from podcast_mcp.gui.routes.deps import (
     resolve_project,
 )
 from podcast_mcp.gui.routes.handoff import set_served_project
+from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME
 from podcast_mcp.project.io import (
     ensure_utf8_path,
     require_episode_project_file,
-    resolve_project_path,
 )
 from podcast_mcp.project.merge import ProjectMergeConflict
 from podcast_mcp.services.app import (
@@ -134,7 +134,7 @@ def create_project(
         else:
             reserved = default_workspace_dir(name)
             workspace_dir = str(reserved)
-            if resolve_project_path(reserved).exists():
+            if (reserved / EPISODE_PROJECT_FILENAME).exists():
                 reserved = None
                 raise FileExistsError(f"{workspace_dir} already holds an episode")
         ws = ProjectWorkspace.create(workspace_dir, name=name)
@@ -163,7 +163,10 @@ def pick_project_path(
     if not _PICK_LOCK.acquire(blocking=False):
         raise coded_http_error(409, "A file dialog is already open", code="file_dialog_open")
     try:
-        result = pick_episode_project_path()
+        try:
+            result = pick_episode_project_path()
+        except ValueError as exc:
+            raise coded_exception_error(400, exc, code="project_path_invalid") from exc
         if result.unavailable:
             return {"unavailable": True, "detail": result.detail}
         if result.cancelled:
