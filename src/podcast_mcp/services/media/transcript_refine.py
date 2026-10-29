@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from podcast_mcp.config.defaults import load_defaults, unsure_word_confidence
+from podcast_mcp.config.defaults import unsure_word_confidence
 from podcast_mcp.edits.review_gate import ReviewSource
 from podcast_mcp.edits.transcript_correct import list_low_confidence
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
@@ -61,7 +61,7 @@ class TranscriptRefineService(ReviewGateService):
         self.check_notes(notes)
         with self.ws.transaction():
             self._require_unchanged(expected_fingerprint)
-            current = self.gate.report(self.ws.project, load_defaults())
+            current = self.gate.report(self.ws.project, self.ws.effective_config())
             if not (current["clear"] and current["stored_status"] == "done"):
                 super().mark_done(notes=notes, source=source)
         return self.gate_status()
