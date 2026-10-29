@@ -2,6 +2,19 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StageBar, type StageBarProps } from "./StageBar";
 
+const iconRenders = vi.hoisted(() => vi.fn());
+
+vi.mock("./SystemIcon", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./SystemIcon")>();
+  return {
+    ...actual,
+    SystemIcon: (props: Parameters<typeof actual.SystemIcon>[0]) => {
+      if (props.size === 24) iconRenders();
+      return actual.SystemIcon(props);
+    },
+  };
+});
+
 // ui.css scales a pressed `.ui-control`. A tab shares its edges with its
 // neighbours, so a scale would move its hit edge and lose the click; the tabs
 // keep a colour-only press by not being `.ui-control`s at all.
@@ -82,18 +95,18 @@ describe("the Record badge", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not re-render the tabs when the clock ticks", () => {
+  it("re-renders only the clock when it ticks", () => {
     vi.useFakeTimers();
+    iconRenders.mockClear();
     record(
       { kind: "live", clockMs: 0, receivedAtMs: performance.now() },
       "tabs",
     );
-    const tab = screen.getByRole("tab", { name: "Record Live" });
-    const label = tab.querySelector(".sys-stage-label");
+    const mounted = iconRenders.mock.calls.length;
     act(() => {
-      vi.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(3000);
     });
-    expect(screen.getByRole("tab", { name: "Record Live" })).toBe(tab);
-    expect(tab.querySelector(".sys-stage-label")).toBe(label);
+    expect(screen.getByText("0:03")).toBeInTheDocument();
+    expect(iconRenders).toHaveBeenCalledTimes(mounted);
   });
 });

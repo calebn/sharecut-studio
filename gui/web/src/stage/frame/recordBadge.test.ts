@@ -40,7 +40,12 @@ function roomOf(
   } as unknown as HostRoom;
 }
 
-const source = { captureHealth: null, receivedAtMs: 40, away: true } as const;
+const source = {
+  captureHealth: null,
+  receivedAtMs: 40,
+  dropped: false,
+  away: true,
+} as const;
 
 describe("recordBadge", () => {
   it("is idle with no room or nobody waiting", () => {
@@ -57,6 +62,7 @@ describe("recordBadge", () => {
         guest("no", { consented: false }),
         guest("out", { removed: true }),
         guest("p_host", { role: "host" }),
+        guest("p_prod", { role: "producer" }),
       ],
     });
     expect(recordBadge(room, source)).toEqual({ kind: "waiting", count: 2 });
@@ -103,6 +109,32 @@ describe("recordBadge", () => {
       progress: 0.5,
       alert: false,
     });
+  });
+
+  it("drops the ring's fill when a stopped take has nobody to save", () => {
+    const room = roomOf({
+      state: "stopped",
+      take_index: 0,
+      takes: [{ take_index: 0, consented_participant_ids: [] }],
+    } as unknown as Partial<RecordSnapshot>);
+    expect(recordBadge(room, source)).toEqual({
+      kind: "saving",
+      progress: undefined,
+      alert: false,
+    });
+  });
+
+  it("does not present a local clock while the socket is down", () => {
+    const dropped = { ...source, dropped: true };
+    expect(recordBadge(roomOf({ state: "recording" }), dropped)).toEqual({
+      kind: "reconnecting",
+      alert: false,
+    });
+    expect(recordBadge(roomOf({ state: "paused" }), dropped)).toEqual({
+      kind: "reconnecting",
+      alert: false,
+    });
+    expect(recordBadge(roomOf({}), dropped)).toEqual({ kind: "idle" });
   });
 
   it("adds the alert dot to a live take and stands alone otherwise", () => {
