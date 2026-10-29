@@ -38,6 +38,7 @@ def test_probe_errors_leave_owner_unknown(
         raise error("cannot determine process state")
 
     monkeypatch.setattr(os, "kill", fail)
+    monkeypatch.setattr(process_module, "_kernel32", lambda: None)
     assert pid_is_alive(1234) is True
 
 
@@ -94,6 +95,14 @@ def test_pid_is_alive_on_windows_asks_the_windows_probe_and_never_signals(
     monkeypatch.setattr(os, "kill", lambda *_a: pytest.fail("os.kill terminates on Windows"))
 
     assert pid_is_alive(4321) is False
+
+
+def test_windows_liveness_a_ctypes_failure_is_unknown() -> None:
+    class Failing(_Kernel32):
+        def OpenProcess(self, access: int, inherit: bool, pid: int) -> int | None:
+            raise OSError("kernel32 call failed")
+
+    assert process_module._windows_pid_alive(4321, Failing(), lambda: 0) is True
 
 
 def test_pid_is_alive_on_windows_leaves_a_pid_beyond_32_bits_unknown(

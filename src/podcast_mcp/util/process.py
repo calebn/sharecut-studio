@@ -62,16 +62,19 @@ def _kernel32() -> tuple[Any, Callable[[], int]] | None:
 
 def _windows_pid_alive(pid: int, kernel32: Any, last_error: Callable[[], int]) -> bool:
     """False only when Windows says ``pid`` is no process or has exited; never signals it."""
-    handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-    if not handle:
-        return last_error() != _ERROR_INVALID_PARAMETER
     try:
-        code = ctypes.c_uint32()
-        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
-            return True
-        return code.value == _STILL_ACTIVE
-    finally:
-        kernel32.CloseHandle(handle)
+        handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            return last_error() != _ERROR_INVALID_PARAMETER
+        try:
+            code = ctypes.c_uint32()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return True
+            return code.value == _STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    except (ctypes.ArgumentError, OSError):
+        return True
 
 
 def pid_is_alive(pid: int) -> bool:
