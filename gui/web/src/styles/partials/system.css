@@ -6141,3 +6141,26 @@ input.sys-edit-fix {
     forced-color-adjust: none;
   }
 }
+
+/* InlineEdit: a value that reads as text until hovered or focused. */
+.sys-inline-edit,
+.dv-clip-title {
+  min-block-size: var(--control-height);
+  padding-inline: var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+textarea.sys-inline-edit {
+  padding-block: var(--space-3);
+  line-height: 1.4;
+  resize: none;
+}
+
+.sys-inline-edit:hover,
+.dv-clip-title:hover {
+  border-color: var(--color-border-subtle);
+}

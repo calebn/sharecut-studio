@@ -346,6 +346,14 @@ host keeps selection and solo resolution, and `BounceFlowProvider` keeps
 announcement. Stories cover ready, no tracks, no region, a fixed range,
 bouncing, done, failed, cancelled, the model prompt and 360px.
 
+`Stages/Deliver/Podcast listing` renders the props-only `FeedSection` from a
+typed `FeedView` (`feedView.ts`): facts that say where each value came from,
+findings tagged by platform, and the state of the feed file. Fictional show and
+episode fixtures (`feedFixture.ts`) cover preview, in-place editing, a drifted
+pin, missing values, first-run show setup, checks, a stale file, the XML view
+and an agent pin. The section is story only: Deliver does not mount it yet.
+Its in-place edit is `System/InlineEdit`, shared with the chapter title.
+
 ### Shell chrome
 
 The frame (#2292) replaced the Studio and Mobile shells. `Stages/Edit/Frame`

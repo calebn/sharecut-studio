@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { InlineEdit } from "../../system/InlineEdit";
 import { Skeleton } from "../../system/Skeleton";
 import { SystemIcon } from "../../system/SystemIcon";
 import { TimeField } from "../../system/TimeField";
@@ -24,45 +24,6 @@ type Props = {
   onRemove: (id: string) => void;
   onAdd: () => void;
 };
-
-function ChapterTitle({
-  label,
-  title,
-  onCommit,
-}: {
-  label: string;
-  title: string;
-  onCommit: (title: string) => void;
-}) {
-  const [text, setText] = useState(title);
-  const [seen, setSeen] = useState(title);
-  if (title !== seen) {
-    setSeen(title);
-    setText(title);
-  }
-  const commit = () => {
-    if (text !== title) onCommit(text);
-  };
-  const leave = useEffectEvent(commit);
-  useEffect(() => () => leave(), []);
-  return (
-    <form
-      className="dv-chapter-form"
-      onSubmit={(event) => {
-        event.preventDefault();
-        commit();
-      }}
-    >
-      <input
-        className="dv-chapter-title"
-        aria-label={label}
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onBlur={commit}
-      />
-    </form>
-  );
-}
 
 /** In Edit they stay markers you can move. */
 export function ChaptersList({
@@ -115,9 +76,10 @@ export function ChaptersList({
                   parse={parseClock}
                   onChange={(at) => onRetime(chapter.id, at)}
                 />
-                <ChapterTitle
+                <InlineEdit
+                  className="dv-chapter-title"
                   label={`Title of ${names[index]}`}
-                  title={chapter.title}
+                  value={chapter.title}
                   onCommit={(title) => onRetitle(chapter.id, title)}
                 />
                 <VerbButton
