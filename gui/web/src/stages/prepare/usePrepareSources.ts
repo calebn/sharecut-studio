@@ -217,6 +217,8 @@ export function usePrepareSources(input: {
 
   const actions: SourceActions = {
     onName: (id, name) => {
+      const toast = useDawStore.getState().feedbackToast;
+      if (toast?.undo) useDawStore.getState().dropFeedbackUndo(toast.id);
       setNames((current) => ({ ...current, [id]: name }));
       window.clearTimeout(timers.current.get(id)?.timer);
       timers.current.set(id, {
