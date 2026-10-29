@@ -418,7 +418,7 @@ def test_a_track_the_pickup_names_but_the_take_did_not_record_is_refused(ws) -> 
     _words(ws, "guest", ("so", 2.5, 2.8))
     sid = _stage_replace(ws, 2.0, 4.0, {0: [("host", 0.0, 3.0)]}, track_ids=["host", "guest"])
     before = _everything(ws)
-    with pytest.raises(CodedValueError, match="did not record guest") as refused:
+    with pytest.raises(CodedValueError, match=r'did not record "Guest"') as refused:
         SessionSuggestionService(ws).accept(sid, override_audio_checks=True)
     assert refused.value.code == "track_not_recorded"
     assert _everything(ws) == before

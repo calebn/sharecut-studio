@@ -1033,7 +1033,7 @@ def test_accept_refuses_a_replace_over_an_unrecorded_track_and_an_empty_session(
     _seed_timeline(ws)
     room, _guest, _svc, _landed = _stage(ws, REPLACE)
     before = _everything(ws)
-    with pytest.raises(CodedValueError, match="did not record ava") as replace:
+    with pytest.raises(CodedValueError, match=r'did not record "Someone else"') as replace:
         SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
     assert replace.value.code == "track_not_recorded"
     assert _everything(ws) == before

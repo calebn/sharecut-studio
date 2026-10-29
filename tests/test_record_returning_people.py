@@ -994,3 +994,262 @@ def test_a_replace_cannot_be_moved_onto_another_track_it_already_covers(
     ws.reload()
     row = next(s for s in ws.project.editorial.session_suggestions if s.id == sid)
     assert len(row.track_ids) == 2
+
+
+def _late_replace_room(ws, target):
+    """Ben records take 0; Ava joins late and records only take 1 (both takes staged)."""
+    room = ShareService(ws).create_record_room(target=target)
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    ben = _join_guest(svc, room, "Ben", 0)
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=0)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    _ack(ws, room, ben, 0)
+    ava = _join_guest(svc, room, "Ava", 1)
+    svc.submit(_cmd("Start"), now_wall_ms=10_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=13_000)
+    _ack(ws, room, ben, 1)
+    _ack(ws, room, ava, 1)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    return room, ava, ben
+
+
+def _row(ws, room):
+    ws.reload()
+    return next(
+        s for s in ws.project.editorial.session_suggestions if s.id == f"ss-{room['session_id']}"
+    )
+
+
+def test_discarding_a_moved_replace_persons_last_take_restores_the_follow(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track_a, _track_b, target = _replace_setup(ws)
+    room, ava, _ben = _late_replace_room(ws, target)
+    RecordControlService(ws).assign_track(ava, "new")
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([ava], {ava: track_a})
+    RecordControlService(ws).discard_take(1)
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([track_a], {})
+
+
+def test_a_moved_replace_person_who_rerecords_after_the_discard_can_be_accepted(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _track_a, _track_b, target = _replace_setup(ws)
+    room, ava, ben = _late_replace_room(ws, target)
+    RecordControlService(ws).assign_track(ava, "new")
+    RecordControlService(ws).discard_take(1)
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc.submit(_cmd("Start"), now_wall_ms=20_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=23_000)
+    _ack(ws, room, ben, 2)
+    _ack(ws, room, ava, 2)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    assert _accept_code(ws, f"ss-{room['session_id']}") is None
+
+
+def test_undo_and_redo_of_the_discard_round_trip_the_follow(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track_a, _track_b, target = _replace_setup(ws)
+    room, ava, _ben = _late_replace_room(ws, target)
+    RecordControlService(ws).assign_track(ava, "new")
+    RecordControlService(ws).discard_take(1)
+    history = HistoryService(ws)
+    history.undo()
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([ava], {ava: track_a})
+    history.redo()
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([track_a], {})
+    history.undo()
+    history.undo()
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([track_a], {})
+
+
+def test_the_replace_is_not_pointed_back_at_a_track_someone_else_now_holds(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track_a, _track_b, target = _replace_setup(ws)
+    room, ava, ben = _late_replace_room(ws, target)
+    RecordControlService(ws).assign_track(ava, "new")
+    RecordControlService(ws).assign_track(ben, track_a)
+    RecordControlService(ws).discard_take(1)
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([ava], {ava: track_a})
+    with pytest.raises(CodedError) as caught:
+        SessionSuggestionService(ws).accept(row.id)
+    assert caught.value.code == "track_not_recorded"
+    assert '"Ava"' in str(caught.value)
+    assert "p_" not in str(caught.value)
+
+
+def test_track_not_recorded_names_labels(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed(minimal_project, sample_wav)
+    track_a, track_b, _t = _replace_setup(ws)
+    target = {"kind": "replace", "from_sec": 0.1, "to_sec": 0.3, "track_ids": [track_a, track_b]}
+    room, _pids = _room(ws, ["Ava"], target=target, land=True)
+    with pytest.raises(CodedError) as caught:
+        SessionSuggestionService(ws).accept(f"ss-{room['session_id']}")
+    assert caught.value.code == "track_not_recorded"
+    assert '"Ben"' in str(caught.value)
+    assert track_b not in str(caught.value)
+
+
+def test_a_bed_keeps_a_moved_replace_person_on_the_new_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.models import StagedRoomTone
+
+    ws = _seed(minimal_project, sample_wav)
+    track_a, _track_b, target = _replace_setup(ws)
+    room, ava, _ben = _late_replace_room(ws, target)
+    RecordControlService(ws).assign_track(ava, "new")
+
+    def stage_bed(p) -> None:
+        row = next(s for s in p.editorial.session_suggestions if s.session_id == room["session_id"])
+        row.room_tone.append(
+            StagedRoomTone(
+                track_id=ava,
+                track_label="Ava",
+                source_id=f"room-tone-{ava}",
+                path=f"raw/room-tone/{room['session_id']}/{ava}.wav",
+                duration_s=2.0,
+                sample_rate=48000,
+                channels=1,
+            )
+        )
+
+    ws.mutate("bed", "bed", stage_bed)
+    RecordControlService(ws).discard_take(1)
+    row = _row(ws, room)
+    assert (row.track_ids, row.track_follows) == ([ava], {ava: track_a})
+
+
+def test_track_follows_chain_and_move_back():
+    from podcast_mcp.edits.session_track_remap import remap_staged_participant
+    from podcast_mcp.models import EpisodeProject, SessionSuggestion
+
+    project = EpisodeProject.create("chain_unit", "/tmp/chain_unit")
+    row = SessionSuggestion(
+        id="ss-s1", kind="replace", session_id="s1", session_number=2, track_ids=["ta"]
+    )
+    project.editorial.session_suggestions.append(row)
+
+    def move(old: str, new: str) -> None:
+        remap_staged_participant(
+            project, "ss-s1", source_ids=set(), bed_path="x", track_id=new, track_label="Ava",
+            old_track_id=old,
+        )  # fmt: skip
+
+    move("ta", "tb")
+    assert (row.track_ids, row.track_follows) == (["tb"], {"tb": "ta"})
+    move("tb", "tc")
+    assert (row.track_ids, row.track_follows) == (["tc"], {"tc": "ta"})
+    move("tc", "ta")
+    assert (row.track_ids, row.track_follows) == (["ta"], {})
+
+
+def test_restore_followed_tracks_ignores_a_row_without_follows_and_handles_dropped_segments():
+    from podcast_mcp.edits.session_suggestions import (
+        drop_staged_segment,
+        restore_followed_tracks,
+    )
+    from podcast_mcp.models import EpisodeProject, SessionSuggestion, StagedTake
+
+    project = EpisodeProject.create("restore_unit", "/tmp/restore_unit")
+    row = SessionSuggestion(
+        id="ss-s1", kind="replace", session_id="s1", session_number=2, track_ids=["tb"]
+    )
+    project.editorial.session_suggestions.append(row)
+    restore_followed_tracks(project, "s1")
+    assert row.track_ids == ["tb"]
+    row.track_follows = {"tb": "ta"}
+    row.takes.append(
+        StagedTake(
+            take_index=0,
+            segment_index=0,
+            source_id="rec-s1-0-p-0",
+            track_id="tb",
+            track_label="Ava",
+            offset_s=0.0,
+            duration_s=1.0,
+        )
+    )
+    restore_followed_tracks(project, "s1")
+    assert (row.track_ids, row.track_follows) == (["tb"], {"tb": "ta"})
+    row.takes.append(
+        StagedTake(
+            take_index=0,
+            segment_index=0,
+            source_id="rec-s1-0-q-0",
+            track_id="tc",
+            track_label="Ben",
+            offset_s=0.0,
+            duration_s=1.0,
+        )
+    )
+    drop_staged_segment(project, "s1", "rec-s1-0-p-0")
+    restore_followed_tracks(project, "s1")
+    assert (row.track_ids, row.track_follows) == (["ta"], {})
+
+
+def _bed_only(ws, room, pid: str) -> None:
+    pcm = bytes(48_000 * 2)
+    wav = pcm_wav_header(len(pcm)) + pcm
+    RecordUploadService(ws.project).ingest_part(
+        session_id=room["session_id"], take_index=0, participant_id=pid, segment_index=0,
+        part_seq=0, data=pcm, digest=sha256_hex(pcm), file_sha256=sha256_hex(wav),
+        final=True, kind="room_tone",
+    )  # fmt: skip
+
+
+def test_a_removed_persons_bed_only_recording_does_not_make_the_next_ava_ambiguous(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _room(ws, ["Ava"], land=True)
+    room = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    gone = _join_guest(svc, room, "Ava", 0)
+    _join_guest(svc, room, "Ava", 1)
+    _bed_only(ws, room, gone)
+    _remove(ws, room, gone)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    _room(ws, ["Ava"])
+    assert {r["reason"] for r in _rows(ws)} != {"several_tracks"}
+
+
+def test_a_removed_persons_bed_only_recording_creates_no_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    gone = _join_guest(svc, room, "Sam", 0)
+    _bed_only(ws, room, gone)
+    _remove(ws, room, gone)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    assert [t.id for t in ws.project.tracks if t.room_tone is not None] == []
+    assert gone not in {t.id for t in ws.project.tracks}
+
+
+def test_a_removed_person_with_a_take_still_lands_their_bed(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    room, [pid] = _room(ws, ["Sam"])
+    _bed_only(ws, room, pid)
+    _remove(ws, room, pid)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    track = next(t for t in ws.project.tracks if t.label == "Sam")
+    assert track.room_tone is not None
