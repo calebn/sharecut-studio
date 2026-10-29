@@ -293,7 +293,7 @@ def test_one_minute_bed_is_read_whole_and_a_pad_takes_its_start(tmp_path: Path) 
     _add_bed(project, tmp_path, _minute_noise(7))
 
     bed = room_tone_bed(project, "host")
-    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=8.0)
+    selected = room_tone_span(project, "host", near_sec=4.0, near_source_id=None, duration_sec=8.0)
 
     assert isinstance(bed, RecordedBedSample)
     assert bed.end == pytest.approx(60.0)
@@ -306,7 +306,7 @@ def test_one_minute_bed_with_a_burst_is_still_rejected(tmp_path: Path) -> None:
     _add_voice(bed, 41.0, 41.6, VOICE_DB)
     _add_bed(project, tmp_path, bed)
 
-    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+    selected = room_tone_span(project, "host", near_sec=4.0, near_source_id=None, duration_sec=0.5)
 
     assert isinstance(selected, OwnQuietSample)
     assert selected.bed_failure == "contaminated_bed"
