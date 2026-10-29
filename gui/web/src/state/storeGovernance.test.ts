@@ -470,6 +470,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "the Player bar's time readout and overview position follow the live playhead; only the PlayerBar subtree renders it",
   },
   {
+    file: "stage/hosts/RecordTargetChip.tsx",
+    reason:
+      "leaf that reads the live playhead and the Edit selection for the chip's menu entries, so the Record stage does not re-render with them",
+  },
+  {
     file: "stage/hosts/GuestScriptHost.tsx",
     reason:
       "the selector turns the live playhead into a key of the playing words, so the Script re-renders only when a word changes",

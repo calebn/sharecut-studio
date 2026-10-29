@@ -1462,6 +1462,10 @@ describe("Record stage partial keeper recovery", () => {
 });
 
 describe("Record stage session target", () => {
+  beforeEach(() => {
+    useDawStore.setState({ playheadSec: 0, selection: null });
+  });
+
   const clipRow = {
     id: "c9",
     track_id: "t1",
@@ -1610,9 +1614,9 @@ describe("Record stage session target", () => {
     await userEvent.click(
       await screen.findByRole("button", { name: "Record" }),
     );
-    const trigger = chip("Lands at the end · after 52:10");
-    await waitFor(() => expect(trigger).toBeDisabled());
+    const trigger = () => chip("Lands at the end · after 52:10");
+    await waitFor(() => expect(trigger()).toBeDisabled());
     finish({ status: "ok" });
-    await waitFor(() => expect(trigger).toBeEnabled());
+    await waitFor(() => expect(trigger()).toBeEnabled());
   });
 });

@@ -1,6 +1,5 @@
 import { memo, useState } from "react";
 import { runPointerCommand } from "../../commands/pointer";
-import { selectionSpan } from "../../edit/editSelection";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import {
@@ -29,9 +28,7 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import { DeviceSheet } from "../../system/DeviceSheet";
 import type { RoomViewProps } from "../../system/RoomView";
-import { SessionTargetChip } from "../../system/SessionTargetChip";
 import { TakesTray } from "../../system/TakesTray";
-import { BUSY_REASON } from "../../ui/disabledReason";
 import { dbToFraction } from "../../ui/metering";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { hostStateOf } from "./hostModels";
@@ -41,24 +38,19 @@ import {
   type RecordNotice,
   RecordStageView,
 } from "./RecordStageView";
+import { RecordTargetChip } from "./RecordTargetChip";
 import {
   firstClipped,
-  lastClipEndSec,
   startDisabledReason,
   takeIndexOf,
-  targetLocked,
-  targetViewOf,
   trayTakes,
   viewerWidthOf,
-  wireTargetOf,
 } from "./recordStageModel";
 
 export type RecordStageProps = {
   loadFailure?: LoadFailure | null;
 };
 
-// The server refuses a replace that ends past the timeline by more than this.
-const TIMELINE_EPSILON = 1e-3;
 const SPEAKING_FRACTION = 0.2;
 const TAKE_START = { segmentIndex: 0, segmentStartMs: 0, startMs: 0, endMs: 0 };
 
@@ -75,9 +67,6 @@ function RecordStageBody({
 }: RecordStageProps & { room: HostRoom }) {
   const project = useDawStore((s) => s.project);
   const announceStatus = useDawStore((s) => s.announceStatus);
-  // Whole seconds, so playback does not re-render the stage on every frame.
-  const playheadSec = useDawStore((s) => Math.floor(s.playheadSec));
-  const editSelection = useDawStore((s) => s.selection);
   const receivedAtMs = useRecordHostStore((s) => s.receivedAtMs);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const shell = useViewportClass();
@@ -175,34 +164,11 @@ function RecordStageBody({
     />
   );
 
-  const endSec = lastClipEndSec(project);
-  const selected =
-    project && editSelection ? selectionSpan(editSelection, project) : null;
-  const replaceable =
-    selected &&
-    selected.end > selected.start &&
-    selected.trackIds.length > 0 &&
-    selected.end <=
-      (project?.clips.timeline_duration_sec ?? endSec ?? 0) + TIMELINE_EPSILON
-      ? selected
-      : null;
   const targetChip = snapshot ? (
-    <SessionTargetChip
-      target={targetViewOf(snapshot.target, endSec)}
-      locked={targetLocked(snapshot)}
-      endAfterSec={endSec}
-      disabledReason={room.transportBusy ? BUSY_REASON : undefined}
-      playheadSec={endSec === undefined ? undefined : playheadSec}
-      selection={
-        replaceable
-          ? { fromSec: replaceable.start, toSec: replaceable.end }
-          : undefined
-      }
-      onChange={(next) =>
-        room.runCommand("record.setTarget", {
-          target: wireTargetOf(next, replaceable?.trackIds ?? []),
-        })
-      }
+    <RecordTargetChip
+      snapshot={snapshot}
+      busy={room.transportBusy}
+      onSetTarget={(target) => room.runCommand("record.setTarget", { target })}
     />
   ) : undefined;
 
