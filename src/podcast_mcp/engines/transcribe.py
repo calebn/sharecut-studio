@@ -71,6 +71,10 @@ ASR_CACHE_VARIANTS = 2
 ASR_CACHE_LOCK_TIMEOUT_SEC = 10.0
 
 _T = TypeVar("_T")
+
+_PROBE_MAX_NEW_TOKENS = 32
+_PROBE_LOOP_RATIO = 2.4
+_PROBE_REPETITION_PENALTY = 1.3
 # A bare "out of memory" is left out: the host raises it too, and the CPU needs more host memory.
 _GPU_ERROR = re.compile(r"cuda|cublas|cudnn|\bgpu\b", re.IGNORECASE)
 
@@ -776,10 +780,13 @@ class TranscriptionEngine:
         No VAD and no earlier text to condition on: the model sees only this audio, so a
         sound that is not a word comes back as a filler or nothing. Temperature 0 only: the
         default fallback ladder samples from a shared random generator, so the same span
-        could read as a word on one call and not on the next (#2632).
+        could read as a word on one call and not on the next (#2632). Plain temperature 0
+        can loop on a short filler ("Uh, uh, uh, ..."), so a decode whose compression ratio
+        passes the ladder's own threshold is run again with a repetition penalty and that
+        one is kept; both are capped at a few words of tokens.
         """
 
-        def run() -> str:
+        def decode(**extra: object) -> tuple[str, bool]:
             segments, _ = self._get_model().transcribe(
                 samples.astype(np.float32, copy=False),
                 language=language,
@@ -787,8 +794,18 @@ class TranscriptionEngine:
                 vad_filter=False,
                 condition_on_previous_text=False,
                 temperature=0.0,
+                max_new_tokens=_PROBE_MAX_NEW_TOKENS,
+                **extra,
             )
-            return " ".join(segment.text.strip() for segment in segments).strip()
+            heard = list(segments)
+            looped = any(s.compression_ratio > _PROBE_LOOP_RATIO for s in heard)
+            return " ".join(s.text.strip() for s in heard).strip(), looped
+
+        def run() -> str:
+            text, looped = decode()
+            if looped:
+                text, _ = decode(repetition_penalty=_PROBE_REPETITION_PENALTY)
+            return text
 
         return self._with_cpu_fallback(run)
 
