@@ -666,6 +666,92 @@ def test_a_hit_after_a_release_decodes_again_to_the_same_bits(
     assert len(decode_memo._MEMO) == 1 and decode_memo._MEMO._timer is not None
 
 
+def test_a_store_postpones_the_release(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = Clock(monkeypatch)
+    TrackRmsCache.from_recording(_recording(tmp_path, "a.wav"), sample_rate=RATE)
+    clock.now += 60
+    TrackRmsCache.from_recording(_recording(tmp_path, "b.wav"), sample_rate=RATE)  # a store
+    clock.now += 60
+    decode_memo._MEMO._release_if_idle()
+    assert len(decode_memo._MEMO) == 2
+    clock.now += 30
+    decode_memo._MEMO._release_if_idle()
+    assert len(decode_memo._MEMO) == 0
+
+
+def test_a_stale_timer_fire_does_nothing_and_leaves_one_timer_chain(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = Clock(monkeypatch)
+    memo = decode_memo._MEMO
+    TrackRmsCache.from_recording(_recording(tmp_path, "a.wav"), sample_rate=RATE)
+    stale = memo._timer
+    assert stale is not None
+    memo.clear()
+    TrackRmsCache.from_recording(_recording(tmp_path, "b.wav"), sample_rate=RATE)
+    current = memo._timer
+    assert current is not None and current is not stale
+    clock.now += 10
+    stale.function()
+    assert memo._timer is current and len(memo) == 1
+    monkeypatch.setattr(decode_memo.threading, "current_thread", lambda: current)
+    current.function()
+    assert memo._timer is not None and memo._timer is not current and len(memo) == 1
+    memo.clear()
+    assert memo._timer is None
+
+
+@pytest.mark.parametrize("value", ["1e300", "1e9"])
+def test_a_huge_idle_is_a_day_and_arms_a_timer_that_can_run(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    Clock(monkeypatch)
+    monkeypatch.setenv(decode_memo.IDLE_ENV, value)
+    assert decode_memo.idle_seconds() == decode_memo.MAX_IDLE_S <= threading.TIMEOUT_MAX
+    TrackRmsCache.from_recording(_recording(tmp_path), sample_rate=RATE)
+    timer = decode_memo._MEMO._timer
+    assert timer is not None and timer.interval == decode_memo.MAX_IDLE_S and timer.is_alive()
+
+
+def test_a_timer_that_cannot_start_leaves_hits_and_stores_working(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Clock(monkeypatch)
+
+    def refuse(self: threading.Timer) -> None:
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(threading.Timer, "start", refuse)
+    path = _recording(tmp_path)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decode_memo._MEMO) == 1 and decode_memo._MEMO._timer is None
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 1 and decode_memo._MEMO._timer is None
+
+
+def test_a_symlink_retargeted_during_the_decode_is_not_stored(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _recording(tmp_path, "one.wav")
+    second = _recording(tmp_path, "two.wav", b"y" * 100)
+    link = tmp_path / "link.wav"
+    link.symlink_to(first)
+    inner = audio_audit.load_mono_full
+
+    def retargeting(*args, **kwargs):  # type: ignore[no-untyped-def]
+        out = inner(*args, **kwargs)
+        link.unlink()
+        link.symlink_to(second)
+        return out
+
+    monkeypatch.setattr(audio_audit, "load_mono_full", retargeting)
+    cache = TrackRmsCache.from_recording(link, sample_rate=RATE)
+    assert _read_only(cache)
+    assert len(decode_memo._MEMO) == 0 and decode_memo._MEMO.held_bytes() == 0
+
+
 def _fixed(decoder: Decoder, path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None):  # type: ignore[no-untyped-def]
     """Counts the call like ``Decoder`` but returns the same samples every time."""
     decoder.calls.append((path, sample_rate))

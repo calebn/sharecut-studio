@@ -642,8 +642,11 @@ and the ungated evidence render stay on `from_timeline_stem`, which keeps nothin
 - **Idle release**: `PODCAST_DECODE_MEMO_IDLE_S` (default 90) seconds with no hit or store and no decode
   running, and the memo clears itself so a finished session does not hold the cap's worth of RSS. A daemon
   timer, armed only while the memo holds an entry, checks the idle clock (`time.monotonic`) and re-arms for
-  the remainder if it fired early or a decode is in flight. `0` (or a negative number) never releases; a
-  value that is not a finite number is the default. The next call after a release decodes again.
+  the remainder if it fired early, or for a full idle if a decode is in flight, so a decode that overlaps
+  the deadline can push the release to about two idle periods after the last use. `0` (or a negative
+  number) never releases; a value that is not a finite number is the default; one above a day (86400)
+  counts as a day. If the timer thread cannot start, the memo keeps its entries. The next call after a
+  release decodes again.
 - **Read-only**: with the memo on, the samples a caller receives are read-only on every path (stored,
   served, over the cap, racy, changed during the decode, or a stat failure), so the first caller sees
   what later callers see. Only the memo-off path returns the decoder's writable array.

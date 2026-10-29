@@ -23,8 +23,10 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
   a value that is not a finite number falls back to the default.
 * **Idle release**: ``PODCAST_DECODE_MEMO_IDLE_S`` (default 90) seconds with no hit or store and no
   decode in flight, and the memo clears itself, so a finished session does not keep the cap's worth
-  of RSS. ``0`` (or a negative number) never releases; a value that is not a finite number falls back
-  to the default. A daemon timer, armed only while the memo holds an entry, does the check.
+  of RSS. A decode that overlaps the deadline can push the release to about two idle periods after
+  the last use. ``0`` (or a negative number) never releases; a value that is not a finite number
+  falls back to the default; one above a day counts as a day. A daemon timer, armed only while the
+  memo holds an entry, does the check; if it cannot start, the memo simply keeps its entries.
 * **Read-only**: with the memo on, every call returns samples that are read-only, whether the
   decode was stored, served, too big, racy or changed under the decode. Only the cap-0 path
   returns the build untouched.
@@ -56,6 +58,7 @@ DEFAULT_CAP_MB = 768
 VERIFY_ENVS = ("PODCAST_VERDICT_VERIFY", "PODCAST_EVIDENCE_VERIFY")
 IDLE_ENV = "PODCAST_DECODE_MEMO_IDLE_S"
 DEFAULT_IDLE_S = 90.0
+MAX_IDLE_S = 86400.0
 RACY_SECONDS = 2.0
 
 
@@ -82,10 +85,11 @@ def cap_bytes() -> int:
 def idle_seconds() -> float:
     """The idle time after which the memo releases; read live. ``0`` or less never releases.
 
-    A value that is not finite is the default, as an unparsable one is.
+    A value that is not finite is the default, as an unparsable one is; one above ``MAX_IDLE_S``
+    is ``MAX_IDLE_S``, since a longer wait would overflow the timer.
     """
     seconds = settings.number(IDLE_ENV, DEFAULT_IDLE_S)
-    return seconds if math.isfinite(seconds) else DEFAULT_IDLE_S
+    return min(seconds, MAX_IDLE_S) if math.isfinite(seconds) else DEFAULT_IDLE_S
 
 
 def _now_ns() -> int:
@@ -158,7 +162,7 @@ class DecodeMemo:
                     held = self._find(key)
                 if held is not None:
                     return self._hit(held, build)
-                return self._store(key, resolved, build(), cap)
+                return self._store(key, path, resolved, build(), cap)
         finally:
             with self._lock:
                 flight.users -= 1
@@ -173,9 +177,9 @@ class DecodeMemo:
                 raise AssertionError("decode memo hit differs from a fresh decode of the file")
         return dataclasses.replace(held)
 
-    def _store(self, key: _Key, resolved: Path, built: T, cap: int) -> T:
+    def _store(self, key: _Key, path: Path, resolved: Path, built: T, cap: int) -> T:
         try:
-            unchanged = file_stamp(resolved) == key[1]
+            unchanged = path.resolve() == resolved and file_stamp(resolved) == key[1]
         except OSError:
             unchanged = False
         nbytes = int(built.samples.nbytes)
@@ -215,24 +219,36 @@ class DecodeMemo:
             self._arm(idle)
 
     def _arm(self, delay: float) -> None:
-        timer = threading.Timer(delay, self._release_if_idle)
+        timer = threading.Timer(delay, self._fire)
         timer.daemon = True
         self._timer = timer
-        timer.start()
+        try:
+            timer.start()
+        except RuntimeError:
+            self._timer = None
+
+    def _fire(self) -> None:
+        """The timer's callback; a timer that ``clear`` or a newer arm replaced does nothing."""
+        with self._lock:
+            if self._timer is threading.current_thread():
+                self._release_locked()
 
     def _release_if_idle(self) -> None:
-        """The timer's body: clear if idle long enough and nothing is decoding, else look again."""
         with self._lock:
-            self._timer = None
-            idle = idle_seconds()
-            if not self._entries or idle <= 0:
-                return
-            remaining = idle - (_monotonic() - self._active)
-            if self._building or remaining > 0:
-                self._arm(max(remaining, 0.0) or idle)
-                return
-            self._entries.clear()
-            self._bytes = 0
+            self._release_locked()
+
+    def _release_locked(self) -> None:
+        """Clear if idle long enough and nothing is decoding, else look again; the lock is held."""
+        self._timer = None
+        idle = idle_seconds()
+        if not self._entries or idle <= 0:
+            return
+        remaining = idle - (_monotonic() - self._active)
+        if self._building or remaining > 0:
+            self._arm(max(remaining, 0.0) or idle)
+            return
+        self._entries.clear()
+        self._bytes = 0
 
     def _drop(self, key: _Key) -> None:
         self._bytes -= int(self._entries.pop(key).samples.nbytes)
