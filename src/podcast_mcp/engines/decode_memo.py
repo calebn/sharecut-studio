@@ -11,12 +11,19 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
   ``ctime`` moves on every write and cannot be set from userspace, so a copy that keeps size
   and mtime is still a miss.
 * **No stale store**: the file is stat'd before and after the decode and stored only if both
-  stamps are equal, and a file modified within the last ``RACY_SECONDS`` is never stored or
-  served (a coarse clock can give a rewrite the same stamp).
+  stamps are equal, and a file whose mtime or ctime is within the last ``RACY_SECONDS`` is never
+  stored or served (a coarse clock can give a rewrite the same stamp, and ``cp -p`` keeps an old
+  mtime but not the ctime). Whenever a file is read and its stamp is not the stored one, the
+  earlier decode of that path and rate is dropped, even if the new decode is not stored.
 * **Single flight**: one lock per key, held across the decode, never one lock across keys, so
-  the 8 kHz and 16 kHz decodes of a track still run side by side.
+  the 8 kHz and 16 kHz decodes of a track still run side by side. The lock lives while any
+  caller is queued on it, so after a failed decode the waiters retry one at a time.
 * **Cap**: ``PODCAST_DECODE_MEMO_MB`` (default 768); least recently used out first, by array
-  bytes. ``0`` turns the memo off and every call is the uncached build.
+  bytes. ``0`` (or a negative number) turns the memo off and every call is the uncached build;
+  a value that is not a finite number falls back to the default.
+* **Read-only**: with the memo on, every call returns samples that are read-only, whether the
+  decode was stored, served, too big, racy or changed under the decode. Only the cap-0 path
+  returns the build untouched.
 * **Hits** return a fresh wrapper around a read-only view of the stored samples.
   ``PODCAST_VERDICT_VERIFY`` or ``PODCAST_EVIDENCE_VERIFY`` re-decodes on every hit, outside
   any batch scope, and raises ``AssertionError`` unless the bits are equal.
@@ -25,6 +32,7 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
 from __future__ import annotations
 
 import dataclasses
+import math
 import threading
 import time
 from collections import OrderedDict
@@ -55,8 +63,18 @@ _Key = tuple[str, FileStamp, int, tuple[object, ...]]
 
 
 def cap_bytes() -> int:
-    """The byte cap now in force; read live so a setting takes effect on the next call."""
-    return max(0, int(settings.number(CAP_ENV, DEFAULT_CAP_MB) * (1 << 20)))
+    """The byte cap now in force; read live so a setting takes effect on the next call.
+
+    A value that is not finite (``inf``, ``nan``, ``1e400``) is the default, as an unparsable one is.
+    """
+    megabytes = settings.number(CAP_ENV, DEFAULT_CAP_MB)
+    if not math.isfinite(megabytes):
+        megabytes = DEFAULT_CAP_MB
+    return max(0, int(megabytes * (1 << 20)))
+
+
+def _now_ns() -> int:
+    return time.time_ns()
 
 
 def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
@@ -67,18 +85,32 @@ def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
     return bool(np.array_equal(got, want))
 
 
+class _Flight:
+    """The lock of one key and how many callers hold or wait on it."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.users = 0
+
+
 class DecodeMemo:
     """See the module docstring. One instance per process: ``_MEMO``."""
 
     def __init__(self) -> None:
-        self._entries: OrderedDict[_Key, Any] = OrderedDict()
+        self._entries: OrderedDict[_Key, _Decoded] = OrderedDict()
         self._bytes = 0
         self._lock = threading.Lock()
-        self._building: dict[_Key, threading.Lock] = {}
+        self._building: dict[_Key, _Flight] = {}
 
     def get_or_decode(self, path: Path, sample_rate: int, build: Callable[[], T]) -> T:
-        """``build()``, or a wrapper of the stored result for this file stamp and rate."""
-        cap = cap_bytes()
+        """``build()``, or a wrapper of the stored result for this file stamp and rate.
+
+        Except with the memo off, the samples returned are read-only on every path.
+        """
+        try:
+            cap = cap_bytes()
+        except Exception:
+            cap = DEFAULT_CAP_MB << 20
         if cap == 0:
             return build()
         try:
@@ -86,25 +118,30 @@ class DecodeMemo:
             stamp = file_stamp(resolved)
             key: _Key = (str(resolved), stamp, sample_rate, ffmpeg_build_id())
         except Exception:
-            return build()
-        if time.time_ns() - stamp.mtime_ns < RACY_SECONDS * 1e9:
-            return build()
+            return _frozen(build())
+        if _now_ns() - max(stamp.mtime_ns, stamp.ctime_ns) < RACY_SECONDS * 1e9:
+            self._forget(key, keep=None)
+            return _frozen(build())
         with self._lock:
             held = self._find(key)
-            builder = None if held is not None else self._building.setdefault(key, threading.Lock())
+            flight = None
+            if held is None:
+                flight = self._building.setdefault(key, _Flight())
+                flight.users += 1
         if held is not None:
             return self._hit(held, build)
-        assert builder is not None
-        with builder:
-            try:
+        assert flight is not None
+        try:
+            with flight.lock:
                 with self._lock:
                     held = self._find(key)
                 if held is not None:
                     return self._hit(held, build)
-                built = build()
-                return self._store(key, resolved, built, cap)
-            finally:
-                with self._lock:
+                return self._store(key, resolved, build(), cap)
+        finally:
+            with self._lock:
+                flight.users -= 1
+                if flight.users == 0:
                     self._building.pop(key, None)
 
     def _hit(self, held: Any, build: Callable[[], T]) -> T:
@@ -122,18 +159,24 @@ class DecodeMemo:
             unchanged = False
         nbytes = int(built.samples.nbytes)
         if not unchanged or nbytes > cap:
-            return built
-        view = built.samples.view()
-        view.flags.writeable = False
-        entry: Any = dataclasses.replace(cast(Any, built), samples=view)
+            self._forget(key, keep=None)
+            return _frozen(built)
+        entry = _frozen(built)
         with self._lock:
-            for old in [k for k in self._entries if k[0] == key[0] and k[2] == key[2]]:
-                self._drop(old)
+            self._drop_older(key, keep=key)
             self._entries[key] = entry
             self._bytes += nbytes
             while self._bytes > cap:
                 self._drop(next(iter(self._entries)))
-        return cast(T, dataclasses.replace(entry))
+        return dataclasses.replace(cast(Any, entry))
+
+    def _forget(self, key: _Key, keep: _Key | None) -> None:
+        with self._lock:
+            self._drop_older(key, keep)
+
+    def _drop_older(self, key: _Key, keep: _Key | None) -> None:
+        for old in [k for k in self._entries if k[0] == key[0] and k[2] == key[2] and k != keep]:
+            self._drop(old)
 
     def _find(self, key: _Key) -> Any | None:
         entry = self._entries.get(key)
@@ -156,6 +199,13 @@ class DecodeMemo:
     def __len__(self) -> int:
         with self._lock:
             return len(self._entries)
+
+
+def _frozen(built: T) -> T:
+    """``built`` with its samples a read-only view; the array itself is the caller's alone."""
+    view = built.samples.view()
+    view.flags.writeable = False
+    return dataclasses.replace(cast(Any, built), samples=view)
 
 
 _MEMO = DecodeMemo()

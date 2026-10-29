@@ -14,6 +14,7 @@ import pytest
 from podcast_mcp.edits.audio_cache import decode_track
 from podcast_mcp.engines import audio_audit, decode_memo
 from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.util import batch_scope
 
 RATE = 8000
 
@@ -26,13 +27,23 @@ class Decoder:
         self.lock = threading.Lock()
         self.gate: threading.Barrier | None = None
         self.fail = False
+        self.delay = 0.0
+        self.active = 0
+        self.peak = 0
 
     def __call__(self, path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None):  # type: ignore[no-untyped-def]
-        if self.fail:
-            raise RuntimeError("decode failed")
         with self.lock:
             self.calls.append((path, sample_rate))
             seed = len(self.calls)
+            self.active += 1
+            self.peak = max(self.peak, self.active)
+        try:
+            time.sleep(self.delay)
+            if self.fail:
+                raise RuntimeError("decode failed")
+        finally:
+            with self.lock:
+                self.active -= 1
         if self.gate is not None:
             self.gate.wait(timeout=5)
         rng = np.random.default_rng(seed)
@@ -44,6 +55,8 @@ def decoder(monkeypatch: pytest.MonkeyPatch) -> Decoder:
     fake = Decoder()
     monkeypatch.setattr(audio_audit, "load_mono_full", fake)
     monkeypatch.setattr(decode_memo, "ffmpeg_build_id", lambda: ("ffmpeg", (1,), (0, 0)))
+    # ctime cannot be set, so a test file always has a fresh one; run the clock an hour ahead
+    monkeypatch.setattr(decode_memo, "_now_ns", lambda: time.time_ns() + 3600 * 10**9)
     monkeypatch.delenv("PODCAST_DECODE_MEMO_MB", raising=False)
     for env in decode_memo.VERIFY_ENVS:
         monkeypatch.delenv(env, raising=False)
@@ -82,22 +95,50 @@ def test_a_hit_is_a_fresh_wrapper(tmp_path: Path, decoder: Decoder) -> None:
     assert TrackRmsCache.from_recording(path, sample_rate=RATE).timeline_offset_sec == 0.0
 
 
-def test_the_callers_array_stays_writable(tmp_path: Path, decoder: Decoder) -> None:
-    path = _recording(tmp_path)
-    produced: list[np.ndarray] = []
-    original = audio_audit.load_mono_full
+def _read_only(cache: TrackRmsCache) -> bool:
+    return not cache.samples.flags.writeable
 
-    def spy(*args, **kwargs):  # type: ignore[no-untyped-def]
-        out = original(*args, **kwargs)
-        produced.append(out)
+
+def test_every_miss_hands_back_read_only_samples(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _recording(tmp_path, "a.wav")
+    stored = TrackRmsCache.from_recording(first, sample_rate=RATE)
+    served = TrackRmsCache.from_recording(first, sample_rate=RATE)
+    assert _read_only(stored) and _read_only(served)
+
+    monkeypatch.setattr(decode_memo, "_now_ns", time.time_ns)
+    racy = TrackRmsCache.from_recording(_recording(tmp_path, "b.wav"), sample_rate=RATE)
+    assert _read_only(racy)
+
+    monkeypatch.setattr(decode_memo, "_now_ns", lambda: time.time_ns() + 3600 * 10**9)
+    monkeypatch.setattr(decode_memo, "cap_bytes", lambda: 1000)
+    too_big = TrackRmsCache.from_recording(_recording(tmp_path, "c.wav"), sample_rate=RATE)
+    assert _read_only(too_big)
+
+
+def test_a_changed_during_the_decode_miss_hands_back_read_only_samples(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _recording(tmp_path)
+    inner = audio_audit.load_mono_full
+
+    def racing(*args, **kwargs):  # type: ignore[no-untyped-def]
+        out = inner(*args, **kwargs)
+        path.write_bytes(b"w" * 300)
         return out
 
-    audio_audit.load_mono_full = spy  # type: ignore[assignment]
-    try:
-        TrackRmsCache.from_recording(path, sample_rate=RATE)
-    finally:
-        audio_audit.load_mono_full = original  # type: ignore[assignment]
-    assert produced[0].flags.writeable
+    monkeypatch.setattr(audio_audit, "load_mono_full", racing)
+    assert _read_only(TrackRmsCache.from_recording(path, sample_rate=RATE))
+
+
+def test_the_memo_off_hands_back_the_decoders_writable_array(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_DECODE_MEMO_MB", "0")
+    assert TrackRmsCache.from_recording(
+        _recording(tmp_path), sample_rate=RATE
+    ).samples.flags.writeable
 
 
 def test_a_changed_size_misses(tmp_path: Path, decoder: Decoder) -> None:
@@ -153,13 +194,44 @@ def test_a_copy_to_another_path_and_another_rate_miss(tmp_path: Path, decoder: D
     assert len(decoder.calls) == 3
 
 
-def test_a_recently_modified_file_is_not_stored(tmp_path: Path, decoder: Decoder) -> None:
+def test_a_recently_modified_file_is_not_stored(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(decode_memo, "_now_ns", time.time_ns)
     path = tmp_path / "fresh.wav"
     path.write_bytes(b"x" * 100)
     TrackRmsCache.from_recording(path, sample_rate=RATE)
     TrackRmsCache.from_recording(path, sample_rate=RATE)
     assert len(decoder.calls) == 2
     assert len(decode_memo._MEMO) == 0
+
+
+def test_an_old_mtime_with_a_fresh_ctime_is_neither_stored_nor_served(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _recording(tmp_path)  # mtime an hour old, ctime just now
+    TrackRmsCache.from_recording(path, sample_rate=RATE)  # stored on the clock an hour ahead
+    assert len(decode_memo._MEMO) == 1
+    monkeypatch.setattr(decode_memo, "_now_ns", time.time_ns)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 2  # not served
+    assert len(decode_memo._MEMO) == 0  # and the earlier decode of the path is gone
+
+
+def test_a_file_modified_within_two_seconds_is_neither_stored_nor_served(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _recording(tmp_path)
+    ctime = path.stat().st_ctime_ns
+    monkeypatch.setattr(decode_memo, "_now_ns", lambda: ctime + 1_500_000_000)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 2
+    assert len(decode_memo._MEMO) == 0
+    monkeypatch.setattr(decode_memo, "_now_ns", lambda: ctime + 2_500_000_000)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 3
 
 
 def test_a_file_changed_during_the_decode_is_not_stored(
@@ -174,9 +246,14 @@ def test_a_file_changed_during_the_decode_is_not_stored(
         _age(path, 100)
         return out
 
+    TrackRmsCache.from_recording(path, sample_rate=RATE)  # an older generation is stored
+    assert len(decode_memo._MEMO) == 1
+    path.write_bytes(b"v" * 250)
+    _age(path)
     monkeypatch.setattr(audio_audit, "load_mono_full", racing)
     TrackRmsCache.from_recording(path, sample_rate=RATE)
     assert len(decode_memo._MEMO) == 0
+    assert decode_memo._MEMO.held_bytes() == 0
 
 
 def test_the_least_recently_used_entry_goes_first_when_the_cap_is_passed(
@@ -204,6 +281,19 @@ def test_an_entry_larger_than_the_cap_is_not_stored(
     path = _recording(tmp_path)
     TrackRmsCache.from_recording(path, sample_rate=RATE)
     assert decode_memo._MEMO.held_bytes() == 0
+
+
+def test_an_over_cap_rewrite_still_frees_the_older_generation(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _recording(tmp_path)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decode_memo._MEMO) == 1
+    path.write_bytes(b"n" * 150)
+    _age(path)
+    monkeypatch.setattr(decode_memo, "cap_bytes", lambda: 1000)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decode_memo._MEMO) == 0
 
 
 def test_a_rewritten_file_frees_its_older_generation(tmp_path: Path, decoder: Decoder) -> None:
@@ -272,8 +362,40 @@ def test_a_failed_decode_is_not_stored_and_the_next_call_retries(
         TrackRmsCache.from_recording(path, sample_rate=RATE)
     decoder.fail = False
     TrackRmsCache.from_recording(path, sample_rate=RATE)
-    assert len(decoder.calls) == 1
+    assert len(decoder.calls) == 2  # the failed try and the retry
     assert len(decode_memo._MEMO) == 1
+
+
+def test_waiters_after_a_failed_decode_retry_one_at_a_time(
+    tmp_path: Path, decoder: Decoder
+) -> None:
+    path = _recording(tmp_path)
+    decoder.fail = True
+    decoder.delay = 0.1
+    outcomes: list[str] = []
+
+    def work(late: float) -> None:
+        time.sleep(late)
+        try:
+            TrackRmsCache.from_recording(path, sample_rate=RATE)
+            outcomes.append("ok")
+        except RuntimeError:
+            outcomes.append("failed")
+
+    def heal() -> None:
+        time.sleep(0.15)  # the first decode has failed, the waiters are queued
+        decoder.fail = False
+
+    threads = [threading.Thread(target=work, args=(0.02 * n,)) for n in range(6)]
+    threads.append(threading.Thread(target=heal))
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+    assert decoder.peak == 1
+    assert outcomes.count("ok") >= 4
+    assert len(decode_memo._MEMO) == 1
+    assert not decode_memo._MEMO._building
 
 
 def test_a_missing_file_raises_what_the_uncached_build_raises(
@@ -304,14 +426,95 @@ def test_verify_rechecks_a_hit_and_a_poisoned_entry_raises(
     tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch, env: str
 ) -> None:
     path = _recording(tmp_path)
-    decoder_same = np.linspace(-0.5, 0.5, RATE, dtype=np.float32)
-    monkeypatch.setattr(audio_audit, "load_mono_full", lambda *a, **k: decoder_same.copy())
+    same = np.linspace(-0.5, 0.5, RATE, dtype=np.float32)
+    monkeypatch.setattr(audio_audit, "load_mono_full", lambda *a, **k: same.copy())
     TrackRmsCache.from_recording(path, sample_rate=RATE)
     monkeypatch.setenv(env, "1")
     TrackRmsCache.from_recording(path, sample_rate=RATE)  # equal: passes
-    monkeypatch.setattr(audio_audit, "load_mono_full", lambda *a, **k: decoder_same[::-1].copy())
+    (entry,) = decode_memo._MEMO._entries.values()
+    poisoned = entry.samples.copy()
+    poisoned[7] += np.float32(1e-3)
+    poisoned.flags.writeable = False
+    entry.samples = poisoned
     with pytest.raises(AssertionError):
         TrackRmsCache.from_recording(path, sample_rate=RATE)
+
+
+def test_verify_decodes_again_outside_the_batch_scope(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _recording(tmp_path)
+    scopes: list[bool] = []
+    inner = audio_audit.load_mono_full
+
+    def spy(*args, **kwargs):  # type: ignore[no-untyped-def]
+        scopes.append(batch_scope._scope.get() is not None)
+        return inner(*args, **kwargs)
+
+    monkeypatch.setattr(audio_audit, "load_mono_full", spy)
+    monkeypatch.setenv("PODCAST_VERDICT_VERIFY", "1")
+    with batch_scope.batch_scope():
+        TrackRmsCache.from_recording(path, sample_rate=RATE)
+        assert scopes == [True]
+        # the fake decoder is not deterministic, so the verify decode ends in AssertionError
+        with pytest.raises(AssertionError):
+            TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert scopes == [True, False]
+
+
+def test_the_ffmpeg_build_is_part_of_the_key(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _recording(tmp_path)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    monkeypatch.setattr(decode_memo, "ffmpeg_build_id", lambda: ("ffmpeg", (2,), (0, 0)))
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 2
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 2
+
+
+def test_a_stat_failure_falls_through_to_an_uncached_build(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _recording(tmp_path)
+
+    def broken(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise OSError("stat failed")
+
+    monkeypatch.setattr(decode_memo, "file_stamp", broken)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 2
+    assert len(decode_memo._MEMO) == 0
+
+
+def test_an_ffmpeg_id_failure_falls_through_to_an_uncached_build(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _recording(tmp_path)
+
+    def broken() -> tuple[object, ...]:
+        raise RuntimeError("no ffmpeg")
+
+    monkeypatch.setattr(decode_memo, "ffmpeg_build_id", broken)
+    result = TrackRmsCache.from_recording(path, sample_rate=RATE)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 2
+    assert len(decode_memo._MEMO) == 0
+    assert _read_only(result)
+
+
+@pytest.mark.parametrize("value", ["inf", "-inf", "nan", "1e400", "junk", ""])
+def test_a_cap_that_is_not_a_finite_number_is_the_default(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("PODCAST_DECODE_MEMO_MB", value)
+    assert decode_memo.cap_bytes() == decode_memo.DEFAULT_CAP_MB << 20
+    path = _recording(tmp_path)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 1
 
 
 def test_a_second_decode_track_of_a_raw_file_does_not_decode_again(
