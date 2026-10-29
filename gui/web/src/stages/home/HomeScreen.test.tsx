@@ -362,6 +362,28 @@ describe("HomeScreen", () => {
       expect(forget).not.toHaveBeenCalled();
     });
 
+    it("forgets nothing when the picker is cancelled and another folder is typed", async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal("location", {
+        href: "http://127.0.0.1:8765/?home=1&openOther=1",
+        search: "?home=1&openOther=1",
+        assign,
+      });
+      list.mockResolvedValue([recent({ folder_missing: true })]);
+      pick.mockResolvedValue({ cancelled: true });
+      const other = "/other/maya/episode.project.json";
+      open.mockResolvedValue({ project_path: other, name: "maya" });
+      render(<HomeScreen />);
+      await user.click(await screen.findByRole("button", { name: /Find/ }));
+      await waitFor(() => expect(pick).toHaveBeenCalled());
+      await user.type(
+        await screen.findByRole("textbox", { name: "Folder of the episode" }),
+        `${other}{Enter}`,
+      );
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+      expect(forget).not.toHaveBeenCalled();
+    });
+
     it("keeps the entry when the picker is cancelled", async () => {
       const user = userEvent.setup();
       list.mockResolvedValue([recent({ folder_missing: true })]);
