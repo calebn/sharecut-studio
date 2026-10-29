@@ -64,6 +64,7 @@ from podcast_mcp.gui.static_assets import (
 )
 from podcast_mcp.gui.validation_errors import format_validation_errors
 from podcast_mcp.models.episode import ProjectUnreadableError
+from podcast_mcp.project.io import adopt_retired_entry_file
 from podcast_mcp.services.document import cross_process_bridge
 from podcast_mcp.services.jobs import shared_job_manager
 from podcast_mcp.services.media import TranscriptContextBusyError
@@ -282,7 +283,7 @@ def create_app(
     app.state.diagnostics_bundles = {}
     app.state.studio_host = handoff.StudioHostState(bind_host)
     handoff.set_served_project(
-        app, served_project.resolve() if served_project is not None else None
+        app, adopt_retired_entry_file(served_project) if served_project is not None else None
     )
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, _http_exception_handler)

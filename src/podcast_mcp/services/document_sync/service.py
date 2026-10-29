@@ -347,9 +347,9 @@ class DocumentSyncService:
 
     @classmethod
     def open(cls, project_path: str | Path) -> DocumentSyncService:
-        from podcast_mcp.project.io import resolve_project_path
+        from podcast_mcp.project.io import adopt_retired_entry_file
 
-        path = resolve_project_path(project_path)
+        path = adopt_retired_entry_file(project_path)
         before = file_certificate(path)
         service = cls(ProjectWorkspace.open(path))
         after = file_certificate(path)

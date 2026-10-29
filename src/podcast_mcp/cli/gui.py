@@ -6,8 +6,9 @@ from urllib.parse import urlencode
 
 import typer
 
-from podcast_mcp.project.io import ensure_utf8_path
+from podcast_mcp.project.io import adopt_retired_entry_file, ensure_utf8_path
 from podcast_mcp.services.app import ensure_viewer, packaged_cli_gui_refusal, viewer_url
+from podcast_mcp.util.coded_error import CodedValueError
 
 gui_app = typer.Typer(help="DAW-style episode viewer.")
 
@@ -42,6 +43,13 @@ def gui_cmd(
     if refusal is not None:
         typer.echo(refusal, err=True)
         raise typer.Exit(2)
+
+    if project is not None:
+        try:
+            project = adopt_retired_entry_file(project)
+        except CodedValueError as exc:
+            typer.echo(f"Error: {exc}", err=True)
+            raise typer.Exit(1) from exc
 
     if project is not None and not project.is_file():
         typer.echo(f"Project not found: {project}", err=True)
@@ -99,8 +107,7 @@ def gui_cmd(
             err=True,
         )
 
-    served = project.resolve() if project is not None else None
-    app = create_app(served_project=served, bind_host=host)
+    app = create_app(served_project=project, bind_host=host)
     if project is not None:
         url = viewer_url(host, port, project, session_token=session_token)
     else:

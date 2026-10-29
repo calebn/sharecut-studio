@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp import settings
-from podcast_mcp.project.io import ensure_utf8_path
+from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME, ensure_utf8_path
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.fingerprint import file_stamp
@@ -123,14 +123,15 @@ def _write(entries: list[RecentEntry]) -> None:
 
 
 def record_recent(project_path: Path | str, *, now: datetime | None = None) -> None:
-    """Move *project_path* to the front of the list. Never raises."""
+    """Move *project_path* to the front of the list, dropping its retired-name entry. Never raises."""
     try:
         resolved = str(Path(project_path).expanduser().resolve())
         if resolved != _clean(resolved):
             return
         stamp = (now or datetime.now(UTC)).isoformat(timespec="seconds")
+        retired = str(Path(resolved).with_name(RETIRED_PROJECT_FILENAME))
         with _LOCK:
-            kept = [e for e in read_recent() if e.path != resolved]
+            kept = [e for e in read_recent() if e.path not in (resolved, retired)]
             _write([RecentEntry(resolved, stamp), *kept][:RECENT_LIMIT])
     except (OSError, ValueError) as exc:
         log.warning("Cannot save the recent projects list at %s: %s", recent_projects_path(), exc)

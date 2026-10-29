@@ -10,7 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from podcast_mcp import settings
-from podcast_mcp.project.io import ensure_utf8_path
+from podcast_mcp.project.io import adopt_retired_entry_file, ensure_utf8_path, resolve_project_path
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.process import DEVNULL, popen
 
 PACKAGED_CLI_ENV = "PODCAST_PACKAGED_CLI"
@@ -109,7 +110,7 @@ def ensure_viewer(
     wait_sec: float = 8.0,
 ) -> GuiLaunchResult:
     """Start the read-only DAW viewer in the background if it is not already up."""
-    path = Path(project_path).expanduser().resolve()
+    path = resolve_project_path(project_path)
     refusal = packaged_cli_gui_refusal()
     if refusal is not None:
         return GuiLaunchResult(
@@ -121,6 +122,19 @@ def ensure_viewer(
             already_running=False,
             opened_browser=False,
             error=refusal,
+        )
+    try:
+        path = adopt_retired_entry_file(path)
+    except CodedValueError as exc:
+        return GuiLaunchResult(
+            ok=False,
+            url="",
+            host=host,
+            port=port,
+            project_path=str(path),
+            already_running=False,
+            opened_browser=False,
+            error=str(exc),
         )
     if not path.is_file():
         return GuiLaunchResult(
