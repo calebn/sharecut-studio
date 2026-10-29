@@ -221,6 +221,7 @@ def room_tone_span(
     timeline_sec: float,
     duration_sec: float,
     avoid: Sequence[Span] = (),
+    also_taken: Sequence[Span] = (),
 ) -> RoomToneSelection:
     """Measured room tone or an actual absence cause for this request.
 
@@ -228,8 +229,9 @@ def room_tone_span(
     ``timeline_sec`` its position on the timeline. ``avoid`` is source
     time a sample of the track's own audio may not come from: a pad that replays the
     source of a cut that has not been applied yet makes that cut play in two places, and
-    approving it then removes everything between them. The track's
-    recorded bed wins (its ``source_id``); otherwise a sample of the track's own audio
+    approving it then removes everything between them. ``also_taken`` is source time the
+    caller has already filled in this pass but not yet applied: it ranks like a fill that
+    the project plays. The track's recorded bed wins (its ``source_id``); otherwise a sample of the track's own audio
     that may be shorter than ``duration_sec``, for the caller to tile.
     """
     if duration_sec <= 0:
@@ -245,10 +247,11 @@ def room_tone_span(
 
     on_primary = None in project.equivalent_source_ids(track_id, near_source_id)
     pool = read_room_tone_pool(project, track_id) or ()
-    taken = _pool_spans_in_use(project, track_id, pool, timeline_sec)
+    taken = [*_pool_spans_in_use(project, track_id, pool, timeline_sec), *also_taken]
     pooled = _from_pool(
         pool,
         near_sec=near_sec if on_primary else None,
+        timeline_sec=timeline_sec,
         duration_sec=duration_sec,
         avoid=avoid,
         taken=taken,
@@ -263,16 +266,24 @@ def room_tone_span(
     if read.gated:
         return _after_bed(bed, SampleAbsent("gated_live"))
     clear = _no_foreign_voice(project, track_id)
+    # Off the pool's clock the cut's position means nothing here: start from the first run.
+    near = near_sec if on_primary or not read.floor.runs else read.floor.runs[0][0]
     selected = _pick_sample(
         read.floor,
-        near_sec=near_sec,
+        near_sec=near,
         duration_sec=duration_sec,
         avoid=[*avoid, *taken],
+        min_sec=POOL_MIN_SAMPLE_SEC,
         clear=clear,
     )
     if isinstance(selected, SampleAbsent) and taken:
         selected = _pick_sample(
-            read.floor, near_sec=near_sec, duration_sec=duration_sec, avoid=avoid, clear=clear
+            read.floor,
+            near_sec=near,
+            duration_sec=duration_sec,
+            avoid=avoid,
+            min_sec=POOL_MIN_SAMPLE_SEC,
+            clear=clear,
         )
     return _after_bed(bed, selected)
 
@@ -286,25 +297,38 @@ POOL_ANCHOR_SPACING_SEC = 60.0
 POOL_SAMPLE_SEC = 2.0
 # A pooled sample shorter than this is a scrap that a pad tiles into a stutter.
 POOL_MIN_SAMPLE_SEC = 1.0
-_POOL_REV = 3
+_POOL_REV = 4
 # A pooled sample that a clip or mute fill this close to the cut (timeline seconds, either
 # side) already plays ranks after the unused ones: the listener hears both fills together.
 TAKEN_WINDOW_SEC = 120.0
 _POOLS_KEPT = 64
 _POOL_RECORDS_KEPT = 64
-_POOLS: dict[tuple[str, FileRevision], tuple[Sample, ...]] = {}
+PoolKey = tuple[str, FileRevision, tuple[tuple[str, FileRevision], ...]]
+"""The track's file, then every other track's: a peer that appears or changes can bleed."""
+
+_POOLS: dict[PoolKey, tuple[Sample, ...]] = {}
 _POOLS_LOCK = threading.Lock()
 
 
-def _pool_key(path: Path) -> tuple[str, FileRevision] | None:
+def _pool_key(project: EpisodeProject, track_id: str) -> PoolKey | None:
     try:
-        resolved = path.resolve(strict=True)
-        return str(resolved), file_revision(resolved)
-    except OSError:
+        resolved = track_audio_path(project, track_id).resolve(strict=True)
+        own = str(resolved), file_revision(resolved)
+    except (OSError, ValueError):
         return None
+    peers: list[tuple[str, FileRevision]] = []
+    for other in project.tracks:
+        if other.id == track_id or other.media is None:
+            continue
+        try:
+            path = track_audio_path(project, other.id).resolve(strict=True)
+            peers.append((str(path), file_revision(path)))
+        except (OSError, ValueError):
+            continue
+    return (*own, tuple(sorted(peers)))
 
 
-def _remember_pool(key: tuple[str, FileRevision], pool: tuple[Sample, ...]) -> None:
+def _remember_pool(key: PoolKey, pool: tuple[Sample, ...]) -> None:
     with _POOLS_LOCK:
         _POOLS.pop(key, None)
         _POOLS[key] = pool
@@ -312,7 +336,7 @@ def _remember_pool(key: tuple[str, FileRevision], pool: tuple[Sample, ...]) -> N
             del _POOLS[next(iter(_POOLS))]
 
 
-def _pool_record_path(project: EpisodeProject, key: tuple[str, FileRevision]) -> Path:
+def _pool_record_path(project: EpisodeProject, key: PoolKey) -> Path:
     from podcast_mcp.util.hashing import short_digest
 
     parts = [_POOL_REV, *map(str, key)]
@@ -330,10 +354,7 @@ def read_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample,
     track = project.track_by_id(track_id)
     if track is None or track.media is None:
         return None
-    try:
-        key = _pool_key(track_audio_path(project, track_id))
-    except (OSError, ValueError):
-        return None
+    key = _pool_key(project, track_id)
     if key is None:
         return None
     with _POOLS_LOCK:
@@ -373,7 +394,7 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
         # that has the detector, and do not decode the recording to find that out.
         return None
     path = track_audio_path(project, track_id)
-    key = _pool_key(path)
+    key = _pool_key(project, track_id)
     read = track_floor(path)
     if key is None or isinstance(read, Unmeasured):
         return None
@@ -420,7 +441,7 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
     return result
 
 
-_PENDING_POOLS: set[tuple[str, FileRevision]] = set()
+_PENDING_POOLS: set[PoolKey] = set()
 
 
 def ensure_room_tone_pools(project: EpisodeProject, track_ids: Sequence[str]) -> None:
@@ -431,7 +452,7 @@ def ensure_room_tone_pools(project: EpisodeProject, track_ids: Sequence[str]) ->
     """
     for track_id in dict.fromkeys(track_ids):
         try:
-            key = _pool_key(track_audio_path(project, track_id))
+            key = _pool_key(project, track_id)
             with _POOLS_LOCK:
                 if key is not None and key in _PENDING_POOLS:
                     continue  # the ingest thread is picking it
@@ -449,10 +470,7 @@ def schedule_room_tone_pool(project: EpisodeProject, track_id: str) -> bool:
     track = project.track_by_id(track_id)
     if track is None or track.media is None:
         return False
-    try:
-        key = _pool_key(track_audio_path(project, track_id))
-    except (OSError, ValueError):
-        return False
+    key = _pool_key(project, track_id)
     if key is None:
         return False
     with _POOLS_LOCK:
@@ -507,35 +525,46 @@ def room_tone_bed_digest(project: EpisodeProject) -> str:
 def _pool_spans_in_use(
     project: EpisodeProject, track_id: str, pool: Sequence[Sample], timeline_sec: float
 ) -> list[Span]:
-    """Source spans of ``pool`` that this track plays within ``TAKEN_WINDOW_SEC`` of the cut.
+    """Source spans this track's fills play within ``TAKEN_WINDOW_SEC`` of the cut.
 
-    A pad clip is a plain clip whose source span lies inside one pooled sample; a mute fill
-    is a region's own-media ``fill``.
+    A mute fill counts by the timeline position of its own region. A pad clip is a
+    primary-recording clip that mostly plays one pooled sample; a speech clip that only
+    grazes a sample is not a fill.
     """
+    window = (timeline_sec - TAKEN_WINDOW_SEC, timeline_sec + TAKEN_WINDOW_SEC)
     spans: list[Span] = []
     for clip in project.clips:
-        if (
-            clip.track_id != track_id
-            or clip.timeline_end < timeline_sec - TAKEN_WINDOW_SEC
-            or clip.timeline_start > timeline_sec + TAKEN_WINDOW_SEC
-        ):
+        if clip.track_id != track_id:
             continue
-        spans.extend(
-            (r.fill.start_s, r.fill.end_s)
-            for r in clip.mute_regions
-            if r.fill is not None and r.fill.source_id is None
+        for region in clip.mute_regions:
+            at = clip.timeline_start + (region.start_s - clip.source_start)
+            if (
+                region.fill is not None
+                and region.fill.source_id is None
+                and at < window[1]
+                and window[0] < at + (region.end_s - region.start_s)
+            ):
+                spans.append((region.fill.start_s, region.fill.end_s))
+        if clip.timeline_end < window[0] or clip.timeline_start > window[1]:
+            continue
+        played = max(
+            (min(clip.source_end, x.end) - max(clip.source_start, x.start) for x in pool),
+            default=0.0,
         )
-        if any(
-            x.start - 1e-6 <= clip.source_start and clip.source_end <= x.end + 1e-6 for x in pool
-        ) and (None in project.equivalent_source_ids(track_id, clip.source_id)):
+        if (
+            played > 0
+            and 2 * played >= clip.source_end - clip.source_start - 1e-6
+            and None in project.equivalent_source_ids(track_id, clip.source_id)
+        ):
             spans.append((clip.source_start, clip.source_end))
-    return [s for s in spans if any(s[0] < x.end and x.start < s[1] for x in pool)]
+    return spans
 
 
 def _from_pool(
     pool: Sequence[Sample],
     *,
     near_sec: float | None,
+    timeline_sec: float,
     duration_sec: float,
     avoid: Sequence[Span],
     taken: Sequence[Span],
@@ -543,18 +572,22 @@ def _from_pool(
     """The unused pooled sample nearest ``near_sec`` with a clear piece long enough, else None.
 
     A sample that overlaps ``taken`` ranks after every sample that does not. With no
-    ``near_sec`` (the cut is not on the pool's recording) the samples are taken in
-    recording order.
+    ``near_sec`` (the cut is not on the pool's recording) the samples are taken in recording
+    order, rotated by the cut's ``TAKEN_WINDOW_SEC`` slot so distant cuts spread over the pool.
     """
-    need = min(duration_sec, MIN_SAMPLE_SEC)
+    need = min(duration_sec, POOL_MIN_SAMPLE_SEC)
+    ordered = sorted(pool, key=lambda x: x.start)
+    if near_sec is None and ordered:
+        turn = int(timeline_sec // TAKEN_WINDOW_SEC) % len(ordered)
+        ordered = ordered[turn:] + ordered[:turn]
 
     def rank(x: Sample) -> tuple[bool, float]:
         used = any(a < x.end and x.start < b for a, b in taken)
         if near_sec is None:
-            return used, x.start
+            return used, 0.0
         return used, max(x.start - near_sec, near_sec - x.end, 0.0)
 
-    for sample in sorted(pool, key=rank):
+    for sample in sorted(ordered, key=rank):
         for piece in subtract_intervals([(sample.start, sample.end)], avoid):
             if piece[1] - piece[0] >= need - 1e-9:
                 centre = (piece[0] + piece[1]) / 2.0 if near_sec is None else near_sec
@@ -599,8 +632,10 @@ def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span]
         if other.id == track_id or other.media is None:
             continue
         read = track_floor(track_audio_path(project, other.id))
-        if isinstance(read, LiveFloor) and not read.gated:
-            others.append((read.floor.path, read.floor.floor_db))
+        if isinstance(read, LiveFloor):
+            # A gated peer's live frames are all speech: any live frame is its voice.
+            floor_db = DIGITAL_SILENCE_DB if read.gated else read.floor.floor_db
+            others.append((read.floor.path, floor_db))
 
     def envelope(path: Path, span: Span) -> np.ndarray:
         audio = load_mono_window(
