@@ -12,7 +12,7 @@ from podcast_mcp.models import load_project
 from podcast_mcp.services.document_sync import DocumentCommand, DocumentSyncService
 from podcast_mcp.services.document_sync.host_submit import submit_host_document_command
 from podcast_mcp.services.document_sync.payloads import validate_payload
-from test_guest_document_gate import gap_project
+from test_guest_document_gate import EDITOR, gap_project, guest_command
 
 
 def _rows(path) -> list[dict]:
@@ -149,6 +149,21 @@ def test_a_hand_built_command_journals_the_same_row_shape_as_the_tool(minimal_pr
     assert built == tool == {"track_id", "speaker", "start_sec", "end_sec"}
 
 
+def test_a_guest_editor_fill_journals_the_same_row_shape_as_a_host_fill(
+    minimal_project, monkeypatch
+):
+    gap_project(minimal_project, monkeypatch)
+    path = str(minimal_project)
+    payload = {"track_id": "host", "start_sec": 0.5, "end_sec": 1.5}
+    DocumentSyncService.open(path).submit(
+        guest_command("FillRoomTone", payload), capabilities=EDITOR
+    )
+    mcp_timeline.fill_with_room_tone_tool(path, track_id="host", start_sec=1.5, end_sec=2.0)
+    guest, host = (row["payload"] for row in _rows(path))
+    assert set(guest) - {"result"} == set(host) - {"result"}
+    assert guest["speaker"] is None and host["speaker"] is None
+
+
 def test_a_hand_built_malformed_command_is_refused_before_journalling(minimal_project, monkeypatch):
     gap_project(minimal_project, monkeypatch)
     path = str(minimal_project)
@@ -165,8 +180,17 @@ def test_a_retry_with_a_new_command_id_stays_idempotent_after_normalising(
     gap_project(minimal_project, monkeypatch)
     path = str(minimal_project)
     payload = {"track_id": "host", "start_sec": 0.5, "end_sec": 1.5}
-    DocumentSyncService.open(path).submit(_command(payload, 1))
-    again = DocumentSyncService.open(path).submit(_command(payload, 1, command_id="retry"))
+    mcp_timeline.fill_with_room_tone_tool(path, track_id="host", start_sec=0.5, end_sec=1.5)
+    (row,) = _rows(path)
+    retry = DocumentCommand(
+        type="FillRoomTone",
+        payload=payload,
+        client_id=row["client_id"],
+        client_seq=row["client_seq"],
+        role="agent",
+        command_id="retry",
+    )
+    again = DocumentSyncService.open(path).submit(retry)
     assert again["idempotent"] is True
     assert len(_rows(path)) == 1
 
@@ -190,3 +214,19 @@ def test_a_whole_track_fill_on_fewer_than_two_clips_is_an_unchanged_no_op(
     assert Path(path).read_bytes() == before
     assert [row["type"] for row in _rows(path)] == ["FillRoomTone"]
     assert json.loads(history_status_tool(path))["total"] == 0
+
+
+def test_a_range_fill_on_a_one_clip_track_still_refuses_nothing_to_fill(
+    minimal_project, monkeypatch
+):
+    from podcast_mcp.models import save_project
+
+    gap_project(minimal_project, monkeypatch)
+    path = str(minimal_project)
+    project = load_project(Path(path))
+    project.clips = project.clips[:1]
+    save_project(project, minimal_project)
+    with pytest.raises(ValueError) as raised:
+        mcp_timeline.fill_with_room_tone_tool(path, track_id="host", start_sec=0.5, end_sec=1.5)
+    assert raised.value.code == "nothing_to_fill"
+    assert _rows(path) == []

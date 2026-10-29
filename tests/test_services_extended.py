@@ -1895,6 +1895,11 @@ def test_edit_split_clip_and_fill_room_tone(minimal_project, sample_wav) -> None
     ):
         out = TimelineService(ws).fill_room_tone(track_id="host", within=(0.0, 1.0))
     assert out == fill_report
+    with patch("podcast_mcp.services.document.timeline.fill_with_room_tone") as skipped:
+        out = TimelineService(ws).fill_room_tone(track_id="host")
+    skipped.assert_not_called()
+    assert out["unchanged"] is True
+    assert out["operation"] == "fill_with_room_tone"
 
 
 def test_edit_check_loudness_prefers_mastered_export(minimal_project, sample_wav) -> None:
