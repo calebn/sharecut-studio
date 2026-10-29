@@ -128,6 +128,7 @@ const fresh = () => ({
   corrections: [] as number[],
   correctFails: false,
   markFails: false,
+  markChanged: false,
   notes: "",
   waived: [] as string[],
   seq: 100 * runs,
@@ -149,6 +150,7 @@ const fresh = () => ({
 });
 const server = fresh();
 const order: string[] = [];
+const marks: { expected_fingerprint?: string }[] = [];
 
 const stillUnsure = (index: number) => server.words[index]?.unsure ?? true;
 
@@ -208,6 +210,7 @@ const projectOf = () =>
 const statusBody = () => ({
   status: server.status,
   clear: server.status !== "pending",
+  fingerprint: "fp1",
   notes: server.notes,
   hint: "Run the CLI refine.",
   low_confidence_words: 3,
@@ -304,6 +307,12 @@ const fetchStub = vi.fn(
     if (url.includes("/refine/status")) return json(statusBody());
     if (url.includes("/refine/done")) {
       order.push("done");
+      marks.push(JSON.parse(init?.body as string));
+      if (server.markChanged)
+        return new Response(JSON.stringify({ detail: "changed" }), {
+          status: 409,
+          headers: { "X-Sharecut-Error-Code": "transcript_changed" },
+        });
       if (server.markFails) return json({ detail: "no" }, 500);
       server.status = "done";
       return json(statusBody());
@@ -368,6 +377,7 @@ beforeEach(() => {
   });
   Object.assign(server, fresh());
   order.length = 0;
+  marks.length = 0;
   wire.rows = [];
   wire.post.mockImplementation(async (_path: string, body) => answer(body));
   wire.preview.mockImplementation(async () => wavResponse(1));
@@ -834,6 +844,24 @@ describe("Review host unsure words", () => {
     expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
   });
 
+  it("sends the reviewed fingerprint and explains a changed transcript", async () => {
+    server.markChanged = true;
+    setup();
+    await pick(/uncle/);
+    for (let i = 0; i < 3; i++)
+      act(() => {
+        press("Enter");
+      });
+    await waitFor(() => expect(order).toContain("done"));
+    expect(marks[0].expected_fingerprint).toBe("fp1");
+    await waitFor(() =>
+      expect(toast()).toBe(
+        "The transcript changed after you reviewed it. Review it again, then mark it checked.",
+      ),
+    );
+    await checks();
+  });
+
   it("sends no mark when the transcript words are not all loaded", async () => {
     setup();
     const { project } = useDawStore.getState();
@@ -868,6 +896,7 @@ describe("Review host unsure words", () => {
     });
     expect(toast()).toBe("Fixed “uncle” to “oncle”");
     await waitFor(() => expect(order).toContain("done"));
+    expect(marks[0].expected_fingerprint).toBe("fp1");
     expect(server.waived).toEqual([]);
   });
 

@@ -51,6 +51,12 @@ import { playTimelineRange } from "../../utils/playRange";
 import { useStableCallback } from "../../utils/useStableCallback";
 
 const WAIVE_NOTE = "Approved after listening in Review";
+const CHANGED_MESSAGE =
+  "The transcript changed after you reviewed it. Review it again, then mark it checked.";
+const changedMessage = (error: unknown) =>
+  error instanceof ApiError && error.code === "transcript_changed"
+    ? CHANGED_MESSAGE
+    : undefined;
 const CLOSER_LOOK = "Needs a closer look in Edit";
 const UNSURE_REASON = "unsure_word";
 const HEAR_PAD_SEC = 2;
@@ -158,6 +164,7 @@ export function useReviewQueue() {
     ids: string[],
     word?: { target: WordTarget; text: string },
     check?: boolean,
+    fingerprint?: string,
   ) => {
     if (intent.waive)
       await waiveTranscriptRefine(path, intent.waive.note || WAIVE_NOTE);
@@ -174,7 +181,7 @@ export function useReviewQueue() {
       return { queued: false, count: null, historyHead } satisfies Reply;
     }
     if (ids.length === 0) {
-      if (check) await markTranscriptChecked(path);
+      if (check) await markTranscriptChecked(path, undefined, fingerprint);
       return;
     }
     if (intent.result === "kept") return rejectEdits(path, ids);
@@ -203,23 +210,34 @@ export function useReviewQueue() {
         return OPEN_CHECK;
       }
       try {
-        const next = await markTranscriptChecked(path);
+        const next = await markTranscriptChecked(
+          path,
+          undefined,
+          seen?.fingerprint,
+        );
         requests.current++;
         setStatus(next);
       } catch (error) {
         revert([CHECK_ID]);
         useDawStore
           .getState()
-          .announceStatus(errorMessage(error), { tone: "error" });
+          .announceStatus(changedMessage(error) ?? errorMessage(error), {
+            tone: "error",
+          });
         return false;
       }
     } else if (changed && seen?.clear) {
       try {
-        if (seen.status === "done") await markTranscriptChecked(path);
+        if (seen.status === "done")
+          await markTranscriptChecked(
+            path,
+            undefined,
+            (await loadTranscriptCheck(path)).fingerprint,
+          );
         else if (seen.status === "waived")
           await waiveTranscriptRefine(path, seen.notes || WAIVE_NOTE);
       } catch (error) {
-        return `The transcript check could not be kept: ${errorMessage(error)}`;
+        return `The transcript check could not be kept: ${changedMessage(error) ?? errorMessage(error)}`;
       }
     }
   };
@@ -272,6 +290,7 @@ export function useReviewQueue() {
         ids,
         word,
         closes,
+        seen?.fingerprint,
       );
       if (!current()) return;
       const marked = word
@@ -354,13 +373,18 @@ export function useReviewQueue() {
       const gate =
         error instanceof ApiError &&
         error.code === TRANSCRIPT_REFINE_REQUIRED_CODE;
-      const next = gate && !intent.waive ? await refreshStatus() : null;
+      const changedText = changedMessage(error);
+      const next =
+        (gate && !intent.waive) || changedText ? await refreshStatus() : null;
       if (!current()) return false;
-      if (next && checkEntryOf(next)) say(CUT_AGAIN);
+      if (next && checkEntryOf(next) && !changedText) say(CUT_AGAIN);
       else
-        say(gate ? REFINE_GATE_GUI_MESSAGE : errorMessage(error), {
-          tone: "error",
-        });
+        say(
+          changedText ?? (gate ? REFINE_GATE_GUI_MESSAGE : errorMessage(error)),
+          {
+            tone: "error",
+          },
+        );
       return false;
     }
   });
