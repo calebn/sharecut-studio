@@ -103,8 +103,6 @@ describe("tab and stage mapping", () => {
     for (const tab of TABS) {
       const { stage, section, sheet } = STAGE_FOR_TAB[tab];
       const back = tabForStage(stage, section ?? "comments");
-      // History is a sheet on Edit, so it reads back as the Edit tab; the
-      // retired Tighten tab reads back as Queue (`impact`).
       const expected = tab === "tighten" ? "impact" : tab;
       expect(back).toBe(sheet ? "transcript" : expected);
     }

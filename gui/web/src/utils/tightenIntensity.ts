@@ -8,7 +8,7 @@ import { jobErrorText } from "./apiError";
 import { getByPath, setByPath } from "./configPath";
 
 export const TIGHTEN_INTENSITY_PATH = "tighten.intensity";
-export const TIGHTEN_ANALYZE_STEP = "analyze_fillers_pauses";
+const TIGHTEN_ANALYZE_STEP = "analyze_fillers_pauses";
 
 type RunOptions = NonNullable<Parameters<typeof startPipelineRun>[1]>;
 
