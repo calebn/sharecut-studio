@@ -199,7 +199,7 @@ class ApplySuggestedActionsPayload(BaseModel):
     ids: list[str] | None = Field(
         default=None,
         description=(
-            "Narrow the batch to these pending sounds (the Tighten list's filtered ids); "
+            "Narrow the batch to these pending sounds (for one sound, a single Lower from its Review row); "
             "omit for every pending tighten proposal."
         ),
     )

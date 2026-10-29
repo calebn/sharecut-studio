@@ -314,7 +314,7 @@ the empty state, not a separate discovery task.
   two seconds, how long it has run. It shows no percent unless the host reports
   a real total ([progress.md](progress.md)). The control stays disabled with
   the busy reason, and the status clears when the command ends, leaving the
-  result toast and its Undo. the Review queue's Cut all and Keep all, and Tighten's Apply suggested actions, use
+  result toast and its Undo. The Review queue's Cut all and Keep all use
   this working line (#1491, #2165). A job that outlives the panel belongs on the Activity chip.
 - **Destructive list actions get toast-with-undo.** Approve, reject,
   skip, blade, trim: after the mutation, a transient confirmation
@@ -341,8 +341,7 @@ the empty state, not a separate discovery task.
   reason; only a toast that still offers Undo for a different, newer step keeps
   its place (#1690). For a logical approval recorded across two commands,
   the first toast's Undo is refused and the pass toast's Undo takes back both
-  edits (#1677). Tighten apply, skip and Apply
-  eligible, transcript word fixes, Suppress, Ignore and Restore, a range Cut or
+  edits (#1677). Transcript word fixes, Suppress, Ignore and Restore, a range Cut or
   Mute, single pending-edit Approve and Reject, the Review queue's group verbs (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
 - A stale fade gesture says "This clip changed. Nothing was saved. Adjust the

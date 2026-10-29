@@ -1519,7 +1519,7 @@
             }
           ],
           "default": null,
-          "description": "Narrow the batch to these pending sounds (the Tighten list's filtered ids); omit for every pending tighten proposal.",
+          "description": "Narrow the batch to these pending sounds (for one sound, a single Lower from its Review row); omit for every pending tighten proposal.",
           "title": "Ids"
         },
         "override_audio_checks": {

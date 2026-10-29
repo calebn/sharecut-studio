@@ -120,9 +120,8 @@ returns the same hits, under the same ids, each run. An Ask thread
 (`edit_decision_id`) on a hit stays attached across re-runs.
 
 4. Review each pending decision listen-first:
-   - Sharecut Studio **Tighten** tab (host): search/filter filler, pause, repetition, restart and sound (acoustic) hits by the server `kind`,
-     Preview / Skip / Apply one, or Apply suggested actions (every listed
-     sound gets its own suggested action in one undo step), or
+   - Sharecut Studio Review > Queue (host): **Find more** proposes the hits, each row's
+     Cut / Keep decides one, and a group's **Cut all** applies its hits in one undo step, or
    - `list_edit_decisions_tool` / `podcast edit list --pending` plus
      `play_pending_preview_tool` (Suggested / Current / A/B). `list_edit_decisions_tool` and `podcast edit list` rows carry `kind`,
      `sound_kind`, `label` and `suggested_action`, like `propose_edits` rows; group by `kind`, not the reason prefix.
