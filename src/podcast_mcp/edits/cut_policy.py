@@ -215,7 +215,7 @@ def sound_kind(reason: str | None) -> str | None:
 
 
 def review_kind(reason: str | None) -> ReviewKind:
-    """The Review queue group for a reason code; ``other`` for guest, agent and manual edits."""
+    """The Review queue group for a reason code; ``other`` for missing or unrecognized reasons."""
     kind = sound_kind(reason)
     return _REVIEW_KIND_BY_SOUND[kind] if kind is not None else "other"
 

@@ -6,8 +6,6 @@ reads ``listen_one_by_one`` from the server and holds no rule of its own; no Stu
 reads ``harsh`` now that the harsh-only filter is gone. Apply suggested actions does not filter on
 them: the server applies each sound's own action and names what stays pending.
 
-``why_line`` writes the plain sentence on a pending edit (``pending_edits[].why``) from the reason
-code alone.
 """
 
 from __future__ import annotations
