@@ -51,6 +51,18 @@ describe("DeviceSheet", () => {
     ).toBeVisible();
   });
 
+  it("locks a lost input's menu only while a take is running", () => {
+    const lost = {
+      status: "lost",
+      devices: READY.devices,
+      inputId: "a",
+    } satisfies DeviceMic;
+    const { rerender } = render(sheet({ mic: { ...lost, inputLocked: true } }));
+    expect(screen.getByLabelText("Input")).toBeDisabled();
+    rerender(sheet({ mic: lost }));
+    expect(screen.getByLabelText("Input")).toBeEnabled();
+  });
+
   it("toggles headphones, and omits the toggle without a handler", async () => {
     const onHeadphonesChange = vi.fn();
     const { rerender } = render(sheet({ onHeadphonesChange }));

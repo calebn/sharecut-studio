@@ -278,6 +278,7 @@ export function joinMic(
         label: entry.label || "Microphone",
       }));
       lost.inputId = options.deviceId;
+      lost.inputLocked = options.inputLocked;
     }
     return lost;
   }
