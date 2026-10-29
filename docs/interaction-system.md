@@ -160,8 +160,8 @@ There are three overlay primitives.
    and viewport determine whether editor panels return or remain stowed.
 5. **One confirm primitive each.** `askConfirm` is the confirm dialog and
    `InlineConfirm` the in-place confirm; the one confirm-shaped dialog that
-   is not `askConfirm` is listed under Shipped gaps. The blade cut confirms
-   through `askConfirm` on phone and tablet. A dialog anchored beside its
+   is not `askConfirm` is listed under Shipped gaps. Split cuts at once
+   on every shell, with Undo on the toast. A dialog anchored beside its
    control (the join editor) passes `anchor`; it is non-modal, in the top
    layer, and closes when a modal opens.
 6. **Confirms say the consequence.** The primary names the outcome ("Remove

@@ -493,8 +493,7 @@ Escape closes the dialog and does not also clear the selection, and Mod+Z,
 Space or Delete do nothing behind it, so an in-app confirm over the Inspector
 neither undoes nor removes anything while it asks. An open peek sheet also
 holds Escape: `overlayOpen()` skips keymap `edit.clearSelection`. Every `Dialog` is a bottom sheet on phone and tablet (a tablet sheet keeps a
-42rem measure) with its primary pinned in the footer; the split asks
-`askConfirm` ("Cut at 01:23.500?") on both shells, and the People list on the
+42rem measure) with its primary pinned in the footer; the People list on the
 phone More sheet is a `Menu` behind a "People · n" button.
 Inspector dismiss still clears the clip selection. A remounted Inspector
 sheet stays under a still-open JoinPopover and does not steal focus from
@@ -778,7 +777,7 @@ test any more.
 - **Zoom (#1028).** Zoom out and Zoom in (in the corner) run `view.zoomOut` and `view.zoomIn` on the command bus, the same steps as `-` and `=`. At a limit the button is `aria-disabled` with its reason, not `disabled`, so a finger can still tap it and focus stays. Zoom shows for everyone who can open the timeline.
 - **Touch targets.** The corner packs its controls into the 48px chrome; buttons are 28px there, below the 44px floor. This is a known limit; the Player bar and tab bar keep `var(--touch-min)`.
 - **The phone sheet never covers the header row** (R-short-8). At every detent its slot starts at the header's bottom edge (`bottom-sheet.css`, `--app-header-height-phone` plus the top safe area), so the Stage menu and Tools button stay reachable while a selection is open, including at 200% text. The clearance tokens then count only the rows under the header (`--sheet-header-clearance` is 0 on the phone).
-- **Split** is a confirm sheet on touch (tracks and timecode), as before; the sheet rests above the tab bar and Player (`--frame-bottom-chrome`).
+- **Split** cuts at once on touch with no confirm; the toast carries Undo. Sheets rest above the tab bar and Player (`--frame-bottom-chrome`).
 - **Undo and Redo** live in the app header on every shell. When the compact inspector is closed they are not repeated in the strip.
 - The `--mobile-nav-height`, `--tabs-height` and `--status-height` tokens are replaced by `--frame-bottom-chrome` for sheets, jog and toast offsets.
 - The host recording chip is a Record-stage badge on the Stage bar. **Solo on · Clear solo** is the Player bar's Solo chip, 44px.
