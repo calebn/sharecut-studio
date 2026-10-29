@@ -40,6 +40,23 @@ describe("ProjectCardList", () => {
     expect(cards.map((card) => card.tabIndex)).toEqual([0, -1, -1, -1]);
   });
 
+  it.each(["Alt", "Control", "Meta", "Shift"])(
+    "leaves %s+arrow to the browser (Alt+Left is Back)",
+    async (modifier) => {
+      const { cards, user } = setup();
+      await user.tab();
+      const seen = vi.fn();
+      const watch = (event: KeyboardEvent) => {
+        if (event.key === "ArrowRight") seen(event.defaultPrevented);
+      };
+      document.addEventListener("keydown", watch);
+      await user.keyboard(`{${modifier}>}{ArrowRight}{/${modifier}}`);
+      document.removeEventListener("keydown", watch);
+      expect(seen).toHaveBeenLastCalledWith(false);
+      expect(cards[0]).toHaveFocus();
+    },
+  );
+
   it("jumps with Home and End and moves the tab stop", async () => {
     const { cards, user } = setup();
     await user.tab();

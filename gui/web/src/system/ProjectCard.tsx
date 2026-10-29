@@ -122,6 +122,9 @@ export function ProjectCardList({
   const current = found < 0 ? 0 : found;
 
   const move = (event: KeyboardEvent<HTMLButtonElement>) => {
+    // Alt+Left is the browser's Back; modified arrows are not ours.
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+      return;
     const last = projects.length - 1;
     const keys: Record<string, number> = {
       ArrowRight: Math.min(current + 1, last),
