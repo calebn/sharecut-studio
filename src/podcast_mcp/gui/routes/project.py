@@ -120,8 +120,8 @@ def create_project(
     requested = body.workspace_dir.strip()
     created_here: Path | None = None
     try:
-        ensure_utf8_path(name)
         if requested:
+            ensure_utf8_path(name)
             target = Path(requested).expanduser().resolve()
             ensure_utf8_path(target)
             if not os.path.lexists(target):
