@@ -38,6 +38,7 @@ export type DocumentCommandType =
   | "RejectEdits"
   | "RemoveEffect"
   | "RemoveTrack"
+  | "RenameProject"
   | "ReorderTrack"
   | "ReplaceTranscriptMatches"
   | "ResolveComment"
@@ -117,6 +118,7 @@ export const DocumentCommand = {
   RejectEdits: "RejectEdits",
   RemoveEffect: "RemoveEffect",
   RemoveTrack: "RemoveTrack",
+  RenameProject: "RenameProject",
   ReorderTrack: "ReorderTrack",
   ReplaceTranscriptMatches: "ReplaceTranscriptMatches",
   ResolveComment: "ResolveComment",

@@ -840,6 +840,10 @@ class RippleDeleteTextPayload(BaseModel):
     )
 
 
+class RenameProjectPayload(BaseModel):
+    name: str
+
+
 class AddTrackPayload(BaseModel):
     track_id: str | None = None
     label: str | None = None
@@ -1240,6 +1244,11 @@ class RippleDeleteTextCommand(DocumentCommandEnvelope):
     payload: RippleDeleteTextPayload
 
 
+class RenameProjectCommand(DocumentCommandEnvelope):
+    type: Literal["RenameProject"] = "RenameProject"
+    payload: RenameProjectPayload
+
+
 class AddTrackCommand(DocumentCommandEnvelope):
     type: Literal["AddTrack"] = "AddTrack"
     payload: AddTrackPayload = Field(default_factory=AddTrackPayload)
@@ -1345,6 +1354,7 @@ DocumentCommandBody = Annotated[
     | PasteSegmentCommand
     | CutRangeCommand
     | RippleDeleteTextCommand
+    | RenameProjectCommand
     | AddTrackCommand
     | SetTrackMediaCommand
     | SetTrackMetaCommand
@@ -1479,6 +1489,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "PasteSegment": PasteSegmentPayload,
     "CutRange": CutRangePayload,
     "RippleDeleteText": RippleDeleteTextPayload,
+    "RenameProject": RenameProjectPayload,
     "AddTrack": AddTrackPayload,
     "SetTrackMedia": SetTrackMediaPayload,
     "SetTrackMeta": SetTrackMetaPayload,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -12,16 +13,54 @@ from podcast_mcp.engines.track_media import (
     apply_full_span_media,
     refresh_timeline_duration,
 )
-from podcast_mcp.models import FADER_MAX_DB, FADER_MIN_DB, Track, TrackRole
+from podcast_mcp.models import (
+    FADER_MAX_DB,
+    FADER_MIN_DB,
+    PROJECT_NAME_MAX_CHARS,
+    Track,
+    TrackRole,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import ensure_audio_in_workspace, schedule_track_waveforms
 from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedValueError
 from podcast_mcp.util.tracks import unknown_track
 
 
+def _clean_project_name(name: str) -> str:
+    cleaned = name.strip()
+    if not cleaned:
+        raise CodedValueError("project name must not be empty", code="invalid_project_name")
+    if len(cleaned) > PROJECT_NAME_MAX_CHARS:
+        raise CodedValueError(
+            f"project name must be at most {PROJECT_NAME_MAX_CHARS} characters",
+            code="invalid_project_name",
+        )
+    if any(unicodedata.category(char) in {"Cc", "Cf"} for char in cleaned):
+        raise CodedValueError(
+            "project name must not contain control characters", code="invalid_project_name"
+        )
+    return cleaned
+
+
 class EpisodeService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
+
+    def rename_project(self, name: str) -> dict:
+        """Set the project's display name; the folder and files keep their names."""
+        cleaned = _clean_project_name(name)
+
+        def mutate(p) -> None:
+            p.meta.name = cleaned
+
+        self.ws.mutate(
+            "before rename project",
+            "after rename project",
+            mutate,
+            operation="rename_project",
+            params={"name": cleaned},
+        )
+        return {"name": self.ws.project.meta.name}
 
     def add_track(
         self,

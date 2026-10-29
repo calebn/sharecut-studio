@@ -79,6 +79,7 @@ DocumentCommandType = Literal[
     "PasteSegment",
     "CutRange",
     "RippleDeleteText",
+    "RenameProject",
     "AddTrack",
     "SetTrackMedia",
     "SetTrackMeta",

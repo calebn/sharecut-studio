@@ -20,13 +20,11 @@ def require_v2_document(data: dict[str, Any]) -> None:
 
 def snapshot_editable_state(project: Any) -> dict[str, Any]:
     """Extract undo/redo snapshot payload from EpisodeProject."""
-    meta: dict[str, Any] | None = None
+    meta: dict[str, Any] = {"name": project.meta.name}
     if project.meta.ingest_alignment is not None:
-        meta = {
-            "ingest_alignment": {
-                k: v.model_dump() if hasattr(v, "model_dump") else v
-                for k, v in project.meta.ingest_alignment.items()
-            }
+        meta["ingest_alignment"] = {
+            k: v.model_dump() if hasattr(v, "model_dump") else v
+            for k, v in project.meta.ingest_alignment.items()
         }
     return {
         "sources": [s.model_dump() for s in project.sources],
@@ -61,6 +59,8 @@ def apply_editable_snapshot(project: Any, snap: dict[str, Any]) -> None:
     project.review = ReviewSection.model_validate(snap.get("review") or {"comments": []})
     project.render.last_completed_step = snap.get("render_last_completed_step")
     meta = snap.get("meta")
+    if meta and "name" in meta:
+        project.meta.name = meta["name"]
     if meta and "ingest_alignment" in meta:
         from podcast_mcp.models.episode import SpeakerIngestAlignment
 
