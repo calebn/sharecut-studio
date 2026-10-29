@@ -143,7 +143,7 @@ the role, MCP and Freeze choices, **Create review link**, the live links with
 **Copy**, **Copy MCP URL** and **Stop sharing** (confirmed in place), the online
 sharing line, and record rooms. The link is made and copied from the click on
 Create; if the browser refuses the copy, the row reads “Press Ctrl C” with the
-whole link selected. The old Share dialog was removed in #2450.
+whole link selected.
 
 ---
 

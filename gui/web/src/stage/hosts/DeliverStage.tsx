@@ -470,6 +470,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
 /**
  * The Deliver stage host: the Deliver stage on the open project, with chapter
  * and clip edits written back to the document, and the export run by the
- * flows in `DawApp`. Share is a section here, beside the header Invite dialog. Host only.
+ * flows in `DawApp`. Share is a section here; the header Invite opens it. Host only.
  */
 export const DeliverStage = memo(DeliverStageAdapter);

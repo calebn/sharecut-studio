@@ -38,7 +38,7 @@ export interface ChromeFlags {
   bounceRequested: boolean;
   /** An export asked for by a command; the Deliver stage starts it and clears this. */
   exportRequested: boolean;
-  /** Host share management dialog. */
+  /** A Share request from a command; the Deliver stage focuses its Share section and clears this. */
   shareRequested: boolean;
   /** Local host MCP connect dialog (Streamable HTTP URL). */
   hostMcpDialogOpen: boolean;

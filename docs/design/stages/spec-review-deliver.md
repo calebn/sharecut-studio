@@ -520,7 +520,7 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Story to build:** `Stages/Edit/ExportRange` stories `Default`, `Options`, `Done` (coordinate with Edit worker); `Stages/Deliver/EpisodeFile` `PartOfEpisode`.
 - **Shipped (#2449):** until the Export verb lands in Edit, the dialog is replaced by a Bounce section in Deliver (`Stages/Deliver/Bounce`): the source (Entire mix, Selected tracks, Soloed tracks), Limit to session region, Also write MP3, a range fixed in Edit, progress with Cancel, the files written, and the model prompt. `Mod+Shift+B`, the palette and Range actions → Bounce go to Deliver and focus the Bounce button; the flow lives in `DawApp`, so leaving Deliver does not stop it. Leaving Deliver ends the visit: it clears a fixed range and the bounce choices, while a running bounce continues.
 
-### DLG-SHARE · Share (incl. created state and record-link section)
+### Share (was DLG-SHARE; incl. created state and record-link section)
 
 - **Today:** `DLG-SHARE--*`, `DLG-SHARE-CREATED--*`. Three radio roles with explanations, two checkboxes with paragraphs, the created link hidden below the footer on phone (narrow F09), raw clipboard error ("Failed to execute 'writeText' on 'Clipboard'…") beside a toast "Review link created".
 - **Fate:** replace with Link rows in two homes: review links in Review (header "Invite" button opens a popover), the listen link for the final in Deliver. **Record invites move to the Record stage (designed by the Record worker);** the record room section is removed from this surface, and the Link row element is shared with Record.
