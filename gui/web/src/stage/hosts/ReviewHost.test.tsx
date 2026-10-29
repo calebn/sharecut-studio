@@ -210,7 +210,7 @@ const projectOf = () =>
 const statusBody = () => ({
   status: server.status,
   clear: server.status !== "pending",
-  fingerprint: `fp:${server.words.map((w) => w.text)}`,
+  fingerprint: `fp:${server.words.map((w) => w.text).join("|")}`,
   notes: server.notes,
   hint: "Run the CLI refine.",
   low_confidence_words: 3,
@@ -843,7 +843,7 @@ describe("Review host unsure words", () => {
     await waitFor(() => expect(sent("CorrectTranscriptWord")).toHaveLength(2));
     await fix("orc2");
     await waitFor(() => expect(order).toContain("done"));
-    expect(marks[0].expected_fingerprint).toBe("fp:uncle,gnu,orc2");
+    expect(marks[0].expected_fingerprint).toBe("fp:uncle|gnu|orc2");
     await waitFor(() =>
       expect(screen.queryByRole("region", { name: "Checks" })).toBeNull(),
     );
@@ -871,7 +871,7 @@ describe("Review host unsure words", () => {
         press("Enter");
       });
     await waitFor(() => expect(order).toContain("done"));
-    expect(marks[0].expected_fingerprint).toBe("fp:uncle,gnu,orc");
+    expect(marks[0].expected_fingerprint).toBe("fp:uncle|gnu|orc");
     await waitFor(() =>
       expect(toast()).toBe(
         "The transcript changed after you reviewed it. Review it again, then mark it checked.",
@@ -914,7 +914,7 @@ describe("Review host unsure words", () => {
     });
     expect(toast()).toBe("Fixed “uncle” to “oncle”");
     await waitFor(() => expect(order).toContain("done"));
-    expect(marks[0].expected_fingerprint).toBe("fp:oncle,gnu,orc");
+    expect(marks[0].expected_fingerprint).toBe("fp:oncle|gnu|orc");
     expect(server.waived).toEqual([]);
   });
 
