@@ -891,7 +891,7 @@ describe("ShareDialog", () => {
     ).toBeTruthy();
   });
 
-  it("opens the record panel from a live room", async () => {
+  it("opens the Record stage from a live room", async () => {
     const { registerDawCommands } = await import("../../commands/register");
     registerDawCommands();
     const guestRow: HostShareRow = {
