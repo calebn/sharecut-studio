@@ -46,7 +46,13 @@ HANDLE = 77
 
 
 class _Kernel32:
-    def __init__(self, *, opens: bool = True, exit_code: int | None = 259, error: int = 0) -> None:
+    def __init__(
+        self,
+        *,
+        opens: bool = True,
+        exit_code: int | None = process_module._STILL_ACTIVE,
+        error: int = 0,
+    ) -> None:
         self.opens, self.exit_code, self.error = opens, exit_code, error
         self.closed: list[int] = []
         self.asked: list[tuple[int, bool, int]] = []
@@ -73,7 +79,11 @@ class _Kernel32:
         pytest.param(_Kernel32(exit_code=0), False, id="exited_zero"),
         pytest.param(_Kernel32(exit_code=1), False, id="exited_one"),
         pytest.param(_Kernel32(exit_code=None), True, id="exit_code_unreadable"),
-        pytest.param(_Kernel32(opens=False, error=87), False, id="no_such_process"),
+        pytest.param(
+            _Kernel32(opens=False, error=process_module._ERROR_INVALID_PARAMETER),
+            False,
+            id="no_such_process",
+        ),
         pytest.param(_Kernel32(opens=False, error=5), True, id="access_denied"),
         pytest.param(_Kernel32(opens=False, error=1450), True, id="unknown_error"),
     ],
