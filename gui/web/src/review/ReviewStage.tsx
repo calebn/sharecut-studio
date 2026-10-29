@@ -12,6 +12,7 @@ import { Sheet } from "../system/Sheet";
 import { SystemIcon } from "../system/SystemIcon";
 import type { TimeRange } from "../system/seconds";
 import { Button } from "../ui";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { stepUndecided } from "./advance";
 import { ContextStrip } from "./ContextStrip";
 import {
@@ -339,7 +340,7 @@ export function ReviewStage({
         setSheetOpen(false);
       }}
       onFindMore={onFindMore}
-      findMoreDisabled={findMoreDisabled}
+      findMoreDisabled={bulkRunning ? BUSY_REASON : findMoreDisabled}
       onRetry={onRetry}
     />
   );

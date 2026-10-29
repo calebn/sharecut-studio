@@ -70,6 +70,8 @@ export function useFindMore(enabled: boolean) {
         !(await askConfirm({
           ...question,
           title: "Find more again?",
+          message: `Finding more replaces the ${hits === 1 ? "1 undecided suggestion" : `${hits} undecided suggestions`} in this list, including ones you nudged.`,
+          keepLabel: "Keep suggestions",
           actionLabel: "Find more",
         }))
       )
@@ -107,7 +109,12 @@ export function useFindMore(enabled: boolean) {
     isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob);
   const mine = run?.path === projectPath ? run : null;
   const error =
-    mine?.error ?? findHitsRunError(mine?.jobId ?? null, pipelineJob);
+    mine?.error ??
+    findHitsRunError(
+      mine?.jobId ?? null,
+      pipelineJob,
+      "Finding more suggestions failed.",
+    );
   const running =
     isPipelineKindJob(pipelineJob) && isPipelineRunning(pipelineJob);
   const percent = pipelineProgressPercent(pipelineJob);

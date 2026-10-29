@@ -316,6 +316,19 @@ describe("ReviewStage", () => {
     expect(decided()).toBe(before);
   });
 
+  it("ignores a Cut all press and disables Find more while a bulk runs", async () => {
+    const { decided } = setup({
+      initialItems: [...QUEUE_WITHOUT_CHECKS, ...EXTRA_KIND_ITEMS],
+      bulkRunning: { kind: "filler", total: 3, done: 1 },
+      onFindMore: vi.fn(),
+    });
+    const before = decided();
+    for (const b of screen.queryAllByRole("button", { name: /^Cut all/ }))
+      await userEvent.click(b);
+    expect(decided()).toBe(before);
+    expect(screen.getByRole("button", { name: "Find more" })).toBeDisabled();
+  });
+
   it("rolls back an unsure word's check when Undo reverts it", async () => {
     const { press } = setup({
       initialItems: QUEUE_CHECKED,
