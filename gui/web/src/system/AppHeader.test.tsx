@@ -282,6 +282,35 @@ describe("AppHeader rename", () => {
     expect(screen.getByRole("button", { name: /Episode 14/ })).toHaveFocus();
   });
 
+  it("returns focus to the Project button after a press outside", async () => {
+    const onRename = vi.fn();
+    setup({ onRename });
+    const { user } = await openRename();
+    await user.click(document.body);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("textbox", { name: "Project name" }),
+      ).toBeNull(),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Episode 14/ })).toHaveFocus(),
+    );
+    expect(onRename).not.toHaveBeenCalled();
+  });
+
+  it("closes on Cancel without renaming and returns focus to the Project button", async () => {
+    const onRename = vi.fn();
+    setup({ onRename });
+    const { user, field } = await openRename();
+    await user.type(field, "x");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("textbox", { name: "Project name" })).toBeNull();
+    expect(onRename).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Episode 14/ })).toHaveFocus(),
+    );
+  });
+
   it("does not call onRename for an unchanged name", async () => {
     const onRename = vi.fn();
     setup({ onRename });

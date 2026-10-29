@@ -4911,6 +4911,17 @@ input.sys-edit-fix {
   gap: var(--space-3);
 }
 
+.sys-rename-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.sys-rename-actions > button {
+  flex: 1 1 6rem;
+}
+
 .sys-rename-form .ui-field {
   margin-bottom: 0;
 }

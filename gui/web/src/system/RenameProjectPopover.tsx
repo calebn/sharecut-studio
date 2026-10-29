@@ -80,13 +80,18 @@ function RenameForm({
           />
         )}
       </Field>
-      <Button
-        type="submit"
-        variant="primary"
-        disabledReason={busy ? "Renaming the project." : undefined}
-      >
-        Rename
-      </Button>
+      <div className="sys-rename-actions">
+        <Button type="button" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          variant="primary"
+          disabledReason={busy ? "Renaming the project." : undefined}
+        >
+          Rename
+        </Button>
+      </div>
     </form>
   );
 }
@@ -105,10 +110,21 @@ export function RenameProjectPopover({
   onClose,
 }: RenameProjectPopoverProps) {
   const field = useRef<HTMLInputElement>(null);
+  // A press outside lets the browser move focus to <body> after the dialog has
+  // restored it, so the Project button takes it back once that settles.
+  const close = () => {
+    onClose();
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active === null || active === document.body) {
+        anchorRef.current?.focus();
+      }
+    });
+  };
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={close}
       title="Rename project"
       panelClassName="sys-rename-panel"
       initialFocusRef={field}
@@ -122,7 +138,7 @@ export function RenameProjectPopover({
         name={name}
         field={field}
         onRename={onRename}
-        onClose={onClose}
+        onClose={close}
       />
     </Dialog>
   );
