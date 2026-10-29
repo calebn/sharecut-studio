@@ -40,6 +40,28 @@ type Grab<G> = {
   moved: boolean;
 };
 
+/** The keys a part ignores while one of its drags is moving; Escape and the Alt focus walk stay live. */
+export function swallowsDuringDrag(event: {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+}): boolean {
+  return (
+    !(event.ctrlKey || event.metaKey || event.altKey) &&
+    DRAG_SWALLOWED.has(event.key)
+  );
+}
+
+const DRAG_SWALLOWED: ReadonlySet<string> = new Set([
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+  "Enter",
+  " ",
+]);
+
 function pointerOf(
   event: PointerEvent<HTMLElement> | globalThis.PointerEvent,
 ): GrabPointer {
@@ -170,6 +192,8 @@ export function useGrab<G>(options: GrabOptions<G>) {
     up,
     cancel,
     active: (): G | null => held.current?.grip ?? null,
+    /** True from the first move past the slop; a press that has not moved is not a drag yet. */
+    dragging: (): boolean => held.current?.moved === true,
     abort,
     /** True for the click a pointer gesture leaves behind; a key press (`detail` 0) is never swallowed. */
     consumeClick: (event: { detail: number }): boolean => {

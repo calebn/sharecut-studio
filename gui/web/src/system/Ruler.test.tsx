@@ -636,3 +636,55 @@ describe("Ruler drag limits", () => {
     ]);
   });
 });
+
+describe("Ruler keys during a drag", () => {
+  const SWALLOWED = ["ArrowLeft", "ArrowRight", "Home", "End", "Enter", " "];
+
+  it("ignores the playhead keys while a scrub is moving, keeps Escape live, and works again after", () => {
+    const { onSeek, onScrubEnd } = setup();
+    fireEvent.pointerDown(body(), { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(body(), { pointerId: 1, clientX: 140 });
+    for (const key of SWALLOWED) {
+      expect(fireEvent.keyDown(body(), { key })).toBe(false);
+    }
+    expect(onSeek).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(body(), { key: "Escape" })).toBe(false);
+    expect(onScrubEnd.mock.calls).toEqual([[false]]);
+    fireEvent.keyDown(body(), { key: "ArrowRight" });
+    expect(onSeek).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores the nudge keys on a knob while it is moving, still walks focus with Alt, and nudges after the release", () => {
+    const { handle, onSelectionNudge, onSelectionDragEnd } = setup({
+      selection,
+    });
+    const group = screen.getByRole("group", { name: "Time ruler" });
+    fireEvent.pointerDown(handle("start"), { pointerId: 1, clientX: 80 });
+    fireEvent.pointerMove(handle("start"), { pointerId: 1, clientX: 120 });
+    for (const key of SWALLOWED) {
+      expect(fireEvent.keyDown(handle("start"), { key })).toBe(false);
+    }
+    expect(onSelectionNudge).not.toHaveBeenCalled();
+    fireEvent.keyDown(handle("start"), { key: "ArrowRight", altKey: true });
+    expect(handle("end")).toHaveFocus();
+    fireEvent.pointerUp(group, { pointerId: 1, clientX: 120 });
+    expect(onSelectionDragEnd.mock.calls).toEqual([["start", true]]);
+    fireEvent.keyDown(handle("start"), { key: "ArrowRight" });
+    expect(onSelectionNudge).toHaveBeenCalledTimes(1);
+  });
+
+  it("still acts on a key while a press has not passed the slop, and keeps the click after a drag", () => {
+    const { onSeek } = setup();
+    fireEvent.pointerDown(body(), { pointerId: 1, clientX: 100 });
+    fireEvent.keyDown(body(), { key: "ArrowRight" });
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(body(), { pointerId: 1, clientX: 100 });
+    fireEvent.pointerDown(body(), { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(body(), { pointerId: 1, clientX: 140 });
+    fireEvent.pointerUp(body(), { pointerId: 1, clientX: 140 });
+    fireEvent.click(body(), { detail: 1, clientX: 140 });
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    fireEvent.click(body(), { detail: 0, clientX: 140 });
+    expect(onSeek).toHaveBeenCalledTimes(2);
+  });
+});
