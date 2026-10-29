@@ -279,16 +279,6 @@ button.sys-queue-row--decided {
   cursor: pointer;
 }
 
-@media (pointer: coarse) {
-  button.sys-queue-row--decided {
-    block-size: 2.75rem;
-  }
-}
-
-.sys-decision-thread-slot {
-  min-inline-size: 0;
-}
-
 .sys-queue-decided-text {
   flex: 1;
   min-inline-size: 0;
@@ -307,6 +297,7 @@ button.sys-queue-row--decided {
 
 @media (pointer: coarse) {
   :is(.sys-actions--inline, .sys-prompt, .sys-decision-unsure) .ui-control,
+  button.sys-queue-row--decided,
   .sys-ab .ui-segmented > .ui-control {
     min-block-size: var(--touch-min);
   }
