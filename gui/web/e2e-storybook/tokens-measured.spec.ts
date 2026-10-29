@@ -15,7 +15,8 @@ type Probe = { name: string; kind: "length" | "time" | "number"; want: number };
 function probes(): Probe[] {
   const out: Probe[] = [];
   for (const [name, values] of FROZEN) {
-    // Tokens with two declarations keep the desktop one first.
+    // A token redeclared for a pointer or a contrast mode has no single value.
+    if (values.length !== 1) continue;
     const value = values[0];
     let m = /^(-?[\d.]+)rem$/.exec(value);
     if (m) {
@@ -65,7 +66,7 @@ for (const theme of ["light", "dark"] as const) {
         box.style.inlineSize = "";
         box.style.transitionDuration = "";
         box.style.zIndex = "";
-        box.style.opacity = "";
+        box.style.flexGrow = "";
         let value = Number.NaN;
         const ref = `var(${item.name})`;
         if (item.kind === "length") {
@@ -79,8 +80,8 @@ for (const theme of ["light", "dark"] as const) {
           box.style.zIndex = ref;
           value = Number.parseFloat(getComputedStyle(box).zIndex);
         } else {
-          box.style.opacity = ref;
-          value = Number.parseFloat(getComputedStyle(box).opacity);
+          box.style.flexGrow = ref;
+          value = Number.parseFloat(getComputedStyle(box).flexGrow);
         }
         return { name: item.name, value };
       });
