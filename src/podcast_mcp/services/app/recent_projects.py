@@ -9,7 +9,7 @@ that triggered it. Project state stays in the project file.
 
 :func:`recent_project_cards` turns each entry into the card Home draws from a cheap
 read of the project file (JSON only, no model validation, no media). The parsed summary
-is cached per file by (mtime, size), so a list that has not changed since the last read
+is cached per file by its revision stamp (device, inode, size, mtime), so a list that has not changed since the last read
 parses nothing; only the job state and the delivered date are looked up per request. The
 list is read-modify-written under a process lock only: two processes that record at once
 can drop each other's entry, but the file is never left half written.
@@ -38,7 +38,7 @@ RECENT_LIMIT = 20
 
 _LOCK = threading.Lock()
 _RESERVE_LOCK = threading.Lock()
-_SUMMARIES: dict[str, tuple[tuple[int, int], _Summary | None]] = {}
+_SUMMARIES: dict[str, tuple[tuple[int, int, int, int], _Summary | None]] = {}
 _SUMMARIES_LOCK = threading.Lock()
 
 
@@ -257,7 +257,7 @@ def _finite(value: object) -> float | None:
 
 def _summary_for(project_file: Path, stat: os.stat_result) -> _Summary | None:
     key = str(project_file)
-    signature = file_stamp(stat).content
+    signature = file_stamp(stat).revision
     with _SUMMARIES_LOCK:
         cached = _SUMMARIES.get(key)
     if cached is not None and cached[0] == signature:
