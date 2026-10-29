@@ -60,15 +60,13 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   const unavailable = blockedReason ?? blocker;
   const reason = useDisabledReasonNote(running ? undefined : unavailable);
 
-  const askPhase = gate?.prompt?.phase ?? null;
   // Focus the prompt when it first appears.
-  const asked = askPhase !== null;
   useEffect(() => {
-    if (!asked) return;
+    if (!asking) return;
     const first = gatePanel.current?.querySelector("button");
     first?.scrollIntoView?.({ block: "center" });
     first?.focus();
-  }, [asked]);
+  }, [asking]);
 
   useEffect(() => {
     if (!focusRequested) return;

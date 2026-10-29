@@ -404,6 +404,81 @@ describe("BounceFlowProvider", () => {
     expect(flow.choices).toEqual(BOUNCE_DEFAULTS);
   });
 
+  it("ignores a failure that arrives after the project changed", async () => {
+    let fail!: (e: Error) => void;
+    vi.mocked(followJobToOk).mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    mount();
+    act(() => flow.start());
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
+
+    act(() => useDawStore.setState({ projectPath: "/tmp/other.project.json" }));
+    await waitFor(() => expect(flow.run).toEqual({ kind: "idle" }));
+    await act(async () => fail(new Error("ffmpeg exited 1")));
+
+    expect(flow.run).toEqual({ kind: "idle" });
+  });
+
+  it("ignores a cancel that arrives after the project changed", async () => {
+    let fail!: (e: Error) => void;
+    vi.mocked(followJobToOk).mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    mount();
+    act(() => flow.start());
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
+
+    act(() => useDawStore.setState({ projectPath: "/tmp/other.project.json" }));
+    await waitFor(() => expect(flow.run).toEqual({ kind: "idle" }));
+    await act(async () =>
+      fail(
+        new JobCancelledError(
+          { ...finished, status: "cancelled" },
+          "Bounce cancelled",
+        ),
+      ),
+    );
+
+    expect(flow.run).toEqual({ kind: "idle" });
+  });
+
+  it("returns a failed or cancelled run to idle when the person leaves Deliver, but keeps a running one", async () => {
+    const settle = heldFollow();
+    mount();
+    act(() => flow.start());
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
+    act(() => useDawStore.setState({ stage: "edit" }));
+    expect(flow.run).toMatchObject({ kind: "running" });
+    await act(async () => settle().fail(new Error("ffmpeg exited 1")));
+    expect(flow.run).toEqual({ kind: "failed", reason: "ffmpeg exited 1" });
+    act(() => useDawStore.setState({ stage: "deliver" }));
+    expect(flow.run).toMatchObject({ kind: "failed" });
+    act(() => useDawStore.setState({ stage: "edit" }));
+    expect(flow.run).toEqual({ kind: "idle" });
+
+    act(() => useDawStore.setState({ stage: "deliver" }));
+    act(() => flow.start());
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
+    await act(async () =>
+      settle().fail(
+        new JobCancelledError(
+          { ...finished, status: "cancelled" },
+          "Bounce cancelled",
+        ),
+      ),
+    );
+    expect(flow.run).toMatchObject({ kind: "cancelled" });
+    act(() => useDawStore.setState({ stage: "edit" }));
+    expect(flow.run).toEqual({ kind: "idle" });
+  });
+
   describe("model gate", () => {
     const needed = () =>
       new ApiError("needs RNNoise", "model_needed", 409, {

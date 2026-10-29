@@ -28,7 +28,7 @@ export async function openHostProject(
 
 export const openTransportMenu = openProjectMenu;
 
-/** Open the transport Menu and choose `menuItem` (e.g. "Connect agent…"). */
+/** Open the Project menu and choose `menuItem` (e.g. "Connect agent…"). */
 export const openDialogFromMenu = openProjectMenuItem;
 
 export async function expectOverflowYAuto(locator: Locator): Promise<void> {
