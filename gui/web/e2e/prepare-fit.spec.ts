@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import type { PipelineJobSnapshot } from "../src/types/pipeline";
 import { expectSurfaceAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { expectNoHorizontalScroll } from "./modelsMock";
 import { setRootFontSize } from "./rootFontSize";
 import { openProject } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
@@ -67,13 +68,6 @@ async function openPrepare(
   await expect(page.locator(".sys-prepare")).toBeVisible();
 }
 
-async function expectNoSideScroll(page: Page): Promise<void> {
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - window.innerWidth,
-  );
-  expect(overflow).toBeLessThanOrEqual(0);
-}
-
 async function textFits(page: Page, selector: string): Promise<void> {
   const widths = await page.locator(selector).evaluateAll((elements) =>
     elements.map((element) => ({
@@ -112,7 +106,7 @@ for (const { cell, theme } of withAppearance(CELLS)) {
     await expect(terms).toBeInViewport();
     await handoff.scrollIntoViewIfNeeded();
     await expect(handoff).toBeInViewport();
-    await expectNoSideScroll(page);
+    await expectNoHorizontalScroll(page);
     for (const control of [terms, handoff]) {
       const box = (await control.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(43.5);
@@ -143,7 +137,7 @@ for (const { cell, theme } of withAppearance(
     await expect(rows.locator(".sys-status-detail").first()).toBeVisible();
     await textFits(page, ".sys-prepare .sys-status-detail");
     await textFits(page, ".sys-prepare .sys-status-cause");
-    await expectNoSideScroll(page);
+    await expectNoHorizontalScroll(page);
     await expectSurfaceAxeClean(page, ".sys-prepare-ready");
   });
 }
@@ -173,5 +167,5 @@ test("Prepare warning layout: a missing-model banner with a long name wraps at 7
   expect(box.x).toBeGreaterThanOrEqual(-1);
   expect(box.x + box.width).toBeLessThanOrEqual(768 + 1);
   await textFits(page, ".guest-banner");
-  await expectNoSideScroll(page);
+  await expectNoHorizontalScroll(page);
 });
