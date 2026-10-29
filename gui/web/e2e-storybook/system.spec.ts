@@ -2324,6 +2324,9 @@ test("System/AppHeader a failed save leaves the title 120 px at 360", async ({
     browser,
     "system-appheader--failed",
   );
+  await page.evaluate(() => {
+    document.documentElement.dataset.shell = "phone";
+  });
   await page.setViewportSize({ width: 360, height: 800 });
   const title = page.locator(".sys-header-project .sys-header-title");
   await expect(title).toBeVisible();
@@ -2335,6 +2338,49 @@ test("System/AppHeader a failed save leaves the title 120 px at 360", async ({
   await context.close();
   expect(shown).toBeGreaterThanOrEqual(120);
   expect(retry).toBeGreaterThanOrEqual(44);
+});
+
+test("System/AppHeader a failed save keeps Invite and search in the Project menu, and a guest link keeps its search button", async ({
+  browser,
+}) => {
+  const owner = await coarsePage(
+    browser,
+    "system-appheader--failed-with-tools",
+  );
+  await owner.page.evaluate(() => {
+    document.documentElement.dataset.shell = "phone";
+  });
+  await owner.page.setViewportSize({ width: 360, height: 800 });
+  await expect(owner.page.locator(".sys-header-right")).toBeHidden();
+  await owner.page.getByRole("button", { name: /Episode 14/ }).click();
+  await expect(
+    owner.page.getByRole("menuitem", { name: "Invite" }),
+  ).toBeVisible();
+  await expect(
+    owner.page.getByRole("menuitem", { name: /Search commands/ }),
+  ).toBeVisible();
+  await owner.context.close();
+  const guest = await coarsePage(browser, "system-appheader--failed-guest");
+  await guest.page.evaluate(() => {
+    document.documentElement.dataset.shell = "phone";
+  });
+  await guest.page.setViewportSize({ width: 360, height: 800 });
+  await expect(guest.page.locator(".sys-header-right")).toBeVisible();
+  await expect(
+    guest.page.getByRole("button", { name: /Palette/ }),
+  ).toBeVisible();
+  await guest.context.close();
+});
+
+test("System/AppHeader a failed save at 600 px keeps people, Invite and search in the header", async ({
+  page,
+}) => {
+  await open(page, "system-appheader--failed-with-tools", 600);
+  await page.evaluate(() => {
+    document.documentElement.dataset.shell = "phone";
+  });
+  await expect(page.locator(".sys-header-right")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Invite/ })).toBeVisible();
 });
 
 test("System/Toast the dock keeps the page gutter at 360", async ({ page }) => {

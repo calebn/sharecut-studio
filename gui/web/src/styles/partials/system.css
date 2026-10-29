@@ -527,15 +527,16 @@
   .sys-header-left .sys-save-count {
     display: inline;
   }
+}
 
-  /* A failed save puts Retry beside Undo and Redo, which leaves the title
-     nothing at 360. The right side gives way as it does under 20 rem (the
-     Project menu keeps people, Invite and search) so the title can read. */
-  .sys-app-header:has(.sys-save--failed) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sys-app-header:has(.sys-save--failed) .sys-header-right {
+/* A failed save puts Retry beside Undo and Redo, which leaves the title nothing
+   at 360. On the phone the right side gives way as it does under 20 rem (the
+   Project menu keeps people, Invite and search). A guest link has no Project
+   menu, so it keeps its search button. */
+@container sys-app-header (max-width: 26rem) {
+  :root[data-shell="phone"]
+    .sys-app-header:has(.sys-save--failed):not(:has(.sys-header-guest))
+    .sys-header-right {
     display: none;
   }
 }
@@ -1417,7 +1418,17 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 
 .sys-toast-dock {
   inset-block-end: var(--space-4);
-  inline-size: min(30rem, calc(100% - 2 * var(--space-5)));
+  inline-size: min(
+    30rem,
+    calc(
+      100% - 2 *
+        max(
+          var(--space-5),
+          env(safe-area-inset-left),
+          env(safe-area-inset-right)
+        )
+    )
+  );
   margin-inline: auto;
 }
 

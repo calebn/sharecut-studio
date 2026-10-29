@@ -222,6 +222,23 @@ export const Failed: Story = {
   },
 };
 
+export const FailedWithTools: Story = {
+  render: () => (
+    <Header save={{ state: "failed" }} onInvite={fn()} onPalette={fn()} />
+  ),
+};
+
+export const FailedGuest: Story = {
+  render: () => (
+    <Header
+      save={{ state: "failed" }}
+      guest={{ version: "Room", role: "viewer" }}
+      title="Episode 14 recording"
+      onPalette={fn()}
+    />
+  ),
+};
+
 export const Phone: Story = {
   render: () => (
     <div

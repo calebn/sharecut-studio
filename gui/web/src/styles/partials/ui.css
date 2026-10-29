@@ -825,7 +825,8 @@ html[data-shell="phone"] .ui-menu-shortcut {
    The region lets clicks through; only the card takes them. */
 .ui-toast-region--app {
   position: fixed;
-  inset-inline: var(--space-4);
+  inset-inline: max(var(--space-5), env(safe-area-inset-left))
+    max(var(--space-5), env(safe-area-inset-right));
   inset-block-end: var(
     --toast-dock-bottom,
     calc(var(--frame-bottom-chrome) + var(--space-3))
@@ -869,7 +870,7 @@ html:has(.stage-frame .bottom-sheet--column) .ui-toast-region--app {
   inset-inline-end: calc(
     var(--inspector-column-width) +
     env(safe-area-inset-right) +
-    var(--space-4)
+    var(--space-5)
   );
 }
 
