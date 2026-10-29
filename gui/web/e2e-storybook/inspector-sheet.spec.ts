@@ -347,11 +347,28 @@ test("System/InspectorSheet at a 20 px root font a flick down from the dock dism
   await open(page, PHONE_DOCK, 360, 740);
   await rootFontPx(page, 20);
   const start = centre(await box(grip(page)));
+  const setClock = (ms: number) =>
+    page.evaluate((now) => {
+      Object.assign(window, { stepNow: now });
+    }, ms);
+  await page.evaluate(() => {
+    const real = performance.now.bind(performance);
+    Object.assign(window, { stepNow: 0 });
+    performance.now = () => (window as unknown as { stepNow: number }).stepNow;
+    Object.assign(window, { restoreClock: () => (performance.now = real) });
+  });
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
-  await page.mouse.move(start.x, start.y + 14, { steps: 4 });
+  for (let step = 1; step <= 4; step++) {
+    await setClock(step * 10);
+    await page.mouse.move(start.x, start.y + step * 3.5);
+  }
+  await setClock(50);
   await page.mouse.up();
   await expect(sheet(page)).toHaveCount(0);
+  await page.evaluate(() =>
+    (window as unknown as { restoreClock: () => void }).restoreClock(),
+  );
   await page.getByRole("button", { name: "Reopen inspector" }).click();
   await rootFontPx(page, 20);
   const again = centre(await box(grip(page)));
@@ -706,6 +723,8 @@ test("System/InspectorSheet the phone header is 45 px under a coarse pointer, a 
 for (const id of [
   "system-actionbar--phone-dock",
   "system-actionbar--phone-dock-390",
+  "system-actionbar--phone-dock-playhead",
+  "system-actionbar--phone-dock-playhead-390",
 ]) {
   test(`${id} has no axe violations with the landmark region rule on`, async ({
     page,
