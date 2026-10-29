@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.app import recent_projects as recent
 from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.util.atomic_file import atomic_write
 
 CODE = "X-Sharecut-Error-Code"
 LOOPBACK = ("127.0.0.1", 50000)
@@ -466,6 +467,23 @@ def test_unchanged_project_file_is_parsed_once(tmp_path, monkeypatch):
     assert len(calls) == 1
     _edit_project(project, _with_track)
     assert recent.recent_project_cards()[0]["duration_sec"] == 3125.5
+    assert len(calls) == 2
+
+
+def test_same_size_rewrite_with_restored_mtime_is_parsed_again(tmp_path, monkeypatch):
+    project = _make(tmp_path, "aaaa")
+    _edit_project(project, _with_track)
+    recent.record_recent(project)
+    calls = []
+    real = recent._summarize
+    monkeypatch.setattr(recent, "_summarize", lambda p: calls.append(p) or real(p))
+    before = project.stat()
+    assert recent.recent_project_cards()[0]["name"] == "aaaa"
+    swapped = project.read_text(encoding="utf-8").replace("aaaa", "bbbb")
+    atomic_write(project, lambda handle: handle.write(swapped.encode()))
+    os.utime(project, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert project.stat().st_size == before.st_size
+    assert recent.recent_project_cards()[0]["name"] == "bbbb"
     assert len(calls) == 2
 
 
