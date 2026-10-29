@@ -342,7 +342,7 @@ export function DecisionCard(props: DecisionCardProps) {
         </h2>
         {excerpt ? <p className="sys-decision-excerpt">{excerpt}</p> : null}
         {kind === "comment" && thread ? (
-          <div className="sys-decision-thread-slot">{thread}</div>
+          <div>{thread}</div>
         ) : comment && kind === "comment" ? (
           <blockquote className="sys-decision-comment">
             <p className="sys-decision-comment-by">

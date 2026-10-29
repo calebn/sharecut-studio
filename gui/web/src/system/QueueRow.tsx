@@ -72,6 +72,13 @@ export function QueueRow({
         {...(onSelect && {
           type: "button" as const,
           onClick: onSelect,
+          "aria-label": [
+            decided.text,
+            author?.name,
+            typeof snippet === "string" ? snippet : "",
+          ]
+            .filter(Boolean)
+            .join(", "),
           "aria-current": selected ? ("true" as const) : undefined,
           "data-selected": selected || undefined,
         })}

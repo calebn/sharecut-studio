@@ -483,6 +483,121 @@ describe("Review host comments", () => {
     expect(heading()).toBe("Comment from Sam");
   });
 
+  const filterPressed = () =>
+    screen
+      .getAllByRole("button", { pressed: true })
+      .map((b) => b.getAttribute("aria-label"))
+      .find((l) => /^(All|Suggestions|Comments|Checks), /.test(l ?? ""));
+  const pickAfter = (filter: string, id: string) => {
+    mount([OPEN, LATER, DONE]);
+    fireEvent.click(screen.getByRole("button", { name: filter }));
+    act(() => {
+      useDawStore.getState().setSelection({ kind: "comment", id });
+    });
+  };
+
+  it("keeps the Comments filter when a comment is picked", () => {
+    pickAfter("Comments, 2", "c2");
+    expect(filterPressed()).toBe("Comments, 2");
+    expect(heading()).toBe("Comment from Sam");
+  });
+
+  it("widens the Suggestions filter to All when a comment is picked", () => {
+    pickAfter("Suggestions, 0", "c2");
+    expect(filterPressed()).toBe("All, 2");
+    expect(heading()).toBe("Comment from Sam");
+  });
+
+  it("names each Decided comment row by its author and excerpt", async () => {
+    mount([
+      OPEN,
+      DONE,
+      { ...DONE, id: "c5", author: "Lee", body: "Also fixed" },
+    ]);
+    const region = await decided();
+    expect(
+      within(region).getByRole("button", {
+        name: "Resolved, Ana, Fixed already",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(region).getByRole("button", { name: "Resolved, Lee, Also fixed" }),
+    ).toBeInTheDocument();
+  });
+
+  const gateNext = () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    wire.post.mockImplementationOnce(async (_path: string, body) => {
+      await gate;
+      return answer(body);
+    });
+    return release;
+  };
+
+  it("sends a Reopen pressed while the same comment's Resolve is in flight", async () => {
+    mount();
+    const release = gateNext();
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(1));
+    await userEvent.click(
+      within(await decided()).getByRole("button", { name: /Rosa/ }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Reopen" }));
+    expect(sent("ResolveComment")).toHaveLength(1);
+    release();
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(2));
+    expect(sent("ResolveComment")[1].payload).toMatchObject({
+      comment_id: "c1",
+      resolved: false,
+    });
+    await waitFor(() =>
+      expect(server.comments.find((c) => c.id === "c1")?.resolved).toBe(false),
+    );
+  });
+
+  it("sends a reply on thread B while thread A is still sending", async () => {
+    mount();
+    const release = gateNext();
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Reply to Rosa" }),
+      "One{Enter}",
+    );
+    await waitFor(() => expect(sent("AddReply")).toHaveLength(1));
+    act(() => {
+      press("ArrowDown");
+    });
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Reply to Sam" }),
+      "Two{Enter}",
+    );
+    release();
+    await waitFor(() => expect(sent("AddReply")).toHaveLength(2));
+    expect(sent("AddReply")[1].payload).toMatchObject({
+      comment_id: "c2",
+      body: "Two",
+    });
+  });
+
+  it("does not show Resolved while an Undo is still being sent", async () => {
+    mount();
+    act(() => {
+      press("Enter");
+    });
+    await waitFor(() => expect(toast()).toMatch(/^Resolved comment/));
+    expect(within(await decided()).getAllByText("Resolved")).toHaveLength(2);
+    const release = gateNext();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sent("ResolveComment")).toHaveLength(2));
+    expect(within(await decided()).getAllByText("Resolved")).toHaveLength(1);
+    release();
+    await waitFor(() => expect(heading()).toBe("Comment from Rosa"));
+  });
+
   it("gives a guest the Comments section and no queue comments", () => {
     server.comments = [OPEN];
     useDawStore.getState().hydrate(PATH, projectOf());
