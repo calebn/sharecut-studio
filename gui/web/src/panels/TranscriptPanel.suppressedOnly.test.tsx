@@ -79,6 +79,7 @@ function project() {
               timeline_end: 0.3,
               word_index: 0,
               confidence: 0.4,
+              unsure: true,
               suppressed: true,
             },
             {
@@ -89,6 +90,7 @@ function project() {
               timeline_end: 0.6,
               word_index: 1,
               confidence: 0.4,
+              unsure: true,
               suppressed: true,
             },
           ],
