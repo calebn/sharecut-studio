@@ -20,9 +20,9 @@ def remap_staged_participant(
     """Point the takes with ``source_ids`` and the bed at ``bed_path`` at ``track_id``.
 
     Sources and files stay as they are; only the track each staged piece will land on (and the
-    speaker name of its source) changes. A replace's ``track_ids`` follow the person from ``old_track_id``, and ``track_follows`` remembers
-    where from. Returns how many staged
-    pieces moved.
+    speaker name of its source) changes. A replace's ``track_ids`` follow the person from
+    ``old_track_id``, and ``track_follows`` remembers where from. Returns how many staged pieces
+    moved.
     """
     suggestion = find_session_suggestion(project, suggestion_id)
     moved = 0

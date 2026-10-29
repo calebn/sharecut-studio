@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -190,18 +190,29 @@ def drop_staged_takes(project: EpisodeProject, session_id: str, take_index: int)
     project.editorial.session_suggestions = kept
 
 
-def restore_followed_tracks(project: EpisodeProject, session_id: str) -> None:
-    """Point a pending replace back at the tracks it was moved off once nobody staged is on the new one.
+def restore_followed_tracks(
+    project: EpisodeProject,
+    session_id: str,
+    *,
+    contested: Collection[str] = (),
+    only: Collection[str] | None = None,
+) -> None:
+    """Point a pending replace back at the tracks it was moved off, once nobody holds the new one.
 
     A replace follows a person who is moved to another track; when their staged pieces are gone,
-    the row goes back to the track they were set to cover, unless a staged piece now sits there.
+    the row goes back to the track they were set to cover. It stays put when a staged take or
+    bed sits on either track, when a track in ``contested`` is wanted by someone by choice or by
+    a recording still to be staged, or when ``only`` is given and the moved-to track is not in it.
     """
     for row in project.editorial.session_suggestions:
         if row.session_id != session_id or row.status != "pending":
             continue
         for current, origin in list(row.track_follows.items()):
             held = {take.track_id for take in row.takes} | {bed.track_id for bed in row.room_tone}
+            held |= set(contested)
             if current in held or origin in held or current not in row.track_ids:
+                continue
+            if only is not None and current not in only:
                 continue
             swapped = [origin if t == current else t for t in row.track_ids]
             row.track_ids = list(dict.fromkeys(swapped))
@@ -468,8 +479,17 @@ def _chosen_take(row: SessionSuggestion, take_index: int | None) -> int:
     return available[-1]
 
 
-def _track_label(project: EpisodeProject, row: SessionSuggestion, track_id: str) -> str:
-    """A track's name for a message: the track, a staged piece on it, the track it follows, or its id."""
+def _track_label(
+    project: EpisodeProject,
+    row: SessionSuggestion,
+    track_id: str,
+    _seen: frozenset[str] = frozenset(),
+) -> str | None:
+    """A track's name for a message: the track, a piece staged on it, or the track it follows.
+
+    The moved person's display name is not kept on the row once their pieces are gone, so the
+    track they were set to cover names it. None when nothing names it; the caller says "another track" rather than showing an id.
+    """
     track = project.track_by_id(track_id)
     if track is not None:
         return track.label
@@ -478,7 +498,16 @@ def _track_label(project: EpisodeProject, row: SessionSuggestion, track_id: str)
     if label:
         return label
     origin = row.track_follows.get(track_id)
-    return _track_label(project, row, origin) if origin and origin != track_id else track_id
+    if origin and origin != track_id and origin not in _seen:
+        return _track_label(project, row, origin, _seen | {track_id})
+    return None
+
+
+def _missing_tracks_phrase(labels: list[str | None]) -> str:
+    quoted = [f'"{label}"' if label else "another track" for label in labels]
+    if len(quoted) > 1:
+        quoted = [", ".join(quoted[:-1]) + " and " + quoted[-1]]
+    return quoted[0]
 
 
 def _check_take(
@@ -497,10 +526,10 @@ def _check_take(
     recorded = sorted({take.track_id for take in takes})
     missing = [tid for tid in row.track_ids if tid not in recorded]
     if missing:
-        names = ", ".join(f'"{_track_label(project, row, tid)}"' for tid in missing)
+        names = _missing_tracks_phrase([_track_label(project, row, tid) for tid in missing])
         raise CodedValueError(
-            f"Take {chosen} did not record {names}, which this pickup was set to "
-            "replace. Pick a take that recorded every track, or record the session again.",
+            f"Take {chosen} did not record {names}, which this pickup was set to replace. "
+            "Pick a take that recorded every track, or record the session again.",
             code="track_not_recorded",
         )
     _require_dialogue_tracks(project, row, {*recorded, *row.track_ids})

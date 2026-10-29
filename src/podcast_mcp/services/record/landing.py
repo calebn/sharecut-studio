@@ -95,6 +95,7 @@ from podcast_mcp.services.record.state import (
     LAND_TAKE_OPEN_MSG,
     RECORDED_ROLES,
     InsertTarget,
+    ParticipantState,
     RecordSnapshot,
     ReplaceTarget,
     SessionTarget,
@@ -1108,6 +1109,14 @@ class RecordLandingService:
         comment_ids = self._comments.ids_for_take(self.session_id, take)
 
         was_closed = [False]
+        recorded = self._contest_inputs(extra_tombstoned={take})
+        discarded_tracks = {
+            piece.track_id
+            for row in (session_suggestion_for(self.workspace.project, self.session_id),)
+            if row is not None
+            for piece in row.takes
+            if piece.take_index == take
+        }
 
         def mutate(project: EpisodeProject) -> None:
             placed = session_suggestion_for(project, self.session_id)
@@ -1128,7 +1137,12 @@ class RecordLandingService:
             project.sources = [src for src in project.sources if src.id not in drop_ids]
             project.clips = [clip for clip in project.clips if clip.source_id not in drop_ids]
             drop_staged_takes(project, self.session_id, take)
-            restore_followed_tracks(project, self.session_id)
+            restore_followed_tracks(
+                project,
+                self.session_id,
+                contested=self._contested_tracks(project, *recorded),
+                only=discarded_tracks,
+            )
             kept = {clip.track_id for clip in project.clips}
             project.tracks = [
                 track for track in project.tracks if track.id not in drop_tracks or track.id in kept
@@ -1301,6 +1315,44 @@ class RecordLandingService:
             project, self.session_id, snap.participants, self._room.track_choices()
         )
 
+    def _contest_inputs(
+        self, extra_tombstoned: set[int] | None = None
+    ) -> tuple[list[ParticipantState], dict[str, str], set[str]]:
+        """The people, host choices and recorded people that decide who still wants a track.
+
+        Read before the project lock is taken: the room's database is not the project's.
+        """
+        snap = self._snapshot()
+        gone = set(self._upload.tombstoned_takes(self.session_id)) | (extra_tombstoned or set())
+        status = self._upload.status(session_id=self.session_id)
+        recorded = {
+            str(row["participant_id"])
+            for row in status["segments"]
+            if row.get("file_ack") and int(row["take_index"]) not in gone
+        } | {
+            str(row["participant_id"])
+            for row in self._upload.room_tone_status(session_id=self.session_id)
+            if row.get("file_ack")
+        }
+        return list(snap.participants), self._room.track_choices(), recorded
+
+    def _contested_tracks(
+        self,
+        project: EpisodeProject,
+        people: list[ParticipantState],
+        choices: dict[str, str],
+        recorded: set[str],
+    ) -> set[str]:
+        """Tracks someone holds by choice, or whose acked recording would stage onto them.
+
+        Decided by the same matcher landing uses, so a follow is never restored onto a track the
+        next land would give to somebody else.
+        """
+        matches = resolve_session_tracks(project, self.session_id, people, choices)
+        return set(choices.values()) | {
+            match.track_id for pid, match in matches.items() if pid in recorded
+        }
+
     def _track_id_for(self, participant_id: str) -> str:
         plan = self._plan if self._plan is not None else self._track_matches(self.workspace.project)
         match = plan.get(participant_id)
@@ -1461,8 +1513,11 @@ class RecordLandingService:
             for item in stale
         ]
 
+        recorded = self._contest_inputs()
+
         def mutate(project: EpisodeProject) -> None:
             touched: set[str] = set()
+            emptied: set[str] = set()
             extent_before = own_extent_s(project.clips, self.session_id)
             for item in reversed(stale):
                 prior: PriorRegistration = item["prior"]
@@ -1471,14 +1526,28 @@ class RecordLandingService:
                     and self._copied_raw_matches(project, item)
                     and drop_staged_room_tone(project, self.session_id, prior.track_id, prior.rel)
                 ):
+                    emptied.add(prior.track_id)  # a bed sits on the track it was registered for
                     continue
                 if not self._rollback_applies(project, item):
                     continue
-                if revert_registration(project, prior) and not drop_staged_segment(
-                    project, self.session_id, prior.source_id
-                ):
-                    touched.add(prior.track_id)
-            restore_followed_tracks(project, self.session_id)
+                staged_on = {
+                    piece.track_id
+                    for row in project.editorial.session_suggestions
+                    if row.session_id == self.session_id
+                    for piece in row.takes
+                    if piece.source_id == prior.source_id
+                }
+                if revert_registration(project, prior):
+                    if drop_staged_segment(project, self.session_id, prior.source_id):
+                        emptied |= staged_on or {prior.track_id}
+                    else:
+                        touched.add(prior.track_id)
+            restore_followed_tracks(
+                project,
+                self.session_id,
+                contested=self._contested_tracks(project, *recorded),
+                only=emptied,
+            )
             if touched:
                 refresh_timeline_duration(project)
                 if self._close_start_tail(project, extent_before):
