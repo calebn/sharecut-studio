@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { timelineTestIds } from "../src/timeline/selectors";
 import { expectPageAxeClean } from "./axe";
+import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { expectPreviewFooterTouchBounds } from "./inspectorFooterBounds";
 import { openSuggestedPendingEdit } from "./pendingEdit";
@@ -411,6 +412,15 @@ test.describe("ShareCut Studio mobile smoke", () => {
     page,
     context,
   }) => {
+    // A fresh project has no history head, so Undo would send nothing. Seed a
+    // real edit (and put the label back) before the stub below can swallow it.
+    const seed = (label: string) =>
+      postDocumentCommand(page, "e2e-two-finger-undo", "SetTrackMeta", {
+        track_id: "guest",
+        label,
+      });
+    await seed("guest undo seed");
+    await seed("guest");
     // Verify dispatch without undoing another test's changes to the shared
     // disposable project. The following gesture tests need its transcript.
     await page.route("**/api/document/command?*", async (route) => {
