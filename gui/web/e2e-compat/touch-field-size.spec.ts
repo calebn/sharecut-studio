@@ -57,6 +57,7 @@ test.describe("touch field size", () => {
     await withShareableProject(async (projectPath) => {
       await openHostShare(page, projectPath);
       await openPanel(page, "comments");
+      await page.keyboard.press("c");
       const comment = page.getByRole("textbox", {
         name: "Comment",
         exact: true,

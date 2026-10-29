@@ -282,15 +282,18 @@ async function sweepCell(
     sizeExempt: SIZE_EXEMPT,
   });
 
-  // Phones comment from the Review stage, swept above. The Comments section's
-  // action items and track picks appear once there is text.
+  // Phones comment from the Review stage, swept above. The Review comment
+  // field opens with C and holds the name line.
   if (!phone) {
     await openPanel(page, "comments");
+    await page.keyboard.press("c");
     const body = page.getByRole("textbox", { name: "Comment", exact: true });
     await body.fill("Check this join");
-    await expect(page.locator(".comment-track-picks")).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Your name" }),
+    ).toBeVisible();
     await settle(page);
-    found["comments panel"] = await reachFailures(page, {
+    found["review comment field"] = await reachFailures(page, {
       scope: STAGE_BODY,
       skip: [".bottom-sheet-root"],
       dense: DENSE,

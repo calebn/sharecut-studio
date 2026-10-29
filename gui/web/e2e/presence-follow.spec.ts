@@ -251,17 +251,14 @@ test.describe("presence follow desktop", () => {
     });
   });
 
-  test("follows the Comments section then unfollows on a stage change", async ({
+  test("follows the Review queue then unfollows on a stage change", async ({
     browser,
   }) => {
     await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
       await followPeerUntilPlayheadMirrors(pageB, pageA);
       await openPanel(pageA, "comments");
-      const comments = pageA.locator('[data-presence-anchor="tab:comments"]');
-      await expect(comments).toHaveAttribute("aria-selected", "true");
-      await expect(
-        pageB.locator('[data-presence-anchor="tab:comments"]'),
-      ).toHaveAttribute("aria-selected", "true");
+      await expect(pageA.locator(".rv-stage")).toBeVisible();
+      await expect(pageB.locator(".rv-stage")).toBeVisible();
       await expect(pageB.locator(".follow-banner")).toBeVisible();
       await goToStage(pageB, "edit");
       await expect(pageB.locator(".follow-banner")).toHaveCount(0);

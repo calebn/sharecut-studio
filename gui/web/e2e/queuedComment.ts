@@ -35,11 +35,13 @@ export async function interceptCommentCommands(page: Page): Promise<{
   };
 }
 
-/** Open the comment composer and submit one anchored host comment. */
+/** Open the Review comment field with C and post one anchored host comment. */
 export async function postHostComment(page: Page, body: string): Promise<void> {
-  // The composer is on Review and anchors at the playhead.
   await openPanel(page, "comments");
-  await expect(page.getByText("Commenting as")).toContainText("Host");
-  await page.getByPlaceholder("Add a comment…").fill(body);
-  await page.getByRole("button", { name: "Post comment" }).click();
+  await page.keyboard.press("c");
+  await expect(page.getByRole("textbox", { name: "Your name" })).toHaveValue(
+    "Host",
+  );
+  await page.getByRole("textbox", { name: "Comment", exact: true }).fill(body);
+  await page.getByRole("button", { name: "Post", exact: true }).click();
 }

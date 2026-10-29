@@ -20,7 +20,7 @@ const VIEWPORTS = [
   { name: "phone", width: 360, height: 800 },
 ] as const;
 
-type PanelName = "Comments" | "History" | "Queue" | "Pipeline";
+type PanelName = "History" | "Queue" | "Pipeline";
 
 async function expectEditorAxeClean(
   page: Page,
@@ -102,7 +102,6 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         page.locator(`.stage-frame--${viewport.name}`),
       ).toBeVisible();
       for (const [name, selector] of [
-        ["Comments", ".comments-panel"],
         ["History", ".history-panel"],
         ["Queue", ".rv-stage"],
         ["Pipeline", ".sys-prepare"],
@@ -141,12 +140,19 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         },
       );
       await openProject(page, e2eProjectPath);
-      await openPanel(page, "Comments");
-      const card = page.locator(".comment-card").filter({ hasText: body });
-      await expect(card).toBeVisible();
+      await openPanel(page, "Queue");
+      if (viewport.name === "phone")
+        await page.getByRole("button", { name: / of \d+$/ }).click();
+      await page
+        .locator('.sys-queue-row[data-kind="comment"]')
+        .filter({ hasText: `https://example.com/${viewport.name}/` })
+        .getByRole("button")
+        .click();
+      const card = page.locator("article.sys-decision");
+      await expect(card.locator(".sys-comment-body").first()).toHaveText(body);
       await expectTextFits(card);
-      await expectTextFits(card.locator(".comment-card-main"));
-      await expectTextFits(card.locator(".comment-card-body"));
+      await expectTextFits(card.locator(".sys-comment-main"));
+      await expectTextFits(card.locator(".sys-comment-body").first());
       const resolve = card.getByRole("button", {
         name: "Resolve",
         exact: true,
@@ -156,7 +162,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
       expect(box).not.toBeNull();
       expect(box!.x).toBeGreaterThanOrEqual(0);
       expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
-      await expectEditorAxeClean(page, ".comments-panel");
+      await expectEditorAxeClean(page, ".rv-stage");
     });
 
     test("keeps a maximum-length vocabulary entry and Remove action within the stage", async ({

@@ -68,11 +68,19 @@ export async function exerciseCommentUndo(
       page.locator(`.stage-frame--${phone ? "phone" : "desktop"}`),
     ).toBeVisible();
     await openPanel(page, "comments");
-    const panel = page.locator(".comments-panel");
+    const panel = page.locator(".rv-stage");
     await expect(panel).toBeVisible();
     await setTheme(page, theme);
+    // A phone keeps the queue in a sheet behind the "n of m" button.
+    if (phone) await panel.getByRole("button", { name: / of \d+$/ }).click();
+    await page
+      .locator('.sys-queue-row[data-kind="comment"]')
+      .filter({ hasText: "Undo regression row 0" })
+      .getByRole("button")
+      .click();
+    // The card shows the selected comment; resolving moves it on to the next.
     const card = panel
-      .locator(".comment-card")
+      .locator("article.sys-decision")
       .filter({ hasText: "Undo regression row 0" });
     const toast = page.locator(".ui-toast-region--app .ui-toast");
     const undo = toast.getByRole("button", { name: "Undo", exact: true });
@@ -104,11 +112,21 @@ export async function exerciseCommentUndo(
     ).toHaveText("Comment reopened");
     await expect.poll(savedResolved).toBe(false);
 
-    await panel.getByRole("button", { name: "All", exact: true }).click();
     await card.getByRole("button", { name: "Resolve", exact: true }).click();
     await expect(undo).toBeEnabled();
     await undo.focus();
     await expect(undo).toBeFocused();
+    // The queue and card scroll together in the stage body on a desktop and in the host's panel on a phone.
+    const scroller = await panel.evaluateHandle((element) => {
+      const scrolls = (node: Element) =>
+        node.scrollHeight - node.clientHeight > 200 &&
+        ["auto", "scroll"].includes(getComputedStyle(node).overflowY);
+      let current: Element | null = element.querySelector(".rv-main");
+      if (current && scrolls(current)) return current;
+      for (current = element; current; current = current.parentElement)
+        if (scrolls(current)) return current;
+      return element;
+    });
     const ancestors = await panel.evaluateHandle((element) => {
       const elements: Element[] = [];
       for (
@@ -117,7 +135,7 @@ export async function exerciseCommentUndo(
         current = current.parentElement
       )
         elements.push(current);
-      return elements;
+      return [...elements, ...element.querySelectorAll(".rv-main")];
     });
     const observe = () =>
       ancestors.evaluate((elements) => ({
@@ -128,25 +146,32 @@ export async function exerciseCommentUndo(
         windowX: window.scrollX,
         windowY: window.scrollY,
       }));
-    const range = await panel.evaluate(
+    const range = await scroller.evaluate(
       (element) => element.scrollHeight - element.clientHeight,
     );
-    expect(range).toBeGreaterThan(800);
-    const observations = [];
-    for (const fraction of [0.3, 0.65]) {
+    // A phone's card is short (the queue is in a sheet), so it has nothing to scroll.
+    if (!phone) expect(range).toBeGreaterThan(200);
+    const observations: Awaited<ReturnType<typeof observe>>[] = [];
+    for (const fraction of range > 200 ? [0.3, 0.65] : []) {
       const offset = Math.floor(range * fraction);
-      await panel.evaluate((element, offset) => {
+      await scroller.evaluate((element, offset) => {
         element.scrollTop = offset;
       }, offset);
       await expect
-        .poll(() => panel.evaluate((element) => element.scrollTop))
+        .poll(() => scroller.evaluate((element) => element.scrollTop))
         .toBe(offset);
       await expectReachableToast(page);
       observations.push(await observe());
     }
-    expect(
-      observations[1].offsets[0].top - observations[0].offsets[0].top,
-    ).toBeGreaterThan(200);
+    if (observations.length === 2)
+      expect(
+        Math.max(
+          ...observations[1].offsets.map(
+            (o, i) => o.top - observations[0].offsets[i].top,
+          ),
+        ),
+      ).toBeGreaterThan(100);
+    await expectReachableToast(page);
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     await expect
       .poll(() =>
@@ -155,7 +180,7 @@ export async function exerciseCommentUndo(
         ),
       )
       .toBe(theme);
-    await expectPageAxeClean(page, ".comments-panel");
+    await expectPageAxeClean(page, ".rv-stage");
     await page.screenshot({
       path: info.outputPath("comment-undo.png"),
       fullPage: true,
@@ -192,7 +217,20 @@ export async function exerciseCommentUndo(
     });
     await ancestors.dispose();
 
+    if (phone) await panel.getByRole("button", { name: / of \d+$/ }).click();
+    const decidedToggle = page
+      .getByRole("region", { name: "Decided" })
+      .getByRole("button", { name: /Decided/ });
+    if ((await decidedToggle.getAttribute("aria-expanded")) !== "true")
+      await decidedToggle.click();
+    await page
+      .locator(".sys-queue-row--decided")
+      .filter({ hasText: "Resolved" })
+      .first()
+      .click();
     await card.getByRole("button", { name: /^Reopen/ }).click();
+    await expect(toast).toContainText("Comment reopened");
+    await expect.poll(savedResolved).toBe(false);
     await card.getByRole("button", { name: "Resolve", exact: true }).click();
     await expect(undo).toBeEnabled();
     await undo.focus();

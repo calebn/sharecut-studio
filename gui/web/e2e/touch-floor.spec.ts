@@ -36,7 +36,6 @@ const FLOOR_PX = 44 - 0.5;
 const CONTROLS =
   "button, a[href], [role=button], [role=tab], [role=menuitem], [role=checkbox], [role=menuitemcheckbox], [role=menuitemradio], [role=switch], input, select, textarea, summary";
 const STAGES = ["record", "prepare", "edit", "review", "deliver"] as const;
-const REVIEW_SECTIONS = ["queue", "comments"] as const;
 
 /** Visible controls whose touch target is under the floor and not a documented exception. */
 async function undersized(page: Page, exceptions: string) {
@@ -103,14 +102,18 @@ for (const size of SIZES) {
         ),
       );
     }
-    for (const panel of REVIEW_SECTIONS) {
-      await openPanel(page, panel);
-      found.push(
-        ...(await undersized(page, exceptions)).map(
-          (row) => `[${panel}] ${row}`,
-        ),
-      );
-    }
+    await openPanel(page, "queue");
+    found.push(
+      ...(await undersized(page, exceptions)).map((row) => `[queue] ${row}`),
+    );
+    // The Review comment field (C) holds the floor too.
+    await page.keyboard.press("c");
+    await expect(
+      page.getByRole("textbox", { name: "Comment", exact: true }),
+    ).toBeVisible();
+    found.push(
+      ...(await undersized(page, exceptions)).map((row) => `[composer] ${row}`),
+    );
     if (size.phone) {
       await phone.showText(page);
       found.push(
