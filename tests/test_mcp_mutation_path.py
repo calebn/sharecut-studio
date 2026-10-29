@@ -14,6 +14,7 @@ _READ_ONLY = frozenset(
         "boundary_context",
         "build_context",
         "check_loudness",
+        "check_proposed",
         "copy_segment",
         "flagged_words",
         "gate_overreach",
@@ -51,14 +52,6 @@ _READ_ONLY = frozenset(
     }
 )
 
-# Mutating tools that still call EditService directly (#1809). Each migration moves a
-# method into the document command catalog and shrinks this set and its size.
-_DIRECT_MUTATIONS = frozenset(
-    {
-        "propose_tighten",
-    }
-)
-_DIRECT_MUTATIONS_SIZE = 1
 # TranscriptService also carries ASR and export entry points that predate the edit services.
 _ASR_AND_EXPORT = frozenset({"transcribe", "seed", "get", "export_markdown", "export_subtitles"})
 _EDIT_SERVICES = frozenset(
@@ -104,13 +97,8 @@ def _called_methods() -> set[str]:
     }
 
 
-def test_mcp_tools_call_edit_service_only_for_reads_and_pending_mutations() -> None:
-    assert _called_methods() == _READ_ONLY | _DIRECT_MUTATIONS
-
-
-def test_direct_mutation_allowlist_only_shrinks() -> None:
-    assert len(_DIRECT_MUTATIONS) == _DIRECT_MUTATIONS_SIZE
-    assert not _READ_ONLY & _DIRECT_MUTATIONS
+def test_mcp_tools_call_edit_service_only_for_reads() -> None:
+    assert _called_methods() == _READ_ONLY
 
 
 _AUDIO_EDIT_METHODS = frozenset({"apply_bleed_mute", "align_retained_bleed", "mute_off_speaker"})

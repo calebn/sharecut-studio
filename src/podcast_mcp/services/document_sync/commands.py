@@ -68,6 +68,7 @@ DocumentCommandType = Literal[
     "InsertGap",
     "FillRoomTone",
     "ApplyAutoEdits",
+    "ProposeTighten",
     "ApplyEditPlan",
     "ShortenWordGaps",
     "StripSilence",
