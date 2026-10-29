@@ -220,7 +220,7 @@ describe("usePresencePublisher", () => {
     ).toBe(true);
     expect(
       metas.some(
-        (m) => (m.ui as { tab?: string } | undefined)?.tab === "comments",
+        (m) => (m.ui as { tab?: string } | undefined)?.tab === "impact",
       ),
     ).toBe(true);
     const last = metas.findLast((m) => m.transport != null) as {
