@@ -5,7 +5,7 @@
 > - Job row, Check row, Model need row and the Readiness list became **Status row** and Status list. Status cover became **Cover**. History sheet, Models, Help and Connect agent sheets became **Sheet** instances. Source tile became **Start tile**. Comment row became **Queue row**. Following, version and stage chips became **Status pill**.
 > - Keys: J/K/L are transport everywhere. Review moves with ↓/↑ or Tab, and Later is Tab or ↓ (not L). Reply is C (not R). ⌘⇧C is dropped. ⌘N and ⌘R on Home became Mod+I and R. ⌘O and ⌘⇧O became Mod+O. ? opens the Palette. ⌘E stays as Mod+E.
 > - Icons: the listen role is `ear` (not eye). Editor role and "Open in Edit" use the Edit stage icon (not pencil). Producer is `ear` (not headphones). "Find more" is `wand-sparkles`. Keep stays `shield-check`.
-> - Swipe left on a comment row no longer resolves: swipe right is the primary (Resolve), and left is Keep or Remove. The phone Review buttons are one 64 px dock row (Keep, A/B, verb).
+> - Swipe left on a comment row no longer resolves: swipe right is the primary (Resolve), and swipe left does nothing on a comment (it is Keep or Remove on other cards). The phone Review buttons are one 64 px dock row (Keep, A/B, verb).
 > - Clip ideas use Approve (`check`), not Keep. Dismissing one is Remove.
 > - Stop sharing is an undo toast (10 s), not an inline confirm.
 > - Loudness lives in Deliver only. Vocabulary lives in Prepare only. Home's Help and "more" buttons fold into the app menu.
