@@ -65,17 +65,13 @@ def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
     return got.shape == want.shape and np.array_equal(got.view(np.uint32), want.view(np.uint32))
 
 
-def _grid(source: int, rate: int) -> tuple[int, int]:
-    return resampler_grid(source, rate)
-
-
 def _restart(samples: np.ndarray, source: int, rate: int, start: int, warm_up: int) -> np.ndarray:
-    inputs, outputs = _grid(source, rate)
+    inputs, outputs = resampler_grid(source, rate)
     return _resample(samples[start - warm_up :], source, rate)[warm_up // inputs * outputs :]
 
 
 def _check_locality(samples: np.ndarray, source: int, rate: int) -> None:
-    inputs, outputs = _grid(source, rate)
+    inputs, outputs = resampler_grid(source, rate)
     found = resampler_locality(source, rate)
     assert found is not None
     warm_up, guard = found
@@ -119,7 +115,7 @@ def test_restarting_at_a_grid_point_gives_the_continuous_samples(name, source, r
 @pytest.mark.parametrize(("source", "rate"), CASES)
 def test_the_widths_are_whole_grids_and_short(source, rate):
     warm_up, guard = resampler_locality(source, rate)
-    inputs, _ = _grid(source, rate)
+    inputs, _ = resampler_grid(source, rate)
 
     assert warm_up % inputs == 0 and guard % inputs == 0
     assert 0 < warm_up <= 1024 and 0 < guard <= 1024
@@ -127,7 +123,7 @@ def test_the_widths_are_whole_grids_and_short(source, rate):
 
 @pytest.mark.parametrize(("source", "rate"), CASES)
 def test_warm_up_is_minimal(source, rate):
-    inputs, outputs = _grid(source, rate)
+    inputs, outputs = resampler_grid(source, rate)
     warm_up, _guard = resampler_locality(source, rate)
     samples = SIGNALS[source]["noise"]
     start = 36036 // inputs * inputs
@@ -138,7 +134,7 @@ def test_warm_up_is_minimal(source, rate):
 
 @pytest.mark.parametrize(("source", "rate"), CASES)
 def test_guard_is_minimal(source, rate):
-    inputs, outputs = _grid(source, rate)
+    inputs, outputs = resampler_grid(source, rate)
     _warm_up, guard = resampler_locality(source, rate)
     samples = SIGNALS[source]["noise"]
     end = 60000 // inputs * inputs
@@ -176,7 +172,17 @@ def test_a_warm_up_before_the_start_of_the_signal_is_refused():
         ungated_audio._restart_matches(samples, whole, SOURCE_RATE, 8000, 12006)
 
 
+def test_a_truncation_that_keeps_nothing_proves_nothing():
+    samples = SIGNALS[44100]["noise"]
+    whole = _resample(samples, 44100, 8000)
+
+    assert ungated_audio._truncation_matches(samples, whole, 44100, 8000, 441)
+    assert not ungated_audio._truncation_matches(samples, whole, 44100, 8000, 8 * 8192)
+
+
 def test_the_search_reaches_the_documented_ceiling():
+    assert ungated_audio._smallest_passing(441, lambda width: width >= 7938) == 7938
+    assert ungated_audio._smallest_passing(441, lambda width: False) is None
     assert ungated_audio._smallest_passing(6, lambda width: width >= 8190) == 8190
     assert ungated_audio._smallest_passing(3, lambda width: width >= 8190) == 8190
     assert ungated_audio._smallest_passing(6, lambda width: False) is None

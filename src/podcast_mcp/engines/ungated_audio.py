@@ -41,8 +41,8 @@ def _decode_f32(path: Path, sample_rate: int, ffmpeg: str | None, layout: list[s
 _LOCALITY_SOURCE_RATES = (44100, 48000)
 _LOCALITY_RATES = (8000, 16000)
 _LOCALITY_CEILING = 8192
-# Reference points in input samples, rounded down to a grid so they are grid points at every
-# calibrated rate; the block edges keep one grid between the second and third.
+# Reference points in input samples; each is rounded down to a whole period (``resampler_grid``)
+# where it is used, and ``_blocks_match`` adds one period after the second edge for the seam.
 _LOCALITY_RESTART_AT = 12000
 _LOCALITY_CUT_AT = 60000
 _LOCALITY_BLOCK_EDGES = (12000, 30000, 60000, 84000)
@@ -89,20 +89,20 @@ def _truncation_matches(
     cut = _LOCALITY_CUT_AT // inputs * inputs
     truncated = _resample_array(signal[:cut], from_rate, rate)
     kept = (cut - guard) // inputs * outputs
-    return _same_bits(truncated[:kept], reference[:kept])
+    return kept > 0 and _same_bits(truncated[:kept], reference[:kept])
 
 
-def _smallest_passing(grid: int, passes: Callable[[int], bool]) -> int | None:
-    """The smallest multiple of ``grid`` up to the ceiling for which ``passes`` holds, or ``None``."""
-    top = _LOCALITY_CEILING // grid * grid
+def _smallest_passing(step: int, passes: Callable[[int], bool]) -> int | None:
+    """The smallest multiple of ``step`` up to the ceiling for which ``passes`` holds, or ``None``."""
+    top = _LOCALITY_CEILING // step * step
     width = 0
     while not passes(width):
         if width == top:
             return None
-        width = min(max(grid, width * 2), top)
-    low, high = (width // 2 if width > grid else 0), width
-    while high - low > grid:
-        middle = (low + high) // 2 // grid * grid
+        width = min(max(step, width * 2), top)
+    low, high = (width // 2 if width > step else 0), width
+    while high - low > step:
+        middle = (low + high) // 2 // step * step
         if passes(middle):
             high = middle
         else:
