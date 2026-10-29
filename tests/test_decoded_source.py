@@ -116,7 +116,7 @@ def test_a_new_process_sweeps_spools_whose_owner_is_gone(tmp_path: Path) -> None
     assert result.returncode == 0, result.stderr
     assert not gone.exists()
     assert not old_unowned.exists()
-    assert live.exists() or os.name == "nt"
+    assert live.exists()
     assert fresh_unowned.exists()
 
 
