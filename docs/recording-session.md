@@ -1246,7 +1246,8 @@ cannot. Every button runs the same `record.*` command as the palette.
   The host's own recording reads the same way beside it.
 - **Land.** Shown once the room has a take. It is disabled with its reason beside
   it while a take is open ("Stop the take to land it on the timeline."), while
-  recordings are still saving ("Recordings are still saving to the project."),
+  recordings are still saving and none is ready to land ("Recordings are still
+  saving to the project."),
   before anything arrived ("No recordings have reached the project yet.") and
   when everything landed ("Every take is on the timeline."). It turns into
   **Retry land** after a failed land, and also lands unlanded live comments
