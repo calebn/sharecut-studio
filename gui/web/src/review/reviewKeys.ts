@@ -10,7 +10,8 @@ type StageAction =
   | "hearAfter"
   | "applyAll"
   | "openInEdit"
-  | "comment";
+  | "comment"
+  | "reply";
 
 type KeyInput = Pick<
   KeyboardEvent,
@@ -46,6 +47,7 @@ const BINDINGS: readonly { action: StageAction; keys: readonly KeySpec[] }[] = [
     keys: keysOf("goToStage").filter((spec) => spec.key === "E"),
   },
   { action: "comment", keys: keysOf("comment") },
+  { action: "reply", keys: [{ key: "R" }] },
 ];
 const CUT_KEYS = keysOf("cut");
 

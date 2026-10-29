@@ -20,6 +20,7 @@ describe("stageActionFor", () => {
     expect(stageActionFor(key("ArrowDown"))).toBe("next");
     expect(stageActionFor(key("ArrowUp"))).toBe("previous");
     expect(stageActionFor(key("c"))).toBe("comment");
+    expect(stageActionFor(key("r"))).toBe("reply");
     expect(stageActionFor(key("e"))).toBe("openInEdit");
     expect(stageActionFor(key("a"))).toBe("hearBefore");
     expect(stageActionFor(key("b"))).toBe("hearAfter");
@@ -29,6 +30,7 @@ describe("stageActionFor", () => {
   it("ignores editable targets", () => {
     const input = document.createElement("input");
     expect(stageActionFor(key("x", { target: input }))).toBeNull();
+    expect(stageActionFor(key("r", { target: input }))).toBeNull();
   });
 
   it("ignores held keys that decide", () => {

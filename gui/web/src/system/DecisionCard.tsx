@@ -69,6 +69,8 @@ export type DecisionCardProps = {
     body: string;
     replies?: number;
   };
+  /** The comment's thread; replaces the quote on a comment. */
+  thread?: ReactNode;
   /** Replaces the primary while a gate holds the verb back. */
   prompt?: ActionPromptProps;
   /** A guest sees the change, hears it and comments, and cannot decide it. */
@@ -205,6 +207,7 @@ export function DecisionCard(props: DecisionCardProps) {
     audition,
     unsure,
     comment,
+    thread,
     prompt,
     readOnly = false,
     canEdit,
@@ -339,7 +342,9 @@ export function DecisionCard(props: DecisionCardProps) {
           {title}
         </h2>
         {excerpt ? <p className="sys-decision-excerpt">{excerpt}</p> : null}
-        {comment && kind === "comment" ? (
+        {kind === "comment" && thread ? (
+          <div className="sys-decision-thread-slot">{thread}</div>
+        ) : comment && kind === "comment" ? (
           <blockquote className="sys-decision-comment">
             <p className="sys-decision-comment-by">
               <Swatch colorIndex={comment.author.colorIndex} />

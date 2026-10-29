@@ -109,7 +109,13 @@ export function deliverFacts(input: DeliverFactsInput): ReadinessFacts {
 
 export type FixRoute =
   | { kind: "refreshMix" }
-  | { kind: "stage"; stage: StageId; section?: "queue" | "comments" };
+  | {
+      kind: "stage";
+      stage: StageId;
+      section?: "queue";
+      /** Select the first open comment on arrival. */
+      comment?: true;
+    };
 
 export function fixRoute(stage: StageId, target?: string): FixRoute {
   if (target === "mix") return { kind: "refreshMix" };
@@ -117,7 +123,7 @@ export function fixRoute(stage: StageId, target?: string): FixRoute {
     if (target === "suggestions" || target === "unsure-words")
       return { kind: "stage", stage, section: "queue" };
     if (target === "comments")
-      return { kind: "stage", stage, section: "comments" };
+      return { kind: "stage", stage, section: "queue", comment: true };
   }
   return { kind: "stage", stage };
 }

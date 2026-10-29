@@ -92,11 +92,19 @@ async function saveClipOp(path: string, op: ClipOp) {
 
 function runFix(route: FixRoute) {
   if (route.kind === "refreshMix") runPointerCommand("render.refreshMix");
-  else
+  else {
+    if (route.comment) {
+      const state = useDawStore.getState();
+      const first = state.project?.comments
+        ?.filter((c) => !c.resolved)
+        .sort((a, b) => a.timeline_start - b.timeline_start)[0];
+      if (first) state.setSelection({ kind: "comment", id: first.id });
+    }
     runPointerCommand(
       `stage.${route.stage}`,
       route.section ? { section: route.section } : {},
     );
+  }
 }
 
 function playFrom(seconds: number) {

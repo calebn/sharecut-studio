@@ -1,15 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { pendingEditView } from "../test/fixtures";
+import { pendingEditView, sampleComment } from "../test/fixtures";
 import type { PendingKind, TranscriptCheckStatus } from "../types/project";
 import {
   CHECK_ID,
   checkEntryOf,
+  commentEntriesOf,
+  commentIdOf,
+  commentItemId,
   editIdOf,
   reviewEntriesOf,
   reviewIdOf,
   unsureEntriesOf,
 } from "./reviewItems";
-import { fullOrder, type ReviewItem } from "./reviewQueueModel";
+import {
+  decidedItems,
+  filterCounts,
+  fullOrder,
+  type ReviewItem,
+} from "./reviewQueueModel";
 
 const itemOf = (over: Parameters<typeof pendingEditView>[0] = {}) => {
   const [entry] = reviewEntriesOf([pendingEditView(over)]);
@@ -347,5 +355,71 @@ describe("unsureEntriesOf", () => {
       id: "word:host::4",
       step: { index: 1, total: 2 },
     });
+  });
+});
+
+describe("commentEntriesOf", () => {
+  const at = (id: string, start: number, over = {}) =>
+    sampleComment({ id, timeline_start: start, ...over });
+
+  it("lists one comment item per comment with its row and card", () => {
+    const [entry] = commentEntriesOf([
+      at("c1", 65, {
+        author: "Rosa",
+        body: "Lose the cough\nbefore the story",
+        replies: [
+          { id: "r1", body: "On it", author: "Sam", created_at: "" },
+          { id: "r2", body: "Thanks", author: "Rosa", created_at: "" },
+        ],
+      }),
+    ]);
+    expect(entry?.item).toEqual({
+      id: "comment:c1",
+      kind: "comment",
+      at: 65,
+      savedSeconds: 0,
+    });
+    expect(entry?.content.row).toEqual({
+      snippet: "Lose the cough",
+      time: "1:05",
+      author: { name: "Rosa" },
+      value: "2 replies",
+    });
+    expect(entry?.content.card.comment).toMatchObject({
+      body: "Lose the cough\nbefore the story",
+      replies: 2,
+    });
+  });
+
+  it("puts a resolved comment in Decided and leaves an open one undecided", () => {
+    const items = commentEntriesOf([
+      at("a", 5),
+      at("b", 9, { resolved: true }),
+    ]).map((e) => e.item);
+    expect(items.map((i) => i.result)).toEqual([undefined, "applied"]);
+    expect(decidedItems(items).map((i) => i.id)).toEqual(["comment:b"]);
+    expect(filterCounts(items).comments).toBe(1);
+  });
+
+  it("shows a pending resolve or reopen before the project does", () => {
+    const entries = commentEntriesOf(
+      [at("a", 5), at("b", 9, { resolved: true })],
+      new Map([
+        ["a", true],
+        ["b", false],
+      ]),
+    );
+    expect(entries.map((e) => e.item.result)).toEqual(["applied", undefined]);
+  });
+
+  it("round trips the item id", () => {
+    expect(commentIdOf(commentItemId("c1"))).toBe("c1");
+    expect(commentIdOf("edit:c1")).toBeNull();
+  });
+
+  it("gives a comment with no placed time an Unplaced row that sorts last", () => {
+    const [entry] = commentEntriesOf([at("c", Number.NaN)]);
+    expect(entry?.content.row.time).toBe("Unplaced");
+    expect(entry?.item.at).toBe(Number.POSITIVE_INFINITY);
   });
 });

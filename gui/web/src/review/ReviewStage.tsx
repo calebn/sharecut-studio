@@ -1,4 +1,5 @@
 import {
+  type ReactNode,
   type Ref,
   useEffectEvent,
   useImperativeHandle,
@@ -66,6 +67,10 @@ export type ReviewStageProps = {
   onOpenInEdit?: (id: string) => void;
   onHear?: (id: string, side: AuditionSide) => void;
   onComment?: (id: string) => void;
+  thread?: (item: ReviewItem) => ReactNode;
+  /** Resolving a comment is not a decision: the host owns it and its Undo. */
+  onResolve?: (id: string) => void;
+  onReply?: (id: string) => void;
   onFindMore?: () => void;
   findMoreDisabled?: string;
   onHandOff?: () => void;
@@ -101,6 +106,9 @@ export function ReviewStage({
   onOpenInEdit,
   onHear,
   onComment,
+  thread,
+  onResolve,
+  onReply,
   onFindMore,
   findMoreDisabled,
   onHandOff,
@@ -164,7 +172,11 @@ export function ReviewStage({
       !guest &&
       items.some(
         (i) =>
-          i.id === id && !i.result && !i.transcript && i.kind !== "unsure-word",
+          i.id === id &&
+          !i.result &&
+          !i.transcript &&
+          i.kind !== "unsure-word" &&
+          i.kind !== "comment",
       )
     )
       void onDecide({ ids: [id], result: "kept" });
@@ -173,6 +185,8 @@ export function ReviewStage({
   const verb = (id: string) => {
     if (guest) return;
     const item = items.find((i) => i.id === id);
+    if (item?.kind === "comment")
+      return item.result ? undefined : onResolve?.(id);
     if (item && verbOf(item) === "keep")
       return item.blocked ? undefined : keep(id);
     if (!cuttable(id)) return;
@@ -236,6 +250,7 @@ export function ReviewStage({
     else if (action === "keep") keep(selected.id);
     else if (action === "openInEdit" && !guest) onOpenInEdit?.(selected.id);
     else if (action === "comment") onComment?.(selected.id);
+    else if (action === "reply") onReply?.(selected.id);
   });
   useLayoutEffect(() => {
     const el = root.current;
@@ -368,8 +383,13 @@ export function ReviewStage({
             {...card}
             verb={selected ? verbOf(selected) : undefined}
             verbDisabledReason={
-              selected?.blocked ? "Open it in Edit to resolve." : undefined
+              selected?.blocked
+                ? "Open it in Edit to resolve."
+                : selected?.kind === "comment" && selected.result
+                  ? "Already resolved."
+                  : undefined
             }
+            thread={selected && thread?.(selected)}
             why={selected?.blocked ? (card.why ?? BLOCKED_WHY) : card.why}
             waveform={wave && { ...wave, onAdjust: adjust }}
             savedSeconds={savedSeconds > 0 ? savedSeconds : undefined}
@@ -399,7 +419,9 @@ export function ReviewStage({
             onRetry={onRetry}
             onVerb={() => selected && verb(selected.id)}
             onKeep={
-              selected?.transcript || selected?.kind === "unsure-word"
+              selected?.transcript ||
+              selected?.kind === "unsure-word" ||
+              selected?.kind === "comment"
                 ? undefined
                 : () => selected && keep(selected.id)
             }

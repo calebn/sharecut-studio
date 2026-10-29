@@ -663,6 +663,7 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 | Long-press | Select a comment or track and open its sheet; correct a transcript word (hosts) | Available |
 | Pinch | Zoom in/out on timeline | Available |
 | Swipe left on open host comment | Resolve (Undo toast follows) | Available |
+| Swipe right on a comment card in Review (phone) | Resolve (Undo toast follows); left does nothing | Available |
 | Double-tap word | Correct word (hosts); first tap seeks | Available |
 
 ## Wireframes (ASCII)

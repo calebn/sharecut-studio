@@ -5,6 +5,7 @@ import type {
   CombinedUtterance,
   PendingEditView,
   PendingKind,
+  TimelineComment,
   TranscriptCheckStatus,
 } from "../types/project";
 import { formatTimeShort } from "../utils/time";
@@ -37,6 +38,16 @@ export const reviewIdOf = (editId: string) => `${PREFIX}${editId}`;
 
 export const editIdOf = (reviewId: string): string | null =>
   reviewId.startsWith(PREFIX) ? reviewId.slice(PREFIX.length) : null;
+
+const COMMENT_PREFIX = "comment:";
+
+export const commentItemId = (commentId: string) =>
+  `${COMMENT_PREFIX}${commentId}`;
+
+export const commentIdOf = (reviewId: string): string | null =>
+  reviewId.startsWith(COMMENT_PREFIX)
+    ? reviewId.slice(COMMENT_PREFIX.length)
+    : null;
 
 export type WordTarget = {
   trackId: string;
@@ -149,6 +160,57 @@ export const reviewEntriesOf = (
   pending: readonly PendingEditView[],
 ): ReviewEntry[] =>
   pending.filter((e) => !e.applied && e.review_required).map(entryOf);
+
+const firstLine = (body: string) => body.trim().split("\n", 1)[0] ?? "";
+
+/**
+ * One item per comment. A resolved one is already decided, so it sits in
+ * Decided. `optimistic` holds the state a pending resolve or reopen is
+ * moving a comment to, until the project shows it.
+ */
+export function commentEntriesOf(
+  comments: readonly TimelineComment[],
+  optimistic: ReadonlyMap<string, boolean> = new Map(),
+): ReviewEntry[] {
+  return comments.map((c): ReviewEntry => {
+    const at = Number.isFinite(c.timeline_start)
+      ? c.timeline_start
+      : Number.POSITIVE_INFINITY;
+    const time = Number.isFinite(at) ? formatTimeShort(at) : "Unplaced";
+    const replies = c.replies.length;
+    const resolved = optimistic.get(c.id) ?? c.resolved;
+    return {
+      item: {
+        id: commentItemId(c.id),
+        kind: "comment",
+        at,
+        savedSeconds: 0,
+        ...(resolved ? { result: "applied" as const } : {}),
+      },
+      content: {
+        row: {
+          snippet: firstLine(c.body),
+          time,
+          author: { name: c.author },
+          value:
+            replies > 0
+              ? `${replies} ${replies === 1 ? "reply" : "replies"}`
+              : undefined,
+        },
+        card: {
+          title: `Comment from ${c.author}`,
+          time,
+          comment: {
+            author: { name: c.author },
+            time,
+            body: c.body,
+            replies,
+          },
+        },
+      },
+    };
+  });
+}
 
 function ownStart(
   utterances: readonly CombinedUtterance[],

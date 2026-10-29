@@ -397,6 +397,12 @@ export function ReviewQueue({
                     result: item.result ?? "kept",
                     text: resultText(item),
                   }}
+                  selected={item.id === selectedId}
+                  onSelect={
+                    item.kind === "comment"
+                      ? () => onSelect(item.id)
+                      : undefined
+                  }
                 />
               ))
             : null}

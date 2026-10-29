@@ -270,6 +270,15 @@
   transform: none;
 }
 
+button.sys-queue-row--decided {
+  inline-size: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
 .sys-queue-decided-text {
   flex: 1;
   min-inline-size: 0;
