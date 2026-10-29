@@ -173,10 +173,9 @@ export function commentEntriesOf(
   optimistic: ReadonlyMap<string, boolean> = new Map(),
 ): ReviewEntry[] {
   return comments.map((c): ReviewEntry => {
-    const at = Number.isFinite(c.timeline_start)
-      ? c.timeline_start
-      : Number.POSITIVE_INFINITY;
-    const time = Number.isFinite(at) ? formatTimeShort(at) : "Unplaced";
+    const placed = Number.isFinite(c.timeline_start);
+    const at = placed ? c.timeline_start : Number.POSITIVE_INFINITY;
+    const time = placed ? formatTimeShort(at) : "Unplaced";
     const replies = c.replies.length;
     const resolved = optimistic.get(c.id) ?? c.resolved;
     return {

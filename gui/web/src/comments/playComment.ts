@@ -4,7 +4,6 @@ import { playTimelineRange } from "../utils/playRange";
 
 const PAD_SEC = 2;
 
-/** Selects the comment and plays its time range with a little room either side. */
 export function playComment(c: TimelineComment): void {
   const s = useDawStore.getState();
   s.setSelection({ kind: "comment", id: c.id });

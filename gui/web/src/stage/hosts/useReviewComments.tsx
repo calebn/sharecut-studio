@@ -45,9 +45,8 @@ const cardOf = (c: TimelineComment, resolved: boolean): CommentCardData => ({
 });
 
 /**
- * The host's comments in the Review queue: one item per comment and the
- * thread on its card. Resolving is server state,
- * not a Review decision, so it keeps its own optimistic state and Undo.
+ * Resolving is server state, not a Review decision, so it keeps its own
+ * optimistic state and Undo.
  */
 export function useReviewComments(enabled: boolean) {
   const { project, projectPath } = useDaw((s) => ({
@@ -98,7 +97,6 @@ export function useReviewComments(enabled: boolean) {
       (flipped.get(c.id) ?? c.resolved) === resolved
     )
       return;
-    const path = projectPath;
     const itemId = commentItemId(c.id);
     flip(c.id, resolved);
     if (nav && resolved)
@@ -132,7 +130,8 @@ export function useReviewComments(enabled: boolean) {
         ? {
             reverse: {
               run: async () => {
-                if (useDawStore.getState().projectPath !== path) return false;
+                if (useDawStore.getState().projectPath !== projectPath)
+                  return false;
                 await setCommentResolved(c.id, false, by);
                 flip(c.id, false);
                 nav?.onSelect(itemId);
