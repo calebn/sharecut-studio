@@ -105,6 +105,24 @@ describe("DecisionCard", () => {
     expect(onLooksRight).toHaveBeenCalled();
   });
 
+  it("offers Hear on an unsure word and saves no empty text", async () => {
+    const onHear = vi.fn();
+    const onFix = vi.fn();
+    render(
+      <DecisionCard
+        {...base()}
+        kind="unsure-word"
+        unsure={{ word: "uncle", guess: "uncle", onFix, onHear }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Hear" }));
+    expect(onHear).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole("button", { name: "Fix text" }));
+    await userEvent.clear(screen.getByRole("textbox", { name: "Fix text" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onFix).not.toHaveBeenCalled();
+  });
+
   it("enables the cut once the unsure word is resolved", () => {
     render(
       <DecisionCard

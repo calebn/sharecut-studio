@@ -11,6 +11,7 @@ import {
   bulkReviewQuestion,
   capturePendingReview,
   finishPendingReview,
+  heldReasonText,
   pendingReviewFeedback,
   type ReviewOutcome,
   reviewPassOf,
@@ -213,5 +214,14 @@ describe("bulkReviewDoneMessage", () => {
     ["reject", 2, "Rejected 2 pending edits"],
   ] as const)("%s %i", (action, count, message) => {
     expect(bulkReviewDoneMessage(action, count)).toBe(message);
+  });
+});
+
+describe("heldReasonText", () => {
+  it("sends an unsure-word hold to the word check and passes other reasons through", () => {
+    expect(heldReasonText("unsure_word")).toBe(
+      "It has a word we're not sure of. Check the word first, then cut.",
+    );
+    expect(heldReasonText("other")).toBe("other");
   });
 });
