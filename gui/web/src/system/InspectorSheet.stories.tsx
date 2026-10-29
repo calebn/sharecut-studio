@@ -177,6 +177,13 @@ export const WordTiming: Story = {
       anchorAt={nearTop}
     />
   ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("img", {
+        name: "Word waveform, static demo",
+      }),
+    ).toBeVisible();
+  },
 };
 
 export const Seam: Story = {
