@@ -347,7 +347,7 @@ native menus keep the toast ordering in
 | **Record** | Launcher with live-take status; the record dialog stays mounted in `DawApp`, so a take survives stage switches | Capture |
 | **Prepare** | Import, pipeline jobs, vocabulary | Get audio ready |
 | **Edit** | Timeline surface (playhead that starts at 0 and holds the center once passed; Ferrite lane gutter; eye sheet) and Script surface (transcript), switched by an icon pair | Spatial edit, word fix, suggest cut |
-| **Review** | Queue, Comments, Tighten | Guest review and comments, approve or reject edits |
+| **Review** | Queue (guests: Comments) | Guest review and comments, approve or reject edits |
 | **Deliver** | Export, Bounce, Share for review | Hand off |
 
 Guests see only the stages their role allows (`stagesForRole`): a Commenter link is Review alone and has no Stage bar.
@@ -671,7 +671,7 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 
 ```
 ┌─ Project   save   ↶ ↷   1 avatar +2 ┐
-│ Queue · Comments · Tighten            │  ← Review sections
+│ Queue                                 │  ← Review (one section)
 │ ● 04:12  “level feels low”            │
 │ ○ 11:02  “cut cold open?”             │
 ├─ Player: ▶ 12:34   Hear original ────┤
