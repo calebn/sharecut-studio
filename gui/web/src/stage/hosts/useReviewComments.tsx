@@ -25,6 +25,8 @@ const COMMENT_ROLE = "host";
 export type CommentNav = {
   items: readonly ReviewItem[];
   filter: ReviewFilter;
+  /** The selection now, not when the key was pressed. */
+  selected: () => string | null;
   onSelect: (id: string | null) => void;
 };
 
@@ -61,12 +63,17 @@ export function useReviewComments(enabled: boolean) {
   const actions = useCommentActions({ role: COMMENT_ROLE });
   const replyRef = useRef<HTMLTextAreaElement>(null);
   const sending = useRef(new Set<string>());
+  const sent = useRef(new Set<string>());
+  const [asked, setAsked] = useState<string | null>(null);
 
   useEffect(() => {
+    const landed = new Set(sent.current);
+    sent.current.clear();
     setFlipped((prev) => {
-      const kept = [...prev].filter(
-        ([id, to]) => comments?.find((c) => c.id === id)?.resolved !== to,
-      );
+      const kept = [...prev].filter(([id, to]) => {
+        const now = comments?.find((c) => c.id === id)?.resolved;
+        return now !== undefined && now !== to && !landed.has(id);
+      });
       return kept.length === prev.size ? prev : new Map(kept);
     });
   }, [comments]);
@@ -98,30 +105,33 @@ export function useReviewComments(enabled: boolean) {
     )
       return;
     const itemId = commentItemId(c.id);
+    sent.current.delete(c.id);
     flip(c.id, resolved);
-    if (nav && resolved)
-      nav.onSelect(
-        stepUndecided(
-          nav.items.map((i) =>
-            i.id === itemId ? { ...i, result: "applied" as const } : i,
-          ),
-          itemId,
-          "forward",
-          nav.filter,
-        ),
-      );
+    const next =
+      nav && resolved
+        ? stepUndecided(
+            nav.items.map((i) =>
+              i.id === itemId ? { ...i, result: "applied" as const } : i,
+            ),
+            itemId,
+            "forward",
+            nav.filter,
+          )
+        : null;
+    if (nav && resolved) nav.onSelect(next);
     const by = commitCommentActor(null, COMMENT_ROLE);
     sending.current.add(c.id);
     try {
       await setCommentResolved(c.id, resolved, by);
     } catch (error) {
       flip(c.id, null);
-      nav?.onSelect(itemId);
+      if (nav?.selected() === next) nav.onSelect(itemId);
       say(errorMessage(error), { tone: "error" });
       return;
     } finally {
       sending.current.delete(c.id);
     }
+    sent.current.add(c.id);
     say(
       resolved
         ? `Resolved comment at ${commentTimeLabel(c)}`
@@ -133,6 +143,7 @@ export function useReviewComments(enabled: boolean) {
                 if (useDawStore.getState().projectPath !== projectPath)
                   return false;
                 await setCommentResolved(c.id, false, by);
+                sent.current.add(c.id);
                 flip(c.id, false);
                 nav?.onSelect(itemId);
                 return true;
@@ -150,28 +161,33 @@ export function useReviewComments(enabled: boolean) {
     if (!c) return undefined;
     const resolved = item.result !== undefined;
     const draft = replies[c.id] ?? "";
+    const mine = asked === c.id;
     return (
       <>
         <CommentCard
           comment={cardOf(c, resolved)}
           onSelect={() => playComment(c)}
           onResolve={resolved ? () => void resolve(c.id, false) : undefined}
-          onToggleAction={(actionId, done) =>
-            void actions.toggleAction(c, actionId, done)
-          }
+          onToggleAction={(actionId, done) => {
+            setAsked(c.id);
+            void actions.toggleAction(c, actionId, done);
+          }}
           reply={{
             body: draft,
             onBodyChange: (next) =>
               setReplies((prev) => ({ ...prev, [c.id]: next })),
-            onSubmit: () =>
+            onSubmit: () => {
+              if (actions.busy) return;
+              setAsked(c.id);
               void actions.reply(c, draft).then((ok) => {
                 if (ok) setReplies((prev) => ({ ...prev, [c.id]: "" }));
-              }),
-            state: actions.busy ? "posting" : "idle",
+              });
+            },
+            state: mine && actions.busy ? "posting" : "idle",
             inputRef: replyRef,
           }}
         />
-        <InlineError message={actions.error} />
+        <InlineError message={mine ? actions.error : null} />
       </>
     );
   };

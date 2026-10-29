@@ -241,6 +241,8 @@ later app-wide announcement. The mounted guard does not cancel the mutation or
 reject a response for another project while the same panel stays mounted.
 Lifting toast ownership out of the panel requires revisiting that guard.
 
+The Review queue card has its own resolve toast with Undo, owned by the Review host and shared by Enter and the Resolve button. As with other Review decisions, only the latest toast carries Undo: resolving a second comment replaces it, and the earlier one stays reachable through **Reopen** on its Decided card. A refused resolve puts the comment back only if the selection has not moved on.
+
 ## Live comments during recording
 
 Host, guests, and producers can add live marker comments during a record

@@ -55,7 +55,11 @@ import { requestHostDrain } from "../../services/offlineQueue/drainOfflineQueue"
 import { useDawStore } from "../../state/dawStore";
 import { commandLocks } from "../../test/commandLocks";
 import { fakeExportServer } from "../../test/fakeExportServer";
-import { minimalProject, sampleTrack } from "../../test/fixtures";
+import {
+  minimalProject,
+  sampleComment,
+  sampleTrack,
+} from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { HistoryEntryId } from "../../types/project";
 import { ApiError } from "../../utils/apiError";
@@ -209,6 +213,29 @@ beforeEach(() => {
   registerDawCommands();
   useDawStore.getState().hydrate(PATH, projectAt("h1"));
   useDawStore.setState({ stage: "deliver", guestMode: null, playheadSec: 300 });
+});
+
+describe("Deliver host Resolve fix", () => {
+  it("picks the earliest open comment for Review", async () => {
+    setProject(
+      minimalProject({
+        tracks: [sampleTrack()],
+        timeline_duration_sec: 600,
+        comments: [
+          sampleComment({ id: "late", timeline_start: 90 }),
+          sampleComment({ id: "done", timeline_start: 5, resolved: true }),
+          sampleComment({ id: "early", timeline_start: 30 }),
+        ],
+      }),
+    );
+    render(<DeliverStage />);
+    await userEvent.click(screen.getByRole("button", { name: /^Resolve/ }));
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "comment",
+      id: "early",
+    });
+    expect(useDawStore.getState().stage).toBe("review");
+  });
 });
 
 describe("Deliver host write-back through the command queue", () => {
