@@ -23,6 +23,8 @@ export type ActionBarInlineProps = {
   readOnly?: boolean;
   /** Editor guests and the owner. Viewer and Commenter guests cannot open Edit. */
   canEdit?: boolean;
+  /** False hides Open in Edit for a host that is already in Edit (the compact card). Permission stays in `canEdit`. */
+  showOpenInEdit?: boolean;
   /** The primary is replaced by the prompt while one is open. */
   promptOpen?: boolean;
   onKeep?: () => void;
@@ -55,6 +57,7 @@ export function ActionBarInline({
   center,
   readOnly = false,
   canEdit = !readOnly,
+  showOpenInEdit = true,
   promptOpen = false,
   onKeep,
   onVerb,
@@ -73,12 +76,13 @@ export function ActionBarInline({
           describedBy: verbDisabledReason ? verbNoteId : undefined,
         }
       : undefined;
-  const openInEdit = canEdit ? (
-    <Button variant="link" onClick={onOpenInEdit} title={editTitle}>
-      <SystemIcon name={edit?.icon ?? "stage-edit"} size={16} />
-      Open in {edit?.label ?? "Edit"}
-    </Button>
-  ) : null;
+  const openInEdit =
+    canEdit && showOpenInEdit ? (
+      <Button variant="link" onClick={onOpenInEdit} title={editTitle}>
+        <SystemIcon name={edit?.icon ?? "stage-edit"} size={16} />
+        Open in {edit?.label ?? "Edit"}
+      </Button>
+    ) : null;
   const comment = (
     <Button variant="link" onClick={onComment} title={commentButton.title}>
       <SystemIcon name={commentButton.icon} size={16} />

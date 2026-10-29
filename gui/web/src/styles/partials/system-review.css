@@ -511,7 +511,7 @@ button.sys-queue-row--decided {
 /* Compact: the 320 px card in an Edit Sheet */
 
 .sys-decision[data-layout="compact"] {
-  max-inline-size: 20rem;
+  max-inline-size: min(20rem, 100%);
   margin-inline: 0;
   border-radius: var(--radius-lg);
 }
