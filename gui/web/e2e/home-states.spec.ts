@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { openHome } from "./home";
 import { expectNoHorizontalScroll, mockBootstrap } from "./modelsMock";
+import { setRootFontSize } from "./rootFontSize";
 
 const EPISODE = "/tmp/sharecut-e2e-home-states/rosa/episode.project.json";
 
@@ -116,10 +117,13 @@ test.describe("Home at a large root font", () => {
   }) => {
     await mockBootstrap(page);
     await mockRecents(page, [RECENT]);
-    await page.addInitScript(() => {
-      document.documentElement.style.fontSize = "32px";
-    });
     await openHome(page);
+    const record = page.getByRole("button", { name: /^Record/ });
+    const normal = (await record.boundingBox())!.height;
+    await setRootFontSize(page, 32);
+    await expect
+      .poll(async () => (await record.boundingBox())!.height)
+      .toBeGreaterThan(normal * 1.5);
     await expectNoHorizontalScroll(page);
     for (const name of ["Help", "More", "Record"]) {
       const box = (await page
