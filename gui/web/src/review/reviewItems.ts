@@ -26,7 +26,7 @@ const KIND_OF: Readonly<Record<PendingKind, DecisionKind>> = {
   other: "suggestion",
 };
 
-export const decisionKindOf = (kind: unknown): DecisionKind =>
+const decisionKindOf = (kind: unknown): DecisionKind =>
   typeof kind === "string" && Object.hasOwn(KIND_OF, kind)
     ? KIND_OF[kind as PendingKind]
     : "suggestion";

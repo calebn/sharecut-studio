@@ -28,7 +28,7 @@ soon as the confirmed, revalidated command starts. The control is busy and
 disabled with its reason. Submitted rows show `Applying…` where the Status
 column is visible. On phones that column is hidden; the working line and disabled
 Apply and Skip controls show the work in progress. The shared `BulkReviewWorking` pulse and elapsed companion
-follow Impact's bulk review pattern. Elapsed appears after two seconds and stays
+follow the Review queue's bulk pattern. Elapsed appears after two seconds and stays
 outside the static live headline. There is no percentage or phase estimate.
 
 The command owns the project path, submitted hit IDs and start time, so filtering

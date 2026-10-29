@@ -104,8 +104,8 @@ flowchart TD
   decide -->|Approve or Reject| done[Decision applied]
 ```
 
-1. **Impact is hidden** for all guests — approve from Timeline overlay / inspector.
-2. Pending chip on Listen routes to Timeline (not Impact) and selects the first review-required pending.
+1. **The host Review queue is hidden** for all guests — approve from Timeline overlay / inspector.
+2. Pending chip on Listen routes to Timeline (not the host queue) and selects the first review-required pending.
 3. Listen-first: hear Suggested (skip the pending band) or A/B before Approve. Ask lives in the pending inspector thread.
 
 ---
