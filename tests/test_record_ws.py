@@ -619,7 +619,6 @@ def test_host_record_watcher_gives_up_on_a_room_whose_join_keeps_failing(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     import threading
-    import time
     from urllib.parse import quote
 
     _isolate()
@@ -627,12 +626,18 @@ def test_host_record_watcher_gives_up_on_a_room_whose_join_keeps_failing(
     joins: list[int] = []
     first = threading.Event()
     looked = threading.Event()
+    settled = threading.Event()
+    polls: list[int] = []
     real = RecordSessionService.active_session_id
 
     def spy(project):
         sid = real(project)
         if threading.current_thread().name.startswith("AnyIO worker"):
             looked.set()
+            if first.is_set():
+                polls.append(1)
+                if len(polls) >= 6:
+                    settled.set()
         return sid
 
     monkeypatch.setattr(RecordSessionService, "active_session_id", staticmethod(spy))
@@ -651,7 +656,7 @@ def test_host_record_watcher_gives_up_on_a_room_whose_join_keeps_failing(
         assert looked.wait(10)
         ShareService(ws).create_record_room()
         assert first.wait(10)
-        time.sleep(0.5)
+        assert settled.wait(10)
         assert len(joins) == 1
 
 
