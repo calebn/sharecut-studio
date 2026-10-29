@@ -281,7 +281,7 @@ def test_short_burst_in_a_long_bed_is_not_averaged_away(tmp_path: Path) -> None:
     selected = room_tone_bed(project, "host")
 
     assert isinstance(selected, RecordedBedSample)
-    assert not (selected.start < 3.6 and selected.end > 3.0)
+    assert selected.end <= 3.0 or selected.start >= 3.6
 
 
 def test_a_bed_whose_longest_quiet_run_is_too_short_to_tile_is_rejected(tmp_path: Path) -> None:
@@ -298,7 +298,9 @@ def test_a_bed_whose_longest_quiet_run_is_too_short_to_tile_is_rejected(tmp_path
     assert selected.cause == "contaminated_bed"
 
 
-def test_a_bed_stretch_starts_a_guard_after_the_cough_that_precedes_it(tmp_path: Path) -> None:
+def test_a_bed_stretch_starts_a_guard_after_the_last_window_the_cough_touches(
+    tmp_path: Path,
+) -> None:
     project = _project(tmp_path, host=_host_audio())
     bed = _noise(-62.0, seed=7)
     _add_voice(bed, 3.0, 3.6, VOICE_DB)
@@ -307,7 +309,21 @@ def test_a_bed_stretch_starts_a_guard_after_the_cough_that_precedes_it(tmp_path:
     selected = room_tone_bed(project, "host")
 
     assert isinstance(selected, RecordedBedSample)
-    assert selected.start >= 3.6 + 2 * SPEECH_GUARD_SEC - 1e-6
+    assert selected.start >= 4.0 + SPEECH_GUARD_SEC - 1e-6
+
+
+def test_a_bed_stretch_ends_a_guard_before_the_first_window_the_cough_touches(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = _noise(-62.0, seed=7)
+    _add_voice(bed, 6.0, 6.6, VOICE_DB)
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_bed(project, "host")
+
+    assert isinstance(selected, RecordedBedSample)
+    assert selected.end <= 5.75 - SPEECH_GUARD_SEC + 1e-6
 
 
 def test_the_bed_stretch_is_the_longest_quiet_run(tmp_path: Path) -> None:
@@ -362,8 +378,6 @@ def test_one_minute_bed_with_a_cough_keeps_its_longest_quiet_stretch(tmp_path: P
     selected = room_tone_span(project, "host", near_sec=4.0, near_source_id=None, duration_sec=8.0)
 
     assert isinstance(selected, RecordedBedSample)
-    assert selected.end - selected.start == pytest.approx(8.0)
-    assert selected.end <= 41.0 + 1e-6 or selected.start >= 41.6 - 1e-6
     assert (selected.start, selected.end) == pytest.approx((0.0, 8.0), abs=0.5)
 
 

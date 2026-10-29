@@ -498,6 +498,43 @@ def test_contaminated_room_tone_bed_falls_back_to_comfort_noise(tmp_path: Path) 
     assert track.gate_fill.source is GateFillSource.COMFORT_NOISE
 
 
+def _long_bed_project(tmp_path: Path, burst_at: float | None) -> tuple[EpisodeProject, Track]:
+    project = _project(tmp_path, _gated_track())
+    seconds = 40
+    t = np.arange(seconds * SR) / SR
+    bed = 10 ** (-60 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 220 * t)
+    if burst_at is not None:
+        lo = round(burst_at * SR)
+        bed[lo : lo + SR // 2] += (
+            10 ** (-20 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 140 * t[: SR // 2])
+        )
+    _write_wav(tmp_path / "raw" / "room-tone" / "guest.wav", bed)
+    track = project.track_by_id("guest")
+    track.room_tone = MediaAsset(path="raw/room-tone/guest.wav", duration_sec=float(seconds))
+    project.sources.append(
+        SourceRecording(id=room_tone_source_id("guest"), path="raw/room-tone/guest.wav")
+    )
+    return project, track
+
+
+def test_a_bed_left_short_by_a_cough_is_not_looped_into_the_holes(tmp_path: Path) -> None:
+    project, track = _long_bed_project(tmp_path, burst_at=20.0)
+
+    fill_gate_holes(project, _defaults())
+
+    assert track.gate_fill is not None
+    assert track.gate_fill.source is GateFillSource.COMFORT_NOISE
+
+
+def test_a_bed_with_a_cough_late_enough_keeps_a_loop_long_enough(tmp_path: Path) -> None:
+    project, track = _long_bed_project(tmp_path, burst_at=30.0)
+
+    fill_gate_holes(project, _defaults())
+
+    assert track.gate_fill is not None
+    assert track.gate_fill.source is GateFillSource.ROOM_TONE_BED
+
+
 def test_fill_never_carries_another_tracks_bleed(tmp_path: Path) -> None:
     alone = _project(tmp_path / "alone", _gated_track())
     with_peer = _project(tmp_path / "peer", _gated_track(), peer=_peer_track())

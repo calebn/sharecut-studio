@@ -92,9 +92,8 @@ MIN_SAMPLE_SEC = 0.25
 SPEECH_GUARD_SEC = 0.15
 MAX_CANDIDATES = 16
 # A bed is checked in windows this long, hopping by half: a burst of speech in a long
-# bed must not be averaged away by the steady room around it. The bed's usable part is
-# its longest run of windows that pass, less ``SPEECH_GUARD_SEC`` at an end that abuts a
-# failed window; a run shorter than ``BED_MIN_USABLE_SEC`` would be tiled into a stutter.
+# bed must not be averaged away by the steady room around it. A usable run shorter than
+# ``BED_MIN_USABLE_SEC`` would be tiled into a stutter.
 BED_WINDOW_SEC = 0.5
 BED_MIN_USABLE_SEC = 3.0
 MAX_BED_VERDICTS = 16
@@ -921,7 +920,8 @@ class BedUsable:
 
 
 BedVerdict = BedUsable | tuple[str, ...]
-"""The usable stretch of a bed, or the ``CHECKS`` rows its loudest window failed."""
+"""The usable stretch of a bed, or why none is: the ``CHECKS`` row its loudest window
+failed, or ``no_usable_run`` when that window passes but no run is long enough."""
 
 _BED_VERDICTS: dict[tuple[Path, FileRevision, int, bool], BedVerdict] = {}
 
@@ -930,9 +930,8 @@ def _bed_verdict(path: Path, revision: FileRevision, audio: np.ndarray) -> BedVe
     """The bed's usable stretch, measured once per file revision.
 
     The bed has no transcript and its own gain, so it is held to its own floor and speech
-    level, window by window. A cough or a word costs the windows it touches, not the bed:
-    the usable stretch is the longest run of windows that pass every row. The detector is
-    in the key because ``voiced`` passes without one.
+    level, window by window; the usable stretch is the longest run of windows that pass
+    every row. The detector is in the key because ``voiced`` passes without one.
     """
     key = (path, revision, audio.size, not _voice_detector_missing())
     verdict = _BED_VERDICTS.get(key)
@@ -963,11 +962,9 @@ def _measure_bed(path: Path, audio: np.ndarray) -> BedVerdict:
         ]
     )
     live = np.array([not silent[i // frame : -(-(i + window) // frame)].any() for i in starts])
-    if live.any():
-        levels = levels_all[live]
-    else:
-        levels = levels_all
+    if not live.any():
         live = np.ones(len(starts), dtype=bool)
+    levels = levels_all[live]
     floor_db = float(np.percentile(levels, FLOOR_PERCENTILE))
     loud = levels[levels > floor_db + FLOOR_BAND_DB]
     track = TrackFloor(
@@ -986,9 +983,8 @@ def _measure_bed(path: Path, audio: np.ndarray) -> BedVerdict:
         for i, level, is_live in zip(starts, levels_all, live, strict=True)
         if is_live
     ]
-    live_sec = (len(samples) - 1) * hop / SAMPLE_RATE + window / SAMPLE_RATE
     usable = _longest_passing_run(
-        samples, track, minimum_sec=min(BED_MIN_USABLE_SEC, live_sec, audio.size / SAMPLE_RATE)
+        samples, track, minimum_sec=min(BED_MIN_USABLE_SEC, _covered_sec(samples))
     )
     if usable is not None:
         return BedUsable(*usable)
@@ -1005,41 +1001,42 @@ def _measure_bed(path: Path, audio: np.ndarray) -> BedVerdict:
     return (failed,)
 
 
+def _covered_sec(samples: Sequence[Sample]) -> float:
+    """Seconds of audio the windows cover together."""
+    covered = 0.0
+    reached = 0.0
+    for sample in samples:
+        covered += sample.end - max(sample.start, reached)
+        reached = sample.end
+    return covered
+
+
 def _longest_passing_run(
     samples: Sequence[Sample], track: TrackFloor, *, minimum_sec: float
 ) -> Span | None:
     """The longest stretch of overlapping windows that all pass, at least ``minimum_sec``.
 
-    An end that abuts a failed window is pulled in by ``SPEECH_GUARD_SEC``: a word's attack
-    or tail, or a cough's, sits at the floor's level while it is still not room tone.
+    A run stops ``SPEECH_GUARD_SEC`` short of every failed window that overlaps its ends:
+    a word's attack or tail, or a cough's, sits at the floor's level while it is not
+    room tone.
     """
     passed = [rejection(sample, track) is None for sample in samples]
-
-    def abuts_failure(index: int, neighbour: int) -> bool:
-        return (
-            0 <= neighbour < len(samples)
-            and not passed[neighbour]
-            and samples[neighbour].start < samples[index].end
-            and samples[index].start < samples[neighbour].end
-        )
-
+    failed = [sample for sample, ok in zip(samples, passed, strict=True) if not ok]
     best: Span | None = None
     first = 0
     for index, sample in enumerate(samples):
         if not passed[index]:
             continue
-        joined = index > 0 and passed[index - 1] and sample.start < samples[index - 1].end
-        if not joined:
+        if not (index > 0 and passed[index - 1] and sample.start < samples[index - 1].end):
             first = index
-        closes = index + 1 == len(samples) or not (
-            passed[index + 1] and samples[index + 1].start < sample.end
-        )
-        if not closes:
+        if index + 1 < len(samples) and passed[index + 1] and samples[index + 1].start < sample.end:
             continue
-        start = samples[first].start + (
-            SPEECH_GUARD_SEC if abuts_failure(first, first - 1) else 0.0
-        )
-        end = sample.end - (SPEECH_GUARD_SEC if abuts_failure(index, index + 1) else 0.0)
+        start, end = samples[first].start, sample.end
+        for bad in failed:
+            if bad.start <= start < bad.end:
+                start = bad.end + SPEECH_GUARD_SEC
+            if bad.start < end <= bad.end:
+                end = bad.start - SPEECH_GUARD_SEC
         if end - start >= minimum_sec - 1e-9 and (best is None or end - start > best[1] - best[0]):
             best = (start, end)
     return best
