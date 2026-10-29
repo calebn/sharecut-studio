@@ -230,6 +230,19 @@ describe("split", () => {
     expect(result.current.splitFailed).toEqual({});
   });
 
+  it("drops the toast's Undo at the first key of a voice rename, before the rename is saved", async () => {
+    useDawStore.setState({
+      announceStatus: useDawStore.getInitialState().announceStatus,
+      feedbackToast: null,
+    });
+    const { result } = setup();
+    await act(async () => result.current.actions.onSplit("maya"));
+    expect(useDawStore.getState().feedbackToast?.undo).toBe("h2");
+    act(() => result.current.actions.onName("maya", "M"));
+    expect(useDawStore.getState().feedbackToast?.undo).toBeNull();
+    expect(setTrackMetaCommand).not.toHaveBeenCalled();
+  });
+
   it("shows the split working while it runs, with its own progress", async () => {
     let finish: (value: unknown) => void = () => undefined;
     vi.mocked(followJobToOk).mockReturnValue(
