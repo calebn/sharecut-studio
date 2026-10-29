@@ -590,3 +590,49 @@ describe("Ruler passthrough", () => {
     expect(handle("start")).not.toHaveAttribute("data-hit-kind");
   });
 });
+
+describe("Ruler drag limits", () => {
+  const seconds = (calls: unknown[][]) =>
+    calls.map(([, drag]) => (drag as { seconds: number }).seconds);
+  const drag = (
+    handle: HTMLElement,
+    from: number,
+    to: number[],
+    pointerId = 1,
+  ) => {
+    fireEvent.pointerDown(handle, { pointerId, clientX: from });
+    for (const clientX of to) {
+      fireEvent.pointerMove(handle, { pointerId, clientX });
+    }
+  };
+
+  it("holds the start knob a hair before the end knob and the end knob a hair after the start knob", () => {
+    const { handle, onSelectionDrag } = setup({ selection });
+    const group = screen.getByRole("group", { name: "Time ruler" });
+    drag(handle("start"), 80, [90, 340]);
+    fireEvent.pointerUp(group, { pointerId: 1, clientX: 340 });
+    drag(handle("end"), 240, [250, 0], 2);
+    expect(seconds(onSelectionDrag.mock.calls)).toEqual([
+      606.25, 609.99, 610.25, 606.01,
+    ]);
+  });
+
+  it("holds a knob dragged off the episode to its ends, whichever way the release lands", () => {
+    const { handle, onSelectionDrag, onSelectionDragEnd } = setup({
+      start: 0,
+      pxPerSecond: 20,
+      duration: 12,
+      selection: { start: 2, end: 10 },
+    });
+    const group = screen.getByRole("group", { name: "Time ruler" });
+    drag(handle("start"), 40, [50, -300]);
+    fireEvent.pointerUp(group, { pointerId: 1, clientX: -500 });
+    drag(handle("end"), 200, [210, 900], 2);
+    fireEvent.pointerUp(group, { pointerId: 2, clientX: 1400 });
+    expect(seconds(onSelectionDrag.mock.calls)).toEqual([2.5, 0, 10.5, 12]);
+    expect(onSelectionDragEnd.mock.calls).toEqual([
+      ["start", true],
+      ["end", true],
+    ]);
+  });
+});

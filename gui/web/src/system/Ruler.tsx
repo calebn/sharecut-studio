@@ -11,6 +11,7 @@ import { HANDLE_DRAG_MIN_PX, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
 import { clamp } from "../utils/math";
 import { formatRulerTime, formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
+import { edgeBounds, within } from "./dragBounds";
 import type { MarkerAttrs } from "./Marker";
 import { round3, rulerStep, rulerTicks, timeAtX, xAtTime } from "./rulerMath";
 import type { TimeRange } from "./seconds";
@@ -154,9 +155,15 @@ export const Ruler = memo(function Ruler({
         onScrub?.(secondsAt(move.clientX), move);
         return;
       }
+      const seconds = secondsAt(move.clientX - edgeOffset.current);
       onSelectionDrag?.(grip, {
         ...move,
-        seconds: secondsAt(move.clientX - edgeOffset.current),
+        seconds: selection
+          ? within(
+              edgeBounds(grip, selection, duration, RULER_MIN_SELECTION),
+              seconds,
+            )
+          : seconds,
       });
     },
     onEnd: (grip, committed) => {
@@ -265,10 +272,9 @@ export const Ruler = memo(function Ruler({
     const at = selection[edge];
     const x = xAtTime(at, start, pxPerSecond);
     if (x < -PLAYHEAD_BLEED_PX || x > width + PLAYHEAD_BLEED_PX) return null;
-    const [min, max] =
-      edge === "start"
-        ? [0, Math.max(0, selection.end - RULER_MIN_SELECTION)]
-        : [Math.min(duration, selection.start + RULER_MIN_SELECTION), duration];
+    const bounds = edgeBounds(edge, selection, duration, RULER_MIN_SELECTION);
+    const [min, max] = bounds;
+    const now = within(bounds, at);
     return (
       <span
         key={edge}
@@ -281,8 +287,8 @@ export const Ruler = memo(function Ruler({
         aria-orientation="horizontal"
         aria-valuemin={round3(min)}
         aria-valuemax={round3(max)}
-        aria-valuenow={round3(at)}
-        aria-valuetext={formatTime(at)}
+        aria-valuenow={round3(now)}
+        aria-valuetext={formatTime(now)}
         style={{ "--sys-ruler-x": px(x) } as CSSProperties}
         {...hitProps?.[edge]}
         onClick={click}
