@@ -151,6 +151,7 @@ button.sys-composer-chip {
 
 @media (pointer: coarse) {
   .sys-composer-chip,
+  .sys-composer-input,
   .sys-composer-field .sys-composer-body {
     min-block-size: var(--touch-min);
   }
@@ -216,7 +217,9 @@ button.sys-comment-main:hover {
 }
 
 .sys-comment-author {
+  min-inline-size: 0;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .sys-comment-time,

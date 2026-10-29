@@ -38,6 +38,8 @@ export type CommentNav = {
   /** The selection now, not when the key was pressed. */
   selected: () => string | null;
   onSelect: (id: string | null) => void;
+  /** Where focus goes when the toast closes. */
+  root?: () => HTMLElement | null;
 };
 
 const cardOf = (c: TimelineComment, resolved: boolean): CommentCardData => ({
@@ -201,6 +203,7 @@ export function useReviewComments(enabled: boolean) {
               },
               done: "Comment reopened",
             },
+            returnFocus: nav?.root,
           }
         : undefined,
     );
