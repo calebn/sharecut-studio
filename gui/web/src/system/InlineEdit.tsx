@@ -12,7 +12,7 @@ type Props = {
   onEnd?: (how: InlineEditEnd) => void;
   /** Enter commits; Shift+Enter breaks the line. */
   multiline?: boolean;
-  autoFocus?: boolean;
+  focusOnMount?: boolean;
   placeholder?: string;
   className?: string;
 };
@@ -28,7 +28,7 @@ export function InlineEdit({
   onCommit,
   onEnd,
   multiline = false,
-  autoFocus = false,
+  focusOnMount = false,
   placeholder,
   className,
 }: Props) {
@@ -43,10 +43,10 @@ export function InlineEdit({
   const field = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   useEffect(() => {
     const el = field.current;
-    if (!autoFocus || !el) return;
+    if (!focusOnMount || !el) return;
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
-  }, [autoFocus]);
+  }, [focusOnMount]);
   useEffect(() => {
     sent.current = value;
   }, [value]);
