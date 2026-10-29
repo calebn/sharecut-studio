@@ -66,7 +66,7 @@ Making precise changes to the episode: cutting words and ranges, trimming, fadin
 | Keep | arrow-uturn (restore) | X | restores cut words | n/a | n/a | restores the cut at this seam | rejects the suggestion | n/a | n/a |
 | Split | blade | Mod+K | n/a | splits at both edges | splits at playhead | n/a | n/a | n/a | splits at playhead |
 | Comment | speech bubble | C | comment on words | comment on range | comment on clip span | comment at seam | comment on it | reply (comment) | comment at playhead |
-| Fix text | text-cursor | F2 or start typing | inline correction | n/a | n/a | n/a | n/a | rename (chapter, social) | n/a |
+| Fix text | text-cursor | Enter, F2 or double-click | inline correction | n/a | n/a | n/a | n/a | rename (chapter, social) | n/a |
 | Remove | trash | Backspace | n/a | n/a | n/a | n/a | n/a | deletes the marker | n/a |
 | More | ellipsis | . (period) opens | Mute, Move to speaker, Copy | Mute, Fill room tone, Move to speaker, Export selection | Mute, Gain, Fade, Move to track | Join type, Precision | Adjust bounds | n/a | Add chapter, Add volume point, Paste |
 | Inspect | sliders | I | timing | In/Out/Length | properties | offset, join | why, bounds | time, title | n/a |
@@ -523,7 +523,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
   - No modes. One grammar:
     - Click a word: places the caret before it and seeks the playhead there.
     - Drag across words, Shift-click, or double-click (word) / triple-click (sentence): selects; the action bar appears above the selection. Built so far: Shift-click, Shift with the arrows and the two handles. Mouse drag, double-click, triple-click and long-press are deferred.
-    - Typing with a selection or pressing F2: Fix text on that selection.
+    - Enter, F2 or double-click on a word: Fix text on that selection. Typing never starts it.
     - Backspace with a selection: Cut. Backspace with only a caret: nothing (protects against accidental cuts).
   - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; low-confidence words get a dotted underline.
   - Follow: pin on by default. Scrolling by hand turns it off and shows a "Back to playhead" pill at the bottom center; clicking it scrolls and re-pins.
@@ -632,7 +632,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** INS-EMPTY--desktop-light.png. Purpose: an empty column or a heading with an unmapped-edits list.
 - **Fate:** remove. No inspector without a selection. Unmapped pending edits move to Review.
-- **Built (W1b, #2294):** `inspector/views/EmptyInspector*` is deleted; the Inspector opens only on Inspect for a selection. Unmapped pending edits stay in the Impact panel (`panels/ImpactPanel.tsx`).
+- **Built (W1b, #2294):** `inspector/views/EmptyInspector*` is deleted; the Inspector opens only on Inspect for a selection. Unmapped pending edits stay in the Review queue (`review/ReviewQueue.tsx`).
 - **Story to build:** none.
 
 ### INS-CLIP · Clip inspector
@@ -820,7 +820,7 @@ Each interaction uses the object selection model above. Every edit is one undo s
 
 - **Today:** CMP-TRANSPORT shots. Language: "Full mix / Edited stems / Original".
 - **Fate:** replace with Hear original (hold O or the A/B button) and A/B on any change.
-- **Spec:** hold O: hear original at the same source position; release returns. A and B on a selected suggestion or seam: hear before / after with 1.5 s pre-roll.
+- **Spec:** hold A with nothing selected: hear original at the playhead (not built yet; W2); release returns. A and B on a selected suggestion or seam: hear before / after with 1.5 s pre-roll.
 - **Story to build:** `Shell/PlayerBar` story `HearOriginalHeld`.
 
 ### INT-SCRUB · Scrub

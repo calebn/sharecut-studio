@@ -593,7 +593,14 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
     .map((id): BarItem => {
       const guestMix =
         id === "hear" && descriptor("play")?.label === PLAY_FULL_MIX_LABEL;
-      return guestMix ? { id, label: PLAY_FULL_MIX_LABEL } : { id };
+      if (guestMix) return { id, label: PLAY_FULL_MIX_LABEL };
+      if (
+        id === "comment" &&
+        s.guestMode &&
+        !hasShareCapability(s.shareCapabilities, "comment")
+      )
+        return { id, disabledReason: "This share cannot add comments" };
+      return { id };
     });
 
   const more: BarItem[] = [];

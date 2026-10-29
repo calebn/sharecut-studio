@@ -78,6 +78,7 @@ function LookButton({ look, item, ...rest }: LookButtonProps) {
     title: titleOf(item),
     "aria-keyshortcuts": display.shortcut,
     "aria-pressed": item.pressed,
+    ...disabledAttrs(item.disabledReason),
     ...rest,
   } as const;
   if (look === "inline") {

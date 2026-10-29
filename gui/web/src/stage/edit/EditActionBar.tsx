@@ -34,9 +34,11 @@ function toggleRangeScope(narrow: { current: readonly string[] | null }) {
 function EditActionBarImpl({
   form,
   root,
+  onRan,
 }: {
   form: EditActionBarForm;
   root: HTMLElement | null;
+  onRan?: () => void;
 }) {
   const { selection, project, projectPath, shareCapabilities, moreRequest } =
     useDawStore(
@@ -77,10 +79,14 @@ function EditActionBarImpl({
   useEffect(() => {
     factsRef.current = facts;
   }, [facts]);
-  const onVerb = useCallback((id: BarId, arg?: string) => {
-    const live = factsRef.current;
-    if (live) void runEditVerb(id, live, arg);
-  }, []);
+  const onVerb = useCallback(
+    (id: BarId, arg?: string) => {
+      const live = factsRef.current;
+      if (live) void runEditVerb(id, live, arg);
+      onRan?.();
+    },
+    [onRan],
+  );
 
   if (!facts || !model || !project) return null;
   if (floating && !anchor.visible) return null;

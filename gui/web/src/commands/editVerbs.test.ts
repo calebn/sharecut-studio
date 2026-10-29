@@ -466,6 +466,25 @@ describe("barModelOf", () => {
     expect(m.more.find((row) => row.id === "mute")?.label).toBe("Suggest mute");
   });
 
+  it("draws Comment disabled with its reason on a link that cannot comment", () => {
+    const viewer = model(EDIT_SELECTIONS.rangeOnAllTracks, {
+      projectPath: "share:tok",
+      guestMode: "view",
+      shareCapabilities: ["view", "play"],
+    });
+    expect(viewer.items.find((i) => i.id === "comment")).toMatchObject({
+      disabledReason: "This share cannot add comments",
+    });
+    const commenter = model(EDIT_SELECTIONS.rangeOnAllTracks, {
+      projectPath: "share:tok",
+      guestMode: "comment",
+      shareCapabilities: ["view", "play", "comment"],
+    });
+    expect(
+      commenter.items.find((i) => i.id === "comment")?.disabledReason,
+    ).toBeUndefined();
+  });
+
   it("gates the primary on a busy range and a join in flight", () => {
     expect(
       model(EDIT_SELECTIONS.rangeOnAllTracks, { rangeBusy: true }).primary
@@ -485,7 +504,7 @@ describe("barModelOf", () => {
     });
     expect(m.items).toEqual([
       { id: "hear", label: "Play full mix" },
-      { id: "comment" },
+      { id: "comment", disabledReason: "This share cannot add comments" },
     ]);
     expect(m.primary).toBeNull();
   });

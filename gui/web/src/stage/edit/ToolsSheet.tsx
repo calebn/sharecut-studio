@@ -36,10 +36,11 @@ export function ToolsSheet() {
         />
       ) : null}
       {phone ? (
-        // biome-ignore lint/a11y/noStaticElementInteractions: a verb's own click bubbles here to dismiss the sheet it ran from.
-        <div role="presentation" onClick={() => setOpenSheet(null)}>
-          <EditActionBar form="dock" root={null} />
-        </div>
+        <EditActionBar
+          form="dock"
+          root={null}
+          onRan={() => setOpenSheet(null)}
+        />
       ) : null}
       {surface === "lanes" || !phone ? (
         <EditCorner showScript={!phone} />

@@ -135,11 +135,11 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Cut selected range | `range.cut` | Project loaded |  |
 | Mute selected range | `range.mute` | Project loaded |  |
 | Fill range with room tone | `range.fillRoomTone` | Project loaded |  |
-| Move to speaker | `range.moveSpeakerLane` | Project loaded | Args: { toLaneId }. Range actions show Move to {speaker} on one split lane |
+| Move to speaker | `range.moveSpeakerLane` | Project loaded | Args: { toLaneId }. The Action bar's More menu shows Move to {speaker} on one split lane |
 | Comment on range | `range.comment` | Project loaded |  |
 | Bounce selected range | `range.bounce` | Project loaded |  |
 | Select a range | `range.arm` | Project loaded |  |
-| Toggle track mute | `track.muteToggle` | Project loaded | M: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? }) |
+| Toggle track mute | `track.muteToggle` | Project loaded | Mute (edit.mute) on a track: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? }) |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
 | Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
 | Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in an input) | Toggle: fill the stage height, or a fixed track height |

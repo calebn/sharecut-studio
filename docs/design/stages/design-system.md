@@ -342,7 +342,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/Seam`.
 
 **21. A/B audition**
-- A two-segment control: "A" (before or original) and "B" (after or edited). Each plays 1.5 s pre-roll through 1.5 s post-roll (Review: 3 s). Press-and-hold A with nothing selected plays the original at the playhead.
+- A two-segment control: "A" (before or original) and "B" (after or edited). Each plays 1.5 s pre-roll through 1.5 s post-roll (Review: 3 s). Press-and-hold A with nothing selected plays the original at the playhead (not built yet; W2).
 - Adjusting a handle switches it to B.
 - Used: Decision card, Seam, Suggestion, Player (Hear original), the Prepare align check, Source card voice check.
 - Replaces: "Hear original" (edit, the O key) and Hear before and after (rdp).
@@ -564,7 +564,7 @@ Decision (owner): `SystemIcon` stroke 2.1. Lucide draws on a 24 grid, so the 1.7
 | Play / Pause | `play` / `pause` (ink-filled circle) | Space | Tap Play | Player (all stages), expanded Player |
 | Shuttle | none | J back, K pause and return, L forward (repeat 1×, 2×, 4×) | Swipe the timeline | Player, every stage |
 | Hear (play the selection) | `ear` | Shift+Space | Tap Hear | Action bar on any selection, Decision card, Take rows, Source card voice, Status rows (align move) |
-| Hear before / after | "A" / "B" segmented | A / B (hold A with nothing selected = original) | Tap A or B, press-and-hold A | A/B audition: Decision card, Seam, Suggestion, Player |
+| Hear before / after | "A" / "B" segmented | A / B (hold A with nothing selected = original; not built yet, W2) | Tap A or B, press-and-hold A | A/B audition: Decision card, Seam, Suggestion, Player |
 | Cut | `scissors` | Backspace or Delete (Mod+X also copies) | Swipe right on a cut suggestion; dock button | Action bar (words, range, clip, cut suggestion), Decision card, queue group bulk, Find bar "Cut all", toast "Cut all" |
 | Keep | `shield-check` | X | Swipe left | Action bar (suggestion, cut seam, cut words), Decision card, queue rows, auto-reduction region |
 | Shorten | `fold-horizontal` | Enter (primary) | Swipe right | Pause suggestions |

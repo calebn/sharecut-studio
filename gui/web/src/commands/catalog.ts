@@ -358,7 +358,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hasProject",
     paletteRunnable: false,
     notes:
-      "Args: { toLaneId }. Range actions show Move to {speaker} on one split lane",
+      "Args: { toLaneId }. The Action bar's More menu shows Move to {speaker} on one split lane",
   },
   "range.comment": {
     id: "range.comment",
@@ -420,7 +420,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["silence"],
     when: "hasProject",
     notes:
-      "M: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? })",
+      "Mute (edit.mute) on a track: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? })",
   },
   "track.setVolume": {
     id: "track.setVolume",
@@ -440,7 +440,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["isolate"],
     when: "hasProject",
     notes:
-      "S: listen-only solo for the selected track, never saved in the mix (Args: { trackId? })",
+      "Shift+S: listen-only solo for the selected track, never saved in the mix (Args: { trackId? })",
   },
   "track.clearSolo": {
     id: "track.clearSolo",
