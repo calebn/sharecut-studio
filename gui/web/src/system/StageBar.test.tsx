@@ -52,6 +52,11 @@ describe("the Record badge", () => {
     [{ kind: "paused" } as const, "Record Paused"],
     [{ kind: "saving", progress: 0.5 } as const, "Record Saving"],
     [{ kind: "alert" } as const, "Record Needs attention"],
+    [{ kind: "reconnecting" } as const, "Record Reconnecting"],
+    [
+      { kind: "reconnecting", alert: true } as const,
+      "Record Reconnecting, needs attention",
+    ],
   ])("names %j without the clock", (badge, name) => {
     record(badge);
     expect(screen.getByRole("tab", { name })).toBeInTheDocument();
@@ -72,6 +77,15 @@ describe("the Record badge", () => {
     expect(
       screen.getByRole("tab", { name: "Record Live" }),
     ).toBeInTheDocument();
+  });
+
+  it("draws a saving ring with nothing saved as an empty ring", () => {
+    record({ kind: "saving", progress: 0 });
+    const arc = document.querySelectorAll(".sys-stage-badge circle")[1];
+    expect(arc).toHaveAttribute(
+      "stroke-dasharray",
+      expect.stringMatching(/^0 /),
+    );
   });
 
   it("shows Paused in words", () => {

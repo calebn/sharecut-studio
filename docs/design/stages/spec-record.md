@@ -276,7 +276,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 ### CHIP-REC-TRANSPORT · Recording chip in the transport
 - **Today:** "● REC 0:04 ●" chip in the top bar, visible in DLG-RECORD-ACTIVE. Consistency: a third rendering of the same state, beside the dialog's indicator and the guest's indicator.
 - **Fate:** replace with NEW: Room status pill (compact) on the Stage bar's Record item.
-- **Spec:** on the Stage bar, Record shows: nothing when idle, a count badge when people are waiting in the room ("2"), the compact pill (red dot and clock) during a take, "Paused" text, a progress ring while saving, an amber dot when any alert is active. Click returns to Record. On phone the same badge is on the Record item of the stage switcher and stays visible above sheets (today's rule for the chip).
+- **Spec:** on the Stage bar, Record shows: nothing when idle, a count badge when people are waiting in the room ("2"), the compact pill (red dot and clock) during a take, "Paused" text, a progress ring while saving, a broken-link glyph while the room connection is down during a take, an amber dot when any alert is active. Click returns to Record. On phone the same badge is on the Record item of the stage switcher and stays visible above sheets (today's rule for the chip).
 - **Story to build:** `StageBar` › `RecordIdle`, `RecordPeopleWaiting`, `RecordLive`, `RecordPaused`, `RecordSaving`, `RecordAlert`.
 
 ### OVL-RECORDING · Provisional take band and needle

@@ -28,8 +28,8 @@ export function HostRoomProvider({
   const store = useRef<RoomStore>(null);
   store.current ??= { room: value, listeners: new Set() };
   const current = store.current;
-  current.room = value;
   useLayoutEffect(() => {
+    current.room = value;
     for (const listener of current.listeners) listener();
   }, [current, value]);
   return createElement(HostRoomContext.Provider, { value: current }, children);
@@ -58,14 +58,13 @@ export function useHostRoomSelector<T>(
   equal: (a: T, b: T) => boolean,
 ): T {
   const store = useContext(HostRoomContext);
-  const last = useRef<{ room: HostRoom | null; value: T } | null>(null);
+  const last = useRef<{ value: T } | null>(null);
   return useSyncExternalStore(useSubscribe(store), () => {
-    const room = store?.room ?? null;
-    const value = select(room);
+    const value = select(store?.room ?? null);
     if (last.current && equal(last.current.value, value)) {
       return last.current.value;
     }
-    last.current = { room, value };
+    last.current = { value };
     return value;
   });
 }

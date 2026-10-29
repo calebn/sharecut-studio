@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
 import { useElapsedSince } from "../hooks/useElapsedSince";
 import type { StageId } from "../types/stage";
 import { TabList } from "../ui/Tabs";
 import { RoomStatusPill } from "./RoomStatusPill";
 import { StatusGlyph } from "./StatusGlyph";
 import { SystemIcon } from "./SystemIcon";
+import { stageBadge } from "./stageBadge";
 import { STATUS_TEXT, type StatusState } from "./statusText";
 import { STAGES } from "./verbs";
 
@@ -140,19 +140,6 @@ export function RecordBadgeView({ badge }: { badge: RecordBadge }) {
       <span className="sr-only">{recordName(badge)}</span>
     </span>
   );
-}
-
-/** A stage's badge, or null. Record's `failed` badge outranks its room badge. */
-export function stageBadge(
-  id: StageId,
-  badges: StageBarProps["badges"],
-  record: RecordBadge | undefined,
-): ReactNode {
-  const given = badges?.[id];
-  if (id === "record" && record && given?.kind !== "failed") {
-    return record.kind === "idle" ? null : <RecordBadgeView badge={record} />;
-  }
-  return given ? <Badge badge={given} /> : null;
 }
 
 /**

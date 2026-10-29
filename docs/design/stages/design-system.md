@@ -115,7 +115,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - States: each badge kind (4.6), narrow, phone, guest Editor (2 tabs).
 - Used: every stage. It replaces phone Listen, Timeline, Text and More, CHIP-REC-TRANSPORT and CMP-PIPELINE-CHIP.
 - Replaces: Stage bar (edit and rdp), Room status pill compact form (record), Pipeline chip.
-- Story: `System/StageBar`: Desktop, Narrow, Phone, AllBadges, DoneBadge, RecordIdle, RecordPeopleWaiting, RecordLive, RecordLivePhone, RecordPaused, RecordSaving, RecordAlert, GuestEditor.
+- Story: `System/StageBar`: Desktop, Narrow, Phone, AllBadges, DoneBadge, RecordIdle, RecordPeopleWaiting, RecordLive, RecordLivePhone, RecordPaused, RecordSaving, RecordAlert, GuestEditor. Record kinds beyond the stories: reconnecting (broken-link glyph, "Reconnecting" in the name) while the room socket is down during a take.
 
 **3. Save indicator**
 - An 8 px glyph after the title.

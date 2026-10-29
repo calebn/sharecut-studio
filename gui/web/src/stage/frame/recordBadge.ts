@@ -33,6 +33,8 @@ type RecordBadgeSource = {
 
 const IDLE: RecordBadge = { kind: "idle" };
 
+const NO_ACTION = () => {};
+
 function waitingCount(room: RecordBadgeRoom): number {
   if (room.state !== "lobby") {
     return 0;
@@ -64,21 +66,24 @@ export function recordBadge(
   }
   const alert =
     source.away &&
-    roomAlerts({
-      state,
-      captureHealth: source.captureHealth,
-      keeperError: room.capture.keeperError ?? null,
-      micLost: room.capture.micLost ?? false,
-      sinkError: room.sinkError,
-      uploadError: room.upload.error,
-      recoverable: room.upload.recoverable && state === "stopped",
-      monitorError: room.capture.monitorError ?? null,
-      transportError: room.transportError,
-      hydrateError: room.hydrateError,
-      clipped: room.takeClipping?.regions.length ?? 0,
-      muted: room.host?.muted ?? false,
-      micCheckFailed: room.capture.micCheckFailed,
-    }).length > 0;
+    roomAlerts(
+      {
+        state,
+        captureHealth: source.captureHealth,
+        keeperError: room.capture.keeperError ?? null,
+        micLost: room.capture.micLost ?? false,
+        sinkError: room.sinkError,
+        uploadError: room.upload.error,
+        recoverable: room.upload.recoverable && state === "stopped",
+        monitorError: room.capture.monitorError ?? null,
+        transportError: room.transportError,
+        hydrateError: room.hydrateError,
+        clipped: room.takeClipping?.regions.length ?? 0,
+        muted: room.host?.muted ?? false,
+        micCheckFailed: room.capture.micCheckFailed,
+      },
+      { recover: NO_ACTION },
+    ).length > 0;
   if (source.dropped && (state === "recording" || state === "paused")) {
     return { kind: "reconnecting", alert };
   }
@@ -97,9 +102,7 @@ export function recordBadge(
   if (phase.kind === "saving") {
     return {
       kind: "saving",
-      progress: phase.totalPeople
-        ? phase.savedPeople / phase.totalPeople
-        : undefined,
+      progress: phase.totalPeople ? phase.savedPeople / phase.totalPeople : 0,
       alert,
     };
   }
