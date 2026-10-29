@@ -709,6 +709,7 @@ def gap_project(minimal_project, monkeypatch) -> DocumentSyncService:
     configure(monkeypatch, defaults())
     root = minimal_project.parent
     result = project(root)
+    result.tracks[0].speaker = "Host"
     add_bed(result, root)
     result.clips = [
         Clip(id="left", track_id="host", source_start=0, source_end=1, timeline_start=0),
