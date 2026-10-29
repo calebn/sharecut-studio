@@ -150,9 +150,12 @@ def test_a_false_string_on_review_required_is_false(episode):
     assert _decisions(episode) == [("host", 2.0, 3.0, 10, "agent:plan", False, False)]
 
 
-def test_a_null_review_required_stays_false_as_before(episode):
-    apply_edit_plan_tool(str(episode), [_entry(2, 3, review_required=None)])
-    assert _decisions(episode) == [("host", 2.0, 3.0, 10, "agent:plan", False, False)]
+@pytest.mark.parametrize("plan_flag", [True, False])
+def test_a_null_review_required_takes_the_plan_value(episode, plan_flag):
+    apply_edit_plan_tool(
+        str(episode), [_entry(2, 3, review_required=None)], review_required=plan_flag
+    )
+    assert _decisions(episode) == [("host", 2.0, 3.0, 10, "agent:plan", plan_flag, False)]
 
 
 def test_a_false_string_on_applied_stages_instead_of_cutting(episode):
