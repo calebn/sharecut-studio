@@ -14,7 +14,13 @@ import { Menu, MenuItem } from "../ui";
 import { clamp } from "../utils/math";
 import { formatRulerTime, formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
-import { type Bounds, boundedDelta, spanBounds, within } from "./dragBounds";
+import {
+  type Bounds,
+  boundedDelta,
+  spanBounds,
+  UNBOUNDED,
+  within,
+} from "./dragBounds";
 import { Marker, type MarkerAttrs } from "./Marker";
 import {
   isRange,
@@ -520,13 +526,11 @@ export const MarkerLane = memo(function MarkerLane({
       setHeld((now) => (now ? { ...now, x } : now));
       onDrag?.(id, grip, {
         ...move,
-        delta: limits.current
-          ? boundedDelta(
-              limits.current.bounds,
-              limits.current.from,
-              move.dx / pxPerSecond,
-            )
-          : move.dx / pxPerSecond,
+        delta: boundedDelta(
+          limits.current?.bounds ?? UNBOUNDED,
+          limits.current?.from ?? 0,
+          move.dx / pxPerSecond,
+        ),
         seconds: secondsAt(move.clientX),
       });
     },

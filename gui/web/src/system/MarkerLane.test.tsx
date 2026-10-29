@@ -887,6 +887,29 @@ describe("MarkerLane drag limits", () => {
     ]);
   });
 
+  it("does not pin a clip longer than the episode, or any marker while the duration is 0", () => {
+    const long = setup({
+      duration: 36,
+      selected: ["sc-joke"],
+      markers: [
+        { kind: "clip", id: "sc-joke", start: 10, end: 70, title: "Best joke" },
+      ],
+    });
+    press(joke(), 100);
+    moveTo(track(), 130);
+    moveTo(track(), 70);
+    expect(moves(long.onDrag.mock.calls).map(([delta]) => delta)).toEqual([
+      5, -5,
+    ]);
+    long.unmount();
+    const unloaded = setup({ duration: 0 });
+    press(chapter(), 150);
+    moveTo(chapter(), 168);
+    expect(moves(unloaded.onDrag.mock.calls).map(([delta]) => delta)).toEqual([
+      3,
+    ]);
+  });
+
   it("reads an edge slider inside its limits", () => {
     setup({
       selected: ["sc-joke"],
