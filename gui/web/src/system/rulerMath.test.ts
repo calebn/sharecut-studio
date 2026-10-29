@@ -46,6 +46,17 @@ describe("rulerMath", () => {
     expect(ticks.map((t) => t.x)).toEqual([0, 72, 144, 216, 288, 360]);
   });
 
+  it("does not end-align a label that has no room to its left", () => {
+    for (const width of [40, 60]) {
+      const ticks = rulerTicks(7, 10, width, 10, 100);
+      const tick = ticks.find((t) => t.time === 10);
+      expect(tick?.x).toBe(30);
+      expect(tick?.label).toBe("");
+    }
+    const roomy = rulerTicks(8, 20, 60, 10, 100).find((t) => t.time === 10);
+    expect([roomy?.x, roomy?.align, roomy?.label]).toEqual([40, "end", "0:10"]);
+  });
+
   it("lists ticks as index times step, from one label's width before the window", () => {
     const ticks = rulerTicks(604, 40, 360, 2);
     expect(ticks.map((t) => [t.time, t.x, t.label])).toEqual([

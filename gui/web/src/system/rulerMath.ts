@@ -68,8 +68,10 @@ export function rulerTicks(
     const label = formatRulerTime(time, step);
     const labelPx = labelWidthPx(time, step);
     const align = x + labelPx > width ? "end" : "start";
+    // An end-aligned label needs room to the left of its line; on a ruler too narrow for it, or beside a neighbour, only the line stays.
     const clash =
-      align === "end" && step * pxPerSecond < 2 * labelPx - LABEL_PAD_PX;
+      align === "end" &&
+      (x < labelPx || step * pxPerSecond < 2 * labelPx - LABEL_PAD_PX);
     ticks.push({ time, x, label: clash ? "" : label, align });
   }
   return ticks;
