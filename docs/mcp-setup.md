@@ -13,8 +13,10 @@ endpoint binds to loopback only; do not expose it through a tunnel or a public
 network interface.
 
 Discovery skips the loopback ping and runs locally when an announced positive
-PID is confirmed gone on POSIX. Windows, nonpositive PIDs, and uncertain process
-checks retain the protective ping. When stdio discovers an announced Studio,
+PID is confirmed gone: on POSIX when the signal-0 probe finds no process, on
+Windows when `OpenProcess` reports no such process or `GetExitCodeProcess` shows
+it exited (a read-only query, never a signal). Nonpositive PIDs and uncertain
+process checks (access denied, any other error) retain the protective ping. When stdio discovers an announced Studio,
 each loopback ping has five seconds to complete its network exchange. Receiving
 part of a reply does not restart that time. A timeout is retried once. If both
 attempts time out,

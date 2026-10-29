@@ -19,7 +19,7 @@ import subprocess  # nosec B404
 import sys
 import threading
 import weakref
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
@@ -41,10 +41,48 @@ _detach_depth = 0
 _detached: weakref.WeakSet[subprocess.Popen[Any]] = weakref.WeakSet()
 
 
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_ERROR_INVALID_PARAMETER = 87
+_STILL_ACTIVE = 259
+
+
+def _kernel32() -> tuple[Any, Callable[[], int]] | None:
+    try:
+        import ctypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+        kernel32.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        return kernel32, ctypes.get_last_error  # type: ignore[attr-defined]
+    except (AttributeError, ImportError, OSError):
+        return None
+
+
+def windows_pid_alive(pid: int, kernel32: Any, last_error: Callable[[], int]) -> bool:
+    """False only when Windows says ``pid`` is no process or has exited; never signals it."""
+    import ctypes
+
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return last_error() != _ERROR_INVALID_PARAMETER
+    try:
+        code = ctypes.c_uint32()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return True
+        return code.value == _STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 def pid_is_alive(pid: int) -> bool:
-    """Return False only when a positive POSIX PID is certainly gone."""
-    if pid <= 0 or sys.platform == "win32":
+    """Return False only when a positive PID is certainly gone."""
+    if pid <= 0:
         return True
+    if sys.platform == "win32":
+        probe = _kernel32()
+        return True if probe is None else windows_pid_alive(pid, *probe)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
