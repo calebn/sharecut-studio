@@ -322,6 +322,42 @@ test("System/InspectorSheet a slow drag that stops less than 24 px below the doc
   await expect.poll(() => sheetHeight(page)).toBe(64);
 });
 
+async function rootFontPx(page: Page, px: number) {
+  await page.evaluate((size) => {
+    document.documentElement.style.fontSize = `${size}px`;
+  }, px);
+  await expect.poll(() => sheetHeight(page)).toBe(px * 4);
+}
+
+test("System/InspectorSheet at a 20 px root font the 4 rem dock is 80 px and a slow drag 30 px below it dismisses", async ({
+  page,
+}) => {
+  await open(page, PHONE_DOCK, 360, 740);
+  await rootFontPx(page, 20);
+  const start = centre(await box(grip(page)));
+  await mouseDrag(page, start, { x: start.x, y: start.y + 30 });
+  await expect(sheet(page)).toHaveCount(0);
+});
+
+test("System/InspectorSheet at a 20 px root font a flick down from the dock dismisses and a drag to half settles on half of the box", async ({
+  page,
+}) => {
+  await open(page, PHONE_DOCK, 360, 740);
+  await rootFontPx(page, 20);
+  const start = centre(await box(grip(page)));
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x, start.y + 14, { steps: 4 });
+  await page.mouse.up();
+  await expect(sheet(page)).toHaveCount(0);
+  await page.getByRole("button", { name: "Reopen inspector" }).click();
+  await rootFontPx(page, 20);
+  const again = centre(await box(grip(page)));
+  await mouseDrag(page, again, { x: again.x, y: again.y - 280 });
+  await expect(sheet(page)).toHaveAttribute("data-detent", "half");
+  await expect.poll(() => sheetHeight(page)).toBe(370);
+});
+
 test("System/InspectorSheet a click toggles half and dock, with a mouse and without moving", async ({
   page,
 }) => {
@@ -386,6 +422,8 @@ test("System/InspectorSheet at the dock the content cannot take focus, and at ha
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("textbox", { name: "Name" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "Close" })).toBeFocused();
 });
