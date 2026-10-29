@@ -152,6 +152,24 @@ describe("BounceSection", () => {
     expect(onClearRange).toHaveBeenCalledTimes(1);
   });
 
+  it("says the range a bounce is running with is fixed for this bounce", () => {
+    render(
+      <BounceSection
+        options={options({
+          fixedRange: "12.00–18.50 s on host",
+          rangeIsRunning: true,
+          onClearRange: vi.fn(),
+          state: { phase: "running", progress: null, detail: "Mixing" },
+        })}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "Selected range · 12.00–18.50 s on host. This selection is fixed for this bounce.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("says a range fixed during a run is for the next bounce", () => {
     render(
       <BounceSection

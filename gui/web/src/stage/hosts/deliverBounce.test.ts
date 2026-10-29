@@ -40,6 +40,7 @@ const running = (over: Partial<Extract<BounceRun, { kind: "running" }>> = {}) =>
     jobId: "b1",
     cancelling: false,
     cancelError: null,
+    range: null,
     ...over,
   }) as const;
 
@@ -165,6 +166,24 @@ describe("bounceOptionsOf", () => {
     const o = bounceOptionsOf(flow({ kind: "idle" }), 0, p);
     expect(o.fixedRange).toBe("1.00–2.00 s on a");
     expect(o.onClearRange).toBe(p.clearRange);
+  });
+
+  it("marks the fixed range as the running one only while its own run goes", () => {
+    const p = project(RANGE);
+    const same = bounceOptionsOf(flow(running({ range: RANGE })), 0, p);
+    expect(same.rangeIsRunning).toBe(true);
+    const other = bounceOptionsOf(flow(running({ range: { ...RANGE } })), 0, p);
+    expect(other.rangeIsRunning).toBe(false);
+    expect(
+      bounceOptionsOf(flow(running({ range: null })), 0, p).rangeIsRunning,
+    ).toBe(false);
+    expect(bounceOptionsOf(flow({ kind: "idle" }), 0, p).rangeIsRunning).toBe(
+      false,
+    );
+    expect(
+      bounceOptionsOf(flow(running({ range: null })), 0, project(null))
+        .rangeIsRunning,
+    ).toBe(false);
   });
 
   it("offers Try again only after a failure or a cancel", () => {

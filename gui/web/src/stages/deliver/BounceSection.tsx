@@ -36,6 +36,7 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
     soloCount,
     hasRegion,
     fixedRange,
+    rangeIsRunning = false,
     onClearRange,
     gate,
     blockedReason,
@@ -117,7 +118,8 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
             <>
               <p className="dv-note">
                 Selected range · {fixedRange}. This selection is fixed for{" "}
-                {running ? "the next bounce" : "this bounce"}.
+                {running && !rangeIsRunning ? "the next bounce" : "this bounce"}
+                .
               </p>
               {onClearRange ? (
                 <Button ref={clearRange} variant="link" onClick={onClearRange}>

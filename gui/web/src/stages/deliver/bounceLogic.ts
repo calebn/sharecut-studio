@@ -43,6 +43,8 @@ export type BounceOptions = {
   hasRegion: boolean;
   /** A range chosen in Edit: this bounce is fixed to it. */
   fixedRange?: string;
+  /** The fixed range is the one the running bounce captured, not a later request. */
+  rangeIsRunning?: boolean;
   onClearRange?: () => void;
   /** A missing model: the gate's prompt and its download controls. */
   gate?: ModelGate;

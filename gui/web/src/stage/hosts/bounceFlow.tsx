@@ -101,6 +101,7 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
       jobId: null,
       cancelling: false,
       cancelError: null,
+      range,
     });
     try {
       const ran = await gate.run(async () => {
