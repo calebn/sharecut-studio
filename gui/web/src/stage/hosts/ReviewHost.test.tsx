@@ -144,6 +144,7 @@ const fresh = () => ({
   count: null as number | null,
   held: [] as Held[],
   omitSnapshot: false,
+  staleWordsOnUndo: false,
   holdStatus: null as Promise<void> | null,
   status: "clear" as "clear" | "pending" | "done" | "waived",
   waiveFails: false,
@@ -155,8 +156,8 @@ const marks: { expected_fingerprint?: string }[] = [];
 
 const stillUnsure = (index: number) => server.words[index]?.unsure ?? true;
 
-const transcriptOf = () =>
-  server.words.length === 0
+const transcriptOf = (all = server.words) =>
+  all.length === 0
     ? null
     : {
         utterances: [
@@ -167,7 +168,7 @@ const transcriptOf = () =>
             end: 60,
             text: "",
             mappable: true,
-            words: server.words.flatMap((w, i) =>
+            words: all.flatMap((w, i) =>
               w.listed
                 ? [
                     {
@@ -186,9 +187,9 @@ const transcriptOf = () =>
         ],
       };
 
-const projectOf = () =>
+const projectOf = (all = server.words) =>
   minimalProject({
-    transcript: transcriptOf(),
+    transcript: transcriptOf(all),
     tracks: [sampleTrack()],
     timeline_duration_sec: 600,
     pending_edits: server.pending.map((e) =>
@@ -231,7 +232,7 @@ const snapshot = (seq = ++server.seq) =>
     applyDocumentSnapshot({ server_seq: seq, project: projectOf() });
   });
 
-function reply(count: number, held: Held[] = []) {
+function reply(count: number, held: Held[] = [], all = server.words) {
   server.seq += 1;
   return {
     ok: true,
@@ -242,7 +243,7 @@ function reply(count: number, held: Held[] = []) {
       },
       ...(server.omitSnapshot
         ? {}
-        : { snapshot: { server_seq: server.seq, project: projectOf() } }),
+        : { snapshot: { server_seq: server.seq, project: projectOf(all) } }),
     },
   };
 }
@@ -253,8 +254,9 @@ function answer(body: { type: string; payload: Record<string, unknown> }) {
   if (server.down)
     return { ok: false, status: 503, failure: new ApiError("busy", null, 503) };
   if (body.type === "UndoHistory") {
+    const before = server.words;
     serverUndo();
-    return reply(0);
+    return reply(0, [], server.staleWordsOnUndo ? before : server.words);
   }
   if (body.type === "ApproveEdits" && server.gate) {
     const failure = new ApiError("Check", "transcript_refine_required", 409);
@@ -814,6 +816,22 @@ describe("Review host unsure words", () => {
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(sent("UndoHistory")).toHaveLength(1));
     await waitFor(() => expect(heading()).toBe("Is this “uncle”?"));
+    expect(document.activeElement).toBe(stage());
+  });
+
+  it("Undo of Looks right on a transcript-only word returns it though the Undo reply carries the old words", async () => {
+    server.staleWordsOnUndo = true;
+    setup("pending", []);
+    await pick(/gnu/);
+    act(() => {
+      press("Enter");
+    });
+    await undoButton();
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sent("UndoHistory")).toHaveLength(1));
+    await waitFor(() => expect(rows()).toHaveLength(2));
+    await waitFor(() => expect(heading()).toBe("Is this “gnu”?"));
     expect(document.activeElement).toBe(stage());
   });
 

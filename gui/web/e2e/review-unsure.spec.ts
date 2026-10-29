@@ -56,6 +56,13 @@ test("unsure words: Looks right, Undo, Fix text, and the last word closes the ch
         page.getByText("Check the transcript", { exact: true }),
       ).toBeVisible();
 
+      await words(page).filter({ hasText: "hamlet" }).click();
+      await stage.getByRole("button", { name: "Looks right" }).click();
+      await expect(words(page)).toHaveCount(1);
+      await toast(page).getByRole("button", { name: /undo/i }).click();
+      await expect(words(page)).toHaveCount(2);
+      await expect(stage).toBeFocused();
+
       await words(page).filter({ hasText: "uncle" }).click();
       await stage.getByRole("button", { name: "Looks right" }).click();
       await expect(toast(page).getByText("Looks right")).toBeVisible();
