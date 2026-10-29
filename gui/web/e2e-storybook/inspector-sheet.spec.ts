@@ -1,3 +1,4 @@
+import { AxeBuilder } from "@axe-core/playwright";
 import {
   type Browser,
   type CDPSession,
@@ -197,6 +198,7 @@ test("System/InspectorSheet card section headings and the close button are 44 px
     page.getByRole("button", { name: "Timing" }),
     page.getByRole("button", { name: "Close" }),
   ];
+  expect((await box(page.locator(".sys-inspector-header"))).height).toBe(45);
   for (const target of targets) {
     const found = await box(target);
     expect(found.height).toBeGreaterThanOrEqual(44);
@@ -689,3 +691,33 @@ test("System/InspectorSheet the phone sheet's inline rename ignores Enter and Es
   await expect(sheet(page)).toHaveAccessibleName("にほん");
   await expect(grip(page)).toHaveAttribute("aria-valuetext", "Half height");
 });
+
+test("System/InspectorSheet the phone header is 45 px under a coarse pointer, a 44 px Close and the 1 px rule", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(browser, PHONE_HALF);
+  expect((await box(page.locator(".sys-inspector-header"))).height).toBe(45);
+  expect((await box(page.getByRole("button", { name: "Close" }))).height).toBe(
+    44,
+  );
+  await context.close();
+});
+
+for (const id of [
+  "system-actionbar--phone-dock",
+  "system-actionbar--phone-dock-390",
+]) {
+  test(`${id} has no axe violations with the landmark region rule on`, async ({
+    page,
+  }) => {
+    await open(page, id, 390, 700);
+    await expect(page.getByRole("main")).toHaveCount(1);
+    const results = await new AxeBuilder({ page })
+      .withRules(["region"])
+      .analyze();
+    expect(
+      results.violations,
+      JSON.stringify(results.violations, null, 2),
+    ).toEqual([]);
+  });
+}
