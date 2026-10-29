@@ -618,20 +618,21 @@ def test_a_choice_for_a_deleted_track_is_worked_out_again(
     assert sam not in _tracks(ws)
 
 
-def test_undoing_a_staged_move_and_the_staging_land_leaves_the_name_match(
+def test_undoing_a_staged_move_and_the_staging_land_keeps_the_hosts_last_choice(
     minimal_project, sample_wav, tmp_workspace
 ):
     ws = _seed(minimal_project, sample_wav)
     sam = _sam_project(ws)
-    _room_, [pid] = _room(ws, ["Sam"], target=INSERT, land=True)
+    _, [pid] = _room(ws, ["Sam"], target=INSERT, land=True)
     RecordControlService(ws).assign_track(pid, "new")
-    assert RecordSessionService(ws.project, session_id=_room_["session_id"]).track_choices() == {}
+    pid_track = _by_pid(ws)[pid]["track_id"]
     HistoryService(ws).undo()  # the move
     HistoryService(ws).undo()  # the staging land
     ws.reload()
     RecordLandingService(ws).land(align=lambda _p: None)
     [row] = _rows(ws)
-    assert (row["track_id"], row["reason"]) == (sam, "held")
+    assert row["track_id"] == pid_track
+    assert row["track_id"] != sam
 
 
 def _replace_setup(ws):
@@ -917,3 +918,108 @@ def test_replace_target_track_is_a_409_over_the_route(
     )
     assert res.status_code == 409
     assert res.headers["X-Sharecut-Error-Code"] == "replace_target_track"
+
+
+def _remove(ws, room, pid: str) -> None:
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc.submit(_cmd("RemoveParticipant", payload={"participant_id": pid}), now_wall_ms=4_000)
+
+
+def _accept_code(ws, sid: str) -> str | None:
+    """The refusal code Accept gives, or None when it gets past the track checks."""
+    try:
+        SessionSuggestionService(ws).accept(sid)
+    except Exception as exc:
+        return getattr(exc, "code", None)
+    return None
+
+
+def test_assigning_a_removed_person_with_an_acked_take_is_refused(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _sam_project(ws)
+    room, [pid] = _room(ws, ["Sam"])
+    _remove(ws, room, pid)
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(pid, "new")
+    assert caught.value.code == "participant_removed"
+
+
+def test_a_removed_person_with_nothing_to_land_does_not_hold_a_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    room = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    gone = _join_guest(svc, room, "Sam", 0)
+    live = _join_guest(svc, room, "Ben", 1)
+    _remove(ws, room, gone)
+    RecordControlService(ws).assign_track(live, sam)
+    assert _by_pid(ws)[live]["track_id"] == sam
+
+
+def test_a_person_with_a_placed_bed_cannot_be_moved_to_land_it_twice(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    room = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    pid = _join_guest(svc, room, "Sam", 0)
+    pcm = bytes(48_000 * 2)
+    wav = pcm_wav_header(len(pcm)) + pcm
+    RecordUploadService(ws.project).ingest_part(
+        session_id=room["session_id"], take_index=0, participant_id=pid, segment_index=0,
+        part_seq=0, data=pcm, digest=sha256_hex(pcm), file_sha256=sha256_hex(wav),
+        final=True, kind="room_tone",
+    )  # fmt: skip
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.reload()
+    assert ws.project.track_by_id(sam).room_tone is not None
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(pid, "new")
+    assert caught.value.code == "session_already_accepted"
+
+
+def test_a_stale_unstaged_choice_does_not_resurface_after_a_staged_move_and_discard(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    sam = _sam_project(ws)
+    _, [pid] = _room(ws, ["Sam"], target=INSERT)
+    ctrl = RecordControlService(ws)
+    ctrl.assign_track(pid, "new")
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ctrl.assign_track(pid, sam)
+    ctrl.discard_take(0)
+    assert _by_pid(ws)[pid]["track_id"] == sam
+
+
+def test_the_replace_note_never_says_a_track_instead_of_itself(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    _track_a, _track_b, target = _replace_setup(ws)
+    _, [pid] = _room(ws, ["Ava"], target=target, land=True)
+    note = RecordControlService(ws).assign_track(pid, "new")["note"]
+    assert 'covers "Ava" instead of "Ava"' not in note
+    assert 'now covers "Ava" on its new track; it follows Ava.' in note
+
+
+def test_a_replace_cannot_be_moved_onto_another_track_it_already_covers(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed(minimal_project, sample_wav)
+    track_a, track_b, _t = _replace_setup(ws)
+    target = {"kind": "replace", "from_sec": 0.1, "to_sec": 0.3, "track_ids": [track_a, track_b]}
+    room, [pid] = _room(ws, ["Ava"], target=target, land=True)
+    sid = f"ss-{room['session_id']}"
+    assert _accept_code(ws, sid) == "track_not_recorded"
+    with pytest.raises(CodedError) as caught:
+        RecordControlService(ws).assign_track(pid, track_b)
+    assert caught.value.code == "replace_target_track"
+    ws.reload()
+    row = next(s for s in ws.project.editorial.session_suggestions if s.id == sid)
+    assert len(row.track_ids) == 2
