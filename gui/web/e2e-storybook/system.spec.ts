@@ -2347,22 +2347,32 @@ test("System/Toast the dock keeps the page gutter at 360", async ({ page }) => {
   expect(360 - (box.x + box.width)).toBeGreaterThanOrEqual(16);
 });
 
-test("System/CoachTip Above leaves room for the tip and its shadow inside the frame", async ({
-  page,
-}) => {
-  await open(page, "system-coachtip--above", 360);
-  const tip = page.getByRole("note");
-  await expect(tip).toBeVisible();
-  const room = await tip.evaluate((el) => {
-    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    const box = el.getBoundingClientRect();
-    return {
-      top: box.top - 1 * rem,
-      start: box.left,
-      end: document.documentElement.clientWidth - box.right,
-    };
+for (const [label, rootSize] of [
+  ["", "100%"],
+  [" at 200% text", "200%"],
+] as const) {
+  test(`System/CoachTip Above leaves room for the tip and its shadow inside the frame${label}`, async ({
+    page,
+  }) => {
+    await open(page, "system-coachtip--above", 360);
+    await page.evaluate((size) => {
+      document.documentElement.style.fontSize = size;
+    }, rootSize);
+    const tip = page.getByRole("note");
+    await expect(tip).toBeVisible();
+    const room = await tip.evaluate((el) => {
+      const rem = parseFloat(
+        getComputedStyle(document.documentElement).fontSize,
+      );
+      const box = el.getBoundingClientRect();
+      return {
+        top: box.top - 1 * rem,
+        start: box.left,
+        end: document.documentElement.clientWidth - box.right,
+      };
+    });
+    expect(room.top).toBeGreaterThanOrEqual(0);
+    expect(room.start).toBeGreaterThanOrEqual(0);
+    expect(room.end).toBeGreaterThanOrEqual(0);
   });
-  expect(room.top).toBeGreaterThanOrEqual(0);
-  expect(room.start).toBeGreaterThanOrEqual(0);
-  expect(room.end).toBeGreaterThanOrEqual(0);
-});
+}
