@@ -42,6 +42,27 @@ const OCCUPANTS = [
 export default meta;
 type Story = StoryObj<typeof Cover>;
 
+/** The Cover's own contract: a named section, its heading, exactly these buttons. */
+async function expectCover(
+  canvasElement: HTMLElement,
+  title: string,
+  buttons: readonly string[],
+  mark: boolean,
+) {
+  const canvas = within(canvasElement);
+  const section = canvas.getByRole("region", { name: title });
+  await expect(
+    within(section).getByRole("heading", { name: title }),
+  ).toBeVisible();
+  await expect(
+    within(section)
+      .queryAllByRole("button")
+      .map((button) => button.textContent?.trim()),
+  ).toEqual([...buttons]);
+  await expect(!!section.querySelector(".sys-cover-mark")).toBe(mark);
+  return section;
+}
+
 export const Empty: Story = {
   args: { primary: { label: "Review suggestions", onClick: fn() } },
   play: async ({ args, canvasElement }) => {
@@ -65,6 +86,14 @@ export const BadLink: Story = {
     children: "Ask the host for a new one.",
     primary: undefined,
   },
+  play: async ({ canvasElement }) => {
+    await expectCover(
+      canvasElement,
+      "This link does not work",
+      ["Back to Edit"],
+      true,
+    );
+  },
 };
 
 export const LinkEnded: Story = {
@@ -72,6 +101,14 @@ export const LinkEnded: Story = {
     glyph: "door-open",
     title: "This link has ended",
     children: "The host stopped sharing the project.",
+  },
+  play: async ({ canvasElement }) => {
+    await expectCover(
+      canvasElement,
+      "This link has ended",
+      ["Back to Edit"],
+      true,
+    );
   },
 };
 
@@ -82,6 +119,14 @@ export const EndedWithRecording: Story = {
     children: "Your local recording is safe on this device.",
     primary: { label: "Save my recording", onClick: fn() },
     secondary: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    await expectCover(
+      canvasElement,
+      "The session ended",
+      ["Save my recording"],
+      true,
+    );
   },
 };
 
@@ -100,6 +145,15 @@ export const RoomFull: Story = {
       </span>
     ),
   },
+  play: async ({ canvasElement }) => {
+    const section = await expectCover(
+      canvasElement,
+      "The room is full",
+      ["Try again"],
+      true,
+    );
+    await expect(section.querySelectorAll(".ui-avatar")).toHaveLength(3);
+  },
 };
 
 export const HostAsleep: Story = {
@@ -109,6 +163,9 @@ export const HostAsleep: Story = {
     children: "We will let you in when they are back.",
     primary: { label: "Try again", onClick: fn() },
     secondary: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    await expectCover(canvasElement, "The host is away", ["Try again"], true);
   },
 };
 
@@ -142,6 +199,14 @@ export const RegionFailed: Story = {
     primary: { label: "Try again", onClick: fn() },
     secondary: undefined,
   },
+  play: async ({ canvasElement }) => {
+    await expectCover(
+      canvasElement,
+      "This part did not load",
+      ["Try again"],
+      false,
+    );
+  },
 };
 
 export const Region: Story = {
@@ -152,12 +217,18 @@ export const Region: Story = {
     children: "Nothing in the transcript matches that search.",
     secondary: undefined,
   },
+  play: async ({ canvasElement }) => {
+    await expectCover(canvasElement, "No matches", [], false);
+  },
 };
 
 export const Phone: Story = {
   args: {
     primary: { label: "Go to Edit", onClick: fn() },
     secondary: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    await expectCover(canvasElement, "Nothing to decide", ["Go to Edit"], true);
   },
 };
 
