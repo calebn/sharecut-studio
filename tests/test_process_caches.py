@@ -57,7 +57,7 @@ def _bounded_caches() -> set[str]:
 
 
 def _is_bounded_cache(value: ast.expr | None) -> bool:
-    return isinstance(value, ast.Call) and _decorator_name(value) == "BoundedCache"
+    return isinstance(value, ast.Call) and _decorator_name(value) in {"BoundedCache", "DecodeMemo"}
 
 
 def test_every_cache_is_classified_for_test_isolation() -> None:

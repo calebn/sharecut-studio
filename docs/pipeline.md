@@ -617,6 +617,29 @@ takes 7.5 to 9.3 s against 5.1 to 7.2 s. The reading is cached on the run, so it
 per recording, not per pause.
 
 
+### Decoding each raw recording once per process (#2359)
+
+Propose and approve, and every later call in a session, used to decode the same raw recording again.
+`TrackRmsCache.from_recording` (`engines/decode_memo.py`) keeps one decode per file and rate for the life
+of the process. `edits/audio_cache.decode_track` (both rates of a raw track), the gate-overreach and
+join sweeps' raw reads, and `join_continuity`'s source samples use it. A temp render, a processed stem
+and the ungated evidence render stay on `from_timeline_stem`, which keeps nothing.
+
+- **Key**: resolved path, device, inode, size, mtime, ctime, sample rate and the ffmpeg build. A change to
+  any part is a miss; `ctime` catches a copy that restores size and mtime.
+- **No stale store**: the file is stat'd before and after a decode and stored only if the stamps match;
+  a file modified in the last 2 seconds is neither stored nor served.
+- **Single flight**: one lock per key, so two callers of one file decode once while the 8 kHz and 16 kHz
+  decodes of a track still overlap. An error is never stored.
+- **Cap**: `PODCAST_DECODE_MEMO_MB`, default 768, least recently used out first by array bytes; an
+  entry over the cap is not stored, and a rewritten file frees its earlier decode at once. A 3100 s
+  track is 99 MB at 8 kHz and 198 MB at 16 kHz. `PODCAST_DECODE_MEMO_MB=0` keeps nothing and every call is the
+  uncached build. Memory held after a batch ends is up to the cap, where the batch scope frees at exit.
+- **Hits** return a fresh `TrackRmsCache` over a read-only view of the stored samples, so a caller cannot
+  change another caller's audio; `speech_profile` is measured again per wrapper.
+- **Verify**: with `PODCAST_VERDICT_VERIFY=1` or `PODCAST_EVIDENCE_VERIFY=1` each hit decodes the file
+  again outside any batch scope and fails unless the samples are bit-identical.
+
 ### Reusing an approval check (`PODCAST_VERDICT_CACHE`, #1958)
 
 Approving a source remove observes the cut's neighbourhood (peer speech, acoustic edges, pauses)

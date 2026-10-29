@@ -612,7 +612,7 @@ def _resolve_source_samples(
     path = track_audio_path(project, track_id)
     from podcast_mcp.engines.audio_audit import TrackRmsCache
 
-    return TrackRmsCache.from_timeline_stem(path, sample_rate=sr).samples
+    return TrackRmsCache.from_recording(path, sample_rate=sr).samples
 
 
 def _splice_indices(points: SplicePoints, sr: int) -> tuple[int, int]:

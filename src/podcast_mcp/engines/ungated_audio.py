@@ -70,7 +70,7 @@ def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
     return got.shape == want.shape and np.array_equal(got.view(np.uint32), want.view(np.uint32))
 
 
-def _ffmpeg_build_id() -> tuple[object, ...]:
+def ffmpeg_build_id() -> tuple[object, ...]:
     pair = resolve_ffmpeg_pair()
     return (pair.ffmpeg, pair.version, file_stamp(Path(pair.ffmpeg)).content)
 
@@ -156,7 +156,7 @@ def resampler_locality(from_rate: int, rate: int) -> tuple[int, int] | None:
     """
     if from_rate not in _LOCALITY_SOURCE_RATES or rate not in _LOCALITY_RATES:
         return None
-    key = (*_ffmpeg_build_id(), from_rate, rate)
+    key = (*ffmpeg_build_id(), from_rate, rate)
     with _LOCALITY_LOCK:
         if key not in _LOCALITY_CACHE:
             _LOCALITY_CACHE[key] = _calibrate_locality(from_rate, rate)

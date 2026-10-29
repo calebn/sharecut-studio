@@ -24,6 +24,7 @@ from podcast_mcp.engines.asr_timing import (
     word_duration_is_anomalous,
 )
 from podcast_mcp.engines.copy_timbre import LIKENESS_FRAMES, confirmed_likeness, copy_similarity
+from podcast_mcp.engines.decode_memo import decode_once
 from podcast_mcp.engines.envelope_lag import (
     COPY_FRAME_SEC,
     COPY_HOP_SEC,
@@ -287,6 +288,17 @@ class TrackRmsCache:
         samples = load_mono_full(path, sample_rate=sample_rate)
         profile = file_level_profile(path, samples, sample_rate=sample_rate)
         return cls(samples=samples, sample_rate=sample_rate, recording_profile=profile)
+
+    @classmethod
+    def from_recording(cls, path: Path, *, sample_rate: int = _RMS_SAMPLE_RATE) -> TrackRmsCache:
+        """:meth:`from_timeline_stem` for a raw workspace recording, decoded once per process.
+
+        A repeat call while the file is unchanged gets a fresh cache over the first decode
+        (``engines/decode_memo.py``). Never use it for a temp render or a processed stem.
+        """
+        return decode_once(
+            path, sample_rate, lambda: cls.from_timeline_stem(path, sample_rate=sample_rate)
+        )
 
     def _index_range(self, t_start: float, t_end: float) -> tuple[int, int] | None:
         lo = max(0.0, t_start - self.timeline_offset_sec)
@@ -1640,7 +1652,7 @@ def _noise_gate_overreach(
     raw_cache: TrackRmsCache | None = None
     if raw_path is not None:
         with contextlib.suppress(Exception):
-            raw_cache = TrackRmsCache.from_timeline_stem(raw_path)
+            raw_cache = TrackRmsCache.from_recording(raw_path)
 
     candidates = [
         (i, w) for i, w in enumerate(tr.words) if not w.suppressed and w.end - w.start >= 0.08
@@ -1899,8 +1911,10 @@ def recommend_boundary_fades(
             join_cache = caches.get(tid)
         if join_cache is None:
             with contextlib.suppress(Exception):
-                join_cache = TrackRmsCache.from_timeline_stem(
-                    audio_path if use_timeline and audio_path else track_audio_path(project, tid)
+                join_cache = (
+                    TrackRmsCache.from_timeline_stem(audio_path)
+                    if use_timeline and audio_path
+                    else TrackRmsCache.from_recording(track_audio_path(project, tid))
                 )
 
         for i in range(len(clips) - 1):

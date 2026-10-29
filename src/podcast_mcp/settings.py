@@ -155,11 +155,16 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         (
             "PODCAST_VERDICT_VERIFY",
-            "On every verdict cache hit, run the full check too and fail if it differs (tests, lab).",
+            "On every verdict cache hit, run the full check too and fail if it differs (tests, lab). Also re-decodes on every decode memo hit and fails if the bits differ.",
+        ),
+        (
+            "PODCAST_DECODE_MEMO_MB",
+            "Megabytes of decoded raw recordings kept for the life of the process (least recently used out first); 0 keeps none.",
+            "768",
         ),
         (
             "PODCAST_EVIDENCE_VERIFY",
-            "On every cache hit, rebuild the track evidence and fail if it differs from the cached copy (tests, lab).",
+            "On every cache hit, rebuild the track evidence and fail if it differs from the cached copy (tests, lab). Also re-decodes on every decode memo hit.",
         ),
     ),
     *_group(
