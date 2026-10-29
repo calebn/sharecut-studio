@@ -4,12 +4,14 @@ import { encodeRoomToneWav } from "./encodeRoomTone";
 import type { ByteSink } from "./keeper/store";
 import { removeBestEffort, roomToneWavPath } from "./keeper/store";
 import {
+  type RoomToneClock,
   type RoomToneDelivery,
   type RoomToneStatus,
+  roomToneClock,
   roomToneReady,
   roomToneTooLoud,
 } from "./roomTone";
-import { ROOM_TONE_NOT_READY_COPY } from "./types";
+import { ROOM_TONE_MIN_SEC, ROOM_TONE_NOT_READY_COPY } from "./types";
 import { uploadRoomToneWav } from "./upload/roomTone";
 import type { RecordUploadTransport } from "./upload/transport";
 
@@ -27,7 +29,13 @@ export function useRoomToneCapture(args: {
   error: string | null;
   ready: boolean;
   captureReady: boolean;
+  /** Seconds left of the take and how much of it is used; full while idle. */
+  clock: RoomToneClock;
   record: () => void;
+  /** Stops a take where it is; it is kept when at least `ROOM_TONE_MIN_SEC` long. */
+  endEarly: () => void;
+  /** Drops a take under way and goes back to idle. */
+  cancel: () => void;
   skip: () => void;
   retry: () => void;
 } {
@@ -36,6 +44,8 @@ export function useRoomToneCapture(args: {
   const [error, setError] = useState<string | null>(null);
   const inflight = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const stopRef = useRef<AbortController | null>(null);
+  const [clock, setClock] = useState<RoomToneClock>(() => roomToneClock(0));
   const pendingWav = useRef<Uint8Array | null>(null);
   const uploaded = useRef(false);
 
@@ -75,6 +85,20 @@ export function useRoomToneCapture(args: {
       abortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (status !== "capturing") {
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      setClock((now) => {
+        const next = roomToneClock((Date.now() - startedAt) / 1000);
+        return next.remainingSec === now.remainingSec ? now : next;
+      });
+    }, 250);
+    return () => clearInterval(timer);
+  }, [status]);
 
   useEffect(() => {
     if (args.enabled) {
@@ -163,6 +187,9 @@ export function useRoomToneCapture(args: {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const stop = new AbortController();
+    stopRef.current = stop;
+    setClock(roomToneClock(0));
     setStatus("capturing");
     setError(null);
     setDelivery("device");
@@ -176,8 +203,15 @@ export function useRoomToneCapture(args: {
       try {
         const encoded = await encodeRoomToneWav(stream, {
           signal: controller.signal,
+          stopSignal: stop.signal,
         });
         controller.signal.throwIfAborted();
+        if (encoded.durationSec < ROOM_TONE_MIN_SEC) {
+          if (abortRef.current === controller) {
+            setStatus("too_short");
+          }
+          return;
+        }
         const path = roomToneWavPath(sessionId, participantId);
         await sink.write(path, encoded.wav);
         controller.signal.throwIfAborted();
@@ -225,22 +259,39 @@ export function useRoomToneCapture(args: {
     flushUpload,
   ]);
 
-  const skip = useCallback(() => {
-    abortRef.current?.abort();
-    setError(null);
-    setStatus("skipped");
-    void (async () => {
-      try {
-        await discardLocal();
-      } finally {
+  const endEarly = useCallback(() => {
+    stopRef.current?.abort();
+  }, []);
+
+  const drop = useCallback(
+    (next: "skipped" | "idle") => {
+      abortRef.current?.abort();
+      // The aborted take's cleanup runs a tick later; a new take must not wait for it.
+      inflight.current = false;
+      setError(null);
+      setStatus(next);
+      void (async () => {
         try {
-          await revokeRemote();
-        } catch {
-          // Skip stays local-first; never leave an unhandled rejection.
+          await discardLocal();
+        } finally {
+          try {
+            await revokeRemote();
+          } catch {
+            // Dropping stays local-first; never leave an unhandled rejection.
+          }
         }
-      }
-    })();
-  }, [discardLocal, revokeRemote]);
+      })();
+    },
+    [discardLocal, revokeRemote],
+  );
+
+  const skip = useCallback(() => drop("skipped"), [drop]);
+
+  const cancel = useCallback(() => {
+    if (status === "capturing") {
+      drop("idle");
+    }
+  }, [drop, status]);
 
   const retry = useCallback(() => {
     if (inflight.current) {
@@ -258,7 +309,10 @@ export function useRoomToneCapture(args: {
     error,
     ready: roomToneReady(status),
     captureReady,
+    clock,
     record,
+    endEarly,
+    cancel,
     skip,
     retry,
   };

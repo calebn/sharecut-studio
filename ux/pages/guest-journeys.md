@@ -232,9 +232,12 @@ flowchart TD
    microphone privacy settings; Linux identifies its WebKit prompt and directs
    blocked users to the supported browser recording path.
 3. Room tone is started by the host, not by the guest: when the host fires the
-   countdown ("Quiet please · 3"), a guest who has joined records 3 seconds
-   automatically and the bed is sent to the host. A guest who joins after the
-   countdown sees one alert row before the next take, "Record 3 seconds of room
+   countdown ("Stay quiet · 1:00"), a guest who has joined records one minute
+   automatically and the bed is sent to the host. While it records, the alert row
+   counts down ("Stay quiet · 0:42") with a progress bar, **End early** (keeps the
+   take if it ran at least 10 seconds, else "Too short, record at least 10
+   seconds") and **Cancel**. A guest who joins after the
+   countdown sees one alert row before the next take, "Record 1 minute of room
    tone." with **Record room tone** and **Skip** (#2490); it records the same bed
    through the same path, and it does not show during a take, after a skip, or
    after it recorded, including after a reload. Producers never record it.

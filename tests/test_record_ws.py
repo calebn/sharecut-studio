@@ -2178,8 +2178,8 @@ def test_room_tone_round_reaches_guests_and_guests_cannot_request_it(
         )
         snap = applied["snapshot"]
         assert snap["room_tone"]["round"] == 1
-        assert snap["room_tone"]["duration_ms"] == 3000
-        assert 0 < snap["countdown_left_ms"] <= 3000
+        assert snap["room_tone"]["duration_ms"] == 60_000
+        assert 0 < snap["countdown_left_ms"] <= 60_000
         assert snap["state"] == "lobby"
 
 

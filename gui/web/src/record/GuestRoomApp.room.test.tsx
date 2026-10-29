@@ -402,7 +402,7 @@ describe("GuestRoomApp in the room", () => {
       expect(room.setHeadphonesOk).toHaveBeenCalledWith(false);
       await userEvent.click(
         within(dialog).getByRole("button", {
-          name: "Record 3 seconds of room tone",
+          name: "Record 1 minute of room tone",
         }),
       );
       expect(room.roomTone.record).toHaveBeenCalledOnce();
@@ -417,7 +417,7 @@ describe("GuestRoomApp in the room", () => {
       expect(within(dialog).getByLabelText("Input")).toBeDisabled();
       expect(
         within(dialog).getByRole("button", {
-          name: "Record 3 seconds of room tone",
+          name: "Record 1 minute of room tone",
         }),
       ).toBeDisabled();
     });

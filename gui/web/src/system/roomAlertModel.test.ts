@@ -22,6 +22,7 @@ describe("ROOM_ALERT_PRIORITY", () => {
       "host-offline",
       "monitor-failed",
       "room-tone",
+      "room-tone-capturing",
       "clipping",
       "muted",
       "connecting",
@@ -58,7 +59,7 @@ describe("roomAlertTitle", () => {
 
   it("asks for room tone, or prints the sentence it is given", () => {
     expect(roomAlertTitle({ kind: "room-tone" })).toBe(
-      "Record 3 seconds of room tone.",
+      "Record 1 minute of room tone.",
     );
     expect(roomAlertTitle({ kind: "room-tone", message: "Too loud." })).toBe(
       "Too loud.",
@@ -66,6 +67,21 @@ describe("roomAlertTitle", () => {
     expect(
       roomAlertAction({ kind: "room-tone", onAction: vi.fn() })?.label,
     ).toBe("Record room tone");
+  });
+
+  it("counts the capturing take down with End early and Cancel", () => {
+    const onAction = vi.fn();
+    const onSecondaryAction = vi.fn();
+    const alert = {
+      kind: "room-tone-capturing",
+      message: "Stay quiet · 0:42",
+      onAction,
+      onSecondaryAction,
+    } as const;
+    expect(roomAlertTitle(alert)).toBe("Stay quiet · 0:42");
+    expect(roomAlertTitle({ kind: "room-tone-capturing" })).toBe("Stay quiet");
+    expect(roomAlertAction(alert)?.label).toBe("End early");
+    expect(roomAlertSecondary(alert)?.label).toBe("Cancel");
   });
 
   it("prints a notice's own sentence", () => {
@@ -149,7 +165,10 @@ describe("roomAlertSecondary", () => {
   it("has none for the other kinds", () => {
     const onSecondaryAction = vi.fn();
     for (const kind of ROOM_ALERT_PRIORITY.filter(
-      (kind) => kind !== "saving-failed" && kind !== "room-tone",
+      (kind) =>
+        kind !== "saving-failed" &&
+        kind !== "room-tone" &&
+        kind !== "room-tone-capturing",
     )) {
       expect(roomAlertSecondary({ kind, onSecondaryAction })).toBeUndefined();
     }

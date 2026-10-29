@@ -22,9 +22,12 @@ from podcast_mcp.services.record.service import (
     release_connection,
     reset_record_runtime_for_tests,
 )
+from podcast_mcp.services.record.state import ROOM_TONE_DURATION_SEC
 from podcast_mcp.services.record.upload import (
     CLIPPING_MAX_REGIONS,
     JOIN_OFFSET_MAX_MS,
+    KEEPER_SAMPLE_RATE,
+    ROOM_TONE_MAX_DURATION_SEC,
     ROOM_TONE_MAX_PCM_BYTES,
     ROOM_TONE_TAKE_INDEX,
     LandRollbackKey,
@@ -35,6 +38,7 @@ from podcast_mcp.services.record.upload import (
     parse_upload_kind,
     sha256_hex,
 )
+from podcast_mcp.util.body_limits import record_upload_max_part_bytes
 from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 from podcast_mcp.util.wav import pcm_wav_header
 
@@ -802,7 +806,69 @@ def test_room_tone_kind_acks_single_part(minimal_project, sample_wav):
     assert wav.is_file()
 
 
-def test_room_tone_kind_rejects_oversize_and_extra_part(minimal_project, sample_wav):
+def _room_tone_parts(seconds: int, *, parts: int) -> tuple[list[bytes], bytes]:
+    total = KEEPER_SAMPLE_RATE * 2 * seconds
+    size = -(-total // parts)
+    pcm = bytes(i % 251 for i in range(256)) * (total // 256 + 1)
+    pcm = pcm[:total]
+    return [pcm[i : i + size] for i in range(0, total, size)], pcm
+
+
+def _ingest_room_tone(svc, chunks, whole, *, pid="p_aa"):
+    wav_hash = sha256_hex(pcm_wav_header(len(whole)) + whole)
+    result = None
+    for seq, chunk in enumerate(chunks):
+        final = seq == len(chunks) - 1
+        result = svc.ingest_part(
+            session_id="room1",
+            take_index=0,
+            participant_id=pid,
+            segment_index=0,
+            part_seq=seq,
+            data=chunk,
+            digest=sha256_hex(chunk),
+            file_sha256=wav_hash if final else None,
+            final=final,
+            kind="room_tone",
+        )
+    return result
+
+
+def test_room_tone_cap_is_one_minute_plus_margin():
+    assert ROOM_TONE_MAX_DURATION_SEC > ROOM_TONE_DURATION_SEC
+    assert ROOM_TONE_MAX_PCM_BYTES == KEEPER_SAMPLE_RATE * 2 * ROOM_TONE_MAX_DURATION_SEC
+
+
+def test_room_tone_one_minute_bed_in_two_parts_is_accepted(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    chunks, whole = _room_tone_parts(ROOM_TONE_DURATION_SEC, parts=2)
+    # One minute outgrows a single upload part, which is why a bed is sent in 30 s parts.
+    assert len(whole) > record_upload_max_part_bytes()
+    result = _ingest_room_tone(svc, chunks, whole)
+    assert result["file_ack"] is True
+    wav = (
+        Path(ws.project.workspace_dir)
+        / "artifacts"
+        / "record"
+        / "acked"
+        / "room1"
+        / "room_tone"
+        / "p_aa.wav"
+    )
+    assert wav.stat().st_size == len(whole) + 44
+
+
+def test_room_tone_bed_over_the_cap_is_rejected_across_parts(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    chunks, whole = _room_tone_parts(ROOM_TONE_MAX_DURATION_SEC + 5, parts=3)
+    with pytest.raises(RecordUploadError, match="room tone too large"):
+        _ingest_room_tone(svc, chunks, whole)
+    assert not any(row.get("file_ack") for row in svc.room_tone_status(session_id="room1"))
+
+
+def test_room_tone_kind_rejects_oversize_and_gapped_part(minimal_project, sample_wav):
     ws = _seed_premix(minimal_project, sample_wav)
     svc = RecordUploadService(ws.project)
     huge = b"\x00" * (ROOM_TONE_MAX_PCM_BYTES + 1)
@@ -821,7 +887,7 @@ def test_room_tone_kind_rejects_oversize_and_extra_part(minimal_project, sample_
             kind="room_tone",
         )
     pcm, digest, wav_hash = _pcm_part(64)
-    with pytest.raises(RecordUploadError, match="single part"):
+    with pytest.raises(RecordUploadError, match=r"part gap|missing parts"):
         svc.ingest_part(
             session_id="room1",
             take_index=0,

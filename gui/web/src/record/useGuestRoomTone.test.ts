@@ -7,7 +7,7 @@ import { useGuestRoomTone } from "./useGuestRoomTone";
 const round = (n: number, ids: string[] = ["p_g"]) => ({
   round: n,
   requested_wall_ms: 1000 * n,
-  duration_ms: 3000,
+  duration_ms: 60_000,
   participant_ids: ids,
 });
 
@@ -33,7 +33,7 @@ function setup(initial: Props) {
 }
 
 const lobby = (room_tone?: ReturnType<typeof round> | null) =>
-  recordSnapshot({ state: "lobby", room_tone, countdown_left_ms: 3000 });
+  recordSnapshot({ state: "lobby", room_tone, countdown_left_ms: 60_000 });
 
 describe("useGuestRoomTone", () => {
   it("records when the host starts a round that names the guest", () => {

@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemorySink } from "./keeper/store";
+import { ROOM_TONE_DURATION_SEC, ROOM_TONE_MIN_SEC } from "./types";
 import { memoryUploadTransport } from "./upload/transport";
 import { useRoomToneCapture } from "./useRoomToneCapture";
 
@@ -31,6 +32,7 @@ describe("useRoomToneCapture", () => {
     encode.mockResolvedValue({
       wav: new Uint8Array(44 + 8),
       samples: new Float32Array(4).fill(0.001),
+      durationSec: ROOM_TONE_DURATION_SEC,
     });
   });
 
@@ -307,5 +309,126 @@ describe("useRoomToneCapture", () => {
     rerender({ enabled: false });
     await waitFor(() => expect(result.current.status).toBe("idle"));
     expect(result.current.error).toBeNull();
+  });
+
+  describe("the one-minute take", () => {
+    type EncodeOptions = { signal: AbortSignal; stopSignal: AbortSignal };
+
+    /** A take that runs until stopped, then keeps `keptSec` of audio. */
+    function takeStoppedAt(keptSec: number) {
+      encode.mockImplementationOnce(
+        (_stream: MediaStream, { signal, stopSignal }: EncodeOptions) =>
+          new Promise((resolve, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason));
+            stopSignal.addEventListener("abort", () =>
+              resolve({
+                wav: new Uint8Array(44 + 8),
+                samples: new Float32Array(4).fill(0.001),
+                durationSec: keptSec,
+              }),
+            );
+          }),
+      );
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("counts the minute down a second at a time", () => {
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+      takeStoppedAt(ROOM_TONE_DURATION_SEC);
+      const { result } = renderHook(() => useRoomToneCapture(hookArgs()));
+      expect(result.current.clock.remainingSec).toBe(ROOM_TONE_DURATION_SEC);
+      act(() => {
+        result.current.record();
+      });
+      expect(result.current.clock).toEqual({ remainingSec: 60, progress: 0 });
+      act(() => {
+        vi.advanceTimersByTime(18_000);
+      });
+      expect(result.current.clock.remainingSec).toBe(42);
+      expect(result.current.clock.progress).toBeCloseTo(0.3);
+      act(() => {
+        vi.advanceTimersByTime(42_000);
+      });
+      expect(result.current.clock.remainingSec).toBe(0);
+      expect(result.current.clock.progress).toBe(1);
+    });
+
+    it("keeps a take ended early once it is long enough", async () => {
+      const sink = new MemorySink();
+      const transport = memoryUploadTransport();
+      takeStoppedAt(ROOM_TONE_MIN_SEC);
+      const { result } = renderHook(() =>
+        useRoomToneCapture(hookArgs({ sink, transport })),
+      );
+      act(() => {
+        result.current.record();
+      });
+      act(() => {
+        result.current.endEarly();
+      });
+      await waitFor(() => expect(result.current.status).toBe("recorded"));
+      expect(transport.puts).toBe(1);
+      expect(
+        await sink.read("Sharecut Recordings/room1/room-tone/p_a.wav"),
+      ).toEqual(new Uint8Array(44 + 8));
+    });
+
+    it("discards a take ended before the minimum and writes and sends nothing", async () => {
+      const sink = new MemorySink();
+      const transport = memoryUploadTransport();
+      takeStoppedAt(ROOM_TONE_MIN_SEC - 0.5);
+      const { result } = renderHook(() =>
+        useRoomToneCapture(hookArgs({ sink, transport })),
+      );
+      act(() => {
+        result.current.record();
+      });
+      act(() => {
+        result.current.endEarly();
+      });
+      await waitFor(() => expect(result.current.status).toBe("too_short"));
+      expect(result.current.ready).toBe(true);
+      expect(transport.puts).toBe(0);
+      expect(
+        await sink.read("Sharecut Recordings/room1/room-tone/p_a.wav"),
+      ).toBeNull();
+    });
+
+    it("cancels back to idle, drops the take and lets a new one start", async () => {
+      const transport = memoryUploadTransport();
+      takeStoppedAt(ROOM_TONE_DURATION_SEC);
+      const { result } = renderHook(() =>
+        useRoomToneCapture(hookArgs({ transport })),
+      );
+      act(() => {
+        result.current.record();
+      });
+      expect(result.current.status).toBe("capturing");
+      act(() => {
+        result.current.cancel();
+      });
+      expect(result.current.status).toBe("idle");
+      expect(result.current.ready).toBe(false);
+      expect(transport.puts).toBe(0);
+      act(() => {
+        result.current.record();
+      });
+      await waitFor(() => expect(result.current.status).toBe("recorded"));
+    });
+
+    it("ignores Cancel once nothing is capturing", async () => {
+      const { result } = renderHook(() => useRoomToneCapture(hookArgs()));
+      act(() => {
+        result.current.record();
+      });
+      await waitFor(() => expect(result.current.status).toBe("recorded"));
+      act(() => {
+        result.current.cancel();
+      });
+      expect(result.current.status).toBe("recorded");
+    });
   });
 });

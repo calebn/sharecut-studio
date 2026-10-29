@@ -36,6 +36,8 @@ export function RoomAlert({ alerts }: RoomAlertProps) {
   // The list closes by itself once nothing is left behind the chip.
   if (rest.length === 0 && expanded) setExpanded(false);
   const open = expanded && rest.length > 0;
+  // A ticking line is not announced; the room's one-shot announcer speaks start and end.
+  const ticking = top?.kind === "room-tone-capturing";
   const more = rest.length;
   return (
     <div className="sys-room-alert-slot" ref={slot}>
@@ -44,6 +46,7 @@ export function RoomAlert({ alerts }: RoomAlertProps) {
           ref={region}
           className="sys-room-alert-live"
           role="status"
+          aria-live={ticking ? "off" : undefined}
           tabIndex={-1}
         >
           {top ? (
@@ -51,6 +54,9 @@ export function RoomAlert({ alerts }: RoomAlertProps) {
               state={ROOM_ALERT_TEXT[top.kind].state}
               title={roomAlertTitle(top)}
               density="alert"
+              titleRole={ticking ? "timer" : undefined}
+              progress={top.progress}
+              barLabel={top.progress === undefined ? undefined : "Room tone"}
               action={roomAlertAction(top)}
               secondaryAction={roomAlertSecondary(top)}
             />
@@ -78,6 +84,13 @@ export function RoomAlert({ alerts }: RoomAlertProps) {
                 state={ROOM_ALERT_TEXT[alert.kind].state}
                 title={roomAlertTitle(alert)}
                 density="alert"
+                titleRole={
+                  alert.kind === "room-tone-capturing" ? "timer" : undefined
+                }
+                progress={alert.progress}
+                barLabel={
+                  alert.progress === undefined ? undefined : "Room tone"
+                }
                 action={roomAlertAction(alert)}
                 secondaryAction={roomAlertSecondary(alert)}
               />

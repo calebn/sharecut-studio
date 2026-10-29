@@ -1,14 +1,19 @@
 import type { DeviceMic, DeviceTone } from "../system/deviceSheetModel";
 import { joinMic } from "./guestRoomModel";
 import type { MicPermissionStatus } from "./micPermission";
-import type { RoomToneDelivery, RoomToneStatus } from "./roomTone";
 import {
-  ROOM_TONE_CAPTURING_COPY,
+  type RoomToneClock,
+  type RoomToneDelivery,
+  type RoomToneStatus,
+  roomToneCapturingText,
+} from "./roomTone";
+import {
   ROOM_TONE_DEVICE_COPY,
   ROOM_TONE_HOST_COPY,
   ROOM_TONE_NOT_READY_COPY,
   ROOM_TONE_PROMPT_COPY,
   ROOM_TONE_TOO_LOUD_COPY,
+  ROOM_TONE_TOO_SHORT_COPY,
 } from "./types";
 import { useInputSwitching } from "./useInputSwitching";
 
@@ -58,6 +63,8 @@ export function deviceTone(args: {
   status: RoomToneStatus;
   delivery: RoomToneDelivery;
   error: string | null;
+  /** The running take's time left; only read while capturing. */
+  clock: RoomToneClock;
   micReady: boolean;
   captureReady: boolean;
   takeRunning: boolean;
@@ -70,15 +77,21 @@ export function deviceTone(args: {
       ? TAKE_REASON
       : !args.captureReady
         ? ROOM_TONE_NOT_READY_COPY
-        : capturing
-          ? ROOM_TONE_CAPTURING_COPY
-          : undefined;
-  const label = capturing ? ROOM_TONE_CAPTURING_COPY : ROOM_TONE_PROMPT_COPY;
+        : undefined;
+  const label = ROOM_TONE_PROMPT_COPY;
   if (status === "too_loud") {
     return {
       state: "too-loud",
       label,
       message: ROOM_TONE_TOO_LOUD_COPY,
+      disabledReason,
+    };
+  }
+  if (status === "too_short") {
+    return {
+      state: "too-short",
+      label,
+      message: ROOM_TONE_TOO_SHORT_COPY,
       disabledReason,
     };
   }
@@ -99,9 +112,14 @@ export function deviceTone(args: {
       disabledReason,
     };
   }
-  return {
-    state: capturing ? "capturing" : "idle",
-    label,
-    disabledReason,
-  };
+  if (capturing) {
+    return {
+      state: "capturing",
+      label,
+      message: roomToneCapturingText(args.clock),
+      progress: args.clock.progress,
+      endEarlyDisabled: args.clock.remainingSec === 0,
+    };
+  }
+  return { state: "idle", label, disabledReason };
 }

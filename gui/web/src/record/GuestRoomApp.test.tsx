@@ -846,10 +846,38 @@ describe("GuestRoomApp", () => {
       wav: new Uint8Array(44 + 8),
       samples: new Float32Array(4).fill(0.001),
     });
-    stubBootstrap({
-      ...guestBootstrap,
-      build: { capture: true, monitor: false, upload: true },
-    });
+    // Its bed uploads on its own clock, so this test answers it and waits for it:
+    // an upload left in flight would land in the next test's fetch stub.
+    const uploads: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input);
+        if (url.includes("/bootstrap")) {
+          return new Response(
+            JSON.stringify({
+              ...guestBootstrap,
+              build: { capture: true, monitor: false, upload: true },
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("/upload") && init?.method === "POST") {
+          uploads.push(url);
+          return new Response(
+            JSON.stringify({ acked: true, part_seq: 0, file_ack: true }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("/upload")) {
+          return new Response(
+            JSON.stringify({ segments: [], room_tone_status: [] }),
+            { status: 200 },
+          );
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
     render(<GuestRoomApp token="guest-tok" />);
     await readyToJoin(getUserMedia);
     await userEvent.click(joinButton());
@@ -863,14 +891,18 @@ describe("GuestRoomApp", () => {
         room_tone: {
           round: 1,
           requested_wall_ms: 1000,
-          duration_ms: 3000,
+          duration_ms: 60_000,
           participant_ids: ["p_g"],
         },
-        countdown_left_ms: 3000,
+        countdown_left_ms: 60_000,
       }),
     );
     await waitFor(() => expect(encodeRoomTone).toHaveBeenCalledOnce());
-    expect(await screen.findByText("Quiet please · 3")).toBeInTheDocument();
+    // The room pill and the guest's own capture row both read the minute.
+    expect(
+      (await screen.findAllByText("Stay quiet · 1:00")).length,
+    ).toBeGreaterThanOrEqual(1);
+    await waitFor(() => expect(uploads).toHaveLength(1));
   });
 
   describe("room tone for a guest who joins late", () => {
@@ -881,7 +913,7 @@ describe("GuestRoomApp", () => {
     const round = (ids: string[]) => ({
       round: 1,
       requested_wall_ms: 1000,
-      duration_ms: 3000,
+      duration_ms: 60_000,
       participant_ids: ids,
     });
     const bed = new Uint8Array(44 + 8).fill(7);
@@ -958,13 +990,47 @@ describe("GuestRoomApp", () => {
         name: "Record room tone",
       });
       expect(
-        screen.getByText("Record 3 seconds of room tone."),
+        screen.getByText("Record 1 minute of room tone."),
       ).toBeInTheDocument();
       await userEvent.click(action);
       await waitFor(() => expect(puts).toHaveLength(1));
       expect(encodeRoomTone).toHaveBeenCalledOnce();
       await waitFor(() => expect(recordButton()).toBeNull());
       expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+    });
+
+    it("announces the take once when it starts and keeps the ticking line out of the live region", async () => {
+      stubUploadFetch([]);
+      let finish: (value: unknown) => void = () => undefined;
+      encodeRoomTone.mockReset();
+      encodeRoomTone.mockImplementation(
+        () => new Promise((resolve) => (finish = resolve)),
+      );
+      await joinRoom();
+      sockets[0].onmessage?.(
+        snapshotMessage({
+          room_tone: round(["p_other"]),
+          countdown_left_ms: 0,
+        }),
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Record room tone" }),
+      );
+      const announced = await screen.findByText(
+        "Recording room tone, one minute, stay quiet",
+      );
+      expect(announced.closest('[aria-live="polite"]')).not.toBeNull();
+      const tick = await screen.findByRole("timer");
+      expect(tick).toHaveTextContent("Stay quiet · 1:00");
+      expect(tick.closest('[aria-live="polite"]')).toBeNull();
+      expect(screen.getByRole("button", { name: "End early" })).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(await screen.findByText("Room tone cancelled")).toBeVisible();
+      finish({
+        wav: bed,
+        samples: new Float32Array(4).fill(0.001),
+        durationSec: 60,
+      });
     });
 
     it("uploads exactly what a host-started round uploads", async () => {
@@ -975,7 +1041,7 @@ describe("GuestRoomApp", () => {
       sockets[0].onmessage?.(
         snapshotMessage({
           room_tone: round(["p_g"]),
-          countdown_left_ms: 3000,
+          countdown_left_ms: 60_000,
         }),
       );
       await waitFor(() => expect(onTime).toHaveLength(1));

@@ -19,6 +19,8 @@ export function SheetRow({
         state={row.state}
         title={row.title}
         detail={row.detail}
+        progress={row.progress}
+        barLabel={row.progress === undefined ? undefined : row.title}
         action={
           action
             ? {

@@ -7,14 +7,25 @@ import { ROOM_TONE_DURATION_SEC } from "./types";
 export type EncodedRoomTone = {
   wav: Uint8Array;
   samples: Float32Array;
+  /** What was kept, which is less than asked for when `stopSignal` ended the take early. */
+  durationSec: number;
 };
 
+/**
+ * `signal` abandons the take; `stopSignal` ends it where it stands and keeps
+ * what was captured, for the caller to judge.
+ */
 export async function encodeRoomToneWav(
   stream: MediaStream,
-  options?: { durationSec?: number; signal?: AbortSignal },
+  options?: {
+    durationSec?: number;
+    signal?: AbortSignal;
+    stopSignal?: AbortSignal;
+  },
 ): Promise<EncodedRoomTone> {
   const durationSec = options?.durationSec ?? ROOM_TONE_DURATION_SEC;
   const signal = options?.signal;
+  const stopSignal = options?.stopSignal;
   const needed = Math.max(1, Math.round(durationSec * KEEPER_SAMPLE_RATE));
   if (signal?.aborted) {
     throw new DOMException("Aborted", "AbortError");
@@ -35,7 +46,11 @@ export async function encodeRoomToneWav(
   const onEnded = () => {
     failEnough?.(new DOMException("Ended", "AbortError"));
   };
+  const onStop = () => {
+    settleEnough?.();
+  };
   signal?.addEventListener("abort", onAbort, { once: true });
+  stopSignal?.addEventListener("abort", onStop, { once: true });
   const tracks = stream.getAudioTracks?.() ?? [];
   for (const track of tracks) {
     track.addEventListener("ended", onEnded, { once: true });
@@ -65,6 +80,9 @@ export async function encodeRoomToneWav(
     } else {
       stopTap = (await openKeeperTap(stream, collectPcm)).stop;
     }
+    if (stopSignal?.aborted) {
+      onStop();
+    }
     if (!gotEnough) {
       await enough;
     }
@@ -74,6 +92,7 @@ export async function encodeRoomToneWav(
       track.removeEventListener("ended", onEnded);
     }
     signal?.removeEventListener("abort", onAbort);
+    stopSignal?.removeEventListener("abort", onStop);
     stopTap?.();
   }
   if (signal?.aborted) {
@@ -100,5 +119,9 @@ export async function encodeRoomToneWav(
     samples.set(chunk, floatOffset);
     floatOffset += chunk.length;
   }
-  return { wav: encodePcmWav(pcm, KEEPER_SAMPLE_RATE, 1), samples };
+  return {
+    wav: encodePcmWav(pcm, KEEPER_SAMPLE_RATE, 1),
+    samples,
+    durationSec: pcm.length / KEEPER_SAMPLE_RATE,
+  };
 }
