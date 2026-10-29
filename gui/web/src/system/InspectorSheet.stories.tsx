@@ -229,6 +229,7 @@ function PhoneDemo({
 }) {
   const [detent, setDetent] = useState(initial);
   const [open, setOpen] = useState(true);
+  const [label, setLabel] = useState(name);
   return (
     <Framed>
       {() =>
@@ -236,7 +237,8 @@ function PhoneDemo({
           <InspectorSheet
             form="phone"
             icon="sliders-horizontal"
-            name={name}
+            name={label}
+            onRename={setLabel}
             sections={sections}
             dock={<DemoDock />}
             detent={detent}
@@ -274,9 +276,11 @@ export const PhoneHalf: Story = {
     <PhoneDemo initial="half" sections={CLIP_SECTIONS} name="Maya · 12:04" />
   ),
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
     await expect(
-      within(canvasElement).getByRole("slider", { name: "Sheet height" }),
+      canvas.getByRole("slider", { name: "Sheet height" }),
     ).toHaveAttribute("aria-valuetext", "Half height");
+    await expect(canvas.getByRole("textbox", { name: "Name" })).toBeVisible();
   },
 };
 
