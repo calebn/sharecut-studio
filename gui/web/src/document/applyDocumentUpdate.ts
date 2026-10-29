@@ -272,11 +272,12 @@ export function applyDocumentSnapshot(
 
 export async function refreshDocumentProject(
   path: string,
+  phase: "shell" | "full" = "shell",
 ): Promise<ProjectView> {
   if (useDawStore.getState().projectPath !== path)
     throw new Error("Project changed during refresh");
   const scope = activateDocumentScope(path);
-  const snap = await loadDocumentState(path);
+  const snap = await loadDocumentState(path, phase);
   if (!isCurrentDocumentScope(scope))
     throw new Error("Project changed during refresh");
   const project = applyDocumentSnapshot(snap, { scope });
