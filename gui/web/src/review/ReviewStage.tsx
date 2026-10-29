@@ -68,6 +68,8 @@ export type ReviewStageProps = {
   onHear?: (id: string, side: AuditionSide) => void;
   onComment?: (id: string) => void;
   thread?: (item: ReviewItem) => ReactNode;
+  /** The inline comment field, above the card. */
+  composer?: ReactNode;
   /** Resolving a comment is not a decision: the host owns it and its Undo. */
   onResolve?: (id: string) => void;
   onReply?: (id: string) => void;
@@ -107,6 +109,7 @@ export function ReviewStage({
   onHear,
   onComment,
   thread,
+  composer,
   onResolve,
   onReply,
   onFindMore,
@@ -374,6 +377,7 @@ export function ReviewStage({
           queue
         )}
         <div className="rv-card">
+          {composer}
           <DecisionCard
             key={selected?.id ?? "none"}
             kind={selected?.kind ?? "filler"}

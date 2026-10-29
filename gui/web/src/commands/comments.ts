@@ -8,11 +8,11 @@ import { buildCommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
 
-/** Starts a comment on `draft` in the Comments panel. */
+/** Starts a comment on `draft` in the Review composer. */
 export function openCommentDraft(draft: CommentDraft): void {
   const state = useDawStore.getState();
   state.setCommentDraft(draft);
-  state.openStage("review", { section: "comments" });
+  state.openStage("review", { section: "queue" });
 }
 
 function draftForSelection(

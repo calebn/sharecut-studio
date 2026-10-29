@@ -8,7 +8,7 @@ export const STAGE_IDS = [
 
 export type StageId = (typeof STAGE_IDS)[number];
 
-/** In the order a host sees the Review sections. */
+/** The host reads comments in the queue; Comments is the guest's section. */
 export const REVIEW_SECTIONS = ["queue", "comments"] as const;
 
 export type ReviewSection = (typeof REVIEW_SECTIONS)[number];

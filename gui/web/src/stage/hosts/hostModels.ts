@@ -1,6 +1,5 @@
 import { stagesForRole } from "../../state/stageRoutes";
 import {
-  REVIEW_SECTIONS,
   type ReviewSection,
   type StageId,
   type StageRole,
@@ -12,9 +11,9 @@ export function stageAvailable(stage: StageId, role: StageRole): boolean {
   return stagesForRole(role).includes(stage);
 }
 
-/** Queue acts on the project; a guest reviews comments. */
+/** A host's comments are queue items; a guest still reads them in the Comments section. */
 export function reviewSectionsFor(role: StageRole): readonly ReviewSection[] {
-  return role === "host" ? REVIEW_SECTIONS : ["comments"];
+  return role === "host" ? ["queue"] : ["comments"];
 }
 
 /** The stored section, or the first one the role has when it names one they cannot see. */
