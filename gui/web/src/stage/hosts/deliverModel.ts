@@ -113,7 +113,6 @@ export type FixRoute =
       kind: "stage";
       stage: StageId;
       section?: "queue";
-      /** Select the first open comment on arrival. */
       comment?: true;
     };
 

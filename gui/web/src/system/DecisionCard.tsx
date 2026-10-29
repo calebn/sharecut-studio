@@ -69,7 +69,6 @@ export type DecisionCardProps = {
     body: string;
     replies?: number;
   };
-  /** The comment's thread; replaces the quote on a comment. */
   thread?: ReactNode;
   /** Replaces the primary while a gate holds the verb back. */
   prompt?: ActionPromptProps;
