@@ -11,6 +11,7 @@ import os
 import socket
 import socketserver
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -139,6 +140,57 @@ def test_an_announcement_that_is_not_a_local_studio_is_ignored(project: Path, co
     path.write_text(content, encoding="utf-8")
     assert read_studio_host(project) is None
     assert locate_studio(project) is None
+
+
+@pytest.mark.parametrize("field", ["pid", "port"])
+@pytest.mark.parametrize("value", ["Infinity", "-Infinity", "1e999"])
+def test_nonfinite_announcement_numbers_are_ignored(project: Path, field: str, value: str) -> None:
+    announce_studio_host(project, _host())
+    path = studio_host_path(project)
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw[field] = value
+    path.write_text(json.dumps(raw).replace(json.dumps(value), value), encoding="utf-8")
+    assert read_studio_host(project) is None
+    assert locate_studio(project) is None
+
+
+@pytest.mark.parametrize("opening, closing", [("[", "]"), ('{"a":', "}")])
+def test_deeply_nested_announcement_json_is_ignored(
+    project: Path, opening: str, closing: str
+) -> None:
+    announce_studio_host(project, _host())
+    studio_host_path(project).write_text(
+        opening * 100_000 + "0" + closing * 100_000, encoding="utf-8"
+    )
+    assert read_studio_host(project) is None
+    assert locate_studio(project) is None
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        '{"instance":"a","pid":1,"host":"127.0.0.1","port":Infinity,"token":"tok"}',
+        '{"a":' * 100_000 + "0" + "}" * 100_000,
+    ],
+    ids=["nonfinite-port", "nested-json"],
+)
+def test_cli_info_ignores_unreadable_announcement(
+    project: Path, monkeypatch: pytest.MonkeyPatch, content: str
+) -> None:
+    monkeypatch.delenv(DIRECT_ENV_VAR, raising=False)
+    announce_studio_host(project, _host())
+    studio_host_path(project).write_text(content, encoding="utf-8")
+    before = project.read_bytes()
+    result = subprocess.run(
+        [sys.executable, "-m", "podcast_mcp.cli.main", "info", "--project", str(project)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Traceback" not in result.stderr
+    assert project.read_bytes() == before
 
 
 def test_opting_out_never_contacts_studio(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
