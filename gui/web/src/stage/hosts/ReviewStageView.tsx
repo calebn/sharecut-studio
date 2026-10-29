@@ -29,7 +29,7 @@ export type ReviewStageViewProps = {
   scrollRef?: Ref<HTMLDivElement>;
 };
 
-/** Review: Queue and Comments as sections of one stage. */
+/** Review: the Queue for a host, the Comments section for a guest. */
 export function ReviewStageView({
   shell,
   state,

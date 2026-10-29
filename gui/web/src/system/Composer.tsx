@@ -106,6 +106,18 @@ export function Composer(props: ComposerProps) {
     },
     [inputRef],
   );
+  // Escape from any control inside (name, comment, chip, Post).
+  const onRootKeyDown = (event: KeyboardEvent) => {
+    if (
+      event.key !== "Escape" ||
+      !onEscape ||
+      event.nativeEvent.isComposing ||
+      event.keyCode === 229
+    )
+      return;
+    event.stopPropagation();
+    onEscape();
+  };
   const block = composerBlock(props);
   const posting = state === "posting";
   const offline = state === "offline";
@@ -116,21 +128,7 @@ export function Composer(props: ComposerProps) {
       ? QUEUE_LABEL
       : submitLabel;
 
-  const escapes = (event: KeyboardEvent): boolean => {
-    if (
-      event.key !== "Escape" ||
-      !onEscape ||
-      event.nativeEvent.isComposing ||
-      event.keyCode === 229
-    )
-      return false;
-    event.stopPropagation();
-    onEscape();
-    return true;
-  };
-
   const onBodyKeyDown = (event: KeyboardEvent) => {
-    if (escapes(event)) return;
     if (
       event.key !== "Enter" ||
       event.nativeEvent.isComposing ||
@@ -145,7 +143,6 @@ export function Composer(props: ComposerProps) {
   };
 
   const onNameKeyDown = (event: KeyboardEvent) => {
-    if (escapes(event)) return;
     if (
       event.key !== "Enter" ||
       event.nativeEvent.isComposing ||
@@ -163,6 +160,8 @@ export function Composer(props: ComposerProps) {
 
   return (
     <div
+      role="presentation"
+      onKeyDown={onRootKeyDown}
       className="sys-composer"
       data-state={state}
       data-compact={compact || undefined}
