@@ -76,7 +76,7 @@ export type DecisionCardProps = {
   readOnly?: boolean;
   /** Editor guests and the owner. Defaults to everyone but a read-only guest. */
   canEdit?: boolean;
-  /** `phone` fills the screen, swipes, and moves the Action bar into a dock. `compact` is the 320 px card in an Edit Sheet: no Open in Edit, a shorter waveform. */
+  /** `phone` fills the screen, swipes, and moves the Action bar into a dock. `compact` is the 320 px card in an Edit Sheet: no Open in Edit, no swipes, a shorter waveform; a guest gets A/B in the bar beside Comment. */
   layout?: "card" | "phone" | "compact";
   state?: DecisionCardState;
   emptyAction?: { label: string; onClick: () => void };

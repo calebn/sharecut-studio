@@ -373,7 +373,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
   - Pickup (take switcher "Take 1 of 3").
   - Comment (thread, action items, Composer, Resolve).
   - Check (unsure words stepper, transcript check, conflict).
-- Placements: Review center (max 760 px); Edit Inspect on a suggestion or comment (anchored Sheet, 320 px compact: 64 px waveform, inline bar Keep/Later/Cut with no Open in Edit, A/B in the body, desktop and tablet only); phone Review full screen, with swipes.
+- Placements: Review center (max 760 px); Edit Inspect on a suggestion or comment (anchored Sheet, 320 px compact: 64 px waveform, no Open in Edit, no swipes; editors get Keep/Later/Cut in the inline bar with A/B in the body, a guest gets Comment with A/B in the bar; desktop and tablet only); phone Review full screen, with swipes.
 - Used: SCR-REVIEW, INS-PENDING, INS-COMMENT, CMP-COMMENT-CARD, PNL-REVIEW-QUEUE-REFINE-GATE, FLOW-REC-LATER pickups.
 - Replaces: Decision card and comment thread (rdp), comment popover and suggestion inspector (edit).
 - Story: `System/DecisionCard`: Filler, Pause, Sound, Pickup, Comment, Check, Adjusting, CompactInEdit, CompactEmpty, CompactLoading, CompactError, Phone, PhoneSwipe. Built (S8b, #2294): `layout="compact"` (CompactInEdit, CompactComment, CompactGuest, CompactEmpty, CompactLoading, CompactError); not yet placed in an Edit Sheet.

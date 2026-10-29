@@ -504,17 +504,20 @@ describe("DecisionCard verb", () => {
     expect(screen.queryByRole("button", { name: /Open in/ })).toBeNull();
   });
 
-  it("compact still holds the verb behind an unsure word and lets a guest comment", () => {
+  it("compact still holds the verb behind an unsure word and lets a guest comment", async () => {
+    const props = base();
     const { rerender } = render(
       <DecisionCard
-        {...base()}
+        {...props}
         layout="compact"
         unsure={{ word: "uncl", guess: "uncle", onFix: vi.fn() }}
       />,
     );
-    const describedBy = screen
-      .getByRole("button", { name: "Cut" })
-      .getAttribute("aria-describedby");
+    const cut = screen.getByRole("button", { name: "Cut" });
+    expect(cut).toBeDisabled();
+    await userEvent.click(cut);
+    expect(props.onVerb).not.toHaveBeenCalled();
+    const describedBy = cut.getAttribute("aria-describedby");
     expect(describedBy).toBeTruthy();
     const note = document.getElementById(describedBy as string);
     expect(note).not.toBeNull();
