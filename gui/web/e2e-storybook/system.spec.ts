@@ -2346,6 +2346,40 @@ test("System/AppHeader a failed save leaves the title 120 px from 360 to 570", a
   for (const wide of wider) expect(wide).toBeGreaterThanOrEqual(120);
 });
 
+test("System/AppHeader a failed save keeps the title 120 px past the phone cut-over, 577 to 640", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(
+    browser,
+    "system-appheader--failed-with-tools",
+  );
+  await page.evaluate(() => {
+    document.documentElement.dataset.shell = "phone";
+  });
+  const title = page.locator(".sys-header-project .sys-header-title");
+  const shown: number[] = [];
+  for (const width of [577, 600, 640]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.locator(".sys-header-right")).toBeVisible();
+    shown.push(await title.evaluate((el) => el.clientWidth));
+  }
+  await context.close();
+  for (const width of shown) expect(width).toBeGreaterThanOrEqual(120);
+});
+
+for (const shell of ["tablet", "desktop"] as const) {
+  test(`System/AppHeader a failed save keeps the right side in the ${shell} shell at 500 px`, async ({
+    page,
+  }) => {
+    await open(page, "system-appheader--failed-with-tools", 500);
+    await page.evaluate((value) => {
+      document.documentElement.dataset.shell = value;
+    }, shell);
+    await expect(page.locator(".sys-header-right")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Invite/ })).toBeVisible();
+  });
+}
+
 test("System/AppHeader a failed save keeps Invite and search in the Project menu, and a guest link keeps its search button", async ({
   browser,
 }) => {
@@ -2400,6 +2434,18 @@ test("System/Toast the dock keeps the page gutter at 360", async ({ page }) => {
   if (!box) throw new Error("Toast dock did not render");
   expect(box.x).toBeGreaterThanOrEqual(16);
   expect(360 - (box.x + box.width)).toBeGreaterThanOrEqual(16);
+});
+
+test("System/Toast the dock sits 12 px above the bottom edge without a device inset", async ({
+  page,
+}) => {
+  await open(page, "system-toast--result", 360);
+  const dock = page.locator(".sys-toast-dock");
+  await expect(dock).toBeVisible();
+  const bottom = await dock.evaluate(
+    (el) => getComputedStyle(el).insetBlockEnd,
+  );
+  expect(bottom).toBe("12px");
 });
 
 for (const [label, rootSize] of [
