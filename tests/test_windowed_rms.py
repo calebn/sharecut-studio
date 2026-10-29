@@ -112,6 +112,59 @@ def test_a_window_of_the_resampled_track_is_the_whole_resample_there(extra: int)
         assert _same(window, want), f"window {first}..{last} of {total}"
 
 
+CD_RATE = 44_100
+
+
+def _cd_noise(seed: int, length: int) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    t = np.arange(length) / CD_RATE
+    envelope = 0.5 + 0.5 * np.sin(2 * np.pi * 3 * t)
+    return (rng.standard_normal(length) * 0.1 * envelope).astype(np.float32)
+
+
+def _cd_windows(total: int, rng: np.random.Generator) -> list[tuple[int, int]]:
+    """Output ranges around the restart, the cut and the end of a 441:80 resample, and random ones."""
+    warm_up, guard = resampler_locality(CD_RATE, RATE) or (0, 0)
+    warm_out, guard_out = warm_up // 441 * 80, guard // 441 * 80
+    edges = {0, 1, 79, 80, 81, warm_out - 1, warm_out, warm_out + 1, guard_out}
+    edges |= {total - 1, total, total + 1, total + 40, total - guard_out, total - 3, total - 81}
+    ranges = [(a, a + 1) for a in sorted(edges) if a >= 0]
+    ranges += [(0, total), (0, 10), (total - 10, total + 10), (total + 5, total + 9), (-5, 10)]
+    for _ in range(14):
+        first = int(rng.integers(0, total))
+        ranges.append((first, first + int(rng.integers(1, 6000))))
+    return ranges
+
+
+@pytest.mark.parametrize("extra", [0, 1, 80, 220, 440])
+def test_a_window_of_a_44_1_khz_track_is_the_whole_resample_there(extra: int) -> None:
+    """Every kind of end for a 441:80 stream: the input length mod 441 sets the last period."""
+    _ffmpeg_or_skip()
+    samples = _cd_noise(5 + extra, 9 * CD_RATE - 7 + extra)
+    whole = FFmpegEngine.resample_streams(iter([samples]), CD_RATE, [RATE])[RATE]
+    rng = np.random.default_rng(extra)
+
+    for first, last in _cd_windows(whole.size, rng):
+        got = resampled_window(_Array(samples), CD_RATE, RATE, first, last)
+        assert got is not None, (first, last)
+        window, at, total = got
+        assert total == whole.size, (first, last)
+        assert at == min(max(first, 0), total)
+        assert _same(window, whole[at : min(last, total)]), f"window {first}..{last} of {total}"
+
+
+@pytest.mark.parametrize("length", [441, 882, 1000, 1999, 4800, 4801, 44_100, 123_457, 300_001])
+def test_the_length_of_a_44_1_khz_resample_is_found_from_a_restart_near_the_end(
+    length: int,
+) -> None:
+    _ffmpeg_or_skip()
+    samples = _cd_noise(length, length)
+    whole = FFmpegEngine.resample_streams(iter([samples]), CD_RATE, [RATE])[RATE]
+    got = resampled_window(_Array(samples), CD_RATE, RATE, 0, 3)
+    if got is not None:
+        assert got[2] == whole.size, length
+
+
 def test_the_length_of_the_whole_resample_is_found_from_a_restart_near_the_end() -> None:
     _ffmpeg_or_skip()
     for length in [*range(4, 40), 1999, 4800, 4801, 48_005, 96_007, 123_457, 300_001]:
@@ -135,7 +188,7 @@ def test_a_window_the_same_rate_is_a_slice_of_the_track() -> None:
 
 
 def test_a_rate_the_resampler_is_not_calibrated_for_has_no_window() -> None:
-    assert resampled_window(_Array(_noise(1, 1.0)), 44_100, RATE, 0, 10) is None
+    assert resampled_window(_Array(_noise(1, 1.0)), 22_050, RATE, 0, 10) is None
     assert resampled_window(_Array(_noise(1, 1.0)), 16_000, RATE, 0, 10) is None
 
 
@@ -476,6 +529,19 @@ def test_verifying_evidence_compares_a_window_with_the_whole_track(
             track_evidence._verify_window(broken, entry)
 
 
+def test_a_44_1_khz_track_is_windowed_and_verified_against_the_whole_track(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ffmpeg_or_skip()
+    monkeypatch.setenv(track_evidence.VERIFY_ENV, "1")
+    project = _project(tmp_path, "mixed joins and pads", mono_rate=44100)
+    with batch_scope():
+        assert (
+            track_evidence.rms_window(project, "caleb", load_defaults(), 2.0, 5.0, profile=BASE)
+            is not None
+        )
+
+
 # --- declines: the full path serves them ------------------------------------------------
 
 
@@ -525,7 +591,7 @@ def test_a_track_at_a_rate_the_resampler_is_not_calibrated_for_keeps_the_render(
     tmp_path: Path,
 ) -> None:
     _ffmpeg_or_skip()
-    project = _project(tmp_path, "mixed joins and pads", mono_rate=44100)
+    project = _project(tmp_path, "mixed joins and pads", mono_rate=22050)
     assert _window_of(project) is None
 
 
