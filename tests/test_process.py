@@ -96,6 +96,15 @@ def test_pid_is_alive_on_windows_asks_the_windows_probe_and_never_signals(
     assert pid_is_alive(4321) is False
 
 
+def test_pid_is_alive_on_windows_leaves_a_pid_beyond_32_bits_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(process_module, "_kernel32", lambda: pytest.fail("probed a 33-bit pid"))
+
+    assert pid_is_alive(2**32) is True
+
+
 def test_pid_is_alive_on_windows_without_kernel32_is_unknown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
