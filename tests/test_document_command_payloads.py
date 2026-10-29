@@ -101,6 +101,23 @@ def test_validate_payload_split_at_time():
     assert both["extra_at_times"] == [2.0]
 
 
+@pytest.mark.parametrize(
+    "extra",
+    [[-0.5], [float("nan")], [float("inf")], [float("-inf")], [float(i) for i in range(17)]],
+)
+def test_split_at_time_rejects_bad_extra_times(extra):
+    with pytest.raises(ValidationError):
+        validate_payload("SplitAtTime", {"at_time": 1.0, "extra_at_times": extra})
+
+
+def test_split_at_time_accepts_zero_and_sixteen_extra_times():
+    zero = validate_payload("SplitAtTime", {"at_time": 1.0, "extra_at_times": [0.0]})
+    assert zero["extra_at_times"] == [0.0]
+    sixteen = [float(i) for i in range(16)]
+    full = validate_payload("SplitAtTime", {"at_time": 1.0, "extra_at_times": sixteen})
+    assert full["extra_at_times"] == sixteen
+
+
 def test_suggest_pending_edit_rejects_nan_and_inverted():
     with pytest.raises(ValidationError):
         validate_payload(
