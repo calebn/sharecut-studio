@@ -236,10 +236,12 @@ async def host_ws(
             )
 
     async def watch_record_session() -> None:
+        nonlocal failed_sid
         # A room minted after this socket opened is joined without waiting for
         # the next client frame, so guests see the host in the roster at once.
         while not guard.closed:
             await asyncio.sleep(HOST_RECORD_ATTACH_POLL_S)
+            sid: str | None = None
             try:
                 sid = await run_in_threadpool(
                     RecordSessionService.active_session_id, workspace.project
@@ -250,6 +252,10 @@ async def host_ws(
                 raise
             except Exception:
                 log.exception("record session watch failed client_id=%s", client_id)
+                if sid:
+                    failed_sid = sid
+                    async with attach_lock:
+                        await detach_record()
 
     def join_session() -> dict[str, Any]:
         nonlocal presence_generation

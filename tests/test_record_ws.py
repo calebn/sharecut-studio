@@ -584,15 +584,16 @@ def test_host_record_watcher_survives_a_failed_poll(
     _isolate()
     monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
     real = RecordSessionService.active_session_id
-    calls: list[int] = []
+    armed = threading.Event()
+    raised = threading.Event()
 
     def flaky(project):
-        if not threading.current_thread().name.startswith("AnyIO worker"):
-            return real(project)
-        calls.append(1)
-        if len(calls) == 2:
+        sid = real(project)
+        on_worker = threading.current_thread().name.startswith("AnyIO worker")
+        if sid and on_worker and armed.is_set() and not raised.is_set():
+            raised.set()
             raise OSError("share store unavailable")
-        return real(project)
+        return sid
 
     monkeypatch.setattr(RecordSessionService, "active_session_id", staticmethod(flaky))
     ws = _seed_premix(minimal_project, sample_wav)
@@ -600,13 +601,43 @@ def test_host_record_watcher_survives_a_failed_poll(
     url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
     with client.websocket_connect(url) as host:
         assert host.receive_json()["type"] == "Snapshot"
+        armed.set()
         created = ShareService(ws).create_record_room()
         rec = _drain_until(host, lambda m: m.get("plane") == "record", n=40)
         assert rec["snapshot"]["state"] == "lobby"
-        assert len(calls) > 2
+        assert raised.is_set()
         svc = RecordSessionService(ws.project, session_id=created["session_id"])
         roster = {p["participant_id"]: p for p in svc.snapshot()["participants"]}
         assert roster[HOST_PARTICIPANT_ID]["connected"] is True
+
+
+def test_host_record_watcher_gives_up_on_a_room_whose_join_keeps_failing(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import threading
+    import time
+    from urllib.parse import quote
+
+    _isolate()
+    monkeypatch.setattr("podcast_mcp.gui.routes.host.HOST_RECORD_ATTACH_POLL_S", 0.05)
+    joins: list[int] = []
+    first = threading.Event()
+
+    def broken_join(self, **kwargs):
+        joins.append(1)
+        first.set()
+        raise OSError("share store unavailable")
+
+    monkeypatch.setattr(RecordSessionService, "join", broken_join)
+    ws = _seed_premix(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
+    with client.websocket_connect(url) as host:
+        assert host.receive_json()["type"] == "Snapshot"
+        ShareService(ws).create_record_room()
+        assert first.wait(10)
+        time.sleep(0.5)
+        assert len(joins) == 1
 
 
 def test_host_record_watcher_detaches_when_the_room_closes(
