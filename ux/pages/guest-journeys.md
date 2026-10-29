@@ -226,7 +226,7 @@ flowchart TD
    **Storage** check and the **I'm wearing headphones** toggle. **Join and record**
    stays disabled and names the first open row ("Add your name first", "Allow your
    microphone first", "Put on headphones first", "Fix storage first").
-   The desktop host's **Record room** panel also shows microphone permission
+   The desktop host's Record stage also shows microphone permission
    status and **Retry** after denial. macOS and Windows point to system
    microphone privacy settings; Linux identifies its WebKit prompt and directs
    blocked users to the supported browser recording path.
@@ -303,10 +303,9 @@ flowchart TD
    Reconnect opens a new segment at the current room clock; if a selected device was
    unplugged, recovery can use the default available input. In the Join sheet,
    microphone loss disables Join and record until recovery.
-   If the host microphone is denied or missing during REC, the Record room
-   panel reopens and stays open with an actionable Retry. Both the panel and
-   transport chip show local capture as failed, or waiting while a retry is
-   acquiring the microphone. A successful Retry restores the live capture
+   If the host microphone is denied or missing during REC, the Record stage
+   shows it with an actionable Retry, and shows local capture as failed, or
+   waiting while a retry is acquiring the microphone. A successful Retry restores the live capture
    state without discarding existing segments of the full-quality recording.
    On rejoin, a transient storage error on this device halts capture and says
    the device can't store the recording; it never restarts at segment one and
@@ -325,10 +324,11 @@ flowchart TD
    Land) fails, the failure shows in the Record stage when it is up, is announced and kept for the stage elsewhere, and is only announced over the
    Share dialog; the stage shows it
    without announcing it a second time. Closing the panel clears it.
-8. Host Stop. The host panel shows one take control (Pause while recording,
-   Resume while paused) and keeps Stop alone at the end behind a divider; Stop
-   asks once ("Stop this take? Recording ends for everyone in the room.",
-   **Keep recording** or **Stop take**). Land stays disabled with its reason
+8. Host Stop. The Record stage dock has one Record button (Record, then Stop
+   take while recording by holding it, Resume recording while paused) and Pause
+   beside it; **More** also has **Stop take**. Either way Stop asks once ("Stop
+   this take? Recording ends for everyone in the room.", **Keep recording** or
+   **Stop take**). Land (in **More**) stays disabled with its reason
    beside it while recordings are still saving and none is ready to land, and
    until there is something to land; live comments do not enable it while a
    recording saves. The native
@@ -340,7 +340,7 @@ flowchart TD
    reader hears each segment start and finish politely, not each chunk; the guest
    room shows no chunk counts. For an incomplete or stalled take the alerts offer
    **Resume saving** and **Save a copy** ("Saving stopped."), or **Finish saving**
-   ("We found part of your recording."). The host's panel shows "Saving to
+   ("We found part of your recording."). The host's Record stage shows "Saving to
    project…" then "Saved to project" for every recorded participant and segment.
    Download produces one ZIP containing all
    retained segments, plus `room-tone.wav` when this device still holds
