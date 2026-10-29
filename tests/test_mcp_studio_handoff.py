@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+import anyio
 import pytest
 import uvicorn
 from mcp.types import CallToolResult
@@ -112,6 +113,8 @@ def _deadline_peer(
     stalled: bool = True,
     trickle: bool = False,
     session_id: bool = False,
+    ping_answers: bool = True,
+    wedge_call: bool = False,
 ) -> Iterator[tuple[list[str], threading.Event, threading.Event]]:
     methods: list[str] = []
     initialized = threading.Event()
@@ -175,8 +178,16 @@ def _deadline_peer(
                 self.send_header("Content-Length", "0")
                 self.end_headers()
                 return
+            elif method == "ping":
+                if not ping_answers:
+                    self.stream()
+                    return
+                result = {}
             elif method == "tools/call":
                 token = request["params"].get("_meta", {}).get("progressToken")
+                if wedge_call:
+                    self.stream()
+                    return
                 if token is not None:
                     self.send_response(200)
                     self.send_header("Content-Type", "text/event-stream")
@@ -283,6 +294,61 @@ def test_initialization_caller_cancellation_propagates_without_replay(
     assert direct.calls == []
 
 
+def _heartbeat_every(monkeypatch: pytest.MonkeyPatch, interval: float) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+
+    monkeypatch.setattr(handoff, "HEARTBEAT_INTERVAL_SEC", interval)
+    monkeypatch.setattr(handoff, "HEARTBEAT_TIMEOUT_SEC", interval)
+    monkeypatch.setattr(handoff, "HEARTBEAT_MISSES", 2)
+
+
+def test_studio_that_wedges_after_taking_the_call_is_reported_not_waited_on(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _heartbeat_every(monkeypatch, 0.2)
+    direct = _wrapped()
+    with _deadline_peer(minimal_project, stalled=False, ping_answers=False, wedge_call=True) as (
+        methods,
+        _,
+        stop,
+    ):
+
+        async def call() -> Any:
+            task = asyncio.create_task(
+                direct.call_tool("list_clips_tool", {"project_path": str(minimal_project)})
+            )
+            done, _ = await asyncio.wait({task}, timeout=8)
+            if not done:
+                stop.set()
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await asyncio.wait_for(task, 1)
+            assert done, "a wedged Studio was waited on past the heartbeat limit"
+            return task.result()
+
+        result = asyncio.run(call())
+    assert result.is_error
+    assert "stopped answering" in result.content[0].text
+    assert "may have changed the project" in result.content[0].text
+    assert methods.count("tools/call") == 1
+    assert direct.calls == []
+
+
+def test_a_long_tool_on_a_studio_that_answers_pings_is_not_cut_short(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _heartbeat_every(monkeypatch, 0.1)
+    direct = _wrapped()
+    with _deadline_peer(minimal_project, stalled=False) as (methods, _, _):
+        result = asyncio.run(
+            direct.call_tool("list_clips_tool", {"project_path": str(minimal_project)})
+        )
+    assert not result.is_error
+    assert result.content[0].text == "finished"
+    assert methods.count("ping") >= 2
+    assert methods.count("tools/call") == 1
+
+
 @pytest.mark.parametrize("progress", [False, True])
 def test_initialized_tool_can_outlast_the_initialization_deadline(
     minimal_project: Path, monkeypatch: pytest.MonkeyPatch, progress: bool
@@ -331,6 +397,28 @@ def test_tool_call_runs_in_the_studio_serving_the_project(studio: Path) -> None:
     assert not result.is_error
     assert server.calls == []
     assert json.loads(result.content[0].text) is not None  # type: ignore[union-attr]
+
+
+def test_a_live_studio_answers_the_mcp_ping_the_heartbeat_sends(studio: Path) -> None:
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamable_http_client
+
+    from podcast_mcp.mcp.studio_handoff import _studio_mcp_url
+    from podcast_mcp.services.app import locate_studio
+
+    host = locate_studio(studio)
+    assert host is not None
+
+    async def ping() -> None:
+        async with (
+            streamable_http_client(_studio_mcp_url(host)) as (read, write, *_),
+            ClientSession(read, write) as session,
+        ):
+            await session.initialize()
+            with anyio.fail_after(10):
+                await session.send_ping()
+
+    asyncio.run(ping())
 
 
 def test_a_studio_that_serves_no_mcp_refuses_the_call(wildcard_studio: Path) -> None:

@@ -42,6 +42,9 @@ log = logging.getLogger(__name__)
 
 HOST_MCP_PATH = "/mcp"
 INITIALIZE_TIMEOUT_SEC = 10.0
+HEARTBEAT_INTERVAL_SEC = 15.0
+HEARTBEAT_TIMEOUT_SEC = 10.0
+HEARTBEAT_MISSES = 3
 
 #: Tool arguments that name a file or folder on the caller's machine. Studio's working
 #: directory is not the caller's, so a relative one is made absolute before it is sent.
@@ -119,6 +122,26 @@ def _studio_mcp_url(host: StudioHost) -> str:
     return f"http://{name}:{host.port}{HOST_MCP_PATH}"
 
 
+async def _studio_stopped_answering(session: ClientSession, scope: anyio.CancelScope) -> None:
+    """Cancel ``scope`` once Studio misses ``HEARTBEAT_MISSES`` MCP pings in a row.
+
+    A tool may run for as long as it needs; only a Studio that answers nothing at all (wedged
+    after it took the call) stops it. Any reply, even an error, counts as alive.
+    """
+    misses = 0
+    while True:
+        await anyio.sleep(HEARTBEAT_INTERVAL_SEC)
+        try:
+            with anyio.fail_after(HEARTBEAT_TIMEOUT_SEC):
+                await session.send_ping()
+            misses = 0
+        except Exception:
+            misses += 1
+            if misses >= HEARTBEAT_MISSES:
+                scope.cancel()
+                return
+
+
 async def _run_in_studio(
     host: StudioHost, name: str, arguments: dict[str, Any], context: Any = None
 ) -> Any:
@@ -139,9 +162,18 @@ async def _run_in_studio(
                 await session.initialize()
                 initialization.deadline = float("inf")
                 sent = True
-                if relay is None:
-                    return await session.call_tool(name, arguments)
-                return await session.call_tool(name, arguments, progress_callback=relay)
+                result: Any = None
+                async with anyio.create_task_group() as group:
+                    group.start_soon(_studio_stopped_answering, session, group.cancel_scope)
+                    if relay is None:
+                        result = await session.call_tool(name, arguments)
+                    else:
+                        result = await session.call_tool(name, arguments, progress_callback=relay)
+                    group.cancel_scope.cancel()
+                if result is None:
+                    log.warning("Studio stopped answering %s", name)
+                    return _lost_result(host, name, "it stopped answering pings")
+                return result
     except Exception as exc:
         if not sent:
             log.debug("Studio at %s:%s did not take the call", host.host, host.port, exc_info=True)

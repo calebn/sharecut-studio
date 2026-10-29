@@ -5,7 +5,7 @@ covers the two local connection modes:
 
 | Mode | Use it when | Episode selection |
 | --- | --- | --- |
-| **stdio** | The agent works independently on a project | Pass `project_path`, or set a default with `PODCAST_MCP_PROJECT`. While ShareCut Studio serves that project, the tool call runs in Studio (one writer, no "Project is busy"); if no Studio serves it, it runs in the stdio process; a Studio found serving the project that has no `/mcp` (a non-loopback bind), that is bound to `127.0.0.2` or a LAN address and so cannot take handoff at all, or that fails before the call is sent stops the call with an error and nothing runs. |
+| **stdio** | The agent works independently on a project | Pass `project_path`, or set a default with `PODCAST_MCP_PROJECT`. While ShareCut Studio serves that project, the tool call runs in Studio (one writer, no "Project is busy"); if no Studio serves it, it runs in the stdio process; a Studio found serving the project that has no `/mcp` (a non-loopback bind), that is bound to `127.0.0.2` or a LAN address and so cannot take handoff at all, or that fails before the call is sent stops the call with an error and nothing runs. A call may run as long as it needs while Studio answers MCP pings; a Studio that answers none for about 45 seconds after it took the call ends it with an error saying it may have changed the project. |
 | **GUI-attached Streamable HTTP** | You are editing with ShareCut Studio open | Tools use the episode currently open in the GUI. |
 
 Both modes are local. They do not require an API key or account. The GUI MCP
