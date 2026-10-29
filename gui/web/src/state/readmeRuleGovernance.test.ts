@@ -151,8 +151,10 @@ describe("README rule: prefer useProjectMutation", () => {
     "hooks/useProjectBootstrap.ts",
     "inspector/views/EnvelopeWorkspace.tsx",
     "stage/dialogs/ShareDialog.tsx",
+    // The Deliver Share flow keeps its own busy, error and recovery state, like the dialog it sits beside.
+    "stage/hosts/shareFlow.tsx",
   ];
-  const ALLOWLIST_SIZE = 7;
+  const ALLOWLIST_SIZE = 8;
 
   it("keeps API-call error state in useProjectMutation outside the allowlist", () => {
     expect(handRolledMutations(sourceFiles())).toEqual(ALLOWLIST);
