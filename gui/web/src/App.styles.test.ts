@@ -97,17 +97,8 @@ describe("App styles", () => {
     expect(body).toMatch(/min-block-size:\s*var\(--touch-min\)/);
   });
 
-  it("gives the Tighten row actions and the Range word controls the touch target on a coarse pointer (#1029)", () => {
+  it("gives the Range word controls the touch target on a coarse pointer (#1029)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
-    const tighten = readFileSync(
-      join(here, "styles/partials/panels.css"),
-      "utf8",
-    ).match(
-      /@media \(pointer: coarse\) \{\s*\.tighten-row-actions \.ui-control,[^{]*\{([^}]*)\}/,
-    );
-    expect(tighten).toBeTruthy();
-    expect(tighten![1]).toMatch(/min-block-size:\s*var\(--touch-min\)/);
-    expect(tighten![1]).toMatch(/min-inline-size:\s*var\(--touch-min\)/);
     const words = readFileSync(
       join(here, "styles/partials/layout.css"),
       "utf8",
@@ -143,17 +134,6 @@ describe("App styles", () => {
     expect(track).toBeTruthy();
     expect(track![1]).toMatch(/block-size:\s*auto/);
     expect(track![1]).toMatch(/min-block-size:\s*var\(--control-height\)/);
-  });
-
-  it("stacks each Tighten hit in a narrow panel so Apply and Skip never sit past the edge (#1029)", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const css = readFileSync(join(here, "styles/partials/panels.css"), "utf8");
-    const block = css.match(
-      /@container tighten \(max-width: 36rem\) \{([\s\S]*?)\n\}\n/,
-    );
-    expect(block).toBeTruthy();
-    expect(block![1]).toMatch(/grid-area:\s*actions/);
-    expect(block![1]).toMatch(/\.tighten-table td:nth-child\(7\)/);
   });
 
   it("keeps the native text selection out of the transcript in Select mode on touch (#1029)", () => {

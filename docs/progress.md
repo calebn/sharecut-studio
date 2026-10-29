@@ -23,26 +23,19 @@ starting and cancel copy, errors, and outcomes.
 
 ## Reviewed edit batches
 
-Tighten shows `Applying N suggested actions…` beside its bulk Apply control as
-soon as the confirmed, revalidated command starts. The control is busy and
-disabled with its reason. Submitted rows show `Applying…` where the Status
-column is visible. On phones that column is hidden; the working line and disabled
-Apply and Skip controls show the work in progress. The shared `BulkReviewWorking` pulse and elapsed companion
-follow the Review queue's bulk pattern. Elapsed appears after two seconds and stays
-outside the static live headline. There is no percentage or phase estimate.
+A group's **Cut all N** in the Review Queue shows `Cutting N…` in place of the
+group as soon as the command starts, and the group's buttons are disabled. The
+row stays after the group has left the list, because the decision is optimistic.
+Elapsed time appears after two seconds and stays outside the static live
+headline. There is no percentage or phase estimate, because the host reports no
+count for one `ApproveEdits` request.
 
-The command owns the project path, submitted hit IDs and start time, so filtering
-or remounting the panel does not restart or recount the work. An accepted request
-remains associated with its file while its API promise is outstanding. Another
-project shows none of that activity; returning to the same file can show it until
-the promise settles. Selection changes and result announcements belong to the
-opening that started the request and do not affect a later project opening.
-
-A server acknowledgment clears the working line and leaves the result toast and
-Undo. A refusal clears it and leaves the error. A locally queued result clears it
-and leaves the existing `Still sending` notice, because delivery is still unknown.
-The existing document queue owns persistence and replay. This line does not turn
-queued delivery into a server success or add another job or save queue.
+A server acknowledgment clears the working row and leaves the result toast and
+Undo. A refusal clears it, puts the group back and leaves the error. A locally
+queued result clears it and leaves the existing `Still sending` notice, because
+delivery is still unknown. The existing document queue owns persistence and
+replay. This row does not turn queued delivery into a server success or add
+another job or save queue.
 
 ## Editor pipeline geometry
 

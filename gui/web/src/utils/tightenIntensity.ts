@@ -6,7 +6,6 @@ import type {
 } from "../types/pipeline";
 import { jobErrorText } from "./apiError";
 import { getByPath, setByPath } from "./configPath";
-import { capitalize } from "./format";
 
 export const TIGHTEN_INTENSITY_PATH = "tighten.intensity";
 export const TIGHTEN_ANALYZE_STEP = "analyze_fillers_pauses";
@@ -15,13 +14,6 @@ type RunOptions = NonNullable<Parameters<typeof startPipelineRun>[1]>;
 
 function intensityField(cfg: PipelineConfigResponse | null) {
   return cfg?.params?.find((p) => p.path === TIGHTEN_INTENSITY_PATH);
-}
-
-/** Choices from the server param catalog (empty until config loads). */
-export function tightenIntensityOptions(
-  cfg: PipelineConfigResponse | null,
-): string[] {
-  return [...(intensityField(cfg)?.enum ?? [])];
 }
 
 /** Working-set value, else the catalog default, else null. */
@@ -33,10 +25,6 @@ export function currentTightenIntensity(
   if (typeof value === "string" && value) return value;
   const fallback = intensityField(cfg)?.default;
   return typeof fallback === "string" ? fallback : null;
-}
-
-export function tightenIntensityLabel(value: string): string {
-  return capitalize(value);
 }
 
 /**
