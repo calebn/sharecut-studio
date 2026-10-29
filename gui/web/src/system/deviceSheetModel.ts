@@ -13,11 +13,15 @@ export type DeviceMic = JoinMic | { status: "none" };
 
 /** The room tone row, in the caller's words: the record side owns the copy. */
 export type DeviceTone = {
-  state: "idle" | "capturing" | "too-loud" | "recorded" | "error";
-  /** The button's label: "Record 3 seconds of room tone". */
+  state: "idle" | "capturing" | "too-loud" | "too-short" | "recorded" | "error";
+  /** The button's label: "Record 1 minute of room tone". */
   label: string;
   /** The line under the title: where the bed went, or why it failed. */
   message?: string;
+  /** While capturing, 0 to 1 of the take used; drawn as the row's bar. */
+  progress?: number;
+  /** While capturing, the take is already saving and End early has nothing left to end. */
+  endEarlyDisabled?: boolean;
   /** Why the button cannot be pressed now. */
   disabledReason?: string;
 };
@@ -40,11 +44,17 @@ const TONE_ROW: Record<DeviceTone["state"], StatusRowState> = {
   idle: "queued",
   capturing: "running",
   "too-loud": "needs-you",
+  "too-short": "needs-you",
   recorded: "done",
   error: "failed",
 };
 
-type ToneRow = { state: StatusRowState; title: string; detail?: string };
+type ToneRow = {
+  state: StatusRowState;
+  title: string;
+  detail?: string;
+  progress?: number;
+};
 
 const NO_MIC: JoinMic = { status: "idle" };
 
@@ -102,6 +112,7 @@ export function deviceSheetModel(input: {
       state: TONE_ROW[tone.state],
       title: DEVICE_TEXT.tone,
       detail: tone.message,
+      progress: tone.state === "capturing" ? tone.progress : undefined,
     },
   };
 }

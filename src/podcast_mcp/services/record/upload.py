@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 from podcast_mcp.models import EpisodeProject, record_artifacts_dir
+from podcast_mcp.services.record.state import ROOM_TONE_DURATION_SEC
 from podcast_mcp.services.session_sync import cached_store, connect_session_db, sync_db_path
 from podcast_mcp.util.atomic_file import atomic_write, publish_completed_file
 from podcast_mcp.util.body_limits import record_upload_max_part_bytes
@@ -40,7 +41,8 @@ UPLOAD_KIND_ROOM_TONE = "room_tone"
 # Reserved take so room-tone rows never collide with sequential keepers.
 ROOM_TONE_TAKE_INDEX = 2_147_483_647
 ROOM_TONE_SEGMENT_INDEX = 0
-ROOM_TONE_MAX_DURATION_SEC = 10
+# The one-minute bed plus slack for a late stop; sent as 30 s parts, so no part nears the part cap.
+ROOM_TONE_MAX_DURATION_SEC = ROOM_TONE_DURATION_SEC + 10
 ROOM_TONE_MAX_PCM_BYTES = KEEPER_SAMPLE_RATE * 2 * ROOM_TONE_MAX_DURATION_SEC
 _SAFE_ID = re.compile(r"^p_[A-Za-z0-9]+$")
 _SAFE_SESSION = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -1111,12 +1113,8 @@ class RecordUploadService:
         if upload_kind == UPLOAD_KIND_ROOM_TONE:
             take = ROOM_TONE_TAKE_INDEX
             segment = ROOM_TONE_SEGMENT_INDEX
-            if seq != 0:
-                raise RecordUploadError("room tone must be a single part")
             if join_offset_ms is not None:
                 raise RecordUploadError("join_offset_ms not allowed for room tone")
-            if not final:
-                raise RecordUploadError("room tone must be a single part")
             if clipping is not None or clipping_truncated:
                 raise RecordUploadError("clipping not allowed for room tone")
         else:
@@ -1192,6 +1190,18 @@ class RecordUploadService:
                 if different_part or different_file:
                     self._clear_room_tone(sid, pid)
                     known = None
+                held = sum(
+                    int(row["byte_length"])
+                    for row in self._store.parts(
+                        session_id=sid,
+                        take_index=take,
+                        participant_id=pid,
+                        segment_index=segment,
+                    )
+                    if int(row["part_seq"]) != seq
+                )
+                if held + len(payload) > ROOM_TONE_MAX_PCM_BYTES:
+                    raise RecordUploadError("room tone too large")
             elif known is not None and known != expected:
                 raise RecordUploadError("part hash mismatch")
             if known is None or not path.is_file():
@@ -1518,8 +1528,6 @@ class RecordUploadService:
         got_seq = [row["part_seq"] for row in parts]
         if got_seq != expected_seq:
             raise RecordUploadError("part gap")
-        if kind == UPLOAD_KIND_ROOM_TONE and len(parts) != 1:
-            raise RecordUploadError("room tone must be a single part")
         total_pcm = sum(int(row["byte_length"]) for row in parts)
         if kind == UPLOAD_KIND_ROOM_TONE and total_pcm > ROOM_TONE_MAX_PCM_BYTES:
             raise RecordUploadError("room tone too large")

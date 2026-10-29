@@ -828,5 +828,5 @@ Every place the specs disagreed or collided with each other or with themselves. 
 | L47 | D Q5: swipe on the phone Decision card on by default? | On, with an 80 px threshold and the verb icon growing while you drag. Every decision is undoable | Undo makes it safe |
 | L48 | D Q7: Clips in Deliver? | Yes. The markers stay in Edit | Clips are an output |
 | L49 | R Q8: matching returning guests to their tracks | Match by display name, corrected with the Person picker on each Source card in the Session group | No extra step before the first take |
-| L50 | R Q9: room tone in the pre-roll | Yes. 3 s "Quiet please" on the first take of each session, with a fallback in your tile's Inspector | Removes a mandatory lobby step for every guest |
+| L50 | R Q9: room tone in the pre-roll | Yes. A one-minute "Stay quiet" countdown (End early / Cancel) on the first take of each session, with a fallback in your tile's Inspector | Removes a mandatory lobby step for every guest |
 | L51 | E: the Script measure claim (68 characters at 400 px) | 68 characters in Script focus only | Physically about 44 at 400 px |

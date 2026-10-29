@@ -7,9 +7,9 @@ export async function uploadRoomToneWav(args: {
   transport: RecordUploadTransport;
   signal?: AbortSignal;
 }): Promise<{ fileAck: boolean; landed: boolean; landFailed: boolean }> {
-  const parts = keeperPcmParts(args.wav);
-  if (parts.length !== 1 || !parts[0]) {
-    throw new Error("room tone must be a single part");
+  // A minute outgrows one upload part, so the bed goes up as keeper-sized parts.
+  if (keeperPcmParts(args.wav).length === 0) {
+    throw new Error("room tone has no audio");
   }
   const { fileAck, landed, landFailed } = await uploadKeeperWav({
     wav: args.wav,

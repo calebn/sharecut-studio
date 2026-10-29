@@ -16,7 +16,7 @@ const snap = (over: Partial<RecordSnapshot> = {}) =>
     room_tone: {
       round: 1,
       requested_wall_ms: 1000,
-      duration_ms: 3000,
+      duration_ms: 60_000,
       participant_ids: ["p_early"],
     },
     countdown_left_ms: 0,
@@ -77,7 +77,7 @@ describe("useLateRoomTone", () => {
         room_tone: {
           round: 1,
           requested_wall_ms: 1000,
-          duration_ms: 3000,
+          duration_ms: 60_000,
           participant_ids: ["p_early", "p_late"],
         },
       }),
@@ -118,18 +118,24 @@ describe("useLateRoomTone", () => {
     expect(result.current?.kind).toBe("room-tone");
   });
 
-  it("shows capture progress without actions, then nothing once recorded", async () => {
+  it("hands the alert slot to the capturing row while a take runs, then nothing once recorded", async () => {
     const { result, rerender } = setup();
     await waitFor(() => expect(result.current?.onAction).toBeDefined());
     rerender({ status: "capturing" });
-    expect(result.current).toMatchObject({
-      kind: "room-tone",
-      message: "Recording room tone…",
-    });
-    expect(result.current?.onAction).toBeUndefined();
-    expect(result.current?.onSecondaryAction).toBeUndefined();
+    expect(result.current).toBeNull();
     rerender({ status: "recorded" });
     expect(result.current).toBeNull();
+  });
+
+  it("says a take ended too early was too short and offers another try", async () => {
+    const { result } = setup({ status: "too_short" });
+    await waitFor(() =>
+      expect(result.current?.message).toBe(
+        "Too short, record at least 10 seconds",
+      ),
+    );
+    expect(result.current?.onAction).toBeDefined();
+    expect(result.current?.onSecondaryAction).toBeDefined();
   });
 
   it("says so and offers another try when the bed was too loud or failed", async () => {

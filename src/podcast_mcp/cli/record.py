@@ -87,7 +87,7 @@ def record_stop(project: Path = typer.Option(..., "--project")) -> None:
 
 @record_app.command("room-tone")
 def record_room_tone(project: Path = typer.Option(..., "--project")) -> None:
-    """Ask every recorded device to capture 3 s of room tone now (lobby or stopped)."""
+    """Ask every recorded device to capture one minute of room tone now (lobby or stopped)."""
     _invoke(project, lambda ctrl: ctrl.room_tone_countdown())
 
 

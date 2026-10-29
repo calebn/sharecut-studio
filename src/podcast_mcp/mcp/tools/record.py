@@ -43,7 +43,7 @@ def record_stop_tool(project_path: str) -> str:
 
 
 def record_room_tone_tool(project_path: str) -> str:
-    """Host Room tone: tell every recorded device to capture 3 s of room tone now (lobby or stopped only)."""
+    """Host Room tone: tell every recorded device to capture one minute of room tone now (lobby or stopped only)."""
     return json.dumps(_ctrl(project_path).room_tone_countdown(), indent=2)
 
 

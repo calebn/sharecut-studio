@@ -16,7 +16,7 @@ const READY = {
   inputId: "a",
 } satisfies DeviceMic;
 
-const TONE = { state: "idle", label: "Record 3 seconds of room tone" } as const;
+const TONE = { state: "idle", label: "Record 1 minute of room tone" } as const;
 
 const sheet = (props: Partial<DeviceSheetProps> = {}) => (
   <DeviceSheet
@@ -79,6 +79,49 @@ describe("DeviceSheet", () => {
     render(sheet({ onRecordRoomTone }));
     await userEvent.click(screen.getByRole("button", { name: TONE.label }));
     expect(onRecordRoomTone).toHaveBeenCalledOnce();
+  });
+
+  it("counts the take down with End early and Cancel in place of Record", async () => {
+    const onEndRoomToneEarly = vi.fn();
+    const onCancelRoomTone = vi.fn();
+    const { baseElement } = render(
+      sheet({
+        tone: {
+          ...TONE,
+          state: "capturing",
+          message: "Stay quiet · 0:42",
+          progress: 0.3,
+        },
+        onEndRoomToneEarly,
+        onCancelRoomTone,
+      }),
+    );
+    expect(screen.getByText("Stay quiet · 0:42")).toBeVisible();
+    expect(
+      screen.getByRole("progressbar", { name: "Room tone" }),
+    ).toHaveAttribute("aria-valuenow", "30");
+    expect(screen.queryByRole("button", { name: TONE.label })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "End early" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onEndRoomToneEarly).toHaveBeenCalledOnce();
+    expect(onCancelRoomTone).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(baseElement);
+  });
+
+  it("holds End early once the take is saving", () => {
+    render(
+      sheet({
+        tone: {
+          ...TONE,
+          state: "capturing",
+          message: "Recording room tone…",
+          progress: 1,
+          endEarlyDisabled: true,
+        },
+      }),
+    );
+    expect(screen.getByRole("button", { name: "End early" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
   });
 
   it("says why room tone waits", () => {

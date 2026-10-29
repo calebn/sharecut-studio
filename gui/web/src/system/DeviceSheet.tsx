@@ -27,12 +27,16 @@ export type DeviceSheetProps = {
   onHeadphonesChange?: (on: boolean) => void;
   tone: DeviceTone;
   onRecordRoomTone: () => void;
+  /** While the take runs: keep what was captured so far. */
+  onEndRoomToneEarly?: () => void;
+  /** While the take runs: drop it and go back to idle. */
+  onCancelRoomTone?: () => void;
   onClose: () => void;
 };
 
 /**
  * Change the microphone from inside the room: input menu, level meter with a
- * clip tick, the headphone toggle and a 3 s room tone for someone who joined
+ * clip tick, the headphone toggle and a one-minute room tone for someone who joined
  * after the countdown. Every control applies as it changes; there is no Apply.
  * Presentational: the caller owns the mic, the meter and the room tone.
  */
@@ -46,6 +50,8 @@ export function DeviceSheet({
   onHeadphonesChange,
   tone,
   onRecordRoomTone,
+  onEndRoomToneEarly,
+  onCancelRoomTone,
   onClose,
 }: DeviceSheetProps) {
   const [detent, setDetent] = useState<DrawerDetent>("full");
@@ -81,12 +87,26 @@ export function DeviceSheet({
           </SheetRow>
         ) : null}
         <SheetRow row={model.toneRow}>
-          <Button
-            disabledReason={tone.disabledReason}
-            onClick={onRecordRoomTone}
-          >
-            {tone.label}
-          </Button>
+          {tone.state === "capturing" ? (
+            <div className="sys-device-tone-actions">
+              <Button
+                disabledReason={
+                  tone.endEarlyDisabled ? "Room tone is saving." : undefined
+                }
+                onClick={onEndRoomToneEarly}
+              >
+                End early
+              </Button>
+              <Button onClick={onCancelRoomTone}>Cancel</Button>
+            </div>
+          ) : (
+            <Button
+              disabledReason={tone.disabledReason}
+              onClick={onRecordRoomTone}
+            >
+              {tone.label}
+            </Button>
+          )}
         </SheetRow>
       </div>
     </Sheet>

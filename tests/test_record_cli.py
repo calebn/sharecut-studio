@@ -244,8 +244,8 @@ def test_record_room_tone_cli_and_mcp_announce_a_round(
     assert first.exit_code == 0, first.output
     payload = json.loads(first.output)
     assert payload["room_tone"]["round"] == 1
-    assert payload["room_tone"]["duration_ms"] == 3000
-    assert 0 < payload["countdown_left_ms"] <= 3000
+    assert payload["room_tone"]["duration_ms"] == 60_000
+    assert 0 < payload["countdown_left_ms"] <= 60_000
     again = json.loads(record_room_tone_tool(str(minimal_project)))
     assert again["room_tone"]["round"] == 2
     assert json.loads(record_state_tool(str(minimal_project)))["room_tone"]["round"] == 2

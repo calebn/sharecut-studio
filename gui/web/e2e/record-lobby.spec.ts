@@ -945,7 +945,7 @@ test.describe("record lobby", () => {
         ).toHaveCount(0);
         await expect(
           (await openHostDevices(room)).getByRole("button", {
-            name: "Record 3 seconds of room tone",
+            name: "Record 1 minute of room tone",
           }),
         ).toBeEnabled();
       } finally {
@@ -970,13 +970,16 @@ test.describe("record lobby", () => {
         await enableRoomTonePcmHarness(guest);
         await joinAsGuest(guest, room.guest.token, "Ava");
 
-        const roomToneUpload = guest.waitForResponse((response) => {
+        // The minute goes up as two parts; the second one carries the file ack.
+        const roomToneUpload = guest.waitForResponse(async (response) => {
           const url = new URL(response.url());
           return (
             response.request().method() === "POST" &&
             url.pathname.includes("/api/rec/") &&
             url.pathname.endsWith("/upload") &&
-            url.searchParams.get("kind") === "room_tone"
+            url.searchParams.get("kind") === "room_tone" &&
+            ((await response.json()) as { file_ack?: boolean }).file_ack ===
+              true
           );
         });
         const started = await host.request.post("/api/record/command", {
@@ -998,8 +1001,8 @@ test.describe("record lobby", () => {
         await expect
           .poll(() => roomToneWav(guest))
           .toEqual({
-            header: [82, 73, 70, 70, 36, 101, 4, 0, 87, 65, 86, 69],
-            size: 288_044,
+            header: [82, 73, 70, 70, 36, 228, 87, 0, 87, 65, 86, 69],
+            size: 5_760_044,
           });
       });
     });

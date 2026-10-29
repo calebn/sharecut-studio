@@ -6,7 +6,7 @@ Audio-first MVP; beta still requires a **host laptop online**. Mint `/rec/`
 URLs with `podcast review share --kind record` (or the Deliver Share section / MCP
 `create_record_room_tool`). `build.capture`, `build.monitor`, and `build.upload`
 are on. After file ACK, keepers copy into `raw/` as one clip per segment.
-Optional 3 s room-tone beds land at `raw/room-tone/{session}/{participant}.wav`
+Optional one-minute room-tone beds land at `raw/room-tone/{session}/{participant}.wav`
 (the older `raw/room-tone/{participant}.wav` path still works for projects
 that used it).
 
@@ -53,7 +53,7 @@ Category SOTA is **Riverside / Zencastr / SquadCast / Descript Rooms**, not Zoom
 - Join link is a **studio/room**, not a review/listen link.
 - Join sheet: **name, microphone (Allow microphone, device picker, level),
   storage check and headphones** before a guest joins; the host starts the
-  optional 3 s room tone from the room.
+  optional one-minute room tone from the room.
 - While recording: a persistent **status pill** (`m:ss · Take N`) in the room header and on the host Record stage, plus a start notification. PAUSED, saving and local capture failure remain distinct text states and alerts.
 - **Live timestamped notes** are table stakes: Riverside markers (`M` key →
   dots on the editor timeline), Zencastr Footnotes (host-only), Descript Rooms
@@ -836,16 +836,16 @@ Guests receive the result as the normal `Applied` snapshot; a guest sending it g
 |------|----------|
 | When | `lobby` or `stopped`. During `recording` or `paused` it is refused with "Stop the take first". |
 | Blockers | Refused only when `start_blockers` holds `no_recorder` (nothing to capture). `consent_pending` does not block. |
-| Rounds | Each call sets `room_tone` to `{round, requested_wall_ms, duration_ms: 3000, participant_ids}` and bumps `round`; redo is allowed any time in `lobby`/`stopped`. |
+| Rounds | Each call sets `room_tone` to `{round, requested_wall_ms, duration_ms: 60000, participant_ids}` and bumps `round`; redo is allowed any time in `lobby`/`stopped`. |
 | `participant_ids` | Consented recorded participants at request time (`take_consented_participant_ids`). Informational only: the room-tone upload still checks the participant's current consent. |
 | Start | Unchanged and legal during the countdown. The command touches no take, clock, `start_blockers`, upload or landing. |
 | Old snapshots | `room_tone` is optional (`null` when absent), so rows written before this command load unchanged. |
 
-`countdown_left_ms` (0 to 3000) is derived per `RecordSessionService.snapshot()` from
+`countdown_left_ms` (0 to 60000) is derived per `RecordSessionService.snapshot()` from
 `room_tone.requested_wall_ms + duration_ms` and the server clock, and is never stored.
-Nothing ticks it: the `Applied` event carries it once (about 3000), and clients count down locally from it.
+Nothing ticks it: the `Applied` event carries it once (about 60000), and clients count down locally from it.
 `participant_ids` lists only participants who have already consented, so a round requested before anyone accepts has an empty list and the late acceptors capture from the Device sheet. A round with no Start leaves the bed to land with the next land. Orchestration (auto-capture on a new
-`round`, sending Start after 3 s) is client work (a consented guest's browser
+`round`, sending Start after the minute) is client work (a consented guest's browser
 captures when a new `round` names them, `useGuestRoomTone`; a round already in the
 first snapshot, as for a late joiner or a reload, is not caught up, #2490), and `room_tone` stays in the snapshot after Start, so consumers
 should show a countdown only while the state is `lobby` or `stopped`; this command only announces the round. A capture in flight, on the host or a guest, is cancelled when a take starts.
@@ -1065,10 +1065,10 @@ auto-consents). Host Start does **not** require any room tone. Producers skip
 consent, `getUserMedia` and room tone; they auto-satisfy the Start gate. Mute
 writes zeros on the keeper.
 
-Room tone is started by the host: a consented guest's browser records 3 seconds
+Room tone is started by the host: a consented guest's browser records one minute
 when a new `RoomToneCountdown` round names them and uploads it as `kind=room_tone`
 (see [Room-tone countdown](#room-tone-countdown)). A consented guest the latest
-round did not name (they joined after it) gets an alert-slot row, "Record 3 seconds
+round did not name (they joined after it) gets an alert-slot row, "Record 1 minute
 of room tone" with **Record room tone** and **Skip**, in `lobby` or `stopped`
 once the countdown has run out. **Record room tone** runs the same capture, WAV
 encode and `kind=room_tone` upload as a host-started round, so the bed lands under
@@ -1092,7 +1092,7 @@ can still resume saving or download the previous full-quality recording from the
 alternate local sink path.
 
 **In the room** a guest sees the status pill (`Waiting for {host} to start`,
-`Quiet please · N`, `m:ss · Take N`, `Paused · m:ss`, `Saving · N%`, `Saved`,
+`Stay quiet · m:ss`, `m:ss · Take N`, `Paused · m:ss`, `Saving · N%`, `Saved`,
 `Reconnecting…`), a tile per person, the notes rail (a composer enabled while a take
 runs; the `M` key adds a marker), Mute and Leave, and alerts in one slot: "Your mic
 stopped." (**Reconnect mic**), "No sound is reaching the recorder." (**Check mic**),
@@ -1229,8 +1229,9 @@ stateDiagram-v2
 | Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
 | Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link."; while a full-quality WAV of the take is still on the device (read from the keeper store, so it holds after a reload; not once every segment has landed and been cleared) it adds "Your recording is safe on this device. Save it and send it to {host}, or ask for a new link." with **Save my recording** / **Try saving again** |
-| Room tone (host Record stage) | "Record 3 seconds of room tone" |
-| Room tone for a guest who joined late (alert row) | "Record 3 seconds of room tone." **Record room tone** / **Skip**; "Recording room tone…" while capturing |
+| Room tone (host Record stage) | "Record 1 minute of room tone"; while capturing "Stay quiet · 0:42" with a bar, **End early** and **Cancel** |
+| Room tone for a guest who joined late (alert row) | "Record 1 minute of room tone." **Record room tone** / **Skip**; while capturing the row reads "Stay quiet · 0:42" with a bar, **End early** and **Cancel** (any capturing guest sees it, host-started or not) |
+| Room tone ended too early | "Too short, record at least 10 seconds" (the take is discarded; End early keeps a take of 10 s or more) |
 | Room tone too loud | "Too loud: is something playing?" |
 | Room tone saved on this device (not yet acknowledged by the host) | "Room tone saved on this device" |
 | Room tone acknowledged by the host (it joins the project when the session lands) | "Room tone sent to the host" |
@@ -1300,7 +1301,7 @@ cannot. Every button runs the same `record.*` command as the palette.
 - Mute, the Record button and **More** sit in the dock under the room, so they
   stay in reach on a phone; Comment joins them once a take is live. **More** holds **Stop take**, Land, the upload
   status, a note when a removed participant's invite is closed, **Devices…**
-  and, last, **Invite and links…** (opens Share). **Record 3 seconds of room
+  and, last, **Invite and links…** (opens Share). **Record 1 minute of room
   tone** is in the Devices sheet and works only in the lobby or after Stop;
   otherwise it is disabled ("Record room tone between takes."). **Create record room**
   announces "Record room created and guest link copied" ("Record room created" if
@@ -1716,7 +1717,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`,
 |------|-----|
 | Consent vs Join sheet | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Join and record disabled with `aria-describedby` until the name, mic, storage and headphones rows are done. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (the room-tone bed is captured only after consent, on the host's countdown); Start disabled while any **recorded** in-room client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require any room tone. The upload route re-checks server-side: a keeper chunk requires the uploader in that take's `consented_participant_ids`, room tone requires current `consented is True`, both returning `403 consent required` (`tests/test_record_upload.py::test_guest_keeper_upload_requires_take_consent`, `::test_guest_room_tone_upload_rejected_after_decline`, `::test_guest_keeper_upload_rechecks_consent_after_body_read`). |
 | Removed guest | The host stops consented take 0, starts take 1, then removes the guest. Take 0 retains its historical consent roster, but both take indices and room tone deny upload consent. The guest lease is revoked, so retrying take 0 returns `403 invalid lease`. Reducer coverage is `tests/test_record_reducer.py::test_remove_participant_revokes_stopped_and_current_take_upload_consent`; HTTP coverage is `tests/test_record_upload.py::test_removed_guest_cannot_upload_stopped_take_after_next_take_starts`. Current-take removal is covered by `::test_guest_keeper_upload_rejected_after_host_removal`. |
-| Room tone | Host-started only: a consented guest's browser records 3 s keeper-constraint PCM→WAV when a new `room_tone.round` names it (`useGuestRoomTone`; a round already in the first snapshot is ignored, #2490); RMS > −35 dBFS warns "Too loud: is something playing?" and does not upload; guest PUT `kind=room_tone` only after consent (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers never record it. |
+| Room tone | Host-started only: a consented guest's browser records one minute of keeper-constraint PCM→WAV when a new `room_tone.round` names it (`useGuestRoomTone`; a round already in the first snapshot is ignored, #2490); RMS > −35 dBFS warns "Too loud: is something playing?" and does not upload; guest PUT `kind=room_tone` only after consent (403 before consent), 403 for producer, sent as 30 s parts, rejected above 70 s of 48 kHz mono (`ROOM_TONE_MAX_DURATION_SEC`, the minute plus slack); Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers never record it. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
 | Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants and segments, and the host list reads "Saving to project… N of M chunks" while saving and "Saved to project" after the file ACK; only explicit `complete: true` segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. `useRecordUpload` publishes each segment as saving when its upload starts and again per chunk, not once per pass (gated-transport test); the live region announces starts and finishes only, and no chunk count sits inside any live region (`expectOutsideLiveRegions` in `GuestRoomApp.room.test.tsx`, `RecordStage.test.tsx`, `UploadStatus.test.tsx`). |
 | Host offline | Monitor tracks end; if the segment is still open, local WAV length **keeps growing**; copy string asserted. Intentional leave / lost mic finalizes the segment; browser end-to-end in the Playwright US-2 scenario (`e2e/record-host-reconnect.spec.ts`). |

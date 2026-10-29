@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { deviceMic, deviceTone, hostMicStatus } from "./deviceSheet";
-import { ROOM_TONE_PROMPT_COPY, ROOM_TONE_TOO_LOUD_COPY } from "./types";
+import { roomToneClock } from "./roomTone";
+import {
+  ROOM_TONE_PROMPT_COPY,
+  ROOM_TONE_TOO_LOUD_COPY,
+  ROOM_TONE_TOO_SHORT_COPY,
+} from "./types";
 
 const STREAM = {} as MediaStream;
 const OPTIONS = { deviceId: "", levelDb: -20 };
@@ -39,6 +44,7 @@ describe("deviceTone", () => {
     status: "idle",
     delivery: "device",
     error: null,
+    clock: roomToneClock(0),
     micReady: true,
     captureReady: true,
     takeRunning: false,
@@ -78,9 +84,30 @@ describe("deviceTone", () => {
     expect(
       deviceTone({ ...base, status: "error", error: "Boom" }),
     ).toMatchObject({ state: "error", message: "Boom" });
-    expect(deviceTone({ ...base, status: "capturing" })).toMatchObject({
+    expect(deviceTone({ ...base, status: "too_short" })).toMatchObject({
+      state: "too-short",
+      message: ROOM_TONE_TOO_SHORT_COPY,
+    });
+  });
+
+  it("counts down while capturing, then waits on the save", () => {
+    expect(
+      deviceTone({
+        ...base,
+        status: "capturing",
+        clock: roomToneClock(18),
+      }),
+    ).toMatchObject({
       state: "capturing",
-      disabledReason: "Recording room tone…",
+      message: "Stay quiet · 0:42",
+      progress: 0.3,
+      endEarlyDisabled: false,
+    });
+    expect(
+      deviceTone({ ...base, status: "capturing", clock: roomToneClock(60) }),
+    ).toMatchObject({
+      message: "Recording room tone…",
+      endEarlyDisabled: true,
     });
   });
 });

@@ -542,12 +542,12 @@ export const HostCountdown: Story = {
   args: {
     seat: "host",
     people: [MAYA_YOU, JON_YOU, ANNEKE_GUEST],
-    phase: { kind: "countdown", secondsLeft: 3 },
+    phase: { kind: "countdown", secondsLeft: 42 },
     selfName: "Maya Okafor",
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText("Quiet please · 3"),
+      within(canvasElement).getByText("Stay quiet · 0:42"),
     ).toBeInTheDocument();
   },
 };

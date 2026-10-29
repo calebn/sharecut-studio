@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { runPointerCommand } from "../../commands/pointer";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
@@ -23,6 +23,7 @@ import {
   useHostRoomContext,
   useInputPeakDb,
   useRecordHostStore,
+  useRoomToneAnnouncement,
   useSheetMic,
 } from "../../record";
 import { useDawStore } from "../../state/dawStore";
@@ -69,6 +70,12 @@ function RecordStageBody({
   const announceStatus = useDawStore((s) => s.announceStatus);
   const receivedAtMs = useRecordHostStore((s) => s.receivedAtMs);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
+  const toneAnnouncement = useRoomToneAnnouncement(room.roomTone.status);
+  useEffect(() => {
+    if (toneAnnouncement) {
+      announceStatus(toneAnnouncement.text);
+    }
+  }, [toneAnnouncement, announceStatus]);
   const shell = useViewportClass();
   const [moreOpen, setMoreOpen] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false);
@@ -292,11 +299,14 @@ function RecordStageBody({
           status: room.roomTone.status,
           delivery: room.roomTone.delivery,
           error: room.roomTone.error,
+          clock: room.roomTone.clock,
           micReady: !!cap.stream,
           captureReady: room.sink !== null && room.roomTone.captureReady,
           takeRunning: !toneAvailable,
         })}
         onRecordRoomTone={room.roomTone.record}
+        onEndRoomToneEarly={room.roomTone.endEarly}
+        onCancelRoomTone={room.roomTone.cancel}
         onClose={() => setDeviceOpen(false)}
       />
     ) : null;

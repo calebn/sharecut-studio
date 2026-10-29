@@ -22,6 +22,7 @@ from podcast_mcp.engines.room_tone import (
     OwnQuietSample,
     RecordedBedSample,
     SampleAbsent,
+    room_tone_bed,
     room_tone_bed_digest,
     room_tone_span,
 )
@@ -267,6 +268,34 @@ def test_short_burst_in_a_long_bed_is_not_averaged_away(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     bed = _noise(-62.0, seed=7)
     _add_voice(bed, 3.0, 3.6, VOICE_DB)
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)
+
+    assert isinstance(selected, OwnQuietSample)
+    assert selected.bed_failure == "contaminated_bed"
+
+
+def _minute_noise(seed: int) -> np.ndarray:
+    return np.random.default_rng(seed).normal(0.0, 10 ** (-62.0 / 20), 60 * SR)
+
+
+def test_one_minute_bed_is_read_whole_and_a_pad_takes_its_start(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    _add_bed(project, tmp_path, _minute_noise(7))
+
+    bed = room_tone_bed(project, "host")
+    selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=8.0)
+
+    assert isinstance(bed, RecordedBedSample)
+    assert bed.end == pytest.approx(60.0)
+    assert selected == RecordedBedSample(0.0, 8.0, "room-tone-host", bed.path)
+
+
+def test_one_minute_bed_with_a_burst_is_still_rejected(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = _minute_noise(7)
+    _add_voice(bed, 41.0, 41.6, VOICE_DB)
     _add_bed(project, tmp_path, bed)
 
     selected = room_tone_span(project, "host", near_sec=4.0, duration_sec=0.5)

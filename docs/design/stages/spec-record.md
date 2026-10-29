@@ -198,21 +198,21 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
   - **Host dock**, left to right: Mute (48), Marker (48), the Record button (72 px, the one primary), Pause (48, visible only while live or paused), Notes (48). Rail toggle on desktop is the Notes button itself.
   - **The Record button** (NEW: Record button) is a single control with three faces: red filled circle (idle: start a take), red square inside a ring (live: hold to stop), red circle with a "resume" notch (paused: resume). Stop is press-and-hold for 600 ms: the ring fills clockwise, release early cancels and shows "Hold to stop" under the button for 2 s. Keyboard and screen readers: Enter or Space on the focused button in the live face opens a two-button popover anchored to it (**Keep recording** focused, **Stop take**), the existing InlineConfirm moved into a popover. R starts or resumes. P pauses.
   - **Start blockers** render on the tiles, not in a list under the button: a consent-pending guest's tile shows "Joining…" and a dashed outline. The Record button disabled reason reads "Waiting for Jon to join". With no guests at all, Record still starts (solo take, see Q3).
-  - **Pre-roll.** First take of a session: Record runs a 3 s countdown shown in every participant's status pill and as a large numeral over each tile ("Quiet please · 3"). Room tone is captured on every device during it. Tapping Record again during the countdown skips it and starts at once. Later takes skip the countdown (room tone is per session). A tile whose room tone was too loud shows an amber wave glyph. The host can redo it from ⋯ Devices, where room tone lives in the Device sheet.
+  - **Pre-roll.** First take of a session: Record runs a one-minute quiet countdown shown in every participant's status pill and as a large numeral over each tile ("Stay quiet · 1:00", then 0:59 and down, mm:ss). Room tone is captured on every device during it, and each capturing device shows the same countdown with a progress bar and two controls: **End early** (keeps the take when it is at least 10 s; a shorter one is discarded with "Too short, record at least 10 seconds") and **Cancel** (discards it and returns to idle). Tapping Record again during the countdown skips it and starts at once; neither control blocks joining or going live. Later takes skip the countdown (room tone is per session). A tile whose room tone was too loud shows an amber wave glyph. The host can redo it from ⋯ Devices, where room tone lives in the Device sheet.
   - **Mic and device:** tapping the host's own tile opens the Device sheet (same as a guest's). Host mic denied or missing shows in the alert slot with **Retry**.
   - **During a take** the Takes segment of the rail shows the current take row growing. Each tile shows the saving ring after Stop.
   - **After Stop** the phase is `saving` then `saved`. Landing is automatic. The manual Land button is removed. A land failure shows in the take row and the alert slot with **Retry**.
   - **Phone.** Same layout as the guest phone room, plus the Record button in the dock centre (72 px) with Mute and Marker to its left and Notes and ⋯ to its right. The session header collapses into the status pill, with the target chip under the pill as a 32 px row.
-  - **Copy:** pill texts "Waiting", "Quiet please · 3", "● 12:04 · Take 2", "Paused · 12:04", "Saving · 2 of 3", "Saved", "Reconnecting…".
+  - **Copy:** pill texts "Waiting", "Stay quiet · 0:42", "● 12:04 · Take 2", "Paused · 12:04", "Saving · 2 of 3", "Saved", "Reconnecting…".
 - **Shared elements used:** Stage bar, Person tile, NEW: Record button, NEW: Record dock, NEW: Invite tile, NEW: Session target chip, NEW: Room status pill, NEW: Room alert, NEW: Notes rail, NEW: Takes tray, NEW: Device sheet, Icon language.
 - **Story to build:** `Record/Room` › `HostEmpty`, `HostWaitingTwoGuests`, `HostWaitingConsentPending`, `HostCountdown`, `HostLive`, `HostLiveHoldingStop`, `HostStopPopoverKeyboard`, `HostPaused`, `HostPausedHostReconnect`, `HostSaving`, `HostSaved`, `HostLandFailed`, `HostMicDenied`, `HostSolo`, `HostPhone`, `HostPhoneLive`.
 
 ### CMP-REC-DEVICE · Microphone check
 - **Today:** shots under SCR-REC-LOBBY-GUEST. Language: "-∞ dBFS", "Clear clip light". Hierarchy: input picker with a red error border in the normal state.
 - **Fate:** merge into NEW: Join sheet (mic row) and NEW: Device sheet (later changes).
-- **Spec:** Device sheet opens by tapping your own tile, or from ⋯ Devices. Contents: input menu, level meter 8 px tall with a clip tick, a headphone toggle (guests only; the host has none until the wire carries a host headphone ack), **Record room tone** (3 s, for someone who joined after the countdown), and on desktop an output device menu where the browser supports it. Changes apply instantly with no Apply button. Same states as the Join sheet mic row.
+- **Spec:** Device sheet opens by tapping your own tile, or from ⋯ Devices. Contents: input menu, level meter 8 px tall with a clip tick, a headphone toggle (guests only; the host has none until the wire carries a host headphone ack), **Record room tone** (1 minute, for someone who joined after the countdown; while it runs the row counts "Stay quiet · 0:42" with a bar, **End early** and **Cancel**), and on desktop an output device menu where the browser supports it. Changes apply instantly with no Apply button. Same states as the Join sheet mic row.
 - **Shared elements used:** NEW: Device sheet, Inspector sheet conventions (no Apply).
-- **Story to build:** `Record/DeviceSheet` › `Ready`, `Denied`, `InputLost`, `NoInput`, `RoomToneTooLoud`, `Phone`.
+- **Story to build:** `Record/DeviceSheet` › `Ready`, `Denied`, `InputLost`, `NoInput`, `RoomToneTooLoud`, `RoomToneCapturing`, `Phone`.
 
 ### CMP-REC-CONSENT · Recording consent
 - **Today:** paragraph of text, Accept disabled pink, Decline. Language: "Producers/listeners may be present and are shown in the roster."
@@ -223,7 +223,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 ### CMP-REC-ROOMTONE · Room tone capture
 - **Today:** a mandatory decision per guest before consent ("Record or skip room tone before accepting"), with a primary button that competes with Accept.
 - **Fate:** replace with the pre-roll countdown (INT-REC-START), with the per-person fallback in NEW: Device sheet.
-- **Spec:** the host's first Record press per session captures 3 s on every recorded device. Per-tile result: check, or amber wave glyph "Too loud". Uploaded after consent, which every participant in the take has already given. Data dependency: a host command that triggers room-tone capture on all clients (today capture is client-initiated in the lobby).
+- **Spec:** the host's first Record press per session captures one minute on every recorded device (End early keeps 10 s or more). Per-tile result: check, or amber wave glyph "Too loud". Uploaded after consent, which every participant in the take has already given. Data dependency: a host command that triggers room-tone capture on all clients (today capture is client-initiated in the lobby).
 - **Story to build:** `Record/Room` › `HostCountdown`, `CountdownOneTooLoud`.
 
 ### CMP-REC-INDICATOR · REC indicator
@@ -318,7 +318,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 | INT-REC-OPEN | Open recording | Menu, Record room…, Create record room | One tap on Stage bar Record (room auto-created, idempotent) | Stage bar key | Stage switcher |
 | INT-REC-INVITE | Send the guest link | Deliver Share section or Copy guest link | Tap an Invite tile, Copy (or share sheet, or QR for a phone guest beside the host) | none | Share sheet |
 | INT-REC-JOIN | Guest joins | 5 sections, 6+ presses | Allow mic, Join and record (name prefilled) | Enter | Thumb-zone primary |
-| INT-REC-START | Start a take | Start (blocked without a guest) | Record; 3 s pre-roll with group room tone on the first take | R | Tap |
+| INT-REC-START | Start a take | Start (blocked without a guest) | Record; one-minute pre-roll with group room tone on the first take | R | Tap |
 | INT-REC-PAUSE | Pause or resume | Pause, Resume buttons | Pause button; Record button resumes | P, R | Tap |
 | INT-REC-STOP | Stop a take | Stop, confirm sentence, Stop take | Hold Record 600 ms | Enter opens Keep/Stop popover | Hold |
 | INT-REC-LAND | Put takes on the timeline | Land button | Automatic; Retry only on failure | none | none |
@@ -346,7 +346,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 
 **NEW: Join sheet.** The pre-join sheet over a live room: header with who is here, rows that check themselves off (name, mic, headphones), consent lines, one thumb-zone primary (**Join and record** or **Join to listen**), **Not now**. Desktop card 420 px, phone bottom sheet at the large detent. Reused shape for the review-link guest's first visit if the Review spec adds a name step (a review guest naming themselves is audit finding phone/F08).
 
-**NEW: Device sheet.** Input menu, live meter with clip tick, headphone toggle (guests only), room tone (3 s), output menu. No Apply. Opened by tapping your own Person tile (host and guest alike).
+**NEW: Device sheet.** Input menu, live meter with clip tick, headphone toggle (guests only), room tone (1 minute, with End early and Cancel while it runs), output menu. No Apply. Opened by tapping your own Person tile (host and guest alike).
 
 **NEW: Invite tile.** An empty grid slot (dashed outline, plus glyph, "Invite"). Tap opens a popover: guest link with **Copy** (primary), **Share…** on devices with the system share sheet, a QR code (160 px) for a phone in the same room, and the producer link behind a "Listen-only link" disclosure. Replace link lives here too.
 
@@ -378,4 +378,4 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 - **Q6. Headphones as a hard gate.** Today a guest cannot consent without ticking headphones. Recommend keeping the gate on desktop and making it a strong warning on phones, where the phone earpiece and echo cancellation make speaker use workable for a guest who has no headphones. Alternative: keep the hard gate everywhere.
 - **Q7. Video.** Tiles are avatar-only because no video capability ships. Recommend audio-first now with tiles shaped 4:3 so video can fill them later without a layout change. Question: is video on the roadmap for recording, and is it recorded or only a monitor?
 - **Q8. Matching a returning guest to their track.** Recommend matching by display name with the summary card's menu to correct it. Alternative: ask the host to assign each new person to a track before the first take (more reliable, one more step).
-- **Q9. Room tone in the pre-roll.** Recommend capturing everyone's room tone in a 3 s "Quiet please" countdown on the first take of each session, instead of a per-guest lobby step. It needs a new host-to-all command. Alternative: keep the per-guest lobby capture.
+- **Q9. Room tone in the pre-roll.** Recommend capturing everyone's room tone in a one-minute "Stay quiet" countdown on the first take of each session, instead of a per-guest lobby step. It needs a new host-to-all command. Alternative: keep the per-guest lobby capture.

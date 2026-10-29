@@ -38,7 +38,7 @@ export const Waiting: Story = {
   },
 };
 export const Countdown: Story = {
-  args: { phase: { kind: "countdown", secondsLeft: 3 } },
+  args: { phase: { kind: "countdown", secondsLeft: 42 } },
 };
 export const Live: Story = {
   args: { phase: { kind: "live", take: 2, clockSec: 724 } },
