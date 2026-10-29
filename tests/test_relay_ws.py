@@ -10,13 +10,14 @@ import socket
 import threading
 import time
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import AsyncMock, patch
 
 import pytest
 import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.testclient import TestClient
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, get
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect as ws_connect
 
@@ -260,6 +261,68 @@ def test_hello_generates_host_id(monkeypatch):
         hello = ws.receive_json()
         assert hello["ok"] is True
         assert hello["host_id"]
+
+
+@pytest.mark.parametrize(
+    ("status", "retry_headers", "retry_after"),
+    [
+        (429, {"Retry-After": "1"}, "1"),
+        (503, {"rEtRy-AfTeR": "Wed, 21 Oct 2037 07:28:00 GMT"}, "Wed, 21 Oct 2037 07:28:00 GMT"),
+        (429, {}, None),
+    ],
+    ids=["delta-seconds", "mixed-case-http-date", "absent"],
+)
+def test_live_proxy_preserves_host_retry_after(monkeypatch, status, retry_headers, retry_after):
+    for name in (
+        "PODCAST_REPORT_STORE",
+        "PODCAST_REPORT_PUBLIC_BASE_URL",
+        "PODCAST_REPORT_GITHUB_TOKEN",
+    ):
+        monkeypatch.setenv(name, "")
+    body = b'{"error":"host-busy"}'
+    with _live_relay(monkeypatch) as base:
+        with (
+            _tunnel_hello_register(
+                base, host_id="retry-host", token="retry-share", capabilities=["view"]
+            ) as tunnel,
+            ThreadPoolExecutor(max_workers=1) as pool,
+        ):
+            request = pool.submit(
+                get,
+                base.replace("ws://", "http://") + "/api/review/retry-share/project",
+                timeout=5,
+                trust_env=False,
+            )
+            frame = _ws_recv(tunnel)
+            assert frame["type"] == "http"
+            _ws_send(
+                tunnel,
+                {
+                    "type": "http_response",
+                    "id": frame["id"],
+                    "status": status,
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "Set-Cookie": "host-cookie=private",
+                        "X-Host-Private": "private",
+                        "Content-Length": "999",
+                        "Connection": "host-connection",
+                        "Transfer-Encoding": "host-encoding",
+                        **retry_headers,
+                    },
+                    "body_b64": base64.b64encode(body).decode("ascii"),
+                    "eof": True,
+                },
+            )
+            response = request.result(timeout=6)
+    assert response.status_code == status
+    assert response.content == body
+    assert "set-cookie" not in response.headers
+    assert "x-host-private" not in response.headers
+    assert "content-length" not in response.headers
+    assert response.headers.get("connection") != "host-connection"
+    assert response.headers.get("transfer-encoding") != "host-encoding"
+    assert response.headers.get("retry-after") == retry_after
 
 
 class _AutoAnswerWs:
