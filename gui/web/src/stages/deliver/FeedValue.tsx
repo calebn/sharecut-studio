@@ -71,7 +71,7 @@ export function FeedValue({ field, fact, edit, onEdit, onFix }: Props) {
     return (
       <div className="fd-editing" ref={row}>
         <InlineEdit
-          autoFocus
+          focusOnMount
           className="fd-input"
           label={`Edit ${spec.label}`}
           value={fact.value ?? ""}
