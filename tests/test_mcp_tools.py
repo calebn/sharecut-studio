@@ -116,8 +116,8 @@ def test_episode_create_and_track_add(tmp_path, sample_wav):
     assert "entries" in listed
     recorded = json.loads(mcp_server.history_record(path, label="session-test"))
     assert "id_label" in recorded
-    md = mcp_server.export_transcript(path)
-    assert isinstance(md, str)
+    exported = json.loads(mcp_server.export_transcript(path, dry_run=True))
+    assert exported["turns"] == 0
     diff = json.loads(mcp_server.history_diff_tool(path))
     assert isinstance(diff, dict)
     undone = json.loads(mcp_server.history_undo(path))
@@ -782,8 +782,9 @@ def test_export_transcript_mcp(tmp_path):
         ]
     )
     save_project(proj, Path(path))
-    out = mcp_server.export_transcript(path)
-    assert out.endswith(".md")
+    out = json.loads(mcp_server.export_transcript(path))
+    assert [f["format"] for f in out["files"]] == ["md", "srt"]
+    assert out["files"][0]["name"] == "show.md"
 
 
 def test_history_undo_mcp_surfaces_merge_conflict(minimal_project):

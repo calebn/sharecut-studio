@@ -131,7 +131,7 @@ Outputs in episode `export/`:
 
 - `{name}.wav` (PCM copy of mastered mix when `export.wav: true`)
 - Encoded files from `export.formats` (default: `{name}.mp3` at 128 kbps)
-- `{name}.md` combined transcript (whole utterances)
+- `{name}.md` combined transcript (whole utterances; timestamps are `[m:ss]`, `[h:mm:ss]` past an hour)
 - `{name}.srt` captions: word-timed cues split to `export.captions` limits (default ≤7s,
   ≤42 chars/line, ≤2 lines, ≥1s on screen) — see
   [docs/transcript-workflow.md § Captions](../../docs/transcript-workflow.md#captions-srtvtt)
@@ -184,7 +184,7 @@ export:
     max_lines: 2
 ```
 
-`podcast transcript export-srt` / `export-vtt` take the same limits as CLI options
+`podcast transcript export --format srt` / `--format vtt` take the same limits as CLI options
 (`--max-duration-sec`, `--max-chars-per-line`, `--max-lines`); unset ones fall back to
 `export.captions`. See [docs/transcript-workflow.md § Captions](../../docs/transcript-workflow.md#captions-srtvtt).
 

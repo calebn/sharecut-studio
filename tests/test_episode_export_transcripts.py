@@ -88,7 +88,7 @@ def test_episode_export_refreshes_edited_transcripts_and_reports_their_paths(
     assert "Removed" not in subtitles
     assert "Removed" not in markdown
     assert "00:00:02,000 --> 00:00:03,000\nLater." in subtitles
-    assert "[2.0s]: Later." in markdown
+    assert "[0:02]: Later." in markdown
 
 
 @pytest.mark.parametrize(
@@ -138,7 +138,7 @@ def test_failed_episode_export_preserves_all_previous_files(
         serializer = (
             "combined_transcript_markdown" if fault.startswith("md_") else "utterances_to_srt"
         )
-        monkeypatch.setattr(f"podcast_mcp.export.episode.{serializer}", fail_serialization)
+        monkeypatch.setattr(f"podcast_mcp.export.transcript.{serializer}", fail_serialization)
     if fault.endswith("_write"):
         original_write = Path.write_text
 
@@ -209,7 +209,7 @@ def test_pipeline_and_service_export_the_same_configured_transcripts(
         store.put(workspace.path, reset=True)
 
 
-@pytest.mark.parametrize("format", ["markdown", "srt", "vtt"])
+@pytest.mark.parametrize("format", ["md", "srt", "vtt"])
 def test_explicit_transcript_export_takes_render_lock_before_project_transaction(
     export_workspace: tuple[ProjectWorkspace, Path], monkeypatch: pytest.MonkeyPatch, format: str
 ) -> None:
@@ -227,7 +227,7 @@ def test_explicit_transcript_export_takes_render_lock_before_project_transaction
     monkeypatch.setattr(workspace, "transaction", locked_transaction)
     service = TranscriptService(workspace)
 
-    path = service.export_markdown() if format == "markdown" else service.export_subtitles(format)
+    path = Path(service.export([format]).files[0].path)
 
     assert path.is_file()
     assert "Later." in path.read_text()

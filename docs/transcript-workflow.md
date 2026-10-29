@@ -580,9 +580,33 @@ A host who waives once can approve hits one at a time, apply all, and render wit
 | Low-confidence word, grammar unclear | Refine batch → audition |
 | Single ambiguous span | Audition only |
 
+## Exporting the transcript
+
+One call writes the edited episode's transcript next to the audio, in `export/`, under the
+episode's file stem: `TranscriptService.export(formats, dry_run, with_text, limits)`. CLI
+`podcast transcript export --project P [--format txt|md|srt|vtt]... [--dry-run] [--text] [--json]`
+(default formats `md` and `srt`), MCP `export_transcript(project_path, formats, dry_run,
+with_text)`, and host HTTP `POST /api/transcript/export` all return the same result: `language`
+(the most common `Transcript.language`, `en` by default), `turns`, `duration_sec`, a six-turn
+`preview`, a `cue_sample`, the `files` written (`format`, `path`, `name`, `bytes`, `language`,
+`written`, `current`) and, with `with_text`, the full reading `text`.
+
+- Content is the edited timeline: cut material is omitted, times are on the deliverable clock.
+- `txt` is the reading text: a title line, `Language: xx`, then `Speaker  m:ss` blocks. `md`
+  is `**Speaker** [m:ss]: text` (`[h:mm:ss]` from one hour). `srt` and `vtt` are word-timed cues.
+- The files are written together or not at all. `--dry-run` takes no lock and writes nothing.
+  An episode with no turns refuses a real write with `transcript_empty`; a render held by
+  another writer past 30 s refuses with `export_busy`.
+- `podcast transcript exports --project P [--json]`, MCP `list_exported_transcripts` and
+  `GET /api/transcript/exports` list what is on disk (`<stem>.{txt,md,srt,vtt}` only, never
+  `bounces/` or `clips/`) with `mime`, `language`, `modified` and `current` (false once the
+  transcript was edited since the file was written).
+- The pipeline's Export step and audio Export write `md` and `srt` through the same renderers
+  (`export/transcript.py: render_transcript_formats`).
+
 ## Captions (SRT/VTT)
 
-`transcript export-srt` / `export-vtt` and the pipeline's `export_deliverables` step both
+`transcript export` and the pipeline's `export_deliverables` step both
 build cues through `export/transcript.py` (`utterances_to_srt` / `utterances_to_vtt`), the
 one place SRT/VTT cues are built. Cues are word-timed: kept (non-suppressed) words are
 grouped per track the same way `merge_transcripts` groups a combined utterance
@@ -629,8 +653,8 @@ Defaults (common caption guidance — about 2 lines of about 42 characters, at m
 
 Set them in [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml)
 (`export.captions`, used by `export_deliverables`), or per invocation with
-`podcast transcript export-srt --max-duration-sec … --max-chars-per-line … --max-lines …`
-(same flags on `export-vtt`); unset CLI flags fall back to the pipeline defaults.
+`podcast transcript export --format srt --max-duration-sec … --max-chars-per-line … --max-lines …`
+(the same flags apply to `--format vtt`); unset CLI flags fall back to the pipeline defaults.
 `min_duration_sec` / `merge_max_gap_sec` are yaml-only (no CLI flags). `--max-lines` must
 be at least 1 and `--max-duration-sec` must be greater than 0 — the CLI rejects a bad flag
 value with a usage error (exit 2). `export.captions` yaml values are checked the same way

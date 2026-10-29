@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeVar
 
-from podcast_mcp.config.defaults import unsure_word_confidence
+from podcast_mcp.config.defaults import EffectiveConfig, unsure_word_confidence
 from podcast_mcp.edits.transcript_correct import (
     TranscriptTextChangedError,
     apply_transcript_corrections,
@@ -40,7 +42,18 @@ from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.models.registry import require_model
 from podcast_mcp.engines.models.whisper import resolve_whisper_model
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs, track_transcribe_job
-from podcast_mcp.export.transcript import CaptionLimits, write_combined_transcript_markdown
+from podcast_mcp.export.names import sanitize_export_stem
+from podcast_mcp.export.transcript import (
+    TRANSCRIPT_FORMATS,
+    TRANSCRIPT_MIME,
+    CaptionLimits,
+    first_cue_sample,
+    render_reading_text,
+    render_transcript_formats,
+    resolve_caption_limits,
+    timeline_utterances,
+    transcript_language,
+)
 from podcast_mcp.models import (
     CombinedTranscript,
     EditDecision,
@@ -50,7 +63,13 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.service_base import WorkspaceService
-from podcast_mcp.util.project_state import render_lock
+from podcast_mcp.util.atomic_render import render_atomic_all
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
+from podcast_mcp.util.project_state import (
+    REQUEST_RENDER_LOCK_TIMEOUT_SEC,
+    RenderBusyError,
+    render_lock,
+)
 
 from .transcript_timing import word_timing_media
 
@@ -67,6 +86,80 @@ def _user_transcript_edit(
         return run_user_transcript_edit(p, track_id, fn, source_id)
 
     return run
+
+
+PREVIEW_TURNS = 6
+
+
+class ExportBusyError(CodedError, RuntimeError):
+    """Another render of this project holds the lock past the request timeout."""
+
+    code = "export_busy"
+
+
+class TranscriptEmptyError(CodedError, ValueError):
+    """The edited episode has no transcript turns to write."""
+
+    code = "transcript_empty"
+
+
+@dataclass
+class TranscriptPreviewTurn:
+    speaker: str
+    start_sec: float
+    text: str
+
+
+@dataclass
+class TranscriptExportFile:
+    format: str
+    path: str
+    name: str
+    bytes: int
+    language: str
+    written: bool
+    current: bool
+
+
+@dataclass
+class TranscriptExport:
+    """Result of :meth:`TranscriptService.export`; the same JSON on every surface."""
+
+    language: str
+    turns: int
+    duration_sec: float
+    preview: list[TranscriptPreviewTurn]
+    cue_sample: str | None
+    files: list[TranscriptExportFile]
+    text: str | None
+
+
+@dataclass
+class ExportedTranscript:
+    format: str
+    path: str
+    name: str
+    mime: str
+    language: str
+    bytes: int
+    modified: str
+    current: bool
+
+
+def _validated_formats(formats: Sequence[str]) -> tuple[str, ...]:
+    bad = [f for f in formats if f not in TRANSCRIPT_FORMATS]
+    if bad:
+        raise CodedValueError(
+            f"Unknown transcript format {bad[0]!r}; use one of {', '.join(TRANSCRIPT_FORMATS)}.",
+            code="invalid_format",
+        )
+    if not formats:
+        raise CodedValueError("Choose at least one transcript format.", code="invalid_format")
+    return tuple(dict.fromkeys(formats))
+
+
+def _configured_limits(defaults: EffectiveConfig) -> CaptionLimits:
+    return resolve_caption_limits(defaults.get("export", {}))
 
 
 class TranscriptService(WorkspaceService):
@@ -148,29 +241,135 @@ class TranscriptService(WorkspaceService):
 
         return json.dumps([t.model_dump() for t in p.transcripts], indent=2)
 
-    def export_markdown(self) -> Path:
-        with render_lock(self.ws.project), self.ws.transaction() as p:
-            if not p.combined_transcript:
-                p.combined_transcript = self._engine.merge_transcripts(p)
-            out = write_combined_transcript_markdown(p, self.ws.effective_config())
-            self.ws.save()
-        return out
+    def export(
+        self,
+        formats: Sequence[str],
+        *,
+        dry_run: bool = False,
+        with_text: bool = False,
+        limits: CaptionLimits | None = None,
+    ) -> TranscriptExport:
+        """Write the edited episode's transcript as ``formats`` (``txt|md|srt|vtt``), or preview it.
 
-    def export_subtitles(self, fmt: str = "srt", *, limits: CaptionLimits | None = None) -> Path:
-        from podcast_mcp.export.names import sanitize_export_stem
-        from podcast_mcp.export.transcript import utterances_to_srt, utterances_to_vtt
+        Files land in ``export_dir()`` next to the audio, all together or none. ``dry_run``
+        takes no lock, writes nothing and returns the preview only; ``with_text`` adds the
+        reading text. A real write of an episode with no turns raises ``transcript_empty``;
+        a render held by another writer past the request timeout raises ``export_busy``.
+        """
+        wanted = _validated_formats(formats)
+        if dry_run:
+            return self._export_result(self.ws.project.model_copy(deep=True), with_text, limits)
+        try:
+            with (
+                render_lock(self.ws.project, timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC),
+                self.ws.transaction() as p,
+            ):
+                before = p.combined_transcript
+                result = self._write_files(p, wanted, with_text, limits)
+                if p.combined_transcript != before:
+                    self.ws.save()
+        except RenderBusyError as exc:
+            raise ExportBusyError(
+                "Another export of this project is running. Try again when it finishes."
+            ) from exc
+        return result
 
-        with render_lock(self.ws.project), self.ws.transaction() as p:
-            if not p.combined_transcript:
-                p.combined_transcript = self._engine.merge_transcripts(p)
-            p.export_dir().mkdir(parents=True, exist_ok=True)
-            if fmt == "vtt":
-                out = p.export_dir() / f"{sanitize_export_stem(p.name)}.vtt"
-                out.write_text(utterances_to_vtt(p, limits=limits), encoding="utf-8")
-            else:
-                out = p.export_dir() / f"{sanitize_export_stem(p.name)}.srt"
-                out.write_text(utterances_to_srt(p, limits=limits), encoding="utf-8")
-            self.ws.save()
+    def _write_files(
+        self,
+        p: EpisodeProject,
+        formats: tuple[str, ...],
+        with_text: bool,
+        limits: CaptionLimits | None,
+    ) -> TranscriptExport:
+        defaults = self.ws.effective_config()
+        limits = limits or _configured_limits(defaults)
+        result = self._export_result(p, with_text, limits)
+        if result.turns == 0:
+            raise TranscriptEmptyError("Every word is cut. Nothing to export.")
+        rendered = render_transcript_formats(p, defaults, formats, limits)
+        stem = p.export_dir() / sanitize_export_stem(p.name)
+        dests = [stem.with_name(f"{stem.name}.{fmt}") for fmt in rendered]
+
+        def render(temps: list[Path]) -> None:
+            for tmp, content in zip(temps, rendered.values(), strict=True):
+                tmp.write_text(content, encoding="utf-8")
+
+        render_atomic_all(dests, render, reap_partials=True)
+        result.files = [
+            TranscriptExportFile(
+                format=fmt,
+                path=str(dest),
+                name=dest.name,
+                bytes=dest.stat().st_size,
+                language=result.language,
+                written=True,
+                current=True,
+            )
+            for fmt, dest in zip(rendered, dests, strict=True)
+        ]
+        return result
+
+    def _export_result(
+        self,
+        p: EpisodeProject,
+        with_text: bool,
+        limits: CaptionLimits | None,
+    ) -> TranscriptExport:
+        """The preview half of an export, rendered from ``p`` (which it may merge in memory)."""
+        defaults = self.ws.effective_config()
+        limits = limits or _configured_limits(defaults)
+        turns = timeline_utterances(p, defaults)
+        return TranscriptExport(
+            language=transcript_language(p),
+            turns=len(turns),
+            duration_sec=max((u.end for u in turns), default=0.0),
+            preview=[
+                TranscriptPreviewTurn(speaker=u.speaker, start_sec=u.start, text=u.text)
+                for u in turns[:PREVIEW_TURNS]
+            ],
+            cue_sample=first_cue_sample(p, limits),
+            files=[],
+            text=render_reading_text(p, defaults) if with_text else None,
+        )
+
+    def exported(self) -> list[ExportedTranscript]:
+        """Transcript files in ``export_dir()`` for this project, read-only (no lock, no save).
+
+        Only ``<stem>.{txt,md,srt,vtt}`` directly in the folder count, so ``bounces/`` and
+        ``clips/`` never appear. ``current`` compares each file's bytes with a fresh render.
+        """
+        p = self.ws.project
+        stem = sanitize_export_stem(p.name)
+        found = [
+            (fmt, p.export_dir() / f"{stem}.{fmt}")
+            for fmt in TRANSCRIPT_FORMATS
+            if (p.export_dir() / f"{stem}.{fmt}").is_file()
+        ]
+        if not found:
+            return []
+        fresh = p.model_copy(deep=True)
+        defaults = self.ws.effective_config()
+        rendered = render_transcript_formats(
+            fresh, defaults, [fmt for fmt, _ in found], _configured_limits(defaults)
+        )
+        language = transcript_language(fresh)
+        out: list[ExportedTranscript] = []
+        for fmt, path in found:
+            data = path.read_bytes()
+            out.append(
+                ExportedTranscript(
+                    format=fmt,
+                    path=str(path),
+                    name=path.name,
+                    mime=TRANSCRIPT_MIME[fmt],
+                    language=language,
+                    bytes=len(data),
+                    modified=datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                    current=data == rendered[fmt].encode("utf-8"),
+                )
+            )
         return out
 
     def _guarded_transcript_edit(
