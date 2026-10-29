@@ -25,7 +25,6 @@ async function openShare(page: Page, projectPath: string): Promise<Locator> {
   return section;
 }
 
-/** The box is inside the 390 px width, scrolled into view first. */
 async function expectWithinWidth(locator: Locator): Promise<void> {
   await locator.scrollIntoViewIfNeeded();
   const box = await locator.boundingBox();

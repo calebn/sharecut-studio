@@ -2,7 +2,6 @@ import type { ShareOptions } from "../../stages/deliver/shareLogic";
 import type { TunnelStatus } from "../../types/tunnel";
 import type { ShareFlow } from "./shareFlowContext";
 
-/** What the Deliver stage shows for Share, from the flow and what the host knows. */
 export function shareOptionsOf(
   flow: ShareFlow,
   host: {
