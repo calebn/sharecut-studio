@@ -448,6 +448,16 @@ describe("DecisionCard verb", () => {
     expect(props.onVerb).not.toHaveBeenCalled();
   });
 
+  it("links the blocked primary to the visible reason", () => {
+    render(<DecisionCard {...base()} verbDisabledReason="Open it." />);
+    const note = screen.getByText("Open it.");
+    expect(note.id).not.toBe("");
+    expect(screen.getByRole("button", { name: "Cut" })).toHaveAttribute(
+      "aria-describedby",
+      note.id,
+    );
+  });
+
   it("offers no Keep without a Keep handler", () => {
     render(<DecisionCard {...base()} onKeep={undefined} />);
     expect(screen.queryByRole("button", { name: /^Keep/ })).toBeNull();

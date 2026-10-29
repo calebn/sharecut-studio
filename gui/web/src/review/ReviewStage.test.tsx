@@ -463,7 +463,7 @@ describe("ReviewStage unsure words", () => {
     expect(onDecide).not.toHaveBeenCalled();
   });
 
-  it("fixes a cut's word through its card and keeps the cut selected with its verb free", async () => {
+  it("fixes a cut's word through its card, keeps the cut selected and leaves its verb to the host", async () => {
     const onDecide = vi.fn();
     const content = (item: ReviewItem) => {
       const body = reviewContent(item);
@@ -492,7 +492,7 @@ describe("ReviewStage unsure words", () => {
       result: "applied",
       text: "oncle",
     });
-    expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
   });
 });
 

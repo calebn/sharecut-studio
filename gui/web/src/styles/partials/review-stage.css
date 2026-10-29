@@ -92,6 +92,11 @@
 
 /* Stage frame */
 
+/* A programmatic focus target (tabIndex -1), never a tab stop: the focused card and button carry their own ring. */
+.rv-stage:focus {
+  outline: none;
+}
+
 .rv-stage {
   container-type: inline-size;
   display: flex;
