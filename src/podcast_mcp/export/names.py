@@ -7,9 +7,10 @@ import re
 from podcast_mcp.util.hashing import short_digest
 
 MAX_FILENAME_COMPONENT_BYTES = 255
-# The longest standard sidecar is ``.chapters.json`` (14 bytes).  Reserve one
-# extra byte so ordinary format extensions still fit in the same component.
-MAX_EXPORT_STEM_BYTES = 240
+# The longest component an export writes is the chapters sidecar's atomic temp,
+# ``<stem>.chapters.<pid>.<32 hex>.partial.json``: 10 pid digits and 13 suffix bytes.
+_LONGEST_EXPORT_SUFFIX_BYTES = len(".chapters.") + 10 + len(".") + 32 + len(".partial.json")
+MAX_EXPORT_STEM_BYTES = MAX_FILENAME_COMPONENT_BYTES - _LONGEST_EXPORT_SUFFIX_BYTES
 
 _WINDOWS_RESERVED_BASENAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}

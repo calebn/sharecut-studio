@@ -116,7 +116,8 @@ stale audio.
 Same `PipelineService.export_audio` / `render_final` path as the **Export** button on Sharecut Studio's Deliver stage / `Mod+Shift+E` (formats chosen on the page, progress with Cancel, then the written files) and the Pipeline tab’s `export_deliverables` step.
 
 Studio, CLI `export-audio`, MCP `export_audio_tool`, and the pipeline export step
-refresh the current edited-timeline SRT and Markdown whenever transcripts exist.
+refresh the current edited-timeline SRT and Markdown whenever transcripts exist,
+and write the chapters file whenever the project has chapters.
 Those paths appear alongside the audio paths in the result. Caption validation,
 transcript preparation, and all temporary writes complete before publication, so a
 failed preparation or encode, or cancellation before publication, keeps the earlier
@@ -134,6 +135,8 @@ Outputs in episode `export/`:
 - `{name}.srt` captions: word-timed cues split to `export.captions` limits (default ≤7s,
   ≤42 chars/line, ≤2 lines, ≥1s on screen) — see
   [docs/transcript-workflow.md § Captions](../../docs/transcript-workflow.md#captions-srtvtt)
+- `{name}.chapters.json` Podcasting 2.0 chapters (only when the project has chapters; a project
+  without chapters removes an older file)
 
 `{name}` is a portable sanitized filename stem, not the project title verbatim:
 `My Episode: Part 1/2` exports as `My_Episode_Part_1_2.wav`. Dot-path names,

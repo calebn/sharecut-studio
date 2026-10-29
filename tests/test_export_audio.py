@@ -253,6 +253,45 @@ def test_a_project_without_chapters_writes_none_and_removes_a_stale_file(tmp_pat
     assert _export_listing(project) == {"ep.mp3": b"MP3", "ep.wav": b"NEW-WAV"}
 
 
+@pytest.mark.parametrize("failure", [subprocess.CalledProcessError(1, ["ffmpeg"]), None])
+def test_a_failed_or_cancelled_export_keeps_the_stale_chapters_file_of_a_project_without_chapters(
+    tmp_path: Path, failure
+):
+    project = _project_with_previous_export(tmp_path)
+    stale = project.export_dir() / "ep.chapters.json"
+    stale.write_text("OLD-CHAPTERS", encoding="utf-8")
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"NEW-WAV")
+    eng = MagicMock()
+    eng.export_audio.side_effect = _writes_output
+
+    if failure is None:
+        with pytest.raises(CancelledProgress):
+            export_episode_deliverables(
+                project, eng, mastered, {"export": MP3}, cancel_check=lambda: True
+            )
+    else:
+        eng.export_audio.side_effect = failure
+        with pytest.raises(subprocess.CalledProcessError):
+            export_episode_deliverables(project, eng, mastered, {"export": MP3})
+
+    assert stale.read_text("utf-8") == "OLD-CHAPTERS"
+
+
+def test_the_longest_export_name_with_chapters_still_publishes(tmp_path: Path):
+    project = EpisodeProject.create("é" * 500, str(tmp_path))
+    project.ensure_dirs()
+    project.chapters = [ChapterMarker(time=1.0, title="A")]
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"NEW-WAV")
+    eng = MagicMock()
+    eng.export_audio.side_effect = _writes_output
+
+    paths = export_episode_deliverables(project, eng, mastered, {"export": MP3})
+
+    assert any(path.name.endswith(".chapters.json") for path in paths)
+
+
 @pytest.mark.parametrize(
     ("chapters", "expected_prefix"),
     [
