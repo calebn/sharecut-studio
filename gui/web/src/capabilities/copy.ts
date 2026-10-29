@@ -317,6 +317,9 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Export deliverables…",
     tooltip: "Export deliverables…",
   },
+  "daw.export.transcript": {
+    label: "Export transcript",
+  },
   "daw.project.new": {
     label: "New project…",
     tooltip: "New project…",
