@@ -183,8 +183,9 @@ function editFindings(item: Scalars, show: ShowState): Finding[] {
 const escapeHtml = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-const known = <T>(fact: Fact<T>): T | null =>
-  isKnown(fact) ? fact.value : null;
+function known<T>(fact: Fact<T>): T | null {
+  return isKnown(fact) ? fact.value : null;
+}
 
 /** Stands in for the service's notes renderer: the pinned text, or the intro with live chapters and credits. */
 function renderNotes(view: FeedView): string {
