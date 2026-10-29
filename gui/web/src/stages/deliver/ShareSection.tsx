@@ -96,7 +96,7 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
     if (text && selection) selection.selectAllChildren(text);
   }, [blockedKey]);
 
-  // Escape keeps the link or room, as Keep does, before anything else takes it.
+  // Escape keeps the link or room, as Keep does.
   const asking = pending !== null;
   useEffect(() => {
     if (!asking) return;

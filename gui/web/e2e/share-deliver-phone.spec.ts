@@ -69,8 +69,6 @@ test("phone 390x844: Share follows Episode file in the one column, with 44 px co
         layoutHeight: el instanceof HTMLElement ? el.offsetHeight : 0,
       })),
     );
-    // Three roles, MCP and Freeze, Create review link, Create record links,
-    // and one row's Copy and Stop sharing.
     expect(sizes.length).toBeGreaterThanOrEqual(9);
     for (const size of sizes) expectTouchHeight(size.height, size.layoutHeight);
 

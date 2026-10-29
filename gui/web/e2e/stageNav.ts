@@ -333,7 +333,7 @@ export async function openProjectMenuItem(
 }
 
 /**
- * Open the dialog `dialog` from where it lives now: Share from the header's Invite, the Record stage, the palette on the header's search.
+ * Open the dialog `dialog` from its entry point: Share from the header's Invite, the Record stage, the palette on the header's search.
  */
 export async function openProjectDialog(
   page: Page,
@@ -341,8 +341,6 @@ export async function openProjectDialog(
 ): Promise<void> {
   switch (dialog) {
     case "share": {
-      // The dialog still opens from the header Invite; Deliver's Share is a
-      // section now (`deliverShare`).
       const invite = page
         .locator(".stage-frame-header")
         .getByRole("button", { name: "Invite", exact: true });
@@ -350,7 +348,6 @@ export async function openProjectDialog(
         await invite.click();
         return;
       }
-      // A folded header gives Invite to the Project menu.
       const menu = await openProjectMenu(page);
       await menu.getByRole("menuitem", { name: "Invite", exact: true }).click();
       return;

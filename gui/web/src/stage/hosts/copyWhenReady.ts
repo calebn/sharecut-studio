@@ -1,4 +1,4 @@
-import { copyText } from "../../record/recordLinks";
+import { copyText } from "../../record";
 
 /**
  * Copies text that is not known yet, such as a link still being made, from a

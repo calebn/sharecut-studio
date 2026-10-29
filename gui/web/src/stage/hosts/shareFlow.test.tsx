@@ -195,6 +195,18 @@ describe("listing", () => {
     expect(listHostShares).not.toHaveBeenCalled();
   });
 
+  it("lists again when the Share dialog closes on Deliver", async () => {
+    mount();
+    act(() => flow.reload());
+    await waitFor(() => expect(listHostShares).toHaveBeenCalledTimes(1));
+    act(() => useDawStore.getState().setShareDialogOpen(true));
+    expect(listHostShares).toHaveBeenCalledTimes(1);
+    listHostShares.mockResolvedValue(listed([liveRow]));
+    act(() => useDawStore.getState().setShareDialogOpen(false));
+    await waitFor(() => expect(flow.rows).toEqual([liveRow]));
+    expect(listHostShares).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps the last listed links when Deliver is left, and forgets them for another project", async () => {
     listHostShares.mockResolvedValue(listed([liveRow]));
     mount();
@@ -270,6 +282,27 @@ describe("creating a link", () => {
     await waitFor(() =>
       expect(announcement()).toBe("Review link created and copied"),
     );
+  });
+
+  it("writes nothing to the clipboard when Deliver is left before the link arrives", async () => {
+    class FakeItem {
+      readonly items: Record<string, Promise<Blob>>;
+      constructor(items: Record<string, Promise<Blob>>) {
+        this.items = items;
+      }
+    }
+    vi.stubGlobal("ClipboardItem", FakeItem);
+    const write = vi.fn().mockResolvedValue(undefined);
+    setClipboard({ write, writeText: vi.fn() });
+    const minted = deferred<HostShareRow>();
+    createHostShare.mockReturnValue(minted.promise);
+    mount();
+    act(() => flow.create());
+    const item = write.mock.calls[0][0][0] as FakeItem;
+    const refused = expect(item.items["text/plain"]).rejects.toThrow();
+    leaveDeliver();
+    await act(async () => minted.resolve(liveRow));
+    await refused;
   });
 
   it("keeps the link and asks for a copy by hand when the browser refuses, without a raw error", async () => {
@@ -418,7 +451,7 @@ describe("create recovery", () => {
       409,
     );
 
-  it("waits for Refresh to succeed, then retries the captured request once", async () => {
+  it("waits for Refresh to succeed, then retries once with the choices now shown", async () => {
     const refresh = deferred<{ status: "ok" }>();
     execute.mockReturnValue(refresh.promise);
     createHostShare
@@ -448,9 +481,8 @@ describe("create recovery", () => {
     refresh.resolve({ status: "ok" });
     await waitFor(() => expect(createHostShare).toHaveBeenCalledTimes(2));
     expect(createHostShare).toHaveBeenNthCalledWith(2, PATH, {
-      role: "viewer",
-      with_mcp: false,
-      freeze: true,
+      role: "editor",
+      with_mcp: true,
     });
     await waitFor(() => expect(flow.rows).toEqual([liveRow]));
     expect(flow.recovery).toEqual({ kind: "idle" });

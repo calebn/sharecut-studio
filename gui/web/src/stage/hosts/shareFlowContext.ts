@@ -14,7 +14,7 @@ export type ShareFlow = {
   loaded: boolean;
   choices: ShareChoices;
   setChoices: (next: ShareChoices) => void;
-  /** One action runs at a time; the rest wait. */
+  /** One action runs at a time; a second is dropped while this is true. */
   busy: boolean;
   recovery: ShareCreateRecovery;
   error: string | null;

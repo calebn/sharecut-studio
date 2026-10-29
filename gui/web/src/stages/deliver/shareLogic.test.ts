@@ -136,18 +136,18 @@ describe("shareRowsOf", () => {
 });
 
 describe("reachOf", () => {
-  it("is anywhere only when online sharing is on, whatever the link says", () => {
+  it("is network only when online sharing is off, whatever the link says", () => {
     expect(reachOf(tunnel("online"), "http://127.0.0.1:8765/r/a")).toBe(
       "anywhere",
     );
-    for (const state of [
-      "connecting",
-      "reconnecting",
-      "offline",
-      "off",
-    ] as const) {
-      expect(reachOf(tunnel(state), "https://share.example.test/r/a")).toBe(
-        "network",
+    expect(reachOf(tunnel("off"), "https://share.example.test/r/a")).toBe(
+      "network",
+    );
+  });
+  it("adds no note while online sharing is connecting, reconnecting or offline", () => {
+    for (const state of ["connecting", "reconnecting", "offline"] as const) {
+      expect(reachOf(tunnel(state), "http://127.0.0.1:8765/r/a")).toBe(
+        "anywhere",
       );
     }
   });
