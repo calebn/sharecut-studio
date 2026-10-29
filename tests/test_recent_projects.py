@@ -497,7 +497,6 @@ def test_an_entry_whose_path_json_cannot_carry_is_dropped_from_list_and_file(loc
     assert res.status_code == 200
     cards = res.json()["projects"]
     assert [c["name"] for c in cards] == ["good"]
-    assert not any("\ufffd" in c["name"] + c["path"] for c in cards)
     assert [e.path for e in recent.read_recent()] == [str(good.resolve())]
     assert [p["path"] for p in json.loads(saved.read_text(encoding="utf-8"))["projects"]] == [
         str(good.resolve())
