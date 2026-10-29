@@ -165,9 +165,11 @@ test.describe("Stage shell on desktop", () => {
     await player(page).getByRole("button", { name: "Comment" }).click();
     const review = page.getByRole("main", { name: "Review" });
     await expect(review).toBeVisible();
-    await page.getByPlaceholder("Add a comment…").fill("Stage shell comment");
-    await page.getByRole("button", { name: "Post comment" }).click();
-    await expect(review.getByText("Stage shell comment")).toBeVisible();
+    await page
+      .getByRole("textbox", { name: "Comment", exact: true })
+      .fill("Stage shell comment");
+    await page.getByRole("button", { name: "Post", exact: true }).click();
+    await expect(review.getByText("Stage shell comment").first()).toBeVisible();
     // The posted comment waits for review, so the tab badge counts it.
     await expect.poll(waiting).toBeGreaterThan(0);
   });

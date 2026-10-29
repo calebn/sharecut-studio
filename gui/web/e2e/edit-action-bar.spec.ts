@@ -447,14 +447,17 @@ test.describe("Phone dock", () => {
 test.describe("Keys and focus", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  test("C opens a focused composer, so typing a comment fires no shortcut", async ({
+  test("C opens the Review composer, focused, so typing a comment fires no shortcut", async ({
     page,
   }) => {
     await openEdit(page);
     await selectFirstClip(page);
     const sent = watchCommands(page);
     await page.locator("body").press("c");
-    const composer = page.getByPlaceholder("Add a comment…");
+    const composer = page.getByRole("textbox", {
+      name: "Comment",
+      exact: true,
+    });
     await expect(composer).toBeFocused();
     await page.keyboard.type("my");
     await expect(composer).toHaveValue("my");
