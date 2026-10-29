@@ -46,7 +46,7 @@ export type WordTarget = {
   endSec: number | null;
 };
 
-const wordIdOf = (track: string, source: string | null, index: number) =>
+export const wordIdOf = (track: string, source: string | null, index: number) =>
   `word:${track}:${source ?? ""}:${index}`;
 
 const SUGGESTED = ["cut", "shorten", "lower", "leave"] as const;
