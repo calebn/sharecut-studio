@@ -171,6 +171,7 @@ describe("listing", () => {
     act(() => flow.reload());
     await waitFor(() => expect(flow.error).toBe("List failed"));
     expect(flow.loaded).toBe(false);
+    expect(flow.listFailed).toBe(true);
   });
 
   it("clears a list error when a later list answers", async () => {
@@ -181,6 +182,7 @@ describe("listing", () => {
     act(() => flow.reload());
     await waitFor(() => expect(flow.loaded).toBe(true));
     expect(flow.error).toBeNull();
+    expect(flow.listFailed).toBe(false);
   });
 
   it("drops a list error and a list from an obsolete project generation", async () => {

@@ -9,6 +9,7 @@ function flow(over: Partial<ShareFlow> = {}): ShareFlow {
   return {
     rows: [hostShareRow()],
     loaded: true,
+    listFailed: false,
     choices: SHARE_DEFAULTS,
     setChoices: vi.fn(),
     busy: false,

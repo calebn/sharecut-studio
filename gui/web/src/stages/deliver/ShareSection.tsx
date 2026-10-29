@@ -46,6 +46,7 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
   const {
     rows,
     loaded,
+    listFailed,
     choices,
     onChoices,
     busy,
@@ -240,7 +241,7 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
         <EmptyState>
           {loaded
             ? "No review links yet."
-            : error
+            : listFailed
               ? "Could not list your links."
               : "Looking for your links…"}
         </EmptyState>
@@ -283,7 +284,7 @@ export function ShareSection({ options, state: pageState = "ready" }: Props) {
         <EmptyState>
           {loaded
             ? "No record rooms yet."
-            : error
+            : listFailed
               ? "Could not list your rooms."
               : "Looking for your rooms…"}
         </EmptyState>

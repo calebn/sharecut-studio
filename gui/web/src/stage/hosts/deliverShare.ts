@@ -17,6 +17,7 @@ export function shareOptionsOf(
   return {
     rows: flow.rows,
     loaded: flow.loaded,
+    listFailed: flow.listFailed,
     choices: flow.choices,
     onChoices: flow.setChoices,
     busy: flow.busy,

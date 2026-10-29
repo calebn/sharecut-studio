@@ -219,6 +219,8 @@ export type ShareOptions = {
   rows: readonly HostShareRow[];
   /** False until the first list answers. */
   loaded: boolean;
+  /** True while the last list failed; the empty states then say so. */
+  listFailed?: boolean;
   choices: ShareChoices;
   onChoices: (next: ShareChoices) => void;
   /** One action runs at a time; the buttons wait. */
