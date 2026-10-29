@@ -93,9 +93,10 @@ SPEECH_GUARD_SEC = 0.15
 MAX_CANDIDATES = 16
 # A bed is checked in windows this long, hopping by half: a burst of speech in a long
 # bed must not be averaged away by the steady room around it. The bed's usable part is
-# its longest run of windows that pass; a run shorter than ``BED_MIN_USABLE_SEC`` is no bed.
+# its longest run of windows that pass, less ``SPEECH_GUARD_SEC`` at an end that abuts a
+# failed window; a run shorter than ``BED_MIN_USABLE_SEC`` would be tiled into a stutter.
 BED_WINDOW_SEC = 0.5
-BED_MIN_USABLE_SEC = 1.0
+BED_MIN_USABLE_SEC = 3.0
 MAX_BED_VERDICTS = 16
 
 Span = tuple[float, float]
@@ -952,7 +953,6 @@ def _measure_bed(path: Path, audio: np.ndarray) -> BedVerdict:
     levels_all = np.array(
         [rms_db(audio[i : i + window], floor_db=DIGITAL_SILENCE_DB) for i in starts]
     )
-    levels = levels_all
     # A gated bed is live room noise between stretches of digital silence; those windows
     # would pull the floor below the room itself.
     frame = round(SAMPLE_RATE * FRAME_SEC)
@@ -966,6 +966,7 @@ def _measure_bed(path: Path, audio: np.ndarray) -> BedVerdict:
     if live.any():
         levels = levels_all[live]
     else:
+        levels = levels_all
         live = np.ones(len(starts), dtype=bool)
     floor_db = float(np.percentile(levels, FLOOR_PERCENTILE))
     loud = levels[levels > floor_db + FLOOR_BAND_DB]
@@ -985,13 +986,14 @@ def _measure_bed(path: Path, audio: np.ndarray) -> BedVerdict:
         for i, level, is_live in zip(starts, levels_all, live, strict=True)
         if is_live
     ]
+    live_sec = (len(samples) - 1) * hop / SAMPLE_RATE + window / SAMPLE_RATE
     usable = _longest_passing_run(
-        samples, track, minimum_sec=min(BED_MIN_USABLE_SEC, audio.size / SAMPLE_RATE)
+        samples, track, minimum_sec=min(BED_MIN_USABLE_SEC, live_sec, audio.size / SAMPLE_RATE)
     )
     if usable is not None:
         return BedUsable(*usable)
     loudest = Sample(0.0, audio.size / SAMPLE_RATE, float(levels.max()), _speech_prob(audio))
-    failed = rejection(loudest, track) or "above_floor"
+    failed = rejection(loudest, track) or "no_usable_run"
     log.warning(
         "room tone bed %s rejected as contaminated by %s (loudest window %.1f dB, "
         "floor %.1f dB); using track audio",
@@ -1006,20 +1008,38 @@ def _measure_bed(path: Path, audio: np.ndarray) -> BedVerdict:
 def _longest_passing_run(
     samples: Sequence[Sample], track: TrackFloor, *, minimum_sec: float
 ) -> Span | None:
-    """The longest stretch of overlapping windows that all pass, at least ``minimum_sec``."""
-    best: Span | None = None
-    run: Span | None = None
-    for sample in samples:
-        if rejection(sample, track) is not None:
-            run = None
-            continue
-        run = (
-            (sample.start, sample.end)
-            if run is None or sample.start > run[1]
-            else (run[0], sample.end)
+    """The longest stretch of overlapping windows that all pass, at least ``minimum_sec``.
+
+    An end that abuts a failed window is pulled in by ``SPEECH_GUARD_SEC``: a word's attack
+    or tail, or a cough's, sits at the floor's level while it is still not room tone.
+    """
+    passed = [rejection(sample, track) is None for sample in samples]
+
+    def abuts_failure(index: int, neighbour: int) -> bool:
+        return (
+            0 <= neighbour < len(samples)
+            and not passed[neighbour]
+            and samples[neighbour].start < samples[index].end
+            and samples[index].start < samples[neighbour].end
         )
-        if best is None or run[1] - run[0] > best[1] - best[0]:
-            best = run
-    if best is None or best[1] - best[0] < minimum_sec - 1e-9:
-        return None
+
+    best: Span | None = None
+    first = 0
+    for index, sample in enumerate(samples):
+        if not passed[index]:
+            continue
+        joined = index > 0 and passed[index - 1] and sample.start < samples[index - 1].end
+        if not joined:
+            first = index
+        closes = index + 1 == len(samples) or not (
+            passed[index + 1] and samples[index + 1].start < sample.end
+        )
+        if not closes:
+            continue
+        start = samples[first].start + (
+            SPEECH_GUARD_SEC if abuts_failure(first, first - 1) else 0.0
+        )
+        end = sample.end - (SPEECH_GUARD_SEC if abuts_failure(index, index + 1) else 0.0)
+        if end - start >= minimum_sec - 1e-9 and (best is None or end - start > best[1] - best[0]):
+            best = (start, end)
     return best
