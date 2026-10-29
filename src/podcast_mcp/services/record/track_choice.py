@@ -9,7 +9,12 @@ from podcast_mcp.edits.session_track_remap import remap_staged_participant
 from podcast_mcp.engines.track_ids import slug_track_id
 from podcast_mcp.models import EpisodeProject, SessionSuggestion
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.record.landing import record_source_id, room_tone_raw_rel
+from podcast_mcp.services.record.landing import (
+    STAGED_TARGET_KINDS,
+    pending_rows,
+    record_source_id,
+    room_tone_raw_rel,
+)
 from podcast_mcp.services.record.landing_math import record_source_prefix
 from podcast_mcp.services.record.service import RecordSessionService
 from podcast_mcp.services.record.state import RecordSnapshot, find_participant
@@ -20,6 +25,7 @@ from podcast_mcp.services.record.track_match import (
     resolve_session_tracks,
     suggestion_for_session,
 )
+from podcast_mcp.services.record.upload import RecordUploadService
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 
 NEW_TRACK = "new"
@@ -192,12 +198,48 @@ class RecordTrackService:
             target, label = track, pool[track]
         for other in current.values():
             if other.participant_id != match.participant_id and other.track_id == target:
+                if not self._holds_track(project, other, current):
+                    continue
                 raise CodedValueError(
                     f'{other.display_name} is already on "{other.track_label}". Move them first, '
                     "or choose another track.",
                     code="track_taken",
                 )
         return target, label
+
+    def _holds_track(
+        self, project: EpisodeProject, other: TrackMatch, current: dict[str, TrackMatch]
+    ) -> bool:
+        """Whether ``other`` still keeps the track from a rejoiner: not when removed with nothing left to land.
+
+        A removed person holds it while they have staged or placed audio, or an acknowledged take
+        or bed that landing would still copy for the session's current target. Read without the
+        room land lock, so a land in flight can make this say yes too often, never too rarely.
+        """
+        snap = RecordSnapshot.model_validate(self._room.snapshot())
+        person = find_participant(snap, other.participant_id)
+        if person is None or not person.removed:
+            return True
+        if other.participant_id in held_tracks(project, self.session_id):
+            return True
+        if _has_placed_bed(project, self.session_id, other.participant_id):
+            return True
+        upload = RecordUploadService(project)
+        tombstoned = upload.tombstoned_takes(self.session_id)
+        segments, beds = pending_rows(
+            project,
+            upload,
+            self.session_id,
+            {p.participant_id: p.role for p in snap.participants},
+            staged=snap.target.kind in STAGED_TARGET_KINDS,
+            track_id_for=lambda pid: (
+                current[pid].track_id if pid in current else slug_track_id(pid)
+            ),
+            segments=upload.status(session_id=self.session_id)["segments"],
+            tombstoned=tombstoned,
+            removed={p.participant_id for p in snap.participants if p.removed},
+        )
+        return any(str(row["participant_id"]) == other.participant_id for row in segments + beds)
 
 
 def _own_sources(
@@ -225,7 +267,13 @@ def _on_timeline(project: EpisodeProject, session_id: str, participant_id: str) 
     pattern = re.compile(
         rf"^{re.escape(record_source_prefix(session_id))}\d+-{re.escape(participant_id)}-\d+$"
     )
+    return any(pattern.match(clip.source_id or "") for clip in project.clips) or _has_placed_bed(
+        project, session_id, participant_id
+    )
+
+
+def _has_placed_bed(project: EpisodeProject, session_id: str, participant_id: str) -> bool:
     bed = room_tone_raw_rel(session_id, participant_id)
-    return any(pattern.match(clip.source_id or "") for clip in project.clips) or any(
+    return any(
         track.room_tone is not None and track.room_tone.path == bed for track in project.tracks
     )
