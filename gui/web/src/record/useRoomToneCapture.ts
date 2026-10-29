@@ -47,7 +47,11 @@ export function useRoomToneCapture(args: {
   const stopRef = useRef<AbortController | null>(null);
   const [clock, setClock] = useState<RoomToneClock>(() => roomToneClock(0));
   const pendingWav = useRef<Uint8Array | null>(null);
+  // Set before the first part is sent: a cancel that lands between parts still has a bed to revoke.
   const uploaded = useRef(false);
+  // The running take or deferred upload, so a drop can wait for it to stop touching storage and the server.
+  const runRef = useRef<Promise<void> | null>(null);
+  const generation = useRef(0);
 
   const captureReady = Boolean(
     args.enabled &&
@@ -93,6 +97,9 @@ export function useRoomToneCapture(args: {
     const startedAt = Date.now();
     const timer = setInterval(() => {
       setClock((now) => {
+        if (now.saving) {
+          return now;
+        }
         const next = roomToneClock((Date.now() - startedAt) / 1000);
         return next.remainingSec === now.remainingSec ? now : next;
       });
@@ -105,9 +112,14 @@ export function useRoomToneCapture(args: {
       return;
     }
     abortRef.current?.abort();
-    if (!uploaded.current) {
-      void discardLocal();
-    }
+    const settling = runRef.current;
+    void (async () => {
+      // A write still in flight would otherwise land after the delete.
+      await settling?.catch(() => undefined);
+      if (!uploaded.current) {
+        await discardLocal();
+      }
+    })();
   }, [args.enabled, discardLocal]);
 
   const flushUpload = useCallback(
@@ -115,14 +127,14 @@ export function useRoomToneCapture(args: {
       if (!args.canUpload || !args.transport) {
         return;
       }
+      uploaded.current = true;
       const ack = await uploadRoomToneWav({
         wav,
         transport: args.transport,
         signal: controller.signal,
       });
       controller.signal.throwIfAborted();
-      // Parts were sent, so a revoke still applies; "sent" waits for the host's file ack.
-      uploaded.current = true;
+      // "Sent" waits for the host's file ack.
       if (ack.fileAck) {
         setDelivery("host");
       }
@@ -146,7 +158,7 @@ export function useRoomToneCapture(args: {
     const controller = new AbortController();
     abortRef.current = controller;
     const wav = pendingWav.current;
-    void (async () => {
+    runRef.current = (async () => {
       try {
         await flushUpload(controller, wav);
         if (abortRef.current !== controller) {
@@ -193,18 +205,33 @@ export function useRoomToneCapture(args: {
     setStatus("capturing");
     setError(null);
     setDelivery("device");
+    generation.current += 1;
+    // An earlier bed, here or on the host, goes before this take can replace it,
+    // so what the row says and what the host holds agree whatever this take does.
+    const stale = Promise.all([
+      uploaded.current
+        ? args.transport?.revokeRoomTone?.(controller.signal)
+        : undefined,
+      removeBestEffort(
+        args.sink,
+        roomToneWavPath(args.sessionId, args.participantId),
+      ),
+    ]).then(() => undefined);
+    void stale.catch(() => undefined);
     uploaded.current = false;
     pendingWav.current = null;
     const stream = args.stream;
     const sessionId = args.sessionId;
     const participantId = args.participantId;
     const sink = args.sink;
-    void (async () => {
+    runRef.current = (async () => {
       try {
         const encoded = await encodeRoomToneWav(stream, {
           signal: controller.signal,
           stopSignal: stop.signal,
         });
+        controller.signal.throwIfAborted();
+        await stale;
         controller.signal.throwIfAborted();
         if (encoded.durationSec < ROOM_TONE_MIN_SEC) {
           if (abortRef.current === controller) {
@@ -256,21 +283,34 @@ export function useRoomToneCapture(args: {
     args.sessionId,
     args.sink,
     args.stream,
+    args.transport,
     flushUpload,
   ]);
 
   const endEarly = useCallback(() => {
+    if (status !== "capturing") {
+      return;
+    }
+    // The take is over: stop the clock and say it is saving while the tail finishes.
+    setClock((now) => ({ ...now, saving: true }));
     stopRef.current?.abort();
-  }, []);
+  }, [status]);
 
   const drop = useCallback(
     (next: "skipped" | "idle") => {
       abortRef.current?.abort();
       // The aborted take's cleanup runs a tick later; a new take must not wait for it.
       inflight.current = false;
+      const dropped = generation.current;
+      const settling = runRef.current;
       setError(null);
       setStatus(next);
       void (async () => {
+        // Wait out a write or part in flight, or it would land after the delete or revoke.
+        await settling?.catch(() => undefined);
+        if (generation.current !== dropped) {
+          return;
+        }
         try {
           await discardLocal();
         } finally {

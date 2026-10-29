@@ -2,8 +2,8 @@ import type { RoomAlertInput } from "../system/roomAlertModel";
 import { quietCountdownText } from "../system/roomPhase";
 import { linearToDb } from "../utils/audio";
 import {
-  ROOM_TONE_CAPTURING_COPY,
   ROOM_TONE_DURATION_SEC,
+  ROOM_TONE_SAVING_COPY,
   ROOM_TONE_TOO_LOUD_DBFS,
 } from "./types";
 
@@ -43,8 +43,15 @@ export function roomToneReady(status: RoomToneStatus): boolean {
   );
 }
 
-/** What the capturing take shows: whole seconds left, 0 once the take is saving. */
-export type RoomToneClock = { remainingSec: number; progress: number };
+/**
+ * What the capturing take shows: whole seconds left, and `saving` once the take
+ * is over (ended early or out of time) and the bed is being kept; the clock then stops.
+ */
+export type RoomToneClock = {
+  remainingSec: number;
+  progress: number;
+  saving: boolean;
+};
 
 export function roomToneClock(elapsedSec: number): RoomToneClock {
   const remainingSec = Math.min(
@@ -54,15 +61,18 @@ export function roomToneClock(elapsedSec: number): RoomToneClock {
   return {
     remainingSec,
     progress: (ROOM_TONE_DURATION_SEC - remainingSec) / ROOM_TONE_DURATION_SEC,
+    saving: remainingSec === 0,
   };
 }
 
-/** The line a capturing take prints: the quiet countdown, then "Recording…" while it saves. */
+/** The line a capturing take prints: the quiet countdown, then "Saving room tone…". */
 export function roomToneCapturingText(clock: RoomToneClock): string {
-  return clock.remainingSec > 0
-    ? quietCountdownText(clock.remainingSec)
-    : ROOM_TONE_CAPTURING_COPY;
+  return clock.saving
+    ? ROOM_TONE_SAVING_COPY
+    : quietCountdownText(clock.remainingSec);
 }
+
+const SAVING_REASON = "Room tone is saving.";
 
 /** The alert slot's row while a take runs, for a host-prompted, late or self-started capture. */
 export function roomToneCapturingAlert(controls: {
@@ -78,7 +88,8 @@ export function roomToneCapturingAlert(controls: {
     kind: "room-tone-capturing",
     message: roomToneCapturingText(controls.clock),
     progress: controls.clock.progress,
-    onAction: controls.clock.remainingSec > 0 ? controls.endEarly : undefined,
+    onAction: controls.endEarly,
+    actionDisabledReason: controls.clock.saving ? SAVING_REASON : undefined,
     onSecondaryAction: controls.cancel,
   };
 }

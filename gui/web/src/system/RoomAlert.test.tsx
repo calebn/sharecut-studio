@@ -54,6 +54,32 @@ describe("RoomAlert", () => {
     expect(onSecondaryAction).toHaveBeenCalledOnce();
   });
 
+  it("keeps End early in place but disabled while saving, with focus on Cancel", () => {
+    const base = {
+      kind: "room-tone-capturing",
+      message: "Stay quiet · 0:30",
+      progress: 0.5,
+      onAction: vi.fn(),
+      onSecondaryAction: vi.fn(),
+    } as const;
+    const { rerender } = render(<RoomAlert alerts={[base]} />);
+    screen.getByRole("button", { name: "End early" }).focus();
+    rerender(
+      <RoomAlert
+        alerts={[
+          {
+            ...base,
+            message: "Saving room tone…",
+            actionDisabledReason: "Room tone is saving.",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Saving room tone…")).toBeVisible();
+    expect(screen.getByRole("button", { name: "End early" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+  });
+
   it("offers a second action beside the first when both handlers exist", async () => {
     const onAction = vi.fn();
     const onSecondaryAction = vi.fn();

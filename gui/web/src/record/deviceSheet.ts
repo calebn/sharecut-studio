@@ -118,7 +118,7 @@ export function deviceTone(args: {
       label,
       message: roomToneCapturingText(args.clock),
       progress: args.clock.progress,
-      endEarlyDisabled: args.clock.remainingSec === 0,
+      endEarlyDisabled: args.clock.saving,
     };
   }
   return { state: "idle", label, disabledReason };
