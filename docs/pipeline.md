@@ -694,8 +694,11 @@ once and carries it while each next cut lies beyond that same reach of every app
 cuts left it (#2357). At a 48 or 44.1 kHz source, a track with an effects chain whose tree
 the evaluator takes is evaluated only over the cut's reach (`WindowedTrackRmsCache`, which holds
 those samples bit for bit and raises `WindowMiss` for any read outside them, on which the check is
-made again on whole tracks); every other track is built whole. A rebuild plans every track's window on the calling thread, which holds the project lock, then builds the windows together in the worker pool (up to `cpu_budget()` at once), and each window's own two resamples (the cut's reach and the track's tail) run side by side. The windows are built from the
-resampler's calibrated warm-up and guard, which are whole resampling periods (`resampler_grid`:
+made again on whole tracks); every other track is built whole. A rebuild plans every track's
+window on the calling thread, which holds the project lock, then builds the windows together in
+the worker pool (up to `cpu_budget()` at once), and each window's own two resamples (the cut's
+reach and the track's tail) run side by side. The windows are built from the resampler's
+calibrated warm-up and guard, which are whole resampling periods (`resampler_grid`:
 6:1 into 8 kHz and 3:1 into 16 kHz at 48 kHz, 441:80 into 8 kHz and 441:160 into 16 kHz at
 44.1 kHz). Any other source rate, a tree the evaluator declines, and a track whose evidence is
 already stored take the whole-track build, with no speed-up. The auto-apply of tighten removes

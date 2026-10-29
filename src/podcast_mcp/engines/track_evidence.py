@@ -222,7 +222,8 @@ class WindowPlan:
     rate: int
 
     def verify(self, window: WindowedTrackRmsCache) -> None:
-        """With ``PODCAST_EVIDENCE_VERIFY=1``, raise ``AssertionError`` unless the window is the whole track's evidence there."""
+        """With ``PODCAST_EVIDENCE_VERIFY=1``, raise ``AssertionError`` unless the window is the
+        whole track's evidence over its range."""
         if settings.flag(VERIFY_ENV):
             whole = _entry(self.project, self.track_id, self.defaults, locked=not self.private)
             _verify_window(window, whole)
@@ -235,10 +236,12 @@ def plan_window(
     *,
     private: bool = False,
 ) -> WindowPlan | None:
-    """The part of :func:`rms_window` that reads the project; ``None`` when the whole track serves.
+    """What the project says about the track's window; ``None`` when the whole track serves.
 
-    Takes ``project_state_lock``, so it runs on the thread that may already hold it, never in
-    a pool worker. :func:`build_window` reads only the plan.
+    ``None`` when the evaluator declines its tree, its sources are not at one rate and layout,
+    the resampler is not local at that rate (``resampler_locality``), or the store already holds
+    the whole track. Takes ``project_state_lock``, so it runs on the thread that may already
+    hold it, never in a pool worker. :func:`build_window` reads only the plan.
     """
     with project_state_lock(project) if not private else nullcontext():
         planned = _plan(project, track_id, defaults)
@@ -256,9 +259,15 @@ def plan_window(
 def build_window(
     plan: WindowPlan, start_sec: float, end_sec: float, *, profile: LevelProfile
 ) -> WindowedTrackRmsCache | None:
-    """The window of a planned track, as :func:`rms_window` gives it, without reading the project.
+    """The track as :func:`rms` gives it, held only over timeline ``[start_sec, end_sec]`` (#2357).
 
-    Safe in a pool worker: it takes no project lock and calls neither ``scoped`` nor ``frozen``.
+    A read inside the window returns the samples :func:`rms` returns, bit for bit; a read outside
+    raises ``WindowMiss``. The cache reports ``profile`` (the batch's base profile) because the
+    profile of the whole track cannot be had from a window. The window is built from the
+    planned tree and is not stored: the store's keys name whole tracks. ``None`` when the tree
+    evaluates to nothing. Reads only ``plan``, so it is safe in a pool worker: it takes no
+    project lock and calls neither ``scoped`` nor ``frozen``. :meth:`WindowPlan.verify` makes the
+    ``PODCAST_EVIDENCE_VERIFY=1`` comparison, on the calling thread.
     """
     rate = plan.rate
     with decoded_sources(rate) as reader:
@@ -280,38 +289,6 @@ def build_window(
         sample_rate=JUMP_SAMPLE_RATE,
         profile=profile,
     )
-
-
-def rms_window(
-    project: EpisodeProject,
-    track_id: str,
-    defaults: EffectiveConfig,
-    start_sec: float,
-    end_sec: float,
-    *,
-    profile: LevelProfile,
-    private: bool = False,
-) -> WindowedTrackRmsCache | None:
-    """The track as :func:`rms` gives it, held only over timeline ``[start_sec, end_sec]`` (#2357).
-
-    A read inside the window returns the samples :func:`rms` returns, bit for bit; a read outside
-    raises ``WindowMiss``. The cache reports ``profile`` (the batch's base profile) because the
-    profile of the whole track cannot be had from a window. The window is built from the
-    track's tree as it is now and is not stored: the store's keys name whole tracks.
-
-    ``None`` when the whole-track path has to serve the track: the evaluator declines its tree,
-    its sources are not at one rate and layout, the resampler is not local at that rate
-    (``resampler_locality``), the store already holds the whole track, or the tree evaluates to
-    nothing. With ``PODCAST_EVIDENCE_VERIFY=1`` the window is compared with the whole-track
-    evidence and raises ``AssertionError`` on a difference.
-    """
-    plan = plan_window(project, track_id, defaults, private=private)
-    if plan is None:
-        return None
-    cache = build_window(plan, start_sec, end_sec, profile=profile)
-    if cache is not None:
-        plan.verify(cache)
-    return cache
 
 
 def _verify_window(window: WindowedTrackRmsCache, whole: _Entry | Declined) -> None:

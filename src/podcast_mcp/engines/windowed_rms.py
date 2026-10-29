@@ -184,9 +184,7 @@ def resampled_window(
     )
     got = converted[0]
     begin_out = begin // inputs * outputs
-    total = begin_out + got.size
-    if stop != size:
-        total = tail // inputs * outputs + converted[1].size
+    total = begin_out + got.size if stop == size else tail // inputs * outputs + converted[1].size
     kept_first = min(max(first, 0), total)
     kept_last = min(last, total)
     lo = kept_first - begin_out

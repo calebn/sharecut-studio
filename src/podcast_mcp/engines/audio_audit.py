@@ -667,6 +667,8 @@ def build_track_rms_caches(
     return TrackRmsCacheSet(caches=caches)
 
 
+# A track whose window cannot be read is skipped (the whole-track path serves it), so it must not
+# fail the rebuild.
 _WINDOW_SKIPS = (OSError, CalledProcessError, NoAudioDecodedError, ValueError)
 
 
@@ -680,6 +682,8 @@ def _windowed_caches(
     """The windowed cache of each track in ``track_ids`` that a window can serve."""
     from podcast_mcp.engines import track_evidence
 
+    # Every track is planned before any is built and verified after all are built, so among
+    # non-skip errors a plan error comes first, then build and verify errors in track order.
     planned: list[tuple[str, WindowPlan]] = []
     for tid in track_ids:
         if tid not in window.profiles:
@@ -692,6 +696,8 @@ def _windowed_caches(
         if plan is not None:
             planned.append((tid, plan))
 
+    # build() returns its exception as a value: a skipped track must not fail the rebuild, and a
+    # non-skip error is re-raised below in track order, not completion order.
     def build(item: tuple[str, WindowPlan]) -> WindowedTrackRmsCache | Exception | None:
         tid, plan = item
         try:
