@@ -70,6 +70,7 @@ DocumentCommandType = Literal[
     "ApplyAutoEdits",
     "ApplyEditPlan",
     "ShortenWordGaps",
+    "StripSilence",
     "FadeJoins",
     "CrossfadeJoins",
     "MoveByText",

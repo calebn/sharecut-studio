@@ -65,6 +65,7 @@ export type DocumentCommandType =
   | "StageTimeRangeCut"
   | "StageUtteranceCut"
   | "StageWordsCut"
+  | "StripSilence"
   | "SuggestPendingEdit"
   | "SuppressBleed"
   | "SuppressLowAudibility"
@@ -142,6 +143,7 @@ export const DocumentCommand = {
   StageTimeRangeCut: "StageTimeRangeCut",
   StageUtteranceCut: "StageUtteranceCut",
   StageWordsCut: "StageWordsCut",
+  StripSilence: "StripSilence",
   SuggestPendingEdit: "SuggestPendingEdit",
   SuppressBleed: "SuppressBleed",
   SuppressLowAudibility: "SuppressLowAudibility",

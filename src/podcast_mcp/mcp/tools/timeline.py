@@ -20,6 +20,8 @@ from podcast_mcp.services.document import (
 )
 from podcast_mcp.services.document_sync import (
     DEFAULT_SHORTEN_GAP_SEC,
+    DEFAULT_STRIP_MIN_DURATION_SEC,
+    DEFAULT_STRIP_OVER_VOICE_FLOOR_DB,
     host_command_result,
     submit_host_command_result,
     submit_host_document_command,
@@ -61,8 +63,8 @@ def strip_silence_tool(
     project_path: str,
     track_id: str | None = None,
     speaker: str | None = None,
-    over_voice_floor_db: float = 0.0,
-    min_duration_sec: float = 0.5,
+    over_voice_floor_db: float = DEFAULT_STRIP_OVER_VOICE_FLOOR_DB,
+    min_duration_sec: float = DEFAULT_STRIP_MIN_DURATION_SEC,
     use_inaudible_opt: bool | None = None,
 ) -> str:
     """Rebuild a track from speech islands between detected silences.
@@ -73,15 +75,19 @@ def strip_silence_tool(
 
     ``use_inaudible_opt`` is accepted for API compatibility but ignored.
     """
-    ws = ProjectWorkspace.open(project_path)
-    result = AnalysisService(ws).strip_silence(
-        track_id=track_id,
-        speaker=speaker,
-        over_voice_floor_db=over_voice_floor_db,
-        min_duration_sec=min_duration_sec,
-        use_inaudible_opt=use_inaudible_opt,
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "StripSilence",
+            {
+                "track_id": track_id,
+                "speaker": speaker,
+                "over_voice_floor_db": over_voice_floor_db,
+                "min_duration_sec": min_duration_sec,
+                "use_inaudible_opt": use_inaudible_opt,
+            },
+        )
     )
-    return to_json(result)
 
 
 def ripple_delete_tool(
@@ -1371,6 +1377,7 @@ def register(mcp: MCPServer) -> None:
     }
     mutating.discard(split_clip_tool)  # uses DocumentSyncService.submit
     mutating.discard(shorten_gaps_tool)
+    mutating.discard(strip_silence_tool)
     mutating.discard(move_clips_tool)
     mutating.discard(fade_joins_tool)
     mutating.discard(crossfade_joins_tool)
