@@ -16,7 +16,6 @@ import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
 import { getClipboard, setClipboard } from "../edit/clipboard";
 import { clipPlacementIsCurrent } from "../edit/clipPlacement";
 import { payloadFromSelection } from "../edit/selectionClipboard";
-import { askConfirm } from "../feedback/ask";
 import { canApplyPass12, canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
@@ -30,11 +29,7 @@ import {
 } from "../tracks/trackMuteCopy";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { anySolo } from "../utils/audio";
-import {
-  bladeCutNote,
-  bladeTrackIds,
-  dialogueTrackIds,
-} from "../utils/bladeTracks";
+import { bladeTrackIds, dialogueTrackIds } from "../utils/bladeTracks";
 import { formatTime } from "../utils/time";
 import { openCreateMenu } from "./createMenuHost";
 import { registerCommand } from "./execute";
@@ -152,21 +147,6 @@ export function registerPrimaryEditingCommands(): void {
     const s = useDawStore.getState();
     if (!s.project || !canSuggestStructuralFor(s)) {
       return { status: "disabled", reason: "Structural edits not allowed" };
-    }
-    if (
-      (s.shellBreakpoint === "phone" || s.shellBreakpoint === "tablet") &&
-      !(await askConfirm({
-        title: `Cut at ${formatTime(atTime)}?`,
-        message: `${bladeCutNote(
-          s.project.tracks ?? [],
-          selectedTrackIdsOf(s.selection),
-        )}. Undo brings the clip back.`,
-        keepLabel: "Don't cut",
-        actionLabel: "Cut",
-        danger: false,
-      }))
-    ) {
-      return { status: "ok" };
     }
     const extra = Array.isArray(args.extraAtTimes)
       ? args.extraAtTimes.map(Number).filter(Number.isFinite)

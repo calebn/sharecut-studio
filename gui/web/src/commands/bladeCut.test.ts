@@ -43,20 +43,12 @@ describe("edit.bladeCut", () => {
   });
 
   it.each(["phone", "tablet"] as const)(
-    "asks askConfirm before a cut on the %s shell and cuts on Cut",
+    "splits at once on the %s shell, with no confirm",
     async (shell) => {
       useDawStore.setState({ shellBreakpoint: shell });
       const { asked } = answerQuestions(true);
       await execute("edit.bladeCut", { atTime: 83.5 }, { skipWhen: true });
-      expect(asked).toEqual([
-        expect.objectContaining({
-          kind: "confirm",
-          title: "Cut at 01:23.500?",
-          message: "Cuts Blair. Undo brings the clip back.",
-          keepLabel: "Don't cut",
-          actionLabel: "Cut",
-        }),
-      ]);
+      expect(asked).toEqual([]);
       expect(api.splitAtTime).toHaveBeenCalledWith(
         "/tmp/ep",
         83.5,
@@ -66,18 +58,6 @@ describe("edit.bladeCut", () => {
       );
     },
   );
-
-  it("changes nothing when the person keeps the episode as it is", async () => {
-    useDawStore.setState({ shellBreakpoint: "phone" });
-    answerQuestions(null);
-    const result = await execute(
-      "edit.bladeCut",
-      { atTime: 5 },
-      { skipWhen: true },
-    );
-    expect(result.status).toBe("ok");
-    expect(api.splitAtTime).not.toHaveBeenCalled();
-  });
 
   it("does not ask when structural edits are not allowed", async () => {
     useDawStore.setState({
