@@ -808,6 +808,44 @@ describe("Record stage Land", () => {
     expect(land).toBeDisabled();
   });
 
+  it("holds Land while a take saves even with a live comment", async () => {
+    uploadStatus.mockResolvedValue({
+      segments: [
+        {
+          take_index: 0,
+          participant_id: "p_g",
+          segment_index: 0,
+          acked_parts: [0],
+          file_ack: false,
+        },
+      ],
+    });
+    setRoom({
+      state: "stopped",
+      take_index: 0,
+      participants: [avaGuest()],
+      comments: [
+        {
+          id: "c1",
+          take_index: 0,
+          recording_ms: 10,
+          pressed_wall_ms: 10,
+          author: "p_host",
+          body: "Marker",
+        },
+      ],
+    });
+    mount();
+    const dialog = await openMore();
+    const land = within(dialog).getByRole("button", { name: "Land" });
+    await waitFor(() =>
+      expect(land).toHaveAccessibleDescription(
+        "Recordings are still saving to the project.",
+      ),
+    );
+    expect(land).toBeDisabled();
+  });
+
   it("lands once every recording is saved and keeps controls busy meanwhile", async () => {
     let finish: ((value: { status: "ok" }) => void) | undefined;
     exec.mockImplementationOnce(
