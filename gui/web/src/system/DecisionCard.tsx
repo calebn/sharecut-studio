@@ -55,6 +55,7 @@ export type DecisionCardProps = {
     step?: { index: number; total: number };
     onFix: (text: string) => void;
     onLooksRight?: () => void;
+    onHear?: () => void;
   };
   comment?: {
     author: { name: string; colorIndex?: number };
@@ -124,6 +125,12 @@ function UnsureWord({
           <SystemIcon name={iconOf("fixText")} size={16} />
           Fix text
         </Button>
+        {unsure.onHear ? (
+          <Button variant="link" onClick={unsure.onHear}>
+            <SystemIcon name="play" size={16} />
+            Hear
+          </Button>
+        ) : null}
         {canSkip ? (
           <Button variant="link" onClick={unsure.onLooksRight}>
             <SystemIcon name={iconOf("approve")} size={16} />
@@ -137,6 +144,7 @@ function UnsureWord({
           className="sys-decision-fix"
           onSubmit={(event) => {
             event.preventDefault();
+            if (!text.trim()) return;
             unsure.onFix(text.trim());
             setFixing(false);
           }}

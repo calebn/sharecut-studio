@@ -114,7 +114,7 @@ export type FixRoute =
 export function fixRoute(stage: StageId, target?: string): FixRoute {
   if (target === "mix") return { kind: "refreshMix" };
   if (stage === "review") {
-    if (target === "suggestions")
+    if (target === "suggestions" || target === "unsure-words")
       return { kind: "stage", stage, section: "queue" };
     if (target === "comments")
       return { kind: "stage", stage, section: "comments" };
