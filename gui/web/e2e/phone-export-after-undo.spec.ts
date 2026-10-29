@@ -34,6 +34,35 @@ async function cutThenUndo(
       0,
     );
   };
+  const mixCurrent = async () => {
+    const res = await page.request.get(
+      `/api/project?path=${pathParam}&phase=full`,
+    );
+    const body = (await res.json()) as {
+      render_status: {
+        needs_rerender?: boolean;
+        premix: {
+          exists?: boolean;
+          stale_vs_stems?: boolean;
+          stale_vs_mix?: boolean;
+        };
+        tracks?: Record<
+          string,
+          { stem_is_fresh?: boolean | null; stem_exists?: boolean }
+        >;
+      };
+    };
+    const status = body.render_status;
+    return (
+      !status.needs_rerender &&
+      status.premix.exists === true &&
+      !status.premix.stale_vs_stems &&
+      !status.premix.stale_vs_mix &&
+      Object.values(status.tracks ?? {}).every(
+        (track) => track.stem_is_fresh !== false && track.stem_exists !== false,
+      )
+    );
+  };
   const before = await clipCount();
   await page.getByRole("slider", { name: "Timeline position" }).focus();
   await page.keyboard.press("ArrowRight");
@@ -51,6 +80,7 @@ async function cutThenUndo(
     .getByRole("button", { name: "Cut", exact: true })
     .click();
   await expect.poll(clipCount).toBeGreaterThan(before);
+  await expect.poll(mixCurrent, { timeout: 60_000 }).toBe(true);
   await beforeUndo();
   await page
     .locator(".sys-header-history")
