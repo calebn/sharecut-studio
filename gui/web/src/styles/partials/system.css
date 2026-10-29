@@ -5557,6 +5557,14 @@ input.sys-edit-fix {
   white-space: nowrap;
 }
 
+.sys-ruler-tick[data-align="end"] {
+  inset-inline: auto calc(var(--sys-ruler-width) - var(--sys-ruler-x));
+  padding-inline: 0 var(--space-1);
+  border-inline-start: 0;
+  border-inline-end: 1px solid var(--color-timeline-border);
+  text-align: end;
+}
+
 .sys-ruler-session {
   position: absolute;
   inset-block: 0;

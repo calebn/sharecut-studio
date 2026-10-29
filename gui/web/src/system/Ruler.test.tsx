@@ -69,10 +69,22 @@ describe("Ruler drawing", () => {
       "10:04.2",
       "10:04.4",
       "10:04.6",
-      "10:04.8",
+      "",
     ]);
     rerender(<Ruler {...base} pxPerSecond={0.5} start={0} />);
     expect(labels(container)).toEqual(["0:00", "5:00", "10:00"]);
+  });
+
+  it("flags the tick whose label would pass the right edge so the label sits left of its line", () => {
+    const { container } = setup({ start: 0, pxPerSecond: 12, duration: 36 });
+    const ticks = [...container.querySelectorAll(".sys-ruler-tick")];
+    expect(ticks.map((t) => t.getAttribute("data-align"))).toEqual([
+      null,
+      null,
+      null,
+      "end",
+    ]);
+    expect(ticks.at(-1)).toHaveTextContent("0:30");
   });
 
   it("places the playhead, the selection band and the sessions in pixels of the window", () => {

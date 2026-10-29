@@ -379,6 +379,7 @@ export const Ruler = memo(function Ruler({
           <span
             key={tick.time}
             className="sys-ruler-tick"
+            data-align={tick.align === "end" ? "end" : undefined}
             style={{ "--sys-ruler-x": px(tick.x) } as CSSProperties}
           >
             {tick.label}

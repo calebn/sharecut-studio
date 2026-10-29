@@ -11,7 +11,10 @@ const MAX_TICKS = 600;
 type RulerTick = {
   time: number;
   x: number;
+  /** Empty when a right-aligned label would sit on its neighbour's. */
   label: string;
+  /** `end` puts the label left of its line, for a tick too near the window's right edge. */
+  align: "start" | "end";
 };
 
 export function timeAtX(x: number, start: number, pxPerSecond: number): number {
@@ -61,11 +64,13 @@ export function rulerTicks(
   const ticks: RulerTick[] = [];
   for (let index = first; index <= last && ticks.length < MAX_TICKS; index++) {
     const time = index * step;
-    ticks.push({
-      time,
-      x: xAtTime(time, start, pxPerSecond),
-      label: formatRulerTime(time, step),
-    });
+    const x = xAtTime(time, start, pxPerSecond);
+    const label = formatRulerTime(time, step);
+    const labelPx = labelWidthPx(time, step);
+    const align = x + labelPx > width ? "end" : "start";
+    const clash =
+      align === "end" && step * pxPerSecond < 2 * labelPx - LABEL_PAD_PX;
+    ticks.push({ time, x, label: clash ? "" : label, align });
   }
   return ticks;
 }
