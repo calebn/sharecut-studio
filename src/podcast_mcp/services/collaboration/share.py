@@ -477,7 +477,8 @@ class ShareService:
 
         A stopped take of the current room that is not saved yet is reported on the result
         (``unlanded_take``, ``unlanded_takes``, ``unlanded_saving``, ``unlanded_stalled``,
-        ``land_first_possible``, ``warning``); the mint still goes ahead. These describe what the
+        ``land_first_possible``, ``warning``); the mint still goes ahead. ``unlanded_saving`` counts takes and
+        ``unlanded_stalled`` counts recordings; ``land_first_possible`` is false in a decided (accepted or skipped) session. These describe what the
         mint left behind (recomputed after a land-first). ``land_first`` lands the finished
         recordings first and adds ``landed_first``. Every mint that leaves audio the server detected as never
         finished uploading behind (it cannot be landed) sets ``left_behind`` (a count) and

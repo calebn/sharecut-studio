@@ -157,27 +157,47 @@ finished recordings first, then mints; the result adds `landed_first` (the land 
 A bad `target` or `expires_at` is refused before anything lands (a `replace` target is
 checked against the episode after the land, which can change its length).
 
-"Saving" is bounded. For a guest who consented to the take the server expects one upload
-per recorded segment, inferred from Pause and Resume: one, plus one per Resume (the Resume that a Stop-while-paused writes records
-nothing and is not counted). A segment with no upload yet counts as saving for
-`UPLOAD_GRACE_MS` (10 minutes) after Stop. An upload that has started but not finished
+"Saving" is bounded. Each browser keeper (guest and host) tells the room how many upload
+segments it opened for a take with a `SegmentReport` command (`take_index`, `segments`,
+`final`): once at every segment open, after the segment is recorded on the device, and once at Stop
+after the last segment closed (`final`, with 0 when none opened). It is self-only (the
+server stores it under the sender's own participant id), needs the join capability, never
+shrinks, and a `final` flag stays set. The keeper resends it when the room's snapshot
+shows an older count. For each consented, not removed person the server owes
+`max(reported segments, highest uploaded segment + 1)` segments, so an upload row the report
+does not mention still counts. A segment with no upload yet counts as saving for
+`UPLOAD_GRACE_MS` (10 minutes) after Stop, and as stalled after it. A final report of 0 owes
+nothing (a host whose mic was denied, a guest who consented late and never recorded). An upload that has started but not finished
 gets the full window from the later trusted time of Stop or its newest chunk, even when
 that chunk arrived before Stop. This partial-upload rule applies to the host's recording
 too. After the window it is stalled: reported ("N recordings never
 finished uploading and cannot be saved") but it no longer blocks. A partial upload of a
 guest the host removed is stalled at once; a removed guest with no upload row at all is not
-known and is not reported. A guest who consented and never recorded (left, lost the mic)
-reads as saving for the window and as stalled after it. Timestamps more than a minute in
+known and is not reported. Timestamps more than a minute in
 the future are not trusted (that upload falls back to the Stop time, or reads as stalled),
-so a skewed clock cannot keep a take "saving". The host is never expected to upload when
-nothing has started, because a host whose mic was denied never uploads.
+so a skewed clock cannot keep a take "saving".
+
+Without a report (a keeper that never sent one, or an older snapshot) a guest falls back to
+the count inferred from Pause and Resume: one, plus one per Resume at or after the guest
+consented (the Resume that a Stop-while-paused writes records nothing and is not counted).
+A guest who consented and never recorded reads as saving for the window and as stalled
+after it. The host with no report is not expected to upload, because a CLI or MCP host may
+run no keeper and a host whose mic was denied never uploads; a host that did not report
+never raises a warning, so a host segment that never uploaded goes unnoticed in that case.
+
+`unlanded_saving` counts takes with an upload still inside the window; `unlanded_stalled`
+counts recordings (one per missing or unfinished segment of a person), so one take can
+add several.
 
 Land-first lands what finished (host and finished guests) and mints. Every mint that leaves
 stalled audio behind that the server detected, with or without land-first, sets
 `left_behind` (a count of recordings) and `left_behind_message`. `land_first_possible` is a prediction: true
-when a land can save a finished recording and nothing is still saving, so it is also true
-for a skipped keeper whose land then refuses ("could not be saved"). It is false when there
-is nothing to save (the mint just goes ahead) and when only stalled audio is left.
+when a land can save a finished recording, nothing is still saving and the room's session
+was not already accepted or skipped, so it is also true for a skipped keeper whose land
+then refuses ("could not be saved"). It is false when there is nothing to save (the mint just
+goes ahead), when only stalled audio is left, and in a decided room (accepted or skipped
+session), where a newer take cannot be saved. `closed` is only set when something landable or
+still saving is held by a decided session; stalled recordings alone do not set it.
 
 Land-first refuses, mints nothing and keeps the old links when uploads are still saving
 (uploads can take up to 10 minutes after Stop: wait for them to finish, or start
@@ -187,10 +207,8 @@ route that is a 400 carrying the land's own code (`record_land_refused`, or e.g.
 `session_suggestion_closed`, `insert_anchor_taken`). A land that ran stays saved;
 retrying is safe. `land_first` with nothing to save just mints.
 
-Known gaps (#2416). The server infers the owed segments from Pause and Resume only. A
-segment the browser opens for another reason (a consent decline and re-accept, a mic drop
-and reconnect), and a host Pause/Resume whose second segment never uploads, can be missed
-without a warning. A removed guest with no upload row is not reported (only a partial row
+Known gaps (#2416). A person who never sends a report falls back to the inferred count (a
+host to nothing), so a keeper that dies before its first report can still be missed. A removed guest with no upload row is not reported (only a partial row
 is). If an insert or replace room's staging land is undone from History, its uploads still
 read as landed, so no warning appears; `podcast record land` stages it again.
 
