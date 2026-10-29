@@ -473,6 +473,31 @@ def test_a_plain_track_the_rebuild_drops_is_absent_from_a_carried_set_not_its_ol
     assert carried.caches["host"] is first.caches["host"]  # the chained track keeps its evidence
 
 
+def test_a_plain_track_with_a_stale_stem_gets_the_rebuilt_cache_not_the_carried_stem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, chained=("host",))
+    defaults = load_defaults()
+    timeline = cut_proof.CarriedTimelineRms(project)
+    first = timeline.caches_for(project, (40.0, 40.35), reach=6.0, defaults=defaults)
+    real = cut_proof.build_track_rms_caches
+    built: list[TrackRmsCacheSet] = []
+
+    def record(*args, **kwargs):  # type: ignore[no-untyped-def]
+        built.append(real(*args, **kwargs))
+        return built[-1]
+
+    monkeypatch.setattr(cut_proof, "build_track_rms_caches", record)
+    timeline.applied(10.0)
+    timeline._stems_fresh = (True, True)  # a stem went stale: the plain tracks are built again
+
+    carried = timeline._carried_with_current_stems(project, defaults)
+
+    assert carried.caches["guest"] is built[-1].caches["guest"]
+    assert carried.caches["guest"] is not first.caches["guest"]
+    assert carried.caches["host"] is first.caches["host"]
+
+
 # --- the verdict key carries the batch-base profile -----------------------------------------
 
 HUMAN = CutIntent.HUMAN_BOUNDARIES  # the mute below sits on speech, which only a person may mute
@@ -841,15 +866,18 @@ def test_what_moves_the_whole_track_profile_moves_the_stamp(
 # --- a stamp that cannot be had, and a window the check overruns --------------------------
 
 
+@pytest.mark.parametrize(
+    "error", [OSError("a recording is unreadable"), ValueError("bad"), KeyError("gone")]
+)
 def test_a_stamp_that_cannot_be_measured_gives_no_key_and_the_cut_is_still_checked(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
     expected = _approve(_project(tmp_path / "expected"))
     monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
     verdict_cache._STORE.clear()
 
     def unreadable(self, *, defaults):  # type: ignore[no-untyped-def]
-        raise OSError("a recording is unreadable")
+        raise error
 
     monkeypatch.setattr(cut_proof.BatchBase, "stamp", unreadable)
 
@@ -857,6 +885,46 @@ def test_a_stamp_that_cannot_be_measured_gives_no_key_and_the_cut_is_still_check
 
     assert outcome == expected
     assert len(verdict_cache._STORE) == 0  # nothing was stored under a key
+
+
+def test_a_stamp_that_fails_for_another_reason_is_not_swallowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    verdict_cache._STORE.clear()
+
+    def broken(self, *, defaults):  # type: ignore[no-untyped-def]
+        raise RuntimeError("a bug")
+
+    monkeypatch.setattr(cut_proof.BatchBase, "stamp", broken)
+
+    with pytest.raises(RuntimeError, match="a bug"):
+        _approve(_project(tmp_path))
+
+
+def test_the_verdict_key_of_a_later_cut_carries_the_stamp_of_the_batch_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path)
+    defaults = load_defaults()
+    start = project.model_copy(deep=True)
+    monkeypatch.setenv(verdict_cache.ENABLE_ENV, "1")
+    verdict_cache._STORE.clear()
+    stamps: list[str] = []
+    real = verdict_cache.verdict_key
+
+    def spy(*args, base_profile: str, **kwargs):  # type: ignore[no-untyped-def]
+        stamps.append(base_profile)
+        return real(*args, base_profile=base_profile, **kwargs)
+
+    monkeypatch.setattr(verdict_cache, "verdict_key", spy)
+
+    outcome = _approve(project)
+
+    assert outcome["count"] >= 2  # an earlier cut was applied before a later one is checked
+    assert len(stamps) >= len(CUTS)
+    assert set(stamps) == {cut_proof.BatchBase(start).stamp(defaults=defaults)}
+    assert cut_proof.BatchBase(project).stamp(defaults=defaults) not in stamps  # not vacuous
 
 
 def test_a_window_miss_in_observe_is_made_again_on_whole_caches_with_the_same_verdict(
@@ -891,6 +959,32 @@ def test_a_window_miss_in_observe_is_made_again_on_whole_caches_with_the_same_ve
 
     assert observe(Overrun()) == observe(None)
     assert wholes == [1]
+
+
+def test_a_value_error_from_the_timeline_caches_is_not_made_again_on_whole_caches(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    edit = project.edit_decisions[0]
+
+    class Broken:
+        def caches_for(self, project, span, *, reach, defaults):  # type: ignore[no-untyped-def]
+            raise ValueError("a bug")
+
+        def whole(self, project, *, defaults):  # type: ignore[no-untyped-def]
+            raise AssertionError("only a window miss is made again on whole caches")
+
+    with pytest.raises(ValueError, match="a bug"):
+        cut_application._observe(
+            project,
+            edit,
+            defaults=load_defaults(),
+            manual=False,
+            batch=(),
+            audio_caches=cut_application.shared_source_audio_caches(project),
+            timeline=Broken(),  # type: ignore[arg-type]
+            placed=cut_safety.source_cut_placement(project, edit),
+        )
 
 
 # --- build_track_rms_caches(window=...) ----------------------------------------------------
