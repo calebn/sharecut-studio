@@ -55,7 +55,7 @@ flowchart TB
   end
 
   subgraph review [Review stage]
-    RV[Queue · Comments]
+    RV[Queue]
   end
 
   ST --> edit

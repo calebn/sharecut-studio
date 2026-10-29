@@ -13,7 +13,7 @@ At the bottom of the screen you'll see five tabs, one for each stage of making a
 | **Record** | Start or join a recording and see a live take. |
 | **Prepare** | Add audio, see whether it is getting ready, and fix what it needs from you. The **Getting ready** summary comes first and opens like a disclosure; Sources, Help the transcriber and Cleanup follow. **Advanced** sits inside the opened Getting ready summary and is also where a running job is cancelled. The hand-off button to the next stage is secondary, with a reason, while work is running, and turns primary when everything is done. |
 | **Edit** | Edit audio. A switch at the top flips between the **Timeline** (waveforms, split clips, fades and joins) and the **Script** (read the transcript; choose Correct to edit a word or ignore it, or Select to suggest a cut or ignore/restore a range). |
-| **Review** | Play through, read and leave comments, and approve or reject suggested edits (Queue, Comments and Tighten). This is where review links land. |
+| **Review** | Play through, read and leave comments, and approve or reject suggested edits (the Queue, where comments are items; a guest sees Comments). This is where review links land. |
 | **Deliver** | Export, bounce, and share for review. |
 
 You won't see everything at once, and that's intentional. Each screen shows what you need for the task at hand. Timeline clip labels lead with the speaker name when one is set, then show a readable duration such as "Avery · 17m 26s"; narrow labels clip visually while their accessible names keep the full identity.
