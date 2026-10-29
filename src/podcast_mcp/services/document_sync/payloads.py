@@ -644,8 +644,9 @@ class SplitAtTimePayload(BaseModel):
     at_time: float
     track_ids: list[str] | None = None
     reason: str | None = None
-    extra_at_times: list[float] | None = Field(
+    extra_at_times: list[Annotated[float, Field(ge=0, allow_inf_nan=False)]] | None = Field(
         default=None,
+        max_length=16,
         description=(
             "More timeline times to split at in the same history step as at_time "
             "(the other edge of a selected range). A time with no clip to split is "
