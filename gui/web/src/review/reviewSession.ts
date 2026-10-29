@@ -31,7 +31,13 @@ export type SessionAction =
   | { type: "filter"; filter: ReviewFilter }
   | { type: "looksRight"; id: string }
   | { type: "decided"; plan: DecisionPlan; snapshot: readonly ReviewEntry[] }
-  | { type: "revert"; ids: readonly string[]; from?: string | null }
+  | {
+      type: "revert";
+      ids: readonly string[];
+      from?: string | null;
+      /** Rows whose looks-right mark goes too, such as cuts a word had freed. */
+      hold?: readonly string[];
+    }
   | { type: "observed"; open: readonly ReviewEntry[] };
 
 const idOf = (hit: DecidedEntry) => hit.entry.item.id;
@@ -107,7 +113,11 @@ export function reviewSession(
     }
     case "revert": {
       const hit = a.ids.filter((id) => s.decided.get(id)?.left === false);
-      if (hit.length === 0) return s;
+      const hold = a.hold ?? [];
+      if (hit.length === 0)
+        return hold.some((id) => s.looksRight.has(id))
+          ? { ...s, looksRight: without(s.looksRight, hold) }
+          : s;
       const decided = new Map(s.decided);
       for (const id of hit) decided.delete(id);
       const follow = a.from === undefined || a.from === s.selectedId;
@@ -115,7 +125,7 @@ export function reviewSession(
         ...s,
         decided,
         selectedId: follow ? hit[0] : s.selectedId,
-        looksRight: without(s.looksRight, hit),
+        looksRight: without(s.looksRight, [...hit, ...hold]),
       };
     }
     case "observed":
@@ -151,8 +161,8 @@ export function useReviewSession(
 
   /** `from` is the selection the decision moved to; the row takes it back only while it is still there. */
   const revert = useCallback(
-    (ids: readonly string[], from?: string | null) =>
-      dispatch({ type: "revert", ids, from }),
+    (ids: readonly string[], from?: string | null, hold?: readonly string[]) =>
+      dispatch({ type: "revert", ids, from, hold }),
     [],
   );
   const merged = useMemo(() => mergeOpen(open, s.decided), [open, s.decided]);

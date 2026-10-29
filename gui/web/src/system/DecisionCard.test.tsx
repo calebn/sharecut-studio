@@ -458,6 +458,27 @@ describe("DecisionCard verb", () => {
     );
   });
 
+  it("links the held Cut to a rendered note while an unsure word is unchecked", () => {
+    render(
+      <DecisionCard
+        {...base()}
+        unsure={{
+          word: "uncle",
+          guess: "uncle",
+          onFix: vi.fn(),
+          onLooksRight: vi.fn(),
+        }}
+      />,
+    );
+    const id = screen
+      .getByRole("button", { name: "Cut" })
+      .getAttribute("aria-describedby");
+    expect(id).toBeTruthy();
+    const note = document.getElementById(id as string);
+    expect(note).not.toBeNull();
+    expect(note).toHaveTextContent("Check the unsure word first.");
+  });
+
   it("offers no Keep without a Keep handler", () => {
     render(<DecisionCard {...base()} onKeep={undefined} />);
     expect(screen.queryByRole("button", { name: /^Keep/ })).toBeNull();
