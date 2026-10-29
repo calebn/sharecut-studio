@@ -4,6 +4,14 @@ import { expectFitsViewport } from "./overlayReachability";
 import { withShareableProject } from "./shareableProject";
 import { deliverPage, openProject, startBounce } from "./stageNav";
 
+test.use({ hasTouch: true, isMobile: true });
+
+function expectTouchHeight(height: number, layoutHeight: number): void {
+  expect(layoutHeight).toBeGreaterThanOrEqual(44);
+  // Translated DOM rectangles can report 43.999996px for a 44px layout box.
+  expect(height).toBeGreaterThanOrEqual(44 - 0.001);
+}
+
 test("phone 390x844: Bounce starts, shows why Cancel waits, and lists the file it wrote", async ({
   page,
 }) => {
@@ -21,6 +29,23 @@ test("phone 390x844: Bounce starts, shows why Cancel waits, and lists the file i
     await startBounce(page);
     const deliver = deliverPage(page);
     await expect(deliver.getByText(/Starting bounce…/)).toBeVisible();
+    const options = deliver
+      .getByRole("group", { name: "Source" })
+      .getByRole("button")
+      .or(
+        deliver
+          .getByRole("group", { name: "Bounce options" })
+          .getByRole("button"),
+      );
+    const rows = await options.evaluateAll((els) =>
+      els.map((el) => ({
+        height: el.getBoundingClientRect().height,
+        layoutHeight: el instanceof HTMLElement ? el.offsetHeight : 0,
+      })),
+    );
+    // Three sources, the session region and the MP3 toggle.
+    expect(rows).toHaveLength(5);
+    for (const row of rows) expectTouchHeight(row.height, row.layoutHeight);
     const cancel = deliver.getByRole("button", { name: "Cancel" });
     await expectFitsViewport(page, cancel);
     await expectFitsViewport(page, deliver.getByText(/still starting/i));

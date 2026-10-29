@@ -73,14 +73,14 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   useEffect(() => {
     if (!focusRequested) return;
     // A disabled button cannot take focus, so land on the first enabled
-    // control in the section, never the link that drops the fixed range,
-    // else the section heading; the reason note beside Bounce says why.
+    // control in the section, never the link that drops the fixed range;
+    // the reason note beside Bounce says why. "Also write MP3" is always
+    // enabled, so one is always there.
     const section = button.current?.closest("section");
     const target = button.current?.disabled
-      ? (Array.from(
+      ? Array.from(
           section?.querySelectorAll<HTMLElement>("button:not(:disabled)") ?? [],
-        ).find((el) => el !== clearRange.current) ??
-        section?.querySelector<HTMLElement>("h2"))
+        ).find((el) => el !== clearRange.current)
       : button.current;
     target?.focus();
     target?.scrollIntoView?.({ block: "nearest" });

@@ -382,6 +382,28 @@ describe("BounceFlowProvider", () => {
     expect(useDawStore.getState().pendingJobResults).toEqual({});
   });
 
+  it("ignores a job that resolves after the project changed", async () => {
+    // A follow that finishes ok without honouring the abort signal.
+    let finish!: (job: PipelineJobSnapshot) => void;
+    vi.mocked(followJobToOk).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    mount();
+    act(() => flow.setChoices({ ...BOUNCE_DEFAULTS, includeMp3: true }));
+    act(() => flow.start());
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
+
+    act(() => useDawStore.setState({ projectPath: "/tmp/other.project.json" }));
+    await waitFor(() => expect(flow.run).toEqual({ kind: "idle" }));
+    await act(async () => finish(finished));
+
+    expect(flow.run).toEqual({ kind: "idle" });
+    expect(flow.choices).toEqual(BOUNCE_DEFAULTS);
+  });
+
   describe("model gate", () => {
     const needed = () =>
       new ApiError("needs RNNoise", "model_needed", 409, {
