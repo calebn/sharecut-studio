@@ -10,7 +10,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
-import { armRange, openPanel } from "./stageNav";
+import { armRange, inspectSelectionByKey, openPanel } from "./stageNav";
 
 function repeatedProject(prefix: string) {
   const copy = createRelocatedE2eProject(prefix);
@@ -134,6 +134,7 @@ test("idle desktop reaches an edit in removed audio through the Review queue", a
       await openPanel(page, "queue");
       await page.locator(".sys-queue-main").first().click();
       await page.getByRole("button", { name: "Open in Edit" }).click();
+      await inspectSelectionByKey(page);
       await expect(page.locator(".edit-workspace")).toHaveClass(
         /edit-workspace--inspector/,
       );

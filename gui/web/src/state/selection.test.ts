@@ -175,6 +175,17 @@ describe("what the Inspector is open for", () => {
     expect(inspectKeyOf({ kind: "track", trackId: "guest" })).not.toBe(track);
   });
 
+  it("keeps a clip and its automatic reduction as one object", () => {
+    expect(
+      inspectKeyOf({
+        kind: "bleedAttenuation",
+        id: "c1",
+        trackId: "host",
+        regionKey: null,
+      }),
+    ).toBe(inspectKeyOf(clip("c1", "host")));
+  });
+
   it("gives another clip another object", () => {
     expect(inspectKeyOf(clip("c1", "host"))).not.toBe(
       inspectKeyOf(clip("c2", "host")),

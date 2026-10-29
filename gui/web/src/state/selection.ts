@@ -166,7 +166,8 @@ export function tracksSelection(trackIds: readonly string[]): Selection {
  * edges move (the Inspector's own In and Out fields reshape it); every other
  * kind is its object, so selecting another one shuts the Inspector. A track and
  * its volume envelope and points are one object here: entering the envelope
- * from the track's Inspector keeps it open.
+ * from the track's Inspector keeps it open, and so does a clip's automatic
+ * reduction.
  */
 export function inspectKeyOf(selection: Selection): string | null {
   if (selection === null) return null;
@@ -186,7 +187,7 @@ export function inspectKeyOf(selection: Selection): string | null {
     case "envelopePoint":
       return `track:${selection.trackId}`;
     case "bleedAttenuation":
-      return `bleedAttenuation:${selection.trackId}:${selection.id}`;
+      return `clip:${selection.id}`;
     default: {
       const unhandled: never = selection;
       return unhandled;

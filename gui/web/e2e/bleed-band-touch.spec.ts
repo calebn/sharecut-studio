@@ -10,7 +10,7 @@ import {
 } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
-import { stageTab } from "./stageNav";
+import { inspectSelection, stageTab } from "./stageNav";
 import { type Point, touch, watchCommands } from "./touchTimeline";
 
 const CLIENT_ID = "e2e-bleed-band-touch";
@@ -115,6 +115,7 @@ async function openBands(
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   if (viewport.phone) await openPhoneTimeline(page);
   await page.locator('[data-clip-id="bleed-right"]').first().click();
+  await inspectSelection(page);
   if (!inspect) return;
   await page
     .getByRole("button", { name: "Inspect automatic audio reduction" })
