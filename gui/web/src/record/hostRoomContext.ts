@@ -5,7 +5,7 @@ import {
   useCallback,
   useContext,
   useLayoutEffect,
-  useRef,
+  useState,
   useSyncExternalStore,
 } from "react";
 import type { HostRoom } from "./useHostRoom";
@@ -13,7 +13,32 @@ import type { HostRoom } from "./useHostRoom";
 type RoomStore = {
   room: HostRoom | null;
   listeners: Set<() => void>;
+  publish: (room: HostRoom | null) => void;
 };
+
+function createRoomStore(room: HostRoom | null): RoomStore {
+  const store: RoomStore = {
+    room,
+    listeners: new Set(),
+    publish(next) {
+      store.room = next;
+      for (const listener of store.listeners) listener();
+    },
+  };
+  return store;
+}
+
+/** Keeps the last pick, so an equal one returns the same value and the reader does not re-render. */
+function createPicker<T>(): (value: T, equal: (a: T, b: T) => boolean) => T {
+  let last: { value: T } | null = null;
+  return (value, equal) => {
+    if (last && equal(last.value, value)) {
+      return last.value;
+    }
+    last = { value };
+    return value;
+  };
+}
 
 const HostRoomContext = createContext<RoomStore | null>(null);
 
@@ -25,14 +50,11 @@ export function HostRoomProvider({
   value: HostRoom | null;
   children?: ReactNode;
 }) {
-  const store = useRef<RoomStore>(null);
-  store.current ??= { room: value, listeners: new Set() };
-  const current = store.current;
+  const [store] = useState(() => createRoomStore(value));
   useLayoutEffect(() => {
-    current.room = value;
-    for (const listener of current.listeners) listener();
-  }, [current, value]);
-  return createElement(HostRoomContext.Provider, { value: current }, children);
+    store.publish(value);
+  }, [store, value]);
+  return createElement(HostRoomContext.Provider, { value: store }, children);
 }
 
 function useSubscribe(store: RoomStore | null) {
@@ -58,13 +80,8 @@ export function useHostRoomSelector<T>(
   equal: (a: T, b: T) => boolean,
 ): T {
   const store = useContext(HostRoomContext);
-  const last = useRef<{ value: T } | null>(null);
-  return useSyncExternalStore(useSubscribe(store), () => {
-    const value = select(store?.room ?? null);
-    if (last.current && equal(last.current.value, value)) {
-      return last.current.value;
-    }
-    last.current = { value };
-    return value;
-  });
+  const [pick] = useState(createPicker<T>);
+  return useSyncExternalStore(useSubscribe(store), () =>
+    pick(select(store?.room ?? null), equal),
+  );
 }

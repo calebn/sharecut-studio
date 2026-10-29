@@ -34,6 +34,12 @@ describe("RoomStatusPill", () => {
     );
   });
 
+  it("never invents a take number: a live phase without one reads the clock alone", () => {
+    expect(roomPillRendering({ kind: "live", clockSec: 724 }).text).toBe(
+      "12:04",
+    );
+  });
+
   it("uses the live glyph only while a take runs", () => {
     expect(
       roomPillRendering({ kind: "live", take: 1, clockSec: 0 }).state,

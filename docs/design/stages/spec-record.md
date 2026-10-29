@@ -276,8 +276,8 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 ### CHIP-REC-TRANSPORT · Recording chip in the transport
 - **Today:** "● REC 0:04 ●" chip in the top bar, visible in DLG-RECORD-ACTIVE. Consistency: a third rendering of the same state, beside the dialog's indicator and the guest's indicator.
 - **Fate:** replace with NEW: Room status pill (compact) on the Stage bar's Record item.
-- **Spec:** on the Stage bar, Record shows: nothing when idle, a count badge when people are waiting in the room ("2"), the compact pill (red dot and clock) during a take, "Paused" text, a progress ring while saving, a broken-link glyph while the room connection is down during a take, an amber dot when any alert is active. Click returns to Record. On phone the same badge is on the Record item of the stage switcher and stays visible above sheets (today's rule for the chip).
-- **Story to build:** `StageBar` › `RecordIdle`, `RecordPeopleWaiting`, `RecordLive`, `RecordPaused`, `RecordSaving`, `RecordAlert`.
+- **Spec:** on the Stage bar, Record shows: nothing when idle, a count badge when people are waiting in the room ("2"), the compact pill (red dot and clock) during a take, "Paused" text, a progress ring while saving, the cloud-off (offline) glyph while the room connection is down during a take, an amber dot when any alert is active. Click returns to Record. On phone the same badge is on the Record item of the stage switcher and stays visible above sheets (today's rule for the chip).
+- **Story to build:** `StageBar` › `RecordIdle`, `RecordPeopleWaiting`, `RecordLive`, `RecordPaused`, `RecordSaving`, `RecordReconnecting`, `RecordAlert`.
 
 ### OVL-RECORDING · Provisional take band and needle
 - **Today:** no shot of it. Code: a band and a needle on the timeline from the take origin to now.
@@ -340,7 +340,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 
 **NEW: Record button.** One control with three faces (idle circle, live square in ring, paused resume), hold-to-stop for 600 ms with a filling ring, and a keyboard/AT popover confirm. Its red is reserved app-wide for "recording": nothing else in the app uses the record red (Stop in Edit transport stays neutral). The idle face is also the Home New sheet's Record tile glyph.
 
-**NEW: Room status pill.** 28 px pill, glyph and text: Waiting (hollow circle), Quiet please · 3 (numeral), ● 12:04 · Take 2 (record red), Paused (two bars), Saving · 2 of 3 (ring), Saved (check), Reconnecting… (broken link). Compact form (glyph and clock only) is the Stage bar's Record badge. One rendering for every role and place.
+**NEW: Room status pill.** 28 px pill, glyph and text: Waiting (hollow circle), Quiet please · 3 (numeral), ● 12:04 · Take 2 (record red), Paused (two bars), Saving · 2 of 3 (ring), Saved (check), Reconnecting… (cloud-off). Compact form (glyph and clock only) is the Stage bar's Record badge. One rendering for every role and place.
 
 **NEW: Room alert.** A single 44 px row under the header with a glyph, one sentence and at most one action. Priority-ordered, one visible, "+N" chip for the rest. If the shell spec defines an app-wide attention row, this should be that component with a record-specific priority table, not a second one.
 

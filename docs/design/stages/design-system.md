@@ -105,9 +105,9 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/AppHeader`: Host, Guest, Offline, Phone, RecordGuest.
 
 **2. Stage bar**
-- Anatomy: desktop segments 96 × 32 (88 on tablet), each a 16 px icon and a 13/500 label. Below 1100 px the inactive segments show the icon only. Phone tab bar: 5 equal tabs, a 24 px icon over an 11 px label. Badges sit top-right.
+- Anatomy: desktop segments 96 × 32 (88 on tablet), each a 16 px icon and a 13/500 label. Below 1100 px the inactive segments show the icon only. Phone tab bar: 5 equal tabs, a 24 px icon over an 11 px label. Badges sit top-right. While live or paused the phone Record tab widens to fit the pill, which takes the label's row (the label stays in the accessible name) and the other tabs share the rest, none under 44 px.
 - Stage icons (each used only to mean "this stage"):
-  - Record: filled circle, neutral at rest and red only while live.
+  - Record: filled circle, always neutral (`currentColor`); the red lives in the take clock pill beside it, never in the icon.
   - Prepare: `wand-sparkles`.
   - Edit: waveform with a text cursor (custom, built on `audio-waveform`).
   - Review: `inbox`.
@@ -115,7 +115,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - States: each badge kind (4.6), narrow, phone, guest Editor (2 tabs).
 - Used: every stage. It replaces phone Listen, Timeline, Text and More, CHIP-REC-TRANSPORT and CMP-PIPELINE-CHIP.
 - Replaces: Stage bar (edit and rdp), Room status pill compact form (record), Pipeline chip.
-- Story: `System/StageBar`: Desktop, Narrow, Phone, AllBadges, DoneBadge, RecordIdle, RecordPeopleWaiting, RecordLive, RecordLivePhone, RecordPaused, RecordSaving, RecordAlert, GuestEditor. Record kinds beyond the stories: reconnecting (broken-link glyph, "Reconnecting" in the name) while the room socket is down during a take.
+- Story: `System/StageBar`: Desktop, Narrow, Phone, AllBadges, DoneBadge, RecordIdle, RecordPeopleWaiting, RecordLive, RecordLivePhone, RecordLivePhoneHour, RecordPausedPhone, RecordPaused, RecordSaving, RecordReconnecting, RecordAlert, GuestEditor. Reconnecting shows the cloud-off (offline) glyph, with "Reconnecting" in the name, while the room socket is down during a take.
 
 **3. Save indicator**
 - An 8 px glyph after the title.

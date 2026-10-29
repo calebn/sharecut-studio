@@ -3,7 +3,7 @@ import { shallow } from "zustand/shallow";
 import { useHostRoomSelector, useRecordHostStore } from "../../record";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
-import type { RecordBadge, StageBadge } from "../../system/StageBar";
+import type { RecordBadge, StageBadge } from "../../system/StageBadgeViews";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
 import type { StageId } from "../../types/stage";
 import { isPipelineKindJob, isPipelineSlotBusy } from "../../utils/pipeline";

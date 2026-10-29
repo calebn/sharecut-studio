@@ -41,6 +41,49 @@ test("System/AppHeader shows icons only for inactive stages under 1100", async (
   expect(edit?.width ?? 0).toBeGreaterThan(20);
 });
 
+for (const [story, label] of [
+  ["system-stagebar--record-live-phone", "live"],
+  ["system-stagebar--record-live-phone-hour", "live over an hour"],
+  ["system-stagebar--record-paused-phone", "paused"],
+] as const) {
+  for (const width of [320, 360, 390]) {
+    test(`System/StageBar phone tab bar fits the Record pill (${label}) at ${width}`, async ({
+      page,
+    }) => {
+      await open(page, story, width);
+      await expect(page.getByRole("tab", { name: /^Record/ })).toBeVisible();
+      const geometry = await page.evaluate(() => {
+        const rect = (el: Element) => el.getBoundingClientRect();
+        const tabs = [...document.querySelectorAll(".sys-stage-tab")];
+        const record = tabs[0];
+        const pill = record.querySelector(".sys-stage-badge--pill");
+        const icon = record.querySelector("svg");
+        if (!pill || !icon) throw new Error("Record tab has no pill or icon");
+        return {
+          documentWidth: document.documentElement.scrollWidth,
+          list: rect(document.querySelector(".sys-stage-list") as Element),
+          tabs: tabs.map((tab) => rect(tab)),
+          pill: rect(pill),
+          icon: rect(icon),
+        };
+      });
+      expect(geometry.documentWidth).toBeLessThanOrEqual(width);
+      for (const tab of geometry.tabs) {
+        expect(tab.width).toBeGreaterThanOrEqual(44);
+        expect(tab.height).toBeGreaterThanOrEqual(44);
+        expect(tab.left).toBeGreaterThanOrEqual(geometry.list.left);
+        expect(tab.right).toBeLessThanOrEqual(geometry.list.right + 0.5);
+      }
+      const [record] = geometry.tabs;
+      expect(geometry.pill.left).toBeGreaterThanOrEqual(record.left);
+      expect(geometry.pill.right).toBeLessThanOrEqual(record.right);
+      expect(geometry.pill.top).toBeGreaterThanOrEqual(
+        geometry.icon.bottom - 1,
+      );
+    });
+  }
+}
+
 test("System/Player expanded form stretches across its card", async ({
   page,
 }) => {
