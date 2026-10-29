@@ -101,7 +101,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 |----------|---------|------|-------|
 | `M` | Record marker (`record.marker`) | recordStageActive | M: live marker on the Record stage; on any other stage, M still mutes the targeted track — M drops a marker only on the Record stage; otherwise M mutes the targeted track |
 | `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in an input) | Also Shift+/ |
-| `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B: bounce dialog (export/bounces/) |
+| `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B: Bounce in Deliver (export/bounces/) |
 | `Mod+Shift+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+Shift+E: mastered export/ via PipelineService |
 | `Mod+N` | New project… (`project.new`) | Host project management | Mod+N |
 | `Mod+O` | All projects (`project.home`) | Host project management | Mod+O: Home. Open project… is in the palette and on Home |

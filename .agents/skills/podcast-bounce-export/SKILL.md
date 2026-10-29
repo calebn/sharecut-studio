@@ -9,8 +9,8 @@ description: >-
 
 # Bounce export (stems / range)
 
-Lightweight mixdown — **not** the ship-to-host path. Same tooling as Sharecut Studio
-**⋯ → Bounce…** / `Mod+Shift+B`.
+Lightweight mixdown — **not** the ship-to-host path. Same tooling as the **Bounce**
+section of Sharecut Studio's Deliver stage / `Mod+Shift+B`.
 
 ## When to use
 
