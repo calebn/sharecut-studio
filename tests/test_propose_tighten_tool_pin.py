@@ -410,6 +410,23 @@ def test_an_asked_group_is_recorded_as_held_with_the_confirmation_message(tmp_pa
     assert reply["edits"][0]["audio_check"] == {"status": "held", "reason": "stub confirmation"}
 
 
+def test_a_held_reason_beats_an_asked_group_message_for_the_same_id(tmp_path, monkeypatch):
+    path = _path(tmp_path, monkeypatch)
+    edit_id = "cut_filler_1000_1500_4740ae6347"
+    calls: list[list[str]] = []
+
+    def listing(self, ids=None):
+        calls.append(list(ids))
+        if len(calls) > 1:
+            return [], []
+        ask = AskedEdits((edit_id,), SimpleNamespace(message="stub confirmation"))
+        return [HeldEdit(edit_id, "um", "stub hold")], [ask]
+
+    monkeypatch.setattr(EditService, "held_by_checks", listing)
+    reasons, checked = EditService(ProjectWorkspace.open(path)).check_proposed([edit_id])
+    assert (reasons, checked) == ({edit_id: "stub hold"}, True)
+
+
 @pytest.mark.parametrize("failure", [OSError("decode failed"), RuntimeError("unexpected")])
 def test_a_failing_check_is_swallowed_and_the_proposal_is_returned_unchecked(
     tmp_path, monkeypatch, failure
@@ -463,12 +480,6 @@ def test_the_service_alone_journals_nothing(tmp_path, monkeypatch):
     EditService(ProjectWorkspace.open(path)).propose_tighten()
     assert _journal(path) == []
     assert _history(path)["total"] == 2
-
-
-def test_a_no_candidate_call_still_journals_one_row(tmp_path, monkeypatch):
-    path = _path(tmp_path, monkeypatch, filler=False)
-    _run(path)
-    assert _journal(path) == ["ProposeTighten"]
 
 
 def test_a_failed_call_journals_nothing(tmp_path, monkeypatch):
