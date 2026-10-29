@@ -59,13 +59,16 @@ import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { HistoryEntryId } from "../../types/project";
 import { ApiError } from "../../utils/apiError";
+import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage as HostDeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 
 function DeliverStage() {
   return (
     <ExportFlowProvider>
-      <HostDeliverStage />
+      <BounceFlowProvider>
+        <HostDeliverStage />
+      </BounceFlowProvider>
     </ExportFlowProvider>
   );
 }

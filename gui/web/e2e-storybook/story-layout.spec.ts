@@ -125,7 +125,6 @@ for (const width of [1440, 360]) {
       ["templates-gesturessheet", "open"],
       ["templates-hostmcpdialog", "ready"],
       ["templates-sharedialog", "empty"],
-      ["templates-bouncedialog", "ready"],
       ["templates-commandpalette", "browse"],
     ]) {
       test(`${family} contains its portaled dialog in Docs at ${width} in ${theme}`, async ({

@@ -27,6 +27,7 @@ import {
 } from "../../test/renderWithModels";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { HistoryEntryId } from "../../types/project";
+import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 
@@ -43,7 +44,9 @@ function Stages() {
 function Host() {
   return (
     <ExportFlowProvider>
-      <Stages />
+      <BounceFlowProvider>
+        <Stages />
+      </BounceFlowProvider>
     </ExportFlowProvider>
   );
 }

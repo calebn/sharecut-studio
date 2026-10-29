@@ -569,7 +569,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.wordbar": "daw.transcript.adjustTiming",
   GesturesSheet: "daw.ui.toggleCommandPalette",
   ShareDialog: "daw.share.manage",
-  BounceDialog: "daw.export.bounce",
+  deliverBounce: "daw.export.bounce",
   RecordStage: "daw.record.marker",
   HostMcpDialog: "daw.mcp.connect",
   "home.help": "daw.help.diagnosticsBundle",

@@ -8,6 +8,7 @@ import {
 import { playInCanvas } from "../../storybook/storyPlay";
 import type { LinkCopyState } from "../../system/LinkRow";
 import { isApplePlatform } from "../../utils/platform";
+import { BOUNCE_DEFAULTS } from "./bounceLogic";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
 import {
   CHAPTERS,
@@ -223,6 +224,28 @@ export const NoMix: Story = {
     link: { url: null, noMix: true },
     facts: { ...CLEAR_FACTS, mixUpToDate: false },
   },
+};
+
+export const WithBounce: Story = {
+  args: {
+    bounce: {
+      state: { phase: "idle" },
+      choices: BOUNCE_DEFAULTS,
+      onChoices: fn(),
+      selectedCount: 0,
+      soloCount: 0,
+      hasRegion: false,
+      onBounce: fn(),
+      onCancel: fn(),
+    },
+  },
+  play: playInCanvas(async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(view.getByRole("heading", { name: "Bounce" })).toBeVisible();
+    await expect(
+      view.getByRole("button", { name: "Entire mix" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  }),
 };
 
 export const Loading: Story = { args: { state: "loading" } };

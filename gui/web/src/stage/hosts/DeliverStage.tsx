@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   addChapter,
@@ -24,12 +24,15 @@ import {
   exportRequest,
 } from "../../stages/deliver/deliverLogic";
 import { useDawStore } from "../../state/dawStore";
+import { selectedTrackIdsOf } from "../../state/selection";
 import { StatusRow } from "../../system/StatusRow";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
 import { Button } from "../../ui";
 import { useCommand } from "../../ui/useCommand";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
+import { useBounceFlow } from "./bounceFlowContext";
+import { bounceOptionsOf } from "./deliverBounce";
 import {
   type DeliverPage,
   patchDeliverDraft,
@@ -94,18 +97,39 @@ function playFrom(seconds: number) {
 }
 
 function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
-  const { project, projectPath, exportRequested, setExportRequested } =
-    useDawStore(
-      useShallow((s) => ({
-        project: s.project,
-        projectPath: s.projectPath,
-        exportRequested: s.chrome.exportRequested,
-        setExportRequested: s.setExportRequested,
-      })),
-    );
+  const {
+    project,
+    projectPath,
+    exportRequested,
+    setExportRequested,
+    bounceRequested,
+    setBounceRequested,
+    bounceRange,
+    setBounceRange,
+    selection,
+    soloTracks,
+    sessionRegion,
+  } = useDawStore(
+    useShallow((s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      exportRequested: s.chrome.exportRequested,
+      setExportRequested: s.setExportRequested,
+      bounceRequested: s.chrome.bounceRequested,
+      setBounceRequested: s.setBounceRequested,
+      bounceRange: s.bounceRangeTarget,
+      setBounceRange: s.setBounceRangeTarget,
+      selection: s.selection,
+      soloTracks: s.soloTracks,
+      sessionRegion: s.sessionRegion,
+    })),
+  );
   const exportFlow = useExportFlow();
   const { reload: reloadExportSettings, start: startExport } = exportFlow;
-  const nowSec = useNowSec(exportFlow.run.kind === "running");
+  const bounceFlow = useBounceFlow();
+  const nowSec = useNowSec(
+    exportFlow.run.kind === "running" || bounceFlow.run.kind === "running",
+  );
   const exportCmd = useCommand("export.deliverables");
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body", ".dv-page");
@@ -181,7 +205,9 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     return () => {
       liveHosts -= 1;
       window.setTimeout(() => {
-        if (liveHosts === 0) useDawStore.getState().setExportRequested(false);
+        if (liveHosts > 0) return;
+        useDawStore.getState().setExportRequested(false);
+        useDawStore.getState().setBounceRequested(false);
       }, 0);
     };
   }, []);
@@ -224,6 +250,13 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     edits,
     exportOptions.target,
   ]);
+  const [focusBounce, setFocusBounce] = useState(false);
+  const clearBounceFocus = useCallback(() => setFocusBounce(false), []);
+  useEffect(() => {
+    if (!bounceRequested || state !== "ready") return;
+    setBounceRequested(false);
+    setFocusBounce(true);
+  }, [bounceRequested, state, setBounceRequested]);
   useEffect(() => {
     if (!projectPath || state !== "ready" || draft.page?.key === seedKey)
       return;
@@ -344,6 +377,16 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             edits,
             onFormats: exportFlow.setSelected,
           }}
+          bounce={bounceOptionsOf(bounceFlow, nowSec, {
+            selectedCount: selectedTrackIdsOf(selection).length,
+            soloCount: Object.values(soloTracks).filter(Boolean).length,
+            hasRegion: sessionRegion != null,
+            range: bounceRange,
+            clearRange: () => setBounceRange(null),
+            blockedReason: bounceCmd.whenReason,
+            focusRequested: focusBounce,
+            onFocused: clearBounceFocus,
+          })}
           env="none"
           getPlayheadSec={() => useDawStore.getState().playheadSec}
           layout={shell === "phone" ? "phone" : "desktop"}
@@ -367,12 +410,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           }}
         />
         <div className="stage-host-actions">
-          <Button
-            disabledReason={bounceCmd.whenReason}
-            onClick={() => runPointerCommand("export.bounce")}
-          >
-            Bounce…
-          </Button>
           <Slot id={FEATURE_SHARE_UI_MENU}>
             <Button
               disabledReason={shareCmd.whenReason}
@@ -390,6 +427,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
 /**
  * The Deliver stage host: the Deliver stage on the open project, with chapter
  * and clip edits written back to the document, and the export run by the
- * flow in `DawApp`. Bounce and Share still open their dialogs. Host only.
+ * flows in `DawApp`. Share still opens its dialog. Host only.
  */
 export const DeliverStage = memo(DeliverStageAdapter);

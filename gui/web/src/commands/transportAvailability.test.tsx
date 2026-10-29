@@ -30,7 +30,6 @@ beforeEach(() => {
     .hydrate("/tmp/transport-availability", minimalProject());
   setChrome({
     commandPaletteOpen: false,
-    bounceDialogOpen: false,
     shareDialogOpen: false,
   });
   useDawStore.setState({

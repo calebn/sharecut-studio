@@ -48,7 +48,7 @@ beforeEach(() => {
   clearRegisteredCommands();
   registerRangeCommands();
   setClipboard(null);
-  setChrome({ bounceDialogOpen: false });
+  setChrome({ bounceRequested: false });
   useDawStore.setState({
     project: p,
     projectPath: "/tmp/ep",
@@ -228,12 +228,13 @@ describe("shared range action policy and commands", () => {
     expect(useDawStore.getState().stage).toBe("review");
     expect(useDawStore.getState().reviewSection).toBe("comments");
   });
-  it("opens Bounce configuration with a detached fixed target", async () => {
+  it("hands Bounce a detached fixed target on the Deliver stage", async () => {
     expect(await runRangeAction("bounce")).toEqual({ status: "ok" });
     const state = useDawStore.getState();
     expect(state.bounceRangeTarget).toEqual(target);
     expect(state.bounceRangeTarget).not.toBe(target);
-    expect(state.chrome.bounceDialogOpen).toBe(true);
+    expect(state.chrome.bounceRequested).toBe(true);
+    expect(state.stage).toBe("deliver");
   });
   it("plays a prepared range through the owned transport preview", async () => {
     vi.stubGlobal(

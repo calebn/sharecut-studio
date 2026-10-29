@@ -12,7 +12,7 @@ type Props = {
   onClose: () => void;
   title: string;
   children: ReactNode;
-  /** Extra class on the panel (e.g. bounce-dialog-panel). */
+  /** Extra class on the panel (e.g. models-dialog-panel). */
   panelClassName?: string;
   /** Initial focus; defaults to Close. */
   initialFocusRef?: React.RefObject<HTMLElement | null>;
