@@ -539,6 +539,7 @@ describe("Review host decisions", () => {
     expect(await screen.findByText("Cutting 3…")).toBeVisible();
     expect(screen.queryByRole("progressbar")).toBeNull();
     expect(screen.queryByRole("button", { name: /^Cut all/ })).toBeNull();
+    expect(wire.post).toHaveBeenCalledOnce();
     await act(async () =>
       release(
         answer({ type: "ApproveEdits", payload: { ids: ["f1", "f2", "f3"] } }),

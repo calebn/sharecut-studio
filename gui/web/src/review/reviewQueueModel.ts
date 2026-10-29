@@ -161,6 +161,9 @@ export function filterItems(
     : items.filter((item) => QUEUE_KIND[item.kind].filter === filter);
 }
 
+export const kindInFilter = (kind: DecisionKind, filter: ReviewFilter) =>
+  filter === "all" || QUEUE_KIND[kind].filter === filter;
+
 export function filterCounts(
   items: readonly ReviewItem[],
 ): Record<ReviewFilter, number> {

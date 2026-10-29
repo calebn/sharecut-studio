@@ -42,7 +42,10 @@ export function useFindMore(enabled: boolean) {
   useEffect(() => {
     reset();
   }, [projectPath, reset]);
-  const { cfg, fetchFresh } = usePipelineWorkingSet(projectPath, enabled);
+  const { cfg, loadError, fetchFresh } = usePipelineWorkingSet(
+    projectPath,
+    enabled,
+  );
   const [starting, setStarting] = useState(false);
   const [run, setRun] = useState<Run | null>(null);
   const flying = useRef(false);
@@ -62,25 +65,38 @@ export function useFindMore(enabled: boolean) {
         (e) => !e.applied && isTightenClass(e.kind),
       ).length;
       const question = findHitsConfirm(hits);
-      if (question && !(await askConfirm(question))) return;
+      if (
+        question &&
+        !(await askConfirm({
+          ...question,
+          title: "Find more again?",
+          actionLabel: "Find more",
+        }))
+      )
+        return;
       setRun({ path, jobId: null, error: null });
       const result = await gate.run(async () => {
         const fresh = current() ? await fetchFresh() : null;
         if (!fresh || !current()) return null;
         const tier = currentTightenIntensity(fresh);
         if (!tier) throw new Error(NO_TIER);
-        const started = await startPipelineRun(
-          path,
-          tightenProposeRunOptions(fresh, tier),
-        );
-        return current() ? started : null;
+        return startPipelineRun(path, tightenProposeRunOptions(fresh, tier));
       });
       if (result.kind !== "ran" || !result.value) return;
+      // The server holds the one pipeline slot now, so the store must show it
+      // even when the host has moved to another project.
       setPipelineJob(result.value);
+      if (!current()) return;
       setRun({ path, jobId: result.value.id, error: null });
       useDawStore.getState().announceStatus("Finding more suggestions…");
     } catch (e) {
       setRun({ path, jobId: null, error: errorMessage(e) });
+      if (current())
+        useDawStore
+          .getState()
+          .announceStatus("Could not find more suggestions.", {
+            tone: "error",
+          });
     } finally {
       flying.current = false;
       setStarting(false);
@@ -110,8 +126,12 @@ export function useFindMore(enabled: boolean) {
     starting || busy
       ? BUSY_REASON
       : cfg
-        ? undefined
-        : "Wait for the settings to load.";
+        ? currentTightenIntensity(cfg)
+          ? undefined
+          : NO_TIER
+        : loadError
+          ? undefined // a press fetches the settings again
+          : "Wait for the settings to load.";
 
   return {
     gate,

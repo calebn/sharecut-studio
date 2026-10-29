@@ -11,13 +11,14 @@ import { VerbButton } from "../system/VerbButton";
 import { hintOf, iconOf, verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
 import { Button, EmptyState, SegmentedControl, ToggleButton } from "../ui";
-import { disabledAttrs } from "../ui/disabledReason";
+import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
 import { formatTimeShort } from "../utils/time";
 import {
   decidedItems,
   filterCounts,
   filterItems,
   groupQueue,
+  kindInFilter,
   progressLine,
   type ReviewFilter,
   type ReviewGroup,
@@ -214,6 +215,12 @@ export function ReviewQueue({
   const shown = filterItems(items, filter);
   const groups = groupQueue(shown);
   const decided = decidedItems(shown);
+  // The group has left the queue; the row follows the filter that showed it.
+  const cuttingAlone =
+    !!bulkRunning &&
+    kindInFilter(bulkRunning.kind, filter) &&
+    !groups.some((g) => g.kind === bulkRunning.kind);
+  const reason = useDisabledReasonNote(guest ? undefined : findMoreDisabled);
 
   if (state !== "ready") {
     return (
@@ -263,6 +270,7 @@ export function ReviewQueue({
             label="Find more"
             onClick={onFindMore}
             {...disabledAttrs(findMoreDisabled)}
+            {...reason.describedBy}
           />
         )}
       </div>
@@ -272,6 +280,7 @@ export function ReviewQueue({
   return (
     <section className="rv-queue" aria-label="Review queue">
       {header}
+      {reason.note}
       {job?.error ? (
         <StatusRow
           state="failed"
@@ -297,12 +306,12 @@ export function ReviewQueue({
           progress={job.progress}
         />
       ) : null}
-      {bulkRunning && !groups.some((g) => g.kind === bulkRunning.kind) ? (
+      {cuttingAlone ? (
         <section className="rv-group" aria-label="Cutting" aria-busy>
           <BulkRow running={bulkRunning} />
         </section>
       ) : null}
-      {groups.length === 0 && !bulkRunning ? (
+      {groups.length === 0 && !cuttingAlone ? (
         <EmptyState as="div" role="status">
           {filter === "all" ? "Nothing to decide" : "Nothing here"}
         </EmptyState>

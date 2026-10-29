@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadPipelineConfig, startPipelineRun } from "../../api";
@@ -200,6 +206,94 @@ describe("Find more in the Review host", () => {
     expect(
       await screen.findByText("Could not find more suggestions"),
     ).toBeVisible();
+  });
+
+  it("starts one run for two quick presses", async () => {
+    let release: (j: PipelineJobSnapshot) => void = () => undefined;
+    vi.mocked(startPipelineRun).mockImplementationOnce(
+      () => new Promise((resolve) => (release = resolve)),
+    );
+    mount([]);
+    await waitFor(async () => expect(await button()).toBeEnabled());
+    const find = await button();
+    fireEvent.click(find);
+    fireEvent.click(find);
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(1));
+    await act(async () => release(job()));
+    expect(startPipelineRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("records a job started for a project the host has left", async () => {
+    let release: (j: PipelineJobSnapshot) => void = () => undefined;
+    vi.mocked(startPipelineRun).mockImplementationOnce(
+      () => new Promise((resolve) => (release = resolve)),
+    );
+    mount([]);
+    await waitFor(async () => expect(await button()).toBeEnabled());
+    await userEvent.click(await button());
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(1));
+    act(() =>
+      useDawStore
+        .getState()
+        .hydrate("/tmp/other/b.project.json", minimalProject()),
+    );
+    await act(async () => release(job()));
+    expect(useDawStore.getState().pipelineJob?.id).toBe("job1");
+  });
+
+  it("retries the settings on a press after the load failed", async () => {
+    vi.mocked(loadPipelineConfig).mockRejectedValueOnce(new Error("blip"));
+    mount([]);
+    await waitFor(() => expect(loadPipelineConfig).toHaveBeenCalledTimes(1));
+    expect(await button()).toBeEnabled();
+    await userEvent.click(await button());
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalledTimes(1));
+  });
+
+  it("says in a described note why it is disabled, and when How tight is unset", async () => {
+    vi.mocked(loadPipelineConfig).mockImplementation(async () => ({
+      ...config(),
+      config: {},
+    }));
+    mount([]);
+    const note = await screen.findByText(
+      "Set How tight in Prepare Cleanup first.",
+    );
+    expect(await button()).toBeDisabled();
+    expect(await button()).toHaveAttribute("aria-describedby", note.id);
+  });
+
+  it("announces a failed start", async () => {
+    vi.mocked(startPipelineRun).mockRejectedValueOnce(new Error("busy"));
+    mount([]);
+    await waitFor(async () => expect(await button()).toBeEnabled());
+    await userEvent.click(await button());
+    await waitFor(() =>
+      expect(useDawStore.getState().feedbackToast?.message).toBe(
+        "Could not find more suggestions.",
+      ),
+    );
+  });
+
+  it("shows the hits the finished job added to the queue", async () => {
+    mount([]);
+    await waitFor(async () => expect(await button()).toBeEnabled());
+    await userEvent.click(await button());
+    await waitFor(() =>
+      expect(useDawStore.getState().pipelineJob).not.toBeNull(),
+    );
+    setJob(job({ status: "ok" }));
+    expect(screen.getByRole("button", { name: "All, 0" })).toBeVisible();
+    // The server writes the hits and document sync delivers them to the store.
+    act(() =>
+      useDawStore.getState().hydrate(
+        PATH,
+        minimalProject({
+          pending_edits: [{ ...hit, review_required: true }],
+        }),
+      ),
+    );
+    expect(await screen.findByRole("button", { name: "All, 1" })).toBeVisible();
   });
 
   it("has no Find more for a commenter", async () => {

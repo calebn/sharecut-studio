@@ -314,12 +314,14 @@ export function useReviewQueue() {
     const group = intent.group
       ? session.props.items.find((i) => i.id === intent.ids[0])
       : undefined;
-    if (group)
+    if (group) {
       setBulkRunning({
         kind: group.kind,
         total: ids.length,
         startedAtSec: Date.now() / 1000,
       });
+      say(`Applying ${ids.length} changes…`);
+    }
     const said =
       target && changed ? `Fixed “${target.text}” to “${text}”` : plan.message;
     try {
@@ -434,6 +436,7 @@ export function useReviewQueue() {
         );
       return false;
     } finally {
+      // One slot: ReviewStage.bulk() refuses to start while bulkRunning is set.
       if (group) setBulkRunning(null);
     }
   });

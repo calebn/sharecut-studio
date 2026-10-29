@@ -14,7 +14,7 @@ export const TIGHTEN_ANALYZE_STEP = "analyze_fillers_pauses";
 type RunOptions = NonNullable<Parameters<typeof startPipelineRun>[1]>;
 
 function intensityField(cfg: PipelineConfigResponse | null) {
-  return cfg?.params.find((p) => p.path === TIGHTEN_INTENSITY_PATH);
+  return cfg?.params?.find((p) => p.path === TIGHTEN_INTENSITY_PATH);
 }
 
 /** Choices from the server param catalog (empty until config loads). */
@@ -61,7 +61,6 @@ export function tightenProposeRunOptions(
   };
 }
 
-/** Confirm text when Find hits would replace listed hits; null for an empty list. */
 /** The question before Find hits replaces the pending hits; null when there are none to lose. */
 export function findHitsConfirm(
   pendingCount: number,
