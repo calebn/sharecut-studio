@@ -237,6 +237,13 @@ function Card({
   );
 }
 
+const DOCK_REM = 4;
+const DOCK_TOLERANCE_PX = 0.5;
+
+function rootRem() {
+  return Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+}
+
 type Drag = {
   start: number;
   container: number;
@@ -270,7 +277,10 @@ function Phone({
       if (!el || !container) return false;
       const start = el.getBoundingClientRect().height;
       const dock =
-        el.querySelector<HTMLElement>(".sys-inspector-dock")?.offsetHeight ||
+        el
+          .querySelector<HTMLElement>(".sys-inspector-dock")
+          ?.getBoundingClientRect().height ||
+        rootRem() * DOCK_REM ||
         DOCK_PX;
       drag.current = { start, container, dock, height: start };
       samples.current = [{ t: performance.now(), height: start }];
@@ -296,7 +306,7 @@ function Phone({
         gesture.height,
         riseVelocity(samples.current, performance.now()),
         gesture.container,
-        gesture.start <= gesture.dock,
+        gesture.start <= gesture.dock + DOCK_TOLERANCE_PX,
         gesture.dock,
       );
       if (next === "dismiss") onDismiss();
