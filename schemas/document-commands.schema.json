@@ -4649,6 +4649,132 @@
       "title": "PhraseCorrectionItem",
       "type": "object"
     },
+    "ProposeTightenCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/ProposeTightenPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "ProposeTighten",
+          "default": "ProposeTighten",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id"
+      ],
+      "title": "ProposeTightenCommand",
+      "type": "object"
+    },
+    "ProposeTightenPayload": {
+      "properties": {
+        "edit_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ripple (default, from tighten.edit_mode) or mute; anything else means ripple.",
+          "title": "Edit Mode"
+        },
+        "intensity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "light, medium or aggressive (default from tighten.intensity); unknown values raise.",
+          "title": "Intensity"
+        }
+      },
+      "title": "ProposeTightenPayload",
+      "type": "object"
+    },
     "RangeInterval": {
       "additionalProperties": false,
       "properties": {
@@ -10615,6 +10741,7 @@
       "MoveClips": "#/$defs/MoveClipsCommand",
       "MoveSegment": "#/$defs/MoveSegmentCommand",
       "PasteSegment": "#/$defs/PasteSegmentCommand",
+      "ProposeTighten": "#/$defs/ProposeTightenCommand",
       "ReconcileTranscript": "#/$defs/ReconcileTranscriptCommand",
       "RedoHistory": "#/$defs/RedoHistoryCommand",
       "RejectEdits": "#/$defs/RejectEditsCommand",
@@ -10836,6 +10963,9 @@
     },
     {
       "$ref": "#/$defs/ApplyAutoEditsCommand"
+    },
+    {
+      "$ref": "#/$defs/ProposeTightenCommand"
     },
     {
       "$ref": "#/$defs/ApplyEditPlanCommand"
