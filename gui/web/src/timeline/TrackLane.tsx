@@ -347,6 +347,8 @@ export function TrackLaneView({
               <div
                 key={r.start}
                 className="audition-overlay range-overlay"
+                data-range-start={r.start}
+                data-range-end={r.end}
                 style={{
                   left: r.start * zoomPxPerSec,
                   width: (r.end - r.start) * zoomPxPerSec,

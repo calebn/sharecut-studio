@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
 import { openHostProject } from "../e2e/overlayReachability";
 import { rememberInspectorDetent } from "../e2e/phoneTimeline";
+import { inspectSelection } from "../e2e/stageNav";
 
 async function sendSessionCommand(
   page: Page,
@@ -86,7 +87,7 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
 
   const barActions = page
     .locator(".edit-timeline-col")
-    .getByRole("region", { name: "Range actions" });
+    .getByRole("region", { name: "Range fields" });
   const selectedTrack = barActions.getByRole("checkbox").first();
   await selectedTrack.click();
   await expect(selectedTrack).toBeChecked();
@@ -101,6 +102,7 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
     };
   });
   await page.touchscreen.tap(point.x, point.y);
+  await inspectSelection(page);
 
   const sheet = page.locator(".bottom-sheet--inspector");
   await expect(sheet).toBeVisible();
@@ -109,7 +111,7 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
   await expect(sheet).toHaveClass(/bottom-sheet--full/);
   await expect(barActions).toHaveCount(0);
 
-  const actions = sheet.getByRole("region", { name: "Range actions" });
+  const actions = sheet.getByRole("region", { name: "Range fields" });
   await expect(actions.getByLabel("In")).toBeVisible();
   await expect(actions.getByLabel("Out")).toBeVisible();
   await expect(
@@ -125,10 +127,9 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
     .getByRole("button", { name: "Use agent range on selected tracks" })
     .click();
 
-  const adoptedRange = sheet
-    .getByRole("region", { name: "Range actions" })
-    .getByText(/4\.00–9\.00 s/);
-  await expect(adoptedRange).toHaveText("4.00–9.00 s · reference");
+  const adopted = sheet.getByRole("region", { name: "Range fields" });
+  await expect(adopted.getByLabel("In")).toHaveValue("4");
+  await expect(adopted.getByLabel("Out")).toHaveValue("9");
 });
 
 test("a zero-start agent range arriving at the short-tablet column stays reachable", async ({
@@ -147,6 +148,7 @@ test("a zero-start agent range arriving at the short-tablet column stays reachab
     };
   });
   await page.touchscreen.tap(point.x, point.y);
+  await inspectSelection(page);
 
   const sheet = page.locator(".bottom-sheet--column");
   await expect(sheet).toBeVisible();
@@ -154,14 +156,14 @@ test("a zero-start agent range arriving at the short-tablet column stays reachab
   const title = await sheet.locator(".bottom-sheet-title").innerText();
   const clientId = fixtureClientId(page, "peek-arrival");
   await clearAgentRange(page, clientId, 1);
-  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+  await expect(page.getByRole("region", { name: "Range fields" })).toHaveCount(
     0,
   );
   await publishZeroStartAgentRange(page, clientId, 2);
 
-  const actions = sheet.getByRole("region", { name: "Range actions" });
+  const actions = sheet.getByRole("region", { name: "Range fields" });
   await expect(actions).toBeVisible();
-  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+  await expect(page.getByRole("region", { name: "Range fields" })).toHaveCount(
     1,
   );
   await expect(sheet.locator(".bottom-sheet-title")).toHaveText(title);
@@ -180,11 +182,9 @@ test("a zero-start agent range arriving at the short-tablet column stays reachab
   await actions
     .getByRole("button", { name: "Use agent range on selected tracks" })
     .click();
-  await expect(
-    sheet
-      .getByRole("region", { name: "Range actions" })
-      .getByText(/0\.00–2\.00 s/),
-  ).toHaveText("0.00–2.00 s · guest");
+  const adopted = sheet.getByRole("region", { name: "Range fields" });
+  await expect(adopted.getByLabel("In")).toHaveValue("0");
+  await expect(adopted.getByLabel("Out")).toHaveValue("2");
 });
 
 test("a tablet track sheet owns the agent range controls", async ({ page }) => {
@@ -204,7 +204,7 @@ test("a tablet track sheet owns the agent range controls", async ({ page }) => {
   await expect(sheet).toBeVisible();
   await sheet.getByRole("button", { name: "Expand", exact: true }).click();
   await expect(sheet).toHaveClass(/bottom-sheet--full/);
-  const actions = sheet.getByRole("region", { name: "Range actions" });
+  const actions = sheet.getByRole("region", { name: "Range fields" });
   await expect(actions.getByLabel("In")).toBeVisible();
   await expect(actions.getByLabel("Out")).toBeVisible();
   await expect(
@@ -214,7 +214,7 @@ test("a tablet track sheet owns the agent range controls", async ({ page }) => {
   ).toBeVisible();
   await expect(
     page.locator(".edit-timeline-col").getByRole("region", {
-      name: "Range actions",
+      name: "Range fields",
     }),
   ).toHaveCount(0);
 });
@@ -235,6 +235,7 @@ test("agent range arrival and removal keep the short-tablet column reachable", a
     };
   });
   await page.touchscreen.tap(point.x, point.y);
+  await inspectSelection(page);
 
   const sheet = page.locator(".bottom-sheet--column");
   await expect(sheet).toBeVisible();
@@ -243,18 +244,18 @@ test("agent range arrival and removal keep the short-tablet column reachable", a
   const title = await sheet.locator(".bottom-sheet-title").innerText();
   const clientId = fixtureClientId(page, "peek-toggle");
   await clearAgentRange(page, clientId, 1);
-  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+  await expect(page.getByRole("region", { name: "Range fields" })).toHaveCount(
     0,
   );
   await publishZeroStartAgentRange(page, clientId, 2);
 
-  const actions = sheet.getByRole("region", { name: "Range actions" });
+  const actions = sheet.getByRole("region", { name: "Range fields" });
   await expect(
     actions.getByRole("button", {
       name: "Use agent range on selected tracks",
     }),
   ).toBeVisible();
-  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+  await expect(page.getByRole("region", { name: "Range fields" })).toHaveCount(
     1,
   );
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
@@ -269,16 +270,16 @@ test("agent range arrival and removal keep the short-tablet column reachable", a
   await guest.check();
   await clearAgentRange(page, clientId, 3);
   await expect(actions).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+  await expect(page.getByRole("region", { name: "Range fields" })).toHaveCount(
     0,
   );
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
   await expect(sheet.locator(".bottom-sheet-title")).toHaveText(title);
 
   await publishZeroStartAgentRange(page, clientId, 4);
-  const restored = sheet.getByRole("region", { name: "Range actions" });
+  const restored = sheet.getByRole("region", { name: "Range fields" });
   await expect(restored).toBeVisible();
-  await expect(page.getByRole("region", { name: "Range actions" })).toHaveCount(
+  await expect(page.getByRole("region", { name: "Range fields" })).toHaveCount(
     1,
   );
   await expect(

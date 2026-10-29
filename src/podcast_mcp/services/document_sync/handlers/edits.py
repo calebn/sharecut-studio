@@ -266,12 +266,14 @@ def split_at_time(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     track_ids = p.get("track_ids")
     tids = [str(t) for t in track_ids] if track_ids is not None else None
     reason = str(p["reason"]) if p.get("reason") is not None else None
+    extra = p.get("extra_at_times")
     return TimelineService(ws).split_at_time(
         float(p["at_time"]),
         tids,
         propose=mode is StructuralMutationMode.PROPOSE,
         reason=reason,
         author=p.get("_author"),
+        extra_at_times=[float(t) for t in extra] if extra else None,
     )
 
 

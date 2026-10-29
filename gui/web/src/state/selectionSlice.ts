@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import type { Selection } from "../types/project";
 import {
   clipClickSelection,
+  inspectKeyOf,
   settleSelection,
   trackClickSelection,
   tracksSelection,
@@ -25,21 +26,41 @@ type SelectionSlice = Pick<
 export function selectionPatch(
   current: Selection,
   next: Selection,
-): Pick<DawStore, "selection" | "pendingWireSelection"> {
+  inspectorKey: string | null,
+): Pick<DawStore, "selection" | "pendingWireSelection" | "inspectorKey"> {
+  const settled = settleSelection(current, next);
   return {
-    selection: settleSelection(current, next),
+    selection: settled,
     pendingWireSelection: null,
+    inspectorKey: inspectorKeyAfter(settled, inspectorKey),
   };
 }
 
+function inspectorKeyAfter(
+  selection: Selection,
+  inspectorKey: string | null,
+): string | null {
+  return inspectorKey !== null && inspectorKey === inspectKeyOf(selection)
+    ? inspectorKey
+    : null;
+}
+
 /** A new project starts with nothing selected; a wire selection waiting for its target stays. */
-export const NO_SELECTION: Pick<DawStore, "selection"> = { selection: null };
+export const NO_SELECTION: Pick<DawStore, "selection" | "inspectorKey"> = {
+  selection: null,
+  inspectorKey: null,
+};
 
 /** `next` exactly as given: a click or a set of tracks already worked out the whole selection. */
 function exactSelection(
   next: Selection,
-): Pick<DawStore, "selection" | "pendingWireSelection"> {
-  return { selection: next, pendingWireSelection: null };
+  inspectorKey: string | null,
+): Pick<DawStore, "selection" | "pendingWireSelection" | "inspectorKey"> {
+  return {
+    selection: next,
+    pendingWireSelection: null,
+    inspectorKey: inspectorKeyAfter(next, inspectorKey),
+  };
 }
 
 export const createSelectionSlice: StateCreator<
@@ -50,17 +71,21 @@ export const createSelectionSlice: StateCreator<
 > = (set) => ({
   selection: null as Selection,
   setSelection: (selection) =>
-    set((s) => selectionPatch(s.selection, selection)),
+    set((s) => selectionPatch(s.selection, selection, s.inspectorKey)),
   selectClip: (clipId, trackId, mods) =>
     set((s) =>
       exactSelection(
         clipClickSelection(s.selection, s.project, clipId, trackId, mods),
+        s.inspectorKey,
       ),
     ),
   toggleTrackSelected: (trackId, additive) =>
     set((s) =>
-      exactSelection(trackClickSelection(s.selection, trackId, additive)),
+      exactSelection(
+        trackClickSelection(s.selection, trackId, additive),
+        s.inspectorKey,
+      ),
     ),
   selectTracks: (trackIds) =>
-    set(() => exactSelection(tracksSelection(trackIds))),
+    set((s) => exactSelection(tracksSelection(trackIds), s.inspectorKey)),
 });

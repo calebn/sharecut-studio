@@ -98,6 +98,15 @@
   border-inline-start: 1px solid var(--color-border);
 }
 
+.edit-inspector > .edit-inspector-close {
+  position: sticky;
+  inset-block-start: var(--space-1);
+  align-self: flex-end;
+  flex: 0 0 auto;
+  margin: var(--space-1) var(--space-1) calc(var(--space-1) * -1) 0;
+  z-index: 1;
+}
+
 /* The slot only carries the divider's focus region. */
 .edit-divider-slot {
   display: contents;
@@ -164,6 +173,12 @@
   position: static;
   justify-content: flex-start;
   max-inline-size: none;
+}
+
+/* The dock's Inspect grip hangs above the bar; in the sheet that is over the
+   row before it, so the bar leaves room for it. */
+.tools-sheet .sys-actions--dock-grip {
+  margin-block-start: calc(var(--touch-min) - var(--space-4));
 }
 
 /* An open join's length rail sits at the foot of the timeline; it stays above the
@@ -234,6 +249,22 @@
 /* The phone's Edit: a bar with the surface switch, then lanes or Script. */
 .edit-workspace--phone {
   flex-direction: column;
+}
+
+.edit-dock {
+  flex: 0 0 auto;
+  background: var(--color-bg-base);
+}
+
+.edit-dock:empty,
+html[data-frame-short] .edit-dock {
+  display: none;
+}
+
+/* The dock's Inspect grip is a touch target reaching up over the lanes' foot;
+   the floating corner steps above it so a touch there is the grip's. */
+.edit-workspace:has(.edit-dock:not(:empty)) .edit-corner {
+  inset-block-end: calc(var(--space-3) + var(--touch-min) - var(--space-4));
 }
 
 .phone-edit {

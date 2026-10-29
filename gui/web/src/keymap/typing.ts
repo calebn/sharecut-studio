@@ -12,12 +12,17 @@ export function isTypingTarget(el: EventTarget | null): boolean {
   );
 }
 
+/**
+ * Space or Enter on a focused button or summary is the browser's click, not a
+ * shortcut. Shift+Space is a chord (Hear), so it is not an activation: words,
+ * clips and the Action bar's own buttons are buttons, and Hear must work there.
+ */
 export function isButtonActivation(e: KeyboardEvent): boolean {
   return (
     e.target instanceof HTMLElement &&
     e.target.matches("button, summary") &&
     !hasCommandModifier(e) &&
-    (e.key === " " || e.key === "Enter")
+    ((e.key === " " && !e.shiftKey) || e.key === "Enter")
   );
 }
 

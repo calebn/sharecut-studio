@@ -1,6 +1,6 @@
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { RangeActions } from "../timeline/RangeActions";
+import { RangeFields } from "../timeline/RangeFields";
 import { oneWordOf, type TranscriptRangeSelection } from "../utils/rangeSelect";
 import { TranscriptWordInspector } from "./views/TranscriptWordInspector";
 
@@ -46,7 +46,7 @@ export function TranscriptRangeBody({
     />
   );
   const range =
-    placement === "sheet" ? <RangeActions key="range" sheet /> : null;
+    placement === "sheet" ? <RangeFields key="range" sheet /> : null;
   return correctionFirst ? (
     <>
       {editor}

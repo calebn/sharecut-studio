@@ -20,7 +20,7 @@ export function bladeTrackIds(
 
 /**
  * What a blade cut will cut, in words: the selected tracks by name, else every
- * dialogue track. The create menu shows it under Blade cut, which sits under a
+ * dialogue track. The create menu shows it under Split here, which sits under a
  * held lane but cuts these tracks.
  */
 export function bladeCutNote(

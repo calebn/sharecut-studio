@@ -6,7 +6,7 @@ import {
   removeRelocatedE2eProject,
 } from "../e2e/liveProject";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { openProject } from "../e2e/stageNav";
+import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
 import { buildFixture, centerOf, lane, setZoom } from "../e2e/touchTimeline";
 
 // A mouse window: a coarse pointer at this size gets the Inspector column
@@ -47,6 +47,7 @@ async function selected(
   await finger.down(at);
   await page.waitForTimeout(60);
   await finger.up();
+  await inspectSelectionByKey(page);
   await expect(page.locator(".pending-actionbar--docked")).toBeVisible();
   await page.waitForTimeout(700);
 }

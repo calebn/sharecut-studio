@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { openHostProject } from "../e2e/overlayReachability";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
+import { inspectSelection } from "../e2e/stageNav";
 
 test.use({ hasTouch: true, actionTimeout: 15_000 });
 
@@ -15,6 +16,7 @@ async function expectZonesLaidOutLikeTheInspector(
   await openHostProject(page);
   if (width <= 767) await openPhoneTimeline(page);
   await page.locator(".clip-hit").first().tap();
+  await inspectSelection(page);
   await expect(page.locator(".related-commands-zone").first()).toBeVisible();
   const layout = await page.evaluate(() => {
     const box = (el: Element) => el.getBoundingClientRect();

@@ -366,6 +366,13 @@ export function TranscriptPanel() {
     return () => useDawStore.getState().setTranscriptCorrecting(false);
   }, [intent]);
 
+  // Correct is an explicit ask for the word's text form: it lives in the
+  // Inspector, so the word held in Correct opens it (selecting alone does not).
+  useEffect(() => {
+    if (intent === "correct" && oneWordOf(selection))
+      useDawStore.getState().setInspectorOpen(true);
+  }, [intent, selection]);
+
   const enteredIntentRef = useRef(intent);
   useEffect(() => {
     if (enteredIntentRef.current === intent) return;

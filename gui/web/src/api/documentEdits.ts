@@ -785,12 +785,16 @@ export async function splitAtTime(
   atTime: number,
   trackIds?: string[] | null,
   reason?: string | null,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, DocumentCommand.SplitAtTime, {
-    at_time: atTime,
-    track_ids: trackIds ?? null,
-    reason: reason ?? null,
-  });
+  extraAtTimes?: readonly number[],
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, DocumentCommand.SplitAtTime, {
+      at_time: atTime,
+      track_ids: trackIds ?? null,
+      reason: reason ?? null,
+      ...(extraAtTimes?.length ? { extra_at_times: [...extraAtTimes] } : {}),
+    }),
+  );
 }
 
 export async function deleteClips(

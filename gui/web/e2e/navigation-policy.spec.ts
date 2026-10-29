@@ -8,6 +8,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { ensureInspected } from "./stageNav";
 import { setTheme } from "./theme";
 import { openTranscriptPanel } from "./transcriptEdit";
 
@@ -215,6 +216,7 @@ test("F09 host numeric inspector opens an envelope point's time and level", asyn
         .locator('circle[aria-label^="Envelope point 1 at"]')
         .first();
       await owner.click();
+      await ensureInspected(page);
       await page
         .getByRole("button", { name: "Edit point", exact: true })
         .click();

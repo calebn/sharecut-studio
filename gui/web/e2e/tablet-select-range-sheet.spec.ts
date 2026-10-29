@@ -22,7 +22,7 @@ test("tablet Select range puts In, Out, Select range and Cancel in the sheet at 
     .tap();
 
   const sheet = page.getByRole("dialog", { name: "Inspector", exact: true });
-  const actions = sheet.getByRole("region", { name: "Range actions" });
+  const actions = sheet.getByRole("region", { name: "Range fields" });
   await expect(actions).toBeVisible();
   await expect(actions.getByLabel("In")).toBeVisible();
   await expect(actions.getByLabel("Out")).toBeVisible();
@@ -37,7 +37,7 @@ test("tablet Select range puts In, Out, Select range and Cancel in the sheet at 
   // Nothing of it hangs under the App header at the top.
   await expect(
     page.locator(".stage-frame-header").getByRole("region", {
-      name: "Range actions",
+      name: "Range fields",
     }),
   ).toHaveCount(0);
   // The sheet sits below the lanes it selects across, so they stay in view.

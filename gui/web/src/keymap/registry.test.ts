@@ -91,11 +91,9 @@ describe("keymap registry", () => {
     ]);
   });
 
-  it("binds nothing to V, C or Mod+Shift+C now that the tools and Comment mode are gone", () => {
+  it("binds nothing to V or Mod+Shift+C, and C is Comment now that the tools are gone", () => {
     for (const event of [
       keyEvent({ key: "v", code: "KeyV" }),
-      keyEvent({ key: "c", code: "KeyC" }),
-      keyEvent({ key: "C", code: "KeyC", shiftKey: true }),
       keyEvent({ key: "c", code: "KeyC", metaKey: true, shiftKey: true }),
     ])
       expect(matchKeymapCommands(event)).toEqual([]);
@@ -106,6 +104,34 @@ describe("keymap registry", () => {
       "review.exitCommentMode",
     ])
       expect(keymapCommandById(id)).toBeUndefined();
+  });
+
+  it("binds the Action bar's keys: C, Shift+C, X, I, ., A, B, S, Shift+S, Shift+Space and M", () => {
+    const first = (event: Parameters<typeof keyEvent>[0]) =>
+      matchKeymapCommands(keyEvent(event)).map((c) => c.id);
+    expect(first({ key: "c", code: "KeyC" })).toEqual(["comment.draftAt"]);
+    expect(first({ key: "C", code: "KeyC", shiftKey: true })).toEqual([
+      "edit.addChapter",
+    ]);
+    expect(first({ key: "x", code: "KeyX" })).toEqual(["edit.keep"]);
+    expect(first({ key: "i", code: "KeyI" })).toEqual(["edit.inspect"]);
+    expect(first({ key: ".", code: "Period" })).toEqual(["edit.more"]);
+    expect(first({ key: "a", code: "KeyA" })).toEqual(["edit.hearBefore"]);
+    expect(first({ key: "b", code: "KeyB" })).toEqual(["edit.hearAfter"]);
+    expect(first({ key: "s", code: "KeyS" })).toEqual(["edit.split"]);
+    expect(first({ key: "S", code: "KeyS", shiftKey: true })).toEqual([
+      "track.soloToggle",
+    ]);
+    expect(first({ key: " ", code: "Space", shiftKey: true })).toEqual([
+      "edit.hear",
+    ]);
+    expect(first({ key: " ", code: "Space" })).toEqual([
+      "transport.togglePlay",
+    ]);
+    expect(first({ key: "m", code: "KeyM" })).toContain("edit.mute");
+    expect(first({ key: "x", code: "KeyX", metaKey: true })).toEqual([
+      "edit.cut",
+    ]);
   });
 
   it("matches Space and Mod+digit layouts", () => {
@@ -207,7 +233,7 @@ describe("keymap registry", () => {
       matchKeymapCommands(keyEvent({ key: "Escape", code: "Escape" })).map(
         (c) => c.id,
       ),
-    ).toEqual(["presence.unfollow", "edit.clearSelection"]);
+    ).toEqual(["edit.clearSelection", "presence.unfollow"]);
     expect(matchKeymapCommand(keyEvent({ key: "m", code: "KeyM" }))?.id).toBe(
       "record.marker",
     );
@@ -215,10 +241,14 @@ describe("keymap registry", () => {
       matchKeymapCommands(keyEvent({ key: "m", code: "KeyM" })).map(
         (c) => c.id,
       ),
-    ).toEqual(["record.marker", "track.muteToggle"]);
+    ).toEqual(["record.marker", "edit.mute"]);
     expect(matchKeymapCommand(keyEvent({ key: "s", code: "KeyS" }))?.id).toBe(
-      "track.soloToggle",
+      "edit.split",
     );
+    expect(
+      matchKeymapCommand(keyEvent({ key: "S", code: "KeyS", shiftKey: true }))
+        ?.id,
+    ).toBe("track.soloToggle");
     expect(matchKeymapCommand(keyEvent({ key: "=", code: "Equal" }))?.id).toBe(
       "view.zoomIn",
     );
@@ -273,11 +303,27 @@ describe("keymap registry", () => {
 
   it("honors remap overrides", () => {
     _resetKeymapOverridesForTests();
-    setKeymapOverride("track.soloToggle", ["B"]);
-    expect(matchKeymapCommand(keyEvent({ key: "b", code: "KeyB" }))?.id).toBe(
+    setKeymapOverride("track.soloToggle", ["Q"]);
+    expect(
+      matchKeymapCommand(keyEvent({ key: "Q", code: "KeyQ", shiftKey: true }))
+        ?.id,
+    ).toBe("track.soloToggle");
+    _resetKeymapOverridesForTests();
+  });
+
+  it("keeps a remapped Solo key working without Shift", () => {
+    _resetKeymapOverridesForTests();
+    setKeymapOverride("track.soloToggle", ["L"]);
+    expect(matchKeymapCommand(keyEvent({ key: "l", code: "KeyL" }))?.id).toBe(
       "track.soloToggle",
     );
+    expect(formatShortcutKeys(keymapCommandById("track.soloToggle")!)).toBe(
+      "L",
+    );
     _resetKeymapOverridesForTests();
+    expect(
+      matchKeymapCommand(keyEvent({ key: "s", code: "KeyS" }))?.id,
+    ).not.toBe("track.soloToggle");
   });
 });
 
@@ -460,9 +506,15 @@ describe("displayShortcutKeys", () => {
   });
 
   it("keeps bare keys and names Space", () => {
+    expect(displayShortcutKeys(keymapCommandById("edit.split")!, true)).toBe(
+      "S",
+    );
     expect(
       displayShortcutKeys(keymapCommandById("track.soloToggle")!, true),
-    ).toBe("S");
+    ).toBe("⇧S");
+    expect(displayShortcutKeys(keymapCommandById("edit.hear")!, false)).toBe(
+      "Shift+Space",
+    );
     expect(
       displayShortcutKeys(keymapCommandById("transport.togglePlay")!, false),
     ).toBe("Space");
@@ -527,15 +579,11 @@ describe("held keys", () => {
       }
       return cmd;
     };
-    expect(ignoresKeyRepeat({ repeat: true }, row("track.muteToggle"))).toBe(
-      true,
-    );
+    expect(ignoresKeyRepeat({ repeat: true }, row("edit.mute"))).toBe(true);
     expect(ignoresKeyRepeat({ repeat: true }, row("track.soloToggle"))).toBe(
       true,
     );
-    expect(ignoresKeyRepeat({ repeat: false }, row("track.muteToggle"))).toBe(
-      false,
-    );
+    expect(ignoresKeyRepeat({ repeat: false }, row("edit.mute"))).toBe(false);
     expect(
       ignoresKeyRepeat(
         { repeat: true },

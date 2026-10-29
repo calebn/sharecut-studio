@@ -182,7 +182,9 @@ function rulerCommands(
           hint: document
             .querySelector(".time-ruler")
             ?.getAttribute("aria-valuetext"),
-          range: document.querySelector(".range-summary")?.textContent,
+          range: document
+            .querySelector(".range-overlay[data-range-start]")
+            ?.getAttribute("data-range-start"),
           ruler: document
             .querySelector(".time-ruler")
             ?.getAttribute("aria-valuenow"),
@@ -452,13 +454,11 @@ async function emptyLanePoint(page: Page, track: string, seconds: number) {
 }
 
 async function rangeBounds(page: Page) {
-  const summary = await page
-    .getByRole("region", { name: "Range actions" })
-    .locator(".range-summary")
-    .textContent();
-  const match = summary!.match(/([\d.]+)–([\d.]+) s/);
-  expect(match).not.toBeNull();
-  return { start: Number(match![1]), end: Number(match![2]), summary };
+  const overlay = page.locator(".range-overlay[data-range-start]").first();
+  await expect(overlay).toBeAttached();
+  const start = Number(await overlay.getAttribute("data-range-start"));
+  const end = Number(await overlay.getAttribute("data-range-end"));
+  return { start, end, summary: `${start}–${end} s` };
 }
 
 test("exposed empty-lane range spans two lanes and reverses both axes without editing", {
@@ -538,7 +538,7 @@ test("exposed empty-lane range spans two lanes and reverses both axes without ed
         expect(initialCapture).toHaveLength(1);
         await page.mouse.move(start.x + 6, start.y);
         await expect(
-          page.getByRole("region", { name: "Range actions" }),
+          page.getByRole("group", { name: "Selection actions" }),
         ).toBeVisible();
         const previewLanes = await lanes();
         const oldEndpointHit = await page.evaluate((point) => {
@@ -549,7 +549,7 @@ test("exposed empty-lane range spans two lanes and reverses both axes without ed
           };
         }, originalEnd);
         const toolbar = await page
-          .getByRole("region", { name: "Range actions" })
+          .getByRole("group", { name: "Selection actions" })
           .boundingBox();
         receipts.push({
           checkpoint: "range-toolbar-insertion",
@@ -583,8 +583,8 @@ test("exposed empty-lane range spans two lanes and reverses both axes without ed
         await page.mouse.move(end.x, end.y, { steps: 6 });
         expect(await ownership()).toHaveLength(1);
         await expect(
-          page.getByRole("region", { name: "Range actions" }),
-        ).toContainText("reference, guest");
+          page.getByRole("group", { name: "Selection actions" }),
+        ).toContainText("All");
         const forward = await rangeBounds(page);
         expect(Math.abs(forward.start - 15.2)).toBeLessThanOrEqual(
           1 / start.scale.pxPerSecond + 0.01,
@@ -595,7 +595,7 @@ test("exposed empty-lane range spans two lanes and reverses both axes without ed
         const reverse = await emptyLanePoint(page, "reference", 10.2);
         await page.mouse.move(reverse.x, reverse.y, { steps: 6 });
         await expect(
-          page.getByRole("region", { name: "Range actions" }),
+          page.getByRole("group", { name: "Selection actions" }),
         ).not.toContainText("guest");
         const reversed = await rangeBounds(page);
         expect(Math.abs(reversed.start - 10.2)).toBeLessThanOrEqual(
@@ -664,7 +664,7 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
       };
       try {
         await armRange(page);
-        const range = page.getByRole("region", { name: "Range actions" });
+        const range = page.getByRole("region", { name: "Range fields" });
         await range
           .getByRole("spinbutton", { name: "In", exact: true })
           .fill("");
@@ -702,12 +702,6 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
           .getByRole("button", { name: "Select range", exact: true })
           .click();
         expect(await rangeBounds(page)).toMatchObject({ start: 2, end: 3 });
-        await expect(range.locator(".range-summary")).toContainText(
-          "reference",
-        );
-        await expect(range.locator(".range-summary")).not.toContainText(
-          "guest",
-        );
         await expect(
           page.locator('.lane-row[data-track-id="reference"] .range-overlay'),
         ).toHaveCount(1);
@@ -716,7 +710,15 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
         ).toHaveCount(0);
         expect(snapshot(projectPath)).toEqual(before);
         const accepted = await acceptedCommand(page, "EditSelectedRange", () =>
-          range.getByRole("button", { name: "Mute", exact: true }).click(),
+          (async () => {
+            await page
+              .getByRole("group", { name: "Selection actions" })
+              .getByRole("button", { name: "More" })
+              .click();
+            await page
+              .getByRole("menuitem", { name: "Mute", exact: true })
+              .click();
+          })(),
         );
         await expect
           .poll(

@@ -89,4 +89,6 @@ export type CommandDef = {
   paletteRunnable?: false;
   /** Strong local navigation: stop following after a successful run. */
   breaksFollow?: true;
+  /** A key press the command refuses says why in the live region (`mutates` commands always do). */
+  announcesRefusal?: true;
 };

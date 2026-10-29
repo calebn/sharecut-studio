@@ -186,11 +186,88 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "edit.bladeCut",
     mutates: true,
     category: "edit",
-    label: "Blade cut",
-    keywords: ["razor", "split", "slice"],
+    label: "Split at playhead",
+    keywords: ["razor", "blade", "cut", "slice"],
     when: "editStageStructural",
     notes:
-      "Args: { atTime?: number } → SplitAtTime at the clicked time, else the playhead (Mod+K)",
+      "Args: { atTime?: number, extraAtTimes?: number[], trackIds?: string[] } → SplitAtTime at the clicked time, else the playhead (Mod+K); extra times split in the same undo step",
+  },
+  "edit.split": {
+    id: "edit.split",
+    mutates: true,
+    category: "edit",
+    label: "Split",
+    keywords: ["razor", "blade", "cut", "slice"],
+    when: "editStageStructural",
+    notes:
+      "S and the Action bar's Split: at the playhead, or at both edges of the selected words or range (one undo step); on a clip, at the playhead if it is inside the clip",
+  },
+  "edit.hear": {
+    id: "edit.hear",
+    category: "edit",
+    label: "Hear",
+    keywords: ["listen", "play selection"],
+    when: "editStage",
+    announcesRefusal: true,
+    notes:
+      "Shift+Space: play the selection (a range, words, a clip, a seam or a marker)",
+  },
+  "edit.hearBefore": {
+    id: "edit.hearBefore",
+    category: "edit",
+    label: "Hear before",
+    keywords: ["original", "current"],
+    when: "editStage",
+    announcesRefusal: true,
+    notes: "A: the selected suggestion as it is now",
+  },
+  "edit.hearAfter": {
+    id: "edit.hearAfter",
+    category: "edit",
+    label: "Hear after",
+    keywords: ["suggested", "edited"],
+    when: "editStage",
+    announcesRefusal: true,
+    notes: "B: the selected suggestion applied",
+  },
+  "edit.keep": {
+    id: "edit.keep",
+    mutates: true,
+    category: "edit",
+    label: "Keep",
+    keywords: ["restore", "reject", "skip"],
+    when: "editStage",
+    notes:
+      "X: reject the selected suggestion, or open History to bring a cut back (the server restores a mute, not a removal)",
+  },
+  "edit.inspect": {
+    id: "edit.inspect",
+    category: "edit",
+    label: "Inspect",
+    keywords: ["inspector", "details", "properties"],
+    when: "editStage",
+    announcesRefusal: true,
+    notes:
+      "I: open (or close) the Inspector for the selection; a double-click on a clip opens it ({ open: true }). Selecting alone never opens it; Esc, Close or another selection shuts it",
+  },
+  "edit.more": {
+    id: "edit.more",
+    category: "edit",
+    label: "More",
+    keywords: ["menu", "actions"],
+    when: "editStage",
+    announcesRefusal: true,
+    notes: ".: open the Action bar's More menu",
+  },
+  "edit.mute": {
+    id: "edit.mute",
+    mutates: true,
+    category: "edit",
+    label: "Mute",
+    keywords: ["silence", "ignore"],
+    when: "hasProject",
+    notes:
+      "M: ignore the selected words, mute the selected range or clip, else mute the targeted track",
   },
   "create.menu": {
     id: "create.menu",
@@ -206,18 +283,20 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "edit.delete",
     mutates: true,
     category: "edit",
-    label: "Delete clip",
+    label: "Cut selection",
     shortLabel: "Delete",
-    keywords: ["remove"],
+    keywords: ["remove", "delete"],
     when: "editStageStructural",
-    notes: "Backspace/Delete: selected clip (gap left)",
+    notes:
+      "Backspace/Delete: cut the selection. Clips (gap left), words and ranges (the Cut verb), a suggestion (accept), a chapter or envelope point (remove)",
   },
   "edit.clearSelection": {
     id: "edit.clearSelection",
     category: "edit",
     label: "Clear selection",
     when: "hasInspectorSelection",
-    notes: "Escape: clear the selection, track targeting included",
+    notes:
+      "Escape: close the Inspector if it is open, else clear the selection, track targeting included",
   },
   "edit.rippleDelete": {
     id: "edit.rippleDelete",
@@ -279,7 +358,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hasProject",
     paletteRunnable: false,
     notes:
-      "Args: { toLaneId }. Range actions show Move to {speaker} on one split lane",
+      "Args: { toLaneId }. The Action bar's More menu shows Move to {speaker} on one split lane",
   },
   "range.comment": {
     id: "range.comment",
@@ -341,7 +420,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["silence"],
     when: "hasProject",
     notes:
-      "M: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? })",
+      "Mute (edit.mute) on a track: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? })",
   },
   "track.setVolume": {
     id: "track.setVolume",
@@ -361,7 +440,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["isolate"],
     when: "hasProject",
     notes:
-      "S: listen-only solo for the selected track, never saved in the mix (Args: { trackId? })",
+      "Shift+S: listen-only solo for the selected track, never saved in the mix (Args: { trackId? })",
   },
   "track.clearSolo": {
     id: "track.clearSolo",
@@ -855,9 +934,8 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "review",
     label: "Add comment",
     when: "canComment",
-    paletteRunnable: false,
     notes:
-      "Args: { atTime: number, trackId?: string } → a comment draft anchored at that time; the touch create menu",
+      "C. Args: { atTime?: number, trackId?: string } → a comment draft anchored at that time (the create menu); with no time, on the selection, else at the playhead",
   },
 };
 

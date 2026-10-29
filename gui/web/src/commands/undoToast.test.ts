@@ -168,7 +168,7 @@ const COVERED: Record<string, Proof> = {
     test: "it.each([",
   },
   "range.moveSpeakerLane": {
-    file: "timeline/SpeakerLaneMoveActions.test.tsx",
+    file: "stage/edit/EditActionBar.test.tsx",
     test: "moves the selected range through the host API",
   },
   "track.remove": {
@@ -204,6 +204,12 @@ function testBody({ file, test }: Proof): string {
 /** The result shows where the person acted, so no toast is raised. */
 const IN_PLACE: Record<string, string> = {
   "edit.bladeCut": "the blade line splits the clip on the timeline",
+  "edit.split":
+    "runs edit.bladeCut, which announces the split with Undo (editing.ts)",
+  "edit.keep":
+    "rejects the suggestion or opens History; the decision toast belongs to tighten.*",
+  "edit.mute":
+    "runs range.mute, transcript.ignoreWords or track.muteToggle, each proven here",
   "edit.rollClipJoin": "the join marker moves under the person's hand",
   "edit.setClipJoin": "the join glyph shows the new mode",
   "track.muteToggle": "the lane and its button show the mute",

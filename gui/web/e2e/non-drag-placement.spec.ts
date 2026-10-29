@@ -11,7 +11,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
-import { openProjectDialog } from "./stageNav";
+import { ensureInspected, openProjectDialog } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
 
 function placementFixture(prefix: string) {
@@ -217,6 +217,7 @@ test("queued Apply retains the exact placement preview until the prior track sav
         for (let step = 0; step < 4; step++)
           await page.getByRole("button", { name: /^Zoom in/ }).click();
         await clip.locator(".clip-hit").click();
+        await ensureInspected(page);
         stage = "Move clip admission";
         const entry = page.getByRole("button", {
           name: "Move clip",
@@ -357,6 +358,7 @@ for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
             clipBlock(page, "placement-first").locator(".clip-hit"),
             cell.touch,
           );
+          await ensureInspected(page);
           const entry = page.getByRole("button", {
             name: "Move clip",
             exact: true,
@@ -513,6 +515,7 @@ test("group pointer steps save exact 7/27 placements, refusal recovers and one U
       await clipBlock(page, "placement-second")
         .locator(".clip-hit")
         .click({ modifiers: ["ControlOrMeta"] });
+      await ensureInspected(page);
       await page
         .getByRole("button", { name: "Move clip", exact: true })
         .click();

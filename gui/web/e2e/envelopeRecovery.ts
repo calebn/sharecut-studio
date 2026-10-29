@@ -5,7 +5,7 @@ import { layer } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
-import { openProject } from "./stageNav";
+import { inspectSelection, openProject } from "./stageNav";
 import { setTheme, type Theme } from "./theme";
 
 type Point = { id: string; time: number; value: number };
@@ -309,6 +309,7 @@ export async function exerciseEnvelopeRecovery(
         page.getByRole("combobox", { name: "Envelope point", exact: true }),
       ).toHaveCount(0);
       await owner.click();
+      await inspectSelection(page);
       await expect(
         page.getByRole("combobox", { name: "Envelope point", exact: true }),
       ).toBeVisible();

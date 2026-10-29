@@ -13,6 +13,7 @@ import {
   type BoundaryTarget,
   loadBoundaryContext,
 } from "../api/boundary";
+import { runPointerCommand } from "../commands/pointer";
 import { type RollPreview } from "../edit/clipEdgePreview";
 import {
   type ClipMovePointerInfo,
@@ -634,6 +635,10 @@ export function ClipBlockLive({
         });
       }
       pointerHandledRef.current = false;
+    },
+    onDoubleClick: (e) => {
+      e.stopPropagation();
+      runPointerCommand("edit.inspect", { open: true });
     },
   };
 

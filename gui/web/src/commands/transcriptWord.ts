@@ -3,6 +3,7 @@ import { useDawStore } from "../state/dawStore";
 import { oneWordOf } from "../utils/rangeSelect";
 import { findTranscriptWord, wordSeekSec } from "../utils/transcript";
 import { registerCommand } from "./execute";
+import type { ExecuteResult } from "./types";
 
 export function registerTranscriptWordCommands(): void {
   registerCommand("transcript.adjustTiming", (args) => {
@@ -53,29 +54,40 @@ export function registerTranscriptWordCommands(): void {
     ) {
       return { status: "disabled", reason: "Focus a word in Navigate mode" };
     }
-    const trackId = chip.dataset.trackId;
-    const sourceId = chip.dataset.sourceId || null;
     const rawIndex = chip.dataset.wordIndex;
-    const wordIndex = Number(rawIndex);
-    if (
-      !trackId ||
-      !rawIndex ||
-      !Number.isInteger(wordIndex) ||
-      wordIndex < 0 ||
-      s.project?.meta.hydration?.transcript_words === false ||
-      s.transcriptInlineCommitPending
-    ) {
-      return { status: "disabled", reason: "Word correction unavailable" };
-    }
-    const word = findTranscriptWord(s.project, trackId, wordIndex, sourceId);
-    if (!word || wordSeekSec(word) == null)
-      return { status: "disabled", reason: "Word is not timed" };
-    s.setTranscriptInlineEditRequest({
-      projectPath: s.projectPath,
-      trackId,
-      sourceId,
-      wordIndex,
-    });
-    return { status: "ok" };
+    return requestInlineEdit(
+      chip.dataset.trackId ?? "",
+      chip.dataset.sourceId || null,
+      rawIndex ? Number(rawIndex) : Number.NaN,
+    );
   });
+}
+
+export function requestInlineEdit(
+  trackId: string,
+  sourceId: string | null,
+  wordIndex: number,
+): ExecuteResult {
+  const s = useDawStore.getState();
+  if (!s.project || isShareProjectKey(s.projectPath))
+    return { status: "disabled", reason: "Host project required" };
+  if (
+    !trackId ||
+    !Number.isInteger(wordIndex) ||
+    wordIndex < 0 ||
+    s.project.meta.hydration?.transcript_words === false ||
+    s.transcriptInlineCommitPending
+  ) {
+    return { status: "disabled", reason: "Word correction unavailable" };
+  }
+  const word = findTranscriptWord(s.project, trackId, wordIndex, sourceId);
+  if (!word || wordSeekSec(word) == null)
+    return { status: "disabled", reason: "Word is not timed" };
+  s.setTranscriptInlineEditRequest({
+    projectPath: s.projectPath,
+    trackId,
+    sourceId,
+    wordIndex,
+  });
+  return { status: "ok" };
 }

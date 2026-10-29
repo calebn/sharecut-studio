@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
-import { openProject, phone } from "./stageNav";
+import { inspectSelection, openProject, phone } from "./stageNav";
 
 test.use({ hasTouch: true });
 
@@ -11,6 +11,7 @@ test("rotating a phone with the Inspector open keeps the focused field on screen
   await openProject(page, e2eProjectPath);
   await phone.showTimeline(page);
   await page.locator(".lane-row .clip-block").first().click();
+  await inspectSelection(page);
   await page.getByRole("button", { name: "Expand to half height" }).click();
   const field = page.getByLabel("Fade out ms");
   await expect(field).toBeAttached();

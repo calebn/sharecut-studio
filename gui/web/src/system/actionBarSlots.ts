@@ -8,6 +8,8 @@ export type BarItem = {
   readonly pressed?: boolean;
   /** `link` is the quiet inline button, such as Review's Later. */
   readonly tone?: "link";
+  readonly arg?: string;
+  readonly disabledReason?: string;
 };
 
 /** Verb slots in the phone dock, the primary's included. Design-system element 7 and spec-edit. */

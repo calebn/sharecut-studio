@@ -46,6 +46,20 @@ describe("keymap remaps", () => {
     expect(stored()).toEqual({ "view.fit": ["F"] });
   });
 
+  it("moves a saved track mute remap onto the Mute row", () => {
+    localStorage.setItem(KEY, JSON.stringify({ "track.muteToggle": ["N"] }));
+    expect(getKeymapOverride("edit.mute")).toEqual(["N"]);
+    expect(stored()).toEqual({ "edit.mute": ["N"] });
+  });
+
+  it("keeps a Mute remap already saved over the migrated one", () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ "track.muteToggle": ["N"], "edit.mute": ["Y"] }),
+    );
+    expect(getKeymapOverride("edit.mute")).toEqual(["Y"]);
+  });
+
   it("leaves a map without renamed ids untouched", () => {
     localStorage.setItem(KEY, JSON.stringify({ "view.fit": ["B"] }));
     expect(getKeymapOverride("view.fit")).toEqual(["B"]);

@@ -192,16 +192,24 @@ export const phone = {
     // Only the phone has one Edit surface at a time; wider shells show both.
     if (!(await isPhoneShell(page))) return;
     const name = mode === "text" ? "Script" : "Timeline";
-    const toggle = page
-      .getByRole("group", { name: "Edit surface" })
-      .getByRole("button", { name, exact: true });
-    await openToolsIfFolded(page);
-    if ((await toggle.getAttribute("aria-pressed")) !== "true") {
-      await toggle.click();
-    }
-    const folded = await openToolsIfFolded(page);
-    await expect(toggle).toHaveAttribute("aria-pressed", "true");
-    if (folded) await closeTools(page);
+    // A resize (a text-size change, the Action bar dock) folds the switch behind
+    // Tools a few frames later, so look again until it settles.
+    await expect(async () => {
+      const folded = await openToolsIfFolded(page);
+      const toggle = page
+        .getByRole("group", { name: "Edit surface" })
+        .getByRole("button", { name, exact: true });
+      if (
+        (await toggle.getAttribute("aria-pressed", { timeout: 2000 })) !==
+        "true"
+      ) {
+        await toggle.click({ timeout: 2000 });
+      }
+      await expect(toggle).toHaveAttribute("aria-pressed", "true", {
+        timeout: 2000,
+      });
+      if (folded) await closeTools(page);
+    }).toPass({ timeout: 20_000 });
   },
   showTimeline: (page: Page) => phone.show(page, "timeline"),
   showText: (page: Page) => phone.show(page, "text"),
@@ -456,13 +464,13 @@ export async function runPaletteCommand(
 }
 
 /**
- * Arm range selection; the Range actions form opens. A touch screen has the
+ * Arm range selection; the Range fields form opens. A touch screen has the
  * bracket toggle in the timeline corner; a mouse drags a range directly, so
  * the same command `range.arm` runs from the palette there.
  */
 export async function armRange(page: Page): Promise<void> {
   await goToStage(page, "edit");
-  // Folded, the Range actions open over the Tools sheet and leave it be.
+  // Folded, the Range fields open over the Tools sheet and leave it be.
   const folded = await openToolsIfFolded(page);
   const toggle = page
     .getByRole("group", { name: "Timeline view" })
@@ -475,7 +483,7 @@ export async function armRange(page: Page): Promise<void> {
     await runPaletteCommand(page, "Select a range");
   }
   await expect(
-    page.getByRole("region", { name: "Range actions" }),
+    page.getByRole("region", { name: "Range fields" }),
   ).toBeVisible();
 }
 
@@ -512,4 +520,39 @@ export async function collapsePlayer(page: Page): Promise<void> {
     await expanded.getByRole("button", { name: "Collapse player" }).click();
   }
   await expect(expanded).toBeHidden();
+}
+
+export async function inspectSelection(page: Page): Promise<void> {
+  const inspect = page
+    .getByRole("group", { name: /^(Selection|Edit) actions$/ })
+    .getByRole("button", { name: "Inspect", exact: true });
+  // The frame can fold or unfold the dock a few frames after the selection
+  // lands (WebKit, short landscape), so look again until the click goes through.
+  await expect(async () => {
+    const folded = await openToolsIfFolded(page, inspect);
+    try {
+      await inspect.click({ timeout: 2000 });
+    } catch (error) {
+      await closeTools(page);
+      throw error;
+    }
+    if (folded)
+      await expect(page.getByRole("dialog", { name: "Tools" })).toBeHidden();
+  }).toPass({ timeout: 20_000 });
+}
+
+/** Open the Inspector for the held selection unless it is already open. */
+export async function ensureInspected(page: Page): Promise<void> {
+  const open = page.locator(".edit-workspace--inspector, .bottom-sheet");
+  if ((await open.count()) > 0) return;
+  await inspectSelection(page);
+}
+
+/** Inspect by its key, for a selection whose bar a pending card covers. */
+export async function inspectSelectionByKey(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+  });
+  await page.keyboard.press("i");
 }

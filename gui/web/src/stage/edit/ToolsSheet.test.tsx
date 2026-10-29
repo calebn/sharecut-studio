@@ -5,6 +5,10 @@ import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
+import {
+  EDIT_SELECTIONS,
+  editFixtureProject,
+} from "../../test/actionBarFixtures";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { ToolsButton } from "./ToolsButton";
 import { ToolsSheet } from "./ToolsSheet";
@@ -67,6 +71,24 @@ describe("ToolsSheet", () => {
     expect(screen.queryByRole("button", { name: /Script pane/ })).toBeNull();
     await user.click(screen.getByRole("button", { name: "View options" }));
     expect(useDawStore.getState().openSheet).toBe("view");
+  });
+
+  it("closes after a verb runs, not when More opens its menu", async () => {
+    const user = userEvent.setup();
+    useDawStore.setState({
+      project: editFixtureProject(),
+      projectPath: "/tmp/tools/p.json",
+      stage: "edit",
+      selection: EDIT_SELECTIONS.rangeOnAllTracks as never,
+      openSheet: "tools",
+    });
+    render(<ToolsSheet />);
+    await user.click(screen.getByRole("button", { name: /^More/ }));
+    expect(useDawStore.getState().openSheet).toBe("tools");
+    expect(screen.getAllByRole("menuitem").length).toBeGreaterThan(0);
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /^Hear/ }));
+    expect(useDawStore.getState().openSheet).toBeNull();
   });
 
   it("on a tablet holds the corner with the Script toggle and no surface switch", () => {

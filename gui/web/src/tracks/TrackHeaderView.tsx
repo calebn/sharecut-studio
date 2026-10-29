@@ -30,6 +30,8 @@ export interface TrackHeaderViewProps {
   track: TrackView;
   trackIndex: number;
   selected: boolean;
+  /** The Inspector is open on this track. */
+  expanded?: boolean;
   muteState: MuteState;
   stemClass: "" | "fresh" | "stale";
   wholeReasons: string[];
@@ -60,6 +62,7 @@ export function TrackHeaderView({
   track,
   trackIndex,
   selected,
+  expanded = false,
   muteState,
   stemClass,
   wholeReasons,
@@ -105,7 +108,7 @@ export function TrackHeaderView({
         type="button"
         className="track-header-open"
         aria-label={`Open track details, ${label}`}
-        aria-expanded={selected}
+        aria-expanded={expanded}
         {...longPress}
         onClick={onSelect}
         onKeyDown={keepActivationKeys}
