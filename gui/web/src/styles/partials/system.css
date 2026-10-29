@@ -4911,6 +4911,33 @@ input.sys-edit-fix {
   inline-size: 20rem;
 }
 
+.ui-dialog-root--anchored > .command-palette-panel.sys-rename-panel {
+  inline-size: 20rem;
+}
+
+.sys-rename-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.sys-rename-form .ui-field {
+  margin-bottom: 0;
+}
+
+.sys-rename-form input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+@media (pointer: coarse) {
+  .sys-rename-form :is(input, button) {
+    min-block-size: var(--touch-min);
+  }
+}
+
 .sys-picker-renaming input.sys-edit-fix {
   flex: 1;
   inline-size: auto;

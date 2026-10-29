@@ -6,6 +6,7 @@ import {
   type ClipMoveItem,
   patchClipFade,
   patchClipsMove,
+  patchProjectName,
   patchTrackMeta,
   patchTrackMix,
   patchTracksOrder,
@@ -31,7 +32,8 @@ type Draft =
       track: string;
       fields: Partial<Pick<TrackView, "muted" | "fader_db">>;
     }
-  | { kind: "envelope"; track: string; points: AutomationPoint[] };
+  | { kind: "envelope"; track: string; points: AutomationPoint[] }
+  | { kind: "name"; name: string };
 type Pending = { commandId: string; draft: Draft };
 const drafts = new Map<string, Pending>();
 const heldAcks = new Map<string, number>();
@@ -99,6 +101,11 @@ export function beginDocumentDraft(
         fadeOutMs: payload.fade_out_ms,
       },
     ]);
+  } else if (
+    type === DocumentCommand.RenameProject &&
+    typeof payload.name === "string"
+  ) {
+    entries.push(["project:name", { kind: "name", name: payload.name.trim() }]);
   } else if (typeof track === "string") {
     if (
       type === DocumentCommand.ReorderTrack &&
@@ -262,6 +269,9 @@ export function overlayDocumentDrafts(
         break;
       case "mix":
         result = patchTrackMix(result, draft.track, draft.fields);
+        break;
+      case "name":
+        result = patchProjectName(result, draft.name);
         break;
       case "envelope":
         result = {

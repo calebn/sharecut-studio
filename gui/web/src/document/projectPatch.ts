@@ -427,6 +427,15 @@ export function patchTrackMeta(
   return { ...next, transcript: { ...next.transcript, utterances } };
 }
 
+export function patchProjectName(
+  project: ProjectView,
+  name: string,
+): ProjectView {
+  return project.meta.name === name
+    ? project
+    : { ...project, meta: { ...project.meta, name } };
+}
+
 /** Optimistic splice for SetTrackFader / SetTrackMute. */
 export function patchTrackMix(
   project: ProjectView,

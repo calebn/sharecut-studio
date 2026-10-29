@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
+import {
+  expect,
+  fireEvent,
+  fn,
+  userEvent,
+  waitFor,
+  within,
+} from "storybook/test";
 import {
   portaledOverlayParameters,
   viewportStoryParameters,
@@ -137,6 +144,94 @@ export const PeopleSlot: Story = {
     await expect(
       canvas.queryByRole("list", { name: "People here" }),
     ).toBeNull();
+  },
+};
+
+function RenameHeader({
+  onRename,
+}: {
+  onRename: (name: string) => void | Promise<void>;
+}) {
+  const [title, setTitle] = useState("Episode 14");
+  return (
+    <Header
+      title={title}
+      onRename={async (name) => {
+        await onRename(name);
+        setTitle(name);
+      }}
+    />
+  );
+}
+
+async function openRename(canvasElement: HTMLElement) {
+  await userEvent.click(
+    within(canvasElement).getByRole("button", { name: /Episode 14/ }),
+  );
+  await userEvent.click(
+    await within(document.body).findByRole("menuitem", {
+      name: "Rename project",
+    }),
+  );
+  const field = await within(document.body).findByRole("textbox", {
+    name: "Project name",
+  });
+  await waitFor(() => expect(field).toHaveFocus());
+  return field;
+}
+
+export const Rename: Story = {
+  args: { onRename: fn() },
+  render: (args) => <RenameHeader onRename={args.onRename ?? fn()} />,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const field = await openRename(canvasElement);
+    await expect(field).toHaveValue("Episode 14");
+    await expect(field).toHaveFocus();
+    // Escape cancels and gives focus back to the Project button.
+    await userEvent.keyboard("{Escape}");
+    await expect(args.onRename).not.toHaveBeenCalled();
+    await expect(
+      canvas.getByRole("button", { name: /Episode 14/ }),
+    ).toHaveFocus();
+    // An empty name is refused with a message the field points at.
+    const again = await openRename(canvasElement);
+    await userEvent.clear(again);
+    await userEvent.keyboard("{Enter}");
+    await expect(again).toHaveAccessibleDescription("Enter a project name.");
+    await expect(again).toBeInvalid();
+    // Enter applies the trimmed name and closes the card.
+    await userEvent.clear(again);
+    await userEvent.type(again, "  Season finale  {Enter}");
+    await expect(args.onRename).toHaveBeenCalledWith("Season finale");
+    await expect(
+      await canvas.findByRole("button", { name: /Season finale/ }),
+    ).toHaveFocus();
+    await expect(
+      within(document.body).queryByRole("textbox", { name: "Project name" }),
+    ).toBeNull();
+  },
+};
+
+export const RenameRefused: Story = {
+  args: {
+    onRename: fn(async () => {
+      throw new Error("project name must be at most 120 characters");
+    }),
+  },
+  render: (args) => <RenameHeader onRename={args.onRename ?? fn()} />,
+  play: async ({ canvasElement }) => {
+    const field = await openRename(canvasElement);
+    await userEvent.type(field, "x{Enter}");
+    await expect(
+      await within(document.body).findByText(
+        "project name must be at most 120 characters",
+      ),
+    ).toBeVisible();
+    await expect(field).toHaveFocus();
+    await expect(field).toHaveAccessibleDescription(
+      "project name must be at most 120 characters",
+    );
   },
 };
 

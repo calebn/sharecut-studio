@@ -14,6 +14,7 @@ import {
 import { CoachTip } from "./CoachTip";
 import type { SystemIconName } from "./icons";
 import type { LinkRole } from "./linkRoles";
+import { RenameProjectPopover } from "./RenameProjectPopover";
 import { RoleChip } from "./RoleChip";
 import { SaveIndicator, type SaveIndicatorProps } from "./SaveIndicator";
 import { StageBar, type StageBarProps } from "./StageBar";
@@ -64,6 +65,12 @@ export type AppHeaderProps = {
   onRedo?: () => void;
   onInvite?: () => void;
   onPalette?: () => void;
+  /**
+   * "Rename project" in the Project menu opens a card with the name; Enter
+   * applies the trimmed name. A rejection keeps the card open with its reason.
+   * Left out (a guest, or a project that cannot be renamed), the row is absent.
+   */
+  onRename?: (name: string) => void | Promise<void>;
   /** Undo was long-pressed or right-clicked: the host opens History. */
   onHistory?: () => void;
   onMenuCommand?: (command: string) => void;
@@ -103,84 +110,119 @@ function ProjectMenu({
   onCommand,
   onInvite,
   onPalette,
+  onRename,
   people,
-}: Pick<AppHeaderProps, "title" | "appearance" | "onInvite" | "onPalette"> & {
+}: Pick<
+  AppHeaderProps,
+  "title" | "appearance" | "onInvite" | "onPalette" | "onRename"
+> & {
   people?: ReactNode;
   onCommand?: (command: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const projectButton = useRef<HTMLButtonElement | null>(null);
   const run = (command: string) => () => {
     setOpen(false);
     onCommand?.(command);
   };
   return (
-    <Menu
-      open={open}
-      onOpenChange={setOpen}
-      label="Project menu"
-      className="ui-menu-root sys-menu sys-header-menu"
-      trigger={(props) => (
-        <button type="button" className="sys-header-project" {...props}>
-          <BrandSymbol className="sys-header-symbol" />
-          <span className="sys-header-title">{title}</span>
-        </button>
-      )}
-    >
-      <MenuItem onSelect={run("projects")}>
-        <Row icon="folder-open">All projects</Row>
-      </MenuItem>
-      {/* In a window too short for the header's right side, these stay reachable. */}
-      {onInvite ? (
-        <MenuItem
-          onSelect={() => {
-            setOpen(false);
-            onInvite();
-          }}
-        >
-          <Row icon="user-plus">Invite</Row>
+    <>
+      <Menu
+        open={open}
+        onOpenChange={setOpen}
+        label="Project menu"
+        className="ui-menu-root sys-menu sys-header-menu"
+        trigger={({ ref, ...props }) => (
+          <button
+            type="button"
+            className="sys-header-project"
+            {...props}
+            ref={(node) => {
+              ref.current = node;
+              projectButton.current = node;
+            }}
+          >
+            <BrandSymbol className="sys-header-symbol" />
+            <span className="sys-header-title">{title}</span>
+          </button>
+        )}
+      >
+        {onRename ? (
+          <MenuItem
+            onSelect={() => {
+              setOpen(false);
+              setRenaming(true);
+            }}
+          >
+            <Row icon="text-cursor-input">Rename project</Row>
+          </MenuItem>
+        ) : null}
+        <MenuItem onSelect={run("projects")}>
+          <Row icon="folder-open">All projects</Row>
         </MenuItem>
-      ) : null}
-      {onPalette ? (
-        <MenuItem
-          onSelect={() => {
-            setOpen(false);
-            onPalette();
-          }}
-        >
-          <Row icon="search">Search commands and people</Row>
+        {/* In a window too short for the header's right side, these stay reachable. */}
+        {onInvite ? (
+          <MenuItem
+            onSelect={() => {
+              setOpen(false);
+              onInvite();
+            }}
+          >
+            <Row icon="user-plus">Invite</Row>
+          </MenuItem>
+        ) : null}
+        {onPalette ? (
+          <MenuItem
+            onSelect={() => {
+              setOpen(false);
+              onPalette();
+            }}
+          >
+            <Row icon="search">Search commands and people</Row>
+          </MenuItem>
+        ) : null}
+        {people}
+        <MenuItem onSelect={run("settings")}>
+          <Row icon="settings">Settings</Row>
         </MenuItem>
+        <MenuItem onSelect={run("agent")}>
+          <Row icon="plug">Connect agent</Row>
+        </MenuItem>
+        <MenuItem onSelect={run("help")}>
+          <Row icon="circle-help">Help</Row>
+        </MenuItem>
+        {appearance ? (
+          <MenuSection label="Appearance">
+            {/* Radios keep the menu open so the themes can be compared in place. */}
+            <SegmentedControl role="none">
+              {APPEARANCE.map((option) => (
+                <ToggleButton
+                  key={option.id}
+                  quiet
+                  role="menuitemradio"
+                  tabIndex={-1}
+                  pressed={appearance.value === option.id}
+                  aria-checked={appearance.value === option.id}
+                  onClick={() => appearance.onChange(option.id)}
+                >
+                  {option.label}
+                </ToggleButton>
+              ))}
+            </SegmentedControl>
+          </MenuSection>
+        ) : null}
+      </Menu>
+      {onRename ? (
+        <RenameProjectPopover
+          open={renaming}
+          name={title}
+          anchorRef={projectButton}
+          onRename={onRename}
+          onClose={() => setRenaming(false)}
+        />
       ) : null}
-      {people}
-      <MenuItem onSelect={run("settings")}>
-        <Row icon="settings">Settings</Row>
-      </MenuItem>
-      <MenuItem onSelect={run("agent")}>
-        <Row icon="plug">Connect agent</Row>
-      </MenuItem>
-      <MenuItem onSelect={run("help")}>
-        <Row icon="circle-help">Help</Row>
-      </MenuItem>
-      {appearance ? (
-        <MenuSection label="Appearance">
-          {/* Radios keep the menu open so the themes can be compared in place. */}
-          <SegmentedControl role="none">
-            {APPEARANCE.map((option) => (
-              <ToggleButton
-                key={option.id}
-                quiet
-                role="menuitemradio"
-                tabIndex={-1}
-                pressed={appearance.value === option.id}
-                aria-checked={appearance.value === option.id}
-                onClick={() => appearance.onChange(option.id)}
-              >
-                {option.label}
-              </ToggleButton>
-            ))}
-          </SegmentedControl>
-        </MenuSection>
-      ) : null}
-    </Menu>
+    </>
   );
 }
 
@@ -227,6 +269,7 @@ export function AppHeader({
   onRedo,
   onInvite,
   onPalette,
+  onRename,
   onHistory,
   onMenuCommand,
 }: AppHeaderProps) {
@@ -281,6 +324,7 @@ export function AppHeader({
               onCommand={onMenuCommand}
               onInvite={canInvite ? onInvite : undefined}
               onPalette={onPalette}
+              onRename={onRename}
               people={menuPeople}
             />
           )}
