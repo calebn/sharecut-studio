@@ -551,6 +551,22 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Shared elements used:** scrub field, Toast with Undo.
 - **Story to build:** `Stages/Deliver/Chapters` stories `List`, `Editing`, `Empty`, `Phone`.
 
+### Podcast listing (issue #2684)
+
+- **Status:** story only. `FeedSection` (`Stages/Deliver/Podcast listing`) is not mounted in `DeliverStage`, calls no API and has no backend. It renders a typed view model (`stages/deliver/feedView.ts`) that the host will resolve on the server.
+- **Spec:**
+  - The section opens on a listing preview shaped like a podcast app: art, title, show, date, duration, transcript and soundbite badges, the notes with live chapters, and the people with their roles. No input shows until a value is clicked.
+  - A quiet **Auto** mark sits on a value a click would pin. **Agent** marks a pin an agent made. A person's own pin has no mark.
+  - A click edits a value in place with the same control as a chapter title (`system/InlineEdit`). Enter or leaving the field commits, Escape puts the value back, and emptying it hands the value back. **Use auto** (or **Clear** where nothing stands in) unsets a pin.
+  - A pin whose source changed shows "Chapters changed since you edited this" with **Keep mine** and **Use new**.
+  - A missing value says what it needs and carries the button that supplies it. It is never an empty box.
+  - One strip says "Ready to publish" or "2 things left" and its button is the first finding's fix. Checks stays closed and tags each finding with the platform it protects. Blockers hold back Copy item and Write.
+  - Chapters, clips, speakers and transcripts jump to the stage that owns them. The section never edits them.
+  - First run with no show shows one "Set up your show" card with the language and hosts taken from the speakers, a show name and Create.
+  - Actions: Listing and XML toggle, Copy notes, Copy item, and Write feed file (or "Feed file is out of date. Write").
+- **Shared elements used:** `DeliverSection`, `StatusRow`, `PersonAvatar`, `Button`, `SegmentedControl`, `InlineEdit` (extracted from the chapter title).
+- **Story to build:** `Stages/Deliver/Podcast listing` stories `Preview`, `EditingInPlace`, `DriftedPin`, `Pending`, `ShowSetupEmpty`, `Checks`, `StaleFile`, `XmlView`, `AgentPin`, `Loading`.
+
 ---
 
 ## 3. Shared vocabulary proposals (NEW)
