@@ -116,7 +116,7 @@ hear menu and expanded form.
 |--------|------|
 | `goToStage(page, stage)` | Clicks the Stage bar tab for `record`, `prepare`, `edit`, `review` or `deliver`. Browsers keep Mod+1 to Mod+9 for their own tabs, so helpers click rather than press the stage keys |
 | `openProject(page, { stage? })` | Opens a project, waits for the save indicator (when the landing stage is picked), then goes to `edit` unless told otherwise |
-| `openPanel(page, panel)` | Opens `transcript` (Edit Script), `history` (Edit sheet), `queue`, `tighten`, `comments` (Review sections) or `pipeline` (Prepare) |
+| `openPanel(page, panel)` | Opens `transcript` (Edit Script), `history` (Edit sheet), `queue`, `comments` (Review sections) or `pipeline` (Prepare) |
 | `phone.show*`, `phone.openMix` | The phone's one-at-a-time Edit surfaces (Timeline, Script), Review in place of the old Listen mode, and the Mix sheet. `phone.openMore` opens the Project menu, the nearest thing to the removed More hub |
 | `openProjectMenu`, `openProjectMenuItem`, `openProjectDialog`, `openRecordRoom` | The Project menu and the dialogs specs open (Share, Record, palette, gestures), through the menu, header or palette as each lives |
 | `openViewSheet`, `setLayer`, `stepTrackHeight` | The Edit corner's eye sheet (layers, track height) |
