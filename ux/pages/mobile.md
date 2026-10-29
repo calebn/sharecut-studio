@@ -182,7 +182,7 @@ The phone layout groups controls by task so they fit a smaller screen.
 
 ## Tips
 
-- **Review** is the fastest way to review. Play through and use the Comments section.
+- **Review** is the fastest way to review. Play through and read comments in the Queue.
 - **Script** with "Follow" on will highlight words as the audio plays — great for catching transcript errors.
 - **Undo and Redo** sit in the header. + Track and Import are under the **+** below the last track header. A **two-finger tap** also undoes your last action, and History is a sheet in Edit (right-click Undo).
 
