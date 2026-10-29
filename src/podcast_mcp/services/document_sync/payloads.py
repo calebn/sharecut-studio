@@ -1509,7 +1509,7 @@ def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[
         if command_type not in _CODED_PAYLOAD_TYPES:
             raise
         raise _coded_payload_error(command_type, exc) from exc
-    out = validated.model_dump(mode="python", exclude_none=command_type == "FillRoomTone")
+    out = validated.model_dump(mode="python")
     if "extracts" in out and isinstance(out["extracts"], list):
         out["extracts"] = [
             e if isinstance(e, dict) else e.model_dump() if hasattr(e, "model_dump") else dict(e)
