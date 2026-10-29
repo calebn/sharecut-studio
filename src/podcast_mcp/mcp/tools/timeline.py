@@ -605,7 +605,8 @@ def fill_with_room_tone_tool(
 
     With ``track_id`` or ``speaker`` and no range the whole track's gaps are filled.
     With ``start_sec`` and ``end_sec`` (timeline seconds, plus ``track_id``) only the
-    clip-free time inside that range is filled; clips are never touched.
+    clip-free time inside that range is filled; clips are never touched. A whole-track
+    fill on fewer than two clips replies ``unchanged``.
     """
     if (start_sec is not None or end_sec is not None) and (
         track_id is None or start_sec is None or end_sec is None
