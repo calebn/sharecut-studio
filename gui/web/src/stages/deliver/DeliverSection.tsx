@@ -11,7 +11,7 @@ export function DeliverSection({ title, action, children }: Props) {
   return (
     <section className="dv-section" aria-labelledby={id}>
       <header className="dv-section-head">
-        <h2 id={id} className="dv-section-title">
+        <h2 id={id} className="dv-section-title" tabIndex={-1}>
           {title}
         </h2>
         {action}

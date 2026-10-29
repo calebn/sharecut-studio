@@ -152,6 +152,23 @@ describe("BounceSection", () => {
     expect(onClearRange).toHaveBeenCalledTimes(1);
   });
 
+  it("says a range fixed during a run is for the next bounce", () => {
+    render(
+      <BounceSection
+        options={options({
+          fixedRange: "12.00–18.50 s on host",
+          onClearRange: vi.fn(),
+          state: { phase: "running", progress: null, detail: "Mixing" },
+        })}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "Selected range · 12.00–18.50 s on host. This selection is fixed for the next bounce.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("shows the progress, locks Bounce, and cancels", async () => {
     const user = userEvent.setup();
     const o = options({
@@ -313,6 +330,23 @@ describe("BounceSection", () => {
     );
     expect(button("Bounce").hasAttribute("disabled")).toBe(true);
     expect(document.activeElement).toBe(button("Entire mix"));
+    expect(onFocused).toHaveBeenCalledTimes(1);
+  });
+
+  it("never lands on the clear-range link when Bounce is disabled", () => {
+    const onFocused = vi.fn();
+    render(
+      <BounceSection
+        options={options({
+          fixedRange: "12.00–18.50 s on host",
+          onClearRange: vi.fn(),
+          focusRequested: true,
+          onFocused,
+          blockedReason: "Not now.",
+        })}
+      />,
+    );
+    expect(document.activeElement).toBe(button("Also write MP3"));
     expect(onFocused).toHaveBeenCalledTimes(1);
   });
 
