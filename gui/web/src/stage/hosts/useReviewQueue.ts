@@ -264,17 +264,10 @@ export function useReviewQueue() {
     }
   };
 
-  const cutsHolding = (wordId: string) =>
-    (useDawStore.getState().project?.pending_edits ?? [])
-      .filter((edit) =>
-        (edit.unsure_words ?? []).some(
-          (w) => wordIdOf(w.track_id, w.source_id, w.word_index) === wordId,
-        ),
-      )
-      .map((edit) => reviewIdOf(edit.id));
-
+  /** Marks the cuts a Fix frees and returns their ids, so Undo can hold exactly those. */
   const releaseCuts = (wordId: string) => {
     confirmed.current.add(wordId);
+    const freed: string[] = [];
     for (const edit of useDawStore.getState().project?.pending_edits ?? []) {
       const unsure = edit.unsure_words ?? [];
       if (
@@ -285,9 +278,13 @@ export function useReviewQueue() {
             wordIdOf(w.track_id, w.source_id, w.word_index),
           ),
         )
-      )
-        session.props.onLooksRight(reviewIdOf(edit.id));
+      ) {
+        const id = reviewIdOf(edit.id);
+        session.props.onLooksRight(id);
+        freed.push(id);
+      }
     }
+    return freed;
   };
 
   const onDecide = useStableCallback(async (intent: ReviewIntent) => {
@@ -324,7 +321,7 @@ export function useReviewQueue() {
         seen?.fingerprint,
       );
       if (!current()) return;
-      if (target) releaseCuts(intent.ids[0]);
+      const freed = target ? releaseCuts(intent.ids[0]) : [];
       const marked = word
         ? await settleCheck(path, seen, closes, changed, complete)
         : undefined;
@@ -392,11 +389,7 @@ export function useReviewQueue() {
           undo: reply.historyHead,
           onUndone: () => {
             confirmed.current.delete(intent.ids[0]);
-            session.revert(
-              plan.decidedIds,
-              undefined,
-              cutsHolding(intent.ids[0]),
-            );
+            session.revert(plan.decidedIds, undefined, freed);
             // A same-text Undo reply keeps the old timed words, so reload them.
             if (target && current())
               void refreshDocumentProject(path, "full").catch(() => {
