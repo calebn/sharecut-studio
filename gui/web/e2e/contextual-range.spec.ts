@@ -11,6 +11,7 @@ import {
   openHostShare,
 } from "./shareNavigation";
 import { armRange, inspectSelectionByKey, openPanel } from "./stageNav";
+import { openTranscriptPanel } from "./transcriptEdit";
 
 function repeatedProject(prefix: string) {
   const copy = createRelocatedE2eProject(prefix);
@@ -455,5 +456,23 @@ test.describe("a phone with a touch screen", () => {
       undefined,
       gapProject,
     );
+  });
+});
+
+test("a word picked in the Script and inspected on the desktop shows one Range fields region", async ({
+  page,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openHostShare(page, projectPath);
+    const list = await openTranscriptPanel(page);
+    await list.locator(".sys-script-word").first().click();
+    await inspectSelectionByKey(page);
+    await expect(
+      page.getByRole("dialog", { name: "Inspector", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Range fields" }),
+    ).toHaveCount(1);
   });
 });
