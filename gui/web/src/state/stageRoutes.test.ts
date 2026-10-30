@@ -9,7 +9,6 @@ import {
   stageRoleOf,
   stagesForRole,
   tabForStage,
-  wireTabOf,
 } from "./stageRoutes";
 
 const TABS: PresenceTab[] = [
@@ -116,10 +115,6 @@ describe("tab and stage mapping", () => {
   it("publishes the Queue as impact, or comments for a guest", () => {
     expect(tabForStage("review")).toBe("impact");
     expect(tabForStage("review", "comments")).toBe("comments");
-  });
-
-  it("keeps the wire name impact for the Queue", () => {
-    expect(wireTabOf("queue")).toBe("impact");
   });
 
   it("derives the legacy phone mode", () => {

@@ -79,12 +79,7 @@ export const STAGE_FOR_TAB: Record<PresenceTab, StageTarget> = {
   pipeline: { stage: "prepare" },
 };
 
-/** The server validates the wire tab (`commands.py:150`), so Queue stays `impact` on the wire. */
-export function wireTabOf(_section: ReviewSection): PresenceTab {
-  return "impact";
-}
-
-/** The wire `tab` for a stage; Record and Deliver have none. */
+/** The wire `tab` for a stage; Record and Deliver have none. The server validates it (`commands.py:150`), so the Queue is `impact` on the wire. */
 export function tabForStage(
   stage: StageId,
   reviewTab: "impact" | "comments" = "impact",
