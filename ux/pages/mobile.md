@@ -69,7 +69,7 @@ is open, and the on-screen keyboard only shortens the column, so its title and
 Closing the inspector returns the phone's tab bar. On a tablet, closing the
 inspector keeps your Script choice.
 Selecting a word in Text can open a word sheet. The comment list in Review seeks to
-the comment; use **Review → Comments** for comment actions.
+the comment; comment actions are on that comment's card in the Review queue.
 
 Inspector action buttons, including **Replace audio…**, **Remove track**,
 **Go to start**, and preview controls, keep at least 44 CSS px of height on

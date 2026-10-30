@@ -67,6 +67,24 @@ describe("reviewEntriesOf", () => {
     expect(reviewCountOf(pending)).toBe(2);
   });
 
+  it("leaves a cut over an unsure word out of a guest's count only", () => {
+    const unsure = pendingEditView({
+      id: "u",
+      unsure_words: [
+        {
+          track_id: "t",
+          source_id: null,
+          word_index: 1,
+          text: "maybe",
+          confidence: 0.4,
+        },
+      ],
+    });
+    const pending = [pendingEditView({ id: "a" }), unsure];
+    expect(reviewCountOf(pending)).toBe(2);
+    expect(reviewCountOf(pending, true)).toBe(1);
+  });
+
   it("sums every span for savedSeconds", () => {
     const item = itemOf({
       timeline_spans: [

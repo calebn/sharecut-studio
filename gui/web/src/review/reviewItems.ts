@@ -162,8 +162,13 @@ export const reviewEntriesOf = (
   pending: readonly PendingEditView[],
 ): ReviewEntry[] => pending.filter(needsReview).map(entryOf);
 
-export const reviewCountOf = (pending: readonly PendingEditView[]): number =>
-  pending.filter(needsReview).length;
+/** `guest` leaves out the cuts over an unsure word, which only the host decides. */
+export const reviewCountOf = (
+  pending: readonly PendingEditView[],
+  guest = false,
+): number =>
+  pending.filter((e) => needsReview(e) && !(guest && e.unsure_words?.length))
+    .length;
 
 const firstLine = (body: string) => body.trim().split("\n", 1)[0] ?? "";
 

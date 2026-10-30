@@ -71,7 +71,7 @@ export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
     pendingReviewCount:
       isShareProjectKey(s.projectPath) &&
       canReviewPendingEdit(s.projectPath, s.shareCapabilities)
-        ? reviewCountOf(s.project?.pending_edits ?? [])
+        ? reviewCountOf(s.project?.pending_edits ?? [], true)
         : (s.project?.edit_impact.pending_review_count ?? 0),
     openCommentCount:
       s.project?.comments?.filter((c) => !c.resolved).length ?? 0,
