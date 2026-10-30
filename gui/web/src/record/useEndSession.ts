@@ -28,6 +28,8 @@ export function useEndSession({
   onFailed,
 }: Options) {
   const [ending, setEnding] = useState<Ending | null>(null);
+  const [committing, setCommitting] = useState(false);
+  const mounted = useRef(true);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<Ending | null>(null);
   const callbacks = useRef({ onEnded, onFailed });
@@ -45,14 +47,31 @@ export function useEndSession({
   }, []);
 
   const commit = useCallback((target: Ending) => {
+    setCommitting(true);
     revokeHostRoom(target.projectPath, target.sessionId).then(
-      () => callbacks.current.onEnded(),
-      (err: unknown) => callbacks.current.onFailed(errorMessage(err)),
+      () => {
+        if (mounted.current) {
+          setCommitting(false);
+          callbacks.current.onEnded();
+        }
+      },
+      (err: unknown) => {
+        if (mounted.current) {
+          setCommitting(false);
+          callbacks.current.onFailed(errorMessage(err));
+        }
+      },
     );
   }, []);
 
   const end = useCallback(() => {
-    if (!canEnd || !projectPath || !sessionId || pending.current) {
+    if (
+      !canEnd ||
+      !projectPath ||
+      !sessionId ||
+      pending.current ||
+      committing
+    ) {
       return;
     }
     const target = { projectPath, sessionId };
@@ -64,7 +83,7 @@ export function useEndSession({
       setEnding(null);
       commit(target);
     }, END_SESSION_UNDO_MS);
-  }, [canEnd, projectPath, sessionId, commit]);
+  }, [canEnd, projectPath, sessionId, commit, committing]);
 
   const flush = useCallback(() => {
     const target = pending.current;
@@ -87,7 +106,17 @@ export function useEndSession({
     }
   }, [canEnd, projectPath, sessionId, clear]);
 
-  useEffect(() => flush, [flush]);
+  const flushRef = useRef(flush);
+  useEffect(() => {
+    flushRef.current = flush;
+  }, [flush]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      flushRef.current();
+      mounted.current = false;
+    };
+  }, []);
 
-  return { ending: ending !== null, end, undo: clear };
+  return { ending: ending !== null, busy: committing, end, undo: clear };
 }

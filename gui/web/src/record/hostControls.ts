@@ -121,3 +121,38 @@ export function landGate(
     reason: "Every take is on the timeline.",
   };
 }
+
+export type EndGate = { enabled: true } | { enabled: false; reason: string };
+
+/**
+ * Ending revokes the guests' links for good, so unsaved recordings and takes
+ * not yet on the timeline would be stranded: End waits until each is landed.
+ */
+export function endGate(
+  snapshot: RecordSnapshot,
+  segments: RecordUploadStatus["segments"] | null,
+): EndGate {
+  if (snapshot.state === "recording" || snapshot.state === "paused") {
+    return { enabled: false, reason: "Stop the take first." };
+  }
+  if (snapshot.take_index < 0) {
+    return { enabled: true };
+  }
+  if (
+    segments === null ||
+    segments.length === 0 ||
+    segments.some((row) => !row.landed)
+  ) {
+    return {
+      enabled: false,
+      reason: "Land every take on the timeline before ending the session.",
+    };
+  }
+  if ((snapshot.comments?.length ?? 0) > 0) {
+    return {
+      enabled: false,
+      reason: "Land the live notes before ending the session.",
+    };
+  }
+  return { enabled: true };
+}
