@@ -80,6 +80,13 @@
   flex: 1 1 0;
 }
 
+.edit-script-state {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
 .edit-script-body {
   display: flex;
   flex: 1 1 auto;

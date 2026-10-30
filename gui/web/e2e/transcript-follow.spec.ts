@@ -1,5 +1,4 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { COMFORT_BAND } from "../src/panels/transcriptFollow";
 import { e2eProjectPath } from "./env";
 import { openPanel, openProject } from "./stageNav";
 
@@ -74,11 +73,11 @@ async function openFollowedTranscript(page: Page): Promise<Locator> {
   await openProject(page, e2eProjectPath);
 
   await openPanel(page, "transcript");
-  const list = page.locator(".transcript-list");
-  await expect(list.locator("[data-transcript-word]")).toHaveCount(
+  const list = page.locator(".sys-script-body");
+  await expect(list.locator(".sys-script-word")).toHaveCount(
     LANES.length * UTTERANCES_PER_LANE * WORDS_PER_UTTERANCE,
   );
-  const follow = page.getByRole("button", { name: /^(Follow|Unlocked)/ });
+  const follow = page.getByRole("button", { name: "Follow the playhead" });
   if ((await follow.getAttribute("aria-pressed")) !== "true") {
     await follow.click();
   }
@@ -123,21 +122,6 @@ async function settledScrollTop(list: Locator): Promise<number> {
     );
   }
   return previous;
-}
-
-/** Centre of a lane's active word in px from the list top, or null. */
-async function activeWordCenter(
-  list: Locator,
-  track: string,
-): Promise<number | null> {
-  return list.evaluate((el, trackId) => {
-    const active = el.querySelector(
-      `.utterance-word.active[data-track-id="${trackId}"]`,
-    );
-    if (!active) return null;
-    const box = active.getBoundingClientRect();
-    return box.top + box.height / 2 - el.getBoundingClientRect().top;
-  }, track);
 }
 
 /** 0 normally; a few px when both positions sit at the bottom of the list. */
@@ -202,48 +186,15 @@ for (const viewport of viewports) {
   test.describe(`Transcript Follow with overlapping lanes, ${viewport.name}`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    test("a word ending inside a line already in the middle band does not scroll", async ({
+    test("the playing word stays in view while Follow is on", async ({
       page,
     }) => {
       const list = await openFollowedTranscript(page);
-      const height = await list.evaluate((el) => el.clientHeight);
       // Reference turn 3 runs 27..34.5 with words at 27, 30 and 33.
-      await seekTo(page, 27);
-      let before = await settledScrollTop(list);
-      let held = 0;
-      let silent = 0;
-      for (let sec = 28; sec <= 34; sec++) {
-        await page.keyboard.press("ArrowRight");
-        const after = await settledScrollTop(list);
-        const centre = await activeWordCenter(list, "reference");
-        if (centre == null) {
-          silent += 1;
-          expect(
-            Math.abs(after - before),
-            `scrollTop in the silence at ${sec}s`,
-          ).toBeLessThanOrEqual(await bottomSlack(list, after, before));
-        } else {
-          const wasAt = (centre + (after - before)) / height;
-          if (wasAt >= COMFORT_BAND[0] && wasAt <= COMFORT_BAND[1]) {
-            held += 1;
-            expect(
-              Math.abs(after - before),
-              `scrollTop at ${sec}s`,
-            ).toBeLessThanOrEqual(await bottomSlack(list, after, before));
-          }
-        }
-        before = after;
-      }
-      expect(silent, "steps between words").toBeGreaterThanOrEqual(2);
-      expect(held, "steps whose word was already in the band").toBeGreaterThan(
-        0,
-      );
-      if (viewport.name === "phone landscape") {
-        const activeWord = list.locator(
-          '.utterance-word.active[data-track-id="reference"]',
-        );
-        // The stacked Script pane is half the frame, and the word must be fully inside it.
-        await expect(activeWord).toBeInViewport({ ratio: 1 });
+      for (const sec of [27, 30, 33]) {
+        await seekTo(page, sec);
+        const playing = list.locator(".sys-script-word[data-playing]").first();
+        await expect(playing).toBeInViewport({ ratio: 1 });
       }
     });
 
@@ -262,7 +213,9 @@ for (const viewport of viewports) {
           Math.abs(now - parked),
           `scrollTop at ${sec}s`,
         ).toBeLessThanOrEqual(await bottomSlack(list, now, parked));
-        await expect(list.locator(".utterance-word.active")).toHaveCount(0);
+        await expect(
+          list.locator(".sys-script-word[data-playing]"),
+        ).toHaveCount(0);
       }
     });
 

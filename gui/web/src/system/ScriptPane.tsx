@@ -153,6 +153,11 @@ export type ScriptPaneProps = {
    */
   editing?: ScriptSpan | null;
   renderEditor?: (span: ScriptSpan) => ReactNode;
+  /**
+   * What sits beside a cut's pill where the cut begins: the join's own
+   * controls, until the Seam inspector takes them. `id` is the cut's id.
+   */
+  renderJoin?: (id: string) => ReactNode;
   /** Cut words show struck instead of collapsing into a pill. */
   showCutText?: boolean;
   /** The pane scrolls with the playhead. Off, "Back to playhead" shows. */
@@ -397,6 +402,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       findStatus,
       editing,
       renderEditor,
+      renderJoin,
       showCutText = false,
       following = true,
       findBar,
@@ -1248,6 +1254,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                   renderEditor={
                     turnIndex === editTurn ? renderEditor : undefined
                   }
+                  renderJoin={renderJoin}
                   editSlot={turnIndex === editTurn ? editSlot : null}
                   canSeekTurn={canSeekTurn}
                   canSpeaker={canSpeaker}
@@ -1303,6 +1310,7 @@ type TurnProps = {
   found: readonly FoundSpan[];
   tabStop: number;
   renderEditor: ((span: ScriptSpan) => ReactNode) | undefined;
+  renderJoin: ((id: string) => ReactNode) | undefined;
   editSlot: ScriptSpan | null;
   canSeekTurn: boolean;
   canSpeaker: boolean;
@@ -1321,6 +1329,7 @@ const TurnView = memo(function TurnView({
   found,
   tabStop,
   renderEditor,
+  renderJoin,
   editSlot,
   canSeekTurn,
   canSpeaker,
@@ -1356,16 +1365,19 @@ const TurnView = memo(function TurnView({
         return word(piece.word);
       case "cut":
         return (
-          <SeamView
-            piece={piece}
-            selected={selectedCut === piece.id}
-            inSelection={
-              selectedCut !== piece.id &&
-              overlaps(selection, piece.start, piece.end)
-            }
-            tabbable={piece.start === tabStop}
-            actions={actions}
-          />
+          <>
+            <SeamView
+              piece={piece}
+              selected={selectedCut === piece.id}
+              inSelection={
+                selectedCut !== piece.id &&
+                overlaps(selection, piece.start, piece.end)
+              }
+              tabbable={piece.start === tabStop}
+              actions={actions}
+            />
+            {piece.continued ? null : renderJoin?.(piece.id)}
+          </>
         );
       case "suggestion":
         return (

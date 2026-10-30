@@ -23,8 +23,7 @@ function transcripts(): unknown {
 export async function checkWordbarOutsideRelease(page: Page): Promise<void> {
   await openProject(page, e2eProjectPath);
   const list = await openTranscriptPanel(page);
-  await page.getByRole("button", { name: /^Correct:/ }).click();
-  await list.locator("button[data-transcript-word]").first().click();
+  await list.locator(".sys-script-word").first().click();
   await page
     .getByRole("button", { name: "Adjust timing", exact: true })
     .click();

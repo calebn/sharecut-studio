@@ -95,7 +95,7 @@ html[data-shell="phone"] .bottom-sheet-root {
 }
 
 /* A selection the page cannot scroll clear of shortens the half sheet to sit
-   under it (useKeepSelectionClear); the sheet body scrolls. On a tall screen it
+   under it (keepTargetClear); the sheet body scrolls. On a tall screen it
    also leaves the header, ruler, marker lane and one lane above it, so a pin or
    a clip stays in reach of the next tap. */
 .bottom-sheet--inspector.bottom-sheet--half {

@@ -694,12 +694,9 @@ for (const profile of profiles) {
       await audit(page, info, profile, false, async (projectPath, commands) => {
         if (profile.width < 720) await phone.showText(page);
         else await openPanel(page, "transcript");
-        await expect(
-          page.getByRole("button", { name: /^Correct:/ }),
-        ).toBeEnabled();
-        await page.getByRole("button", { name: /^Select:/ }).click();
+        await expect(page.locator(".sys-script-word").first()).toBeVisible();
         const words = page.locator(
-          '.transcript-list button[data-transcript-word][data-track-id="reference"]',
+          '.sys-script-body .sys-script-word[data-word-key^="reference:"]',
         );
         const first = words.nth(0),
           third = words.nth(2);
@@ -709,7 +706,7 @@ for (const profile of profiles) {
         await page.mouse.down();
         // Pressing a word opens the Inspector, which can reflow the Script
         // list, so the drag target is measured once the press has settled.
-        await expect(first).toHaveClass(/selected/);
+        await expect(first).toHaveAttribute("data-selected", "");
         // The Inspector tracks the growing range and can reflow the list, so
         // the pointer follows the third word until its position holds still.
         let b = await center(third);
@@ -723,27 +720,27 @@ for (const profile of profiles) {
           })
           .toBe(true);
         await page.mouse.up();
-        await expect(first).toHaveClass(/selected/);
-        await expect(words.nth(1)).toHaveClass(/selected/);
-        await expect(third).toHaveClass(/selected/);
-        await expect(words.nth(3)).not.toHaveClass(/selected/);
+        await expect(first).toHaveAttribute("data-selected", "");
+        await expect(words.nth(1)).toHaveAttribute("data-selected", "");
+        await expect(third).toHaveAttribute("data-selected", "");
+        await expect(words.nth(3)).not.toHaveAttribute("data-selected", "");
         expect(saved(projectPath)).toEqual(before);
         expect(commands).toHaveLength(0);
         await evidence(page, info, "passage-native", {
-          first: await first.getAttribute("data-word-index"),
-          third: await third.getAttribute("data-word-index"),
+          first: await first.getAttribute("data-word-key"),
+          third: await third.getAttribute("data-word-key"),
           before,
         });
         await first.click();
         await third.click({ modifiers: ["Shift"] });
-        await expect(first).toHaveClass(/selected/);
-        await expect(words.nth(1)).toHaveClass(/selected/);
-        await expect(third).toHaveClass(/selected/);
-        await expect(words.nth(3)).not.toHaveClass(/selected/);
+        await expect(first).toHaveAttribute("data-selected", "");
+        await expect(words.nth(1)).toHaveAttribute("data-selected", "");
+        await expect(third).toHaveAttribute("data-selected", "");
+        await expect(words.nth(3)).not.toHaveAttribute("data-selected", "");
         expect(saved(projectPath)).toEqual(before);
         expect(commands).toHaveLength(0);
         await page.keyboard.press("Escape");
-        await expect(first).not.toHaveClass(/selected/);
+        await expect(first).not.toHaveAttribute("data-selected", "");
         expect(saved(projectPath)).toEqual(before);
       });
     });

@@ -43,17 +43,10 @@ const FILE_SURFACES: Record<string, string[]> = {
   "inspector/views/ClipInspector.tsx": ["clipInspector"],
   "stage/frame/HistoryControls.tsx": ["historyPanel"],
   "inspector/views/TrackInspector.tsx": ["trackInspector"],
-  "panels/TranscriptPanel.tsx": [
-    "transcript.findReplace",
-    "transcript.ignore",
-    "transcript.lowConfidenceNext",
-    "transcript.lowConfidencePrev",
-  ],
   "stage/edit/EditCornerView.tsx": ["editCorner"],
   "stage/edit/PlusMenu.tsx": ["editPlusMenu"],
   "stage/edit/ViewSheet.tsx": ["viewSheet"],
   "tracks/SoloChip.tsx": ["trackHeaders.soloChip"],
-  "transcript/TranscriptFindReplace.tsx": ["transcript.findReplace"],
   "transcript/TranscriptWordbar.tsx": ["transcript.wordbar"],
   "transcript/WordRangeControls.tsx": ["rangeActions.words"],
 };

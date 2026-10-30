@@ -344,7 +344,7 @@ export function EditBoundaryMarkView({
       rootRem,
       previewGapPx: gapRem * rootRem,
     };
-    const transcript = el.closest(".transcript-list");
+    const transcript = el.closest(".sys-script-body");
     let dragStarted = false;
     activeRef.current = gesture;
     try {

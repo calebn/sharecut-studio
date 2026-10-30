@@ -236,9 +236,6 @@ async function boundaryDrag(page: Page, recorder: Recorder) {
     ) ?? before.edit_boundaries?.[0];
   expect(boundary, "actual cut produced a boundary").toBeTruthy();
   await openPanel(page, "transcript");
-  const annotate = page.locator(".transcript-annotate-btn");
-  if ((await annotate.getAttribute("aria-pressed")) !== "true")
-    await annotate.click();
   const mark = page.locator(
     `.edit-boundary-mark[data-boundary-id="${boundary!.id}"]`,
   );

@@ -83,7 +83,7 @@ test.describe("UX demo screenshots", () => {
     });
     await stagePhone.showText(phone);
     await expect(phone.locator(".phone-edit-script")).toBeVisible();
-    await expect(phone.locator("[data-transcript-word]").first()).toBeVisible();
+    await expect(phone.locator(".sys-script-word").first()).toBeVisible();
     await phone.screenshot({
       path: path.join(screensDir, "phone-text.png"),
       fullPage: true,
@@ -97,9 +97,7 @@ test.describe("UX demo screenshots", () => {
     await expect(desktop.locator(".stage-frame--desktop")).toBeVisible();
     await expectLoadedDemo(desktop);
     await expectLoadedTimeline(desktop);
-    await expect(
-      desktop.locator("[data-transcript-word]").first(),
-    ).toBeVisible();
+    await expect(desktop.locator(".sys-script-word").first()).toBeVisible();
     await desktop.screenshot({
       path: path.join(screensDir, "desktop-shell.png"),
     });
@@ -142,9 +140,7 @@ test.describe("UX demo screenshots", () => {
     await expect(desktop.locator(".guest-banner")).toBeVisible();
     await expectLoadedDemo(desktop);
     await expectLoadedTimeline(desktop);
-    await expect(
-      desktop.locator("[data-transcript-word]").first(),
-    ).toBeVisible();
+    await expect(desktop.locator(".sys-script-word").first()).toBeVisible();
     await desktop.screenshot({
       path: path.join(screensDir, "guest-sharecut-desktop.png"),
     });

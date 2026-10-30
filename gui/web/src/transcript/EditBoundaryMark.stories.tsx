@@ -69,7 +69,7 @@ const meta: Meta<typeof EditBoundaryMarkView> = {
   tags: ["autodocs"],
   decorators: [
     (Story) => (
-      <main aria-label="Edit boundary preview" className="transcript-list">
+      <main aria-label="Edit boundary preview" className="sys-script-body">
         <p className="utterance-seg">
           We found a clear signal after listening carefully to the room tone and
           comparing each take. <Story /> The next phrase starts cleanly and

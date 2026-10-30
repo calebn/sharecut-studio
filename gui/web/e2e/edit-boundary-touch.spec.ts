@@ -44,12 +44,6 @@ test.describe("Transcript edit-boundary touch drag", () => {
       applied += 1;
 
       await openPanel(page, "transcript");
-      const annotate = page.locator(".transcript-annotate-btn");
-      await expect(annotate).toBeVisible();
-      if ((await annotate.getAttribute("aria-pressed")) !== "true") {
-        await annotate.click();
-      }
-      await expect(annotate).toHaveAttribute("aria-pressed", "true");
 
       const mark = page.locator(".edit-boundary-mark").first();
       await expect(mark).toBeVisible();
@@ -161,9 +155,6 @@ for (const { cell: width, theme } of withAppearance([1440, 360])) {
       });
       applied = true;
       await openPanel(page, "transcript");
-      const annotate = page.locator(".transcript-annotate-btn");
-      if ((await annotate.getAttribute("aria-pressed")) !== "true")
-        await annotate.click();
       const mark = page.locator(".edit-boundary-mark").first();
       await expect(mark).toBeVisible();
       await mark.scrollIntoViewIfNeeded();
@@ -172,7 +163,7 @@ for (const { cell: width, theme } of withAppearance([1440, 360])) {
       const x = initial.x + initial.width / 2;
       const y = initial.y + initial.height / 2;
       const paragraph = mark.locator(
-        "xpath=ancestor::*[contains(@class, 'utterance-turn')][1]",
+        "xpath=ancestor::*[contains(@class, 'sys-script-turn')][1]",
       );
       const originalParagraph = await paragraph.boundingBox();
       if (!originalParagraph)

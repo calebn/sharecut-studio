@@ -16,7 +16,6 @@ import { useStableCallback } from "../../../utils/useStableCallback";
 import type { ScriptModel } from "./scriptModel";
 
 export type ScriptFindState = {
-  open: boolean;
   query: string;
   caseSensitive: boolean;
   replaceOpen: boolean;
@@ -24,6 +23,8 @@ export type ScriptFindState = {
 };
 
 export type ScriptFind = ScriptFindState & {
+  /** Whether the bar shows: the store's find flag, which `transcript.findReplace` toggles. */
+  open: boolean;
   matches: readonly ScriptSpan[];
   /** The current hit, or -1 when there is none. */
   current: number;
@@ -54,15 +55,15 @@ export function useScriptFind(
   scrollTo: (index: number, block?: ScrollLogicalPosition) => boolean,
   say: (message: string) => void,
 ): ScriptFind {
+  const open = useDawStore((s) => s.chrome.transcriptFindReplaceOpen);
   const [state, setState] = useState<ScriptFindState>({
-    open: false,
     query: "",
     caseSensitive: false,
     replaceOpen: false,
     replaceText: "",
   });
   const [at, setAt] = useState(0);
-  const { open, query, caseSensitive, replaceText } = state;
+  const { query, caseSensitive, replaceText } = state;
   const matches = useMemo(
     () => (open ? findMatches(model.turns, query, caseSensitive) : []),
     [open, model.turns, query, caseSensitive],
@@ -84,10 +85,10 @@ export function useScriptFind(
 
   const openBar = useStableCallback(() => {
     if (open) bar.current?.focus();
-    else setState((now) => ({ ...now, open: true }));
+    else useDawStore.getState().setTranscriptFindReplaceOpen(true);
   });
   const closeBar = useStableCallback(() =>
-    setState((now) => ({ ...now, open: false })),
+    useDawStore.getState().setTranscriptFindReplaceOpen(false),
   );
   const step = (by: number) => {
     if (matches.length === 0) return;

@@ -156,8 +156,3 @@
   font-size: var(--font-size-small);
   white-space: nowrap;
 }
-
-/* Phone toolbars: 44pt targets (--touch-min). */
-.stage-frame--phone .transcript-toolbar .ui-control {
-  min-block-size: var(--touch-min);
-}

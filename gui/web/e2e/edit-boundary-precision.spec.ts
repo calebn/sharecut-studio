@@ -369,7 +369,7 @@ test("precision boundary editing previews, cancels, and restores transcript audi
 
     await openTranscript(page);
     const restoredWord = page.locator(
-      '.transcript-list button[data-transcript-word][data-track-id="reference"][data-word-index="8"]',
+      '.sys-script-body .sys-script-word[data-word-key="reference::8"]',
     );
     await expect(restoredWord).toHaveText("dissatisfied");
     const restoredBoundary = restored.edit_boundaries?.find(

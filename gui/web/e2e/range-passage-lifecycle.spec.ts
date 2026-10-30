@@ -63,10 +63,9 @@ test("F06 wrapped passage reversal and the Mute verb on words ignores them and U
   await runAudit(page, info, false, async (p, c) => {
     await page.setViewportSize({ width: 820, height: 1024 });
     await openPanel(page, "transcript");
-    await expect(page.getByRole("button", { name: /^Correct:/ })).toBeEnabled();
-    await page.getByRole("button", { name: /^Select:/ }).click();
+    await expect(page.locator(".sys-script-word").first()).toBeVisible();
     const words = page.locator(
-      '.transcript-list button[data-transcript-word][data-track-id="reference"]',
+      '.sys-script-body .sys-script-word[data-word-key^="reference:"]',
     );
     const first = words.nth(0),
       last = words.nth(18),
@@ -82,10 +81,10 @@ test("F06 wrapped passage reversal and the Mute verb on words ignores them and U
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await page.mouse.move(b.x, b.y, { steps: 10 });
-    await expect(last).toHaveClass(/selected/);
+    await expect(last).toHaveAttribute("data-selected", "");
     await page.mouse.move(r.x, r.y, { steps: 6 });
-    await expect(middle).toHaveClass(/selected/);
-    await expect(words.nth(5)).not.toHaveClass(/selected/);
+    await expect(middle).toHaveAttribute("data-selected", "");
+    await expect(words.nth(5)).not.toHaveAttribute("data-selected", "");
     await page.mouse.up();
     expect(snapshot(p)).toEqual(before);
     expect(c).toEqual([]);

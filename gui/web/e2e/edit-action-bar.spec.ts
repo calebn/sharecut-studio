@@ -236,13 +236,12 @@ test.describe("Cut", () => {
   test("Backspace cuts selected words", async ({ page }) => {
     await openEdit(page);
     await openPanel(page, "transcript");
-    await page.getByRole("button", { name: /^Select:/ }).click();
     const words = page.locator(
-      '.transcript-list button[data-transcript-word][data-track-id="reference"]',
+      '.sys-script-body .sys-script-word[data-word-key^="reference:"]',
     );
     await words.nth(2).click();
     await words.nth(3).click({ modifiers: ["Shift"] });
-    await expect(words.nth(3)).toHaveClass(/selected/);
+    await expect(words.nth(3)).toHaveAttribute("data-selected", "");
     const before = await clipCount(page);
     await page.keyboard.press("Backspace");
     await expect.poll(() => clipCount(page)).not.toBe(before);
@@ -280,16 +279,13 @@ test.describe("Hear", () => {
   }) => {
     await openEdit(page);
     await openPanel(page, "transcript");
-    await page.getByRole("button", { name: /^Select:/ }).click();
     const word = page
-      .locator(
-        '.transcript-list button[data-transcript-word][data-track-id="reference"]',
-      )
+      .locator('.sys-script-body .sys-script-word[data-word-key^="reference:"]')
       .nth(2);
     await word.click();
     await word.focus();
     await page.keyboard.press("Shift+Space");
-    await expect(word).toHaveClass(/selected/);
+    await expect(word).toHaveAttribute("data-selected", "");
   });
 });
 
@@ -533,9 +529,8 @@ test.describe("Action bar follows and stays clear", () => {
   }) => {
     await openEdit(page);
     await openPanel(page, "transcript");
-    await page.getByRole("button", { name: /^Select:/ }).click();
     const words = page.locator(
-      '.transcript-list button[data-transcript-word][data-track-id="reference"]',
+      '.sys-script-body .sys-script-word[data-word-key^="reference:"]',
     );
     await words.nth(2).click();
     const bar = selectionBar(page);
@@ -555,6 +550,6 @@ test.describe("Action bar follows and stays clear", () => {
     }
     expect(later).toBeGreaterThan(2);
     await words.nth(later).click({ modifiers: ["Shift"] });
-    await expect(words.nth(later)).toHaveClass(/selected/);
+    await expect(words.nth(later)).toHaveAttribute("data-selected", "");
   });
 });

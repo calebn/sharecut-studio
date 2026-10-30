@@ -8,8 +8,8 @@ import {
   withDocumentCommandTypes,
 } from "./transcriptEdit";
 
-test.describe("Transcript inline word edit", () => {
-  test("focused word F2 edits and native Enter seeks without opening an editor", async ({
+test.describe("Script Fix text", () => {
+  test("F2 on a focused word opens Fix text and Escape gives the word back its focus", async ({
     page,
   }) => {
     await openProject(page, e2eProjectPath);
@@ -17,38 +17,12 @@ test.describe("Transcript inline word edit", () => {
     const word = list.getByRole("button", { name: "my", exact: true }).first();
     await word.focus();
     await page.keyboard.press("F2");
-    const input = list.getByRole("textbox", { name: /Correct word/ });
+    const input = list.getByRole("textbox", { name: "Fix text" });
     await expect(input).toBeFocused();
-    await expectPageAxeClean(page, ".transcript-panel");
+    await expectPageAxeClean(page, ".sys-script");
     await input.press("Escape");
-    await expect(word).toBeFocused();
-    await page.keyboard.press("ArrowRight");
-    await page.keyboard.press("Enter");
     await expect(input).toHaveCount(0);
     await expect(word).toBeFocused();
-    await expect(page.locator(".sys-player-now")).toHaveText(
-      /^00:02\.(379|380)$/,
-    );
-    const correct = page.getByRole("button", {
-      name: /^(Correct:|Exit Correct)/,
-    });
-    await correct.focus();
-    await page.keyboard.press("Enter");
-    await expect(correct).toHaveAttribute("aria-pressed", "true");
-    await word.focus();
-    await page.keyboard.press("F2");
-    await expect(input).toHaveCount(0);
-    await page.keyboard.press("Enter");
-    await expect(
-      page.getByRole("textbox", { name: "Corrected text", exact: true }),
-    ).toBeVisible();
-    await correct.click();
-    await page.getByRole("button", { name: /^Select:/ }).click();
-    await word.focus();
-    await page.keyboard.press("F2");
-    await expect(input).toHaveCount(0);
-    await page.keyboard.press("Enter");
-    await expect(word).toHaveClass(/selected/);
   });
   test("double-click, type, Enter commits one undoable step; Mod+Z restores", async ({
     page,
@@ -65,7 +39,7 @@ test.describe("Transcript inline word edit", () => {
     try {
       await withDocumentCommandTypes(page, async (commands) => {
         await original.dblclick();
-        const input = list.getByRole("textbox", { name: /Correct word/ });
+        const input = list.getByRole("textbox", { name: "Fix text" });
         await expect(input).toBeFocused();
         await input.press("Escape");
         await expect(input).toHaveCount(0);
@@ -73,7 +47,7 @@ test.describe("Transcript inline word edit", () => {
 
         await original.dblclick();
         await expect(input).toBeFocused();
-        await expectPageAxeClean(page, ".transcript-panel");
+        await expectPageAxeClean(page, ".sys-script");
         await input.fill("My");
         await input.press("Enter");
         await expect(
@@ -100,19 +74,19 @@ test.describe("Transcript inline word edit", () => {
   });
 });
 
-test.describe("Phone word correction", () => {
+test.describe("Phone Fix text", () => {
   test.use({
     viewport: { width: 320, height: 568 },
     hasTouch: true,
     reducedMotion: "reduce",
   });
 
-  test("Corrected text and Apply fit in the initial sheet", async ({
+  test("a double tap opens Fix text in the Script and Undo restores the word", async ({
     page,
   }) => {
     await openProject(page, e2eProjectPath);
     await phone.showText(page);
-    const list = page.locator(".transcript-list");
+    const list = page.locator(".sys-script-body");
     const word = list.getByRole("button", { name: "my", exact: true }).first();
     await word.scrollIntoViewIfNeeded();
     const point = await word.boundingBox();
@@ -122,30 +96,13 @@ test.describe("Phone word correction", () => {
     await page.touchscreen.tap(x, y);
     await page.touchscreen.tap(x, y);
 
-    const sheet = page.getByRole("dialog", { name: "Inspector", exact: true });
-    await expect(sheet).toBeVisible();
-    const field = sheet.getByRole("textbox", {
-      name: "Corrected text",
-      exact: true,
-    });
-    const apply = sheet.getByRole("button", { name: "Apply", exact: true });
-    const bounds = await sheet.boundingBox();
-    expect(bounds).not.toBeNull();
-    for (const control of [field, apply]) {
-      const box = await control.boundingBox();
-      expect(box).not.toBeNull();
-      expect(box!.y).toBeGreaterThanOrEqual(bounds!.y);
-      expect(box!.y + box!.height).toBeLessThanOrEqual(
-        bounds!.y + bounds!.height,
-      );
-      expect(box!.height).toBeGreaterThanOrEqual(44);
-    }
-    await expectPageAxeClean(page, ".bottom-sheet");
-
-    await field.fill("");
-    await apply.click();
-    await expect(sheet.getByRole("alert")).toHaveText("Text cannot be empty");
-    await expect(sheet.getByRole("alert")).toBeInViewport({ ratio: 1 });
+    const field = list.getByRole("textbox", { name: "Fix text" });
+    await expect(field).toBeFocused();
+    const box = await field.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await expect(field).toBeInViewport({ ratio: 1 });
+    await expectPageAxeClean(page, ".sys-script");
 
     let savedHead: string | null = null;
     let failed = false;
@@ -158,7 +115,7 @@ test.describe("Phone word correction", () => {
           response.url().includes("/api/document/command") &&
           response.request().postDataJSON()?.type === "CorrectTranscriptWord",
       );
-      await apply.click();
+      await field.press("Enter");
       const reply = await saving;
       expect(reply.ok()).toBe(true);
       const result = (await reply.json()) as { history_head_id?: string };
