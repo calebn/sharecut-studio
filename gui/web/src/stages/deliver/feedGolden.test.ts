@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { FeedView, Fix } from "../../types/feedView";
 import { applyFix, serve } from "./feedFixture";
 import golden from "./feedGolden.json";
-import type { FeedView, Fix } from "../../types/feedView";
 
 type Case = {
   name: string;

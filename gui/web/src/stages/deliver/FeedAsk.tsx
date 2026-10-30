@@ -1,8 +1,8 @@
 import { useState } from "react";
+import type { FeedEdit, FieldKey } from "../../types/feedView";
 import { Button, Field } from "../../ui";
 import { useDisabledReasonNote } from "../../ui/disabledReason";
 import { editBlock, type FeedAccess, fieldOf } from "./feedLogic";
-import type { FeedEdit, FieldKey } from "../../types/feedView";
 
 type Props = {
   field: FieldKey;

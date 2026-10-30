@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadFeed, sendFeedEdit, sendFeedWrite } from "../../api";
-import { feedErrorText } from "./feedErrors";
-import { type FeedAccess, fixBlock, previewEdit } from "./feedLogic";
 import type {
   FeedEdit,
   Fix,
@@ -9,6 +7,8 @@ import type {
   Served,
   WriteRequest,
 } from "../../types/feedView";
+import { feedErrorText } from "./feedErrors";
+import { type FeedAccess, fixBlock, previewEdit } from "./feedLogic";
 
 export type FeedLoad = "loading" | "ready" | "error";
 
@@ -102,11 +102,11 @@ export function useFeed(
         setLoad("ready");
       } catch (error) {
         if (mine !== latestRead.current || path.current !== projectPath) return;
-        setProblem(feedErrorText(error));
+        setProblem(feedErrorText(error, access));
         if (!quiet || !truth.current) setLoad("error");
       }
     },
-    [projectPath, show],
+    [projectPath, show, access],
   );
 
   useEffect(() => {
@@ -154,7 +154,7 @@ export function useFeed(
           if (edit) waiting.current = waiting.current.slice(1);
           if (path.current !== projectPath) return;
           show(truth.current);
-          setProblem(feedErrorText(error));
+          setProblem(feedErrorText(error, access));
           if (writing) setRequest("failed");
         }
       });

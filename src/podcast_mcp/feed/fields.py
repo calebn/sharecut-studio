@@ -81,6 +81,7 @@ class Resolution:
     facts: dict[str, Auto] = field(default_factory=dict)
     # Pinned rows whose stored value is not the kind of value the row takes (a hand edit).
     unusable_pins: set[str] = field(default_factory=set)
+    refused_pins: dict[str, str] = field(default_factory=dict)
 
     @property
     def show(self) -> ShowProfile | None:
@@ -908,7 +909,7 @@ _CORE_FIELDS: tuple[FieldSpec, ...] = (
     ),
     _show(
         "channel.mediaUrl",
-        "hosting address",
+        "hosting address template",
         "Where files will live, with {file} where the file name goes.",
         TypeAdapter(Template),
         derive=_media_url,
@@ -995,7 +996,7 @@ _CORE_FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec(
         key="item.enclosure.url",
         scope="episode",
-        label="hosting address",
+        label="episode hosting address",
         help="The full https address of the audio file. Defaults to the show's hosting address.",
         value=TypeAdapter(Https),
         edit="pin",

@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { formatBytes } from "../../models";
 import { PersonAvatar } from "../../system/Person";
+import type { FeedEdit, FeedView } from "../../types/feedView";
 import { Button } from "../../ui";
 import { formatDurationLabel } from "../../utils/time";
 import { formatClock } from "./deliverLogic";
@@ -26,7 +27,6 @@ import {
   type SourceOwner,
   textFact,
 } from "./feedLogic";
-import type { FeedEdit, FeedView } from "../../types/feedView";
 
 type Props = {
   view: FeedView;

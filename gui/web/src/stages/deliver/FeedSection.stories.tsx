@@ -5,6 +5,7 @@ import {
   studioViewports,
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
+import type { FeedView, WriteRequest } from "../../types/feedView";
 import { FeedLive } from "./FeedLive";
 import { FeedSection } from "./FeedSection";
 import {
@@ -20,7 +21,6 @@ import {
   STALE,
   UNREADABLE,
 } from "./feedFixture";
-import type { FeedView, WriteRequest } from "../../types/feedView";
 
 const meta: Meta<typeof FeedSection> = {
   title: "Stages/Deliver/Podcast listing",
@@ -318,7 +318,7 @@ export const BlockedWithFix: Story = {
     ).toBeDisabled();
     await userEvent.click(view.getByRole("button", { name: "Add address" }));
     await expect(
-      view.getByRole("textbox", { name: "Edit hosting address" }),
+      view.getByRole("textbox", { name: "Edit episode hosting address" }),
     ).toHaveFocus();
   },
 };

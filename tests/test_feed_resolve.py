@@ -688,3 +688,64 @@ def test_minting_with_a_naive_time_means_utc_not_this_machines_zone(
         time.tzset()
 
     assert feed.first_exported_at == "2026-10-23T09:00:00Z"
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "expected"),
+    [
+        ("channel.title", "x" * 5000, "Show title is too long."),
+        ("channel.podroll", "ftp://x", "Recommended shows must start with a feed guid"),
+        ("channel.explicit", "maybe", "That isn't the kind of value the explicit setting takes."),
+        (
+            "channel.mediaUrl",
+            "https://cdn.example.test/a.mp3",
+            "must have exactly one place for the file name.",
+        ),
+    ],
+)
+def test_a_refusal_names_the_problem_without_echoing_input_examples_or_placeholders(
+    key: str, value: object, expected: str
+) -> None:
+    from podcast_mcp.feed.model import SetEdit
+    from podcast_mcp.feed.resolve import FeedValueInvalidError, checked_value
+
+    with pytest.raises(FeedValueInvalidError) as raised:
+        checked_value(SetEdit(key=key, value=value))
+
+    sentence = raised.value.guest_message()
+    assert expected in sentence
+    assert str(value) not in sentence
+    for leaked in ("example.test", "{", "}", "2026-"):
+        assert leaked not in sentence
+
+
+@pytest.mark.parametrize(
+    "key", ["channel.trailer", "channel.podroll", "channel.publisher", "channel.value"]
+)
+def test_a_malformed_extra_names_its_label_and_never_shows_an_example_line(key: str) -> None:
+    from podcast_mcp.feed.model import SetEdit
+    from podcast_mcp.feed.resolve import FeedValueInvalidError, checked_value
+
+    with pytest.raises(FeedValueInvalidError) as raised:
+        checked_value(SetEdit(key=key, value="ftp://not-this"))
+
+    sentence = str(raised.value)
+    assert sentence.endswith(".") and "ftp://not-this" not in sentence
+    assert "example.test" not in sentence and "{" not in sentence
+
+
+def test_the_two_hosting_addresses_have_distinct_labels() -> None:
+    assert lookup("channel.mediaUrl").label == "hosting address template"  # type: ignore[union-attr]
+    assert lookup("item.enclosure.url").label == "episode hosting address"  # type: ignore[union-attr]
+
+
+def test_the_guest_sentence_of_a_refusal_never_carries_a_host_path() -> None:
+    from podcast_mcp.feed.resolve import FeedValueInvalidError
+    from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
+
+    leaky = FeedValueInvalidError("Artwork /Users/ana/Podcasts/private/cover.png is not valid.")
+    plain = FeedValueInvalidError("Show title is too long.")
+
+    assert "/Users/ana" not in leaky.guest_message()
+    assert leaky.guest_message() == GENERIC_GUEST_MESSAGE
+    assert plain.guest_message() == "Show title is too long."

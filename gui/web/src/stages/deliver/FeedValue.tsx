@@ -1,6 +1,14 @@
 import { type ReactNode, useEffect, useId, useRef } from "react";
 import { InlineEdit, type InlineEditEnd } from "../../system/InlineEdit";
 import { SystemIcon } from "../../system/SystemIcon";
+import type {
+  Fact,
+  FeedEdit,
+  FieldKey,
+  Pending,
+  PinAuthor,
+  Resolved,
+} from "../../types/feedView";
 import { Button } from "../../ui";
 import {
   AGENT_MARK,
@@ -11,14 +19,6 @@ import {
   markOf,
   needsInput,
 } from "./feedLogic";
-import type {
-  Fact,
-  FeedEdit,
-  FieldKey,
-  Pending,
-  PinAuthor,
-  Resolved,
-} from "../../types/feedView";
 
 export type EditControls = {
   active: FieldKey | null;

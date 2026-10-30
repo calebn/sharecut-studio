@@ -467,7 +467,6 @@ def test_an_editor_share_may_write_the_feed_file_and_a_commenter_may_not(
         ("editor", "show", "Other Show", 403),
         ("editor", "channel.mediaUrl", "https://evil.example.test/{file}", 403),
         ("editor", "channel.image", "/etc/passwd", 403),
-        ("editor", "item.intro", "Use the document route", 403),
     ],
 )
 def test_a_guest_may_edit_a_show_value_by_role(
@@ -493,6 +492,98 @@ def test_a_guest_may_edit_a_show_value_by_role(
         assert (held is not None and held.value == value) == (status == 200)
     assert show.media_url == "https://cdn.example.test/long-river/{file}"
     assert [s.id for s in shows.shows()] == ["the-long-river"]
+
+
+def test_an_editor_is_pointed_at_the_episode_route_for_an_episode_value(
+    writable: Path, published_share
+) -> None:
+    client, token = _guest(published_share)
+
+    res = _guest_set(client, token, "item.intro", "Use the document route")
+
+    assert res.status_code == 400
+    assert res.headers[CODE] == "feed_field_not_editable"
+
+
+@pytest.mark.parametrize(
+    ("key", "code"),
+    [
+        ("channel.feedUrl", "feed_field_not_editable"),
+        ("channel.podcastGuid", "feed_field_not_editable"),
+        ("channel.roster", "feed_field_edit_at_source"),
+        ("channel.bogus", "feed_field_unknown"),
+        ("channel. mediaUrl", "feed_field_unknown"),
+        ("channel.mediaUrl ", "feed_field_unknown"),
+    ],
+)
+@pytest.mark.parametrize("op", ["set", "unset"])
+def test_an_editor_set_or_unset_of_a_non_pin_or_unknown_key_gets_the_services_own_code(
+    writable: Path, published_share, key: str, code: str, op: str
+) -> None:
+    client, token = _guest(published_share)
+    edit = {"op": op, "key": key, **({"value": "x"} if op == "set" else {})}
+
+    res = client.post(f"/api/review/{token}/feed/edit", json={"edit": edit})
+
+    assert res.status_code == 400, res.text
+    assert res.headers[CODE] == code
+    assert res.headers[CODE] != "share_capability_required"
+
+
+def test_an_editor_cannot_unset_a_host_only_row(writable: Path, published_share) -> None:
+    from podcast_mcp.feed.show_store import ShowStore, default_directory
+
+    client, token = _guest(published_share)
+
+    res = client.post(
+        f"/api/review/{token}/feed/edit",
+        json={"edit": {"op": "unset", "key": "channel.mediaUrl"}},
+    )
+
+    assert res.status_code == 403
+    assert res.headers[CODE] == "share_capability_required"
+    show = ShowStore(default_directory()).profile("the-long-river")
+    assert show.media_url == "https://cdn.example.test/long-river/{file}"
+
+
+def test_a_blank_artwork_set_from_an_editor_clears_the_pin_like_any_blank(
+    writable: Path, published_share
+) -> None:
+    from podcast_mcp.feed.show_store import ShowStore, default_directory
+
+    client, token = _guest(published_share)
+    assert (
+        _guest_set(client, token, "channel.image", "https://cdn.example.test/c.jpg").status_code
+        == 200
+    )
+
+    for blank in ("", "   "):
+        _guest_set(client, token, "channel.image", "https://cdn.example.test/c.jpg")
+        res = _guest_set(client, token, "channel.image", blank)
+        assert res.status_code == 200, res.text
+        show = ShowStore(default_directory()).profile("the-long-river")
+        assert "channel.image" not in show.pins
+
+
+@pytest.mark.parametrize(
+    ("stored", "says"),
+    [("x" * 5000, "too long"), ("   ", "blank")],
+)
+def test_a_stored_text_that_breaks_a_limit_is_shown_and_named_not_called_the_wrong_kind(
+    writable: Path, stored: str, says: str
+) -> None:
+    from podcast_mcp.models.feed import Pin
+
+    project = load_project(writable)
+    project.feed.pins["item.title"] = Pin(value=stored)
+    save_project(project, writable)
+
+    shown = json.loads(_cli("show", "-p", str(writable), "--json"))
+
+    blocker = next(f for f in shown["findings"] if f["key"] == "item.title")
+    assert blocker["severity"] == "blocker"
+    assert says in blocker["message"] and "kind of value" not in blocker["message"]
+    assert shown["item"]["item.title"]["value"] == stored
 
 
 def test_the_host_may_edit_everything_a_guest_may_not(writable: Path) -> None:

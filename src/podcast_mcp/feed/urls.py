@@ -49,7 +49,7 @@ def art_extension(value: str) -> str:
 
 def check_media_template(value: str) -> str:
     if value.count(_SLOT) != 1:
-        raise ValueError(f"must contain {_SLOT} exactly once")
+        raise ValueError("must have exactly one place for the file name")
     check_https_url(value.replace(_SLOT, "file"))
     return value
 

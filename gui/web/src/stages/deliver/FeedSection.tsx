@@ -4,6 +4,13 @@ import { Cover } from "../../system/Cover";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusGlyph } from "../../system/StatusGlyph";
 import { StatusRow } from "../../system/StatusRow";
+import type {
+  FeedEdit,
+  FeedView,
+  FieldKey,
+  Fix,
+  WriteRequest,
+} from "../../types/feedView";
 import {
   Button,
   SegmentedControl,
@@ -34,13 +41,6 @@ import {
   writeLine,
   xmlLines,
 } from "./feedLogic";
-import type {
-  FeedEdit,
-  FeedView,
-  FieldKey,
-  Fix,
-  WriteRequest,
-} from "../../types/feedView";
 import { ShowHostNote, ShowSetup } from "./ShowSetup";
 
 type Props = {

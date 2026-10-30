@@ -24,7 +24,12 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.edit import EditService, with_audio_check
     from podcast_mcp.services.document.episode import EpisodeService
-    from podcast_mcp.services.document.feed import FeedService, FeedViewKind, describe_fields
+    from podcast_mcp.services.document.feed import (
+        SHOW_KEY,
+        FeedService,
+        FeedViewKind,
+        describe_fields,
+    )
     from podcast_mcp.services.document.golden_ear import (
         DEFAULT_LIMIT,
         LISTEN_DIRNAME,
@@ -56,6 +61,7 @@ __all__ = [
     "PENDING_PREVIEW_PAD_DEFAULT_SEC",
     "PENDING_PREVIEW_PAD_MAX_SEC",
     "PENDING_PREVIEW_PAD_MIN_SEC",
+    "SHOW_KEY",
     "AlignAcceptService",
     "AnalysisService",
     "BoundaryEdit",
@@ -110,6 +116,7 @@ _MODULE_BY_NAME = {
     "EpisodeService": "episode",
     "FeedService": "feed",
     "FeedViewKind": "feed",
+    "SHOW_KEY": "feed",
     "describe_fields": "feed",
     "DEFAULT_LIMIT": "golden_ear",
     "LISTEN_DIRNAME": "golden_ear",

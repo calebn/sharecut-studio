@@ -259,7 +259,7 @@ def test_a_guest_value_is_checked_like_the_hosts(episode: Path, published_share:
     assert res.status_code == 400
     assert res.headers["X-Sharecut-Error-Code"] == "feed_value_invalid"
     assert res.json()["detail"] == (
-        "Hosting address must be an https address, using plain letters and numbers."
+        "Episode hosting address must be an https address, using plain letters and numbers."
     )
     assert _pins(episode) == {}
 
