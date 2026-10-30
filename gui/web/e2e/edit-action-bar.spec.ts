@@ -241,7 +241,7 @@ test.describe("Cut", () => {
     );
     await words.nth(2).click();
     await words.nth(3).click({ modifiers: ["Shift"] });
-    await expect(words.nth(3)).toHaveAttribute("data-selected", "");
+    await expect(words.nth(3)).toHaveAttribute("data-selected");
     const before = await clipCount(page);
     await page.keyboard.press("Backspace");
     await expect.poll(() => clipCount(page)).not.toBe(before);
@@ -285,7 +285,7 @@ test.describe("Hear", () => {
     await word.click();
     await word.focus();
     await page.keyboard.press("Shift+Space");
-    await expect(word).toHaveAttribute("data-selected", "");
+    await expect(word).toHaveAttribute("data-selected");
   });
 });
 
@@ -550,6 +550,6 @@ test.describe("Action bar follows and stays clear", () => {
     }
     expect(later).toBeGreaterThan(2);
     await words.nth(later).click({ modifiers: ["Shift"] });
-    await expect(words.nth(later)).toHaveAttribute("data-selected", "");
+    await expect(words.nth(later)).toHaveAttribute("data-selected");
   });
 });

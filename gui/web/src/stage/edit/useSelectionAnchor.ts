@@ -34,7 +34,7 @@ function findSelectionAnchor(
       const first = Math.min(selection.startWordIndex, selection.endWordIndex);
       return (
         root.querySelector<HTMLElement>(
-          `[data-transcript-word][data-track-id="${esc(selection.trackId)}"][data-word-index="${first}"]`,
+          `.sys-script-word[data-word-key="${esc(`${selection.trackId}:${selection.sourceId ?? ""}:${first}`)}"]`,
         ) ?? laneOf(root, selection.trackId)
       );
     }

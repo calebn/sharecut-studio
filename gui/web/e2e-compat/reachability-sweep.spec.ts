@@ -520,6 +520,7 @@ test("pending-edit and transcript-word sheet bodies keep every control reachable
     const word = page.locator(".sys-script-body .sys-script-word").first();
     await expect(word).toBeVisible();
     await word.click();
+    await inspectSelection(page);
     await scanSelection("Suppress", "text");
     return reports.join("\n\n");
   });

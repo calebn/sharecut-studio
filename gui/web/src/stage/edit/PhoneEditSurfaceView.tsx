@@ -13,7 +13,7 @@ export interface PhoneEditSurfaceViewProps {
   /** Opens the Mix sheet; absent for a link that cannot change the mix. */
   onOpenMix?: () => void;
   /** Focus regions: the timeline side keeps timeline keys, the Script does not. */
-  bindings?: { lanes?: Ref<HTMLDivElement>; script?: Ref<HTMLElement> };
+  bindings?: { lanes?: Ref<HTMLDivElement>; script?: Ref<HTMLDivElement> };
 }
 
 /** The Timeline and Script toggle; the bar and the Tools sheet both show it. */
