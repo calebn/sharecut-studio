@@ -54,9 +54,6 @@ def _cli(*args: str, code: int = 0) -> str:
     return result.output
 
 
-# --- CLI ------------------------------------------------------------------------------------
-
-
 def test_cli_show_prints_a_readable_summary_with_the_fix_for_each_finding(episode: Path) -> None:
     out = _cli("show", "-p", str(episode))
 
@@ -159,9 +156,6 @@ def test_cli_fields_lists_every_row_with_how_it_is_edited(episode: Path) -> None
     assert "item.title  [episode] feed set" in _cli("fields")
 
 
-# --- MCP ------------------------------------------------------------------------------------
-
-
 def test_mcp_feed_read_returns_each_view(episode: Path) -> None:
     facts = json.loads(mcp_feed.feed_read(str(episode)))
     assert facts["item"]["item.title"]["value"] == "test_episode"
@@ -201,9 +195,6 @@ def test_the_tools_are_registered_on_the_server() -> None:
     names = {tool.name for tool in asyncio.run(mcp.list_tools())}
 
     assert {"feed_read", "feed_set", "feed_unset"} <= names
-
-
-# --- HTTP -----------------------------------------------------------------------------------
 
 
 def test_get_feed_returns_the_view_and_the_item_xml(episode: Path) -> None:

@@ -178,8 +178,6 @@ _MOMENT = TypeAdapter(Annotated[str, AfterValidator(_check_iso)])
 EXPORT = CommandFix(command="export_episode")
 _CHOOSE_ART = CommandFix(command="choose_art")
 
-# --- derivations -----------------------------------------------------------------------
-
 
 def _title(res: Resolution) -> Auto:
     name = res.inputs.project.name.strip()
@@ -453,9 +451,6 @@ def _podcast_guid(res: Resolution) -> Auto:
     if not isinstance(url, str):
         return Missing("Made from the feed address.", None)
     return Found(podcast_guid(url), Derived(rule="the feed address"))
-
-
-# --- the list --------------------------------------------------------------------------
 
 
 def _show(
