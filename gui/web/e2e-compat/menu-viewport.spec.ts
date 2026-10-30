@@ -67,12 +67,10 @@ for (const mode of ["native", "fallback"] as const) {
         const sheet = page.getByRole("dialog", { name: "Inspector" });
         await expect(sheet).toBeVisible();
         if (detent === "full") {
-          await sheet
-            .getByRole("button", { name: "Expand", exact: true })
-            .tap();
-          await expect(
-            sheet.getByRole("button", { name: "Collapse", exact: true }),
-          ).toBeVisible();
+          const grip = sheet.getByRole("slider", { name: "Sheet height" });
+          await grip.focus();
+          await page.keyboard.press("End");
+          await expect(grip).toHaveAttribute("aria-valuetext", "Full height");
         }
 
         await sheet.getByRole("button", { name: "Track actions" }).tap();

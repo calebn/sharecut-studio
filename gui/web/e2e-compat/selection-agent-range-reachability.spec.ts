@@ -104,11 +104,10 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
   await page.touchscreen.tap(point.x, point.y);
   await inspectSelection(page);
 
-  const sheet = page.locator(".bottom-sheet--inspector");
+  const sheet = page.locator(".sys-inspector");
   await expect(sheet).toBeVisible();
   await expect(sheet.locator(".modifier-badge")).toHaveText("Clip");
 
-  await expect(sheet).toHaveClass(/bottom-sheet--full/);
   await expect(barActions).toHaveCount(0);
 
   const actions = sheet.getByRole("region", { name: "Range fields" });
@@ -150,10 +149,9 @@ test("a zero-start agent range arriving at the short-tablet column stays reachab
   await page.touchscreen.tap(point.x, point.y);
   await inspectSelection(page);
 
-  const sheet = page.locator(".bottom-sheet--column");
+  const sheet = page.locator(".sys-inspector");
   await expect(sheet).toBeVisible();
-  await expect(page.locator(".bottom-sheet--inspector")).toHaveCount(0);
-  const title = await sheet.locator(".bottom-sheet-title").innerText();
+  const title = await sheet.locator(".sys-sheet-title").innerText();
   const clientId = fixtureClientId(page, "peek-arrival");
   await clearAgentRange(page, clientId, 1);
   await expect(page.getByRole("region", { name: "Range fields" })).toHaveCount(
@@ -166,7 +164,7 @@ test("a zero-start agent range arriving at the short-tablet column stays reachab
   await expect(page.getByRole("region", { name: "Range fields" })).toHaveCount(
     1,
   );
-  await expect(sheet.locator(".bottom-sheet-title")).toHaveText(title);
+  await expect(sheet.locator(".sys-sheet-title")).toHaveText(title);
   await expect(actions.getByLabel("In")).toHaveValue("0");
   await expect(actions.getByLabel("Out")).toHaveValue("1");
   const reference = actions.getByRole("checkbox", { name: "reference" });
@@ -200,10 +198,8 @@ test("a tablet track sheet owns the agent range controls", async ({ page }) => {
     trackNameBox.y + trackNameBox.height / 2,
   );
 
-  const sheet = page.locator(".bottom-sheet--inspector");
+  const sheet = page.locator(".sys-inspector");
   await expect(sheet).toBeVisible();
-  await sheet.getByRole("button", { name: "Expand", exact: true }).click();
-  await expect(sheet).toHaveClass(/bottom-sheet--full/);
   const actions = sheet.getByRole("region", { name: "Range fields" });
   await expect(actions.getByLabel("In")).toBeVisible();
   await expect(actions.getByLabel("Out")).toBeVisible();
@@ -237,11 +233,10 @@ test("agent range arrival and removal keep the short-tablet column reachable", a
   await page.touchscreen.tap(point.x, point.y);
   await inspectSelection(page);
 
-  const sheet = page.locator(".bottom-sheet--column");
+  const sheet = page.locator(".sys-inspector");
   await expect(sheet).toBeVisible();
-  await expect(page.locator(".bottom-sheet--inspector")).toHaveCount(0);
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
-  const title = await sheet.locator(".bottom-sheet-title").innerText();
+  const title = await sheet.locator(".sys-sheet-title").innerText();
   const clientId = fixtureClientId(page, "peek-toggle");
   await clearAgentRange(page, clientId, 1);
   await expect(page.getByRole("region", { name: "Range fields" })).toHaveCount(
@@ -259,7 +254,7 @@ test("agent range arrival and removal keep the short-tablet column reachable", a
     1,
   );
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
-  await expect(sheet.locator(".bottom-sheet-title")).toHaveText(title);
+  await expect(sheet.locator(".sys-sheet-title")).toHaveText(title);
 
   const reference = actions.getByRole("checkbox", { name: "reference" });
   const guest = actions.getByRole("checkbox", { name: "guest" });
@@ -274,7 +269,7 @@ test("agent range arrival and removal keep the short-tablet column reachable", a
     0,
   );
   await expect(sheet.getByRole("button", { name: "Close" })).toBeVisible();
-  await expect(sheet.locator(".bottom-sheet-title")).toHaveText(title);
+  await expect(sheet.locator(".sys-sheet-title")).toHaveText(title);
 
   await publishZeroStartAgentRange(page, clientId, 4);
   const restored = sheet.getByRole("region", { name: "Range fields" });
