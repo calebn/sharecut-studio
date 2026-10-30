@@ -227,4 +227,52 @@ describe("DeviceSheet", () => {
     expect(document.querySelector(".sys-sheet-bottom")).not.toBeNull();
     expect(document.querySelector(".sys-sheet-centered")).toBeNull();
   });
+
+  describe("speaker", () => {
+    const output = {
+      supported: true,
+      devices: [
+        { id: "hp", label: "Headset" },
+        { id: "sp", label: "Desk speakers" },
+      ],
+      selectedId: "hp",
+    };
+
+    it("draws no speaker row without support", () => {
+      const { rerender } = render(sheet());
+      expect(screen.queryByLabelText("Speaker")).toBeNull();
+      rerender(sheet({ output: { ...output, supported: false } }));
+      expect(screen.queryByLabelText("Speaker")).toBeNull();
+    });
+
+    it("lists the speakers and applies a pick at once", async () => {
+      const onOutputChange = vi.fn();
+      const { baseElement } = render(sheet({ output, onOutputChange }));
+      const menu = screen.getByLabelText("Speaker");
+      expect(menu).toHaveValue("hp");
+      expect(menu).toBeEnabled();
+      await userEvent.selectOptions(menu, "sp");
+      expect(onOutputChange).toHaveBeenCalledWith("sp");
+      await userEvent.selectOptions(menu, "");
+      expect(onOutputChange).toHaveBeenLastCalledWith("");
+      await expectNoA11yViolations(baseElement);
+    });
+
+    it("says when a pick did not stick", async () => {
+      const { baseElement } = render(
+        sheet({
+          output: {
+            ...output,
+            selectedId: "",
+            error: "Couldn't switch speakers. Using the default.",
+          },
+        }),
+      );
+      expect(
+        screen.getByText("Couldn't switch speakers. Using the default."),
+      ).toBeVisible();
+      expect(screen.getByLabelText("Speaker")).toHaveValue("");
+      await expectNoA11yViolations(baseElement);
+    });
+  });
 });

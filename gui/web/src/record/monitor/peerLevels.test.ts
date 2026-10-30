@@ -133,6 +133,22 @@ const meshes: {
   onRemoteGone: (peerId: string) => void;
 }[] = [];
 const peaks = new Map<string, number>();
+const sinkCalls: string[] = [];
+class FakeContext {
+  constructor() {
+    return Object.assign(
+      fakeContext(peaks),
+      "setSinkId" in FakeContext.prototype
+        ? {
+            setSinkId: (id: string) => {
+              sinkCalls.push(id);
+              return Promise.resolve();
+            },
+          }
+        : {},
+    );
+  }
+}
 
 vi.mock("./mesh", () => ({
   RecordMesh: class {
@@ -158,12 +174,7 @@ vi.mock("../../audio/mixMinus", () => ({
 }));
 vi.mock("../../utils/audio", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../utils/audio")>()),
-  audioContextCtor: () =>
-    class {
-      constructor() {
-        return fakeContext(peaks);
-      }
-    },
+  audioContextCtor: () => FakeContext,
 }));
 
 describe("useRecordMonitor levels", () => {
@@ -246,5 +257,71 @@ describe("useRecordMonitor levels", () => {
     expect(Object.keys(result.current.levels)).toEqual(["p_host"]);
     rerender({ enabled: false });
     expect(result.current.levels).toEqual({});
+  });
+});
+
+describe("useRecordMonitor speaker", () => {
+  const args = {
+    localId: "p_me",
+    role: "guest" as const,
+    snapshot: {
+      session_id: "s1",
+      participants: [],
+    } as unknown as RecordSnapshot,
+    localStream: null,
+    muted: false,
+    send: vi.fn(),
+  };
+
+  beforeEach(() => {
+    meshes.length = 0;
+    peaks.clear();
+    sinkCalls.length = 0;
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(FakeContext.prototype, "setSinkId");
+  });
+
+  it("is selectable only when the AudioContext prototype has setSinkId", async () => {
+    const { outputSelectable } = await import("./useRecordMonitor");
+    expect(outputSelectable()).toBe(false);
+    Object.defineProperty(FakeContext.prototype, "setSinkId", {
+      configurable: true,
+      value: () => Promise.resolve(),
+    });
+    expect(outputSelectable()).toBe(true);
+  });
+
+  it("counts each context and routes setSinkId to the live one", async () => {
+    Object.defineProperty(FakeContext.prototype, "setSinkId", {
+      configurable: true,
+      value: () => Promise.resolve(),
+    });
+    const { useRecordMonitor } = await import("./useRecordMonitor");
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useRecordMonitor({ ...args, enabled }),
+      { initialProps: { enabled: false } },
+    );
+    expect(result.current.outputSupported).toBe(true);
+    expect(result.current.contextGeneration).toBe(0);
+    await result.current.setSinkId("hp");
+    expect(sinkCalls).toEqual([]);
+    rerender({ enabled: true });
+    expect(result.current.contextGeneration).toBe(1);
+    await result.current.setSinkId("hp");
+    expect(sinkCalls).toEqual(["hp"]);
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    expect(result.current.contextGeneration).toBe(2);
+  });
+
+  it("is a no-op when the context cannot pick a speaker", async () => {
+    const { useRecordMonitor } = await import("./useRecordMonitor");
+    const { result } = renderHook(() =>
+      useRecordMonitor({ ...args, enabled: true }),
+    );
+    expect(result.current.outputSupported).toBe(false);
+    await expect(result.current.setSinkId("hp")).resolves.toBeUndefined();
+    expect(sinkCalls).toEqual([]);
   });
 });

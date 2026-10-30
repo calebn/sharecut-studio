@@ -1303,7 +1303,13 @@ cannot. Every button runs the same `record.*` command as the palette.
   status, a note when a removed participant's invite is closed, **Devices…**
   and, last, **Invite and links…** (opens Share). **Record 1 minute of room
   tone** is in the Devices sheet and works only in the lobby or after Stop;
-  otherwise it is disabled ("Record room tone between takes."). **Create record room**
+  otherwise it is disabled ("Record room tone between takes."). The same sheet
+  has a **Speaker** menu where the browser's `AudioContext.setSinkId` exists
+  (Chromium; absent elsewhere). The pick calls `setSinkId` on the monitor's
+  `AudioContext` (`useRecordMonitor`, again on each new context), is stored under
+  `record:output` for the browser, and falls back to the default speaker, with a
+  note, when the device is gone or the browser refuses it. The mix-minus graph is
+  unchanged: only where `ctx.destination` plays moves. **Create record room**
   announces "Record room created and guest link copied" ("Record room created" if
   the copy failed); from the stage button the same words also show as a note on
   the stage. The palette's **Copy guest link** (not a stage button) announces

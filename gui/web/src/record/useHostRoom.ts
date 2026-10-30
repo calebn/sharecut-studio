@@ -39,6 +39,7 @@ import {
   useRecordUpload,
 } from "./upload/useRecordUpload";
 import { useEndSession } from "./useEndSession";
+import { NO_OUTPUT, type OutputDevice } from "./useOutputDevice";
 import { useRecordLiveComments } from "./useRecordLiveComments";
 import { useRoomToneCapture } from "./useRoomToneCapture";
 
@@ -69,6 +70,7 @@ export type HostRoomCapture = {
   deviceId?: string;
   staleMic?: boolean;
   onDeviceChange?: (deviceId: string) => void;
+  output?: OutputDevice;
 };
 
 export function useHostRoom(
@@ -95,6 +97,7 @@ export function useHostRoom(
     deviceId = "",
     staleMic = false,
     onDeviceChange,
+    output = NO_OUTPUT,
   } = input;
   const { projectPath, project, selectClip } = useDaw((s) => ({
     projectPath: s.projectPath,
@@ -350,6 +353,7 @@ export function useHostRoom(
       deviceId,
       staleMic,
       onDeviceChange,
+      output,
     },
     snapshot,
     state,

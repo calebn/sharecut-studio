@@ -26,6 +26,17 @@ export type DeviceTone = {
   disabledReason?: string;
 };
 
+/** The speaker menu: only drawn when the browser can route the room's audio. */
+export type DeviceOutput = {
+  /** False when the browser cannot pick a speaker; the row is then absent. */
+  supported: boolean;
+  devices: { id: string; label: string }[];
+  /** "" is the system default. */
+  selectedId: string;
+  /** Why the pick did not stick: the device would not open or is gone. */
+  error?: string;
+};
+
 export type DeviceSheetState =
   | "ready"
   | "denied"
@@ -38,6 +49,10 @@ export const DEVICE_TEXT = {
   tone: "Room tone",
   noInput: "No microphone found",
   noInputDetail: "Connect an input device, then Retry.",
+  speaker: "Speaker",
+  defaultOutput: "Default",
+  outputFailed: "Couldn't switch speakers. Using the default.",
+  outputGone: "Your saved speaker is gone. Using the default.",
 } as const;
 
 const TONE_ROW: Record<DeviceTone["state"], StatusRowState> = {
@@ -65,6 +80,13 @@ export type DeviceSheetModel = {
   control: JoinMic;
   micNotes: JoinNote[];
   headphones: JoinRow;
+  /** Null when the browser cannot pick a speaker: there is no row at all. */
+  output: {
+    row: Omit<JoinRow, "key">;
+    devices: { id: string; label: string }[];
+    selectedId: string;
+    notes: JoinNote[];
+  } | null;
   toneRow: ToneRow;
 };
 
@@ -94,11 +116,29 @@ function stateOf(mic: DeviceMic, tone: DeviceTone): DeviceSheetState {
   }
 }
 
+function outputOf(output?: DeviceOutput): DeviceSheetModel["output"] {
+  if (!output?.supported) return null;
+  const label = output.devices.find(
+    (device) => device.id === output.selectedId,
+  )?.label;
+  return {
+    row: {
+      state: "done",
+      title: DEVICE_TEXT.speaker,
+      detail: output.selectedId ? label : DEVICE_TEXT.defaultOutput,
+    },
+    devices: output.devices,
+    selectedId: output.selectedId,
+    notes: output.error ? [{ tone: "warning", text: output.error }] : [],
+  };
+}
+
 export function deviceSheetModel(input: {
   mic: DeviceMic;
   micNotes?: string[];
   headphones: boolean;
   tone: DeviceTone;
+  output?: DeviceOutput;
 }): DeviceSheetModel {
   const { mic, tone } = input;
   const control = mic.status === "none" ? NO_MIC : mic;
@@ -108,6 +148,7 @@ export function deviceSheetModel(input: {
     control,
     micNotes: micNoteList(control, input.micNotes),
     headphones: headphonesRow(input.headphones),
+    output: outputOf(input.output),
     toneRow: {
       state: TONE_ROW[tone.state],
       title: DEVICE_TEXT.tone,

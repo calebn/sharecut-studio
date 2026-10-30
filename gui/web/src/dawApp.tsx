@@ -20,6 +20,7 @@ import { sendRecordHostCommand } from "./record/hostWire";
 import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
 import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { useHostRoom } from "./record/useHostRoom";
+import { useOutputDevice } from "./record/useOutputDevice";
 import { isShareProjectKey } from "./shareMode";
 import { CheatsheetDialogs } from "./stage/dialogs/CheatsheetDialogs";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
@@ -159,6 +160,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     muted: hostKeeper.muted,
     send: (payload) => sendRecordHostCommand("Signal", payload),
   });
+  const hostOutput = useOutputDevice(hostMonitor);
 
   const recordStageActive = useDawStore((s) => s.stage === "record");
   const hostRoom = useHostRoom(
@@ -181,6 +183,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       deviceId: hostKeeper.deviceId,
       staleMic: hostKeeper.staleMic,
       onDeviceChange: hostKeeper.setDeviceId,
+      output: hostOutput,
     },
     { hydrate: syncEnabled && recordStageActive },
   );

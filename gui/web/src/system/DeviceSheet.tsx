@@ -4,12 +4,14 @@ import type { DrawerDetent } from "../ui/BottomSheet";
 import {
   DEVICE_TEXT,
   type DeviceMic,
+  type DeviceOutput,
   type DeviceTone,
   deviceSheetModel,
 } from "./deviceSheetModel";
 import { HeadphonesToggle } from "./HeadphonesToggle";
 import type { JoinMicAction } from "./joinSheetModel";
 import { MicRow } from "./MicRow";
+import { OutputRow } from "./OutputRow";
 import { Sheet } from "./Sheet";
 import { SheetRow } from "./SheetRow";
 import { useFocusOffDisabled } from "./useFocusOffDisabled";
@@ -27,6 +29,9 @@ export type DeviceSheetProps = {
   headphones?: boolean;
   /** Absent for a seat that has no headphone check, and the toggle is not drawn. */
   onHeadphonesChange?: (on: boolean) => void;
+  /** Absent, or `supported` false, and the speaker row is not drawn. */
+  output?: DeviceOutput;
+  onOutputChange?: (outputId: string) => void;
   tone: DeviceTone;
   onRecordRoomTone: () => void;
   /** While the take runs: keep what was captured so far. */
@@ -38,7 +43,7 @@ export type DeviceSheetProps = {
 
 /**
  * Change the microphone from inside the room: input menu, level meter with a
- * clip tick, the headphone toggle and a one-minute room tone for someone who joined
+ * clip tick, the headphone toggle and a speaker menu where the browser can route audio, and a one-minute room tone for someone who joined
  * after the countdown. Every control applies as it changes; there is no Apply.
  * Presentational: the caller owns the mic, the meter and the room tone.
  */
@@ -50,6 +55,8 @@ export function DeviceSheet({
   onInputChange,
   headphones = false,
   onHeadphonesChange,
+  output,
+  onOutputChange,
   tone,
   onRecordRoomTone,
   onEndRoomToneEarly,
@@ -57,7 +64,13 @@ export function DeviceSheet({
   onClose,
 }: DeviceSheetProps) {
   const [detent, setDetent] = useState<DrawerDetent>("full");
-  const model = deviceSheetModel({ mic, micNotes, headphones, tone });
+  const model = deviceSheetModel({
+    mic,
+    micNotes,
+    headphones,
+    tone,
+    output,
+  });
   const toneControls = useRef<HTMLDivElement>(null);
   // Record gives way to End early and Cancel, and back: focus follows to the
   // button that replaces the one pressed (Cancel while a take runs, else Record).
@@ -99,6 +112,11 @@ export function DeviceSheet({
               pressed={headphones}
               onChange={onHeadphonesChange}
             />
+          </SheetRow>
+        ) : null}
+        {model.output ? (
+          <SheetRow row={model.output.row}>
+            <OutputRow output={model.output} onOutputChange={onOutputChange} />
           </SheetRow>
         ) : null}
         <SheetRow row={model.toneRow}>

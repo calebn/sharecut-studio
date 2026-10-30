@@ -110,6 +110,7 @@ function GuestRoomSession({
     retryStorage,
     keeper,
     monitor,
+    output,
     upload,
     uploadTransport,
     takeClipping,
@@ -444,6 +445,8 @@ function GuestRoomSession({
           onInputChange={setDeviceId}
           headphones={headphonesOk}
           onHeadphonesChange={setHeadphonesOk}
+          output={output}
+          onOutputChange={output.onChange}
           tone={deviceTone({
             status: roomTone.status,
             delivery: roomTone.delivery,

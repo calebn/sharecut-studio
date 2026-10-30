@@ -210,9 +210,9 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 ### CMP-REC-DEVICE · Microphone check
 - **Today:** shots under SCR-REC-LOBBY-GUEST. Language: "-∞ dBFS", "Clear clip light". Hierarchy: input picker with a red error border in the normal state.
 - **Fate:** merge into NEW: Join sheet (mic row) and NEW: Device sheet (later changes).
-- **Spec:** Device sheet opens by tapping your own tile, or from ⋯ Devices. Contents: input menu, level meter 8 px tall with a clip tick, a headphone toggle (guests only; the host has none until the wire carries a host headphone ack), **Record room tone** (1 minute, for someone who joined after the countdown; while it runs the row counts "Stay quiet · 0:42" with a bar, **End early** and **Cancel**), and on desktop an output device menu where the browser supports it. Changes apply instantly with no Apply button. Same states as the Join sheet mic row.
+- **Spec:** Device sheet opens by tapping your own tile, or from ⋯ Devices. Contents: input menu, level meter 8 px tall with a clip tick, a headphone toggle (guests only; the host has none until the wire carries a host headphone ack), **Record room tone** (1 minute, for someone who joined after the countdown; while it runs the row counts "Stay quiet · 0:42" with a bar, **End early** and **Cancel**), and a **Speaker** menu (the system default, then each audio output) only where the browser can route the room's audio, that is when `AudioContext.setSinkId` exists; otherwise the row is absent, not disabled. The pick applies to the room's playback at once, is remembered in this browser (`record:output`, host and guest alike) and falls back to the default with a note when the device is gone or will not open. Changes apply instantly with no Apply button. Same states as the Join sheet mic row.
 - **Shared elements used:** NEW: Device sheet, Inspector sheet conventions (no Apply).
-- **Story to build:** `Record/DeviceSheet` › `Ready`, `Denied`, `InputLost`, `NoInput`, `RoomToneTooLoud`, `RoomToneCapturing`, `Phone`.
+- **Story to build:** `Record/DeviceSheet` › `Ready`, `Denied`, `InputLost`, `NoInput`, `RoomToneTooLoud`, `RoomToneCapturing`, `Phone`, `WithSpeaker`, `SpeakerFellBack`, `NoSpeakerMenu`.
 
 ### CMP-REC-CONSENT · Recording consent
 - **Today:** paragraph of text, Accept disabled pink, Decline. Language: "Producers/listeners may be present and are shown in the roster."
@@ -346,7 +346,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 
 **NEW: Join sheet.** The pre-join sheet over a live room: header with who is here, rows that check themselves off (name, mic, headphones), consent lines, one thumb-zone primary (**Join and record** or **Join to listen**), **Not now**. Desktop card 420 px, phone bottom sheet at the large detent. Reused shape for the review-link guest's first visit if the Review spec adds a name step (a review guest naming themselves is audit finding phone/F08).
 
-**NEW: Device sheet.** Input menu, live meter with clip tick, headphone toggle (guests only), room tone (1 minute, with End early and Cancel while it runs), output menu. No Apply. Opened by tapping your own Person tile (host and guest alike).
+**NEW: Device sheet.** Input menu, live meter with clip tick, headphone toggle (guests only), room tone (1 minute, with End early and Cancel while it runs), speaker menu where the browser supports it. No Apply. Opened by tapping your own Person tile (host and guest alike).
 
 **NEW: Invite tile.** An empty grid slot (dashed outline, plus glyph, "Invite"). Tap opens a popover: guest link with **Copy** (primary), **Share…** on devices with the system share sheet, a QR code (160 px) for a phone in the same room, and the producer link behind a "Listen-only link" disclosure. Replace link lives here too.
 
