@@ -248,7 +248,7 @@ describe("useRoomToneCapture", () => {
       result.current.record();
     });
     expect(result.current.status).toBe("error");
-    expect(result.current.error).toMatch(/not ready/);
+    expect(result.current.error).toMatch(/joined the session.*try again/);
     expect(encode).not.toHaveBeenCalled();
   });
 

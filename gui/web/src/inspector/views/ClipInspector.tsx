@@ -33,6 +33,7 @@ import { BUSY_REASON } from "../../ui/disabledReason";
 import { clipIdentityTrack, clipLabels } from "../../utils/clipLabels";
 import { JOIN_MODE_OPTIONS } from "../../utils/editMarkerRegistry";
 import { ModifierInspector } from "../ModifierInspector";
+import { NudgeButtons, UNAPPLIED_VALUE_REASON } from "../NudgeButtons";
 import { useNudgeRun } from "../useNudgeRun";
 import { ClipPlacementControls } from "./ClipPlacementControls";
 
@@ -48,6 +49,8 @@ type FadeDraftState = {
   in: FadeDraft | null;
   out: FadeDraft | null;
 };
+
+const FADE_AT_CUT_REASON = "Fades do not apply at a cut.";
 
 export function ClipInspector({ clip }: { clip: ClipRow }) {
   const { projectPath, projectEpoch, guestMode, shareCapabilities } = useDaw(
@@ -291,28 +294,29 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 Apply source {name}
               </Button>
             </FieldRow>
-            <div
-              className="nudge-row-buttons"
+            <NudgeButtons
+              groupLabel={`Nudge source ${name}`}
+              deltas={deltas}
+              unavailable={
+                clipMutationBusy
+                  ? BUSY_REASON
+                  : dirty
+                    ? UNAPPLIED_VALUE_REASON
+                    : undefined
+              }
               onPointerDownCapture={() => {
                 if (!clipMutationBusy && !dirty) cancelClipPlacement();
               }}
-              role="group"
-              aria-label={`Nudge source ${name}`}
-            >
-              {deltas.map((delta) => (
-                <button
-                  key={delta}
-                  type="button"
-                  className="ui-control nudge-button"
-                  aria-label={`${Math.abs(delta) * 1000} ms ${delta < 0 ? "earlier" : "later"}`}
-                  disabled={clipMutationBusy || dirty}
-                  {...trimRun.buttonProps(field, delta, `Trim ${name}`)}
-                >
-                  {delta < 0 ? "−" : "+"}
-                  {Math.abs(delta) * 1000}
-                </button>
-              ))}
-            </div>
+              label={(delta) =>
+                `${Math.abs(delta) * 1000} ms ${delta < 0 ? "earlier" : "later"}`
+              }
+              text={(delta) =>
+                `${delta < 0 ? "−" : "+"}${Math.abs(delta) * 1000}`
+              }
+              propsFor={(delta) =>
+                trimRun.buttonProps(field, delta, `Trim ${name}`)
+              }
+            />
           </>
         ) : (
           String(edge === "in" ? clip.source_start : clip.source_end)
@@ -413,7 +417,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 disabledReason={
                   busyReason ??
                   (unavailable
-                    ? "Fades do not apply at a cut."
+                    ? FADE_AT_CUT_REASON
                     : dirty
                       ? undefined
                       : "Type a length to apply.")
@@ -423,28 +427,27 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 {`Apply ${name.toLowerCase()}`}
               </Button>
             </FieldRow>
-            <div
-              className="nudge-row-buttons"
+            <NudgeButtons
+              groupLabel={`Nudge ${name.toLowerCase()}`}
+              deltas={deltas}
+              unavailable={
+                clipMutationBusy
+                  ? BUSY_REASON
+                  : unavailable
+                    ? FADE_AT_CUT_REASON
+                    : dirty
+                      ? UNAPPLIED_VALUE_REASON
+                      : undefined
+              }
               onPointerDownCapture={() => {
                 if (!clipMutationBusy && !dirty) cancelClipPlacement();
               }}
-              role="group"
-              aria-label={`Nudge ${name.toLowerCase()}`}
-            >
-              {deltas.map((delta) => (
-                <button
-                  key={delta}
-                  type="button"
-                  className="ui-control nudge-button"
-                  aria-label={`${Math.abs(delta)} ms ${delta < 0 ? "shorter" : "longer"}`}
-                  disabled={clipMutationBusy || dirty || unavailable}
-                  {...trimRun.buttonProps(field, delta, name)}
-                >
-                  {delta < 0 ? "−" : "+"}
-                  {Math.abs(delta)}
-                </button>
-              ))}
-            </div>
+              label={(delta) =>
+                `${Math.abs(delta)} ms ${delta < 0 ? "shorter" : "longer"}`
+              }
+              text={(delta) => `${delta < 0 ? "−" : "+"}${Math.abs(delta)}`}
+              propsFor={(delta) => trimRun.buttonProps(field, delta, name)}
+            />
             {edge === "out" && capKnown ? (
               <span className="ui-field-hint" role="status">
                 {[fadeHint, `max ${fadeLimitMs} ms`]

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { createRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { FindBar, type FindBarHandle, type FindBarProps } from "./FindBar";
 
 function props(over: Partial<FindBarProps> = {}): FindBarProps {
@@ -201,21 +202,63 @@ describe("FindBar", () => {
     );
   });
 
-  it("disables Replace and All until the replacement has a letter or a number", async () => {
+  it("holds Replace and All until the replacement has a letter or a number, and says so", async () => {
     const user = userEvent.setup();
     const blank = replaceProps({ text: "" });
     const { rerender } = render(<FindBar {...props({ replace: blank })} />);
-    expect(screen.getByRole("button", { name: "Replace" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Replace all" })).toBeDisabled();
+    for (const name of ["Replace", "Replace all"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).not.toBeDisabled();
+      expect(button).toHaveAccessibleDescription(
+        "Enter replacement text with a letter or a number to replace.",
+      );
+      await user.click(button);
+      button.focus();
+      expect(button).toHaveFocus();
+    }
+    expect(
+      screen.getByText(
+        "Enter replacement text with a letter or a number to replace.",
+      ),
+    ).toBeVisible();
     await user.click(screen.getByRole("textbox", { name: "Replace with" }));
     await user.keyboard("{Enter}");
     expect(blank.onReplace).not.toHaveBeenCalled();
+    expect(blank.onReplaceAll).not.toHaveBeenCalled();
     rerender(
       <FindBar {...props({ replace: replaceProps({ text: "..." }) })} />,
     );
-    expect(screen.getByRole("button", { name: "Replace" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Replace" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     rerender(<FindBar {...props({ replace: replaceProps({ text: "x" }) })} />);
-    expect(screen.getByRole("button", { name: "Replace" })).toBeEnabled();
+    const ready = screen.getByRole("button", { name: "Replace" });
+    expect(ready).not.toHaveAttribute("aria-disabled");
+    expect(ready).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText(/Enter replacement text/)).toBeNull();
+  });
+
+  it("says there is nothing to replace when the search has no hits", async () => {
+    const user = userEvent.setup();
+    const replace = replaceProps();
+    const { container } = render(
+      <FindBar {...props({ count: 0, current: 0, replace })} />,
+    );
+    const note = screen.getByText(
+      "No matches to replace. Change the search first.",
+    );
+    expect(note).toBeVisible();
+    for (const name of ["Replace", "Replace all"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAttribute("aria-describedby", note.id);
+      await user.click(button);
+    }
+    expect(replace.onReplace).not.toHaveBeenCalled();
+    expect(replace.onReplaceAll).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
   });
 
   it("limits the fields to maxLength, 500 by default", () => {
@@ -242,9 +285,14 @@ describe("FindBar", () => {
       replace: replaceProps(),
     });
     render(<FindBar {...handlers} />);
-    for (const name of ["Cut all 12", "Replace", "Replace all"]) {
-      expect(screen.getByRole("button", { name })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cut all 12" })).toBeDisabled();
+    for (const name of ["Replace", "Replace all"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAccessibleDescription(BUSY_REASON);
     }
+    await user.click(screen.getByRole("button", { name: "Replace all" }));
+    expect(handlers.replace?.onReplaceAll).not.toHaveBeenCalled();
     expect(screen.getByRole("searchbox", { name: "Find" })).toHaveAttribute(
       "readonly",
     );
@@ -269,11 +317,12 @@ describe("FindBar", () => {
     await user.click(all);
     await user.click(all);
     expect(replace.onReplaceAll).toHaveBeenCalledTimes(1);
-    expect(all).toBeDisabled();
+    expect(all).toHaveAttribute("aria-disabled", "true");
+    expect(all).toHaveAccessibleDescription(BUSY_REASON);
     expect(returnFocus).not.toHaveBeenCalled();
     await act(async () => finish(12));
     expect(returnFocus).toHaveBeenCalledTimes(1);
-    expect(all).toBeEnabled();
+    expect(all).not.toHaveAttribute("aria-disabled");
   });
 
   it("shows a rejected request's message and keeps the bar open", async () => {

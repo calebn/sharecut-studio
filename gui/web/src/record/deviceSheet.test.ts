@@ -66,7 +66,7 @@ describe("deviceTone", () => {
       /between takes/,
     );
     expect(deviceTone({ ...base, captureReady: false }).disabledReason).toMatch(
-      /not ready/,
+      /joined the session.*try again/,
     );
   });
 

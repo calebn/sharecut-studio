@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import type { ComponentProps } from "react";
@@ -18,8 +24,10 @@ import { resolveBoundaryPresentation } from "./boundaryPresentation";
 import { EditBoundaryMark } from "./EditBoundaryMark";
 import { EditBoundaryMarkView as RawEditBoundaryMarkView } from "./EditBoundaryMarkView";
 import {
+  TRANSCRIPT_BOUNDARY_READONLY_TIP,
   TRANSCRIPT_EDIT_BOUNDARY_TIP,
   TRANSCRIPT_GAP_BOUNDARY_DIALOG_NOTE,
+  TRANSCRIPT_GAP_BOUNDARY_READONLY_TIP,
   TRANSCRIPT_GAP_BOUNDARY_TIP,
 } from "./transcriptModeCopy";
 
@@ -928,6 +936,100 @@ describe("EditBoundaryMarkView", () => {
       ],
     );
     useDawStore.setState({ projectPath: priorProjectPath });
+  });
+
+  describe("for a reader who cannot edit", () => {
+    const left = clip({ id: "left", source_end: 20 });
+    const right = clip({
+      id: "right",
+      source_start: 25,
+      source_end: 40,
+      timeline_start: 10,
+      timeline_end: 25,
+    });
+    const renderReadOnly = () => {
+      const onRoll = vi.fn();
+      const onTrim = vi.fn();
+      const view = render(
+        <TestEditBoundaryMarkView
+          boundary={boundary}
+          leftClip={left}
+          rightClip={right}
+          getRollInterval={getRollInterval}
+          onRoll={onRoll}
+          onTrim={onTrim}
+          canEdit={false}
+        />,
+      );
+      return { ...view, onRoll, onTrim, mark: view.getByRole("button") };
+    };
+
+    it("stays focusable with the reason described and shown on focus", async () => {
+      const { mark, container } = renderReadOnly();
+      expect(mark).toHaveAttribute("aria-disabled", "true");
+      expect(mark).toBeEnabled();
+      expect(mark).toHaveAccessibleName("Edit boundary");
+      expect(mark).toHaveAccessibleDescription(
+        TRANSCRIPT_BOUNDARY_READONLY_TIP,
+      );
+      const reason = screen.getByText(TRANSCRIPT_BOUNDARY_READONLY_TIP);
+      expect(mark).toHaveAttribute("aria-describedby", reason.id);
+      expect(reason).toHaveClass("sr-only");
+      act(() => mark.focus());
+      expect(mark).toHaveFocus();
+      expect(reason).toHaveClass("edit-boundary-reason");
+      await expectNoA11yViolations(container);
+      act(() => mark.blur());
+      expect(reason).toHaveClass("sr-only");
+    });
+
+    it("shows the reason on a tap or Enter and refuses to edit", async () => {
+      const { mark, onRoll, onTrim } = renderReadOnly();
+      const reason = screen.getByText(TRANSCRIPT_BOUNDARY_READONLY_TIP);
+      fireEvent.click(mark);
+      expect(reason).toHaveClass("edit-boundary-reason");
+      mark.focus();
+      await userEvent.keyboard("{Escape}");
+      expect(reason).toHaveClass("sr-only");
+      await userEvent.keyboard("{Enter}");
+      expect(reason).toHaveClass("edit-boundary-reason");
+      fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+      expect(mark).not.toHaveAttribute("aria-grabbed", "true");
+      expect(onRoll).not.toHaveBeenCalled();
+      expect(onTrim).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("keeps the longer reason for a gap and drops it once the viewer can edit", () => {
+      const gapRight = clip({
+        id: "right",
+        source_start: 25,
+        source_end: 40,
+        timeline_start: 12,
+        timeline_end: 27,
+      });
+      const props = {
+        boundary,
+        leftClip: left,
+        rightClip: gapRight,
+        getRollInterval,
+        onRoll: vi.fn(),
+        onTrim: vi.fn(),
+      };
+      const { rerender } = render(
+        <TestEditBoundaryMarkView {...props} canEdit={false} />,
+      );
+      expect(screen.getByRole("button")).toHaveAccessibleDescription(
+        TRANSCRIPT_GAP_BOUNDARY_READONLY_TIP,
+      );
+      rerender(<TestEditBoundaryMarkView {...props} canEdit />);
+      const mark = screen.getByRole("button");
+      expect(mark).not.toHaveAttribute("aria-disabled");
+      expect(mark).not.toHaveAttribute("aria-describedby");
+      expect(mark).toBeEnabled();
+    });
   });
 
   it("passes axe at rest", async () => {

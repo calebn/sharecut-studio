@@ -29,4 +29,5 @@ export const AUDITION_MODES: readonly AuditionModeDef[] = [
 ];
 
 /** Shown when a share guest is locked to Full mix (`guestHearsMixOnly`). */
-export const GUESTS_HEAR_FULL_MIX = "Guests listen in Full mix";
+export const GUESTS_HEAR_FULL_MIX =
+  "Guest links play the Full mix only. Open the project as the host to hear a track on its own.";

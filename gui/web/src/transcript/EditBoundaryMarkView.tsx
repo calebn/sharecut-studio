@@ -1,6 +1,7 @@
 import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -30,6 +31,7 @@ import type { BoundaryPresentation } from "./boundaryPresentation";
 import { GhostWordChips } from "./GhostWordChips";
 import { PrecisionBoundaryDialog } from "./PrecisionBoundaryDialog";
 import {
+  TRANSCRIPT_BOUNDARY_READONLY_TIP,
   TRANSCRIPT_EDIT_BOUNDARY_TIP,
   TRANSCRIPT_GAP_BOUNDARY_DIALOG_NOTE,
   TRANSCRIPT_GAP_BOUNDARY_READONLY_TIP,
@@ -90,6 +92,7 @@ export const BOUNDARY_DRAG_THRESHOLD_PX = 6;
 export const BOUNDARY_FINE_DRAG_SCALE = 12.5;
 
 const DRAG_CLASS = "is-boundary-dragging";
+const READ_ONLY_REASON_MS = 8000;
 
 type Gesture = {
   drag: DragState;
@@ -187,6 +190,8 @@ export function EditBoundaryMarkView({
   const suppressClickRef = useRef(false);
   const [lifecycle, setLifecycle] = useState<Lifecycle>({ kind: "idle" });
   const [precisionOpen, setPrecisionOpen] = useState(false);
+  const reasonId = useId();
+  const [reasonShown, setReasonShown] = useState(false);
   const fallbackClip = leftClip ?? rightClip;
   const resolvedTarget =
     target ??
@@ -227,7 +232,7 @@ export function EditBoundaryMarkView({
   const permissionTip =
     presentation.kind === "gap-trim"
       ? TRANSCRIPT_GAP_BOUNDARY_READONLY_TIP
-      : "Boundary editing is only available to editors";
+      : TRANSCRIPT_BOUNDARY_READONLY_TIP;
 
   const applyBoundary = async (
     edit: BoundaryEdit,
@@ -266,6 +271,17 @@ export function EditBoundaryMarkView({
     cleanupRef.current?.();
     setLifecycle({ kind: "idle" });
   };
+
+  // A read-only mark shows why while it has focus or after a tap, and lets go
+  // after a few seconds so a tap on a touch screen does not leave it standing.
+  useEffect(() => {
+    if (!reasonShown) return;
+    const timer = window.setTimeout(
+      () => setReasonShown(false),
+      READ_ONLY_REASON_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [reasonShown]);
 
   const startDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -643,7 +659,7 @@ export function EditBoundaryMarkView({
         }
         aria-label={
           !canEdit
-            ? permissionTip
+            ? "Edit boundary"
             : presentation.kind === "gap-trim"
               ? tip
               : canOpenPrecision
@@ -652,7 +668,9 @@ export function EditBoundaryMarkView({
         }
         aria-grabbed={dragging}
         aria-busy={lifecycle.kind === "pending"}
-        disabled={!canEdit || lifecycle.kind === "pending"}
+        aria-disabled={!canEdit ? true : undefined}
+        aria-describedby={!canEdit ? reasonId : undefined}
+        disabled={lifecycle.kind === "pending"}
         data-boundary-id={boundary.id}
         style={
           dragging
@@ -662,7 +680,15 @@ export function EditBoundaryMarkView({
             : undefined
         }
         onPointerDown={startDrag}
+        onFocus={() => {
+          if (!canEdit) setReasonShown(true);
+        }}
         onClick={(event) => {
+          if (!canEdit) {
+            event.stopPropagation();
+            setReasonShown(true);
+            return;
+          }
           if (suppressClickRef.current && event.detail > 0) {
             suppressClickRef.current = false;
             return;
@@ -673,8 +699,12 @@ export function EditBoundaryMarkView({
             setPrecisionOpen(true);
           }
         }}
-        onBlur={cancel}
+        onBlur={() => {
+          setReasonShown(false);
+          cancel();
+        }}
         onKeyDown={(event) => {
+          if (event.key === "Escape" && reasonShown) setReasonShown(false);
           if (event.key !== "Escape" || !activeRef.current) return;
           event.preventDefault();
           event.stopPropagation();
@@ -685,6 +715,14 @@ export function EditBoundaryMarkView({
           ¦
         </span>
       </button>
+      {!canEdit ? (
+        <span
+          id={reasonId}
+          className={reasonShown ? "edit-boundary-reason" : "sr-only"}
+        >
+          {permissionTip}
+        </span>
+      ) : null}
       {canEdit && resolvedTarget && precisionOpen ? (
         <PrecisionBoundaryDialog
           open={precisionOpen}

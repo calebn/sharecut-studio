@@ -99,6 +99,11 @@
   cursor: pointer;
 }
 
+.sys-text-btn[aria-disabled="true"] {
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
 @media (pointer: coarse) {
   .sys-icon-btn,
   .sys-text-btn {
