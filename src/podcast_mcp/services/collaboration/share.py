@@ -618,11 +618,13 @@ class ShareService:
         """Revoke every token in the room. KeyError if none exist."""
         revoked = self._revoke_room_tokens(session_id)
         from podcast_mcp.services.record import (
+            persist_session_summary,
             purge_session_land_rollbacks,
             release_session_land_lock,
             remove_session_land_lock_file,
         )
 
+        persist_session_summary(self.ws.project, session_id)
         # Purge first: it takes the land lock, which the release and file removal drop.
         purge_session_land_rollbacks(self.ws.project, session_id)
         release_session_land_lock(session_id)

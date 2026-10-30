@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import re
+import threading
+from pathlib import Path
 from typing import Any
 
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
 from podcast_mcp.services.collaboration import SHARE_KIND_RECORD, list_shares, share_is_usable
 from podcast_mcp.services.record.landing_math import record_source_prefix, session_landed_before
 from podcast_mcp.services.record.service import RecordSessionService
-from podcast_mcp.services.record.state import (
-    TakeState,
-    recording_ms_at,
-)
+from podcast_mcp.services.record.state import TakeState, recording_ms_at
+from podcast_mcp.util.atomic_json import write_json_atomic
+
+log = logging.getLogger(__name__)
+_SUMMARIES_NAME = "record_session_summaries.json"
+_summaries_lock = threading.Lock()
 
 _SESSION_ID = re.compile(r"^rec-([0-9a-f]{12})-")
 
@@ -57,6 +63,44 @@ def _landed_track(project: EpisodeProject, session_id: str, participant_id: str)
     return next(iter(tracks)) if len(tracks) == 1 else None
 
 
+def _summaries_path(workspace: Path) -> Path:
+    return workspace_artifacts_dir(workspace) / _SUMMARIES_NAME
+
+
+def _load_summaries(workspace: Path) -> dict[str, dict[str, Any]]:
+    try:
+        data = json.loads(_summaries_path(workspace).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {sid: row for sid, row in data.items() if isinstance(row, dict)}
+
+
+def persist_session_summary(project: EpisodeProject, session_id: str) -> None:
+    """Keep the ended room's takes and participants once a newer room resets the store.
+
+    The first summary wins, so a repeated end never replaces it. Never raises.
+    """
+    try:
+        snap, choices = _snapshot(project, session_id)
+        if not snap:
+            return
+        workspace = project.workspace_path()
+        with _summaries_lock:
+            rows = _load_summaries(workspace)
+            if session_id in rows:
+                return
+            rows[session_id] = {
+                "session_id": session_id,
+                "takes": _takes(snap),
+                "participants": _participants(project, session_id, snap, choices),
+            }
+            write_json_atomic(_summaries_path(workspace), rows, ensure_ascii=False)
+    except Exception:
+        log.exception("could not persist the summary of record session %s", session_id)
+
+
 def _takes(snap: dict[str, Any]) -> list[dict[str, int]]:
     out = []
     for raw in snap.get("takes") or []:
@@ -93,10 +137,25 @@ def list_record_sessions(project: EpisodeProject) -> list[dict[str, Any]]:
     """Every record session with a room or a landing, oldest to newest. Never writes."""
     rows = _session_rows(project)
     landed_ids = _landed_ids(project)
+    summaries = _load_summaries(project.workspace_path())
     numbers = {row.session_id: row for row in project.editorial.record_sessions}
     out: list[tuple[tuple[str, int], dict[str, Any]]] = []
     for sid in rows.keys() | landed_ids:
         snap, choices = _snapshot(project, sid)
+        saved = summaries.get(sid) or {}
+        takes = _takes(snap) if snap else list(saved.get("takes") or [])
+        people = (
+            _participants(project, sid, snap, choices)
+            if snap
+            else [
+                {
+                    **p,
+                    "track_id": p.get("track_id")
+                    or _landed_track(project, sid, p["participant_id"]),
+                }
+                for p in saved.get("participants") or []
+            ]
+        )
         stored = numbers.get(sid)
         share_rows = rows.get(sid, [])
         target = stored.target_kind if stored else (snap.get("target") or {}).get("kind")
@@ -105,8 +164,8 @@ def list_record_sessions(project: EpisodeProject) -> list[dict[str, Any]]:
             "number": stored.number if stored else None,
             "state": "open" if any(share_is_usable(row) for row in share_rows) else "ended",
             "target_kind": target,
-            "takes": _takes(snap),
-            "participants": _participants(project, sid, snap, choices),
+            "takes": takes,
+            "participants": people,
             "landed": sid in landed_ids or session_landed_before(project, sid),
             "ended_at": _ended_at(share_rows),
         }

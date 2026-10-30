@@ -41,7 +41,10 @@ if TYPE_CHECKING:
         record_hub_key,
         route_record_ws_message,
     )
-    from podcast_mcp.services.record.sessions import list_record_sessions
+    from podcast_mcp.services.record.sessions import (
+        list_record_sessions,
+        persist_session_summary,
+    )
     from podcast_mcp.services.record.state import (
         HOST_PARTICIPANT_ID,
         RecordRole,
@@ -94,6 +97,7 @@ __all__ = [
     "parse_participant_id",
     "parse_session_target",
     "parse_upload_kind",
+    "persist_session_summary",
     "purge_session_land_rollbacks",
     "record_hub_key",
     "refuse_land_first",
@@ -145,6 +149,7 @@ _MODULE_BY_NAME = {
     "Unsaved": "preflight",
     "land_first_would_work": "preflight",
     "list_record_sessions": "sessions",
+    "persist_session_summary": "sessions",
     "left_behind_message": "preflight",
     "refuse_land_first": "preflight",
     "with_unsaved_takes": "preflight",
