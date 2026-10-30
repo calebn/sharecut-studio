@@ -3,7 +3,6 @@ import {
   COMMENT_NAME_MAX,
   commitCommentActor,
   GUEST_SESSION_LABEL,
-  guestNameChosen,
   HOST_SESSION_LABEL,
   resolveCommentActor,
   saveCommentAuthor,
@@ -88,31 +87,26 @@ describe("commitCommentActor", () => {
     const show = vi.fn();
     expect(commitCommentActor("Ada", "guest", show)).toBe("Ada");
     expect(show).toHaveBeenCalledWith("Ada");
-    expect(guestNameChosen()).toBe(false);
     expect(sessionDisplayName("host")).toBe(HOST_SESSION_LABEL);
   });
 
   it("a blank name commits the role's session label without a show callback", () => {
     expect(commitCommentActor("", "guest")).toBe(GUEST_SESSION_LABEL);
-    expect(guestNameChosen()).toBe(false);
   });
 });
 
-describe("guestNameChosen", () => {
+describe("a guest's saved name", () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it("is false until the guest saves a name or a Skip", () => {
-    expect(guestNameChosen()).toBe(false);
+  it("shows as Guest when the guest saved nothing", () => {
     saveCommentAuthor("", "guest");
-    expect(guestNameChosen()).toBe(true);
     expect(sessionDisplayName("guest")).toBe(GUEST_SESSION_LABEL);
   });
 
   it("is not set by the host's saved name", () => {
     saveCommentAuthor("Dana");
-    expect(guestNameChosen()).toBe(false);
     expect(sessionDisplayName("guest")).toBe(GUEST_SESSION_LABEL);
   });
 
