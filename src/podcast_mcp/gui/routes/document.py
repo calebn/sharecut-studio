@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from typing import Any, Literal
 
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 from podcast_mcp.edits.range_target import RangeChangedError
 from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.gui.routes.deps import (
+    NO_STORE,
     bad_request_error,
     coded_exception_error,
     coded_http_error,
@@ -32,9 +34,12 @@ from podcast_mcp.services.document_sync import (
     command_context_for_role,
     document_command_from_body,
 )
+from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.project_state import ProjectBusyError
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 from podcast_mcp.util.write_failure import ProjectWriteFailedError
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -265,6 +270,14 @@ def pending_preview_audio(
         raise coded_exception_error(404, exc, code="pending_edit_not_found") from exc
     except ValueError as exc:
         raise bad_request_error(exc) from exc
+    except CalledProcessError as exc:
+        log.exception("pending preview render failed")
+        raise coded_http_error(
+            500,
+            "The preview could not be rendered. Try playing it again.",
+            code="pending_preview_render_failed",
+            headers=NO_STORE,
+        ) from exc
 
 
 def _session_heard(
