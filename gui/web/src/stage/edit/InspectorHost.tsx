@@ -19,11 +19,13 @@ import type {
   InspectorDetent,
   InspectorRect,
 } from "../../system/inspectorSheetMath";
+import { RangeFields } from "../../timeline/RangeFields";
 import { type AnchorRect, unionRect } from "../../ui/anchoredPlacement";
 import { BottomSheet } from "../../ui/BottomSheet";
 import { INSPECTOR_SHEET_CLASS } from "../../ui/compactSheet";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { EditActionBar } from "./EditActionBar";
+import { useEnvelopePointSections } from "./envelopePointSections";
 import { focusFirstControl } from "./inspectorFocus";
 import { type InspectorHeading, inspectorHeading } from "./inspectorHeading";
 import type { InspectorOpen, InspectorShell } from "./useInspectorOpen";
@@ -68,7 +70,8 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
 function useBodySections(
   rangeActionsInSheet: boolean,
 ): readonly InspectorSection[] {
-  return useMemo(
+  const envelope = useEnvelopePointSections(useDaw((s) => s.selection));
+  const legacy = useMemo(
     () => [
       {
         id: "body",
@@ -89,6 +92,16 @@ function useBodySections(
     ],
     [rangeActionsInSheet],
   );
+  if (!envelope) return legacy;
+  return rangeActionsInSheet
+    ? [
+        ...envelope,
+        {
+          id: "range",
+          rows: [{ id: "range", control: <RangeFields sheet /> }],
+        },
+      ]
+    : envelope;
 }
 
 const rounded = (rect: InspectorRect): InspectorRect => ({

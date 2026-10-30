@@ -188,7 +188,7 @@ const SELECTIONS: Record<SelectionKind, NonNullable<Selection>> = {
   envelopePoint: { kind: "envelopePoint", trackId: "host", pointId: "e1" },
 };
 
-type Reach = { role: "button" | "heading"; name: string };
+type Reach = { role: "button" | "heading" | "spinbutton"; name: string };
 
 /**
  * What a person must be able to reach for each kind of selection once Inspect
@@ -215,7 +215,7 @@ const REACH: Record<SelectionKind, Reach[]> = {
   ],
   applied: [{ role: "button", name: "Open History" }],
   track: [
-    { role: "button", name: "Edit volume envelope" },
+    { role: "button", name: "Show volume envelope" },
     { role: "button", name: "Move track down" },
   ],
   chapter: [
@@ -230,9 +230,10 @@ const REACH: Record<SelectionKind, Reach[]> = {
     { role: "button", name: "Resolve" },
     { role: "button", name: "Reply" },
   ],
-  envelope: [{ role: "button", name: "Add point" }],
+  envelope: [{ role: "button", name: "Show volume envelope" }],
   envelopePoint: [
-    { role: "button", name: "Edit point" },
+    { role: "spinbutton", name: "Time" },
+    { role: "spinbutton", name: "Level" },
     { role: "button", name: "Remove volume envelope" },
   ],
 };
