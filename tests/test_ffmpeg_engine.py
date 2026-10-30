@@ -226,7 +226,8 @@ def test_check_available_refreshes_live_pair_after_cached_probe_failure():
     assert run.call_count == 2
 
 
-def test_probe_parsed_from_json(tmp_path: Path):
+@pytest.mark.parametrize("untrusted", [False, True])
+def test_probe_parsed_from_json(tmp_path: Path, untrusted: bool):
     eng = FFmpegEngine()
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
@@ -239,10 +240,25 @@ def test_probe_parsed_from_json(tmp_path: Path):
     }
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         run.return_value = MagicMock(stdout=json.dumps(payload), returncode=0)
-        probe = eng.probe(wav)
+        probe = eng.probe(wav, untrusted=untrusted)
+    assert run.call_args.kwargs == {
+        "capture_output": True,
+        "text": True,
+        "check": True,
+        "timeout": 120.0,
+    }
     assert probe.duration_sec == 3.5
     assert probe.sample_rate == 44100
     assert probe.channels == 2
+
+
+@pytest.mark.parametrize("untrusted", [False, True])
+def test_probe_metadata_timeout_propagates(tmp_path: Path, untrusted: bool):
+    failure = subprocess.TimeoutExpired("ffprobe", 120.0)
+    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=failure):
+        with pytest.raises(subprocess.TimeoutExpired) as caught:
+            FFmpegEngine().probe(tmp_path / "x.wav", untrusted=untrusted)
+    assert caught.value is failure
 
 
 def test_build_track_filter_all_effects_and_anull():
