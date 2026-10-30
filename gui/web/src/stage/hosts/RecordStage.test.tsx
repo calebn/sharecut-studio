@@ -507,6 +507,7 @@ describe("Record stage capture and storage", () => {
         devices: [{ id: "hp", label: "Headset" }],
         selectedId: "",
         onChange,
+        refresh: vi.fn(),
       },
     });
     const dialog = await openDevices();

@@ -11,11 +11,14 @@ export type OutputMonitor = {
   outputSupported?: boolean;
   /** Counts each AudioContext the monitor opens, so a new one gets the pick again. */
   contextGeneration?: number;
-  setSinkId?: (deviceId: string) => Promise<void>;
+  /** Resolves true once applied, false when there is no context yet to apply it to. */
+  setSinkId?: (deviceId: string) => Promise<boolean>;
 };
 
 export type OutputDevice = DeviceOutput & {
   onChange: (outputId: string) => void;
+  /** Read the speaker list again, for when labels may have just become visible. */
+  refresh: () => void;
 };
 
 /** What a room without a monitor, or a browser that cannot pick a speaker, reads. */
@@ -24,12 +27,16 @@ export const NO_OUTPUT: OutputDevice = {
   devices: [],
   selectedId: "",
   onChange: () => undefined,
+  refresh: () => undefined,
 };
+
+/** Browser aliases for whichever speaker is the default; the menu has its own Default. */
+const ALIASES = new Set(["default", "communications"]);
 
 function labelled(devices: MediaDeviceInfo[]): { id: string; label: string }[] {
   return devices
     .filter((device) => device.kind === "audiooutput" && device.deviceId)
-    .filter((device) => device.deviceId !== "default")
+    .filter((device) => !ALIASES.has(device.deviceId))
     .map((device, index) => ({
       id: device.deviceId,
       label: device.label || `Speaker ${index + 1}`,
@@ -39,8 +46,10 @@ function labelled(devices: MediaDeviceInfo[]): { id: string; label: string }[] {
 /**
  * The room's speaker: the audiooutput list, the pick remembered in this
  * browser, and the pick applied to the monitor's AudioContext as it changes and
- * again whenever the monitor opens a new one. A pick whose device is gone, or
- * that the browser refuses, falls back to the default speaker with a note.
+ * again whenever the monitor opens a new one. The remembered pick is only ever
+ * written by the person's own choice. While its device is missing from the
+ * list, or the browser refused it, playback and the menu both use the default
+ * with a note, and the pick comes back when the device does.
  */
 export function useOutputDevice(monitor: OutputMonitor): OutputDevice {
   const supported = monitor.outputSupported === true;
@@ -48,52 +57,52 @@ export function useOutputDevice(monitor: OutputMonitor): OutputDevice {
   const [devices, setDevices] = useState<{ id: string; label: string }[]>([]);
   const [known, setKnown] = useState(false);
   const [picked, setPicked] = useState(() => readLocal(OUTPUT_KEY) || "");
-  const [failed, setFailed] = useState(false);
+  const [failedId, setFailedId] = useState<string | null>(null);
   const applied = useRef<{ generation: number; id: string } | null>(null);
+  const request = useRef(0);
+  const live = useRef(false);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     const mediaDevices = supported ? navigator.mediaDevices : undefined;
     if (!mediaDevices?.enumerateDevices) {
       return;
     }
-    let cancelled = false;
-    const refresh = async () => {
-      try {
-        const list = labelled(await mediaDevices.enumerateDevices());
-        if (!cancelled) {
-          setDevices(list);
+    const token = ++request.current;
+    const current = () => live.current && token === request.current;
+    mediaDevices.enumerateDevices().then(
+      (list) => {
+        if (current()) {
+          setDevices(labelled(list));
           setKnown(true);
+          // A device that comes back, or any change, earns a refused pick another try.
+          setFailedId(null);
         }
-      } catch {
-        if (!cancelled) {
+      },
+      () => {
+        if (current()) {
+          setDevices([]);
           setKnown(false);
         }
-      }
-    };
-    const onDeviceChange = () => {
-      void refresh();
-    };
-    onDeviceChange();
-    mediaDevices.addEventListener?.("devicechange", onDeviceChange);
-    return () => {
-      cancelled = true;
-      mediaDevices.removeEventListener?.("devicechange", onDeviceChange);
-    };
+      },
+    );
   }, [supported]);
 
-  // An empty list is unknown, not "gone": labels can be hidden before permission.
-  const gone =
-    picked !== "" &&
-    known &&
-    devices.length > 0 &&
-    !devices.some((device) => device.id === picked);
-  const selectedId = gone || failed ? "" : picked;
-
   useEffect(() => {
-    if (supported) {
-      writeLocal(OUTPUT_KEY, selectedId);
-    }
-  }, [supported, selectedId]);
+    live.current = true;
+    const mediaDevices = supported ? navigator.mediaDevices : undefined;
+    refresh();
+    mediaDevices?.addEventListener?.("devicechange", refresh);
+    return () => {
+      live.current = false;
+      mediaDevices?.removeEventListener?.("devicechange", refresh);
+    };
+  }, [supported, refresh]);
+
+  // The menu can only show a listed speaker, so audio must not use any other.
+  const listed = picked !== "" && devices.some((item) => item.id === picked);
+  const missing = picked !== "" && known && !listed;
+  const refused = listed && failedId === picked;
+  const selectedId = listed && !refused ? picked : "";
 
   useEffect(() => {
     if (!supported || !setSinkId) {
@@ -108,20 +117,29 @@ export function useOutputDevice(monitor: OutputMonitor): OutputDevice {
     }
     applied.current = { generation: contextGeneration, id: selectedId };
     let cancelled = false;
-    setSinkId(selectedId).catch(() => {
-      if (!cancelled && selectedId !== "") {
-        setFailed(true);
-        applied.current = { generation: -1, id: "" };
-      }
-    });
+    setSinkId(selectedId).then(
+      (done) => {
+        // No context yet: the next one (a new generation) gets it.
+        if (!done && !cancelled) {
+          applied.current = null;
+        }
+      },
+      () => {
+        if (!cancelled && selectedId !== "") {
+          setFailedId(selectedId);
+          applied.current = { generation: -1, id: "" };
+        }
+      },
+    );
     return () => {
       cancelled = true;
     };
   }, [supported, setSinkId, selectedId, contextGeneration]);
 
   const onChange = useCallback((outputId: string) => {
-    setFailed(false);
+    setFailedId(null);
     setPicked(outputId);
+    writeLocal(OUTPUT_KEY, outputId);
   }, []);
 
   if (!supported) {
@@ -131,11 +149,12 @@ export function useOutputDevice(monitor: OutputMonitor): OutputDevice {
     supported,
     devices,
     selectedId,
-    error: failed
+    error: refused
       ? DEVICE_TEXT.outputFailed
-      : gone
+      : missing
         ? DEVICE_TEXT.outputGone
         : undefined,
     onChange,
+    refresh,
   };
 }

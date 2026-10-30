@@ -24,6 +24,7 @@ type Args = {
   send: (payload: SignalPayload) => void;
 };
 
+// lib.dom types setSinkId on HTMLMediaElement only, not on AudioContext.
 type SinkContext = { setSinkId?: (deviceId: string) => Promise<void> };
 
 /** True when the browser's AudioContext can route to a chosen speaker. */
@@ -79,8 +80,8 @@ export function useRecordMonitor({
   outputSupported: boolean;
   /** Counts each AudioContext opened, so the speaker pick is applied to a new one. */
   contextGeneration: number;
-  /** Route the room's audio to a speaker ("" is the default). A no-op without a context. */
-  setSinkId: (deviceId: string) => Promise<void>;
+  /** Route the room's audio to a speaker ("" is the default). False, and nothing done, without a context. */
+  setSinkId: (deviceId: string) => Promise<boolean>;
 } {
   const [remoteCount, setRemoteCount] = useState(0);
   const [levels, setLevels] = useState<Record<string, number>>({});
@@ -316,7 +317,11 @@ export function useRecordMonitor({
 
   const setSinkId = useCallback(async (deviceId: string) => {
     const ctx = ctxRef.current as SinkContext | null;
-    await ctx?.setSinkId?.(deviceId);
+    if (!ctx?.setSinkId) {
+      return false;
+    }
+    await ctx.setSinkId(deviceId);
+    return true;
   }, []);
 
   return {

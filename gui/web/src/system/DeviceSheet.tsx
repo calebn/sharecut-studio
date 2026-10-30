@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import {
@@ -32,6 +32,8 @@ export type DeviceSheetProps = {
   /** Absent, or `supported` false, and the speaker row is not drawn. */
   output?: DeviceOutput;
   onOutputChange?: (outputId: string) => void;
+  /** Called when the sheet opens: speaker names may have become readable since. */
+  onOutputRefresh?: () => void;
   tone: DeviceTone;
   onRecordRoomTone: () => void;
   /** While the take runs: keep what was captured so far. */
@@ -43,8 +45,8 @@ export type DeviceSheetProps = {
 
 /**
  * Change the microphone from inside the room: input menu, level meter with a
- * clip tick, the headphone toggle and a speaker menu where the browser can route audio, and a one-minute room tone for someone who joined
- * after the countdown. Every control applies as it changes; there is no Apply.
+ * clip tick, the headphone toggle, a speaker menu where the browser can route
+ * audio, and a one-minute room tone for someone who joined after the countdown. Every control applies as it changes; there is no Apply.
  * Presentational: the caller owns the mic, the meter and the room tone.
  */
 export function DeviceSheet({
@@ -57,6 +59,7 @@ export function DeviceSheet({
   onHeadphonesChange,
   output,
   onOutputChange,
+  onOutputRefresh,
   tone,
   onRecordRoomTone,
   onEndRoomToneEarly,
@@ -83,6 +86,9 @@ export function DeviceSheet({
           )
         : toneControls.current?.querySelector<HTMLElement>("button");
   });
+  useEffect(() => {
+    onOutputRefresh?.();
+  }, [onOutputRefresh]);
   useFocusOffDisabled(toneControls, tone.endEarlyDisabled === true);
   return (
     <Sheet

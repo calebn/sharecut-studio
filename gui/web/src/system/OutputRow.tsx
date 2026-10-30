@@ -1,6 +1,5 @@
 import { Field } from "../ui";
 import { DEVICE_TEXT, type DeviceSheetModel } from "./deviceSheetModel";
-import { SystemIcon } from "./SystemIcon";
 
 /**
  * The speaker menu and the notes under it. A pick applies as it changes; the
@@ -15,7 +14,11 @@ export function OutputRow({
 }) {
   return (
     <>
-      <Field label="Speaker" className="sys-join-field">
+      <Field
+        label="Speaker"
+        hint={output.notes.map((note) => note.text).join(" ") || undefined}
+        className="sys-join-field"
+      >
         {(control) => (
           <select
             {...control}
@@ -32,14 +35,6 @@ export function OutputRow({
           </select>
         )}
       </Field>
-      <div role="status" className="sys-join-notes">
-        {output.notes.map((note) => (
-          <p key={note.text} className="sys-join-note">
-            <SystemIcon name="triangle-alert" size={16} />
-            {note.text}
-          </p>
-        ))}
-      </div>
     </>
   );
 }
