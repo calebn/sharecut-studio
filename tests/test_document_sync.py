@@ -1464,8 +1464,11 @@ def test_document_set_transcript_words_ignored(minimal_project):
     ws3 = ProjectWorkspace.open(minimal_project)
     assert not any(w.ignored for w in ws3.project.transcripts[0].words)
 
-    assert "SetTranscriptWordsIgnored" not in document_command_types_for_caps(
+    assert "SetTranscriptWordsIgnored" in document_command_types_for_caps(
         capabilities_for_role("editor")
+    )
+    assert "SetTranscriptWordsIgnored" not in document_command_types_for_caps(
+        capabilities_for_role("commenter")
     )
 
 

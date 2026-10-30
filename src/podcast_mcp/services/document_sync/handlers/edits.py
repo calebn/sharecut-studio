@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any
 
 from podcast_mcp.edits.audio_check_override import mcp_host_override
@@ -356,7 +357,12 @@ def apply_edit_plan(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def shorten_word_gaps(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    with mcp_host_override(enabled=p["override_audio_checks"]):
+    override = (
+        nullcontext()
+        if p.get("_author") is not None
+        else mcp_host_override(enabled=p["override_audio_checks"])
+    )
+    with override:
         return TimelineService(ws).shorten_word_gaps(
             p["max_gap_sec"], use_inaudible_opt=p["use_inaudible_opt"]
         )

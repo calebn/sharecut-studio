@@ -300,7 +300,7 @@ def test_a_save_that_empties_the_approve_after_the_check_returns_zero_without_a_
 # --- no guest path to apply_edit_plan --------------------------------------------------------
 
 
-def test_no_guest_path_reaches_apply_edit_plan():
+def test_only_editors_reach_apply_edit_plan_and_no_guest_tool_does():
     import re
     from pathlib import Path
 
@@ -313,8 +313,12 @@ def test_no_guest_path_reaches_apply_edit_plan():
     from podcast_mcp.services.remote_mcp.allowlist import ALL_GUEST_TOOLS
 
     assert not [t for t in ALL_GUEST_TOOLS if "edit_plan" in t]
-    assert "ApplyEditPlan" not in EDIT_COMMANDS | SUGGEST_COMMANDS
-    assert all("ApplyEditPlan" not in granted for granted in ROLE_DOCUMENT_COMMANDS.values())
+    assert "ApplyEditPlan" in EDIT_COMMANDS
+    assert "ApplyEditPlan" not in SUGGEST_COMMANDS
+    granted_to = {
+        role for role, granted in ROLE_DOCUMENT_COMMANDS.items() if "ApplyEditPlan" in granted
+    }
+    assert [role.value for role in granted_to] == ["editor"]
     root = Path(podcast_mcp.__file__).parent
     callers = {
         str(p.relative_to(root))

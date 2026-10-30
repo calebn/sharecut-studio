@@ -559,14 +559,16 @@ def test_the_tool_is_registered_as_propose_edits_and_there_is_no_propose_tighten
     assert "propose_tighten" not in found
 
 
-def test_only_the_host_can_submit_the_propose_tighten_command(tmp_path, monkeypatch):
+def test_only_the_host_and_editors_can_submit_the_propose_tighten_command(tmp_path, monkeypatch):
     path = _path(tmp_path, monkeypatch)
     before = Path(path).read_bytes()
     command = DocumentCommand(
         type="ProposeTighten", payload={}, client_id="mcp-agent", client_seq=None, role="guest"
     )
     with pytest.raises(CodedPermissionError) as raised:
-        DocumentSyncService.open(path).submit(command, capabilities=capabilities_for_role("editor"))
+        DocumentSyncService.open(path).submit(
+            command, capabilities=capabilities_for_role("commenter")
+        )
     assert raised.value.code == "share_capability_required"
     assert str(raised.value) == "share capabilities do not allow document command: ProposeTighten"
     assert Path(path).read_bytes() == before
@@ -576,3 +578,8 @@ def test_only_the_host_can_submit_the_propose_tighten_command(tmp_path, monkeypa
     )
     DocumentSyncService.open(path).submit(host)
     assert _journal(path) == ["ProposeTighten"]
+    editor = DocumentCommand(
+        type="ProposeTighten", payload={}, client_id="mcp-agent", client_seq=None, role="guest"
+    )
+    DocumentSyncService.open(path).submit(editor, capabilities=capabilities_for_role("editor"))
+    assert _journal(path) == ["ProposeTighten", "ProposeTighten"]

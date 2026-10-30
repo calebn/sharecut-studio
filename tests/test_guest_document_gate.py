@@ -15,6 +15,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import get_args
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,6 +24,7 @@ from history_helpers import history_move
 from pause_policy_public_helpers import room, write_wav
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
+from podcast_mcp.engines.effect_filters import format_effect, validate_effect_params
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import EditDecision, MediaAsset, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -38,12 +40,18 @@ from podcast_mcp.services.collaboration.share_registry import (
 )
 from podcast_mcp.services.document_sync import DocumentCommand, DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import (
+    COMMENT_COMMANDS,
     EDIT_COMMANDS,
+    HOST_ONLY_DOCUMENT_COMMANDS,
     SUGGEST_COMMANDS,
     authorize_document_command,
+    authorize_document_payload,
+    document_command_types_for_caps,
 )
+from podcast_mcp.services.document_sync.commands import DocumentCommandType
 from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
+from podcast_mcp.util.coded_error import CodedValueError
 from test_selected_range import command, fixture, target
 
 LISTEN = ["play", "comment", "reply", "action"]
@@ -810,178 +818,214 @@ def test_room_tone_fill_shape_gate_holds_on_every_guest_surface(
     assert journal_types(minimal_project) == ["FillRoomTone"]
 
 
-@pytest.mark.parametrize(
-    "caps",
-    [EDITOR, [*EDITOR, "mcp"], COMMENTER, [*COMMENTER, "mcp"], VIEWER],
-    ids=["editor", "editor-mcp", "commenter", "commenter-mcp", "viewer"],
-)
-def test_apply_auto_edits_is_host_only(minimal_project, monkeypatch, caps):
-    svc = gap_project(minimal_project, monkeypatch)
-    before = deepcopy(svc.ws.project.clips)
-    total = history_total(minimal_project)
-    with pytest.raises(PermissionError) as raised:
-        svc.submit(guest_command("ApplyAutoEdits", {}), capabilities=caps)
-    assert raised.value.code == "share_capability_required"
-    assert load_project(minimal_project).clips == before
-    assert history_total(minimal_project) == total
-    assert journal_types(minimal_project) == []
-
-
-def test_host_apply_auto_edits_passes(minimal_project, monkeypatch):
-    svc = gap_project(minimal_project, monkeypatch)
-    svc.submit(guest_command("ApplyAutoEdits", {}), capabilities=None)
-    assert journal_types(minimal_project) == ["ApplyAutoEdits"]
-
-
-@pytest.mark.parametrize("surface", ["browser", "mcp"])
-def test_apply_auto_edits_is_refused_on_every_guest_surface(
-    minimal_project, sample_wav, monkeypatch, surface
-):
-    gap_project(minimal_project, monkeypatch)
-    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
-    assert not guest_submitter(surface)(token, "ApplyAutoEdits", {})
-    assert journal_types(minimal_project) == []
-
-
 PLAN = {"edits": [{"track_id": "host", "start": 2.2, "end": 2.8, "applied": True}]}
+AUTOMATION = {
+    "ApplyAutoEdits": {},
+    "ApplyEditPlan": PLAN,
+    "ShortenWordGaps": {"max_gap_sec": 0.35},
+    "StripSilence": {"track_id": "host"},
+    "ProposeTighten": {},
+}
+NON_EDITOR = [VIEWER, COMMENTER, [*COMMENTER, "mcp"]]
+NON_EDITOR_IDS = ["viewer", "commenter", "commenter-mcp"]
 
 
-@pytest.mark.parametrize(
-    "caps",
-    [EDITOR, [*EDITOR, "mcp"], COMMENTER, [*COMMENTER, "mcp"], VIEWER],
-    ids=["editor", "editor-mcp", "commenter", "commenter-mcp", "viewer"],
-)
-def test_apply_edit_plan_is_host_only(minimal_project, monkeypatch, caps):
+@pytest.mark.parametrize("command_type", AUTOMATION)
+@pytest.mark.parametrize("caps", NON_EDITOR, ids=NON_EDITOR_IDS)
+def test_automation_command_is_refused_below_editor(
+    minimal_project, monkeypatch, command_type, caps
+):
     svc = gap_project(minimal_project, monkeypatch)
-    before = deepcopy(svc.ws.project.clips)
+    before = deepcopy(svc.ws.project)
     total = history_total(minimal_project)
     with pytest.raises(PermissionError) as raised:
-        svc.submit(guest_command("ApplyEditPlan", PLAN), capabilities=caps)
+        svc.submit(guest_command(command_type, AUTOMATION[command_type]), capabilities=caps)
     assert raised.value.code == "share_capability_required"
-    assert load_project(minimal_project).clips == before
+    assert load_project(minimal_project).clips == before.clips
+    assert load_project(minimal_project).edit_decisions == before.edit_decisions
     assert history_total(minimal_project) == total
     assert journal_types(minimal_project) == []
 
 
-def test_host_apply_edit_plan_passes(minimal_project, monkeypatch):
-    svc = gap_project(minimal_project, monkeypatch)
-    svc.submit(guest_command("ApplyEditPlan", {"edits": []}), capabilities=None)
-    assert journal_types(minimal_project) == ["ApplyEditPlan"]
-
-
-@pytest.mark.parametrize("surface", ["browser", "mcp"])
-def test_apply_edit_plan_is_refused_on_every_guest_surface(
-    minimal_project, sample_wav, monkeypatch, surface
-):
-    gap_project(minimal_project, monkeypatch)
-    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
-    assert not guest_submitter(surface)(token, "ApplyEditPlan", PLAN)
-    assert journal_types(minimal_project) == []
-
-
-SHORTEN = {"max_gap_sec": 0.35}
-
-
+@pytest.mark.parametrize("command_type", AUTOMATION)
 @pytest.mark.parametrize(
-    "caps",
-    [EDITOR, [*EDITOR, "mcp"], COMMENTER, [*COMMENTER, "mcp"], VIEWER],
-    ids=["editor", "editor-mcp", "commenter", "commenter-mcp", "viewer"],
+    "caps", [None, EDITOR, [*EDITOR, "mcp"]], ids=["host", "editor", "editor-mcp"]
 )
-def test_shorten_word_gaps_is_host_only(minimal_project, monkeypatch, caps):
+def test_automation_command_runs_for_the_editor_as_for_the_host(
+    minimal_project, monkeypatch, command_type, caps
+):
     svc = gap_project(minimal_project, monkeypatch)
-    before = deepcopy(svc.ws.project.clips)
-    total = history_total(minimal_project)
-    with pytest.raises(PermissionError) as raised:
-        svc.submit(guest_command("ShortenWordGaps", SHORTEN), capabilities=caps)
-    assert raised.value.code == "share_capability_required"
-    assert load_project(minimal_project).clips == before
-    assert history_total(minimal_project) == total
-    assert journal_types(minimal_project) == []
+    svc.submit(guest_command(command_type, AUTOMATION[command_type]), capabilities=caps)
+    assert journal_types(minimal_project) == [command_type]
 
 
-def test_host_shorten_word_gaps_passes(minimal_project, monkeypatch):
-    svc = gap_project(minimal_project, monkeypatch)
-    svc.submit(guest_command("ShortenWordGaps", SHORTEN), capabilities=None)
-    assert journal_types(minimal_project) == ["ShortenWordGaps"]
-
-
+@pytest.mark.parametrize("command_type", AUTOMATION)
 @pytest.mark.parametrize("surface", ["browser", "mcp"])
-def test_shorten_word_gaps_is_refused_on_every_guest_surface(
-    minimal_project, sample_wav, monkeypatch, surface
+def test_automation_command_follows_the_role_on_every_guest_surface(
+    minimal_project, sample_wav, monkeypatch, surface, command_type
 ):
     gap_project(minimal_project, monkeypatch)
-    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
-    assert not guest_submitter(surface)(token, "ShortenWordGaps", SHORTEN)
+    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*COMMENTER, "mcp"])
+    assert not guest_submitter(surface)(token, command_type, AUTOMATION[command_type])
     assert journal_types(minimal_project) == []
+    editor = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
+    assert guest_submitter(surface)(editor, command_type, AUTOMATION[command_type])
+    assert journal_types(minimal_project) == [command_type]
 
 
-STRIP = {"track_id": "host"}
+EDITOR_PARITY_COMMANDS = [
+    "AddChapter",
+    "AddEffect",
+    "AddSocialClip",
+    "ApplyAutoEdits",
+    "ApplyEditPlan",
+    "ApplyFadeRecommendationList",
+    "ApplyTranscriptCleanup",
+    "CorrectTranscriptPhrase",
+    "CorrectTranscriptWord",
+    "CrossfadeJoins",
+    "DeleteChapter",
+    "DeleteSocialClip",
+    "FadeJoins",
+    "InsertGap",
+    "MoveByText",
+    "ProposeTighten",
+    "ReconcileTranscript",
+    "RemoveEffect",
+    "RenameProject",
+    "ReplaceTranscriptMatches",
+    "RestoreClipBleed",
+    "RippleDeleteText",
+    "SetBleedAlignmentMode",
+    "SetTranscriptWordAutomatic",
+    "SetTranscriptWordSuppressed",
+    "SetTranscriptWordTiming",
+    "SetTranscriptWordsIgnored",
+    "ShortenWordGaps",
+    "StageTextMatchCut",
+    "StageTimeRangeCut",
+    "StageUtteranceCut",
+    "StageWordsCut",
+    "StripSilence",
+    "SuppressBleed",
+    "SuppressLowAudibility",
+    "UpdateChapter",
+    "UpdateSocialClip",
+    "VerifyTranscript",
+]
 
 
-@pytest.mark.parametrize(
-    "caps",
-    [VIEWER, EDITOR, [*COMMENTER, "mcp"]],
-    ids=["viewer", "editor", "commenter-mcp"],
-)
-def test_strip_silence_is_host_only(minimal_project, monkeypatch, caps):
-    svc = gap_project(minimal_project, monkeypatch)
-    before = deepcopy(svc.ws.project.clips)
-    total = history_total(minimal_project)
-    with pytest.raises(PermissionError) as raised:
-        svc.submit(guest_command("StripSilence", STRIP), capabilities=caps)
-    assert raised.value.code == "share_capability_required"
-    assert load_project(minimal_project).clips == before
-    assert history_total(minimal_project) == total
-    assert journal_types(minimal_project) == []
+@pytest.mark.parametrize("command_type", EDITOR_PARITY_COMMANDS)
+def test_editor_parity_command_gate(command_type):
+    authorize_document_command(EDITOR, command_type)
+    authorize_document_command([*EDITOR, "mcp"], command_type)
+    for caps in (COMMENTER, [*COMMENTER, "mcp"], VIEWER):
+        with pytest.raises(PermissionError) as raised:
+            authorize_document_command(caps, command_type)
+        assert raised.value.code == "share_capability_required"
 
 
-def test_host_strip_silence_passes(minimal_project, monkeypatch):
-    svc = gap_project(minimal_project, monkeypatch)
-    svc.submit(guest_command("StripSilence", STRIP), capabilities=None)
-    assert journal_types(minimal_project) == ["StripSilence"]
+def test_every_document_command_is_classified():
+    every = set(get_args(DocumentCommandType))
+    classified = EDIT_COMMANDS | SUGGEST_COMMANDS | COMMENT_COMMANDS | HOST_ONLY_DOCUMENT_COMMANDS
+    assert every - classified == set()
+    assert classified - every == set()
+    assert HOST_ONLY_DOCUMENT_COMMANDS.isdisjoint(EDIT_COMMANDS | SUGGEST_COMMANDS)
 
 
-@pytest.mark.parametrize("surface", ["browser", "mcp"])
-def test_strip_silence_is_refused_on_every_guest_surface(
-    minimal_project, sample_wav, monkeypatch, surface
+def test_the_editor_holds_every_command_the_host_runs_but_the_named_host_only_ones():
+    editor = document_command_types_for_caps(EDITOR)
+    every = set(get_args(DocumentCommandType))
+    assert every - editor == COMMENT_COMMANDS | HOST_ONLY_DOCUMENT_COMMANDS
+
+
+@pytest.mark.parametrize("caps", [EDITOR, [*EDITOR, "mcp"]], ids=["editor", "editor-mcp"])
+def test_an_editor_effect_cannot_name_a_host_model_file(caps):
+    authorize_document_payload(caps, "AddEffect", {"track_id": "host", "effect": "arnndn"})
+    authorize_document_payload(
+        caps, "AddEffect", {"track_id": "host", "effect": "highpass", "params": {"frequency": 80}}
+    )
+    for params in ({"model": "/etc/passwd"}, {"model": ""}):
+        with pytest.raises(PermissionError) as raised:
+            authorize_document_payload(
+                caps, "AddEffect", {"track_id": "host", "effect": "arnndn", "params": params}
+            )
+        assert raised.value.code == "share_capability_required"
+    authorize_document_payload(
+        None, "AddEffect", {"track_id": "host", "effect": "arnndn", "params": {"model": "/m"}}
+    )
+
+
+@pytest.mark.parametrize("params", [3, "x", ["a"]])
+def test_an_editor_effect_with_non_object_params_is_refused_with_a_code(params):
+    with pytest.raises(CodedValueError) as raised:
+        authorize_document_payload(
+            EDITOR, "AddEffect", {"track_id": "host", "effect": "highpass", "params": params}
+        )
+    assert raised.value.code == "invalid_effect_params"
+
+
+@pytest.mark.parametrize("model", ["/m,ametadata=mode=print", "/m;amovie=/x", "/m[a]", "a]b"])
+def test_validate_effect_params_refuses_filter_syntax_in_a_model(model):
+    with pytest.raises(CodedValueError) as raised:
+        validate_effect_params("arnndn", {"model": model})
+    assert raised.value.code == "invalid_effect_params"
+
+
+@pytest.mark.parametrize("params", [["a"], "x", 3])
+def test_validate_effect_params_refuses_params_that_are_not_an_object(params):
+    with pytest.raises(CodedValueError) as raised:
+        validate_effect_params("highpass", params)
+    assert raised.value.code == "invalid_effect_params"
+
+
+INJECTIONS = [
+    ("equalizer", {"f": "3,ametadata=mode=print:file=/tmp/x"}),
+    ("equalizer", {"t": "q[a];amovie=/x[b];[a][b]amix"}),
+    ("acompressor", {"ratio": "3,ametadata=mode=print:file=/tmp/x"}),
+    ("highpass", {"frequency": "80;amovie=/x"}),
+    ("equalizer", {"g": float("nan")}),
+    ("equalizer", {"t": "z"}),
+    ("equalizer", {"f": True}),
+    ("equalizer", {"gain": 3}),
+    ("loudnorm", {"integrated_lufs": 5}),
+]
+
+
+@pytest.mark.parametrize("caps", [EDITOR, [*EDITOR, "mcp"]], ids=["editor", "editor-mcp"])
+@pytest.mark.parametrize(("effect", "params"), INJECTIONS)
+def test_an_editor_effect_param_cannot_inject_a_filter(caps, effect, params):
+    payload = {"track_id": "host", "effect": effect, "params": params}
+    with pytest.raises(CodedValueError) as raised:
+        authorize_document_payload(caps, "AddEffect", payload)
+    assert raised.value.code == "invalid_effect_params"
+
+
+@pytest.mark.parametrize(("effect", "params"), INJECTIONS)
+def test_the_host_service_refuses_an_unsafe_effect_param(
+    minimal_project, monkeypatch, effect, params
 ):
-    gap_project(minimal_project, monkeypatch)
-    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
-    assert not guest_submitter(surface)(token, "StripSilence", STRIP)
-    assert journal_types(minimal_project) == []
-
-
-PROPOSE: dict = {}
-
-
-@pytest.mark.parametrize(
-    "caps",
-    [VIEWER, EDITOR, [*COMMENTER, "mcp"], [*EDITOR, "mcp"]],
-    ids=["viewer", "editor", "commenter-mcp", "editor-mcp"],
-)
-def test_propose_tighten_is_host_only(minimal_project, monkeypatch, caps):
     svc = gap_project(minimal_project, monkeypatch)
-    before = deepcopy(svc.ws.project.edit_decisions)
-    total = history_total(minimal_project)
-    with pytest.raises(PermissionError) as raised:
-        svc.submit(guest_command("ProposeTighten", PROPOSE), capabilities=caps)
-    assert raised.value.code == "share_capability_required"
-    assert load_project(minimal_project).edit_decisions == before
-    assert history_total(minimal_project) == total
-    assert journal_types(minimal_project) == []
+    before = journal_types(minimal_project)
+    command = DocumentCommand(
+        type="AddEffect",
+        payload={"track_id": "host", "effect": effect, "params": params},
+        client_id="host",
+        client_seq=None,
+        role="agent",
+    )
+    with pytest.raises(CodedValueError) as raised:
+        svc.submit(command)
+    assert raised.value.code == "invalid_effect_params"
+    assert load_project(minimal_project).processing_chains == []
+    assert journal_types(minimal_project) == before
 
 
-def test_host_propose_tighten_passes(minimal_project, monkeypatch):
-    svc = gap_project(minimal_project, monkeypatch)
-    svc.submit(guest_command("ProposeTighten", PROPOSE), capabilities=None)
-    assert journal_types(minimal_project) == ["ProposeTighten"]
-
-
-@pytest.mark.parametrize("surface", ["browser", "mcp"])
-def test_propose_tighten_is_refused_on_every_guest_surface(
-    minimal_project, sample_wav, monkeypatch, surface
-):
-    gap_project(minimal_project, monkeypatch)
-    token = _mcp_share(minimal_project, sample_wav, monkeypatch, [*EDITOR, "mcp"])
-    assert not guest_submitter(surface)(token, "ProposeTighten", PROPOSE)
-    assert journal_types(minimal_project) == []
+def test_valid_effect_params_still_render_a_filter():
+    params = {"f": "1000", "t": "h", "w": 2, "g": -3.5}
+    authorize_document_payload(
+        EDITOR, "AddEffect", {"track_id": "host", "effect": "equalizer", "params": params}
+    )
+    assert format_effect("equalizer", params) == "equalizer=f=1000:t=h:w=2:g=-3.5"
+    assert format_effect("highpass", {"frequency": 90.0}) == "highpass=f=90"
+    assert format_effect("equalizer", {}) == "equalizer=f=1000:t=q:w=1.0:g=0"

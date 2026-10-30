@@ -92,10 +92,14 @@ def test_generated_restore_contract_requires_inspected_opening(restore_project):
     assert not validator.is_valid(command)
 
 
-@pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
-def test_guest_roles_cannot_restore_automatic_attenuation(role):
+@pytest.mark.parametrize("role", ["viewer", "commenter"])
+def test_roles_below_editor_cannot_restore_automatic_attenuation(role):
     with pytest.raises(PermissionError):
         authorize_document_command(capabilities_for_role(role, with_mcp=True), "RestoreClipBleed")
+
+
+def test_an_editor_restores_automatic_attenuation():
+    authorize_document_command(capabilities_for_role("editor", with_mcp=True), "RestoreClipBleed")
 
 
 def test_host_inspection_endpoint_is_read_only(restore_project):

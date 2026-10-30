@@ -11,8 +11,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from podcast_mcp.engines.effect_filters import validate_effect_params
 from podcast_mcp.services.collaboration import ReviewRole, review_role_for_capabilities
-from podcast_mcp.util.coded_error import CodedPermissionError
+from podcast_mcp.util.coded_error import CodedPermissionError, CodedValueError
 
 # Structural ops share one command type; policy chooses apply vs propose.
 STRUCTURAL_COMMANDS: frozenset[str] = frozenset(
@@ -58,9 +59,61 @@ EDIT_COMMANDS: frozenset[str] = frozenset(
         # Editors write the episode's podcast listing; show settings stay with the host.
         "SetFeedField",
         "ClearFeedField",
+        "CorrectTranscriptWord",
+        "CorrectTranscriptPhrase",
+        "ReplaceTranscriptMatches",
+        "ApplyTranscriptCleanup",
+        "VerifyTranscript",
+        "ReconcileTranscript",
+        "SetTranscriptWordSuppressed",
+        "SetTranscriptWordAutomatic",
+        "SetTranscriptWordsIgnored",
+        "SetTranscriptWordTiming",
+        "AddChapter",
+        "UpdateChapter",
+        "DeleteChapter",
+        "AddSocialClip",
+        "UpdateSocialClip",
+        "DeleteSocialClip",
+        "AddEffect",
+        "RemoveEffect",
+        "SuppressBleed",
+        "SuppressLowAudibility",
+        "SetBleedAlignmentMode",
+        "RestoreClipBleed",
+        "StageTimeRangeCut",
+        "StageTextMatchCut",
+        "StageUtteranceCut",
+        "StageWordsCut",
+        "MoveByText",
+        "RippleDeleteText",
+        "InsertGap",
+        "ApplyAutoEdits",
+        "ProposeTighten",
+        "ApplyEditPlan",
+        "ShortenWordGaps",
+        "StripSilence",
+        "FadeJoins",
+        "CrossfadeJoins",
+        "ApplyFadeRecommendationList",
+        "RenameProject",
         *STRUCTURAL_COMMANDS,
     }
 )
+
+COMMENT_COMMANDS: frozenset[str] = frozenset(
+    {
+        "AddComment",
+        "UpdateComment",
+        "ResolveComment",
+        "DeleteComment",
+        "AddReply",
+        "SetActionDone",
+        "AddAction",
+    }
+)
+
+HOST_ONLY_DOCUMENT_COMMANDS: frozenset[str] = frozenset()
 
 # Commenter suggest set: structural commands and selected ranges propose.
 SUGGEST_COMMANDS: frozenset[str] = frozenset(
@@ -136,7 +189,8 @@ def authorize_document_payload(
 
     A room tone fill without a range (no ``start_sec``/``end_sec``) is host-only; a guest
     Editor fills an explicit range. A guest edits only this episode's listing values
-    (an episode row a person may pin), never the show's (``channel.*``). ``caps is None``
+    (an episode row a person may pin), never the show's (``channel.*``). An effect ``model`` param names a host file
+    and is host-only. Effect params are checked against the effect's schema. ``caps is None``
     means host / unrestricted (always allowed).
     """
     if caps is None:
@@ -164,3 +218,12 @@ def authorize_document_payload(
             "a room tone fill without a range is host-only; guests fill a selected range",
             code="share_capability_required",
         )
+    if command_type == "AddEffect" and not isinstance(payload.get("params") or {}, Mapping):
+        raise CodedValueError("effect params must be an object", code="invalid_effect_params")
+    if command_type == "AddEffect" and "model" in (payload.get("params") or {}):
+        raise CodedPermissionError(
+            "an effect model file is host-only; guests add the effect with its defaults",
+            code="share_capability_required",
+        )
+    if command_type == "AddEffect" and payload.get("effect"):
+        validate_effect_params(str(payload["effect"]), payload.get("params"))

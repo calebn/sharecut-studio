@@ -207,6 +207,23 @@ def test_override_flag_records_the_mcp_host_actor_in_history_and_the_edit_log(tm
     assert [c["track_id"] for c in record.params["cut_speech"]["tracks"]] == ["guest"]
 
 
+def test_a_guest_override_is_recorded_under_the_share_author(tmp_path):
+    path = _path(tmp_path, _HELD_WORDS)
+    command = DocumentCommand(
+        type="ShortenWordGaps",
+        payload={"use_inaudible_opt": False, "override_audio_checks": True},
+        client_id="guest",
+        client_seq=None,
+        role="guest",
+    )
+    DocumentSyncService.open(path).submit(
+        command, capabilities=capabilities_for_role("editor"), author="share:abc123"
+    )
+    (record,) = load_project(Path(path)).editorial.edit_log
+    assert record.params["audio_check_override"]["actor"] == "share:abc123"
+    assert _entries(path)[1]["params"]["audio_check_override"]["actor"] == "share:abc123"
+
+
 def test_override_flag_applies_the_cut_the_checks_held_and_undo_restores_it(tmp_path):
     path = _path(tmp_path, _HELD_WORDS)
     before = _state(path)
@@ -416,8 +433,10 @@ def test_transcripts_without_word_pairs_are_unchanged(tmp_path, words):
     assert Path(path).read_bytes() == before
 
 
-@pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
-def test_a_guest_role_submitting_shorten_word_gaps_is_refused_as_not_allowed(tmp_path, role):
+@pytest.mark.parametrize("role", ["viewer", "commenter"])
+def test_a_guest_role_below_editor_submitting_shorten_word_gaps_is_refused_as_not_allowed(
+    tmp_path, role
+):
     path = _path(tmp_path)
     before = Path(path).read_bytes()
     command = DocumentCommand(
@@ -437,9 +456,8 @@ def test_a_guest_role_submitting_shorten_word_gaps_is_refused_as_not_allowed(tmp
 
 
 @pytest.mark.parametrize("override", [True, False])
-def test_a_guest_editor_is_refused_whatever_the_override_flag(tmp_path, override):
+def test_a_guest_editor_runs_shorten_word_gaps_whatever_the_override_flag(tmp_path, override):
     path = _path(tmp_path, _HELD_WORDS)
-    before = Path(path).read_bytes()
     command = DocumentCommand(
         type="ShortenWordGaps",
         payload={"use_inaudible_opt": False, "override_audio_checks": override},
@@ -447,11 +465,8 @@ def test_a_guest_editor_is_refused_whatever_the_override_flag(tmp_path, override
         client_seq=None,
         role="guest",
     )
-    with pytest.raises(CodedPermissionError) as raised:
-        DocumentSyncService.open(path).submit(command, capabilities=capabilities_for_role("editor"))
-    assert raised.value.code == "share_capability_required"
-    assert Path(path).read_bytes() == before
-    assert _journal(path) == []
+    DocumentSyncService.open(path).submit(command, capabilities=capabilities_for_role("editor"))
+    assert _journal(path) == ["ShortenWordGaps"]
 
 
 def test_a_raw_submit_with_a_non_numeric_max_gap_is_a_coded_invalid_payload(tmp_path):
@@ -471,7 +486,7 @@ def test_a_raw_submit_with_a_non_numeric_max_gap_is_a_coded_invalid_payload(tmp_
     assert _journal(path) == []
 
 
-def test_editor_with_the_mcp_capability_is_also_refused(tmp_path):
+def test_editor_with_the_mcp_capability_also_runs_it(tmp_path):
     path = _path(tmp_path)
     command = DocumentCommand(
         type="ShortenWordGaps",
@@ -481,9 +496,8 @@ def test_editor_with_the_mcp_capability_is_also_refused(tmp_path):
         role="guest",
     )
     caps = [*capabilities_for_role("editor"), "mcp"]
-    with pytest.raises(CodedPermissionError) as raised:
-        DocumentSyncService.open(path).submit(command, capabilities=caps)
-    assert raised.value.code == "share_capability_required"
+    DocumentSyncService.open(path).submit(command, capabilities=caps)
+    assert _journal(path) == ["ShortenWordGaps"]
 
 
 def test_direct_tool_call_journals_one_shorten_row_on_the_document_plane(tmp_path):

@@ -457,7 +457,7 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
                 path,
                 track_id="host",
                 effect="equalizer",
-                params={"gain_db": 3},
+                params={"g": 3},
             )
         )
         json.loads(mcp_timeline.ripple_delete_tool(path, 1.0, 2.0, use_inaudible_opt=False))
