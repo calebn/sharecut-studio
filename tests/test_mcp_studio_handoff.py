@@ -16,6 +16,7 @@ import socket
 import threading
 import time
 from collections.abc import Callable, Iterator
+from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -237,6 +238,44 @@ def _deadline_peer(
         peer.shutdown()
         peer.server_close()
         thread.join(3)
+
+
+def test_deadline_peer_accepts_notifications_before_an_ordinary_request(
+    minimal_project: Path,
+) -> None:
+    from podcast_mcp.services.app import read_studio_host
+
+    with _deadline_peer(minimal_project, stalled=False) as (methods, _, _):
+        host = read_studio_host(minimal_project)
+        assert host is not None
+        with contextlib.closing(HTTPConnection(host.host, host.port, timeout=2)) as connection:
+            for notification in (
+                {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                {
+                    "jsonrpc": "2.0",
+                    "method": "notifications/cancelled",
+                    "params": {"requestId": 7, "reason": "caller cancelled"},
+                },
+            ):
+                connection.request(
+                    "POST",
+                    "/mcp",
+                    json.dumps(notification),
+                    {"Content-Type": "application/json"},
+                )
+                response = connection.getresponse()
+                assert response.status == 202
+                assert response.read() == b""
+            connection.request(
+                "POST",
+                "/mcp",
+                json.dumps({"jsonrpc": "2.0", "id": 8, "method": "ping"}),
+                {"Content-Type": "application/json"},
+            )
+            response = connection.getresponse()
+            assert response.status == 200
+            assert json.loads(response.read()) == {"jsonrpc": "2.0", "id": 8, "result": {}}
+    assert methods == ["notifications/initialized", "notifications/cancelled", "ping"]
 
 
 @pytest.mark.parametrize("trickle,session_id", [(False, False), (True, False), (True, True)])
