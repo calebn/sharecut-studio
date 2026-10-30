@@ -1,8 +1,8 @@
 """``_project_pad_lane`` reads the project's clips and never writes them (#2359).
 
-It no longer deep-copies its input, so the lane it returns may hold the project's own
-``Clip`` objects. Its callers (``bind_pause_effects``, ``room_tone_pad``) only read them;
-these tests pin that, and that the result is what the deep-copying version returned.
+The lane may hold the project's own ``Clip`` objects. Its callers (``bind_pause_effects``,
+``room_tone_pad``) only read them; these tests pin that, and that the lane equals what a
+deep-copied input gives.
 """
 
 from __future__ import annotations
@@ -225,7 +225,7 @@ def test_the_callers_leave_the_project_as_it_was_and_answer_as_before(
 def test_a_removal_that_touches_no_clip_returns_the_projects_own_clips_unchanged(
     tmp_path: Path,
 ) -> None:
-    """The one alias the change creates: a clip outside every span comes back as itself."""
+    """A clip outside every span comes back as itself."""
     project = _project(tmp_path, 7)
     first = clips_for_track(project, "host")[0]
     end = max(c.timeline_end for c in project.clips)
