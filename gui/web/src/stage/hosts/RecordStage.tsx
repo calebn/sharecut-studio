@@ -17,6 +17,7 @@ import {
   RECORD_ROOM_RECONNECTING_COPY,
   roomAlerts,
   roomPeople,
+  type SessionTarget,
   StorageHeadroomWarning,
   takeInputs,
   useHostRoom,
@@ -47,6 +48,7 @@ import {
   trayTakes,
   viewerWidthOf,
 } from "./recordStageModel";
+import { usePendingRecordTarget } from "./usePendingRecordTarget";
 
 export type RecordStageProps = {
   loadFailure?: LoadFailure | null;
@@ -171,11 +173,14 @@ function RecordStageBody({
     />
   );
 
+  const setTarget = (target: SessionTarget) =>
+    room.runCommand("record.setTarget", { target });
+  usePendingRecordTarget(snapshot, state, room.transportBusy, setTarget);
   const targetChip = snapshot ? (
     <RecordTargetChip
       snapshot={snapshot}
       busy={room.transportBusy}
-      onSetTarget={(target) => room.runCommand("record.setTarget", { target })}
+      onSetTarget={setTarget}
     />
   ) : undefined;
 

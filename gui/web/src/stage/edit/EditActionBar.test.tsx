@@ -63,7 +63,7 @@ describe("EditActionBar on the phone dock", () => {
   it("shows the playhead verbs when nothing is selected", async () => {
     host(EDIT_SELECTIONS.playhead);
     const { container } = render(<EditActionBar form="dock" root={null} />);
-    expect(names()).toEqual(["Split", "Add chapter", "Record"]);
+    expect(names()).toEqual(["Split", "Add chapter", "Record here"]);
     await expectNoA11yViolations(container);
   });
 
@@ -86,7 +86,7 @@ describe("EditActionBar on the phone dock", () => {
     const bar = screen.getByRole("group", { name: "Edit actions" });
     expect(within(bar).getByTitle("Change the tracks")).toBeTruthy();
     expect(names().at(-1)).toBe("Cut");
-    for (const verb of ["Hear", "Split", "Comment", "Record"]) {
+    for (const verb of ["Hear", "Split", "Comment", "Re-record"]) {
       expect(
         within(bar).getByRole("button", { name: new RegExp(`^${verb}`) }),
       ).toBeTruthy();

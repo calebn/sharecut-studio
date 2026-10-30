@@ -551,7 +551,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - The Blade tool and the Select/Blade tool toggle (CMP-TOOLRAIL). Modes are gone. Split is Mod+K at the playhead or Alt-click at the pointer, with a crosshair cursor and a 2 px guide (1 px ring) on the lanes the cut will land on, the targeted tracks else the dialogue tracks, while Alt is held over the lanes (W1a, #2294). Touch has no Alt: it splits with the Action bar's Split verb (the playhead, or both edges of a selection) or a long-press on a lane, whose Create-here menu opens with "Split here" (W1b, #2294).
 - The Edit surface switch as its own element. It is a Segmented control instance: lanes (`chart-gantt`) and text (`text`).
 - The Home New sheet (record FLOW-REC-NEW). Start tiles sit on Home directly, and name and folder default.
-- The Re-record verb. It is the Record verb with a Replace target.
+- The Re-record verb. It is the Record verb with a Replace target: same glyph and verb id, labelled **Re-record** on the Action bar over words or a range and **Record here** on the playhead (an Insert target). Edit parks the target in the store and Record's host stage sends it once.
 - The paused face of the Record button.
 - Separate Marker and Notes controls in Record. Both are Comment: tap drops a marker, long-press or typing writes a note.
 - The record-only Room alert, Room cover, Room status pill, Join sheet, Device sheet, Invite tile, Takes tray, Session summary card and Session marker. They are merged as listed above.

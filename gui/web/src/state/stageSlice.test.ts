@@ -193,6 +193,21 @@ describe("stageSlice", () => {
     expect(st().landingSettled).toBe(false);
   });
 
+  it("keeps the parked Record target into Record and drops it on leaving or a project switch", () => {
+    const target = { kind: "insert" as const, at_sec: 6 };
+    st().setPendingRecordTarget(target);
+    st().openStage("record");
+    expect(st().pendingRecordTarget).toEqual(target);
+    st().openStage("edit");
+    expect(st().pendingRecordTarget).toBeNull();
+
+    st().setPendingRecordTarget(target);
+    st().hydrate("/tmp/stage-a.json", minimalProject());
+    expect(st().pendingRecordTarget).toEqual(target);
+    st().hydrate("/tmp/stage-b.json", minimalProject());
+    expect(st().pendingRecordTarget).toBeNull();
+  });
+
   it("persists the Script flags", () => {
     st().setScriptCollapsed(true);
     st().setScriptFocus(true);
