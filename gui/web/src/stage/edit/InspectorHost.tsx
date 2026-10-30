@@ -49,10 +49,16 @@ function focusFirstControl(box: HTMLElement) {
 function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
   const opener = useRef<HTMLElement | null>(null);
   const entered = useRef(false);
+  const captured = useRef(false);
   useEffect(() => {
-    const active = document.activeElement;
-    opener.current =
-      active instanceof HTMLElement && active !== document.body ? active : null;
+    if (!captured.current) {
+      captured.current = true;
+      const active = document.activeElement;
+      opener.current =
+        active instanceof HTMLElement && active !== document.body
+          ? active
+          : null;
+    }
     return () => {
       const was = opener.current;
       const now = document.activeElement;
@@ -170,7 +176,7 @@ function Card({
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", onScroll, true);
     };
-  }, [measure, anchor.moves]);
+  }, [measure, anchor.moves, anchor.visible]);
   useResizeObserver(root, measure);
   const sections = useBodySections(sheet.rangeActionsInSheet);
   // The Action bar hides the same way when its anchor scrolls out.

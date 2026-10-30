@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
@@ -133,6 +134,68 @@ describe("the Inspector card on the desktop and the tablet", () => {
     expect(useDawStore.getState().inspectorKey).not.toBeNull();
     act(() => report(true));
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+  });
+
+  it("measures the card again when its anchor comes back into view", async () => {
+    let report = (_visible: boolean) => {};
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        callback: (entries: { isIntersecting: boolean }[]) => void;
+        constructor(
+          callback: (entries: { isIntersecting: boolean }[]) => void,
+        ) {
+          this.callback = callback;
+          report = (isIntersecting) => this.callback([{ isIntersecting }]);
+        }
+        observe() {
+          report(true);
+        }
+        disconnect() {}
+      },
+    );
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    stubViewportShell("desktop");
+    const { container } = render(<EditWorkspace />);
+    await inspect();
+    const root = container.querySelector(".edit-workspace");
+    const rootCalls = () =>
+      spy.mock.contexts.filter((el) => el === root).length;
+    act(() => report(false));
+    const hidden = rootCalls();
+    act(() => report(true));
+    expect(rootCalls()).toBeGreaterThan(hidden);
+    spy.mockRestore();
+  });
+
+  it("returns focus to the first opener under StrictMode", async () => {
+    stubViewportShell("desktop");
+    render(
+      <StrictMode>
+        <EditWorkspace />
+      </StrictMode>,
+    );
+    const from = opener();
+    await inspect();
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Escape" });
+    expect(from).toHaveFocus();
+    from.remove();
+  });
+
+  it("leaves focus on a toast action instead of pulling it into the card", async () => {
+    stubViewportShell("desktop");
+    render(<EditWorkspace />);
+    const region = document.createElement("div");
+    region.className = "ui-toast-region--app";
+    const action = document.createElement("button");
+    action.textContent = "Undo";
+    region.append(action);
+    document.body.append(region);
+    action.focus();
+    await inspect();
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+    expect(action).toHaveFocus();
+    region.remove();
   });
 });
 

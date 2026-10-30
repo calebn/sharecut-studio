@@ -59,6 +59,7 @@ export function useInspectorOpen(
     const s = useDawStore.getState();
     s.setSelection(null);
     s.setRangeArmed(false);
+    s.setSheetExpanded(false);
     s.setInspectorOpen(false);
   }, []);
   return {
