@@ -205,7 +205,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
 });
 
 describe("shortcuts after the card opens", () => {
-  it("reach the keymap with the card holding focus", async () => {
+  it("reach the keymap with the anchor holding focus", async () => {
     stubViewportShell("desktop");
     render(
       <>
@@ -215,19 +215,19 @@ describe("shortcuts after the card opens", () => {
     );
     await inspect();
     const card = screen.getByRole("dialog", { name: "Inspector" });
-    card.focus();
+    const anchor = card.querySelector<HTMLElement>("[data-inspector-anchor]")!;
+    anchor.focus();
     const event = new KeyboardEvent("keydown", {
       key: "i",
       code: "KeyI",
       bubbles: true,
       cancelable: true,
     });
-    card.dispatchEvent(event);
-    expect(card).toHaveAttribute("tabindex", "-1");
+    anchor.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
   });
 
-  it("opens onto the card when the first control of the body is a field", async () => {
+  it("opens onto the focus anchor when the first control of the body is a field", async () => {
     useDawStore.getState().hydrate(
       "/tmp/inspector-host/episode.sharecut",
       minimalProject({
@@ -244,18 +244,50 @@ describe("shortcuts after the card opens", () => {
     render(<EditWorkspace />);
     await inspect();
     const card = screen.getByRole("dialog", { name: "Inspector" });
-    expect(card).toHaveFocus();
-    expect(card.querySelector("input:focus, textarea:focus")).toBeNull();
+    expect(card.querySelector("[data-inspector-anchor]")).toHaveFocus();
   });
 
-  it("Escape on the focused card closes it", async () => {
+  it.each(["range", "transcriptRange"] as const)(
+    "holds one Range fields region for a %s selection on the desktop",
+    async (kind) => {
+      useDawStore.setState({
+        selection:
+          kind === "range"
+            ? {
+                kind: "range",
+                target: {
+                  kind: "exact_range",
+                  intervals: [{ start: 1, end: 2 }],
+                  track_ids: ["host"],
+                  clips: [],
+                  media_seals: {},
+                },
+              }
+            : {
+                kind: "transcriptRange",
+                trackId: "host",
+                startWordIndex: 0,
+                endWordIndex: 1,
+              },
+      });
+      stubViewportShell("desktop");
+      render(<EditWorkspace />);
+      await inspect();
+      expect(
+        screen.getAllByRole("region", { name: "Range fields" }),
+      ).toHaveLength(1);
+    },
+  );
+
+  it("Escape on the focused anchor closes the card", async () => {
     stubViewportShell("desktop");
     render(<EditWorkspace />);
     const from = opener();
     await inspect();
     const card = screen.getByRole("dialog", { name: "Inspector" });
-    card.focus();
-    fireEvent.keyDown(card, { key: "Escape" });
+    const anchor = card.querySelector<HTMLElement>("[data-inspector-anchor]")!;
+    anchor.focus();
+    fireEvent.keyDown(anchor, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(from).toHaveFocus();
     from.remove();

@@ -83,7 +83,7 @@ Shipped: `state/selectionSlice.ts` is the only writer of `selection`, and
 `state/selection.ts` derives the clip and track sets from it. `selectionSurface.tsx`
 is the one table for phone, tablet and desktop (#1792).
 The Script keeps an open Fix text field when the shell remounts (a held pin, per project), so rotating across the phone and tablet shells keeps the word and its field (#1870); a tablet-to-phone remount that blurs the field is a known follow-up.
-In a Correct-mode word sheet, the correction fields and Apply precede the
+In a word's Inspector body, the correction fields and Apply precede the
 secondary word controls and metadata. The full word remains the accessible
 heading even when its visible title is shortened to one line. The range's verbs live on the Action bar (floating beside the selection on desktop and tablet, docked above the Player on a phone); the Range fields keep In and Out and the word handles, first in Select mode.
 Reordering these sections preserves their component identity and local drafts

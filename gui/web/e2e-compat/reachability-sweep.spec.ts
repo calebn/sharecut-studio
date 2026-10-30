@@ -457,7 +457,7 @@ test("a track with an envelope and an effect chain keeps every control a finger 
   expect(report, "controls a finger cannot use").toBe("");
 });
 
-test("pending-edit and transcript-word sheet bodies keep every control reachable", async ({
+test("pending-edit and transcript-word Inspector bodies keep every control reachable", async ({
   page,
 }) => {
   const report = await withShareableProject(async (projectPath) => {
