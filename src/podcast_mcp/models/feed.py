@@ -28,7 +28,7 @@ class FeedSection(BaseModel):
 
     show_id: str | None = None
     guid: str | None = None
-    first_exported_at: datetime | None = None
+    first_exported_at: str | None = None
     pins: dict[str, Pin] = Field(default_factory=dict)
 
     def mint_identity(self, now: datetime | None = None) -> bool:
@@ -41,6 +41,8 @@ class FeedSection(BaseModel):
             self.guid = f"urn:uuid:{uuid4()}"
             changed = True
         if self.first_exported_at is None:
-            self.first_exported_at = now or datetime.now(UTC)
+            self.first_exported_at = (
+                (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+            )
             changed = True
         return changed

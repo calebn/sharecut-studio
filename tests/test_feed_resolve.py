@@ -403,7 +403,7 @@ def test_identity_is_minted_once() -> None:
 
     assert feed.mint_identity(EXPORTED_AT) is True
     guid, first = feed.guid, feed.first_exported_at
-    assert guid.startswith("urn:uuid:") and first == EXPORTED_AT
+    assert guid.startswith("urn:uuid:") and first == "2026-10-23T09:00:00Z"
     assert feed.mint_identity(EXPORTED_AT.replace(year=2030)) is False
     assert (feed.guid, feed.first_exported_at) == (guid, first)
 

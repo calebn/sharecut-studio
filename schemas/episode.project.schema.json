@@ -992,7 +992,7 @@
       "properties": {
         "show_id": { "type": ["string", "null"] },
         "guid": { "type": ["string", "null"] },
-        "first_exported_at": { "type": ["string", "null"], "format": "date-time" },
+        "first_exported_at": { "type": ["string", "null"] },
         "pins": { "type": "object", "additionalProperties": { "$ref": "#/$defs/FeedPin" } }
       }
     },
