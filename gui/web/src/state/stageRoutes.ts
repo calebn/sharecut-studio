@@ -74,7 +74,7 @@ export const STAGE_FOR_TAB: Record<PresenceTab, StageTarget> = {
   impact: { stage: "review", section: "queue" },
   // Older clients in a follow session still send `tighten`; it lands on Queue.
   tighten: { stage: "review", section: "queue" },
-  // A host's comments are queue items; a guest's Review shows its own Comments section.
+  // What a guest publishes for its Queue; comments are queue items for every role.
   comments: { stage: "review", section: "queue" },
   pipeline: { stage: "prepare" },
 };

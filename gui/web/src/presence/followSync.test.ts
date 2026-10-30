@@ -299,6 +299,17 @@ describe("followSync", () => {
     expect(plan.degraded.tab).toBeUndefined();
   });
 
+  it("takes a guest to the Queue when the host is on it", () => {
+    for (const role of ["commenter", "viewer", "editor"] as const) {
+      const plan = planFollowUi(
+        { tab: "impact" },
+        { guestShare: true, breakpoint: "desktop", role },
+      );
+      expect(plan.degraded.tab).toBeUndefined();
+      expect(plan.apply.stage).toEqual({ stage: "review", section: "queue" });
+    }
+  });
+
   it("maps leader tabs to stages on a phone", () => {
     const comments = planFollowUi(
       { tab: "comments" },

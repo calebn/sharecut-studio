@@ -149,7 +149,7 @@ export function usePresencePublisher(
     const publishUi = (s: DawStore) => {
       push({
         ui: {
-          // A guest sees Comments and a host the Queue, whatever the store holds.
+          // A guest still publishes `comments` for its Queue (older hosts know it); a host publishes `impact`.
           tab: tabForStage(s.stage, s.guestMode ? "comments" : "queue"),
           mobile_mode:
             s.shellBreakpoint === "phone" || s.pointerKind === "coarse"

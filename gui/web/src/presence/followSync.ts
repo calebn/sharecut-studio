@@ -278,16 +278,17 @@ export type FollowUiCaps = {
   role?: StageRole;
 };
 
-const HOST_ONLY_TABS: readonly PresenceTab[] = [
-  "history",
-  "impact",
-  "tighten",
-  "pipeline",
-];
+const HOST_ONLY_TABS: readonly PresenceTab[] = ["history", "pipeline"];
 
 const HOST_ONLY_TAB_SET: ReadonlySet<PresenceTab> = new Set(HOST_ONLY_TABS);
 
-const GUEST_TABS: readonly PresenceTab[] = ["transcript", "comments"];
+/** Review is the Queue for every role, so a host on `impact` or `tighten` is a place a guest can follow to. */
+const GUEST_TABS: readonly PresenceTab[] = [
+  "transcript",
+  "comments",
+  "impact",
+  "tighten",
+];
 
 export const KNOWN_TABS: ReadonlySet<string> = new Set([
   ...GUEST_TABS,
