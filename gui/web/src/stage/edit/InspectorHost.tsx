@@ -24,25 +24,15 @@ import { BottomSheet } from "../../ui/BottomSheet";
 import { INSPECTOR_SHEET_CLASS } from "../../ui/compactSheet";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { EditActionBar } from "./EditActionBar";
+import { focusFirstControl } from "./inspectorFocus";
 import { type InspectorHeading, inspectorHeading } from "./inspectorHeading";
 import type { InspectorOpen, InspectorShell } from "./useInspectorOpen";
 import { bandLocator, useKeepBandClear } from "./useKeepBandClear";
 import { useSelectionAnchor } from "./useSelectionAnchor";
 
-const FIRST_CONTROL =
-  ".sys-inspector-scroll :is(button, input, select, textarea, [tabindex]):not(:disabled, [tabindex='-1'])";
-
-function focusFirstControl(box: HTMLElement) {
-  const target =
-    [...box.querySelectorAll<HTMLElement>(FIRST_CONTROL)].find(
-      (el) => !el.closest("[hidden], [inert]"),
-    ) ?? box.querySelector<HTMLElement>(".sys-inspector-grip, .dialog-close");
-  target?.focus({ preventScroll: true });
-}
-
 /**
  * Focus belongs to the host (design system 9a): on open it remembers where it
- * was and moves into the first control; when the Inspector goes (Esc, Close, a
+ * was and moves into the first control (the dialog when that control takes text); when the Inspector goes (Esc, Close, a
  * new selection, the phone sheet dismissed) it returns to that opener unless
  * the user has already put it somewhere else.
  */

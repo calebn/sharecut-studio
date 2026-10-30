@@ -5947,6 +5947,10 @@ input.sys-edit-fix {
   display: contents;
 }
 
+.sys-inspector:focus {
+  outline: none;
+}
+
 .sys-inspector--card {
   position: absolute;
   z-index: 1;
