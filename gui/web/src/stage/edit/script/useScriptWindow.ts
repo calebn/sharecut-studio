@@ -179,12 +179,7 @@ export function useScriptWindow(
   const drawn = useRef("");
   useLayoutEffect(() => {
     const key = `${range.lo}:${range.hi}`;
-    if (drawn.current === key) {
-      // Changes in one batch that came back here leave nothing to wait for.
-      retry.current = null;
-      eye.current = null;
-      return;
-    }
+    if (drawn.current === key) return;
     drawn.current = key;
     const again = retry.current;
     retry.current = null;
