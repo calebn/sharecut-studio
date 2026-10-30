@@ -118,14 +118,14 @@ describe("StageFrame stage switching", () => {
 });
 
 describe("StageFrame roles", () => {
-  it("shows an Editor link Edit and Review only", () => {
+  it("shows an Editor link Edit, Review and Deliver", () => {
     useDawStore.setState({ guestMode: "edit" });
     mount();
     expect(
       within(bar())
         .getAllByRole("tab")
         .map((tab) => tab.getAttribute("title")),
-    ).toEqual(["Edit", "Review"]);
+    ).toEqual(["Edit", "Review", "Deliver"]);
   });
 
   it("gives an Editor link no Invite: only the host shares", () => {

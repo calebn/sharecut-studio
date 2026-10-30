@@ -122,3 +122,16 @@ export function ShowSetup({ show, onAction }: Props) {
     </section>
   );
 }
+
+/** Someone on a link cannot create or choose the show, so they are told who can instead of shown the form. */
+export function ShowHostNote({ show }: { show: Props["show"] }) {
+  return (
+    <section className="fd-setup" aria-label="Show setup">
+      <p className="fd-setup-lead">
+        {show.kind === "choose"
+          ? "The host picks which show this episode is in."
+          : "The show is not set up yet. Its values appear once the host sets it up."}
+      </p>
+    </section>
+  );
+}

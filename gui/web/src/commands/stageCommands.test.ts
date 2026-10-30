@@ -36,9 +36,9 @@ describe("stage commands", () => {
     expect(useDawStore.getState().stage).toBe("review");
   });
 
-  it("lets an Editor link open Edit and Review only", async () => {
+  it("lets an Editor link open Edit, Review and Deliver but not Prepare", async () => {
     useDawStore.setState({ guestMode: "edit" });
-    expect((await execute("stage.deliver")).status).toBe("disabled");
+    expect((await execute("stage.deliver")).status).toBe("ok");
     expect((await execute("stage.prepare")).status).toBe("disabled");
     expect((await execute("stage.review")).status).toBe("ok");
   });

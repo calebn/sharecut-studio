@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useDawStore } from "../../state/dawStore";
+import { Cover } from "../../system/Cover";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusGlyph } from "../../system/StatusGlyph";
 import { StatusRow } from "../../system/StatusRow";
@@ -12,14 +13,19 @@ import {
 } from "../../ui";
 import { useDisabledReasonNote } from "../../ui/disabledReason";
 import { DeliverSection } from "./DeliverSection";
+import { FeedAsk } from "./FeedAsk";
 import { FeedChecks } from "./FeedChecks";
 import { FeedListing } from "./FeedListing";
 import type { EditControls, OnEdit } from "./FeedValue";
 import {
   checksSummary,
+  type FeedAccess,
   FILE_LINE_STATE,
+  fixBlock,
   fixLabel,
   needsInput,
+  PIN_FIELDS,
+  READ_ONLY_WHY,
   readiness,
   readinessTitle,
   readinessTone,
@@ -34,13 +40,19 @@ import type {
   Fix,
   WriteRequest,
 } from "./feedView";
-import { ShowSetup } from "./ShowSetup";
+import { ShowHostNote, ShowSetup } from "./ShowSetup";
 
 type Props = {
   view: FeedView;
   /** The item as the feed file will carry it. */
   itemXml: string;
-  state?: "ready" | "loading";
+  state?: "ready" | "loading" | "error";
+  /** Who is looking. A link that is not the host's leaves the show and its files to the host, and a Viewer or Commenter link only reads. */
+  access?: FeedAccess;
+  /** The last thing that went wrong, in plain words. With `state` error it is why the listing did not load. */
+  problem?: string | null;
+  onRetry?: () => void;
+  onDismissProblem?: () => void;
   /** A write this surface has sent and not heard back from, or one that failed. The service's own file state is none, current or stale. */
   request?: WriteRequest;
   /** Every edit and command the section can start, in the vocabulary the CLI and MCP share. */
@@ -61,12 +73,17 @@ export function FeedSection({
   view,
   itemXml,
   state = "ready",
+  access = "host",
+  problem,
+  onRetry,
+  onDismissProblem,
   request,
   onAction,
   onOpenSource,
 }: Props) {
   const [pane, setPane] = useState<Pane>("listing");
   const [editing, setEditing] = useState<FieldKey | null>(null);
+  const [asking, setAsking] = useState<FieldKey | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -90,6 +107,33 @@ export function FeedSection({
     refocus.current = null;
     target.focus();
   });
+  const wasRequest = useRef(request);
+  useEffect(() => {
+    const was = wasRequest.current;
+    wasRequest.current = request;
+    if (was !== "writing" || request !== undefined || view.file !== "current")
+      return;
+    const message = "Wrote the feed file.";
+    setToast({ id: Date.now(), message });
+    setUndo(null);
+    useDawStore.getState().announceStatus(message, { toast: false });
+  }, [request, view.file]);
+  if (state === "error") {
+    return (
+      <DeliverSection title="Podcast listing">
+        <Cover
+          size="region"
+          glyph="octagon-alert"
+          title="Could not load the listing"
+          primary={
+            onRetry ? { label: "Try again", onClick: onRetry } : undefined
+          }
+        >
+          {problem ?? "Something went wrong. Try again."}
+        </Cover>
+      </DeliverSection>
+    );
+  }
   if (state === "loading") {
     return (
       <DeliverSection title="Podcast listing">
@@ -128,13 +172,17 @@ export function FeedSection({
     active: editing,
     begin: setEditing,
     end: () => setEditing(null),
+    locked: access === "viewer",
   };
   const focusIn = (selector: string) =>
     root.current?.querySelector<HTMLElement>(selector)?.focus();
   const runFix = (fix: Fix) => {
+    if (fixBlock(access, fix)) return;
     const key = needsInput(fix);
-    if (key !== null) setEditing(key);
-    else if (
+    if (key !== null) {
+      if (PIN_FIELDS[key]) setEditing(key);
+      else setAsking(key);
+    } else if (
       fix.kind === "command" &&
       (fix.command === "create_show" || fix.command === "link_show")
     )
@@ -158,11 +206,13 @@ export function FeedSection({
   const first = ready.kind === "ready" ? null : ready.first;
   const firstFix = first?.fix ?? null;
   const action =
-    ready.kind === "check"
-      ? { label: "Review", onAction: () => focusIn("[data-drift] button") }
-      : firstFix
-        ? { label: fixLabel(firstFix), onAction: () => runFix(firstFix) }
-        : undefined;
+    access === "viewer"
+      ? undefined
+      : ready.kind === "check"
+        ? { label: "Review", onAction: () => focusIn("[data-drift] button") }
+        : firstFix && !fixBlock(access, firstFix)
+          ? { label: fixLabel(firstFix), onAction: () => runFix(firstFix) }
+          : undefined;
   return (
     <DeliverSection
       title="Podcast listing"
@@ -194,8 +244,43 @@ export function FeedSection({
             action={action}
           />
         </div>
-        {view.show.kind === "ready" ? null : (
+        {access === "host" ? null : (
+          <p className="fd-access">
+            {access === "editor"
+              ? "You can edit this listing. The host sets up the show and where it is hosted."
+              : READ_ONLY_WHY}
+          </p>
+        )}
+        {problem ? (
+          <div className="fd-problem" role="alert">
+            <StatusRow
+              density="alert"
+              state="failed"
+              title="That did not go through"
+              detail={problem}
+              action={
+                onDismissProblem
+                  ? { label: "Dismiss", onAction: onDismissProblem }
+                  : undefined
+              }
+            />
+          </div>
+        ) : null}
+        {view.show.kind === "ready" ? null : access === "host" ? (
           <ShowSetup show={view.show} onAction={onAction} />
+        ) : (
+          <ShowHostNote show={view.show} />
+        )}
+        {asking === null ? null : (
+          <FeedAsk
+            field={asking}
+            access={access}
+            onSave={(change) => {
+              onAction(editFix(change));
+              setAsking(null);
+            }}
+            onCancel={() => setAsking(null)}
+          />
         )}
         {pane === "listing" ? (
           <FeedListing
@@ -232,6 +317,8 @@ export function FeedSection({
           findings={view.findings}
           summary={checksSummary(view)}
           onFix={runFix}
+          blockOf={(fix) => fixBlock(access, fix)}
+          readOnly={access === "viewer"}
         />
         <div className="fd-foot">
           <p className="fd-file-status">
@@ -252,7 +339,7 @@ export function FeedSection({
             >
               Copy feed item
             </Button>
-            {file.action ? (
+            {file.action && access !== "viewer" ? (
               <Button
                 variant={
                   file.blockedReason || request === "failed"

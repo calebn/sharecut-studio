@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Cover } from "../../system/Cover";
 import type { LinkCopyState } from "../../system/LinkRow";
 import { Player } from "../../system/Player";
@@ -95,6 +95,8 @@ export type DeliverStageProps = {
   bounce?: BounceOptions;
   /** Without it the Share section is not shown, and the Listen link section stands in when `showLink` is on. */
   share?: ShareOptions;
+  /** The Podcast listing section, mounted after Share. Without it the section is not shown. */
+  feed?: ReactNode;
   /** False when the host cannot put a removed clip back into the project. */
   clipUndo?: boolean;
   /** False when the host cannot save a clip's title or approval. */
@@ -150,6 +152,7 @@ export function DeliverStage({
   exportOptions,
   bounce,
   share,
+  feed,
   clipUndo = true,
   showClipEdits = true,
   onChapters,
@@ -448,6 +451,7 @@ export function DeliverStage({
                 onCopy={() => onCopyLink?.()}
               />
             )}
+            {feed}
           </div>
         </div>
         {phone ? (

@@ -3,6 +3,7 @@ import { plural, thingsLeft } from "./deliverLogic";
 import type {
   Fact,
   FeedCommand,
+  FeedEdit,
   FeedView,
   FieldKey,
   FieldValue,
@@ -98,6 +99,89 @@ export const PIN_FIELDS: Readonly<Record<FieldKey, PinField>> = {
   },
 };
 
+/** The show's own values, asked for in a small form when a fix names one the listing does not show. */
+const SHOW_FIELDS: Readonly<Record<FieldKey, PinField>> = {
+  "channel.title": {
+    label: "show name",
+    add: "Add a show name",
+    multiline: false,
+    reset: "Clear",
+  },
+  "channel.description": {
+    label: "show description",
+    add: "Describe the show",
+    multiline: true,
+    reset: "Clear",
+  },
+  "channel.link": {
+    label: "show website",
+    add: "Add a website",
+    multiline: false,
+    reset: "Clear",
+  },
+  "channel.language": {
+    label: "language",
+    add: "Add a language",
+    multiline: false,
+    reset: "Clear",
+  },
+  "channel.author": {
+    label: "author",
+    add: "Add an author",
+    multiline: false,
+    reset: "Clear",
+  },
+  "channel.category": {
+    label: "category",
+    add: "Add a category",
+    multiline: false,
+    reset: "Clear",
+  },
+  "channel.owner.name": {
+    label: "owner name",
+    add: "Add an owner",
+    multiline: false,
+    reset: "Clear",
+  },
+  "channel.owner.email": {
+    label: "owner email",
+    add: "Add an email",
+    multiline: false,
+    reset: "Clear",
+  },
+  "channel.copyright": {
+    label: "copyright line",
+    add: "Add a copyright line",
+    multiline: false,
+    reset: "Clear",
+  },
+  "channel.image": {
+    label: "artwork address",
+    add: "Choose artwork",
+    multiline: false,
+    reset: "Clear",
+  },
+  "channel.mediaUrl": {
+    label: "hosting address template",
+    add: "Add address",
+    multiline: false,
+    reset: "Clear",
+  },
+};
+
+/** The words for any key a person can be asked to supply. An unlisted key reads as its own name. */
+export function fieldOf(key: FieldKey): PinField {
+  return (
+    PIN_FIELDS[key] ??
+    SHOW_FIELDS[key] ?? {
+      label: key,
+      add: "Add",
+      multiline: false,
+      reset: "Clear",
+    }
+  );
+}
+
 const COMMAND_LABEL: Record<FeedCommand, string> = {
   export_episode: "Export episode",
   create_show: "Set up your show",
@@ -109,17 +193,19 @@ const COMMAND_LABEL: Record<FeedCommand, string> = {
 /** The words on a fix's button. They live here so the wire carries none. */
 export function fixLabel(fix: Fix): string {
   if (fix.kind === "command") return COMMAND_LABEL[fix.command];
-  if (fix.kind === "input") return PIN_FIELDS[fix.key]?.add ?? "Add";
-  return PIN_FIELDS[fix.edit.key]?.add ?? "Add";
+  return fieldOf(fix.kind === "input" ? fix.key : fix.edit.key).add;
 }
 
 /** The key a fix still needs a value for, so a click opens its editor instead of sending. */
 export function needsInput(fix: Fix): FieldKey | null {
+  if (fix.kind === "command" && fix.command === "choose_art")
+    return "channel.image";
   return fix.kind === "input" ? fix.key : null;
 }
 
 export const AGENT_MARK = "Agent";
 export const GUEST_MARK = "Guest";
+export const GUEST_MARK_WHY = "Set with an edit link";
 
 type Mark = (source: Resolved) => string | null;
 const MARKS: { [K in Resolved["kind"]]: Mark } = {
@@ -205,6 +291,96 @@ export function readinessTitle(state: Readiness): string {
     return `Check the ${field?.label ?? "listing"}`;
   }
   return thingsLeft(state.left);
+}
+
+const NOTHING: Fact<never> = {
+  value: null,
+  source: { kind: "pending", why: "", fix: null },
+};
+
+/** What the section holds while the listing has not loaded: nothing it would show. */
+export const EMPTY_VIEW: FeedView = {
+  show: { kind: "choose", shows: [] },
+  channel: {},
+  item: {},
+  sections: {
+    art: NOTHING,
+    audio: NOTHING,
+    chapters: NOTHING,
+    credits: NOTHING,
+    transcripts: NOTHING,
+    soundbites: NOTHING,
+  },
+  notesHtml: "",
+  findings: [],
+  file: "none",
+};
+
+/** Who is looking: the host, someone on an Editor link, or someone who can only read. */
+export type FeedAccess = "host" | "editor" | "viewer";
+
+export const HOST_ONLY_WHY = "Only the host can change this.";
+export const READ_ONLY_WHY =
+  "This link can read the listing but not change it.";
+const ART_WHY = "An edit link can set artwork only as an https address.";
+
+/** The settings an Editor link leaves with the host: the show itself and where its files live. */
+const HOST_ONLY_KEYS: ReadonlySet<FieldKey> = new Set([
+  "show",
+  "channel.mediaUrl",
+]);
+
+function ownsKey(key: FieldKey): boolean {
+  return key.startsWith("item.") || key.startsWith("channel.");
+}
+
+/** Why this link cannot send `edit`, or null. The service refuses the same edits, so this only spares a round trip. */
+export function editBlock(access: FeedAccess, edit: FeedEdit): string | null {
+  if (access === "host") return null;
+  if (access === "viewer") return READ_ONLY_WHY;
+  if (HOST_ONLY_KEYS.has(edit.key) || !ownsKey(edit.key)) return HOST_ONLY_WHY;
+  if (
+    edit.key === "channel.image" &&
+    edit.op === "set" &&
+    typeof edit.value === "string" &&
+    !/^https:\/\//i.test(edit.value.trim())
+  )
+    return ART_WHY;
+  return null;
+}
+
+/** Why this link cannot start `fix`, or null. */
+export function fixBlock(access: FeedAccess, fix: Fix): string | null {
+  if (access === "host") return null;
+  if (access === "viewer") return READ_ONLY_WHY;
+  if (fix.kind === "edit") return editBlock(access, fix.edit);
+  if (fix.kind === "input")
+    return HOST_ONLY_KEYS.has(fix.key) ? HOST_ONLY_WHY : null;
+  return fix.command === "write_feed" || fix.command === "choose_art"
+    ? null
+    : HOST_ONLY_WHY;
+}
+
+/**
+ * The view as it will read once the service takes `edit`: a set value shows as pinned by whoever
+ * sent it. An unset waits for the service, which alone knows the automatic value.
+ */
+export function previewEdit(
+  view: FeedView,
+  edit: FeedEdit,
+  by: "person" | "guest",
+): FeedView {
+  if (edit.op !== "set") return view;
+  if (typeof edit.value === "string" && edit.value.trim() === "") return view;
+  const fact: Fact<FieldValue> = {
+    value: edit.value,
+    source: { kind: "pinned", by, drifted: false },
+  };
+  if (edit.key.startsWith("item."))
+    return { ...view, item: { ...view.item, [edit.key]: fact } };
+  if (edit.key.startsWith("channel."))
+    return { ...view, channel: { ...view.channel, [edit.key]: fact } };
+  return view;
 }
 
 export type WriteLine = {

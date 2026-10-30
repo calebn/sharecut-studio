@@ -14,10 +14,20 @@ type Props = {
   findings: readonly Finding[];
   summary: string;
   onFix: (fix: Fix) => void;
+  /** Why a fix is not this link's to run, or null. Without it every fix runs. */
+  blockOf?: (fix: Fix) => string | null;
+  /** A link that can only read shows the findings without buttons. */
+  readOnly?: boolean;
 };
 
 /** Every finding, closed by default: the readiness strip already leads with the first one. */
-export function FeedChecks({ findings, summary, onFix }: Props) {
+export function FeedChecks({
+  findings,
+  summary,
+  onFix,
+  blockOf,
+  readOnly = false,
+}: Props) {
   if (findings.length === 0) return null;
   return (
     <details className="fd-checks">
@@ -29,7 +39,7 @@ export function FeedChecks({ findings, summary, onFix }: Props) {
       <ul className="fd-findings">
         {sortFindings(findings).map((finding, at) => {
           const glyph = GLYPH[finding.severity];
-          const fix = finding.fix;
+          const fix = readOnly ? null : finding.fix;
           return (
             <li
               key={`${finding.key}-${at}`}
@@ -46,6 +56,7 @@ export function FeedChecks({ findings, summary, onFix }: Props) {
               {fix ? (
                 <Button
                   className="fd-finding-fix"
+                  disabledReason={blockOf?.(fix) ?? undefined}
                   onClick={() => onFix(fix)}
                   aria-label={`${fixLabel(fix)}: ${finding.message}`}
                 >

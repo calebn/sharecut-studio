@@ -599,6 +599,29 @@
   }
 }
 
+.fd-value--static {
+  cursor: default;
+}
+
+.fd-value--static:hover {
+  border-color: transparent;
+}
+
+.fd-badge--static {
+  cursor: default;
+}
+
+.fd-access {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.fd-problem {
+  display: flex;
+  flex-direction: column;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .fd-checks > summary svg {
     transition: rotate var(--motion-state);

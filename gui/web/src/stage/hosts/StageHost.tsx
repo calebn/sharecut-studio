@@ -9,6 +9,7 @@ import { stageLabel } from "../../system/verbs";
 import { EditWorkspace } from "../edit/EditWorkspace";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { DeliverStage } from "./DeliverStage";
+import { GuestDeliver } from "./GuestDeliver";
 import { HostBody } from "./HostBody";
 import { stageAvailable } from "./hostModels";
 import { PrepareStage } from "./PrepareStage";
@@ -89,7 +90,11 @@ function StageHostAdapter({
         />
       );
     case "deliver":
-      return <DeliverStage loadFailure={loadFailure} />;
+      return role === "host" ? (
+        <DeliverStage loadFailure={loadFailure} />
+      ) : (
+        <GuestDeliver loadFailure={loadFailure} />
+      );
   }
 }
 

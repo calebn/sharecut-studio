@@ -3,9 +3,12 @@ import { CHECKS, DRIFTED, PENDING, READY } from "./feedFixture";
 import {
   checksSummary,
   colorIndexOf,
+  editBlock,
+  fixBlock,
   fixLabel,
   markOf,
   needsInput,
+  previewEdit,
   readiness,
   readinessTitle,
   readinessTone,
@@ -181,5 +184,118 @@ describe("formatting", () => {
       ["]]>", true],
       ["</d>", true],
     ]);
+  });
+});
+
+describe("what a link may change", () => {
+  const set = (key: string, value: string) =>
+    ({ op: "set", key, value }) as const;
+
+  it("lets the host change anything", () => {
+    expect(
+      editBlock("host", set("channel.mediaUrl", "https://x.test/{file}")),
+    ).toBeNull();
+    expect(
+      fixBlock("host", { kind: "command", command: "create_show" }),
+    ).toBeNull();
+  });
+
+  it("lets an Editor change episode and plain show values", () => {
+    expect(editBlock("editor", set("item.title", "A"))).toBeNull();
+    expect(editBlock("editor", set("channel.author", "Ana"))).toBeNull();
+    expect(
+      editBlock("editor", set("channel.person[Ana].role", "host")),
+    ).toBeNull();
+    expect(editBlock("editor", { op: "unset", key: "item.intro" })).toBeNull();
+    expect(
+      editBlock(
+        "editor",
+        set("channel.image", "https://cdn.example.test/a.jpg"),
+      ),
+    ).toBeNull();
+  });
+
+  it("leaves the show, the hosting address and local art with the host", () => {
+    for (const edit of [
+      set("show", "field-notes"),
+      set("channel.mediaUrl", "https://x.test/{file}"),
+      set("channel.image", "/Users/ana/cover.jpg"),
+      set("guid", "x"),
+    ])
+      expect(editBlock("editor", edit)).not.toBeNull();
+  });
+
+  it("lets a Viewer change nothing", () => {
+    expect(editBlock("viewer", set("item.title", "A"))).toBe(
+      "This link can read the listing but not change it.",
+    );
+    expect(
+      fixBlock("viewer", { kind: "command", command: "write_feed" }),
+    ).not.toBeNull();
+  });
+
+  it("lets an Editor write and choose https artwork but not set up the show", () => {
+    expect(
+      fixBlock("editor", { kind: "command", command: "write_feed" }),
+    ).toBeNull();
+    expect(
+      fixBlock("editor", { kind: "command", command: "choose_art" }),
+    ).toBeNull();
+    for (const command of [
+      "create_show",
+      "link_show",
+      "export_episode",
+    ] as const)
+      expect(fixBlock("editor", { kind: "command", command })).toBe(
+        "Only the host can change this.",
+      );
+    expect(
+      fixBlock("editor", { kind: "input", key: "channel.mediaUrl" }),
+    ).not.toBeNull();
+    expect(
+      fixBlock("editor", { kind: "input", key: "channel.title" }),
+    ).toBeNull();
+  });
+});
+
+describe("previewEdit", () => {
+  const view = {
+    item: {},
+    channel: {},
+  } as unknown as Parameters<typeof previewEdit>[0];
+
+  it("shows a set value as pinned by whoever sent it", () => {
+    const next = previewEdit(
+      view,
+      { op: "set", key: "item.title", value: "A" },
+      "guest",
+    );
+    expect(next.item["item.title"]).toEqual({
+      value: "A",
+      source: { kind: "pinned", by: "guest", drifted: false },
+    });
+    expect(
+      previewEdit(
+        view,
+        { op: "set", key: "channel.author", value: "Ana" },
+        "person",
+      ).channel["channel.author"]?.value,
+    ).toBe("Ana");
+  });
+
+  it("waits for the service on an unset, a blank, or a key it does not show", () => {
+    expect(
+      previewEdit(view, { op: "unset", key: "item.title" }, "person"),
+    ).toBe(view);
+    expect(
+      previewEdit(
+        view,
+        { op: "set", key: "item.title", value: "  " },
+        "person",
+      ),
+    ).toBe(view);
+    expect(
+      previewEdit(view, { op: "set", key: "show", value: "x" }, "person"),
+    ).toBe(view);
   });
 });

@@ -14,7 +14,7 @@ export function stagesForRole(role: StageRole): readonly StageId[] {
     case "host":
       return STAGE_IDS;
     case "editor":
-      return ["edit", "review"];
+      return ["edit", "review", "deliver"];
     case "commenter":
     case "viewer":
       return ["review"];

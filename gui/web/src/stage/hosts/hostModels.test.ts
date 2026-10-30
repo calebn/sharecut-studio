@@ -4,7 +4,7 @@ import { stageAvailable } from "./hostModels";
 describe("stageAvailable", () => {
   it.each([
     ["host", ["record", "prepare", "edit", "review", "deliver"]],
-    ["editor", ["edit", "review"]],
+    ["editor", ["edit", "review", "deliver"]],
     ["commenter", ["review"]],
     ["viewer", ["review"]],
   ] as const)("%s opens only its stages", (role, open) => {
