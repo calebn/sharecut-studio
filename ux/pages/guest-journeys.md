@@ -246,8 +246,7 @@ flowchart TD
    after it recorded, including after a reload. Producers never record it.
    While this device is not yet in the session or cannot store audio, Record room
    tone stays focusable and says so: "Room tone starts once this device has joined
-   the session and can store audio. Wait a moment for the connection, then try
-   again."
+   the session and can store audio. Wait a moment, then try again; if it stays like this, reload the page."
 4. **Join and record is the consent.** The sheet says "You'll be recorded in full
    quality on this device. It saves to Ava's project when the take ends." and its
    **Details** explain that joining means you agree to be recorded. **Not now**

@@ -240,6 +240,25 @@ describe("FindBar", () => {
     expect(screen.queryByText(/Enter replacement text/)).toBeNull();
   });
 
+  it("asks for text to find before it says there are no matches", () => {
+    render(
+      <FindBar
+        {...props({
+          query: " ",
+          count: 0,
+          current: 0,
+          replace: replaceProps(),
+        })}
+      />,
+    );
+    expect(screen.getByText("Enter text to find first.")).toBeVisible();
+    expect(screen.queryByText(/No matches to replace/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Replace" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
   it("says there is nothing to replace when the search has no hits", async () => {
     const user = userEvent.setup();
     const replace = replaceProps();

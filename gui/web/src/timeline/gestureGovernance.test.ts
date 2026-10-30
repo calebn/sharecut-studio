@@ -233,6 +233,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "reorder grip: the draggable handle moves a track by HTML drag, and the Move up and Move down commands do the same by key",
   "inspector/useNudgeRun.ts":
     "a held nudge button steps the selected clip and saves one run edit on release",
+  "inspector/NudgeButtons.tsx":
+    "the nudge row passes a press on its buttons to the clip inspector, which cancels a pending clip placement first, and drops it while the nudges cannot run",
   "inspector/views/ClipInspector.tsx":
     "a press on the nudge buttons cancels a pending clip placement first; the nudge itself runs through useNudgeRun",
   "transcript/EditBoundaryMarkView.tsx":

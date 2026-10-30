@@ -318,6 +318,10 @@
 
 /* Why a read-only mark does not edit: shown under the mark while it has focus
    or after a tap, and read out through aria-describedby all the time. */
+.edit-boundary-cluster .sr-only {
+  user-select: none;
+}
+
 .edit-boundary-reason {
   position: absolute;
   inset-block-start: 100%;
