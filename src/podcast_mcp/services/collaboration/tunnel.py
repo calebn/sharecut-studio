@@ -761,8 +761,6 @@ def run_tunnel_sync(
     and this function returns.
     Raises ``TunnelError`` on an auth or config failure that retrying cannot fix.
     """
-    if project_path is not None:
-        project_path = adopt_retired_entry_file(project_path)
     cfg = load_relay_config(
         config_path,
         relay_url=relay_url,
@@ -770,6 +768,8 @@ def run_tunnel_sync(
         public_base_url=public_base_url,
         local_gui_url=local_gui_url,
     )
+    if project_path is not None:
+        project_path = adopt_retired_entry_file(project_path)
     listeners: list[StatusListener] = [
         LineListener(emit),
         StatusFileListener(tunnel_status_path(cfg)),

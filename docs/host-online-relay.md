@@ -34,6 +34,12 @@ without reaching the local GUI.
 
 ---
 
+`podcast tunnel` validates relay configuration before adopting a retired project
+entry filename. Invalid configuration exits with code `2` and leaves the project
+entries and their bytes unchanged. With valid configuration, a retired filename
+or workspace folder passed to `--project` resolves once to `episode.sharecut`
+before the client starts, so reconnects keep the same entry path and shares.
+
 ## Tunnel status
 
 `podcast tunnel` reports every connection state change on **stderr**, one timestamped
