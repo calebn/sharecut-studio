@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openPanel, openProject } from "./stageNav";
+import { servePendingEditsCleared } from "./transcriptEdit";
 
 type Word = Record<string, unknown>;
 
@@ -60,16 +61,9 @@ function twoLaneTranscript() {
 }
 
 async function openFollowedTranscript(page: Page): Promise<Locator> {
-  await page.route(
-    (url) => new URL(url).pathname === "/api/document/state",
-    async (route) => {
-      const response = await route.fetch();
-      const body = (await response.json()) as Record<string, unknown>;
-      const project = (body.project ?? body.patch) as Record<string, unknown>;
-      project.transcript = { utterances: twoLaneTranscript() };
-      await route.fulfill({ response, json: body });
-    },
-  );
+  await servePendingEditsCleared(page, (project) => {
+    project.transcript = { utterances: twoLaneTranscript() };
+  });
   await openProject(page, e2eProjectPath);
 
   await openPanel(page, "transcript");
