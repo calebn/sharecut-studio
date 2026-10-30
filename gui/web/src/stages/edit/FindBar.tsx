@@ -23,8 +23,11 @@ type FindReplaceProps = {
   onOpenChange: (open: boolean) => void;
   text: string;
   onTextChange: (text: string) => void;
-  /** Replace the current hit. A promise keeps the bar busy until it settles. */
-  onReplace: () => void | Promise<void>;
+  /**
+   * Replace the current hit. A promise keeps the bar busy until it settles.
+   * Left out, the bar offers Replace all only.
+   */
+  onReplace?: () => void | Promise<void>;
   /**
    * Replace every hit as one undo step. Returns how many were replaced, which
    * the host shows in its undo toast ("Replaced 12 · Undo"). A promise keeps
@@ -185,7 +188,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
     if (hits && idle && onCutAll) void run(onCutAll, true);
   };
   const replaceOne = () => {
-    if (hits && idle && replace && replaceReady)
+    if (hits && idle && replace?.onReplace && replaceReady)
       void run(replace.onReplace, false);
   };
   const replaceAll = () => {
@@ -340,15 +343,17 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
               onKeyDown={onReplaceKey}
             />
           </div>
-          <button
-            type="button"
-            className="sys-text-btn"
-            disabled={!hits || !idle || !replaceReady}
-            onClick={replaceOne}
-            onKeyDown={onButtonKey}
-          >
-            Replace
-          </button>
+          {replace.onReplace ? (
+            <button
+              type="button"
+              className="sys-text-btn"
+              disabled={!hits || !idle || !replaceReady}
+              onClick={replaceOne}
+              onKeyDown={onButtonKey}
+            >
+              Replace
+            </button>
+          ) : null}
           <button
             type="button"
             className="sys-text-btn"

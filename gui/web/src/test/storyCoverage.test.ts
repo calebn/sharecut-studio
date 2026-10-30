@@ -13,10 +13,12 @@ const COVERED: Record<string, string[]> = {
     "Templates/TranscriptTurn",
     "System/ScriptPane",
     "Stages/Edit/ScriptPane",
+    "Stages/Edit/ScriptHost",
   ],
   "CMP-FINDREPLACE": [
     "Templates/Editor · Transcript panel",
     "Stages/Edit/FindBar",
+    "Stages/Edit/ScriptHost",
   ],
   "DLG-PRECISION": [
     "Templates/Editor · Precision boundary dialog",
@@ -156,10 +158,12 @@ const COVERED: Record<string, string[]> = {
   "POP-WORD-EDIT": [
     "Templates/Editor · Transcript editors",
     "Stages/Edit/ScriptPane",
+    "Stages/Edit/ScriptHost",
   ],
   "POP-SPEAKER": [
     "Templates/Editor · Transcript editors",
     "Stages/Edit/SpeakerPopover",
+    "Stages/Edit/ScriptHost",
   ],
   "CMP-WORDBAR": [
     "Templates/Editor · Inspector · Word",
@@ -182,19 +186,29 @@ const COVERED: Record<string, string[]> = {
   "SCR-SHELL-TABLET": ["Stages/Edit/Frame"],
   "SCR-SHELL-LOADING": ["Stages/Edit/Frame"],
   "SCR-SHELL-INGEST": ["Stages/Edit/Frame", "Stages/Prepare/Prepare"],
-  "SCR-GUEST-VIEWER": ["Stages/Edit/Frame", "Stages/Review/Guest"],
+  "SCR-GUEST-VIEWER": [
+    "Stages/Edit/Frame",
+    "Stages/Review/Guest",
+    "Stages/Edit/ScriptHost",
+  ],
   "SCR-GUEST-COMMENTER": [
     "Stages/Edit/Frame",
     "System/ScriptPane",
     "Stages/Review/Guest",
+    "Stages/Edit/ScriptHost",
   ],
-  "SCR-GUEST-EDITOR": ["Stages/Edit/Frame", "Stages/Review/Guest"],
+  "SCR-GUEST-EDITOR": [
+    "Stages/Edit/Frame",
+    "Stages/Review/Guest",
+    "Stages/Edit/ScriptHost",
+  ],
   "SCR-GUEST-MOBILE": ["Stages/Edit/Frame", "Stages/Review/Guest"],
   "SCR-PHONE-TIMELINE": ["Stages/Edit/Frame", "Stages/Edit/Workspace"],
   "SCR-PHONE-TEXT": [
     "Stages/Edit/Frame",
     "Stages/Edit/Workspace",
     "System/ScriptPane",
+    "Stages/Edit/ScriptHost",
   ],
   "OVL-PROSODY": ["Templates/ProsodyOverlay"],
   "OVL-RECORDING": ["Templates/RecordingOverlay"],
