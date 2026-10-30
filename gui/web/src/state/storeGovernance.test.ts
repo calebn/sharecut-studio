@@ -449,10 +449,6 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "leaf that reads the presence roster itself",
   },
   {
-    file: "panels/TranscriptPanel.tsx",
-    reason: "follows the live playhead to auto-scroll the transcript",
-  },
-  {
     file: "presence/PresenceGhostLayer.tsx",
     reason: "leaf that reads the presence roster itself",
   },

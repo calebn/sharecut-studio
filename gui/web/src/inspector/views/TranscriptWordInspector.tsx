@@ -69,7 +69,7 @@ export function TranscriptWordInspector({
   trackId: string;
   sourceId?: string | null;
   wordIndex: number;
-  /** Docked inside TranscriptPanel (text focus) — not the side rail. */
+  /** Docked beside the Script (text focus) — not the side rail. */
   embedded?: boolean;
   presentation?: "standard" | "correct-sheet";
 }) {

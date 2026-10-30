@@ -87,13 +87,9 @@ export function PhoneEditSurfaceView({
           </div>
         </div>
       ) : (
-        <section
-          ref={bindings?.script}
-          className="phone-edit-script"
-          aria-label="Script"
-        >
+        <div ref={bindings?.script} className="phone-edit-script">
           {script}
-        </section>
+        </div>
       )}
     </div>
   );

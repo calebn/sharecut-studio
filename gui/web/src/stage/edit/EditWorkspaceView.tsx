@@ -114,13 +114,9 @@ export function EditWorkspaceView({
         </div>
       ) : null}
       {scriptShown ? (
-        <section
-          ref={bindings?.script}
-          className="edit-script"
-          aria-label="Script"
-        >
+        <div ref={bindings?.script} className="edit-script">
           {script}
-        </section>
+        </div>
       ) : null}
       {inspector ? (
         <div ref={bindings?.inspector} className="edit-inspector">

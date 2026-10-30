@@ -19,7 +19,6 @@ THEME_TOKENS = ROOT / "gui/web/src/styles/theme/tokens.css"
 THEME_DARK = ROOT / "gui/web/src/styles/theme/theme-dark.css"
 THEME_LIGHT = ROOT / "gui/web/src/styles/theme/theme-light.css"
 PRIMITIVES_CSS = ROOT / "gui/web/src/styles/theme/primitives.css"
-PANELS_CSS = ROOT / "gui/web/src/styles/partials/panels.css"
 LAYOUT_CSS = ROOT / "gui/web/src/styles/partials/layout.css"
 
 SHARED_COLOR_ROLES: tuple[str, ...] = (
@@ -490,36 +489,8 @@ def test_selected_chip_and_fields_keep_text_contrast(theme: str) -> None:
         assert _contrast_ratio(_resolve_hex(text, roles), field) >= 4.5, (theme, text, "field")
 
 
-_ACCENT_WASH_RE = re.compile(
-    r"color-mix\(in srgb, var\(--color-accent\) (\d+(?:\.\d+)?)%, transparent\)"
-)
-
-
-def _accent_wash_alpha(name: str, roles: dict[str, str]) -> float:
-    match = _ACCENT_WASH_RE.fullmatch(roles[name])
-    assert match, f"{name} must be --color-accent mixed over transparent: {roles[name]}"
-    return float(match.group(1)) / 100
-
-
-@pytest.mark.parametrize("theme", ["dark", "light"])
-def test_review_stop_outline_meets_non_text_contrast(theme: str) -> None:
-    """The low-confidence walkthrough stop (#634, `.utterance-word.review-current`)
-    draws a solid --color-warning outline over the active turn (accent-subtle) and
-    segment (accent-muted) washes on --color-bg-surface; WCAG 1.4.11 needs 3:1."""
-    roles = _studio_roles(theme)
-    accent = _resolve_hex("--color-accent", roles)
-    surface = _resolve_hex("--color-bg-surface", roles)
-    turn = _mix(accent, surface, _accent_wash_alpha("--color-accent-subtle", roles))
-    segment = _mix(accent, turn, _accent_wash_alpha("--color-accent-muted", roles))
-    outline = _resolve_hex("--color-warning", roles)
-    for fill in (surface, turn, segment):
-        assert _contrast_ratio(outline, fill) >= 3.0, (theme, fill)
-
-
 _WASH_RE = re.compile(r"color-mix\(in srgb, var\((--[\w-]+)\) (\d+(?:\.\d+)?)%, transparent\)")
 _RULE_RE = re.compile(r"([^{}]+)\{([^{}]*)\}")
-_BOX_SHADOW_RE = re.compile(r"box-shadow\s*:([^;]+);")
-_VAR_REF_RE = re.compile(r"var\((--[\w-]+)\)")
 
 
 def _partial_rule_body(path: Path, selector: str) -> str:
@@ -530,80 +501,6 @@ def _partial_rule_body(path: Path, selector: str) -> str:
     bodies = [body for sel, body in _RULE_RE.findall(css) if sel.strip() == selector]
     assert len(bodies) == 1, f"expected exactly one {selector!r} rule, found {len(bodies)}"
     return bodies[0]
-
-
-def _panels_rule_body(selector: str) -> str:
-    return _partial_rule_body(PANELS_CSS, selector)
-
-
-def _box_shadow_color_vars(body: str) -> list[str]:
-    match = _BOX_SHADOW_RE.search(body)
-    assert match, f"no box-shadow declaration in: {body!r}"
-    return _VAR_REF_RE.findall(match.group(1))
-
-
-@pytest.mark.parametrize("theme", ["dark", "light"])
-def test_locked_word_shadow_meets_non_text_contrast(theme: str) -> None:
-    """The audibility-lock indicator (#781, `.utterance-word.locked`) is a solid
-    inset box-shadow; WCAG 1.4.11 needs 3:1 against every fill a locked word can
-    sit on, live-measured in Studio (#802 review, round 2):
-
-    - plain surface, active turn (accent-subtle) and active segment (accent-muted).
-    - active word (clicked or currently playing): accent-strong over the segment.
-    - hover, and selected: `.utterance-word:hover` has higher specificity than
-      `.active`/`.selected`, so it replaces the word's own background outright
-      (confirmed live via getComputedStyle) with a white-10% wash over the
-      segment, rather than layering over the active-word/selected fill. Selected
-      alone uses the same accent-muted wash as the segment, over the segment.
-
-    --color-border-strong (round 1) failed the turn/segment washes.
-    --color-text-secondary (round 2) failed the active-word fill (2.41/3.07) and
-    the hover/selected-adjacent fills; --color-text-primary clears 3:1 everywhere
-    with margin. The shadow color is parsed from `panels.css` (not hard-coded),
-    and cross-checked against the `.locked.low-confidence` stacking rule
-    (#802 review round 3), so a color swapped back in either rule fails here
-    instead of silently passing (#802 review round 4)."""
-    locked_vars = _box_shadow_color_vars(_panels_rule_body(".utterance-word.locked"))
-    assert len(locked_vars) == 1, locked_vars
-    lock_var = locked_vars[0]
-
-    low_confidence_vars = _box_shadow_color_vars(
-        _panels_rule_body(".utterance-word.low-confidence")
-    )
-    assert len(low_confidence_vars) == 1, low_confidence_vars
-    low_confidence_var = low_confidence_vars[0]
-
-    stacked_vars = _box_shadow_color_vars(
-        _panels_rule_body(".utterance-word.locked.low-confidence")
-    )
-    assert set(stacked_vars) == {lock_var, low_confidence_var}, stacked_vars
-
-    roles = _studio_roles(theme)
-    accent = _resolve_hex("--color-accent", roles)
-    surface = _resolve_hex("--color-bg-surface", roles)
-    turn = _mix(accent, surface, _accent_wash_alpha("--color-accent-subtle", roles))
-    segment = _mix(accent, turn, _accent_wash_alpha("--color-accent-muted", roles))
-    active_word = _mix(accent, segment, _accent_wash_alpha("--color-accent-strong", roles))
-    selected = _mix(accent, segment, _accent_wash_alpha("--color-accent-muted", roles))
-
-    white_match = _WASH_RE.fullmatch(roles["--color-overlay-white-10"])
-    assert white_match, roles["--color-overlay-white-10"]
-    white = _resolve_hex(white_match.group(1), roles)
-    hover_alpha = float(white_match.group(2)) / 100
-    hover = _mix(white, segment, hover_alpha)
-
-    shadow = _resolve_hex(lock_var, roles)
-    fills = {
-        "surface": surface,
-        "active_turn": turn,
-        "active_segment": segment,
-        "active_word": active_word,
-        "hover": hover,
-        "selected": selected,
-        "selected_hover": hover,
-    }
-    for name, fill in fills.items():
-        assert _contrast_ratio(shadow, fill) >= 3.0, (theme, name, fill, lock_var)
 
 
 @pytest.mark.parametrize("theme", ["dark", "light"])

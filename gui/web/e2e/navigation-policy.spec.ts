@@ -147,12 +147,10 @@ test("F03/F13 native ruler clock and modifier wheel anchor reversal bounds and t
       const reversed = await anchor();
       expect(reversed.sec).toBeCloseTo(origin.sec, 1);
       await openTranscriptPanel(page);
-      await page
-        .getByRole("button", { name: "Find and replace", exact: true })
-        .click();
+      await page.getByRole("button", { name: "Find in transcript" }).click();
       const input = page
-        .getByRole("region", { name: "Find and replace transcript" })
-        .getByRole("textbox", { name: "Find", exact: true });
+        .getByRole("search", { name: "Find in transcript" })
+        .getByRole("searchbox", { name: "Find", exact: true });
       await input.focus();
       await expect(input).toBeFocused();
       const typingWidth = await width(page);

@@ -794,25 +794,6 @@ def test_wide_and_adjacent_controls_press_in_place() -> None:
         assert excluded in press[0].preludes[-1], excluded
 
 
-def test_prominent_overline_leaves_word_state_decorations() -> None:
-    """#732 review: `.utterance-word.prominent`'s overline must not replace the
-    strike / dotted underline of suppressed, ignored or suspect-hallucination
-    words (same property, same specificity), so the rule that sets
-    text-decoration excludes those states.
-    """
-    css = (ROOT / "gui/web/src/styles/partials/panels.css").read_text(encoding="utf-8")
-    css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
-    rules = [
-        (selector.strip(), body)
-        for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css)
-        if ".prominent" in selector and "text-decoration" in body
-    ]
-    assert rules, "expected a .prominent rule that sets text-decoration"
-    for selector, _body in rules:
-        for state in (".suppressed", ".ignored", ".suspect-hallucination"):
-            assert re.search(r":not\([^)]*" + re.escape(state), selector), (selector, state)
-
-
 _FIELD_SELECTOR = re.compile(
     r"(?<![\w-])(?:input|select|textarea)\b|(?:-input|-select|-textarea)(?=$|[:.\[#])"
 )

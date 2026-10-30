@@ -24,8 +24,8 @@ function lower(body: Record<string, unknown>): void {
   }
 }
 
-test.describe("Transcript low-confidence walkthrough (#634)", () => {
-  test("Next/Previous visit every low-confidence word in order, wrap, and keep the stop marker in Correct mode", async ({
+test.describe("Script unsure-word jump (#634)", () => {
+  test("the unsure button visits every low-confidence word in order, wraps and selects each", async ({
     page,
   }) => {
     await page.route(
@@ -44,59 +44,27 @@ test.describe("Transcript low-confidence walkthrough (#634)", () => {
     );
     await openPanel(page, "transcript");
 
-    const annotateBtn = page.getByRole("button", {
-      name: /^(Annotate:|Hide annotate)/,
+    const next = page.getByRole("button", {
+      name: "3 unsure words, go to the next",
     });
-    if ((await annotateBtn.getAttribute("aria-pressed")) !== "true") {
-      await annotateBtn.click();
-    }
-
-    const review = page.getByRole("group", { name: "Low-confidence review" });
-    await expect(review).toContainText("3 low-confidence");
-
-    const current = page.locator('.transcript-list [aria-current="true"]');
-    const stops: [string, string, number][] = [
-      ["reference", "delighted", 3],
-      ["reference", "delighted", 24],
-      ["guest", "antonia", 12],
-      ["reference", "delighted", 3],
+    await expect(next).toBeVisible();
+    const selected = page.locator(
+      ".sys-script-body .sys-script-word[data-selected]",
+    );
+    const stops: [string, string][] = [
+      ["reference::3", "delighted"],
+      ["reference::24", "delighted"],
+      ["guest::12", "antonia"],
+      ["reference::3", "delighted"],
     ];
 
-    for (let i = 0; i < stops.length; i++) {
-      const [track, word, wordIndex] = stops[i];
-      await page
-        .getByRole("button", { name: /^Next low-confidence word/ })
-        .click();
-      await expect(current).toHaveCount(1);
-      await expect(current).toHaveText(word);
-      await expect(current).toHaveAttribute("data-track-id", track);
-      await expect(current).toHaveAttribute(
-        "data-word-index",
-        String(wordIndex),
-      );
-      await expect(current).toBeInViewport();
-      await expect(review).toContainText(`${(i % 3) + 1}/3`);
+    for (const [key, word] of stops) {
+      await next.click();
+      await expect(selected).toHaveCount(1);
+      await expect(selected).toHaveAttribute("data-word-key", key);
+      await expect(selected).toContainText(word);
+      await expect(selected).toBeInViewport();
     }
-
-    // Previous from "delighted" wraps to the last stop, "antonia".
-    await page
-      .getByRole("button", { name: /^Previous low-confidence word/ })
-      .click();
-    await expect(current).toHaveText("antonia");
-    await expect(current).toHaveAttribute("data-track-id", "guest");
-    await expect(review).toContainText("3/3");
-
-    // Correct mode also selects the stop; the dashed stop marker must still
-    // win over .selected's solid accent outline.
-    await page.getByRole("button", { name: /^Correct:/i }).click();
-    await page
-      .getByRole("button", { name: /^Next low-confidence word/ })
-      .click();
-    await expect(current).toHaveText("delighted");
-    await expect(current).toHaveAttribute("data-track-id", "reference");
-    await expect(current).toHaveClass(/\bselected\b/);
-    await expect(current).toHaveCSS("outline-style", "dashed");
-    await expect(review).toContainText("1/3");
 
     await expectPageAxeClean(page);
   });

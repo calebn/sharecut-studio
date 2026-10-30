@@ -278,63 +278,9 @@ html[data-shell="phone"] .guest-attention-dismiss {
   min-inline-size: 0;
 }
 
-.transcript-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.transcript-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-4);
-  margin-bottom: var(--space-3);
-  flex: 0 0 auto;
-}
-
 .transcript-meta {
   flex: 1 1 12rem;
   min-inline-size: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-}
-
-.transcript-toolbar-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  flex: 0 1 auto;
-}
-
-.transcript-mode-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.transcript-review-group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.transcript-review-count {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.transcript-mode-hint {
-  flex: 0 0 auto;
-  margin: 0 0 var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
 }
@@ -345,15 +291,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
       margin-block-end: 0;
     }
   }
-}
-
-.transcript-inline-failure {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-3);
-  flex: 0 0 auto;
-  margin: 0 0 var(--space-3);
 }
 
 .track-headers-chrome {
@@ -452,35 +389,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
   font-size: var(--font-size-caption);
   padding: var(--space-0) var(--space-3);
   flex: 0 0 auto;
-}
-
-.transcript-list {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  /* No double-tap zoom: a second tap on a word opens correction. */
-  touch-action: manipulation;
-  /* Room under the last turn as deep as the inspector sheet covers the list,
-     so a selection can scroll clear of it (useKeepSelectionClear). */
-  padding-block-end: var(--sheet-clearance, 0);
-}
-
-.transcript-list.is-virtualized {
-  position: relative;
-}
-
-.transcript-list.is-virtualized .transcript-virtual-spacer {
-  flex: none;
-}
-
-.transcript-list.is-virtualized .utterance-turn {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
 }
 
 .sr-only {

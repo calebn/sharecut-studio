@@ -310,11 +310,11 @@ test.describe("large project benchmark (opt-in fixture)", () => {
       profiles.push(
         await profile(recorder, "transcript-open", async () => {
           await openPanel(page, "transcript");
-          await expect(page.locator(".transcript-list")).toBeVisible(HEAVY);
-          await expect(
-            page.locator('.utterance-turn[data-turn-index="0"]'),
-          ).toBeVisible(HEAVY);
-          await expect(page.locator(".utterance-word").first()).toBeVisible(
+          await expect(page.locator(".sys-script-body")).toBeVisible(HEAVY);
+          await expect(page.locator(".sys-script-turn").first()).toBeVisible(
+            HEAVY,
+          );
+          await expect(page.locator(".sys-script-word").first()).toBeVisible(
             HEAVY,
           );
         }),
@@ -322,17 +322,17 @@ test.describe("large project benchmark (opt-in fixture)", () => {
       profiles.push(
         await profile(recorder, "transcript-scroll-seek", async () => {
           await scrollToEnd(
-            page.locator(".transcript-list"),
+            page.locator(".sys-script-body"),
             "scrollTop",
             HEAVY.timeout,
           );
-          const lastTurn = page.locator(
-            `.utterance-turn[data-turn-index="${shape.utterances - 1}"]`,
-          );
+          const lastTurn = page.locator(".sys-script-turn").last();
           await expect(lastTurn).toBeVisible(HEAVY);
-          const seek = lastTurn.locator('.utterance-seek[title^="Seek turn"]');
-          const title = (await seek.getAttribute("title")) ?? "";
-          const target = Number(/\(([\d.]+)s\)/.exec(title)?.[1]);
+          const seek = lastTurn.locator("button.sys-script-time");
+          const clock = (await seek.innerText()).trim();
+          const target = clock
+            .split(":")
+            .reduce((total, part) => total * 60 + Number(part), 0);
           expect(Number.isFinite(target)).toBe(true);
           await seek.click();
           await expect
@@ -439,7 +439,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
       })[] = [];
       const enduranceStart = performance.now();
       await openPanel(page, "transcript");
-      await expect(page.locator(".transcript-list")).toBeVisible(HEAVY);
+      await expect(page.locator(".sys-script-body")).toBeVisible(HEAVY);
       for (let round = 0; round < SCRUB_ROUNDS; round++) {
         await recorder.measure(
           {

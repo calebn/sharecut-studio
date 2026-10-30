@@ -171,7 +171,7 @@ test.describe("core flow", () => {
                 .getByRole("button", { name: "my", exact: true })
                 .first()
                 .dblclick();
-              const input = list.getByRole("textbox", { name: /Correct word/ });
+              const input = list.getByRole("textbox", { name: "Fix text" });
               await expect(input).toBeFocused();
               await input.fill("My");
               await input.press("Enter");
