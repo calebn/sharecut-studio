@@ -35,7 +35,9 @@ test("rename a transcript speaker updates all its turns and Undo restores them",
     await input.fill("Renamed speaker");
     await input.press("Enter");
     await expect(named("Renamed speaker")).toHaveCount(count);
-    expect(commands.filter((type) => type === "SetTrackMeta")).toHaveLength(1);
+    await expect
+      .poll(() => commands.filter((type) => type === "SetTrackMeta").length)
+      .toBe(1);
     await page
       .locator(".sys-header-history")
       .getByRole("button", { name: /^Undo/ })
