@@ -22,7 +22,13 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.pipeline import runner
-from podcast_mcp.services.jobs import AgentJobFanInReporter, Job, JobManager, guest_job_view
+from podcast_mcp.services.jobs import (
+    GUEST_RENDER_KINDS,
+    AgentJobFanInReporter,
+    Job,
+    JobManager,
+    guest_job_view,
+)
 from podcast_mcp.services.support.diagnostics import _sanitize_job_snapshots
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.model_missing import ModelMissing
@@ -237,7 +243,7 @@ def test_guest_and_diagnostics_views_never_carry_the_model(
     job = mgr.start_render_preview(minimal_project)
     snap = _run(mgr, job)
     assert snap["error_code"] == "model_needed"
-    guest = guest_job_view(job, minimal_project)
+    guest = guest_job_view(job, minimal_project, GUEST_RENDER_KINDS)
     assert guest == {
         "id": job.id,
         "status": "error",

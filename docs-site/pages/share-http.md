@@ -48,6 +48,10 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `GET` | `…/daw/pending-edits/{edit_id}/cut-suggestion` | `Commenter or Editor` | Read-only full-source pending cut suggestion; no-store; read rate class |
 | `GET` | `…/daw/pending-preview` | `play + view` | Listen-first Current/Suggested/A/B WAV (not host speakers) |
 | `GET` | `…/daw/pending-preview-image` | `play + view` | Waveform or spectrogram of the listen-first extract |
+| `GET` | `…/daw/pipeline/jobs/{job_id}` | `Editor` | Read one job of this project; any other job id is 404 |
+| `POST` | `…/daw/pipeline/jobs/{job_id}/cancel` | `Editor` | Cancel one job of this project (works with PODCAST_GUEST_RENDER off) |
+| `GET` | `…/daw/pipeline/jobs/{job_id}/events` | `Editor` | SSE status frames of one job; closes when the job ends or the link is revoked |
+| `GET` | `…/daw/pipeline/status` | `Editor` | Read the share project's job status (fixed copy, no host paths) |
 | `GET` | `…/daw/project` | `view` | Sanitized ProjectView (no host paths) |
 | `GET` | `…/daw/proxy/manifest` | `play` | Proxy chunk manifest |
 | `GET` | `…/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}` | `play` | Content-addressed proxy media |

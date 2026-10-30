@@ -3,7 +3,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from podcast_mcp.services.jobs import guest_job_view
+from podcast_mcp.services.jobs import GUEST_RENDER_KINDS, guest_job_view
 
 
 def test_guest_job_view_scoped_and_sanitized() -> None:
@@ -12,6 +12,8 @@ def test_guest_job_view_scoped_and_sanitized() -> None:
         kind="render_preview",
         project_path="/host/one/episode.sharecut",
         snapshot=lambda: {
+            "id": "render-1",
+            "kind": "render_preview",
             "status": "running",
             "current": 2,
             "total": 4,
@@ -21,8 +23,8 @@ def test_guest_job_view_scoped_and_sanitized() -> None:
             "result": {"premix_path": "/host/private/mix.wav"},
         },
     )
-    assert guest_job_view(job, Path("/host/two/episode.sharecut")) is None
-    assert guest_job_view(job, Path(job.project_path)) == {
+    assert guest_job_view(job, Path("/host/two/episode.sharecut"), GUEST_RENDER_KINDS) is None
+    assert guest_job_view(job, Path(job.project_path), GUEST_RENDER_KINDS) == {
         "id": "render-1",
         "status": "running",
         "current": 2,
@@ -31,13 +33,24 @@ def test_guest_job_view_scoped_and_sanitized() -> None:
         "error": None,
     }
     job.snapshot = lambda: {
+        "id": "render-1",
+        "kind": "render_preview",
         "status": "error",
         "current": 3,
         "total": 4,
         "error": "/host/private/audio.wav",
     }
-    assert guest_job_view(job, Path(job.project_path))["error"] == "Render preview failed"
-    job.snapshot = lambda: {"status": "cancelled", "current": 3, "total": 4}
-    assert guest_job_view(job, Path(job.project_path))["status"] == "cancelled"
-    job.kind = "pipeline"
-    assert guest_job_view(job, Path(job.project_path)) is None
+    assert (
+        guest_job_view(job, Path(job.project_path), GUEST_RENDER_KINDS)["error"]
+        == "Render preview failed"
+    )
+    job.snapshot = lambda: {
+        "id": "render-1",
+        "kind": "render_preview",
+        "status": "cancelled",
+        "current": 3,
+        "total": 4,
+    }
+    assert guest_job_view(job, Path(job.project_path), GUEST_RENDER_KINDS)["status"] == "cancelled"
+    job.kind = "export"
+    assert guest_job_view(job, Path(job.project_path), GUEST_RENDER_KINDS) is None

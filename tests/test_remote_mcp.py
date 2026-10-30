@@ -1043,7 +1043,13 @@ def test_guest_render_preview_strips_host_paths(monkeypatch):
         error = None
 
         def snapshot(self):
-            return {"status": "ok", "current": 1, "total": 1}
+            return {
+                "id": "render-1",
+                "kind": "render_preview",
+                "status": "ok",
+                "current": 1,
+                "total": 1,
+            }
 
     class FakeJobs:
         def start_render_preview(self, _path):
@@ -1130,7 +1136,13 @@ def test_guest_render_preview_non_dict_ok(monkeypatch):
         error = None
 
         def snapshot(self):
-            return {"status": "ok", "current": 1, "total": 1}
+            return {
+                "id": "render-1",
+                "kind": "render_preview",
+                "status": "ok",
+                "current": 1,
+                "total": 1,
+            }
 
     class FakeJobs:
         def start_render_preview(self, _path):

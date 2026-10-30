@@ -12,6 +12,7 @@ from podcast_mcp.gui.routes.deps import (
     require_host,
     resolve_project,
 )
+from podcast_mcp.gui.routes.pipeline_jobs import cancel_job, find_job
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import (
     PipelineAnalyzeRequest,
@@ -205,10 +206,7 @@ def pipeline_cancel(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
-    job = _jobs(request).cancel(req.job_id)
-    if job is None:
-        raise coded_http_error(404, "No pipeline job", code="job_not_found")
-    return {"job": job.snapshot()}
+    return {"job": cancel_job(_jobs(request), req.job_id).snapshot()}
 
 
 @router.post("/api/pipeline/render-preview")
@@ -237,7 +235,4 @@ def pipeline_events(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> StreamingResponse:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
-    job = _jobs(request).get_job(job_id)
-    if job is None:
-        raise coded_http_error(404, "No pipeline job", code="job_not_found")
-    return job_events_response(job)
+    return job_events_response(find_job(_jobs(request), job_id))

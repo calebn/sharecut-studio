@@ -8,13 +8,18 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 
+from podcast_mcp.gui.job_events import GUEST_STREAM_SLOTS
 from podcast_mcp.gui.routes.deps import coded_http_error
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
+from podcast_mcp.gui.routes.pipeline_jobs import cancel_job
 from podcast_mcp.gui.routes.share_common import check_share_token, rate_limit_share
+from podcast_mcp.gui.routes.sse_common import guest_job_events_response
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     GUEST_OWNER_ROUTES,
@@ -22,7 +27,14 @@ from podcast_mcp.services.collaboration import (
     guest_owner_route,
     require_share_edit,
 )
-from podcast_mcp.services.jobs import guest_job_view
+from podcast_mcp.services.jobs import (
+    GUEST_PIPELINE_KINDS,
+    GUEST_RENDER_KINDS,
+    Job,
+    guest_job_view,
+    guest_status_view,
+    guest_visible_job,
+)
 from podcast_mcp.util.guest_render import require_guest_render
 
 router = APIRouter()
@@ -49,11 +61,60 @@ def guest_route(name: str) -> Callable[[str], ProjectWorkspace]:
     return dependency
 
 
-RENDER_JOB_NOT_FOUND = "Render preview job not found"
+JOB_NOT_FOUND = "Job not found"
+STREAMS_FULL = "Too many open streams on this link"
+
+
+@dataclass(frozen=True)
+class GuestJobScope:
+    ws: ProjectWorkspace
+    job: Job
+    kinds: frozenset[str]
+
+
+def guest_job_route(
+    name: str, kinds: frozenset[str]
+) -> Callable[[str, str, Request], GuestJobScope]:
+    """Like ``guest_route``, for a ``{job_id}`` route: the job is the share's or it is a 404.
+
+    An unknown id, another project's job, a job of a kind this route does not serve and a job
+    with no project all answer alike, so the route says nothing about which jobs exist.
+    """
+    workspace = guest_route(name)
+
+    def dependency(token: str, job_id: str, request: Request) -> GuestJobScope:
+        ws = workspace(token)
+        with guest_boundary(log, "review job lookup"):
+            job = guest_visible_job(request.app.state.jobs.get_job(job_id), ws.path, kinds)
+        if job is None:
+            raise coded_http_error(404, JOB_NOT_FOUND, code="job_not_found")
+        return GuestJobScope(ws, job, kinds)
+
+    dependency.guest_route_name = name  # type: ignore[attr-defined]
+    return dependency
+
+
 RenderPreviewWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("render_preview"))]
-RenderPreviewStatusWorkspace = Annotated[
-    ProjectWorkspace, Depends(guest_route("render_preview_status"))
+PipelineStatusWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("pipeline_status"))]
+RenderPreviewStatusScope = Annotated[
+    GuestJobScope, Depends(guest_job_route("render_preview_status", GUEST_RENDER_KINDS))
 ]
+PipelineJobScope = Annotated[
+    GuestJobScope, Depends(guest_job_route("pipeline_job_status", GUEST_PIPELINE_KINDS))
+]
+PipelineEventsScope = Annotated[
+    GuestJobScope, Depends(guest_job_route("pipeline_job_events", GUEST_PIPELINE_KINDS))
+]
+PipelineCancelScope = Annotated[
+    GuestJobScope, Depends(guest_job_route("pipeline_job_cancel", GUEST_PIPELINE_KINDS))
+]
+
+
+def _projected(job: Job, scope: GuestJobScope) -> dict[str, Any]:
+    projected = guest_job_view(job, scope.ws.path, scope.kinds)
+    if projected is None:
+        raise coded_http_error(404, JOB_NOT_FOUND, code="job_not_found")
+    return {"job": projected}
 
 
 @router.post("/api/review/{token}/daw/render-preview", status_code=202)
@@ -62,7 +123,7 @@ def post_daw_render_preview(request: Request, ws: RenderPreviewWorkspace) -> dic
     with guest_boundary(log, "review render"):
         job = request.app.state.jobs.start_render_preview(ws.path)
 
-    projected = guest_job_view(job, ws.path)
+    projected = guest_job_view(job, ws.path, GUEST_RENDER_KINDS)
     if projected is None:
         raise coded_http_error(
             500, "Render preview job unavailable", code="render_preview_job_unavailable"
@@ -71,18 +132,55 @@ def post_daw_render_preview(request: Request, ws: RenderPreviewWorkspace) -> dic
 
 
 @router.get("/api/review/{token}/daw/render-preview/{job_id}")
-def get_daw_render_preview(
-    job_id: str, request: Request, ws: RenderPreviewStatusWorkspace
-) -> dict[str, Any]:
-    with guest_boundary(log, "review render status"):
-        projected = guest_job_view(request.app.state.jobs.get_job(job_id), ws.path)
-    if projected is None:
-        raise coded_http_error(404, RENDER_JOB_NOT_FOUND, code="job_not_found")
-    return {"job": projected}
+def get_daw_render_preview(scope: RenderPreviewStatusScope) -> dict[str, Any]:
+    return _projected(scope.job, scope)
+
+
+@router.get("/api/review/{token}/daw/pipeline/status")
+def get_daw_pipeline_status(request: Request, ws: PipelineStatusWorkspace) -> dict[str, Any]:
+    with guest_boundary(log, "review pipeline status"):
+        return guest_status_view(request.app.state.jobs.status(), ws.path, GUEST_PIPELINE_KINDS)
+
+
+@router.get("/api/review/{token}/daw/pipeline/jobs/{job_id}")
+def get_daw_pipeline_job(scope: PipelineJobScope) -> dict[str, Any]:
+    return _projected(scope.job, scope)
+
+
+@router.get("/api/review/{token}/daw/pipeline/jobs/{job_id}/events")
+def get_daw_pipeline_job_events(token: str, scope: PipelineEventsScope) -> StreamingResponse:
+    lease = GUEST_STREAM_SLOTS.acquire(token)
+    if lease is None:
+        raise coded_http_error(429, STREAMS_FULL, code="rate_limited", headers={"Retry-After": "5"})
+
+    def still_shared() -> bool:
+        try:
+            _row, current = require_share_edit(token)
+        except Exception:
+            log.info("guest event stream closed: share no longer reachable", exc_info=True)
+            return False
+        return current.path == scope.ws.path
+
+    try:
+        return guest_job_events_response(
+            scope.job, scope.ws.path, scope.kinds, lease=lease, still_shared=still_shared
+        )
+    except BaseException:
+        lease.release()
+        raise
+
+
+@router.post("/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel")
+def post_daw_pipeline_job_cancel(request: Request, scope: PipelineCancelScope) -> dict[str, Any]:
+    """Runs with ``PODCAST_GUEST_RENDER`` off, so the host can stop a job after turning it off."""
+    with guest_boundary(log, "review pipeline cancel"):
+        job = cancel_job(request.app.state.jobs, scope.job.id, detail=JOB_NOT_FOUND)
+    return _projected(job, scope)
 
 
 def check_guest_router(router: APIRouter, registry: Mapping[str, GuestRoute]) -> None:
-    """Refuse a router with a route that lacks a registered ``guest_route`` or a row with no route."""
+    """Refuse a router with a route that lacks a registered ``guest_route`` or differs from its
+    row, and a row with no route."""
     mounted: set[str] = set()
     for route in router.routes:
         names = [
@@ -92,6 +190,9 @@ def check_guest_router(router: APIRouter, registry: Mapping[str, GuestRoute]) ->
         ]
         if len(names) != 1 or names[0] not in registry:
             raise RuntimeError(f"{route.path} has no registered guest_route dependency")  # type: ignore[attr-defined]
+        row = registry[names[0]]
+        if route.path != row.path or route.methods != {row.method}:  # type: ignore[attr-defined]
+            raise RuntimeError(f"{route.path} does not match the {row.name} row")  # type: ignore[attr-defined]
         mounted.add(names[0])
     if mounted != set(registry):
         raise RuntimeError(f"guest routes without a handler: {sorted(set(registry) - mounted)}")

@@ -280,6 +280,18 @@ PROBES: dict[tuple[str, str], Probe] = {
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): Probe(
         Site(service_jobs.JobManager, "get_job")
     ),
+    ("GET", "/api/review/{token}/daw/pipeline/status"): Probe(
+        Site(service_jobs.JobManager, "status")
+    ),
+    ("GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}"): Probe(
+        Site(service_jobs.JobManager, "get_job")
+    ),
+    ("GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}/events"): Probe(
+        Site(service_jobs.JobManager, "get_job")
+    ),
+    ("POST", "/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel"): Probe(
+        Site(service_jobs.JobManager, "get_job")
+    ),
     ("GET", "/api/review/{token}/daw/document/state"): Probe(_review("DocumentSyncService")),
     ("POST", "/api/review/{token}/daw/boundary/context"): Probe(
         _review("EditService"),

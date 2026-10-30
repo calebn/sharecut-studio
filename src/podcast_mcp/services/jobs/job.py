@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Literal
 
 from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
 from podcast_mcp.services.jobs.events import (
-    LIVE_JOB_STATUSES,
+    TERMINAL_JOB_STATUSES,
     job_listener_count,
     publish_job_event,
 )
@@ -259,36 +261,89 @@ class GuestJobView:
 
     running: str
     failed: str
+    terminal: frozenset[str] = TERMINAL_JOB_STATUSES
+    failure: frozenset[str] = frozenset({"error"})
 
 
 # Job kinds a guest may see and their projection. A kind absent here is invisible to guests.
-GUEST_JOB_VIEW: dict[str, GuestJobView] = {
-    "render_preview": GuestJobView("Rendering preview", "Render preview failed"),
-}
+GUEST_JOB_VIEW: Mapping[str, GuestJobView] = MappingProxyType(
+    {
+        "pipeline": GuestJobView("Running pipeline", "Pipeline failed"),
+        "render_preview": GuestJobView("Rendering preview", "Render preview failed"),
+    }
+)
 
 
-def job_in_project(job: Job, project_path: Path) -> bool:
-    """Whether *job* belongs to the project at *project_path*; a job with no path belongs to none."""
-    if not job.project_path:
+GUEST_PIPELINE_KINDS = frozenset({"pipeline"})
+GUEST_RENDER_KINDS = frozenset({"render_preview"})
+
+
+def _path_in_project(path: str, project_path: Path) -> bool:
+    if not path:
         return False
     try:
-        return Path(job.project_path).resolve() == project_path.resolve()
+        return Path(path).resolve() == project_path.resolve()
     except (ValueError, OSError):
         return False
 
 
-def guest_job_view(job: Job | None, project_path: Path) -> dict[str, Any] | None:
-    """Expose only safe status for a job of a visible kind belonging to this guest project."""
-    if job is None or job.kind not in GUEST_JOB_VIEW or not job_in_project(job, project_path):
+def job_in_project(job: Job, project_path: Path) -> bool:
+    """Whether *job* belongs to *project_path*; a job with no path belongs to none."""
+    return _path_in_project(job.project_path, project_path)
+
+
+def guest_visible_job(job: Job | None, project_path: Path, kinds: Collection[str]) -> Job | None:
+    """*job* if it is of one of *kinds* (all guest-visible) and the project's, else None."""
+    if (
+        job is None
+        or job.kind not in kinds
+        or job.kind not in GUEST_JOB_VIEW
+        or not job_in_project(job, project_path)
+    ):
         return None
-    view = GUEST_JOB_VIEW[job.kind]
-    snap = job.snapshot()
+    return job
+
+
+def guest_job_done(job: Job) -> bool:
+    return job.status in GUEST_JOB_VIEW[job.kind].terminal
+
+
+def _guest_projection(snap: Mapping[str, Any]) -> dict[str, Any]:
+    view = GUEST_JOB_VIEW[snap["kind"]]
     status = snap["status"]
     return {
-        "id": job.id,
+        "id": snap["id"],
         "status": status,
         "current": snap["current"],
         "total": snap["total"],
-        "message": view.running if status in LIVE_JOB_STATUSES else None,
-        "error": view.failed if status == "error" else None,
+        "message": view.running if status not in view.terminal else None,
+        "error": view.failed if status in view.failure else None,
     }
+
+
+def guest_job_view(
+    job: Job | None, project_path: Path, kinds: Collection[str]
+) -> dict[str, Any] | None:
+    """Expose only safe status for a job of one of *kinds* belonging to this guest project."""
+    visible = guest_visible_job(job, project_path, kinds)
+    return None if visible is None else _guest_projection(visible.snapshot())
+
+
+def guest_status_view(
+    status: Mapping[str, Any], project_path: Path, kinds: Collection[str]
+) -> dict[str, Any]:
+    """Project an unscoped ``JobManager.status`` to this project's jobs of *kinds*.
+
+    The project is matched here by resolved path, so a symlinked share path agrees with
+    ``guest_visible_job``; ``job`` is the newest live job, else the newest.
+    """
+    jobs = [
+        _guest_projection(snap)
+        for snap in status["jobs"]
+        if snap.get("kind") in kinds
+        and snap["kind"] in GUEST_JOB_VIEW
+        and _path_in_project(str(snap.get("project_path") or ""), project_path)
+    ]
+    live = [job for job in jobs if job["message"] is not None]
+    primary = live[0] if live else (jobs[0] if jobs else None)
+    return {"running": bool(live), "job": primary, "jobs": jobs}
