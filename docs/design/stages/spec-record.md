@@ -360,7 +360,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 
 **NEW: Takes tray.** The Takes segment of the rail: one row per take (number, length, people avatars, status ring), expandable to per-person lines with Retry, clip times, and **Hear** (plays the take once landed). Prior sessions collapse above as Session summary cards.
 
-**NEW: Session summary card.** After a session saves: "Session 2 saved · 3 people · 2 takes · 14:20", where it landed, the track mapping with change menus, Prepare progress, and one primary (**Edit Session 2**, or **Review pickup** for a replace target).
+**NEW: Session summary card.** After a session saves: "Session 2 saved · 3 people · 2 takes · 14:20", where it landed, the track mapping with change menus (built on the Record stage's previous-session card: once landed, each person's track is a menu of the project's tracks; picking one moves all of that person's clips of the session there, keeping their start times, as one undo step. Overlap on the destination is allowed, the old track stays even when empty, and the choice applies to this session only. A person spread over several tracks reads "Several tracks". "New track" is not in the menu yet), Prepare progress, and one primary (**Edit Session 2**, or **Review pickup** for a replace target).
 
 **NEW: Room cover.** The dead-end page for Record (and the shape for review-link dead ends): 64 px glyph, one headline, one line, at most one primary. Variants: invalid, full, ended, ended with local recording. Never server JSON.
 

@@ -53,15 +53,28 @@ def _snapshot(project: EpisodeProject, session_id: str) -> tuple[dict[str, Any],
     return (snap, choices) if snap.get("session_id") == session_id else ({}, {})
 
 
-def _landed_track(project: EpisodeProject, session_id: str, participant_id: str) -> str | None:
+def _landed_tracks(project: EpisodeProject, session_id: str, participant_id: str) -> set[str]:
     prefix = record_source_prefix(session_id)
-    tracks = {
+    return {
         clip.track_id
         for clip in project.clips
         if (clip.source_id or "").startswith(prefix)
         and re.match(rf"\d+-{re.escape(participant_id)}-", (clip.source_id or "")[len(prefix) :])
     }
-    return next(iter(tracks)) if len(tracks) == 1 else None
+
+
+def _track_of(
+    project: EpisodeProject, session_id: str, participant_id: str, fallback: str | None
+) -> str | None:
+    """Where the participant's landed clips are; the fallback only when none have landed.
+
+    Clips can be moved after landing, so a track choice or a saved summary is never
+    preferred over them. Clips on several tracks report None.
+    """
+    tracks = _landed_tracks(project, session_id, participant_id)
+    if tracks:
+        return next(iter(tracks)) if len(tracks) == 1 else None
+    return fallback
 
 
 def _summaries_path(workspace: Path) -> Path:
@@ -140,8 +153,9 @@ def _participants(
             "participant_id": person["participant_id"],
             "display_name": person["display_name"],
             "role": person["role"],
-            "track_id": choices.get(person["participant_id"])
-            or _landed_track(project, session_id, person["participant_id"]),
+            "track_id": _track_of(
+                project, session_id, person["participant_id"], choices.get(person["participant_id"])
+            ),
         }
         for person in snap.get("participants") or []
         if not person.get("removed")
@@ -173,8 +187,7 @@ def list_record_sessions(project: EpisodeProject) -> list[dict[str, Any]]:
             else [
                 {
                     **p,
-                    "track_id": p.get("track_id")
-                    or _landed_track(project, sid, p["participant_id"]),
+                    "track_id": _track_of(project, sid, p["participant_id"], p.get("track_id")),
                 }
                 for p in saved.get("participants") or []
             ]

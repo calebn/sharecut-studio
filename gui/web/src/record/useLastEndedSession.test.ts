@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecordSessionSummary } from "./types";
 
@@ -38,7 +38,7 @@ describe("useLastEndedSession", () => {
       session("d", { state: "open" }),
     ]);
     const { result } = renderHook(() => useLastEndedSession("/p", true));
-    await waitFor(() => expect(result.current?.session_id).toBe("b"));
+    await waitFor(() => expect(result.current.session?.session_id).toBe("b"));
   });
 
   it("does not fetch while disabled and refetches when enabled again", async () => {
@@ -48,11 +48,11 @@ describe("useLastEndedSession", () => {
       { initialProps: { on: false } },
     );
     expect(loadHostRecordSessions).not.toHaveBeenCalled();
-    expect(result.current).toBeNull();
+    expect(result.current.session).toBeNull();
     rerender({ on: true });
-    await waitFor(() => expect(result.current?.session_id).toBe("a"));
+    await waitFor(() => expect(result.current.session?.session_id).toBe("a"));
     rerender({ on: false });
-    expect(result.current).toBeNull();
+    expect(result.current.session).toBeNull();
     rerender({ on: true });
     await waitFor(() =>
       expect(loadHostRecordSessions).toHaveBeenCalledTimes(2),
@@ -65,16 +65,16 @@ describe("useLastEndedSession", () => {
       ({ on }) => useLastEndedSession("/p", on),
       { initialProps: { on: true } },
     );
-    await waitFor(() => expect(result.current?.session_id).toBe("old"));
+    await waitFor(() => expect(result.current.session?.session_id).toBe("old"));
     rerender({ on: false });
     let resolve: (v: RecordSessionSummary[]) => void = () => undefined;
     loadHostRecordSessions.mockReturnValueOnce(
       new Promise((r) => (resolve = r)),
     );
     rerender({ on: true });
-    expect(result.current).toBeNull();
+    expect(result.current.session).toBeNull();
     resolve([session("new")]);
-    await waitFor(() => expect(result.current?.session_id).toBe("new"));
+    await waitFor(() => expect(result.current.session?.session_id).toBe("new"));
   });
 
   it("ignores a response that lands after the project changed", async () => {
@@ -87,10 +87,12 @@ describe("useLastEndedSession", () => {
       { initialProps: { path: "/one" } },
     );
     rerender({ path: "/two" });
-    await waitFor(() => expect(result.current?.session_id).toBe("second"));
+    await waitFor(() =>
+      expect(result.current.session?.session_id).toBe("second"),
+    );
     resolveFirst([session("first")]);
     await Promise.resolve();
-    expect(result.current?.session_id).toBe("second");
+    expect(result.current.session?.session_id).toBe("second");
   });
 
   it("ignores a response that lands after being disabled", async () => {
@@ -103,13 +105,30 @@ describe("useLastEndedSession", () => {
     rerender({ on: false });
     resolve([session("late")]);
     await Promise.resolve();
-    expect(result.current).toBeNull();
+    expect(result.current.session).toBeNull();
   });
 
   it("yields null when the fetch fails", async () => {
     loadHostRecordSessions.mockRejectedValue(new Error("down"));
     const { result } = renderHook(() => useLastEndedSession("/p", true));
     await waitFor(() => expect(loadHostRecordSessions).toHaveBeenCalled());
-    expect(result.current).toBeNull();
+    expect(result.current.session).toBeNull();
+  });
+
+  it("refresh fetches again, keeps the card meanwhile and drops a superseded answer", async () => {
+    let resolveSlow: (v: RecordSessionSummary[]) => void = () => undefined;
+    loadHostRecordSessions
+      .mockResolvedValueOnce([session("a")])
+      .mockReturnValueOnce(new Promise((r) => (resolveSlow = r)))
+      .mockResolvedValueOnce([session("c")]);
+    const { result } = renderHook(() => useLastEndedSession("/p", true));
+    await waitFor(() => expect(result.current.session?.session_id).toBe("a"));
+    act(() => result.current.refresh());
+    expect(result.current.session?.session_id).toBe("a");
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.session?.session_id).toBe("c"));
+    resolveSlow([session("b")]);
+    await Promise.resolve();
+    expect(result.current.session?.session_id).toBe("c");
   });
 });

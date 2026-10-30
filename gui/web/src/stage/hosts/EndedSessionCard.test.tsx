@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import type { RecordSessionSummary } from "../../record";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { EndedSessionCard } from "./EndedSessionCard";
@@ -94,5 +95,84 @@ describe("EndedSessionCard", () => {
       />,
     );
     expect(screen.getByText("1 take · 1:02:05")).toBeInTheDocument();
+  });
+
+  describe("track menu", () => {
+    const tracks = [
+      { id: "t1", label: "Ava" },
+      { id: "t2", label: "Host" },
+    ];
+    const menuMount = (
+      over: Partial<RecordSessionSummary> = {},
+      props: Partial<React.ComponentProps<typeof EndedSessionCard>> = {},
+    ) => {
+      const onRemap = vi.fn();
+      const view = render(
+        <EndedSessionCard
+          session={{ ...base, ...over }}
+          trackNames={new Map(tracks.map((t) => [t.id, t.label]))}
+          tracks={tracks}
+          movable={new Set(["a", "b"])}
+          onRemap={onRemap}
+          {...props}
+        />,
+      );
+      return { onRemap, ...view };
+    };
+
+    it("lists the tracks with the current one checked and moves on pick", async () => {
+      const { onRemap, baseElement } = menuMount();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Track for Ava: Ava" }),
+      );
+      const menu = screen.getByRole("menu", { name: "Track for Ava" });
+      const items = within(menu).getAllByRole("menuitemradio");
+      expect(items.map((i) => i.textContent)).toEqual(["Ava", "Host"]);
+      expect(items.map((i) => i.getAttribute("aria-checked"))).toEqual([
+        "true",
+        "false",
+      ]);
+      await expectNoA11yViolations(baseElement);
+      await userEvent.click(items[1]);
+      expect(onRemap).toHaveBeenCalledWith("a", "t2");
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    });
+
+    it("does nothing when the current track is picked again", async () => {
+      const { onRemap } = menuMount();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Track for Ava: Ava" }),
+      );
+      await userEvent.click(screen.getByRole("menuitemradio", { name: "Ava" }));
+      expect(onRemap).not.toHaveBeenCalled();
+    });
+
+    it("says Several tracks for a participant spread over tracks, menu still there", () => {
+      menuMount();
+      expect(
+        screen.getByRole("button", { name: "Track for Sam: Several tracks" }),
+      ).toBeInTheDocument();
+    });
+
+    it("stays plain text when not landed, with one track, without clips or without a handler", () => {
+      const cases: [Partial<RecordSessionSummary>, object][] = [
+        [{ landed: false }, {}],
+        [{}, { tracks: [tracks[0]] }],
+        [{}, { movable: new Set<string>() }],
+        [{}, { onRemap: undefined }],
+      ];
+      for (const [over, props] of cases) {
+        const { unmount } = menuMount(over, props);
+        expect(screen.queryByRole("button")).not.toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it("disables the trigger while busy", () => {
+      menuMount({}, { busy: true });
+      expect(
+        screen.getByRole("button", { name: "Track for Ava: Ava" }),
+      ).toBeDisabled();
+    });
   });
 });

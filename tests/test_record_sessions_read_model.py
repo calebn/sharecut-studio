@@ -11,6 +11,7 @@ from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record import list_record_sessions
 from podcast_mcp.services.record import sessions as sessions_module
 from podcast_mcp.services.record.landing_math import record_source_prefix
+from podcast_mcp.services.record.service import RecordSessionService
 from test_record_landing import _isolate, _land_session, _seed
 
 
@@ -242,3 +243,62 @@ def test_other_sessions_summaries_survive_a_new_write(minimal_project, sample_wa
     path.write_text('{"other": {"session_id": "other", "takes": [], "participants": []}}')
     sessions_module.persist_session_summary(ws.project, first["session_id"])
     assert {"other", first["session_id"]} == set(json.loads(path.read_text()))
+
+
+def _guest_clips(ws, session_id: str):
+    prefix = record_source_prefix(session_id)
+    return [c for c in ws.project.clips if c.source_id.startswith(prefix)]
+
+
+def test_live_read_model_follows_the_clips_after_they_move(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _ws(minimal_project, sample_wav)
+    room, _ = _land_session(ws)
+    ShareService(ws).revoke_room(room["session_id"])
+    for clip in _guest_clips(ws, room["session_id"]):
+        clip.track_id = "t_moved"
+    assert _guest_track(list_record_sessions(ws.project)[0]) == "t_moved"
+
+
+def test_saved_summary_follows_the_clips_after_they_move(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _ws(minimal_project, sample_wav)
+    first, _ = _land_session(ws)
+    ShareService(ws).revoke_room(first["session_id"])
+    ShareService(ws).create_record_room()
+    for clip in _guest_clips(ws, first["session_id"]):
+        clip.track_id = "t_moved"
+    kept = next(
+        i for i in list_record_sessions(ws.project) if i["session_id"] == first["session_id"]
+    )
+    assert _guest_track(kept) == "t_moved"
+
+
+def test_clips_on_several_tracks_report_no_track(minimal_project, sample_wav, tmp_workspace):
+    ws = _ws(minimal_project, sample_wav)
+    room, _ = _land_session(ws)
+    ShareService(ws).revoke_room(room["session_id"])
+    [first, *_rest] = _guest_clips(ws, room["session_id"])
+    ws.project.clips.append(first.model_copy(update={"id": "clip_split", "track_id": "t_other"}))
+    assert _guest_track(list_record_sessions(ws.project)[0]) is None
+
+
+def test_choice_is_only_the_fallback_when_nothing_landed(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _ws(minimal_project, sample_wav)
+    room, _ = _land_session(ws)
+    sid = room["session_id"]
+    ShareService(ws).revoke_room(sid)
+    guest = next(
+        p for p in list_record_sessions(ws.project)[0]["participants"] if p["role"] == "guest"
+    )
+    RecordSessionService(ws.project, session_id=sid).set_track_choice(
+        guest["participant_id"], "t_choice"
+    )
+    assert _guest_track(list_record_sessions(ws.project)[0]) != "t_choice"
+    prefix = record_source_prefix(sid)
+    ws.project.clips[:] = [c for c in ws.project.clips if not c.source_id.startswith(prefix)]
+    assert _guest_track(list_record_sessions(ws.project)[0]) == "t_choice"

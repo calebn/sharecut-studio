@@ -1,5 +1,8 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { runPointerCommand } from "../../commands/pointer";
+import {
+  executePointerCommand,
+  runPointerCommand,
+} from "../../commands/pointer";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import {
@@ -43,6 +46,7 @@ import {
   RecordStageView,
 } from "./RecordStageView";
 import { RecordTargetChip } from "./RecordTargetChip";
+import { movableParticipants, remapMoves } from "./recordRemapModel";
 import {
   firstClipped,
   startDisabledReason,
@@ -86,7 +90,53 @@ function RecordStageBody({
   const [deviceOpen, setDeviceOpen] = useState(false);
   const { snapshot, state, host, capture: cap } = room;
   const lookup = lookupOf(room);
-  const lastSession = useLastEndedSession(projectPath, lookup === "none");
+  const { session: lastSession, refresh: refreshLastSession } =
+    useLastEndedSession(projectPath, lookup === "none");
+  const [remapBusy, setRemapBusy] = useState(false);
+  const clipTracks = project?.clips.tracks;
+  const projectTracks = useMemo(
+    () => (project?.tracks ?? []).map((t) => ({ id: t.id, label: t.label })),
+    [project?.tracks],
+  );
+  const movable = useMemo(
+    () =>
+      lastSession?.landed
+        ? movableParticipants(
+            clipTracks,
+            lastSession.session_id,
+            lastSession.participants.map((p) => p.participant_id),
+          )
+        : undefined,
+    [clipTracks, lastSession],
+  );
+  const remap = async (participantId: string, trackId: string) => {
+    if (!lastSession || remapBusy) {
+      return;
+    }
+    const clips = remapMoves(
+      clipTracks,
+      lastSession.session_id,
+      participantId,
+      trackId,
+    );
+    if (clips.length === 0) {
+      return;
+    }
+    setRemapBusy(true);
+    try {
+      const result = await executePointerCommand("edit.moveClips", { clips });
+      if (result.status === "ok") {
+        refreshLastSession();
+      } else {
+        const why = result.status === "disabled" ? result.reason : "try again";
+        announceStatus(`Could not change the track: ${why}`, {
+          tone: "error",
+        });
+      }
+    } finally {
+      setRemapBusy(false);
+    }
+  };
   const trackNames = useMemo(
     () => new Map((project?.tracks ?? []).map((t) => [t.id, t.label])),
     [project?.tracks],
@@ -363,6 +413,10 @@ function RecordStageBody({
       room={roomProps}
       lastSession={lastSession}
       trackNames={trackNames}
+      tracks={projectTracks}
+      movable={movable}
+      remapBusy={remapBusy}
+      onRemap={(participantId, trackId) => void remap(participantId, trackId)}
       storage={
         <StorageHeadroomWarning
           visible={state === "lobby" || state === "stopped"}
