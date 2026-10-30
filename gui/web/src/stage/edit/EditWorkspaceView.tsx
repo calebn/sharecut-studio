@@ -39,7 +39,7 @@ export interface EditWorkspaceViewProps {
     root?: Ref<HTMLDivElement>;
     timeline?: Ref<HTMLDivElement>;
     divider?: Ref<HTMLDivElement>;
-    script?: Ref<HTMLElement>;
+    script?: Ref<HTMLDivElement>;
     inspector?: Ref<HTMLDivElement>;
   };
 }

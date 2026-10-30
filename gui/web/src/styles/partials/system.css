@@ -2481,6 +2481,10 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   letter-spacing: 0.02em;
 }
 
+.sys-person-avatar[data-initials]::before {
+  content: attr(data-initials);
+}
+
 .sys-person-avatar--20 {
   inline-size: 1.25rem;
   block-size: 1.25rem;
@@ -4945,6 +4949,12 @@ input.sys-edit-fix {
 .sys-edit-find-field input {
   flex: 1;
   min-inline-size: 0;
+}
+
+@media (pointer: coarse) {
+  .sys-edit-find-field input {
+    min-block-size: var(--touch-min);
+  }
 }
 
 .sys-edit-find-field:has(.sys-edit-find-count) input {

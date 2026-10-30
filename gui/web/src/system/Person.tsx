@@ -14,10 +14,20 @@ export type PersonAvatarSize = 20 | 24 | 28 | 32;
 type PersonAvatarProps = {
   person: PersonData;
   size?: PersonAvatarSize;
+  /**
+   * Draw the initials from CSS, so they are not text in the element. Inside a
+   * button named by `aria-label` the initials would count as visible text the
+   * name lacks (axe: label-content-name-mismatch).
+   */
+  drawn?: boolean;
 };
 
 /** Initials on the person's colour. Hidden from assistive tech: the name is always printed beside it. */
-export function PersonAvatar({ person, size = 24 }: PersonAvatarProps) {
+export function PersonAvatar({
+  person,
+  size = 24,
+  drawn = false,
+}: PersonAvatarProps) {
   return (
     <span
       className={`sys-person-avatar sys-person-avatar--${size}`}
@@ -27,8 +37,9 @@ export function PersonAvatar({ person, size = 24 }: PersonAvatarProps) {
         } as CSSProperties
       }
       aria-hidden="true"
+      data-initials={drawn ? initials(person.name) : undefined}
     >
-      {initials(person.name)}
+      {drawn ? null : initials(person.name)}
     </span>
   );
 }
