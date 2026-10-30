@@ -511,6 +511,11 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Story to build:** `Stages/Deliver/EpisodeFile` stories `Settings`, `Exporting`, `Exported`, `ExportedPhone`, `NeedsModel`, `Failed`.
 - **Shipped (#2451):** the host runs the real export job from this section and the dialog is gone. The format chips come from the Pipeline config (WAV always written as a note, MP3, M4A, FLAC), loudness is the sentence "Mastered to X LUFS, peaks under Y dBTP. Change the target in the Pipeline tab." in place of the segmented choice, and Range, "Saves to", Reveal and Download are hidden because nothing in the project backs them. Progress, Cancel with its reasons, the late-cancel list, Try again, the model prompt and the measured loudness are all in the section; the flow lives in `DawApp`, so leaving Deliver does not stop it.
 
+Cancel failure feedback belongs to the export job that received the request.
+A late failure from an earlier job leaves the current export's cancellation
+state unchanged. A failed Cancel for the current job shows its error and allows
+another attempt.
+
 ### DLG-BOUNCE · Bounce (+ READY)
 
 - **Today:** `DLG-BOUNCE--*`, `DLG-BOUNCE-READY--*`. A modal with radio sources, "Selected tracks (0)", a disabled "Limit to session region (no region set)", and "Also write MP3", even when a range is already selected on the timeline.
@@ -519,6 +524,11 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Shared elements used:** Object selection model (Export verb), Job row, popover.
 - **Story to build:** `Stages/Edit/ExportRange` stories `Default`, `Options`, `Done` (coordinate with Edit worker); `Stages/Deliver/EpisodeFile` `PartOfEpisode`.
 - **Shipped (#2449):** until the Export verb lands in Edit, the dialog is replaced by a Bounce section in Deliver (`Stages/Deliver/Bounce`): the source (Entire mix, Selected tracks, Soloed tracks), Limit to session region, Also write MP3, a range fixed in Edit, progress with Cancel, the files written, and the model prompt. `Mod+Shift+B`, the palette and Range actions → Bounce go to Deliver and focus the Bounce button; the flow lives in `DawApp`, so leaving Deliver does not stop it. Leaving Deliver ends the visit: it clears a fixed range and the bounce choices, while a running bounce continues.
+
+Cancel failure feedback belongs to the bounce job that received the request.
+A late failure from an earlier job leaves the current bounce's cancellation
+state unchanged. A failed Cancel for the current job shows its error and allows
+another attempt.
 
 ### Transcript (new Deliver section)
 

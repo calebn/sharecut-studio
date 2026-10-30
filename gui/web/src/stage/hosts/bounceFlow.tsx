@@ -164,7 +164,7 @@ export function BounceFlowProvider({ children }: { children: ReactNode }) {
       await cancelPipelineRun(r.jobId);
     } catch (err) {
       setRun((now) =>
-        now.kind === "running"
+        now.kind === "running" && now.jobId === r.jobId
           ? { ...now, cancelling: false, cancelError: errorMessage(err) }
           : now,
       );
