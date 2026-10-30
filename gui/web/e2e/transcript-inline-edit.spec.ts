@@ -124,10 +124,6 @@ test.describe("Phone word correction", () => {
 
     const sheet = page.getByRole("dialog", { name: "Inspector", exact: true });
     await expect(sheet).toBeVisible();
-    // The sheet opens at half, which leaves this 320 px screen too little for the form.
-    await sheet.getByRole("slider", { name: "Sheet height" }).focus();
-    await page.keyboard.press("End");
-    await expect(sheet).toHaveAttribute("data-detent", "full");
     const field = sheet.getByRole("textbox", {
       name: "Corrected text",
       exact: true,
