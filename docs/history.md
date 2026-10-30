@@ -78,7 +78,7 @@ episode/
 Each snapshot stores a **full copy** of editable v2 sections (not diffs), so undo/redo and arbitrary cursor jumps are O(1):
 
 - `sources`, `timeline` (tracks + clips), `editorial`, `transcripts` (per_track + combined)
-- `mix`, `social`, `review` (timeline comments), `render_last_completed_step`
+- `mix`, `social`, `feed` (podcast listing pins, guid and first export time; see [podcast-feed.md](podcast-feed.md)), `review` (timeline comments), `render_last_completed_step`
 
 Undo/redo restores the snapshot and **`ProjectStore.commit()`** writes `episode.sharecut`.
 
