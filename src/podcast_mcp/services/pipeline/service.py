@@ -168,6 +168,7 @@ class PipelineService:
                 only_step=only_step,
                 skip_steps=skip_steps,
                 on_step_complete=lambda step: self.ws.save_merged(history_label=f"after {step}"),
+                persist=self.ws.save_merged,
                 progress=progress,
                 unattended=unattended,
                 cancel_check=cancel_check,
@@ -278,7 +279,7 @@ class PipelineService:
         with render_lock(self.ws.project):
             self.ws.checkpoint()
             PipelineRunner(defaults=self._run_defaults()).run(
-                self.ws.project, from_step="master_loudness"
+                self.ws.project, from_step="master_loudness", persist=self.ws.save_merged
             )
             self.ws.save_merged()
         from podcast_mcp.export.names import sanitize_export_stem

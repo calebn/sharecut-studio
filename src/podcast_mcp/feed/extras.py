@@ -9,6 +9,7 @@ was accepted always renders.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -16,13 +17,10 @@ from email.utils import format_datetime
 from pathlib import PurePosixPath
 from typing import Any
 
-from podcast_mcp.feed.urls import check_https_url
+from podcast_mcp.feed.urls import AUDIO_MIME, check_https_url
 
-MEDIUMS = ("podcast", "music", "video", "film", "audiobook", "newsletter", "blog")
-SHOW_TYPES = ("episodic", "serial")
 _MEDIA_TYPES = {
-    ".mp3": "audio/mpeg",
-    ".m4a": "audio/x-m4a",
+    **AUDIO_MIME,
     ".ogg": "audio/ogg",
     ".opus": "audio/opus",
     ".flac": "audio/flac",
@@ -30,7 +28,10 @@ _MEDIA_TYPES = {
     ".mp4": "video/mp4",
     ".m3u8": "application/x-mpegURL",
 }
+# The survey's limit for a short label such as a funding message or an update schedule.
+TEXT_LIMIT = 128
 DEFAULT_FUNDING_TEXT = "Support the show"
+_UUID_EXAMPLE = "917393e3-1b1e-5cef-ace4-edaa54e1f810"
 
 
 @dataclass(frozen=True)
@@ -71,10 +72,20 @@ def _https(address: str) -> str:
         ) from exc
 
 
+_UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+_NODE_ADDRESS = re.compile(r"[0-9a-fA-F]{8,128}")
+
+
 def _guid(word: str) -> str:
-    if len(word) < 8 or not word.isascii() or any(c.isspace() for c in word):
-        raise ValueError(f"{word!r} is not a feed guid")
+    if not _UUID.fullmatch(word):
+        raise ValueError(f"{word!r} is not a feed guid, which looks like {_UUID_EXAMPLE}")
     return word
+
+
+def _short(text: str, what: str) -> str:
+    if len(text) >= TEXT_LIMIT:
+        raise ValueError(f"{what} must be under {TEXT_LIMIT} characters")
+    return text
 
 
 def yes_only(value: Any) -> bool:
@@ -106,7 +117,8 @@ def flag(value: Any) -> Element:
 
 def funding(value: Any) -> Element:
     url, *rest = _words(value, "https://example.test/give [message]", low=1, high=2)
-    return Element(attrs={"url": _https(url)}, text=rest[0] if rest else DEFAULT_FUNDING_TEXT)
+    message = _short(rest[0], "the message") if rest else DEFAULT_FUNDING_TEXT
+    return Element(attrs={"url": _https(url)}, text=message)
 
 
 def license_(value: Any) -> Element:
@@ -134,6 +146,8 @@ def chat(value: Any) -> Element:
 
 def value_node(value: Any) -> Element:
     address, *rest = _words(value, "02ab...node-address [name]", low=1, high=2)
+    if not _NODE_ADDRESS.fullmatch(address):
+        raise ValueError(f"{address!r} must be a node public key in hexadecimal")
     recipient = {"type": "node", "address": address, "split": "100"}
     if rest:
         recipient["name"] = rest[0]
@@ -157,7 +171,7 @@ def remote_item(value: Any) -> Element:
 
 def publisher(value: Any) -> Element:
     attrs = remote_item_attrs(value, "feed-guid [https://example.test/feed.xml]", "feedUrl")
-    return Element(children=(Child("podcast:remoteItem", attrs),))
+    return Element(children=(Child("podcast:remoteItem", {**attrs, "medium": "publisher"}),))
 
 
 def podroll(value: Any) -> Element:
@@ -206,6 +220,12 @@ def plain(value: Any) -> Element:
     if not text:
         raise ValueError("must not be empty")
     return Element(text=text)
+
+
+def short(value: Any) -> Element:
+    element = plain(value)
+    _short(element.text or "", "the text")
+    return element
 
 
 def checked(shape: Shape) -> Callable[[Any], Any]:

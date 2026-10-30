@@ -614,6 +614,35 @@ def test_identity_minted_by_an_export_survives_a_failed_final_save(
     assert list(store.profile("the-long-river").ledger.items()) == [(minted.guid, 1)]
 
 
+def test_the_export_step_saves_the_identity_before_the_runner_saves_the_step(
+    episode: Path, store: ShowStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.pipeline import steps
+    from podcast_mcp.services.app.workspace import ProjectWorkspace as Workspace
+
+    _complete(store)
+    _master(episode, monkeypatch)
+    eng = MagicMock()
+    eng.export_audio.side_effect = lambda *args, **_kwargs: Path(args[1]).write_bytes(b"MP3")
+    monkeypatch.setattr(steps, "ffmpeg", lambda: eng)
+    monkeypatch.setattr(steps, "write_export_qc", lambda *_a, **_k: {"ok": True})
+    real = Workspace.save_merged
+
+    def only_the_feed_save(self, history_label=None, **kwargs):
+        if history_label and history_label.startswith("after"):
+            raise RuntimeError("the runner's step save failed")
+        return real(self, history_label, **kwargs)
+
+    monkeypatch.setattr(Workspace, "save_merged", only_the_feed_save)
+
+    with pytest.raises(RuntimeError):
+        PipelineService(ProjectWorkspace.open(episode)).run(only_step="export_deliverables")
+
+    minted = load_project(episode).feed
+    assert minted.guid is not None and minted.show_id == "the-long-river"
+    assert _feed(episode).find("channel/item/guid").text == minted.guid
+
+
 def test_a_failed_identity_save_publishes_nothing_and_mints_nothing(
     episode: Path, store: ShowStore
 ) -> None:
@@ -778,3 +807,96 @@ def test_an_episode_linked_to_a_corrupt_show_file_still_reads_and_exports(
 
     assert any(f.severity == "warn" and f"{show_id}.yaml" in f.message for f in view.findings)
     PipelineService(ProjectWorkspace.open(episode)).export_audio(formats=[])
+
+
+def test_a_project_with_a_guest_pin_validates_against_the_published_schema(
+    episode: Path,
+) -> None:
+    import json
+
+    import jsonschema
+
+    from podcast_mcp.models.feed import Pin
+
+    project = load_project(episode)
+    project.feed.pins["item.intro"] = Pin(value="Hello", by="guest")
+    schema = json.loads(
+        (
+            Path(__file__).resolve().parents[1] / "schemas" / "episode.project.schema.json"
+        ).read_text()
+    )
+
+    feed = json.loads(project.model_dump_json())["feed"]
+    section = {**schema["$defs"]["FeedSection"], "$defs": schema["$defs"]}
+
+    jsonschema.validate(feed, section)
+    assert schema["$defs"]["FeedPin"]["properties"]["by"]["enum"] == ["person", "agent", "guest"]
+
+
+def test_an_unreadable_linked_show_is_a_blocker_that_names_the_file_not_no_show(
+    episode: Path, store: ShowStore
+) -> None:
+    show_id = _complete(store)
+    project = load_project(episode)
+    project.feed.show_id = show_id
+    save_project(project, episode)
+    (store.directory / f"{show_id}.yaml").write_text("pins: [broken", encoding="utf-8")
+
+    view = _service(episode).read()
+
+    assert view.show.kind == "choose"
+    blocker = next(f for f in view.findings if f.severity == "blocker")
+    assert f"{show_id}.yaml" in blocker.message
+    assert blocker.fix is None
+    with pytest.raises(CodedValueError) as refused:
+        _service(episode).write()
+    assert f"{show_id}.yaml" in str(refused.value)
+
+
+@pytest.mark.parametrize("name", ["The Long River", "Other Show"])
+def test_setting_the_show_never_replaces_an_unreadable_linked_show(
+    episode: Path, store: ShowStore, name: str
+) -> None:
+    show_id = _complete(store)
+    project = load_project(episode)
+    project.feed.show_id = show_id
+    save_project(project, episode)
+    (store.directory / f"{show_id}.yaml").write_text("pins: [broken", encoding="utf-8")
+
+    with pytest.raises(CodedValueError) as raised:
+        _service(episode).set("show", name, "person")
+
+    assert raised.value.code == "feed_show_unreadable"
+    assert load_project(episode).feed.show_id == show_id
+    assert [path.stem for path in store.directory.glob("*.yaml")] == [show_id]
+
+
+def test_a_feed_file_that_cannot_be_published_is_a_coded_error(
+    episode: Path, store: ShowStore
+) -> None:
+    _complete(store)
+    directory = _export(episode, mp3=b"x" * 10)
+    (directory / "test_episode.feed.xml").mkdir()
+
+    with pytest.raises(CodedValueError) as raised:
+        _service(episode).write()
+
+    assert raised.value.code == "feed_write_failed"
+
+
+def test_the_cli_prints_podcast_commands_as_fixes_and_the_show_after_choosing_one(
+    episode: Path,
+) -> None:
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+
+    runner = CliRunner()
+    shown = runner.invoke(app, ["feed", "show", "-p", str(episode)])
+    assert 'podcast feed set show "<title>"' in shown.stdout
+    assert "command:" not in shown.stdout
+
+    chosen = runner.invoke(app, ["feed", "set", "show", "The Long River", "-p", str(episode)])
+    assert chosen.exit_code == 0, chosen.output
+    assert '"fact": null' not in chosen.stdout
+    assert '"kind": "ready"' in chosen.stdout

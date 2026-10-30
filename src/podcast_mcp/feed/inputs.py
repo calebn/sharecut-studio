@@ -90,13 +90,15 @@ def gather_inputs(project: EpisodeProject, shows: ShowSource) -> FeedInputs:
     problems = list(shows.problems()) if isinstance(shows, ShowStore) else []
     show_id = linked_show_id(project, summaries)
     profile = None
+    unreadable = None
     if show_id:
         try:
             profile = shows.profile(show_id)
         except CodedValueError as exc:
             if exc.code != "feed_show_unreadable":
                 raise
-            problems.append(str(exc))
+            unreadable = str(exc)
+            problems.append(unreadable)
     art = show_art_source(profile)
     return FeedInputs(
         project=project,
@@ -105,4 +107,5 @@ def gather_inputs(project: EpisodeProject, shows: ShowSource) -> FeedInputs:
         files=export_files(project),
         show_art=_file(art) if art else None,
         show_problems=tuple(dict.fromkeys(problems)),
+        show_unreadable=unreadable,
     )

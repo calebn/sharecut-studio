@@ -605,17 +605,17 @@ def test_a_guest_view_replaces_any_local_path_with_the_file_name() -> None:
             return {
                 "show": {"kind": "ready", "id": "s"},
                 "channel": {
-                    "channel.image": {"value": "/Users/x/private/cover.png", "source": {}},
+                    "channel.image": {"value": "/srv/private/cover.png", "source": {}},
                     "channel.title": {"value": "Title", "source": {}},
                 },
                 "item": {},
-                "sections": {"art": {"value": {"src": "/Users/x/private/cover.png", "alt": "a"}}},
+                "sections": {"art": {"value": {"src": "/srv/private/cover.png", "alt": "a"}}},
             }
 
     guest = served(Leaky(), guest=True)
     host = served(Leaky())
 
-    assert "/Users/x" not in str(guest)
+    assert "/srv/private" not in str(guest)
     assert guest["view"]["channel"]["channel.image"]["value"] == "cover.png"
     assert guest["view"]["channel"]["channel.title"]["value"] == "Title"
-    assert host["view"]["channel"]["channel.image"]["value"] == "/Users/x/private/cover.png"
+    assert host["view"]["channel"]["channel.image"]["value"] == "/srv/private/cover.png"

@@ -1009,7 +1009,7 @@
           ]
         },
         "basis": { "type": ["string", "null"] },
-        "by": { "enum": ["person", "agent"] }
+        "by": { "enum": ["person", "agent", "guest"] }
       }
     },
     "SocialSection": {

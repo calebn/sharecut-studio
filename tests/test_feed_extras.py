@@ -52,7 +52,7 @@ ROWS = [
         "channel.publisher",
         f"{GUID} https://pub.example.test/feed.xml",
         "channel/podcast:publisher/podcast:remoteItem",
-        {"feedGuid": GUID, "feedUrl": "https://pub.example.test/feed.xml"},
+        {"feedGuid": GUID, "feedUrl": "https://pub.example.test/feed.xml", "medium": "publisher"},
         None,
     ),
     (
@@ -182,6 +182,12 @@ def test_the_podroll_lists_one_remote_item_per_line(tmp_path: Path) -> None:
         ("channel.trailer", "https://cdn.example.test/t.mp3 2026-11-01T09:00:00 Trailer"),
         ("channel.trailer", "https://cdn.example.test/t.mp3"),
         ("channel.publisher", "short"),
+        ("channel.publisher", "not-a-uuid-but-long-enough"),
+        ("channel.value", "{}"),
+        ("item.value", "not hex!"),
+        ("item.remoteItem", "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+        ("channel.updateFrequency", "w" * 128),
+        ("channel.funding", "https://example.test/give " + "m" * 128),
         ("channel.podroll", "   "),
         ("channel.funding", "give-here"),
         ("channel.license", "cc-by http://x.example.test"),
@@ -262,3 +268,11 @@ def test_every_optional_row_is_listed_by_feed_fields_with_how_it_is_written() ->
         assert rows[key]["editable"] is True
         assert rows[key]["tags"]
     assert "Written as" in rows["channel.funding"]["help"]
+
+
+def test_an_uppercase_scheme_is_an_address_not_a_file_on_this_machine() -> None:
+    from podcast_mcp.feed.urls import check_art_ref, is_local_art
+
+    assert not is_local_art("HTTPS://cdn.example.test/x.jpg")
+    assert check_art_ref("HTTPS://cdn.example.test/x.jpg") == "HTTPS://cdn.example.test/x.jpg"
+    assert is_local_art("/srv/private/x.jpg")

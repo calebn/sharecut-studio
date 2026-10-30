@@ -1219,6 +1219,7 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
             mastered,
             defaults,
             cancel_check=current_cancel_check(),
+            persist_project=defaults.get("_pipeline_persist"),
         )
         extras: list[str] = []
         if any(path.name.endswith(".chapters.json") for path in written):
