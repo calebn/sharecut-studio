@@ -5,6 +5,8 @@ const RULER_MIN_LABEL_GAP_PX = 64;
 const LABEL_CHAR_PX = 6.6;
 const LABEL_PAD_PX = 8;
 const LABEL_BLEED_PX = RULER_MIN_LABEL_GAP_PX;
+/** The playhead's triangle is 10 px wide, so a half-visible one still shows. */
+export const PLAYHEAD_BLEED_PX = 6;
 /** Stops a tiny step over a wide window from mounting thousands of labels. */
 const MAX_TICKS = 600;
 
