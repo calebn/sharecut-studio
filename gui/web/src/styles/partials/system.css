@@ -5992,6 +5992,10 @@ input.sys-edit-fix {
   pointer-events: none;
 }
 
+.sys-presence-person {
+  display: contents;
+}
+
 .sys-presence-line {
   position: absolute;
   inset-block: 0;
