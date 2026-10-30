@@ -147,7 +147,7 @@ test.describe("core flow", () => {
             // renders the episode transcript.
             const list = await openTranscriptPanel(host);
             await expect(
-              list.getByRole("button", { name: "my", exact: true }).first(),
+              list.getByRole("button", { name: /^my(?: \(.*\))?$/ }).first(),
             ).toBeVisible();
           });
 
@@ -168,7 +168,7 @@ test.describe("core flow", () => {
             const list = await openTranscriptPanel(host);
             await withDocumentCommandTypes(host, async (types) => {
               await list
-                .getByRole("button", { name: "my", exact: true })
+                .getByRole("button", { name: /^my(?: \(.*\))?$/ })
                 .first()
                 .dblclick();
               const input = list.getByRole("textbox", { name: "Fix text" });
@@ -176,16 +176,16 @@ test.describe("core flow", () => {
               await input.fill("My");
               await input.press("Enter");
               await expect(
-                list.getByRole("button", { name: "My", exact: true }).first(),
+                list.getByRole("button", { name: /^My(?: \(.*\))?$/ }).first(),
               ).toBeVisible();
               await expect.poll(() => types).toContain("CorrectTranscriptWord");
 
               await host.keyboard.press("ControlOrMeta+Z");
               await expect(
-                list.getByRole("button", { name: "my", exact: true }).first(),
+                list.getByRole("button", { name: /^my(?: \(.*\))?$/ }).first(),
               ).toBeVisible();
               await expect(
-                list.getByRole("button", { name: "My", exact: true }),
+                list.getByRole("button", { name: /^My(?: \(.*\))?$/ }),
               ).toHaveCount(0);
             });
             // The project is disposable; no API undo is needed here (unlike
