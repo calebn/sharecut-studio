@@ -21,7 +21,7 @@ async function expectZonesLaidOutLikeTheInspector(
   const layout = await page.evaluate(() => {
     const box = (el: Element) => el.getBoundingClientRect();
     const inspector = document.querySelector<HTMLElement>(
-      ".bottom-sheet .inspector",
+      ".bottom-sheet .inspector, .sys-inspector .inspector",
     )!;
     const gutter =
       box(inspector).left +
@@ -29,7 +29,9 @@ async function expectZonesLaidOutLikeTheInspector(
     return {
       gutter,
       zones: [
-        ...document.querySelectorAll(".bottom-sheet .related-commands-list"),
+        ...document.querySelectorAll(
+          ".bottom-sheet .related-commands-list, .sys-inspector .related-commands-list",
+        ),
       ].map((list) => ({
         direction: getComputedStyle(list).flexDirection,
         display: getComputedStyle(list).display,

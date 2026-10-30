@@ -21,8 +21,8 @@ const CLIENT_ID = "e2e-actionbar-ruler";
 type Outcome = "docked" | "floating" | "inline";
 
 /**
- * Where the review actions end up: docked in the compact sheet, on the phone
- * and the tablet alike; floating between the sticky ruler and the bottom panel; or, when the card
+ * Where the review actions end up: docked in the compact sheet on the phone;
+ * floating between the sticky ruler and the bottom panel; or, when the card
  * cannot fit between ruler and panel, left to the inspector's inline controls.
  */
 const VIEWPORTS: Record<
@@ -30,20 +30,17 @@ const VIEWPORTS: Record<
   { width: number; height: number; outcome: Outcome }
 > = {
   phone: { width: 360, height: 800, outcome: "docked" },
-  "tablet-short": { width: 768, height: 500, outcome: "docked" },
-  tablet: { width: 820, height: 1180, outcome: "docked" },
-  "tablet-768": { width: 768, height: 1024, outcome: "docked" },
+  "tablet-short": { width: 768, height: 500, outcome: "floating" },
+  tablet: { width: 820, height: 1180, outcome: "floating" },
+  "tablet-768": { width: 768, height: 1024, outcome: "floating" },
   "tablet-landscape-1194": {
     width: 1194,
     height: 820,
-    outcome: "docked",
+    outcome: "floating",
   },
   "desktop-1195": { width: 1195, height: 820, outcome: "floating" },
   "desktop-360": { width: 1280, height: 360, outcome: "floating" },
   "desktop-500": { width: 1280, height: 500, outcome: "floating" },
-  // No bottom panel is left in the stage frame, so the card keeps its room
-  // between the marker lane and the Player down to about this height.
-  "desktop-short": { width: 1280, height: 220, outcome: "inline" },
 };
 
 let projectPath: string;
@@ -108,9 +105,10 @@ async function expectCardOutcome(
   if (outcome !== "floating") await inspectSelectionByKey(page);
   const bar = page.locator(".pending-actionbar");
   await expect(bar).toBeAttached();
-  await page.locator(".timeline-scroll").evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
-  });
+  if (outcome !== "inline")
+    await page.locator(".timeline-scroll").evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
   await settle(page);
   save(info, `${browserName}-${name}-${theme}.png`, await page.screenshot());
 

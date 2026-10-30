@@ -126,6 +126,10 @@ const DENSE = [
   ".bottom-sheet-detent",
 ];
 
+/** The peek strip is a BottomSheet; every other selection surface is the Inspector sheet. */
+const SHEET = ".bottom-sheet, .sys-inspector";
+const SHEET_BODY = ".bottom-sheet-body, .sys-inspector-scroll";
+
 const SIZE_EXEMPT = [".comment-marker.pin"];
 
 /** The Script pane, which the Edit stage's own scan leaves to its own sweep. */
@@ -185,7 +189,7 @@ async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
     if (await page.locator(".modifier-badge").isVisible()) break;
   }
   await expect(page.locator(".modifier-badge")).toHaveText("Clip");
-  const surface = sheet ? ".bottom-sheet" : "aside.inspector";
+  const surface = sheet ? SHEET : "aside.inspector";
   await expect(page.locator(surface)).toBeVisible();
   await settle(page);
   const failures = await reachFailures(page, {
@@ -194,11 +198,8 @@ async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
     sizeExempt: SIZE_EXEMPT,
   });
   if (sheet) {
-    await page
-      .locator(".bottom-sheet")
-      .getByRole("button", { name: "Close" })
-      .click();
-    await expect(page.locator(".bottom-sheet")).toHaveCount(0);
+    await page.locator(SHEET).getByRole("button", { name: "Close" }).click();
+    await expect(page.locator(SHEET)).toHaveCount(0);
   }
   return failures;
 }
@@ -224,7 +225,7 @@ async function sweepCell(
   const trigger = page.locator(".track-header-open").first();
   await trigger.focus();
   await trigger.press("Enter");
-  const surface = sheet ? ".bottom-sheet" : "aside.inspector";
+  const surface = sheet ? SHEET : "aside.inspector";
   await expect(page.locator(surface)).toBeVisible();
   await settle(page);
   found["track surface"] = await reachFailures(page, {
@@ -233,11 +234,8 @@ async function sweepCell(
     sizeExempt: SIZE_EXEMPT,
   });
   if (sheet) {
-    await page
-      .locator(".bottom-sheet")
-      .getByRole("button", { name: "Close" })
-      .click();
-    await expect(page.locator(".bottom-sheet")).toHaveCount(0);
+    await page.locator(SHEET).getByRole("button", { name: "Close" }).click();
+    await expect(page.locator(SHEET)).toHaveCount(0);
   }
 
   found["clip surface"] = await clipSurface(page, sheet);
@@ -364,7 +362,7 @@ async function sweepSeededTrack(
     const trigger = page.locator(".track-header-open").first();
     await trigger.focus();
     await trigger.press("Enter");
-    const surface = cell.width <= 1194 ? ".bottom-sheet" : "aside.inspector";
+    const surface = cell.width <= 1194 ? SHEET : "aside.inspector";
     await expect(page.locator(surface)).toBeVisible();
     await expect(
       page.getByRole("checkbox", { name: /^Bypass / }).first(),
@@ -487,7 +485,13 @@ test("pending-edit and transcript-word sheet bodies keep every control reachable
         await page.evaluate((px) => {
           document.documentElement.style.fontSize = `${px}px`;
         }, cell.rootPx);
-        const surface = ".bottom-sheet-body";
+        const surface = SHEET_BODY;
+        const grip = page.getByRole("slider", { name: "Sheet height" });
+        if (await grip.count()) {
+          await grip.focus();
+          await page.keyboard.press("End");
+          await settle(page);
+        }
         const body = page.locator(surface);
         await expect(body).toBeVisible();
         // A phone selection opens the drawer at its strip; the body shows from

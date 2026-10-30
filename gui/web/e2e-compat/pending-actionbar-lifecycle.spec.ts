@@ -9,8 +9,7 @@ import { switchE2eProject } from "../e2e/shareableProject";
 import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
 import { buildFixture, centerOf, lane, setZoom } from "../e2e/touchTimeline";
 
-// A mouse window: a coarse pointer at this size gets the Inspector column
-// (#1696), and the compact strip is what hands its card to the regular sheet.
+// A mouse window: the tablet shell floats the review card over the lanes beside the Inspector card.
 test.use({ hasTouch: false });
 let projectPath: string;
 let workspaceDir: string;
@@ -48,7 +47,7 @@ async function selected(
   await page.waitForTimeout(60);
   await finger.up();
   await inspectSelectionByKey(page);
-  await expect(page.locator(".pending-actionbar--docked")).toBeVisible();
+  await expect(page.locator(".pending-actionbar")).toBeVisible();
   await page.waitForTimeout(700);
 }
 test("live waiver draft survives a short to tall tablet resize", async ({
@@ -77,9 +76,7 @@ test("live waiver draft survives a short to tall tablet resize", async ({
   await reason.fill("Reviewed every flagged transcript word");
   await reason.focus();
   await page.setViewportSize({ width: 844, height: 900 });
-  await expect(
-    page.locator(".bottom-sheet--compact .pending-actionbar--docked"),
-  ).toBeVisible();
+  await expect(page.locator(".pending-actionbar")).toBeVisible();
   await page.waitForTimeout(700);
   const moved = page
     .locator(".pending-actionbar")
