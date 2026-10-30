@@ -3,12 +3,15 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   memo,
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react";
 import { HANDLE_DRAG_MIN_PX, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
+import { useResizeObserver } from "../ui/useResizeObserver";
 import { clamp } from "../utils/math";
 import { formatRulerTime, formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
@@ -102,10 +105,14 @@ const EDGE_NAMES: Record<RulerEdge, string> = {
 
 const px = (value: number) => `${value}px`;
 
-const onResize = (notify: () => void) => {
-  window.addEventListener("resize", notify);
-  return () => window.removeEventListener("resize", notify);
-};
+/** A zero-height box one rem wide: it resizes when the root text size changes, which `resize` does not report. */
+function makeRemProbe(): HTMLElement {
+  const el = document.createElement("div");
+  el.setAttribute("aria-hidden", "true");
+  el.style.cssText =
+    "position:absolute;visibility:hidden;pointer-events:none;inline-size:1rem;block-size:0";
+  return el;
+}
 
 /** The root font size in px: the labels' room is figured in rem, so a larger text setting spaces them wider. */
 function rootFontPx(): number {
@@ -145,7 +152,32 @@ export const Ruler = memo(function Ruler({
   const nudging = useRef<RulerEdge | null>(null);
   const [grabbed, setGrabbed] = useState<RulerGrip | null>(null);
 
-  const rem = useSyncExternalStore(onResize, rootFontPx, () => DEFAULT_REM_PX);
+  const remProbe = useRef<HTMLElement | null>(null);
+  const remChanged = useRef<(() => void) | null>(null);
+  // A window resize (page zoom) or a text-size change after mount re-reads the root font size.
+  const subscribeRem = useCallback((notify: () => void) => {
+    remChanged.current = notify;
+    window.addEventListener("resize", notify);
+    return () => {
+      remChanged.current = null;
+      window.removeEventListener("resize", notify);
+    };
+  }, []);
+  const rem = useSyncExternalStore(
+    subscribeRem,
+    rootFontPx,
+    () => DEFAULT_REM_PX,
+  );
+  useLayoutEffect(() => {
+    const el = makeRemProbe();
+    remProbe.current = el;
+    root.current?.appendChild(el);
+    return () => {
+      el.remove();
+      remProbe.current = null;
+    };
+  }, []);
+  useResizeObserver(remProbe, () => remChanged.current?.());
   const windowEnd = start + width / pxPerSecond;
   const step = rulerStep(pxPerSecond, windowEnd, rem);
   const ticks = rulerTicks(start, pxPerSecond, width, step, duration, rem);
