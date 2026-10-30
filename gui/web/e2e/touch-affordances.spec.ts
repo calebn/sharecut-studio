@@ -10,7 +10,7 @@ const cases = [
 ] as const;
 
 for (const { cell: viewport, theme, reducedMotion } of withAppearance(cases)) {
-  test(`sheet affordances ${viewport.width}x${viewport.height}, ${theme}, reduced motion ${reducedMotion}`, async ({
+  test(`sheet affordances ${viewport.width}x${viewport.height}${viewport.sheetExpected ? "" : " (no legacy sheet)"}, ${theme}, reduced motion ${reducedMotion}`, async ({
     page,
   }) => {
     await exerciseTouchSheetAffordances(page, viewport, theme, reducedMotion, {
