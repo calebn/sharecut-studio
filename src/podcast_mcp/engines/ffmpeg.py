@@ -826,7 +826,7 @@ class FFmpegEngine:
             # Guest uploads: do not follow concat:/file: demuxer tricks.
             cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
         cmd.append(str(path))
-        r = run(cmd, capture_output=True, text=True, check=True)
+        r = run(cmd, capture_output=True, text=True, check=True, timeout=_PACKET_SCAN_TIMEOUT_SEC)
         data = json.loads(r.stdout)
         audio_streams = [s for s in data.get("streams", []) if s.get("codec_type") == "audio"]
         stream: dict[str, Any] = audio_streams[0] if audio_streams else {}
