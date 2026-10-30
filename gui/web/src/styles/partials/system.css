@@ -5974,8 +5974,7 @@ input.sys-edit-fix {
   position: absolute;
   inset-block-start: 50%;
   inset-inline: 0;
-  border-block-start: var(--selection-remote-width) solid
-    var(--sys-lane-color);
+  border-block-start: var(--selection-remote-width) solid var(--sys-lane-color);
   pointer-events: none;
 }
 
@@ -6002,7 +6001,9 @@ input.sys-edit-fix {
   position: absolute;
   inset-block: 0;
   inset-inline-start: calc(
-    var(--sys-presence-x) - var(--selection-remote-width) / 2
+    var(--sys-presence-x) -
+    var(--selection-remote-width) /
+    2
   );
   border-inline-start: var(--selection-remote-width) solid
     var(--sys-presence-color);
@@ -6012,7 +6013,8 @@ input.sys-edit-fix {
   position: absolute;
   inset-block-start: 0.25rem;
   inset-inline-start: calc(
-    var(--sys-presence-x) + var(--selection-remote-width)
+    var(--sys-presence-x) +
+    var(--selection-remote-width)
   );
   display: flex;
   align-items: center;
@@ -6029,8 +6031,9 @@ input.sys-edit-fix {
 
 .sys-presence-flag--left {
   inset-inline-start: calc(
-    var(--sys-presence-x) - var(--sys-presence-flag) -
-      var(--selection-remote-width)
+    var(--sys-presence-x) -
+    var(--sys-presence-flag) -
+    var(--selection-remote-width)
   );
 }
 
