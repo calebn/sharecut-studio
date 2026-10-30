@@ -556,6 +556,19 @@ describe("ScriptPane handle and scrolling", () => {
     expect(ref.current?.scrollToWord(900)).toBe(false);
   });
 
+  it("puts focus on the stop that holds a word and says when it is not shown", () => {
+    const { ref } = mount();
+    expect(ref.current?.focusWord(47)).toBe(true);
+    expect(document.activeElement).toBe(
+      document.querySelector('.sys-script-pill[data-stop="46"] button'),
+    );
+    expect(ref.current?.focusWord(0)).toBe(true);
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-stop="0"]'),
+    );
+    expect(ref.current?.focusWord(900)).toBe(false);
+  });
+
   it("lands a word below the view at its bottom edge by default and for nearest", () => {
     const { ref, body } = mount();
     const landed = (block?: ScrollLogicalPosition) => {
