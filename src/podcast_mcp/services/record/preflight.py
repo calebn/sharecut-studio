@@ -13,8 +13,9 @@ from podcast_mcp.services.record.service import RecordSessionService, _store_for
 from podcast_mcp.services.record.state import ParticipantState, RecordSnapshot, TakeState
 from podcast_mcp.services.record.upload import RecordUploadService
 
-#: How long after the latest trusted Stop or chunk time an upload still counts as "saving".
-#: Later than this it is "never finished": reported, but it no longer blocks land-first.
+#: How long an upload counts as "saving" after the latest trusted Stop, saved chunk (on any of
+#: that person's segments) or rejoin of that person. Later than this it is "never finished":
+#: reported, but it no longer blocks land-first.
 UPLOAD_GRACE_MS = 10 * 60 * 1000
 #: Timestamps further ahead than this are not trusted (see ``_quiet_ms``).
 CLOCK_SKEW_MS = 60 * 1000
@@ -91,6 +92,19 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
     have_max: dict[tuple[int, str], int] = {}
     for take_index, pid, segment in have:
         have_max[(take_index, pid)] = max(have_max.get((take_index, pid), -1), segment)
+    last_part_ms: dict[str, int] = {}
+    for row in rows:
+        if row.get("file_ack") or row.get("landed"):
+            continue
+        seen = uploads.segment_last_activity_ms(
+            session_id,
+            int(row["take_index"]),
+            str(row["participant_id"]),
+            int(row["segment_index"]),
+        )
+        if seen is not None and seen <= now + CLOCK_SKEW_MS:
+            pid = str(row["participant_id"])
+            last_part_ms[pid] = max(last_part_ms.get(pid, 0), seen)
     landable: set[int] = set()
     saving: set[int] = set()
     stalled: set[tuple[int, str, int]] = set()
@@ -98,7 +112,6 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
         if take.stopped_wall_ms is None or take.take_index in tombstoned:
             continue
         index = take.take_index
-        stopped_quiet = _quiet_ms(now, take.stopped_wall_ms)
         for row in rows:
             if int(row["take_index"]) != index or row.get("landed"):
                 continue
@@ -107,8 +120,12 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
                 landable.add(index)
                 continue
             person = by_pid.get(pid)
-            last = uploads.segment_last_activity_ms(session_id, index, pid, segment)
-            quiet = _quiet_ms(now, last, take.stopped_wall_ms)
+            quiet = _quiet_ms(
+                now,
+                last_part_ms.get(pid),
+                person.connected_wall_ms if person else None,
+                take.stopped_wall_ms,
+            )
             if (person is not None and person.removed) or quiet is None or quiet > UPLOAD_GRACE_MS:
                 stalled.add((index, pid, segment))
             else:
@@ -121,10 +138,16 @@ def unsaved_takes(project: EpisodeProject, *, now_wall_ms: int | None = None) ->
             person = by_pid.get(pid)
             if person is None or person.removed:
                 continue
+            quiet = _quiet_ms(
+                now,
+                last_part_ms.get(pid),
+                person.connected_wall_ms if person else None,
+                take.stopped_wall_ms,
+            )
             for segment in range(_owed_segments(take, person, have_max.get((index, pid), -1))):
                 if (index, pid, segment) in have:
                     continue
-                if stopped_quiet is None or stopped_quiet > UPLOAD_GRACE_MS:
+                if quiet is None or quiet > UPLOAD_GRACE_MS:
                     stalled.add((index, pid, segment))
                 else:
                     saving.add(index)
@@ -209,8 +232,9 @@ def refuse_land_first(unsaved: Unsaved, *, after_land: bool) -> str | None:
         return None
     if unsaved.saving:
         return (
-            f"{_takes(unsaved.saving)} still saving. Uploads can take up to 10 minutes after "
-            "Stop: wait for them to finish, or start anyway. No new room was started."
+            f"{_takes(unsaved.saving)} still saving. A recording counts as saving until 10 "
+            "minutes pass with nothing new from that person (no upload and no rejoin since "
+            "Stop). Wait for them to finish, or start anyway. No new room was started."
         )
     if unsaved.closed:
         return (

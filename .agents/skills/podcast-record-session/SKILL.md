@@ -18,7 +18,7 @@ only (mix-minus), and save it to the host's project in chunks until the file
 ACK. Say "Saving to project…" while a segment is in flight and "Saved to
 project" once the host holds the verified file, per participant and segment.
 Each keeper reports how many segments it opened (`SegmentReport`), and a take stays
-"saving" until every reported segment is in (up to 10 minutes after Stop), then "stalled". A client that dies before its last
+"saving" until every reported segment is in (until 10 minutes pass with no upload or rejoin from that person since Stop), then "stalled". A client that dies before its last
 report is judged by the last count it sent; a guest that never reported, by the Pause/Resume inference.
 After that the host copies each segment into `raw/` and registers one clip at
 `take_offset_s + join_offset_ms / 1000` (2 s gap between takes). During REC or
