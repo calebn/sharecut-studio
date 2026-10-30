@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.edit import EditService, with_audio_check
     from podcast_mcp.services.document.episode import EpisodeService
-    from podcast_mcp.services.document.feed import FeedService
+    from podcast_mcp.services.document.feed import FeedService, FeedViewKind, describe_fields
     from podcast_mcp.services.document.golden_ear import (
         DEFAULT_LIMIT,
         LISTEN_DIRNAME,
@@ -67,6 +67,7 @@ __all__ = [
     "EmptyHistoryDiffResult",
     "EpisodeService",
     "FeedService",
+    "FeedViewKind",
     "HistoryDiffResult",
     "HistoryListResult",
     "HistoryService",
@@ -83,6 +84,7 @@ __all__ = [
     "build_golden_ear",
     "cross_process_bridge",
     "cross_process_lease",
+    "describe_fields",
     "run_comment_mutation_with_file_revisions",
     "score_golden_ear",
     "warm_in_background",
@@ -107,6 +109,8 @@ _MODULE_BY_NAME = {
     "with_audio_check": "edit",
     "EpisodeService": "episode",
     "FeedService": "feed",
+    "FeedViewKind": "feed",
+    "describe_fields": "feed",
     "DEFAULT_LIMIT": "golden_ear",
     "LISTEN_DIRNAME": "golden_ear",
     "build_golden_ear": "golden_ear",

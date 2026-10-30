@@ -9,8 +9,7 @@ from typing import Any
 import typer
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import FeedService
-from podcast_mcp.services.document.feed import describe_fields
+from podcast_mcp.services.document import FeedService, describe_fields
 
 feed_app = typer.Typer(help="The podcast listing: show notes, chapters, people and the feed.")
 

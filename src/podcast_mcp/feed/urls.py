@@ -10,7 +10,6 @@ from urllib.parse import quote, urlsplit
 AUDIO_MIME = {".mp3": "audio/mpeg", ".m4a": "audio/x-m4a"}
 TRANSCRIPT_MIME = {"SRT": "application/x-subrip", "VTT": "text/vtt"}
 CHAPTERS_MIME = "application/json+chapters"
-FEED_MIME = "application/rss+xml"
 # The Podcast Index namespace id every podcast:guid is a UUIDv5 under.
 PODCAST_GUID_NAMESPACE = uuid.UUID("ead4c236-bf58-58c6-a2c6-a6b28d128cb6")
 

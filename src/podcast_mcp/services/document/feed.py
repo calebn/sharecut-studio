@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import wave
 from pathlib import Path
-from typing import Any, Literal, get_args
+from typing import Any, Literal
 
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.feed.fields import FIELDS, AtSource, FieldSpec, lookup
@@ -72,7 +72,6 @@ def export_files(project: EpisodeProject) -> ExportFiles:
 
 
 FeedViewKind = Literal["facts", "item_xml", "feed_xml", "notes_html", "show"]
-FEED_VIEW_KINDS: tuple[str, ...] = get_args(FeedViewKind)
 
 
 def _edit_text(spec: FieldSpec) -> str:

@@ -267,3 +267,11 @@ def test_the_docs_describe_every_registry_row_and_the_skill_names_every_tool() -
 
     assert [row["key"] for row in describe_fields() if f"`{row['key']}`" not in doc] == []
     assert [tool for tool in ("feed_read", "feed_set", "feed_unset") if tool not in skill] == []
+
+
+@pytest.mark.parametrize("command", ["SetFeedField", "ClearFeedField"])
+def test_no_guest_role_may_edit_the_listing(command: str) -> None:
+    from podcast_mcp.services.collaboration import ReviewRole
+    from podcast_mcp.services.document_sync.capabilities import ROLE_DOCUMENT_COMMANDS
+
+    assert [r for r in ReviewRole if command in ROLE_DOCUMENT_COMMANDS[r]] == []
