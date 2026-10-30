@@ -91,6 +91,22 @@ def test_episode_export_refreshes_edited_transcripts_and_reports_their_paths(
     assert "[0:02]: Later." in markdown
 
 
+def test_episode_export_refreshes_txt_and_vtt_already_on_disk(
+    export_workspace: tuple[ProjectWorkspace, Path],
+) -> None:
+    workspace, _master = export_workspace
+    export_dir = workspace.project.export_dir()
+    for extension in ("txt", "vtt"):
+        (export_dir / f"edited-episode.{extension}").write_text("Old Removed. at 4s")
+
+    result = PipelineService(workspace).export_audio(formats=[])
+
+    assert {"edited-episode.txt", "edited-episode.vtt"} <= {path.name for path in result.paths}
+    for extension in ("txt", "vtt"):
+        assert "Removed" not in (export_dir / f"edited-episode.{extension}").read_text()
+    assert "Later." in (export_dir / "edited-episode.vtt").read_text()
+
+
 @pytest.mark.parametrize(
     "fault",
     [

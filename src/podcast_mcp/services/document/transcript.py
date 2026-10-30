@@ -158,6 +158,21 @@ def _validated_formats(formats: Sequence[str]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(formats))
 
 
+def _caption_words(text: str) -> list[str]:
+    cues = (
+        line
+        for line in text.splitlines()
+        if line.strip() and line != "WEBVTT" and "-->" not in line and not line.strip().isdigit()
+    )
+    return " ".join(cues).split()
+
+
+def _same_transcript(fmt: str, data: bytes, fresh: str) -> bool:
+    if fmt not in ("srt", "vtt"):
+        return data == fresh.encode("utf-8")
+    return _caption_words(data.decode("utf-8", errors="replace")) == _caption_words(fresh)
+
+
 def _configured_limits(defaults: EffectiveConfig) -> CaptionLimits:
     return resolve_caption_limits(defaults.get("export", {}))
 
@@ -251,7 +266,8 @@ class TranscriptService(WorkspaceService):
     ) -> TranscriptExport:
         """Write the edited episode's transcript as ``formats`` (``txt|md|srt|vtt``), or preview it.
 
-        Files land in ``export_dir()`` next to the audio, all together or none. ``dry_run``
+        Files land in ``export_dir()`` next to the audio, written to temporary files first, and a
+        destination that is not a file is refused before any file is replaced. ``dry_run``
         takes no lock, writes nothing and returns the preview only; ``with_text`` adds the
         reading text. A real write of an episode with no turns raises ``transcript_empty``;
         a render held by another writer past the request timeout raises ``export_busy``.
@@ -289,6 +305,12 @@ class TranscriptService(WorkspaceService):
         rendered = render_transcript_formats(p, defaults, formats, limits)
         stem = p.export_dir() / sanitize_export_stem(p.name)
         dests = [stem.with_name(f"{stem.name}.{fmt}") for fmt in rendered]
+        blocked = next((d for d in dests if d.exists() and not d.is_file()), None)
+        if blocked is not None:
+            raise CodedValueError(
+                f"{blocked.name} in the export folder is not a file; move it and export again.",
+                code="export_target_not_file",
+            )
 
         def render(temps: list[Path]) -> None:
             for tmp, content in zip(temps, rendered.values(), strict=True):
@@ -336,7 +358,8 @@ class TranscriptService(WorkspaceService):
         """Transcript files in ``export_dir()`` for this project, read-only (no lock, no save).
 
         Only ``<stem>.{txt,md,srt,vtt}`` directly in the folder count, so ``bounces/`` and
-        ``clips/`` never appear. ``current`` compares each file's bytes with a fresh render.
+        ``clips/`` never appear. ``current`` compares each file with a fresh render; captions
+        compare by their words, since the file does not record the cue limits it was written with.
         """
         p = self.ws.project
         stem = sanitize_export_stem(p.name)
@@ -367,7 +390,7 @@ class TranscriptService(WorkspaceService):
                     modified=datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).strftime(
                         "%Y-%m-%dT%H:%M:%SZ"
                     ),
-                    current=data == rendered[fmt].encode("utf-8"),
+                    current=_same_transcript(fmt, data, rendered[fmt]),
                 )
             )
         return out
