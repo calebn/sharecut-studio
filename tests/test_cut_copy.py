@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from clip_copy_support import full_clip, shared_objects
 from cut_copy_fields import SHARED_FIELDS
 from podcast_mcp.edits.cut_application import _SECTION_COPIES, _cut_copy
 from podcast_mcp.models import (
@@ -58,7 +59,10 @@ def populated() -> EpisodeProject:
     media = MediaAsset(path="raw/a.wav", duration_sec=9, sample_rate=16_000, channels=1)
     project.sources = [SourceRecording(id="src", path="raw/a.wav", duration_sec=9)]
     project.tracks = [Track(id="a", label="A", role=TrackRole.DIALOGUE, media=media)]
-    project.clips = [Clip(id="c1", track_id="a", source_start=0, source_end=9, timeline_start=0)]
+    project.clips = [
+        Clip(id="c1", track_id="a", source_start=0, source_end=9, timeline_start=0),
+        full_clip(),
+    ]
     project.timeline.duration_sec = 9
     words = [TranscriptWord(text=f"w{i}", start=i, end=i + 0.5) for i in range(3)]
     transcript = Transcript(track_id="a", words=words)
@@ -86,7 +90,8 @@ def populated() -> EpisodeProject:
 
 # One verdict per section a project holds. "shared": the copy holds the original object.
 # "list": a new list or dict of the original items. "items": a new container of new shallow
-# copies. "deep": a new container of deep copies. "scalar": a value. "shell": a new model
+# copies. "deep": a new container of deep copies. "clip_shell": a new container of clips copied by
+# shell_copy_clip, equal to a deep copy and sharing no mutable part. "scalar": a value. "shell": a new model
 # whose own fields are in the nested table. A new field fails the key checks below until a
 # row says what the cut may write.
 TOP: dict[str, str] = {
@@ -113,7 +118,7 @@ NESTED: dict[str, dict[str, str]] = {
         "ingest_alignment": "list",
         "analysis_reads_first_audio_stream": "scalar",
     },
-    "timeline": {"duration_sec": "scalar", "tracks": "deep", "clips": "deep"},
+    "timeline": {"duration_sec": "scalar", "tracks": "deep", "clips": "clip_shell"},
     "editorial": {
         "edit_decisions": "items",
         "edit_log": "list",
@@ -146,6 +151,9 @@ def _check(verdict: str, original: Any, made: Any, where: str) -> None:
         for before, after in pairs:
             if verdict == "list":
                 assert after is before, f"{where} items are shared"
+            elif verdict == "clip_shell":
+                assert shared_objects(before, after) == [], f"{where} items share a mutable part"
+                assert after.model_dump_json() == before.model_dump_json(), where
             else:
                 assert after is not before, f"{where} items are copies"
 
