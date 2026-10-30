@@ -324,6 +324,8 @@ function RecordStageBody({
         micNotes={micNotes}
         onMicAction={() => cap.onRetryMic?.()}
         onInputChange={cap.onDeviceChange}
+        output={cap.output}
+        onOutputChange={cap.output.onChange}
         tone={deviceTone({
           status: room.roomTone.status,
           delivery: room.roomTone.delivery,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MIX_MINUS_RAMP_S, MixMinusGraph } from "../../audio/mixMinus";
 import { errorMessage } from "../../utils/apiError";
 import { audioContextCtor } from "../../utils/audio";
@@ -23,6 +23,14 @@ type Args = {
   muted: boolean;
   send: (payload: SignalPayload) => void;
 };
+
+type SinkContext = { setSinkId?: (deviceId: string) => Promise<void> };
+
+/** True when the browser's AudioContext can route to a chosen speaker. */
+export function outputSelectable(): boolean {
+  const Ctor = audioContextCtor();
+  return Ctor !== undefined && "setSinkId" in Ctor.prototype;
+}
 
 export function peerMuted(
   snapshot: RecordSnapshot | null,
@@ -68,10 +76,16 @@ export function useRecordMonitor({
   error: string | null;
   /** Each remote peer's level, 0 to 1, from an analyser on their audio. Client-side only. */
   levels: Record<string, number>;
+  outputSupported: boolean;
+  /** Counts each AudioContext opened, so the speaker pick is applied to a new one. */
+  contextGeneration: number;
+  /** Route the room's audio to a speaker ("" is the default). A no-op without a context. */
+  setSinkId: (deviceId: string) => Promise<void>;
 } {
   const [remoteCount, setRemoteCount] = useState(0);
   const [levels, setLevels] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
+  const [contextGeneration, setContextGeneration] = useState(0);
   const sessionId = snapshot?.session_id ?? null;
   const sendRef = useRef(send);
   sendRef.current = send;
@@ -175,6 +189,7 @@ export function useRecordMonitor({
     let cancelled = false;
     const ctx = new Ctor();
     ctxRef.current = ctx;
+    setContextGeneration((n) => n + 1);
     const graph = new MixMinusGraph(ctx, { localId });
     graphRef.current = graph;
     const gone = goneTimers.current;
@@ -299,10 +314,18 @@ export function useRecordMonitor({
     syncRosterRef.current();
   }, [localId, rosterKey]);
 
+  const setSinkId = useCallback(async (deviceId: string) => {
+    const ctx = ctxRef.current as SinkContext | null;
+    await ctx?.setSinkId?.(deviceId);
+  }, []);
+
   return {
     hearing: remoteCount > 0,
     remoteCount,
     error,
     levels,
+    outputSupported: outputSelectable(),
+    contextGeneration,
+    setSinkId,
   };
 }

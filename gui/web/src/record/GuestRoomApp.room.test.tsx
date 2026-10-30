@@ -6,6 +6,7 @@ import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { GuestRoomApp } from "./GuestRoomApp";
 import type { RecordUploadProgress } from "./upload/useRecordUpload";
 import type { GuestRoom } from "./useGuestRoom";
+import { NO_OUTPUT } from "./useOutputDevice";
 
 const current = vi.hoisted(() => ({ room: null as unknown }));
 vi.mock("./useGuestRoom", () => ({
@@ -38,6 +39,7 @@ type Overrides = {
   me?: typeof me;
   producer?: boolean;
   mic?: Partial<GuestRoom["mic"]>;
+  output?: Partial<GuestRoom["output"]>;
   deviceId?: string;
   keeper?: Partial<GuestRoom["keeper"]>;
   upload?: Partial<RecordUploadProgress>;
@@ -96,6 +98,7 @@ function fakeRoom(over: Overrides = {}) {
       ...over.keeper,
     },
     monitor: { hearing: false, remoteCount: 0, error: null, levels: {} },
+    output: { ...NO_OUTPUT, ...over.output },
     upload: { ...idleUpload, ...over.upload },
     takeClipping: over.takeClipping ?? null,
     takeClippings: over.takeClippings ?? {},
@@ -407,6 +410,33 @@ describe("GuestRoomApp in the room", () => {
       );
       expect(room.roomTone.record).toHaveBeenCalledOnce();
       await expectNoA11yViolations(baseElement);
+    });
+
+    it("draws the Speaker menu only where the browser can pick one, and applies a pick", async () => {
+      fakeRoom({ mic: { devices } });
+      const { unmount } = render(<GuestRoomApp token="t" />);
+      await userEvent.click(screen.getByRole("button", { name: "Devices" }));
+      const none = await screen.findByRole("dialog", { name: "Devices" });
+      expect(within(none).queryByLabelText("Speaker")).toBeNull();
+      unmount();
+      const onChange = vi.fn();
+      fakeRoom({
+        mic: { devices },
+        output: {
+          supported: true,
+          devices: [{ id: "hp", label: "Headset" }],
+          selectedId: "",
+          onChange,
+        },
+      });
+      render(<GuestRoomApp token="t" />);
+      await userEvent.click(screen.getByRole("button", { name: "Devices" }));
+      const dialog = await screen.findByRole("dialog", { name: "Devices" });
+      await userEvent.selectOptions(
+        within(dialog).getByLabelText("Speaker"),
+        "hp",
+      );
+      expect(onChange).toHaveBeenCalledWith("hp");
     });
 
     it("locks the input menu and room tone while a take is running", async () => {

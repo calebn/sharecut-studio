@@ -3,7 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { useArgState } from "../test/storyDialog";
 import { DeviceSheet, type DeviceSheetProps } from "./DeviceSheet";
-import type { DeviceMic } from "./deviceSheetModel";
+import type { DeviceMic, DeviceOutput } from "./deviceSheetModel";
 import { RoomView } from "./RoomView";
 import type { RoomPerson } from "./roomViewModel";
 
@@ -34,6 +34,15 @@ const MIC_READY = {
   ],
   inputId: "builtin",
 } satisfies DeviceMic;
+
+const OUTPUT_READY = {
+  supported: true,
+  devices: [
+    { id: "builtin", label: "MacBook Pro Speakers" },
+    { id: "headset", label: "Jabra Evolve2 Headset" },
+  ],
+  selectedId: "headset",
+} satisfies DeviceOutput;
 
 const TONE_IDLE = {
   state: "idle",
@@ -75,6 +84,7 @@ const meta: Meta<DeviceSheetProps> = {
     tone: TONE_IDLE,
     onMicAction: fn(),
     onInputChange: fn(),
+    onOutputChange: fn(),
     onRecordRoomTone: fn(),
     onClose: fn(),
   },
@@ -84,7 +94,7 @@ const meta: Meta<DeviceSheetProps> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "Opened by pressing your own tile, or from the room's More menu. One Sheet over the live room: the microphone row (input menu when there are two or more, a level meter with a clip tick, and the same states as the Join sheet's mic row), the headphone toggle where the seat has one, and Record room tone (1 minute, for someone who joined after the countdown). Every control applies as it changes, so there is no Apply. The input menu locks while a take is running, and room tone waits for the gap between takes. Desktop is a centred card; the phone is a bottom Sheet. Presentational: the caller owns the microphone, the meter and the room tone.",
+          "Opened by pressing your own tile, or from the room's More menu. One Sheet over the live room: the microphone row (input menu when there are two or more, a level meter with a clip tick, and the same states as the Join sheet's mic row), the headphone toggle where the seat has one, a Speaker menu only where the browser can route the room's audio (absent, not disabled, elsewhere), and Record room tone (1 minute, for someone who joined after the countdown). Every control applies as it changes, so there is no Apply. The input menu locks while a take is running, and room tone waits for the gap between takes. Desktop is a centred card; the phone is a bottom Sheet. Presentational: the caller owns the microphone, the meter and the room tone.",
       },
     },
   },
@@ -254,5 +264,45 @@ export const Phone: Story = {
     await expect(
       dialog.getByRole("button", { name: "Record 1 minute of room tone" }),
     ).toBeVisible();
+  },
+};
+
+export const WithSpeaker: Story = {
+  args: { output: OUTPUT_READY },
+  play: async ({ args, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    const menu = dialog.getByLabelText("Speaker");
+    await expect(menu).toHaveValue("headset");
+    await userEvent.selectOptions(menu, "builtin");
+    await expect(args.onOutputChange).toHaveBeenCalledWith("builtin");
+    await expect(dialog.queryByRole("button", { name: /apply/i })).toBeNull();
+  },
+};
+
+export const SpeakerFellBack: Story = {
+  args: {
+    output: {
+      ...OUTPUT_READY,
+      selectedId: "",
+      error: "Couldn't switch speakers. Using the default.",
+    },
+  },
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(dialog.getByLabelText("Speaker")).toHaveValue("");
+    await expect(
+      dialog.getByText("Couldn't switch speakers. Using the default."),
+    ).toBeVisible();
+  },
+};
+
+export const NoSpeakerMenu: Story = {
+  args: { output: { ...OUTPUT_READY, supported: false } },
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(dialog.queryByLabelText("Speaker")).toBeNull();
   },
 };

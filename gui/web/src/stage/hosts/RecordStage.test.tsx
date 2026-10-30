@@ -493,6 +493,30 @@ describe("Record stage capture and storage", () => {
     ).toBeDisabled();
   });
 
+  it("shows the host's Speaker menu only when the browser supports one", async () => {
+    setRoom({ participants: [avaGuest()] });
+    const { unmount } = mount({ stream: {} as MediaStream });
+    const none = await openDevices();
+    expect(within(none).queryByLabelText("Speaker")).toBeNull();
+    unmount();
+    const onChange = vi.fn();
+    mount({
+      stream: {} as MediaStream,
+      output: {
+        supported: true,
+        devices: [{ id: "hp", label: "Headset" }],
+        selectedId: "",
+        onChange,
+      },
+    });
+    const dialog = await openDevices();
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText("Speaker"),
+      "hp",
+    );
+    expect(onChange).toHaveBeenCalledWith("hp");
+  });
+
   it("opens Devices from the host's own tile and from More", async () => {
     setRoom({ participants: [hostPerson()] });
     mount({ stream: {} as MediaStream });

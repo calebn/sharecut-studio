@@ -19,6 +19,7 @@ import {
   useRecordUpload,
 } from "./upload/useRecordUpload";
 import { useMicPermission } from "./useMicPermission";
+import { useOutputDevice } from "./useOutputDevice";
 import { useRecordLiveComments } from "./useRecordLiveComments";
 import {
   isRecordAccessEnded,
@@ -187,6 +188,7 @@ export function useGuestRoom(
     muted: me?.muted ?? false,
     send: (payload) => send("Signal", payload),
   });
+  const output = useOutputDevice(monitor);
   const uploadTransport = useMemo(() => {
     if (
       !bootstrap?.build.upload ||
@@ -336,6 +338,7 @@ export function useGuestRoom(
     retryStorage,
     keeper,
     monitor,
+    output,
     upload,
     uploadTransport,
     takeClipping,
