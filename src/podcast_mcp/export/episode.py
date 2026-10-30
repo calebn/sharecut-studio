@@ -31,6 +31,7 @@ def export_episode_deliverables(
     defaults: EffectiveConfig,
     *,
     cancel_check: Callable[[], bool] | None = None,
+    persist_project: Callable[[], object] | None = None,
 ) -> list[Path]:
     """Publish episode audio, edited transcripts and chapters after all files are prepared.
 
@@ -39,6 +40,8 @@ def export_episode_deliverables(
 
     The podcast feed file (``<stem>.feed.xml``) is refreshed last when the listing has no
     blocker; a failure there never fails the export (``feed.writer.write_after_export``).
+    ``persist_project`` saves the project before the feed file is published, so the guid and
+    number the feed carries are never lost.
 
     Callers hold render_lock. Preparation failure or cancellation before publication
     preserves previous outputs. Final replacements are not a cross-file transaction.
@@ -83,5 +86,5 @@ def export_episode_deliverables(
     # The feed file follows the audio it names. Imported here: the feed reads export names.
     from podcast_mcp.feed.writer import write_after_export
 
-    write_after_export(project)
+    write_after_export(project, persist=persist_project)
     return written

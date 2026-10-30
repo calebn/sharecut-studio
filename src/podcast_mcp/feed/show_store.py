@@ -14,17 +14,17 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Callable, Sequence
-from contextlib import AbstractContextManager
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import TypeVar
 
 import yaml
-from filelock import FileLock
+from filelock import Timeout
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from podcast_mcp import settings
-from podcast_mcp.feed.model import Person, ShowId, ShowSummary
+from podcast_mcp.feed.model import Person, ShowId, ShowSummary, usable_ledger
 from podcast_mcp.models.feed import Pin
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
@@ -83,8 +83,21 @@ class ShowStore:
     def _path(self, show_id: ShowId) -> Path:
         return self.directory / f"{show_id}.yaml"
 
-    def _lock(self, show_id: ShowId) -> AbstractContextManager[FileLock]:
-        return hold_shared_file_lock(self.directory / f".{show_id}.lock", timeout=LOCK_WAIT_SEC)
+    @contextmanager
+    def _lock(self, show_id: ShowId) -> Iterator[None]:
+        with ExitStack() as stack:
+            try:
+                stack.enter_context(
+                    hold_shared_file_lock(
+                        self.directory / f".{show_id}.lock", timeout=LOCK_WAIT_SEC
+                    )
+                )
+            except Timeout as exc:
+                raise CodedValueError(
+                    f"The show {show_id} is being changed by another program. Try again in a moment.",
+                    code="feed_show_busy",
+                ) from exc
+            yield
 
     def _ids(self) -> list[ShowId]:
         if not self.directory.is_dir():
@@ -125,15 +138,25 @@ class ShowStore:
         write_text_atomic(self._path(show.id), text, creation_mode=0o600)
 
     def shows(self) -> Sequence[ShowSummary]:
-        """Every show, by id. A file that cannot be read still counts, titled by its id."""
+        """Every show that can be read, by id. A file that cannot be read is in ``problems``."""
         found: list[ShowSummary] = []
         for show_id in self._ids():
             try:
                 show = self._read(show_id)
             except CodedValueError:
-                show = None
+                continue
             title = show.pins.get(TITLE_KEY) if show else None
             found.append(ShowSummary(show_id, str(title.value) if title else show_id))
+        return found
+
+    def problems(self) -> list[str]:
+        """One sentence for each show file that cannot be used, naming the file."""
+        found: list[str] = []
+        for show_id in self._ids():
+            try:
+                self._read(show_id)
+            except CodedValueError as exc:
+                found.append(str(exc))
         return found
 
     def profile(self, show_id: ShowId) -> ShowFile | None:
@@ -171,12 +194,20 @@ class ShowStore:
                 self._write(show)
             return result
 
-    def number_for(self, show_id: ShowId, guid: str) -> int:
-        """The episode number ``guid`` holds in this show, assigned (last number plus one) once."""
+    def number_for(self, show_id: ShowId, guid: str, *, pinned: int | None = None) -> int:
+        """The episode number ``guid`` holds in this show, assigned once.
+
+        A new episode takes ``pinned`` when no other episode holds it, else the last number
+        plus one. Zero, negative and repeated numbers in a hand-edited ledger are ignored.
+        """
 
         def assign(show: ShowFile) -> int:
-            if guid not in show.ledger:
-                show.ledger[guid] = max(show.ledger.values(), default=0) + 1
+            usable = usable_ledger(show.ledger)
+            if guid in usable:
+                return usable[guid]
+            taken = set(usable.values())
+            number = pinned if pinned and pinned > 0 and pinned not in taken else None
+            show.ledger[guid] = number or max(taken, default=0) + 1
             return show.ledger[guid]
 
         return self.update(show_id, assign)

@@ -16,8 +16,10 @@ from podcast_mcp.feed.model import (
     ShowSource,
     ShowSummary,
 )
+from podcast_mcp.feed.show_store import ShowStore
 from podcast_mcp.feed.urls import is_local_art
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.wav import open_wav
 
 FEED_AUDIO_EXTENSIONS = ("mp3", "m4a")
@@ -85,8 +87,16 @@ def linked_show_id(project: EpisodeProject, summaries: Sequence[ShowSummary]) ->
 
 def gather_inputs(project: EpisodeProject, shows: ShowSource) -> FeedInputs:
     summaries = tuple(shows.shows())
+    problems = list(shows.problems()) if isinstance(shows, ShowStore) else []
     show_id = linked_show_id(project, summaries)
-    profile = shows.profile(show_id) if show_id else None
+    profile = None
+    if show_id:
+        try:
+            profile = shows.profile(show_id)
+        except CodedValueError as exc:
+            if exc.code != "feed_show_unreadable":
+                raise
+            problems.append(str(exc))
     art = show_art_source(profile)
     return FeedInputs(
         project=project,
@@ -94,4 +104,5 @@ def gather_inputs(project: EpisodeProject, shows: ShowSource) -> FeedInputs:
         shows=summaries,
         files=export_files(project),
         show_art=_file(art) if art else None,
+        show_problems=tuple(dict.fromkeys(problems)),
     )

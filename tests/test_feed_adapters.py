@@ -495,3 +495,127 @@ def test_the_host_may_edit_everything_a_guest_may_not(writable: Path) -> None:
             json={"path": str(writable), "edit": {"op": "set", "key": key, "value": value}},
         )
         assert res.status_code == 200, res.text
+
+
+def _guest(published_share, role: str = "editor") -> tuple[TestClient, str]:
+    from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+
+    client = TestClient(create_app(), client=("203.0.113.9", 50000))
+    return client, published_share(capabilities=capabilities_for_role(role))[2]["token"]
+
+
+def _guest_set(client: TestClient, token: str, key: str, value: str):
+    return client.post(
+        f"/api/review/{token}/feed/edit", json={"edit": {"op": "set", "key": key, "value": value}}
+    )
+
+
+@pytest.mark.parametrize("role", ["viewer", "editor"])
+def test_a_guest_never_receives_the_hosts_artwork_path(
+    writable: Path, published_share, tmp_path: Path, role: str
+) -> None:
+    from podcast_mcp.feed.show_store import ShowStore, default_directory
+    from podcast_mcp.models.feed import Pin
+
+    art = tmp_path / "private-dir" / "cover.png"
+    art.parent.mkdir()
+    art.write_bytes(b"\x89PNG\r\n\x1a\nart")
+    ShowStore(default_directory()).update(
+        "the-long-river", lambda show: show.pins.update({"channel.image": Pin(value=str(art))})
+    )
+    client, token = _guest(published_share, role)
+
+    read = client.get(f"/api/review/{token}/feed")
+    written = client.post(f"/api/review/{token}/feed/write") if role == "editor" else None
+
+    for res in (read, written):
+        if res is not None:
+            assert res.status_code == 200, res.text
+            assert "private-dir" not in res.text and str(tmp_path) not in res.text
+
+
+def test_a_guest_show_edit_is_attributed_to_the_guest(writable: Path, published_share) -> None:
+    from podcast_mcp.feed.show_store import ShowStore, default_directory
+
+    client, token = _guest(published_share)
+
+    assert _guest_set(client, token, "channel.author", "Ana").status_code == 200
+
+    show = ShowStore(default_directory()).profile("the-long-river")
+    assert show.pins["channel.author"].by == "guest"
+
+
+def test_a_roster_role_must_be_a_taxonomy_role_with_or_without_the_attribute(
+    writable: Path, published_share
+) -> None:
+    client, token = _guest(published_share)
+
+    bare = _guest_set(client, token, "channel.person[Ana Reyes]", "wizard")
+    dotted = _guest_set(client, token, "channel.person[Ana Reyes].role", "wizard")
+    fine = _guest_set(client, token, "channel.person[Ana Reyes]", "Producer")
+
+    assert bare.status_code == dotted.status_code == 400
+    assert fine.status_code == 200, fine.text
+
+
+def test_a_roster_name_is_capped_like_every_other_name(writable: Path, published_share) -> None:
+    client, token = _guest(published_share)
+
+    assert _guest_set(client, token, f"channel.person[{'a' * 129}]", "host").status_code == 400
+    assert _guest_set(client, token, f"channel.person[{'a' * 128}]", "host").status_code == 200
+
+
+def test_an_editor_removes_a_roster_person_only_by_unsetting_or_blanking_it(
+    writable: Path, published_share
+) -> None:
+    from podcast_mcp.feed.show_store import ShowStore, default_directory
+
+    client, token = _guest(published_share)
+
+    def names() -> list[str]:
+        return [p.name for p in ShowStore(default_directory()).profile("the-long-river").roster]
+
+    assert _guest_set(client, token, "channel.person[Ana Reyes]", "host").status_code == 200
+    assert _guest_set(client, token, "channel.person[Bo Chen]", "producer").status_code == 200
+    assert names() == ["Ana Reyes", "Bo Chen"]
+
+    blank = _guest_set(client, token, "channel.person[Bo Chen]", "")
+    assert blank.status_code == 200 and names() == ["Ana Reyes"]
+
+    _guest_set(client, token, "channel.person[Bo Chen]", "producer")
+    unset = client.post(
+        f"/api/review/{token}/feed/edit",
+        json={"edit": {"op": "unset", "key": "channel.person[Bo Chen]"}},
+    )
+    assert unset.status_code == 200 and names() == ["Ana Reyes"]
+    attribute = client.post(
+        f"/api/review/{token}/feed/edit",
+        json={"edit": {"op": "unset", "key": "channel.person[Ana Reyes].href"}},
+    )
+    assert attribute.status_code == 200 and names() == ["Ana Reyes"]
+
+
+def test_a_guest_view_replaces_any_local_path_with_the_file_name() -> None:
+    from podcast_mcp.gui.routes.feed_routes import served
+
+    class Leaky:
+        def present(self, kind: str):
+            if kind == "item_xml":
+                return "<item/>"
+            return {
+                "show": {"kind": "ready", "id": "s"},
+                "channel": {
+                    "channel.image": {"value": "/Users/x/private/cover.png", "source": {}},
+                    "channel.title": {"value": "Title", "source": {}},
+                },
+                "item": {},
+                "sections": {"art": {"value": {"src": "/Users/x/private/cover.png", "alt": "a"}}},
+            }
+
+    guest = served(Leaky(), guest=True)
+    host = served(Leaky())
+
+    assert "/Users/x" not in str(guest)
+    assert guest["view"]["channel"]["channel.image"]["value"] == "cover.png"
+    assert guest["view"]["channel"]["channel.title"]["value"] == "Title"
+    assert host["view"]["channel"]["channel.image"]["value"] == "/Users/x/private/cover.png"

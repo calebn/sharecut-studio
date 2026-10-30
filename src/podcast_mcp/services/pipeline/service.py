@@ -321,6 +321,7 @@ class PipelineService:
                     mastered,
                     defaults,
                     cancel_check=cancel_check,
+                    persist_project=self.ws.save_merged,
                 )
             self.ws.save_merged()
             result = AudioExportResult(

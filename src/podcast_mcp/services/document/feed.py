@@ -25,12 +25,13 @@ from podcast_mcp.feed.model import (
 from podcast_mcp.feed.render import render
 from podcast_mcp.feed.resolve import checked_value, cleared_pins, clears, edited_pins, resolve
 from podcast_mcp.feed.show_store import ShowFile, ShowStore, default_directory, show_id_for
-from podcast_mcp.feed.writer import FeedWrite, refuse_while_blocked, write_feed
+from podcast_mcp.feed.writer import FeedWrite, write_feed
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.models.feed import FieldValue, Pin, PinAuthor
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
+from podcast_mcp.util.project_state import render_lock
 
 __all__ = ["FeedService", "FeedViewKind", "describe_fields", "export_files"]
 
@@ -235,20 +236,21 @@ class FeedService:
 
     def write(self) -> FeedWrite:
         """Write ``<stem>.feed.xml``. Refused while a blocker stands; a second call changes nothing."""
-        with _progress("check", "Checking the listing") as task:
+        with _progress("check", "Checking the listing") as task, render_lock(self.ws.project):
             self.ws.reload()
-            project = self.ws.project
-            refuse_while_blocked(self._read())
-            if project.feed.guid is None or project.feed.first_exported_at is None:
-                task.set_phase("identity", "Giving the episode its id")
-                self.ws.mutate(
-                    "before minting the episode id",
-                    "after minting the episode id",
-                    lambda p: p.feed.mint_identity(),
-                )
-                self.ws.reload()
             task.set_phase("write", "Writing the feed file")
-            return write_feed(self.ws.project, self.shows)
+            return write_feed(self.ws.project, self.shows, persist=self._save_identity)
+
+    def _save_identity(self) -> None:
+        feed = self.ws.project.feed
+        guid, first, show_id = feed.guid, feed.first_exported_at, feed.show_id
+
+        def stamp(project: EpisodeProject) -> None:
+            project.feed.guid = project.feed.guid or guid
+            project.feed.first_exported_at = project.feed.first_exported_at or first
+            project.feed.show_id = project.feed.show_id or show_id
+
+        self.ws.mutate("before minting the episode id", "after minting the episode id", stamp)
 
     def set_field(self, key: str, value: FieldValue, by: PinAuthor) -> dict[str, Any]:
         def pin(project: EpisodeProject) -> dict[str, Any]:

@@ -39,6 +39,7 @@ from podcast_mcp.feed.model import (
     Soundbite,
     Transcript,
     inherited,
+    usable_ledger,
 )
 from podcast_mcp.feed.notes import NotesParts, compose_notes, transcript_href
 from podcast_mcp.feed.urls import (
@@ -504,7 +505,7 @@ def _roster_names(res: Resolution) -> Auto:
 
 def _episode_number(res: Resolution) -> Auto:
     guid = res.inputs.project.feed.guid
-    number = res.show.ledger.get(guid) if res.show and guid else None
+    number = usable_ledger(res.show.ledger).get(guid) if res.show and guid else None
     if number is None:
         return Missing("Numbered when the feed file is first written.", None)
     return Found(number, Derived(rule="the show's episode count"))
@@ -1246,7 +1247,7 @@ _PERSON_VALUES: Mapping[str, TypeAdapter[Any]] = {
     "exclude": _BOOL,
 }
 SHOW_PERSON_KEY = re.compile(
-    r"^channel\.person\[(?P<name>[^\]]+)\](?:\.(?P<attr>role|group|img|href))?$"
+    rf"^channel\.person\[(?P<name>[^\]]{{1,{NAME_MAX}}})\](?:\.(?P<attr>role|group|img|href))?$"
 )
 _SHOW_PERSON_PIN = FieldSpec(
     key="channel.person[*]",
@@ -1274,5 +1275,5 @@ def lookup(key: str) -> FieldSpec | None:
         return replace(_PERSON_PIN, key=key, value=_PERSON_VALUES[match["attr"]])
     if (match := SHOW_PERSON_KEY.match(key)) is not None:
         attr = match["attr"]
-        return replace(_SHOW_PERSON_PIN, key=key, value=_PERSON_VALUES[attr] if attr else _TEXT)
+        return replace(_SHOW_PERSON_PIN, key=key, value=_PERSON_VALUES[attr or "role"])
     return None

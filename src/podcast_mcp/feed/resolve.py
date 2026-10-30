@@ -41,6 +41,7 @@ from podcast_mcp.feed.model import (
     ShowSuggestion,
     UnsetEdit,
     inherited,
+    usable_ledger,
 )
 from podcast_mcp.feed.notes import NOTES_KEY, notes_html
 from podcast_mcp.feed.render import render
@@ -164,6 +165,7 @@ def resolve(inputs: FeedInputs, pins: Mapping[str, Pin]) -> FeedView:
                 fix=_show_fix(inputs),
             )
         )
+    findings.extend(_show_file_findings(inputs))
     for spec in FIELDS:
         fact = res.facts[spec.key]
         pinned = isinstance(fact, Found) and isinstance(fact.source, Pinned)
@@ -222,6 +224,26 @@ def _row_findings(spec: FieldSpec, fact: Auto, res: Resolution) -> list[Finding]
                 severity="info",
                 platform=None,
                 message=f"The {spec.label} changed since you edited {_them(spec.key)}.",
+                fix=None,
+            )
+        )
+    return found
+
+
+def _show_file_findings(inputs: FeedInputs) -> list[Finding]:
+    found = [
+        Finding(key=None, severity="warn", platform=None, message=problem, fix=None)
+        for problem in inputs.show_problems
+    ]
+    ledger = inputs.show.ledger if inputs.show else {}
+    if (ignored := len(ledger) - len(usable_ledger(ledger))) > 0:
+        found.append(
+            Finding(
+                key=None,
+                severity="warn",
+                platform=None,
+                message="The show file has episode numbers that are zero, negative or repeated; "
+                f"{ignored} ignored.",
                 fix=None,
             )
         )
