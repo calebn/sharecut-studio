@@ -96,9 +96,9 @@ def test_synthesised_tone_matches_the_beds_level_and_does_not_repeat(tmp_path: P
         tmp_path / "raw" / "room-tone" / "host.wav",
         start_sec=0.0,
         duration_sec=8.0,
-        sample_rate=rate,
+        sample_rate=SR,
     )
-    assert rms_db(audio) == pytest.approx(rms_db(basis), abs=0.6)
+    assert rms_db(audio) == pytest.approx(rms_db(basis), abs=0.3)
     window = audio[: 30 * rate]
     centred = window - window.mean()
     spectrum = np.fft.rfft(centred, n=2 * centred.size)
@@ -199,7 +199,7 @@ def test_a_mute_fill_over_a_long_mute_names_the_synthesised_source(tmp_path: Pat
 
     assert fill is not None and fill.source_id is not None
     assert fill.source_id.startswith(SYNTH_ID_PREFIX)
-    assert fill.end_s - fill.start_s == pytest.approx(8.0)
+    assert fill.end_s - fill.start_s == pytest.approx(8.0 + room_tone_synth.MUTE_FADE_SLACK_SEC)
     assert project.source_by_id(fill.source_id) is not None
 
 
@@ -232,8 +232,7 @@ def test_a_synthesised_pad_renders_at_the_beds_level_without_repeating(tmp_path:
     from podcast_mcp.engines.align import load_mono_window
 
     audio = load_mono_window(out, start_sec=0.0, duration_sec=18.0, sample_rate=SR)
-    # The 16 kHz test bed is white to its Nyquist; each resample costs about 1.5 dB at that edge.
-    assert rms_db(audio) == pytest.approx(BED_DB, abs=2.0)
+    assert rms_db(audio) == pytest.approx(BED_DB, abs=0.8)
     centred = audio - audio.mean()
     spectrum = np.fft.rfft(centred, n=2 * centred.size)
     correlation = np.fft.irfft(np.abs(spectrum) ** 2)[: centred.size]
@@ -293,3 +292,35 @@ def test_an_error_while_synthesising_keeps_the_recorded_tiling(
 
     assert not isinstance(picked, SynthSample)
     assert not any(s.id.startswith(SYNTH_ID_PREFIX) for s in project.sources)
+
+
+def test_a_mute_region_with_fades_is_one_tile(tmp_path: Path) -> None:
+    from podcast_mcp.engines.room_tone_tiles import tile_span
+
+    project = _project_with_bed(tmp_path, _bed(3.0))
+    clip = _host_clip(project)
+    clip.source_end = 10.0
+    fill = mute_room_tone_fill(project, clip, 1.0, 9.0)
+    assert fill is not None
+
+    assert len(tile_span(fill.start_s, fill.end_s, 8.0 + 0.4, seed_sec=fill.start_s)) == 1
+
+
+def test_a_harmonic_mains_buzz_keeps_the_recorded_tiling(tmp_path: Path) -> None:
+    t = np.arange(round(8.0 * SR)) / SR
+    buzz = sum(0.003 * 10 ** (-0.15 * k) * np.sin(2 * np.pi * 60 * k * t) for k in range(1, 8))
+    project = _project_with_bed(tmp_path, _bed(8.0) + buzz)
+
+    assert not isinstance(_pick(project, 20.0), SynthSample)
+
+
+def test_a_long_fill_reads_inside_the_file_and_differs_by_position(tmp_path: Path) -> None:
+    project = _project_with_bed(tmp_path, _bed(8.0))
+
+    first = _pick(project, 130.0, seed_sec=1.0)
+    second = _pick(project, 130.0, seed_sec=2.5)
+
+    assert isinstance(first, SynthSample) and isinstance(second, SynthSample)
+    assert first.end - first.start == pytest.approx(room_tone_synth.SYNTH_MAX_FILL_SEC)
+    assert first.start != second.start
+    assert first.end <= room_tone_synth.SYNTH_FILE_SEC

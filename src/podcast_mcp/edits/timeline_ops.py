@@ -70,6 +70,7 @@ from podcast_mcp.engines.room_tone import (
     SampleAbsent,
 )
 from podcast_mcp.engines.room_tone_synth import (
+    MUTE_FADE_SLACK_SEC,
     SynthSample,
     register_synth_source,
     room_tone_for_gap,
@@ -1361,6 +1362,7 @@ def mute_room_tone_fill(
         clip.track_id,
         gap_sec=hi - lo,
         seed_sec=lo,
+        slack_sec=MUTE_FADE_SLACK_SEC,
         near_sec=(lo + hi) / 2.0,
         near_source_id=clip.source_id,
         duration_sec=hi - lo,

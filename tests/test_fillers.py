@@ -4088,7 +4088,7 @@ def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_pa
     assert recommended > 40
     project.edit_decisions = [decision]
     with patch(
-        "podcast_mcp.edits.timeline_ops.room_tone_span",
+        "podcast_mcp.engines.room_tone_synth.room_tone_span",
         return_value=OwnQuietSample(Sample(0.0, 0.2, -70.0, None)),
     ):
         assert approve_edits(project, [decision.id], defaults=defaults) == 1

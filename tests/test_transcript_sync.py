@@ -95,7 +95,7 @@ def test_fill_with_room_tone_keeps_word_source_times() -> None:
         Clip(id="c2", track_id="host", source_start=10.0, source_end=15.0, timeline_start=6.0),
     ]
     with patch(
-        "podcast_mcp.edits.timeline_ops.room_tone_span",
+        "podcast_mcp.engines.room_tone_synth.room_tone_span",
         return_value=OwnQuietSample(Sample(7.0, 7.25, -70.0, None)),
     ):
         fill_with_room_tone(p, "host", defaults=load_defaults())
