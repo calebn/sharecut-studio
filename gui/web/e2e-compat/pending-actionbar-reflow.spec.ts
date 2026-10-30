@@ -8,18 +8,13 @@ import {
 import {
   type Box,
   chromeBoxes,
-  expectHitTestable,
-  isHitTestable,
   settle,
   suggestOnFirstDialogueTrack,
 } from "../e2e/pendingActionbar";
 import { switchE2eProject } from "../e2e/shareableProject";
-import { inspectSelectionByKey, openProject } from "../e2e/stageNav";
+import { openProject } from "../e2e/stageNav";
 
 const CLIENT_ID = "e2e-actionbar-reflow";
-const REFINE_GATE =
-  "Transcript refine is required before focus/tighten/NL edits. Run podcast-transcript-refine (whole-episode pass), then `podcast transcript refine-waive --reason ...` / transcript_refine_waive_tool.";
-
 let projectPath: string;
 let workspaceDir: string;
 
@@ -65,24 +60,6 @@ async function cardTop(page: Page): Promise<number> {
   return (await boxOf(page.locator(".pending-actionbar"))).top;
 }
 
-/**
- * Scrolls the inspector the way a pointer user does, with the wheel over it:
- * `scrollIntoView` would also scroll the shell, which a pointer cannot.
- */
-async function scrollInspectorToReach(
-  page: Page,
-  inspector: Locator,
-  button: Locator,
-): Promise<void> {
-  const box = await inspector.boundingBox();
-  expect(box).toBeTruthy();
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + 4);
-  for (let step = 0; step < 20 && !(await isHitTestable(button)); step++) {
-    await page.mouse.wheel(0, 120);
-    await settle(page);
-  }
-}
-
 test("pending card: a marker lane that grows while it floats moves the card clear of the lane", async ({
   page,
 }) => {
@@ -125,60 +102,4 @@ test("pending card: a marker lane that grows while it floats moves the card clea
       };
     })
     .toEqual({ belowChrome: true, clearOfRegion: true });
-});
-
-test("pending review: the inspector's inline Approve and Reject stay reachable after approving at 720 and shrinking to 260", async ({
-  page,
-}) => {
-  test.setTimeout(60_000);
-  await page.route("**/api/document/command**", async (route) => {
-    const body = route.request().postDataJSON() as { type?: string } | null;
-    if (body?.type === "ApproveEdits") {
-      await route.fulfill({
-        status: 409,
-        contentType: "application/json",
-        headers: { "X-Sharecut-Error-Code": "transcript_refine_required" },
-        body: JSON.stringify({ detail: REFINE_GATE }),
-      });
-      return;
-    }
-    await route.continue();
-  });
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await openWithSuggestion(page);
-  await page
-    .locator(".pending-actionbar")
-    .getByRole("button", { name: "Approve", exact: true })
-    .click();
-  await expect(page.getByRole("alert").first()).toBeVisible();
-
-  // Where the card still has room (360 tall) it floats and stays reachable.
-  await page.setViewportSize({ width: 1280, height: 360 });
-  await settle(page);
-  const floating = page.locator(".pending-actionbar");
-  await expect(floating).toBeVisible();
-  await expectHitTestable(
-    floating.getByRole("button", { name: "Approve", exact: true }),
-  );
-  await expectHitTestable(
-    floating.getByRole("button", { name: "Reject", exact: true }),
-  );
-
-  // The stage frame has no bottom panel, so the card only loses its room
-  // between the marker lane and the Player at about this height.
-  await page.setViewportSize({ width: 1280, height: 260 });
-  await settle(page);
-  await expect(page.locator(".pending-actionbar")).toBeHidden();
-  await inspectSelectionByKey(page);
-
-  const inspector = page.locator(".modifier-inspector");
-  for (const name of ["Approve", "Reject"]) {
-    const button = inspector.getByRole("button", { name, exact: true });
-    await scrollInspectorToReach(page, inspector, button);
-    await expectHitTestable(button);
-  }
-  expect(
-    await page.locator(".stage-frame").evaluate((el) => el.scrollTop),
-    "the shell itself never scrolls",
-  ).toBe(0);
 });

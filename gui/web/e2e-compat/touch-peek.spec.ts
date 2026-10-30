@@ -97,11 +97,11 @@ async function open(
 
 const chooser = (page: Page) =>
   page.locator(".target-chooser:not(.is-closing)");
-const sheet = (page: Page) => page.locator(".bottom-sheet");
+const sheet = (page: Page) => page.locator(".bottom-sheet, .sys-inspector");
 
 /** A tap that selects shuts the sheet it found; wait for that, if it happens. */
 async function settleSheetShut(page: Page): Promise<void> {
-  await expect(page.locator(".bottom-sheet"))
+  await expect(sheet(page))
     .toHaveCount(0, { timeout: 3000 })
     .catch(() => undefined);
 }
@@ -241,20 +241,24 @@ async function trimStartSec(page: Page): Promise<number> {
 /** What the strip or sheet shows, and whether it is stowed. */
 async function sheetState(page: Page) {
   return page.evaluate(() => {
-    const panel = document.querySelector(".bottom-sheet");
+    const panel = document.querySelector(".bottom-sheet, .sys-inspector");
     return {
       open: panel != null,
       sheetInert:
         panel?.closest(".bottom-sheet-root")?.hasAttribute("inert") ?? false,
       size:
+        panel?.getAttribute("data-detent") ??
         [...(panel?.classList ?? [])]
           .find((c) => /^bottom-sheet--(peek|half|full)$/.test(c))
-          ?.replace("bottom-sheet--", "") ?? null,
+          ?.replace("bottom-sheet--", "") ??
+        null,
       compact: panel?.classList.contains("bottom-sheet--compact") ?? false,
       stowed:
         panel?.closest(".bottom-sheet-root")?.classList.contains("is-stowed") ??
         false,
-      title: panel?.querySelector(".bottom-sheet-title")?.textContent ?? null,
+      title:
+        panel?.querySelector(".bottom-sheet-title, .sys-sheet-title")
+          ?.textContent ?? null,
       value: panel?.querySelector(".inspector-peek-value")?.textContent ?? null,
     };
   });
@@ -1271,7 +1275,7 @@ test("a point saved from a track's envelope form stays in that sheet: portrait-3
   const kept = {
     ...(await sheetState(page)),
     pointFieldInSheet: await select.evaluate(
-      (el) => el.closest(".bottom-sheet") != null,
+      (el) => el.closest(".bottom-sheet, .sys-inspector") != null,
     ),
   };
   await frame(page, info, `saved-point-in-sheet-${browserName}`);
