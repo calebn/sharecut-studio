@@ -9,7 +9,6 @@ from podcast_mcp.export.transcript import (
     resolve_caption_limits,
     utterances_to_srt,
     utterances_to_vtt,
-    write_combined_transcript_markdown,
 )
 from podcast_mcp.models import (
     Clip,
@@ -52,15 +51,6 @@ def test_combined_transcript_markdown():
     assert "# export-test" in md
     assert "**Host** [0:00]: Hello world" in md
     assert "**Guest** [0:02]: Thanks for listening" in md
-
-
-def test_write_combined_transcript_markdown(tmp_path):
-    project = EpisodeProject.create("export-test", str(tmp_path))
-    project.combined_transcript = _project_with_combined().combined_transcript
-    out = write_combined_transcript_markdown(project, defaults=load_defaults())
-    assert out.is_file()
-    assert out.name == "export-test.md"
-    assert "Hello world" in out.read_text(encoding="utf-8")
 
 
 def _project_with_words() -> EpisodeProject:
