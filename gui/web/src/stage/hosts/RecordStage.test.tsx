@@ -16,6 +16,7 @@ import {
 } from "../../record/keeper/store";
 import { MIC_DENIED_COPY, MIC_RETRY_LABEL } from "../../record/micPermission";
 import {
+  END_SESSION_PENDING_COPY,
   RECORD_ROOM_RECONNECTING_COPY,
   ROOM_TONE_PROMPT_COPY,
   storageLowCopy,
@@ -97,8 +98,11 @@ vi.mock("../../record/keeper/store", async (importOriginal) => {
 
 const uploadStatus = vi.fn(async () => ({ segments: [] as Array<unknown> }));
 
+const revokeHostRoom = vi.fn(async () => undefined);
+
 vi.mock("../../api", () => ({
   loadHostRecordState: vi.fn(async () => null),
+  revokeHostRoom: (...args: unknown[]) => revokeHostRoom(...(args as [])),
   hostRecordUploadTransport: () => ({
     status: () => uploadStatus(),
     put: async () => ({
@@ -733,6 +737,34 @@ describe("Record stage capture and storage", () => {
       within(dialog).getByRole("button", { name: "Invite and links…" }),
     );
     expect(exec).toHaveBeenCalledWith("share.manage", {}, { skipWhen: true });
+  });
+});
+
+describe("Record stage End session", () => {
+  beforeEach(() => revokeHostRoom.mockClear());
+
+  it("announces the pending end and Undo cancels it", async () => {
+    setRoom();
+    mount();
+    const dialog = await openMore();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "End session" }),
+    );
+    expect(await screen.findByText(END_SESSION_PENDING_COPY)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() =>
+      expect(screen.queryByText(END_SESSION_PENDING_COPY)).toBeNull(),
+    );
+    expect(revokeHostRoom).not.toHaveBeenCalled();
+  });
+
+  it("offers no End session while a take is running", async () => {
+    setRoom({ state: "recording", take_index: 0, participants: [avaGuest()] });
+    mount();
+    const dialog = await openMore();
+    expect(
+      within(dialog).queryByRole("button", { name: "End session" }),
+    ).toBeNull();
   });
 });
 

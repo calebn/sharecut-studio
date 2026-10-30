@@ -6,6 +6,7 @@ import {
   copyForMicStatus,
   deviceMic,
   deviceTone,
+  END_SESSION_PENDING_COPY,
   HEARING_COPY,
   type HostRoom,
   hostMicStatus,
@@ -271,6 +272,12 @@ function RecordStageBody({
   if (room.doneNotice) {
     note(room.doneNotice);
   }
+  if (room.endSession.ending) {
+    notices.push({
+      text: END_SESSION_PENDING_COPY,
+      action: { label: "Undo", onClick: room.endSession.undo },
+    });
+  }
 
   const toneAvailable = state === "lobby" || state === "stopped";
   const more = snapshot ? (
@@ -295,6 +302,11 @@ function RecordStageBody({
         setMoreOpen(false);
         setDeviceOpen(true);
       }}
+      onEndSession={
+        toneAvailable && !room.endSession.ending
+          ? room.endSession.end
+          : undefined
+      }
     />
   ) : undefined;
   const micNotes = [
