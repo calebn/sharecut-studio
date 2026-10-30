@@ -17,6 +17,7 @@ from pydantic import (
     model_validator,
 )
 
+from podcast_mcp.models.feed import FeedSection
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, require_v2_document
 from podcast_mcp.models.words_revision import (
@@ -1176,6 +1177,7 @@ class EpisodeProject(BaseModel):
     mix: MixSection = Field(default_factory=MixSection)
     render: RenderSection = Field(default_factory=RenderSection)
     social: SocialSection = Field(default_factory=SocialSection)
+    feed: FeedSection = Field(default_factory=FeedSection)
     review: ReviewSection = Field(default_factory=ReviewSection)
     history: ProjectHistory = Field(default_factory=ProjectHistory)
     document_sync: DocumentSyncSection = Field(default_factory=DocumentSyncSection)

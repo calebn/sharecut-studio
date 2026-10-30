@@ -1,0 +1,1027 @@
+{
+  "about": "Cases of (view, fix) -> view for the Podcast listing wire. The fixture server in feedFixture.ts passes them in vitest; the Python FeedService tests consume this same file. A null item or channel entry means the key is absent after the fix. findings lists the key and severity of every finding after the fix, in order. notesHtmlIncludes, notesHtmlExcludes, itemXmlIncludes and itemXmlExcludes are substring checks on the rendered notes and item.",
+  "views": {
+    "ready": {
+      "show": {
+        "kind": "ready",
+        "id": "long-river"
+      },
+      "channel": {
+        "channel.title": {
+          "value": "The Long River",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        }
+      },
+      "item": {
+        "item.title": {
+          "value": "Nobody asked the river",
+          "source": {
+            "kind": "derived",
+            "rule": "the project name"
+          }
+        },
+        "item.intro": {
+          "value": "A walk.",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        },
+        "item.pubDate": {
+          "value": "2026-10-23T09:00:00Z",
+          "source": {
+            "kind": "derived",
+            "rule": "the first export"
+          }
+        },
+        "item.guid": {
+          "value": "urn:uuid:1",
+          "source": {
+            "kind": "minted",
+            "at": "2026-10-23T09:00:00Z"
+          }
+        },
+        "item.enclosure.url": {
+          "value": "https://cdn.example.test/ep.mp3",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        }
+      },
+      "sections": {
+        "art": {
+          "value": null,
+          "source": {
+            "kind": "pending",
+            "why": "Artwork comes from your show.",
+            "fix": null
+          }
+        },
+        "audio": {
+          "value": {
+            "mime": "audio/mpeg",
+            "bytes": 1000
+          },
+          "source": {
+            "kind": "measured",
+            "file": "ep.mp3"
+          }
+        },
+        "chapters": {
+          "value": [
+            {
+              "at": 0,
+              "title": "Cold open"
+            },
+            {
+              "at": 312.4,
+              "title": "The old mill"
+            }
+          ],
+          "source": {
+            "kind": "derived",
+            "rule": "2 chapters"
+          }
+        },
+        "credits": {
+          "value": [
+            {
+              "name": "Ana Reyes",
+              "role": "host"
+            }
+          ],
+          "source": {
+            "kind": "derived",
+            "rule": "1 speaker"
+          }
+        },
+        "transcripts": {
+          "value": [],
+          "source": {
+            "kind": "derived",
+            "rule": "none"
+          }
+        },
+        "soundbites": {
+          "value": [],
+          "source": {
+            "kind": "derived",
+            "rule": "none"
+          }
+        }
+      },
+      "notesHtml": "",
+      "findings": [],
+      "file": "current"
+    },
+    "pending": {
+      "show": {
+        "kind": "ready",
+        "id": "long-river"
+      },
+      "channel": {
+        "channel.title": {
+          "value": "The Long River",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        }
+      },
+      "item": {
+        "item.title": {
+          "value": "Nobody asked the river",
+          "source": {
+            "kind": "derived",
+            "rule": "the project name"
+          }
+        },
+        "item.intro": {
+          "value": null,
+          "source": {
+            "kind": "pending",
+            "why": "Say what this episode is about.",
+            "fix": {
+              "kind": "input",
+              "key": "item.intro"
+            }
+          }
+        },
+        "item.pubDate": {
+          "value": "2026-10-23T09:00:00Z",
+          "source": {
+            "kind": "derived",
+            "rule": "the first export"
+          }
+        },
+        "item.guid": {
+          "value": "urn:uuid:1",
+          "source": {
+            "kind": "minted",
+            "at": "2026-10-23T09:00:00Z"
+          }
+        },
+        "item.enclosure.url": {
+          "value": null,
+          "source": {
+            "kind": "pending",
+            "why": "Where will this be hosted?",
+            "fix": {
+              "kind": "input",
+              "key": "item.enclosure.url"
+            }
+          }
+        }
+      },
+      "sections": {
+        "art": {
+          "value": null,
+          "source": {
+            "kind": "pending",
+            "why": "Artwork comes from your show.",
+            "fix": null
+          }
+        },
+        "audio": {
+          "value": {
+            "mime": "audio/mpeg",
+            "bytes": 1000
+          },
+          "source": {
+            "kind": "measured",
+            "file": "ep.mp3"
+          }
+        },
+        "chapters": {
+          "value": [
+            {
+              "at": 0,
+              "title": "Cold open"
+            },
+            {
+              "at": 312.4,
+              "title": "The old mill"
+            }
+          ],
+          "source": {
+            "kind": "derived",
+            "rule": "2 chapters"
+          }
+        },
+        "credits": {
+          "value": [
+            {
+              "name": "Ana Reyes",
+              "role": "host"
+            }
+          ],
+          "source": {
+            "kind": "derived",
+            "rule": "1 speaker"
+          }
+        },
+        "transcripts": {
+          "value": [],
+          "source": {
+            "kind": "derived",
+            "rule": "none"
+          }
+        },
+        "soundbites": {
+          "value": [],
+          "source": {
+            "kind": "derived",
+            "rule": "none"
+          }
+        }
+      },
+      "notesHtml": "",
+      "findings": [
+        {
+          "key": "item.enclosure.url",
+          "severity": "blocker",
+          "platform": "RSS",
+          "message": "The feed needs an address for the audio file.",
+          "fix": {
+            "kind": "input",
+            "key": "item.enclosure.url"
+          }
+        },
+        {
+          "key": "item.intro",
+          "severity": "warn",
+          "platform": "Apple",
+          "message": "Apple shows the intro as the episode description.",
+          "fix": {
+            "kind": "input",
+            "key": "item.intro"
+          }
+        }
+      ],
+      "file": "none"
+    },
+    "drifted": {
+      "show": {
+        "kind": "ready",
+        "id": "long-river"
+      },
+      "channel": {
+        "channel.title": {
+          "value": "The Long River",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        }
+      },
+      "item": {
+        "item.title": {
+          "value": "Nobody asked the river",
+          "source": {
+            "kind": "derived",
+            "rule": "the project name"
+          }
+        },
+        "item.intro": {
+          "value": "A walk.",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        },
+        "item.pubDate": {
+          "value": "2026-10-23T09:00:00Z",
+          "source": {
+            "kind": "derived",
+            "rule": "the first export"
+          }
+        },
+        "item.guid": {
+          "value": "urn:uuid:1",
+          "source": {
+            "kind": "minted",
+            "at": "2026-10-23T09:00:00Z"
+          }
+        },
+        "item.enclosure.url": {
+          "value": "https://cdn.example.test/ep.mp3",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        },
+        "item.notes": {
+          "value": "My notes.\n\n0:00 Old title",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": true
+          }
+        }
+      },
+      "sections": {
+        "art": {
+          "value": null,
+          "source": {
+            "kind": "pending",
+            "why": "Artwork comes from your show.",
+            "fix": null
+          }
+        },
+        "audio": {
+          "value": {
+            "mime": "audio/mpeg",
+            "bytes": 1000
+          },
+          "source": {
+            "kind": "measured",
+            "file": "ep.mp3"
+          }
+        },
+        "chapters": {
+          "value": [
+            {
+              "at": 0,
+              "title": "Cold open"
+            },
+            {
+              "at": 312.4,
+              "title": "The old mill"
+            }
+          ],
+          "source": {
+            "kind": "derived",
+            "rule": "2 chapters"
+          }
+        },
+        "credits": {
+          "value": [
+            {
+              "name": "Ana Reyes",
+              "role": "host"
+            }
+          ],
+          "source": {
+            "kind": "derived",
+            "rule": "1 speaker"
+          }
+        },
+        "transcripts": {
+          "value": [],
+          "source": {
+            "kind": "derived",
+            "rule": "none"
+          }
+        },
+        "soundbites": {
+          "value": [],
+          "source": {
+            "kind": "derived",
+            "rule": "none"
+          }
+        }
+      },
+      "notesHtml": "",
+      "findings": [
+        {
+          "key": "item.notes",
+          "severity": "info",
+          "platform": null,
+          "message": "The notes changed since you edited them.",
+          "fix": null
+        }
+      ],
+      "file": "stale"
+    },
+    "noShow": {
+      "show": {
+        "kind": "none",
+        "suggest": {
+          "language": "English",
+          "hosts": [
+            {
+              "name": "Ana Reyes",
+              "role": "host"
+            }
+          ]
+        }
+      },
+      "channel": {},
+      "item": {
+        "item.title": {
+          "value": "Nobody asked the river",
+          "source": {
+            "kind": "derived",
+            "rule": "the project name"
+          }
+        },
+        "item.intro": {
+          "value": "A walk.",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        },
+        "item.pubDate": {
+          "value": "2026-10-23T09:00:00Z",
+          "source": {
+            "kind": "derived",
+            "rule": "the first export"
+          }
+        },
+        "item.guid": {
+          "value": "urn:uuid:1",
+          "source": {
+            "kind": "minted",
+            "at": "2026-10-23T09:00:00Z"
+          }
+        },
+        "item.enclosure.url": {
+          "value": "https://cdn.example.test/ep.mp3",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        }
+      },
+      "sections": {
+        "art": {
+          "value": null,
+          "source": {
+            "kind": "pending",
+            "why": "Artwork comes from your show.",
+            "fix": null
+          }
+        },
+        "audio": {
+          "value": {
+            "mime": "audio/mpeg",
+            "bytes": 1000
+          },
+          "source": {
+            "kind": "measured",
+            "file": "ep.mp3"
+          }
+        },
+        "chapters": {
+          "value": [
+            {
+              "at": 0,
+              "title": "Cold open"
+            },
+            {
+              "at": 312.4,
+              "title": "The old mill"
+            }
+          ],
+          "source": {
+            "kind": "derived",
+            "rule": "2 chapters"
+          }
+        },
+        "credits": {
+          "value": [
+            {
+              "name": "Ana Reyes",
+              "role": "host"
+            }
+          ],
+          "source": {
+            "kind": "derived",
+            "rule": "1 speaker"
+          }
+        },
+        "transcripts": {
+          "value": [],
+          "source": {
+            "kind": "derived",
+            "rule": "none"
+          }
+        },
+        "soundbites": {
+          "value": [],
+          "source": {
+            "kind": "derived",
+            "rule": "none"
+          }
+        }
+      },
+      "notesHtml": "",
+      "findings": [
+        {
+          "key": null,
+          "severity": "blocker",
+          "platform": "RSS",
+          "message": "The feed needs a show to belong to.",
+          "fix": {
+            "kind": "command",
+            "command": "create_show"
+          }
+        }
+      ],
+      "file": "none"
+    },
+    "chooseShow": {
+      "show": {
+        "kind": "choose",
+        "shows": [
+          {
+            "id": "long-river",
+            "title": "The Long River"
+          },
+          {
+            "id": "field-notes",
+            "title": "Field Notes"
+          }
+        ]
+      },
+      "channel": {},
+      "item": {
+        "item.title": {
+          "value": "Nobody asked the river",
+          "source": {
+            "kind": "derived",
+            "rule": "the project name"
+          }
+        },
+        "item.intro": {
+          "value": "A walk.",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        },
+        "item.pubDate": {
+          "value": "2026-10-23T09:00:00Z",
+          "source": {
+            "kind": "derived",
+            "rule": "the first export"
+          }
+        },
+        "item.guid": {
+          "value": "urn:uuid:1",
+          "source": {
+            "kind": "minted",
+            "at": "2026-10-23T09:00:00Z"
+          }
+        },
+        "item.enclosure.url": {
+          "value": "https://cdn.example.test/ep.mp3",
+          "source": {
+            "kind": "pinned",
+            "by": "person",
+            "drifted": false
+          }
+        }
+      },
+      "sections": {
+        "art": {
+          "value": null,
+          "source": {
+            "kind": "pending",
+            "why": "Artwork comes from your show.",
+            "fix": null
+          }
+        },
+        "audio": {
+          "value": {
+            "mime": "audio/mpeg",
+            "bytes": 1000
+          },
+          "source": {
+            "kind": "measured",
+            "file": "ep.mp3"
+          }
+        },
+        "chapters": {
+          "value": [
+            {
+              "at": 0,
+              "title": "Cold open"
+            },
+            {
+              "at": 312.4,
+              "title": "The old mill"
+            }
+          ],
+          "source": {
+            "kind": "derived",
+            "rule": "2 chapters"
+          }
+        },
+        "credits": {
+          "value": [
+            {
+              "name": "Ana Reyes",
+              "role": "host"
+            }
+          ],
+          "source": {
+            "kind": "derived",
+            "rule": "1 speaker"
+          }
+        },
+        "transcripts": {
+          "value": [],
+          "source": {
+            "kind": "derived",
+            "rule": "none"
+          }
+        },
+        "soundbites": {
+          "value": [],
+          "source": {
+            "kind": "derived",
+            "rule": "none"
+          }
+        }
+      },
+      "notesHtml": "",
+      "findings": [
+        {
+          "key": null,
+          "severity": "blocker",
+          "platform": "RSS",
+          "message": "The feed needs a show to belong to.",
+          "fix": {
+            "kind": "command",
+            "command": "link_show"
+          }
+        }
+      ],
+      "file": "none"
+    }
+  },
+  "cases": [
+    {
+      "name": "setting the title pins it and stales the file",
+      "view": "ready",
+      "fix": {
+        "kind": "edit",
+        "edit": {
+          "op": "set",
+          "key": "item.title",
+          "value": "New name"
+        }
+      },
+      "expect": {
+        "item": {
+          "item.title": {
+            "value": "New name",
+            "source": {
+              "kind": "pinned",
+              "by": "person",
+              "drifted": false
+            }
+          }
+        },
+        "file": "stale",
+        "findings": [],
+        "itemXmlIncludes": ["<title>New name</title>"]
+      }
+    },
+    {
+      "name": "setting a pending intro fills it, clears its warning and reaches the notes",
+      "view": "pending",
+      "fix": {
+        "kind": "edit",
+        "edit": {
+          "op": "set",
+          "key": "item.intro",
+          "value": "Why the river moved."
+        }
+      },
+      "expect": {
+        "item": {
+          "item.intro": {
+            "value": "Why the river moved.",
+            "source": {
+              "kind": "pinned",
+              "by": "person",
+              "drifted": false
+            }
+          }
+        },
+        "findings": [
+          {
+            "key": "item.enclosure.url",
+            "severity": "blocker"
+          }
+        ],
+        "file": "none",
+        "notesHtmlIncludes": ["<p>Why the river moved.</p>"]
+      }
+    },
+    {
+      "name": "setting the hosting address clears the blocker and adds the enclosure",
+      "view": "pending",
+      "fix": {
+        "kind": "edit",
+        "edit": {
+          "op": "set",
+          "key": "item.enclosure.url",
+          "value": "https://cdn.example.test/a.mp3"
+        }
+      },
+      "expect": {
+        "findings": [
+          {
+            "key": "item.intro",
+            "severity": "warn"
+          }
+        ],
+        "itemXmlIncludes": [
+          "<enclosure url=\"https://cdn.example.test/a.mp3\" length=\"1000\" type=\"audio/mpeg\"/>"
+        ]
+      }
+    },
+    {
+      "name": "setting an empty text is an unset",
+      "view": "ready",
+      "fix": {
+        "kind": "edit",
+        "edit": {
+          "op": "set",
+          "key": "item.intro",
+          "value": ""
+        }
+      },
+      "expect": {
+        "item": {
+          "item.intro": {
+            "value": null,
+            "source": {
+              "kind": "pending",
+              "why": "Say what this episode is about.",
+              "fix": {
+                "kind": "input",
+                "key": "item.intro"
+              }
+            }
+          }
+        },
+        "findings": [
+          {
+            "key": "item.intro",
+            "severity": "warn"
+          }
+        ],
+        "file": "stale"
+      }
+    },
+    {
+      "name": "unsetting a pinned title falls back to the derived one",
+      "view": "ready",
+      "fix": {
+        "kind": "edit",
+        "edit": {
+          "op": "set",
+          "key": "item.title",
+          "value": "Other"
+        }
+      },
+      "then": {
+        "kind": "edit",
+        "edit": {
+          "op": "unset",
+          "key": "item.title"
+        }
+      },
+      "expect": {
+        "item": {
+          "item.title": {
+            "value": "Nobody asked the river",
+            "source": {
+              "kind": "derived",
+              "rule": "the project name"
+            }
+          }
+        },
+        "itemXmlIncludes": ["<title>Nobody asked the river</title>"]
+      }
+    },
+    {
+      "name": "unsetting a key that holds no pin changes nothing",
+      "view": "ready",
+      "fix": {
+        "kind": "edit",
+        "edit": {
+          "op": "unset",
+          "key": "item.title"
+        }
+      },
+      "expect": {
+        "item": {
+          "item.title": {
+            "value": "Nobody asked the river",
+            "source": {
+              "kind": "derived",
+              "rule": "the project name"
+            }
+          }
+        },
+        "file": "current"
+      }
+    },
+    {
+      "name": "unsetting a key the view does not know changes nothing",
+      "view": "ready",
+      "fix": {
+        "kind": "edit",
+        "edit": {
+          "op": "unset",
+          "key": "item.nope"
+        }
+      },
+      "expect": {
+        "item": {
+          "item.nope": null
+        },
+        "file": "current"
+      }
+    },
+    {
+      "name": "keeping mine re-pins the notes and clears the drift finding",
+      "view": "drifted",
+      "fix": {
+        "kind": "edit",
+        "edit": {
+          "op": "set",
+          "key": "item.notes",
+          "value": "My notes.\n\n0:00 Old title"
+        }
+      },
+      "expect": {
+        "item": {
+          "item.notes": {
+            "value": "My notes.\n\n0:00 Old title",
+            "source": {
+              "kind": "pinned",
+              "by": "person",
+              "drifted": false
+            }
+          }
+        },
+        "findings": [],
+        "notesHtmlIncludes": ["<p>My notes.</p>"]
+      }
+    },
+    {
+      "name": "using the new notes drops the pin and composes them from the sections",
+      "view": "drifted",
+      "fix": {
+        "kind": "edit",
+        "edit": {
+          "op": "unset",
+          "key": "item.notes"
+        }
+      },
+      "expect": {
+        "item": {
+          "item.notes": null
+        },
+        "findings": [],
+        "notesHtmlIncludes": [
+          "<ol><li>0:00 Cold open</li><li>5:12 The old mill</li></ol>"
+        ],
+        "notesHtmlExcludes": ["Old title"]
+      }
+    },
+    {
+      "name": "an unrelated edit leaves the drift finding in place",
+      "view": "drifted",
+      "fix": {
+        "kind": "edit",
+        "edit": {
+          "op": "set",
+          "key": "item.title",
+          "value": "Other"
+        }
+      },
+      "expect": {
+        "findings": [
+          {
+            "key": "item.notes",
+            "severity": "info"
+          }
+        ]
+      }
+    },
+    {
+      "name": "writing is refused while a blocker stands",
+      "view": "pending",
+      "fix": {
+        "kind": "command",
+        "command": "write_feed"
+      },
+      "expect": {
+        "file": "none"
+      }
+    },
+    {
+      "name": "writing a stale file with no blocker makes it current",
+      "view": "drifted",
+      "fix": {
+        "kind": "command",
+        "command": "write_feed"
+      },
+      "expect": {
+        "file": "current"
+      }
+    },
+    {
+      "name": "creating a show names it and clears the show blocker",
+      "view": "noShow",
+      "fix": {
+        "kind": "command",
+        "command": "create_show",
+        "args": {
+          "title": "The Long River"
+        }
+      },
+      "expect": {
+        "show": {
+          "kind": "ready",
+          "id": "the-long-river"
+        },
+        "channel": {
+          "channel.title": {
+            "value": "The Long River",
+            "source": {
+              "kind": "pinned",
+              "by": "person",
+              "drifted": false
+            }
+          }
+        },
+        "findings": []
+      }
+    },
+    {
+      "name": "linking a show takes its title from the list",
+      "view": "chooseShow",
+      "fix": {
+        "kind": "command",
+        "command": "link_show",
+        "args": {
+          "id": "field-notes"
+        }
+      },
+      "expect": {
+        "show": {
+          "kind": "ready",
+          "id": "field-notes"
+        },
+        "channel": {
+          "channel.title": {
+            "value": "Field Notes",
+            "source": {
+              "kind": "pinned",
+              "by": "person",
+              "drifted": false
+            }
+          }
+        },
+        "findings": []
+      }
+    },
+    {
+      "name": "an input fix carries no value and changes nothing",
+      "view": "pending",
+      "fix": {
+        "kind": "input",
+        "key": "item.intro"
+      },
+      "expect": {
+        "item": {
+          "item.intro": {
+            "value": null,
+            "source": {
+              "kind": "pending",
+              "why": "Say what this episode is about.",
+              "fix": {
+                "kind": "input",
+                "key": "item.intro"
+              }
+            }
+          }
+        },
+        "file": "none"
+      }
+    }
+  ]
+}

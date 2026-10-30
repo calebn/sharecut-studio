@@ -200,6 +200,12 @@
       }
     ]
   },
+  "feed": {
+    "show_id": null,
+    "guid": null,
+    "first_exported_at": null,
+    "pins": {}
+  },
   "review": {
     "comments": [
       {

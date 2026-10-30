@@ -522,6 +522,9 @@
             "editorial": {
               "$ref": "#/$defs/EditorialSection"
             },
+            "feed": {
+              "$ref": "#/$defs/FeedSection"
+            },
             "meta": {
               "anyOf": [
                 {
@@ -908,6 +911,9 @@
             "editorial": {
               "$ref": "#/$defs/EditorialSection"
             },
+            "feed": {
+              "$ref": "#/$defs/FeedSection"
+            },
             "history": {
               "$ref": "#/$defs/ProjectHistory"
             },
@@ -992,6 +998,51 @@
             "clips",
             "media_seals"
           ],
+          "type": "object"
+        },
+        "FeedSection": {
+          "properties": {
+            "first_exported_at": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "guid": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "pins": {
+              "additionalProperties": {
+                "$ref": "#/$defs/Pin"
+              },
+              "type": "object"
+            },
+            "show_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
           "type": "object"
         },
         "GateFill": {
@@ -1246,6 +1297,55 @@
           },
           "type": "object"
         },
+        "Pin": {
+          "properties": {
+            "basis": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "by": {
+              "default": "person",
+              "enum": [
+                "person",
+                "agent"
+              ],
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              ]
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": "object"
+        },
         "PipelineRun": {
           "properties": {
             "id": {
@@ -1402,6 +1502,10 @@
         "ProjectStateSnapshot": {
           "properties": {
             "editorial": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "feed": {
               "additionalProperties": true,
               "type": "object"
             },
@@ -3947,6 +4051,9 @@
             "editorial": {
               "$ref": "#/$defs/EditorialSection"
             },
+            "feed": {
+              "$ref": "#/$defs/FeedSection"
+            },
             "meta": {
               "anyOf": [
                 {
@@ -4333,6 +4440,9 @@
             "editorial": {
               "$ref": "#/$defs/EditorialSection"
             },
+            "feed": {
+              "$ref": "#/$defs/FeedSection"
+            },
             "history": {
               "$ref": "#/$defs/ProjectHistory"
             },
@@ -4417,6 +4527,51 @@
             "clips",
             "media_seals"
           ],
+          "type": "object"
+        },
+        "FeedSection": {
+          "properties": {
+            "first_exported_at": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "guid": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "pins": {
+              "additionalProperties": {
+                "$ref": "#/$defs/Pin"
+              },
+              "type": "object"
+            },
+            "show_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
           "type": "object"
         },
         "GateFill": {
@@ -4671,6 +4826,55 @@
           },
           "type": "object"
         },
+        "Pin": {
+          "properties": {
+            "basis": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "by": {
+              "default": "person",
+              "enum": [
+                "person",
+                "agent"
+              ],
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              ]
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": "object"
+        },
         "PipelineRun": {
           "properties": {
             "id": {
@@ -4827,6 +5031,10 @@
         "ProjectStateSnapshot": {
           "properties": {
             "editorial": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "feed": {
               "additionalProperties": true,
               "type": "object"
             },
@@ -6876,11 +7084,13 @@
     "EditorialSection": "ignore",
     "EpisodeProject": "ignore",
     "ExactRangeTarget": "forbid",
+    "FeedSection": "ignore",
     "GateFill": "ignore",
     "HistoryEntry": "ignore",
     "InsertAnchor": "ignore",
     "MediaAsset": "ignore",
     "MixSection": "ignore",
+    "Pin": "ignore",
     "PipelineRun": "ignore",
     "PipelineStepLog": "ignore",
     "ProcessingChain": "ignore",

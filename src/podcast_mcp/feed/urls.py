@@ -1,0 +1,51 @@
+"""Hosted file addresses: the one place a media template turns a file name into a URL."""
+
+from __future__ import annotations
+
+import re
+import uuid
+from pathlib import PurePosixPath
+from urllib.parse import quote, urlsplit
+
+AUDIO_MIME = {".mp3": "audio/mpeg", ".m4a": "audio/x-m4a"}
+TRANSCRIPT_MIME = {"SRT": "application/x-subrip", "VTT": "text/vtt"}
+CHAPTERS_MIME = "application/json+chapters"
+FEED_MIME = "application/rss+xml"
+# The Podcast Index namespace id every podcast:guid is a UUIDv5 under.
+PODCAST_GUID_NAMESPACE = uuid.UUID("ead4c236-bf58-58c6-a2c6-a6b28d128cb6")
+
+_SLOT = "{file}"
+_ASCII = re.compile(r"[\x21-\x7e]+")
+
+
+def check_https_url(value: str) -> str:
+    parts = urlsplit(value)
+    if parts.scheme != "https" or not parts.netloc or not _ASCII.fullmatch(value):
+        raise ValueError("must be an https address with ASCII characters only")
+    return value
+
+
+def check_media_template(value: str) -> str:
+    if value.count(_SLOT) != 1:
+        raise ValueError(f"must contain {_SLOT} exactly once")
+    check_https_url(value.replace(_SLOT, "file"))
+    return value
+
+
+def hosted_url(template: str, file: str) -> str:
+    return template.replace(_SLOT, quote(file, safe="._-"))
+
+
+def audio_mime(file: str) -> str | None:
+    return AUDIO_MIME.get(PurePosixPath(file).suffix.lower())
+
+
+def podcast_guid(feed_url: str) -> str:
+    """UUIDv5 of the feed address without scheme and trailing slashes, as the namespace specifies."""
+    bare = urlsplit(feed_url)
+    name = (bare.netloc + bare.path + (f"?{bare.query}" if bare.query else "")).rstrip("/")
+    return str(uuid.uuid5(PODCAST_GUID_NAMESPACE, name))
+
+
+def stem_of(file: str) -> str:
+    return PurePosixPath(file).stem

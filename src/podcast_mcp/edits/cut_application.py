@@ -491,6 +491,7 @@ _SECTION_COPIES: Mapping[str, Callable[[Any], Any]] = {
     "mix": _shared,
     "render": _shared,
     "social": _shared,
+    "feed": _shared,
     "review": _review_copy,  # comments are replaced; versions are never written
     "history": _shared,
     "document_sync": _shared,

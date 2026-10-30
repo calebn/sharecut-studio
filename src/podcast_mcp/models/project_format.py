@@ -30,6 +30,7 @@ def snapshot_editable_state(project: Any) -> dict[str, Any]:
         "transcripts": project.transcript_data.model_dump(),
         "mix": project.mix.model_dump(),
         "social": project.social.model_dump(),
+        "feed": project.feed.model_dump(mode="json"),
         "review": project.review.model_dump(),
         "render_last_completed_step": project.render.last_completed_step,
         "meta": meta,
@@ -46,6 +47,7 @@ def apply_editable_snapshot(project: Any, snap: dict[str, Any]) -> None:
         TimelineSection,
         TranscriptsSection,
     )
+    from podcast_mcp.models.feed import FeedSection
 
     project.sources = [SourceRecording.model_validate(s) for s in snap.get("sources", [])]
     project.timeline = TimelineSection.model_validate(snap["timeline"])
@@ -53,6 +55,7 @@ def apply_editable_snapshot(project: Any, snap: dict[str, Any]) -> None:
     project.transcript_data = TranscriptsSection.model_validate(snap["transcripts"])
     project.mix = MixSection.model_validate(snap["mix"])
     project.social = SocialSection.model_validate(snap["social"])
+    project.feed = FeedSection.model_validate(snap.get("feed") or {})
     project.review = ReviewSection.model_validate(snap.get("review") or {"comments": []})
     project.render.last_completed_step = snap.get("render_last_completed_step")
     meta = snap.get("meta")
