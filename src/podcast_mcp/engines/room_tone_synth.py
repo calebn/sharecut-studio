@@ -6,7 +6,7 @@ back within a few seconds (Agus et al. 2010; Rajendran et al. 2016), and the lon
 the more of it is repeat. A steady room is its spectrum and its level, so past
 ``SYNTH_MAX_REPLAY_SEC`` of replay the fill is noise synthesised to the spectrum and level of
 that clean stretch (the method gate fill and bleed fill use, ``gate_fill.synthesise_noise``),
-which has no period inside its ``SYNTH_FILE_SEC`` file (a fill past that length tiles it).
+which has no period inside its ``SYNTH_FILE_SEC`` file (a fill past ``SYNTH_MAX_FILL_SEC`` tiles it).
 
 Only a steady room is synthesised. A spectrum alone does not make a sound that is not
 stationary noise (McDermott and Simoncelli 2011), so a stretch whose level moves by more
@@ -62,16 +62,16 @@ from podcast_mcp.util.wav import open_wav
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 # Bump when the synthesis or its guards change: ids, files and preview keys change with it.
-SYNTH_REV = 1
+SYNTH_REV = 2
 # Seconds of a fill the clean audio may replay before the fill is synthesised instead.
 # Listeners hear repeated noise at periods of several seconds, and regular repeats more
 # easily (Rajendran et al. 2016); the literature does not fix a number, so this one is a
-# judgment: a second of replay is a stutter nobody hears, 1.3 s over an 18.7 s bed is not
-# worth a synthesised fill's cost, and the Mac lab judges where it sounds.
+# judgment: a second of replay is not heard as a repeat, and under it a synthesised fill is
+# not worth its cost.
 SYNTH_MAX_REPLAY_SEC = 1.0
 SYNTH_FILE_SEC = 60.0
-# A fill reads at most this much of the file, so fills of a minute or more still start at
-# positions that differ with their own.
+# A fill reads at most this much of the file, which leaves SYNTH_FILE_SEC less this of start
+# positions to tell fills apart.
 SYNTH_MAX_FILL_SEC = 54.0
 # Longest fade a mute region adds to the edit it covers (cut_application: fade out and in).
 MUTE_FADE_SLACK_SEC = 1.0
@@ -81,14 +81,19 @@ SYNTH_DIR = "raw/room-tone-synth"
 SYNTH_ID_PREFIX = "synth-room-tone-"
 STEADY_WINDOW_SEC = 0.5
 # A tone is heard once its power reaches the noise in its critical band (Zwicker: a tone in
-# noise is masked until about 0 to -5 dB), so this is the lenient end of that range.
+# noise is masked until about 0 to -5 dB), so this is the end of that range that is lenient toward synthesis.
 TONAL_TO_BAND_DB = 0.0
 TONAL_NEIGHBOURS = 6
+# Equivalent rectangular bandwidth of the ear's filter: 24.7 * (4.37 f / 1000 + 1) Hz
+# (Glasberg and Moore 1990).
+ERB_BASE_HZ = 24.7
+ERB_SLOPE = 4.37
 # Below this a line is not heard as a tone at a room's floor level: the hearing threshold is
 # about 35 dB higher at 63 Hz than at 1 kHz (ISO 226), and rooms have modes there. Mains hum
 # is still caught by its harmonics.
 TONAL_MIN_HZ = 100.0
-# Analysis frame for the tone check: about 6 Hz bins at 48 kHz, whatever the rate.
+# Analysis frame for the tone check: the power of two nearest this many seconds (about 6 Hz
+# bins at 48 kHz).
 TONAL_FRAME_SEC = 0.17
 LEVEL_TOLERANCE_DB = 0.5
 PROBE_SEC = 2.0
@@ -183,7 +188,7 @@ def _replayed_sec(selection: RoomToneSelection) -> float:
 
 def room_tone_synth_digest() -> str:
     """What decides whether a fill is synthesised: part of a preview's cache key."""
-    return f"{_params()}"
+    return _params()
 
 
 def _params() -> str:
@@ -195,11 +200,17 @@ def _params() -> str:
             SYNTH_MAX_REPLAY_SEC,
             SYNTH_FILE_SEC,
             SYNTH_MAX_FILL_SEC,
+            SYNTH_RATE,
+            STEADY_WINDOW_SEC,
+            NOISE_SPREAD_DB,
+            MIN_ROOM_SEC,
+            MIN_FILL_HZ,
             TONAL_FRAME_SEC,
             TONAL_MIN_HZ,
-            LEVEL_TOLERANCE_DB,
+            TONAL_NEIGHBOURS,
             TONAL_TO_BAND_DB,
-            NOISE_SPREAD_DB,
+            LEVEL_TOLERANCE_DB,
+            PROBE_SEC,
         )
     )
 
@@ -264,7 +275,7 @@ def _analyse(path: str, revision: object, basis: _Basis) -> _Analysis | None:
     bend the spectrum the synthesis copies; the noise is then realised at ``SYNTH_RATE`` from
     that spectrum (``source_rate``).
     """
-    del revision
+    del revision  # only keys the cache: a rewritten file misses it
     rate = _native_rate(Path(path))
     try:
         samples = load_mono_window(
@@ -329,8 +340,8 @@ def _tonal(samples: np.ndarray, rate: int) -> bool:
     psd = np.mean(np.abs(np.fft.rfft(frames, axis=1)) ** 2, axis=0)
     width = rate / nfft
     ratio = 10 ** (TONAL_TO_BAND_DB / 10)
-    for index in range(int(np.ceil(max(MIN_FILL_HZ, TONAL_MIN_HZ) / width)), psd.size - 1):
-        erb = 24.7 * (4.37 * index * width / 1000 + 1)
+    for index in range(int(np.ceil(TONAL_MIN_HZ / width)), psd.size - 1):
+        erb = ERB_BASE_HZ * (ERB_SLOPE * index * width / 1000 + 1)
         reach = max(TONAL_NEIGHBOURS, round(erb / 2 / width))
         around = np.concatenate(
             (psd[max(0, index - reach) : max(0, index - 1)], psd[index + 2 : index + reach + 1])
@@ -357,6 +368,7 @@ def _write_file(dest: Path, analysis: _Analysis, seed_key: str) -> None:
         length_sec=SYNTH_FILE_SEC,
     )
 
+    # synthesise_noise rounds up to a power of two; the file is exactly SYNTH_FILE_SEC.
     noise = noise[: round(SYNTH_FILE_SEC * SYNTH_RATE)]
 
     def chunks() -> Iterator[np.ndarray]:
