@@ -539,6 +539,80 @@ def test_alias_run_refusal_precedes_local_replay_conditions(
     assert alias.read_bytes() == studio.project.read_bytes() == before
 
 
+@pytest.mark.parametrize("alias_in", ["body", "argv"])
+def test_an_admitted_alias_stays_terminal_after_studio_replaces_its_file(
+    studio: StudioRun, monkeypatch: pytest.MonkeyPatch, alias_in: str
+) -> None:
+    host = read_studio_host(studio.project)
+    assert host is not None
+    alias = studio.project.with_name("project-alias.json")
+    alias.hardlink_to(studio.project)
+    before = alias.read_bytes()
+    saved = json.loads(before)
+    saved["name"] = "Studio saved concurrently"
+    replacement = studio.project.with_name("next.sharecut")
+    replacement.write_text(json.dumps(saved), encoding="utf-8")
+    replacement.chmod(0o600)
+    saved_bytes = replacement.read_bytes()
+    stat_file = Path.stat
+    resolve_path = Path.resolve
+    alias_reads = 0
+    replaced = False
+
+    def stat_then_publish(path: Path, *args: Any, **kwargs: Any) -> os.stat_result:
+        nonlocal alias_reads, replaced
+        observed = stat_file(path, *args, **kwargs)
+        if path == alias:
+            alias_reads += 1
+        elif path == studio.project and alias_reads >= 2 and not replaced:
+            assert observed.st_ino == stat_file(alias).st_ino
+            replacement.replace(studio.project)
+            replaced = True
+        return observed
+
+    def resolve_project_file(path: Path, *args: Any, **kwargs: Any) -> Path:
+        if path in {alias, studio.project}:
+            return path
+        return resolve_path(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", resolve_project_file)
+    monkeypatch.setattr(Path, "stat", stat_then_publish)
+    body = json.dumps(
+        {
+            "protocol": 1,
+            "argv": [
+                "comment",
+                "add",
+                "--project",
+                str(alias),
+                "--body",
+                "must not land",
+                "--author",
+                "agent",
+                "--start",
+                "1",
+            ],
+            "project": str(alias if alias_in == "body" else studio.project),
+            "cwd": str(studio.project.parent),
+        }
+    ).encode()
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{studio.port}/api/handoff/run",
+        data=body,
+        headers={HANDOFF_TOKEN_HEADER: host.token, "Content-Type": "application/json"},
+    )
+
+    with pytest.raises(urllib.error.HTTPError) as denied:
+        urllib.request.urlopen(request, timeout=5)
+
+    assert replaced
+    assert denied.value.code == 409
+    assert json.load(denied.value)["code"] == "project_alias"
+    assert studio.commands == []
+    assert alias.read_bytes() == before
+    assert studio.project.read_bytes() == saved_bytes
+
+
 @pytest.mark.parametrize(
     ("case", "ping_serves", "refusal"),
     [
