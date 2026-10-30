@@ -302,7 +302,7 @@ export async function exposeControl(
     ) {
       await grip.focus();
       await page.keyboard.press("End");
-      await page.waitForTimeout(300);
+      await expect(grip).toHaveAttribute("aria-valuetext", "Full height");
       continue;
     }
     const first =
