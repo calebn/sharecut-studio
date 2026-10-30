@@ -85,3 +85,19 @@ def test_a_gap_just_over_a_short_span_splits_it_evenly_with_no_sliver() -> None:
     assert sum(t.length for t in tiles) == pytest.approx(0.7101)
     assert min(t.length for t in tiles) > 0.3
     assert tile_span(0.0, 0.5, 1.0001, seed_sec=0.0)[-1].length > 0.2
+
+
+def test_tiles_replay_no_more_of_the_span_than_the_gap_forces() -> None:
+    tiles = tile_span(18.9, 37.6, 20.0, seed_sec=3.0)
+
+    first, second = sorted(tiles, key=lambda t: t.source_start)
+    overlap = (first.source_start + first.length) - second.source_start
+    assert overlap == pytest.approx(20.0 - (37.6 - 18.9 - 2 * CROSSFADE_REACH_SEC), abs=1e-6)
+    assert overlap < 1.4
+
+
+def test_every_slot_is_used_once_when_the_gap_needs_a_few_tiles() -> None:
+    tiles = tile_span(0.0, 6.0, 13.0, seed_sec=7.0)
+
+    starts = sorted(round(t.source_start, 6) for t in tiles)
+    assert len(set(starts)) == len(tiles)
