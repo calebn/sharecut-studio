@@ -195,6 +195,30 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Editor",
         "List the transcript files already exported (names and whether current; no paths)",
     ),
+    ("POST", "/api/review/{token}/daw/speaker/split"): (
+        "Editor",
+        "Start a speaker split of one track; a missing speaker model is 409 model_needed, nothing is downloaded (opt-in PODCAST_GUEST_RENDER)",
+    ),
+    ("GET", "/api/review/{token}/daw/speaker/status"): (
+        "Editor",
+        "Read the share project's speaker split jobs (fixed copy, no host paths)",
+    ),
+    ("GET", "/api/review/{token}/daw/speaker/jobs/{job_id}"): (
+        "Editor",
+        "Read one speaker split job of this project; any other job id is 404",
+    ),
+    ("GET", "/api/review/{token}/daw/speaker/jobs/{job_id}/events"): (
+        "Editor",
+        "SSE status frames of one speaker split job; closes when the job ends or the link is revoked",
+    ),
+    ("POST", "/api/review/{token}/daw/speaker/jobs/{job_id}/cancel"): (
+        "Editor",
+        "Cancel one speaker split job of this project (works with PODCAST_GUEST_RENDER off)",
+    ),
+    ("POST", "/api/review/{token}/daw/speaker/move-lane-span"): (
+        "Editor",
+        "Move a timeline range from one speaker lane to a sibling lane of the same split (one undo step)",
+    ),
     ("POST", "/api/review/{token}/daw/document/command"): (
         "role's command set",
         "Typed body — see Document commands",
@@ -337,6 +361,20 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
         "GET",
         "/api/review/{token}/daw/transcript/exports",
     ): "http-only: no guest MCP transcript tool yet",
+    ("POST", "/api/review/{token}/daw/speaker/split"): "http-only: no guest MCP speaker tool yet",
+    ("GET", "/api/review/{token}/daw/speaker/status"): "http-only: no guest MCP speaker tool yet",
+    ("GET", "/api/review/{token}/daw/speaker/jobs/{job_id}"): (
+        "http-only: no guest MCP speaker tool yet"
+    ),
+    ("GET", "/api/review/{token}/daw/speaker/jobs/{job_id}/events"): (
+        "http-only: no guest MCP speaker tool yet"
+    ),
+    ("POST", "/api/review/{token}/daw/speaker/jobs/{job_id}/cancel"): (
+        "http-only: no guest MCP speaker tool yet"
+    ),
+    ("POST", "/api/review/{token}/daw/speaker/move-lane-span"): (
+        "http-only: no guest MCP speaker tool yet"
+    ),
     ("POST", "/api/review/{token}/feed/edit"): (
         "http-only: the host's feed_set tool; not a guest MCP tool"
     ),

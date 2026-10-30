@@ -64,6 +64,12 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `POST` | `…/daw/range-audio` | `play` | Exact timeline islands from the full mix, with silent gaps. Never isolated stems. |
 | `POST` | `…/daw/render-preview` | `Editor` | Start stem/premix render job (opt-in PODCAST_GUEST_RENDER) |
 | `GET` | `…/daw/render-preview/{job_id}` | `Editor` | Read project-scoped render job status (no host paths) |
+| `GET` | `…/daw/speaker/jobs/{job_id}` | `Editor` | Read one speaker split job of this project; any other job id is 404 |
+| `POST` | `…/daw/speaker/jobs/{job_id}/cancel` | `Editor` | Cancel one speaker split job of this project (works with PODCAST_GUEST_RENDER off) |
+| `GET` | `…/daw/speaker/jobs/{job_id}/events` | `Editor` | SSE status frames of one speaker split job; closes when the job ends or the link is revoked |
+| `POST` | `…/daw/speaker/move-lane-span` | `Editor` | Move a timeline range from one speaker lane to a sibling lane of the same split (one undo step) |
+| `POST` | `…/daw/speaker/split` | `Editor` | Start a speaker split of one track; a missing speaker model is 409 model_needed, nothing is downloaded (opt-in PODCAST_GUEST_RENDER) |
+| `GET` | `…/daw/speaker/status` | `Editor` | Read the share project's speaker split jobs (fixed copy, no host paths) |
 | `POST` | `…/daw/transcript/export` | `Editor` | Write or preview the transcript as txt, md, srt or vtt in the project's export folder; no file paths returned |
 | `GET` | `…/daw/transcript/exports` | `Editor` | List the transcript files already exported (names and whether current; no paths) |
 | `POST` | `…/daw/transcript/refine/done` | `Editor` | Mark the transcript checked as this link; 409 if the transcript changed since the fingerprint |

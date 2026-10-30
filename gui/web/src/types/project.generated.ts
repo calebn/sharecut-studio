@@ -172,6 +172,22 @@ export interface GuestReplacementPreviewRequest {
 /** Base for the guest request bodies that carry fields of their own: unknown fields are refused. Document commands use their typed payloads instead. */
 export type GuestRequest = Record<string, unknown>;
 
+/** Move a timeline range between two lanes of one speaker split. */
+export interface GuestSpeakerMoveLaneSpanRequest {
+  from_lane: string;
+  to_lane: string;
+  timeline_start: number;
+  timeline_end: number;
+}
+
+/** Split one of the share's tracks into a lane per speaker; spans are source seconds. */
+export interface GuestSpeakerSplitRequest {
+  track_id: string;
+  speaker_count: number;
+  names?: Array<string> | null;
+  enrollment?: Record<string, Array<[number, number]>> | null;
+}
+
 /** Write or preview the share's transcript files; each name is a format the host fixes. */
 export interface GuestTranscriptExportRequest {
   formats?: Array<"txt" | "md" | "srt" | "vtt">;

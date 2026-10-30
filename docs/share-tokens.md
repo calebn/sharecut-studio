@@ -663,6 +663,65 @@ route answers 400.
   (`format`, `name`, `bytes`, `language`, `written`, `current`; the listing: `name`, `format`,
   `mime`, `language`, `bytes`, `modified`, `current`).
 
+An Editor also splits a one-track recording into speaker lanes and moves a range between sibling
+lanes, under `…/daw/speaker/`, as the project's workspace; the body names no path.
+
+- Split: `POST …/speaker/split` (`track_id`, `speaker_count` 2 to 8, optional `names` and
+  `enrollment`) starts the host's `split_speakers` job and answers 202 with the fixed-copy job
+  view. It needs the host's `PODCAST_GUEST_RENDER` opt-in and the start rate bucket, like a
+  pipeline run, and a guest split holds the host's whole job slot while it runs (a busy slot is
+  409 `job_running` at once, and the host's own pipeline, export and render wait for it).
+  - `names` (at most 8, 1 to 80 characters) and the keys of `enrollment` must have visible text
+    and no control characters (422 otherwise). They become the lanes' labels and speaker names,
+    and the first name renames the original track too; lane ids are made from them with the
+    host's slug rule. Nothing else is checked: an Editor can already set these with
+    `SetTrackMeta`.
+  - `enrollment` maps a speaker's name to voice samples, spans of the track's source recording
+    in seconds (`[start, end]`, finite, `0 <= start < end`, at most 16 per name). They are numbers
+    read from the track's own media, never a file or a path. This is stricter than the host's
+    route, which has no limit on seconds: overlapping or touching spans are merged, and the
+    merged length may be at most 600 s per name and 1800 s in all (422 beyond), because every
+    quarter second of a sample is embedded inside the one job slot. A span that starts at or after
+    the track's declared length is 400 `enrollment_past_end` before any job starts (a track with
+    no declared length is not checked, and a sample past the end is then a failed job).
+  - A model the split needs that is not downloaded is 409 `model_needed` with fixed copy: no
+    model name, size, command or path, and nothing is downloaded. Other refusals keep the host's
+    status and code with fixed copy: 409 `speaker_backend_unavailable`, 400 for the split's own
+    codes (`speaker_split_no_media`, `speaker_split_already_split`, `speaker_names_count_mismatch`
+    and the like). The host's route also turns an uncoded `ValueError`, `FileNotFoundError`,
+    `RuntimeError` or `ImportError` into 400 `speaker_split_invalid` / 409
+    `speaker_split_unavailable` with the error's text; the twin does not: any uncoded error is the
+    fixed 500 `internal_error`, since its text can name host paths.
+- Follow it: `GET …/speaker/status`, `GET …/speaker/jobs/{job_id}`, its `/events` and
+  `POST …/speaker/jobs/{job_id}/cancel` reach `split_speakers` jobs of this project only
+  (`GUEST_SPEAKER_KINDS`); a job of another kind, project or id is the same 404 `job_not_found`,
+  and the pipeline and export twins do not serve a split. They work with the flag off.
+  - The job view says only running, done, failed or cancelled, with fixed copy ("Speaker split
+    failed", whatever the cause, including a failure that only shows once the audio is read):
+    the result (lanes, flagged turns) is not sent, so an Editor sees the new lanes in the
+    document and the host's History holds the one undo step.
+  - Cancel is scoped to the project, not the link: any Editor can stop any split, one the host
+    started included, as with the pipeline and export twins. A cancel that lands while the split
+    is being committed can read "cancelled" with the lanes already in place.
+  - Revoking or expiring a link closes its event stream but does not stop a split already
+    running; the host cancels it.
+- Move: `POST …/speaker/move-lane-span` (`from_lane`, `to_lane`, `timeline_start`,
+  `timeline_end`, finite, the end after the start: 422 otherwise) is synchronous and is the host's
+  `SpeakerService.move_lane_span`: one undo step that mutes the range on `from_lane` and reopens
+  it on `to_lane`. It needs no flag. Refusals (400, with the host's code and fixed copy): the same
+  lane, lanes that are not siblings of one split, a range that does not map to one continuous
+  span. The answer is an allowlist: `from_lane`, `to_lane`, `source_start`, `source_end`,
+  `mute_region`, `words_moved` and `history_head_id` (the id of the host's undo step). As for the
+  host's route, the timeline range is mapped to the source before the commit lock is taken, so a
+  host edit landing in between can shift the range.
+- Attribution: neither service records an author, so the project history does not name the Editor
+  and the host cannot tell a link's split or move from its own in History (the document journal
+  notes it as the agent's). The host log carries an INFO line with `share:` plus the link's id.
+  This is a disclosed gap that a later change can close by giving the services an actor.
+
+The speaker doctor (`GET /api/speaker/doctor`) has no twin: it reports the host's recognition
+backend, which is host machine detail.
+
 A refusal on these twins keeps the host route's status and code with fixed guest copy, never the
 host's message, and anything else is the fixed 500. The host's routes are unchanged and a
 relayed call to one is still refused.

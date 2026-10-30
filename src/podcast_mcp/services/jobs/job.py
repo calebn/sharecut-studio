@@ -271,6 +271,7 @@ GUEST_JOB_VIEW: Mapping[str, GuestJobView] = MappingProxyType(
         "pipeline": GuestJobView("Running pipeline", "Pipeline failed"),
         "render_preview": GuestJobView("Rendering preview", "Render preview failed"),
         "export": GuestJobView("Exporting deliverables", "Export failed"),
+        "split_speakers": GuestJobView("Splitting speakers", "Speaker split failed"),
     }
 )
 
@@ -278,6 +279,7 @@ GUEST_JOB_VIEW: Mapping[str, GuestJobView] = MappingProxyType(
 GUEST_PIPELINE_KINDS = frozenset({"pipeline"})
 GUEST_RENDER_KINDS = frozenset({"render_preview"})
 GUEST_EXPORT_KINDS = frozenset({"export"})
+GUEST_SPEAKER_KINDS = frozenset({"split_speakers"})
 
 
 def _path_in_project(path: str, project_path: Path) -> bool:

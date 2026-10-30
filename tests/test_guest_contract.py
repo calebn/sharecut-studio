@@ -32,7 +32,11 @@ from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.review_versions import get_version, version_audio_path
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document import TranscriptService
-from podcast_mcp.services.media import TranscriptPrecorrectService, TranscriptRefineService
+from podcast_mcp.services.media import (
+    SpeakerService,
+    TranscriptPrecorrectService,
+    TranscriptRefineService,
+)
 from podcast_mcp.services.record.commands import COMMAND_TYPES, RecordCommand
 from podcast_mcp.services.record.service import (
     RecordSessionService,
@@ -316,6 +320,33 @@ PROBES: dict[tuple[str, str], Probe] = {
     ),
     ("POST", "/api/review/{token}/daw/export/jobs/{job_id}/cancel"): Probe(
         Site(service_jobs.JobManager, "get_job")
+    ),
+    ("POST", "/api/review/{token}/daw/speaker/split"): Probe(
+        Site(service_jobs.JobManager, "start_split_speakers"),
+        {"json": {"track_id": "t", "speaker_count": 2}},
+    ),
+    ("GET", "/api/review/{token}/daw/speaker/status"): Probe(
+        Site(service_jobs.JobManager, "status")
+    ),
+    ("GET", "/api/review/{token}/daw/speaker/jobs/{job_id}"): Probe(
+        Site(service_jobs.JobManager, "get_job")
+    ),
+    ("GET", "/api/review/{token}/daw/speaker/jobs/{job_id}/events"): Probe(
+        Site(service_jobs.JobManager, "get_job")
+    ),
+    ("POST", "/api/review/{token}/daw/speaker/jobs/{job_id}/cancel"): Probe(
+        Site(service_jobs.JobManager, "get_job")
+    ),
+    ("POST", "/api/review/{token}/daw/speaker/move-lane-span"): Probe(
+        Site(SpeakerService, "move_lane_span"),
+        {
+            "json": {
+                "from_lane": "a",
+                "to_lane": "b",
+                "timeline_start": 0,
+                "timeline_end": 1,
+            }
+        },
     ),
     ("GET", "/api/review/{token}/daw/transcript/vocabulary"): Probe(
         Site(TranscriptPrecorrectService, "vocabulary_status")
