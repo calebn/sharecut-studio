@@ -344,9 +344,6 @@ def test_strict_authz_refuses_a_remote_peer(episode: Path, monkeypatch: pytest.M
     assert remote.get("/api/feed", params={"path": str(episode)}).status_code == 403
 
 
-# --- writing the feed file ---------------------------------------------------------------
-
-
 @pytest.fixture
 def writable(minimal_project: Path) -> Path:
     """An episode with a real show store, a complete show and an exported MP3."""
