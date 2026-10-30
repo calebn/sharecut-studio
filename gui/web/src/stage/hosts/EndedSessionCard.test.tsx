@@ -168,6 +168,14 @@ describe("EndedSessionCard", () => {
       }
     });
 
+    it("shows the track label, not New track, when no clips were found", () => {
+      menuMount({}, { movable: new Set<string>() });
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+      expect(screen.getAllByRole("listitem")[0].textContent).toBe(
+        "Ava → to Ava",
+      );
+    });
+
     it("disables the trigger while busy", () => {
       menuMount({}, { busy: true });
       expect(

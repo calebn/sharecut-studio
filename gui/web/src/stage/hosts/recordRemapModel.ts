@@ -59,3 +59,16 @@ export function remapMoves(
     track_id: trackId,
   }));
 }
+
+/** Which track each clip of the session is on; changes when any of them moves, is added or removed. */
+export function sessionClipSignature(
+  tracks: Record<string, ClipRow[]> | undefined,
+  sessionId: string,
+): string {
+  const prefix = recordSourcePrefix(sessionId);
+  return allClipsFromTracks(tracks ?? {})
+    .filter((clip) => (clip.source_id ?? "").startsWith(prefix))
+    .map((clip) => `${clip.id}:${clip.track_id}`)
+    .sort()
+    .join("|");
+}
