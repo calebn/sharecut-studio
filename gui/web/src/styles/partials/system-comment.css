@@ -220,7 +220,6 @@ button.sys-comment-main:hover {
 .sys-comment-author {
   min-inline-size: 0;
   font-weight: 600;
-  min-inline-size: 0;
   overflow-wrap: anywhere;
 }
 
