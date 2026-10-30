@@ -467,7 +467,8 @@ async function emptyLanePoint(page: Page, track: string, seconds: number) {
     hit,
     "Empty range starts must hit exposed lane-seek, not old overlay",
   ).toBe("lane-seek");
-  return { ...target, scale: point.scale };
+  // Only the scale's number: the point goes to `page.evaluate`, which cannot carry functions.
+  return { ...target, scale: { pxPerSecond: point.scale.pxPerSecond } };
 }
 
 async function rangeBounds(page: Page) {

@@ -126,15 +126,20 @@ test("F03/F13 native ruler clock and modifier wheel anchor reversal bounds and t
       await expect
         .poll(async () => Number(await ruler.getAttribute("aria-valuenow")))
         .toBeCloseTo(3, 3);
+      // The ruler draws a sticky window, so its left edge is not time 0 once the
+      // timeline scrolls or zooms; the clip's left edge is the session start.
       const anchor = async () =>
-        ruler.evaluate((el) => {
-          const r = el.getBoundingClientRect();
+        ruler.evaluate(() => {
           const x = 500;
           const clip = document.querySelector(
             '[data-testid="timeline-clip"]',
           ) as HTMLElement;
           const scale = Number.parseFloat(clip.style.width) / 60;
-          return { clientX: x, sec: (x - r.x) / scale, scale };
+          return {
+            clientX: x,
+            sec: (x - clip.getBoundingClientRect().x) / scale,
+            scale,
+          };
         });
       const origin = await anchor();
       const w = await width(page);

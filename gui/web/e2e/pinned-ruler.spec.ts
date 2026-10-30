@@ -131,16 +131,34 @@ async function exercisePinnedRuler(page: Page): Promise<void> {
       `[data-testid="${ids.ruler}"]`,
     );
     if (!scroller || !ruler) throw new Error("timeline ruler did not mount");
+    const body = ruler.querySelector(".sys-ruler-body");
+    if (!body) throw new Error("timeline ruler has no slider");
     const rulerBox = ruler.getBoundingClientRect();
     const scrollBox = scroller.getBoundingClientRect();
     const x = Math.min(rulerBox.right - 12, scrollBox.right - 20);
-    const scale = rulerBox.width / Number(ruler.getAttribute("aria-valuemax"));
+    // The ruler draws a window of the timeline, so time 0 is not at its left
+    // edge once the timeline scrolls: read the scale off two labelled ticks.
+    const ticks = [...ruler.querySelectorAll<HTMLElement>(".sys-ruler-tick")]
+      .filter((tick) => tick.textContent)
+      .map((tick) => {
+        const box = tick.getBoundingClientRect();
+        const clock = tick.textContent!.split(":").map(Number);
+        return {
+          seconds: clock.reduce((total, part) => total * 60 + part, 0),
+          x: tick.dataset.align === "end" ? box.right : box.left,
+        };
+      });
+    const first = ticks[0];
+    const last = ticks.at(-1);
+    if (!first || !last || first.seconds === last.seconds)
+      throw new Error("the ruler shows fewer than two labelled ticks");
+    const scale = (last.x - first.x) / (last.seconds - first.seconds);
     return {
       x,
       y: rulerBox.top + rulerBox.height / 2,
       expectedSec: Math.min(
-        Number(ruler.getAttribute("aria-valuemax")),
-        Math.max(0, (x - rulerBox.left) / scale),
+        Number(body.getAttribute("aria-valuemax")),
+        Math.max(0, first.seconds + (x - first.x) / scale),
       ),
     };
   }, timelineTestIds);
