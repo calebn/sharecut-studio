@@ -334,6 +334,12 @@ The More hub was removed. Its destinations:
 | Gestures | Commands and shortcuts → Gestures | static |
 | Overlay legend | Eye sheet | static |
 
+In Commands and shortcuts, each option's accessible name starts with the command
+label, followed by its visible category during search, shortcut, and collision
+note or unavailable reason. Spaces separate the fragments. The shortcut and note
+appear once in the name. Search keeps focus while the arrow keys move through
+all commands, including unavailable ones; Enter runs only an available command.
+
 **Guest** (Commenter): Review alone, with Comments and the Overlay legend. History / Pipeline and the host queue stay host-only.
 
 Long-lived panels are stages or sections; do not stack sheets to reach them.

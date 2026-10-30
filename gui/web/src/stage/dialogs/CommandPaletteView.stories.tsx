@@ -133,10 +133,12 @@ export const Browse: Story = {
       expect(within(dialog).getByText("Fit session width")).toBeVisible(),
     );
     await expect(
-      within(dialog).getByRole("option", { name: "Export diagnostics…" }),
+      within(dialog).getByRole("option", {
+        name: "Export diagnostics… Project create/open is host-only",
+      }),
     ).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(
-      within(dialog).getByRole("option", { name: "Fit session width" }),
+      within(dialog).getByRole("option", { name: "Fit session width \\" }),
     );
     await expect(args.onRun).toHaveBeenCalledWith("view.fit");
   },
