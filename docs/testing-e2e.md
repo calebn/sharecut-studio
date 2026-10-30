@@ -31,6 +31,15 @@ sync timing.
 
 ### GUI surface regressions
 
+`gui/web/e2e-compat/phone-chrome.spec.ts` holds the real transcript-status
+response until the phone queue shows three suggestions, then releases it unchanged.
+The Keep/Undo case waits for **Check the transcript** and **Suggestions, 3** in
+the queue sheet before selecting the `0:04` suggestion. It checks one successful
+Keep command and one toast Undo. Positions must read `2 of 4`, then `3 of 4`,
+then `2 of 4`, with the restored card time and focus. Saved pending-edit records
+must match the originals minus that suggestion after Keep and match all originals
+after Undo. The Keep target must remain at least 44 px high.
+
 `gui/web/e2e/gui-surfaces.spec.ts` checks five editor panels and chapter inspectors
 at desktop, tablet and phone widths with WCAG A/AA contrast checks (the three
 widths take their themes from `withAppearance`, so both themes are checked on
