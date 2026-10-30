@@ -160,14 +160,17 @@ def test_the_applying_run_records_an_other_render_invalidation(tmp_path):
     assert reasons == {"other"}
 
 
-def test_the_command_is_host_only_for_every_share_role():
+def test_the_command_is_for_the_host_and_editors_only():
     import pytest
 
     from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
     from podcast_mcp.services.document_sync.capabilities import authorize_document_command
 
     authorize_document_command(None, "ApplyFadeRecommendationList")
-    for role in ("viewer", "commenter", "editor"):
+    authorize_document_command(
+        capabilities_for_role("editor", with_mcp=True), "ApplyFadeRecommendationList"
+    )
+    for role in ("viewer", "commenter"):
         with pytest.raises(PermissionError) as raised:
             authorize_document_command(
                 capabilities_for_role(role, with_mcp=True), "ApplyFadeRecommendationList"

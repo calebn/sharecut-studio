@@ -437,8 +437,10 @@ def test_registered_tool_rejects_a_non_numeric_floor_before_the_service(tmp_path
     assert _history(path)["total"] == 0
 
 
-@pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
-def test_a_guest_role_submitting_strip_silence_is_refused_as_not_allowed(tmp_path, role):
+@pytest.mark.parametrize("role", ["viewer", "commenter"])
+def test_a_guest_role_below_editor_submitting_strip_silence_is_refused_as_not_allowed(
+    tmp_path, role
+):
     path = _path(tmp_path)
     before = Path(path).read_bytes()
     command = DocumentCommand(
@@ -457,19 +459,18 @@ def test_a_guest_role_submitting_strip_silence_is_refused_as_not_allowed(tmp_pat
     assert _journal(path) == []
 
 
-def test_editor_with_the_mcp_capability_is_also_refused(tmp_path):
+def test_editor_with_the_mcp_capability_also_runs_it(tmp_path):
     path = _path(tmp_path)
     command = DocumentCommand(
         type="StripSilence",
-        payload={},
+        payload={"track_id": "host"},
         client_id="mcp-agent",
         client_seq=None,
         role="guest",
     )
     caps = [*capabilities_for_role("editor"), "mcp"]
-    with pytest.raises(CodedPermissionError) as raised:
-        DocumentSyncService.open(path).submit(command, capabilities=caps)
-    assert raised.value.code == "share_capability_required"
+    DocumentSyncService.open(path).submit(command, capabilities=caps)
+    assert _journal(path) == ["StripSilence"]
 
 
 def test_direct_tool_call_journals_one_strip_silence_row(tmp_path):

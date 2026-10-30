@@ -10,10 +10,12 @@ import pytest
 from podcast_mcp.models import PROJECT_NAME_MAX_CHARS
 from podcast_mcp.services.app import recent_projects as recent
 from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync.capabilities import (
     EDIT_COMMANDS,
     SUGGEST_COMMANDS,
+    document_command_types_for_caps,
 )
 from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.payloads import DOCUMENT_COMMAND_ADAPTER
@@ -116,8 +118,12 @@ def test_rename_command_validates_as_an_envelope():
     assert body.payload.name == "Pilot"
 
 
-def test_guests_cannot_rename():
-    assert "RenameProject" not in EDIT_COMMANDS | SUGGEST_COMMANDS
+def test_editors_rename_and_other_guests_cannot():
+    assert "RenameProject" in EDIT_COMMANDS
+    assert "RenameProject" not in SUGGEST_COMMANDS
+    assert "RenameProject" in document_command_types_for_caps(capabilities_for_role("editor"))
+    for role in ("commenter", "viewer"):
+        assert "RenameProject" not in document_command_types_for_caps(capabilities_for_role(role))
 
 
 def test_recent_projects_lists_the_new_name(tmp_path: Path):

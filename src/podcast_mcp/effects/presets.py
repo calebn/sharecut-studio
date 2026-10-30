@@ -17,7 +17,11 @@ from collections.abc import Mapping
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.engines.effect_filters import is_supported_effect, supported_effect_names
+from podcast_mcp.engines.effect_filters import (
+    is_supported_effect,
+    supported_effect_names,
+    validate_effect_params,
+)
 from podcast_mcp.models import EpisodeProject, ProcessingChain, ProcessingEffect
 
 PresetSpec = list[dict[str, Any]]
@@ -120,7 +124,10 @@ def apply_specs_to_chain(
     chain = _chain_for_track(project, track_id)
     for spec in specs:
         chain.effects.append(
-            ProcessingEffect(effect=spec["effect"], params=dict(spec.get("params", {})))
+            ProcessingEffect(
+                effect=spec["effect"],
+                params=validate_effect_params(spec["effect"], spec.get("params")),
+            )
         )
     return chain
 
@@ -133,7 +140,9 @@ def add_effect(
 ) -> ProcessingChain:
     _require_supported_effect(effect)
     chain = _chain_for_track(project, track_id)
-    chain.effects.append(ProcessingEffect(effect=effect, params=params or {}))
+    chain.effects.append(
+        ProcessingEffect(effect=effect, params=validate_effect_params(effect, params))
+    )
     return chain
 
 

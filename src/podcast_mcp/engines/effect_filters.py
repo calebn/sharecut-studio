@@ -2,15 +2,120 @@
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
 
 EffectFormatter = Callable[[Mapping[str, Any]], str]
+
+
+@dataclass(frozen=True)
+class _Number:
+    low: float
+    high: float
+    integer: bool = False
+
+
+@dataclass(frozen=True)
+class _Choice:
+    options: frozenset[str]
+
+
+@dataclass(frozen=True)
+class _Text:
+    pass
+
+
+_Param = _Number | _Choice | _Text
+
+_EFFECT_PARAMS: Mapping[str, Mapping[str, _Param]] = MappingProxyType(
+    {
+        "highpass": {"frequency": _Number(1, 96_000, integer=True)},
+        "acompressor": {
+            "threshold_db": _Number(-60, 0),
+            "ratio": _Number(1, 20),
+            "attack_ms": _Number(0.01, 2000),
+            "release_ms": _Number(0.01, 9000),
+            "makeup_db": _Number(0, 64),
+        },
+        "loudnorm": {"integrated_lufs": _Number(-70, -5), "true_peak_db": _Number(-9, 0)},
+        "afftdn": {"nr": _Number(0.01, 97), "nf": _Number(-80, -20)},
+        "arnndn": {"model": _Text()},
+        "bandreject": {"f": _Number(1, 96_000), "w": _Number(1, 96_000)},
+        "deesser": {"intensity": _Number(0, 1), "frequency": _Number(0, 1)},
+        "agate": {
+            "threshold_db": _Number(-60, 0),
+            "range_db": _Number(-90, 0),
+            "attack_ms": _Number(0.01, 9000),
+            "release_ms": _Number(0.01, 9000),
+        },
+        "equalizer": {
+            "f": _Number(1, 96_000),
+            "t": _Choice(frozenset("qhosk")),
+            "w": _Number(0.01, 96_000),
+            "g": _Number(-60, 60),
+        },
+    }
+)
+
+
+_FILTERGRAPH_SYNTAX = frozenset(",;[]")
+
+
+def _invalid(effect: str, key: str, why: str) -> CodedValueError:
+    return CodedValueError(
+        f"invalid {effect} parameter {key!r}: {why}", code="invalid_effect_params"
+    )
+
+
+def _coerce(effect: str, key: str, spec: _Param, value: Any) -> int | float | str:
+    if isinstance(spec, _Choice):
+        if not isinstance(value, str) or value not in spec.options:
+            raise _invalid(effect, key, f"must be one of {', '.join(sorted(spec.options))}")
+        return value
+    if isinstance(spec, _Text):
+        if not isinstance(value, str) or not value or any(ord(c) < 32 for c in value):
+            raise _invalid(effect, key, "must be a non-empty single-line string")
+        if any(c in _FILTERGRAPH_SYNTAX for c in value):
+            raise _invalid(effect, key, "must not contain , ; [ or ]")
+        return value
+    if isinstance(value, bool) or not isinstance(value, int | float | str):
+        raise _invalid(effect, key, "must be a number")
+    try:
+        number = float(value)
+    except ValueError:
+        raise _invalid(effect, key, "must be a number") from None
+    if not math.isfinite(number) or not spec.low <= number <= spec.high:
+        raise _invalid(effect, key, f"must be between {spec.low:g} and {spec.high:g}")
+    return int(number) if spec.integer or number.is_integer() else number
+
+
+def validate_effect_params(effect: str, params: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The params coerced to their bounded types; unknown keys and unsafe values are refused.
+
+    Effects this renderer does not know pass through: they are never rendered.
+    """
+    if params is not None and not isinstance(params, Mapping):
+        raise CodedValueError(f"{effect} params must be an object", code="invalid_effect_params")
+    schema = _EFFECT_PARAMS.get(effect)
+    given = dict(params or {})
+    if schema is None:
+        return given
+    unknown = sorted(set(given) - set(schema))
+    if unknown:
+        allowed = ", ".join(sorted(schema)) or "none"
+        raise CodedValueError(
+            f"unknown {effect} parameter {unknown[0]!r}; allowed: {allowed}",
+            code="invalid_effect_params",
+        )
+    return {key: _coerce(effect, key, schema[key], value) for key, value in given.items()}
 
 
 def _compressor(params: Mapping[str, Any]) -> str:
@@ -85,7 +190,9 @@ def is_supported_effect(effect: str) -> bool:
 def format_effect(effect: str, params: Mapping[str, Any]) -> str | None:
     """Format a supported effect; unknown saved names remain render-skipped."""
     formatter = _EFFECT_FORMATTERS.get(effect)
-    return formatter(params) if formatter is not None else None
+    if formatter is None:
+        return None
+    return formatter(validate_effect_params(effect, params))
 
 
 # Filters that run at one sample rate only and change what a window and the stem share. FFmpeg

@@ -333,12 +333,13 @@ def test_override_records_the_agent_surface_in_history(episode):
     }
 
 
-def test_the_command_is_host_only_for_every_share_role():
+def test_the_command_is_for_the_host_and_editors_only():
     from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
     from podcast_mcp.services.document_sync.capabilities import authorize_document_command
 
     authorize_document_command(None, "RippleDeleteText")
-    for role in ("viewer", "commenter", "editor"):
+    authorize_document_command(capabilities_for_role("editor", with_mcp=True), "RippleDeleteText")
+    for role in ("viewer", "commenter"):
         with pytest.raises(PermissionError) as raised:
             authorize_document_command(
                 capabilities_for_role(role, with_mcp=True), "RippleDeleteText"

@@ -131,8 +131,25 @@ def test_document_command_route_answers_409_not_400(project: Path, model: Path) 
     assert project.read_bytes() == before
 
 
-def test_a_guest_cannot_reach_the_gate(published_share, project: Path, model: Path) -> None:
+def test_a_guest_editor_meets_the_gate_without_a_path(
+    published_share, project: Path, model: Path
+) -> None:
     _, _, share = published_share(capabilities=capabilities_for_role("editor"))
+    before = project.read_bytes()
+    res = TestClient(create_app()).post(
+        f"/api/review/{share['token']}/daw/document/command", json=_add_effect_command()
+    )
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "model_needed"
+    assert str(model.parent) not in res.text
+    assert project.read_bytes() == before
+
+
+@pytest.mark.parametrize("role", ["viewer", "commenter"])
+def test_a_guest_below_editor_cannot_reach_the_gate(
+    published_share, project: Path, model: Path, role: str
+) -> None:
+    _, _, share = published_share(capabilities=capabilities_for_role(role))
     res = TestClient(create_app()).post(
         f"/api/review/{share['token']}/daw/document/command", json=_add_effect_command()
     )

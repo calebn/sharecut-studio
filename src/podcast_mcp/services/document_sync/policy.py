@@ -19,9 +19,10 @@ from podcast_mcp.services.document_sync.capabilities import (
 )
 from podcast_mcp.util.coded_error import CodedPermissionError, CodedValueError
 
-# Commands that can create a pending edit; ``_apply`` stamps the submitter's author.
+# Commands that receive the submitter's author in ``_author``. All but ``ShortenWordGaps`` record
+# it on the edit; ``ShortenWordGaps`` only skips the host audio-check override when it is set.
 AUTHORED_COMMANDS: frozenset[str] = frozenset(
-    {"SuggestPendingEdit", "EditSelectedRange", *STRUCTURAL_COMMANDS}
+    {"SuggestPendingEdit", "EditSelectedRange", "ShortenWordGaps", *STRUCTURAL_COMMANDS}
 )
 
 

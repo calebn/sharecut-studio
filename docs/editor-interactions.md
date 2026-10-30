@@ -115,8 +115,9 @@ Use the existing crossfade acknowledgement case in
 `sharecut.smoke.spec.ts` for their actual policies. Their evidence does not prove
 every other gesture's rejection path. The host, an Editor, a Commenter and a
 Viewer have different action permissions. `contextual-range.spec.ts`
-checks proposed ranges and forbidden host approval. Envelope and Wordbar editing
-remain host-only; guest navigation does not grant those commands.
+checks proposed ranges and forbidden host approval. An Editor edits envelopes
+(`SetEnvelope`); the Wordbar opens only on a hydrated host project, and guest
+navigation does not grant it.
 
 The representative cloud matrix uses desktop 1440×900, tablet 820×1024 and
 phone 390×844 in light/dark, with sampled reduced motion and fit/deep zoom.

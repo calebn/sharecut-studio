@@ -1003,7 +1003,7 @@ _PARAM_SPECS: tuple[_ParamSpec, ...] = (
             "Makeup gain after compression; leave at 0: balance_tracks runs after "
             "compression and stages LUFS on the compressed signal."
         ),
-        minimum=-12.0,
+        minimum=0.0,
         maximum=12.0,
         unit="dB",
         group="common",

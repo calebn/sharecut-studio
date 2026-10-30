@@ -288,26 +288,27 @@ _GUARDED_COMMANDS = {
 
 
 @pytest.mark.parametrize("command", _GUARDED_COMMANDS.values(), ids=_GUARDED_COMMANDS.keys())
-def test_guest_http_cannot_submit_guarded_transcript_command(
+def test_guest_http_stale_transcript_command_conflicts(
     command, minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    """Corrections, the suppress/ignore toggles, and the unlock stay host-only even with
-    expected_text (#650, #744, #824)."""
+    """An Editor runs the corrections and toggles as the host does, but a stale
+    expected_text still conflicts and changes nothing (#650, #744, #824)."""
     ws = _seed_premix(minimal_project, sample_wav)
     share = _edit_share(ws, monkeypatch, tmp_workspace)
     before = minimal_project.read_bytes()
     client = TestClient(create_app())
     r = client.post(f"/api/review/{share['token']}/daw/document/command", json=command)
-    assert r.status_code == 403
+    assert r.status_code == 409
     assert minimal_project.read_bytes() == before
 
 
 @pytest.mark.parametrize("command", _GUARDED_COMMANDS.values(), ids=_GUARDED_COMMANDS.keys())
-def test_guest_mcp_cannot_submit_guarded_transcript_command(
+def test_guest_mcp_stale_transcript_command_conflicts(
     command, minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed_premix(minimal_project, sample_wav)
     share = _edit_share(ws, monkeypatch, tmp_workspace)
+    before = minimal_project.read_bytes()
     out = handle_mcp_jsonrpc(
         share["token"],
         {
@@ -317,7 +318,8 @@ def test_guest_mcp_cannot_submit_guarded_transcript_command(
             "params": {"name": "guest_submit_document_command", "arguments": command},
         },
     )
-    assert out["error"]["code"] == -32003
+    assert out["result"]["structuredContent"]["error_code"] == "transcript_changed"
+    assert minimal_project.read_bytes() == before
 
 
 def test_host_mcp_stale_expected_text_is_conflict(minimal_project):

@@ -439,7 +439,7 @@ An Editor is trusted to approve: approving applies an edit. The host can
 undo every change an Editor makes (applied cut or mute, approval,
 rejection, retime) with one History Undo each.
 
-One exception to that trust: an Editor's `ApproveEdits` of more than one edit never cuts a pending edit that covers an unsure transcript word (below `analysis.unsure_word_confidence`); it stays pending and is reported as held with reason `unsure_word`, whatever the payload's `skip_unsure` says. Approving one edit by name still cuts. Likewise every guest `ApplySuggestedActions` (one id or many) leaves a cut or shorten over an unsure word pending and names it in `held` and `held_unsure`, whatever the payload's `skip_unsure` says; the guest approves that one cut by name instead. A guest has no path to `apply_edit_plan`: it is the host-only `ApplyEditPlan` command, refused with `share_capability_required` for every guest role. Guests see the `unsure` flag on words they receive but cannot mark the transcript checked (the host-only route, [gui-integration.md § Unsure words](gui-integration.md#unsure-words)).
+One exception to that trust: an Editor's `ApproveEdits` of more than one edit never cuts a pending edit that covers an unsure transcript word (below `analysis.unsure_word_confidence`); it stays pending and is reported as held with reason `unsure_word`, whatever the payload's `skip_unsure` says. Approving one edit by name still cuts. Likewise every guest `ApplySuggestedActions` (one id or many) leaves a cut or shorten over an unsure word pending and names it in `held` and `held_unsure`, whatever the payload's `skip_unsure` says; the guest approves that one cut by name instead. There is no `apply_edit_plan` guest tool, but an Editor may submit the `ApplyEditPlan` command as the host does; a Commenter or Viewer is refused with `share_capability_required`. Guests see the `unsure` flag on words they receive but cannot mark the transcript checked (the host-only route, [gui-integration.md § Unsure words](gui-integration.md#unsure-words)).
 
 The document-command gate (`authorize_document_command` plus
 `policy.resolve_range_mode`, `policy.may_decide_exact_range` and
@@ -466,6 +466,82 @@ MCP look a share up by its token, never by `id`, so another guest who sees an
 author learns only which suggestions came from the same share.
 
 Guest comment and reply names are display labels only (`guest_display_name`: trimmed, no control characters or angle brackets, 40 characters, Host, Agent and DAW suffixed ` (guest)`, blank is Guest) and never feed a capability check; the action-item `by` label gets the same treatment, the three fields are capped at 200 characters on the wire, and lone surrogates and zero-width-only names are dropped. Reserved names are compared after NFKC folding and without trailing punctuation (fullwidth Ｈｏｓｔ and `Host.` are suffixed). A lookalike of Host with letters from another script (for example Cyrillic) is not caught, and a ZWJ emoji sequence in a name falls apart into its parts because zero-width format characters are stripped: names are display labels, no authorisation reads them, and without accounts a real participant's name cannot be reserved.
+
+### Editor versus host
+
+An Editor share link equals the host in most ways. The exceptions are written down
+and kept short.
+
+#### Decision: An Editor holds every host document command
+
+<!-- decision
+id: D-editor-equals-host-commands
+status: accepted
+date: 2026-10-30
+decided-by: calebn
+evidence:
+- #2729: Editor links run every host document command
+- owner, 2026-10-30: "an Editor share link is equal to the host in most ways. The exceptions are written down and kept short."
+- docs/design audit editor-parity, layer 1: the Editor lacked 44 of 76 document commands
+enforced-by:
+- tests/test_guest_document_gate.py::test_every_document_command_is_classified
+- tests/test_guest_document_gate.py::test_the_editor_holds_every_command_the_host_runs_but_the_named_host_only_ones
+- tests/test_guest_document_gate.py::test_editor_parity_command_gate
+- docs-sync: decision-sharing
+-->
+
+An Editor link holds every document command the host runs. The only commands it
+does not hold in `EDIT_COMMANDS` are the comment commands (`AddComment`,
+`UpdateComment`, `ResolveComment`, `DeleteComment`, `AddReply`, `SetActionDone`,
+`AddAction`), which follow the comment capabilities, and any command named in
+`HOST_ONLY_DOCUMENT_COMMANDS` in `services/document_sync/capabilities.py`. That
+set is empty. A test fails when a new command type is in none of the Editor,
+Commenter, comment or host-only sets, so a new command cannot ship unclassified.
+Commenter and Viewer commands are unchanged.
+
+The Editor gained transcript edits and word toggles, chapters, social clips,
+effects, bleed commands, the stage and text cuts, `MoveByText`,
+`RippleDeleteText`, `InsertGap`, the automation commands (`ApplyAutoEdits`,
+`ProposeTighten`, `ApplyEditPlan`, `ShortenWordGaps`, `StripSilence`,
+`FadeJoins`, `CrossfadeJoins`, `ApplyFadeRecommendationList`) and
+`RenameProject` (the audit's contested default: rename allowed, delete not).
+Every edit shows in History, and the host can undo it or revoke the link at any
+time. The commands that record an author (`SuggestPendingEdit`,
+`EditSelectedRange`, `SplitAtTime` and `DeleteClip`) attribute it to
+`share:<id>`. `ShortenWordGaps` also receives the author, but only to skip the
+host's audio-check override; the override a guest turns on is attributed to
+`share:<id>` by the audio check itself. The other commands record no author.
+
+Payload guards stay. A room tone fill needs a range, a guest `ApproveEdits` of
+several edits and every guest `ApplySuggestedActions` hold pending edits over
+unsure words, and a guest `AddEffect` cannot carry a `model` param, because that
+names a file on the host. Every `AddEffect` caller, host or guest, has its params
+checked against the effect's schema in `engines/effect_filters.py`: numbers are
+bounded, `equalizer` `t` is one of `q`, `h`, `o`, `s`, `k`, unknown keys are
+refused, and a value that is not a number is refused as `invalid_effect_params`.
+An `arnndn` `model` may not contain `,`, `;`, `[` or `]`. Effect params already
+saved outside the schema now fail at render with `invalid_effect_params`; they
+used to render.
+
+The Editor does not get these. The exceptions below are the audit's approved
+list; the routes and tools in them are not document commands, and slices after
+this one decide which owner routes get a share-scoped twin.
+
+1. Manage share links and roles, including the MCP URL. An Editor could mint
+   stronger links or lock the host out.
+2. Control the recording room: start, stop, end, replace invites, land or
+   discard takes, assign tracks. The live session belongs to the host.
+3. Delete, move or open other projects, and anything that takes a host file
+   path. That is the host filesystem.
+4. Online-sharing and tunnel setup, the host account, model downloads and
+   settings, and API keys.
+5. Publish or upload credentials and the act of publishing to a hosting
+   provider. Feed values and the feed file are allowed.
+6. Diagnostics bundles and agent handoff. They carry host logs and paths, and
+   run code on the host.
+7. Raw stems and rendering outside the project: waveform PCM and a custom
+   export folder.
+8. Deleting an episode. Renaming a project is allowed.
 
 ### Superseded decision: Every guest proposes exact range edits
 
