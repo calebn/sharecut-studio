@@ -111,6 +111,12 @@ frame. These checks preserve intentional scrolling inside production panes.
 Docs frames are mounted, including an OS preference opposite to the explicit
 toolbar choice. The Docs page and its stories must follow the chosen theme.
 
+Storybook's accessibility addon and `e2e/axe.ts` apply the WCAG 2.0 and 2.1
+A and AA tags, including contrast and label-content-name-mismatch.
+`e2e-storybook/coverage.spec.ts` checks each story in both themes and its
+supported phone and desktop widths. These checks do not certify the live
+palette, which also needs browser verification against the current catalog.
+
 Storybook specs open story frames through `storyUrl()` in
 `gui/web/e2e-storybook/storyUrl.ts`, which adds the `a11y.manual:!true` global.
 The Storybook a11y addon otherwise runs its own axe instance in every story
