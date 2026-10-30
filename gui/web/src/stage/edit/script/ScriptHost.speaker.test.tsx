@@ -135,10 +135,17 @@ describe("ScriptHost speaker popover", () => {
       screen.getAllByRole("button", { name: /Fix text/ })[0]!,
     );
     const field = screen.getByRole("textbox", { name: "Name for Maya" });
+    const basis = useDawStore.getState().projectEditBasis;
     useDawStore.setState({ projectEditBasis: () => null });
-    await userEvent.type(field, "x{Enter}");
-    expect(await screen.findByText(/project is not open/i)).toBeInTheDocument();
-    expect(setTrackMeta).not.toHaveBeenCalled();
-    expect(screen.queryByText(/Speaker renamed/)).toBeNull();
+    try {
+      await userEvent.type(field, "x{Enter}");
+      expect(
+        await screen.findByText(/project is not open/i),
+      ).toBeInTheDocument();
+      expect(setTrackMeta).not.toHaveBeenCalled();
+      expect(screen.queryByText(/Speaker renamed/)).toBeNull();
+    } finally {
+      useDawStore.setState({ projectEditBasis: basis });
+    }
   });
 });

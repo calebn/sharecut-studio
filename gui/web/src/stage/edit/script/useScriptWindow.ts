@@ -246,7 +246,13 @@ export function useScriptWindow(
       off: () => body.removeEventListener("scroll", onScroll),
     };
   });
-  useEffect(() => () => bound.current?.off(), []);
+  useEffect(
+    () => () => {
+      bound.current?.off();
+      bound.current = null;
+    },
+    [],
+  );
 
   // While the playhead is followed, the pane keeps up with it.
   const { playKey, following, playing } = focus;

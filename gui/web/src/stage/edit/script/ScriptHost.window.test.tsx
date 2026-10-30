@@ -6,6 +6,7 @@ import {
   screen,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../../state/dawStore";
 import {
@@ -333,6 +334,17 @@ describe("ScriptHost window", () => {
   it("binds the body's scroll again when the pane turns from loading to ready", () => {
     const { rerender } = render(<ScriptHost status={{ kind: "loading" }} />);
     rerender(<ScriptHost status={{ kind: "ready" }} />);
+    expect(hasWord(`a${WINDOW_MARGIN + 20}`)).toBe(false);
+    scrollBody(49500);
+    expect(hasWord(`a${WINDOW_MARGIN + 20}`)).toBe(true);
+  });
+
+  it("keeps the body's scroll bound through a StrictMode remount", () => {
+    render(
+      <StrictMode>
+        <ScriptHost />
+      </StrictMode>,
+    );
     expect(hasWord(`a${WINDOW_MARGIN + 20}`)).toBe(false);
     scrollBody(49500);
     expect(hasWord(`a${WINDOW_MARGIN + 20}`)).toBe(true);
