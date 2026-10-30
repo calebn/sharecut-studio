@@ -69,3 +69,47 @@ export const STACKED_START: readonly LaneMarker[] = [
   { kind: "clip", id: "s-clip", start: 30, end: 200, title: "Long clip" },
   { kind: "comment", id: "s-c", start: 33, author: "Maya" },
 ];
+
+export type LaneRow = {
+  id: string;
+  name: string;
+  colorIndex: number;
+  clips: readonly {
+    id: string;
+    name: string;
+    at: number;
+    duration: number;
+    fadeIn?: number;
+    fadeOut?: number;
+  }[];
+};
+
+/** Three tracks of clips, the same people as the Tracks story. */
+export const LANE_ROWS: readonly LaneRow[] = [
+  {
+    id: "maya",
+    name: "Maya Okafor",
+    colorIndex: 0,
+    clips: [
+      { id: "maya-1", name: "Maya, intro", at: 0.5, duration: 6, fadeIn: 120 },
+      { id: "maya-2", name: "Maya, take 2", at: 8, duration: 9, fadeOut: 500 },
+    ],
+  },
+  {
+    id: "anneke",
+    name: "Anneke de Vries",
+    colorIndex: 1,
+    clips: [
+      { id: "anneke-1", name: "Anneke, answer", at: 6.5, duration: 10 },
+      { id: "anneke-2", name: "Anneke, aside", at: 18, duration: 1.6 },
+    ],
+  },
+  {
+    id: "music",
+    name: "Music bed",
+    colorIndex: 4,
+    clips: [
+      { id: "music-1", name: "Theme", at: 0, duration: 20, fadeIn: 1000 },
+    ],
+  },
+];
