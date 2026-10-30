@@ -23,9 +23,9 @@ import yaml
 from filelock import Timeout
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from podcast_mcp import settings
 from podcast_mcp.feed.model import Person, ShowId, ShowSummary, usable_ledger
 from podcast_mcp.models.feed import Pin
-from podcast_mcp.services.app.recent_projects import config_dir
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
@@ -63,7 +63,9 @@ def show_id_for(name: str) -> ShowId:
 
 def default_directory() -> Path:
     """``PODCAST_CONFIG_DIR/shows``, with the config directory defaulting as the app's own does."""
-    return config_dir() / "shows"
+    override = settings.text("PODCAST_CONFIG_DIR")
+    base = Path(override).expanduser() if override else Path.home() / ".config" / "podcast_mcp"
+    return base / "shows"
 
 
 def _checked_id(show_id: str) -> ShowId:

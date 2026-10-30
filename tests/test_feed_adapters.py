@@ -619,3 +619,90 @@ def test_a_guest_view_replaces_any_local_path_with_the_file_name() -> None:
     assert guest["view"]["channel"]["channel.image"]["value"] == "cover.png"
     assert guest["view"]["channel"]["channel.title"]["value"] == "Title"
     assert host["view"]["channel"]["channel.image"]["value"] == "/srv/private/cover.png"
+
+
+def test_a_remote_item_guid_may_be_any_text_but_the_feed_guid_is_a_uuid(episode: Path) -> None:
+    feed = "917393e3-1b1e-5cef-ace4-edaa54e1f810"
+    for item in ("urn:uuid:7e987b0f-fea7-464c-84dc-8f109256000b", "https://example.test/ep/42"):
+        _cli("set", "item.remoteItem", f"{feed} {item}", "-p", str(episode))
+    refused = _cli("set", "item.remoteItem", "not-a-guid ep-42", "-p", str(episode), code=1)
+
+    assert "feed_value_invalid" in refused
+
+
+def _store_bad_value(path: Path) -> None:
+    from podcast_mcp.models.feed import Pin
+
+    project = load_project(path)
+    project.feed.pins["item.value"] = Pin(value="{}")
+    save_project(project, path)
+
+
+def test_a_stored_value_the_feed_now_refuses_is_a_blocker_on_every_surface(
+    writable: Path, published_share
+) -> None:
+    from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+
+    _store_bad_value(writable)
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    guest = TestClient(create_app(), client=("203.0.113.9", 50000))
+    token = published_share(capabilities=capabilities_for_role("viewer"))[2]["token"]
+
+    shown = json.loads(_cli("show", "-p", str(writable), "--json"))
+    host = client.get("/api/feed", params={"path": str(writable)})
+    seen = guest.get(f"/api/review/{token}/feed")
+    refused = _cli("write", "-p", str(writable), code=1)
+
+    blocker = next(f for f in shown["findings"] if f["key"] == "item.value")
+    assert blocker["severity"] == "blocker"
+    assert "hexadecimal" in blocker["message"]
+    assert host.status_code == 200, host.text
+    assert seen.status_code == 200, seen.text
+    assert "feed_blocked" in refused
+    assert not (writable.parent / "export" / "test_episode.feed.xml").exists()
+
+
+def test_an_unreadable_show_is_reported_when_its_own_name_is_set_or_after_unsetting_it(
+    writable: Path,
+) -> None:
+    from podcast_mcp.feed.show_store import default_directory
+
+    _cli("set", "show", "The Long River", "-p", str(writable))
+    (default_directory() / "the-long-river.yaml").write_text("pins: [broken", encoding="utf-8")
+
+    same = _cli("set", "show", "The Long River", "-p", str(writable), code=1)
+    _cli("unset", "show", "-p", str(writable))
+    again = _cli("set", "show", "The Long River", "-p", str(writable), code=1)
+
+    for out in (same, again):
+        assert "feed_show_unreadable" in out
+        assert "the-long-river.yaml" in out
+        assert "feed_show_exists" not in out
+
+
+def test_a_roster_edit_echoes_the_credits_not_null(episode: Path) -> None:
+    out = json.loads(_cli("set", "item.person[Ana Reyes].role", "guest", "-p", str(episode)))
+
+    assert out["fact"] is not None
+
+
+def test_a_failed_publish_is_a_500_for_the_host_and_hides_the_folder_from_a_guest(
+    writable: Path, published_share
+) -> None:
+    from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+
+    _cli("set", "show", "The Long River", "-p", str(writable))
+    (writable.parent / "export" / "test_episode.feed.xml").mkdir(parents=True)
+    host = TestClient(create_app(), client=("127.0.0.1", 50000))
+    guest = TestClient(create_app(), client=("203.0.113.9", 50000))
+    token = published_share(capabilities=capabilities_for_role("editor"))[2]["token"]
+
+    on_host = host.post("/api/feed/write", json={"path": str(writable)})
+    as_guest = guest.post(f"/api/review/{token}/feed/write")
+
+    assert on_host.status_code == 500
+    assert on_host.headers[CODE] == "feed_write_failed"
+    assert as_guest.status_code >= 400
+    assert as_guest.headers[CODE] == "feed_write_failed"
+    assert str(writable.parent) not in as_guest.text
+    assert "export" not in as_guest.text

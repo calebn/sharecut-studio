@@ -82,6 +82,13 @@ def _guid(word: str) -> str:
     return word
 
 
+def _item_guid(word: str) -> str:
+    """The remote item's own guid: any text, as an episode's guid is."""
+    if len(word) >= TEXT_LIMIT or any(ord(ch) < 32 or ord(ch) == 127 for ch in word):
+        raise ValueError(f"{word!r} is not an item guid; use the remote episode's guid text")
+    return word
+
+
 def _short(text: str, what: str) -> str:
     if len(text) >= TEXT_LIMIT:
         raise ValueError(f"{what} must be under {TEXT_LIMIT} characters")
@@ -161,7 +168,7 @@ def remote_item_attrs(value: Any, usage: str, second: str) -> dict[str, str]:
     guid, *rest = _words(value, usage, low=1, high=2)
     attrs = {"feedGuid": _guid(guid)}
     if rest:
-        attrs[second] = _https(rest[0]) if second == "feedUrl" else _guid(rest[0])
+        attrs[second] = _https(rest[0]) if second == "feedUrl" else _item_guid(rest[0])
     return attrs
 
 

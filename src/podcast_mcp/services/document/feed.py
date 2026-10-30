@@ -222,9 +222,10 @@ class FeedService:
         ids = {summary.id for summary in store.shows()}
         show_id = name if name in ids else show_id_for(name)
         if show_id not in ids:
+            # An unreadable show file is never replaced, or reported as taken, behind the person's back.
             if project.feed.show_id is not None:
-                # An unreadable linked show is never replaced by a new one behind the person's back.
                 store.profile(project.feed.show_id)
+            store.profile(show_id)
             show_id = store.create(name).id
         if project.feed.show_id != show_id:
             self._link(show_id)
