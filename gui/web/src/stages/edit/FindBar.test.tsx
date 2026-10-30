@@ -163,6 +163,18 @@ describe("FindBar", () => {
     expect(open.onReplaceAll).toHaveBeenCalledTimes(1);
   });
 
+  it("draws no Replace button when the host has no single replace", async () => {
+    const user = userEvent.setup();
+    const replace = replaceProps({ onReplace: undefined });
+    render(<FindBar {...props({ replace })} />);
+    expect(screen.queryByRole("button", { name: "Replace" })).toBeNull();
+    await user.click(screen.getByRole("textbox", { name: "Replace with" }));
+    await user.keyboard("{Enter}");
+    expect(replace.onReplaceAll).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Replace all" }));
+    expect(replace.onReplaceAll).toHaveBeenCalledTimes(1);
+  });
+
   it("reads a count with no current hit as a total, not 0 of N", () => {
     render(<FindBar {...props({ current: -1 })} />);
     expect(screen.getByText("12 matches")).toBeVisible();
