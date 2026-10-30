@@ -19,7 +19,7 @@ import {
   rangeIsCurrent,
   resolveSelectionRange,
 } from "../edit/rangeSelection";
-import type { SessionTarget } from "../record";
+import type { PendingRecordTarget } from "../state/stageSlice";
 import {
   canEditEnvelopes,
   canManageProjects,
@@ -339,7 +339,7 @@ async function comment(facts: EditFacts): Promise<ExecuteResult> {
 }
 
 /** Open Record, then park the target for its room; a refusal parks nothing. */
-async function openRecordWith(target: SessionTarget): Promise<ExecuteResult> {
+async function openRecordWith(target: PendingRecordTarget): Promise<ExecuteResult> {
   const opened = await executePointerCommand("stage.record");
   if (opened.status !== "ok") return opened;
   useDawStore.getState().setPendingRecordTarget(target);
