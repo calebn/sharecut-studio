@@ -434,7 +434,9 @@ export function ReviewStage({
             }
             onLater={() => step("forward")}
             onOpenInEdit={() => selected && onOpenInEdit?.(selected.id)}
-            onComment={() => selected && onComment?.(selected.id)}
+            onComment={
+              onComment ? () => selected && onComment(selected.id) : undefined
+            }
           />
         </div>
       </div>

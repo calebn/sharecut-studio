@@ -22,6 +22,11 @@ export const studioViewports = {
     styles: { width: "360px", height: "740px" },
     type: "mobile",
   },
+  mobile390: {
+    name: "Phone 390",
+    styles: { width: "390px", height: "844px" },
+    type: "mobile",
+  },
 } as const;
 
 export const isolatedStoryParameters = {

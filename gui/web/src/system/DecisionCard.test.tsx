@@ -197,7 +197,9 @@ describe("DecisionCard", () => {
   });
 
   it("keeps Hear in the dock for a guest on phone", () => {
-    render(<DecisionCard {...base()} readOnly layout="phone" />);
+    render(
+      <DecisionCard {...base()} readOnly layout="phone" onComment={vi.fn()} />,
+    );
     const dock = screen.getByRole("group", { name: "Actions" });
     expect(
       within(dock).getByRole("group", { name: "Audition" }),
@@ -522,7 +524,14 @@ describe("DecisionCard verb", () => {
     const note = document.getElementById(describedBy as string);
     expect(note).not.toBeNull();
     expect(note).toHaveTextContent("Check the unsure word first.");
-    rerender(<DecisionCard {...base()} layout="compact" readOnly />);
+    rerender(
+      <DecisionCard
+        {...base()}
+        layout="compact"
+        readOnly
+        onComment={vi.fn()}
+      />,
+    );
     expect(screen.getByRole("button", { name: "Comment" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
   });

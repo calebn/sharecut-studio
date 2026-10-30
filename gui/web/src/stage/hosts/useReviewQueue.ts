@@ -29,7 +29,7 @@ import {
 } from "../../review/reviewItems";
 import { kindInFilter, verbOf } from "../../review/reviewQueueModel";
 import { useReviewSession } from "../../review/reviewSession";
-import { commentRole, isShareProjectKey } from "../../shareMode";
+import { isGuestSession, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { AuditionSide } from "../../system/auditionWindow";
@@ -83,7 +83,7 @@ type Reply = {
   loweredToLeave?: number;
 };
 
-export function useReviewQueue() {
+export function useReviewQueue(guestShare = false) {
   const { project, projectPath, shell, guestMode, picked } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -91,9 +91,8 @@ export function useReviewQueue() {
     guestMode: s.guestMode,
     picked: s.selection?.kind === "comment" ? s.selection : null,
   }));
-  const comments = useReviewComments(
-    commentRole(projectPath, guestMode) === "host",
-  );
+  const guest = isGuestSession(projectPath, guestMode, guestShare);
+  const comments = useReviewComments(guest);
   const [status, setStatus] = useState<TranscriptCheckStatus | null>(null);
   const [bulkRunning, setBulkRunning] = useState<BulkProgress | null>(null);
   const [held, setHeld] = useState<ReadonlyMap<string, Held>>(new Map());
@@ -103,10 +102,10 @@ export function useReviewQueue() {
   const stageRef = useRef<HTMLDivElement>(null);
   const requests = useRef(0);
   const confirmed = useRef(new Set<string>());
-  const pending = project?.pending_edits;
+  const pending = guest ? undefined : project?.pending_edits;
 
   const refreshStatus = useStableCallback(async () => {
-    if (isShareProjectKey(projectPath)) return null;
+    if (guest || isShareProjectKey(projectPath)) return null;
     const mine = ++requests.current;
     const next = await loadTranscriptCheck(projectPath).catch(() => null);
     if (next && mine === requests.current) setStatus(next);
@@ -134,7 +133,7 @@ export function useReviewQueue() {
     });
   }, [pending]);
 
-  const utterances = project?.transcript?.utterances;
+  const utterances = guest ? undefined : project?.transcript?.utterances;
   const words = useMemo(
     () => unsureEntriesOf(pending ?? [], utterances ?? []),
     [pending, utterances],
@@ -526,6 +525,7 @@ export function useReviewQueue() {
       duration: project?.timeline_duration_sec ?? 0,
       layout: shell === "phone" ? ("phone" as const) : ("desktop" as const),
       bulkRunning: bulkRunning ?? undefined,
+      guest,
       ...comments.stageProps,
       onDecide,
       onHear,
@@ -537,7 +537,7 @@ export function useReviewQueue() {
           selected,
           root: () => stageRef.current,
         }),
-      onHandOff: () => runPointerCommand("stage.deliver"),
+      onHandOff: guest ? undefined : () => runPointerCommand("stage.deliver"),
     },
   };
 }
