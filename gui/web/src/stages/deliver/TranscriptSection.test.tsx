@@ -100,9 +100,13 @@ describe("TranscriptSection", () => {
             })}
           />,
         ));
-        act(() => vi.advanceTimersByTime(3999));
+        act(() => {
+          vi.advanceTimersByTime(3999);
+        });
         expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
-        act(() => vi.advanceTimersByTime(1));
+        act(() => {
+          vi.advanceTimersByTime(1);
+        });
         expect(screen.getByRole("status")).toHaveTextContent("Still loading");
         expect(onRetry).not.toHaveBeenCalled();
         fireEvent.click(button("Retry"));

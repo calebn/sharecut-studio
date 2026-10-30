@@ -71,7 +71,17 @@ export const Ready: Story = {
 export const Compact: Story = { args: { compact: true } };
 
 export const Loading: Story = {
-  args: { options: transcriptOptions({ preview: { kind: "loading" } }) },
+  args: {
+    options: transcriptOptions({ preview: { kind: "loading" }, onRetry: fn() }),
+  },
+  play: async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await expect(
+      await view.findByText("Still loading…", {}, { timeout: 5000 }),
+    ).toBeVisible();
+    await userEvent.click(view.getByRole("button", { name: "Retry" }));
+    await expect(args.options.onRetry).toHaveBeenCalledOnce();
+  },
 };
 
 export const NotTranscribed: Story = {

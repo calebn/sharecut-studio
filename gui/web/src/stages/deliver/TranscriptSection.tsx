@@ -79,7 +79,7 @@ export function TranscriptSection({
   if (pageState === "loading" || preview.kind === "loading") {
     return (
       <DeliverSection title="Transcript">
-        <Skeleton layout="list" rows={4} />
+        <Skeleton layout="list" rows={4} onRetry={onRetry} />
       </DeliverSection>
     );
   }
