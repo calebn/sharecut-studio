@@ -12,7 +12,6 @@ import { stubMatchMedia } from "../../test/matchMedia";
 import type { Selection } from "../../types/project";
 import { type InspectorShell, useInspectorOpen } from "./useInspectorOpen";
 
-/** A selection with the Inspector opened for it, as Inspect leaves the store. */
 const inspected = (selection: Selection) => ({
   selection,
   inspectorKey: inspectKeyOf(selection),

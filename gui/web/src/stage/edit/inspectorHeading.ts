@@ -14,7 +14,6 @@ const RANGE: InspectorHeading = {
 const trackLabel = (project: ProjectView | null, trackId: string) =>
   project?.tracks.find((track) => track.id === trackId)?.label || trackId;
 
-/** The icon and name an object's Inspector wears. */
 export function inspectorHeading(
   selection: Selection,
   project: ProjectView | null,

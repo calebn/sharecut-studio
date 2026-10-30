@@ -19,22 +19,24 @@ import type {
   InspectorDetent,
   InspectorRect,
 } from "../../system/inspectorSheetMath";
+import { type AnchorRect, unionRect } from "../../ui/anchoredPlacement";
 import { BottomSheet } from "../../ui/BottomSheet";
 import { INSPECTOR_SHEET_CLASS } from "../../ui/compactSheet";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { EditActionBar } from "./EditActionBar";
 import { type InspectorHeading, inspectorHeading } from "./inspectorHeading";
 import type { InspectorOpen, InspectorShell } from "./useInspectorOpen";
+import { bandLocator, useKeepBandClear } from "./useKeepBandClear";
 import { useSelectionAnchor } from "./useSelectionAnchor";
 
 const FIRST_CONTROL =
   ".sys-inspector-scroll :is(button, input, select, textarea, [tabindex]):not(:disabled, [tabindex='-1'])";
 
-function focusFirstControl(box: HTMLElement | null) {
+function focusFirstControl(box: HTMLElement) {
   const target =
-    [...(box?.querySelectorAll<HTMLElement>(FIRST_CONTROL) ?? [])].find(
+    [...box.querySelectorAll<HTMLElement>(FIRST_CONTROL)].find(
       (el) => !el.closest("[hidden], [inert]"),
-    ) ?? box?.querySelector<HTMLElement>(".sys-inspector-grip, .dialog-close");
+    ) ?? box.querySelector<HTMLElement>(".sys-inspector-grip, .dialog-close");
   target?.focus({ preventScroll: true });
 }
 
@@ -54,7 +56,7 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
     return () => {
       const was = opener.current;
       const now = document.activeElement;
-      if (was?.isConnected && (now === document.body || now == null))
+      if (was?.isConnected && now === document.body)
         was.focus({ preventScroll: true });
     };
   }, []);
@@ -63,7 +65,7 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
     entered.current = true;
     if (document.activeElement?.closest(".ui-toast, .ui-toast-region--app"))
       return;
-    focusFirstControl(box.current);
+    if (box.current) focusFirstControl(box.current);
   }, [ready, box]);
 }
 
@@ -91,18 +93,6 @@ function useBodySections(
     ],
     [rangeActionsInSheet],
   );
-}
-
-function unionRect(a?: DOMRect, b?: DOMRect) {
-  if (!a || !b) return a ?? b;
-  const left = Math.min(a.left, b.left);
-  const top = Math.min(a.top, b.top);
-  return {
-    left,
-    top,
-    width: Math.max(a.right, b.right) - left,
-    height: Math.max(a.bottom, b.bottom) - top,
-  };
 }
 
 const rounded = (rect: InspectorRect): InspectorRect => ({
@@ -139,11 +129,14 @@ function Card({
   const measure = useCallback(() => {
     if (!root) return;
     const frame = root.getBoundingClientRect();
-    const target = unionRect(
-      anchor.ref.current?.getBoundingClientRect(),
+    const rects = [
+      anchor.ref.current,
       // The card clears the Action bar that floats beside the same selection.
-      root.querySelector(".sys-actions--floating")?.getBoundingClientRect(),
-    );
+      root.querySelector(".sys-actions--floating"),
+    ].flatMap((el) => (el ? [el.getBoundingClientRect()] : []));
+    const target = rects.length
+      ? rects.slice(1).reduce<AnchorRect>(unionRect, rects[0])
+      : null;
     const next: Placement = {
       bounds: {
         width: Math.round(frame.width),
@@ -155,8 +148,8 @@ function Card({
           ? {
               x: target.left - frame.left,
               y: target.top - frame.top,
-              width: target.width,
-              height: target.height,
+              width: target.right - target.left,
+              height: target.bottom - target.top,
             }
           : { x: frame.width / 2, y: frame.height, width: 0, height: 0 },
       ),
@@ -180,7 +173,7 @@ function Card({
   }, [measure, anchor.moves]);
   useResizeObserver(root, measure);
   const sections = useBodySections(sheet.rangeActionsInSheet);
-  // Out of view the card hides and keeps its state, as the Action bar does.
+  // The Action bar hides the same way when its anchor scrolls out.
   const shown = placement !== null && (anchor.visible || selection === null);
   useInspectorFocus(box, shown);
   return (
@@ -212,6 +205,7 @@ function Phone({
 }) {
   const [detent, setDetent] = useState<InspectorDetent>("half");
   const [tight, setTight] = useState(false);
+  const chosen = useRef(false);
   const box = useRef<HTMLDivElement>(null);
   const [lanes, setLanes] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
@@ -220,7 +214,10 @@ function Phone({
     setLanes(parent instanceof HTMLElement ? parent : null);
   }, []);
   const fit = useCallback(() => {
-    setTight(!!lanes && lanes.clientHeight * SHEET_FULL < DOCK_ROOM_PX);
+    const room = lanes?.clientHeight ?? 0;
+    const short = room * SHEET_FULL < DOCK_ROOM_PX;
+    setTight(short);
+    if (short && room > 0 && !chosen.current) setDetent("full");
   }, [lanes]);
   useLayoutEffect(fit, [fit]);
   useResizeObserver(lanes, fit);
@@ -239,7 +236,10 @@ function Phone({
           )
         }
         detent={detent}
-        onDetentChange={setDetent}
+        onDetentChange={(next) => {
+          chosen.current = true;
+          setDetent(next);
+        }}
         onDismiss={sheet.dismiss}
         onClose={sheet.close}
       />
@@ -301,7 +301,6 @@ export function InspectorHost({
 }: {
   shell: InspectorShell;
   sheet: InspectorOpen;
-  /** The positioned box the card is placed in. */
   root: HTMLElement | null;
   regionRef: RefCallback<HTMLDivElement>;
   feedbackHostRef?: RefCallback<HTMLDivElement>;
@@ -311,6 +310,11 @@ export function InspectorHost({
     project: s.project,
   }));
   const heading = inspectorHeading(selection, project);
+  useKeepBandClear(
+    shell === "phone" && sheet.open && !sheet.strip
+      ? bandLocator(selection)
+      : null,
+  );
   if (sheet.strip) {
     return <PeekStrip sheet={sheet} feedbackHostRef={feedbackHostRef} />;
   }

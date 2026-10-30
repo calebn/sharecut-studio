@@ -64,6 +64,27 @@ describe("the Inspector column", () => {
   });
 });
 
+describe("the phone Inspector sheet", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("is found by every keep-clear helper though it has no slot around it", () => {
+    const panel = document.createElement("section");
+    panel.className = "sys-inspector sys-inspector--phone";
+    panel.getBoundingClientRect = () =>
+      ({ top: 400, bottom: 800, height: 400 }) as DOMRect;
+    document.body.append(panel);
+    expect(inspectorSheetPanel()).toBe(panel);
+    expect(inspectorSheetTop()).toBe(400);
+    expect(inspectorSheetBottom()).toBe(800);
+    capInspectorSheet(120);
+    capInspectorSheetForLane(90);
+    expect(panel.style.getPropertyValue("--sheet-cap")).toBe("120px");
+    expect(panel.style.getPropertyValue("--sheet-lane-cap")).toBe("90px");
+  });
+});
+
 describe("halfDetentFits", () => {
   it("fits when half the slot holds the chrome and one touch row", () => {
     expect(halfDetentFits(424, 112, 88)).toBe(true);

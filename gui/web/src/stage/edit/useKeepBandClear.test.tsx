@@ -54,6 +54,25 @@ describe("bandLocator", () => {
 });
 
 describe("useKeepBandClear", () => {
+  it("scrolls a band above the phone Inspector sheet, which has no slot around it", () => {
+    document.body.innerHTML = `
+      <div class="timeline-scroll"><div class="marker-lane" style="position: sticky"></div>
+        <div data-hit-kind="bleed-attenuation" data-hit-id="late_gate:0"></div></div>
+      <section class="sys-inspector sys-inspector--phone"></section>`;
+    const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
+    place(scroller, 52, 700);
+    place(document.querySelector(".marker-lane")!, 52, 96);
+    place(document.querySelector("[data-hit-kind]")!, 500, 530);
+    place(document.querySelector(".sys-inspector")!, 388, 748);
+    renderHook(() =>
+      useKeepBandClear(
+        '[data-hit-kind="bleed-attenuation"][data-hit-id="late_gate:0"]',
+      ),
+    );
+    expect(scroller.scrollTop).toBe(150);
+    expect(scroller.style.getPropertyValue("--sheet-clearance")).toBe("312px");
+  });
+
   it("scrolls a band the sheet covers above it and pads the scroller as deep as the sheet", () => {
     const scroller = mountPage();
     renderHook(() =>
