@@ -88,7 +88,7 @@ describe("CommandPaletteView", () => {
     ).toHaveFocus();
   });
 
-  it("marks the top runnable match and says Enter runs it", async () => {
+  it("includes the visible palette label with searched category and shortcut, and runs the top match", async () => {
     const user = userEvent.setup();
     const { props, baseElement } = renderPalette();
     await waitForDialogFocus();
@@ -97,11 +97,18 @@ describe("CommandPaletteView", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "2 commands. Enter runs Export deliverables…",
     );
-    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "Export deliverables…App⌘+Shift+E",
-      "Export diagnostics…AppProject create/open is host-only",
-    ]);
     const top = screen.getByRole("option", { name: /^Export deliverables…/ });
+    expect(top).toHaveAccessibleName("Export deliverables… App ⌘+Shift+E");
+    expect(top).toHaveTextContent(/^Export deliverables… App ⌘\+Shift\+E$/);
+    const unavailable = screen.getByRole("option", {
+      name: /^Export diagnostics…/,
+    });
+    expect(unavailable).toHaveAccessibleName(
+      "Export diagnostics… App Project create/open is host-only",
+    );
+    expect(unavailable).toHaveTextContent(
+      /^Export diagnostics… App Project create\/open is host-only$/,
+    );
     expect(top).toHaveAttribute("aria-selected", "true");
     expect(search).toHaveAttribute("aria-activedescendant", top.id);
     await expectNoA11yViolations(baseElement);
@@ -126,9 +133,15 @@ describe("CommandPaletteView", () => {
     );
   });
 
-  it("marks a command that cannot run and says why", () => {
+  it("includes the visible palette label with a disabled reason and prevents running it", () => {
     const { props } = renderPalette();
     const row = screen.getByRole("option", { name: "Export diagnostics…" });
+    expect(row).toHaveAccessibleName(
+      "Export diagnostics… Project create/open is host-only",
+    );
+    expect(row).toHaveTextContent(
+      /^Export diagnostics… Project create\/open is host-only$/,
+    );
     expect(row).toHaveAttribute("aria-disabled", "true");
     expect(row).toHaveAccessibleDescription("Project create/open is host-only");
     row.click();
@@ -202,11 +215,18 @@ describe("CommandPaletteView", () => {
     expect(screen.getByRole("option", { name: "Play / pause" })).toBeTruthy();
   });
 
-  it("links a row's collision note through aria-describedby", () => {
+  it("includes the visible palette label with its shortcut and collision note", () => {
     renderPalette();
-    expect(
-      screen.getByRole("option", { name: "Blade cut" }),
-    ).toHaveAccessibleDescription("Mod+K Mod+K cuts; K alone stops playback");
+    const row = screen.getByRole("option", { name: "Blade cut" });
+    expect(row).toHaveAccessibleName(
+      "Blade cut Mod+K Mod+K cuts; K alone stops playback",
+    );
+    expect(row).toHaveTextContent(
+      /^Blade cut Mod\+K Mod\+K cuts; K alone stops playback$/,
+    );
+    expect(row).toHaveAccessibleDescription(
+      "Mod+K Mod+K cuts; K alone stops playback",
+    );
   });
 
   it("hands Gestures and Escape to the owner", async () => {
