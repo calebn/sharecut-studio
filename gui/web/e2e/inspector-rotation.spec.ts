@@ -28,14 +28,12 @@ test("rotating a phone with the Inspector open keeps the focused field on screen
     );
   };
   await expect.poll(onScreen).toBe(true);
-  for (const [size, column] of [
-    [{ width: 667, height: 375 }, true],
-    [{ width: 375, height: 667 }, false],
-  ] as const) {
+  for (const size of [
+    { width: 667, height: 375 },
+    { width: 375, height: 667 },
+  ]) {
     await page.setViewportSize(size);
-    await expect(page.locator(".bottom-sheet--column")).toHaveCount(
-      column ? 1 : 0,
-    );
+    await expect(page.locator(".bottom-sheet--column")).toHaveCount(0);
     await expect(field).toBeFocused();
     await expect.poll(onScreen).toBe(true);
   }

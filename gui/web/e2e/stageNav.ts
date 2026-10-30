@@ -531,7 +531,7 @@ export async function inspectSelection(page: Page): Promise<void> {
 
 /** Open the Inspector for the held selection unless it is already open. */
 export async function ensureInspected(page: Page): Promise<void> {
-  const open = page.locator(".edit-workspace--inspector, .bottom-sheet");
+  const open = page.locator(".sys-inspector, .bottom-sheet");
   if ((await open.count()) > 0) return;
   await inspectSelection(page);
 }

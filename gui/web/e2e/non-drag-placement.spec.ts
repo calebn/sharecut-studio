@@ -212,8 +212,14 @@ test("queued Apply retains the exact placement preview until the prior track sav
         expect(
           read(projectPath).timeline.tracks.map((track) => track.id),
         ).toEqual(["guest", "reference"]);
-        // The Inspector column narrows a fitted timeline until a short clip is
-        // all trim handle; zoom in so the clip body stays pressable.
+        // The track's Inspector card floats over the corner controls: close it,
+        // then zoom in so a short clip's body stays pressable.
+        const card = page.getByRole("dialog", {
+          name: "Inspector",
+          exact: true,
+        });
+        if (await card.count())
+          await card.getByRole("button", { name: "Close" }).click();
         for (let step = 0; step < 4; step++)
           await page.getByRole("button", { name: /^Zoom in/ }).click();
         await clip.locator(".clip-hit").click();

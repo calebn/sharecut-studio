@@ -33,24 +33,19 @@ async function openWorkspace(
       name: "Inspector",
       exact: true,
     });
-    const expand = inspector.getByRole("button", {
-      name: "Expand",
-      exact: true,
-    });
-    await expect(expand).toBeVisible();
-    await expect(expand).toBeEnabled();
-    await expand.click();
-    await expect(inspector).toHaveClass(/bottom-sheet--full/);
-    await expect(
-      inspector.getByRole("button", { name: "Collapse", exact: true }),
-    ).toBeVisible();
+    const grip = inspector.getByRole("slider", { name: "Sheet height" });
+    await expect(grip).toBeVisible();
+    await grip.focus();
+    await page.keyboard.press("End");
+    await expect(inspector).toHaveAttribute("data-detent", "full");
+    await expect(grip).toHaveAttribute("aria-valuetext", "Full height");
     receipts.push({
       checkpoint: "short-viewport-public-expand",
       observation: {
         viewport: page.viewportSize(),
         inspectorRect: await inspector.boundingBox(),
-        state: "full Inspector with visible Collapse control",
-        action: "native click on visible enabled Expand before envelope entry",
+        state: "full Inspector sheet",
+        action: "End on the sheet grip before envelope entry",
       },
     });
   }
