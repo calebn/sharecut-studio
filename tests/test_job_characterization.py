@@ -10,7 +10,7 @@ import pytest
 
 from job_event_helpers import JobEventTap
 from podcast_mcp.engines.models.whisper import DEFAULT_WHISPER_MODEL
-from podcast_mcp.services.jobs import Job, JobManager, guest_job_view
+from podcast_mcp.services.jobs import GUEST_RENDER_KINDS, Job, JobManager, guest_job_view
 from podcast_mcp.services.jobs.job import cancelled_copy
 
 PIPELINE_SNAPSHOT_KEYS = {
@@ -140,7 +140,7 @@ def test_guest_job_view_projection_shape() -> None:
         kind="render_preview",
         status="running",
     )
-    assert guest_job_view(job, Path("/tmp/guest.json")) == {
+    assert guest_job_view(job, Path("/tmp/guest.json"), GUEST_RENDER_KINDS) == {
         "id": "r1",
         "status": "running",
         "current": None,
@@ -148,7 +148,7 @@ def test_guest_job_view_projection_shape() -> None:
         "message": "Rendering preview",
         "error": None,
     }
-    assert guest_job_view(job, Path("/tmp/other.json")) is None
+    assert guest_job_view(job, Path("/tmp/other.json"), GUEST_RENDER_KINDS) is None
 
 
 class _RenderSvc:

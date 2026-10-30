@@ -3,6 +3,8 @@
 A route with no row here is denied: ``gui/routes/review_editor.py`` refuses to import with a
 route that has no row. The HTTP twins are the registry; the guest MCP render tools are gated
 separately in ``remote_mcp/allowlist.py`` and ``tools.py`` until they join it.
+Only starting work spends host CPU, so only starts need ``needs_guest_render``; status, events and
+cancel work with the flag off.
 """
 
 from __future__ import annotations
@@ -39,6 +41,22 @@ _ROUTES = (
         "GET",
         "/api/review/{token}/daw/render-preview/{job_id}",
         "read",
+    ),
+    GuestRoute("pipeline_status", "GET", "/api/review/{token}/daw/pipeline/status", "read"),
+    GuestRoute(
+        "pipeline_job_status", "GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}", "read"
+    ),
+    GuestRoute(
+        "pipeline_job_events",
+        "GET",
+        "/api/review/{token}/daw/pipeline/jobs/{job_id}/events",
+        "read",
+    ),
+    GuestRoute(
+        "pipeline_job_cancel",
+        "POST",
+        "/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel",
+        "mutate",
     ),
 )
 

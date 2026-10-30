@@ -719,6 +719,10 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit session width) require *
 | `GET /api/pipeline/events` | SSE progress for the active/last job: per-subscriber queue via `stream_job_events` (connect snapshot, live events, 1s keepalive snapshot, terminal `done`) |
 | `POST /api/review/{token}/daw/render-preview` | Guest Docs Editor (`view` + `edit`, `edit_commands_allowed`) — starts a `JobManager` render and returns 202 with a job ID (409 if busy) |
 | `GET /api/review/{token}/daw/render-preview/{job_id}` | Guest Docs Editor (`view` + `edit`) — polls status for this share's project; paths sanitized |
+| `GET /api/review/{token}/daw/pipeline/status` | Guest Docs Editor — the share project's pipeline and render jobs as fixed copy |
+| `GET /api/review/{token}/daw/pipeline/jobs/{job_id}` | Guest Docs Editor — one job of this project, else the shared 404 |
+| `GET /api/review/{token}/daw/pipeline/jobs/{job_id}/events` | Guest Docs Editor — SSE of the same fixed-copy view |
+| `POST /api/review/{token}/daw/pipeline/jobs/{job_id}/cancel` | Guest Docs Editor — cancel a job of this project (no `PODCAST_GUEST_RENDER` needed) |
 | `POST /api/comments` | Create timeline comment (`CommentCreateRequest`) |
 | `PATCH /api/comments/{id}` | Resolve or update body |
 | `POST /api/comments/{id}/actions/{action_id}/done` | Check/uncheck action item with `by` |

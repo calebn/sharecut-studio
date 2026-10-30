@@ -536,8 +536,23 @@ extend `GuestRequest`, which refuses unknown fields. A guest sees a job only
 through `GUEST_JOB_VIEW` (`services/jobs/job.py`), only when it belongs to the
 share's project: another project's job answers 404. An Editor may poll a render
 of the same project that the host started, because host and guests share one
-render lock; the view is only id, status, current, total and fixed copy. So far the render preview
-status and start routes are twins.
+render lock; the view is only id, status, current, total and fixed copy. The
+registry covers the HTTP twins only; the guest MCP tools are gated separately in
+`remote_mcp`.
+
+An Editor can watch and stop host work the way the host can: the project's job
+status (`…/daw/pipeline/status`), one job's status, its event stream
+(`…/events`) and cancel (`…/cancel`), all under `…/daw/pipeline/jobs/{job_id}`. A
+job id that is unknown, belongs to another project, has no project (bootstrap,
+agent) or is not a job of the kind the route serves (pipeline jobs on `…/pipeline/*`,
+render previews on `…/render-preview/{job_id}`) answers the same 404 `job_not_found`
+body, on status, events and cancel, through the `guest_job_route` dependency. The
+event stream carries only the fixed-copy view, re-checks the job's project and the
+share every few seconds, ends when the job ends, the link is revoked or expires, or
+an hour passes, and allows four open streams per link. None of these routes needs
+`PODCAST_GUEST_RENDER`, because they spend no host CPU; cancel in particular works
+with the flag off, so the host can turn it off and still let an Editor stop a
+running job.
 
 The Editor does not get these. The exceptions below are the audit's approved
 list; the routes and tools in them are not document commands, and slices after

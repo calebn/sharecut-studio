@@ -119,6 +119,22 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Editor",
         "Read project-scoped render job status (no host paths)",
     ),
+    ("GET", "/api/review/{token}/daw/pipeline/status"): (
+        "Editor",
+        "Read the share project's job status (fixed copy, no host paths)",
+    ),
+    ("GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}"): (
+        "Editor",
+        "Read one job of this project; any other job id is 404",
+    ),
+    ("GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}/events"): (
+        "Editor",
+        "SSE status frames of one job; closes when the job ends or the link is revoked",
+    ),
+    ("POST", "/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel"): (
+        "Editor",
+        "Cancel one job of this project (works with PODCAST_GUEST_RENDER off)",
+    ),
     ("POST", "/api/review/{token}/daw/document/command"): (
         "role's command set",
         "Typed body — see Document commands",
@@ -200,6 +216,19 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ),
     ("POST", "/api/review/{token}/daw/render-preview"): "guest_render_preview",
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): "guest_render_preview_job",
+    (
+        "GET",
+        "/api/review/{token}/daw/pipeline/status",
+    ): "http-only: no guest MCP job tool yet",
+    ("GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}"): (
+        "http-only: no guest MCP job tool yet"
+    ),
+    ("GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}/events"): (
+        "http-only: SSE stream for ShareCut Studio"
+    ),
+    ("POST", "/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel"): (
+        "http-only: no guest MCP job tool yet"
+    ),
     ("POST", "/api/review/{token}/feed/edit"): (
         "http-only: the host's feed_set tool; not a guest MCP tool"
     ),

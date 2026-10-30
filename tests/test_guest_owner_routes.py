@@ -24,11 +24,18 @@ from podcast_mcp.services.collaboration.guest_routes import (
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
-from podcast_mcp.services.jobs import Job, guest_job_view, job_in_project
+from podcast_mcp.services.jobs import (
+    GUEST_PIPELINE_KINDS,
+    GUEST_RENDER_KINDS,
+    Job,
+    guest_job_view,
+    job_in_project,
+)
 from podcast_mcp.services.jobs.job import GUEST_JOB_VIEW
 from podcast_mcp.util.coded_error import CodedPermissionError
 from podcast_mcp.util.proxy_paths import is_allowed_local_gui_path
 
+ALL_GUEST_KINDS = GUEST_PIPELINE_KINDS | GUEST_RENDER_KINDS
 CODE = "x-sharecut-error-code"
 RELAYED = {"x-sharecut-relayed": "1"}
 
@@ -65,18 +72,29 @@ def _call(world, row: GuestRoute, token: str, job_id: str = "j1"):
     return world.client.request(row.method, _url(row, token, job_id))
 
 
-def _editor_job_id(world) -> str:
+def _editor_job_id(world, name: str) -> str:
+    if name.startswith("pipeline_job"):
+        job = Job(id="pipeline-1", kind="pipeline", status="ok", project_path=str(world.ws.path))
+        world.app.state.jobs._catalog._job = job
+        return job.id
     start = GUEST_OWNER_ROUTES["render_preview"]
     return _call(world, start, world.tokens["editor"]).json()["job"]["id"]
 
 
 def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
-    assert set(GUEST_OWNER_ROUTES) == {"render_preview", "render_preview_status"}
+    assert set(GUEST_OWNER_ROUTES) == {
+        "render_preview",
+        "render_preview_status",
+        "pipeline_status",
+        "pipeline_job_status",
+        "pipeline_job_events",
+        "pipeline_job_cancel",
+    }
     for name, row in GUEST_OWNER_ROUTES.items():
         assert row.name == name
         assert row.path.startswith("/api/review/{token}/daw/")
     assert GUEST_OWNER_ROUTES["render_preview"].needs_guest_render
-    assert not GUEST_OWNER_ROUTES["render_preview_status"].needs_guest_render
+    assert [n for n, r in GUEST_OWNER_ROUTES.items() if r.needs_guest_render] == ["render_preview"]
     assert GUEST_OWNER_ROUTES["render_preview"].rate_kind == "mutate"
     assert GUEST_OWNER_ROUTES["render_preview_status"].rate_kind == "read"
 
@@ -101,7 +119,7 @@ def test_each_row_refuses_commenter_and_viewer(world, name, role) -> None:
 @pytest.mark.parametrize("name", sorted(GUEST_OWNER_ROUTES))
 def test_each_row_serves_the_editor_without_a_host_path(world, name) -> None:
     row = GUEST_OWNER_ROUTES[name]
-    job_id = _editor_job_id(world)
+    job_id = _editor_job_id(world, name)
 
     res = _call(world, row, world.tokens["editor"], job_id)
 
@@ -238,6 +256,36 @@ def test_the_gates_run_in_order_token_rate_opt_in_editor(world, monkeypatch) -> 
     assert order == ["token", "rate", "opt-in", "editor"]
 
 
+def test_the_get_gates_run_in_order_token_rate_editor(world, monkeypatch) -> None:
+    order: list[str] = []
+
+    def step(name: str, result=None):
+        def run(*_args, **_kwargs):
+            order.append(name)
+            return result
+
+        return run
+
+    monkeypatch.setattr(review_editor, "check_share_token", step("token"))
+    monkeypatch.setattr(review_editor, "rate_limit_share", step("rate"))
+    monkeypatch.setattr(review_editor, "require_share_edit", step("editor", (None, world.ws)))
+
+    world.client.get(f"/api/review/{world.tokens['viewer']}/daw/pipeline/status")
+
+    assert order == ["token", "rate", "editor"]
+
+
+def test_a_row_that_disagrees_with_its_route_is_refused() -> None:
+    from fastapi import APIRouter, Depends
+
+    row = GUEST_OWNER_ROUTES["pipeline_status"]
+    for method, path in (("post", row.path), ("get", row.path + "/x")):
+        drifted = APIRouter()
+        getattr(drifted, method)(path, dependencies=[Depends(_named(row.name))])(lambda token: None)
+        with pytest.raises(RuntimeError, match="does not match"):
+            review_editor.check_guest_router(drifted, {row.name: row})
+
+
 def test_no_route_outside_review_editor_claims_a_guest_route_dependency() -> None:
     for route in review_share.router.routes:
         names = [
@@ -291,6 +339,9 @@ def test_relayed_owner_calls_are_still_refused(world) -> None:
 def test_the_tunnel_allowlist_admits_the_twins_and_still_rejects_owner_routes() -> None:
     assert not is_allowed_local_gui_path("/api/pipeline/run", "tok")
     assert not is_allowed_local_gui_path("/api/pipeline/render-preview", "tok")
+    assert not is_allowed_local_gui_path("/api/pipeline/cancel", "tok")
+    assert not is_allowed_local_gui_path("/api/pipeline/events", "tok")
+    assert not is_allowed_local_gui_path("/api/pipeline/status", "tok")
     for row in GUEST_OWNER_ROUTES.values():
         assert is_allowed_local_gui_path(row.path.format(token="tok", job_id="j"), "tok")
 
@@ -330,17 +381,18 @@ def _job(kind: str, project: Path, status: str = "running", error: str | None = 
 
 
 def test_the_job_view_table_names_what_guests_may_see(tmp_path) -> None:
-    assert set(GUEST_JOB_VIEW) == {"render_preview"}
+    assert set(GUEST_JOB_VIEW) == {"pipeline", "render_preview"}
     project = tmp_path / "a" / "episode.sharecut"
     failed = _job("render_preview", project, "error", "boom /host/secret.wav")
 
-    view = guest_job_view(failed, project)
+    view = guest_job_view(failed, project, GUEST_RENDER_KINDS)
 
     assert view is not None
     assert view["error"] == "Render preview failed"
     assert "/host" not in str(view)
-    assert guest_job_view(_job("pipeline", project), project) is None
-    assert guest_job_view(None, project) is None
+    for kind in ("bounce", "export", "analyze", "split_speakers", "agent", "bootstrap"):
+        assert guest_job_view(_job(kind, project), project, ALL_GUEST_KINDS) is None
+    assert guest_job_view(None, project, ALL_GUEST_KINDS) is None
 
 
 def test_a_job_belongs_only_to_its_own_project(tmp_path) -> None:
@@ -350,4 +402,4 @@ def test_a_job_belongs_only_to_its_own_project(tmp_path) -> None:
 
     assert job_in_project(job, one)
     assert not job_in_project(job, two)
-    assert guest_job_view(job, two) is None
+    assert guest_job_view(job, two, GUEST_RENDER_KINDS) is None

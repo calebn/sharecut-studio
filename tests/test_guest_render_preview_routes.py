@@ -124,11 +124,11 @@ def test_a_busy_slot_is_409(world) -> None:
 def test_a_job_of_another_project_or_kind_is_404(world, monkeypatch) -> None:
     token = world.tokens["editor"]
     foreign = SimpleNamespace(kind="render_preview", project_path="/another/episode.sharecut")
-    other_kind = SimpleNamespace(kind="pipeline", project_path=str(world.ws.path))
+    other_kind = SimpleNamespace(kind="export", project_path=str(world.ws.path))
 
     for job in (foreign, other_kind, None):
         monkeypatch.setattr(world.app.state.jobs, "get_job", lambda _id, job=job: job)
         res = world.client.get(f"/api/review/{token}/daw/render-preview/j1")
         assert res.status_code == 404
-        assert res.json() == {"detail": "Render preview job not found"}
+        assert res.json() == {"detail": "Job not found"}
         assert res.headers[CODE] == "job_not_found"

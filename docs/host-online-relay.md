@@ -344,6 +344,10 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 | `DELETE /api/rec/{token}/upload` | record `join` | Revoke an ACK'd room-tone bed (`kind=room_tone`) |
 | `POST …/daw/render-preview` | Editor (`edit_commands_allowed`) + `PODCAST_GUEST_RENDER=1` | Start a stem/premix render via the host `JobManager` (services/jobs) lock. Returns **202** with a job ID immediately; **409** if the slot is busy. |
 | `GET …/daw/render-preview/{job_id}` | Editor (`edit_commands_allowed`) | Read a job's status for this share's project. Response includes only safe progress fields, with no host paths. |
+| `GET …/daw/pipeline/status` | Editor | The share project's jobs (pipeline and render preview only), fixed copy; no `PODCAST_GUEST_RENDER` needed. |
+| `GET …/daw/pipeline/jobs/{job_id}` | Editor | One job's status; unknown, other-project, path-less or other-kind ids all answer the same **404** `job_not_found`. |
+| `GET …/daw/pipeline/jobs/{job_id}/events` | Editor | SSE of the fixed-copy status; closes when the job ends or the link is revoked or expires; four open streams per link (**429** beyond). |
+| `POST …/daw/pipeline/jobs/{job_id}/cancel` | Editor | Cancel one job of this project; works with `PODCAST_GUEST_RENDER` off. |
 | `GET …/audio` | `play` | Frozen review mix for link previews and agents — prefers `mix.mp3`; **302** to an object-store presigned URL when configured |
 | `POST …/comments` | `comment` | Timeline comment (body max **8000** chars) |
 | `POST …/comments/{id}/replies` | `reply` | Reply (same body max) |
