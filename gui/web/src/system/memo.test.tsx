@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { Clip } from "./Clip";
+import { Envelope, type EnvelopePointData } from "./Envelope";
 import { type LaneMarker, MarkerLane } from "./MarkerLane";
 import { Ruler } from "./Ruler";
 import { TrackHeader } from "./TrackHeader";
@@ -11,7 +12,20 @@ const renders = vi.hoisted(() => ({
   headers: 0,
   rulers: 0,
   markers: 0,
+  points: 0,
 }));
+
+vi.mock("./envelopeMath", async (importActual) => {
+  const actual = await importActual<typeof import("./envelopeMath")>();
+  return {
+    ...actual,
+    // Only a drawn point asks for its value text.
+    valueText: (...args: Parameters<typeof actual.valueText>) => {
+      renders.points += 1;
+      return actual.valueText(...args);
+    },
+  };
+});
 
 vi.mock("./rulerMath", async (importActual) => {
   const actual = await importActual<typeof import("./rulerMath")>();
@@ -255,5 +269,58 @@ describe("MarkerLane when the host moves one marker", () => {
     render(<MovingMarkers />);
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     expect(renders.markers).toBe(6);
+  });
+});
+
+const levels: readonly EnvelopePointData[] = [0, 1, 2, 3].map((n) => ({
+  id: `p${n}`,
+  time: 2 + n * 3,
+  db: -n * 3,
+}));
+
+function Levels() {
+  const [picked, setPicked] = useState<string | null>(null);
+  const [points, setPoints] = useState(levels);
+  const [, setTick] = useState(0);
+  return (
+    <>
+      <button type="button" onClick={() => setTick((n) => n + 1)}>
+        Unrelated
+      </button>
+      <button type="button" onClick={() => setPoints((now) => [...now])}>
+        Copy
+      </button>
+      <Envelope
+        points={points}
+        trackName="Take"
+        colorIndex={0}
+        start={0}
+        pxPerSecond={24}
+        width={360}
+        selected={picked}
+        onSelect={setPicked}
+      />
+    </>
+  );
+}
+
+describe("Envelope in a lane", () => {
+  it("draws only the points whose own props changed when a sibling is selected, and none for an unrelated parent render", () => {
+    renders.points = 0;
+    render(<Levels />);
+    expect(renders.points).toBe(4);
+    fireEvent.click(screen.getByRole("button", { name: "Unrelated" }));
+    expect(renders.points).toBe(4);
+    fireEvent.click(screen.getByRole("slider", { name: "Envelope point 3" }));
+    expect(renders.points).toBe(6);
+    fireEvent.click(screen.getByRole("slider", { name: "Envelope point 2" }));
+    expect(renders.points).toBe(8);
+  });
+
+  it("draws nothing when the host passes a new array of the same points", () => {
+    renders.points = 0;
+    render(<Levels />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(renders.points).toBe(4);
   });
 });

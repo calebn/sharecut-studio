@@ -76,7 +76,11 @@ const COVERED: Record<string, string[]> = {
     "System/Presence",
     "Stages/Edit/Timeline",
   ],
-  "OVL-ENVELOPE": ["Templates/EnvelopeOverlay", "System/ReadoutChip"],
+  "OVL-ENVELOPE": [
+    "Templates/EnvelopeOverlay",
+    "System/ReadoutChip",
+    "System/Envelope",
+  ],
   "OVL-BLEED": ["Templates/BleedAttenuationOverlay"],
   "OVL-RANGE": ["Templates/TimelineRange"],
   "OVL-COMMENT-BUBBLE": ["Templates/CommentPlaybackBubble", "System/Marker"],

@@ -1,4 +1,5 @@
 import { devices, expect, test } from "@playwright/test";
+import { dbToY, ENVELOPE_TOP_DB } from "../src/system/envelopeMath";
 import { storyUrl } from "./storyUrl";
 
 /**
@@ -2855,4 +2856,298 @@ test("System/Presence a remote selection that runs past the window has no edge t
   for (const edge of edges) {
     expect(edge.right).toBe(edge.end ? "0px" : "1px");
   }
+});
+
+const envPoint = (page: import("@playwright/test").Page, id: string) =>
+  page.locator(`.sys-env-point[data-id="${id}"]`);
+
+const centreOf = async (locator: import("@playwright/test").Locator) => {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error("Nothing to point at");
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+};
+
+test("System/Envelope puts 0 dB where the scale says, 2 px of line in the track colour, and a labelled guide there", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--points", 1280);
+  await expect(page.locator(".sys-env-point")).toHaveCount(5);
+  const lane = await boxOf(page, ".sys-lane", 0);
+  expect(lane.height).toBe(72);
+  const zero = dbToY(0, 72);
+  expect(zero).toBeCloseTo(7.55, 1);
+  const guide = await boxOf(page, ".sys-env-zero");
+  expect(Math.abs(guide.y - (lane.y + zero))).toBeLessThanOrEqual(1);
+  await expect(page.locator(".sys-env-zero")).toHaveText("0 dB");
+  // "env-1" is at 0 dB and "env-5" too: their dots are centred on the guide.
+  for (const id of ["env-1", "env-5"]) {
+    const dot = await centreOf(envPoint(page, id));
+    expect(Math.abs(dot.y - (lane.y + zero))).toBeLessThanOrEqual(1);
+  }
+  const line = await page.locator(".sys-env-line").evaluate((el) => {
+    const css = getComputedStyle(el);
+    return { width: css.strokeWidth, stroke: css.stroke };
+  });
+  expect(line.width).toBe("2px");
+  expect(line.stroke).not.toBe("none");
+  const edge = await page
+    .locator(".sys-lane")
+    .first()
+    .evaluate((el) => getComputedStyle(el, "::before").borderInlineStartColor);
+  const rgb = (value: string) => value.replace(/\s+/g, "");
+  expect(rgb(line.stroke)).toBe(rgb(edge));
+});
+
+test("System/Envelope a point stands at the x its time gives, and the scale's ends are 4 px inside the lane", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--points", 1280);
+  const lane = await boxOf(page, ".sys-lane", 0);
+  // "env-2" is at 4 s and "env-3" at 7.2 s, at 24 px/s.
+  const two = await centreOf(envPoint(page, "env-2"));
+  const three = await centreOf(envPoint(page, "env-3"));
+  expect(Math.abs(two.x - (lane.x + 96))).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(three.x - (lane.x + 172.8))).toBeLessThanOrEqual(0.5);
+  expect(dbToY(ENVELOPE_TOP_DB, 72)).toBeCloseTo(4, 6);
+  expect(dbToY(-60, 72)).toBeCloseTo(68, 6);
+});
+
+test("System/Envelope a drag shows the level and time in a chip, holds the point between its neighbours, and commits on release", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--points", 1280);
+  const dot = envPoint(page, "env-2");
+  const from = await centreOf(dot);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 12, from.y + 5, { steps: 4 });
+  await page.mouse.move(from.x + 24, from.y + 10, { steps: 4 });
+  const chip = page.locator(".sys-readout");
+  await expect(chip).toHaveText("\u221215.9 dB \u00b7 0:05.0");
+  const box = await chip.boundingBox();
+  const now = await centreOf(dot);
+  expect(Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - now.x)).toBeLessThan(
+    2,
+  );
+  expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThan(now.y);
+  await page.mouse.up();
+  await expect(chip).toHaveCount(0);
+  await expect(
+    page.getByRole("slider", { name: "Envelope point 2" }),
+  ).toHaveAttribute("aria-valuetext", "\u221215.9 dB at 0:05.0");
+  // The next point is at 7.2 s, 172.8 px from the lane's edge.
+  await page.mouse.move(now.x, now.y);
+  await page.mouse.down();
+  await page.mouse.move(now.x + 400, now.y, { steps: 6 });
+  await expect(chip).toHaveText("\u221215.9 dB \u00b7 0:07.2limit");
+  await page.mouse.up();
+  await expect(
+    page.getByRole("slider", { name: "Envelope point 2" }),
+  ).toHaveAttribute("aria-valuetext", "\u221215.9 dB at 0:07.2");
+  const lane = await boxOf(page, ".sys-lane", 0);
+  const stopped = await centreOf(envPoint(page, "env-2"));
+  expect(Math.abs(stopped.x - (lane.x + 7.199 * 24))).toBeLessThanOrEqual(0.5);
+});
+
+test("System/Envelope Escape ends a drag without committing, and the keymap never hears it", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--points", 1280);
+  await page.evaluate(() => {
+    const heard: string[] = [];
+    Object.assign(window, { heard });
+    window.addEventListener("keydown", (event) => heard.push(event.key));
+  });
+  const from = await centreOf(envPoint(page, "env-4"));
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 30, from.y - 6, { steps: 4 });
+  await expect(page.locator(".sys-readout")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await expect(page.locator(".sys-readout")).toHaveCount(0);
+  await expect(
+    page.getByRole("slider", { name: "Envelope point 4" }),
+  ).toHaveAttribute("aria-valuetext", "\u221212.0 dB at 0:10.0");
+  expect(
+    await page.evaluate(() => (window as never as { heard: string[] }).heard),
+  ).toEqual([]);
+});
+
+test("System/Envelope the add strip along the line is 12 px, a click on it adds a point, and a clip away from the line is not covered", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--points", 1280);
+  const lane = await boxOf(page, ".sys-lane", 0);
+  const zero = dbToY(0, 72);
+  // After the last point (13 s) the line runs flat at 0 dB.
+  const x = lane.x + 13 * 24 + 40;
+  const owners = await page.evaluate(
+    ([px, py]) =>
+      [-8, -5, 0, 5, 8].map((dy) => {
+        const el = document.elementFromPoint(px, py + dy);
+        return el?.classList.contains("sys-env-band") ?? false;
+      }),
+    [x, lane.y + zero] as const,
+  );
+  expect(owners).toEqual([false, true, true, true, false]);
+  const clip = await page
+    .getByRole("button", { name: "Maya, take 2" })
+    .boundingBox();
+  const insideClip = await page.evaluate(
+    ([px, py]) =>
+      document.elementFromPoint(px, py)?.closest(".sys-env") !== null,
+    [(clip?.x ?? 0) + 20, lane.y + 50] as const,
+  );
+  expect(insideClip).toBe(false);
+  await page.mouse.click(x, lane.y + zero + 3);
+  await expect(page.locator(".sys-env-point")).toHaveCount(6);
+  await expect(page.getByRole("status")).toContainText("Added envelope point");
+});
+
+test("System/Envelope under a coarse pointer a point is hit over 44 px, the add strip is 24 px, and the lane does not scroll sideways", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(browser, "system-envelope--phone");
+  const dot = envPoint(page, "env-4");
+  await expect(dot).toBeVisible();
+  const box = await dot.boundingBox();
+  expect([box?.width, box?.height]).toEqual([44, 44]);
+  const centre = await centreOf(dot);
+  const hits = await page.evaluate(
+    ([cx, cy]) =>
+      [
+        [-21, 0],
+        [21, 0],
+        [0, -21],
+        [0, 21],
+        [-15, -15],
+        [15, 15],
+      ].map(
+        ([dx, dy]) =>
+          document
+            .elementFromPoint(cx + dx, cy + dy)
+            ?.closest(".sys-env-point")
+            ?.getAttribute("data-id") ?? null,
+      ),
+    [centre.x, centre.y] as const,
+  );
+  expect(hits).toEqual(Array(6).fill("env-4"));
+  const lane = await boxOf(page, ".sys-lane", 0);
+  expect(lane.height).toBe(104);
+  const x = lane.x + 13 * 24 + 20;
+  const zero = lane.y + dbToY(0, 104);
+  const strip = await page.evaluate(
+    ([px, py]) =>
+      [-14, -11, 11, 14].map(
+        (dy) =>
+          document
+            .elementFromPoint(px, py + dy)
+            ?.classList.contains("sys-env-band") ?? false,
+      ),
+    [x, zero] as const,
+  );
+  // 11 px below the line is inside the strip; above it is the ruler.
+  expect(strip.slice(2)).toEqual([true, false]);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(393);
+  await context.close();
+});
+
+test("System/Envelope a point and the line stay visible under forced colors, and the selected point has a ring", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(
+    storyUrl("system-envelope--point-selected", { theme: "light" }),
+  );
+  await expect(page.locator(".sys-env-point")).toHaveCount(5);
+  const measured = await page.evaluate(() => {
+    const first = (selector: string) => {
+      const el = document.querySelector(selector);
+      if (!el) throw new Error(selector);
+      return el;
+    };
+    const line = getComputedStyle(first(".sys-env-line"));
+    const dot = getComputedStyle(first(".sys-env-dot"));
+    const ring = getComputedStyle(first("[data-selected] .sys-env-dot"));
+    return {
+      stroke: [line.stroke, line.strokeWidth],
+      dot: dot.backgroundColor,
+      ring: [ring.outlineStyle, ring.outlineWidth, ring.outlineColor],
+      ringBg: ring.backgroundColor,
+    };
+  });
+  expect(measured.stroke[0]).not.toBe("none");
+  expect(measured.stroke[1]).toBe("2px");
+  expect(measured.dot).not.toBe("rgba(0, 0, 0, 0)");
+  expect(measured.ring[0]).toBe("solid");
+  expect(measured.ring[1]).toBe("2px");
+  expect(measured.ring[2]).not.toBe(measured.ringBg);
+});
+
+test("System/Envelope the keymap never hears the keys a focused point handles, and a removed point is gone", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--point-selected", 1280);
+  await page.evaluate(() => {
+    const heard: string[] = [];
+    Object.assign(window, { heard });
+    window.addEventListener("keydown", (event) => heard.push(event.key));
+  });
+  const three = page.getByRole("slider", { name: "Envelope point 3" });
+  await three.focus();
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Shift+ArrowDown");
+  await page.keyboard.press("ArrowRight");
+  await expect(three).toHaveAttribute(
+    "aria-valuetext",
+    "\u22127.5 dB at 0:07.2",
+  );
+  await page.keyboard.press("Alt+ArrowRight");
+  await expect(
+    page.getByRole("slider", { name: "Envelope point 4" }),
+  ).toBeFocused();
+  await page.keyboard.press("Alt+ArrowLeft");
+  await page.keyboard.press("Backspace");
+  await expect(page.locator(".sys-env-point")).toHaveCount(4);
+  expect(
+    await page.evaluate(() => (window as never as { heard: string[] }).heard),
+  ).toEqual([]);
+  await page.keyboard.press("Escape");
+  expect(
+    await page.evaluate(() => (window as never as { heard: string[] }).heard),
+  ).toEqual(["Escape"]);
+});
+
+test("System/Envelope read-only: a point is selected but not dragged, nudged or removed, and the line adds nothing", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--read-only", 1280);
+  const two = page.getByRole("slider", { name: "Envelope point 2" });
+  await expect(two).toHaveAttribute("aria-readonly", "true");
+  const dots = await page
+    .locator(".sys-env-dot")
+    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
+  expect(dots).toEqual([5, 5, 5, 5, 5]);
+  const from = await centreOf(two);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 40, from.y + 10, { steps: 4 });
+  await expect(page.locator(".sys-readout")).toHaveCount(0);
+  await page.mouse.up();
+  await two.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Backspace");
+  await expect(page.locator(".sys-env-point")).toHaveCount(5);
+  await expect(two).toHaveAttribute("aria-valuetext", "\u22126.0 dB at 0:04.0");
+  const lane = await boxOf(page, ".sys-lane", 0);
+  await page.mouse.click(lane.x + 13 * 24 + 40, lane.y + dbToY(0, 72));
+  await expect(page.locator(".sys-env-point")).toHaveCount(5);
+  await page.getByRole("slider", { name: "Envelope point 4" }).click();
+  await expect(
+    page.getByRole("slider", { name: "Envelope point 4" }),
+  ).toHaveAttribute("aria-current", "true");
 });
