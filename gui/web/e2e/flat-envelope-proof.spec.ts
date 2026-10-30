@@ -1,4 +1,9 @@
-import { expect, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import {
   acceptedEnvelopeCommand,
@@ -8,6 +13,7 @@ import {
   expectEnvelopeMutation,
   observeEnvelopeCommands,
   openEnvelopeTrackDetails,
+  showEnvelope,
 } from "./envelopeCreationEvidence";
 import { type InteractionReceipt, test } from "./interactionEvidence";
 import { withShareableProject } from "./shareableProject";
@@ -30,17 +36,20 @@ async function openFlatEnvelope(
   const track = envelopeTrack(projectPath);
   await openHostShare(page, projectPath);
   await openEnvelopeTrackDetails(page, track.label, receipts);
-  await page
-    .getByRole("button", { name: "Add volume envelope", exact: true })
-    .click();
-  await expect(
-    page.getByText("Editing volume envelope", { exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Show volume envelope", exact: true })
-    .click();
+  await showEnvelope(page);
   await expect(page.locator(".envelope-overlay").first()).toBeVisible();
   return track;
+}
+
+async function createMenuCancels(page: Page, level: Locator) {
+  await level.focus();
+  await page.keyboard.press("Shift+F10");
+  const menu = page.getByRole("menu", { name: /^Create at / });
+  await expect(
+    menu.getByRole("menuitem", { name: /Add envelope point/ }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
 }
 
 async function recordTrustedEvents(page: Page) {
@@ -201,17 +210,7 @@ test.describe("flat envelope acceptance", () => {
           observation: { responseStatus: undoResponse.status(), restored },
         });
 
-        await page
-          .getByRole("button", { name: "Add point", exact: true })
-          .click();
-        await expect(page.getByLabel("Time (seconds on timeline)")).toHaveValue(
-          "0",
-        );
-        await expect(page.getByLabel("Level (×)")).toHaveValue("1");
-        await page.keyboard.press("Escape");
-        await expect(
-          page.getByRole("button", { name: "Add point", exact: true }),
-        ).toBeFocused();
+        await createMenuCancels(page, slider);
         expect(observer.commands.map((item) => item.type)).toEqual([
           "SetEnvelope",
           "UndoHistory",
@@ -299,11 +298,7 @@ test.describe("flat envelope acceptance", () => {
           checkpoint: "trusted-keyboard-flat-line-save",
           observation: { command, reply, saved, events },
         });
-        await page
-          .getByRole("button", { name: "Add point", exact: true })
-          .click();
-        await expect(page.getByLabel("Level (×)")).toHaveValue("0.99");
-        await page.keyboard.press("Escape");
+        await createMenuCancels(page, slider);
         expect(observer.commands).toHaveLength(1);
         expect(envelopeSnapshot(projectPath, track.id)).toEqual(saved);
         await attachProof(page, info, "flat-envelope-keyboard", {

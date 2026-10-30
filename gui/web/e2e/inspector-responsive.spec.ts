@@ -2,19 +2,21 @@ import fs from "node:fs";
 import { expect, type Page } from "@playwright/test";
 import {
   acceptedEnvelopeCommand,
+  addEnvelopePoint,
   emptyEnvelopeProject,
   envelopeSnapshot,
   envelopeTrack,
   expectEnvelopeMutation,
+  inspectEnvelopePoint,
   observeEnvelopeCommands,
+  openEnvelopePoint,
+  pointSheet,
+  setPointField,
 } from "./envelopeCreationEvidence";
 import {
   captureInspector,
-  controlGeometry,
   exposeControl,
   pointerControl,
-  typeControl,
-  visibleFocus,
   wheelInspector,
 } from "./inspectorResponsiveEvidence";
 import { type InteractionReceipt, test } from "./interactionEvidence";
@@ -76,22 +78,6 @@ async function setup(
     },
   });
 }
-async function assertDraftWheel(page: Page, receipts: InteractionReceipt[]) {
-  const time = page.getByLabel("Time (seconds on timeline)", { exact: true });
-  const level = page.getByLabel("Level (×)", { exact: true });
-  const before = [await time.inputValue(), await level.inputValue()];
-  await exposeControl(page, time, receipts);
-  const geometry = await controlGeometry(time);
-  await page.mouse.move(geometry.point.x, geometry.point.y);
-  await page.mouse.wheel(0, 220);
-  await page.waitForTimeout(100);
-  await wheelInspector(page, receipts, 220);
-  expect([await time.inputValue(), await level.inputValue()]).toEqual(before);
-  receipts.push({
-    checkpoint: "wheel-over-numeric-and-body-preserves-draft",
-    observation: { before, geometry },
-  });
-}
 async function openClip(page: Page, receipts: InteractionReceipt[]) {
   const hit = page.locator(".lane-row .clip-hit").first();
   const geometry = await hit.evaluate((element) => {
@@ -135,7 +121,7 @@ for (const {
       viewport,
       reducedMotion: reducedMotion ? "reduce" : "no-preference",
     });
-    test("pointer identity, full envelope controls, visible return and Clip inspector ordinary scrolling", async ({
+    test("pointer identity, full point controls and Clip inspector ordinary scrolling", async ({
       page,
       receipts,
     }, info) => {
@@ -228,116 +214,58 @@ for (const {
             await pointerControl(
               page,
               page.getByRole("button", {
-                name: "Add volume envelope",
-                exact: true,
-              }),
-              receipts,
-            );
-            await pointerControl(
-              page,
-              page.getByRole("button", {
                 name: "Show volume envelope",
                 exact: true,
               }),
               receipts,
             );
-            await pointerControl(
-              page,
-              page.getByRole("button", { name: "Add point", exact: true }),
-              receipts,
-            );
-            const time = page.getByLabel("Time (seconds on timeline)", {
-              exact: true,
-            });
-            const level = page.getByLabel("Level (×)", { exact: true });
-            await typeControl(page, time, "0", receipts);
-            await typeControl(page, level, "1", receipts);
-            await assertDraftWheel(page, receipts);
-            await exposeControl(
-              page,
-              page.getByRole("button", { name: "Cancel", exact: true }),
-              receipts,
-            );
-            await captureInspector(
-              page,
-              info,
-              receipts,
-              "typed-default-point-full-controls",
-            );
             const first = await acceptedEnvelopeCommand(
               page,
               "SetEnvelope",
-              () =>
-                pointerControl(
-                  page,
-                  page.getByRole("button", {
-                    name: "Save point",
-                    exact: true,
-                  }),
-                  receipts,
-                ),
+              () => addEnvelopePoint(page),
             );
+            await inspectEnvelopePoint(page);
             const initialPoints = first.command.payload.points!;
-            const point = initialPoints[0]!;
-            expect(initialPoints).toEqual([
-              {
-                id: expect.stringMatching(/\S/),
-                time: 0,
-                value: 1,
-              },
-              {
-                id: expect.stringMatching(/\S/),
-                time: 60,
-                value: 1,
-              },
-            ]);
-            expect(initialPoints[1]!.id).not.toBe(point.id);
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual(initialPoints);
             const saved = envelopeSnapshot(projectPath, track.id);
             expectEnvelopeMutation(origin, saved, track.id);
-            const select = page.getByRole("combobox", {
-              name: "Envelope point",
+            const dialog = pointSheet(page);
+            const time = dialog.getByRole("spinbutton", {
+              name: "Time",
               exact: true,
             });
-            await visibleFocus(
-              select,
-              receipts,
-              "save-restores-visible-point-selector",
-            );
-            await exposeControl(
+            const level = dialog.getByRole("spinbutton", {
+              name: "Level",
+              exact: true,
+            });
+            for (const control of [
+              time,
+              level,
+              dialog.getByRole("button", { name: /^Remove/ }),
+            ]) {
+              await exposeControl(page, control, receipts);
+            }
+            const shownTime = Number(await time.getAttribute("aria-valuenow"));
+            const point = initialPoints.find(
+              (item) => item.time === shownTime,
+            )!;
+            await captureInspector(
               page,
-              page.getByRole("button", {
-                name: "Delete point",
-                exact: true,
-              }),
+              info,
               receipts,
+              "point-fields-full-controls",
             );
-            await pointerControl(
-              page,
-              page.getByRole("button", { name: "Edit point", exact: true }),
-              receipts,
-            );
-            await typeControl(page, time, "2", receipts);
-            await typeControl(page, level, "0.75", receipts);
             const changed = await acceptedEnvelopeCommand(
               page,
               "SetEnvelope",
-              () =>
-                pointerControl(
-                  page,
-                  page.getByRole("button", {
-                    name: "Save point",
-                    exact: true,
-                  }),
-                  receipts,
-                ),
+              () => setPointField(page, "Level", "0.75"),
             );
             expect(changed.command.payload.points).toEqual(
               saved.points.map((savedPoint) =>
                 savedPoint.id === point.id
-                  ? { ...savedPoint, time: 2, value: 0.75 }
+                  ? { ...savedPoint, value: 0.75 }
                   : savedPoint,
               ),
             );
@@ -346,55 +274,14 @@ for (const {
               .toEqual(changed.command.payload.points);
             const edited = envelopeSnapshot(projectPath, track.id);
             expectEnvelopeMutation(saved, edited, track.id);
-            await pointerControl(
-              page,
-              page.getByRole("button", { name: "Edit point", exact: true }),
-              receipts,
-            );
-            await typeControl(page, time, "3", receipts);
-            await assertDraftWheel(page, receipts);
             const commandCount = observer.commands.length;
-            await captureInspector(
-              page,
-              info,
-              receipts,
-              "changed-draft-before-cancel",
-            );
-            await pointerControl(
-              page,
-              page.getByRole("button", { name: "Cancel", exact: true }),
-              receipts,
-            );
-            expect(envelopeSnapshot(projectPath, track.id)).toEqual(edited);
+            await wheelInspector(page, receipts, 220);
+            await expect(level).toHaveAttribute("aria-valuenow", "0.75");
             expect(observer.commands).toHaveLength(commandCount);
-            await visibleFocus(
-              select,
-              receipts,
-              "cancel-restores-visible-point-selector",
-            );
-            await captureInspector(
-              page,
-              info,
-              receipts,
-              "cancel-visible-focus-no-write",
-            );
             receipts.push({
               checkpoint: "exact-Applied-identities-and-history",
               observation: { first, changed, origin, saved, edited },
             });
-            await pointerControl(
-              page,
-              page.getByRole("button", { name: "Done", exact: true }),
-              receipts,
-            );
-            await visibleFocus(
-              page.getByRole("button", {
-                name: "Edit volume envelope",
-                exact: true,
-              }),
-              receipts,
-              "done-restores-visible-track-entry",
-            );
             const close = page.getByRole("button", {
               name: "Close",
               exact: true,
@@ -458,7 +345,7 @@ function manyPointLongNameProject(prefix: string) {
 
 test.describe("root32 phone many points and request recovery", () => {
   test.use({ viewport: { width: 360, height: 800 }, reducedMotion: "reduce" });
-  test("long title, pending lock and wrapped failure keep drafts and recovery actions reachable", async ({
+  test("long title, pending lock and wrapped failure keep the point fields and recovery actions reachable", async ({
     page,
     receipts,
   }, info) => {
@@ -487,51 +374,33 @@ test.describe("root32 phone many points and request recovery", () => {
           await pointerControl(
             page,
             page.getByRole("button", {
-              name: "Edit volume envelope",
-              exact: true,
-            }),
-            receipts,
-          );
-          await pointerControl(
-            page,
-            page.getByRole("button", {
               name: "Show volume envelope",
               exact: true,
             }),
             receipts,
           );
-          const select = page.getByRole("combobox", {
-            name: "Envelope point",
+          await expect(
+            page.locator('circle[aria-label^="Envelope point"]'),
+          ).toHaveCount(3);
+          await openEnvelopePoint(page, 3);
+          const dialog = pointSheet(page);
+          const time = dialog.getByRole("spinbutton", {
+            name: "Time",
             exact: true,
           });
-          await exposeControl(page, select, receipts);
-          await expect(select.locator("option")).toHaveCount(4);
-          await pointerControl(page, select, receipts);
-          // End/Enter did not commit this native popup on macOS Chromium.
-          await select.selectOption("responsive-last");
-          await expect(select).toHaveValue("responsive-last");
-          await exposeControl(
-            page,
-            page.getByRole("button", { name: "Delete point", exact: true }),
-            receipts,
-          );
-          await pointerControl(
-            page,
-            page.getByRole("button", { name: "Edit point", exact: true }),
-            receipts,
-          );
-          const time = page.getByLabel("Time (seconds on timeline)", {
+          const level = dialog.getByRole("spinbutton", {
+            name: "Level",
             exact: true,
           });
-          const level = page.getByLabel("Level (×)", { exact: true });
-          await typeControl(page, time, "3", receipts);
-          await typeControl(page, level, "0.8", receipts);
+          const remove = dialog.getByRole("button", { name: /^Remove/ });
+          await exposeControl(page, time, receipts);
+          await exposeControl(page, remove, receipts);
           const gate = new Promise<void>((resolve) => {
             release = resolve;
           });
           let requests = 0;
           const message =
-            "This envelope changed while the draft was open. Your point draft is preserved; discard this draft and reload points, then try again.";
+            "This envelope changed while the point was open. Reload points, then try again.";
           await page.route(
             (url) => url.pathname === "/api/document/command",
             async (route) => {
@@ -548,31 +417,14 @@ test.describe("root32 phone many points and request recovery", () => {
               });
             },
           );
-          const save = page.getByRole("button", {
-            name: "Save point",
-            exact: true,
-          });
-          const admission = await exposeControl(page, save, receipts);
-          receipts.push({
-            checkpoint: "native-double-click-save-admission",
-            observation: admission,
-          });
-          await page.screenshot();
-          await page.mouse.dblclick(admission.point.x, admission.point.y);
+          await exposeControl(page, level, receipts);
+          await setPointField(page, "Level", "0.8");
           await expect.poll(() => requests).toBe(1);
-          for (const control of [
-            time,
-            level,
-            save,
-            page.getByRole("button", { name: "Cancel", exact: true }),
-            page.getByRole("button", { name: "Done", exact: true }),
-          ]) {
-            await expect(control).toBeDisabled();
+          for (const control of [time, level]) {
+            await expect(control).toHaveAttribute("aria-readonly", "true");
             await exposeControl(page, control, receipts);
           }
           await wheelInspector(page, receipts, 220);
-          await expect(time).toHaveValue("3");
-          await expect(level).toHaveValue("0.8");
           await captureInspector(
             page,
             info,
@@ -580,36 +432,22 @@ test.describe("root32 phone many points and request recovery", () => {
             "pending-request-full-controls",
           );
           release();
-          const alert = page.locator(".modifier-inspector").getByRole("alert");
+          const alert = dialog.getByRole("alert");
           await expect(alert).toContainText(message);
-          await expect(save).toBeEnabled();
           await exposeControl(page, alert, receipts);
-          await expect(time).toHaveValue("3");
-          await expect(level).toHaveValue("0.8");
-          await exposeControl(
-            page,
-            page.getByRole("button", {
-              name: "Discard draft and reload points",
-              exact: true,
-            }),
-            receipts,
-          );
+          const reload = dialog.getByRole("button", {
+            name: "Reload points",
+            exact: true,
+          });
+          await exposeControl(page, reload, receipts);
           await captureInspector(
             page,
             info,
             receipts,
             "wrapped-failure-full-recovery",
           );
-          await pointerControl(
-            page,
-            page.getByRole("button", { name: "Cancel", exact: true }),
-            receipts,
-          );
-          await visibleFocus(
-            select,
-            receipts,
-            "failure-cancel-visible-selector",
-          );
+          await pointerControl(page, reload, receipts);
+          await expect(alert).toHaveCount(0);
           expect(requests).toBe(1);
           expect(envelopeSnapshot(projectPath, track.id)).toEqual(saved);
         } finally {
