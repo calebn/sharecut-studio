@@ -60,7 +60,7 @@ def _world(tmp_path: Path, view: dict[str, Any], *, feed_xml: str | None = None)
         for i, c in enumerate(credits)
     ]
     project.feed.guid = item["item.guid"]["value"]
-    project.feed.first_exported_at = _moment(item["item.pubDate"]["value"])
+    project.feed.first_exported_at = item["item.pubDate"]["value"]
     # Numbers and a complete show keep the optional-field hints and show checks out of the way.
     project.feed.pins = {
         **_pins(item, scope="item."),
@@ -89,12 +89,6 @@ def _world(tmp_path: Path, view: dict[str, Any], *, feed_xml: str | None = None)
         audio=mp3(audio["source"]["file"], audio["value"]["bytes"]), feed_xml=feed_xml
     )
     return FeedInputs(project=project, show=show, shows=tuple(shows), files=files)
-
-
-def _moment(text: str) -> Any:
-    from datetime import datetime
-
-    return datetime.fromisoformat(text.replace("Z", "+00:00"))
 
 
 def _start(tmp_path: Path, name: str) -> FeedInputs:

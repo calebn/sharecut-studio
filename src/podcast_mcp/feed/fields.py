@@ -208,14 +208,14 @@ def _pub_date(res: Resolution) -> Auto:
     first = res.inputs.project.feed.first_exported_at
     if first is None:
         return Missing("Set when you export.", EXPORT)
-    return Found(iso_z(first), Derived(rule="the first export"))
+    return Found(iso_z(parse_moment(first)), Derived(rule="the first export"))
 
 
 def _guid(res: Resolution) -> Auto:
     feed = res.inputs.project.feed
     if not feed.guid:
         return Missing("Created when you write the feed file.", None)
-    at = iso_z(feed.first_exported_at) if feed.first_exported_at else ""
+    at = iso_z(parse_moment(feed.first_exported_at)) if feed.first_exported_at else ""
     return Found(feed.guid, Minted(at=at))
 
 
