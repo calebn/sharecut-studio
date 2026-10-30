@@ -1491,7 +1491,7 @@ function SpeakerLabel({
 }) {
   const content = (
     <>
-      <PersonAvatar person={turn.speaker} size={20} />
+      <PersonAvatar person={turn.speaker} size={20} drawn={interactive} />
       <span className="sys-script-name">{firstName(turn.speaker.name)}</span>
     </>
   );

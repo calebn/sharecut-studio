@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { expect, type Page } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
-import { openProject } from "./stageNav";
+import { inspectSelectionByKey, openProject } from "./stageNav";
 import {
   openTranscriptPanel,
   withDocumentCommandTypes,
@@ -24,6 +24,7 @@ export async function checkWordbarOutsideRelease(page: Page): Promise<void> {
   await openProject(page, e2eProjectPath);
   const list = await openTranscriptPanel(page);
   await list.locator(".sys-script-word").first().click();
+  await inspectSelectionByKey(page);
   await page
     .getByRole("button", { name: "Adjust timing", exact: true })
     .click();
