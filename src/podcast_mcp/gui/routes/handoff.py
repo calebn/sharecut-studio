@@ -197,14 +197,25 @@ def _unauthorized(request: Request) -> JSONResponse | None:
     return None
 
 
-def _serves(request: Request, project: str) -> bool:
-    served = request.app.state.served_project
+def _serves(served: Path | None, project: Path | str) -> bool:
     if served is None:
         return False
     try:
         return resolve_project_path(project).samefile(resolve_project_path(served))
     except (OSError, ValueError):
         return False
+
+
+def _alias_refusal(project: Path | str, served: Path) -> JSONResponse | None:
+    requested = resolve_project_path(project)
+    if requested != served and requested.stat().st_nlink > 1:
+        return _refuse(
+            409,
+            "project_alias",
+            f"Use Studio's served project filename, {served}, instead of another hardlink name. "
+            "Nothing was run.",
+        )
+    return None
 
 
 @router.get("/api/handoff/ping")
@@ -216,7 +227,7 @@ def ping(request: Request, project: str) -> JSONResponse:
         {
             "instance": _state(request.app).instance,
             "protocol": HANDOFF_PROTOCOL,
-            "serves": _serves(request, project),
+            "serves": _serves(request.app.state.served_project, project),
             "mcp": getattr(request.app.state, "host_mcp_session_manager", None) is not None,
             "version": __version__,
         }
@@ -237,14 +248,27 @@ async def run(request: Request, body: RunBody) -> StreamingResponse | JSONRespon
     denied = _unauthorized(request)
     if denied is not None:
         return denied
+    served = request.app.state.served_project
+    if not _serves(served, body.project):
+        return _refuse(409, "not_served", "This Studio is not serving that project.")
+    served = resolve_project_path(served)
+    denied = _alias_refusal(body.project, served)
+    if denied is not None:
+        return denied
+    from podcast_mcp.cli.main import app as cli_app
+
+    plan = plan_handoff(_click_root(cli_app), body.argv, Path(body.cwd))
+    if plan is None or plan.argv != body.argv or not _serves(served, plan.project):
+        return _refuse(409, "not_eligible", "That command does not run in Studio.")
+    denied = _alias_refusal(plan.project, served)
+    if denied is not None:
+        return denied
     if body.protocol != HANDOFF_PROTOCOL:
         return _refuse(
             409,
             "protocol",
             f"Studio {__version__} and this podcast command speak different handoff versions.",
         )
-    if not _serves(request, body.project):
-        return _refuse(409, "not_served", "This Studio is not serving that project.")
     differing = env_differences(body.env, settings.environ())
     if differing:
         return _refuse(
@@ -252,11 +276,6 @@ async def run(request: Request, body: RunBody) -> StreamingResponse | JSONRespon
             "env_differs",
             f"Your {', '.join(differing)} setting differs from the one Studio runs with.",
         )
-    from podcast_mcp.cli.main import app as cli_app
-
-    plan = plan_handoff(_click_root(cli_app), body.argv, Path(body.cwd))
-    if plan is None or plan.argv != body.argv or not _serves(request, str(plan.project)):
-        return _refuse(409, "not_eligible", "That command does not run in Studio.")
     state = _state(request.app)
     with state.lock:
         if len(state.runs) >= MAX_CONCURRENT_RUNS:
