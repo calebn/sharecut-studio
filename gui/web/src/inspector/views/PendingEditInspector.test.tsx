@@ -32,6 +32,7 @@ import {
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../../utils/apiError";
 import { pendingEditTimingFieldId } from "../../utils/pendingEditTimingField";
+import { UNAPPLIED_VALUE_REASON } from "../NudgeButtons";
 import { PendingEditInspector } from "./PendingEditInspector";
 
 const createComment = vi.fn();
@@ -247,15 +248,22 @@ describe("PendingEditInspector", () => {
     const start = screen.getByRole("textbox", { name: "Source start" });
     const group = screen.getByRole("group", { name: "Nudge source start" });
     const later = within(group).getByRole("button", { name: "10 ms later" });
-    await waitFor(() => expect(later).toBeEnabled());
+    await waitFor(() => expect(later).not.toHaveAttribute("aria-disabled"));
     fireEvent.change(start, { target: { value: "0:10.100" } });
-    expect(later).toBeDisabled();
-    expect(
-      within(screen.getByRole("group", { name: "Nudge source end" })).getByRole(
-        "button",
-        { name: "100 ms later" },
-      ),
-    ).toBeDisabled();
+    expect(later).toHaveAttribute("aria-disabled", "true");
+    expect(later).toBeEnabled();
+    expect(later).toHaveAccessibleDescription(UNAPPLIED_VALUE_REASON);
+    expect(screen.getAllByText(UNAPPLIED_VALUE_REASON)[0]).toBeVisible();
+    later.focus();
+    expect(later).toHaveFocus();
+    await userEvent.click(later);
+    await userEvent.keyboard("{Enter}");
+    expect(updatePendingEdit).not.toHaveBeenCalled();
+    const endLater = within(
+      screen.getByRole("group", { name: "Nudge source end" }),
+    ).getByRole("button", { name: "100 ms later" });
+    expect(endLater).toHaveAttribute("aria-disabled", "true");
+    expect(endLater).toHaveAccessibleDescription(UNAPPLIED_VALUE_REASON);
   });
 
   it("saves one existing pending command for one timing-step click", async () => {
@@ -279,7 +287,7 @@ describe("PendingEditInspector", () => {
     const button = within(
       screen.getByRole("group", { name: "Nudge source start" }),
     ).getByRole("button", { name: "10 ms later" });
-    await waitFor(() => expect(button).toBeEnabled());
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
     await userEvent.click(button);
     await waitFor(() => expect(updatePendingEdit).toHaveBeenCalledTimes(1));
     expect(updatePendingEdit).toHaveBeenCalledWith(

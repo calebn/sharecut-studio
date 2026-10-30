@@ -42,6 +42,7 @@ import {
 import type { PreviewMode } from "../../utils/playRange";
 import { formatTimeMs, parseTimecode } from "../../utils/time";
 import { ModifierInspector } from "../ModifierInspector";
+import { NudgeButtons, UNAPPLIED_VALUE_REASON } from "../NudgeButtons";
 import { PendingPreviewFooter } from "../PendingPreviewFooter";
 import {
   REFINE_GATE_GUI_MESSAGE,
@@ -174,25 +175,24 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     if (!project || !nudgeAxis(project, field)) return null;
     const [small, large] = NUDGE_KINDS.pending.steps;
     return (
-      <div
-        className="nudge-row-buttons"
-        role="group"
-        aria-label={`Nudge source ${edge}`}
-      >
-        {[-large, -small, small, large].map((delta) => (
-          <button
-            key={delta}
-            type="button"
-            className="ui-control nudge-button"
-            aria-label={`${Math.abs(delta) * 1000} ms ${delta < 0 ? "earlier" : "later"}`}
-            disabled={timingBusy || timingDirty || nudgeRun.saving}
-            {...nudgeRun.buttonProps(field, delta, `Pending ${edge}`)}
-          >
-            {delta < 0 ? "−" : "+"}
-            {Math.abs(delta) * 1000}
-          </button>
-        ))}
-      </div>
+      <NudgeButtons
+        groupLabel={`Nudge source ${edge}`}
+        deltas={[-large, -small, small, large]}
+        unavailable={
+          timingBusy || nudgeRun.saving
+            ? BUSY_REASON
+            : timingDirty
+              ? UNAPPLIED_VALUE_REASON
+              : undefined
+        }
+        label={(delta) =>
+          `${Math.abs(delta) * 1000} ms ${delta < 0 ? "earlier" : "later"}`
+        }
+        text={(delta) => `${delta < 0 ? "−" : "+"}${Math.abs(delta) * 1000}`}
+        propsFor={(delta) =>
+          nudgeRun.buttonProps(field, delta, `Pending ${edge}`)
+        }
+      />
     );
   };
   const role = commentRole(projectPath, guestMode);

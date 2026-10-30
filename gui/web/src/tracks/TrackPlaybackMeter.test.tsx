@@ -155,11 +155,36 @@ describe("track playback peak meter", () => {
     expect(controls[0]).toBeEnabled();
     expect(controls[1]).toHaveTextContent("Clear clip light");
     await userEvent.click(controls[1]);
-    for (const control of controls) expect(control).toBeDisabled();
+    expect(controls[0]).toBeDisabled();
+    expect(controls[1]).toHaveAttribute("aria-disabled", "true");
     for (const meter of screen.getAllByRole("meter")) {
       expect(meter).toHaveAttribute("aria-valuetext", "Playback stopped");
     }
     expect(useDawStore.getState().isPlaying).toBe(false);
+  });
+
+  it("keeps the labeled inspector button focusable and says visibly why there is nothing to clear", async () => {
+    useDawStore.setState({ isPlaying: false });
+    const { container } = render(
+      <TrackPlaybackMeter trackId="host" label="Mira" inspector />,
+    );
+    const clear = screen.getByRole("button", {
+      name: "Clear clip light for Mira",
+    });
+    const note = screen.getByText("No clipping to clear.");
+    expect(note).toBeVisible();
+    expect(clear).toHaveAttribute("aria-disabled", "true");
+    expect(clear).toHaveAttribute("aria-describedby", note.id);
+    expect(clear).toBeEnabled();
+    clear.focus();
+    expect(clear).toHaveFocus();
+    await userEvent.click(clear);
+    expect(screen.getByText("No clipping to clear.")).toBeVisible();
+    await expectNoA11yViolations(container);
+    act(() => setPlaybackTrackClipped("host", true));
+    expect(clear).not.toHaveAttribute("aria-disabled");
+    expect(clear).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText("No clipping to clear.")).toBeNull();
   });
 
   it("never samples idle transport", () => {

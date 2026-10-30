@@ -1007,11 +1007,12 @@ html[data-shell="phone"] .guest-attention-dismiss {
   }
 }
 
-.track-clip-clear:enabled {
+.track-clip-clear:enabled:not([aria-disabled="true"]) {
   color: var(--color-danger);
 }
 
-.track-clip-clear:disabled {
+.track-clip-clear:disabled,
+.track-clip-clear[aria-disabled="true"] {
   cursor: default;
   opacity: 1;
 }

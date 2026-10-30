@@ -13,9 +13,12 @@ import {
 import { METER_PUBLISH_INTERVAL_MS } from "../audio/usePeakMeter";
 import { useDaw } from "../state/useDaw";
 import { ClipLed } from "../ui/ClipLed";
+import { useDisabledReasonNote } from "../ui/disabledReason";
 import { Icon } from "../ui/Icon";
 import { LevelMeter } from "../ui/LevelMeter";
 import { keepActivationKeys } from "./trackHeaderKeys";
+
+const NO_CLIPPING_REASON = "No clipping to clear.";
 
 export function TrackPlaybackMeter({
   trackId,
@@ -97,6 +100,12 @@ export function TrackPlaybackMeter({
     });
   }, [playing, source, trackId, projectEpoch]);
 
+  // The inspector button carries a label, so it stays focusable and says why
+  // there is nothing to clear; the rail's icon-only button keeps native disabled.
+  const inspectorReason =
+    inspector && !clipped ? NO_CLIPPING_REASON : undefined;
+  const { note: clearNote, describedBy: clearDescribedBy } =
+    useDisabledReasonNote(inspectorReason);
   return (
     <div
       className={`track-playback-meter${inspector ? " track-playback-meter--inspector" : ""}`}
@@ -133,10 +142,13 @@ export function TrackPlaybackMeter({
             ? "Clipping detected. Clear clip light"
             : "No clipping detected"
         }
-        disabled={!clipped}
+        disabled={inspector ? undefined : !clipped}
+        aria-disabled={inspectorReason ? true : undefined}
+        {...clearDescribedBy}
         onKeyDown={keepActivationKeys}
         onClick={(event) => {
           event.stopPropagation();
+          if (!clipped) return;
           setPlaybackTrackClipped(trackId, false);
           state.current = { ...state.current, clipped: false };
           setLevels(state.current);
@@ -149,6 +161,7 @@ export function TrackPlaybackMeter({
         )}
         {inspector && "Clear clip light"}
       </button>
+      {clearNote}
     </div>
   );
 }

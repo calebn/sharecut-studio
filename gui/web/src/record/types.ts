@@ -245,7 +245,8 @@ export const ROOM_TONE_DEVICE_COPY = "Room tone saved on this device";
 export const ROOM_TONE_HOST_COPY = "Room tone sent to the host";
 export const ROOM_TONE_CAPTURING_COPY = "Recording room tone…";
 export const ROOM_TONE_SAVING_COPY = "Saving room tone…";
-export const ROOM_TONE_NOT_READY_COPY = "Room tone capture is not ready yet.";
+export const ROOM_TONE_NOT_READY_COPY =
+  "Room tone starts once this device has joined the session and can store audio. Wait a moment for the connection, then try again.";
 
 /** The capture problem a REC surface shows while recording. */
 export type CaptureHealth = "pending" | "failed" | "silent" | null;
