@@ -3813,6 +3813,34 @@
         "title": "FadeJoinsPayload",
         "type": "object"
       },
+      "FeedGuestEditRequest": {
+        "description": "One show-level edit from an Editor share; the share link names the episode.",
+        "properties": {
+          "edit": {
+            "discriminator": {
+              "mapping": {
+                "set": "#/components/schemas/SetEdit",
+                "unset": "#/components/schemas/UnsetEdit"
+              },
+              "propertyName": "op"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SetEdit"
+              },
+              {
+                "$ref": "#/components/schemas/UnsetEdit"
+              }
+            ],
+            "title": "Edit"
+          }
+        },
+        "required": [
+          "edit"
+        ],
+        "title": "FeedGuestEditRequest",
+        "type": "object"
+      },
       "FillRoomToneCommand": {
         "properties": {
           "causation_id": {
@@ -6857,6 +6885,50 @@
           "mode"
         ],
         "title": "SetClipJoinPayload",
+        "type": "object"
+      },
+      "SetEdit": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "op": {
+            "const": "set",
+            "default": "set",
+            "title": "Op",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "title": "SetEdit",
         "type": "object"
       },
       "SetEffectBypassCommand": {
@@ -10146,6 +10218,26 @@
         "title": "UndoHistoryPayload",
         "type": "object"
       },
+      "UnsetEdit": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "op": {
+            "const": "unset",
+            "default": "unset",
+            "title": "Op",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "UnsetEdit",
+        "type": "object"
+      },
       "UpdateChapterCommand": {
         "properties": {
           "causation_id": {
@@ -13099,6 +13191,55 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/feed/edit": {
+      "post": {
+        "description": "An Editor share may change the show's plain values. Episode values use the document route.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedGuestEditRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
