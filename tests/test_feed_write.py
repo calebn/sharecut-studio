@@ -88,9 +88,6 @@ def _feed(path: Path) -> ET.Element:
     return ET.parse(directory / "test_episode.feed.xml").getroot()
 
 
-# --- which show an episode belongs to ---------------------------------------------------
-
-
 def test_with_no_show_the_view_offers_to_create_one(episode: Path) -> None:
     view = _service(episode).read()
 
@@ -166,9 +163,6 @@ def test_linking_a_show_undoes_with_history_and_unsetting_unlinks(
     assert load_project(episode).feed.show_id is None
     _undo(episode)
     assert load_project(episode).feed.show_id == "field-notes"
-
-
-# --- editing a show ----------------------------------------------------------------------
 
 
 def test_a_show_value_is_saved_in_the_show_file_not_the_project(
@@ -283,9 +277,6 @@ def test_art_can_be_a_file_on_this_machine(episode: Path, store: ShowStore, tmp_
     )
     with pytest.raises(CodedValueError, match="https address or an existing"):
         service.set("channel.image", str(tmp_path / "nope.png"), "person")
-
-
-# --- writing the feed file ---------------------------------------------------------------
 
 
 def test_writing_is_refused_while_a_blocker_stands_and_mints_nothing(episode: Path) -> None:
@@ -470,9 +461,6 @@ def _pin(value: object):
     from podcast_mcp.models.feed import Pin
 
     return Pin(value=value)
-
-
-# --- two writers and the export job ------------------------------------------------------
 
 
 def test_two_episodes_writing_at_once_get_different_numbers(
