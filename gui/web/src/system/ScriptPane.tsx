@@ -97,6 +97,8 @@ export type ScriptPaneHandle = {
   scrollToWord: (index: number, block?: ScrollLogicalPosition) => boolean;
   /** Put focus on the header's Find button, where the Find bar's focus goes when it closes or finishes a bulk verb. False when the pane draws no such button. */
   focusFind: () => boolean;
+  /** Put focus on the word's stop, where Fix text hands it back when it closes. False when the pane does not show the word. */
+  focusWord: (index: number) => boolean;
 };
 
 /**
@@ -924,6 +926,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         focusFind: () => {
           findButton.current?.focus();
           return findButton.current !== null;
+        },
+        focusWord: (index) => {
+          const stop = stopContaining(live.current.stops, index);
+          const el = stop ? focusable(registry.current.get(stop.start)) : null;
+          el?.focus();
+          return el != null;
         },
       }),
       [],
