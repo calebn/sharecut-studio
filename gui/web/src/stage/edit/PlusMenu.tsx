@@ -8,6 +8,7 @@ import {
   Menu,
   MenuItem,
   type MenuTriggerProps,
+  useCommand,
 } from "../../ui";
 import type { AudioDropHandlers } from "./useAudioDrop";
 
@@ -33,6 +34,9 @@ export function PlusMenu({
     shareCapabilities: s.shareCapabilities,
   }));
   const [open, setOpen] = useState(false);
+  // Record here goes through stage.record, so it keeps that command's gating.
+  const { enabled, whenReason } = useCommand("stage.record");
+  const announceStatus = useDaw((s) => s.announceStatus);
   if (!canIngestMedia(projectPath, guestMode, shareCapabilities)) return null;
   const host = !isShareProjectKey(projectPath) && guestMode == null;
   const close = () => setOpen(false);
@@ -60,9 +64,14 @@ export function PlusMenu({
         <>
           <CommandMenuItem commandId="edit.addChapter" onSelect={close} />
           <MenuItem
+            disabledReason={enabled ? undefined : whenReason}
             onSelect={() => {
               close();
-              void recordHere();
+              void recordHere().then((result) => {
+                if (result.status === "disabled") {
+                  announceStatus(result.reason, { tone: "error" });
+                }
+              });
             }}
           >
             Record here

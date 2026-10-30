@@ -145,16 +145,6 @@ function Harness({ capture = {} }: { capture?: HostRoomCapture }) {
   );
 }
 
-/** Let effects and resolved promises settle, so a "never sent" assertion runs after the hook had its chance. */
-const flush = async () => {
-  await act(async () => {
-    await Promise.resolve();
-  });
-  await act(async () => {
-    await Promise.resolve();
-  });
-};
-
 const setTargetCalls = () =>
   exec.mock.calls.filter((call: unknown[]) => call[0] === "record.setTarget");
 
@@ -1667,6 +1657,7 @@ describe("Record stage session target", () => {
     expect(useDawStore.getState().recordScript).toEqual({
       fromSec: 724,
       toSec: 1000,
+      trackIds: ["t1"],
       text: line,
     });
     expect(screen.queryByText(line)).toBeNull();
@@ -1677,10 +1668,45 @@ describe("Record stage session target", () => {
     await waitFor(() => expect(screen.queryByText(line)).toBeNull());
   });
 
+  it("hides the line when the room's Replace is over other tracks", async () => {
+    withClip();
+    useDawStore.setState({
+      recordScript: {
+        fromSec: 724,
+        toSec: 1000,
+        trackIds: ["t2"],
+        text: "…a line…",
+      },
+    });
+    setRoom({ target: pickup });
+    mount();
+    await screen.findByText("Replaces 12:04-16:40");
+    expect(screen.queryByText("…a line…")).toBeNull();
+  });
+
+  it("drops the line when the host leaves Record", async () => {
+    useDawStore.setState({
+      stage: "record",
+      recordScript: {
+        fromSec: 724,
+        toSec: 1000,
+        trackIds: ["t1"],
+        text: "…a line…",
+      },
+    });
+    act(() => useDawStore.getState().openStage("edit"));
+    expect(useDawStore.getState().recordScript).toBeNull();
+  });
+
   it("clears the line when the host picks another target", async () => {
     withClip();
     useDawStore.setState({
-      recordScript: { fromSec: 724, toSec: 1000, text: "…a line…" },
+      recordScript: {
+        fromSec: 724,
+        toSec: 1000,
+        trackIds: ["t1"],
+        text: "…a line…",
+      },
     });
     setRoom({ target: pickup });
     mount();
@@ -1699,7 +1725,7 @@ describe("Record stage session target", () => {
     useDawStore.getState().setPendingRecordTarget(pickup);
     mount();
     await screen.findByRole("button", { name: "Create record room" });
-    await flush();
+    // The room view above is the settled condition: the hook had its turn.
     expect(useDawStore.getState().pendingRecordTarget).toEqual(pickup);
     expect(setTargetCalls()).toHaveLength(0);
     act(() => setRoom({ target: { kind: "end" } }));
@@ -1723,7 +1749,7 @@ describe("Record stage session target", () => {
     useDawStore.getState().setPendingRecordTarget(pickup);
     mount();
     await screen.findByRole("button", { name: "Record" });
-    await flush();
+    // The room view above is the settled condition: the hook had its turn.
     expect(useDawStore.getState().pendingRecordTarget).toEqual(pickup);
     expect(setTargetCalls()).toHaveLength(0);
     await act(async () => finish({ ...lobby, target: { kind: "end" } }));
@@ -1749,7 +1775,10 @@ describe("Record stage session target", () => {
       expect(useDawStore.getState().pendingRecordTarget).toBeNull(),
     );
     await waitFor(() => expect(setTargetCalls()).toHaveLength(1));
-    await flush();
+    // The room answers with the target; once the chip shows it, any replayed
+    // effect has run against the settled room.
+    act(() => setRoom({ target: pickup }));
+    await screen.findByText("Replaces 12:04-16:40");
     expect(setTargetCalls()).toHaveLength(1);
   });
 
