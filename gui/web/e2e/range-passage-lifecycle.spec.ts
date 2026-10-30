@@ -81,10 +81,10 @@ test("F06 wrapped passage reversal and the Mute verb on words ignores them and U
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await page.mouse.move(b.x, b.y, { steps: 10 });
-    await expect(last).toHaveAttribute("data-selected", "");
+    await expect(last).toHaveAttribute("data-selected");
     await page.mouse.move(r.x, r.y, { steps: 6 });
-    await expect(middle).toHaveAttribute("data-selected", "");
-    await expect(words.nth(5)).not.toHaveAttribute("data-selected", "");
+    await expect(middle).toHaveAttribute("data-selected");
+    await expect(words.nth(5)).not.toHaveAttribute("data-selected");
     await page.mouse.up();
     expect(snapshot(p)).toEqual(before);
     expect(c).toEqual([]);

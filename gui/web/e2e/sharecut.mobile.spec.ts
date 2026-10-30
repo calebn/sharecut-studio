@@ -481,7 +481,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
     expect(request.postDataJSON()).toMatchObject({ type: "UndoHistory" });
   });
 
-  test("touch long-press opens the selected transcript word sheet", async ({
+  test("touch long-press arms a range on the transcript word", async ({
     page,
     context,
   }) => {
@@ -513,11 +513,10 @@ test.describe("ShareCut Studio mobile smoke", () => {
       type: "touchEnd",
       touchPoints: [],
     });
-    await expect(page.locator('[role="dialog"]')).toBeVisible();
-    await expect(page.getByLabel("Corrected text")).toBeVisible();
+    await expect(word).toHaveAttribute("data-selected");
   });
 
-  test("touch double-tap opens word correction", async ({ page, context }) => {
+  test("touch double-tap opens Fix text", async ({ page, context }) => {
     await openProject(page, e2eProjectPath);
     await phone.showText(page);
     // Wait for a word-level chip before capturing coordinates for both taps.
@@ -545,9 +544,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
         touchPoints: [],
       });
     }
-    await expect(word).toHaveAttribute("data-selected", "");
-    await expect(page.locator('[role="dialog"]')).toBeVisible();
-    await expect(page.getByLabel("Corrected text")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Fix text" })).toBeFocused();
   });
 });
 

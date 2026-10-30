@@ -1,3 +1,4 @@
+import { forgetHeldFixText } from "../stage/edit/script/useScriptFixText";
 import { useDawStore } from "../state/dawStore";
 import type {
   CombinedUtterance,
@@ -93,6 +94,7 @@ export type ScriptSeed = {
 
 /** Put a two-speaker transcript in the real store. */
 export function seedScript(seed: ScriptSeed = {}) {
+  forgetHeldFixText();
   useDawStore.setState({
     projectPath: seed.projectPath ?? "/tmp/ep",
     guestMode: seed.guestMode ?? null,

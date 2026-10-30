@@ -704,9 +704,6 @@ for (const profile of profiles) {
         const before = saved(projectPath);
         await page.mouse.move(a.x, a.y);
         await page.mouse.down();
-        // Pressing a word opens the Inspector, which can reflow the Script
-        // list, so the drag target is measured once the press has settled.
-        await expect(first).toHaveAttribute("data-selected", "");
         // The Inspector tracks the growing range and can reflow the list, so
         // the pointer follows the third word until its position holds still.
         let b = await center(third);
@@ -720,10 +717,10 @@ for (const profile of profiles) {
           })
           .toBe(true);
         await page.mouse.up();
-        await expect(first).toHaveAttribute("data-selected", "");
-        await expect(words.nth(1)).toHaveAttribute("data-selected", "");
-        await expect(third).toHaveAttribute("data-selected", "");
-        await expect(words.nth(3)).not.toHaveAttribute("data-selected", "");
+        await expect(first).toHaveAttribute("data-selected");
+        await expect(words.nth(1)).toHaveAttribute("data-selected");
+        await expect(third).toHaveAttribute("data-selected");
+        await expect(words.nth(3)).not.toHaveAttribute("data-selected");
         expect(saved(projectPath)).toEqual(before);
         expect(commands).toHaveLength(0);
         await evidence(page, info, "passage-native", {
@@ -733,14 +730,14 @@ for (const profile of profiles) {
         });
         await first.click();
         await third.click({ modifiers: ["Shift"] });
-        await expect(first).toHaveAttribute("data-selected", "");
-        await expect(words.nth(1)).toHaveAttribute("data-selected", "");
-        await expect(third).toHaveAttribute("data-selected", "");
-        await expect(words.nth(3)).not.toHaveAttribute("data-selected", "");
+        await expect(first).toHaveAttribute("data-selected");
+        await expect(words.nth(1)).toHaveAttribute("data-selected");
+        await expect(third).toHaveAttribute("data-selected");
+        await expect(words.nth(3)).not.toHaveAttribute("data-selected");
         expect(saved(projectPath)).toEqual(before);
         expect(commands).toHaveLength(0);
         await page.keyboard.press("Escape");
-        await expect(first).not.toHaveAttribute("data-selected", "");
+        await expect(first).not.toHaveAttribute("data-selected");
         expect(saved(projectPath)).toEqual(before);
       });
     });

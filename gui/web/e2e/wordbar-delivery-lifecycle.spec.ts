@@ -9,6 +9,7 @@ import {
   snapshot,
 } from "./lifecycleAudit";
 import { hostOfflineQueueCount } from "./offlineQueue";
+import { inspectSelectionByKey } from "./stageNav";
 import { openTranscriptPanel } from "./transcriptEdit";
 
 test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
@@ -19,6 +20,7 @@ for (const terminal of ["escape", "cancel-draft", "synthetic-cancel"] as const)
     await runAudit(page, info, false, async (p, c) => {
       const list = await openTranscriptPanel(page);
       await list.locator(".sys-script-word").first().click();
+      await inspectSelectionByKey(page);
       await page
         .getByRole("button", { name: "Adjust timing", exact: true })
         .click();

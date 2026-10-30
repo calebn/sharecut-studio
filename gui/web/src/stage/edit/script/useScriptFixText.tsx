@@ -42,6 +42,17 @@ type Pinned = {
   last: ScriptWordRef & { wordIndex: number };
 };
 
+/**
+ * The field open on the last Script, so a shell change that remounts the Script
+ * (a rotation to another layout) keeps it, as the old panel's store-held state did.
+ */
+let held: { projectPath: string; pin: Pinned } | null = null;
+
+/** Drop the held field; for tests that start from a clean Script. */
+export function forgetHeldFixText(): void {
+  held = null;
+}
+
 const addressable = (
   ref: ScriptWordRef | undefined,
 ): ref is ScriptWordRef & { wordIndex: number } =>
@@ -65,9 +76,21 @@ export function useScriptFixText(
   say: (message: string) => void,
   onTab: (note: string) => number | undefined,
 ): ScriptFixTextProps {
-  const [pinned, setPinned] = useState<Pinned | null>(null);
-  // A field opened before the right was lost must not come back with it.
-  if (!enabled && pinned !== null) setPinned(null);
+  const [pinned, setPinnedState] = useState<Pinned | null>(() => {
+    const path = useDawStore.getState().projectPath;
+    return held?.projectPath === path ? held.pin : null;
+  });
+  const setPinned = (pin: Pinned | null) => {
+    held = pin
+      ? { projectPath: useDawStore.getState().projectPath, pin }
+      : null;
+    setPinnedState(pin);
+  };
+  // A field opened before the right was lost must not come back with it. A
+  // Script that mounts before its words settle keeps the field it was handed.
+  const wasEnabled = useRef(enabled);
+  if (enabled) wasEnabled.current = true;
+  if (!enabled && wasEnabled.current && pinned !== null) setPinned(null);
   const enabledNow = useRef(enabled);
   enabledNow.current = enabled;
   const focusAfter = useRef<{ index: number; tries: number } | null>(null);
