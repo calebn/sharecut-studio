@@ -113,6 +113,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("src/podcast_mcp/gui/**", Scope.GUI),
         ("src/podcast_mcp/services/**", Scope.GUI),
         ("src/podcast_mcp/models/**", Scope.GUI),
+        ("src/podcast_mcp/feed/**", Scope.GUI),
         ("src/podcast_mcp/mcp/**", Scope.GUI),
         ("src/podcast_mcp/extensions/**", Scope.GUI),
         ("src/podcast_mcp/project/**", Scope.GUI),

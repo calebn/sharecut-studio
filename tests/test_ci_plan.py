@@ -27,6 +27,7 @@ GUI_PATTERNS = [
     "src/podcast_mcp/gui/**",
     "src/podcast_mcp/services/**",
     "src/podcast_mcp/models/**",
+    "src/podcast_mcp/feed/**",
     "src/podcast_mcp/mcp/**",
     "src/podcast_mcp/extensions/**",
     "src/podcast_mcp/project/**",

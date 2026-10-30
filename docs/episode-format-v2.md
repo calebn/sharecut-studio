@@ -30,6 +30,7 @@ my_episode/
 | `mix` | `processing_chains` (per-track `effects[]` with `effect`, `params`, optional `bypass`), `automation_envelopes` |
 | `render` | `last_completed_step`, `pipeline_runs`, `artifacts` paths; `reconciliation_stale` / `last_reconciliation_hash`; `invalidations[]` (diagnostic cause journal since last fresh stem) |
 | `social` | Social clip candidates |
+| `feed` | The podcast listing's stored state: `show_id`, the minted `guid` and `first_exported_at`, and `pins` ([Feed](#feed)). Undo and redo restore it |
 | `review` | Timeline comments and action items (session-clock feedback) |
 | `history` | Undo/redo cursor and snapshot index |
 | `document_sync` | `last_command`: the document-plane command saved on the same commit as its apply, for crash recovery (#575, [session-sync.md § Command identity and retries](session-sync.md#command-identity-and-retries)). Not an editable layer; undo/redo never restore it |
@@ -159,13 +160,17 @@ Untrimmed `podcast ingest consolidate` places each speaker's primary clip on the
 
 ## History
 
-Each undo point stores a **full snapshot** of editable sections (not a diff): `sources`, `timeline`, `editorial`, `transcripts`, `mix`, `social`, `review`, `render_last_completed_step`, `meta.name` and `meta.ingest_alignment` when present, so undoing a project rename restores the old name.
+Each undo point stores a **full snapshot** of editable sections (not a diff): `sources`, `timeline`, `editorial`, `transcripts`, `mix`, `social`, `feed`, `review`, `render_last_completed_step`, `meta.name` and `meta.ingest_alignment` when present, so undoing a project rename restores the old name.
 
 ## Review comments
 
 `review.comments[]` holds human/agent feedback on the **timeline** clock (what listeners hear on premix/review). Each comment may be an instant (`timeline_end` null or equal to start) or a contiguous span, optionally scoped to one or more `track_ids` (empty = session-wide). Nested `action_items` track checkable work with `completed_by` / `completed_at`; `replies[]` is a flat thread. Optional `edit_decision_id` binds **one** comment thread to a pending `editorial.edit_decisions[]` row (unique among comments; lazy-created on first Ask). Optional `review.versions[]` / `active_version_id` freeze review mixes (`audio_relpath` WAV + optional `mp3_relpath` / `object_store_key` for link previews and agents; both relpaths must resolve inside `artifacts/review/` — see timeline-comments.md); comments may stamp `review_version_id`. See [timeline-comments.md](timeline-comments.md).
 
 Undo/redo restores snapshot → `ProjectStore.commit()` updates `episode.sharecut`.
+
+## Feed
+
+`feed` holds only what cannot be derived. `show_id` links the episode to a show (null until the show store lands; with one show on the machine the episode belongs to it without a link). `guid` (`urn:uuid:...`) and `first_exported_at` are made once, by `FeedSection.mint_identity`, and never change. `pins` maps a field key such as `item.intro` to `{value, basis, by}`: the value a person or agent set, a digest of the automatic value it replaced (`basis`, null when there was none) and who set it (`person` or `agent`). A read compares `basis` with the automatic value now to flag a pin whose source changed, so drift is never stored. Facts, the show notes and the feed XML are computed on every read. See [podcast-feed.md](podcast-feed.md).
 
 ## Version policy
 

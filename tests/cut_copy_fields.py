@@ -31,6 +31,8 @@ SHARED_FIELDS: dict[str, str] = {
     "CutSpeechTrack": ("sound_spans speaker track_id words"),
     "CutSpeechWord": ("text timeline_end timeline_start"),
     "DocumentSyncSection": ("last_command"),
+    "FeedSection": ("first_exported_at guid pins show_id"),
+    "Pin": ("basis by value"),
     "ExactRangeTarget": ("clips intervals kind media_seals track_ids"),
     "HistoryEntry": ("created_at id label operation params snapshot_file"),
     "InsertAnchor": ("at_sec kind offset_s side source_id source_sec track_id"),

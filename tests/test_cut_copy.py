@@ -99,6 +99,7 @@ TOP: dict[str, str] = {
     "mix": "shared",
     "render": "shared",
     "social": "shared",
+    "feed": "shared",
     "review": "shell",
     "history": "shared",
     "document_sync": "shared",

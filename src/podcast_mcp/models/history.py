@@ -80,6 +80,7 @@ class ProjectStateSnapshot(BaseModel):
     transcripts: dict[str, Any] = Field(default_factory=dict)
     mix: dict[str, Any] = Field(default_factory=dict)
     social: dict[str, Any] = Field(default_factory=dict)
+    feed: dict[str, Any] = Field(default_factory=dict)
     review: dict[str, Any] = Field(default_factory=dict)
     render_last_completed_step: str | None = None
     meta: dict[str, Any] | None = None
