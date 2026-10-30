@@ -420,7 +420,7 @@ everyone but an Editor.
 | Commenter | Yes | **Suggest cut** / **Suggest mute** create a pending edit for review | Only its own suggestions (pending edits its share authored) | Refused |
 | Viewer, or a share with no role | No (untimed utterance text) | Refused by the document-command gate | Refused | Refused |
 
-In ShareCut Studio an Editor link's Review queue lists the pending edits with **Cut** and **Keep** (the commands are `ApproveEdits` and `RejectEdits`). Unsure-word fixes, the transcript check and the waive route stay host-only: a cut that covers an unsure word is shown held ("The host checks the unsure word first.") with no Cut, and while the transcript is unchecked the server refuses an Editor's Cut, which shows under Needs attention until the host checks or waives it. A Commenter or Viewer link's queue is comments only.
+In ShareCut Studio an Editor link's Review queue lists the pending edits with **Cut** and **Keep** (the commands are `ApproveEdits` and `RejectEdits`). Unsure-word fixes stay host-only, and the transcript check has HTTP twins but no Editor control yet (below): a cut that covers an unsure word is shown held ("The host checks the unsure word first.") with no Cut, and while the transcript is unchecked the server refuses an Editor's Cut, which shows under Needs attention until the host, or an Editor through the check twins, checks or waives it. A Commenter or Viewer link's queue is comments only.
 
 An Editor also edits volume envelopes as the host does: `SetEnvelope` is in
 the Editor command set, and the Studio's envelope overlay, envelope inspector,
@@ -439,7 +439,7 @@ An Editor is trusted to approve: approving applies an edit. The host can
 undo every change an Editor makes (applied cut or mute, approval,
 rejection, retime) with one History Undo each.
 
-One exception to that trust: an Editor's `ApproveEdits` of more than one edit never cuts a pending edit that covers an unsure transcript word (below `analysis.unsure_word_confidence`); it stays pending and is reported as held with reason `unsure_word`, whatever the payload's `skip_unsure` says. Approving one edit by name still cuts. Likewise every guest `ApplySuggestedActions` (one id or many) leaves a cut or shorten over an unsure word pending and names it in `held` and `held_unsure`, whatever the payload's `skip_unsure` says; the guest approves that one cut by name instead. There is no `apply_edit_plan` guest tool, but an Editor may submit the `ApplyEditPlan` command as the host does; a Commenter or Viewer is refused with `share_capability_required`. Guests see the `unsure` flag on words they receive but cannot mark the transcript checked (the host-only route, [gui-integration.md § Unsure words](gui-integration.md#unsure-words)).
+One exception to that trust: an Editor's `ApproveEdits` of more than one edit never cuts a pending edit that covers an unsure transcript word (below `analysis.unsure_word_confidence`); it stays pending and is reported as held with reason `unsure_word`, whatever the payload's `skip_unsure` says. Approving one edit by name still cuts. Likewise every guest `ApplySuggestedActions` (one id or many) leaves a cut or shorten over an unsure word pending and names it in `held` and `held_unsure`, whatever the payload's `skip_unsure` says; the guest approves that one cut by name instead. There is no `apply_edit_plan` guest tool, but an Editor may submit the `ApplyEditPlan` command as the host does; a Commenter or Viewer is refused with `share_capability_required`. Guests see the `unsure` flag on words they receive but the guest MCP tools cannot mark the transcript checked; an Editor does it over HTTP (the check twins below, [gui-integration.md § Unsure words](gui-integration.md#unsure-words)).
 
 The document-command gate (`authorize_document_command` plus
 `policy.resolve_range_mode`, `policy.may_decide_exact_range` and
@@ -606,8 +606,66 @@ cancel works with the flag off. The start never waits: a busy slot, including a 
 the same project, answers 409 `job_running` with the fixed copy at once (the owner route
 still waits for a rebuild). The job view says only running, done or failed ("Export failed", whatever the cause);
 the Editor is not handed the exported files or their paths, and downloading them is a later
-decision. Bounce (it names track ids, the raw stems exception) and transcript export stay
-host-only here.
+decision. Bounce (it names track ids, the raw stems exception) stays host-only here.
+
+An Editor also gets twins of the transcript tab's tools, under `…/daw/transcript/`, as the
+project's workspace. The rule is the same as for the rest of the Editor's powers: an Editor does
+what the host does, and the exceptions are the written list below. None of these starts a job,
+so none needs `PODCAST_GUEST_RENDER`. The body never names a path, and `GuestRequest` refuses any
+field not listed (a 422), which is stricter than the host's routes: text fields have lengths the
+host's do not, and `formats` is a closed list, so an unknown format is a 422 where the host's
+route answers 400.
+
+- Vocabulary: `GET` and `PUT …/vocabulary`. The `PUT` body is `terms`, `guest_names` (at most
+  100 entries of 100 characters, counted before trimming) and `base_revision` (at most 64
+  characters, required); a stale revision is 409 `vocabulary_conflict`, as for the host, and
+  saving changes what the next transcription is primed with, as it does for the host. Both
+  answers carry only `terms`, `guest_names`, `prompt_limit`, `revision` and
+  `needs_retranscription`: the show title and the tracks with hand edits are not sent. The
+  service records no author, so the host log carries an INFO line with the first characters of
+  the token.
+- Transcript check: `GET …/refine/status`, `POST …/refine/done` (`notes`,
+  `expected_fingerprint`; 409 `transcript_changed` when the transcript no longer matches) and
+  `POST …/refine/waive` (`reason`). An Editor's mark clears the host's gate exactly as the
+  host's would, in every mode: the gate looks only at the status and the transcript
+  fingerprint, so a pipeline run that waited on the check (the host's, or a guest's with
+  `PODCAST_GUEST_RENDER`) proceeds, and so do the Editor's own gated edits. The gate file records
+  who acted: the host's routes write `source: "user"`, and an Editor's write `share:` plus the
+  link's registry id (the same actor string `EditDecision.author` carries), so an Editor cannot
+  appear as the host or an agent, and the body has no `source`. The host UI does not show the
+  actor or the note, so the host sees a cleared gate and cannot tell whose mark it is without
+  opening the file or reading the status response (`source` is `share:<id>`). `notes` and `reason`
+  are at most 500 characters and are stored after the fixed marker "From an Editor link: ". A
+  done mark without `expected_fingerprint` is accepted, as for the host, and a repeat while done
+  writes nothing. A waiver never overwrites a gate that is already clear (done or waived, by the
+  host or anyone): it leaves the record as it was and answers the status. A done mark does
+  replace a waiver, as the host's does. The status an Editor gets is the host's view with
+  `notes` always empty (the host's free text is not shown, nor an Editor's own), a `share:`
+  source shown as `guest`, and the host's `source` and `updated_at` as they are. The waive twin
+  answers that status view, not the host's raw gate record.
+- Read-only: `POST …/replacement-preview` (`search`, at most 200 characters and 20 words,
+  `replacement`, at most 500, `match_case`) and `POST …/word-timing-context` (`target`,
+  `expected_word`, strings capped at 200; 409 `transcript_timing_changed`, 404 `word_not_found`).
+  Both answer what the host's routes do and write nothing; they count as reads for the rate
+  limit. The preview holds the project's commit lock while it scans, which is why its search is
+  shorter than the host's.
+- Transcript files: `POST …/export` (`formats`, one to four distinct of `txt`, `md`, `srt` and
+  `vtt`, default `md` and `srt`; `dry_run`; `with_text`) and `GET …/exports`. The files go to the
+  project's own `export/` folder under the project's name, the same place as the host's, and
+  replace same-named `.txt`, `.md`, `.srt` and `.vtt` files there (a host's hand-edited
+  transcript with that name included): there is no backup and no undo, and an export may also
+  save the project when it had to build the combined transcript. The body names no folder or
+  file. The write is synchronous and takes the project's render lock for up to 30 seconds (503
+  `export_busy` after that, or at once when two link-started exports are already running; 409
+  `transcript_empty` when every word is cut). `dry_run` writes nothing and takes neither the lock
+  nor a slot, and `with_text` adds the reading text of the transcript, which an Editor can already
+  read. The host's answers name each file's absolute `path`; the twins send only an allowlist
+  (`format`, `name`, `bytes`, `language`, `written`, `current`; the listing: `name`, `format`,
+  `mime`, `language`, `bytes`, `modified`, `current`).
+
+A refusal on these twins keeps the host route's status and code with fixed guest copy, never the
+host's message, and anything else is the fixed 500. The host's routes are unchanged and a
+relayed call to one is still refused.
 
 The Editor does not get these. The exceptions below are the audit's approved
 list; the routes and tools in them are not document commands, and slices after

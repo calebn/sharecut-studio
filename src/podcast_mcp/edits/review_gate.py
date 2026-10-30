@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NewType
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.pipeline_unattended import is_unattended
@@ -27,7 +27,10 @@ from podcast_mcp.util.workspace_paths import workspace_relpath
 
 ReviewStatus = Literal["pending", "done", "waived"]
 ReviewMode = Literal["require", "waive_unattended", "off"]
-ReviewSource = Literal["agent", "user", "cli", "mcp", "unattended", "align", "precorrect"]
+ShareSource = NewType("ShareSource", str)
+ReviewSource = (
+    Literal["agent", "user", "cli", "mcp", "unattended", "align", "precorrect"] | ShareSource
+)
 
 GATE_TEXT_MAX_CHARS = 2000
 """Longest gate ``notes`` or waiver ``reason`` a caller may record, in characters."""

@@ -31,6 +31,8 @@ from podcast_mcp.services.collaboration.guest_progress import guest_ws_progress_
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.review_versions import get_version, version_audio_path
 from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.document import TranscriptService
+from podcast_mcp.services.media import TranscriptPrecorrectService, TranscriptRefineService
 from podcast_mcp.services.record.commands import COMMAND_TYPES, RecordCommand
 from podcast_mcp.services.record.service import (
     RecordSessionService,
@@ -41,7 +43,11 @@ from podcast_mcp.services.record.upload import RecordUploadService
 from podcast_mcp.services.remote_mcp import tools as remote_tools
 from podcast_mcp.services.remote_mcp.progress import GuestMcpProgressContext
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
-from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE, CodedFileNotFoundError
+from podcast_mcp.util.coded_error import (
+    GENERIC_GUEST_MESSAGE,
+    CodedFileNotFoundError,
+    guest_message_for_code,
+)
 from podcast_mcp.util.progress import progress_task, register_guest_progress_sink
 
 RELAYED = {"x-sharecut-relayed": "1"}
@@ -224,6 +230,7 @@ SHARE_PAGE = Site(collaboration, "lookup_share")
 MCP_PREFLIGHT = Site(remote_mcp, "share_allows_mcp", not_found="share not found")
 RANGE = {"intervals": [{"start": 0, "end": 1}], "track_ids": ["t"], "clips": [], "media_seals": {}}
 UPLOAD = "/api/rec/{token}/upload"
+WORD_NOT_FOUND = guest_message_for_code("word_not_found")
 PROBES: dict[tuple[str, str], Probe] = {
     ("GET", "/r/{token}"): Probe(SHARE_PAGE),
     ("GET", "/rec/{token}"): Probe(SHARE_PAGE),
@@ -309,6 +316,41 @@ PROBES: dict[tuple[str, str], Probe] = {
     ),
     ("POST", "/api/review/{token}/daw/export/jobs/{job_id}/cancel"): Probe(
         Site(service_jobs.JobManager, "get_job")
+    ),
+    ("GET", "/api/review/{token}/daw/transcript/vocabulary"): Probe(
+        Site(TranscriptPrecorrectService, "vocabulary_status")
+    ),
+    ("PUT", "/api/review/{token}/daw/transcript/vocabulary"): Probe(
+        Site(TranscriptPrecorrectService, "set_vocabulary"),
+        {"json": {"terms": [], "guest_names": [], "base_revision": None}},
+    ),
+    ("GET", "/api/review/{token}/daw/transcript/refine/status"): Probe(
+        Site(TranscriptRefineService, "gate_status")
+    ),
+    ("POST", "/api/review/{token}/daw/transcript/refine/done"): Probe(
+        Site(TranscriptRefineService, "mark_checked"), {"json": {}}
+    ),
+    ("POST", "/api/review/{token}/daw/transcript/refine/waive"): Probe(
+        Site(TranscriptRefineService, "waive"), {"json": {"reason": "r"}}
+    ),
+    ("POST", "/api/review/{token}/daw/transcript/replacement-preview"): Probe(
+        Site(TranscriptService, "preview_transcript_replacement"),
+        {"json": {"search": "a", "replacement": "b"}},
+    ),
+    ("POST", "/api/review/{token}/daw/transcript/word-timing-context"): Probe(
+        Site(TranscriptService, "word_timing_context", not_found=WORD_NOT_FOUND),
+        {
+            "json": {
+                "target": {"track_id": "t", "source_id": None, "word_index": 0},
+                "expected_word": {"text": "a", "start": 0, "end": 1},
+            }
+        },
+    ),
+    ("POST", "/api/review/{token}/daw/transcript/export"): Probe(
+        Site(TranscriptService, "export"), {"json": {}}
+    ),
+    ("GET", "/api/review/{token}/daw/transcript/exports"): Probe(
+        Site(TranscriptService, "exported")
     ),
     ("GET", "/api/review/{token}/daw/document/state"): Probe(_review("DocumentSyncService")),
     ("POST", "/api/review/{token}/daw/boundary/context"): Probe(

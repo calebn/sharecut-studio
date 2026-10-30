@@ -3984,6 +3984,31 @@
         "title": "FillRoomTonePayload",
         "type": "object"
       },
+      "GuestExpectedTimingWord": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "number"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          },
+          "text": {
+            "maxLength": 200,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "start",
+          "end"
+        ],
+        "title": "GuestExpectedTimingWord",
+        "type": "object"
+      },
       "GuestExportRequest": {
         "additionalProperties": false,
         "description": "Which deliverables an Editor share exports; each name is a format the host fixes.",
@@ -4066,6 +4091,217 @@
           }
         },
         "title": "GuestPipelineRunRequest",
+        "type": "object"
+      },
+      "GuestRefineDoneRequest": {
+        "additionalProperties": false,
+        "description": "Mark the transcript checked; the share, not the body, says who did it.",
+        "properties": {
+          "expected_fingerprint": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Fingerprint"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "title": "GuestRefineDoneRequest",
+        "type": "object"
+      },
+      "GuestRefineWaiveRequest": {
+        "additionalProperties": false,
+        "description": "Waive the transcript check; the share, not the body, says who did it.",
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "GuestRefineWaiveRequest",
+        "type": "object"
+      },
+      "GuestReplacementPreviewRequest": {
+        "additionalProperties": false,
+        "description": "Preview a find-and-replace on the share's transcript; the search is shorter than the host's.",
+        "properties": {
+          "match_case": {
+            "default": false,
+            "title": "Match Case",
+            "type": "boolean"
+          },
+          "replacement": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Replacement",
+            "type": "string"
+          },
+          "search": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Search",
+            "type": "string"
+          }
+        },
+        "required": [
+          "search",
+          "replacement"
+        ],
+        "title": "GuestReplacementPreviewRequest",
+        "type": "object"
+      },
+      "GuestTranscriptExportRequest": {
+        "additionalProperties": false,
+        "description": "Write or preview the share's transcript files; each name is a format the host fixes.",
+        "properties": {
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "formats": {
+            "default": [
+              "md",
+              "srt"
+            ],
+            "items": {
+              "enum": [
+                "txt",
+                "md",
+                "srt",
+                "vtt"
+              ],
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Formats",
+            "type": "array"
+          },
+          "with_text": {
+            "default": false,
+            "title": "With Text",
+            "type": "boolean"
+          }
+        },
+        "title": "GuestTranscriptExportRequest",
+        "type": "object"
+      },
+      "GuestVocabularyPutRequest": {
+        "additionalProperties": false,
+        "description": "Save the project's vocabulary from an Editor share; the share names the project.",
+        "properties": {
+          "base_revision": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Revision"
+          },
+          "guest_names": {
+            "items": {
+              "maxLength": 100,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Guest Names",
+            "type": "array"
+          },
+          "terms": {
+            "items": {
+              "maxLength": 100,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Terms",
+            "type": "array"
+          }
+        },
+        "required": [
+          "terms",
+          "guest_names",
+          "base_revision"
+        ],
+        "title": "GuestVocabularyPutRequest",
+        "type": "object"
+      },
+      "GuestWordTimingContextRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_word": {
+            "$ref": "#/components/schemas/GuestExpectedTimingWord"
+          },
+          "target": {
+            "$ref": "#/components/schemas/GuestWordTimingTarget"
+          }
+        },
+        "required": [
+          "target",
+          "expected_word"
+        ],
+        "title": "GuestWordTimingContextRequest",
+        "type": "object"
+      },
+      "GuestWordTimingTarget": {
+        "additionalProperties": false,
+        "properties": {
+          "source_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "track_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Track Id",
+            "type": "string"
+          },
+          "word_index": {
+            "minimum": 0.0,
+            "title": "Word Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "track_id",
+          "source_id",
+          "word_index"
+        ],
+        "title": "GuestWordTimingTarget",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -10034,6 +10270,98 @@
         "title": "SuppressLowAudibilityPayload",
         "type": "object"
       },
+      "TranscriptRefineStatusView": {
+        "description": "The transcript check as the Review stage reads it.",
+        "properties": {
+          "clear": {
+            "title": "Clear",
+            "type": "boolean"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "low_confidence_threshold": {
+            "title": "Low Confidence Threshold",
+            "type": "number"
+          },
+          "low_confidence_words": {
+            "title": "Low Confidence Words",
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "require",
+              "waive_unattended",
+              "off"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "done",
+              "waived"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "status",
+          "clear",
+          "stale",
+          "mode",
+          "fingerprint",
+          "low_confidence_words",
+          "low_confidence_threshold"
+        ],
+        "title": "TranscriptRefineStatusView",
+        "type": "object"
+      },
       "TrimBoundaryTarget": {
         "description": "A clip edge to trim. ``mode`` decides its limits: a gap trim also stops at the\nneighbouring clip on the timeline. The token is minted for one mode.",
         "properties": {
@@ -13447,6 +13775,407 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/transcript/export": {
+      "post": {
+        "description": "Writes into the project's export folder; a write waits for no more than two at once.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestTranscriptExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/transcript/exports": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/transcript/refine/done": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestRefineDoneRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptRefineStatusView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/transcript/refine/status": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptRefineStatusView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/transcript/refine/waive": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestRefineWaiveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptRefineStatusView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/transcript/replacement-preview": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestReplacementPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/transcript/vocabulary": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestVocabularyPutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/transcript/word-timing-context": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestWordTimingContextRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {

@@ -131,6 +131,12 @@ export interface FeedWriteRequest {
   path: string;
 }
 
+export interface GuestExpectedTimingWord {
+  text: string;
+  start: number;
+  end: number;
+}
+
 /** Which deliverables an Editor share exports; each name is a format the host fixes. */
 export interface GuestExportRequest {
   formats?: Array<"mp3" | "flac" | "m4a"> | null;
@@ -145,8 +151,51 @@ export interface GuestPipelineRunRequest {
   retime_words?: boolean;
 }
 
-/** Base for the guest request bodies that carry fields of their own (comment, reply, action done, feed edit): unknown fields are refused. Document commands use their typed payloads instead. */
+/** Mark the transcript checked; the share, not the body, says who did it. */
+export interface GuestRefineDoneRequest {
+  notes?: string | null;
+  expected_fingerprint?: string | null;
+}
+
+/** Waive the transcript check; the share, not the body, says who did it. */
+export interface GuestRefineWaiveRequest {
+  reason: string;
+}
+
+/** Preview a find-and-replace on the share's transcript; the search is shorter than the host's. */
+export interface GuestReplacementPreviewRequest {
+  search: string;
+  replacement: string;
+  match_case?: boolean;
+}
+
+/** Base for the guest request bodies that carry fields of their own: unknown fields are refused. Document commands use their typed payloads instead. */
 export type GuestRequest = Record<string, unknown>;
+
+/** Write or preview the share's transcript files; each name is a format the host fixes. */
+export interface GuestTranscriptExportRequest {
+  formats?: Array<"txt" | "md" | "srt" | "vtt">;
+  dry_run?: boolean;
+  with_text?: boolean;
+}
+
+/** Save the project's vocabulary from an Editor share; the share names the project. */
+export interface GuestVocabularyPutRequest {
+  terms: Array<string>;
+  guest_names: Array<string>;
+  base_revision: string | null;
+}
+
+export interface GuestWordTimingContextRequest {
+  target: GuestWordTimingTarget;
+  expected_word: GuestExpectedTimingWord;
+}
+
+export interface GuestWordTimingTarget {
+  track_id: string;
+  source_id: string | null;
+  word_index: number;
+}
 
 export interface PipelineAnalyzeRequest {
   path: string;
@@ -326,7 +375,7 @@ export interface TranscriptRefineDoneRequest {
   expected_fingerprint?: string | null;
 }
 
-/** The transcript check as the Review stage reads it (host only). */
+/** The transcript check as the Review stage reads it. */
 export interface TranscriptRefineStatusView {
   status: "pending" | "done" | "waived";
   clear: boolean;

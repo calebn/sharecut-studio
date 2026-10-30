@@ -34,7 +34,11 @@ GENERIC_GUEST_MESSAGE = "That didn't work; ask the host to check this episode."
 _GUEST_MESSAGES = {
     "clip_not_found": "That clip is unavailable. Ask the host to refresh the project.",
     "cut_scope_changed": "This edit needs another review. Ask the host to review it in the editor before applying it.",
+    "empty_text": "Enter some text and try again.",
+    "export_busy": "This project is busy with an export or render. Try again when it finishes.",
+    "export_target_not_file": "An export file can't be written because something else is in its place. Ask the host to check the export folder.",
     "feed_write_failed": "The feed file could not be written on the host's computer. Ask the host to check that its disk has space and is not read-only, then try again.",
+    "gate_text_too_long": "That note is too long. Shorten it and try again.",
     "invalid_audio": "This upload is not a playable audio file. Choose a supported audio file and try again.",
     "invalid_lease": "Your recording access is no longer valid. Ask the host to reconnect you.",
     "mix_out_of_date": "The mix is out of date. Ask the host to refresh it before playing this range.",
@@ -52,9 +56,18 @@ _GUEST_MESSAGES = {
     "review_artifacts_not_private": "The host's review files need attention; ask the host to check them.",
     "review_media_not_found": "This review's audio isn't available right now; ask the host to republish.",
     "record_consent_required": "Confirm your consent for this take before uploading.",
+    "replacement_token_invalid": "Each replacement word needs a letter or number.",
     "roll_needs_abutting_clips": "These clips need to touch before their join can be rolled. Move one clip to the other or trim an edge.",
     "share_capability_required": "This action isn't available on this link. Ask the host to update its access.",
     "track_not_found": "That track is unavailable. Ask the host to refresh the project.",
+    "transcript_changed": "The transcript changed since you reviewed it. Review the updated transcript before trying again.",
+    "transcript_empty": "Every word is cut, so there is nothing to export.",
+    "transcript_source_ambiguous": "This transcript can't be searched right now. Ask the host to regenerate it.",
+    "transcript_timing_changed": "This word changed. Select it again before adjusting its timing.",
+    "vocabulary_conflict": "The vocabulary changed in another window. Reload it before saving.",
+    "vocabulary_empty": "Each vocabulary entry needs text and must be at most 100 characters. Check the list and try again.",
+    "vocabulary_prompt_too_long": "That vocabulary is too long for the transcription prompt. Remove some terms or names.",
+    "word_not_found": "That word is unavailable. Select it again.",
 }
 
 

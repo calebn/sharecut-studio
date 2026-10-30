@@ -84,11 +84,14 @@ if TYPE_CHECKING:
         CAP_SUGGEST,
         CAP_VIEW,
         DEFAULT_CAPABILITIES,
+        SHARE_ACTOR_PREFIX,
         ReviewRole,
+        ShareSource,
         capabilities_for_role,
         has_capability,
         review_role_for_capabilities,
         share_author,
+        share_review_source,
     )
     from podcast_mcp.services.collaboration.share_page import (
         build_share_head_tags,
@@ -124,6 +127,7 @@ __all__ = [
     "CAP_VIEW",
     "DEFAULT_CAPABILITIES",
     "GUEST_OWNER_ROUTES",
+    "SHARE_ACTOR_PREFIX",
     "SHARE_KIND_RECORD",
     "SHARE_KIND_REVIEW",
     "GuestRoute",
@@ -133,6 +137,7 @@ __all__ = [
     "ReviewService",
     "SessionControlService",
     "ShareService",
+    "ShareSource",
     "SqliteShareRegistry",
     "TunnelError",
     "backup_share_registry",
@@ -196,6 +201,7 @@ __all__ = [
     "share_proxy_chunk_path",
     "share_proxy_manifest",
     "share_public_origin",
+    "share_review_source",
     "share_selected_range_audio",
     "share_set_action_done",
     "share_upload_media",
@@ -208,6 +214,7 @@ _MODULE_BY_NAME = {
     "SessionControlService": "session_control",
     "RecordStaleLinksError": "share",
     "ShareService": "share",
+    "ShareSource": "share_capabilities",
     "TunnelError": "tunnel_failure",
     "build_share_head_tags": "share_page",
     "drop_absolute_path_strings": "share",
@@ -294,6 +301,8 @@ _MODULE_BY_NAME = {
     "has_capability": "share_capabilities",
     "review_role_for_capabilities": "share_capabilities",
     "share_author": "share_capabilities",
+    "SHARE_ACTOR_PREFIX": "share_capabilities",
+    "share_review_source": "share_capabilities",
 }
 
 
