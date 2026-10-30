@@ -97,18 +97,30 @@ function cutMarks(
   return marks;
 }
 
-function suggestionFor(
+/** Pending edits that can mark words, by track, so a word only looks at its own track's edits. */
+function pendingByTrack(
   pending: readonly PendingEditView[],
-  trackId: string,
+): Map<string, PendingEditView[]> {
+  const byTrack = new Map<string, PendingEditView[]>();
+  for (const edit of pending) {
+    if (edit.applied || edit.source_start == null || edit.source_end == null) {
+      continue;
+    }
+    for (const trackId of new Set([edit.track_id, ...(edit.track_ids ?? [])])) {
+      const list = byTrack.get(trackId);
+      if (list) list.push(edit);
+      else byTrack.set(trackId, [edit]);
+    }
+  }
+  return byTrack;
+}
+
+function suggestionFor(
+  edits: readonly PendingEditView[] | undefined,
   word: TranscriptWordView,
 ): string | null {
-  for (const edit of pending) {
-    if (edit.applied) continue;
-    const onTrack =
-      edit.track_id === trackId || edit.track_ids?.includes(trackId) === true;
-    if (onTrack && overlaps(word, edit.source_start, edit.source_end)) {
-      return edit.id;
-    }
+  for (const edit of edits ?? []) {
+    if (overlaps(word, edit.source_start, edit.source_end)) return edit.id;
   }
   return null;
 }
@@ -132,6 +144,7 @@ function markOf(
  */
 export function buildScriptModel(input: ScriptModelInput): ScriptModel {
   const cuts = cutMarks(input.boundaries);
+  const pending = pendingByTrack(input.pending);
   const grouped = groupConsecutiveSpeakerTurns([...input.utterances]);
   const refs: ScriptWordRef[] = [];
   const times: Array<{ start: number; end: number } | null> = [];
@@ -168,7 +181,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
         const mark = markOf(
           word,
           cuts.get(key),
-          suggestionFor(input.pending, utterance.track_id, word),
+          suggestionFor(pending.get(utterance.track_id), word),
         );
         words.push({
           index,
