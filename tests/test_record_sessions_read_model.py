@@ -65,7 +65,8 @@ def test_two_sessions_are_ordered_oldest_first(minimal_project, sample_wav, tmp_
     assert [i["session_id"] for i in items] == [first["session_id"], second["session_id"]]
     assert [i["state"] for i in items] == ["ended", "open"]
     assert [i["number"] for i in items] == [1, None]
-    assert items[0]["takes"] == [] and items[0]["landed"] is True
+    assert items[0]["takes"] == [{"take_index": 0, "recording_ms": 3_000}]
+    assert items[0]["landed"] is True
 
 
 def test_missing_snapshot_returns_what_the_project_holds(
@@ -105,3 +106,55 @@ def test_revoked_row_without_revoked_at_has_no_end_time() -> None:
         "2026-01-02T00:00:00+00:00"
     )
     assert sessions_module._ended_at([{"revoked_at": "x", "revoked": False}]) is None
+
+
+def _guest_track(item):
+    return next(p["track_id"] for p in item["participants"] if p["role"] == "guest")
+
+
+def test_ended_session_keeps_its_summary_after_a_newer_room_resets_the_store(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _ws(minimal_project, sample_wav)
+    first, _ = _land_session(ws)
+    ShareService(ws).revoke_room(first["session_id"])
+    live = list_record_sessions(ws.project)[0]
+    ShareService(ws).create_record_room()
+    kept = next(
+        i for i in list_record_sessions(ws.project) if i["session_id"] == first["session_id"]
+    )
+    assert kept["takes"] == live["takes"] == [{"take_index": 0, "recording_ms": 3_000}]
+    assert kept["participants"] == live["participants"]
+    assert _guest_track(kept)
+
+
+def test_second_summary_write_does_not_clobber_the_first(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _ws(minimal_project, sample_wav)
+    first, _ = _land_session(ws)
+    sid = first["session_id"]
+    ShareService(ws).revoke_room(sid)
+    path = sessions_module._summaries_path(ws.project.workspace_path())
+    before = path.read_text()
+    sessions_module.persist_session_summary(ws.project, sid)
+    assert path.read_text() == before
+    ShareService(ws).create_record_room()
+    sessions_module.persist_session_summary(ws.project, sid)
+    assert path.read_text() == before
+
+
+def test_failing_summary_write_does_not_break_revoke(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _ws(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+
+    def boom(*_a, **_k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(sessions_module, "write_json_atomic", boom)
+    result = ShareService(ws).revoke_room(room["session_id"])
+    assert result["revoked"]
+    [item] = list_record_sessions(ws.project)
+    assert item["state"] == "ended"

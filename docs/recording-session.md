@@ -152,8 +152,11 @@ server found no unsaved audio it can see (see Known gaps below).
 (`take_index`, `recording_ms`), `participants` (`participant_id`, `display_name`, `role`, `track_id`
 from the host's track choice or the session's landed clips), `landed` and `ended_at` (when the last
 link was revoked; `null` for sessions ended before this was recorded). A session appears once it has
-a link row or a landing. The room's snapshot store holds one session, so after a newer room is
-minted an older session reports no `takes` or `participants`, only what the project holds.
+a link row or a landing. The room's snapshot store holds one session and a newer mint resets it, so
+ending a room (`revoke_room`) first saves that session's `takes` and `participants` to
+`artifacts/record_session_summaries.json` (first write wins; a failed write is logged and never
+fails the end). A session reads from the live snapshot when the store still holds it, else from
+that saved summary, else reports empty `takes` and `participants`.
 
 Every mint (`podcast review share --kind record`, `create_record_room_tool`,
 `POST /api/shares/record`) returns the same fields, describing what the mint left
