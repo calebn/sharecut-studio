@@ -370,7 +370,11 @@ class TranscriptService(WorkspaceService):
         language = transcript_language(fresh)
         out: list[ExportedTranscript] = []
         for fmt, path in found:
-            data = path.read_bytes()
+            try:
+                data = path.read_bytes()
+                mtime = path.stat().st_mtime
+            except FileNotFoundError:
+                continue
             out.append(
                 ExportedTranscript(
                     format=fmt,
@@ -379,9 +383,7 @@ class TranscriptService(WorkspaceService):
                     mime=TRANSCRIPT_MIME[fmt],
                     language=language,
                     bytes=len(data),
-                    modified=datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).strftime(
-                        "%Y-%m-%dT%H:%M:%SZ"
-                    ),
+                    modified=datetime.fromtimestamp(mtime, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     current=_same_transcript(fmt, data, rendered[fmt], fresh),
                 )
             )

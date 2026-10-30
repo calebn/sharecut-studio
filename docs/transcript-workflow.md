@@ -601,7 +601,8 @@ with_text)`, and host HTTP `POST /api/transcript/export` all return the same res
 - `podcast transcript exports --project P [--json]`, MCP `list_exported_transcripts` and
   `GET /api/transcript/exports` list what is on disk (`<stem>.{txt,md,srt,vtt}` only, never
   `bounces/` or `clips/`) with `mime`, `language`, `modified` and `current` (false once the
-  transcript was edited since the file was written).
+  transcript was edited since the file was written). Listing takes no lock and omits a
+  file if it disappears before its bytes or modification timestamp can be read.
 - The pipeline's Export step and audio Export write `md` and `srt` through the same renderers
   (`export/transcript.py: render_transcript_formats`).
 
