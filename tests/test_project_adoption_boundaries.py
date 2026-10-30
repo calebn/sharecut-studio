@@ -20,7 +20,6 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.gui import gui_app
 from podcast_mcp.cli.main import app as cli_app
 from podcast_mcp.cli.setup_cmd import setup_app
-from podcast_mcp.gui.routes import handoff
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME, adopt_retired_entry_file
 from podcast_mcp.services.app import (
@@ -164,24 +163,21 @@ def test_handoff_ping_does_not_rename_a_project_it_does_not_serve(
 
 def test_handoff_ping_names_the_served_project_by_its_retired_file(minimal_project: Path):
     app = create_app(served_project=minimal_project)
+    before = minimal_project.read_bytes()
     retired = minimal_project.with_name(RETIRED_PROJECT_FILENAME)
-    retired.write_bytes(minimal_project.read_bytes())
-    answers: list[tuple[str, bool]] = []
+    retired.write_bytes(before)
+    assert not retired.samefile(minimal_project)
 
-    def spy(request, project: str) -> bool:
-        answers.append((project, real_serves(request, project)))
-        return answers[-1][1]
+    res = TestClient(app, client=LOOPBACK).get(
+        "/api/handoff/ping",
+        params={"project": str(retired)},
+        headers={HANDOFF_TOKEN_HEADER: app.state.studio_host.token},
+    )
 
-    real_serves = handoff._serves
-    with patch("podcast_mcp.gui.routes.handoff._serves", spy):
-        res = TestClient(app, client=LOOPBACK).get(
-            "/api/handoff/ping",
-            params={"project": str(retired)},
-            headers={HANDOFF_TOKEN_HEADER: app.state.studio_host.token},
-        )
+    assert res.status_code == 200, res.text
     assert res.json()["serves"] is True
-    assert answers == [(str(retired), True)]
     assert _files(minimal_project.parent) == sorted(["episode.sharecut", RETIRED_PROJECT_FILENAME])
+    assert minimal_project.read_bytes() == retired.read_bytes() == before
 
 
 def _share_token(minimal_project: Path, sample_wav: Path) -> str:
