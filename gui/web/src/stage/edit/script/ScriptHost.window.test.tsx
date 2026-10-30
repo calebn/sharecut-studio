@@ -1,10 +1,4 @@
-import {
-  act,
-  fireEvent,
-  render,
-  renderHook,
-  screen,
-} from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,12 +10,7 @@ import {
 } from "../../../test/scriptHostKit";
 import type { CombinedUtterance } from "../../../types/project";
 import { ScriptHost } from "./ScriptHost";
-import { buildScriptModel } from "./scriptModel";
-import {
-  useScriptWindow,
-  WINDOW_LIMIT,
-  WINDOW_MARGIN,
-} from "./useScriptWindow";
+import { WINDOW_LIMIT, WINDOW_MARGIN } from "./useScriptWindow";
 
 const seekTransport = vi.hoisted(() => vi.fn());
 vi.mock("../../../commands/seek", () => ({ seekTransport }));
