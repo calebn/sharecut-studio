@@ -6,7 +6,7 @@ back within a few seconds (Agus et al. 2010; Rajendran et al. 2016), and the lon
 the more of it is repeat. A steady room is its spectrum and its level, so past
 ``SYNTH_MAX_REPLAY_SEC`` of replay the fill is noise synthesised to the spectrum and level of
 that clean stretch (the method gate fill and bleed fill use, ``gate_fill.synthesise_noise``),
-which has no period.
+which has no period inside its ``SYNTH_FILE_SEC`` file (a fill past that length tiles it).
 
 Only a steady room is synthesised. A spectrum alone does not make a sound that is not
 stationary noise (McDermott and Simoncelli 2011), so a stretch whose level moves by more
@@ -32,7 +32,7 @@ from pathlib import Path
 
 import numpy as np
 
-from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
+from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.gate_fill import (
     MIN_FILL_HZ,
     MIN_ROOM_SEC,
@@ -68,7 +68,8 @@ SYNTH_REV = 1
 SYNTH_MAX_REPLAY_SEC = 1.0
 SYNTH_FILE_SEC = 60.0
 SYNTH_RATE = 48000
-SYNTH_DIR = "artifacts/room_tone_synth"
+# Under raw/, beside the recorded beds: a relocated workspace copy keeps raw/ but drops artifacts/.
+SYNTH_DIR = "raw/room-tone-synth"
 SYNTH_ID_PREFIX = "synth-room-tone-"
 STEADY_WINDOW_SEC = 0.5
 TONAL_PEAK_DB = 10.0
@@ -135,20 +136,49 @@ def room_tone_for_gap(
         )
 
     selection = span(duration_sec)
+    if gap_sec <= _replayed_sec(selection) + SYNTH_MAX_REPLAY_SEC:
+        return selection
     basis = _basis(project, track_id, selection)
-    if basis is None or gap_sec <= basis.end - basis.start + SYNTH_MAX_REPLAY_SEC:
+    if basis is None:
         return selection
     if basis.end - basis.start < MIN_ROOM_SEC and isinstance(selection, OwnQuietSample):
-        basis = _basis(project, track_id, span(POOL_SAMPLE_SEC))
+        pooled = span(POOL_SAMPLE_SEC)
+        if gap_sec <= _replayed_sec(pooled) + SYNTH_MAX_REPLAY_SEC:
+            return selection
+        basis = _basis(project, track_id, pooled)
         if basis is None:
             return selection
     synthesised = _synthesise(project, track_id, basis, gap_sec, seed_sec)
     return selection if synthesised is None else synthesised
 
 
+def _replayed_sec(selection: RoomToneSelection) -> float:
+    """Seconds of recorded audio the tiler replays for ``selection``."""
+    if isinstance(selection, SampleAbsent):
+        return float("inf")
+    if isinstance(selection, OwnQuietSample):
+        return selection.sample.end - selection.sample.start
+    return selection.end - selection.start
+
+
 def room_tone_synth_digest() -> str:
     """What decides whether a fill is synthesised: part of a preview's cache key."""
-    return f"{SYNTH_REV}:{SYNTH_MAX_REPLAY_SEC}"
+    return f"{_params()}"
+
+
+def _params() -> str:
+    """Every constant that changes a synthesised file or whether a fill gets one."""
+    return ":".join(
+        str(value)
+        for value in (
+            SYNTH_REV,
+            SYNTH_MAX_REPLAY_SEC,
+            SYNTH_FILE_SEC,
+            LEVEL_TOLERANCE_DB,
+            TONAL_PEAK_DB,
+            NOISE_SPREAD_DB,
+        )
+    )
 
 
 def register_synth_source(project: EpisodeProject, sample: SynthSample) -> None:
@@ -182,14 +212,20 @@ def _synthesise(
 ) -> SynthSample | None:
     if basis.end - basis.start < MIN_ROOM_SEC:
         return None
-    analysis = _analyse(str(basis.path), file_revision(basis.path), basis)
+    try:
+        analysis = _analyse(str(basis.path), file_revision(basis.path), basis)
+    except OSError:
+        return None
     if analysis is None:
         return None
     source_id = f"{SYNTH_ID_PREFIX}{track_id}-{analysis.digest}"
     rel_path = f"{SYNTH_DIR}/{track_id}_{analysis.digest}.flac"
     dest = resolve_under_workspace(project, rel_path)
-    if not dest.is_file():
-        _write_file(dest, analysis, source_id)
+    try:
+        if not dest.is_file():
+            _write_file(dest, analysis, source_id)
+    except Exception:
+        return None
     length = min(gap_sec, SYNTH_FILE_SEC)
     start = seed_fraction(seed_sec) * (SYNTH_FILE_SEC - length)
     sample = SynthSample(start, start + length, source_id, dest, rel_path, SYNTH_FILE_SEC)
@@ -208,7 +244,7 @@ def _analyse(path: str, revision: object, basis: _Basis) -> _Analysis | None:
             duration_sec=basis.end - basis.start,
             sample_rate=SYNTH_RATE,
         )
-    except AudioWindowUnavailableError:
+    except Exception:
         return None
     measured = measure_noise_psd(samples, SYNTH_RATE)
     if measured is None or not _steady(samples) or _tonal(*measured):
@@ -218,7 +254,7 @@ def _analyse(path: str, revision: object, basis: _Basis) -> _Analysis | None:
     if abs(rms_db(probe) - rms_db(samples - np.mean(samples))) > LEVEL_TOLERANCE_DB:
         return None
     digest = hashlib.sha256(
-        f"{SYNTH_REV}:{basis.kind}:{SYNTH_RATE}".encode()
+        f"{_params()}:{basis.kind}:{SYNTH_RATE}".encode()
         + np.asarray(samples, dtype="<f4").tobytes()
     ).hexdigest()[:16]
     return _Analysis(digest, psd, nfft)
