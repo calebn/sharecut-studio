@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { CommentCompose } from "./CommentCompose";
-import { CommentTimeChip } from "./CommentTimeChip";
 
 type Args = Parameters<typeof CommentCompose>[0];
 
@@ -42,7 +41,7 @@ const meta: Meta<typeof CommentCompose> = {
   component: CommentCompose,
   tags: ["autodocs"],
   render: (args) => (
-    <div className="comments-panel">
+    <div>
       <ComposeHarness
         key={JSON.stringify([args.body, args.author])}
         {...args}
@@ -61,13 +60,13 @@ type Story = StoryObj<typeof CommentCompose>;
 
 export const Empty: Story = {
   args: {
-    anchor: <CommentTimeChip label="0:00" onCommit={fn(() => null)} />,
+    anchor: <span className="sys-mono">0:00</span>,
   },
   parameters: {
     docs: {
       description: {
         story:
-          "An empty draft: Post comment waits for text, and the time chip shows where the comment lands.",
+          "An empty draft: Post comment waits for text, and the anchor shows where the comment lands.",
       },
     },
   },
@@ -83,7 +82,7 @@ export const Empty: Story = {
 
 export const DraftAndPost: Story = {
   render: (args) => (
-    <div className="comments-panel">
+    <div>
       <ComposeHarness
         key={JSON.stringify([args.body, args.author])}
         {...args}

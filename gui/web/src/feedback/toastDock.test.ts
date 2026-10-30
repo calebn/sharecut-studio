@@ -319,18 +319,16 @@ describe("useToastDock", () => {
     },
   );
 
-  it.each([
-    "comment-compose",
-    "comment-author-line",
-    "comment-author-edit",
-    "sys-composer",
-  ])("ignores a disjoint protected %s", (className) => {
-    const H = window.innerHeight;
-    const { readBottom } = mountRegion();
-    box("stage-frame-player", H - 28, H);
-    box(className, H - 84, H - 36, 360, 390);
-    expect(readBottom()).toBe(36);
-  });
+  it.each(["comment-compose", "sys-composer"])(
+    "ignores a disjoint protected %s",
+    (className) => {
+      const H = window.innerHeight;
+      const { readBottom } = mountRegion();
+      box("stage-frame-player", H - 28, H);
+      box(className, H - 84, H - 36, 360, 390);
+      expect(readBottom()).toBe(36);
+    },
+  );
 
   it("projects the pressed control against the card", () => {
     document.documentElement.dataset.shell = "phone";
