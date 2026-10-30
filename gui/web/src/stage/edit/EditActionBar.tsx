@@ -35,10 +35,13 @@ function EditActionBarImpl({
   form,
   root,
   onRan,
+  inInspector = false,
 }: {
   form: EditActionBarForm;
   root: HTMLElement | null;
   onRan?: () => void;
+  /** The dock of the open Inspector sheet, whose own grip stands for Inspect. */
+  inInspector?: boolean;
 }) {
   const { selection, project, projectPath, shareCapabilities, moreRequest } =
     useDawStore(
@@ -124,7 +127,11 @@ function EditActionBarImpl({
       }
       ariaLabel={floating ? "Selection actions" : "Edit actions"}
       leading={leading}
-      items={model.items}
+      items={
+        inInspector
+          ? model.items.filter((item) => item.id !== "inspect")
+          : model.items
+      }
       more={model.more}
       primary={model.primary ?? undefined}
       moreRequest={moreRequest}

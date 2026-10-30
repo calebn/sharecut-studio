@@ -50,7 +50,7 @@ const meta: Meta<Args> = {
     docs: {
       description: {
         component:
-          "The Edit stage host: the timeline with its track headers, the Script pane, the Inspector and the sheets that hang off them. The corner holds fit, zoom and the Script toggle; the eye opens the View sheet and the + row under the last track adds audio, a track or a chapter.\n\n**Motion.** Nothing in the workspace animates: the Script pane, the divider and the Inspector column change width in one frame. The View and Mix sheets use the system Sheet's own motion (`--motion-hover`, the phone detents).\n\n**Per-stage view.** Zoom and scroll belong to the stage: leaving Edit saves them, coming back restores them. The Script pane's scroll position is saved when the pane unmounts.",
+          "The Edit stage host: the timeline with its track headers, the Script pane, the Inspector and the sheets that hang off them. The corner holds fit, zoom and the Script toggle; the eye opens the View sheet and the + row under the last track adds audio, a track or a chapter.\n\n**Motion.** Nothing in the workspace animates: the Script pane and the divider change width in one frame, and the Inspector card floats over the lanes without moving them. The View and Mix sheets use the system Sheet's own motion (`--motion-hover`, the phone detents).\n\n**Per-stage view.** Zoom and scroll belong to the stage: leaving Edit saves them, coming back restores them. The Script pane's scroll position is saved when the pane unmounts.",
       },
     },
   },
@@ -134,19 +134,68 @@ export const EyeSheet: Story = {
   },
 };
 
-export const WithInspector: Story = {
+export const InspectorClosed: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason: WIDE_ONLY_REASON,
+    episode: { selection: selections.clip },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("group", { name: "Selection actions" }),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("dialog")).toBeNull();
+  },
+};
+
+export const InspectorOnClip: Story = {
+  tags: ["wide-only"],
+  parameters: {
+    wideOnlyReason: WIDE_ONLY_REASON,
+    episode: {
+      selection: selections.clip,
+      state: { inspectorKey: inspectKeyOf(selections.clip) },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const card = await within(canvasElement).findByRole("dialog", {
+      name: "Inspector",
+    });
+    await expect(
+      within(card).getByRole("heading", { name: /clip$/ }),
+    ).toBeVisible();
+    await expect(card).toBeVisible();
+    await expect(
+      within(card).getByRole("button", { name: "Close" }),
+    ).toBeVisible();
+  },
+};
+
+export const InspectorPhone: Story = {
+  ...phone,
+  parameters: {
     episode: {
       selection: selections.track,
       state: { inspectorKey: inspectKeyOf(selections.track) },
     },
   },
   play: async ({ canvasElement }) => {
-    await waitFor(() =>
-      expect(canvasElement.querySelector(".edit-inspector")).not.toBeNull(),
-    );
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("group", { name: "Tracks" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
+    const sheet = await canvas.findByRole("dialog");
+    await expect(
+      within(sheet).getByRole("slider", { name: "Sheet height" }),
+    ).toHaveAttribute("aria-valuetext", "Half height");
+    await expect(
+      within(sheet).getByRole("group", { name: "Edit actions" }),
+    ).toBeVisible();
+    await expect(
+      within(sheet).queryByRole("button", { name: "Inspect" }),
+    ).toBeNull();
   },
 };
 
@@ -165,7 +214,7 @@ export const WithActionBar: Story = {
     await expect(
       within(bar).getByRole("button", { name: "Cut" }),
     ).toBeVisible();
-    await expect(canvasElement.querySelector(".edit-inspector")).toBeNull();
+    await expect(canvas.queryByRole("dialog")).toBeNull();
   },
 };
 

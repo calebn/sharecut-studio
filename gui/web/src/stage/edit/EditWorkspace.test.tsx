@@ -86,22 +86,23 @@ describe("EditWorkspace regions", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens the Inspector column on Inspect, never because something is selected", () => {
-    const { container } = render(<EditWorkspace />);
-    expect(container.querySelector(".edit-inspector")).toBeNull();
+  it("opens the Inspector card on Inspect, never because something is selected", () => {
+    render(<EditWorkspace />);
+    const card = () => screen.queryByRole("dialog", { name: "Inspector" });
+    expect(card()).toBeNull();
     act(() =>
       useDawStore.getState().setSelection({ kind: "track", trackId: "host" }),
     );
-    expect(container.querySelector(".edit-inspector")).toBeNull();
+    expect(card()).toBeNull();
     act(() => useDawStore.getState().setInspectorOpen(true));
-    expect(container.querySelector(".edit-inspector")).not.toBeNull();
+    expect(card()).not.toBeNull();
     act(() =>
       useDawStore.getState().setSelection({ kind: "track", trackId: "guest" }),
     );
-    expect(container.querySelector(".edit-inspector")).toBeNull();
+    expect(card()).toBeNull();
     act(() => useDawStore.getState().setInspectorOpen(true));
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    expect(container.querySelector(".edit-inspector")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(useDawStore.getState().selection).toMatchObject({
       kind: "track",
       trackId: "guest",
@@ -222,10 +223,10 @@ describe("EditWorkspace focus regions", () => {
       useDawStore.getState().setSelection({ kind: "track", trackId: "host" });
       useDawStore.getState().setInspectorOpen(true);
     });
-    const { container } = render(<EditWorkspace />);
+    render(<EditWorkspace />);
     for (const target of [
       screen.getByRole("separator", { name: "Resize Script" }),
-      container.querySelector<HTMLElement>(".edit-inspector"),
+      screen.getByRole("dialog", { name: "Inspector" }),
     ]) {
       act(() => useDawStore.getState().setTimelineFocused(true));
       fireEvent.mouseDown(target as HTMLElement);

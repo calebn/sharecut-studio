@@ -932,27 +932,17 @@ visible above the inspector:
 | 800×360 sideways | none (timeline covered) | 125 | 107 |
 | 844×390 sideways | none (timeline covered) | 155 | 107 |
 
-### Decision: The Inspector is a column on a short wide touch screen
+### Superseded decision: The Inspector is a column on a short wide touch screen
 
 <!-- decision
 id: D-inspector-column
-status: accepted
+status: superseded
 date: 2026-10-18
 decided-by: calebn
 evidence:
 - #1696: owner request (calebn, 2026-10-17, project chat) to present the selection Inspector as a side column on a phone held sideways
 - #1694 and #1714: the lane band kept the lane and the form on screen, but they shared a short vertical space and the keypad squeezed both
-enforced-by:
-- gui/web/src/stage/edit/useInspectorColumn.test.ts::asks for a short, wide screen whose primary pointer is coarse
-- gui/web/src/stage/edit/useSelectionSheet.test.tsx::puts the %s shell's inspector in a column on a short wide touch screen
-- gui/web/src/ui/compactSheet.test.ts::is invisible to every keep-clear helper, which look for the sheet class
-- gui/web/e2e-compat/inspector-column.spec.ts::a clip's Inspector is a column beside a whole timeline, and Close returns the shell
-- gui/web/e2e-compat/inspector-column.spec.ts::with the keyboard up the column shortens to the visible viewport and keeps its header
-- gui/web/e2e-compat/inspector-column.spec.ts::with iOS's shrunk layout height the column is exactly the visible band, not the keyboard twice
-- gui/web/e2e-compat/inspector-column.spec.ts::turning upright keeps an unsaved draft and its focus in the Inspector
-- gui/web/e2e-compat/inspector-column.spec.ts::with Safari's chrome collapsed the column stops above the Player, not over the focused field
-- gui/web/src/ui/BottomSheet.test.tsx::keeps the draft, the elements and the focus when the phone rotates and back
-- gui/web/src/stage/edit/useSelectionSheet.test.tsx::keeps the full Inspector, not the peek strip, when the phone turns upright over the same selection
+superseded-by: D-inspector-sheet-no-column
 -->
 
 Amended by #2294 (W1b, calebn, 2026-10-28): the Inspector opens only on Inspect
@@ -978,6 +968,33 @@ the phone upright shows the full Inspector, not the peek strip.
 This replaces the lane band and the compact strip on those screens, and no
 other. A gesture that needs the compact strip's Undo header does not exist
 there: Undo and Redo are in the app header, which the column leaves usable.
+
+Superseded by #2294 (W3a, calebn, 2026-10-30): the spec's Inspector sheet is a
+bottom sheet on the phone in either orientation (design-system 9a), so the
+column, `useInspectorColumn` and the side-column placement of the Edit stage's
+Inspector are gone. The generic `BottomSheet` still has a column placement that
+nothing in the Edit stage uses; it goes with the legacy bodies (W3c).
+
+### Decision: The phone Inspector is the sheet in either orientation
+
+<!-- decision
+id: D-inspector-sheet-no-column
+status: accepted
+date: 2026-10-30
+decided-by: calebn
+evidence:
+- #2294 W3a owner decision g6 (2026-10-30): the phone-landscape column is deleted and the Inspector is the bottom sheet only, as design-system 9a and spec-edit SHEET-INSPECTOR say
+enforced-by:
+- gui/web/src/stage/edit/InspectorHost.test.tsx::carries the Action bar as its dock without Inspect, and opens at half
+- gui/web/src/stage/edit/InspectorHost.test.tsx::steps through its detents from the grip and clears the selection when dismissed
+- gui/web/src/stage/edit/useInspectorOpen.test.tsx::peeks only on the phone's lanes
+supersedes: D-inspector-column
+-->
+
+On the phone the Inspector is the Inspector sheet (dock, half, full) whatever
+the orientation; the desktop and the tablet get the card beside the selection.
+A timeline target on the phone still opens the peek strip until the legacy
+bodies are replaced.
 
 ### Pinch never edits (#1051 round 4)
 

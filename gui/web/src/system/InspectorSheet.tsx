@@ -44,6 +44,8 @@ export type InspectorSection = {
 type InspectorBase = {
   icon: SystemIconName;
   name: string;
+  /** The dialog's accessible name when the host keeps a fixed one; the name is then the visible title. */
+  label?: string;
   /** Makes the name an inline field; the new name is reported on Enter or blur. */
   onRename?: (name: string) => void;
   sections: readonly InspectorSection[];
@@ -202,6 +204,7 @@ function closeOnEscape(onClose: () => void) {
 function Card({
   icon,
   name,
+  label,
   onRename,
   sections,
   onClose,
@@ -221,7 +224,7 @@ function Card({
       className="sys-sheet sys-inspector sys-inspector--card"
       role="dialog"
       aria-modal="false"
-      aria-label={name}
+      aria-label={label ?? name}
       data-side={place.side}
       style={style}
     >
@@ -254,6 +257,7 @@ type Drag = {
 function Phone({
   icon,
   name,
+  label,
   onRename,
   sections,
   onClose,
@@ -341,7 +345,7 @@ function Phone({
       className="sys-inspector sys-inspector--phone"
       role="dialog"
       aria-modal="false"
-      aria-label={name}
+      aria-label={label ?? name}
       data-detent={detent}
       data-dragging={dragging === null ? undefined : ""}
       style={style}

@@ -125,56 +125,15 @@ held sideways) compact the editor:
   return. An explicit panel or layout command ends adaptation for the session.
   The saved collapsed preference remains binary, and entering the phone shell
   keeps its existing reset to default. See [Responsive shells](gui-viewer.md#responsive-shells).
-- **The Inspector is a column (#1696).** On a coarse primary pointer at most
-  40rem tall and at least 40rem wide (a phone held sideways at 667×375, 844×390
-  or 932×430; one rule, `useInspectorColumn`, whichever shell the width puts it
-  on) the selection Inspector is a column on the inline end of the shell
-  instead of a bottom sheet. The decision lives in `SelectionSheet.placement`
-  (`useSelectionSheet`), flows through `SheetPresentation` and `MobileSheet`
-  into `BottomSheet`'s `placement="column"`, and the frame's
-  `:has(.bottom-sheet--column)` rule adds the second grid column, so no CSS repeats the media
-  query. The column renders in place, as a grid child of `.stage-frame` (no
-  portal), in a second grid column of `--inspector-column-width`
-  (`clamp(16rem, 32vw, 22rem)`). Transport, banners and the status line keep
-  the whole width; the timeline keeps the whole main row; the tablet's bottom
-  tabs row and the phone's mode nav give way while the column is open and
-  return when the current layout permits after it closes. Close leaves layout
-  intent unchanged. Adaptive panels stay stowed in a short tablet, explicitly
-  open panels return, and an explicitly maximized timeline stays collapsed.
-  Phone navigation returns. It has the title, **Close**, Escape and focus
-  restore of any sheet, and none of the sheet's other parts: no scrim, no
-  drawer or detents, no Expand or Collapse, no slide-up, and no compact strip
-  (the strip and its Undo and Redo header belong to the sheet; the corner
-  stays usable beside the column). The panel carries
-  none of `bottom-sheet--inspector`, `--compact` or `--lane-band`, so
-  `inspectorSheetPanel`, `keepTargetClear`, `useKeepSelectionClear`,
-  `useKeepEditedLaneClear` and the pending edit card's docking all find no
-  sheet and do nothing: nothing caps the form or scrolls the timeline for it.
-  The form is the regular one (stacked fields, help copy visible), in a header
-  that stays pinned over a body that scrolls inside the column. For an
-  envelope selection `useRevealEditedLane` only scrolls the edited lane whole
-  into its scroller, again after a rotation. The tool rail makes the narrow
-  rail's trade (ingest buttons to Menu and More, Select range as an icon) so
-  it keeps one row beside the column, a toast centres over the timeline beside
-  it, and a pending edit's Approve and Reject card, which has no sheet to dock
-  in, floats within the timeline beside the column. The shell pads for the notch,
-  Dynamic Island and home indicator, so the column inherits them. With the
-  software keyboard up (`html[data-keyboard="open"]`) the column leaves the
-  grid flow (its track stays, so the timeline does not move) and takes the
-  visible band of the viewport: `--visual-viewport-top` down by
-  `--visual-viewport-height`, with `grid-area: auto` and never below the Player
-  (`--column-floor`, less the part the keypad covers), so its header and Close stay on screen and
-  the body scrolls above the keypad. Turning the phone
-  keeps the Inspector mounted: the sheet and the column portal into one host
-  element that only changes parent (`ui/sheetHost.tsx`), so a draft, the
-  focused field and the dialog's focus restore survive a flip inside one shell,
-  and the compact sheet body keeps its scroll offset with the field revealed,
-  and the full Inspector stays the full Inspector (`useCompactInspector`
-  treats the column as held). Under 40rem wide (an iPhone SE first generation or
-  a 568×320 window) and in portrait the bottom sheet or compact strip stays,
-  and so does a mouse window of that size. Pins:
-  `e2e-compat/inspector-column.spec.ts`; the bullets below describe the sheet
-  that remains.
+- **The phone Inspector is the sheet in either orientation (#2294 W3a).** The
+  side column of #1696 is gone: `useInspectorColumn`, the column placement of
+  the Edit stage's Inspector and its `e2e-compat/inspector-column.spec.ts` are
+  deleted (decision `D-inspector-sheet-no-column`). The Edit stage mounts one
+  `InspectorHost` (`stage/edit/InspectorHost.tsx`): the Inspector sheet with the
+  Action bar as its dock on a phone held either way, and a card beside the
+  selection on a tablet. A timeline target on the phone still opens the peek
+  strip. `BottomSheet`'s generic `placement="column"` and its frame rule remain
+  until the legacy bodies go (W3c).
 - **A volume-envelope sheet leaves its lane in view (#1694, #1714).** On a
   tablet shell with a fine pointer, or a phone shell under 40rem wide (a
   568×320 window), at most 40rem tall, the regular inspector sheet for an `envelope` or

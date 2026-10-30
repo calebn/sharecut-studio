@@ -236,11 +236,11 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 
 ## Responsive shells
 
-The phone and tablet selection sheets render one body from `SELECTION_SURFACES` (`inspector/selectionSurface.tsx`) through `useSelectionSheet`; on tablet, an agent session range stays in the open selection sheet, including compact peek. See [gui-mobile.md](gui-mobile.md#one-selection-surface-table). `ShellBreakpoint` is defined once, in `state/types.ts`.
+The Edit stage's Inspector (a card on the desktop and the tablet, a bottom sheet on the phone) renders one body from `SELECTION_SURFACES` (`inspector/selectionSurface.tsx`) through `InspectorHost`; on tablet, an agent session range stays in the open Inspector card. See [gui-mobile.md](gui-mobile.md#one-selection-surface-table). `ShellBreakpoint` is defined once, in `state/types.ts`.
 
-The bottom dock, its collapsed-panel preference and the adaptive layout were removed with the layout presets (#2292); there is no `sharecut.tabsCollapsed` any more. On a short tablet the Edit stage gives the timeline the whole body and the Script pane is toggled with **T** (`view.toggleScript`) or the Script divider. Selection Inspectors keep their column, compact-sheet and lane-band placement, and closing the Inspector leaves the Script state unchanged.
+The bottom dock, its collapsed-panel preference and the adaptive layout were removed with the layout presets (#2292); there is no `sharecut.tabsCollapsed` any more. On a short tablet the Edit stage gives the timeline the whole body and the Script pane is toggled with **T** (`view.toggleScript`) or the Script divider. Selection Inspectors open as the card or the phone sheet, and closing the Inspector leaves the Script state unchanged.
 
-`useSelectionSheet` also decides where that body sits (`SelectionSheet.placement`): a bottom sheet, or, on a coarse pointer at most 40rem tall and at least 40rem wide (a phone held sideways), a column on the inline end of the shell in place of the sheet (#1696, `useInspectorColumn`; `BottomSheet` `placement="column"`, class `daw-shell--inspector-column`). See [gui-mobile.md](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
+`useInspectorOpen` decides whether the Inspector is open (Inspect, never selection alone; an armed range opens it on the phone and the tablet) and `InspectorHost` decides where it sits: the card beside the selection, or the phone's bottom sheet, or the peek strip for a phone timeline target. There is no side column any more (decision `D-inspector-sheet-no-column`). See [gui-mobile.md](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
 
 Every button inside `.modifier-footer-actions`, including nested menu triggers
 and preview modes, has a minimum height of `--touch-min` on coarse pointers and
