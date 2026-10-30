@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { revokeHostRoom } from "../api";
 import { errorMessage } from "../utils/apiError";
-
-export const END_SESSION_UNDO_MS = 10_000;
+import { END_SESSION_UNDO_MS } from "./types";
 
 type Ending = { projectPath: string; sessionId: string };
 

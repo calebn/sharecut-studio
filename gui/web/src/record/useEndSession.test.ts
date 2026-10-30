@@ -6,7 +6,8 @@ vi.mock("../api", () => ({
   revokeHostRoom: (...args: unknown[]) => revokeHostRoom(...args),
 }));
 
-import { END_SESSION_UNDO_MS, useEndSession } from "./useEndSession";
+import { END_SESSION_UNDO_MS } from "./types";
+import { useEndSession } from "./useEndSession";
 
 const onEnded = vi.fn();
 const onFailed = vi.fn();

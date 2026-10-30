@@ -36,6 +36,12 @@ export type RecordStageViewProps = {
 
 const NO_TRACK_NAMES: ReadonlyMap<string, string> = new Map();
 
+function createLabel(last: RecordSessionSummary | null | undefined): string {
+  return last?.number == null
+    ? "Create record room"
+    : `Start Session ${last.number + 1}`;
+}
+
 function EmptyRoom({
   lookup,
   lastSession,
@@ -87,7 +93,7 @@ function EmptyRoom({
               aria-disabled={busy || undefined}
               onClick={onCreateRoom}
             >
-              Create record room
+              {createLabel(lastSession)}
             </Button>
           </div>
         </section>
