@@ -48,6 +48,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "ui/useMenuKeyboard.ts",
   "commands/governance.test.ts",
   "stage/edit/ScriptDivider.test.tsx",
+  "stage/edit/script/ScriptHost.keys.test.tsx",
   "record/useRecordLiveComments.ts",
   // Sheets and dialogs render through portals; a native root listener keeps their keys out of the stage.
   "review/ReviewStage.tsx",
