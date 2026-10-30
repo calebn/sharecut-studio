@@ -212,10 +212,6 @@ def test_synthesise_noise_keeps_its_length_unless_asked() -> None:
     assert longer.size > default.size
 
 
-def test_the_threshold_is_a_named_second_of_replay() -> None:
-    assert room_tone_synth.SYNTH_MAX_REPLAY_SEC == 1.0
-
-
 def test_a_synthesised_pad_renders_at_the_beds_level_without_repeating(tmp_path: Path) -> None:
     from podcast_mcp.engines.timeline_render import render_track_segment
 

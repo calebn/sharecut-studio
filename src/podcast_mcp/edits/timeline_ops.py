@@ -1357,15 +1357,16 @@ def mute_room_tone_fill(
     lo, hi = max(src_start, clip.source_start), min(src_end, clip.source_end)
     if hi <= lo:
         return None
+    length = hi - lo
     span = room_tone_for_gap(
         project,
         clip.track_id,
-        gap_sec=hi - lo,
+        gap_sec=length,
         seed_sec=lo,
         slack_sec=MUTE_FADE_SLACK_SEC,
         near_sec=(lo + hi) / 2.0,
         near_source_id=clip.source_id,
-        duration_sec=hi - lo,
+        duration_sec=length,
     )
     if isinstance(span, SampleAbsent):
         return None
@@ -1666,6 +1667,7 @@ def insert_bound_room_tone_pad(
             sample_src, src_end, source_id = selected.sample.start, selected.sample.end, None
         else:
             if isinstance(selected, SynthSample):
+                # Bound on a preview's scratch copy: the live project has not seen it yet.
                 register_synth_source(project, selected)
             sample_src, src_end, source_id = selected.start, selected.end, selected.source_id
         fills = _tiled_fill_clips(

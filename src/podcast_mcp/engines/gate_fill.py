@@ -495,8 +495,8 @@ def synthesise_noise(
 
 
 def measure_noise_psd(samples: np.ndarray, sample_rate: int) -> tuple[np.ndarray, int] | None:
-    """``(psd, nfft)`` of mono ``samples``: the mean periodogram of the frames within
-    ``NOISE_SPREAD_DB`` of the median, or None when ``samples`` is shorter than one frame."""
+    """``(psd, nfft)`` of mono ``samples``: the mean periodogram of the frames no more than
+    ``NOISE_SPREAD_DB`` above the median, or None when ``samples`` is shorter than one frame."""
     nfft = _frame_len(sample_rate)
     if samples.shape[0] < nfft:
         return None
