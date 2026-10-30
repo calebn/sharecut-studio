@@ -40,6 +40,7 @@ export interface ChromeFlags {
   exportRequested: boolean;
   /** A Share request from a command; the Deliver stage focuses its Share section and clears this. */
   shareRequested: boolean;
+  transcriptRequested: boolean;
   /** Local host MCP connect dialog (Streamable HTTP URL). */
   hostMcpDialogOpen: boolean;
   /** Host Help → diagnostics bundle dialog. */
@@ -569,6 +570,7 @@ export interface DawState {
   setExportRequested: (on: boolean) => void;
   setPrepareFocusTrackId: (trackId: string | null) => void;
   setShareRequested: (on: boolean) => void;
+  setTranscriptRequested: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;
   setHelpDialogOpen: (on: boolean) => void;
   setModelsDialogOpen: (on: boolean) => void;

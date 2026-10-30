@@ -9,6 +9,7 @@ const FLAGS = [
   "bounceRequested",
   "exportRequested",
   "shareRequested",
+  "transcriptRequested",
   "hostMcpDialogOpen",
   "helpDialogOpen",
   "modelsDialogOpen",
@@ -22,6 +23,7 @@ const SETTERS: Record<Flag, string> = {
   bounceRequested: "setBounceRequested",
   exportRequested: "setExportRequested",
   shareRequested: "setShareRequested",
+  transcriptRequested: "setTranscriptRequested",
   hostMcpDialogOpen: "setHostMcpDialogOpen",
   helpDialogOpen: "setHelpDialogOpen",
   modelsDialogOpen: "setModelsDialogOpen",
@@ -131,6 +133,7 @@ describe("dawStore chrome flags", () => {
       expect(read("bounceRequested")).toBe(true);
       expect(read("exportRequested")).toBe(true);
       expect(read("shareRequested")).toBe(true);
+      expect(read("transcriptRequested")).toBe(true);
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
@@ -142,13 +145,14 @@ describe("dawStore chrome flags", () => {
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("drops a pending bounce, export and share request when the project switches", () => {
+    it("drops a pending bounce, export, share and transcript request when the project switches", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
       expect(read("bounceRequested")).toBe(false);
       expect(read("exportRequested")).toBe(false);
       expect(read("shareRequested")).toBe(false);
+      expect(read("transcriptRequested")).toBe(false);
     });
   });
 });

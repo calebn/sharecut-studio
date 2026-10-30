@@ -265,6 +265,7 @@ export const createProjectSlice: StateCreator<
       bounceRequested,
       exportRequested,
       shareRequested,
+      transcriptRequested,
       transcriptFindReplaceOpen,
     } = chromeInitial();
     if (!samePath) {
@@ -297,6 +298,7 @@ export const createProjectSlice: StateCreator<
               bounceRequested,
               exportRequested,
               shareRequested,
+              transcriptRequested,
               transcriptFindReplaceOpen,
             },
             ...waveformViewState(projectPath),

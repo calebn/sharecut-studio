@@ -520,6 +520,12 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 - **Story to build:** `Stages/Edit/ExportRange` stories `Default`, `Options`, `Done` (coordinate with Edit worker); `Stages/Deliver/EpisodeFile` `PartOfEpisode`.
 - **Shipped (#2449):** until the Export verb lands in Edit, the dialog is replaced by a Bounce section in Deliver (`Stages/Deliver/Bounce`): the source (Entire mix, Selected tracks, Soloed tracks), Limit to session region, Also write MP3, a range fixed in Edit, progress with Cancel, the files written, and the model prompt. `Mod+Shift+B`, the palette and Range actions → Bounce go to Deliver and focus the Bounce button; the flow lives in `DawApp`, so leaving Deliver does not stop it. Leaving Deliver ends the visit: it clears a fixed range and the bounce choices, while a running bounce continues.
 
+### Transcript (new Deliver section)
+
+- **Spec:** `Stages/Deliver/Transcript` writes the edited transcript next to the audio as Text, Markdown, SRT or VTT (defaults Markdown and SRT, what every audio export already writes). A preview lists the first turns (four on phone) as the files will hold them, with speaker, `[m:ss]` time, the turn count, duration and language, and the first caption cue when SRT or VTT is chosen. Export writes the chosen files; Copy text puts the plain text on the clipboard (a blocked clipboard says so and points to the exported files; a failed read says the transcript could not be read). Files already on disk list with a note when the edit has moved on since ("Edited since export", button reads "Export again"). Not transcribed shows "Go to Prepare"; every word cut hides the actions.
+- **Wiring:** the preview is a debounced dry run in `stage/hosts/useTranscriptFlow.ts`; the call is synchronous and sub-second, so the flow is a host hook, not a provider that outlives the stage. The command `export.transcript` (palette, "Export transcript…") opens Deliver and focuses Export once.
+- **Stories:** `Stages/Deliver/Transcript`: `Ready`, `Compact`, `Loading`, `NotTranscribed`, `EverythingCut`, `LoadFailed`, `Writing`, `Done`, `ExportFailed`, `EditedSinceExport`, `CopyBlocked`.
+
 ### Share (was DLG-SHARE; incl. created state and record-link section)
 
 - **Today:** `DLG-SHARE--*`, `DLG-SHARE-CREATED--*`. Three radio roles with explanations, two checkboxes with paragraphs, the created link hidden below the footer on phone (narrow F09), raw clipboard error ("Failed to execute 'writeText' on 'Clipboard'…") beside a toast "Review link created".

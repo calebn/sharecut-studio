@@ -556,6 +556,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hostProjectLoaded",
     notes: "Go to Deliver and focus Bounce → export/bounces/. Mod+Shift+B",
   },
+  "export.transcript": {
+    id: "export.transcript",
+    category: "ui",
+    label: "Export transcript…",
+    keywords: ["captions", "subtitles", "srt", "vtt", "text", "markdown"],
+    when: "hostProjectLoaded",
+    notes: "Go to Deliver and focus the Transcript Export → export/",
+  },
   "share.manage": {
     id: "share.manage",
     category: "ui",

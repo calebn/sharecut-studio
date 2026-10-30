@@ -318,7 +318,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Export deliverables…",
   },
   "daw.export.transcript": {
-    label: "Export transcript",
+    label: "Export transcript…",
+    tooltip: "Export transcript…",
   },
   "daw.project.new": {
     label: "New project…",
@@ -607,6 +608,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "home.models": "daw.models.open",
   ModelsDialog: "daw.models.open",
   deliverStage: "daw.export.deliverables",
+  deliverTranscript: "daw.export.transcript",
   projectMenu: "daw.project.home",
   trackLane: "daw.track.add",
   drop: "daw.media.import",
