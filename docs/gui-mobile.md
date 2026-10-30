@@ -135,65 +135,31 @@ held sideways) compact the editor:
   shells; a wider phone held sideways is the tablet shell and gets the card. A timeline target on the phone still opens the peek
   strip. `BottomSheet`'s generic `placement="column"` and its frame rule remain
   until the legacy bodies go (W3c).
-- **A volume-envelope sheet leaves its lane in view (#1694, #1714).** On a
-  tablet shell with a fine pointer, or a phone shell under 40rem wide (a
-  568×320 window), at most 40rem tall, the regular inspector sheet for an `envelope` or
-  `envelopePoint` selection (`editedLaneTrack`, class `bottom-sheet--lane-band`)
-  takes the bottom tabs' row on the tablet shell (`responsive.css`, the same
-  `max-height: 40rem` exception as the compact strip) and rests on the status
-  row. On the phone shell held sideways (up to 767 px wide, so an iPhone SE or mini held
-  sideways at 568×320) the sheet takes the Primary nav row instead
-  (`--mobile-nav-height: 0rem` while the sheet is open, since the sheet rests on it)
-  and the status chip overlays the timeline as ever; **Done** brings the nav back. The marker rows
-  (chapters, comments, social clips) stop pinning under the ruler while it is
-  open, so the lane sits right below the ruler and the rows are one scroll up
-  (`.marker-lane` and the header column's chrome lose `position: sticky`; a pinned
-  `::before` keeps the ruler's corner above the track names, under the Solo on
-  chip, and takes no taps). The status line always stays, the sheet rests on it,
-  and it keeps the shell's polite live region and the save state (#1448), also
-  when a save is failed or waiting and the row grows to a touch target. At most
-  24rem tall (914×331, and a 667×375 phone, 23.4rem) the marker rows scroll
-  with the lanes in the idle layout too, on the tablet and the phone shell
-  (`@media (max-height: 24rem)`), so the pinned rows never eat the lanes
-  and a touch-only user can tap a lane's name to open its details; 932×430,
-  1024×768 and 1194×834 keep them pinned. The **Solo on · Clear solo** chip lives
-  in the header column's chrome, so wherever the rows scroll it scrolls with them
-  (one scroll up), and the pinned corner no longer covers it. With the status line kept
-  there, the sheet at that height has no room for a title row above **Done**:
-  Expand and Close sit on the lane name's and Done's row
-  (`@media (max-height: 24rem)` in `bottom-sheet.css`) and the sheet's title is
-  readable to a screen reader only. The 9rem floor above belongs to the compact drawer; this
-  sheet has its own. `useKeepEditedLaneClear` measures the ruler's bottom
-  (`pinnedChromeBottom`, which still reads the marker lane where it pins) plus one
-  lane height, caps the sheet to what is left (`--sheet-lane-cap`, never under the pinned chrome plus one touch row (`laneSheetCap`),
-  honoured next to the sheet cap as the smaller of the two) and
-  scrolls the edited lane into that band. It runs again whenever the scroller,
-  the slot or the lane changes size, so a rotation that remounts the shell, which
-  resets the lane scroller, lands the lane back under the ruler. With the demo
-  project's three marker rows the whole 72px lane shows over the sheet at
-  568×320 (before the column took the wider sizes it showed at 914×331,
-  932×430 and 844×390, over sheets of 174px, 245px and 205px). A software keyboard lifts the
-  cap (the sheet takes the visible slot) because the form outranks the lane then.
-  On a window at most 40rem tall, in a slot at least 30rem wide
-  (`@media (max-height: 40rem)` around `@container sheet-slot`), the sheet is a
-  fixed header with a scrolling body: the sheet's own title row, then **Done**
-  beside the title on a row of its own that never scrolls, then the body. The long
-  help text is readable to a screen reader only, the point form is one row of
-  **Time**, **Level**, **Save point** and **Cancel**, and its "Add point" or "Edit
-  point" heading is readable to a screen reader only too, so the row of fields
-  fits. A tall iPad slot (1194×834, 1024×768) is not that window: it keeps the
-  regular form with its help text visible (Playwright asserts both). Opening the
-  form on touch scrolls the fields into the visible body, and a resize keeps the
-  open form in view. The open point
-  draft is store state (`envelopeDraft`), keyed to its project, track and
-  point and dropped when the selection leaves that target, so the phone and tablet
-  shells swapping on rotation do not lose what was typed. A save in flight is store
-  state too (`envelopeSaving`, keyed to the same project, epoch and track), so a
-  remount keeps **Save point** busy and does not dispatch a second save; the entry
-  clears when the request settles, success or failure. The sheet root pads
-  its sides with `env(safe-area-inset-left/right)` so nothing sits under the
-  notch or Dynamic Island held sideways; Playwright cannot emulate those insets, so only
-  a real iPhone proves them.
+- **A volume-envelope point leaves its lane in view (#1694, #1714).** An
+  `envelopePoint` selection opens its **Time** and **Level** in the Inspector:
+  the card beside the point on the tablet and desktop shells, which does not
+  shrink the timeline, and the phone sheet. The older lane-band layout for this
+  sheet (`editedLaneTrack`, class `bottom-sheet--lane-band`,
+  `useKeepEditedLaneClear`) is no longer mounted; it and its CSS go with the
+  lane hooks (W3c3). At most 24rem tall (914×331, and a 667×375 phone, 23.4rem)
+  the marker rows (chapters, comments, social clips) scroll with the lanes in
+  the idle layout, on the tablet and the phone shell
+  (`@media (max-height: 24rem)`), so the pinned rows never eat the lanes and a
+  touch-only user can tap a lane's name to open its details; 932×430,
+  1024×768 and 1194×834 keep them pinned. The **Solo on · Clear solo** chip
+  lives in the header column's chrome, so wherever the rows scroll it scrolls
+  with them (one scroll up). The point's **Time** and **Level** are two Scrub
+  rows with the help text visible, and **Remove** sits below them; Playwright
+  asserts both on a short landscape phone and on a tall iPad slot (1194×834,
+  1024×768). Each change saves at once as one undo step (`setEnvelopePoint`,
+  `commands/envelopes.ts`), so there is no draft to lose when the phone and
+  tablet shells swap on rotation. One save per track runs at a time, and the
+  fields are read-only while it is in flight. A failed save, including a
+  refused stale baseline, stays in the sheet as an alert; a stale one offers
+  **Reload points**, and a time already taken offers **Select the point
+  there**. The sheet root pads its sides with `env(safe-area-inset-left/right)`
+  so nothing sits under the notch or Dynamic Island held sideways; Playwright
+  cannot emulate those insets, so only a real iPhone proves them.
 
 Measured in Playwright WebKit with the iPhone 17 Pro Max descriptor, the touch
 grammar on and the timeline maximized (px of lanes above the rail or the strip;
@@ -237,7 +203,7 @@ keep their DOM, form and disclosure state. On touch, in a window under 40rem tal
 (`@container app`, so large text counts), the Script scrolls as a whole
 with the list keeping at least 16rem, so its chrome does not cover the rows beneath
 it. `e2e-compat/reachability-sweep.spec.ts` sweeps
-the Script and the Prepare stage whole at every cell. The envelope-point select, the effect Bypass toggles and the comment composer's
+the Script and the Prepare stage whole at every cell. The envelope point's Time and Level, the effect Bypass toggles and the comment composer's
 fields and track picks hold the floor too, and the same sweep measures them (a seeded
 track for the first two, the Review queue on tablet and desktop, and the Review stage on a phone,
 for the last).
@@ -352,10 +318,10 @@ one detent and **Collapse** returns to the strip; both stay, named for where
 they go ("Expand to full height"). A visually hidden range, "Inspector
 height", changes the detent from the keyboard or a screen reader. The title
 keeps the target's name at every detent, and the last detent opens the next
-selection. A selection the open plain sheet's own form makes (a point saved from a
-track's envelope form) stays in that sheet until it closes, so the form keeps
-its layout and focus; a tap on the timeline, even with that sheet open, opens
-the drawer as usual. In a folded frame the sheet's grabber sits in the
+selection. An envelope point chosen from the keyboard or added from the create
+menu while the track's sheet is open shows its **Time** and **Level** in the
+drawer, and Inspect opens them in the sheet; a tap on the timeline, even with
+that sheet open, opens the drawer as usual. In a folded frame the sheet's grabber sits in the
 header row and the title shrinks to an ellipsis before the actions wrap, so the
 chrome is one row wherever its actions fit one (R-short-11). Where half the slot
 cannot hold that one-row chrome and a touch row (`halfDetentFits`, measured from the
@@ -458,7 +424,7 @@ phone More sheet is a `Menu` behind a "People · n" button.
 Inspector dismiss still clears the clip selection. A remounted Inspector
 sheet stays under a still-open JoinPopover and does not steal focus from
 a docked waiver field. A new sheet still takes Close after deferred
-envelope first-entry.
+first-entry focus.
 Typing, Tab and Enter inside
 the dialog stay native. A modal can hand on named shortcuts; the Record room
 hands on M for a live marker. On close, focus returns to the control that
@@ -500,8 +466,7 @@ user scrolls through its message and actions. Host changes do not restart the
 timer or remount Undo. Closing or stowing a compact
 inspector returns feedback to the floating host, outside the inert rail.
 An intentionally focused Undo or Dismiss keeps its native identity when the
-phone and tablet inspector hosts remount. Sheet entry focus and the volume-envelope
-view's first-entry focus yield to that action. Dismissing it, or this tab's own
+phone and tablet inspector hosts remount. Sheet entry focus yields to that action. Dismissing it, or this tab's own
 undo removing or disabling Undo, or another client's edit removing it, returns
 focus to the current usable inspector Close, whether the card sits in the sheet
 or floats above it. A selection that arrives from another client or the agent

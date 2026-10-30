@@ -2975,7 +2975,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "touch create menu; the envelope inspector's Add point is the keyboard route"
+        "keyboard_reason": "create menu; Shift+F10 or the Menu key on a lane opens it from the keyboard"
       },
       "presence": {
         "cursor": "time",
