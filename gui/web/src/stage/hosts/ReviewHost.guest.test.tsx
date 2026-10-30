@@ -155,6 +155,29 @@ describe("Review queue for a guest", () => {
       expect(screen.queryByRole("button", { name: label })).toBeNull();
   });
 
+  it("gives an Editor link whose capabilities have not arrived comments only, with no suggested cuts", () => {
+    useDawStore.getState().hydrate(
+      "share:tok",
+      minimalProject({
+        comments: [sampleComment({ body: "Cut the intro" })],
+        pending_edits: [pendingEditView({ label: PENDING_LABEL })],
+        timeline_duration_sec: 600,
+      }),
+      "edit",
+      null,
+    );
+    useDawStore.setState({ stage: "review", commentDraft: null });
+    render(<ReviewHost guestShare />);
+    expect(screen.queryByText(PENDING_LABEL)).toBeNull();
+    expect(
+      [...document.querySelectorAll(".rv-group")].map((g) =>
+        g.getAttribute("aria-label"),
+      ),
+    ).toEqual(["Comments"]);
+    for (const label of [/^Cut/, /^Keep/, /Find more/])
+      expect(screen.queryByRole("button", { name: label })).toBeNull();
+  });
+
   it("sends an Editor's Cut as ApproveEdits", async () => {
     const user = userEvent.setup();
     join("edit", []);

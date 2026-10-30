@@ -126,6 +126,7 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
               (i) =>
                 !eligible.includes(i) &&
                 !i.hostOnly &&
+                !i.blocked &&
                 verbOf(i) !== "keep" &&
                 verbOf(i) !== "lower",
             ).length

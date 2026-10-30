@@ -78,6 +78,16 @@ describe("bulk eligibility", () => {
     expect(group?.bulk?.ids).toEqual(["a"]);
   });
 
+  it("leaves a blocked or host-only row out of the one-by-one count", () => {
+    const group = groupQueue([
+      item({ id: "a" }),
+      item({ id: "b", oneByOne: true }),
+      item({ id: "c", blocked: true }),
+      item({ id: "d", blocked: true, hostOnly: true }),
+    ])[0];
+    expect(group?.held).toBe(1);
+  });
+
   it("gives other suggestions a group but no group verb", () => {
     const group = groupQueue([item({ id: "g", kind: "suggestion" })])[0];
     expect(group?.label).toBe("Other suggestions");
