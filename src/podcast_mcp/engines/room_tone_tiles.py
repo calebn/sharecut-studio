@@ -64,7 +64,7 @@ def tile_span(
     high = low + inner - length
     stride = (high - low) / (count - 1)
     step = _slot_step(count)
-    first = int(_seed_fraction(seed_sec) * count)
+    first = int(seed_fraction(seed_sec) * count)
     starts: list[float] = []
     for index in range(count):
         start = low + ((first + index * step) % count) * stride
@@ -103,6 +103,6 @@ def _slot_step(count: int) -> int:
     return 1
 
 
-def _seed_fraction(seed_sec: float) -> float:
+def seed_fraction(seed_sec: float) -> float:
     key = round(seed_sec * 1000.0)
     return ((key * _HASH_MULTIPLIER) % _HASH_MODULUS) / _HASH_MODULUS

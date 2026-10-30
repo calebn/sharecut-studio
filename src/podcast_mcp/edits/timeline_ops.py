@@ -68,7 +68,11 @@ from podcast_mcp.engines.room_tone import (
     OwnQuietSample,
     RecordedBedSample,
     SampleAbsent,
-    room_tone_span,
+)
+from podcast_mcp.engines.room_tone_synth import (
+    SynthSample,
+    register_synth_source,
+    room_tone_for_gap,
 )
 from podcast_mcp.engines.room_tone_tiles import CROSSFADE_MS, tile_span
 from podcast_mcp.engines.session_timeline import (
@@ -1292,9 +1296,11 @@ def fill_with_room_tone(
         gap = gap_end - gap_start
         if gap <= min_gap_sec:
             continue
-        span = room_tone_span(
+        span = room_tone_for_gap(
             project,
             track_id,
+            gap_sec=gap,
+            seed_sec=gap_start,
             near_sec=clip.source_end,
             near_source_id=clip.source_id,
             timeline_sec=gap_start,
@@ -1350,9 +1356,11 @@ def mute_room_tone_fill(
     lo, hi = max(src_start, clip.source_start), min(src_end, clip.source_end)
     if hi <= lo:
         return None
-    span = room_tone_span(
+    span = room_tone_for_gap(
         project,
         clip.track_id,
+        gap_sec=hi - lo,
+        seed_sec=lo,
         near_sec=(lo + hi) / 2.0,
         near_source_id=clip.source_id,
         duration_sec=hi - lo,
@@ -1587,9 +1595,11 @@ def room_tone_pad(
             lanes.append(LaneUnavailable(tid, "missing_seam"))
             continue
         near = seam.source_end if left else seam.source_start
-        selected = room_tone_span(
+        selected = room_tone_for_gap(
             project,
             tid,
+            gap_sec=seconds,
+            seed_sec=at_time,
             near_sec=near,
             near_source_id=seam.source_id,
             timeline_sec=at_time,
@@ -1653,6 +1663,8 @@ def insert_bound_room_tone_pad(
         if isinstance(selected, OwnQuietSample):
             sample_src, src_end, source_id = selected.sample.start, selected.sample.end, None
         else:
+            if isinstance(selected, SynthSample):
+                register_synth_source(project, selected)
             sample_src, src_end, source_id = selected.start, selected.end, selected.source_id
         fills = _tiled_fill_clips(
             tid, source_id, sample_src, src_end, at_time, at_time + duration_sec

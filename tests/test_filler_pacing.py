@@ -119,7 +119,7 @@ def test_insert_room_tone_pad_tiles_short_sample():
         ),
     ]
     with patch(
-        "podcast_mcp.edits.timeline_ops.room_tone_span",
+        "podcast_mcp.engines.room_tone_synth.room_tone_span",
         return_value=OwnQuietSample(Sample(3.0, 3.1, -70.0, None)),
     ) as span:
         insert_room_tone_pad(p, 0.15, 0.4, sample_duration_sec=0.1, defaults=load_defaults())
@@ -131,6 +131,7 @@ def test_insert_room_tone_pad_tiles_short_sample():
         timeline_sec=0.15,
         duration_sec=0.1,
         avoid=[],
+        also_taken=(),
     )
     host = sorted([c for c in p.clips if c.track_id == "host"], key=lambda c: c.timeline_start)
     # Multiple pad tiles between left and shifted right
@@ -334,7 +335,7 @@ def test_apply_auto_edits_preserves_native_pad_edges(tmp_path, monkeypatch, pad_
         ),
         patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value=pad_mode),
         patch(
-            "podcast_mcp.edits.timeline_ops.room_tone_span",
+            "podcast_mcp.engines.room_tone_synth.room_tone_span",
             return_value=OwnQuietSample(Sample(6.0, 6.28, -70.0, None)),
         ),
     ):
@@ -740,7 +741,7 @@ def test_insert_room_tone_pad_fills_gap():
         ),
     ]
     with patch(
-        "podcast_mcp.edits.timeline_ops.room_tone_span",
+        "podcast_mcp.engines.room_tone_synth.room_tone_span",
         return_value=OwnQuietSample(Sample(5.0, 5.28, -70.0, None)),
     ):
         summary = insert_room_tone_pad(p, 3.0, 0.28, defaults=load_defaults())
@@ -852,7 +853,7 @@ def test_approve_edits_applies_room_tone_pad_when_configured(tmp_path):
     with (
         patch("podcast_mcp.edits.cut_application.filler_pad_mode", return_value="room_tone"),
         patch(
-            "podcast_mcp.edits.timeline_ops.room_tone_span",
+            "podcast_mcp.engines.room_tone_synth.room_tone_span",
             return_value=OwnQuietSample(Sample(6.0, 6.28, -70.0, None)),
         ),
     ):
