@@ -1122,7 +1122,7 @@ describe("EditBoundaryMarkView", () => {
 describe("boundary gesture lifecycle", () => {
   function setup(onTrim = vi.fn()) {
     const view = render(
-      <div className="transcript-list">
+      <div className="sys-script-body">
         <TestEditBoundaryMarkView
           boundary={boundary}
           leftClip={clip({ id: "left", source_end: 20 })}
@@ -1147,7 +1147,7 @@ describe("boundary gesture lifecycle", () => {
       else if (reason === "lostpointercapture")
         fireEvent(mark, new PointerEvent(reason, { pointerId: 1 }));
       else if (reason === "scroll")
-        fireEvent.scroll(mark.closest(".transcript-list") ?? document);
+        fireEvent.scroll(mark.closest(".sys-script-body") ?? document);
       else fireEvent(window, new Event(reason));
       fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
       expect(onTrim).not.toHaveBeenCalled();

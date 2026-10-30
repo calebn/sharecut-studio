@@ -15,8 +15,8 @@ import {
  * fails. The exceptions are not resized on purpose:
  * - canvas dense targets (`.fade-corner`, `.trim-handle`, `.track-headers-well`): the
  *   dense-target pattern, with 44px inspector fields and nudges as the equivalent;
- * - transcript text (`.utterance-word`, and `.utterance-seek` timestamps but not the
- *   `.utterance-speaker` button, which opens the speaker editor): inline words in running text,
+ * - transcript text (`.sys-script-word`, and `.sys-script-time` timestamps but not the
+ *   speaker name, which opens the speaker popover): inline words in running text,
  *   where a taller hit area would take the neighbouring line's taps; the ruler and transport
  *   seek at 44px;
  * - `.track-reorder-handle`: a drag shortcut whose equivalent is the 44px Move up/down buttons;
@@ -25,8 +25,8 @@ const DOCUMENTED_EXCEPTIONS = [
   ".fade-corner",
   ".trim-handle",
   ".track-headers-well",
-  ".utterance-word",
-  ".utterance-seek:not(.utterance-speaker)",
+  ".sys-script-word",
+  ".sys-script-time",
   ".track-reorder-handle",
   ".comment-marker.pin",
   ".pending-hit",

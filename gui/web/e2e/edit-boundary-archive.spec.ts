@@ -52,12 +52,6 @@ test("rolling a cut boundary restores an archived transcript word through histor
     expect(archivedWord?.word_index).toBeLessThan(0);
 
     await openPanel(page, "transcript");
-    const annotate = page.locator(".transcript-annotate-btn");
-    await expect(annotate).toBeVisible();
-    if ((await annotate.getAttribute("aria-pressed")) !== "true") {
-      await annotate.click();
-    }
-    await expect(annotate).toHaveAttribute("aria-pressed", "true");
 
     const mark = page.locator(
       `.edit-boundary-mark[data-boundary-id="${boundary!.id}"]`,
@@ -125,7 +119,7 @@ test("rolling a cut boundary restores an archived transcript word through histor
     await openPanel(page, "transcript");
     await expect(
       page
-        .locator("[data-transcript-word]")
+        .locator(".sys-script-word")
         .filter({ hasText: /^dissatisfied$/ })
         .first(),
     ).toBeVisible();

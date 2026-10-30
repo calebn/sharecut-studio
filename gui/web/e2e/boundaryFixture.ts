@@ -5,12 +5,6 @@ import { openPanel } from "./stageNav";
 
 export async function openTranscript(page: Page): Promise<void> {
   await openPanel(page, "transcript");
-  const annotate = page.locator(".transcript-annotate-btn");
-  await expect(annotate).toBeVisible();
-  if ((await annotate.getAttribute("aria-pressed")) !== "true") {
-    await annotate.click();
-  }
-  await expect(annotate).toHaveAttribute("aria-pressed", "true");
 }
 
 export async function boundaryContainingRestoredWord(page: Page) {

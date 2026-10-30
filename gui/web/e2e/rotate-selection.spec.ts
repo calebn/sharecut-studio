@@ -44,9 +44,7 @@ test("a phone with nothing selected opens on Edit with the Timeline", async ({
 });
 
 async function doubleTapFirstWord(page: Page) {
-  const word = page
-    .locator('[data-transcript-word][data-word-index="0"]')
-    .first();
+  const word = page.locator('.sys-script-word[data-word-key$=":0"]').first();
   await expect(word).toBeVisible();
   const box = await word.boundingBox();
   expect(box).toBeTruthy();
@@ -96,7 +94,7 @@ test.describe("rotating with the word editor open (#1870)", () => {
         await openTranscriptPanel(page);
       }
       const word = await doubleTapFirstWord(page);
-      await expect(word).toHaveClass(/selected/);
+      await expect(word).toHaveAttribute("data-selected", "");
       await expect(page.getByLabel("Corrected text")).toBeVisible();
 
       await page.setViewportSize({ width: to[0], height: to[1] });
@@ -104,8 +102,8 @@ test.describe("rotating with the word editor open (#1870)", () => {
       if (from[0] >= 768 && to[0] < 768) await phone.showText(page);
 
       await expect(
-        page.locator('[data-transcript-word][data-word-index="0"]').first(),
-      ).toHaveClass(/selected/);
+        page.locator('.sys-script-word[data-word-key$=":0"]').first(),
+      ).toHaveAttribute("data-selected", "");
       await expect(page.getByLabel("Corrected text")).toBeVisible();
       await expect(page.locator("[data-transcript-intent]")).toHaveAttribute(
         "data-transcript-intent",

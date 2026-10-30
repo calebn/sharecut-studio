@@ -235,10 +235,6 @@ const SURFACE_GESTURES: Record<string, string> = {
     "a held nudge button steps the selected clip and saves one run edit on release",
   "inspector/views/ClipInspector.tsx":
     "a press on the nudge buttons cancels a pending clip placement first; the nudge itself runs through useNudgeRun",
-  "panels/TranscriptPanel.tsx":
-    "transcript words: long-press and drag select a range in Select mode (the Hold a word, then drag row in commands/gestures.ts)",
-  "transcript/useWordRangeDrag.ts":
-    "transcript words: the hold-then-drag range gesture, armed by the long-press timing",
   "transcript/EditBoundaryMarkView.tsx":
     "the transcript edit-boundary mark drags a cut's gap with pointer capture, the same roll as edit.rollClipJoin",
   "transcript/TranscriptWordbar.tsx":

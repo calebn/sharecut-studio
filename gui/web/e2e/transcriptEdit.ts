@@ -6,12 +6,16 @@ import {
 } from "@playwright/test";
 import { openPanel } from "./stageNav";
 
-/** Open the Transcript tab and wait until words hydrate; returns `.transcript-list`. */
+/** The Script's words, and the ones that are selected. */
+export const SCRIPT_WORD = ".sys-script-word";
+export const SCRIPT_SELECTED = ".sys-script-word[data-selected]";
+
+/** Open the Script and wait until words hydrate; returns the Script's body. */
 export async function openTranscriptPanel(page: Page): Promise<Locator> {
   await openPanel(page, "transcript");
-  // Words hydrated ⇔ the Correct toggle carries its capability tooltip, not the loading label.
-  await expect(page.getByRole("button", { name: /^Correct:/ })).toBeEnabled();
-  return page.locator(".transcript-list");
+  const body = page.locator(".sys-script-body");
+  await expect(body.locator(SCRIPT_WORD).first()).toBeVisible();
+  return body;
 }
 
 /**
