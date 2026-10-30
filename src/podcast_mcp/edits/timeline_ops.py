@@ -70,6 +70,7 @@ from podcast_mcp.engines.room_tone import (
     SampleAbsent,
     room_tone_span,
 )
+from podcast_mcp.engines.room_tone_tiles import CROSSFADE_MS, tile_span
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_source_to_timeline_shift,
@@ -1308,28 +1309,9 @@ def fill_with_room_tone(
             chosen.append((sample_src, src_end))
         else:
             sample_src, src_end, source_id = span.start, span.end, span.source_id
-        piece = max(1e-3, src_end - sample_src)
-        t = gap_start
-        while t < gap_end - 1e-6:
-            remain = gap_end - t
-            use = min(piece, remain)
-            new_clips.append(
-                Clip(
-                    id=new_clip_id(),
-                    track_id=track_id,
-                    source_start=sample_src,
-                    source_end=sample_src + use,
-                    timeline_start=t,
-                    source_id=source_id,
-                    fade_in_ms=10 if t == gap_start else 0,
-                    fade_out_ms=10 if t + use >= gap_end - 1e-6 else 0,
-                    join_in_mode=ClipJoinMode.FADE,
-                )
-            )
-            inserted.append(new_clips[-1])
-            t += use
-            if use <= 0:  # pragma: no cover
-                break
+        fills = _tiled_fill_clips(track_id, source_id, sample_src, src_end, gap_start, gap_end)
+        new_clips.extend(fills)
+        inserted.extend(fills)
 
     if within is not None and not inserted:
         if absent is not None:
@@ -1622,6 +1604,41 @@ def room_tone_pad(
     return RoomTonePad(at_time, seconds, tuple(lanes))
 
 
+def _tiled_fill_clips(
+    track_id: str,
+    source_id: str | None,
+    span_start: float,
+    span_end: float,
+    gap_start: float,
+    gap_end: float,
+) -> list[Clip]:
+    """Clips that fill ``[gap_start, gap_end)`` from ``[span_start, span_end)`` of a source.
+
+    The edges fade for 10 ms. The joins between repeats of a span shorter than the gap blend
+    over ``CROSSFADE_MS``, borrowing only audio inside the span.
+    """
+    tiles = tile_span(span_start, span_end, gap_end - gap_start, seed_sec=gap_start)
+    clips: list[Clip] = []
+    t = gap_start
+    for index, tile in enumerate(tiles):
+        blends_in, blends_out = tile.reach_in > 0, tile.reach_out > 0
+        clips.append(
+            Clip(
+                id=new_clip_id(),
+                track_id=track_id,
+                source_start=tile.source_start,
+                source_end=tile.source_start + tile.length,
+                timeline_start=t,
+                source_id=source_id,
+                fade_in_ms=CROSSFADE_MS if blends_in else (10 if index == 0 else 0),
+                fade_out_ms=CROSSFADE_MS if blends_out else (10 if index + 1 == len(tiles) else 0),
+                join_in_mode=ClipJoinMode.CROSSFADE if blends_in else ClipJoinMode.FADE,
+            )
+        )
+        t += tile.length
+    return clips
+
+
 def insert_bound_room_tone_pad(
     project: EpisodeProject, pad: RoomTonePad, *, defaults: EffectiveConfig
 ) -> dict:
@@ -1637,25 +1654,9 @@ def insert_bound_room_tone_pad(
             sample_src, src_end, source_id = selected.sample.start, selected.sample.end, None
         else:
             sample_src, src_end, source_id = selected.start, selected.end, selected.source_id
-        fills: list[Clip] = []
-        t, pad_end = at_time, at_time + duration_sec
-        piece = src_end - sample_src
-        while t < pad_end - 1e-6:
-            use = min(piece, pad_end - t)
-            fills.append(
-                Clip(
-                    id=new_clip_id(),
-                    track_id=tid,
-                    source_start=sample_src,
-                    source_end=sample_src + use,
-                    timeline_start=t,
-                    source_id=source_id,
-                    fade_in_ms=10 if t == at_time else 0,
-                    fade_out_ms=10 if t + use >= pad_end - 1e-6 else 0,
-                    join_in_mode=ClipJoinMode.FADE,
-                )
-            )
-            t += use
+        fills = _tiled_fill_clips(
+            tid, source_id, sample_src, src_end, at_time, at_time + duration_sec
+        )
         set_track_clips(
             project,
             tid,
