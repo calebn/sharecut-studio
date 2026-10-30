@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import signal
 from typing import Any
 
 import pytest
@@ -14,6 +15,7 @@ from podcast_mcp.gui.routes.guest_errors import guest_http_error
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.document_sync import DocumentConflictError
 from podcast_mcp.services.media import StaleWaveformKeyError, VocabularyConflictError
+from podcast_mcp.util.process import CalledProcessError
 
 CODE = "X-Sharecut-Error-Code"
 
@@ -319,6 +321,31 @@ def test_pending_preview_refusals(minimal_project, monkeypatch, client, exc, sta
     )
     res = client.get("/api/pending-preview", params={"path": str(minimal_project), "edit_id": "e1"})
     _check(res, status, code)
+
+
+@pytest.mark.parametrize("mode", ["current", "suggested", "ab"])
+@pytest.mark.parametrize("returncode", [-signal.SIGSEGV, 1])
+def test_pending_preview_render_failure(minimal_project, monkeypatch, mode, returncode):
+    private_argv = "/private/preview-command-sentinel/source.wav"
+    private_stderr = "/private/preview-stderr-sentinel/render.wav"
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.PlayService.pending_preview_cached_wav",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.PlayService.play_pending_preview",
+        _raise(CalledProcessError(returncode, ["ffmpeg", private_argv], stderr=private_stderr)),
+    )
+    res = TestClient(create_app(), raise_server_exceptions=False).get(
+        "/api/pending-preview",
+        params={"path": str(minimal_project), "edit_id": "e1", "mode": mode},
+    )
+    _check(res, 500, "pending_preview_render_failed")
+    assert res.json() == {"detail": "The preview could not be rendered. Try playing it again."}
+    assert res.headers["Cache-Control"] == "no-store"
+    for private_value in (private_argv, private_stderr):
+        assert private_value not in res.text
+        assert all(private_value not in value for value in res.headers.values())
 
 
 # --- export ------------------------------------------------------------------------------
