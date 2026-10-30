@@ -1,13 +1,21 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../../state/dawStore";
 import {
+  scriptUtterance,
   scriptUtterances,
   scriptWord,
   seedScript,
 } from "../../../test/scriptHostKit";
 import { ScriptHost } from "./ScriptHost";
+import { useScriptModel } from "./useScriptModel";
 
 const seekTransport = vi.hoisted(() => vi.fn());
 vi.mock("../../../commands/seek", () => ({ seekTransport }));
@@ -248,5 +256,18 @@ describe("ScriptHost following", () => {
     expect(paneRenders).not.toHaveBeenCalled();
     act(() => useDawStore.setState({ playheadSec: 10.6 }));
     expect(paneRenders).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ScriptHost bleed-only rows", () => {
+  it("does not silence a live word because an untimed bleed-only row sits on its track", () => {
+    seedScript({
+      utterances: [
+        scriptUtterance("host", "Maya", [scriptWord("Hello", 0, 1)]),
+        scriptUtterance("host", "Maya", [], { suppressed_only: true }),
+      ],
+    });
+    const { result } = renderHook(() => useScriptModel());
+    expect(result.current.silent.size).toBe(0);
   });
 });

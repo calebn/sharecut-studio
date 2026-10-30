@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../../state/dawStore";
@@ -9,7 +15,12 @@ import {
 } from "../../../test/scriptHostKit";
 import type { CombinedUtterance } from "../../../types/project";
 import { ScriptHost } from "./ScriptHost";
-import { WINDOW_LIMIT, WINDOW_MARGIN } from "./useScriptWindow";
+import { buildScriptModel } from "./scriptModel";
+import {
+  useScriptWindow,
+  WINDOW_LIMIT,
+  WINDOW_MARGIN,
+} from "./useScriptWindow";
 
 const seekTransport = vi.hoisted(() => vi.fn());
 vi.mock("../../../commands/seek", () => ({ seekTransport }));
@@ -317,6 +328,58 @@ describe("ScriptHost window", () => {
     scrolling.miss = false;
     scrollBody(49500);
     expect(scrolling.calls.length).toBe(calls);
+  });
+
+  it("binds the body's scroll again when the pane turns from loading to ready", () => {
+    const { rerender } = render(<ScriptHost status={{ kind: "loading" }} />);
+    rerender(<ScriptHost status={{ kind: "ready" }} />);
+    expect(hasWord(`a${WINDOW_MARGIN + 20}`)).toBe(false);
+    scrollBody(49500);
+    expect(hasWord(`a${WINDOW_MARGIN + 20}`)).toBe(true);
+  });
+
+  it("leaves the window alone for a word the pane cannot draw when its turn is already drawn", async () => {
+    render(<ScriptHost />);
+    scrolling.miss = true;
+    const chip = screen.getByRole("button", { name: /unsure words, go to/ });
+    // Turn 5 is drawn, but the pane says no (a cut word, say): widening cannot help.
+    await userEvent.click(chip);
+    expect(scrolling.calls.length).toBeGreaterThan(0);
+    expect(hasWord(`a${WINDOW_MARGIN + 5}`)).toBe(false);
+  });
+
+  it("does not repeat a scroll whose two window changes in one batch came back to the first range", () => {
+    const model = buildScriptModel({
+      utterances: longTranscript(),
+      boundaries: [],
+      pending: [],
+      person: (_track, speaker) => ({ name: speaker, colorIndex: 0 }),
+    });
+    const scrollToWord = vi.fn(() => false);
+    const pane = {
+      current: { scrollToWord, focusFind: vi.fn(), focusWord: vi.fn() },
+    };
+    const { result } = renderHook(() =>
+      useScriptWindow(
+        model,
+        pane,
+        { current: null },
+        {
+          playKey: "|",
+          playing: [],
+          playheadWord: undefined,
+          following: false,
+        },
+      ),
+    );
+    act(() => {
+      result.current.scrollTo(700);
+      result.current.scrollTo(0);
+    });
+    const calls = scrollToWord.mock.calls.length;
+    // A later, unrelated change of window must not scroll to the old word.
+    act(() => result.current.reached(2 * (WINDOW_MARGIN - 1)));
+    expect(scrollToWord.mock.calls.length).toBe(calls);
   });
 
   it("shows everything of a short transcript", () => {

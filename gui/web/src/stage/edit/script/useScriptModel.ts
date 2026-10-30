@@ -65,11 +65,13 @@ export function useScriptModel(): ScriptHostModel {
     const silent = new Set<number>();
     for (const utterance of utterances) {
       if (!utterance.suppressed_only) continue;
-      for (const [at, word] of wordsForUtterance(utterance).entries()) {
+      for (const word of wordsForUtterance(utterance)) {
+        // A word with no project index is never looked up, as in the model.
+        if (word.word_index == null) continue;
         const ref: ScriptWordRef = {
           trackId: utterance.track_id,
           sourceId: utterance.source_id ?? null,
-          wordIndex: word.word_index ?? at,
+          wordIndex: word.word_index,
         };
         const index = model.indexOf(ref);
         if (index !== undefined) silent.add(index);

@@ -18,7 +18,8 @@ async function renameSpeaker(trackId: string, name: string) {
   const state = useDawStore.getState();
   const previous = state.projectEditBasis();
   const path = state.projectPath;
-  if (!previous) return;
+  if (!previous)
+    throw new Error("The project is not open, so the name did not change.");
   const seqAtStart = currentDocumentSeq();
   const sending = setTrackMetaCommand(path, trackId, { speaker: name });
   redisplayDrafts();
