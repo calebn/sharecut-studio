@@ -24,6 +24,7 @@ from podcast_mcp.edits.timeline_ops import (
     bind_pause_effects,
     room_tone_pad,
 )
+from podcast_mcp.engines import room_tone_synth
 from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.room_tone import OwnQuietSample, Sample
 from podcast_mcp.models import (
@@ -193,7 +194,17 @@ def test_the_callers_leave_the_project_as_it_was_and_answer_as_before(
     project, removal, at_time = _scenario(tmp_path, seed, 3000)
     before = _clip_json(project)
 
-    def stub(_project_arg, _tid, *, near_sec, near_source_id, timeline_sec, duration_sec, avoid):  # type: ignore[no-untyped-def]
+    def stub(
+        _project_arg,
+        _tid,
+        *,
+        near_sec,
+        near_source_id,
+        timeline_sec,
+        duration_sec,
+        avoid,
+        also_taken,
+    ):  # type: ignore[no-untyped-def]
         """The seam a lane binds, as a sample: its source edge, source id and the pad's size."""
         return OwnQuietSample(
             Sample(
@@ -201,7 +212,7 @@ def test_the_callers_leave_the_project_as_it_was_and_answer_as_before(
             )
         )
 
-    monkeypatch.setattr(timeline_ops, "room_tone_span", stub)
+    monkeypatch.setattr(room_tone_synth, "room_tone_span", stub)
 
     def call() -> tuple[object, object]:
         pad = room_tone_pad(project, at_time, 0.25, defaults=DEFAULTS)

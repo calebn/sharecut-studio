@@ -25,6 +25,7 @@ source. Each fill reads from its own place in the file, derived from its positio
 from __future__ import annotations
 
 import hashlib
+import wave
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
@@ -56,6 +57,7 @@ from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.dsp import rms_db
 from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.tracks import track_audio_path
+from podcast_mcp.util.wav import open_wav
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 # Bump when the synthesis or its guards change: ids, files and preview keys change with it.
@@ -67,6 +69,11 @@ SYNTH_REV = 1
 # worth a synthesised fill's cost, and the Mac lab judges where it sounds.
 SYNTH_MAX_REPLAY_SEC = 1.0
 SYNTH_FILE_SEC = 60.0
+# A fill reads at most this much of the file, so fills of a minute or more still start at
+# positions that differ with their own.
+SYNTH_MAX_FILL_SEC = 54.0
+# Longest fade a mute region adds to the edit it covers (cut_application: fade out and in).
+MUTE_FADE_SLACK_SEC = 1.0
 SYNTH_RATE = 48000
 # Under raw/, beside the recorded beds: a relocated workspace copy keeps raw/ but drops artifacts/.
 SYNTH_DIR = "raw/room-tone-synth"
@@ -74,6 +81,7 @@ SYNTH_ID_PREFIX = "synth-room-tone-"
 STEADY_WINDOW_SEC = 0.5
 TONAL_PEAK_DB = 10.0
 TONAL_NEIGHBOURS = 6
+TONAL_NFFT = 8192
 LEVEL_TOLERANCE_DB = 0.5
 PROBE_SEC = 2.0
 WRITE_CHUNK = 1 << 16
@@ -100,6 +108,7 @@ class _Analysis:
     digest: str
     psd: np.ndarray
     nfft: int
+    rate: int
 
 
 def room_tone_for_gap(
@@ -114,13 +123,16 @@ def room_tone_for_gap(
     duration_sec: float,
     avoid: Sequence[Span] = (),
     also_taken: Sequence[Span] = (),
+    slack_sec: float = 0.0,
 ) -> RoomToneSelection:
     """``room_tone_span`` for ``gap_sec`` seconds, or synthesised tone when that would replay
     more than ``SYNTH_MAX_REPLAY_SEC`` of the clean audio it finds.
 
     ``seed_sec`` is the fill's position (source seconds for a mute, timeline seconds for a
     pad): it picks where in the synthesised file the fill reads. The other arguments are
-    ``room_tone_span``'s. The synthesised source is registered on ``project``.
+    ``room_tone_span``'s. ``slack_sec`` lengthens a synthesised span past the gap: a mute's
+    rendered region includes its fades, and a span shorter than that would be tiled in two.
+    The synthesised source is registered on ``project``.
     """
 
     def span(request_sec: float) -> RoomToneSelection:
@@ -148,7 +160,7 @@ def room_tone_for_gap(
         basis = _basis(project, track_id, pooled)
         if basis is None:
             return selection
-    synthesised = _synthesise(project, track_id, basis, gap_sec, seed_sec)
+    synthesised = _synthesise(project, track_id, basis, gap_sec + slack_sec, seed_sec)
     return selection if synthesised is None else synthesised
 
 
@@ -174,6 +186,8 @@ def _params() -> str:
             SYNTH_REV,
             SYNTH_MAX_REPLAY_SEC,
             SYNTH_FILE_SEC,
+            SYNTH_MAX_FILL_SEC,
+            TONAL_NFFT,
             LEVEL_TOLERANCE_DB,
             TONAL_PEAK_DB,
             NOISE_SPREAD_DB,
@@ -226,7 +240,7 @@ def _synthesise(
             _write_file(dest, analysis, source_id)
     except Exception:
         return None
-    length = min(gap_sec, SYNTH_FILE_SEC)
+    length = min(gap_sec, SYNTH_MAX_FILL_SEC)
     start = seed_fraction(seed_sec) * (SYNTH_FILE_SEC - length)
     sample = SynthSample(start, start + length, source_id, dest, rel_path, SYNTH_FILE_SEC)
     register_synth_source(project, sample)
@@ -235,33 +249,49 @@ def _synthesise(
 
 @lru_cache(maxsize=32)
 def _analyse(path: str, revision: object, basis: _Basis) -> _Analysis | None:
-    """The basis' spectrum and identity when it is a steady, untoned room; else None."""
+    """The basis' spectrum and identity when it is a steady, untoned room; else None.
+
+    A PCM WAV is read at its own rate, because the reader's resampling is linear and would
+    bend the spectrum the synthesis copies; the noise is then realised at ``SYNTH_RATE`` from
+    that spectrum (``source_rate``).
+    """
     del revision
+    rate = _native_rate(Path(path))
     try:
         samples = load_mono_window(
             Path(path),
             start_sec=basis.start,
             duration_sec=basis.end - basis.start,
-            sample_rate=SYNTH_RATE,
+            sample_rate=rate,
         )
     except Exception:
         return None
-    measured = measure_noise_psd(samples, SYNTH_RATE)
-    if measured is None or not _steady(samples) or _tonal(*measured):
+    measured = measure_noise_psd(samples, rate)
+    if measured is None or not _steady(samples, rate) or _tonal(samples, rate):
         return None
     psd, nfft = measured
-    probe = synthesise_noise(psd, nfft, SYNTH_RATE, seed_key="level-probe", length_sec=PROBE_SEC)
+    probe = synthesise_noise(
+        psd, nfft, SYNTH_RATE, source_rate=rate, seed_key="level-probe", length_sec=PROBE_SEC
+    )
     if abs(rms_db(probe) - rms_db(samples - np.mean(samples))) > LEVEL_TOLERANCE_DB:
         return None
     digest = hashlib.sha256(
-        f"{_params()}:{basis.kind}:{SYNTH_RATE}".encode()
-        + np.asarray(samples, dtype="<f4").tobytes()
+        f"{_params()}:{basis.kind}:{rate}".encode() + np.asarray(samples, dtype="<f4").tobytes()
     ).hexdigest()[:16]
-    return _Analysis(digest, psd, nfft)
+    return _Analysis(digest, psd, nfft, rate)
 
 
-def _steady(samples: np.ndarray) -> bool:
-    window = round(STEADY_WINDOW_SEC * SYNTH_RATE)
+def _native_rate(path: Path) -> int:
+    """The rate of a PCM WAV; ``SYNTH_RATE`` for anything the reader decodes through ffmpeg."""
+    try:
+        with open_wav(path) as wf:
+            return int(wf.getframerate())
+    except (OSError, wave.Error):
+        return SYNTH_RATE
+
+
+def _steady(samples: np.ndarray, rate: int) -> bool:
+    window = round(STEADY_WINDOW_SEC * rate)
     count = samples.size // window
     if count < 2:
         return False
@@ -270,11 +300,28 @@ def _steady(samples: np.ndarray) -> bool:
     return max(levels) - min(levels) <= NOISE_SPREAD_DB
 
 
-def _tonal(psd: np.ndarray, nfft: int) -> bool:
-    """A bin standing ``TONAL_PEAK_DB`` over the median of the bins around it."""
-    freqs = np.fft.rfftfreq(nfft, 1.0 / SYNTH_RATE)
+def _tonal(samples: np.ndarray, rate: int) -> bool:
+    """A bin standing ``TONAL_PEAK_DB`` over the median of the bins around it.
+
+    The frames are long enough (about 6 Hz bins at 48 kHz) that the harmonics of a 50 or 60 Hz
+    buzz sit bins apart, so they do not raise the neighbours a peak is compared with.
+    """
+    nfft = TONAL_NFFT
+    if samples.size < nfft:
+        return False
+    window = np.hanning(nfft)
+    starts = range(0, samples.size - nfft + 1, nfft // 2)
+    psd = np.mean(
+        [
+            np.abs(np.fft.rfft((samples[i : i + nfft] - samples[i : i + nfft].mean()) * window))
+            ** 2
+            for i in starts
+        ],
+        axis=0,
+    )
+    first = int(np.searchsorted(np.fft.rfftfreq(nfft, 1.0 / rate), MIN_FILL_HZ))
     ratio = 10 ** (TONAL_PEAK_DB / 10)
-    for index in (int(i) for i in np.flatnonzero(freqs >= MIN_FILL_HZ)):
+    for index in range(first, psd.size):
         low = max(0, index - TONAL_NEIGHBOURS)
         high = min(psd.size, index + TONAL_NEIGHBOURS + 1)
         around = np.delete(psd[low:high], index - low)
@@ -288,7 +335,12 @@ def _write_file(dest: Path, analysis: _Analysis, seed_key: str) -> None:
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
     noise = synthesise_noise(
-        analysis.psd, analysis.nfft, SYNTH_RATE, seed_key=seed_key, length_sec=SYNTH_FILE_SEC
+        analysis.psd,
+        analysis.nfft,
+        SYNTH_RATE,
+        source_rate=analysis.rate,
+        seed_key=seed_key,
+        length_sec=SYNTH_FILE_SEC,
     )
 
     noise = noise[: round(SYNTH_FILE_SEC * SYNTH_RATE)]

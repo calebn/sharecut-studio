@@ -190,7 +190,7 @@ def test_completed_effect_acoustics_is_the_only_veto(tmp_path, monkeypatch, oper
 
                 monkeypatch.setattr(decisions, "filler_pad_mode", lambda *args, **kw: "room_tone")
                 monkeypatch.setattr(
-                    "podcast_mcp.edits.timeline_ops.room_tone_span",
+                    "podcast_mcp.engines.room_tone_synth.room_tone_span",
                     lambda *args, **kwargs: OwnQuietSample(Sample(3.0, 3.25, -70.0, None)),
                 )
                 return decisions.apply_auto_edits(
