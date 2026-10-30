@@ -50,7 +50,7 @@ from podcast_mcp.gui.routes.waveform import (
     no_store_error,
 )
 from podcast_mcp.gui.schemas import (
-    GUEST_NAME_FIELD_MAX,
+    GUEST_ID_MAX_CHARS,
     DocumentCommandRequest,
     FeedGuestEditRequest,
     GuestRequest,
@@ -146,7 +146,7 @@ _GUEST_CLIENT_SUFFIX_RE = re.compile(r"[^A-Za-z0-9_-]")
 class ShareCommentRequest(GuestRequest):
     timeline_spans: list[dict[str, float]] | None = Field(default=None, max_length=1000)
     body: str = Field(max_length=COMMENT_BODY_MAX)
-    author: str = Field(max_length=GUEST_NAME_FIELD_MAX)
+    author: str = Field(max_length=GUEST_ID_MAX_CHARS)
     timeline_start: float
     timeline_end: float | None = None
     edit_decision_id: str | None = None
@@ -155,7 +155,7 @@ class ShareCommentRequest(GuestRequest):
 
 class ShareReplyRequest(GuestRequest):
     body: str = Field(max_length=COMMENT_BODY_MAX)
-    author: str = Field(max_length=GUEST_NAME_FIELD_MAX)
+    author: str = Field(max_length=GUEST_ID_MAX_CHARS)
 
 
 def _check_token(token: str, *, kind: str = SHARE_KIND_REVIEW) -> dict[str, Any]:

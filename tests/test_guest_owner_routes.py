@@ -77,6 +77,26 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch):
         "podcast_mcp.services.document.TranscriptService.word_timing_context",
         lambda self, *_args, **_kwargs: {"ok": True},
     )
+    monkeypatch.setattr(
+        "podcast_mcp.services.media.SpeakerService.check_split", lambda self, *_a, **_k: None
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.media.SpeakerService.split_speakers", lambda self, *_a, **_k: {}
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.media.SpeakerService.move_lane_span",
+        lambda self, *_a, **_k: dict.fromkeys(
+            (
+                "from_lane",
+                "to_lane",
+                "source_start",
+                "source_end",
+                "mute_region",
+                "words_moved",
+                "history_head_id",
+            )
+        ),
+    )
     for check in ("ensure_whisper_cached_for_run", "ensure_word_aligner_for_run"):
         monkeypatch.setattr(f"podcast_mcp.gui.routes.pipeline_jobs.{check}", lambda *_a, **_k: None)
     app = create_app()
@@ -90,6 +110,13 @@ def _url(row: GuestRoute, token: str, job_id: str) -> str:
 BODIES = {
     "pipeline_run": {},
     "export_start": {},
+    "speaker_split": {"track_id": "host", "speaker_count": 2},
+    "speaker_move_lane_span": {
+        "from_lane": "a",
+        "to_lane": "b",
+        "timeline_start": 0.0,
+        "timeline_end": 1.0,
+    },
     "transcript_vocabulary_put": {"terms": [], "guest_names": [], "base_revision": None},
     "transcript_refine_done": {},
     "transcript_refine_waive": {"reason": "r"},
@@ -115,7 +142,13 @@ def _editor_job_id(world, name: str) -> str:
         job = Job(id="export-1", kind="export", status="ok", project_path=str(world.ws.path))
         world.app.state.jobs._catalog._job = job
         return job.id
-    if name in {"pipeline_run", "export_start", "export_status"}:
+    if name.startswith("speaker_job"):
+        job = Job(
+            id="speaker-1", kind="split_speakers", status="ok", project_path=str(world.ws.path)
+        )
+        world.app.state.jobs._catalog._job = job
+        return job.id
+    if name in {"pipeline_run", "export_start", "export_status", "speaker_split", "speaker_status"}:
         return "j1"
     start = GUEST_OWNER_ROUTES["render_preview"]
     return _call(world, start, world.tokens["editor"]).json()["job"]["id"]
@@ -144,6 +177,12 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
         "transcript_word_timing_context",
         "transcript_export",
         "transcript_exports",
+        "speaker_split",
+        "speaker_status",
+        "speaker_job_status",
+        "speaker_job_events",
+        "speaker_job_cancel",
+        "speaker_move_lane_span",
     }
     for name, row in GUEST_OWNER_ROUTES.items():
         assert row.name == name
@@ -153,6 +192,7 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
         "render_preview",
         "pipeline_run",
         "export_start",
+        "speaker_split",
     ]
     assert GUEST_OWNER_ROUTES["pipeline_run"].rate_kind == "mutate"
     assert GUEST_OWNER_ROUTES["render_preview"].rate_kind == "mutate"
@@ -457,7 +497,7 @@ def _job(kind: str, project: Path, status: str = "running", error: str | None = 
 
 
 def test_the_job_view_table_names_what_guests_may_see(tmp_path) -> None:
-    assert set(GUEST_JOB_VIEW) == {"pipeline", "render_preview", "export"}
+    assert set(GUEST_JOB_VIEW) == {"pipeline", "render_preview", "export", "split_speakers"}
     project = tmp_path / "a" / "episode.sharecut"
     failed = _job("render_preview", project, "error", "boom /host/secret.wav")
 

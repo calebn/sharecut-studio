@@ -4,7 +4,8 @@ A route with no row here is denied: ``gui/routes/review_editor.py`` refuses to i
 route that has no row. The HTTP twins are the registry; the guest MCP render tools are gated
 separately in ``remote_mcp/allowlist.py`` and ``tools.py`` until they join it.
 Only starting work spends host CPU, so only starts need ``needs_guest_render``; status, events and
-cancel work with the flag off. The transcript routes start no job and need no flag.
+cancel work with the flag off. The transcript routes start no job and need no flag; neither does
+moving a speaker lane span.
 """
 
 from __future__ import annotations
@@ -121,6 +122,32 @@ _ROUTES = (
     ),
     GuestRoute("transcript_export", "POST", "/api/review/{token}/daw/transcript/export", "mutate"),
     GuestRoute("transcript_exports", "GET", "/api/review/{token}/daw/transcript/exports", "read"),
+    GuestRoute(
+        "speaker_split",
+        "POST",
+        "/api/review/{token}/daw/speaker/split",
+        "mutate",
+        needs_guest_render=True,
+    ),
+    GuestRoute("speaker_status", "GET", "/api/review/{token}/daw/speaker/status", "read"),
+    GuestRoute(
+        "speaker_job_status", "GET", "/api/review/{token}/daw/speaker/jobs/{job_id}", "read"
+    ),
+    GuestRoute(
+        "speaker_job_events", "GET", "/api/review/{token}/daw/speaker/jobs/{job_id}/events", "read"
+    ),
+    GuestRoute(
+        "speaker_job_cancel",
+        "POST",
+        "/api/review/{token}/daw/speaker/jobs/{job_id}/cancel",
+        "mutate",
+    ),
+    GuestRoute(
+        "speaker_move_lane_span",
+        "POST",
+        "/api/review/{token}/daw/speaker/move-lane-span",
+        "mutate",
+    ),
 )
 
 GUEST_OWNER_ROUTES: Mapping[str, GuestRoute] = MappingProxyType({r.name: r for r in _ROUTES})

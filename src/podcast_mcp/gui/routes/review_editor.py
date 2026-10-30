@@ -33,6 +33,8 @@ from podcast_mcp.gui.schemas import (
     GuestRefineDoneRequest,
     GuestRefineWaiveRequest,
     GuestReplacementPreviewRequest,
+    GuestSpeakerMoveLaneSpanRequest,
+    GuestSpeakerSplitRequest,
     GuestTranscriptExportRequest,
     GuestVocabularyPutRequest,
     GuestWordTimingContextRequest,
@@ -59,6 +61,7 @@ from podcast_mcp.services.jobs import (
     GUEST_EXPORT_KINDS,
     GUEST_PIPELINE_KINDS,
     GUEST_RENDER_KINDS,
+    GUEST_SPEAKER_KINDS,
     Job,
     guest_job_projection,
     guest_job_view,
@@ -66,14 +69,16 @@ from podcast_mcp.services.jobs import (
     guest_visible_job,
 )
 from podcast_mcp.services.media import (
+    SpeakerService,
     TranscriptChangedSinceReviewError,
     TranscriptPrecorrectService,
     TranscriptRefineService,
     VocabularyConflictError,
 )
 from podcast_mcp.services.pipeline import WordAlignerMissingError, config_store
-from podcast_mcp.util.coded_error import CodedError, guest_message_for_code
+from podcast_mcp.util.coded_error import CodedError, CodedValueError, guest_message_for_code
 from podcast_mcp.util.guest_render import require_guest_render
+from podcast_mcp.util.model_missing import ModelMissing
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -144,7 +149,17 @@ GUEST_VOCABULARY_KEYS = (
 )
 GUEST_EXPORT_FILE_KEYS = ("format", "name", "bytes", "language", "written", "current")
 GUEST_EXPORTED_KEYS = ("format", "name", "mime", "language", "bytes", "modified", "current")
+GUEST_MOVE_LANE_SPAN_KEYS = (
+    "from_lane",
+    "to_lane",
+    "source_start",
+    "source_end",
+    "mute_region",
+    "words_moved",
+    "history_head_id",
+)
 EXPORT_SLOTS = threading.BoundedSemaphore(2)
+SPLIT_REFUSAL_STATUS = {"speaker_backend_unavailable": 409}
 
 
 @dataclass(frozen=True)
@@ -220,6 +235,20 @@ WordTimingContextWorkspace = Annotated[
 ]
 TranscriptExportWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("transcript_export"))]
 TranscriptExportsWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("transcript_exports"))]
+SpeakerSplitActor = Annotated[GuestActor, Depends(guest_actor_route("speaker_split"))]
+SpeakerStatusWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("speaker_status"))]
+SpeakerJobScope = Annotated[
+    GuestJobScope, Depends(guest_job_route("speaker_job_status", GUEST_SPEAKER_KINDS))
+]
+SpeakerEventsScope = Annotated[
+    GuestJobScope, Depends(guest_job_route("speaker_job_events", GUEST_SPEAKER_KINDS))
+]
+SpeakerCancelScope = Annotated[
+    GuestJobScope, Depends(guest_job_route("speaker_job_cancel", GUEST_SPEAKER_KINDS))
+]
+SpeakerMoveLaneSpanActor = Annotated[
+    GuestActor, Depends(guest_actor_route("speaker_move_lane_span"))
+]
 
 
 def _projected(job: Job, scope: GuestJobScope) -> dict[str, Any]:
@@ -511,6 +540,77 @@ def post_daw_transcript_export(
 def get_daw_transcript_exports(ws: TranscriptExportsWorkspace) -> list[dict[str, Any]]:
     with guest_boundary(log, "review transcript exports"):
         return [_only(asdict(row), GUEST_EXPORTED_KEYS) for row in TranscriptService(ws).exported()]
+
+
+def _past_the_end(ws: ProjectWorkspace, req: GuestSpeakerSplitRequest) -> bool:
+    track = ws.project.track_by_id(req.track_id)
+    duration = track.media.duration_sec if track is not None and track.media else None
+    spans = (span for spans in (req.enrollment or {}).values() for span in spans)
+    return duration is not None and any(start >= duration for start, _end in spans)
+
+
+@router.post("/api/review/{token}/daw/speaker/split", status_code=202)
+def post_daw_speaker_split(
+    request: Request, req: GuestSpeakerSplitRequest, who: SpeakerSplitActor
+) -> dict[str, Any]:
+    """Splits one of the project's tracks; a missing model is the fixed 409, never a download."""
+    with guest_boundary(log, "review speaker split"):
+        if _past_the_end(who.ws, req):
+            raise _refused(400, "enrollment_past_end")
+        try:
+            job = request.app.state.jobs.start_split_speakers(
+                who.ws.path,
+                track_id=req.track_id,
+                speaker_count=req.speaker_count,
+                names=req.names,
+                enrollment=req.enrollment,
+            )
+        except ModelMissing:
+            raise
+        except CodedValueError as exc:
+            raise _refused(SPLIT_REFUSAL_STATUS.get(exc.code, 400), exc.code) from exc
+    log.info("guest speaker split started by=%s job=%s", who.source, job.id)
+    return {"job": guest_job_projection(job)}
+
+
+@router.get("/api/review/{token}/daw/speaker/status")
+def get_daw_speaker_status(request: Request, ws: SpeakerStatusWorkspace) -> dict[str, Any]:
+    with guest_boundary(log, "review speaker status"):
+        return guest_status_view(request.app.state.jobs.status(), ws.path, GUEST_SPEAKER_KINDS)
+
+
+@router.get("/api/review/{token}/daw/speaker/jobs/{job_id}")
+def get_daw_speaker_job(scope: SpeakerJobScope) -> dict[str, Any]:
+    return _projected(scope.job, scope)
+
+
+@router.get("/api/review/{token}/daw/speaker/jobs/{job_id}/events")
+def get_daw_speaker_job_events(token: str, scope: SpeakerEventsScope) -> StreamingResponse:
+    return _job_events(token, scope)
+
+
+@router.post("/api/review/{token}/daw/speaker/jobs/{job_id}/cancel")
+def post_daw_speaker_job_cancel(request: Request, scope: SpeakerCancelScope) -> dict[str, Any]:
+    return _cancelled(request, scope, "review speaker cancel")
+
+
+@router.post("/api/review/{token}/daw/speaker/move-lane-span")
+def post_daw_speaker_move_lane_span(
+    req: GuestSpeakerMoveLaneSpanRequest, who: SpeakerMoveLaneSpanActor
+) -> dict[str, Any]:
+    with guest_boundary(log, "review speaker move"):
+        try:
+            moved = SpeakerService(who.ws).move_lane_span(
+                req.from_lane,
+                req.to_lane,
+                timeline_start=req.timeline_start,
+                timeline_end=req.timeline_end,
+            )
+        except CodedValueError as exc:
+            raise _refused(400, exc.code) from exc
+        view = _only(moved, GUEST_MOVE_LANE_SPAN_KEYS)
+    log.info("guest speaker move by=%s", who.source)
+    return view
 
 
 def check_guest_router(router: APIRouter, registry: Mapping[str, GuestRoute]) -> None:

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import unicodedata
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, field_validator, model_validator
 
 from podcast_mcp.feed.model import FeedEdit
 from podcast_mcp.models.episode import ExactRangeTarget
@@ -213,6 +214,12 @@ class GuestExportRequest(GuestRequest):
 GUEST_NOTE_MAX_CHARS = 500
 GUEST_SEARCH_MAX_CHARS = 200
 GUEST_SEARCH_MAX_WORDS = 20
+GUEST_ID_MAX_CHARS = 200
+GUEST_MAX_SPEAKERS = 8
+GUEST_SPEAKER_NAME_MAX_CHARS = 80
+GUEST_ENROLLMENT_SPANS_MAX = 16
+GUEST_ENROLLMENT_SECONDS_PER_SPEAKER = 600.0
+GUEST_ENROLLMENT_SECONDS_TOTAL = 1800.0
 TranscriptFormat = Literal["txt", "md", "srt", "vtt"]
 DEFAULT_TRANSCRIPT_EXPORT_FORMATS: tuple[TranscriptFormat, ...] = ("md", "srt")
 VocabularyEntry = Annotated[str, Field(max_length=VOCABULARY_MAX_ENTRY_CHARS)]
@@ -291,6 +298,77 @@ class GuestTranscriptExportRequest(GuestRequest):
         if len(set(formats)) != len(formats):
             raise ValueError("formats must not repeat")
         return formats
+
+
+def _plain_name(name: str) -> str:
+    if not name.strip() or any(unicodedata.category(c).startswith("C") for c in name):
+        raise ValueError("a name needs visible text and no control characters")
+    return name
+
+
+SpeakerName = Annotated[
+    str,
+    Field(min_length=1, max_length=GUEST_SPEAKER_NAME_MAX_CHARS),
+    AfterValidator(_plain_name),
+]
+EnrollmentSpans = Annotated[
+    list[tuple[float, float]], Field(min_length=1, max_length=GUEST_ENROLLMENT_SPANS_MAX)
+]
+
+
+def _merged(spans: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    merged: list[tuple[float, float]] = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+class GuestSpeakerSplitRequest(GuestRequest):
+    """Split one of the share's tracks into a lane per speaker; spans are source seconds."""
+
+    track_id: str = Field(min_length=1, max_length=GUEST_ID_MAX_CHARS)
+    speaker_count: int = Field(ge=2, le=GUEST_MAX_SPEAKERS)
+    names: list[SpeakerName] | None = Field(default=None, max_length=GUEST_MAX_SPEAKERS)
+    enrollment: dict[SpeakerName, EnrollmentSpans] | None = Field(
+        default=None, max_length=GUEST_MAX_SPEAKERS
+    )
+
+    @field_validator("enrollment")
+    @classmethod
+    def _bounded_samples(cls, value):
+        """Overlapping spans merge, so a speaker's samples cost what they cover, once."""
+        merged = {}
+        for name, spans in (value or {}).items():
+            if not all(0 <= start < end < float("inf") for start, end in spans):
+                raise ValueError(f"{name}: each span needs 0 <= start < end")
+            merged[name] = _merged(spans)
+            if (
+                sum(end - start for start, end in merged[name])
+                > GUEST_ENROLLMENT_SECONDS_PER_SPEAKER
+            ):
+                raise ValueError(f"{name}: voice samples are over the length allowed")
+        total = sum(end - start for spans in merged.values() for start, end in spans)
+        if total > GUEST_ENROLLMENT_SECONDS_TOTAL:
+            raise ValueError("voice samples are over the length allowed")
+        return merged or value
+
+
+class GuestSpeakerMoveLaneSpanRequest(GuestRequest):
+    """Move a timeline range between two lanes of one speaker split."""
+
+    from_lane: str = Field(min_length=1, max_length=GUEST_ID_MAX_CHARS)
+    to_lane: str = Field(min_length=1, max_length=GUEST_ID_MAX_CHARS)
+    timeline_start: float = Field(allow_inf_nan=False)
+    timeline_end: float = Field(allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def _forward(self):
+        if self.timeline_end <= self.timeline_start:
+            raise ValueError("the range must end after it starts")
+        return self
 
 
 class FeedWriteRequest(BaseModel):
@@ -421,14 +499,11 @@ class CommentReplyRequest(BaseModel):
     author: str
 
 
-GUEST_NAME_FIELD_MAX = 200
-
-
 class ShareActionDoneRequest(GuestRequest):
     """Guest HTTP twin for MCP guest_set_action_done (no project path)."""
 
     done: bool = True
-    by: str = Field(default="guest", max_length=GUEST_NAME_FIELD_MAX)
+    by: str = Field(default="guest", max_length=GUEST_ID_MAX_CHARS)
 
 
 class ShareCreateRequest(BaseModel):
