@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any
 
+from podcast_mcp.edits.review_gate import ShareSource
 from podcast_mcp.util.coded_error import CodedValueError
 
 CAP_VIEW = "view"
@@ -187,6 +188,9 @@ def guest_mode(caps: list[str] | None) -> str:
     return _ROLE_GUEST_MODE[role] if role is not None else "none"
 
 
+SHARE_ACTOR_PREFIX = "share:"
+
+
 def share_author(share: Mapping[str, Any]) -> str:
     """``EditDecision.author`` for a share guest: ``share:`` plus the share's registry id.
 
@@ -197,4 +201,9 @@ def share_author(share: Mapping[str, Any]) -> str:
     share_id = share.get("id")
     if not share_id:
         raise KeyError("invalid or revoked share token")
-    return f"share:{share_id}"
+    return f"{SHARE_ACTOR_PREFIX}{share_id}"
+
+
+def share_review_source(share: Mapping[str, Any]) -> ShareSource:
+    """The review-gate ``source`` for a share guest: the same actor string as ``share_author``."""
+    return ShareSource(share_author(share))

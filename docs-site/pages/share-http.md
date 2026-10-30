@@ -64,6 +64,15 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `POST` | `…/daw/range-audio` | `play` | Exact timeline islands from the full mix, with silent gaps. Never isolated stems. |
 | `POST` | `…/daw/render-preview` | `Editor` | Start stem/premix render job (opt-in PODCAST_GUEST_RENDER) |
 | `GET` | `…/daw/render-preview/{job_id}` | `Editor` | Read project-scoped render job status (no host paths) |
+| `POST` | `…/daw/transcript/export` | `Editor` | Write or preview the transcript as txt, md, srt or vtt in the project's export folder; no file paths returned |
+| `GET` | `…/daw/transcript/exports` | `Editor` | List the transcript files already exported (names and whether current; no paths) |
+| `POST` | `…/daw/transcript/refine/done` | `Editor` | Mark the transcript checked as this link; 409 if the transcript changed since the fingerprint |
+| `GET` | `…/daw/transcript/refine/status` | `Editor` | Read the transcript check (pending, done or waived); the host's notes are not shown |
+| `POST` | `…/daw/transcript/refine/waive` | `Editor` | Waive the transcript check as this link, with a short reason |
+| `POST` | `…/daw/transcript/replacement-preview` | `Editor` | Preview a find-and-replace on the transcript; writes nothing |
+| `GET` | `…/daw/transcript/vocabulary` | `Editor` | Read the project's transcript vocabulary: terms, guest names and revision |
+| `PUT` | `…/daw/transcript/vocabulary` | `Editor` | Save the project's vocabulary (terms, guest names, base revision); 409 if the revision is stale |
+| `POST` | `…/daw/transcript/word-timing-context` | `Editor` | Read one word's timing context; writes nothing |
 | `GET` | `…/daw/waveform-snap` | `Commenter or Editor` | Windowed snap ticks; a Viewer gets the wash only |
 | `GET` | `…/daw/waveform/status` | `view` | Waveform pyramid status (raw media) |
 | `GET` | `…/daw/waveform/tiles/{key}` | `view` | Binary min/max/RMS pyramid tiles |

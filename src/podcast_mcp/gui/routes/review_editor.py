@@ -7,11 +7,12 @@ takes a path from the client.
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from podcast_mcp.export.audio import GUEST_EXPORT_FORMATS
@@ -26,13 +27,33 @@ from podcast_mcp.gui.routes.pipeline_jobs import (
 )
 from podcast_mcp.gui.routes.share_common import check_share_token, rate_limit_share
 from podcast_mcp.gui.routes.sse_common import guest_job_events_response
-from podcast_mcp.gui.schemas import GuestExportRequest, GuestPipelineRunRequest
+from podcast_mcp.gui.schemas import (
+    GuestExportRequest,
+    GuestPipelineRunRequest,
+    GuestRefineDoneRequest,
+    GuestRefineWaiveRequest,
+    GuestReplacementPreviewRequest,
+    GuestTranscriptExportRequest,
+    GuestVocabularyPutRequest,
+    GuestWordTimingContextRequest,
+    TranscriptRefineStatusView,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     GUEST_OWNER_ROUTES,
+    SHARE_ACTOR_PREFIX,
     GuestRoute,
+    ShareSource,
     guest_owner_route,
     require_share_edit,
+    share_review_source,
+)
+from podcast_mcp.services.document import (
+    ExportBusyError,
+    TranscriptEmptyError,
+    TranscriptService,
+    TranscriptTimingChangedError,
+    WordTimingTarget,
 )
 from podcast_mcp.services.jobs import (
     GUEST_EXPORT_KINDS,
@@ -44,12 +65,37 @@ from podcast_mcp.services.jobs import (
     guest_status_view,
     guest_visible_job,
 )
+from podcast_mcp.services.media import (
+    TranscriptChangedSinceReviewError,
+    TranscriptPrecorrectService,
+    TranscriptRefineService,
+    VocabularyConflictError,
+)
 from podcast_mcp.services.pipeline import WordAlignerMissingError, config_store
-from podcast_mcp.util.coded_error import guest_message_for_code
+from podcast_mcp.util.coded_error import CodedError, guest_message_for_code
 from podcast_mcp.util.guest_render import require_guest_render
 
 router = APIRouter()
 log = logging.getLogger(__name__)
+
+
+def _named(dependency: Callable[..., Any], name: str) -> Callable[..., Any]:
+    dependency.guest_route_name = name  # type: ignore[attr-defined]
+    return dependency
+
+
+def _share_scope(name: str) -> Callable[[str], tuple[dict[str, Any], ProjectWorkspace]]:
+    row = guest_owner_route(name)
+
+    def dependency(token: str) -> tuple[dict[str, Any], ProjectWorkspace]:
+        check_share_token(token)
+        rate_limit_share(token, row.rate_kind)
+        with guest_boundary(log, "review request"):
+            if row.needs_guest_render:
+                require_guest_render()
+            return require_share_edit(token)
+
+    return dependency
 
 
 def guest_route(name: str) -> Callable[[str], ProjectWorkspace]:
@@ -57,19 +103,30 @@ def guest_route(name: str) -> Callable[[str], ProjectWorkspace]:
 
     An unregistered name fails at import, so a twin cannot be mounted without a row.
     """
-    row = guest_owner_route(name)
+    scope = _share_scope(name)
 
     def dependency(token: str) -> ProjectWorkspace:
-        check_share_token(token)
-        rate_limit_share(token, row.rate_kind)
-        with guest_boundary(log, "review request"):
-            if row.needs_guest_render:
-                require_guest_render()
-            _row, ws = require_share_edit(token)
-        return ws
+        return scope(token)[1]
 
-    dependency.guest_route_name = name  # type: ignore[attr-defined]
-    return dependency
+    return _named(dependency, name)
+
+
+@dataclass(frozen=True)
+class GuestActor:
+    ws: ProjectWorkspace
+    source: ShareSource
+
+
+def guest_actor_route(name: str) -> Callable[[str], GuestActor]:
+    """Like ``guest_route``, for a twin that records who acted: ``share:`` plus the share's id."""
+    scope = _share_scope(name)
+
+    def dependency(token: str) -> GuestActor:
+        row, ws = scope(token)
+        with guest_boundary(log, "review request"):
+            return GuestActor(ws, share_review_source(row))
+
+    return _named(dependency, name)
 
 
 JOB_NOT_FOUND = "Job not found"
@@ -77,6 +134,17 @@ STREAMS_FULL = "Too many open streams on this link"
 STEP_NOT_SHARED = "That step is not available on a share link."
 RUN_ATTENDED = "The host set this project to attended runs; ask the host to start it."
 GUEST_BLOCKED_STEPS = frozenset({"export_deliverables"})
+GUEST_NOTE_PREFIX = "From an Editor link: "
+GUEST_VOCABULARY_KEYS = (
+    "terms",
+    "guest_names",
+    "prompt_limit",
+    "revision",
+    "needs_retranscription",
+)
+GUEST_EXPORT_FILE_KEYS = ("format", "name", "bytes", "language", "written", "current")
+GUEST_EXPORTED_KEYS = ("format", "name", "mime", "language", "bytes", "modified", "current")
+EXPORT_SLOTS = threading.BoundedSemaphore(2)
 
 
 @dataclass(frozen=True)
@@ -104,8 +172,7 @@ def guest_job_route(
             raise coded_http_error(404, JOB_NOT_FOUND, code="job_not_found")
         return GuestJobScope(ws, job, kinds)
 
-    dependency.guest_route_name = name  # type: ignore[attr-defined]
-    return dependency
+    return _named(dependency, name)
 
 
 RenderPreviewWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("render_preview"))]
@@ -134,6 +201,25 @@ ExportEventsScope = Annotated[
 ExportCancelScope = Annotated[
     GuestJobScope, Depends(guest_job_route("export_job_cancel", GUEST_EXPORT_KINDS))
 ]
+VocabularyGetWorkspace = Annotated[
+    ProjectWorkspace, Depends(guest_route("transcript_vocabulary_get"))
+]
+VocabularyPutWorkspace = Annotated[
+    ProjectWorkspace, Depends(guest_route("transcript_vocabulary_put"))
+]
+RefineStatusWorkspace = Annotated[
+    ProjectWorkspace, Depends(guest_route("transcript_refine_status"))
+]
+RefineDoneActor = Annotated[GuestActor, Depends(guest_actor_route("transcript_refine_done"))]
+RefineWaiveActor = Annotated[GuestActor, Depends(guest_actor_route("transcript_refine_waive"))]
+ReplacementPreviewWorkspace = Annotated[
+    ProjectWorkspace, Depends(guest_route("transcript_replacement_preview"))
+]
+WordTimingContextWorkspace = Annotated[
+    ProjectWorkspace, Depends(guest_route("transcript_word_timing_context"))
+]
+TranscriptExportWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("transcript_export"))]
+TranscriptExportsWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("transcript_exports"))]
 
 
 def _projected(job: Job, scope: GuestJobScope) -> dict[str, Any]:
@@ -191,9 +277,7 @@ def post_daw_pipeline_run(
             )
         except WordAlignerMissingError as exc:
             log.info("guest pipeline run refused: word aligner unusable", exc_info=exc)
-            raise coded_http_error(
-                409, guest_message_for_code("model_needed"), code="model_needed"
-            ) from exc
+            raise _refused(409, "model_needed") from exc
 
     projected = guest_job_view(job, ws.path, GUEST_PIPELINE_KINDS)
     if projected is None:
@@ -284,6 +368,149 @@ def get_daw_export_job_events(token: str, scope: ExportEventsScope) -> Streaming
 @router.post("/api/review/{token}/daw/export/jobs/{job_id}/cancel")
 def post_daw_export_job_cancel(request: Request, scope: ExportCancelScope) -> dict[str, Any]:
     return _cancelled(request, scope, "review export cancel")
+
+
+def _refused(status: int, code: str) -> HTTPException:
+    return coded_http_error(status, guest_message_for_code(code), code=code)
+
+
+def _guest_note(text: str | None) -> str | None:
+    return f"{GUEST_NOTE_PREFIX}{text.strip()}" if text and text.strip() else None
+
+
+def _refine_view(report: dict[str, Any]) -> dict[str, Any]:
+    source = report.get("source")
+    guest = isinstance(source, str) and source.startswith(SHARE_ACTOR_PREFIX)
+    return {**report, "notes": "", "source": "guest" if guest else source}
+
+
+def _only(row: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
+    return {key: row[key] for key in keys}
+
+
+@router.get("/api/review/{token}/daw/transcript/vocabulary")
+def get_daw_transcript_vocabulary(ws: VocabularyGetWorkspace) -> dict[str, Any]:
+    with guest_boundary(log, "review vocabulary"):
+        return _only(TranscriptPrecorrectService.vocabulary_status(ws.path), GUEST_VOCABULARY_KEYS)
+
+
+@router.put("/api/review/{token}/daw/transcript/vocabulary")
+def put_daw_transcript_vocabulary(
+    token: str, req: GuestVocabularyPutRequest, ws: VocabularyPutWorkspace
+) -> dict[str, Any]:
+    with guest_boundary(log, "review vocabulary save"):
+        try:
+            saved = TranscriptPrecorrectService(ws).set_vocabulary(
+                terms=req.terms, guest_names=req.guest_names, base_revision=req.base_revision
+            )
+        except VocabularyConflictError as exc:
+            raise _refused(409, "vocabulary_conflict") from exc
+    log.info("guest vocabulary saved token=%s", token[:8])
+    return _only(saved, GUEST_VOCABULARY_KEYS)
+
+
+@router.get(
+    "/api/review/{token}/daw/transcript/refine/status", response_model=TranscriptRefineStatusView
+)
+def get_daw_transcript_refine_status(ws: RefineStatusWorkspace) -> dict[str, Any]:
+    with guest_boundary(log, "review transcript check"):
+        return _refine_view(TranscriptRefineService(ws).gate_status())
+
+
+@router.post(
+    "/api/review/{token}/daw/transcript/refine/done", response_model=TranscriptRefineStatusView
+)
+def post_daw_transcript_refine_done(
+    req: GuestRefineDoneRequest, who: RefineDoneActor
+) -> dict[str, Any]:
+    with guest_boundary(log, "review transcript check"):
+        try:
+            report = TranscriptRefineService(who.ws).mark_checked(
+                notes=_guest_note(req.notes),
+                source=who.source,
+                expected_fingerprint=req.expected_fingerprint,
+            )
+        except TranscriptChangedSinceReviewError as exc:
+            raise _refused(409, "transcript_changed") from exc
+    return _refine_view(report)
+
+
+@router.post(
+    "/api/review/{token}/daw/transcript/refine/waive", response_model=TranscriptRefineStatusView
+)
+def post_daw_transcript_refine_waive(
+    req: GuestRefineWaiveRequest, who: RefineWaiveActor
+) -> dict[str, Any]:
+    with guest_boundary(log, "review transcript waiver"):
+        refine = TranscriptRefineService(who.ws)
+        report = refine.gate_status()
+        if not report["clear"]:
+            refine.waive(reason=_guest_note(req.reason) or "", source=who.source)
+            report = refine.gate_status()
+        return _refine_view(report)
+
+
+@router.post("/api/review/{token}/daw/transcript/replacement-preview")
+def post_daw_transcript_replacement_preview(
+    req: GuestReplacementPreviewRequest, ws: ReplacementPreviewWorkspace
+) -> dict[str, Any]:
+    with guest_boundary(log, "review replacement preview"):
+        return TranscriptService(ws).preview_transcript_replacement(
+            req.search, req.replacement, match_case=req.match_case
+        )
+
+
+@router.post("/api/review/{token}/daw/transcript/word-timing-context")
+def post_daw_transcript_word_timing_context(
+    req: GuestWordTimingContextRequest, ws: WordTimingContextWorkspace
+) -> dict[str, Any]:
+    with guest_boundary(log, "review word timing"):
+        try:
+            return TranscriptService(ws).word_timing_context(
+                WordTimingTarget(**req.target.model_dump()),
+                expected_text=req.expected_word.text,
+                expected_start=req.expected_word.start,
+                expected_end=req.expected_word.end,
+            )
+        except TranscriptTimingChangedError as exc:
+            raise _refused(409, "transcript_timing_changed") from exc
+        except CodedError:
+            raise
+        except (KeyError, FileNotFoundError) as exc:
+            raise _refused(404, "word_not_found") from exc
+
+
+@router.post("/api/review/{token}/daw/transcript/export")
+def post_daw_transcript_export(
+    token: str, req: GuestTranscriptExportRequest, ws: TranscriptExportWorkspace
+) -> dict[str, Any]:
+    """Writes into the project's export folder; a write waits for no more than two at once."""
+    if not req.dry_run and not EXPORT_SLOTS.acquire(blocking=False):
+        raise _refused(503, "export_busy")
+    try:
+        with guest_boundary(log, "review transcript export"):
+            try:
+                result = TranscriptService(ws).export(
+                    req.formats, dry_run=req.dry_run, with_text=req.with_text
+                )
+            except ExportBusyError as exc:
+                raise _refused(503, "export_busy") from exc
+            except TranscriptEmptyError as exc:
+                raise _refused(409, "transcript_empty") from exc
+    finally:
+        if not req.dry_run:
+            EXPORT_SLOTS.release()
+    if not req.dry_run:
+        log.info("guest transcript export token=%s formats=%s", token[:8], ",".join(req.formats))
+    view = asdict(result)
+    view["files"] = [_only(row, GUEST_EXPORT_FILE_KEYS) for row in view["files"]]
+    return view
+
+
+@router.get("/api/review/{token}/daw/transcript/exports")
+def get_daw_transcript_exports(ws: TranscriptExportsWorkspace) -> list[dict[str, Any]]:
+    with guest_boundary(log, "review transcript exports"):
+        return [_only(asdict(row), GUEST_EXPORTED_KEYS) for row in TranscriptService(ws).exported()]
 
 
 def check_guest_router(router: APIRouter, registry: Mapping[str, GuestRoute]) -> None:

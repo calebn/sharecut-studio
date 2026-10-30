@@ -7,7 +7,10 @@ from pydantic import BaseModel, Field, field_validator
 from podcast_mcp.feed.model import FeedEdit
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.models.feed import PinAuthor
-from podcast_mcp.project.transcript_context import VOCABULARY_MAX_ENTRIES
+from podcast_mcp.project.transcript_context import (
+    VOCABULARY_MAX_ENTRIES,
+    VOCABULARY_MAX_ENTRY_CHARS,
+)
 from podcast_mcp.services.document_sync import (
     COMMENT_BODY_MAX,
     DocumentCommandBody,
@@ -21,9 +24,8 @@ DocumentCommandRequest = DocumentCommandBody
 
 
 class GuestRequest(BaseModel):
-    """Base for the guest request bodies that carry fields of their own (comment, reply,
-    action done, feed edit): unknown fields are refused. Document commands use their typed
-    payloads instead."""
+    """Base for the guest request bodies that carry fields of their own: unknown fields are
+    refused. Document commands use their typed payloads instead."""
 
     model_config = {"extra": "forbid"}
 
@@ -81,7 +83,7 @@ class TranscriptRefineDoneRequest(BaseModel):
 
 
 class TranscriptRefineStatusView(BaseModel):
-    """The transcript check as the Review stage reads it (host only)."""
+    """The transcript check as the Review stage reads it."""
 
     status: Literal["pending", "done", "waived"]
     clear: bool
@@ -208,6 +210,89 @@ class GuestExportRequest(GuestRequest):
         return formats
 
 
+GUEST_NOTE_MAX_CHARS = 500
+GUEST_SEARCH_MAX_CHARS = 200
+GUEST_SEARCH_MAX_WORDS = 20
+TranscriptFormat = Literal["txt", "md", "srt", "vtt"]
+DEFAULT_TRANSCRIPT_EXPORT_FORMATS: tuple[TranscriptFormat, ...] = ("md", "srt")
+VocabularyEntry = Annotated[str, Field(max_length=VOCABULARY_MAX_ENTRY_CHARS)]
+
+
+class GuestVocabularyPutRequest(GuestRequest):
+    """Save the project's vocabulary from an Editor share; the share names the project."""
+
+    terms: list[VocabularyEntry] = Field(max_length=VOCABULARY_MAX_ENTRIES)
+    guest_names: list[VocabularyEntry] = Field(max_length=VOCABULARY_MAX_ENTRIES)
+    base_revision: str | None = Field(max_length=64)
+
+
+class GuestRefineDoneRequest(GuestRequest):
+    """Mark the transcript checked; the share, not the body, says who did it."""
+
+    notes: str | None = Field(default=None, max_length=GUEST_NOTE_MAX_CHARS)
+    expected_fingerprint: str | None = Field(default=None, max_length=64)
+
+
+class GuestRefineWaiveRequest(GuestRequest):
+    """Waive the transcript check; the share, not the body, says who did it."""
+
+    reason: str = Field(min_length=1, max_length=GUEST_NOTE_MAX_CHARS)
+
+    @field_validator("reason")
+    @classmethod
+    def _not_blank(cls, reason: str) -> str:
+        if not reason.strip():
+            raise ValueError("reason must not be blank")
+        return reason
+
+
+class GuestReplacementPreviewRequest(GuestRequest, TranscriptReplacementOptions):
+    """Preview a find-and-replace on the share's transcript; the search is shorter than the host's."""
+
+    search: str = Field(min_length=1, max_length=GUEST_SEARCH_MAX_CHARS)
+
+    @field_validator("search")
+    @classmethod
+    def _few_words(cls, search: str) -> str:
+        if len(search.split()) > GUEST_SEARCH_MAX_WORDS:
+            raise ValueError("search has too many words")
+        return search
+
+
+class GuestWordTimingTarget(GuestRequest):
+    track_id: str = Field(min_length=1, max_length=200)
+    source_id: str | None = Field(..., min_length=1, max_length=200)
+    word_index: int = Field(ge=0)
+
+
+class GuestExpectedTimingWord(GuestRequest):
+    text: str = Field(max_length=200)
+    start: float = Field(allow_inf_nan=False)
+    end: float = Field(allow_inf_nan=False)
+
+
+class GuestWordTimingContextRequest(GuestRequest):
+    target: GuestWordTimingTarget
+    expected_word: GuestExpectedTimingWord
+
+
+class GuestTranscriptExportRequest(GuestRequest):
+    """Write or preview the share's transcript files; each name is a format the host fixes."""
+
+    formats: list[TranscriptFormat] = Field(
+        default=list(DEFAULT_TRANSCRIPT_EXPORT_FORMATS), min_length=1, max_length=4
+    )
+    dry_run: bool = False
+    with_text: bool = False
+
+    @field_validator("formats")
+    @classmethod
+    def _distinct(cls, formats: list[str]) -> list[str]:
+        if len(set(formats)) != len(formats):
+            raise ValueError("formats must not repeat")
+        return formats
+
+
 class FeedWriteRequest(BaseModel):
     """Write the episode's feed file."""
 
@@ -216,7 +301,7 @@ class FeedWriteRequest(BaseModel):
 
 class TranscriptExportRequest(BaseModel):
     path: str
-    formats: list[str] = ["md", "srt"]
+    formats: list[str] = list(DEFAULT_TRANSCRIPT_EXPORT_FORMATS)
     dry_run: bool = False
     with_text: bool = False
 

@@ -60,6 +60,11 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch):
         )["token"]
         for role in ("viewer", "commenter", "editor")
     }
+    tokens["expired"] = ShareService(ws).create(
+        review_version_id=version,
+        capabilities=capabilities_for_role("editor"),
+        expires_at="2020-01-01T00:00:00Z",
+    )["token"]
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.run",
         lambda self, **_kwargs: SimpleNamespace(last_step=None, job_result=dict),
@@ -67,6 +72,10 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.export_audio",
         lambda self, formats=None, **_kwargs: SimpleNamespace(job_result=dict),
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.TranscriptService.word_timing_context",
+        lambda self, *_args, **_kwargs: {"ok": True},
     )
     for check in ("ensure_whisper_cached_for_run", "ensure_word_aligner_for_run"):
         monkeypatch.setattr(f"podcast_mcp.gui.routes.pipeline_jobs.{check}", lambda *_a, **_k: None)
@@ -78,9 +87,23 @@ def _url(row: GuestRoute, token: str, job_id: str) -> str:
     return row.path.format(token=token, job_id=job_id)
 
 
+BODIES = {
+    "pipeline_run": {},
+    "export_start": {},
+    "transcript_vocabulary_put": {"terms": [], "guest_names": [], "base_revision": None},
+    "transcript_refine_done": {},
+    "transcript_refine_waive": {"reason": "r"},
+    "transcript_replacement_preview": {"search": "a", "replacement": "b"},
+    "transcript_word_timing_context": {
+        "target": {"track_id": "host", "source_id": None, "word_index": 0},
+        "expected_word": {"text": "a", "start": 0.0, "end": 1.0},
+    },
+    "transcript_export": {"dry_run": True},
+}
+
+
 def _call(world, row: GuestRoute, token: str, job_id: str = "j1"):
-    body = {} if row.name in {"pipeline_run", "export_start"} else None
-    return world.client.request(row.method, _url(row, token, job_id), json=body)
+    return world.client.request(row.method, _url(row, token, job_id), json=BODIES.get(row.name))
 
 
 def _editor_job_id(world, name: str) -> str:
@@ -112,6 +135,15 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
         "export_job_status",
         "export_job_events",
         "export_job_cancel",
+        "transcript_vocabulary_get",
+        "transcript_vocabulary_put",
+        "transcript_refine_status",
+        "transcript_refine_done",
+        "transcript_refine_waive",
+        "transcript_replacement_preview",
+        "transcript_word_timing_context",
+        "transcript_export",
+        "transcript_exports",
     }
     for name, row in GUEST_OWNER_ROUTES.items():
         assert row.name == name
@@ -126,6 +158,13 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
     assert GUEST_OWNER_ROUTES["render_preview"].rate_kind == "mutate"
     assert GUEST_OWNER_ROUTES["export_start"].rate_kind == "mutate"
     assert GUEST_OWNER_ROUTES["render_preview_status"].rate_kind == "read"
+    transcript = {n: r for n, r in GUEST_OWNER_ROUTES.items() if n.startswith("transcript_")}
+    assert {n for n, r in transcript.items() if r.rate_kind == "mutate"} == {
+        "transcript_vocabulary_put",
+        "transcript_refine_done",
+        "transcript_refine_waive",
+        "transcript_export",
+    }
 
 
 def test_a_route_with_no_row_is_denied() -> None:
@@ -163,6 +202,14 @@ def test_each_row_answers_404_for_a_revoked_token(world, name) -> None:
     ShareService(world.ws).revoke(world.tokens["editor"])
 
     assert _call(world, row, world.tokens["editor"]).status_code == 404
+
+
+@pytest.mark.parametrize("name", sorted(GUEST_OWNER_ROUTES))
+def test_each_row_answers_404_for_an_expired_link(world, name) -> None:
+    res = _call(world, GUEST_OWNER_ROUTES[name], world.tokens["expired"])
+
+    assert res.status_code == 404
+    assert res.headers[CODE] == "share_not_found"
 
 
 @pytest.mark.parametrize("name", sorted(GUEST_OWNER_ROUTES))

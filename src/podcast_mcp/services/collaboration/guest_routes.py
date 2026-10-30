@@ -4,7 +4,7 @@ A route with no row here is denied: ``gui/routes/review_editor.py`` refuses to i
 route that has no row. The HTTP twins are the registry; the guest MCP render tools are gated
 separately in ``remote_mcp/allowlist.py`` and ``tools.py`` until they join it.
 Only starting work spends host CPU, so only starts need ``needs_guest_render``; status, events and
-cancel work with the flag off.
+cancel work with the flag off. The transcript routes start no job and need no flag.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ class GuestRoute:
     """One twin: who may call it, how it is rate limited, and the host opt-ins it needs."""
 
     name: str
-    method: Literal["GET", "POST"]
+    method: Literal["GET", "POST", "PUT"]
     path: str
     rate_kind: Literal["read", "mutate"]
     needs_guest_render: bool = False
@@ -83,6 +83,44 @@ _ROUTES = (
         "/api/review/{token}/daw/export/jobs/{job_id}/cancel",
         "mutate",
     ),
+    GuestRoute(
+        "transcript_vocabulary_get", "GET", "/api/review/{token}/daw/transcript/vocabulary", "read"
+    ),
+    GuestRoute(
+        "transcript_vocabulary_put",
+        "PUT",
+        "/api/review/{token}/daw/transcript/vocabulary",
+        "mutate",
+    ),
+    GuestRoute(
+        "transcript_refine_status",
+        "GET",
+        "/api/review/{token}/daw/transcript/refine/status",
+        "read",
+    ),
+    GuestRoute(
+        "transcript_refine_done", "POST", "/api/review/{token}/daw/transcript/refine/done", "mutate"
+    ),
+    GuestRoute(
+        "transcript_refine_waive",
+        "POST",
+        "/api/review/{token}/daw/transcript/refine/waive",
+        "mutate",
+    ),
+    GuestRoute(
+        "transcript_replacement_preview",
+        "POST",
+        "/api/review/{token}/daw/transcript/replacement-preview",
+        "read",
+    ),
+    GuestRoute(
+        "transcript_word_timing_context",
+        "POST",
+        "/api/review/{token}/daw/transcript/word-timing-context",
+        "read",
+    ),
+    GuestRoute("transcript_export", "POST", "/api/review/{token}/daw/transcript/export", "mutate"),
+    GuestRoute("transcript_exports", "GET", "/api/review/{token}/daw/transcript/exports", "read"),
 )
 
 GUEST_OWNER_ROUTES: Mapping[str, GuestRoute] = MappingProxyType({r.name: r for r in _ROUTES})

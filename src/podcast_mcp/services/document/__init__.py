@@ -56,6 +56,8 @@ if TYPE_CHECKING:
         ExportBusyError,
         TranscriptEmptyError,
         TranscriptService,
+        TranscriptTimingChangedError,
+        WordTimingTarget,
     )
 
 __all__ = [
@@ -91,8 +93,10 @@ __all__ = [
     "TimelineService",
     "TranscriptEmptyError",
     "TranscriptService",
+    "TranscriptTimingChangedError",
     "TransportPath",
     "TrimBoundaryTarget",
+    "WordTimingTarget",
     "build_golden_ear",
     "cross_process_bridge",
     "cross_process_lease",
@@ -146,6 +150,8 @@ _MODULE_BY_NAME = {
     "TranscriptService": "transcript",
     "TranscriptEmptyError": "transcript",
     "ExportBusyError": "transcript",
+    "TranscriptTimingChangedError": "transcript",
+    "WordTimingTarget": "transcript",
 }
 
 

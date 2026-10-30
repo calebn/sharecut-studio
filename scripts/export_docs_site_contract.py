@@ -159,6 +159,42 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Editor",
         "Cancel one export job of this project (works with PODCAST_GUEST_RENDER off)",
     ),
+    ("GET", "/api/review/{token}/daw/transcript/vocabulary"): (
+        "Editor",
+        "Read the project's transcript vocabulary: terms, guest names and revision",
+    ),
+    ("PUT", "/api/review/{token}/daw/transcript/vocabulary"): (
+        "Editor",
+        "Save the project's vocabulary (terms, guest names, base revision); 409 if the revision is stale",
+    ),
+    ("GET", "/api/review/{token}/daw/transcript/refine/status"): (
+        "Editor",
+        "Read the transcript check (pending, done or waived); the host's notes are not shown",
+    ),
+    ("POST", "/api/review/{token}/daw/transcript/refine/done"): (
+        "Editor",
+        "Mark the transcript checked as this link; 409 if the transcript changed since the fingerprint",
+    ),
+    ("POST", "/api/review/{token}/daw/transcript/refine/waive"): (
+        "Editor",
+        "Waive the transcript check as this link, with a short reason",
+    ),
+    ("POST", "/api/review/{token}/daw/transcript/replacement-preview"): (
+        "Editor",
+        "Preview a find-and-replace on the transcript; writes nothing",
+    ),
+    ("POST", "/api/review/{token}/daw/transcript/word-timing-context"): (
+        "Editor",
+        "Read one word's timing context; writes nothing",
+    ),
+    ("POST", "/api/review/{token}/daw/transcript/export"): (
+        "Editor",
+        "Write or preview the transcript as txt, md, srt or vtt in the project's export folder; no file paths returned",
+    ),
+    ("GET", "/api/review/{token}/daw/transcript/exports"): (
+        "Editor",
+        "List the transcript files already exported (names and whether current; no paths)",
+    ),
     ("POST", "/api/review/{token}/daw/document/command"): (
         "role's command set",
         "Typed body — see Document commands",
@@ -265,6 +301,42 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ("POST", "/api/review/{token}/daw/export/jobs/{job_id}/cancel"): (
         "http-only: no guest MCP job tool yet"
     ),
+    (
+        "GET",
+        "/api/review/{token}/daw/transcript/vocabulary",
+    ): "http-only: no guest MCP transcript tool yet",
+    (
+        "PUT",
+        "/api/review/{token}/daw/transcript/vocabulary",
+    ): "http-only: no guest MCP transcript tool yet",
+    (
+        "GET",
+        "/api/review/{token}/daw/transcript/refine/status",
+    ): "http-only: no guest MCP transcript tool yet",
+    (
+        "POST",
+        "/api/review/{token}/daw/transcript/refine/done",
+    ): "http-only: no guest MCP transcript tool yet",
+    (
+        "POST",
+        "/api/review/{token}/daw/transcript/refine/waive",
+    ): "http-only: no guest MCP transcript tool yet",
+    (
+        "POST",
+        "/api/review/{token}/daw/transcript/replacement-preview",
+    ): "http-only: no guest MCP transcript tool yet",
+    (
+        "POST",
+        "/api/review/{token}/daw/transcript/word-timing-context",
+    ): "http-only: no guest MCP transcript tool yet",
+    (
+        "POST",
+        "/api/review/{token}/daw/transcript/export",
+    ): "http-only: no guest MCP transcript tool yet",
+    (
+        "GET",
+        "/api/review/{token}/daw/transcript/exports",
+    ): "http-only: no guest MCP transcript tool yet",
     ("POST", "/api/review/{token}/feed/edit"): (
         "http-only: the host's feed_set tool; not a guest MCP tool"
     ),
