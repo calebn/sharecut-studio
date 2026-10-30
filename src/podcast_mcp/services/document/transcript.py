@@ -47,6 +47,7 @@ from podcast_mcp.export.transcript import (
     TRANSCRIPT_FORMATS,
     TRANSCRIPT_MIME,
     CaptionLimits,
+    captions_match,
     first_cue_sample,
     render_reading_text,
     render_transcript_formats,
@@ -158,19 +159,10 @@ def _validated_formats(formats: Sequence[str]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(formats))
 
 
-def _caption_words(text: str) -> list[str]:
-    cues = (
-        line
-        for line in text.splitlines()
-        if line.strip() and line != "WEBVTT" and "-->" not in line and not line.strip().isdigit()
-    )
-    return " ".join(cues).split()
-
-
-def _same_transcript(fmt: str, data: bytes, fresh: str) -> bool:
-    if fmt not in ("srt", "vtt"):
-        return data == fresh.encode("utf-8")
-    return _caption_words(data.decode("utf-8", errors="replace")) == _caption_words(fresh)
+def _same_transcript(fmt: str, data: bytes, fresh: str, project: EpisodeProject) -> bool:
+    if fmt in ("srt", "vtt"):
+        return captions_match(data.decode("utf-8", errors="replace"), project)
+    return data == fresh.encode("utf-8")
 
 
 def _configured_limits(defaults: EffectiveConfig) -> CaptionLimits:
@@ -359,7 +351,7 @@ class TranscriptService(WorkspaceService):
 
         Only ``<stem>.{txt,md,srt,vtt}`` directly in the folder count, so ``bounces/`` and
         ``clips/`` never appear. ``current`` compares each file with a fresh render; captions
-        compare by their words, since the file does not record the cue limits it was written with.
+        compare by their words and cue start times, since the file does not record the cue limits.
         """
         p = self.ws.project
         stem = sanitize_export_stem(p.name)
@@ -390,7 +382,7 @@ class TranscriptService(WorkspaceService):
                     modified=datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).strftime(
                         "%Y-%m-%dT%H:%M:%SZ"
                     ),
-                    current=_same_transcript(fmt, data, rendered[fmt]),
+                    current=_same_transcript(fmt, data, rendered[fmt], fresh),
                 )
             )
         return out
