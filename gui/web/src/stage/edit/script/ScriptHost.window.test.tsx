@@ -12,7 +12,6 @@ import { ScriptHost } from "./ScriptHost";
 import {
   WINDOW_LIMIT,
   WINDOW_MARGIN,
-  WINDOW_MAX_SPAN,
 } from "./useScriptWindow";
 
 const seekTransport = vi.hoisted(() => vi.fn());
@@ -253,7 +252,7 @@ describe("ScriptHost window", () => {
     await userEvent.click(chip);
     expect(hasWord("a1500")).toBe(true);
     expect(hasWord("a0")).toBe(false);
-    expect(drawnTurns()).toBeLessThanOrEqual(WINDOW_MAX_SPAN);
+    expect(drawnTurns()).toBeLessThanOrEqual(WINDOW_LIMIT);
     expect(drawnTurns()).toBeLessThanOrEqual(2 * WINDOW_MARGIN + 1);
   });
 
@@ -261,7 +260,7 @@ describe("ScriptHost window", () => {
     seedScript({ utterances: longTranscript(2000) });
     render(<ScriptHost />);
     for (let n = 0; n < 12; n++) scrollBody(49500);
-    expect(drawnTurns()).toBeLessThanOrEqual(WINDOW_MAX_SPAN);
+    expect(drawnTurns()).toBeLessThanOrEqual(WINDOW_LIMIT);
     expect(hasWord("a0")).toBe(false);
     expect(hasWord(`a${WINDOW_MARGIN * 12}`)).toBe(true);
   });
@@ -274,7 +273,7 @@ describe("ScriptHost window", () => {
     });
     render(<ScriptHost />);
     for (let n = 0; n < 2; n++) scrollBody(0);
-    expect(drawnTurns()).toBeLessThanOrEqual(WINDOW_MAX_SPAN);
+    expect(drawnTurns()).toBeLessThanOrEqual(WINDOW_LIMIT);
     expect(hasWord("a600")).toBe(true);
     expect(hasWord(`a${600 + WINDOW_MARGIN}`)).toBe(false);
     expect(hasWord(`a${600 - WINDOW_MARGIN * 2}`)).toBe(true);
