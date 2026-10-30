@@ -58,7 +58,7 @@ test.describe("feedback host Close", () => {
         .click();
       const commands = watchCommands(page);
       await page
-        .getByRole("dialog")
+        .locator('[role="dialog"]:not(.sys-inspector)')
         .getByRole("button", { name: "Remove track", exact: true })
         .click();
       const card = page.locator(".ui-toast-region--app .ui-toast");

@@ -63,6 +63,12 @@ test("keeps desktop feedback above the Player after resizing a side composer", a
         body: JSON.stringify({ detail: "Bad request" }),
       }),
     );
+    // The Inspector card moves focus into its display-name field, and shortcuts
+    // are not heard while typing.
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement)
+        document.activeElement.blur();
+    });
     await page.keyboard.press("Control+b");
     const toast = page.locator(".ui-toast-region--app .ui-toast");
     await expect(toast).toBeVisible();
@@ -86,7 +92,11 @@ test("keeps desktop feedback above the Player after resizing a side composer", a
     expect(field).not.toBeNull();
     if (!card || !field)
       throw new Error("Feedback and the side composer must remain visible");
-    expect(card.x + card.width).toBeLessThan(field.x);
+    // The Inspector card holds the composer at the left of the stage, so the
+    // feedback may sit on either side of it; it must clear it horizontally.
+    expect(
+      card.x + card.width <= field.x || card.x >= field.x + field.width,
+    ).toBe(true);
     const overlapWidth = Math.max(
       0,
       Math.min(card.x + card.width, field.x + field.width) -
