@@ -158,10 +158,11 @@ describe("buildScriptModel", () => {
     expect(words[3]?.lowConfidence).toBeUndefined();
   });
 
-  it("marks the words an applied cut took out, with the seconds it removed", () => {
+  it("puts the words an applied cut took out back at its join, as cut words", () => {
     const boundary = {
       id: "b1",
       track_id: "host",
+      timeline_join_sec: 12.5,
       has_cutaway: true,
       cutaway_source_start: 12.5,
       cutaway_source_end: 14,
@@ -169,27 +170,42 @@ describe("buildScriptModel", () => {
         {
           track_id: "host",
           source_id: null,
-          word_index: 1,
-          text: "back",
+          word_index: -3,
+          text: "uh",
           start: 12.5,
           end: 12.9,
         },
         {
           track_id: "host",
           source_id: null,
-          word_index: 2,
-          text: "friends",
+          word_index: -4,
+          text: "well",
           start: 13,
           end: 13.4,
         },
       ],
     } as unknown as EditBoundaryView;
-    const words =
-      buildScriptModel(input([HOST], { boundaries: [boundary] })).turns[0]
-        ?.words ?? [];
+    const joined = utterance("host", "Maya", [
+      word("Welcome", 0, 12),
+      word("friends", 3, 12.5),
+    ]);
+    const model = buildScriptModel(input([joined], { boundaries: [boundary] }));
+    const words = model.turns[0]?.words ?? [];
+    expect(words.map((w) => w.text)).toEqual([
+      "Welcome",
+      "uh",
+      "well",
+      "friends",
+    ]);
     expect(words[0]?.mark).toBeUndefined();
     expect(words[1]?.mark).toEqual({ kind: "cut", id: "b1", seconds: 1.5 });
     expect(words[2]?.mark).toEqual({ kind: "cut", id: "b1", seconds: 1.5 });
+    expect(words[3]?.mark).toBeUndefined();
+    expect(model.isCut(1)).toBe(true);
+    expect(model.seekSecOf(1)).toBeNull();
+    expect(
+      model.indexOf({ trackId: "host", sourceId: null, wordIndex: 3 }),
+    ).toBe(3);
   });
 
   it("ignores a boundary with no cutaway", () => {
@@ -237,7 +253,34 @@ describe("buildScriptModel", () => {
     ).toEqual([null, null, null]);
   });
 
-  it("lets a cut win over a suggestion and a suggestion over muted", () => {
+  it("marks only cut suggestions, and reads the guest track from track_ids", () => {
+    const edit = (over: Partial<PendingEditView>) =>
+      ({
+        id: "p1",
+        type: "remove",
+        track_id: "host",
+        applied: false,
+        source_start: 20.4,
+        source_end: 21.5,
+        ...over,
+      }) as PendingEditView;
+    const marksOf = (pending: PendingEditView[]) =>
+      buildScriptModel(input([HOST, GUEST], { pending }))
+        .turns.flatMap((t) => t.words)
+        .map((w) => w.mark?.kind ?? null);
+    expect(marksOf([edit({ track_ids: ["guest"] })]).slice(3)).toEqual([
+      null,
+      "suggested",
+      "suggested",
+    ]);
+    expect(
+      marksOf([edit({ type: "mute", track_ids: ["guest"] })]).every(
+        (m) => m === null,
+      ),
+    ).toBe(true);
+  });
+
+  it("lets a suggestion win over muted", () => {
     const flagged = utterance("host", "Maya", [
       word("a", 0, 1, { ignored: true }),
       word("b", 1, 2, { ignored: true }),
@@ -330,7 +373,7 @@ describe("wordsTargetOf", () => {
     ]);
   });
 
-  it("is a track range when only untimed words cross a turn", () => {
+  it("is a time range across tracks, and a track range on the untimed track alone", () => {
     const cutAway = utterance(
       "guest",
       "Anneke",
@@ -386,6 +429,107 @@ describe("wordsTargetOf", () => {
     );
     expect(
       wordsTargetOf(untimed, { kind: "words", anchor: 0, head: 1 }),
+    ).toBeNull();
+  });
+});
+
+describe("words the project does not index", () => {
+  const bare = (text: string) =>
+    utterance("host", "Maya", [], { words: undefined, text });
+
+  it("keys each bare row apart and never addresses it", () => {
+    const model = buildScriptModel(input([bare("one"), bare("two")]));
+    const keys = model.turns.flatMap((t) => t.words.map((w) => w.key));
+    expect(new Set(keys).size).toBe(2);
+    expect(
+      model.indexOf({ trackId: "host", sourceId: null, wordIndex: 0 }),
+    ).toBeUndefined();
+    expect(
+      wordsTargetOf(model, { kind: "words", anchor: 0, head: 1 }),
+    ).toBeNull();
+  });
+
+  it("does not let a bare row take the name of a real word", () => {
+    const real = utterance("host", "Maya", [word("real", 0, 1)]);
+    const model = buildScriptModel(input([real, bare("rest")]));
+    expect(
+      model.indexOf({ trackId: "host", sourceId: null, wordIndex: 0 }),
+    ).toBe(0);
+    expect(
+      wordsTargetOf(model, { kind: "words", anchor: 1, head: 1 }),
+    ).toBeNull();
+  });
+});
+
+describe("a word listed under two utterances", () => {
+  const model = buildScriptModel(
+    input([
+      utterance("host", "Maya", [word("a", 1, 1), word("b", 2, 2)]),
+      utterance("host", "Maya", [word("b", 2, 2), word("c", 3, 3)]),
+    ]),
+  );
+
+  it("keeps both listings, with distinct keys", () => {
+    const keys = model.turns.flatMap((t) => t.words.map((w) => w.key));
+    expect(new Set(keys).size).toBe(4);
+  });
+
+  it("selects from the first listing of the start to the last listing of the end", () => {
+    const ref = (wordIndex: number) => ({
+      trackId: "host",
+      sourceId: null,
+      wordIndex,
+    });
+    expect(model.indexOf(ref(2))).toBe(1);
+    expect(model.indexOf(ref(2), "last")).toBe(2);
+    expect(
+      scriptSelectionOf(model, {
+        kind: "transcriptRange",
+        trackId: "host",
+        sourceId: null,
+        startWordIndex: 1,
+        endWordIndex: 2,
+      }),
+    ).toEqual({ kind: "words", anchor: 0, head: 2 });
+  });
+});
+
+describe("cut words in a selection", () => {
+  it("leaves them out of a range and gives nothing for a cut alone", () => {
+    const boundary = {
+      id: "b1",
+      track_id: "host",
+      timeline_join_sec: 12.4,
+      has_cutaway: true,
+      cutaway_source_start: 12.4,
+      cutaway_source_end: 13,
+      cutaway_word_ids: [
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: -2,
+          text: "uh",
+          start: 12.4,
+          end: 12.8,
+        },
+      ],
+    } as unknown as EditBoundaryView;
+    const model = buildScriptModel(
+      input(
+        [utterance("host", "Maya", [word("a", 0, 12), word("b", 1, 12.5)])],
+        { boundaries: [boundary] },
+      ),
+    );
+    expect(model.turns[0]?.words.map((w) => w.text)).toEqual(["a", "uh", "b"]);
+    expect(
+      wordsTargetOf(model, { kind: "words", anchor: 0, head: 2 }),
+    ).toMatchObject({
+      kind: "track",
+      startWordIndex: 0,
+      endWordIndex: 1,
+    });
+    expect(
+      wordsTargetOf(model, { kind: "words", anchor: 1, head: 1 }),
     ).toBeNull();
   });
 });
