@@ -19,6 +19,7 @@ from podcast_mcp.edits import timeline_ops
 from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.session_air import GeometricPause
 from podcast_mcp.edits.timeline_ops import (
+    LaneUnavailable,
     _project_pad_lane,
     bind_pause_effects,
     room_tone_pad,
@@ -220,6 +221,28 @@ def test_the_callers_leave_the_project_as_it_was_and_answer_as_before(
     old = call()
     assert _clip_json(project) == before
     assert new == old
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_binding_effects_at_a_clip_edge_leaves_the_shared_clip_as_it_was(
+    tmp_path: Path, seed: int
+) -> None:
+    project = _project(tmp_path, seed)
+    edge = clips_for_track(project, "host")[0].timeline_end
+    removal = RippleRemoval.of(unselected=[(edge, edge + 0.5)])
+    lane = _project_pad_lane(project, "host", edge, removal, defaults=DEFAULTS)
+    assert not isinstance(lane, LaneUnavailable)
+    assert any(c is p for c in lane for p in project.clips)
+    before = _clip_json(project)
+    bind_pause_effects(
+        project,
+        edge,
+        removal,
+        observation=GeometricPause(activity=()),
+        splice_fade_ms=20,
+        defaults=DEFAULTS,
+    )
+    assert _clip_json(project) == before
 
 
 def test_a_removal_that_touches_no_clip_returns_the_projects_own_clips_unchanged(
