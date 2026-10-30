@@ -40,6 +40,16 @@ describe("focusFirstControl", () => {
     expect(document.activeElement).toBe(box.querySelector("button"));
   });
 
+  it("skips a button that is aria-disabled", () => {
+    const box = mount(
+      '<button aria-disabled="true">Earlier</button><input type="text">',
+    );
+    focusFirstControl(box);
+    expect(document.activeElement).toBe(
+      box.querySelector("[data-inspector-anchor]"),
+    );
+  });
+
   it.each(["checkbox", "date", "time"])(
     "lands on the dialog for a %s input, which the keymap also ignores",
     (type) => {

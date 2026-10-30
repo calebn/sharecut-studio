@@ -1086,7 +1086,7 @@ auto-consents). Host Start does **not** require any room tone. Producers skip
 consent, `getUserMedia` and room tone; they auto-satisfy the Start gate. Mute
 writes zeros on the keeper.
 
-The device sheet's **Record room tone** stays focusable while capture is not ready and says why (`ROOM_TONE_NOT_READY_COPY`: the device has not joined the session or cannot store audio yet, wait for the connection and try again).
+The device sheet's **Record room tone** stays focusable while capture is not ready and says why (`ROOM_TONE_NOT_READY_COPY`: the device has not joined the session or cannot store audio yet, wait a moment, then try again; if it stays like this, reload the page).
 
 Room tone is started by the host: a consented guest's browser records one minute
 when a new `RoomToneCountdown` round names them and uploads it as `kind=room_tone`
