@@ -370,9 +370,79 @@ describe("Record stage", () => {
         },
         { skipWhen: true },
       );
+      expect(loadHostRecordSessions).toHaveBeenCalledTimes(1);
+    });
+
+    const seedClips = (avaTrack: string, otherTrack = "t_host") => {
+      const row = (id: string, track: string, source: string) =>
+        ({
+          id,
+          track_id: track,
+          source_id: source,
+          timeline_start: 0,
+        }) as never;
+      useDawStore.getState().hydrate("/tmp/p.json", {
+        ...minimalProject(),
+        tracks: [
+          { id: "t_ava", label: "Ava" },
+          { id: "t_host", label: "Host" },
+        ] as never,
+        clips: {
+          clip_count: 2,
+          tracks: {
+            [otherTrack]: [row("c2", otherTrack, "rec-other-0-p_g-x")],
+            [avaTrack]: [
+              ...(avaTrack === otherTrack
+                ? [row("c2", otherTrack, "rec-other-0-p_g-x")]
+                : []),
+              row("c1", avaTrack, "rec-old-0-p_g-x"),
+            ],
+          },
+        },
+      });
+    };
+
+    it("re-reads the card when the session's clips change track elsewhere, such as Undo", async () => {
+      seedClips("t_ava", "t_host");
+      vi.mocked(loadHostRecordSessions).mockResolvedValueOnce([
+        {
+          ...ended,
+          participants: [{ ...ended.participants[0], track_id: "t_ava" }],
+        },
+      ]);
+      mount();
+      const card = await screen.findByRole("region", { name: /^Session 1/ });
+      expect(within(card).getByRole("listitem").textContent).toContain("Ava");
+      vi.mocked(loadHostRecordSessions).mockResolvedValue([
+        {
+          ...ended,
+          participants: [{ ...ended.participants[0], track_id: "t_host" }],
+        },
+      ]);
+      act(() => seedClips("t_host", "t_ava"));
       await waitFor(() =>
         expect(loadHostRecordSessions).toHaveBeenCalledTimes(2),
       );
+      await waitFor(() =>
+        expect(
+          screen.getByRole("region", { name: /^Session 1/ }).textContent,
+        ).toContain("Host"),
+      );
+    });
+
+    it("does not re-read the card when unrelated clips change", async () => {
+      seedClips("t_ava", "t_host");
+      vi.mocked(loadHostRecordSessions).mockResolvedValue([
+        {
+          ...ended,
+          participants: [{ ...ended.participants[0], track_id: "t_ava" }],
+        },
+      ]);
+      mount();
+      await screen.findByRole("region", { name: /^Session 1/ });
+      act(() => seedClips("t_ava", "t_ava"));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(loadHostRecordSessions).toHaveBeenCalledTimes(1);
     });
 
     it("announces why a track change failed and leaves the card alone", async () => {

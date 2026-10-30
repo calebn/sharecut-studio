@@ -5,6 +5,7 @@ import {
   participantClips,
   recordSourcePrefix,
   remapMoves,
+  sessionClipSignature,
 } from "./recordRemapModel";
 
 const clip = (id: string, source: string | null, start: number, track = "t1") =>
@@ -69,5 +70,11 @@ describe("recordRemapModel", () => {
       "pa",
       "pb",
     ]);
+  });
+
+  it("signs only the session's clips by track", () => {
+    const before = sessionClipSignature(tracks, "s1");
+    expect(before).toBe("c1:t1|c2:t1|c3:t1|c7:t2");
+    expect(sessionClipSignature(undefined, "s1")).toBe("");
   });
 });

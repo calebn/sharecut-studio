@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   executePointerCommand,
   runPointerCommand,
@@ -46,7 +46,11 @@ import {
   RecordStageView,
 } from "./RecordStageView";
 import { RecordTargetChip } from "./RecordTargetChip";
-import { movableParticipants, remapMoves } from "./recordRemapModel";
+import {
+  movableParticipants,
+  remapMoves,
+  sessionClipSignature,
+} from "./recordRemapModel";
 import {
   firstClipped,
   startDisabledReason,
@@ -109,6 +113,21 @@ function RecordStageBody({
         : undefined,
     [clipTracks, lastSession],
   );
+  // Any move of the session's clips (the card's own, Undo, Redo, another editor)
+  // re-reads the card; the first signature seen for a session is only recorded.
+  const shownId = lastSession?.session_id ?? null;
+  const signature = shownId ? sessionClipSignature(clipTracks, shownId) : null;
+  const seen = useRef<{ id: string | null; signature: string | null }>({
+    id: null,
+    signature: null,
+  });
+  useEffect(() => {
+    const prev = seen.current;
+    seen.current = { id: shownId, signature };
+    if (shownId && prev.id === shownId && prev.signature !== signature) {
+      refreshLastSession();
+    }
+  }, [shownId, signature, refreshLastSession]);
   const remap = async (participantId: string, trackId: string) => {
     if (!lastSession || remapBusy) {
       return;
@@ -125,9 +144,7 @@ function RecordStageBody({
     setRemapBusy(true);
     try {
       const result = await executePointerCommand("edit.moveClips", { clips });
-      if (result.status === "ok") {
-        refreshLastSession();
-      } else {
+      if (result.status !== "ok") {
         const why = result.status === "disabled" ? result.reason : "try again";
         announceStatus(`Could not change the track: ${why}`, {
           tone: "error",
