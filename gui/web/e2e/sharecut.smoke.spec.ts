@@ -23,8 +23,8 @@ test.describe("ShareCut Studio smoke", () => {
       page.getByRole("region", { name: "Review queue" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("tablist", { name: "Review sections" }),
-    ).toHaveCount(0);
+      page.getByRole("region", { name: "Queue", exact: true }),
+    ).toBeVisible();
     await expect(page.locator(".stage-frame")).toBeVisible();
 
     await expectPageAxeClean(page);
