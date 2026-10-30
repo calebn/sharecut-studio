@@ -123,7 +123,7 @@ function outputOf(output?: DeviceOutput): DeviceSheetModel["output"] {
   )?.label;
   return {
     row: {
-      state: "done",
+      state: output.error ? "needs-you" : "done",
       title: DEVICE_TEXT.speaker,
       detail: output.selectedId ? label : DEVICE_TEXT.defaultOutput,
     },

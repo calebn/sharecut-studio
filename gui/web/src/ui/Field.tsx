@@ -11,6 +11,8 @@ export type FieldControlProps = {
 type Props = {
   label: string;
   hint?: string;
+  /** Announce the hint politely when it appears (a note about something that just changed). */
+  hintLive?: boolean;
   error?: string | null;
   /** Renders the control; spread `control` onto it so the label, hint and error reach it. */
   children: (control: FieldControlProps) => ReactNode;
@@ -22,7 +24,14 @@ type Props = {
  * the label, the hint and the error always reach the control: it is described
  * by both and is `aria-invalid` while the error shows.
  */
-export function Field({ label, hint, error, children, className }: Props) {
+export function Field({
+  label,
+  hint,
+  hintLive = false,
+  error,
+  children,
+  className,
+}: Props) {
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -41,7 +50,11 @@ export function Field({ label, hint, error, children, className }: Props) {
       </label>
       <div className="ui-field-control">{children(control)}</div>
       {hint ? (
-        <p id={hintId} className="ui-field-hint">
+        <p
+          id={hintId}
+          role={hintLive ? "status" : undefined}
+          className="ui-field-hint"
+        >
           {hint}
         </p>
       ) : null}
