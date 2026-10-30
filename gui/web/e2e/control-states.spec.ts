@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
-import { openPanel, openProject } from "./stageNav";
+import { openProject } from "./stageNav";
 
 test.describe("control state parity", () => {
   test.beforeEach(async ({ page }) => {
