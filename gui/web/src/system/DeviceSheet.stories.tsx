@@ -196,6 +196,27 @@ export const RoomToneTooLoud: Story = {
   },
 };
 
+export const RoomToneTooShort: Story = {
+  args: {
+    tone: {
+      state: "too-short",
+      label: "Record 1 minute of room tone",
+      message: "Too short, record at least 10 seconds",
+    },
+  },
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(state()).toBe("ready");
+    await expect(
+      dialog.getByText("Too short, record at least 10 seconds"),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Record 1 minute of room tone" }),
+    ).toBeEnabled();
+  },
+};
+
 export const RoomToneCapturing: Story = {
   args: {
     tone: {

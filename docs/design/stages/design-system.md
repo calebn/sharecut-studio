@@ -399,7 +399,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **27. Status pill**
 - 28 px (24 in the header): glyph, short text, optional ✕. One rendering for the room state and short persistent states.
-- Used: Room status ("● 12:04 · Take 2", "Quiet please · 3", "Saving · 2 of 3", "Reconnecting…"), Following ("Following Rosa ×"), New version, the cuts delta in the Player, Solo (headphones, avatars, ✕), mix updating, Project card stage chip ("Review 6").
+- Used: Room status ("● 12:04 · Take 2", "Stay quiet · 0:42", "Saving · 2 of 3", "Reconnecting…"), Following ("Following Rosa ×"), New version, the cuts delta in the Player, Solo (headphones, avatars, ✕), mix updating, Project card stage chip ("Review 6").
 - Replaces: Room status pill (record); Solo chip, delta chip, mix ring (edit); Following pill, version pill, stage status chip (rdp).
 - Story: `System/StatusPill`.
 
