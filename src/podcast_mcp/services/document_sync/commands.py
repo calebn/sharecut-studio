@@ -51,6 +51,8 @@ DocumentCommandType = Literal[
     "AddChapter",
     "UpdateChapter",
     "DeleteChapter",
+    "SetFeedField",
+    "ClearFeedField",
     "AddSocialClip",
     "UpdateSocialClip",
     "DeleteSocialClip",

@@ -15,6 +15,7 @@ export type DocumentCommandType =
   | "ApplySuggestedActions"
   | "ApplyTranscriptCleanup"
   | "ApproveEdits"
+  | "ClearFeedField"
   | "CorrectTranscriptPhrase"
   | "CorrectTranscriptWord"
   | "CrossfadeJoins"
@@ -52,6 +53,7 @@ export type DocumentCommandType =
   | "SetClipJoin"
   | "SetEffectBypass"
   | "SetEnvelope"
+  | "SetFeedField"
   | "SetJoinMode"
   | "SetTrackFader"
   | "SetTrackMedia"
@@ -95,6 +97,7 @@ export const DocumentCommand = {
   ApplySuggestedActions: "ApplySuggestedActions",
   ApplyTranscriptCleanup: "ApplyTranscriptCleanup",
   ApproveEdits: "ApproveEdits",
+  ClearFeedField: "ClearFeedField",
   CorrectTranscriptPhrase: "CorrectTranscriptPhrase",
   CorrectTranscriptWord: "CorrectTranscriptWord",
   CrossfadeJoins: "CrossfadeJoins",
@@ -132,6 +135,7 @@ export const DocumentCommand = {
   SetClipJoin: "SetClipJoin",
   SetEffectBypass: "SetEffectBypass",
   SetEnvelope: "SetEnvelope",
+  SetFeedField: "SetFeedField",
   SetJoinMode: "SetJoinMode",
   SetTrackFader: "SetTrackFader",
   SetTrackMedia: "SetTrackMedia",

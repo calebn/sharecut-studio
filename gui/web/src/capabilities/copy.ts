@@ -550,6 +550,16 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Mute",
     tooltip: "Mute the selection, else the targeted track (M)",
   },
+  "daw.feed.read": {
+    label: "Read podcast listing",
+    tooltip:
+      "Read the episode's podcast listing: show notes, chapters, people and what the feed still needs",
+  },
+  "daw.feed.edit": {
+    label: "Edit podcast listing",
+    tooltip:
+      "Pin or release one podcast listing value for this episode in one undo step",
+  },
 };
 
 export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {

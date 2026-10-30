@@ -352,6 +352,7 @@ v1.2 shape (`export/chapters.py`): `{"version": "1.2.0", "chapters": [{"startTim
 audio, so `startTime` is the marker time rounded to milliseconds, sorted by time. `img` appears
 only for a marker with an image URL. A project with no chapters writes no file and removes the
 `.chapters.json` an earlier export left, after the new files publish.
+The podcast listing reads these files (audio, WAV length, SRT, VTT, chapters) to resolve its facts; see [podcast-feed.md](podcast-feed.md).
 Caption limits are validated and transcripts are serialized before audio encoding.
 Audio and transcripts are staged before any export file is replaced. A preparation
 or encode failure, or cancellation before publication, preserves the previous files.

@@ -38,6 +38,7 @@ from podcast_mcp.models.episode import (
     ExactRangeTarget,
     RangeInterval,
 )
+from podcast_mcp.models.feed import FieldValue, PinAuthor
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.text import has_meaningful_text
@@ -546,6 +547,20 @@ class UpdateChapterPayload(BaseModel):
 class DeleteChapterPayload(BaseModel):
     time: float
     title: str
+
+
+class SetFeedFieldPayload(BaseModel):
+    """Pin one podcast-listing value for this episode; ``key`` is a ``feed fields`` key."""
+
+    key: str = Field(min_length=1, max_length=200)
+    value: FieldValue
+    by: PinAuthor = "person"
+
+
+class ClearFeedFieldPayload(BaseModel):
+    """Drop an episode's pin so the listing value goes back to automatic."""
+
+    key: str = Field(min_length=1, max_length=200)
 
 
 class AddSocialClipPayload(BaseModel):
@@ -1113,6 +1128,16 @@ class DeleteChapterCommand(DocumentCommandEnvelope):
     payload: DeleteChapterPayload
 
 
+class SetFeedFieldCommand(DocumentCommandEnvelope):
+    type: Literal["SetFeedField"] = "SetFeedField"
+    payload: SetFeedFieldPayload
+
+
+class ClearFeedFieldCommand(DocumentCommandEnvelope):
+    type: Literal["ClearFeedField"] = "ClearFeedField"
+    payload: ClearFeedFieldPayload
+
+
 class AddSocialClipCommand(DocumentCommandEnvelope):
     type: Literal["AddSocialClip"] = "AddSocialClip"
     payload: AddSocialClipPayload
@@ -1335,6 +1360,8 @@ DocumentCommandBody = Annotated[
     | AddChapterCommand
     | UpdateChapterCommand
     | DeleteChapterCommand
+    | SetFeedFieldCommand
+    | ClearFeedFieldCommand
     | AddSocialClipCommand
     | UpdateSocialClipCommand
     | DeleteSocialClipCommand
@@ -1470,6 +1497,8 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "AddChapter": AddChapterPayload,
     "UpdateChapter": UpdateChapterPayload,
     "DeleteChapter": DeleteChapterPayload,
+    "SetFeedField": SetFeedFieldPayload,
+    "ClearFeedField": ClearFeedFieldPayload,
     "AddSocialClip": AddSocialClipPayload,
     "UpdateSocialClip": UpdateSocialClipPayload,
     "DeleteSocialClip": DeleteSocialClipPayload,

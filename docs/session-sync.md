@@ -544,6 +544,8 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `AddChapter` | `TimelineService.add_chapter` | `time`, `title` (timeline clocks) |
 | `UpdateChapter` | `TimelineService.update_chapter` | `old_time`, `old_title`, `time`, `title` |
 | `DeleteChapter` | `TimelineService.delete_chapter` | `time`, `title` |
+| `SetFeedField` | `FeedService.set_field` | `key` (a `podcast feed fields` key), `value` (string, number, boolean or list of strings), `by` (`person` default, or `agent`) — pins one podcast listing value for the episode with a digest of the automatic value it replaced; refused with `feed_field_unknown`, `feed_field_not_editable`, `feed_field_edit_at_source` or `feed_value_invalid`; host and agent only, not in guest `EDIT_COMMANDS` ([podcast-feed.md](podcast-feed.md)) |
+| `ClearFeedField` | `FeedService.clear_field` | `key` — drops the pin so the value goes back to automatic |
 | MCP `remove_chapter_tool` / `podcast edit remove-chapter` | `TimelineService.remove_chapter` | `title` only (removes every marker with that title) |
 | `AddSocialClip` | `ClipService.add_manual` | `track_id`, `start`, `end`, `title?` (timeline clocks) |
 | `UpdateSocialClip` | `ClipService.update_times` | `id`, `start`, `end` |

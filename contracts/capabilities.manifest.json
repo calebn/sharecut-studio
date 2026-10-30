@@ -3542,6 +3542,59 @@
         "follow": "hear",
         "anchor": "track:<id>:mute"
       }
+    },
+    {
+      "id": "daw.feed.read",
+      "label": "Read podcast listing",
+      "effect": "view",
+      "service": "FeedService.read",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "cli": "podcast feed show",
+        "mcp": [
+          "feed_read"
+        ],
+        "skill": "podcast-rss-feed"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only until the Deliver listing section lands",
+        "guest": true
+      },
+      "tooltip": "Read the episode's podcast listing: show notes, chapters, people and what the feed still needs",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.feed.edit",
+      "label": "Edit podcast listing",
+      "effect": "project",
+      "service": "FeedService.apply \u2192 SetFeedField / ClearFeedField document commands",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "cli": "podcast feed set",
+        "mcp": [
+          "feed_set",
+          "feed_unset"
+        ],
+        "skill": "podcast-rss-feed"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only until the Deliver listing section lands",
+        "guest": true
+      },
+      "tooltip": "Pin or release one podcast listing value for this episode in one undo step",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
     }
   ]
 }

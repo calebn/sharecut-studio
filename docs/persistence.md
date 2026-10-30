@@ -185,6 +185,7 @@ error projections keep their fixed path-free messages. See
 | Need | Prefer |
 |------|--------|
 | Undoable episode / transcript / clip / comment edits | `ProjectWorkspace.mutate` → project JSON + history |
+| Podcast listing pins, guid and first export time | `EpisodeProject.feed` through the `SetFeedField` / `ClearFeedField` document commands ([podcast-feed.md](podcast-feed.md)). Facts, notes and drift are computed on read and never stored; the feed file is a derived export |
 | Append-only DAW / document commands, session authority | `services/session_sync/` sqlite (`artifacts/session/sync.db`) |
 | Public ID that must be unique + cooldown / reuse policy | Share registry pattern (`services/collaboration/share_registry.py`) |
 | Per-episode share caps / version binding / general access | `artifacts/review/shares.json` via ShareService |
