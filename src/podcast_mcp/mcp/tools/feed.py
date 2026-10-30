@@ -8,8 +8,7 @@ from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import FeedService
-from podcast_mcp.services.document.feed import FeedViewKind
+from podcast_mcp.services.document import FeedService, FeedViewKind
 
 
 def feed_read(

@@ -34,7 +34,6 @@ from podcast_mcp.feed.model import (
     Pinned,
     ReadyShow,
     Sections,
-    SetEdit,
     ShowChoice,
     ShowSuggestion,
     UnsetEdit,
@@ -168,32 +167,9 @@ def resolve(inputs: FeedInputs, pins: Mapping[str, Pin]) -> FeedView:
             (channel if spec.scope == "show" else item)[spec.key] = _fact(fact)
         if spec.scope == "show" and not show_ready:
             continue
-        if isinstance(fact, Missing) and spec.needs is not None:
-            findings.append(
-                Finding(
-                    key=spec.key,
-                    severity=spec.needs.severity,
-                    platform=spec.needs.platform,
-                    message=spec.needs.message or fact.why,
-                    fix=fact.fix,
-                )
-            )
-        if isinstance(fact, Found):
-            for check in spec.checks:
-                findings.extend(check(res, fact))
-            if isinstance(fact.source, Pinned) and fact.source.drifted:
-                drift_detail[spec.key] = (
-                    spec.drift_hint or "The automatic value changed since you edited this."
-                )
-                findings.append(
-                    Finding(
-                        key=spec.key,
-                        severity="info",
-                        platform=None,
-                        message=f"The {spec.label} changed since you edited {_them(spec.key)}.",
-                        fix=None,
-                    )
-                )
+        findings.extend(_row_findings(spec, fact, res))
+        if isinstance(fact, Found) and isinstance(fact.source, Pinned) and fact.source.drifted:
+            drift_detail[spec.key] = spec.drift_hint or DEFAULT_DRIFT_HINT
     view = FeedView(
         show=show,
         channel=channel,
@@ -209,6 +185,37 @@ def resolve(inputs: FeedInputs, pins: Mapping[str, Pin]) -> FeedView:
     findings.sort(key=lambda f: _SEVERITY_RANK[f.severity])
     view = view.model_copy(update={"notes_html": notes, "findings": findings})
     return view.model_copy(update={"file": _file_state(view, inputs.files.feed_xml)})
+
+
+DEFAULT_DRIFT_HINT = "The automatic value changed since you edited this."
+
+
+def _row_findings(spec: FieldSpec, fact: Auto, res: Resolution) -> list[Finding]:
+    """What a row costs: its need when missing; its checks and any drift when known."""
+    if isinstance(fact, Missing):
+        if spec.needs is None:
+            return []
+        return [
+            Finding(
+                key=spec.key,
+                severity=spec.needs.severity,
+                platform=spec.needs.platform,
+                message=spec.needs.message or fact.why,
+                fix=fact.fix,
+            )
+        ]
+    found = [finding for check in spec.checks for finding in check(res, fact)]
+    if isinstance(fact.source, Pinned) and fact.source.drifted:
+        found.append(
+            Finding(
+                key=spec.key,
+                severity="info",
+                platform=None,
+                message=f"The {spec.label} changed since you edited {_them(spec.key)}.",
+                fix=None,
+            )
+        )
+    return found
 
 
 def _them(key: str) -> str:
@@ -253,9 +260,8 @@ def edited_pins(
     by: PinAuthor,
 ) -> dict[str, Pin]:
     """The pins after ``edit``. A set of the empty string is an unset; unsetting no pin changes nothing."""
-    if isinstance(edit, UnsetEdit) or (isinstance(edit, SetEdit) and edit.value == ""):
+    if isinstance(edit, UnsetEdit) or edit.value == "":
         return {k: p for k, p in pins.items() if k != edit.key}
-    assert isinstance(edit, SetEdit)
     spec = lookup(edit.key)
     if spec is None:
         raise CodedValueError(f"{edit.key} is not a listing field", code="feed_field_unknown")
