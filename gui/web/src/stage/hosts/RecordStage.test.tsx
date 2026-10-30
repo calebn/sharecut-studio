@@ -301,7 +301,7 @@ describe("Record stage", () => {
         },
       ],
       landed: true,
-      ended_at: "2026-10-25T18:00:00Z",
+      ended_at: "2026-10-25T12:00:00Z",
     };
 
     it("shows the card above Create record room when no room is open", async () => {
@@ -310,7 +310,9 @@ describe("Record stage", () => {
       const card = await screen.findByRole("region", {
         name: "Session 1 · Sun 25 Oct",
       });
-      expect(within(card).getByText("Ava → New track")).toBeInTheDocument();
+      expect(within(card).getByRole("listitem").textContent).toBe(
+        "Ava → to New track",
+      );
       const create = screen.getByRole("button", { name: "Create record room" });
       expect(
         card.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING,
