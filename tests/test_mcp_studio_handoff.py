@@ -166,6 +166,11 @@ def _deadline_peer(
             request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             method = request["method"]
             methods.append(method)
+            if "id" not in request:
+                self.send_response(202)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             if method == "initialize":
                 if stalled:
                     self.stream()
@@ -175,11 +180,6 @@ def _deadline_peer(
                     "capabilities": {},
                     "serverInfo": {"name": "deadline-peer", "version": "1"},
                 }
-            elif method == "notifications/initialized":
-                self.send_response(202)
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-                return
             elif method == "ping":
                 if not ping_answers:
                     self.stream()
