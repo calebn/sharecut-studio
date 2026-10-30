@@ -96,8 +96,8 @@ so without Undo. History remains the backstop.
 ```mermaid
 flowchart TD
   open[Open share] --> banner[Shared edit view banner]
-  banner --> chip[Tap Pending chip on Listen]
-  chip --> tl[Timeline + sheet / inspector]
+  banner --> chip[Tap the Review tab, badged with the pending count]
+  chip --> tl[Review queue, suggested cuts]
   tl --> audition[Hear rendered Suggested or A/B]
   audition --> decide{Approve / Reject / Ask}
   decide -->|Ask| thread[Inspector Ask thread]
@@ -106,7 +106,7 @@ flowchart TD
 
 1. **An Editor gets the suggested cuts in the Review queue** with **Cut** and **Keep** (the Review stage badge counts them); Find more, unsure-word Fix, Looks right and Resolve stay with the host, a cut over an unsure word is held with no Cut ("The host checks the unsure word first."), and while the transcript is unchecked the server refuses an Editor's Cut, which shows under Needs attention until the host checks or waives it. A Commenter or Viewer queue is comments only. Approve also works from the Timeline overlay / inspector.
    An Editor link also opens **Deliver**, which shows the **Podcast listing** alone (no export, bounce or sharing). The Editor edits the episode's values (title, intro, notes, the episode's own hosting address) and the show's plain values (name, description, author, category), and writes the feed file; each value an Editor sets carries a quiet **Guest** mark. The show itself, the show's hosting address template and local artwork stay with the host ("Only the host can change this."), and artwork and hosting addresses must be https addresses (a bad one is refused in plain words before it is sent). A note at the top reads "You can edit this listing. The show and the hosting template stay with the host." A Commenter or Viewer link has no Deliver stage.
-2. Pending chip on Listen routes to Timeline (not the host queue) and selects the first review-required pending.
+2. The Review tab in the phone's bottom Stage bar carries the count of cuts waiting for review and opens the Review queue (there is no Listen mode).
 3. Listen-first: hear Suggested (skip the pending band) or A/B before Approve. Ask lives in the pending inspector thread.
 
 ---

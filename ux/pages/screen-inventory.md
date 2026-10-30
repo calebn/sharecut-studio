@@ -326,7 +326,7 @@ The More hub was removed. Its destinations:
 | Old destination | Now | Source |
 |-----------------|-----|--------|
 | Mix | Mix button on Edit: full-height track sheet; saved Volume/M and local S | Existing mix/listen state |
-| Comments | Review → Comments: thread list / detail | `review.comments` |
+| Comments | Review → Queue: comments are queue items with the thread on the card | `review.comments` |
 | History | Edit → History sheet (right-click the header's Undo, or the palette): undo/redo · grouped steps (follows document snapshots) | `history` |
 | Review queue | Review → Queue: pending suggestions decided one at a time or by group | `editorial.edit_decisions` |
 | Pipeline | Prepare: Sources · Getting ready · Help the transcriber · Cleanup; Advanced steps behind a button | working-set config + live job |
@@ -447,7 +447,7 @@ Step flows: [Guest journeys](#/journeys).
 | *Shared comment view · You can comment and suggest edits* | Commenter (`comment`) |
 | *Shared read-only view* | Viewer (`view`; listen + inspect, not “no audio”) |
 
-**Approve without the queue:** the host queue is **always host-only**. Editors approve/reject from Timeline overlay + inspector (the Review badge routes to Edit).
+**Approve in the queue:** an Editor decides the suggested cuts in the Review queue with **Cut** and **Keep** (the Review badge counts them); Find more, unsure-word Fix and Resolve stay host-only. Approve and Reject also work from the Timeline overlay and inspector.
 
 **Playback:** prefer **proxy media** (short MP3 listen chunks, often via CDN) so ordinary listen does not pull long host WAVs through the tunnel. Fallback to WAV when proxies are unavailable.
 
