@@ -7,10 +7,7 @@ from podcast_mcp.export.audio import (
 )
 from podcast_mcp.export.episode import export_episode_deliverables
 from podcast_mcp.export.names import sanitize_export_stem
-from podcast_mcp.export.transcript import (
-    combined_transcript_markdown,
-    write_combined_transcript_markdown,
-)
+from podcast_mcp.export.transcript import combined_transcript_markdown
 
 __all__ = [
     "ExportFormatSpec",
@@ -21,5 +18,4 @@ __all__ = [
     "sanitize_export_stem",
     "specs_from_extensions",
     "write_audio_formats",
-    "write_combined_transcript_markdown",
 ]

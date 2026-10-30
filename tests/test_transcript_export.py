@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.export.transcript import (
+    CaptionLimits,
     combined_transcript_markdown,
     format_clock,
     render_reading_text,
@@ -25,6 +26,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import TranscriptService
 from podcast_mcp.services.document.transcript import ExportBusyError, TranscriptEmptyError
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import RenderBusyError
 
 
@@ -198,6 +200,27 @@ def test_write_is_all_or_none(ws, monkeypatch):
     assert not list(_export_dir(ws).glob("*.partial*"))
 
 
+def test_non_file_destination_is_refused_before_anything_is_replaced(ws):
+    svc = TranscriptService(ws)
+    stem = _export_dir(ws) / ws.project.name
+    stem.with_name(f"{stem.name}.txt").write_text("old words", encoding="utf-8")
+    stem.with_name(f"{stem.name}.srt").mkdir()
+    with pytest.raises(CodedValueError) as err:
+        svc.export(["txt", "srt"])
+    assert err.value.code == "export_target_not_file"
+    assert stem.with_name(f"{stem.name}.txt").read_text(encoding="utf-8") == "old words"
+    assert not list(_export_dir(ws).glob("*.partial*"))
+
+
+def test_exported_stays_current_for_captions_written_with_custom_limits(ws):
+    svc = TranscriptService(ws)
+    svc.export(["srt", "vtt"], limits=CaptionLimits(max_duration_sec=1.5))
+    assert [e.current for e in svc.exported()] == [True, True]
+    ws2 = ProjectWorkspace.open(ws.path)
+    ws2.project.transcripts[0].words[0].text = "Howdy"
+    assert [e.current for e in TranscriptService(ws2).exported()] == [False, False]
+
+
 def test_exported_current_stale_and_scope(ws):
     svc = TranscriptService(ws)
     assert svc.exported() == []
@@ -268,6 +291,22 @@ def test_new_project_has_no_state_mutation_on_dry_run(ws):
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(create_app())
+
+
+def test_routes_are_host_only(ws, client):
+    relayed = {"x-sharecut-relayed": "1"}
+    listed = client.get("/api/transcript/exports", params={"path": str(ws.path)}, headers=relayed)
+    posted = client.post(
+        "/api/transcript/export", json={"path": str(ws.path), "formats": ["txt"]}, headers=relayed
+    )
+    assert (listed.status_code, posted.status_code) == (403, 403)
+    assert not list(_export_dir(ws).glob("*.txt"))
+
+
+def test_export_persists_a_combined_transcript_it_had_to_build(ws):
+    assert ws.project.combined_transcript is None
+    TranscriptService(ws).export(["md"])
+    assert load_project(ws.path).combined_transcript is not None
 
 
 def test_route_export_and_list(ws, client):
