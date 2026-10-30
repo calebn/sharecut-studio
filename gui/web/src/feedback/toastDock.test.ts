@@ -235,6 +235,28 @@ describe("useToastDock", () => {
     expect(bottom * 16).toBe(window.innerHeight - 655 + 8);
   });
 
+  it("docks above the phone Inspector sheet", () => {
+    document.documentElement.dataset.shell = "phone";
+    const region = document.createElement("div");
+    const card = document.createElement("div");
+    card.getBoundingClientRect = () => new DOMRect(40, 0, 310, 62);
+    region.append(card);
+    document.body.append(region);
+    boxes.push(region);
+    box("stage-frame-tabs", 792, 844);
+    box("stage-frame-player", 732, 792);
+    box("sys-inspector sys-inspector--phone", 400, 732);
+    box("stage-frame-header", 0, 52);
+    const { unmount } = renderHook(() =>
+      useToastDock({ current: region }, true),
+    );
+    const bottom = Number.parseFloat(
+      region.style.getPropertyValue("--toast-dock-bottom"),
+    );
+    unmount();
+    expect(bottom * 16).toBe(window.innerHeight - 400 + 8);
+  });
+
   it("docks above the Player so a toast leaves it free", () => {
     document.documentElement.dataset.shell = "phone";
     const region = document.createElement("div");
