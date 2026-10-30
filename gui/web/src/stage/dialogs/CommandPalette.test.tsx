@@ -35,7 +35,7 @@ describe("CommandPalette", () => {
       screen.getByRole("dialog", { name: "Commands and shortcuts" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("option", { name: "Fit session width" }),
+      screen.getByRole("option", { name: "Fit session width \\" }),
     ).toBeTruthy();
     expect(
       screen.getByRole("option", { name: "Annotate transcript" }),
@@ -61,7 +61,11 @@ describe("CommandPalette", () => {
       "Focus edit boundary",
       "Focus cut-away word",
     ]) {
-      expect(screen.queryByRole("option", { name: label })).toBeNull();
+      expect(
+        screen.queryByRole("option", {
+          name: (name) => name === label || name.startsWith(`${label} `),
+        }),
+      ).toBeNull();
     }
   });
 
@@ -147,7 +151,7 @@ describe("CommandPalette", () => {
     renderPalette();
     await userEvent
       .setup()
-      .click(screen.getByRole("option", { name: "Fit session width" }));
+      .click(screen.getByRole("option", { name: "Fit session width \\" }));
     await waitFor(() =>
       expect(useDawStore.getState().statusAnnouncementSeq).toBe(before + 1),
     );
@@ -168,7 +172,7 @@ describe("CommandPalette", () => {
     renderPalette();
     await userEvent
       .setup()
-      .click(screen.getByRole("option", { name: "Fit session width" }));
+      .click(screen.getByRole("option", { name: "Fit session width \\" }));
     await new Promise((r) => setTimeout(r, 20));
   }
 

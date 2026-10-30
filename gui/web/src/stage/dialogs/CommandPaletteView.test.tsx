@@ -75,7 +75,7 @@ describe("CommandPaletteView", () => {
         .map((id) => document.getElementById(id ?? "")?.textContent),
     ).toEqual(["Transport", "Edit", "App"]);
     expect(
-      within(listbox).getByRole("option", { name: "Play / pause" }),
+      within(listbox).getByRole("option", { name: "Play / pause Space" }),
     ).not.toHaveAttribute("aria-disabled");
     await expectNoA11yViolations(baseElement);
   });
@@ -135,7 +135,9 @@ describe("CommandPaletteView", () => {
 
   it("includes the visible palette label with a disabled reason and prevents running it", () => {
     const { props } = renderPalette();
-    const row = screen.getByRole("option", { name: "Export diagnostics…" });
+    const row = screen.getByRole("option", {
+      name: "Export diagnostics… Project create/open is host-only",
+    });
     expect(row).toHaveAccessibleName(
       "Export diagnostics… Project create/open is host-only",
     );
@@ -143,7 +145,7 @@ describe("CommandPaletteView", () => {
       /^Export diagnostics… Project create\/open is host-only$/,
     );
     expect(row).toHaveAttribute("aria-disabled", "true");
-    expect(row).toHaveAccessibleDescription("Project create/open is host-only");
+    expect(row).toHaveAccessibleDescription("");
     row.click();
     expect(props.onRun).not.toHaveBeenCalled();
   });
@@ -152,7 +154,11 @@ describe("CommandPaletteView", () => {
     const user = userEvent.setup();
     const { props } = renderPalette();
     await waitForDialogFocus();
-    await user.click(screen.getByRole("option", { name: "Blade cut" }));
+    await user.click(
+      screen.getByRole("option", {
+        name: "Blade cut Mod+K Mod+K cuts; K alone stops playback",
+      }),
+    );
     expect(props.onRun).toHaveBeenCalledExactlyOnceWith("edit.bladeCut");
     expect(
       screen.getByRole("combobox", { name: "Search commands" }),
@@ -212,21 +218,23 @@ describe("CommandPaletteView", () => {
     await user.click(screen.getByRole("button", { name: "Clear search" }));
     expect(search).toHaveValue("");
     expect(search).toHaveFocus();
-    expect(screen.getByRole("option", { name: "Play / pause" })).toBeTruthy();
+    expect(
+      screen.getByRole("option", { name: "Play / pause Space" }),
+    ).toBeTruthy();
   });
 
   it("includes the visible palette label with its shortcut and collision note", () => {
     renderPalette();
-    const row = screen.getByRole("option", { name: "Blade cut" });
+    const row = screen.getByRole("option", {
+      name: "Blade cut Mod+K Mod+K cuts; K alone stops playback",
+    });
     expect(row).toHaveAccessibleName(
       "Blade cut Mod+K Mod+K cuts; K alone stops playback",
     );
     expect(row).toHaveTextContent(
       /^Blade cut Mod\+K Mod\+K cuts; K alone stops playback$/,
     );
-    expect(row).toHaveAccessibleDescription(
-      "Mod+K Mod+K cuts; K alone stops playback",
-    );
+    expect(row).toHaveAccessibleDescription("");
   });
 
   it("hands Gestures and Escape to the owner", async () => {

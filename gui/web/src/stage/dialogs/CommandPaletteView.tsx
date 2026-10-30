@@ -227,7 +227,11 @@ function PaletteOption({
   const note = row.disabledReason ?? row.note;
   const keysId = `${id}-keys`;
   const noteId = `${id}-note`;
-  const describedBy = [row.shortcut ? keysId : null, note ? noteId : null]
+  const labelledBy = [
+    `${id}-label`,
+    row.shortcut ? keysId : null,
+    note ? noteId : null,
+  ]
     .filter(Boolean)
     .join(" ");
   const run = () => {
@@ -242,8 +246,7 @@ function PaletteOption({
       tabIndex={-1}
       aria-selected={active}
       aria-disabled={disabled || undefined}
-      aria-labelledby={`${id}-label`}
-      aria-describedby={describedBy || undefined}
+      aria-labelledby={labelledBy}
       className="command-palette-option"
       // Keep focus in Search, which owns the keyboard.
       onMouseDown={(e) => e.preventDefault()}
@@ -261,17 +264,28 @@ function PaletteOption({
         <span id={`${id}-label`} className="command-palette-label">
           {row.label}
           {showCategory ? (
-            <span className="command-palette-category">
-              {PALETTE_CATEGORY_LABELS[row.category]}
-            </span>
+            <>
+              {" "}
+              <span className="command-palette-category">
+                {PALETTE_CATEGORY_LABELS[row.category]}
+              </span>
+            </>
           ) : null}
         </span>
-        {row.shortcut ? <kbd id={keysId}>{row.shortcut}</kbd> : null}
+        {row.shortcut ? (
+          <>
+            {" "}
+            <kbd id={keysId}>{row.shortcut}</kbd>
+          </>
+        ) : null}
       </span>
       {note ? (
-        <span id={noteId} className="command-palette-note">
-          {note}
-        </span>
+        <>
+          {" "}
+          <span id={noteId} className="command-palette-note">
+            {note}
+          </span>
+        </>
       ) : null}
     </div>
   );

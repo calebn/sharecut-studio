@@ -514,6 +514,13 @@ command bus with the required input. A command's `keywords` are the other
 words people search for it by (file types, synonyms); add them in
 `commands/catalog.ts`, not in the palette.
 
+Each palette option's accessible name contains its full visible text in order:
+command label, category while searching, shortcut, and collision note or
+unavailable reason. Spaces separate these fragments. The command label stays
+first, and the shortcut and note are not repeated as an accessible description.
+Search keeps focus while the arrow keys move through every option, including
+unavailable commands; Enter runs only an available command.
+
 Store reads: read the DAW store only through `useDaw(selector)` (`state/useDaw.ts`, which wraps `useDawStore(useShallow(selector))`) or `useDawStore(selector)`. Use `pickDaw("projectPath", "isPlaying")` at module scope for plain field selectors. Pass literal key arguments; governance rejects computed arguments and checks literal hot-field keys against its allowlist. Use a custom `useDaw` selector for conditional projections of store values. Select exactly the values the component uses. Build derived arrays and objects outside the selector with `useMemo`; fresh nested values defeat the one-level `useShallow` comparison. Fresh top-level projections of unchanged store values keep their selected reference. The governance test fails on whole-store reads: `useDaw()` / `useDawStore()` with no selector, or an inline arrow identity selector such as `(s) => s` / `(s: DawState) => s` (also inside `useShallow(...)`). In tests, mock `useDaw` as `(sel) => sel(mockState)`.
 
 Hot fields (`playheadSec`, `scrollLeft`, `sessionClients`, `pointerTrackId`, `splitHoverSec`) change every playhead/scroll/presence frame; only a memoized leaf may select one directly (e.g. a leaf under `stage/frame/`), and a handler that only needs the value at call time reads `useDawStore.getState()` inside the callback instead. `state/storeGovernance.test.ts`'s `HOT_FIELD_ALLOWLIST` names every file allowed to select one, each with a reason; a whole-source scan fails on any other file that does (any `s.<field>` read, or a selector that reads one off its parameter under any name or destructures it, nested patterns included: an arrow or `function` (with or without a return-type annotation) passed inline to `useDaw`/`useDawStore`/`useShallow`, or a hoisted one whose parameter's type names `DawState`; brackets inside strings, template literals and comments are ignored). See `docs/gui-integration.md` § Render isolation for the full leaf list, the per-lane overlay slices (`timeline/laneOverlaySlices.ts`), and `document/reuseUnchanged.ts`.
