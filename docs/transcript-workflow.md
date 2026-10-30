@@ -596,7 +596,8 @@ with_text)`, and host HTTP `POST /api/transcript/export` all return the same res
   is `**Speaker** [m:ss]: text` (`[h:mm:ss]` from one hour). `srt` and `vtt` are word-timed cues.
 - The files are written together or not at all. `--dry-run` takes no lock and writes nothing.
   An episode with no turns refuses a real write with `transcript_empty`; a render held by
-  another writer past 30 s refuses with `export_busy`.
+  another writer past 30 s refuses with `export_busy`. A destination that is not a file
+  (a folder named like an export) refuses with `export_target_not_file` before any file is replaced.
 - `podcast transcript exports --project P [--json]`, MCP `list_exported_transcripts` and
   `GET /api/transcript/exports` list what is on disk (`<stem>.{txt,md,srt,vtt}` only, never
   `bounces/` or `clips/`) with `mime`, `language`, `modified` and `current` (false once the

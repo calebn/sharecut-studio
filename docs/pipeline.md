@@ -354,7 +354,7 @@ Both print `{"paths": [...], "master": {...}}`: the written files and `master_qc
 
 Studio **Export deliverables**, CLI `export-audio`, MCP `export_audio_tool`, and the
 pipeline export step use the same episode exporter. When transcripts exist, each
-export refreshes SRT captions and Markdown alongside the selected audio formats.
+export refreshes SRT captions and Markdown alongside the selected audio formats, and a TXT or VTT transcript already in the export folder.
 They use the current edited timeline, so removed words and their old timestamps do
 not survive a re-export. The returned paths and Studio's result include these files.
 When the project has chapters, the same export writes `<name>.chapters.json` in

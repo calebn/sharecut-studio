@@ -14,7 +14,11 @@ from podcast_mcp.export.audio import (
 )
 from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.names import sanitize_export_stem
-from podcast_mcp.export.transcript import render_transcript_formats, resolve_caption_limits
+from podcast_mcp.export.transcript import (
+    TRANSCRIPT_FORMATS,
+    render_transcript_formats,
+    resolve_caption_limits,
+)
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_render import render_atomic_all
 from podcast_mcp.util.progress import raise_if_cancel_requested
@@ -48,8 +52,13 @@ def export_episode_deliverables(
     specs.extend(resolve_export_formats(export_cfg))
     sidecars: dict[Path, str] = {}
     if project.transcripts or project.combined_transcript:
+        refreshed = tuple(
+            fmt
+            for fmt in TRANSCRIPT_FORMATS
+            if fmt in ("md", "srt") or stem.with_name(f"{stem.name}.{fmt}").is_file()
+        )
         rendered = render_transcript_formats(
-            project, defaults, ("md", "srt"), resolve_caption_limits(export_cfg)
+            project, defaults, refreshed, resolve_caption_limits(export_cfg)
         )
         for fmt, content in rendered.items():
             sidecars[stem.with_name(f"{stem.name}.{fmt}")] = content

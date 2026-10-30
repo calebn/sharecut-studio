@@ -3,14 +3,12 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_search import ensure_combined_transcript
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.engines.utterance_runs import transcript_word_runs
-from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.timebase import SourceSec
 
@@ -190,13 +188,6 @@ def first_cue_sample(project: EpisodeProject, limits: CaptionLimits | None = Non
     c = cues[0]
     text = " ".join(c.text.split())
     return f"1 {_format_srt_time(c.start)} --> {_format_srt_time(c.end)} {text}"
-
-
-def write_combined_transcript_markdown(project: EpisodeProject, defaults: EffectiveConfig) -> Path:
-    project.export_dir().mkdir(parents=True, exist_ok=True)
-    out = project.export_dir() / f"{sanitize_export_stem(project.name)}.md"
-    out.write_text(combined_transcript_markdown(project, defaults), encoding="utf-8")
-    return out
 
 
 def _format_srt_time(sec: float) -> str:
