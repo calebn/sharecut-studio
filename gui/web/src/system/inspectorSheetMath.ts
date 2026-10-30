@@ -17,7 +17,8 @@ const DISMISS_PX = 24;
 /** How far ahead a flick carries the sheet. */
 const FLICK_MS = 120;
 
-const CARD_WIDTH_PX = 320;
+/** The card is 20 rem wide: this is its width at the default root size. */
+export const CARD_WIDTH_PX = 320;
 const CARD_GAP_PX = 8;
 const CARD_EDGE_PX = 8;
 const CARD_MAX_SHARE = 0.6;
@@ -114,6 +115,7 @@ export function steppedDetent(
 export function placeCard(
   anchor: InspectorRect,
   bounds: InspectorBounds,
+  cardWidth = CARD_WIDTH_PX,
 ): CardPlacement {
   const tallest = bounds.height * CARD_MAX_SHARE;
   const below =
@@ -133,7 +135,7 @@ export function placeCard(
     side === "below"
       ? anchor.y + anchor.height + CARD_GAP_PX
       : bounds.height - anchor.y + CARD_GAP_PX;
-  const width = Math.min(CARD_WIDTH_PX, bounds.width - 2 * CARD_EDGE_PX);
+  const width = Math.min(cardWidth, bounds.width - 2 * CARD_EDGE_PX);
   const centred = anchor.x + anchor.width / 2 - width / 2;
   return {
     side,

@@ -57,6 +57,13 @@ describe("focusAndReveal", () => {
     expect(sheet.scrollTop).toBe(260);
   });
 
+  it("scrolls the Inspector sheet's own body, which holds the legacy inspector", () => {
+    const { sheet, input } = fixture();
+    sheet.className = "sys-inspector";
+    focusAndReveal(input);
+    expect(sheet.scrollTop).toBe(180);
+  });
+
   it("reveals fitting field help together with its label and input", () => {
     const { sheet, input } = fixture();
     const error = document.createElement("p");

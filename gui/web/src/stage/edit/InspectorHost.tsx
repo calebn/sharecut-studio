@@ -76,10 +76,12 @@ function useBodySections(
           {
             id: "body",
             control: (
-              <SelectionSheetBody
-                rangeActionsInSheet={rangeActionsInSheet}
-                peek={null}
-              />
+              <div className="edit-inspector-body">
+                <SelectionSheetBody
+                  rangeActionsInSheet={rangeActionsInSheet}
+                  peek={null}
+                />
+              </div>
             ),
           },
         ],
@@ -87,6 +89,18 @@ function useBodySections(
     ],
     [rangeActionsInSheet],
   );
+}
+
+function unionRect(a?: DOMRect, b?: DOMRect) {
+  if (!a || !b) return a ?? b;
+  const left = Math.min(a.left, b.left);
+  const top = Math.min(a.top, b.top);
+  return {
+    left,
+    top,
+    width: Math.max(a.right, b.right) - left,
+    height: Math.max(a.bottom, b.bottom) - top,
+  };
 }
 
 const rounded = (rect: InspectorRect): InspectorRect => ({
@@ -123,7 +137,11 @@ function Card({
   const measure = useCallback(() => {
     if (!root) return;
     const frame = root.getBoundingClientRect();
-    const target = anchor.ref.current?.getBoundingClientRect();
+    const target = unionRect(
+      anchor.ref.current?.getBoundingClientRect(),
+      // The card clears the Action bar that floats beside the same selection.
+      root.querySelector(".sys-actions--floating")?.getBoundingClientRect(),
+    );
     const next: Placement = {
       bounds: {
         width: Math.round(frame.width),
@@ -180,6 +198,9 @@ function Card({
   );
 }
 
+const DOCK_ROOM_PX = 420;
+const SHEET_FULL = 0.92;
+
 function Phone({
   sheet,
   heading,
@@ -188,7 +209,18 @@ function Phone({
   heading: InspectorHeading;
 }) {
   const [detent, setDetent] = useState<InspectorDetent>("half");
+  const [tight, setTight] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const lanes =
+      box.current?.querySelector<HTMLElement>(".sys-inspector")?.offsetParent;
+    if (!(lanes instanceof HTMLElement)) return;
+    const fit = () => setTight(lanes.clientHeight * SHEET_FULL < DOCK_ROOM_PX);
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(lanes);
+    return () => observer.disconnect();
+  }, []);
   const sections = useBodySections(sheet.rangeActionsInSheet);
   useInspectorFocus(box, true);
   return (
@@ -198,7 +230,11 @@ function Phone({
         {...heading}
         label="Inspector"
         sections={sections}
-        dock={<EditActionBar form="dock" root={null} inInspector />}
+        dock={
+          detent === "full" && tight ? null : (
+            <EditActionBar form="dock" root={null} inInspector />
+          )
+        }
         detent={detent}
         onDetentChange={setDetent}
         onDismiss={sheet.dismiss}
