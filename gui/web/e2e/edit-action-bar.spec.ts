@@ -19,7 +19,8 @@ const selectionBar = (page: Page) =>
   page.getByRole("group", { name: "Selection actions" });
 const dockBar = (page: Page) =>
   page.getByRole("group", { name: "Edit actions" });
-const inspector = (page: Page) => page.locator(".edit-inspector");
+const inspector = (page: Page) =>
+  page.getByRole("dialog", { name: "Inspector", exact: true });
 
 let projectPath: string;
 let workspaceDir: string;
@@ -331,7 +332,11 @@ test.describe("Inspect", () => {
     await expect(inspector(page)).toHaveCount(0);
     await inspectSelection(page);
     await expect(inspector(page)).toBeVisible();
-    await page.locator(".clip-hit").last().click();
+    // The card floats over the lanes; the clip's left edge is clear of it.
+    await page
+      .locator(".clip-hit")
+      .last()
+      .click({ position: { x: 20, y: 10 } });
     await expect(inspector(page)).toHaveCount(0);
   });
 

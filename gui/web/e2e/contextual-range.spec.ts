@@ -126,18 +126,14 @@ test("idle desktop reaches an edit in removed audio through the Review queue", a
     async (projectPath) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await openHostShare(page, projectPath);
-      await expect(page.locator(".edit-workspace")).not.toHaveClass(
-        /edit-workspace--inspector/,
-      );
+      await expect(page.locator(".sys-inspector")).toHaveCount(0);
       // The old status chip is gone: the Review queue lists the edit, and
       // Open in Edit opens the Inspector on the Edit stage.
       await openPanel(page, "queue");
       await page.locator(".sys-queue-main").first().click();
       await page.getByRole("button", { name: "Open in Edit" }).click();
       await inspectSelectionByKey(page);
-      await expect(page.locator(".edit-workspace")).toHaveClass(
-        /edit-workspace--inspector/,
-      );
+      await expect(page.locator(".sys-inspector")).toHaveCount(1);
       await expect(
         page.getByRole("button", { name: "Reject", exact: true }),
       ).toBeVisible();
@@ -236,9 +232,7 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
       await page.setViewportSize({ width: 1440, height: 900 });
       await openHostShare(page, projectPath);
       const before = geometry(projectPath);
-      await expect(page.locator(".edit-workspace")).not.toHaveClass(
-        /edit-workspace--inspector/,
-      );
+      await expect(page.locator(".sys-inspector")).toHaveCount(0);
       await selectRange(page);
       await expect(page.locator(".range-overlay")).toHaveCount(1);
       await rangeAxe(page);

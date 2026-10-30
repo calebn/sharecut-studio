@@ -12,7 +12,7 @@ const TABLETS = [
 ] as const;
 
 for (const tablet of TABLETS) {
-  test(`a clip selected on a ${tablet.name} tablet opens the selection sheet`, async ({
+  test(`a clip selected on a ${tablet.name} tablet opens the Inspector card`, async ({
     page,
   }) => {
     await page.setViewportSize(tablet);
@@ -20,10 +20,12 @@ for (const tablet of TABLETS) {
     await page.locator(".lane-row .clip-block").first().click();
     await expect(page.locator(".clip-block.selected").first()).toBeVisible();
     await inspectSelection(page);
-    await expect(page.locator(".bottom-sheet")).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: "Inspector", exact: true }),
+    ).toBeVisible();
   });
 
-  test(`a word tapped on a ${tablet.name} tablet is one range and opens the selection sheet`, async ({
+  test(`a word tapped on a ${tablet.name} tablet is one range and opens the Inspector card`, async ({
     page,
   }) => {
     await page.setViewportSize(tablet);
@@ -35,7 +37,9 @@ for (const tablet of TABLETS) {
       1,
     );
     await inspectSelectionByKey(page);
-    await expect(page.locator(".bottom-sheet")).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: "Inspector", exact: true }),
+    ).toBeVisible();
   });
 }
 
@@ -45,7 +49,7 @@ const IPADS = [
 ] as const;
 
 for (const ipad of IPADS) {
-  test(`a clip long press on a ${ipad.name} iPad leaves the pressed clip in view above the sheet`, async ({
+  test(`a clip long press on a ${ipad.name} iPad leaves the pressed clip uncovered by the Inspector card`, async ({
     page,
     context,
   }) => {
@@ -69,20 +73,21 @@ for (const ipad of IPADS) {
     });
     await expect(page.locator(".clip-block.selected").first()).toBeVisible();
     await inspectSelection(page);
-    const sheet = page.locator(".bottom-sheet");
-    await expect(sheet).toBeVisible();
-    await expect(sheet).toHaveClass(/bottom-sheet--compact/);
+    const card = page.getByRole("dialog", { name: "Inspector", exact: true });
+    await expect(card).toBeVisible();
     await expect
       .poll(async () => {
         const selected = await page
           .locator(".clip-block.selected")
           .first()
           .boundingBox();
-        const covering = await sheet.boundingBox();
-        return selected && covering
-          ? covering.y - (selected.y + selected.height)
-          : null;
+        const covering = await card.boundingBox();
+        if (!selected || !covering) return null;
+        const apart =
+          covering.y >= selected.y + selected.height ||
+          covering.y + covering.height <= selected.y;
+        return apart;
       })
-      .toBeGreaterThanOrEqual(0);
+      .toBe(true);
   });
 }

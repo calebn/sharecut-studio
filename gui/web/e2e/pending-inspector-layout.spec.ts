@@ -174,22 +174,18 @@ test.describe("Pending inspector layout", () => {
     await expectNoOverlap(name, preview);
   });
 
-  test("tablet sheet keeps error above the A/B footer", async ({ page }) => {
+  test("tablet card keeps error above the A/B footer", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await stubApproveEditsRefineGate(page);
     await openSuggestedPendingEdit(page, e2eProjectPath);
     await page.setViewportSize({ width: 1024, height: 768 });
     await expect(page.locator(".stage-frame--tablet")).toBeVisible();
-    // The tablet opens the same compact drawer as the phone; at full height it
-    // holds the whole pending inspector.
-    const dialog = page.locator(".bottom-sheet--compact");
+    // The tablet opens the Inspector card, which holds the whole pending inspector.
+    const dialog = page.getByRole("dialog", { name: "Inspector", exact: true });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Expand to half height" }).click();
-    await dialog.getByRole("button", { name: "Expand to full height" }).click();
     await expect(
       dialog.getByRole("heading", { name: "Pending edit" }),
     ).toBeVisible();
-    // The drawer's pinned card repeats Approve; the inspector body owns the error.
     const inspector = dialog.getByRole("complementary");
     await clickApproveUntilError(inspector);
     await expectErrorPinnedAboveAudition(inspector);
