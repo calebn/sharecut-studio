@@ -30,6 +30,7 @@ import {
   exportBlocker,
   exportRequest,
 } from "../../stages/deliver/deliverLogic";
+import { FeedPanel } from "../../stages/deliver/FeedPanel";
 import { useDawStore } from "../../state/dawStore";
 import { selectedTrackIdsOf } from "../../state/selection";
 import { StatusRow } from "../../system/StatusRow";
@@ -63,6 +64,7 @@ import {
 } from "./deliverModel";
 import { shareOptionsOf } from "./deliverShare";
 import { useExportFlow } from "./exportFlowContext";
+import { openFeedSource } from "./feedSource";
 import { HostBody } from "./HostBody";
 import { hostStateOf } from "./hostModels";
 import { useShareFlow } from "./shareFlowContext";
@@ -161,6 +163,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const nowSec = useNowSec(
     exportFlow.run.kind === "running" || bounceFlow.run.kind === "running",
   );
+  const exportDoneAt =
+    exportFlow.run.kind === "done" ? exportFlow.run.finishedAt : 0;
   const exportCmd = useCommand("export.deliverables");
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body", ".dv-page");
@@ -431,6 +435,33 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             focusRequested: focusBounce,
             onFocused: clearBounceFocus,
           })}
+          feed={
+            projectPath ? (
+              <FeedPanel
+                projectPath={projectPath}
+                access="host"
+                refreshKey={`${project.history.head_id}|${exportDoneAt}`}
+                onCommand={(fix) => {
+                  if (
+                    fix.kind === "command" &&
+                    fix.command === "export_episode"
+                  )
+                    guardedStart(
+                      chosenFormats,
+                      exportRequest(
+                        episodeSettings,
+                        page.clips,
+                        page.chapters,
+                        undefined,
+                        edits,
+                        exportOptions.target,
+                      ),
+                    );
+                }}
+                onOpenSource={openFeedSource}
+              />
+            ) : undefined
+          }
           share={
             shareOffered
               ? shareOptionsOf(shareFlow, {

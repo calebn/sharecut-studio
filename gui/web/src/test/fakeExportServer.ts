@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { READY } from "../stages/deliver/feedFixture";
 import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
@@ -204,6 +205,9 @@ export function fakeExportServer() {
       if (url.includes("/api/pipeline/cancel")) {
         server.cancelRequests.push(body);
         return json(server.cancelAnswer, { job: server.started });
+      }
+      if (url.includes("/api/feed") || url.endsWith("/feed")) {
+        return json(null, { view: READY, itemXml: "<item/>" });
       }
       if (url.includes("/api/pipeline/status")) {
         return json(null, {

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import {
   studioViewports,
@@ -12,11 +13,14 @@ import {
   CHOOSE_SHOW,
   DRIFTED,
   FIRST_RUN,
+  GUEST_PIN,
   PENDING,
   READY,
   SHOW_TITLE,
   STALE,
+  UNREADABLE,
 } from "./feedFixture";
+import type { FeedView, WriteRequest } from "./feedView";
 
 const meta: Meta<typeof FeedSection> = {
   title: "Stages/Deliver/Podcast listing",
@@ -42,7 +46,7 @@ const meta: Meta<typeof FeedSection> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The episode as a podcast app will show it, with the feed file behind it. No inputs show until you click a value. Auto sits on a value a click would pin, Edited on one you wrote, and Agent on one an agent wrote. A missing value says what it needs, and the strip above leads with the one button that supplies the first. Checks keeps the rest closed, and the footer writes the feed file. Every edit and command leaves through `onAction` in the vocabulary the CLI and MCP share.\n\n**Story only.** The GUI is the only surface that speaks this view today.\n\n**Not mounted yet.** Deliver does not render this section until the listing API lands.",
+          "The episode as a podcast app will show it, with the feed file behind it. No inputs show until you click a value. Auto sits on a value a click would pin, Edited on one you wrote, and Agent on one an agent wrote. A missing value says what it needs, and the strip above leads with the one button that supplies the first. Checks keeps the rest closed, and the footer writes the feed file. Every edit and command leaves through `onAction` in the vocabulary the CLI and MCP share.\n\nDeliver mounts this section on the listing service. These stories stand in for the service with a fixture, so they are the only place it runs on one.\n\n**Access.** The host edits everything. An Editor link edits episode and plain show values and writes the feed file; setting up the show, the hosting address and local artwork stay with the host, and a value an Editor wrote carries a quiet Guest mark. A Viewer or Commenter link reads.",
       },
     },
   },
@@ -256,4 +260,144 @@ export const Phone: Story = {
       </div>
     ),
   ],
+};
+
+export const EditorGuest: Story = {
+  args: { view: GUEST_PIN, access: "editor" },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(
+      view.getByText(/You can edit this listing/),
+    ).toBeInTheDocument();
+    await expect(view.getByTitle("Set with an edit link")).toHaveTextContent(
+      "Guest",
+    );
+    await userEvent.click(
+      view.getByRole("button", { name: /^Ana asked the question/ }),
+    );
+    await expect(
+      view.getByRole("textbox", { name: "Edit episode intro" }),
+    ).toBeInTheDocument();
+  },
+};
+
+export const EditorGuestShowIsHosts: Story = {
+  args: { view: FIRST_RUN, access: "editor" },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(
+      view.getByText(/The show is not set up yet/),
+    ).toBeInTheDocument();
+    await expect(view.queryByRole("button", { name: "Create" })).toBeNull();
+    await userEvent.click(view.getByText("Checks"));
+    await expect(
+      view.getAllByRole("button", { name: /^Set up your show:/ })[0],
+    ).toBeDisabled();
+  },
+};
+
+export const ViewerReadOnly: Story = {
+  args: { view: DRIFTED, access: "viewer" },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(view.getByText(/can read the listing/)).toBeInTheDocument();
+    await expect(view.queryByRole("button", { name: "Keep mine" })).toBeNull();
+    await expect(view.queryByRole("button", { name: "Write" })).toBeNull();
+    await expect(
+      view.getByRole("button", { name: "Copy notes" }),
+    ).toBeEnabled();
+  },
+};
+
+export const BlockedWithFix: Story = {
+  args: { view: PENDING },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(
+      view.getByRole("button", { name: "Write feed file" }),
+    ).toBeDisabled();
+    await userEvent.click(view.getByRole("button", { name: "Add address" }));
+    await expect(
+      view.getByRole("textbox", { name: "Edit hosting address" }),
+    ).toHaveFocus();
+  },
+};
+
+export const UnreadableShow: Story = {
+  args: { view: UNREADABLE },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(
+      view.getByRole("heading", { name: "Which show is this episode in?" }),
+    ).toBeInTheDocument();
+    await expect(
+      view.getByRole("button", { name: "Field Notes" }),
+    ).toBeInTheDocument();
+    await userEvent.click(view.getByText("Checks"));
+    await expect(
+      view.getAllByText("The show file the-long-river.yaml cannot be used.")
+        .length,
+    ).toBeGreaterThan(0);
+  },
+};
+
+function WriteDemo() {
+  const [state, setState] = useState<{
+    view: FeedView;
+    request?: WriteRequest;
+  }>({ view: STALE });
+  return (
+    <FeedSection
+      view={state.view}
+      itemXml=""
+      request={state.request}
+      onAction={(fix) => {
+        if (fix.kind !== "command" || fix.command !== "write_feed") return;
+        setState({ view: STALE, request: "writing" });
+        window.setTimeout(() => setState({ view: READY }), 60);
+      }}
+      onOpenSource={fn()}
+    />
+  );
+}
+
+export const WriteSucceeded: Story = {
+  render: () => <WriteDemo />,
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await userEvent.click(view.getByRole("button", { name: "Write" }));
+    await expect(
+      await view.findByText("Feed file is up to date."),
+    ).toBeInTheDocument();
+    await expect(
+      await view.findByText("Wrote the feed file."),
+    ).toBeInTheDocument();
+  },
+};
+
+export const LoadFailed: Story = {
+  args: {
+    state: "error",
+    problem: "Couldn't reach the server. Check your connection and try again.",
+    onRetry: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(
+      view.getByText("Could not load the listing"),
+    ).toBeInTheDocument();
+    await expect(view.getByRole("button", { name: "Try again" })).toBeEnabled();
+  },
+};
+
+export const ActionRefused: Story = {
+  args: {
+    problem: "That setting is changed by the host.",
+    onDismissProblem: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole("alert")).toHaveTextContent(
+      "That setting is changed by the host.",
+    );
+  },
 };

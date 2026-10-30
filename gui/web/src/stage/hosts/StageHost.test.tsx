@@ -131,6 +131,27 @@ describe("StageHost gating", () => {
     expect(screen.getByText("This link can't open that")).toBeInTheDocument();
   });
 
+  it("gives an Editor link only the Podcast listing in Deliver", async () => {
+    const { READY } = await import("../../stages/deliver/feedFixture");
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ view: READY, itemXml: "<item/>" })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    asGuest("deliver", "edit");
+    mount(true);
+    expect(
+      await screen.findByRole("button", { name: "Nobody asked the river" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Podcast listing")).toBeInTheDocument();
+    expect(screen.queryByText("Episode file")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/review/abc/feed",
+      expect.anything(),
+    );
+  });
+
   it("opens every stage for the host", () => {
     for (const [stage, text] of [
       ["record", "Looking for a record room…"],

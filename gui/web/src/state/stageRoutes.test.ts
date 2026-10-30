@@ -32,7 +32,7 @@ const host = (over: Partial<LandingInput> = {}): LandingInput => ({
 describe("stagesForRole", () => {
   it.each<[StageRole, StageId[]]>([
     ["host", [...STAGE_IDS]],
-    ["editor", ["edit", "review"]],
+    ["editor", ["edit", "review", "deliver"]],
     ["commenter", ["review"]],
     ["viewer", ["review"]],
   ])("%s may open %j", (role, stages) => {

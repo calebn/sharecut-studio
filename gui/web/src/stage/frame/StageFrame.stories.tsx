@@ -237,7 +237,7 @@ export const GuestEditor: Story = {
     ).toBeVisible();
     await expect(
       within(stageTabs(canvasElement)).getAllByRole("tab"),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     await expect(canvas.queryByRole("button", { name: "A" })).toBeNull();
   },
 };

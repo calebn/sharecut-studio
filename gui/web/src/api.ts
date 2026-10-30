@@ -96,6 +96,7 @@ export {
   startBounceJob,
   startExportJob,
 } from "./api/exportJobs";
+export { loadFeed, sendFeedEdit, sendFeedWrite } from "./api/feed";
 export { openJobStream } from "./api/jobStream";
 export {
   audioUrl,

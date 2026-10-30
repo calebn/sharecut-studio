@@ -14,6 +14,7 @@ import type {
   Missing,
   Pinned,
   Sections,
+  Served,
   ShowState,
 } from "./feedView";
 
@@ -281,7 +282,7 @@ function renderItemXml(view: FeedView): string {
 }
 
 /** What a surface holds from the service: the view and the item as the feed file will carry it. */
-export type Served = { view: FeedView; itemXml: string };
+export type { Served };
 
 function serve(view: FeedView): Served {
   const rendered = { ...view, notesHtml: renderNotes(view) };
@@ -406,6 +407,34 @@ export const CHOOSE_SHOW: FeedView = feedView({
   },
   item: FIRST_RUN_ITEM,
   sections: FIRST_RUN_SECTIONS,
+});
+
+export const UNREADABLE: FeedView = feedView({
+  file: "none",
+  show: {
+    kind: "choose",
+    shows: [{ id: "field-notes", title: "Field Notes" }],
+  },
+  item: FIRST_RUN_ITEM,
+  sections: FIRST_RUN_SECTIONS,
+  extra: [
+    {
+      key: "show",
+      severity: "blocker",
+      platform: null,
+      message: "The show file the-long-river.yaml cannot be used.",
+      fix: { kind: "command", command: "link_show" },
+    },
+  ],
+});
+
+export const GUEST_PIN: FeedView = feedView({
+  item: {
+    [KEY.intro]: pinned(
+      "Ana asked the question nobody put to the river: who decided where it should run?",
+      "guest",
+    ),
+  },
 });
 
 export const STALE: FeedView = feedView({ file: "stale" });

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { FeedLive } from "./FeedLive";
+import { FeedSection } from "./FeedSection";
 import {
   AGENT_PIN,
   CHECKS,
@@ -14,11 +15,17 @@ import {
   READY,
   STALE,
 } from "./feedFixture";
+import type { FeedAccess } from "./feedLogic";
 import type { FeedView, WriteRequest } from "./feedView";
 
 function setup(
   first: FeedView = READY,
-  extra: { request?: WriteRequest; state?: "ready" | "loading" } = {},
+  extra: {
+    request?: WriteRequest;
+    state?: "ready" | "loading" | "error";
+    access?: FeedAccess;
+    problem?: string;
+  } = {},
 ) {
   const onAction = vi.fn();
   const onOpenSource = vi.fn();
@@ -170,10 +177,15 @@ describe("FeedSection", () => {
     const { user, onAction, onOpenSource } = setup(CHECKS);
     await user.click(screen.getByText("Checks"));
     await user.click(screen.getByRole("button", { name: /^Choose artwork:/ }));
-    expect(onAction).toHaveBeenCalledWith({
-      kind: "command",
-      command: "choose_art",
-    });
+    expect(onAction).not.toHaveBeenCalled();
+    await user.type(
+      screen.getByRole("textbox", { name: "artwork address" }),
+      "https://cdn.example.test/cover.jpg",
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(onAction).toHaveBeenCalledWith(
+      edit("set", "channel.image", "https://cdn.example.test/cover.jpg"),
+    );
     await user.click(screen.getByRole("button", { name: "Edit chapters" }));
     expect(onOpenSource).toHaveBeenCalledWith("chapters");
     await user.click(
@@ -385,5 +397,174 @@ describe("FeedSection", () => {
       "status",
     );
     expect(container.querySelector(".sys-skeleton")).not.toBeNull();
+  });
+
+  describe("by access", () => {
+    it("lets the host see no access note", () => {
+      setup(READY);
+      expect(screen.queryByText(/You can edit this listing/)).toBeNull();
+      expect(screen.queryByText(/can read the listing/)).toBeNull();
+    });
+
+    it("lets an Editor edit and write, and leaves the show to the host", async () => {
+      const { user } = setup(CHOOSE_SHOW, { access: "editor" });
+      expect(screen.getByText(/You can edit this listing/)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", {
+          name: "Which show is this episode in?",
+        }),
+      ).toBeNull();
+      expect(
+        screen.getByText("The host picks which show this episode is in."),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "New show" })).toBeNull();
+      await user.click(title());
+      expect(
+        screen.getByRole("textbox", { name: "Edit episode title" }),
+      ).toBeInTheDocument();
+      await user.keyboard("{Escape}");
+    });
+
+    it("lets an Editor write the feed file", async () => {
+      const { user, onAction } = setup(STALE, { access: "editor" });
+      await user.click(screen.getByRole("button", { name: "Write" }));
+      expect(onAction).toHaveBeenCalledWith({
+        kind: "command",
+        command: "write_feed",
+      });
+    });
+
+    it("keeps host-only fixes disabled with the reason for an Editor", async () => {
+      const { user, onAction } = setup(FIRST_RUN, { access: "editor" });
+      await user.click(screen.getByText("Checks"));
+      const create = screen.getAllByRole("button", {
+        name: /^Set up your show:/,
+      })[0];
+      expect(create).toBeDisabled();
+      expect(create).toHaveAttribute("title", "Only the host can change this.");
+      expect(onAction).not.toHaveBeenCalled();
+    });
+
+    it("asks an Editor for artwork as an https address only", async () => {
+      const { user, onAction } = setup(CHECKS, { access: "editor" });
+      await user.click(screen.getByText("Checks"));
+      await user.click(
+        screen.getByRole("button", { name: /^Choose artwork:/ }),
+      );
+      const field = screen.getByRole("textbox", { name: "artwork address" });
+      await user.type(field, "/Users/ana/cover.jpg");
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+      expect(
+        screen.getAllByText(
+          "An edit link can set artwork only as an https address.",
+        ).length,
+      ).toBeGreaterThan(0);
+      await user.clear(field);
+      await user.type(field, "https://cdn.example.test/cover.jpg");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+      expect(onAction).toHaveBeenCalledWith(
+        edit("set", "channel.image", "https://cdn.example.test/cover.jpg"),
+      );
+    });
+
+    it("marks a value a guest wrote", () => {
+      const guest: FeedView = {
+        ...READY,
+        item: {
+          ...READY.item,
+          "item.title": {
+            value: "Guest title",
+            source: { kind: "pinned", by: "guest", drifted: false },
+          },
+        },
+      };
+      setup(guest, { access: "editor" });
+      expect(screen.getByTitle("Set with an edit link")).toHaveTextContent(
+        "Guest",
+      );
+    });
+
+    it("reads only for a Viewer or Commenter link", async () => {
+      const { user, onAction } = setup(
+        { ...DRIFTED, file: "stale" },
+        { access: "viewer" },
+      );
+      expect(screen.getByText(/can read the listing/)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Nobody asked the river" }),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Keep mine" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Use new" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Write" })).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Edit chapters" }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Copy notes" }),
+      ).toBeInTheDocument();
+      await user.click(screen.getByText("Checks"));
+      expect(screen.queryByRole("button", { name: /^Choose/ })).toBeNull();
+      expect(onAction).not.toHaveBeenCalled();
+    });
+
+    it("says why the listing did not load and offers another try", async () => {
+      const onRetry = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <FeedSection
+          view={READY}
+          itemXml=""
+          state="error"
+          problem="Couldn't reach the server. Check your connection and try again."
+          onRetry={onRetry}
+          onAction={vi.fn()}
+          onOpenSource={vi.fn()}
+        />,
+      );
+      expect(screen.getByText(/Couldn't reach the server/)).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Try again" }));
+      expect(onRetry).toHaveBeenCalled();
+    });
+
+    it("shows a refused action in plain words and lets it be dismissed", async () => {
+      const onDismiss = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <FeedSection
+          view={READY}
+          itemXml=""
+          problem="That setting is changed by the host."
+          onDismissProblem={onDismiss}
+          onAction={vi.fn()}
+          onOpenSource={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "That setting is changed by the host.",
+      );
+      await user.click(screen.getByRole("button", { name: "Dismiss" }));
+      expect(onDismiss).toHaveBeenCalled();
+    });
+
+    it("says the feed file was written once the write comes back", () => {
+      const { rerender } = render(
+        <FeedSection
+          view={STALE}
+          itemXml=""
+          request="writing"
+          onAction={vi.fn()}
+          onOpenSource={vi.fn()}
+        />,
+      );
+      rerender(
+        <FeedSection
+          view={READY}
+          itemXml=""
+          onAction={vi.fn()}
+          onOpenSource={vi.fn()}
+        />,
+      );
+      expect(screen.getByText("Wrote the feed file.")).toBeInTheDocument();
+    });
   });
 });

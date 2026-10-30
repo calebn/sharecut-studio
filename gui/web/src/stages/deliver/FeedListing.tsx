@@ -42,8 +42,10 @@ function Badge({
 }: {
   label: string;
   action: string;
-  onClick: () => void;
+  onClick: (() => void) | null;
 }) {
+  if (!onClick)
+    return <span className="fd-badge fd-badge--static">{label}</span>;
   return (
     <button
       type="button"
@@ -76,8 +78,8 @@ function Drift({
   onUseNew,
 }: {
   detail: string | undefined;
-  onKeep: () => void;
-  onUseNew: () => void;
+  onKeep: (() => void) | null;
+  onUseNew: (() => void) | null;
 }) {
   return (
     <div className="fd-drift" role="group" aria-label={DRIFT_COPY} data-drift>
@@ -85,10 +87,12 @@ function Drift({
         {DRIFT_COPY}.
         {detail ? <span className="fd-drift-detail"> {detail}</span> : null}
       </p>
-      <div className="fd-drift-actions">
-        <Button onClick={onKeep}>Keep mine</Button>
-        <Button onClick={onUseNew}>Use new</Button>
-      </div>
+      {onKeep && onUseNew ? (
+        <div className="fd-drift-actions">
+          <Button onClick={onKeep}>Keep mine</Button>
+          <Button onClick={onUseNew}>Use new</Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -96,7 +100,10 @@ function Drift({
 export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
   const { item, sections } = view;
   const notes = textFact(item, KEY.notes);
+  const locked = edit.locked === true;
   const open = (owner: SourceOwner) => () => onOpenSource(owner);
+  const openUnlessLocked = (owner: SourceOwner) =>
+    locked ? null : open(owner);
   const chaptersId = useId();
   const withId = useId();
   const keepMine = (value: string): FeedEdit => ({
@@ -159,7 +166,7 @@ export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
                 <Badge
                   label={`Transcript ${files.map((f) => f.format).join(" · ")}`}
                   action="Open transcript"
-                  onClick={open("transcript")}
+                  onClick={openUnlessLocked("transcript")}
                 />
               )}
             </FactView>
@@ -168,7 +175,7 @@ export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
                 <Badge
                   label={plural(bites.length, "soundbite")}
                   action="Open clips"
-                  onClick={open("clips")}
+                  onClick={openUnlessLocked("clips")}
                 />
               )}
             </FactView>
@@ -188,15 +195,18 @@ export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
             {isDrifted(item[KEY.notes]) ? (
               <Drift
                 detail={view.driftDetail?.[KEY.notes]}
-                onKeep={() => onEdit(keepMine(notes.value))}
-                onUseNew={() =>
-                  onEdit(
-                    { op: "unset", key: KEY.notes },
-                    {
-                      message: "Your notes are back to auto.",
-                      edit: keepMine(notes.value),
-                    },
-                  )
+                onKeep={locked ? null : () => onEdit(keepMine(notes.value))}
+                onUseNew={
+                  locked
+                    ? null
+                    : () =>
+                        onEdit(
+                          { op: "unset", key: KEY.notes },
+                          {
+                            message: "Your notes are back to auto.",
+                            edit: keepMine(notes.value),
+                          },
+                        )
                 }
               />
             ) : null}
@@ -209,12 +219,12 @@ export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
               edit={edit}
               onEdit={onEdit}
             />
-            <section className="fd-block" aria-labelledby={chaptersId}>
+            <div className="fd-block" role="group" aria-labelledby={chaptersId}>
               <div className="fd-block-head">
                 <h4 id={chaptersId} className="fd-label">
                   Chapters
                 </h4>
-                {isKnown(sections.chapters) ? (
+                {!locked && isKnown(sections.chapters) ? (
                   <SourceLink
                     label="Edit chapters"
                     onClick={open("chapters")}
@@ -235,13 +245,13 @@ export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
                   </ol>
                 )}
               </FactView>
-            </section>
-            <section className="fd-block" aria-labelledby={withId}>
+            </div>
+            <div className="fd-block" role="group" aria-labelledby={withId}>
               <div className="fd-block-head">
                 <h4 id={withId} className="fd-label">
                   With
                 </h4>
-                {isKnown(sections.credits) ? (
+                {!locked && isKnown(sections.credits) ? (
                   <SourceLink
                     label="Edit speakers"
                     onClick={open("speakers")}
@@ -269,7 +279,7 @@ export function FeedListing({ view, edit, onEdit, onOpenSource }: Props) {
                   </ul>
                 )}
               </FactView>
-            </section>
+            </div>
           </>
         )}
       </div>
