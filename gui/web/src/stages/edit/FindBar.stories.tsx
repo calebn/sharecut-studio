@@ -233,7 +233,7 @@ export const NoMatches: Story = {
   },
 };
 
-export const ReplaceHeld: Story = {
+export const NoMatchesToReplace: Story = {
   render,
   args: { query: "zzz", replaceOpen: true, replaceText: "space" },
   play: async ({ canvasElement }) => {
