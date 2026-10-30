@@ -61,7 +61,8 @@ export type ScriptCaret = { before: number; person?: PersonData };
 export type ScriptStatus =
   | { kind: "ready" }
   | { kind: "loading"; elapsedMs?: number; onRetry?: () => void }
-  | { kind: "empty"; onTranscribe: () => void }
+  /** `onTranscribe` is left out for a viewer who may not start one. */
+  | { kind: "empty"; onTranscribe?: () => void }
   | {
       kind: "transcribing";
       /** 0 to 1. */

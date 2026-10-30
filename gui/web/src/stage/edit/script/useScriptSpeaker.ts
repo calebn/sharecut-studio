@@ -57,7 +57,10 @@ export type ScriptSpeaker = {
 /**
  * The speaker popover. It lists the turn's speaker and the sibling lanes of
  * the same split recording, so a pick moves that turn between lanes
- * (`runMoveSpeakerLaneSpan`, host only) and a rename is one track at a time.
+ * (`runMoveSpeakerLaneSpan`, which refuses with its own reason when the move
+ * is not allowed) and a rename is one track at a time. Both are offered to
+ * whoever may add media, as the old panel did. Turning `enabled` off closes
+ * the popover for good.
  * Focus goes back to the margin name the popover opened from.
  */
 export function useScriptSpeaker(
@@ -66,6 +69,8 @@ export function useScriptSpeaker(
   say: (message: string) => void,
 ): ScriptSpeaker {
   const [turn, setTurn] = useState<string | null>(null);
+  // A popover opened before the right was lost must not come back with it.
+  if (!enabled && turn !== null) setTurn(null);
   const anchor = useRef<HTMLElement | null>(null);
   const tracks = useDawStore((s) => s.project?.tracks);
 
@@ -110,8 +115,13 @@ export function useScriptSpeaker(
   });
   const onPick = useStableCallback(async (id: string) => {
     const found = model.turns.find((t) => t.id === turn);
-    const indexes = found?.words.map((word) => word.index) ?? [];
-    const refs = indexes.flatMap((index) => model.refs[index] ?? []);
+    // Words an applied cut took out, and words with no project index, are not moved.
+    const refs = (found?.words ?? []).flatMap((word) => {
+      const ref = model.refs[word.index];
+      return ref && ref.wordIndex !== null && !model.isCut(word.index)
+        ? [{ ...ref, wordIndex: ref.wordIndex }]
+        : [];
+    });
     const first = refs[0];
     if (!first) return "Nothing to move.";
     useDawStore.getState().setSelection({
