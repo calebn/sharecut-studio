@@ -239,9 +239,6 @@
     -webkit-user-select: none;
     -webkit-touch-callout: none;
   }
-
-  /* Select mode makes its own range: a hold that drifts onto the gaps between
-     words must not start the native selection (iPad Safari does). */
 }
 
 .edit-boundary-mark {

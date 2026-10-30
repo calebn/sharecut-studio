@@ -110,4 +110,5 @@ export function seedScript(seed: ScriptSeed = {}) {
     transcriptFollowPlayhead: seed.transcriptFollowPlayhead ?? false,
     showCutAwayUtterances: false,
   });
+  useDawStore.getState().setTranscriptFindReplaceOpen(false);
 }
