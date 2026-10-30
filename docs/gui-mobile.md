@@ -629,9 +629,9 @@ pending range proposals; Viewers keep the five actions visible with disabled rea
 | Timeline overlays (layer chips) | Eye sheet in the Edit corner |
 | Inspector | Selection sheet |
 | Transcript tab | Edit → Script surface |
-| Comments | Review → Comments, and the comment field in the Player |
+| Comments | Review queue (comments are queue items), and the comment field in the Player |
 | History | Edit → History sheet (right-click the header's Undo, or the palette) |
-| Queue / Tighten | Review sections |
+| Queue / Tighten | Review queue |
 | Pipeline | Prepare |
 | Command palette (`?`) | Header search button, or `?` and `/`; opens as a bottom sheet with Search focused |
 | Theme | Project menu → Appearance |

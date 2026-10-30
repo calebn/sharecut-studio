@@ -59,10 +59,8 @@ export const Default: Story = {
       expect(canvasElement.querySelector(".rv-stage")).not.toBeNull(),
     );
     await expect(
-      within(canvasElement).queryByRole("tablist", {
-        name: "Review sections",
-      }),
-    ).toBeNull();
+      within(canvasElement).getByRole("region", { name: "Queue" }),
+    ).toBeVisible();
   },
 };
 
@@ -153,11 +151,6 @@ const unsureWordsPlay: Story["play"] = async ({ canvasElement }) => {
 export const UnsureWords: Story = { play: unsureWordsPlay };
 
 export const UnsureWordsPhone: Story = { ...phone, play: unsureWordsPlay };
-
-export const StaleCommentsSection: Story = {
-  parameters: running({ reviewSection: "comments" }),
-  play: queuePlay,
-};
 
 const composingPlay: Story["play"] = async ({ canvasElement }) => {
   const canvas = within(canvasElement);
@@ -253,9 +246,6 @@ const noDecisions = async (canvas: ReturnType<typeof within>) => {
   await expect(
     await canvas.findByRole("region", { name: "Queue" }),
   ).toBeVisible();
-  await expect(
-    canvas.queryByRole("tablist", { name: "Review sections" }),
-  ).toBeNull();
   for (const name of [/^Cut/, /^Keep/, /Find more/, /Deliver/, /Resolve/])
     await expect(canvas.queryByRole("button", { name })).toBeNull();
 };

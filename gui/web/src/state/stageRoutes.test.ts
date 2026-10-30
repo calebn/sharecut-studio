@@ -118,7 +118,7 @@ describe("tab and stage mapping", () => {
     expect(tabForStage("review", "comments")).toBe("comments");
   });
 
-  it("keeps the wire name impact for the Queue section only", () => {
+  it("keeps the wire name impact for the Queue", () => {
     expect(wireTabOf("queue")).toBe("impact");
   });
 
