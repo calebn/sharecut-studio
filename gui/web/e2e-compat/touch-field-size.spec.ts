@@ -58,7 +58,7 @@ test.describe("touch field size", () => {
       await openHostShare(page, projectPath);
       await openPanel(page, "comments");
       await page.keyboard.press("c");
-      const comment = page.getByRole("textbox", {
+      const comment = page.locator(".rv-compose").getByRole("textbox", {
         name: "Comment",
         exact: true,
       });

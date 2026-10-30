@@ -287,7 +287,9 @@ async function sweepCell(
   if (!phone) {
     await openPanel(page, "comments");
     await page.keyboard.press("c");
-    const body = page.getByRole("textbox", { name: "Comment", exact: true });
+    const body = page
+      .locator(".rv-compose")
+      .getByRole("textbox", { name: "Comment", exact: true });
     await body.fill("Check this join");
     await expect(
       page.getByRole("textbox", { name: "Your name" }),
