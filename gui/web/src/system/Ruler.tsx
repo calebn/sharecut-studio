@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { HANDLE_DRAG_MIN_PX, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
 import { clamp } from "../utils/math";
@@ -13,7 +14,14 @@ import { formatRulerTime, formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
 import { edgeBounds, within } from "./dragBounds";
 import type { MarkerAttrs } from "./Marker";
-import { round3, rulerStep, rulerTicks, timeAtX, xAtTime } from "./rulerMath";
+import {
+  DEFAULT_REM_PX,
+  round3,
+  rulerStep,
+  rulerTicks,
+  timeAtX,
+  xAtTime,
+} from "./rulerMath";
 import type { TimeRange } from "./seconds";
 import {
   type GrabMove,
@@ -94,6 +102,19 @@ const EDGE_NAMES: Record<RulerEdge, string> = {
 
 const px = (value: number) => `${value}px`;
 
+const onResize = (notify: () => void) => {
+  window.addEventListener("resize", notify);
+  return () => window.removeEventListener("resize", notify);
+};
+
+/** The root font size in px: the labels' room is figured in rem, so a larger text setting spaces them wider. */
+function rootFontPx(): number {
+  const size = Number.parseFloat(
+    getComputedStyle(document.documentElement).fontSize,
+  );
+  return size > 0 ? size : DEFAULT_REM_PX;
+}
+
 export const Ruler = memo(function Ruler({
   start,
   pxPerSecond,
@@ -124,9 +145,10 @@ export const Ruler = memo(function Ruler({
   const nudging = useRef<RulerEdge | null>(null);
   const [grabbed, setGrabbed] = useState<RulerGrip | null>(null);
 
+  const rem = useSyncExternalStore(onResize, rootFontPx, () => DEFAULT_REM_PX);
   const windowEnd = start + width / pxPerSecond;
-  const step = rulerStep(pxPerSecond, windowEnd);
-  const ticks = rulerTicks(start, pxPerSecond, width, step, duration);
+  const step = rulerStep(pxPerSecond, windowEnd, rem);
+  const ticks = rulerTicks(start, pxPerSecond, width, step, duration, rem);
   const editable = !readOnly && selection !== undefined;
 
   const left = () => root.current?.getBoundingClientRect().left ?? 0;
@@ -134,14 +156,14 @@ export const Ruler = memo(function Ruler({
     clamp(timeAtX(clientX - left(), start, pxPerSecond), 0, duration);
 
   const grab = useGrab<RulerGrip>({
-    canGrab: (grip) => (grip === "scrub" ? true : editable),
-    slop: (grip, event) => {
-      const finger =
-        grip === "scrub"
-          ? event.pointerType === "touch"
-          : event.pointerType === "touch" || event.pointerType === "pen";
-      return finger ? TOUCH_SLOP_PX : HANDLE_DRAG_MIN_PX;
-    },
+    // A finger on the body only taps: a horizontal swipe belongs to the browser, which pans the timeline.
+    canGrab: (grip, event) =>
+      grip === "scrub" ? event.pointerType !== "touch" : editable,
+    slop: (grip, event) =>
+      grip !== "scrub" &&
+      (event.pointerType === "touch" || event.pointerType === "pen")
+        ? TOUCH_SLOP_PX
+        : HANDLE_DRAG_MIN_PX,
     captureOnStart: () => root.current,
     onStart: (grip, pointer, press) => {
       if (grip === "scrub") {
