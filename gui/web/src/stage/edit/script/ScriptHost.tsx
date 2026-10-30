@@ -104,7 +104,7 @@ export function ScriptHost({
 
   const phone =
     (layoutProp ?? (breakpoint === "phone" ? "phone" : "desktop")) === "phone";
-  const mayReplace = hostEditable && loading !== true;
+  const mayReplace = hostEditable && ready && loading !== true;
 
   return (
     <div ref={hostEl} style={{ display: "contents" }}>
