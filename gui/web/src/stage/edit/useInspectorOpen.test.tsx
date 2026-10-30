@@ -204,7 +204,7 @@ describe("the Inspector opens by reading one table on the phone and the tablet",
     useDawStore.setState(inspected(EVERY_KIND.range));
     expect(fields("desktop")).toBe(true);
     useDawStore.setState(inspected(EVERY_KIND.transcriptRange));
-    expect(fields("desktop")).toBe(false);
+    expect(fields("desktop")).toBe(true);
     expect(fields("phone")).toBe(true);
     useDawStore.setState({
       ...inspected(EVERY_KIND.track),

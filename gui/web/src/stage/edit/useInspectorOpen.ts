@@ -76,7 +76,7 @@ export function useInspectorOpen(
         ? isRangeSelection(selection) ||
           rangeArmed ||
           (shell === "tablet" && sessionRegion != null)
-        : selection?.kind === "range"),
+        : isRangeSelection(selection)),
     close,
     dismiss,
   };
