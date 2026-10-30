@@ -387,15 +387,6 @@ with axe before the collected results are asserted.
 | fresh short landscape exposes both tracks and keeps their Mute and Solo reachable | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the corner controls leave their targets clear | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a native guest Mute center tap stays at scrollTop zero while acknowledgment is pending | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| with Safari's chrome collapsed the column stops above the Player, not over the focused field | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a clip's Inspector is a column beside a whole timeline, and Close returns the shell | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| an envelope point's lane stays whole and uncovered beside the column | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a pending edit's Approve and Reject float beside the column, not under it | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| with the keyboard up the column shortens to the visible viewport and keeps its header | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| with iOS's shrunk layout height the column is exactly the visible band, not the keyboard twice | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| turning upright keeps an unsaved draft and its focus in the Inspector | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| the Inspector stays a bottom sheet | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| rotating a phone from portrait to landscape moves the open Inspector into a column and back | `gui/web/e2e-compat/inspector-column.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | phone shells keep every control a finger can use at 360, 390 and 767 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | tablet and desktop shells keep every control a finger can use across 768 to 1195 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | loaded tablet Player stays reachable at 200% text | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |

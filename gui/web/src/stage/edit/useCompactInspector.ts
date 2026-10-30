@@ -6,10 +6,8 @@
  * sheet, the selected target stays in view above it, and any timeline drag
  * stows it until release.
  *
- * The phone shell's Timeline mode and the tablet shell, upright or sideways,
- * peek alike (#1871): a mid-height sheet over a tall iPad timeline hid the
- * pressed clip. Where the Inspector is a side column (#1696) there is no
- * sheet to peek from.
+ * Only the phone shell's Timeline mode peeks; the tablet and the desktop
+ * open the Inspector card (`InspectorHost`).
  */
 import {
   type ComponentProps,
@@ -116,13 +114,11 @@ function clearClearance(): void {
 }
 
 /**
- * The compact inspector for `shell` (Timeline mode on the phone shell, or the
- * tablet shell; null for the desktop shell), or null where the usual
- * sheet or the side `column` applies.
+ * The compact inspector on the phone shell's Timeline mode, or null where the
+ * Inspector sheet applies.
  */
 export function useCompactInspector(
-  shell: "phone" | "tablet" | null,
-  column: boolean,
+  phone: boolean,
   /** Whether the lanes are on screen (the phone also has the Script). */
   timelineShown: boolean,
 ): CompactInspector | null {
@@ -146,10 +142,7 @@ export function useCompactInspector(
     rangeArmed: s.rangeArmed,
   }));
   // Armed, the sheet carries the In and Out fields at full size, not a strip.
-  const applies =
-    !column &&
-    !rangeArmed &&
-    (shell === "phone" ? timelineShown : shell === "tablet");
+  const applies = phone && timelineShown && !rangeArmed;
   const candidate =
     applies && project ? peekTarget(project, selection, hit) : null;
   const [seen, setSeen] = useState<{
@@ -157,16 +150,12 @@ export function useCompactInspector(
     plain: boolean;
     held: boolean;
   }>({ selection: null, plain: false, held: false });
-  // The column already shows the full Inspector, so turning upright keeps it
-  // for that selection instead of folding it into the strip.
-  const inColumn = column && selection != null;
   let held = seen.held;
-  if (seen.selection !== selection || (inColumn && !seen.held)) {
+  if (seen.selection !== selection) {
     held =
-      inColumn ||
-      (selection != null &&
-        selection === inspectorSelection &&
-        (seen.held || (candidate != null && seen.plain)));
+      selection != null &&
+      selection === inspectorSelection &&
+      (seen.held || (candidate != null && seen.plain));
     setSeen({
       selection,
       held,

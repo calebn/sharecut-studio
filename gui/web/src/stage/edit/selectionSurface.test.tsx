@@ -188,13 +188,12 @@ const SELECTIONS: Record<SelectionKind, NonNullable<Selection>> = {
   envelopePoint: { kind: "envelopePoint", trackId: "host", pointId: "e1" },
 };
 
-type Reach = { role: "button" | "heading"; name: string; related?: true };
+type Reach = { role: "button" | "heading"; name: string };
 
 /**
  * What a person must be able to reach for each kind of selection once Inspect
- * has opened it, in the sheet on a touch shell and in the inspector on the
- * desktop. The verbs themselves live in the Action bar (EditActionBar.test). `related`
- * actions come from the sheet's commands zone, which the desktop aside omits.
+ * has opened it, in the card on the desktop and the tablet and in the sheet on
+ * the phone. The verbs themselves live in the Action bar (EditActionBar.test).
  * Typing the table as a Record over the registry's kinds makes a new kind
  * fail to compile until it names its actions.
  */
@@ -206,8 +205,8 @@ const REACH: Record<SelectionKind, Reach[]> = {
   ],
   clip: [
     { role: "button", name: "Delete" },
-    { role: "button", name: "Copy", related: true },
-    { role: "button", name: "Cut", related: true },
+    { role: "button", name: "Copy" },
+    { role: "button", name: "Cut" },
   ],
   bleedAttenuation: [{ role: "heading", name: "Automatic reduction" }],
   pending: [
@@ -217,7 +216,7 @@ const REACH: Record<SelectionKind, Reach[]> = {
   applied: [{ role: "button", name: "Open History" }],
   track: [
     { role: "button", name: "Edit volume envelope" },
-    { role: "button", name: "Move track down", related: true },
+    { role: "button", name: "Move track down" },
   ],
   chapter: [
     { role: "button", name: "Delete" },
@@ -290,8 +289,11 @@ function inspect() {
 const sheet = () =>
   screen
     .queryAllByRole("dialog")
-    .find((dialog) => dialog.classList.contains("bottom-sheet--inspector")) ??
-  null;
+    .find(
+      (dialog) =>
+        dialog.classList.contains("sys-inspector") ||
+        dialog.classList.contains("bottom-sheet--inspector"),
+    ) ?? null;
 const rangeRegions = () =>
   screen.queryAllByRole("region", { name: "Range fields" });
 
@@ -309,25 +311,16 @@ describe("selection surfaces reach every kind on every shell", () => {
   for (const kind of Object.keys(SELECTION_SURFACES) as SelectionKind[]) {
     for (const shell of SHELLS) {
       it(`${kind} on the ${shell} shell opens a body with its actions in one reachable place on Inspect`, () => {
-        const { container } = mount(shell);
+        mount(shell);
         select(SELECTIONS[kind]);
         expect(sheet(), "selecting alone opens nothing").toBeNull();
-        expect(container.querySelector(".edit-inspector")).toBeNull();
         inspect();
 
         const touch = shell !== "desktop";
-        const home = touch
-          ? sheet()
-          : kind === "transcriptRange"
-            ? container.querySelector<HTMLElement>(".edit-timeline-col")
-            : container.querySelector<HTMLElement>(".edit-inspector");
+        const home = sheet();
         expect(home, "where the selection's surface renders").not.toBeNull();
-        if (touch) {
-          const body = home!.querySelector(".bottom-sheet-body");
-          expect(body?.textContent?.trim()).not.toBe("");
-        }
-        for (const { role, name, related } of REACH[kind]) {
-          if (related && !touch) continue;
+        expect(home!.textContent?.trim()).not.toBe("");
+        for (const { role, name } of REACH[kind]) {
           expect(within(home!).getByRole(role, { name })).toBeVisible();
         }
         if (touch) {
@@ -476,21 +469,25 @@ describe("a tapped word is one kind", () => {
       for (const name of ["Add word after", "Suppress", "Copy"]) {
         expect(within(home!).getByRole("button", { name })).toBeVisible();
       }
-      expect(within(home!).queryByRole("button", { name: "Cut" })).toBeNull();
+      expect(
+        within(
+          home!.querySelector<HTMLElement>(".sys-inspector-scroll")!,
+        ).queryByRole("button", { name: "Cut" }),
+      ).toBeNull();
     },
   );
 
-  it("puts Cut in the bar and the word correction in the inspector on the desktop", () => {
-    const { container } = mount("desktop");
+  it("puts Cut in the bar and the word correction in the card on the desktop", () => {
+    mount("desktop");
     select(WORD);
-    expect(container.querySelector(".edit-inspector")).toBeNull();
+    expect(sheet()).toBeNull();
     expect(screen.getByRole("button", { name: "Cut" })).toBeVisible();
     inspect();
-    const rail = container.querySelector<HTMLElement>(".edit-inspector");
+    const card = sheet() as HTMLElement;
     expect(
-      within(rail!).getByRole("button", { name: "Suppress" }),
+      within(card).getByRole("button", { name: "Suppress" }),
     ).toBeVisible();
-    expect(within(rail!).queryByRole("button", { name: "Cut" })).toBeNull();
+    expect(within(card).queryByRole("button", { name: "Cut" })).toBeNull();
   });
 
   it("keeps the word editor's validation and draft when Correct changes the sheet order", () => {
@@ -541,11 +538,8 @@ describe("Inspect, not selection, opens the surface", () => {
   it.each(SHELLS)(
     "shuts on Esc, on a new selection and on Close on the %s shell",
     async (shell) => {
-      const { container } = mount(shell);
-      const open = () =>
-        shell === "desktop"
-          ? container.querySelector(".edit-inspector")
-          : sheet();
+      mount(shell);
+      const open = sheet;
       select(SELECTIONS.clip);
       inspect();
       expect(open()).not.toBeNull();

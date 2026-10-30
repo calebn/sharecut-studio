@@ -1,6 +1,7 @@
 /* The Edit stage host (src/stage/edit): the timeline, the Script pane, the
    Inspector and the controls that hang off the timeline. */
 .edit-workspace {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   min-block-size: 0;
@@ -95,23 +96,13 @@
   padding: var(--space-3) var(--space-4);
 }
 
-.edit-inspector {
-  display: flex;
-  flex: 0 0 var(--inspector-width);
-  flex-direction: column;
-  min-block-size: 0;
-  min-inline-size: 0;
-  overflow: auto;
-  border-inline-start: 1px solid var(--color-border);
+.edit-inspector-region,
+.edit-inspector-slot {
+  display: contents;
 }
 
-.edit-inspector > .edit-inspector-close {
-  position: sticky;
-  inset-block-start: var(--space-1);
-  align-self: flex-end;
-  flex: 0 0 auto;
-  margin: var(--space-1) var(--space-1) calc(var(--space-1) * -1) 0;
-  z-index: 1;
+.edit-inspector-slot[hidden] {
+  display: none;
 }
 
 /* The slot only carries the divider's focus region. */
@@ -147,14 +138,6 @@
   .script-divider:hover .script-divider-grip {
     background: var(--color-accent);
   }
-}
-
-/* EditWorkspace measures the side layout against the track headers, the lane
-   floor, the Script's floor, the divider and the Inspector column; the pane it
-   names gives way and its toggle keeps offering it. */
-.edit-workspace--yield-script :is(.edit-divider-slot, .edit-script),
-.edit-workspace--yield-inspector .edit-inspector {
-  display: none;
 }
 
 /* Zoom, the eye and the Script toggle sit over the lanes, bottom right. */
@@ -266,6 +249,12 @@
 .edit-dock:empty,
 html[data-frame-short] .edit-dock {
   display: none;
+}
+
+/* The open Inspector sheet carries the Action bar as its own dock; this one
+   keeps the layout still beneath it. */
+.edit-workspace:has(.sys-inspector--phone) .edit-dock {
+  visibility: hidden;
 }
 
 /* The dock's Inspect grip is a touch target reaching up over the lanes' foot;
