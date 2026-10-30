@@ -7,7 +7,11 @@ import {
 } from "../test/themeTokens";
 
 const THEMES: readonly ThemeName[] = ["dark", "light", "light-auto"];
-const GROUNDS = ["--color-timeline-lane", "--color-bg-sunken"] as const;
+const GROUNDS = [
+  "--color-timeline-lane",
+  "--color-bg-sunken",
+  "--color-track-muted",
+] as const;
 
 describe("presence colour contrast (WCAG 1.4.11)", () => {
   it.each(THEMES)(

@@ -5,7 +5,10 @@ import {
   MAX_FIT_LANE_HEIGHT,
   RULER_HEIGHT,
 } from "../utils/layout";
-import { PLAYHEAD_BLEED_PX, xAtTime } from "./rulerMath";
+import { xAtTime } from "./rulerMath";
+
+/** How far a clip may stand outside the window and still be drawn, so its edge handles are not cut at the window's side. */
+const CLIP_SLACK_PX = 6;
 
 type ItemBox = { left: number; width: number };
 
@@ -37,31 +40,24 @@ export function itemBox(
   };
 }
 
-/** False when the box lies wholly outside a `width` px lane, with the playhead's bleed as slack. */
+/** False when the box lies wholly outside a `width` px lane, with `CLIP_SLACK_PX` of slack. */
 export function itemVisible(box: ItemBox, width: number): boolean {
   return (
-    box.left + box.width > -PLAYHEAD_BLEED_PX &&
-    box.left < width + PLAYHEAD_BLEED_PX
+    box.left + box.width > -CLIP_SLACK_PX && box.left < width + CLIP_SLACK_PX
   );
 }
 
 /** The words TrackHeader gives the same states, so a lane and its header never disagree. */
-export function laneMuteLook(mute: MuteState): {
-  silent: boolean;
-  description: string;
-} {
+export function laneMuteLook(mute: MuteState): { description: string } {
   switch (mute) {
     case "saved":
-      return { silent: true, description: "Muted in the mix" };
+      return { description: "Muted in the mix" };
     case "listen":
-      return { silent: true, description: "Muted for you only" };
+      return { description: "Muted for you only" };
     case "implied":
-      return {
-        silent: true,
-        description: "Silent while another track is soloed",
-      };
+      return { description: "Silent while another track is soloed" };
     default:
-      return { silent: false, description: "" };
+      return { description: "" };
   }
 }
 

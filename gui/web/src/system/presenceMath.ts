@@ -1,6 +1,6 @@
 import { PLAYHEAD_BLEED_PX, xAtTime } from "./rulerMath";
 
-/** The flag is a 16 px circle on the ruler (spec-edit OVL-PRESENCE). */
+/** The flag is a 16 px circle on the ruler (spec-edit OVL-PRESENCE). Presence sets it as `--sys-presence-flag`, so the CSS and `flagSide` read this one number. */
 export const FLAG_PX = 16;
 
 export type PresenceBox = {
