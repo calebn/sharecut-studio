@@ -162,7 +162,15 @@ for (const width of [600, 636]) {
           expect(geometry.rect.height).toBeGreaterThanOrEqual(44);
         }
       };
-      await header.getByRole("button", { name: "Close", exact: true }).focus();
+      const trackSheet = page.getByRole("dialog", {
+        name: "Inspector",
+        exact: true,
+      });
+      const trackClose = trackSheet.getByRole("button", {
+        name: "Close",
+        exact: true,
+      });
+      await trackClose.focus();
       await page.keyboard.press("ArrowDown");
       await expect.poll(savedOrder).toEqual([before[1], before[0]]);
       const liveCard = page.locator(".ui-toast-region--app .ui-toast");
@@ -170,7 +178,7 @@ for (const width of [600, 636]) {
       await liveCard.evaluate((card) =>
         card.setAttribute("data-guarded-host-proof", "same-card"),
       );
-      await header.getByRole("button", { name: "Close", exact: true }).click();
+      await trackClose.click();
       const finger = await newFinger(context, page, browserName);
       const at = await centerOf(page, `${lane} [data-hit-id="env-c"]`);
       await finger.down(at);
