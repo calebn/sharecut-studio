@@ -13,6 +13,10 @@ import {
 
 const SPAN_EPSILON = 1e-6;
 
+const sameTracks = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length &&
+  [...a].sort().join("\0") === [...b].sort().join("\0");
+
 type RecordTargetChipProps = {
   snapshot: RecordSnapshot;
   busy: boolean;
@@ -43,7 +47,8 @@ export function RecordTargetChip({
     recordScript &&
     target?.kind === "replace" &&
     Math.abs(target.from_sec - recordScript.fromSec) < SPAN_EPSILON &&
-    Math.abs(target.to_sec - recordScript.toSec) < SPAN_EPSILON
+    Math.abs(target.to_sec - recordScript.toSec) < SPAN_EPSILON &&
+    sameTracks(target.track_ids, recordScript.trackIds)
       ? recordScript.text
       : null;
   const chip = (
@@ -59,7 +64,14 @@ export function RecordTargetChip({
           : undefined
       }
       onChange={(next) => {
-        useDawStore.getState().setRecordScript(null);
+        // Re-picking the Replace the line belongs to keeps it.
+        const same =
+          next.kind === "replace" &&
+          recordScript !== null &&
+          Math.abs(next.fromSec - recordScript.fromSec) < SPAN_EPSILON &&
+          Math.abs(next.toSec - recordScript.toSec) < SPAN_EPSILON &&
+          sameTracks(replaceable?.trackIds ?? [], recordScript.trackIds);
+        if (!same) useDawStore.getState().setRecordScript(null);
         onSetTarget(wireTargetOf(next, replaceable?.trackIds ?? []));
       }}
     />

@@ -54,13 +54,25 @@ export function usePendingRecordTarget(
     }
     store.setPendingRecordTarget(null);
     if (open) {
-      const { script, ...wire } = target as typeof target & { script?: string };
-      store.setRecordScript(
-        target.kind === "replace" && script
-          ? { fromSec: target.from_sec, toSec: target.to_sec, text: script }
-          : null,
-      );
-      sendRef.current(wire);
+      if (target.kind === "replace") {
+        const { script, ...wire } = target;
+        store.setRecordScript(
+          script
+            ? {
+                fromSec: wire.from_sec,
+                toSec: wire.to_sec,
+                trackIds: [...wire.track_ids],
+                text: script,
+              }
+            : null,
+        );
+        sendRef.current(wire);
+      } else {
+        store.setRecordScript(null);
+        sendRef.current(target);
+      }
+    } else {
+      store.setRecordScript(null);
     }
   }, [pending, ready, open]);
 }

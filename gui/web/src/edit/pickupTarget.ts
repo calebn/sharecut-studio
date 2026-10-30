@@ -3,6 +3,9 @@ import type { ProjectView, Selection } from "../types/project";
 import { transcriptSpanText } from "../utils/transcript";
 import type { EditSpan } from "./editSelection";
 
+/** The longest line shown under the Session target chip; a longer selection is cut and ends with the ellipsis. */
+export const SCRIPT_MAX_CHARS = 140;
+
 // The server refuses a replace that ends past the timeline by more than this.
 const TIMELINE_EPSILON = 1e-3;
 
@@ -65,5 +68,10 @@ export function scriptOf(
     selection.endWordIndex,
     selection.sourceId,
   )?.trim();
-  return text ? `…${text}…` : undefined;
+  if (!text) return undefined;
+  const line =
+    text.length > SCRIPT_MAX_CHARS
+      ? text.slice(0, SCRIPT_MAX_CHARS).trimEnd()
+      : text;
+  return `…${line}…`;
 }

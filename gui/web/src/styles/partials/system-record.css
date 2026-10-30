@@ -618,8 +618,8 @@
   max-block-size: 16rem;
 }
 
-/* Room view: a fixed-height column in the live phase. The header is 48 px, the
-   dock 80 px; the alert slot is 0 px with no alert and one 44 px row with one. */
+/* Room view: a fixed-height column in the live phase. The header is 48 px (plus
+   the script row when a Replace over words is parked), the dock 80 px; the alert slot is 0 px with no alert and one 44 px row with one. */
 .sys-room-view {
   position: relative;
   display: flex;

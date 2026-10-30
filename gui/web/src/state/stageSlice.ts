@@ -35,7 +35,12 @@ export type PendingRecordTarget =
     };
 
 /** The line to read for a Replace over words: kept with the open room while its target is that Replace. */
-export type RecordScript = { fromSec: number; toSec: number; text: string };
+export type RecordScript = {
+  fromSec: number;
+  toSec: number;
+  trackIds: string[];
+  text: string;
+};
 
 type StageOpenOptions = {
   section?: ReviewSection;
@@ -64,7 +69,8 @@ export interface StageSliceState {
   /**
    * The words under the Session target chip while the room's target is the
    * Replace over this span. Set when the pending target is sent, cleared when
-   * the host picks another target or the project changes. Memory only.
+   * the host picks a different target, leaves Record or changes project.
+   * Memory only.
    */
   recordScript: RecordScript | null;
   /**
@@ -117,7 +123,10 @@ export const createStageSlice: StateCreator<
         // A comment draft belongs to the Review stage it opened.
         ...(prev === "review" ? { commentDraft: null } : {}),
         // The pending target waits for Record's room, not for a later visit.
-        ...(next === "record" ? {} : { pendingRecordTarget: null }),
+        // So does the line to read: it lives only while Record is open.
+        ...(next === "record"
+          ? {}
+          : { pendingRecordTarget: null, recordScript: null }),
         stage: next,
         reviewSection: section,
         openSheet: sheet,

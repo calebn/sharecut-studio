@@ -208,6 +208,20 @@ describe("stageSlice", () => {
     expect(st().pendingRecordTarget).toBeNull();
   });
 
+  it("keeps the Record script into Record and drops it on leaving or a project switch", () => {
+    const script = { fromSec: 1, toSec: 2, trackIds: ["t1"], text: "…a…" };
+    st().setRecordScript(script);
+    st().openStage("record");
+    expect(st().recordScript).toEqual(script);
+    st().openStage("edit");
+    expect(st().recordScript).toBeNull();
+
+    st().setRecordScript(script);
+    st().hydrate("/tmp/stage-c.json", minimalProject());
+    st().hydrate("/tmp/stage-d.json", minimalProject());
+    expect(st().recordScript).toBeNull();
+  });
+
   it("persists the Script flags", () => {
     st().setScriptCollapsed(true);
     st().setScriptFocus(true);
