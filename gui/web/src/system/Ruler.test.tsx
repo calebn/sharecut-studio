@@ -98,6 +98,36 @@ describe("Ruler drawing", () => {
     expect(ticks.at(-1)).toHaveTextContent("0:30");
   });
 
+  it("drops the label before the end label at a 320 px phone's 256 px, so none touch", () => {
+    const { container } = setup({
+      start: 0,
+      pxPerSecond: 256 / 60,
+      width: 256,
+      duration: 60,
+    });
+    expect(labels(container)).toEqual(["0:00", "0:15", "0:30", "", "1:00"]);
+  });
+
+  it("spaces labels by the root font size, not by px: at 200% it takes a coarser step and keeps the end label", () => {
+    const root = document.documentElement;
+    const was = root.style.fontSize;
+    root.style.fontSize = "32px";
+    try {
+      const { container } = setup({
+        start: 0,
+        pxPerSecond: 256 / 60,
+        width: 256,
+        duration: 60,
+      });
+      const shown = labels(container).filter(Boolean);
+      expect(shown).toEqual(["0:00", "1:00"]);
+      const ticks = [...container.querySelectorAll(".sys-ruler-tick")];
+      expect(ticks.at(-1)).toHaveAttribute("data-align", "end");
+    } finally {
+      root.style.fontSize = was;
+    }
+  });
+
   it("places the playhead, the selection band and the sessions in pixels of the window", () => {
     const { container } = setup({
       selection,
@@ -205,27 +235,44 @@ describe("Ruler scrubbing", () => {
     expect(onSeek).not.toHaveBeenCalled();
   });
 
-  it("gives a finger 10 px before a swipe is a scrub, so a tap that wobbles still seeks", () => {
-    const { onScrubStart, onScrub, onSeek } = setup();
+  it("never scrubs from a finger, so a swipe is left to the browser to pan and a tap still seeks", () => {
+    const { onScrubStart, onScrub, onScrubEnd, onSeek } = setup();
     const finger = (clientX: number) => ({
       pointerId: 7,
       pointerType: "touch",
       clientX,
     });
     fireEvent.pointerDown(body(), finger(100));
+    fireEvent.pointerMove(body(), finger(112));
+    fireEvent.pointerMove(body(), finger(160));
+    fireEvent.pointerUp(body(), finger(160));
+    expect(onScrubStart).not.toHaveBeenCalled();
+    expect(onScrub).not.toHaveBeenCalled();
+    expect(onScrubEnd).not.toHaveBeenCalled();
+    expect(onSeek).not.toHaveBeenCalled();
+    fireEvent.pointerDown(body(), finger(100));
     fireEvent.pointerMove(body(), finger(108));
     fireEvent.pointerUp(body(), finger(108));
     fireEvent.click(body(), { clientX: 108 });
     expect(onScrubStart).not.toHaveBeenCalled();
     expect(onSeek.mock.calls).toEqual([[606.7]]);
-    fireEvent.pointerDown(body(), finger(100));
-    fireEvent.pointerMove(body(), finger(112));
-    fireEvent.pointerMove(body(), finger(160));
-    fireEvent.pointerUp(body(), finger(160));
+  });
+
+  it("lets a pen drag-seek after the mouse's slop", () => {
+    const { onScrubStart, onScrub } = setup();
+    const pen = (clientX: number) => ({
+      pointerId: 8,
+      pointerType: "pen",
+      clientX,
+    });
+    fireEvent.pointerDown(body(), pen(100));
+    fireEvent.pointerMove(body(), pen(102));
+    expect(onScrubStart).not.toHaveBeenCalled();
+    fireEvent.pointerMove(body(), pen(110));
+    fireEvent.pointerMove(body(), pen(160));
+    fireEvent.pointerUp(body(), pen(160));
     expect(onScrubStart).toHaveBeenCalledTimes(1);
-    expect(onScrub.mock.calls.map(([seconds]) => seconds)).toEqual([
-      606.8, 608,
-    ]);
+    expect(onScrub).toHaveBeenCalled();
   });
 
   it("does nothing more when the host refuses the scrub, and still ignores the release", () => {

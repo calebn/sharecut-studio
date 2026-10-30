@@ -1495,7 +1495,7 @@ test("System/Ruler keys move the playhead, walk to the handles and nudge them, a
   expect(heard).toContain("Tab");
 });
 
-test("System/Ruler under a coarse pointer has 44 px handles that stay on the ruler, and a real swipe scrubs while a tap seeks", async ({
+test("System/Ruler under a coarse pointer has 44 px handles that stay on the ruler, and a real swipe leaves the playhead alone while a tap seeks", async ({
   browser,
 }) => {
   const { context, page } = await coarsePage(browser, "system-ruler--phone");
@@ -1507,7 +1507,7 @@ test("System/Ruler under a coarse pointer has 44 px handles that stay on the rul
   if (!ruler || !bar) throw new Error("Ruler did not render");
   expect(ruler.height).toBe(24);
   expect(await body.evaluate((el) => getComputedStyle(el).touchAction)).toBe(
-    "pan-y",
+    "pan-x pan-y",
   );
   expect(
     await page
@@ -1530,8 +1530,7 @@ test("System/Ruler under a coarse pointer has 44 px handles that stay on the rul
   await swipe(cdp, { x: bar.x + 40, y }, { dx: 150, dy: 0 });
   await frames(page);
   const swiped = await rulerValue(page);
-  expect(swiped).toBeCloseTo(600 + (190 - 0) / 24, 1);
-  expect(swiped).not.toBe(before);
+  expect(swiped).toBe(before);
   await swipe(cdp, { x: bar.x + 330, y: y - 6 }, { dx: 4, dy: 60 });
   await frames(page);
   expect(await rulerValue(page)).toBeCloseTo(swiped, 5);
