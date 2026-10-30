@@ -203,6 +203,22 @@ def test_empty_snapshot_writes_nothing(minimal_project, sample_wav, tmp_workspac
     assert not _summary_path(ws).exists()
 
 
+def test_a_running_take_is_not_saved_until_it_stops(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _ws(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    snap = {
+        "session_id": room["session_id"],
+        "state": "recording",
+        "takes": [{"take_index": 0}],
+        "participants": [],
+    }
+    monkeypatch.setattr(sessions_module, "_snapshot", lambda *_args: (snap, {}))
+    sessions_module.persist_session_summary(ws.project, room["session_id"])
+    assert not _summary_path(ws).exists()
+
+
 def test_corrupt_summaries_are_kept_aside_not_overwritten(
     minimal_project, sample_wav, tmp_workspace
 ):

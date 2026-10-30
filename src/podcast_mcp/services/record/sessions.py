@@ -89,13 +89,16 @@ def _load_summaries(workspace: Path) -> dict[str, dict[str, Any]]:
 def persist_session_summary(project: EpisodeProject, session_id: str) -> None:
     """Keep a session's takes and participants before the single-session store forgets them.
 
-    Nothing is saved for a session the store holds no takes or participants for. The first
+    Nothing is saved for a session the store holds no takes or participants for, nor while its
+    take is still running (a later save, once it stops, has the whole take). The first
     summary wins, so a repeated call never replaces it. An unreadable sidecar is renamed aside,
     never overwritten. Never raises.
     """
     try:
         snap, choices = _snapshot(project, session_id)
         if not snap or not (snap.get("takes") or snap.get("participants")):
+            return
+        if snap.get("state") in ("recording", "paused"):
             return
         workspace = project.workspace_path()
         with _summaries_lock:

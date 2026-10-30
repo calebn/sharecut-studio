@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { shareProjectKey } from "../shareMode";
 import { createHostShare, loadHostRecordSessions } from "./sharesRecord";
 
 const hostFetch = vi.fn();
@@ -59,6 +60,13 @@ describe("loadHostRecordSessions", () => {
     expect(String(hostFetch.mock.calls[0][0])).toContain(
       "/api/record/sessions?path=%2Ftmp%2Fep%20isode.sharecut",
     );
+  });
+
+  it("returns no sessions for a guest share without asking the host route", async () => {
+    await expect(
+      loadHostRecordSessions(shareProjectKey("tok")),
+    ).resolves.toEqual([]);
+    expect(hostFetch).not.toHaveBeenCalled();
   });
 
   it("surfaces a failed response as an ApiError", async () => {
