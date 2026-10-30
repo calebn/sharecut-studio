@@ -505,7 +505,9 @@ def _cut_copy(project: EpisodeProject) -> EpisodeProject:
     """A private copy of ``project`` for one cut that copies only what a cut writes.
 
     Sections a cut never writes, and the word and archive-entry objects (a cut archives
-    and rebuilds words but never changes one), are shared with ``project``.
+    and rebuilds words but never changes one), are shared with ``project``. Precondition:
+    nothing writes a word of ``project`` in place while the copy or any copy of it is in
+    use, because the words are shared with every one of them.
     """
     return _replaced(
         project,
@@ -1120,10 +1122,15 @@ def approve_edits(
     pending. ``asked_out`` additionally reports removals that cut unselected speech.
     A partial batch that relied on a held removal is refused unless its caller explicitly
     supplies ``accept_leaned_on``. Services retain persistence and history ownership.
+
+    Precondition: the transcript words of ``project`` are shared with the working copy for
+    the whole call, which is safe because the service path holds the project state and
+    commit locks and no in-place word writer (ASR silence, word alignment, transcription,
+    word spans, clipped onsets) runs in the approve path.
     """
 
     published = project
-    project = project.model_copy(deep=True)
+    project = _cut_copy(project)
     id_set = set(ids)
     applied_ids: set[str] = set()
     to_apply = [e for e in project.edit_decisions if e.id in id_set]

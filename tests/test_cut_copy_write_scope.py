@@ -8,18 +8,25 @@ the candidate shares and which it owns.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import math
 import random
 import wave
 from array import array
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from podcast_mcp.edits import cut_application
+from podcast_mcp.edits import cut_application, cut_effects
+from podcast_mcp.edits.audio_check_override import audio_check_override
 from podcast_mcp.edits.cut_application import _apply_source_remove, approve_edits
 from podcast_mcp.edits.cut_placement import CutScopeHold
+from podcast_mcp.edits.range_target import range_geometry, range_media_seal
+from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.models import (
     AppliedEditRecord,
     ArchivedTranscriptWord,
@@ -35,17 +42,21 @@ from podcast_mcp.models import (
     TrackRole,
     Transcript,
     TranscriptWord,
+    TranscriptWords,
     save_project,
 )
 from podcast_mcp.models.episode import (
     ClipBleedRestore,
     ClipOffSpeakerMuteRegion,
     CutIntent,
+    ExactRangeTarget,
+    RangeInterval,
     RoomToneFill,
     SourceSpan,
     SpeakerIngestAlignment,
 )
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.coded_error import CodedValueError
 
 RATE = 16_000
 SPAN = 5
@@ -338,8 +349,8 @@ def test_a_batch_with_held_applied_and_padded_cuts_never_changes_the_project_it_
 
     assert applied == 3
     assert [h.edit_id for h in held] == ["held"]
-    assert made
-    for source, _copy, source_digest in made:
+    assert made[0][0] is project
+    for source, _copy, source_digest in made[1:]:
         assert digest(source) == source_digest
     assert digest(project) != published
 
@@ -354,7 +365,7 @@ def test_a_forced_re_pass_leaves_the_mute_base_it_restarts_from_unchanged(tmp_pa
 
     approve_edits(project, ids, defaults=ws.effective_config(), held_out=held)
 
-    base = made[0][1]
+    base = made[1][1]
     restarts = [entry for entry in made if entry[0] is base]
     assert len(restarts) >= 2, "the held cut beside an applied one must force a second pass"
     assert {digest(src) for src, _c, _d in restarts} == {restarts[0][2]}
@@ -384,3 +395,207 @@ def test_a_cut_adds_archive_entries_without_touching_the_ones_it_shares(tmp_path
     assert [[w.model_dump() for w in t.words] for t in project.transcripts] == word_dumps
     survivors = {id(w) for t in project.transcripts for w in t.words}
     assert all(id(w) in survivors for t in candidate.transcripts for w in t.words)
+
+
+_WORD_LIST_WRITERS = (
+    "__setitem__",
+    "__delitem__",
+    "__iadd__",
+    "__imul__",
+    "append",
+    "extend",
+    "insert",
+    "pop",
+    "remove",
+    "clear",
+    "sort",
+    "reverse",
+)
+
+
+def _guard_list_writer(name: str, live: set[int]) -> Callable[..., Any]:
+    real = getattr(TranscriptWords, name)
+
+    def guarded(self, *args, **kwargs):
+        if id(self) in live:
+            raise AssertionError(f"a live word list took {name} during approve")
+        return real(self, *args, **kwargs)
+
+    return guarded
+
+
+@contextmanager
+def _no_word_writes(monkeypatch, project: EpisodeProject) -> Iterator[None]:
+    """Fail on any attribute write to a word, or in-place edit of a word list of ``project``."""
+    live = {id(t.words) for t in project.transcripts}
+
+    def refuse_word(self, name, value):
+        raise AssertionError(f"word {self.text!r}: {name} written during approve")
+
+    monkeypatch.setattr(TranscriptWord, "__setattr__", refuse_word)
+    for name in _WORD_LIST_WRITERS:
+        monkeypatch.setattr(TranscriptWords, name, _guard_list_writer(name, live))
+    yield
+
+
+def _word_state(project: EpisodeProject) -> list[tuple[Any, str]]:
+    """Every word and archived word object of ``project`` with its dump."""
+    return [
+        (obj, obj.model_dump_json())
+        for t in project.transcripts
+        for obj in (*t.words, *(a.word for a in t.archived_words))
+    ]
+
+
+def _unchanged_words(state: list[tuple[Any, str]]) -> bool:
+    return all(obj.model_dump_json() == dumped for obj, dumped in state)
+
+
+def _exact_range_edit(ws: ProjectWorkspace, name: str) -> EditDecision:
+    spans = [RangeInterval(start=13.8, end=14.2)]
+    target = ExactRangeTarget(
+        intervals=spans,
+        track_ids=["host"],
+        clips=range_geometry(ws.project, spans, ["host"]),
+        media_seals={"host": range_media_seal(ws.project, "host")},
+    )
+    return _edit(name, 13.8, 14.2).model_copy(
+        update={"exact_range": target, "timebase": "timeline"}
+    )
+
+
+def _mute(name: str, start: float, end: float) -> EditDecision:
+    return _edit(name, start, end).model_copy(update={"type": EditDecisionType.MUTE})
+
+
+def _split(name: str, at: float) -> EditDecision:
+    return _edit(name, at, at).model_copy(
+        update={"type": EditDecisionType.SPLIT, "timebase": "timeline"}
+    )
+
+
+# name -> (batch edits given the workspace, keep held_out, outcome)
+APPROVE_SHAPES: dict[str, tuple[Callable[[ProjectWorkspace], list[EditDecision]], bool, str]] = {
+    "remove_only": (lambda ws: [_edit("x", 3.8, 4.2)], False, "applies"),
+    "held": (lambda ws: [_edit("x", 1.0, 1.5)], False, "raises_scope"),
+    "held_partial": (
+        lambda ws: [_edit("x", 3.8, 4.2), _edit("y", 31.0, 31.5)],
+        True,
+        "applies",
+    ),
+    "partial_mix": (
+        lambda ws: [
+            _edit("x", 3.8, 4.2),
+            _edit("held", 31.0, 31.5),
+            _edit("padded", 23.8, 24.2, replace_gap_sec=0.3),
+            _edit("punch", 43.8, 44.2, scope="track"),
+        ],
+        True,
+        "applies",
+    ),
+    "mute_mix": (
+        lambda ws: [_mute("m", 13.8, 14.2), _edit("x", 3.8, 4.2), _edit("z", 33.8, 34.2)],
+        False,
+        "applies",
+    ),
+    "exact_range": (
+        lambda ws: [_exact_range_edit(ws, "r"), _edit("x", 3.8, 4.2)],
+        False,
+        "applies",
+    ),
+    "split": (lambda ws: [_split("s", 30.5), _edit("x", 3.8, 4.2)], False, "applies"),
+    "padded": (lambda ws: [_edit("x", 3.8, 4.2, replace_gap_sec=0.3)], False, "applies"),
+    "pause": (
+        lambda ws: [_edit("x", 3.8, 4.2, reason="pause:long", replace_gap_sec=0.3)],
+        True,
+        "applies",
+    ),
+    "stale_partial": (
+        lambda ws: [_edit("stale", 3.8, 4.2), _edit("ok", 33.8, 34.2)],
+        True,
+        "applies",
+    ),
+    "stale_raises": (lambda ws: [_edit("stale", 3.8, 4.2)], False, "raises_stale"),
+    "receipts_raise": (lambda ws: [_edit("x", 3.8, 4.2)], False, "raises_receipts"),
+}
+
+
+def _approve_shape(ws: ProjectWorkspace, shape: str, monkeypatch):
+    """Approve the shape's batch under the write barrier: (batch project, result, word state)."""
+    make, partial, outcome = APPROVE_SHAPES[shape]
+    project = _batch(ws, make(ws))
+    if shape.startswith("stale"):
+        project.clips = [c for c in project.clips if c.id != "host0"]
+    if outcome == "raises_receipts":
+        real = cut_effects.complete_effect_receipts
+
+        def last_check_fails(before, candidate, *args, **kwargs):
+            if before is project:
+                return [CutScopeHold("x", (), "operation_scope")]
+            return real(before, candidate, *args, **kwargs)
+
+        monkeypatch.setattr(cut_effects, "complete_effect_receipts", last_check_fails)
+    state = _word_state(project)
+    ids = [e.id for e in project.edit_decisions]
+    held_out: list | None = [] if partial else None
+    with _no_word_writes(monkeypatch, project):
+        if outcome.startswith("raises"):
+            with pytest.raises((ScopeChangedAtApproval, CodedValueError)) as raised:
+                approve_edits(project, ids, defaults=ws.effective_config(), held_out=held_out)
+            return project, raised.value, state
+        applied = approve_edits(project, ids, defaults=ws.effective_config(), held_out=held_out)
+    return project, applied, state
+
+
+@pytest.mark.parametrize("shape", sorted(APPROVE_SHAPES))
+def test_approving_writes_no_word_or_word_list_it_shares_with_the_project(
+    tmp_path, monkeypatch, shape
+):
+    ws = build(tmp_path)
+
+    _project, result, state = _approve_shape(ws, shape, monkeypatch)
+
+    assert state
+    assert _unchanged_words(state)
+    if APPROVE_SHAPES[shape][2] == "applies":
+        assert result >= 1
+
+
+@pytest.mark.parametrize(
+    "shape", sorted(s for s, (_m, _p, outcome) in APPROVE_SHAPES.items() if outcome != "applies")
+)
+def test_a_hold_or_raise_leaves_the_published_project_as_it_was(tmp_path, monkeypatch, shape):
+    ws = build(tmp_path)
+    make, _partial, _outcome = APPROVE_SHAPES[shape]
+    probe = _batch(ws, make(ws))
+    if shape.startswith("stale"):
+        probe.clips = [c for c in probe.clips if c.id != "host0"]
+    expected = digest(probe)
+    del probe
+
+    project, error, _state = _approve_shape(ws, shape, monkeypatch)
+
+    assert digest(project) == expected
+    assert isinstance(error, ScopeChangedAtApproval | CodedValueError)
+
+
+def test_a_retry_on_the_snapshot_after_a_raise_matches_a_first_try_on_a_fresh_one(tmp_path):
+    """``apply_for_suggested`` approves again on the snapshot it just saw raise."""
+    ws = build(tmp_path)
+    fresh = _batch(ws, [_edit("x", 1.0, 1.5)])
+    retried = copy.deepcopy(fresh)
+    defaults = ws.effective_config()
+
+    with audio_check_override("preview", "preview"):
+        approve_edits(fresh, ["x"], defaults=defaults)
+    with pytest.raises(ScopeChangedAtApproval):
+        approve_edits(retried, ["x"], defaults=defaults)
+    with audio_check_override("preview", "preview"):
+        approve_edits(retried, ["x"], defaults=defaults)
+
+    assert [t.model_dump_json() for t in retried.transcripts] == [
+        t.model_dump_json() for t in fresh.transcripts
+    ]
+    assert [c.model_dump_json(exclude={"id"}) for c in retried.clips] == [
+        c.model_dump_json(exclude={"id"}) for c in fresh.clips
+    ]
