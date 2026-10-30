@@ -6,6 +6,7 @@ import {
   type Request,
   type Response,
 } from "@playwright/test";
+import { timelineTestIds } from "../src/timeline/selectors";
 import { test } from "./interactionEvidence";
 import { type Command, read, snapshot } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
@@ -337,6 +338,70 @@ test("ruler double click restores session fit and literal three-second hit mappi
     } finally {
       await observer.retain(before);
     }
+  });
+});
+
+test("after a horizontal scroll a labelled ruler tick sits on the lane's own time position", {
+  annotation: { type: "878-cell", description: "F03-tick-lane-alignment" },
+}, async ({ page, receipts }) => {
+  await withShareableProject(async (projectPath) => {
+    await openModes(page, projectPath);
+    const ruler = page.getByRole("slider", { name: "Timeline position" });
+    const scroll = await zoomForScroll(page, ruler);
+    const range = await scroll.evaluate(
+      (element) => element.scrollWidth - element.clientWidth,
+    );
+    // Two scroll positions, so a ruler that ignores the scroll (a window
+    // stuck at the origin) is caught at both.
+    const clipRow = read(projectPath).timeline.clips.find(
+      (clip) => clip.track_id === "guest",
+    );
+    expect(clipRow, "Preparation requires a guest clip").toBeDefined();
+    const clip = page
+      .locator(`.lane-row[data-track-id="guest"]`)
+      .locator(`[data-clip-id="${clipRow!.id}"]`)
+      .and(page.getByTestId(timelineTestIds.clip));
+    const checked: { scrollLeft: number; ticks: number; worstPx: number }[] =
+      [];
+    for (const fraction of [0.5, 1]) {
+      await scroll.evaluate(
+        (element, left) => element.scrollTo({ left }),
+        Math.round(range * fraction),
+      );
+      await expect
+        .poll(() => scroll.evaluate((element) => element.scrollLeft))
+        .toBeGreaterThan(range * fraction - 2);
+      await expect(async () => {
+        const box = await clip.boundingBox();
+        expect(box, "The guest clip is rendered").not.toBeNull();
+        const lanePxPerSec =
+          box!.width / (clipRow!.source_end - clipRow!.source_start);
+        const ticks = (await rulerScale(ruler)).ticks;
+        expect(ticks.length).toBeGreaterThanOrEqual(2);
+        // The clip is drawn at `timeline_start * pxPerSec` in the lane, so
+        // the lane's own x for a time never goes through the ruler.
+        const errors = ticks.map(({ seconds, x }) =>
+          Math.abs(
+            x - (box!.x + (seconds - clipRow!.timeline_start) * lanePxPerSec),
+          ),
+        );
+        const worstPx = Math.max(...errors);
+        expect(worstPx).toBeLessThanOrEqual(1);
+        checked.push({
+          scrollLeft: Math.round(range * fraction),
+          ticks: ticks.length,
+          worstPx,
+        });
+      }).toPass();
+    }
+    expect(
+      checked.some((row) => row.scrollLeft > 0),
+      "The scrolled timeline is the case under test",
+    ).toBe(true);
+    receipts.push({
+      checkpoint: "ruler-tick-lane-alignment",
+      observation: { range, checked },
+    });
   });
 });
 

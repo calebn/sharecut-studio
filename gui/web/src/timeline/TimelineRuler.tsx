@@ -2,7 +2,6 @@ import { memo, useCallback, useRef } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
 import { Ruler } from "../system/Ruler";
-import { clamp } from "../utils/math";
 import { Playhead } from "./Playhead";
 import { timelineTestIds } from "./selectors";
 
@@ -19,6 +18,9 @@ type TimelineRulerProps = {
   onSeek: (seconds: number) => void;
   onFit: () => void;
 };
+
+/** The smallest chunk the window steps by, so a tiny viewport does not render on every px. */
+const MIN_CHUNK_PX = 64;
 
 const ANCHOR = {
   ...presenceAnchorProps(presenceAnchor("ruler")),
@@ -38,26 +40,37 @@ function selectRulerValueSec(s: {
 }
 
 /**
- * The window the ruler draws: where it starts and how wide it is. The marker
- * lane takes the same three numbers, so a tick and a marker at one time share
- * one x. The window sits `scrollLeft` into the canvas, held inside it, which
- * is where the sticky wrapper rests whatever the pads around the canvas.
+ * The window the ruler draws, in canvas px: where it starts and how wide it is.
+ * It is a chunk of the canvas, a viewport and a half-viewport of overscan each
+ * side, that moves in half-viewport steps. The row scrolls with the lanes, so a
+ * tick sits at its canvas x whatever the scroll, and the ruler re-renders only
+ * when the scroll crosses into the next chunk, not on every scroll frame.
  */
-function useRulerWindow(
-  canvasWidthPx: number,
-  viewportPx: number,
-  zoomPxPerSec: number,
-) {
-  const scrollLeft = useDawStore((s) => s.scrollLeft);
-  const width = Math.max(0, Math.min(viewportPx, canvasWidthPx));
-  const left = clamp(scrollLeft, 0, Math.max(0, canvasWidthPx - width));
-  return { start: left / zoomPxPerSec, width };
+function useRulerWindow(canvasWidthPx: number, viewportPx: number) {
+  const chunkPx = Math.max(MIN_CHUNK_PX, Math.round(viewportPx / 2));
+  const lastScroll = Math.max(0, canvasWidthPx - viewportPx);
+  const chunk = useDawStore(
+    useCallback(
+      (s: { scrollLeft: number }) =>
+        Math.floor(Math.min(Math.max(0, s.scrollLeft), lastScroll) / chunkPx),
+      [chunkPx, lastScroll],
+    ),
+  );
+  const left = Math.min(
+    Math.max(0, chunk * chunkPx - chunkPx),
+    Math.max(0, canvasWidthPx),
+  );
+  const right = Math.min(
+    Math.max(0, canvasWidthPx),
+    Math.max(viewportPx, 0) + chunk * chunkPx + chunkPx,
+  );
+  return { left, width: Math.max(0, right - left) };
 }
 
 /**
- * The live ruler: the system Ruler over the DAW store. It is a window as wide
- * as the time viewport that sticks to it, so a deep zoom draws a screenful of
- * ticks rather than the canvas. The needle is the store-driven `Playhead`,
+ * The live ruler: the system Ruler over the DAW store. It is a window of the
+ * canvas around the time viewport, so a deep zoom draws a few screenfuls of
+ * ticks rather than the whole canvas. The needle is the store-driven `Playhead`,
  * which moves by transform, so a playing playhead re-renders nothing here.
  */
 export const TimelineRuler = memo(function TimelineRuler({
@@ -70,11 +83,7 @@ export const TimelineRuler = memo(function TimelineRuler({
   onFit,
 }: TimelineRulerProps) {
   const playhead = useDawStore(selectRulerValueSec);
-  const { start, width } = useRulerWindow(
-    canvasWidthPx,
-    viewportPx,
-    zoomPxPerSec,
-  );
+  const { left, width } = useRulerWindow(canvasWidthPx, viewportPx);
   const scrubFrom = useRef(0);
   const scrubStart = useCallback(() => {
     scrubFrom.current = useDawStore.getState().playheadSec;
@@ -89,9 +98,9 @@ export const TimelineRuler = memo(function TimelineRuler({
   );
   return (
     <div className="timeline-ruler">
-      <div className="timeline-ruler-window">
+      <div className="timeline-ruler-window" style={{ insetInlineStart: left }}>
         <Ruler
-          start={start}
+          start={left / zoomPxPerSec}
           pxPerSecond={zoomPxPerSec}
           width={width}
           duration={sessionSec}
