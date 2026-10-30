@@ -171,12 +171,12 @@ needs the join capability, never shrinks, and a count above 5000 is clamped to 5
 resends it, for every take, when the room's snapshot shows an older count. Each person who
 consented or reported, and was not removed, owes `max(reported segments, highest uploaded
 segment + 1)` segments (so a guest who reported and then declined still owes what they reported), so an upload row the report does not mention still counts. A segment with no upload yet counts as saving for
-`UPLOAD_GRACE_MS` (10 minutes) after Stop, and as stalled after it. A report of 0 owes
+`UPLOAD_GRACE_MS` (10 minutes) after the latest of Stop, that person's newest saved chunk (any segment, any take) and their last rejoin, and as stalled after it. So a person still uploading one segment keeps their queued segments saving, and a late rejoin gets a fresh window. A report of 0 owes
 nothing (a host whose mic was denied, a guest who consented late and never recorded). A client that dies before its
 last report is judged by the last count it sent, so a segment it opened but never reported is
 not seen. An upload that has started but not finished
-gets the full window from the later trusted time of Stop or its newest chunk, even when
-that chunk arrived before Stop. This partial-upload rule applies to the host's recording
+gets the full window from the later trusted time of Stop, a rejoin, or that person's newest
+chunk, even when that chunk arrived before Stop. This partial-upload rule applies to the host's recording
 too. After the window it is stalled: reported ("N recordings never
 finished uploading and cannot be saved") but it no longer blocks. A partial upload of a
 guest the host removed is stalled at once; a removed guest with no upload row at all is not
@@ -206,7 +206,7 @@ session), where a newer take cannot be saved. `closed` is only set when somethin
 still saving is held by a decided session; stalled recordings alone do not set it.
 
 Land-first refuses, mints nothing and keeps the old links when uploads are still saving
-(uploads can take up to 10 minutes after Stop: wait for them to finish, or start
+(a recording counts as saving until 10 minutes pass with nothing new from that person, no upload and no rejoin since Stop. Wait for them to finish, or start
 anyway), when the room's session was already decided and something is landable or
 saving, or when the land still leaves a finished recording unsaved (a skipped keeper). On the
 route that is a 400 carrying the land's own code (`record_land_refused`, or e.g.

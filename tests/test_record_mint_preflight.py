@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 
 import pytest
@@ -252,7 +253,8 @@ def test_a_take_still_uploading_is_counted_and_land_first_asks_to_wait(
     snap = RecordControlService(ws).snapshot()
     assert (snap["unlanded_takes"], snap["unlanded_saving"]) == (1, 1)
     with pytest.raises(
-        RecordLandingError, match=r"still saving\. Uploads can take up to 10 minutes"
+        RecordLandingError,
+        match=r"still saving\. A recording counts as saving until 10 minutes pass",
     ):
         ShareService(ws).create_record_room(land_first=True)
     assert lookup_share(old["guest"]["token"], kind="record")
@@ -268,10 +270,11 @@ def _fresh_stop_time():
     """Read the wall clock when each test starts, not when the module is imported.
 
     Under a long xdist run, collection can happen more than ``UPLOAD_GRACE_MS`` before a test
-    runs, which would make every "just stopped" take read as stalled.
+    runs, which would make every "just stopped" take read as stalled. The stop sits a little
+    ahead (inside ``CLOCK_SKEW_MS``) so the real-time joins of the test's guests come before it.
     """
     global STOP_AT
-    STOP_AT = int(time.time() * 1000)
+    STOP_AT = int(time.time() * 1000) + 30_000
     yield
 
 
@@ -332,12 +335,98 @@ def test_a_guest_who_has_not_started_uploading_is_saving_inside_the_grace_window
     assert (snap["unlanded_takes"], snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 1, 0)
     assert snap["land_first_possible"] is False
     with pytest.raises(
-        RecordLandingError, match=r"still saving\. Uploads can take up to 10 minutes"
+        RecordLandingError,
+        match=r"still saving\. A recording counts as saving until 10 minutes pass",
     ):
         ShareService(ws).create_record_room(land_first=True)
     assert lookup_share(old["guest"]["token"], kind="record")
     new = ShareService(ws).create_record_room()
     assert "still saving" in new["warning"] and "Start anyway" in new["warning"]
+
+
+def _touch_part(tmp_workspace, wall_ms: int) -> None:
+    part = next(tmp_workspace.rglob("0.part"))
+    os.utime(part, (wall_ms / 1_000, wall_ms / 1_000))
+
+
+def test_queued_segments_stay_saving_during_another_upload(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], svc = _stopped_room(ws, ["Ava"])
+    _report(svc, ava, 2)
+    _partial(ws, old, ava)
+    _touch_part(tmp_workspace, STOP_AT + 15 * 60_000)
+    _at(monkeypatch, STOP_AT + 20 * 60_000)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0)
+    with pytest.raises(RecordLandingError, match="still saving"):
+        ShareService(ws).create_record_room(land_first=True)
+    _at(monkeypatch, STOP_AT + 25 * 60_000 + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 2)
+
+
+def test_a_skewed_chunk_time_does_not_hide_a_fresh_chunk_on_another_segment(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old, [ava], svc = _stopped_room(ws, ["Ava"])
+    _report(svc, ava, 2)
+    pcm = bytes(48_000)
+    for segment in (0, 1):
+        RecordUploadService(ws.project).ingest_part(
+            session_id=old["session_id"],
+            take_index=0,
+            participant_id=ava,
+            segment_index=segment,
+            part_seq=0,
+            data=pcm,
+            digest=sha256_hex(pcm),
+            final=False,
+        )
+    stamps = {"0": STOP_AT + 24 * 3_600_000, "1": STOP_AT + 15 * 60_000}
+    for part in tmp_workspace.rglob("0.part"):
+        wall_ms = stamps[part.parent.name]
+        os.utime(part, (wall_ms / 1_000, wall_ms / 1_000))
+    _at(monkeypatch, STOP_AT + 20 * 60_000)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0)
+
+
+def test_a_guest_who_rejoins_late_gets_a_fresh_window(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    old = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=old["session_id"])
+    caps = ["join", "monitor", "comment"]
+    join = {"token": old["guest"]["token"], "role": "guest", "display_name": "Ava"}
+    echo, _ = svc.join(**join, client_id="rec-guest-0", connection_id="c0", capabilities=caps)
+    ava = echo["participant_id"]
+    _consented_before_start(svc, [ava])
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=STOP_AT - 3_000)
+    svc.submit(_cmd("Start"), now_wall_ms=STOP_AT - 3_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=STOP_AT)
+    svc.disconnect(ava, connection_id="c0")
+    _at(monkeypatch, STOP_AT + GRACE + 1)
+    assert RecordControlService(ws).snapshot()["unlanded_stalled"] == 1
+    rejoined_at = STOP_AT + 25 * 60_000
+    monkeypatch.setattr(time, "time_ns", lambda: rejoined_at * 1_000_000)
+    svc.join(
+        **join,
+        participant_id=ava,
+        lease=echo["lease"],
+        client_id="rec-guest-0",
+        connection_id="c1",
+        capabilities=caps,
+    )
+    _at(monkeypatch, rejoined_at + 5 * 60_000)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (1, 0)
+    _at(monkeypatch, rejoined_at + GRACE + 1)
+    snap = RecordControlService(ws).snapshot()
+    assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
 
 
 def test_a_guest_who_never_uploads_is_stalled_after_the_window_and_land_first_goes_ahead(
@@ -373,7 +462,7 @@ def test_a_stalled_partial_upload_stops_blocking_and_is_reported(
     _ack(ws, old, ava, 0)
     _partial(ws, old, bea)
     assert RecordControlService(ws).snapshot()["unlanded_saving"] == 1  # chunk just arrived
-    _at(monkeypatch, int(time.time() * 1000) + GRACE + 1_000)
+    _at(monkeypatch, STOP_AT + GRACE + 1_000)
     snap = RecordControlService(ws).snapshot()
     assert (snap["unlanded_saving"], snap["unlanded_stalled"]) == (0, 1)
     new = ShareService(ws).create_record_room(land_first=True)
@@ -715,6 +804,7 @@ def test_a_guest_who_consented_after_the_resume_owes_only_what_they_recorded(
     svc.submit(_cmd("Start"), now_wall_ms=STOP_AT - 3_000)
     svc.submit(_cmd("Pause"), now_wall_ms=STOP_AT - 2_500)
     svc.submit(_cmd("Resume"), now_wall_ms=STOP_AT - 2_450)
+    monkeypatch.setattr(time, "time_ns", lambda: (STOP_AT - 2_000) * 1_000_000)
     bea = _join_guest(svc, room, "Bea", 1)
     svc.submit(_cmd("Stop"), now_wall_ms=STOP_AT + 1_000)
     _ack_segment(ws, room, ava, 0)
