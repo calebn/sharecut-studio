@@ -227,6 +227,7 @@ describe("Cut, and the Backspace order", () => {
       ],
     });
     host({ kind: "envelopePoint", trackId: MIRA, pointId: "p2" }, { project });
+    useDawStore.getState().setLayerVisible("showLevels", true);
     await execute("edit.delete");
     expect(vi.mocked(api.setEnvelope).mock.calls[0]?.[2]).toEqual([
       { id: "p1", time: 1, value: 1 },
