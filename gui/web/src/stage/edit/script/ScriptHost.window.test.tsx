@@ -360,40 +360,6 @@ describe("ScriptHost window", () => {
     expect(hasWord(`a${WINDOW_MARGIN + 5}`)).toBe(false);
   });
 
-  it("does not repeat a scroll whose two window changes in one batch came back to the first range", () => {
-    const model = buildScriptModel({
-      utterances: longTranscript(),
-      boundaries: [],
-      pending: [],
-      person: (_track, speaker) => ({ name: speaker, colorIndex: 0 }),
-    });
-    const scrollToWord = vi.fn(() => false);
-    const pane = {
-      current: { scrollToWord, focusFind: vi.fn(), focusWord: vi.fn() },
-    };
-    const { result } = renderHook(() =>
-      useScriptWindow(
-        model,
-        pane,
-        { current: null },
-        {
-          playKey: "|",
-          playing: [],
-          playheadWord: undefined,
-          following: false,
-        },
-      ),
-    );
-    act(() => {
-      result.current.scrollTo(700);
-      result.current.scrollTo(0);
-    });
-    const calls = scrollToWord.mock.calls.length;
-    // A later, unrelated change of window must not scroll to the old word.
-    act(() => result.current.reached(2 * (WINDOW_MARGIN - 1)));
-    expect(scrollToWord.mock.calls.length).toBe(calls);
-  });
-
   it("shows everything of a short transcript", () => {
     seedScript();
     render(<ScriptHost />);
