@@ -219,20 +219,14 @@
       ],
       "surfaces": {
         "command": "comment.resolve",
-        "gui": [
-          "mobileShell.gesture.swipeLeftComment"
-        ],
         "mcp": [
           "resolve_comment_tool"
         ],
-        "cli": "podcast comment resolve",
-        "touch": [
-          "swipe-left"
-        ]
+        "cli": "podcast comment resolve"
       },
       "omit": {
         "guest": true,
-        "keyboard_reason": "Direct comment card gesture and button; no standard shortcut"
+        "keyboard_reason": "Direct comment card button; no standard shortcut"
       },
       "tooltip": "Resolve this comment",
       "presence": {

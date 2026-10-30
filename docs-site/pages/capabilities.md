@@ -37,7 +37,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Stop following | session | `presence.unfollow` | `Escape` | — | `presence.followBanner` | — | — | — | — | none · none |
 | Clear selection | session | `edit.clearSelection` | `Escape` | — | — | — | — | — | — | — |
 | Create here | view | `create.menu` | `Shift+F10` | — | — | — | — | — | — | — |
-| Resolve comment | project | `comment.resolve` | — (Direct comment card gesture and button; no standard shortcut) | `swipe-left` | `mobileShell.gesture.swipeLeftComment` | `resolve_comment_tool` | `podcast comment resolve` | — | yes | none · none |
+| Resolve comment | project | `comment.resolve` | — (Direct comment card button; no standard shortcut) | — | — | `resolve_comment_tool` | `podcast comment resolve` | — | yes | none · none |
 | Nudge playhead back | session | `navigation.nudgePlayheadBack` | `ArrowLeft` | — | — | — | — | — | — | — |
 | Nudge playhead forward | session | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — | — |
 | Go to start | session | `navigation.goToStart` | `Home` | — | — | — | — | — | — | — |
