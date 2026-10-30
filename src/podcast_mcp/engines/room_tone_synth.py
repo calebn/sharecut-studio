@@ -25,7 +25,9 @@ source. Each fill reads from its own place in the file, derived from its positio
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
+import re
 import wave
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
@@ -60,6 +62,8 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.tracks import track_audio_path
 from podcast_mcp.util.wav import open_wav
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
+
+log = logging.getLogger(__name__)
 
 # Bump when the synthesis or its guards change: ids, files and preview keys change with it.
 SYNTH_REV = 2
@@ -169,7 +173,7 @@ def room_tone_for_gap(
     if basis.end - basis.start < MIN_ROOM_SEC and isinstance(selection, OwnQuietSample):
         pooled = span(POOL_SAMPLE_SEC)
         if gap_sec <= _replayed_sec(pooled) + SYNTH_MAX_REPLAY_SEC:
-            return selection
+            return pooled
         basis = _basis(project, track_id, pooled)
         if basis is None:
             return selection
@@ -208,6 +212,8 @@ def _params() -> str:
             TONAL_FRAME_SEC,
             TONAL_MIN_HZ,
             TONAL_NEIGHBOURS,
+            ERB_BASE_HZ,
+            ERB_SLOPE,
             TONAL_TO_BAND_DB,
             LEVEL_TOLERANCE_DB,
             PROBE_SEC,
@@ -252,13 +258,15 @@ def _synthesise(
         return None
     if analysis is None:
         return None
-    source_id = f"{SYNTH_ID_PREFIX}{track_id}-{analysis.digest}"
-    rel_path = f"{SYNTH_DIR}/{track_id}_{analysis.digest}.flac"
-    dest = resolve_under_workspace(project, rel_path)
+    name = re.sub(r"[^A-Za-z0-9_-]", "_", track_id)
+    source_id = f"{SYNTH_ID_PREFIX}{name}-{analysis.digest}"
+    rel_path = f"{SYNTH_DIR}/{name}_{analysis.digest}.flac"
     try:
+        dest = resolve_under_workspace(project, rel_path)
         if not dest.is_file():
             _write_file(dest, analysis, source_id)
     except Exception:
+        log.warning("room tone synthesis failed; keeping the recorded tiling", exc_info=True)
         return None
     length = min(gap_sec, SYNTH_MAX_FILL_SEC)
     start = seed_fraction(seed_sec) * (SYNTH_FILE_SEC - length)
@@ -285,6 +293,7 @@ def _analyse(path: str, revision: object, basis: _Basis) -> _Analysis | None:
             sample_rate=rate,
         )
     except Exception:
+        log.warning("room tone basis unreadable; keeping the recorded tiling", exc_info=True)
         return None
     measured = measure_noise_psd(samples, rate)
     if measured is None or not _steady(samples, rate) or _tonal(samples, rate):
@@ -306,7 +315,7 @@ def _native_rate(path: Path) -> int:
     try:
         with open_wav(path) as wf:
             return int(wf.getframerate())
-    except (OSError, wave.Error):
+    except (OSError, EOFError, wave.Error):
         return SYNTH_RATE
 
 

@@ -132,7 +132,12 @@ class TranscribeJob:
 
 
 def dialogue_transcribe_jobs(project: EpisodeProject) -> list[TranscribeJob]:
-    """Primary track media first, then extra whole-file clip sources, deduplicated."""
+    """Primary track media first, then extra whole-file clip sources, deduplicated.
+
+    A synthesised room-tone source is noise, not speech: it is never transcribed.
+    """
+    from podcast_mcp.engines.room_tone_synth import SYNTH_ID_PREFIX
+
     dialogue = [t for t in project.tracks if t.role == TrackRole.DIALOGUE and t.media]
     primary_jobs: list[TranscribeJob] = []
     extra_jobs: list[TranscribeJob] = []
@@ -145,6 +150,8 @@ def dialogue_transcribe_jobs(project: EpisodeProject) -> list[TranscribeJob]:
         for clip in project.clips:
             source_id = clip.source_id
             if clip.track_id != track.id or not source_id:
+                continue
+            if source_id.startswith(SYNTH_ID_PREFIX):
                 continue
             src = project.source_by_id(source_id)
             if src is None:

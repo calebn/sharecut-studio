@@ -320,3 +320,39 @@ def test_a_long_fill_reads_inside_the_file_and_differs_by_position(tmp_path: Pat
     assert first.end - first.start == pytest.approx(room_tone_synth.SYNTH_MAX_FILL_SEC)
     assert first.start != second.start
     assert first.end <= room_tone_synth.SYNTH_FILE_SEC
+
+
+def test_a_synthesised_source_is_never_a_transcription_job(tmp_path: Path) -> None:
+    from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs
+
+    project = _project_with_bed(tmp_path, _bed(3.0))
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=4.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=4.5, source_end=10.0, timeline_start=4.0),
+    ]
+    insert_room_tone_pad(project, 4.0, 20.0, defaults=load_defaults())
+    assert any((c.source_id or "").startswith(SYNTH_ID_PREFIX) for c in project.clips)
+
+    jobs = dialogue_transcribe_jobs(project)
+
+    assert not any((job.source_id or "").startswith(SYNTH_ID_PREFIX) for job in jobs)
+
+
+def test_a_track_id_with_path_characters_stays_inside_the_synth_directory(
+    tmp_path: Path,
+) -> None:
+    project = _project_with_bed(tmp_path, _bed(8.0))
+    project.tracks[0].id = "../../host"
+
+    picked = room_tone_for_gap(
+        project,
+        "../../host",
+        gap_sec=20.0,
+        seed_sec=4.0,
+        near_sec=4.0,
+        near_source_id=None,
+        duration_sec=20.0,
+    )
+
+    if isinstance(picked, SynthSample):
+        assert picked.path.parent == (tmp_path / "raw" / "room-tone-synth").resolve()
