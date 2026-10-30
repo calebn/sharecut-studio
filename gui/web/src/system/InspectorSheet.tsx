@@ -283,7 +283,7 @@ function Phone({
     canGrab: () => true,
     onStart: () => {
       const el = sheet.current;
-      const container = el?.parentElement?.clientHeight;
+      const container = (el?.offsetParent ?? el?.parentElement)?.clientHeight;
       if (!el || !container) return false;
       const start = el.getBoundingClientRect().height;
       const dock =
