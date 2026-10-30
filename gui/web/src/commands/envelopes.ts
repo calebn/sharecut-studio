@@ -1,7 +1,6 @@
 import { setEnvelope } from "../api";
 import { useDawStore } from "../state/dawStore";
 import type { AutomationPoint, HistoryEntryId } from "../types/project";
-import { BUSY_REASON } from "../ui/disabledReason";
 import { ApiError, errorMessage } from "../utils/apiError";
 import {
   addVolumePoint,
@@ -126,7 +125,11 @@ async function saveEnvelope(
     };
   }
   const key = `${state.projectPath}:${state.projectEpoch}:${trackId}`;
-  if (saving.has(key)) return { status: "disabled", reason: BUSY_REASON };
+  if (saving.has(key))
+    return {
+      status: "disabled",
+      reason: "Wait for the volume envelope to finish saving",
+    };
   const origin = pointsOf(trackId);
   const next = plan(origin);
   if (!Array.isArray(next)) return next;

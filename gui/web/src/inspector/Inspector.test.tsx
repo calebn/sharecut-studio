@@ -211,7 +211,7 @@ describe("Inspector clip lookup", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("opens the volume envelope workspace for a selected point", () => {
+  it("shows the Time and Level of a selected envelope point", () => {
     useDawStore.getState().hydrate(
       "/tmp/ep",
       minimalProject({
@@ -234,8 +234,10 @@ describe("Inspector clip lookup", () => {
       pointId: "late",
     });
     render(<Inspector />);
-    expect(screen.getByText("Editing volume envelope")).toBeTruthy();
-    expect(screen.getByLabelText("Envelope point")).toHaveValue("late");
+    expect(screen.getByRole("spinbutton", { name: "Time" })).toHaveAttribute(
+      "aria-valuenow",
+      "4",
+    );
   });
 });
 

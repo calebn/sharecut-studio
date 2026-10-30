@@ -129,6 +129,37 @@ export const TRACK_SECTIONS: readonly InspectorSection[] = [
   },
 ];
 
+export const ENVELOPE_POINT_SECTIONS: readonly InspectorSection[] = [
+  {
+    id: "point",
+    rows: [
+      {
+        id: "time",
+        label: "Time",
+        control: scrub("Time", {
+          value: 724.31,
+          unit: "s",
+          step: 0.01,
+          min: 0,
+        }),
+      },
+      {
+        id: "level",
+        label: "Level",
+        control: scrub("Level", {
+          variant: "level",
+          value: 0.5,
+          unit: "×",
+          step: 0.01,
+          min: 0,
+          max: 1.5,
+          defaultValue: 1,
+        }),
+      },
+    ],
+  },
+];
+
 export const RANGE_SECTIONS: readonly InspectorSection[] = [
   {
     id: "range",

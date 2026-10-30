@@ -99,7 +99,7 @@ const COVERED: Record<string, string[]> = {
   "CMP-REFINE": ["Templates/GuestAttentionBanner"],
   "INS-CLIP": ["Templates/Editor · Inspector · Clip", "System/ScrubField"],
   "INS-ENVELOPE": [
-    "Templates/Volume envelope",
+    "System/InspectorSheet",
     "System/ScrubField",
     "System/ReadoutChip",
   ],

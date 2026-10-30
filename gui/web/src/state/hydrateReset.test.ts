@@ -5,7 +5,6 @@ import { useDawStore } from "./dawStore";
 type Reset = Record<string, unknown>;
 
 const ALWAYS: Reset = {
-  envelopeDraft: null,
   wordDraft: null,
   heldTrim: null,
   transcriptInlineEditRequest: null,
@@ -57,7 +56,6 @@ const RESET_ON_SWITCH: Reset = {
   selection: null,
   pendingJobResults: {},
   spokenJobResultIds: [],
-  envelopeSaving: [],
   feedbackToast: null,
   stage: "edit",
   stageViews: {},

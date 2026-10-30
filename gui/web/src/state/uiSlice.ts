@@ -42,8 +42,6 @@ import type {
   ChromeFlags,
   CommentDraft,
   DawStore,
-  EnvelopeDraftEntry,
-  EnvelopeSaving,
   FeedbackToast,
   LaneHeightMode,
   LayerVisibility,
@@ -172,8 +170,6 @@ type UiSlice = Pick<
   | "userZoomed"
   | "layers"
   | "commentDraft"
-  | "envelopeDraft"
-  | "envelopeSaving"
   | "wordDraft"
   | "transcriptFollowPlayhead"
   | "transcriptTimingRequest"
@@ -224,9 +220,6 @@ type UiSlice = Pick<
   | "zoomToSpan"
   | "setLayerVisible"
   | "setCommentDraft"
-  | "setEnvelopeDraft"
-  | "beginEnvelopeSave"
-  | "endEnvelopeSave"
   | "setWordDraft"
   | "setShellBreakpoint"
   | "setPointerKind"
@@ -267,7 +260,6 @@ type UiSlice = Pick<
 /** UI state `hydrate` clears on every call. */
 export function uiAlwaysInitial() {
   return {
-    envelopeDraft: null as EnvelopeDraftEntry | null,
     wordDraft: null as WordDraftEntry | null,
     transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
     ingestBusy: false,
@@ -279,7 +271,6 @@ export function uiAlwaysInitial() {
 /** UI state tied to one project; `hydrate` clears it when the project path changes. */
 export function uiProjectInitial() {
   return {
-    envelopeSaving: [] as EnvelopeSaving[],
     transcriptTimingRequest: null,
     transcriptReviewCursor: null as TranscriptReviewCursor | null,
     highlightStaleRender: false,
@@ -653,13 +644,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setLayerVisible: (key, visible) =>
       set((s) => ({ layers: { ...s.layers, [key]: visible } })),
     setCommentDraft: (commentDraft) => set({ commentDraft }),
-    setEnvelopeDraft: (envelopeDraft) => set({ envelopeDraft }),
-    beginEnvelopeSave: (target) =>
-      set((s) => ({ envelopeSaving: [...s.envelopeSaving, target] })),
-    endEnvelopeSave: (target) =>
-      set((s) => ({
-        envelopeSaving: s.envelopeSaving.filter((entry) => entry !== target),
-      })),
     setWordDraft: (wordDraft) => set({ wordDraft }),
     setShellBreakpoint: (shellBreakpoint) => {
       set({ shellBreakpoint });
