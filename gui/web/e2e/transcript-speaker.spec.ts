@@ -5,12 +5,14 @@ import { expectFeedback } from "./feedback";
 import { openProject } from "./stageNav";
 import {
   openTranscriptPanel,
+  servePendingEditsCleared,
   withDocumentCommandTypes,
 } from "./transcriptEdit";
 
 test("rename a transcript speaker updates all its turns and Undo restores them", async ({
   page,
 }) => {
+  await servePendingEditsCleared(page);
   await openProject(page, e2eProjectPath);
   const list = await openTranscriptPanel(page);
   const original = list
