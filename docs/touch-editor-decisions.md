@@ -952,7 +952,7 @@ peek strip below describe where it opens, not when.
 
 On a coarse primary pointer at most 40rem tall and at least 40rem wide, the
 selection Inspector is a column on the inline end of the shell, not a bottom
-sheet. One hook, `useInspectorColumn`, owns the three conditions; below 40rem
+sheet. One hook (removed in #2294 W3a) owned the three conditions; below 40rem
 wide, in portrait, and with a fine pointer the sheet or compact strip stays.
 The column is `clamp(16rem, 32vw, 22rem)` wide and a cell of `.daw-shell`. It
 portals into the same host element as the sheet, and only that host's parent
@@ -986,7 +986,9 @@ evidence:
 - #2294 W3a owner decision g6 (2026-10-30): the phone-landscape column is deleted and the Inspector is the bottom sheet only, as design-system 9a and spec-edit SHEET-INSPECTOR say
 enforced-by:
 - gui/web/src/stage/edit/InspectorHost.test.tsx::carries the Action bar as its dock without Inspect, and opens at half
-- gui/web/src/stage/edit/InspectorHost.test.tsx::steps through its detents from the grip and clears the selection when dismissed
+- gui/web/src/stage/edit/InspectorHost.test.tsx::steps through its detents from the grip and closes from Close
+- gui/web/src/system/InspectorSheet.test.tsx::dismisses when let go more than 24 px below the dock
+- gui/web/src/stage/edit/useInspectorOpen.test.tsx::clears the selection when the phone sheet is dismissed
 - gui/web/src/stage/edit/useInspectorOpen.test.tsx::peeks only on the phone's lanes
 supersedes: D-inspector-column
 -->

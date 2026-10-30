@@ -659,11 +659,13 @@ function PendingEditRegion({
     }
     const sheet = docked ? inspectorSheetPanel() : null;
     const inBody = sheet?.matches(
-      ".bottom-sheet--compact:is(.bottom-sheet--half, .bottom-sheet--full)",
+      ".bottom-sheet--compact:is(.bottom-sheet--half, .bottom-sheet--full), .sys-inspector--phone",
     );
     const destination =
       sheet?.querySelector<HTMLElement>(
-        inBody ? ".bottom-sheet-body" : ".bottom-sheet-chrome",
+        inBody
+          ? ".bottom-sheet-body, .sys-inspector-scroll"
+          : ".bottom-sheet-chrome",
       ) ?? document.body;
     if (actionbarHost.parentElement === destination) return;
     const active = document.activeElement;
