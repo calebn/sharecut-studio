@@ -720,6 +720,7 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit session width) require *
 | `GET /api/pipeline/events` | SSE progress for the active/last job: per-subscriber queue via `stream_job_events` (connect snapshot, live events, 1s keepalive snapshot, terminal `done`) |
 | `POST /api/review/{token}/daw/render-preview` | Guest Docs Editor (`view` + `edit`, `edit_commands_allowed`) — starts a `JobManager` render and returns 202 with a job ID (409 if busy) |
 | `GET /api/review/{token}/daw/render-preview/{job_id}` | Guest Docs Editor (`view` + `edit`) — polls status for this share's project; paths sanitized |
+| `POST /api/review/{token}/daw/pipeline/run` | Guest Docs Editor (`PODCAST_GUEST_RENDER=1`) — starts a pipeline run from `{ from_step?, only_step?, skip_steps?, force_transcribe?, retime_words? }` with the host's working-set config (not changed; no export step; 409 `pipeline_attended` if the host set attended runs); returns 202 with the fixed-copy job view; 409 `job_running` if busy |
 | `GET /api/review/{token}/daw/pipeline/status` | Guest Docs Editor — the share project's pipeline and render jobs as fixed copy |
 | `GET /api/review/{token}/daw/pipeline/jobs/{job_id}` | Guest Docs Editor — one job of this project, else the shared 404 |
 | `GET /api/review/{token}/daw/pipeline/jobs/{job_id}/events` | Guest Docs Editor — SSE of the same fixed-copy view |

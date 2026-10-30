@@ -14,6 +14,7 @@ from podcast_mcp.services.document_sync import (
     TranscriptReplacementOptions,
     WordTimingTargetPayload,
 )
+from podcast_mcp.services.pipeline import STEP_NAMES
 
 # Discriminated union — source of truth in document_sync.payloads.
 DocumentCommandRequest = DocumentCommandBody
@@ -180,6 +181,16 @@ class FeedGuestEditRequest(GuestRequest):
     """One show-level edit from an Editor share; the share link names the episode."""
 
     edit: FeedEdit
+
+
+class GuestPipelineRunRequest(GuestRequest):
+    """Which steps an Editor share starts; the host's working-set config decides the rest."""
+
+    from_step: str | None = None
+    only_step: str | None = None
+    skip_steps: list[str] | None = Field(default=None, max_length=len(STEP_NAMES))
+    force_transcribe: bool = False
+    retime_words: bool = False
 
 
 class FeedWriteRequest(BaseModel):

@@ -17,9 +17,15 @@ from fastapi.responses import StreamingResponse
 from podcast_mcp.gui.job_events import GUEST_STREAM_SLOTS
 from podcast_mcp.gui.routes.deps import coded_http_error
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
-from podcast_mcp.gui.routes.pipeline_jobs import cancel_job
+from podcast_mcp.gui.routes.pipeline_jobs import (
+    cancel_job,
+    check_steps,
+    resolve_skip_steps,
+    start_pipeline_job,
+)
 from podcast_mcp.gui.routes.share_common import check_share_token, rate_limit_share
 from podcast_mcp.gui.routes.sse_common import guest_job_events_response
+from podcast_mcp.gui.schemas import GuestPipelineRunRequest
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     GUEST_OWNER_ROUTES,
@@ -35,6 +41,8 @@ from podcast_mcp.services.jobs import (
     guest_status_view,
     guest_visible_job,
 )
+from podcast_mcp.services.pipeline import WordAlignerMissingError, config_store
+from podcast_mcp.util.coded_error import guest_message_for_code
 from podcast_mcp.util.guest_render import require_guest_render
 
 router = APIRouter()
@@ -63,6 +71,9 @@ def guest_route(name: str) -> Callable[[str], ProjectWorkspace]:
 
 JOB_NOT_FOUND = "Job not found"
 STREAMS_FULL = "Too many open streams on this link"
+STEP_NOT_SHARED = "That step is not available on a share link."
+RUN_ATTENDED = "The host set this project to attended runs; ask the host to start it."
+GUEST_BLOCKED_STEPS = frozenset({"export_deliverables"})
 
 
 @dataclass(frozen=True)
@@ -95,6 +106,7 @@ def guest_job_route(
 
 
 RenderPreviewWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("render_preview"))]
+PipelineRunWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("pipeline_run"))]
 PipelineStatusWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("pipeline_status"))]
 RenderPreviewStatusScope = Annotated[
     GuestJobScope, Depends(guest_job_route("render_preview_status", GUEST_RENDER_KINDS))
@@ -134,6 +146,45 @@ def post_daw_render_preview(request: Request, ws: RenderPreviewWorkspace) -> dic
 @router.get("/api/review/{token}/daw/render-preview/{job_id}")
 def get_daw_render_preview(scope: RenderPreviewStatusScope) -> dict[str, Any]:
     return _projected(scope.job, scope)
+
+
+@router.post("/api/review/{token}/daw/pipeline/run", status_code=202)
+def post_daw_pipeline_run(
+    request: Request, req: GuestPipelineRunRequest, ws: PipelineRunWorkspace
+) -> dict[str, Any]:
+    """Runs the host's working-set config for this project and never writes it."""
+    with guest_boundary(log, "review pipeline run"):
+        check_steps(req.from_step, req.only_step, req.skip_steps)
+        if {req.from_step, req.only_step} & GUEST_BLOCKED_STEPS:
+            raise coded_http_error(400, STEP_NOT_SHARED, code="pipeline_step_not_shared")
+        working = config_store().get(ws.path, stage=False)
+        if not working.unattended:
+            raise coded_http_error(409, RUN_ATTENDED, code="pipeline_attended")
+        skip_steps = resolve_skip_steps(req.skip_steps, working.enabled_steps)
+        skip_steps = [*(skip_steps or []), *sorted(GUEST_BLOCKED_STEPS - set(skip_steps or []))]
+        try:
+            job = start_pipeline_job(
+                request.app.state.jobs,
+                ws.path,
+                config=working.config,
+                from_step=req.from_step,
+                only_step=req.only_step,
+                skip_steps=skip_steps,
+                unattended=True,
+                force_transcribe=req.force_transcribe,
+                overwrite_edited=False,
+                retime_words=req.retime_words,
+            )
+        except WordAlignerMissingError as exc:
+            log.info("guest pipeline run refused: word aligner unusable", exc_info=exc)
+            raise coded_http_error(
+                409, guest_message_for_code("model_needed"), code="model_needed"
+            ) from exc
+
+    projected = guest_job_view(job, ws.path, GUEST_PIPELINE_KINDS)
+    if projected is None:
+        raise coded_http_error(500, "Pipeline job unavailable", code="pipeline_job_unavailable")
+    return {"job": projected}
 
 
 @router.get("/api/review/{token}/daw/pipeline/status")

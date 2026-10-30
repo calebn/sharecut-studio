@@ -119,6 +119,10 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Editor",
         "Read project-scoped render job status (no host paths)",
     ),
+    ("POST", "/api/review/{token}/daw/pipeline/run"): (
+        "Editor",
+        "Start a pipeline run (no export step) with the host's working-set config (opt-in PODCAST_GUEST_RENDER)",
+    ),
     ("GET", "/api/review/{token}/daw/pipeline/status"): (
         "Editor",
         "Read the share project's job status (fixed copy, no host paths)",
@@ -216,6 +220,7 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ),
     ("POST", "/api/review/{token}/daw/render-preview"): "guest_render_preview",
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): "guest_render_preview_job",
+    ("POST", "/api/review/{token}/daw/pipeline/run"): "http-only: no guest MCP run tool yet",
     (
         "GET",
         "/api/review/{token}/daw/pipeline/status",

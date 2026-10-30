@@ -359,7 +359,12 @@ class PipelineConfigStore:
     def _key(self, project_path: Path | str) -> str:
         return str(Path(project_path).expanduser().resolve())
 
-    def get(self, project_path: Path | str) -> WorkingSet:
+    def get(self, project_path: Path | str, *, stage: bool = True) -> WorkingSet:
+        """The staged working set, else the defaults (staged too unless ``stage`` is false).
+
+        With ``stage`` false the result is a copy taken under the lock, so a caller reads one
+        consistent set that it cannot change the staged one through.
+        """
         key = self._key(project_path)
         with self._lock:
             ws = self._by_path.get(key)
@@ -370,7 +375,10 @@ class PipelineConfigStore:
                     enabled_steps=default_enabled_steps(cfg),
                     unattended=True,
                 )
-                self._by_path[key] = ws
+                if stage:
+                    self._by_path[key] = ws
+            elif not stage:
+                return copy.deepcopy(ws)
             return ws
 
     def peek(self, project_path: Path | str) -> WorkingSet | None:

@@ -42,6 +42,13 @@ _ROUTES = (
         "/api/review/{token}/daw/render-preview/{job_id}",
         "read",
     ),
+    GuestRoute(
+        "pipeline_run",
+        "POST",
+        "/api/review/{token}/daw/pipeline/run",
+        "mutate",
+        needs_guest_render=True,
+    ),
     GuestRoute("pipeline_status", "GET", "/api/review/{token}/daw/pipeline/status", "read"),
     GuestRoute(
         "pipeline_job_status", "GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}", "read"
