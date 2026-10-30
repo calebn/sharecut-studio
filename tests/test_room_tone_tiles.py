@@ -76,3 +76,12 @@ def test_a_span_too_short_to_inset_is_butt_spliced_from_its_start() -> None:
 def test_blended_tiles_are_long_enough_to_blend() -> None:
     for gap in (3.5, 7.0, 20.0, 120.0):
         assert all(t.length >= MIN_TILE_SEC for t in tile_span(0.0, 1.5, gap, seed_sec=gap))
+
+
+def test_a_gap_just_over_a_short_span_splits_it_evenly_with_no_sliver() -> None:
+    tiles = tile_span(0.0, 0.71, 0.7101, seed_sec=1.0)
+
+    assert [t.source_start for t in tiles] == [0.0, 0.0]
+    assert sum(t.length for t in tiles) == pytest.approx(0.7101)
+    assert min(t.length for t in tiles) > 0.3
+    assert tile_span(0.0, 0.5, 1.0001, seed_sec=0.0)[-1].length > 0.2

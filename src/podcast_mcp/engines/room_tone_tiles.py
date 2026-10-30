@@ -20,6 +20,7 @@ _GOLDEN = (math.sqrt(5.0) - 1.0) / 2.0
 _HASH_MULTIPLIER = 2654435761
 _HASH_MODULUS = 1 << 32
 _FIT_EPS_SEC = 1e-6
+_SLIVER_SEC = 0.01
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,8 @@ def tile_span(
         return _butt(span_start, piece, gap_sec)
     count = math.ceil(gap_sec / (inner * TILE_FRACTION) - _FIT_EPS_SEC)
     length = gap_sec / count
+    if length < MIN_TILE_SEC:
+        return _butt(span_start, piece, gap_sec)
     low = span_start + CROSSFADE_REACH_SEC
     high = low + inner - length
     seed = _seed_fraction(seed_sec)
@@ -80,13 +83,12 @@ def tile_span(
 
 
 def _butt(span_start: float, piece: float, gap_sec: float) -> tuple[Tile, ...]:
-    tiles: list[Tile] = []
-    placed = 0.0
-    while placed < gap_sec - _FIT_EPS_SEC:
-        use = min(piece, gap_sec - placed)
-        tiles.append(Tile(span_start, use))
-        placed += use
-    return tuple(tiles)
+    lengths: list[float] = []
+    while sum(lengths) < gap_sec - _FIT_EPS_SEC:
+        lengths.append(min(piece, gap_sec - sum(lengths)))
+    if len(lengths) > 1 and lengths[-1] < _SLIVER_SEC:
+        lengths[-2:] = [(lengths[-2] + lengths[-1]) / 2] * 2
+    return tuple(Tile(span_start, length) for length in lengths)
 
 
 def _seed_fraction(seed_sec: float) -> float:
