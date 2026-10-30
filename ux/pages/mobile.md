@@ -151,7 +151,6 @@ Tap outside a confirmation sheet to dismiss it. Hear original sits in the player
 | **Two-finger tap** | Optional ShareCut shortcut for Undo |
 | **Pinch** | Zoom the timeline in/out |
 | **Long-press** | Open the selection sheet for a comment or track, or correct a transcript word (hosts). In Select mode, hold a word and drag across more to select a range; Range actions also add or drop a word at either end. On the timeline, a long press arms a target so it can be dragged (on a clip's body, the clip, which then slides in time), or on empty space opens a menu to add an envelope point, a blade cut, a chapter or a comment |
-| **Swipe left on comment** | Resolve an open comment in the list (hosts). The card slides with your finger; **Undo** appears in the app toast afterwards (for the most recent one only) and reopens the comment, even after you leave Comments |
 | **Double-tap word** | Open word correction (hosts) in the sheet; the transcript hint says so on touch; closing it returns to your previous mode (touch keeps the sheet rather than desktop's inline editor so the keyboard has room) |
 
 A full list is in the app: **Commands and shortcuts → Gestures** (tap the search button in the header).

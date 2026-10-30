@@ -41,13 +41,6 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
     description: "Pinch in/out on the timeline to zoom.",
   },
   {
-    gesture: "Swipe left on comment",
-    touch: "swipe-left",
-    commandIds: ["comment.resolve"],
-    description:
-      "Hosts: swipe left on an open comment in the list to resolve it. Undo appears briefly afterwards.",
-  },
-  {
     gesture: "Hold a word, then drag",
     touch: "long-press-arm-drag",
     commandIds: ["transcript.extendRange"],

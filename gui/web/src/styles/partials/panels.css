@@ -76,46 +76,6 @@
   background: var(--color-bg-sunken);
 }
 
-/* Swipe-to-resolve cue: overlays the card end when motion is reduced. */
-.comment-card-swipe-reveal {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-end: 0;
-  display: flex;
-  align-items: center;
-  padding-inline: var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-raised);
-  color: var(--color-text-secondary);
-  pointer-events: none;
-}
-
-.comment-card-swipe-reveal.armed {
-  background: var(--color-accent-solid);
-  color: var(--color-accent-on-solid);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .comment-card {
-    transition: transform var(--motion-hover) var(--motion-ease-out);
-  }
-
-  .comment-card.swiping {
-    transform: translateX(var(--swipe-dx, 0));
-    transition: none;
-  }
-
-  /* The cue fills exactly the gap the card opened, so nothing overflows. */
-  .comment-card.swiping .comment-card-swipe-reveal {
-    inset-inline-end: auto;
-    inset-inline-start: 100%;
-    inline-size: calc(-1 * var(--swipe-dx, 0));
-    overflow: hidden;
-    white-space: nowrap;
-    padding-inline: var(--space-3);
-  }
-}
-
 .comment-card-main {
   display: flex;
   flex-direction: column;

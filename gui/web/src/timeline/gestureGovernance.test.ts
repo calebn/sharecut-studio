@@ -198,10 +198,7 @@ describe("gesture package governance", () => {
  * gesture adds a line here, or routes through `commands/gestures.ts`.
  */
 const SURFACE_GESTURES: Record<string, string> = {
-  "comments/CommentCard.tsx":
-    "comment swipe: a left swipe resolves an open comment for hosts (the Swipe left on comment row in commands/gestures.ts); long-press opens the inspector",
-  "hooks/useSwipeLeft.ts":
-    "comment swipe: the horizontal-intent and distance thresholds for the comment card's swipe",
+  "comments/CommentCard.tsx": "long-press on a comment card selects it",
   "hooks/useLongPress.ts":
     "one long-press timing for comment cards, track headers, transcript words and the rail's icon-only labels (gestureConstants)",
   "hooks/useTwoFingerTap.ts":

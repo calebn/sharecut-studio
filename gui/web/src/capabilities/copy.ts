@@ -558,7 +558,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.audition": "daw.transport.audition",
   "presence.avatarStack": "daw.presence.follow",
   "presence.followBanner": "daw.presence.unfollow",
-  "mobileShell.gesture.swipeLeftComment": "daw.review.resolveComment",
   timeline: "daw.edit.bladeCut",
   "timeline.createMenu": "daw.comment.draftAt",
   clipInspector: "daw.edit.moveClips",
