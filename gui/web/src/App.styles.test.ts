@@ -130,12 +130,15 @@ describe("App styles", () => {
     expect(track![1]).toMatch(/min-block-size:\s*var\(--control-height\)/);
   });
 
-  it("keeps the native text selection out of the transcript in Select mode on touch (#1029)", () => {
+  it("keeps the native text selection out of the Script on touch (#1029)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
-    const css = readFileSync(join(here, "styles/partials/panels.css"), "utf8");
-    expect(css).toMatch(
-      /@media \(pointer: coarse\) \{[\s\S]*?\[data-transcript-intent="select"\] \.utterance-turn \{\s*user-select: none;/,
-    );
+    const css = readFileSync(join(here, "styles/partials/system.css"), "utf8");
+    const at = css.indexOf(".sys-script-body {");
+    expect(at).toBeGreaterThan(-1);
+    const body = css.slice(at, css.indexOf("\n}", at));
+    expect(body).toMatch(/-webkit-user-select:\s*none/);
+    expect(body).toMatch(/\buser-select:\s*none/);
+    expect(body).toMatch(/-webkit-touch-callout:\s*none/);
   });
 
   it("paints dialog focus rings inside the scrolling body", () => {
@@ -153,17 +156,12 @@ describe("App styles", () => {
     expect(body).not.toMatch(/outline-offset/);
   });
 
-  it("keeps iOS Safari's native selection off transcript words and Select-mode turns with the prefixed property", () => {
+  it("keeps iOS Safari's native selection off comment cards with the prefixed property", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const css = readFileSync(join(here, "styles/partials/panels.css"), "utf8");
-    for (const selector of [
-      ".utterance-word,\n  .comment-card-main",
-      '[data-transcript-intent="select"] .utterance-turn',
-    ]) {
-      const at = css.indexOf(`${selector} {`);
-      expect(at).toBeGreaterThan(-1);
-      const body = css.slice(at, css.indexOf("}", at));
-      expect(body).toMatch(/-webkit-user-select:\s*none/);
-    }
+    const at = css.indexOf("  .comment-card-main {");
+    expect(at).toBeGreaterThan(-1);
+    const body = css.slice(at, css.indexOf("}", at));
+    expect(body).toMatch(/-webkit-user-select:\s*none/);
   });
 });

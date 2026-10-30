@@ -142,6 +142,7 @@ export function useScriptFind(
 
   return {
     ...state,
+    open,
     matches,
     current,
     status: open ? findCountText(query, matches.length, current) : undefined,
