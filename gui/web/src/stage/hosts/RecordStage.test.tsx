@@ -762,9 +762,9 @@ describe("Record stage End session", () => {
     setRoom({ state: "recording", take_index: 0, participants: [avaGuest()] });
     mount();
     const dialog = await openMore();
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "End session" }),
-    );
+    const end = within(dialog).getByRole("button", { name: "End session" });
+    expect(end).toHaveAccessibleDescription("Stop the take first.");
+    await userEvent.click(end);
     expect(screen.queryByText(END_SESSION_PENDING_COPY)).toBeNull();
     expect(revokeHostRoom).not.toHaveBeenCalled();
   });
@@ -773,10 +773,13 @@ describe("Record stage End session", () => {
     setRoom({ state: "stopped", take_index: 0, participants: [avaGuest()] });
     mount();
     const dialog = await openMore();
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "End session" }),
+    const end = within(dialog).getByRole("button", { name: "End session" });
+    expect(end).toHaveAccessibleDescription(
+      "Land every take on the timeline before ending the session.",
     );
+    await userEvent.click(end);
     expect(screen.queryByText(END_SESSION_PENDING_COPY)).toBeNull();
+    expect(revokeHostRoom).not.toHaveBeenCalled();
   });
 });
 

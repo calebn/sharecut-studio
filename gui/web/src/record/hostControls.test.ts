@@ -188,6 +188,10 @@ describe("endGate", () => {
     }
   });
 
+  it("blocks while no recording has reached the project yet", () => {
+    expect(endGate(stopped, []).enabled).toBe(false);
+  });
+
   it("blocks while live notes are waiting to land", () => {
     const withNote = recordSnapshot({
       state: "stopped",

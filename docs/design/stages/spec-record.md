@@ -326,7 +326,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 | INT-REC-NOTE | Write a note | Note field, Add note | Composer in rail or sheet | N focuses, Enter sends | Notes sheet |
 | INT-REC-MUTE | Mute self | Checkbox | Dock button | Cmd/Ctrl+D | Tap |
 | INT-REC-DEVICE | Change mic | Lobby and after Stop; held while a take is live, paused or still flushing | Tap own tile, Device sheet | none | Tap own tile |
-| INT-REC-END | End the session | End room confirm in Share | ⋯ End session, undoable for 10 s: the Record notices row shows "Ending this session in 10 seconds" with Undo, and the links are revoked only when the window passes (Undo changes nothing; leaving Record inside the window still ends it; disabled with a reason until a running take is stopped and every take is saved and landed, since ending revokes the guests' links) | none | ⋯ |
+| INT-REC-END | End the session | End room confirm in Share | ⋯ End session, undoable for 10 s: the Record notices row shows "Ending this session in 10 seconds" with Undo, and the links are revoked only when the window passes (Undo changes nothing; leaving Record inside the window still ends it; disabled with a reason until a running take is stopped and every take is saved and landed and no live notes wait, since ending revokes the guests' links; once pressed the button leaves the sheet until the end is undone or done) | none | ⋯ |
 | INT-REC-RETURN | Return from another stage | Record chip | Stage bar Record (Live badge) | Stage bar key | Stage switcher |
 | INT-REC-REMOVE | Remove a person | Record stage | Tile menu (right-click or long-press) Remove, InlineConfirm since it can't be undone | none | Long-press tile |
 
