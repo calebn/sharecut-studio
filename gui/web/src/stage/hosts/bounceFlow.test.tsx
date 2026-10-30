@@ -8,6 +8,7 @@ import {
 } from "../../api";
 import { BOUNCE_DEFAULTS } from "../../stages/deliver/bounceLogic";
 import { useDawStore } from "../../state/dawStore";
+import { deferred } from "../../test/deferred";
 import { minimalProject } from "../../test/fixtures";
 import {
   modelStatus,
@@ -330,6 +331,47 @@ describe("BounceFlowProvider", () => {
         cancelError: "gone",
       }),
     );
+  });
+
+  it("ignores an old cancel failure while the next bounce is cancelling", async () => {
+    const oldCancel = deferred<PipelineJobSnapshot>();
+    const nextCancel = deferred<PipelineJobSnapshot>();
+    vi.mocked(cancelPipelineRun)
+      .mockReturnValueOnce(oldCancel.promise)
+      .mockReturnValueOnce(nextCancel.promise);
+    const settle = heldFollow();
+    mount();
+    act(() => flow.start());
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b1" }));
+    act(() => flow.cancel());
+    expect(cancelPipelineRun).toHaveBeenNthCalledWith(1, "b1");
+    await act(async () => settle().ok(finished));
+    expect(flow.run.kind).toBe("done");
+
+    vi.mocked(startBounceJob).mockResolvedValue({ ...started, id: "b2" });
+    act(() => flow.start());
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "b2" }));
+    act(() => flow.cancel());
+    expect(cancelPipelineRun).toHaveBeenNthCalledWith(2, "b2");
+    expect(flow.run).toMatchObject({ cancelling: true, cancelError: null });
+
+    await act(async () => oldCancel.reject(new Error("old cancel refused")));
+    expect(flow.run).toMatchObject({
+      kind: "running",
+      jobId: "b2",
+      cancelling: true,
+      cancelError: null,
+    });
+
+    await act(async () =>
+      nextCancel.reject(new Error("current cancel refused")),
+    );
+    expect(flow.run).toMatchObject({
+      kind: "running",
+      jobId: "b2",
+      cancelling: false,
+      cancelError: "current cancel refused",
+    });
   });
 
   it("names a failure, keeps the fixed range and lets it go again", async () => {
