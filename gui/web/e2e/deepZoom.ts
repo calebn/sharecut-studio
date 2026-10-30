@@ -92,8 +92,8 @@ export function parseRulerLabel(label: string): number {
 
 /**
  * The last tick that shows a label when the ruler's window ends at the session
- * end, `widthPx` wide: the end label, or the one before when `rulerTicks` leaves
- * the end label off for room.
+ * end, `widthPx` wide: always the end label, since `rulerTicks` drops the label
+ * before it when the two would overlap.
  */
 export function expectedLastRulerTick(
   sessionSec: number,
