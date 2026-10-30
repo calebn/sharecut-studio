@@ -712,8 +712,8 @@ It also holds the editing rail to one row (#1347) and sweeps the Transcript and
 Prepare stage whole at every size and text scale, the Find and replace row
 included (#1433, #1445), and, on the tablet and desktop shells, the Review queue composer with a comment typed so its action items and track picks show (phones comment from Listen, swept above). A fourth test seeds
 a copy of the fixture whose first track has a volume envelope and an effect chain, so
-the track surface and the envelope workspace show the Envelope point select and the
-Bypass toggles. A control inside a closed `<details>` is not measured until it opens.
+the track surface shows the Bypass toggles and its first point opens in the Inspector with its
+Time and Level fields. A control inside a closed `<details>` is not measured until it opens.
 The sheet's hidden detent range is the keyboard route to the drawer height; a finger
 swipes the header or taps the resize buttons. Page zoom is not that 32 px root:
 Safari Aa 200% shrinks the layout or visual viewport while rem stays 16 px, which
