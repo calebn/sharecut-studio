@@ -6,6 +6,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { selectCommentCard } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
 const COMMENTER_BANNER =
@@ -47,10 +48,7 @@ for (const theme of ["light", "dark"] as const) {
           await guest
             .getByRole("button", { name: "Post", exact: true })
             .click();
-          const comment = guest
-            .locator(".stage-host-guest-comment-list > li")
-            .filter({ hasText: body });
-          await expect(comment).toBeVisible();
+          const comment = await selectCommentCard(guest, body);
           await comment
             .getByRole("textbox", { name: /^Reply/ })
             .fill("This is the reply.");
@@ -94,7 +92,7 @@ for (const theme of ["light", "dark"] as const) {
             guest.getByRole("dialog", { name: "Inspector" }),
           ).toHaveCount(0);
 
-          const dock = guest.locator(".stage-host-guest-comments");
+          const dock = guest.locator(".rv-compose");
           const field = dock.getByRole("textbox", {
             name: "Comment",
             exact: true,
@@ -103,18 +101,17 @@ for (const theme of ["light", "dark"] as const) {
           await expect(field).toBeInViewport();
           await expect(post).toBeInViewport();
           await expect(post).toBeDisabled();
-          await expect(
-            dock.getByRole("button", { name: /^Comment at 0:00, follows/ }),
-          ).toBeVisible();
+          await expect(dock.locator(".sys-composer-chip")).toContainText(
+            "Follows the playhead",
+          );
 
           const body = `Phone guest feedback in ${theme}`;
           await field.tap();
           await field.fill(body);
           await post.tap();
           await expect(field).toHaveValue("");
-          await expect(
-            guest.locator(".sys-comment").filter({ hasText: body }),
-          ).toContainText("0:00");
+          const posted = await selectCommentCard(guest, body);
+          await expect(posted).toContainText("0:00");
           await expect(
             guest.getByRole("dialog", { name: "Inspector" }),
           ).toHaveCount(0);
@@ -124,12 +121,9 @@ for (const theme of ["light", "dark"] as const) {
             path: test.info().outputPath("commenter-phone-posted.png"),
           });
 
-          await expect(guest.getByText("Commenting as")).toContainText("Guest");
           await expect(
-            guest
-              .locator(".stage-host-guest-comment-list > li")
-              .filter({ hasText: body }),
-          ).toBeVisible();
+            dock.getByRole("textbox", { name: "Your name" }),
+          ).toHaveValue("Guest");
           await expectNoHorizontalScroll(guest, 320);
         },
       );
@@ -152,6 +146,7 @@ test("a Viewer link shows no comment field on the phone", async ({
         await expect(
           guest.getByRole("textbox", { name: "Comment", exact: true }),
         ).toHaveCount(0);
+        await expect(guest.locator(".rv-compose")).toHaveCount(0);
       },
     );
   });

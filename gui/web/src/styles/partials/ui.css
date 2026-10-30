@@ -772,7 +772,7 @@ html[data-shell="phone"] .ui-menu-shortcut {
 
 /* Toast: polite status with optional Undo (theme tokens only).
    A panel's toast is sticky in its nearest scrolling ancestor
-   (`.comments-panel`, overflow: auto in panels.css); if scrolling moves to a
+   (`.stage-host-panel`, overflow-y: auto in stage-hosts.css); if scrolling moves to a
    parent, the toast will scroll out of view. The app toast is fixed (below). */
 .ui-toast-region {
   position: sticky;

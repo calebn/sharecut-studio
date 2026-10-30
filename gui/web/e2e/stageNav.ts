@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Stage-level navigation for specs. Every helper here says what the spec wants
- * (open the Comments panel, open the palette) and none of them names the
+ * (open the comment queue, open the palette) and none of them names the
  * chrome that gets there. It drives the stage frame: the Stage bar in
  * the App header (the tab bar on a phone), the Project menu, the Edit stage's
  * eye sheet, and the Player's hear menu.
@@ -32,7 +32,7 @@ const STAGE_LABEL: Record<Stage, string> = {
   deliver: "Deliver",
 };
 
-/** Where each panel lives: its stage and, for History, its sheet. A host's Review is the Queue alone, comments included. */
+/** Where each panel lives: its stage and, for History, its sheet. Review is the Queue alone for every role, comments included; `comments` stays as an alias of it. */
 const PANEL_HOME: Record<Panel, { stage: Stage; sheet?: "history" }> = {
   transcript: { stage: "edit" },
   history: { stage: "edit", sheet: "history" },
@@ -546,22 +546,31 @@ export async function inspectSelectionByKey(page: Page): Promise<void> {
 }
 
 /**
- * Select the host's queue row for the comment whose text is `body` and return
- * the Decision card that shows its thread. A phone keeps the queue in a sheet.
+ * Select the queue row for the comment whose text is `body` and return the
+ * Decision card that shows its thread. A phone keeps the queue in a sheet.
+ * A guest's link has no Stage bar, so it is already on Review.
  */
-export async function openCommentCard(
+export async function selectCommentCard(
   page: Page,
   body: string,
 ): Promise<Locator> {
-  await openPanel(page, "comments");
   const row = page
     .locator('.sys-queue-row[data-kind="comment"]')
     .filter({ hasText: body });
-  if (!(await row.isVisible())) {
+  if ((await isPhoneShell(page)) && !(await row.isVisible())) {
     await page.getByRole("button", { name: / of \d+$/ }).click();
   }
   await row.getByRole("button").click();
   const card = page.locator("article.sys-decision");
   await expect(card.locator(".sys-comment-body").first()).toHaveText(body);
   return card;
+}
+
+/** `selectCommentCard` for the host, who goes to Review first. */
+export async function openCommentCard(
+  page: Page,
+  body: string,
+): Promise<Locator> {
+  await openPanel(page, "comments");
+  return selectCommentCard(page, body);
 }
