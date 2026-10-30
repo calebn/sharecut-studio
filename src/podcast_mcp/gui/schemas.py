@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from podcast_mcp.feed.model import FeedEdit
 from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.models.feed import PinAuthor
 from podcast_mcp.project.transcript_context import VOCABULARY_MAX_ENTRIES
 from podcast_mcp.services.document_sync import (
     COMMENT_BODY_MAX,
@@ -163,6 +164,8 @@ class FeedEditRequest(BaseModel):
 
     path: str
     edit: FeedEdit
+    by: PinAuthor = "person"
+    """Who the pin is stamped as. An undo sends the original author back."""
 
 
 class FeedGuestEditRequest(BaseModel):

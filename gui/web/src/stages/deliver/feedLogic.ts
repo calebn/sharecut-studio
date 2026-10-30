@@ -10,6 +10,7 @@ import type {
   Finding,
   Fix,
   Known,
+  PinAuthor,
   Resolved,
   Severity,
   WriteRequest,
@@ -69,6 +70,8 @@ type PinField = {
   multiline: boolean;
   /** `Use auto` where the value falls back to a derived one, `Clear` where nothing stands in. */
   reset: "Use auto" | "Clear";
+  /** A yes or no, asked with a choice instead of free text. */
+  yesNo?: true;
 };
 
 /** The rows a click can edit. A key not listed here is shown, never edited. */
@@ -160,6 +163,27 @@ const SHOW_FIELDS: Readonly<Record<FieldKey, PinField>> = {
     add: "Choose artwork",
     multiline: false,
     reset: "Clear",
+  },
+  "channel.explicit": {
+    label: "explicit content",
+    add: "Say if it is explicit",
+    multiline: false,
+    reset: "Clear",
+    yesNo: true,
+  },
+  "channel.block": {
+    label: "hide from directories",
+    add: "Choose whether to hide the show",
+    multiline: false,
+    reset: "Clear",
+    yesNo: true,
+  },
+  "channel.complete": {
+    label: "show is finished",
+    add: "Say if the show is finished",
+    multiline: false,
+    reset: "Clear",
+    yesNo: true,
   },
   "channel.mediaUrl": {
     label: "hosting address template",
@@ -323,6 +347,7 @@ export const HOST_ONLY_WHY = "Only the host can change this.";
 export const READ_ONLY_WHY =
   "This link can read the listing but not change it.";
 const ART_WHY = "An edit link can set artwork only as an https address.";
+const HOSTING_WHY = "A hosting address must be an https address.";
 
 /** The settings an Editor link leaves with the host: the show itself and where its files live. */
 const HOST_ONLY_KEYS: ReadonlySet<FieldKey> = new Set([
@@ -339,13 +364,12 @@ export function editBlock(access: FeedAccess, edit: FeedEdit): string | null {
   if (access === "host") return null;
   if (access === "viewer") return READ_ONLY_WHY;
   if (HOST_ONLY_KEYS.has(edit.key) || !ownsKey(edit.key)) return HOST_ONLY_WHY;
-  if (
-    edit.key === "channel.image" &&
-    edit.op === "set" &&
-    typeof edit.value === "string" &&
-    !/^https:\/\//i.test(edit.value.trim())
-  )
-    return ART_WHY;
+  if (edit.op === "set" && typeof edit.value === "string") {
+    const secure = /^https:\/\//i.test(edit.value.trim());
+    if (edit.key === "channel.image" && !secure) return ART_WHY;
+    if (edit.key === KEY.hosting && !secure && edit.value.trim() !== "")
+      return HOSTING_WHY;
+  }
   return null;
 }
 
@@ -368,7 +392,7 @@ export function fixBlock(access: FeedAccess, fix: Fix): string | null {
 export function previewEdit(
   view: FeedView,
   edit: FeedEdit,
-  by: "person" | "guest",
+  by: PinAuthor,
 ): FeedView {
   if (edit.op !== "set") return view;
   if (typeof edit.value === "string" && edit.value.trim() === "") return view;

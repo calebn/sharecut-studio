@@ -29,6 +29,8 @@ class SetEdit(WireModel):
     op: Literal["set"] = "set"
     key: FieldKey
     value: FieldValue
+    link: bool = False
+    """For ``show`` only: ``value`` is the id of a show that must exist; it is never taken as a name."""
 
 
 class UnsetEdit(WireModel):

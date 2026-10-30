@@ -1,9 +1,13 @@
+import { stagesForRole } from "../../state/stageRoutes";
 import type { StageId } from "../../types/stage";
 
 export type GuestRole = "viewer" | "commenter" | "editor";
 
+/** The stages the Review page itself can show: Deliver is its own host-mounted page, so it is not a tab here. */
 export function guestStages(role: GuestRole): readonly StageId[] | null {
-  return role === "editor" ? ["edit", "review"] : null;
+  return role === "editor"
+    ? stagesForRole(role).filter((stage) => stage !== "deliver")
+    : null;
 }
 
 export const ROLE_HINT: Record<GuestRole, string> = {

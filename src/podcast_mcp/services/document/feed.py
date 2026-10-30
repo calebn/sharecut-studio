@@ -220,6 +220,11 @@ class FeedService:
         assert isinstance(edit, SetEdit)
         name = str(edit.value).strip()
         ids = {summary.id for summary in store.shows()}
+        if edit.link and name not in ids:
+            raise CodedValueError(
+                "That show is no longer there. Choose another or create a new one.",
+                code="feed_show_not_found",
+            )
         show_id = name if name in ids else show_id_for(name)
         if show_id not in ids:
             # An unreadable show file is never replaced, or reported as taken, behind the person's back.

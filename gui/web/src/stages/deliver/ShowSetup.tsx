@@ -10,7 +10,13 @@ type Props = {
   onAction: (fix: Fix) => void;
 };
 
-function NewShow({ onCreate }: { onCreate: (title: string) => void }) {
+function NewShow({
+  onCreate,
+  focusOnMount,
+}: {
+  onCreate: (title: string) => void;
+  focusOnMount: boolean;
+}) {
   const [title, setTitle] = useState("");
   const name = title.trim();
   const why = name ? undefined : "Name your show to create it.";
@@ -29,6 +35,8 @@ function NewShow({ onCreate }: { onCreate: (title: string) => void }) {
             {...control}
             value={title}
             autoComplete="off"
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- the New show button that held focus is gone
+            autoFocus={focusOnMount}
             onChange={(event) => setTitle(event.target.value)}
           />
         )}
@@ -82,7 +90,7 @@ export function ShowSetup({ show, onAction }: Props) {
             </li>
           )}
         </ul>
-        {adding ? <NewShow onCreate={create} /> : null}
+        {adding ? <NewShow onCreate={create} focusOnMount /> : null}
       </section>
     );
   }
@@ -118,7 +126,7 @@ export function ShowSetup({ show, onAction }: Props) {
           </dd>
         </div>
       </dl>
-      <NewShow onCreate={create} />
+      <NewShow onCreate={create} focusOnMount={false} />
     </section>
   );
 }

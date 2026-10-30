@@ -200,6 +200,15 @@ describe("what a link may change", () => {
     ).toBeNull();
   });
 
+  it("asks an Editor for a hosting address as https only", () => {
+    expect(
+      editBlock("editor", set("item.enclosure.url", "http://x.test/a.mp3")),
+    ).toBe("A hosting address must be an https address.");
+    expect(
+      editBlock("editor", set("item.enclosure.url", "https://x.test/a.mp3")),
+    ).toBeNull();
+  });
+
   it("lets an Editor change episode and plain show values", () => {
     expect(editBlock("editor", set("item.title", "A"))).toBeNull();
     expect(editBlock("editor", set("channel.author", "Ana"))).toBeNull();

@@ -11,7 +11,14 @@ import {
   markOf,
   needsInput,
 } from "./feedLogic";
-import type { Fact, FeedEdit, FieldKey, Pending, Resolved } from "./feedView";
+import type {
+  Fact,
+  FeedEdit,
+  FieldKey,
+  Pending,
+  PinAuthor,
+  Resolved,
+} from "./feedView";
 
 export type EditControls = {
   active: FieldKey | null;
@@ -22,15 +29,17 @@ export type EditControls = {
 };
 
 /** The edit that puts a value back, offered beside the toast after the value is handed back. */
-export type Undo = { message: string; edit: FeedEdit };
+export type Undo = { message: string; edit: FeedEdit; by?: PinAuthor };
 export type OnEdit = (edit: FeedEdit, undo?: Undo) => void;
 
 /** The words beside a value that say where it came from. An agent's carries a glyph so it is not mistaken for a person's. */
 export function Mark({ text }: { text: string }) {
+  const guest = text === GUEST_MARK;
   return (
     <span
       className="fd-mark"
-      title={text === GUEST_MARK ? GUEST_MARK_WHY : undefined}
+      title={guest ? GUEST_MARK_WHY : undefined}
+      tabIndex={guest ? 0 : undefined}
     >
       {text === AGENT_MARK ? (
         <SystemIcon name="wand-sparkles" size={12} />
@@ -86,6 +95,8 @@ export function FeedValue({ field, fact, edit, onEdit }: Props) {
   };
   const own =
     isKnown(fact) && fact.source.kind === "pinned" ? fact.value : null;
+  const author =
+    isKnown(fact) && fact.source.kind === "pinned" ? fact.source.by : undefined;
   const handBack = () =>
     onEdit(
       { op: "unset", key: field },
@@ -97,6 +108,7 @@ export function FeedValue({ field, fact, edit, onEdit }: Props) {
                 ? `Your ${spec.label} is back to auto.`
                 : `Cleared the ${spec.label}.`,
             edit: { op: "set", key: field, value: own },
+            by: author,
           },
     );
   const commit = (text: string) => {
@@ -174,14 +186,16 @@ export function FeedValue({ field, fact, edit, onEdit }: Props) {
               {edit.locked ? (
                 <span className="fd-value fd-value--static">{value}</span>
               ) : (
-                <button
-                  type="button"
-                  className="fd-value"
-                  title={`Edit ${spec.label}`}
-                  onClick={() => edit.begin(field)}
-                >
-                  {value}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="fd-value"
+                    title={`Edit ${spec.label}`}
+                    onClick={() => edit.begin(field)}
+                  >
+                    {value}
+                  </button>
+                </>
               )}
               {mark ? <Mark text={mark} /> : null}
             </>

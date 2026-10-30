@@ -43,7 +43,7 @@ function setup(
   return { ...utils, user, onAction, onOpenSource, announce };
 }
 
-const edit = (op: "set" | "unset", key: string, value?: string) => ({
+const edit = (op: "set" | "unset", key: string, value?: string | boolean) => ({
   kind: "edit",
   edit: op === "set" ? { op, key, value } : { op, key },
 });
@@ -110,9 +110,10 @@ describe("FeedSection", () => {
       { toast: false },
     );
     await user.click(screen.getByRole("button", { name: "Undo" }));
-    expect(onAction).toHaveBeenLastCalledWith(
-      edit("set", "item.title", "Nobody asked the river live"),
-    );
+    expect(onAction).toHaveBeenLastCalledWith({
+      ...edit("set", "item.title", "Nobody asked the river live"),
+      by: "person",
+    });
     expect(
       screen.getByRole("button", { name: "Nobody asked the river live" }),
     ).toBeInTheDocument();
@@ -254,6 +255,53 @@ describe("FeedSection", () => {
     const { user } = setup(FIRST_RUN);
     await user.click(screen.getByRole("button", { name: "Set up your show" }));
     expect(screen.getByLabelText("Show name")).toHaveFocus();
+  });
+
+  it("moves focus into the name field when New show opens", async () => {
+    const { user } = setup(CHOOSE_SHOW);
+    await user.click(screen.getByRole("button", { name: "New show" }));
+    expect(screen.getByLabelText("Show name")).toHaveFocus();
+  });
+
+  it("offers Review only for a drift it can show", () => {
+    const titleDrift: FeedView = {
+      ...READY,
+      item: {
+        ...READY.item,
+        "item.title": {
+          value: "Mine",
+          source: { kind: "pinned", by: "person", drifted: true },
+        },
+      },
+      findings: [
+        {
+          key: "item.title",
+          severity: "info",
+          platform: null,
+          message: "The auto value changed.",
+          fix: null,
+        },
+      ],
+    };
+    setup(titleDrift);
+    expect(screen.getByText("Check the episode title")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Review" })).toBeNull();
+  });
+
+  it("offers Review for drifted notes and it focuses Keep mine", async () => {
+    const { user } = setup(DRIFTED);
+    await user.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByRole("button", { name: "Keep mine" })).toHaveFocus();
+  });
+
+  it("an undo of an agent's value goes back as the agent's", async () => {
+    const { user, onAction } = setup(AGENT_PIN);
+    await user.click(screen.getByRole("button", { name: /^A walk along/ }));
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(onAction).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "edit", by: "agent" }),
+    );
   });
 
   it("links one of the shows you have", async () => {
@@ -425,6 +473,15 @@ describe("FeedSection", () => {
       await user.keyboard("{Escape}");
     });
 
+    it("lets an Editor set the episode's own hosting address", async () => {
+      const { user, onAction } = setup(PENDING, { access: "editor" });
+      await user.click(screen.getByRole("button", { name: "Add address" }));
+      await user.keyboard("https://cdn.example.test/ep.mp3{Enter}");
+      expect(onAction).toHaveBeenCalledWith(
+        edit("set", "item.enclosure.url", "https://cdn.example.test/ep.mp3"),
+      );
+    });
+
     it("lets an Editor write the feed file", async () => {
       const { user, onAction } = setup(STALE, { access: "editor" });
       await user.click(screen.getByRole("button", { name: "Write" }));
@@ -443,6 +500,36 @@ describe("FeedSection", () => {
       expect(create).toBeDisabled();
       expect(create).toHaveAttribute("title", "Only the host can change this.");
       expect(onAction).not.toHaveBeenCalled();
+    });
+
+    it("asks for a yes or no with a choice and the field's label", async () => {
+      const { user, onAction } = setup(
+        {
+          ...CHECKS,
+          findings: [
+            {
+              key: "channel.explicit",
+              severity: "warn",
+              platform: "Apple",
+              message: "Apple needs to know if the show is explicit.",
+              fix: { kind: "input", key: "channel.explicit" },
+            },
+          ],
+        },
+        { access: "host" },
+      );
+      await user.click(screen.getByText("Checks"));
+      await user.click(
+        screen.getByRole("button", { name: /^Say if it is explicit:/ }),
+      );
+      await user.selectOptions(
+        screen.getByRole("combobox", { name: "explicit content" }),
+        "yes",
+      );
+      await user.click(screen.getByRole("button", { name: "Save" }));
+      expect(onAction).toHaveBeenCalledWith(
+        edit("set", "channel.explicit", true),
+      );
     });
 
     it("asks an Editor for artwork as an https address only", async () => {
@@ -465,6 +552,23 @@ describe("FeedSection", () => {
       expect(onAction).toHaveBeenCalledWith(
         edit("set", "channel.image", "https://cdn.example.test/cover.jpg"),
       );
+    });
+
+    it("makes the Guest mark reachable by keyboard with its explanation", () => {
+      const guest: FeedView = {
+        ...READY,
+        item: {
+          ...READY.item,
+          "item.title": {
+            value: "Guest title",
+            source: { kind: "pinned", by: "guest", drifted: false },
+          },
+        },
+      };
+      setup(guest, { access: "editor" });
+      const mark = screen.getByTitle("Set with an edit link");
+      expect(mark).toHaveAttribute("tabindex", "0");
+      expect(mark).toHaveAttribute("title", "Set with an edit link");
     });
 
     it("marks a value a guest wrote", () => {

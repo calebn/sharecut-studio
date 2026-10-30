@@ -53,7 +53,7 @@ The rules behind every decision below:
   - Deliver: a check when a current export exists, or an amber dot when the export is older than the latest edit.
 - **Guests:**
   - Review-link Viewer and Commenter: Review only, with no Stage bar.
-  - Review-link Editor: Edit and Review.
+  - Review-link Editor: Edit, Review and Deliver (the Podcast listing only).
   - Record-link guest and producer: the Room only, with no Stage bar.
   - Prepare, Record (as host) and Deliver are host-only, because they touch the host's computer (models, files, the room).
 

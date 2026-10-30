@@ -76,7 +76,7 @@ def edit_feed(
     pin_served_if_allowed(request, project_path)
     service = FeedService(ProjectWorkspace.open(project_path))
     try:
-        service.apply(body.edit, "person")
+        service.apply(body.edit, body.by)
     except CodedValueError as exc:
         raise coded_exception_error(400, exc, code="feed_edit_invalid") from exc
     return served(FeedService(ProjectWorkspace.open(project_path)))
