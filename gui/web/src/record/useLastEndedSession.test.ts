@@ -59,6 +59,24 @@ describe("useLastEndedSession", () => {
     );
   });
 
+  it("returns null on re-enable until the new fetch resolves", async () => {
+    loadHostRecordSessions.mockResolvedValueOnce([session("old")]);
+    const { result, rerender } = renderHook(
+      ({ on }) => useLastEndedSession("/p", on),
+      { initialProps: { on: true } },
+    );
+    await waitFor(() => expect(result.current?.session_id).toBe("old"));
+    rerender({ on: false });
+    let resolve: (v: RecordSessionSummary[]) => void = () => undefined;
+    loadHostRecordSessions.mockReturnValueOnce(
+      new Promise((r) => (resolve = r)),
+    );
+    rerender({ on: true });
+    expect(result.current).toBeNull();
+    resolve([session("new")]);
+    await waitFor(() => expect(result.current?.session_id).toBe("new"));
+  });
+
   it("ignores a response that lands after the project changed", async () => {
     let resolveFirst: (v: RecordSessionSummary[]) => void = () => undefined;
     loadHostRecordSessions

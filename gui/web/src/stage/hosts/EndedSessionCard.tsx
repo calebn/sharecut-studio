@@ -50,14 +50,22 @@ export function EndedSessionCard({
       <p className="stage-host-note">{takesLine(session)}</p>
       <ul className="stage-host-list">
         {session.participants.map((p) => {
-          const target = session.landed
-            ? (trackNames.get(p.track_id ?? "") ?? "New track")
-            : null;
+          const name = p.display_name.trim() || "Guest";
+          const target = !session.landed
+            ? null
+            : p.track_id === null
+              ? "New track"
+              : (trackNames.get(p.track_id) ?? "Track removed");
           return (
             <li key={p.participant_id} className="stage-host-note">
-              {target === null
-                ? p.display_name
-                : `${p.display_name} → ${target}`}
+              {name}
+              {target === null ? null : (
+                <>
+                  {" "}
+                  <span aria-hidden="true">→</span>
+                  <span className="sr-only"> to</span> {target}
+                </>
+              )}
             </li>
           );
         })}

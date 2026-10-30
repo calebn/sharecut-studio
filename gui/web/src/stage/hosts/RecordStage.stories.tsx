@@ -134,11 +134,13 @@ export const HostEndedSessionSummary: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const card = await canvas.findByRole("region", { name: /^Session 1/ });
+    await expect(card).toBeVisible();
     await expect(
-      await canvas.findByRole("region", { name: /^Session 1/ }),
-    ).toBeVisible();
-    await expect(canvas.getByText("Ava Lindgren → Mira")).toBeVisible();
-    await expect(canvas.getByText("Sam → New track")).toBeVisible();
+      within(card)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["Ava Lindgren → to Mira", "Sam → to New track"]);
     await expect(
       canvas.getByRole("button", { name: "Create record room" }),
     ).toBeVisible();

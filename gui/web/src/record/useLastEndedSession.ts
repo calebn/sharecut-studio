@@ -39,6 +39,7 @@ export function useLastEndedSession(
     );
     return () => {
       stale = true;
+      setLoaded(null);
     };
   }, [enabled, projectPath]);
   return enabled && loaded?.projectPath === projectPath ? loaded.session : null;

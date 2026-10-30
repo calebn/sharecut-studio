@@ -19,7 +19,7 @@ const base: RecordSessionSummary = {
     { participant_id: "b", display_name: "Sam", role: "guest", track_id: null },
   ],
   landed: true,
-  ended_at: "2026-10-25T18:00:00Z",
+  ended_at: "2026-10-25T12:00:00Z",
 };
 const names = new Map([["t1", "Ava"]]);
 
@@ -37,8 +37,8 @@ describe("EndedSessionCard", () => {
     expect(within(region).getByText("3 takes · 12:04")).toBeInTheDocument();
     const rows = within(region).getAllByRole("listitem");
     expect(rows.map((r) => r.textContent)).toEqual([
-      "Ava → Ava",
-      "Sam → New track",
+      "Ava → to Ava",
+      "Sam → to New track",
     ]);
     await expectNoA11yViolations(container);
   });
@@ -55,6 +55,29 @@ describe("EndedSessionCard", () => {
     expect(screen.getAllByRole("listitem").map((r) => r.textContent)).toEqual([
       "Ava",
       "Sam",
+    ]);
+  });
+
+  it("falls back to Guest for a blank name and flags a removed track", () => {
+    mount({
+      participants: [
+        {
+          participant_id: "a",
+          display_name: "  ",
+          role: "guest",
+          track_id: null,
+        },
+        {
+          participant_id: "b",
+          display_name: "Sam",
+          role: "guest",
+          track_id: "gone",
+        },
+      ],
+    });
+    expect(screen.getAllByRole("listitem").map((r) => r.textContent)).toEqual([
+      "Guest → to New track",
+      "Sam → to Track removed",
     ]);
   });
 
