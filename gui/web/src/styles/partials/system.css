@@ -6091,6 +6091,143 @@ input.sys-edit-fix {
   }
 }
 
+/* Envelope (OVL-ENVELOPE, element 15b) */
+
+.sys-env {
+  --sys-env-ink: var(--sys-env-color);
+  --sys-env-ring: var(--color-accent);
+  --sys-env-band: 0.75rem;
+
+  position: absolute;
+  inset-block-start: var(--sys-env-top);
+  inset-inline-start: 0;
+  inline-size: var(--sys-env-width);
+  block-size: var(--sys-env-height);
+  pointer-events: none;
+}
+
+/* Only the band along the line and the points take a pointer, so a clip under the rest of the overlay still takes its taps and its pan. */
+.sys-env-svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.sys-env-line {
+  fill: none;
+  stroke: var(--sys-env-ink);
+  stroke-width: var(--focus-ring-width);
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.sys-env-band {
+  fill: none;
+  stroke: transparent;
+  stroke-width: var(--sys-env-band);
+  pointer-events: stroke;
+  cursor: copy;
+}
+
+.sys-env[data-readonly] .sys-env-band {
+  pointer-events: none;
+}
+
+.sys-env-zero {
+  position: absolute;
+  inset-block-start: var(--sys-env-zero-y);
+  inset-inline: 0;
+  border-block-start: 1px dashed var(--color-border-strong);
+  padding-inline-start: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-micro);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.sys-env-point {
+  --sys-env-size: var(--sys-env-fine);
+
+  position: absolute;
+  inset-block-start: var(--sys-env-y);
+  inset-inline-start: var(--sys-env-x);
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  inline-size: var(--sys-env-size);
+  block-size: var(--sys-env-size);
+  border-radius: 50%;
+  outline: none;
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.sys-env[data-readonly] .sys-env-point {
+  cursor: pointer;
+}
+
+.sys-env-point[data-dragging] {
+  cursor: grabbing;
+}
+
+.sys-env-dot {
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  border-radius: 50%;
+  background: var(--sys-env-ink);
+  pointer-events: none;
+}
+
+.sys-env[data-readonly] .sys-env-dot {
+  inline-size: 0.3125rem;
+  block-size: 0.3125rem;
+}
+
+.sys-env-point[data-selected] .sys-env-dot {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  outline: var(--focus-ring-width) solid var(--sys-env-ring);
+}
+
+.sys-env-point:focus-visible .sys-env-dot {
+  outline: var(--focus-ring-width) solid var(--sys-env-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (pointer: coarse) {
+  .sys-env {
+    --sys-env-band: 1.5rem;
+  }
+
+  .sys-env-point {
+    --sys-env-size: var(--sys-env-coarse);
+  }
+}
+
+.sys-env[data-touch] {
+  --sys-env-band: 1.5rem;
+}
+
+.sys-env[data-touch] .sys-env-point {
+  --sys-env-size: var(--sys-env-coarse);
+}
+
+@media (forced-colors: active) {
+  .sys-env {
+    --sys-env-ink: CanvasText;
+    --sys-env-ring: Highlight;
+  }
+
+  .sys-env-line,
+  .sys-env-dot {
+    forced-color-adjust: none;
+  }
+}
+
 /* Inspector sheet (element 9a) */
 
 .sys-inspector {
