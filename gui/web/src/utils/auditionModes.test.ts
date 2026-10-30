@@ -26,7 +26,7 @@ describe("AUDITION_MODES", () => {
 describe("GUESTS_HEAR_FULL_MIX", () => {
   it("names Full mix and how to hear a track on its own", () => {
     expect(GUESTS_HEAR_FULL_MIX).toBe(
-      "Guest links play the Full mix only. Open the project as the host to hear a track on its own.",
+      "Guest links play the Full mix only. Ask the host to play a track on its own.",
     );
   });
 });

@@ -1029,9 +1029,12 @@ describe("Record stage capture and storage", () => {
     setRoom({ state: "recording", take_index: 0 });
     mount({ stream: {} as MediaStream });
     await openDevices();
-    expect(
-      screen.getByRole("button", { name: ROOM_TONE_PROMPT_COPY }),
-    ).toBeDisabled();
+    const tone = screen.getByRole("button", { name: ROOM_TONE_PROMPT_COPY });
+    expect(tone).toHaveAttribute("aria-disabled", "true");
+    expect(tone).toHaveAccessibleDescription("Record room tone between takes.");
+    expect(screen.getByText("Record room tone between takes.")).toBeVisible();
+    await userEvent.click(tone);
+    expect(roomTone.record).toHaveBeenCalledOnce();
   });
 
   it("shows the host's Speaker menu only when the browser supports one", async () => {

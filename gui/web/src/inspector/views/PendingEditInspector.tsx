@@ -178,13 +178,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
       <NudgeButtons
         groupLabel={`Nudge source ${edge}`}
         deltas={[-large, -small, small, large]}
-        unavailable={
-          timingBusy || nudgeRun.saving
-            ? BUSY_REASON
-            : timingDirty
-              ? UNAPPLIED_VALUE_REASON
-              : undefined
-        }
+        unavailable={timingDirty ? UNAPPLIED_VALUE_REASON : undefined}
+        saving={timingBusy || nudgeRun.saving}
         label={(delta) =>
           `${Math.abs(delta) * 1000} ms ${delta < 0 ? "earlier" : "later"}`
         }

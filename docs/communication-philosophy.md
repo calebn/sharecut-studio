@@ -181,9 +181,9 @@ is the fix, enforced in copy review.
   (`aria-describedby`). Remove the reason to restore activation. Applies to
   transport Play, Land mid-take, Start with blockers, Leave while uploads pend,
   the clip and pending-edit nudge buttons (`inspector/NudgeButtons.tsx`: "Apply
-  or clear the typed value first.", "Fades do not apply at a cut.", the busy
-  wait), Find's Replace and All ("No matches to replace. Change the search
-  first.", "Enter replacement text with a letter or a number to replace."),
+  or clear the typed value first.", "Fades do not apply at a cut.", the fade limit still
+  loading; a nudge waiting on a save stays aria-disabled with no note, so the rows below do not jump), Find's Replace and All ("No matches to replace. Change the search
+  first.", "Enter text to find first.", "Enter replacement text with a letter or a number to replace."),
   the track inspector's Clear clip light ("No clipping to clear.") and a
   boundary mark a viewer cannot edit (its reason shows on focus and on tap).
   Native `disabled` stays for a short wait the control itself caused, such as
@@ -596,7 +596,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
 
-- 2026-10-30 Unavailable controls say what is missing (#1686): the clip and pending-edit nudges, Find's Replace and All, the track inspector's Clear clip light and a read-only boundary mark in the Script stay focusable, show their reason in text and describe themselves with it, instead of a native `disabled` with a hover title. Two reasons were rewritten to say how to fix: room tone ("Room tone starts once this device has joined the session and can store audio. Wait a moment for the connection, then try again.") and the guest audition lock ("Guest links play the Full mix only. Open the project as the host to hear a track on its own.").
+- 2026-10-30 Unavailable controls say what is missing (#1686): the clip and pending-edit nudges, Find's Replace and All, the track inspector's Clear clip light and a read-only boundary mark in the Script stay focusable, show their reason in text and describe themselves with it, instead of a native `disabled` with a hover title. Two reasons were rewritten to say how to fix: room tone ("Room tone starts once this device has joined the session and can store audio. Wait a moment, then try again; if it stays like this, reload the page.") and the guest audition lock ("Guest links play the Full mix only. Ask the host to play a track on its own.").
 
 - 2026-10-29 Bounce moved from a dialog into the Deliver stage (#2449): the section holds the Source choice, the region and MP3 toggles and a range fixed in Edit, shows progress with Cancel, and lists the files it wrote. **Bounce…**, `Mod+Shift+B` and Range actions → Bounce go to Deliver and focus it.
 
