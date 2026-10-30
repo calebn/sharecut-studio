@@ -3566,7 +3566,7 @@
       "id": "daw.feed.edit",
       "label": "Edit podcast listing",
       "effect": "project",
-      "service": "FeedService.apply \u2192 SetFeedField / ClearFeedField document commands (host and Editor guests); show values go to the show store (host)",
+      "service": "FeedService.apply \u2192 SetFeedField / ClearFeedField document commands (host and Editor guests); show values go to the show store (host; Editor guests for plain channel values via POST /api/review/{token}/feed/edit)",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
@@ -3592,7 +3592,7 @@
       "id": "daw.feed.write",
       "label": "Write podcast feed file",
       "effect": "project",
-      "service": "FeedService.write \u2192 feed/writer.write_feed (also run by the export job)",
+      "service": "FeedService.write \u2192 feed/writer.write_feed (also run by the export job); Editor share: POST /api/review/{token}/feed/write",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
@@ -3605,7 +3605,7 @@
         "skill": "podcast-rss-feed"
       },
       "omit": {
-        "keyboard_reason": "CLI, MCP and the feed HTTP routes until the Deliver listing section lands"
+        "keyboard_reason": "CLI, MCP and the feed HTTP routes (host, and Editor share links); no keyboard command"
       },
       "tooltip": "Write the episode's feed file next to the exported audio; refused while the feed has a blocker",
       "presence": {

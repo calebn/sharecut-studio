@@ -242,6 +242,17 @@ class Person:
     href: str | None = None
 
 
+def usable_ledger(ledger: Mapping[str, int]) -> dict[str, int]:
+    """The ledger entries that are positive and not already held by an earlier entry."""
+    kept: dict[str, int] = {}
+    held: set[int] = set()
+    for guid, number in ledger.items():
+        if number > 0 and number not in held:
+            kept[guid] = number
+            held.add(number)
+    return kept
+
+
 @dataclass(frozen=True)
 class ShowSummary:
     id: ShowId
@@ -310,3 +321,5 @@ class FeedInputs:
     files: ExportFiles = field(default_factory=ExportFiles)
     # The show's artwork file on this machine, when the show names one instead of an address.
     show_art: ExportFile | None = None
+    # Show files that could not be used, one sentence each naming the file.
+    show_problems: tuple[str, ...] = ()

@@ -11,19 +11,21 @@ from __future__ import annotations
 import filecmp
 import logging
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 from podcast_mcp.feed.fields import cover_file_name
 from podcast_mcp.feed.inputs import feed_path, gather_inputs, show_art_source
-from podcast_mcp.feed.model import FeedView, ShowSource
+from podcast_mcp.feed.model import FeedView, ShowSource, usable_ledger
 from podcast_mcp.feed.render import render
 from podcast_mcp.feed.resolve import resolve
 from podcast_mcp.feed.show_store import ShowStore, default_directory
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_render import render_atomic_all
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.project_state import render_lock
 
 log = logging.getLogger(__name__)
 
@@ -49,22 +51,58 @@ def refuse_while_blocked(view: FeedView) -> None:
 
 
 def write_feed(
-    project: EpisodeProject, shows: ShowSource, *, now: datetime | None = None
+    project: EpisodeProject,
+    shows: ShowSource,
+    *,
+    now: datetime | None = None,
+    persist: Callable[[], object] | None = None,
 ) -> FeedWrite:
     """Write the episode's feed file, minting its identity and number first when they are new.
 
-    ``project.feed`` is changed in place when the identity is new; the caller saves the
-    project. Raises ``CodedValueError`` (``feed_blocked``) while a blocker stands.
+    Under the project's render lock: the identity and the show link are made, ``persist``
+    saves the project, the number is taken from the show's ledger, then the view that is
+    rendered is checked once more for blockers before the artwork and the feed file are
+    published. Nothing is published unless the identity is durable. If ``persist`` raises,
+    ``project.feed`` is put back as it was. Raises ``CodedValueError`` (``feed_blocked``)
+    while a blocker stands.
     """
-    refuse_while_blocked(resolve(gather_inputs(project, shows), project.feed.pins))
-    identity_changed = project.feed.mint_identity(now)
+    with render_lock(project):
+        return _write_locked(project, shows, now, persist)
+
+
+def _write_locked(
+    project: EpisodeProject,
+    shows: ShowSource,
+    now: datetime | None,
+    persist: Callable[[], object] | None,
+) -> FeedWrite:
     first = gather_inputs(project, shows)
+    refuse_while_blocked(resolve(first, project.feed.pins))
+    before = project.feed.model_copy()
+    project_changed = project.feed.mint_identity(now)
+    if project.feed.show_id is None and first.show is not None:
+        # The implicit single-show link would move if a second show were made.
+        project.feed.show_id = first.show.id
+        project_changed = True
+    if project_changed and persist is not None:
+        try:
+            persist()
+        except BaseException:
+            project.feed.guid = before.guid
+            project.feed.first_exported_at = before.first_exported_at
+            project.feed.show_id = before.show_id
+            raise
+    identity_changed = project_changed
     if isinstance(shows, ShowStore) and first.show is not None and project.feed.guid:
-        had = project.feed.guid in first.show.ledger
-        shows.number_for(first.show.id, project.feed.guid)
-        identity_changed = identity_changed or not had
+        had = usable_ledger(first.show.ledger).get(project.feed.guid)
+        pin = project.feed.pins.get("item.episode")
+        pinned = pin.value if pin is not None and isinstance(pin.value, int) else None
+        number = shows.number_for(first.show.id, project.feed.guid, pinned=pinned)
+        identity_changed = identity_changed or number != had
     inputs = gather_inputs(project, shows)
-    xml = render(resolve(inputs, project.feed.pins))
+    view = resolve(inputs, project.feed.pins)
+    refuse_while_blocked(view)
+    xml = render(view)
     destination = feed_path(project)
     art_from = show_art_source(inputs.show) if inputs.show_art is not None else None
     art_to = (
@@ -78,12 +116,13 @@ def write_feed(
     if current:
         return FeedWrite(destination, (), identity_changed)
 
-    paths = [destination] + ([art_to] if art_to is not None else [])
+    # Artwork first: a crash between the two never leaves a feed pointing at missing art.
+    paths = ([art_to] if art_to is not None else []) + [destination]
 
     def render_all(temps: list[Path]) -> None:
-        temps[0].write_text(xml, encoding="utf-8")
+        temps[-1].write_text(xml, encoding="utf-8")
         if art_from is not None:
-            shutil.copyfile(art_from, temps[1])
+            shutil.copyfile(art_from, temps[0])
 
     written = render_atomic_all(paths, render_all)
     return FeedWrite(destination, tuple(written), identity_changed)
@@ -97,16 +136,20 @@ def _same_file(source: Path, copy: Path) -> bool:
 
 
 def write_after_export(
-    project: EpisodeProject, shows: ShowSource | None = None
+    project: EpisodeProject,
+    shows: ShowSource | None = None,
+    *,
+    persist: Callable[[], object] | None = None,
 ) -> FeedWrite | None:
     """Refresh the feed file once the audio has published; never let it fail the export.
 
     A blocker (no show yet, no hosting address) is the usual reason nothing is written. A
     file another program holds open, an unreadable show file or any other failure is logged
     and leaves the previous feed file, which then reads as stale until the next write.
+    ``persist`` saves the project's new identity before the feed file is published.
     """
     try:
-        return write_feed(project, shows or ShowStore(default_directory()))
+        return write_feed(project, shows or ShowStore(default_directory()), persist=persist)
     except CodedValueError as exc:
         log.info("feed file not written after export: %s", exc)
     except Exception:

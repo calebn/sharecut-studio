@@ -134,7 +134,7 @@ def test_a_corrupt_file_is_named_not_treated_as_a_missing_show(store: ShowStore)
 
     assert raised.value.code == "feed_show_unreadable"
     assert "the-long-river.yaml" in str(raised.value)
-    assert [s.id for s in store.shows()] == ["the-long-river"]
+    assert store.shows() == []
 
 
 def test_a_file_whose_id_disagrees_with_its_name_is_unreadable(store: ShowStore) -> None:
@@ -207,3 +207,62 @@ def test_two_processes_number_their_episodes_without_a_repeat(tmp_path: Path) ->
 
     ledger = ShowStore(tmp_path / "shows").profile("the-long-river").ledger
     assert sorted(ledger.values()) == list(range(1, 31))
+
+
+def test_a_busy_show_file_is_a_coded_refusal_not_a_raw_timeout(
+    store: ShowStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from contextlib import contextmanager
+
+    from filelock import Timeout
+
+    store.create("The Long River")
+
+    @contextmanager
+    def busy(lock_path, *, timeout):
+        raise Timeout(str(lock_path))
+        yield
+
+    monkeypatch.setattr("podcast_mcp.feed.show_store.hold_shared_file_lock", busy)
+
+    with pytest.raises(CodedValueError) as raised:
+        store.number_for("the-long-river", "urn:uuid:a")
+
+    assert raised.value.code == "feed_show_busy"
+
+
+def test_a_corrupt_show_file_is_skipped_by_the_list_and_named_as_a_problem(
+    store: ShowStore,
+) -> None:
+    store.create("The Long River")
+    store.create("Field Notes")
+    (store.directory / "field-notes.yaml").write_text("pins: [broken", encoding="utf-8")
+
+    assert [s.id for s in store.shows()] == ["the-long-river"]
+    problems = store.problems()
+    assert len(problems) == 1 and "field-notes.yaml" in problems[0]
+
+
+def test_a_hand_edited_ledger_ignores_numbers_that_are_not_unique_and_positive(
+    store: ShowStore,
+) -> None:
+    store.create("The Long River")
+    store.update(
+        "the-long-river",
+        lambda show: show.ledger.update({"zero": 0, "neg": -3, "a": 4, "dup": 4, "b": 5}),
+    )
+
+    assert store.number_for("the-long-river", "a") == 4
+    assert store.number_for("the-long-river", "dup") == 6
+    assert store.number_for("the-long-river", "zero") == 7
+    assert store.number_for("the-long-river", "new") == 8
+    assert store.profile("the-long-river").ledger["neg"] == -3
+
+
+def test_a_pinned_number_is_taken_when_free_and_never_given_twice(store: ShowStore) -> None:
+    store.create("The Long River")
+
+    assert store.number_for("the-long-river", "a", pinned=3) == 3
+    assert store.number_for("the-long-river", "b", pinned=3) == 4
+    assert store.number_for("the-long-river", "c") == 5
+    assert store.number_for("the-long-river", "a", pinned=9) == 3

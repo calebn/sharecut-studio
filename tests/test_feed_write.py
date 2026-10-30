@@ -394,7 +394,7 @@ def test_an_episode_pin_overrides_the_ledger_number(episode: Path, store: ShowSt
     _service(episode).write()
 
     assert _feed(episode).find("channel/item/itunes:episode", NS).text == "40"
-    assert list(store.profile("the-long-river").ledger.values()) == [1]
+    assert list(store.profile("the-long-river").ledger.values()) == [40]
 
 
 def test_the_show_artwork_file_is_copied_into_the_export_set(
@@ -566,3 +566,215 @@ def test_the_feed_commands_report_progress_phases(episode: Path, store: ShowStor
 
     phases = [e.phase for e in recorder.events if e.phase]
     assert {"read", "edit", "check", "write"} <= set(phases)
+
+
+def _master(episode: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    directory = _export(episode, mp3=b"x" * 10, wav=b"w")
+    master = directory.parent / "artifacts" / "mastered.wav"
+    master.parent.mkdir(parents=True, exist_ok=True)
+    master.write_bytes(b"mastered")
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.service.pipeline_steps.ensure_current_master",
+        lambda *_args: master,
+    )
+    return directory
+
+
+def test_identity_minted_by_an_export_survives_a_failed_final_save(
+    episode: Path, store: ShowStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.app.workspace import ProjectWorkspace as Workspace
+
+    _complete(store)
+    directory = _master(episode, monkeypatch)
+    real, calls = Workspace.save_merged, []
+
+    def flaky(self, *args, **kwargs):
+        calls.append(1)
+        if len(calls) > 1:
+            raise RuntimeError("the final save failed")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Workspace, "save_merged", flaky)
+
+    with pytest.raises(RuntimeError):
+        PipelineService(ProjectWorkspace.open(episode)).export_audio(formats=[])
+
+    minted = load_project(episode).feed
+    assert minted.guid is not None and minted.show_id == "the-long-river"
+    first = _feed(episode).find("channel/item/guid").text
+    assert first == minted.guid
+    assert list(store.profile("the-long-river").ledger.items()) == [(minted.guid, 1)]
+
+    monkeypatch.setattr(Workspace, "save_merged", real)
+    PipelineService(ProjectWorkspace.open(episode)).export_audio(formats=[])
+
+    assert load_project(episode).feed.guid == minted.guid
+    assert (directory / "test_episode.feed.xml").is_file()
+    assert list(store.profile("the-long-river").ledger.items()) == [(minted.guid, 1)]
+
+
+def test_a_failed_identity_save_publishes_nothing_and_mints_nothing(
+    episode: Path, store: ShowStore
+) -> None:
+    _complete(store)
+    directory = _export(episode, mp3=b"x" * 10)
+    project = load_project(episode)
+
+    def refuse() -> None:
+        raise RuntimeError("save failed")
+
+    with pytest.raises(RuntimeError):
+        write_feed(project, store, persist=refuse)
+
+    assert project.feed.guid is None and project.feed.show_id is None
+    assert not (directory / "test_episode.feed.xml").exists()
+    assert store.profile("the-long-river").ledger == {}
+
+    write_feed(project, store, persist=lambda: None)
+
+    assert project.feed.guid is not None
+    assert list(store.profile("the-long-river").ledger.values()) == [1]
+
+
+def test_a_blocker_that_appears_while_the_identity_is_saved_stops_the_write(
+    episode: Path, store: ShowStore
+) -> None:
+    show_id = _complete(store)
+    directory = _export(episode, mp3=b"x" * 10)
+    project = load_project(episode)
+
+    def concurrent_edit() -> None:
+        store.update(show_id, lambda show: show.pins.pop("channel.description"))
+
+    with pytest.raises(CodedValueError) as raised:
+        write_feed(project, store, persist=concurrent_edit)
+
+    assert raised.value.code == "feed_blocked"
+    assert not (directory / "test_episode.feed.xml").exists()
+
+
+def test_the_feed_service_and_the_export_hook_write_under_the_render_lock(
+    episode: Path, store: ShowStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.util.project_state import render_lock_held
+
+    _complete(store)
+    _export(episode, mp3=b"x" * 10)
+    held: list[bool] = []
+    real = ShowStore.number_for
+
+    def watch(self, *args, **kwargs):
+        held.append(render_lock_held(project))
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(ShowStore, "number_for", watch)
+    project = load_project(episode)
+
+    _service(episode).write()
+    other = load_project(episode)
+    other.feed.guid = None
+    project = other
+    write_after_export(other, store)
+
+    assert held == [True, True]
+
+
+def test_the_artwork_is_published_before_the_feed_file(
+    episode: Path, store: ShowStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.feed import writer
+
+    _complete(store)
+    art = tmp_path / "cover.png"
+    art.write_bytes(PNG)
+    _export(episode, mp3=b"x" * 10)
+    _service(episode).set("channel.image", str(art), "person")
+    order: list[str] = []
+    real = writer.render_atomic_all
+
+    def spy(paths, render, **kwargs):
+        order.extend(p.name for p in paths)
+        return real(paths, render, **kwargs)
+
+    monkeypatch.setattr(writer, "render_atomic_all", spy)
+
+    _service(episode).write()
+
+    assert order == ["test_episode.cover.png", "test_episode.feed.xml"]
+
+
+def test_the_first_write_links_the_only_show_so_a_second_show_changes_nothing(
+    episode: Path, store: ShowStore
+) -> None:
+    _complete(store)
+    _export(episode, mp3=b"x" * 10)
+
+    _service(episode).write()
+    _complete(store, "Field Notes")
+
+    assert load_project(episode).feed.show_id == "the-long-river"
+    view = _service(episode).read()
+    assert (view.show.kind, view.show.id) == ("ready", "the-long-river")
+    assert view.item["item.episode"].value == 1
+
+
+def test_a_pinned_episode_number_already_used_is_not_assigned_again(
+    episode: Path, store: ShowStore
+) -> None:
+    show_id = _complete(store)
+    store.update(show_id, lambda show: show.ledger.update({"urn:uuid:other": 2}))
+    _export(episode, mp3=b"x" * 10)
+    _service(episode).set("item.episode", 2, "person")
+
+    _service(episode).write()
+
+    ledger = store.profile(show_id).ledger
+    assert ledger.pop("urn:uuid:other") == 2
+    assert list(ledger.values()) == [3]
+
+
+def test_a_ledger_with_unusable_numbers_is_flagged_not_fatal(
+    episode: Path, store: ShowStore
+) -> None:
+    show_id = _complete(store)
+    store.update(show_id, lambda show: show.ledger.update({"zero": 0, "a": 2, "dup": 2}))
+    _export(episode, mp3=b"x" * 10)
+
+    view = _service(episode).read()
+
+    assert ("warn", None) in [(f.severity, f.key) for f in view.findings]
+    assert any("episode numbers" in f.message for f in view.findings)
+    _service(episode).write()
+    assert list(store.profile(show_id).ledger.values())[-1] == 3
+
+
+def test_a_corrupt_show_file_is_named_in_the_view_and_never_breaks_the_export(
+    episode: Path, store: ShowStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _complete(store)
+    (store.directory / "field-notes.yaml").write_text("pins: [broken", encoding="utf-8")
+    directory = _master(episode, monkeypatch)
+
+    view = _service(episode).read()
+
+    assert (view.show.kind, view.show.id) == ("ready", "the-long-river")
+    assert any(f.severity == "warn" and "field-notes.yaml" in f.message for f in view.findings)
+    PipelineService(ProjectWorkspace.open(episode)).export_audio(formats=[])
+    assert (directory / "test_episode.feed.xml").is_file()
+
+
+def test_an_episode_linked_to_a_corrupt_show_file_still_reads_and_exports(
+    episode: Path, store: ShowStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    show_id = _complete(store)
+    project = load_project(episode)
+    project.feed.show_id = show_id
+    save_project(project, episode)
+    (store.directory / f"{show_id}.yaml").write_text("pins: [broken", encoding="utf-8")
+    _master(episode, monkeypatch)
+
+    view = _service(episode).read()
+
+    assert any(f.severity == "warn" and f"{show_id}.yaml" in f.message for f in view.findings)
+    PipelineService(ProjectWorkspace.open(episode)).export_audio(formats=[])

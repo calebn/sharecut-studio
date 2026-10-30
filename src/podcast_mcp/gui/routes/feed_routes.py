@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import re
+from pathlib import PureWindowsPath
 from typing import Any
 
 from fastapi import APIRouter, Header, Query, Request
@@ -26,13 +28,30 @@ log = logging.getLogger(__name__)
 def served(service: FeedService, *, guest: bool = False) -> dict[str, Any]:
     """The wire view and the item as the feed file will carry it, for the XML pane.
 
-    A guest never learns the titles of shows its episode is not linked to.
+    A guest never learns the titles of shows its episode is not linked to, nor where on the
+    host's machine a file lives.
     """
     view = service.present("facts")
     assert isinstance(view, dict)
     if guest and view["show"]["kind"] == "choose":
         view["show"]["shows"] = []
+    if guest:
+        _name_local_files_only(view)
     return {"view": view, "itemXml": service.present("item_xml")}
+
+
+def _is_host_path(value: object) -> bool:
+    return isinstance(value, str) and is_local_art(value) and bool(re.search(r"[/\\]|^~", value))
+
+
+def _name_local_files_only(view: dict[str, Any]) -> None:
+    """Replace a path on the host's machine with its file name in the art rows of a guest's view."""
+    image = view.get("channel", {}).get("channel.image")
+    if image is not None and _is_host_path(image.get("value")):
+        image["value"] = PureWindowsPath(image["value"]).name
+    art = view.get("sections", {}).get("art", {}).get("value")
+    if art is not None and _is_host_path(art.get("src")):
+        art["src"] = PureWindowsPath(art["src"]).name
 
 
 @router.get("/api/feed")
@@ -127,5 +146,5 @@ def edit_feed_show_as_guest(token: str, body: FeedGuestEditRequest) -> dict[str,
         _row, ws = require_share_edit(token)
         require_guest_show_edit(body.edit)
         service = FeedService(ws)
-        service.apply(body.edit, "person")
+        service.apply(body.edit, "guest")
         return served(FeedService(ProjectWorkspace.open(ws.path)), guest=True)
