@@ -2,6 +2,7 @@ import {
   expect,
   type Locator,
   type Page,
+  type Request,
   type Route,
   test,
 } from "@playwright/test";
@@ -10,6 +11,7 @@ import { postDocumentCommand } from "../e2e/documentCommand";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openPanel, openProject, projectMenuButton } from "../e2e/stageNav";
+import type { PendingEditView } from "../src/types/project";
 
 /*
  * #1077 phone chrome on Chromium and WebKit with touch emulation: a phone
@@ -223,7 +225,33 @@ test("Keep decides one queue item at a thumb-sized target, then one Undo brings 
       statusResponses.push(response);
       return response;
     };
+    const isDecisionCommand = (request: Request) => {
+      const url = new URL(request.url());
+      if (
+        request.method() !== "POST" ||
+        url.pathname !== "/api/document/command" ||
+        url.searchParams.get("path") !== projectPath
+      )
+        return false;
+      const body = request.postDataJSON();
+      return body.type === "RejectEdits" || body.type === "UndoHistory";
+    };
+    const decisionRequests: Request[] = [];
+    const observeDecision = (request: Request) => {
+      if (isDecisionCommand(request)) decisionRequests.push(request);
+    };
+    const pendingEdits = async () => {
+      const response = await page.request.get(
+        `/api/project?path=${encodeURIComponent(projectPath)}&phase=shell`,
+      );
+      expect(response.ok()).toBe(true);
+      const body = (await response.json()) as {
+        pending_edits: PendingEditView[];
+      };
+      return body.pending_edits.sort((a, b) => a.id.localeCompare(b.id));
+    };
     await page.route(statusUrl, holdStatus);
+    page.on("request", observeDecision);
     try {
       await openProject(page, projectPath);
       await expect(page.locator(".stage-frame")).toBeVisible();
@@ -231,21 +259,74 @@ test("Keep decides one queue item at a thumb-sized target, then one Undo brings 
 
       const position = page.getByRole("button", { name: /^\d+ of \d+$/ });
       await expect(position).toHaveText("1 of 3");
-      const total = (await position.innerText()).replace(/^\d+/, "");
       releaseStatus();
+      await position.tap();
+      const queue = page.getByRole("dialog", { name: "Review queue" });
+      await expect(
+        queue
+          .locator(".rv-check")
+          .getByText("Check the transcript", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        queue.getByRole("button", { name: "Suggestions, 3", exact: true }),
+      ).toBeVisible();
+      await queue
+        .locator(".sys-queue-main")
+        .filter({ has: page.getByText("0:04", { exact: true }) })
+        .tap();
+      await expect(queue).not.toBeVisible();
       await expect(position).toHaveText("2 of 4");
       const stage = page.locator(".rv-stage");
+      const cardTime = stage
+        .locator(".rv-card")
+        .getByText("0:04", { exact: true });
+      await expect(cardTime).toBeVisible();
+      const baseline = await pendingEdits();
+      expect(baseline).toHaveLength(3);
+      expect(new Set(baseline.map((edit) => edit.id)).size).toBe(3);
+      const selected = baseline.filter((edit) => edit.timeline_start === 4);
+      expect(selected).toHaveLength(1);
+      const keptId = selected[0]!.id;
+      const remaining = baseline.filter((edit) => edit.id !== keptId);
       const keep = stage.getByRole("button", { name: "Keep" });
       expect((await keep.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
+      const keepRequest = page.waitForRequest(
+        (request) =>
+          isDecisionCommand(request) &&
+          request.postDataJSON().type === "RejectEdits",
+      );
       await keep.tap();
+      const rejected = await keepRequest;
+      expect(rejected.postDataJSON().payload.ids).toEqual([keptId]);
+      const keepResponse = await rejected.response();
+      expect(keepResponse?.ok()).toBe(true);
+      expect(await keepResponse!.json()).toMatchObject({ ok: true });
       const toast = page.locator(".ui-toast-region--app");
       await expect(toast.getByText("Kept")).toBeVisible();
-      await expect(position).toContainText(total);
+      await expect(position).toHaveText("3 of 4");
+      await expect.poll(pendingEdits).toEqual(remaining);
+
+      const undoRequest = page.waitForRequest(
+        (request) =>
+          isDecisionCommand(request) &&
+          request.postDataJSON().type === "UndoHistory",
+      );
       await toast.getByRole("button", { name: /undo/i }).tap();
+      const undone = await undoRequest;
+      const undoResponse = await undone.response();
+      expect(undoResponse?.ok()).toBe(true);
+      expect(await undoResponse!.json()).toMatchObject({ ok: true });
       await expect(toast.getByText(/Undone/)).toBeVisible();
+      await expect(position).toHaveText("2 of 4");
+      await expect(cardTime).toBeVisible();
       await expect(stage).toBeFocused();
+      await expect.poll(pendingEdits).toEqual(baseline);
+      expect(
+        decisionRequests.map((request) => request.postDataJSON().type),
+      ).toEqual(["RejectEdits", "UndoHistory"]);
     } finally {
+      page.off("request", observeDecision);
       releaseStatus();
       await page.unroute(statusUrl, holdStatus);
       await Promise.all(statusResponses);
