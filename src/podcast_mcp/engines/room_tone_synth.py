@@ -84,6 +84,10 @@ STEADY_WINDOW_SEC = 0.5
 # noise is masked until about 0 to -5 dB), so this is the lenient end of that range.
 TONAL_TO_BAND_DB = 0.0
 TONAL_NEIGHBOURS = 6
+# Below this a line is not heard as a tone at a room's floor level: the hearing threshold is
+# about 35 dB higher at 63 Hz than at 1 kHz (ISO 226), and rooms have modes there. Mains hum
+# is still caught by its harmonics.
+TONAL_MIN_HZ = 100.0
 # Analysis frame for the tone check: about 6 Hz bins at 48 kHz, whatever the rate.
 TONAL_FRAME_SEC = 0.17
 LEVEL_TOLERANCE_DB = 0.5
@@ -192,6 +196,7 @@ def _params() -> str:
             SYNTH_FILE_SEC,
             SYNTH_MAX_FILL_SEC,
             TONAL_FRAME_SEC,
+            TONAL_MIN_HZ,
             LEVEL_TOLERANCE_DB,
             TONAL_TO_BAND_DB,
             NOISE_SPREAD_DB,
@@ -324,7 +329,7 @@ def _tonal(samples: np.ndarray, rate: int) -> bool:
     psd = np.mean(np.abs(np.fft.rfft(frames, axis=1)) ** 2, axis=0)
     width = rate / nfft
     ratio = 10 ** (TONAL_TO_BAND_DB / 10)
-    for index in range(int(np.ceil(MIN_FILL_HZ / width)), psd.size - 1):
+    for index in range(int(np.ceil(max(MIN_FILL_HZ, TONAL_MIN_HZ) / width)), psd.size - 1):
         erb = 24.7 * (4.37 * index * width / 1000 + 1)
         reach = max(TONAL_NEIGHBOURS, round(erb / 2 / width))
         around = np.concatenate(
