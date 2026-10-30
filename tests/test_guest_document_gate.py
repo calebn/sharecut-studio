@@ -965,6 +965,23 @@ def test_an_editor_effect_with_non_object_params_is_refused_with_a_code(params):
     assert raised.value.code == "invalid_effect_params"
 
 
+@pytest.mark.parametrize("effect", [5, ["highpass"], {"a": 1}])
+def test_an_editor_effect_name_that_is_not_a_string_is_refused_with_a_code(effect):
+    with pytest.raises(CodedValueError) as raised:
+        authorize_document_payload(EDITOR, "AddEffect", {"track_id": "host", "effect": effect})
+    assert raised.value.code == "invalid_effect_params"
+
+
+def test_an_editor_effect_param_too_large_for_a_float_is_refused_with_a_code():
+    with pytest.raises(CodedValueError) as raised:
+        authorize_document_payload(
+            EDITOR,
+            "AddEffect",
+            {"track_id": "host", "effect": "highpass", "params": {"frequency": 10**400}},
+        )
+    assert raised.value.code == "invalid_effect_params"
+
+
 @pytest.mark.parametrize("model", ["/m,ametadata=mode=print", "/m;amovie=/x", "/m[a]", "a]b"])
 def test_validate_effect_params_refuses_filter_syntax_in_a_model(model):
     with pytest.raises(CodedValueError) as raised:

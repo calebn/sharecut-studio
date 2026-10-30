@@ -253,14 +253,35 @@ class Job:
         publish_job_event(self.id, event)
 
 
-def guest_render_job(job: Job | None, project_path: Path) -> dict[str, Any] | None:
-    """Expose only safe status for a render belonging to this guest project."""
-    if (
-        job is None
-        or job.kind != "render_preview"
-        or Path(job.project_path).resolve() != project_path.resolve()
-    ):
+@dataclass(frozen=True)
+class GuestJobView:
+    """What a share guest reads of one job kind: fixed copy, never host text."""
+
+    running: str
+    failed: str
+
+
+# Job kinds a guest may see and their projection. A kind absent here is invisible to guests.
+GUEST_JOB_VIEW: dict[str, GuestJobView] = {
+    "render_preview": GuestJobView("Rendering preview", "Render preview failed"),
+}
+
+
+def job_in_project(job: Job, project_path: Path) -> bool:
+    """Whether *job* belongs to the project at *project_path*; a job with no path belongs to none."""
+    if not job.project_path:
+        return False
+    try:
+        return Path(job.project_path).resolve() == project_path.resolve()
+    except (ValueError, OSError):
+        return False
+
+
+def guest_job_view(job: Job | None, project_path: Path) -> dict[str, Any] | None:
+    """Expose only safe status for a job of a visible kind belonging to this guest project."""
+    if job is None or job.kind not in GUEST_JOB_VIEW or not job_in_project(job, project_path):
         return None
+    view = GUEST_JOB_VIEW[job.kind]
     snap = job.snapshot()
     status = snap["status"]
     return {
@@ -268,6 +289,6 @@ def guest_render_job(job: Job | None, project_path: Path) -> dict[str, Any] | No
         "status": status,
         "current": snap["current"],
         "total": snap["total"],
-        "message": "Rendering preview" if status in LIVE_JOB_STATUSES else None,
-        "error": "Render preview failed" if status == "error" else None,
+        "message": view.running if status in LIVE_JOB_STATUSES else None,
+        "error": view.failed if status == "error" else None,
     }

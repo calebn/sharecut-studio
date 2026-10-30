@@ -226,4 +226,4 @@ def authorize_document_payload(
             code="share_capability_required",
         )
     if command_type == "AddEffect" and payload.get("effect"):
-        validate_effect_params(str(payload["effect"]), payload.get("params"))
+        validate_effect_params(payload["effect"], payload.get("params"))

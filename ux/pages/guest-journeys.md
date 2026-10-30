@@ -166,7 +166,7 @@ Product still needs polished “link died” copy and a free-tier story ([Backlo
 | See timeline / transcript | Viewer | ShareCut Studio guest |
 | Comment, propose cuts (transcript Select or timeline range) | Commenter (default) | ShareCut Studio guest |
 | Apply cuts directly, approve cuts | Editor | ShareCut Studio guest (transcript Select, Timeline, inspector) |
-| Edit anything the host edits on the episode: transcript, chapters, social clips, effects, cuts (not share links, record rooms, project files, sign-in or keys, publishing credentials, diagnostics) | Editor | ShareCut Studio guest |
+| Edit anything the host edits on the episode: transcript, chapters, social clips, effects, cuts (not share links, record rooms, project files, sign-in or keys, publishing credentials, diagnostics, raw stems, custom export folders, deleting the episode) | Editor | ShareCut Studio guest |
 | Hear Suggested (agent) | `play` + `view` + `mcp` | `guest_pending_preview` (optional `pad_sec`, 0 to 10 s of audio either side of the edit) → share HTTP WAV/PNG |
 | Hear a span (agent) | `play` + `view` + `mcp` | `guest_audition_context` → captions + windowed hum/clip warnings; optional wave/spec |
 | Join a record session | record `join` + `monitor` + `comment` | Join sheet / room (`/rec/{token}`) |

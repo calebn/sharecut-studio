@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 from anyio import CancelScope
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import Field
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketState
@@ -52,6 +52,7 @@ from podcast_mcp.gui.schemas import (
     GUEST_NAME_FIELD_MAX,
     DocumentCommandRequest,
     FeedGuestEditRequest,
+    GuestRequest,
     ShareActionDoneRequest,
 )
 from podcast_mcp.services.app import ProjectWorkspace
@@ -135,7 +136,7 @@ log = logging.getLogger(__name__)
 _GUEST_CLIENT_SUFFIX_RE = re.compile(r"[^A-Za-z0-9_-]")
 
 
-class ShareCommentRequest(BaseModel):
+class ShareCommentRequest(GuestRequest):
     timeline_spans: list[dict[str, float]] | None = Field(default=None, max_length=1000)
     body: str = Field(max_length=COMMENT_BODY_MAX)
     author: str = Field(max_length=GUEST_NAME_FIELD_MAX)
@@ -145,7 +146,7 @@ class ShareCommentRequest(BaseModel):
     track_ids: list[str] | None = None
 
 
-class ShareReplyRequest(BaseModel):
+class ShareReplyRequest(GuestRequest):
     body: str = Field(max_length=COMMENT_BODY_MAX)
     author: str = Field(max_length=GUEST_NAME_FIELD_MAX)
 
@@ -506,51 +507,6 @@ def get_daw_proxy_chunk(token: str, track_id: str, proxy_hash: str, chunk_idx: i
             "Cache-Control": "public, max-age=31536000, immutable",
         },
     )
-
-
-@router.post("/api/review/{token}/daw/render-preview", status_code=202)
-def post_daw_render_preview(token: str, request: Request) -> dict[str, Any]:
-    """Docs Editor (``edit``) may rebuild stems/premix on the host project.
-
-    Opt-in via ``PODCAST_GUEST_RENDER=1``. Uses the same ``JobManager``
-    lock as the host GUI so concurrent host/guest renders cannot race.
-    """
-
-    from podcast_mcp.services.jobs import guest_render_job
-    from podcast_mcp.util.guest_render import require_guest_render
-
-    _check_token(token)
-    _rate_limit(token, "mutate")
-    with guest_boundary(log, "review request"):
-        require_guest_render()
-        _row, ws = require_share_edit(token)
-
-    jobs = request.app.state.jobs
-    with guest_boundary(log, "review render"):
-        job = jobs.start_render_preview(ws.path)
-
-    projected = guest_render_job(job, ws.path)
-    if projected is None:
-        raise coded_http_error(
-            500, "Render preview job unavailable", code="render_preview_job_unavailable"
-        )
-    return {"job": projected}
-
-
-@router.get("/api/review/{token}/daw/render-preview/{job_id}")
-def get_daw_render_preview(token: str, job_id: str, request: Request) -> dict[str, Any]:
-    """Poll a render belonging to this edit share's project."""
-    from podcast_mcp.services.jobs import guest_render_job
-
-    _check_token(token)
-    _rate_limit(token, "read")
-    with guest_boundary(log, "review request"):
-        _row, ws = require_share_edit(token)
-    with guest_boundary(log, "review render status"):
-        job = guest_render_job(request.app.state.jobs.get_job(job_id), ws.path)
-    if job is None:
-        raise coded_http_error(404, "Render preview job not found", code="job_not_found")
-    return {"job": job}
 
 
 @router.get("/api/review/{token}/daw/document/state")

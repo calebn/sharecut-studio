@@ -278,7 +278,7 @@ PROBES: dict[tuple[str, str], Probe] = {
         {"json": {"edit": {"op": "set", "key": "channel.author", "value": "Ana"}}},
     ),
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): Probe(
-        Site(service_jobs, "guest_render_job")
+        Site(service_jobs.JobManager, "get_job")
     ),
     ("GET", "/api/review/{token}/daw/document/state"): Probe(_review("DocumentSyncService")),
     ("POST", "/api/review/{token}/daw/boundary/context"): Probe(
