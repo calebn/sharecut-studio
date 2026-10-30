@@ -8,6 +8,7 @@ import { AnchorMark, DemoDock, Framed } from "./inspectorSheetFixtures";
 import type { InspectorDetent, InspectorRect } from "./inspectorSheetMath";
 import {
   CLIP_SECTIONS,
+  ENVELOPE_POINT_SECTIONS,
   LONG_SECTIONS,
   RANGE_SECTIONS,
   SEAM_SECTIONS,
@@ -204,6 +205,26 @@ export const Seam: Story = {
       "aria-pressed",
       "true",
     );
+  },
+};
+
+export const EnvelopePoint: Story = {
+  render: () => (
+    <CardDemo
+      icon="volume-1"
+      name="Maya point 2"
+      sections={ENVELOPE_POINT_SECTIONS}
+      anchorAt={nearTop}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("spinbutton", { name: "Time" }),
+    ).toHaveAttribute("aria-valuenow", "724.31");
+    await expect(
+      canvas.getByRole("spinbutton", { name: "Level" }),
+    ).toHaveAttribute("aria-valuetext", "0.50 ×");
   },
 };
 

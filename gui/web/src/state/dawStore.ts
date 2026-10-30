@@ -38,21 +38,6 @@ export const useDawStore = create<DawStore>()(
   })),
 );
 
-/** An envelope draft belongs to its project and to the workspace that opened it. */
-useDawStore.subscribe((state) => {
-  const entry = state.envelopeDraft;
-  if (!entry) return;
-  const { selection } = state;
-  const sameTarget =
-    (selection?.kind === "envelope" || selection?.kind === "envelopePoint") &&
-    selection.trackId === entry.trackId &&
-    (selection.kind === "envelopePoint" ? selection.pointId : null) ===
-      entry.pointId &&
-    state.projectPath === entry.projectPath &&
-    state.projectEpoch === entry.projectEpoch;
-  if (!sameTarget) state.setEnvelopeDraft(null);
-});
-
 /** A word draft belongs to its project and to the one word still selected. */
 useDawStore.subscribe((state) => {
   const entry = state.wordDraft;
