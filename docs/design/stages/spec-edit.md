@@ -325,7 +325,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Touch:** one-finger horizontal swipe pans; pinch zooms about the fingers; tap selects; long-press empty opens Create here; long-press then drag selects a range.
 - **States:** empty (SCR-SHELL-INGEST), loading peaks (flat center line in track color until peaks arrive), recording (OVL-RECORDING), guest read-only (no handles; tap selects for Comment/Hear only).
 - **Shared elements used:** Suggestion, NEW: Seam, NEW: Overview strip, NEW: Corner zoom cluster, Action bar.
-- **Story to build:** `Stages/Edit/Timeline` stories `ThreeTracks`, `DeepZoom`, `PhoneFixedPlayhead` (built from the parts, S7b-1a); `System/Lane` stories `Empty`, `ThreeTracks`, `PeaksLoading`, `Muted`. Still to build, with the parts they need: `TwelveTracks`, `WithSuggestions`, `WithCuts`, `ReadOnlyGuest`. A guest's read-only look is the clip's, not the lane's.
+- **Story to build:** `Stages/Edit/Timeline` stories `ThreeTracks`, `DeepZoom`, `PhoneFixedPlayhead` (built from the parts, S7b-1a) and `WithEnvelope` (S7b-1b); `System/Lane` stories `Empty`, `ThreeTracks`, `PeaksLoading`, `Muted`. Still to build, with the parts they need: `TwelveTracks`, `WithSuggestions`, `WithCuts`, `ReadOnlyGuest`. A guest's read-only look is the clip's, not the lane's.
 
 ### CMP-RULER · Time ruler
 
@@ -432,9 +432,9 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** INS-ENVELOPE--desktop-light.png. Interaction cost: Show, Edit, then "Select a point" dropdown and "Add point" button. Language: "1.00× is unchanged, 0 is silent, 1.50× is the maximum".
 - **Fate:** restyle; points created directly.
-- **Spec:** shown from track or clip More > Volume, or when points exist. Line in the track color, 2 px, values in dB. Click the line adds a point; drag moves it (readout chip "−3.0 dB · 12:04.3"); select shows action bar (Hear, Remove, Inspect: Time and Level Scrub fields); Backspace removes. Hide envelope from the eye popover.
+- **Spec:** shown from track or clip More > Volume, or when points exist. Line in the track color, 2 px, values in dB on a scale from -60 dB to +3.52 dB (the stored gain's ceiling), with a labelled 0 dB guide (design-system element 15b). Click the line adds a point; drag moves it (readout chip "−3.0 dB · 12:04.3"); select shows action bar (Hear, Remove, Inspect: Time and Level Scrub fields); Backspace removes. Hide envelope from the eye popover.
 - **Shared elements used:** Action bar, NEW: Scrub field, NEW: Readout chip.
-- **Story to build:** `Edit/Envelope` stories `Empty`, `Points`, `PointSelected`, `Dragging`, `Phone`.
+- **Story to build:** `System/Envelope` stories `Empty`, `Points`, `PointSelected`, `Dragging`, `ReadOnly`, `Phone` (built, S7b-1b); `WithEnvelope` in `Stages/Edit/Timeline`.
 
 ### OVL-BLEED · Automatic reduction regions
 

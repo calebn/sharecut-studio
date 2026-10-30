@@ -1469,7 +1469,11 @@ test("System/Ruler keys move the playhead, walk to the handles and nudge them, a
   await page.evaluate(() => {
     const heard: string[] = [];
     Object.assign(window, { heard });
-    window.addEventListener("keydown", (event) => heard.push(event.key));
+    window.addEventListener("keydown", (event) => {
+      if (!["Shift", "Alt", "Control", "Meta"].includes(event.key)) {
+        heard.push(event.key);
+      }
+    });
   });
   await page.getByRole("slider", { name: "Timeline position" }).focus();
   await page.keyboard.press("ArrowRight");
@@ -1951,7 +1955,11 @@ test("System/MarkerLane the keyboard walks the markers, selects, and nudges a ch
   await page.evaluate(() => {
     const heard: string[] = [];
     Object.assign(window, { heard });
-    window.addEventListener("keydown", (event) => heard.push(event.key));
+    window.addEventListener("keydown", (event) => {
+      if (!["Shift", "Alt", "Control", "Meta"].includes(event.key)) {
+        heard.push(event.key);
+      }
+    });
   });
   const chapter = page.getByRole("button", { name: /^Chapter Interview/ });
   await page.getByRole("button", { name: /^Chapter Cold open/ }).focus();
@@ -2956,7 +2964,11 @@ test("System/Envelope Escape ends a drag without committing, and the keymap neve
   await page.evaluate(() => {
     const heard: string[] = [];
     Object.assign(window, { heard });
-    window.addEventListener("keydown", (event) => heard.push(event.key));
+    window.addEventListener("keydown", (event) => {
+      if (!["Shift", "Alt", "Control", "Meta"].includes(event.key)) {
+        heard.push(event.key);
+      }
+    });
   });
   const from = await centreOf(envPoint(page, "env-4"));
   await page.mouse.move(from.x, from.y);
@@ -3095,7 +3107,11 @@ test("System/Envelope the keymap never hears the keys a focused point handles, a
   await page.evaluate(() => {
     const heard: string[] = [];
     Object.assign(window, { heard });
-    window.addEventListener("keydown", (event) => heard.push(event.key));
+    window.addEventListener("keydown", (event) => {
+      if (!["Shift", "Alt", "Control", "Meta"].includes(event.key)) {
+        heard.push(event.key);
+      }
+    });
   });
   const three = page.getByRole("slider", { name: "Envelope point 3" });
   await three.focus();
@@ -3131,7 +3147,8 @@ test("System/Envelope read-only: a point is selected but not dragged, nudged or 
   const dots = await page
     .locator(".sys-env-dot")
     .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
-  expect(dots).toEqual([5, 5, 5, 5, 5]);
+  // 2.5 px radius, and 7 px for the selected one.
+  expect(dots).toEqual([5, 14, 5, 5, 5]);
   const from = await centreOf(two);
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
