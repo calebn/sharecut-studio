@@ -2,6 +2,8 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -202,6 +204,29 @@ function closeOnEscape(onClose: () => void) {
   };
 }
 
+/**
+ * Escape on the dialog itself, which holds focus when the first control takes
+ * text. A key from inside bubbles through the keys wrapper first, which owns it.
+ */
+function useCloseOnDialogEscape(
+  dialog: RefObject<HTMLElement | null>,
+  onClose: () => void,
+) {
+  useEffect(() => {
+    const el = dialog.current;
+    if (!el) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.target !== el || event.key !== "Escape") return;
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229)
+        return;
+      event.stopPropagation();
+      onClose();
+    };
+    el.addEventListener("keydown", onKey);
+    return () => el.removeEventListener("keydown", onKey);
+  }, [dialog, onClose]);
+}
+
 function Card({
   icon,
   name,
@@ -212,6 +237,8 @@ function Card({
   anchor,
   bounds,
 }: InspectorCardProps) {
+  const dialog = useRef<HTMLElement>(null);
+  useCloseOnDialogEscape(dialog, onClose);
   const place = placeCard(
     anchor,
     bounds,
@@ -230,8 +257,8 @@ function Card({
       role="dialog"
       aria-modal="false"
       aria-label={label ?? name}
+      ref={dialog}
       tabIndex={-1}
-      onKeyDown={closeOnEscape(onClose)}
       data-side={place.side}
       style={style}
     >
@@ -275,6 +302,7 @@ function Phone({
   onDismiss,
 }: InspectorPhoneProps) {
   const sheet = useRef<HTMLElement>(null);
+  useCloseOnDialogEscape(sheet, onClose);
   const samples = useRef<Sample[]>([]);
   const drag = useRef<Drag | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
@@ -355,7 +383,6 @@ function Phone({
       aria-modal="false"
       aria-label={label ?? name}
       tabIndex={-1}
-      onKeyDown={closeOnEscape(onClose)}
       data-detent={detent}
       data-dragging={dragging === null ? undefined : ""}
       style={style}

@@ -5,7 +5,12 @@ import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawKeymapListener } from "../../keymap/listener";
 import { useDawStore } from "../../state/dawStore";
-import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
+import {
+  clipRow,
+  minimalProject,
+  pendingEditView,
+  sampleTrack,
+} from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import { EditWorkspace } from "./EditWorkspace";
 import { InspectorHost } from "./InspectorHost";
@@ -220,6 +225,27 @@ describe("shortcuts after the card opens", () => {
     card.dispatchEvent(event);
     expect(card).toHaveAttribute("tabindex", "-1");
     expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("opens onto the card when the first control of the body is a field", async () => {
+    useDawStore.getState().hydrate(
+      "/tmp/inspector-host/episode.sharecut",
+      minimalProject({
+        tracks: [sampleTrack({ id: "host" })],
+        pending_edits: [
+          pendingEditView({ id: "p1", track_id: "host", track_ids: ["host"] }),
+        ],
+      }),
+    );
+    useDawStore.setState({
+      selection: { kind: "pending", id: "p1", trackId: "host" },
+    });
+    stubViewportShell("desktop");
+    render(<EditWorkspace />);
+    await inspect();
+    const card = screen.getByRole("dialog", { name: "Inspector" });
+    expect(card).toHaveFocus();
+    expect(card.querySelector("input:focus, textarea:focus")).toBeNull();
   });
 
   it("Escape on the focused card closes it", async () => {
