@@ -240,7 +240,7 @@ The Edit stage's Inspector (a card on the desktop and the tablet, a bottom sheet
 
 The bottom dock, its collapsed-panel preference and the adaptive layout were removed with the layout presets (#2292); there is no `sharecut.tabsCollapsed` any more. On a short tablet the Edit stage gives the timeline the whole body and the Script pane is toggled with **T** (`view.toggleScript`) or the Script divider. Selection Inspectors open as the card or the phone sheet, and closing the Inspector leaves the Script state unchanged.
 
-`useInspectorOpen` decides whether the Inspector is open (Inspect, never selection alone; an armed range opens it on the phone and the tablet) and `InspectorHost` decides where it sits: the card beside the selection, or the phone's bottom sheet, or the peek strip for a phone timeline target. There is no side column any more (decision `D-inspector-sheet-no-column`). See [gui-mobile.md](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
+`useInspectorOpen` decides whether the Inspector is open (Inspect, never selection alone; an armed range opens it on the phone and the tablet) and `InspectorHost` decides where it sits: the card beside the selection, or, on the phone shell (up to 767 px wide, in either orientation), the bottom sheet, or the peek strip for a phone timeline target; a wider phone held sideways is the tablet shell and gets the card. There is no side column any more (decision `D-inspector-sheet-no-column`). See [gui-mobile.md](gui-mobile.md#browser-chrome-safe-areas-and-home-screen-1077).
 
 Every button inside `.modifier-footer-actions`, including nested menu triggers
 and preview modes, has a minimum height of `--touch-min` on coarse pointers and

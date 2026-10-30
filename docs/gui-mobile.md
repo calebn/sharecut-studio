@@ -42,8 +42,8 @@ See [shell chrome](design-system.md#shell-chrome) for the catalog boundary.
 | Shell | Width | Root class | Layout |
 |-------|-------|------------|--------|
 | Phone | `< 768px` | `data-shell="phone"` / `.stage-frame--phone` | Stage tab bar + Player bar + selection sheet |
-| Tablet | `768–1194px` | `data-shell="tablet"` / `.stage-frame` | Stage bar in the header, Edit with a peek inspector sheet (portrait); side inspector when wide enough |
-| Desktop | `> 1194px` | `data-shell="desktop"` | Stage bar in the header; Edit shows Timeline, Script and an Inspector column |
+| Tablet | `768–1194px` | `data-shell="tablet"` / `.stage-frame` | Stage bar in the header, Edit with the Inspector card beside the selection |
+| Desktop | `> 1194px` | `data-shell="desktop"` | Stage bar in the header; Edit shows Timeline, Script and the Inspector card |
 
 iPad 11″ landscape is 1180 CSS px wide on the Air and 1194 on the Pro. The tablet band used to end at 1100px, which put that orientation on the desktop shell and hid the editing tools behind collapsed transport chrome (the transport and the tool strip are gone; the Edit corner holds Select range on touch) (#1632). It then ended at 1180, which still left the Pro on the desktop shell (#1674). `TABLET_MAX_PX` now includes 1194 so both keep the tablet frame.
 
@@ -125,13 +125,14 @@ held sideways) compact the editor:
   return. An explicit panel or layout command ends adaptation for the session.
   The saved collapsed preference remains binary, and entering the phone shell
   keeps its existing reset to default. See [Responsive shells](gui-viewer.md#responsive-shells).
-- **The phone Inspector is the sheet in either orientation (#2294 W3a).** The
+- **The phone shell's Inspector is the sheet in either orientation (#2294 W3a).** The
   side column of #1696 is gone: `useInspectorColumn`, the column placement of
   the Edit stage's Inspector and its `e2e-compat/inspector-column.spec.ts` are
   deleted (decision `D-inspector-sheet-no-column`). The Edit stage mounts one
   `InspectorHost` (`stage/edit/InspectorHost.tsx`): the Inspector sheet with the
-  Action bar as its dock on a phone held either way, and a card beside the
-  selection on a tablet. A timeline target on the phone still opens the peek
+  Action bar as its dock on the phone shell (up to 767 px wide, `PHONE_MAX_PX`)
+  held either way, and a card beside the selection on the tablet and desktop
+  shells; a wider phone held sideways is the tablet shell and gets the card. A timeline target on the phone still opens the peek
   strip. `BottomSheet`'s generic `placement="column"` and its frame rule remain
   until the legacy bodies go (W3c).
 - **A volume-envelope sheet leaves its lane in view (#1694, #1714).** On a
@@ -695,7 +696,7 @@ and phone shells; see [design tokens](design-tokens.md#elevation).
 ```
 ┌─ Project  save  Undo Redo │ Record Prepare Edit Review Deliver │ people ─┐
 ├───────────────────────────────────────────────────────────────┤
-│ Headers │ Timeline (moving playhead) │ Script ┊ │ Inspector column  │
+│ Headers │ Timeline (moving playhead) │ Script ┊ │ Inspector card    │
 │         │ [Range] [Fit − + Script 👁]       │ (wide only)       │
 ├───────────────────────────────────────────────────────────────┤
 │ Player bar                                                        │
