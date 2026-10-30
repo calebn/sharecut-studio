@@ -215,15 +215,23 @@ describe("ReviewStage", () => {
     expect(decided()).not.toBe(before);
   });
 
-  it("gives an Editor guest no unsure-word controls", () => {
-    setup({
-      initialItems: QUEUE_ITEMS,
+  it("holds a host-only cut for an Editor guest: no Fix, no Looks right, no enabled Cut", () => {
+    const items = QUEUE_ITEMS.map((i) =>
+      i.id === "f3" ? { ...i, blocked: true, hostOnly: true } : i,
+    );
+    const { decided, press } = setup({
+      initialItems: items,
       initialSelectedId: "f3",
       guest: true,
       canDecide: true,
     });
     expect(screen.queryByRole("button", { name: /Fix text/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Looks right/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+    expect(screen.getByText("The host resolves this one.")).toBeVisible();
+    const before = decided();
+    press("Enter");
+    expect(decided()).toBe(before);
   });
 
   it("shows a non-guest the unsure-word controls", () => {

@@ -122,6 +122,25 @@ describe("useStageBadges pending cuts for a guest", () => {
     expect(result.current.review).toEqual({ kind: "needs-you", count: 1 });
   });
 
+  it("counts what the queue lists, not every pending row", () => {
+    useDawStore.getState().hydrate(
+      "share:tok",
+      minimalProject({
+        pending_edits: [
+          pendingEditView(),
+          pendingEditView({ id: "p2", review_required: false }),
+          pendingEditView({ id: "p3", applied: true }),
+        ],
+      }),
+      "edit",
+      ["view", "comment", "edit"],
+    );
+    const { result } = renderHook(() => useStageBadges(), {
+      wrapper: wrap(room(false)),
+    });
+    expect(result.current.review).toEqual({ kind: "needs-you", count: 1 });
+  });
+
   it("leaves a Commenter without the count", () => {
     join(["view", "comment"]);
     const { result } = renderHook(() => useStageBadges(), {

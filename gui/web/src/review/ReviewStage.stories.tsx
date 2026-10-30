@@ -67,7 +67,7 @@ export default meta;
 type Story = StoryObj<typeof ReviewStageHarness>;
 
 const progress = (canvas: HTMLElement) =>
-  within(canvas).getByText(/of \d+ decided/).textContent;
+  within(canvas).getByText(/of \d+ (decided|resolved)/).textContent;
 
 async function press(canvasElement: HTMLElement, keys: string) {
   canvasElement.querySelector<HTMLElement>(".rv-stage")?.focus();

@@ -252,8 +252,10 @@ export function ReviewQueue({
       </p>
       <div className="rv-filter">
         <SegmentedControl label="Filter">
-          {FILTERS.filter(
-            ({ id }) => canDecide || (id !== "suggestions" && id !== "checks"),
+          {FILTERS.filter(({ id }) =>
+            id === "checks"
+              ? canDecide && !guest
+              : canDecide || id !== "suggestions",
           ).map(({ id, label, icon }) => (
             <ToggleButton
               key={id}
@@ -372,12 +374,17 @@ export function ReviewQueue({
                   selected={selected}
                   onSelect={() => onSelect(item.id)}
                   onVerb={
-                    !canDecide || running || item.blocked
+                    !canDecide ||
+                    running ||
+                    item.blocked ||
+                    (guest && item.kind === "comment")
                       ? undefined
                       : () => onVerb?.(item.id)
                   }
                   onKeep={
-                    !canDecide || running ? undefined : () => onKeep?.(item.id)
+                    !canDecide || running || (guest && item.kind === "comment")
+                      ? undefined
+                      : () => onKeep?.(item.id)
                   }
                 />
               );

@@ -104,7 +104,7 @@ flowchart TD
   decide -->|Approve or Reject| done[Decision applied]
 ```
 
-1. **An Editor gets the suggested cuts in the Review queue** with **Cut** and **Keep** (the Review stage badge counts them); Find more, Deliver, unsure-word Fix, Looks right and Resolve stay with the host, and a cut held for an unchecked transcript waits for the host to check or waive it. A Commenter or Viewer queue is comments only. Approve also works from the Timeline overlay / inspector.
+1. **An Editor gets the suggested cuts in the Review queue** with **Cut** and **Keep** (the Review stage badge counts them); Find more, Deliver, unsure-word Fix, Looks right and Resolve stay with the host, a cut over an unsure word is held with no Cut ("The host checks the unsure word first."), and while the transcript is unchecked the server refuses an Editor's Cut, which shows under Needs attention until the host checks or waives it. A Commenter or Viewer queue is comments only. Approve also works from the Timeline overlay / inspector.
 2. Pending chip on Listen routes to Timeline (not the host queue) and selects the first review-required pending.
 3. Listen-first: hear Suggested (skip the pending band) or A/B before Approve. Ask lives in the pending inspector thread.
 
