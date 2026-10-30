@@ -72,6 +72,7 @@ const OPEN_CHECK =
 const LEFT_AS_IS = "Left as it is. Nobody is talking over it.";
 const RELOAD_FAILED =
   "Undone, but the words did not reload. Reload the project to see them.";
+const HOST_CHECKS_WORD = "The host checks the unsure word first.";
 const CUT_AGAIN = "The transcript isn't checked yet. Cut again to cut anyway.";
 
 const rangeOf = (e: PendingEditView) =>
@@ -143,11 +144,19 @@ export function useReviewQueue(guestShare = false) {
 
   const utterances = guest ? undefined : project?.transcript?.utterances;
   const words = useMemo(
-    () => unsureEntriesOf(pending ?? [], utterances ?? []),
-    [pending, utterances],
+    () => unsureEntriesOf(guest ? [] : (pending ?? []), utterances ?? []),
+    [guest, pending, utterances],
   );
   const open = useMemo<ReviewEntry[]>(() => {
     const entries = reviewEntriesOf(pending ?? []).map(({ item, content }) => {
+      if (guest && item.unsure)
+        return {
+          item: { ...item, blocked: true, hostOnly: true },
+          content: {
+            ...content,
+            card: { ...content.card, why: HOST_CHECKS_WORD },
+          },
+        };
       const why = held.get(item.id)?.reason;
       return why === undefined || (why === UNSURE_REASON && !item.unsure)
         ? { item, content }
@@ -169,7 +178,7 @@ export function useReviewQueue(guestShare = false) {
       ...(check ? [check] : []),
       ...comments.entries,
     ];
-  }, [pending, held, status, words, comments.entries]);
+  }, [guest, pending, held, status, words, comments.entries]);
   const session = useReviewSession(open);
   const { revert } = session;
   const select = useStableCallback(session.props.onSelect);

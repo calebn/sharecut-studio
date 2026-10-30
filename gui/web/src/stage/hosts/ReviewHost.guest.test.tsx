@@ -35,12 +35,16 @@ const CAPS = {
   edit: ["view", "comment", "edit"],
 };
 
-function join(mode: "view" | "comment" | "edit", comments = [sampleComment()]) {
+function join(
+  mode: "view" | "comment" | "edit",
+  comments = [sampleComment()],
+  pending = [pendingEditView({ label: PENDING_LABEL })],
+) {
   useDawStore.getState().hydrate(
     "share:tok",
     minimalProject({
       comments,
-      pending_edits: [pendingEditView({ label: PENDING_LABEL })],
+      pending_edits: pending,
       timeline_duration_sec: 600,
     }),
     mode,
@@ -114,6 +118,40 @@ describe("Review queue for a guest", () => {
       screen.getAllByRole("button", { name: /^Keep/ }).length,
     ).toBeGreaterThan(0);
     for (const label of [/Find more/, /Deliver/, /Fix/, /Looks right/])
+      expect(screen.queryByRole("button", { name: label })).toBeNull();
+  });
+
+  it("holds an unsure-flagged cut for an Editor with no unsure-word row, Fix or enabled Cut", () => {
+    join(
+      "edit",
+      [],
+      [
+        pendingEditView({
+          label: PENDING_LABEL,
+          unsure_words: [
+            {
+              track_id: "mira-voice",
+              source_id: null,
+              word_index: 3,
+              text: "maybe",
+              confidence: 0.4,
+            },
+          ],
+        }),
+      ],
+    );
+    render(<ReviewHost guestShare />);
+    expect(
+      [...document.querySelectorAll(".rv-group")].map((g) =>
+        g.getAttribute("aria-label"),
+      ),
+    ).not.toContain("Unsure words");
+    expect(
+      screen.getByText("The host checks the unsure word first."),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
+    expect(screen.queryByText(/to decide one by one/)).toBeNull();
+    for (const label of [/Fix/, /Looks right/])
       expect(screen.queryByRole("button", { name: label })).toBeNull();
   });
 

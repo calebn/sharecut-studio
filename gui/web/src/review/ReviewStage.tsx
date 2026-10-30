@@ -399,7 +399,9 @@ export function ReviewStage({
               guest && selected?.kind === "comment"
                 ? "The host resolves comments."
                 : selected?.blocked
-                  ? "Open it in Edit to resolve."
+                  ? guest
+                    ? "The host resolves this one."
+                    : "Open it in Edit to resolve."
                   : selected?.kind === "comment" && selected.result
                     ? "Already resolved."
                     : undefined

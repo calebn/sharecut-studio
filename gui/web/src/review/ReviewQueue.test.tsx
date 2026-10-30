@@ -32,6 +32,34 @@ describe("ReviewQueue", () => {
     expect(onVerb).not.toHaveBeenCalledWith("f1");
   });
 
+  it("gives an Editor guest no swipe on a comment row and no Checks chip", () => {
+    const onVerb = vi.fn();
+    const onKeep = vi.fn();
+    const { container } = render(
+      <ReviewQueue
+        items={[{ id: "m", kind: "comment", at: 5, savedSeconds: 0 }]}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        guest
+        canDecide
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+        onVerb={onVerb}
+        onKeep={onKeep}
+      />,
+    );
+    const row = container.querySelector(".sys-queue-row") as Element;
+    const at = (clientX: number) => ({ clientX, clientY: 0, pointerId: 1 });
+    fireEvent.pointerDown(row, { ...at(100), isPrimary: true });
+    fireEvent.pointerMove(row, at(190));
+    fireEvent.pointerUp(row, at(190));
+    expect(onVerb).not.toHaveBeenCalled();
+    expect(onKeep).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /^Checks/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Suggestions/ })).toBeVisible();
+  });
+
   const renderItems = (items: typeof QUEUE_WITHOUT_CHECKS) =>
     render(
       <ReviewQueue

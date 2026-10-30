@@ -16,6 +16,8 @@ export type ReviewItem = {
   unsure?: boolean;
   /** The server will not apply it yet. */
   blocked?: boolean;
+  /** Only the host can settle it, so a guest sees it held with no verb. */
+  hostOnly?: boolean;
   suggested?: "cut" | "shorten" | "lower" | "leave";
   oneByOne?: boolean;
   /** The refine check: the only one that Cut anyway and the last unsure word resolve. */
@@ -123,6 +125,7 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
           ? inKind.filter(
               (i) =>
                 !eligible.includes(i) &&
+                !i.hostOnly &&
                 verbOf(i) !== "keep" &&
                 verbOf(i) !== "lower",
             ).length
