@@ -119,6 +119,7 @@ export function needsInput(fix: Fix): FieldKey | null {
 }
 
 export const AGENT_MARK = "Agent";
+export const GUEST_MARK = "Guest";
 
 type Mark = (source: Resolved) => string | null;
 const MARKS: { [K in Resolved["kind"]]: Mark } = {
@@ -126,8 +127,11 @@ const MARKS: { [K in Resolved["kind"]]: Mark } = {
   inherited: () => "From your show",
   measured: () => null,
   minted: () => null,
-  pinned: (source) =>
-    source.kind === "pinned" && source.by === "agent" ? AGENT_MARK : "Edited",
+  pinned: (source) => {
+    if (source.kind !== "pinned") return "Edited";
+    if (source.by === "agent") return AGENT_MARK;
+    return source.by === "guest" ? GUEST_MARK : "Edited";
+  },
 };
 
 /** What a value says about itself. A measured or minted value is a fact, so it carries no mark. */

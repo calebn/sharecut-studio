@@ -23,9 +23,16 @@ router = APIRouter()
 log = logging.getLogger(__name__)
 
 
-def served(service: FeedService) -> dict[str, Any]:
-    """The wire view and the item as the feed file will carry it, for the XML pane."""
-    return {"view": service.present("facts"), "itemXml": service.present("item_xml")}
+def served(service: FeedService, *, guest: bool = False) -> dict[str, Any]:
+    """The wire view and the item as the feed file will carry it, for the XML pane.
+
+    A guest never learns the titles of shows its episode is not linked to.
+    """
+    view = service.present("facts")
+    assert isinstance(view, dict)
+    if guest and view["show"]["kind"] == "choose":
+        view["show"]["shows"] = []
+    return {"view": view, "itemXml": service.present("item_xml")}
 
 
 @router.get("/api/feed")
@@ -88,7 +95,7 @@ def write_feed_file_as_guest(token: str) -> dict[str, Any]:
         _row, ws = require_share_edit(token)
         service = FeedService(ws)
         service.write()
-        return served(FeedService(ProjectWorkspace.open(ws.path)))
+        return served(FeedService(ProjectWorkspace.open(ws.path)), guest=True)
 
 
 # What an Editor share may change on the show. Choosing the show and where files are hosted
@@ -121,4 +128,4 @@ def edit_feed_show_as_guest(token: str, body: FeedGuestEditRequest) -> dict[str,
         require_guest_show_edit(body.edit)
         service = FeedService(ws)
         service.apply(body.edit, "person")
-        return served(FeedService(ProjectWorkspace.open(ws.path)))
+        return served(FeedService(ProjectWorkspace.open(ws.path)), guest=True)

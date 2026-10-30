@@ -42,7 +42,7 @@ export type Measured = { kind: "measured"; file: string };
 export type Minted = { kind: "minted"; at: string };
 export type Pinned = {
   kind: "pinned";
-  by: "person" | "agent";
+  by: "person" | "agent" | "guest";
   /** The auto value changed since the pin was made. */
   drifted: boolean;
 };

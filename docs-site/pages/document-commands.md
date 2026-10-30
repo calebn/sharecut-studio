@@ -83,7 +83,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetClipJoin` | `left_clip_id` (string), `mode` (fade \| crossfade \| cut), `right_clip_id` (string) | `length_ms` (integer \| null) |
 | `SetEffectBypass` | `bypass` (boolean), `effect_index` (integer), `track_id` (string) | — |
 | `SetEnvelope` | `expected_points` (array[object]), `track_id` (string) | `points` (array[object]) |
-| `SetFeedField` | `key` (string), `value` (string \| integer \| number \| boolean \| array) | `by` (person \| agent) |
+| `SetFeedField` | `key` (string), `value` (string \| integer \| number \| boolean \| array) | `by` (person \| agent \| guest) |
 | `SetJoinMode` | `clip_id` (string), `join_in_mode` (fade \| crossfade \| cut) | — |
 | `SetTrackFader` | `fader_db` (number), `track_id` (string) | — |
 | `SetTrackMedia` | `rel_path` (string), `track_id` (string) | — |

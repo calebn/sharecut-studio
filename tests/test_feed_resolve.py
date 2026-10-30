@@ -651,3 +651,40 @@ def test_pinned_notes_never_use_a_line_break_element() -> None:
     html = pinned_notes_html("line1\nline2\n\n  \nline3 <b>")
 
     assert html == "<p>line1</p><p>line2</p><p>line3 &lt;b&gt;</p>"
+
+
+@pytest.mark.parametrize(
+    ("given", "stored"),
+    [
+        ("2026-10-23T09:00:00Z", "2026-10-23T09:00:00Z"),
+        ("2026-10-23T09:00:00+02:00", "2026-10-23T07:00:00Z"),
+        ("2026-10-23T09:00:00", "2026-10-23T09:00:00Z"),
+        ("2026-10-23", "2026-10-23T00:00:00Z"),
+    ],
+)
+def test_the_first_export_time_is_stored_as_utc_text(given: str, stored: str) -> None:
+    assert FeedSection(first_exported_at=given).first_exported_at == stored
+
+
+@pytest.mark.parametrize("bad", ["", "yesterday", "2026-13-45T00:00:00Z"])
+def test_a_hand_edited_first_export_time_that_is_not_a_time_is_rejected_at_load(bad: str) -> None:
+    with pytest.raises(ValueError, match="ISO 8601"):
+        FeedSection.model_validate({"first_exported_at": bad})
+
+
+def test_minting_with_a_naive_time_means_utc_not_this_machines_zone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time
+    from datetime import datetime
+
+    monkeypatch.setenv("TZ", "Pacific/Auckland")
+    time.tzset()
+    try:
+        feed = FeedSection()
+        feed.mint_identity(datetime(2026, 10, 23, 9, 0, 0))
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+
+    assert feed.first_exported_at == "2026-10-23T09:00:00Z"

@@ -7261,7 +7261,8 @@
             "default": "person",
             "enum": [
               "person",
-              "agent"
+              "agent",
+              "guest"
             ],
             "title": "By",
             "type": "string"
