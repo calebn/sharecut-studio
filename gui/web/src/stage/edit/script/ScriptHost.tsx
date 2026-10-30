@@ -31,8 +31,6 @@ export type ScriptHostProps = {
   onTranscribe?: () => void;
 };
 
-const NOTHING = () => {};
-
 function guestLabel(
   projectPath: string,
   guestMode: string | null,
@@ -55,7 +53,7 @@ function guestLabel(
 export function ScriptHost({
   layout: layoutProp,
   status: statusProp,
-  onTranscribe = NOTHING,
+  onTranscribe,
 }: ScriptHostProps) {
   const projectPath = useDawStore((s) => s.projectPath);
   const guestMode = useDawStore((s) => s.guestMode);
@@ -69,14 +67,19 @@ export function ScriptHost({
   const hostEditable = !isShareProjectKey(projectPath);
   const mode = rangeEditMode(projectPath, capabilities);
   const { model, texts, silent, unsure, hasWords } = useScriptModel();
+  const mayIngest = canIngestMedia(projectPath, guestMode, capabilities);
+  // Only a person who may add media starts a transcription from the empty state.
+  const transcribe = mayIngest ? onTranscribe : undefined;
   const status: ScriptStatus =
     statusProp ??
     (loading
       ? { kind: "loading" }
       : hasWords
         ? { kind: "ready" }
-        : { kind: "empty", onTranscribe });
-  const ready = status.kind !== "loading" && status.kind !== "empty";
+        : { kind: "empty", onTranscribe: transcribe });
+  // Words are written only while the Script shows settled words: not while
+  // they load, are still being made, or no longer match the audio.
+  const ready = status.kind === "ready";
 
   const pane = useRef<ScriptPaneHandle>(null);
   const hostEl = useRef<HTMLDivElement>(null);
@@ -85,7 +88,7 @@ export function ScriptHost({
   const say = (message: string) => setSaid(message);
 
   const playback = useScriptPlayback(model, silent);
-  const win = useScriptWindow(model, pane, hostEl, playback, undefined);
+  const win = useScriptWindow(model, pane, hostEl, playback);
   const selection = useScriptSelection(model, mode !== "none", win.reached);
   const jump = useScriptUnsure(model, texts, unsure, win.scrollTo, say);
   const fix = useScriptFixText(
@@ -97,11 +100,7 @@ export function ScriptHost({
     jump,
   );
   const find = useScriptFind(model, bar, win.scrollTo, say);
-  const speaker = useScriptSpeaker(
-    model,
-    canIngestMedia(projectPath, guestMode, capabilities) && ready,
-    say,
-  );
+  const speaker = useScriptSpeaker(model, mayIngest && ready, say);
 
   const phone =
     (layoutProp ?? (breakpoint === "phone" ? "phone" : "desktop")) === "phone";
@@ -164,7 +163,7 @@ export function ScriptHost({
         onSeekTurn={playback.onSeekTurn}
         onSpeaker={speaker.onSpeaker}
         onFind={find.openBar}
-        onNextUnsure={mode === "none" ? undefined : jump}
+        onNextUnsure={mode === "none" ? undefined : () => jump()}
         onShowCutTextChange={(show) =>
           useDawStore.getState().setShowCutAwayUtterances(show)
         }

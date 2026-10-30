@@ -1093,12 +1093,18 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             size="region"
             glyph="file-plus"
             title="No transcript yet"
-            primary={{
-              label: "Transcribe this episode",
-              onClick: status.onTranscribe,
-            }}
+            primary={
+              status.onTranscribe
+                ? {
+                    label: "Transcribe this episode",
+                    onClick: status.onTranscribe,
+                  }
+                : undefined
+            }
           >
-            Transcribe this episode to edit it by reading.
+            {status.onTranscribe
+              ? "Transcribe this episode to edit it by reading."
+              : "This episode has no transcript yet."}
           </Cover>
         </section>
       );
