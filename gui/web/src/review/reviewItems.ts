@@ -156,10 +156,14 @@ export function checkEntryOf(
   };
 }
 
+const needsReview = (e: PendingEditView) => !e.applied && e.review_required;
+
 export const reviewEntriesOf = (
   pending: readonly PendingEditView[],
-): ReviewEntry[] =>
-  pending.filter((e) => !e.applied && e.review_required).map(entryOf);
+): ReviewEntry[] => pending.filter(needsReview).map(entryOf);
+
+export const reviewCountOf = (pending: readonly PendingEditView[]): number =>
+  pending.filter(needsReview).length;
 
 const firstLine = (body: string) => body.trim().split("\n", 1)[0] ?? "";
 

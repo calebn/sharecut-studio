@@ -8,6 +8,7 @@ import {
   commentIdOf,
   commentItemId,
   editIdOf,
+  reviewCountOf,
   reviewEntriesOf,
   reviewIdOf,
   unsureEntriesOf,
@@ -53,6 +54,17 @@ describe("reviewEntriesOf", () => {
       pendingEditView({ id: "c", review_required: false }),
     ]);
     expect(entries.map((e) => e.item.id)).toEqual(["edit:a"]);
+  });
+
+  it("counts the same edits without building their entries", () => {
+    const pending = [
+      pendingEditView({ id: "a" }),
+      pendingEditView({ id: "b", applied: true }),
+      pendingEditView({ id: "c", review_required: false }),
+      pendingEditView({ id: "d" }),
+    ];
+    expect(reviewCountOf(pending)).toBe(reviewEntriesOf(pending).length);
+    expect(reviewCountOf(pending)).toBe(2);
   });
 
   it("sums every span for savedSeconds", () => {
