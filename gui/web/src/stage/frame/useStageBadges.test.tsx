@@ -141,6 +141,35 @@ describe("useStageBadges pending cuts for a guest", () => {
     expect(result.current.review).toEqual({ kind: "needs-you", count: 1 });
   });
 
+  it("leaves an Editor's unsure-word cut out of the count, as the queue holds it for the host", () => {
+    useDawStore.getState().hydrate(
+      "share:tok",
+      minimalProject({
+        pending_edits: [
+          pendingEditView(),
+          pendingEditView({
+            id: "p2",
+            unsure_words: [
+              {
+                track_id: "t",
+                source_id: null,
+                word_index: 1,
+                text: "maybe",
+                confidence: 0.4,
+              },
+            ],
+          }),
+        ],
+      }),
+      "edit",
+      ["view", "comment", "edit"],
+    );
+    const { result } = renderHook(() => useStageBadges(), {
+      wrapper: wrap(room(false)),
+    });
+    expect(result.current.review).toEqual({ kind: "needs-you", count: 1 });
+  });
+
   it("leaves a Commenter without the count", () => {
     join(["view", "comment"]);
     const { result } = renderHook(() => useStageBadges(), {

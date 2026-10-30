@@ -89,7 +89,7 @@ function groupVerbOf(items: readonly ReviewItem[]): VerbId {
 
 const isDecided = (item: ReviewItem) => item.result !== undefined;
 
-/** Unsure words, blocked cuts, one-by-one and leave-alone items are decided one at a time. */
+/** Unsure words, blocked cuts, one-by-one and leave-alone items are never bulk-applied. */
 function bulkEligible(item: ReviewItem): boolean {
   return (
     QUEUE_KIND[item.kind].bulk &&
@@ -126,7 +126,6 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
               (i) =>
                 !eligible.includes(i) &&
                 !i.hostOnly &&
-                !i.blocked &&
                 verbOf(i) !== "keep" &&
                 verbOf(i) !== "lower",
             ).length

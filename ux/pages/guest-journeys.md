@@ -25,9 +25,9 @@ flowchart TD
 ```
 
 1. Guest lands in ShareCut Studio under the banner "Shared comment view · You can comment and suggest edits". A line under it names the version heard: *Hearing "Rough cut". This link follows the latest version, so it can change.* (or *This link stays on this version.* on a frozen link). If the host publishes a newer cut, a following link turns amber with *The shared version changed to "Intro fix". Reload to hear it.* and a **Reload** button; a frozen link turns amber with *Newer version available: "Intro fix". Ask {host} for a new link.*, since a frozen link cannot play it. The page checks on load, every 30 seconds and when the tab returns.
-2. The comment field is already on screen: docked above the mode bar in **Listen** on a phone, and above the card in the **Review queue**, which the link opens on, on a tablet or laptop. Nothing else is open; the Inspector stays closed until the guest selects something.
+2. The comment field is already on screen: above the card in the **Review queue**, which the link opens on, on every screen size (the Player bar's comment button also focuses it). Nothing else is open; the Inspector stays closed until the guest selects something.
    - Above the comments (Commenter and Editor links only) sits a read-only **Script** of the words heard in the mix (nothing the host cut or ignored): it labels itself *Read only · you can comment*, highlights and follows the word being played, and clicking a word moves the playhead there. Scrolling it by hand stops the following and shows **Back to playhead**, which scrolls the playing word to the middle and follows again. On a phone the Script is kept short (about a sixth of the screen height) so the comment field and its send arrow stay in view on first load, even at 320x568; it scrolls inside. On a very short window (under 30rem tall), such as a phone in landscape or with the keyboard up, the Script is hidden so the composer keeps the room. A View-only link shows no Script, because its guests are not sent word timings; it shows the Review queue with the comments only: resolved ones sit under Decided, and nothing in it decides (no Cut, Keep, Find more or Deliver). Its header counts comments resolved and offers only the All and Comments filters. A Commenter link shows the same comments-only queue.
-3. Guest plays and scrubs, types a note and posts it: tap the field, type, press Enter (desktop) or tap the arrow inside the field, with no mode, menu or ruler first. A **Your name** field sits above the comment field (Enter in it moves to the comment); a blank name posts as Guest, and a typed name is kept for the next note and shown in the field. The host sees the name on the comment. The time chip that leads the field shows where the note lands. It follows the playhead until the first keystroke, then pins. A range set on the ruler arrives as a pinned range. After Post the field clears, a toast confirms it and the field keeps focus for the next note. A failed post keeps the text and shows the reason under the field. No Inspector opens on any screen size; the comment appears in the queue. Replies and action-item check-offs work on the same thread. A Viewer link shows the comments with no field and no reply.
+3. Guest plays and scrubs, types a note and posts it: tap the field, type, press Enter (desktop) or tap the arrow inside the field, with no mode, menu or ruler first. A **Your name** field sits above the comment field (Enter in it moves to the comment); a blank name posts as Guest, and a typed name is kept for the next note and shown in the field. The host sees the name on the comment. The time chip that leads the field shows where the note lands. It follows the playhead until the first keystroke, then pins. A range selected on the timeline, or a time set by **C** or the Player bar's comment button, arrives as a pinned chip; the ruler only seeks. After Post the field clears, a toast confirms it and the field keeps focus for the next note. A failed post keeps the text and shows the reason under the field. No Inspector opens on any screen size; the comment appears in the queue. Replies and action-item check-offs work on the same thread. A Viewer link shows the comments with no field and no reply.
 4. After the host resolves feedback in ShareCut Studio, the guest sees its resolved state. The host can reopen a thread. Anonymous guests cannot resolve threads from the review link.
 5. If the host laptop sleeps / tunnel drops, the guest sees an offline page (not a broken blank app).
 
@@ -69,7 +69,7 @@ receive no isolated selected-track audio through this action.
 ```mermaid
 flowchart TD
   open[Open review link] --> daw[ShareCut Studio guest + banner]
-  daw --> listen[Listen or Timeline]
+  daw --> listen[Review queue]
   listen --> select[Select a region / pending]
   select --> propose[Propose cut - not hard apply]
   propose --> host[Host or Editor reviews pending suggestion]
@@ -106,7 +106,7 @@ flowchart TD
 
 1. **An Editor gets the suggested cuts in the Review queue** with **Cut** and **Keep** (the Review stage badge counts them); Find more, unsure-word Fix, Looks right and Resolve stay with the host, a cut over an unsure word is held with no Cut ("The host checks the unsure word first."), and while the transcript is unchecked the server refuses an Editor's Cut, which shows under Needs attention until the host checks or waives it. A Commenter or Viewer queue is comments only. Approve also works from the Timeline overlay / inspector.
    An Editor link also opens **Deliver**, which shows the **Podcast listing** alone (no export, bounce or sharing). The Editor edits the episode's values (title, intro, notes, the episode's own hosting address) and the show's plain values (name, description, author, category), and writes the feed file; each value an Editor sets carries a quiet **Guest** mark. The show itself, the show's hosting address template and local artwork stay with the host ("Only the host can change this."), and artwork and hosting addresses must be https addresses (a bad one is refused in plain words before it is sent). A note at the top reads "You can edit this listing. The show and the hosting template stay with the host." A Commenter or Viewer link has no Deliver stage.
-2. The Review tab in the phone's bottom Stage bar carries the count of cuts waiting for review and opens the Review queue (there is no Listen mode).
+2. The Review tab in the phone's bottom Stage bar carries the count of cuts waiting for review plus open comments (a cut over an unsure word is the host's and is not counted for an Editor) and opens the Review queue (there is no Listen mode).
 3. Listen-first: hear Suggested (skip the pending band) or A/B before Approve. Ask lives in the pending inspector thread.
 
 ---
@@ -162,7 +162,7 @@ Product still needs polished “link died” copy and a free-tier story ([Backlo
 
 | Guest intent | Need on the token | UI |
 |--------------|-------------------|-----|
-| Listen + comment | Commenter (default) | ShareCut Studio guest |
+| Hear the mix + comment | Commenter (default) | ShareCut Studio guest |
 | See timeline / transcript | Viewer | ShareCut Studio guest |
 | Comment, propose cuts (transcript Select or timeline range) | Commenter (default) | ShareCut Studio guest |
 | Apply cuts directly, approve cuts | Editor | ShareCut Studio guest (transcript Select, Timeline, inspector) |
