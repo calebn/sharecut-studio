@@ -4,7 +4,7 @@ import * as api from "../../api";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { ApiError } from "../../utils/apiError";
-import { EnvelopePointBody } from "./envelopePointSections";
+import { EnvelopePointBody } from "./EnvelopePointBody";
 
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
