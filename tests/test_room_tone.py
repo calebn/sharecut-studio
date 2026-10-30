@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import wave
 from collections.abc import Callable
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +20,11 @@ from podcast_mcp.edits.timeline_ops import (
     insert_room_tone_pad,
     mute_room_tone_fill,
 )
+from podcast_mcp.engines.clips_ops import (
+    crossfade_block_reason,
+    crossfade_borrow_sec,
+    crossfade_ms_at_join,
+)
 from podcast_mcp.engines.room_tone import (
     SPEECH_GUARD_SEC,
     BedUnavailable,
@@ -30,8 +36,10 @@ from podcast_mcp.engines.room_tone import (
     room_tone_bed_digest,
     room_tone_span,
 )
+from podcast_mcp.engines.room_tone_tiles import CROSSFADE_MS
 from podcast_mcp.models import (
     Clip,
+    ClipJoinMode,
     ClipMuteRegion,
     EditDecision,
     EditDecisionType,
@@ -522,6 +530,120 @@ def test_sampled_tiles_fade_only_at_the_pad_edges(tmp_path: Path) -> None:
     assert len({(c.source_start) for c in pads}) == 1
     # Tiles abut: only the pad's outer edges fade, so the seams carry no dip.
     assert [(c.fade_in_ms, c.fade_out_ms) for c in pads] == [(10, 0), (0, 0), (0, 10)]
+
+
+def _pad_over_a_short_bed(
+    tmp_path: Path, at_time: float, seconds: float
+) -> tuple[list[Clip], EpisodeProject]:
+    project = _project(tmp_path, host=_host_audio())
+    _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 3 * SR])
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=4.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=4.5, source_end=10.0, timeline_start=4.0),
+    ]
+    insert_room_tone_pad(project, at_time, seconds, defaults=load_defaults())
+    pads = sorted(
+        (c for c in project.clips if c.source_id == "room-tone-host"),
+        key=lambda c: c.timeline_start,
+    )
+    return pads, project
+
+
+def test_a_pad_longer_than_the_bed_blends_its_repeats(tmp_path: Path) -> None:
+    pads, project = _pad_over_a_short_bed(tmp_path, 4.0, 20.0)
+
+    assert len(pads) > 2
+    assert sum(c.source_end - c.source_start for c in pads) == pytest.approx(20.0)
+    for left, right in pairwise(pads):
+        assert right.join_in_mode == ClipJoinMode.CROSSFADE
+        assert crossfade_block_reason(left, right, project) is None
+        assert crossfade_ms_at_join(left, right) == CROSSFADE_MS
+        assert left.source_start != right.source_start
+    assert [(c.fade_in_ms, c.fade_out_ms) for c in (pads[0], pads[-1])] == [
+        (10, CROSSFADE_MS),
+        (CROSSFADE_MS, 10),
+    ]
+
+
+def test_a_blended_repeat_never_borrows_audio_outside_the_bed(tmp_path: Path) -> None:
+    pads, project = _pad_over_a_short_bed(tmp_path, 4.0, 20.0)
+
+    for left, right in pairwise(pads):
+        borrow = crossfade_borrow_sec(project, left, right)
+        assert borrow > 0
+        assert left.source_end + borrow <= 3.0 + 1e-9
+        assert right.source_start - borrow >= 0.0 - 1e-9
+
+
+def test_a_pad_the_bed_covers_is_one_unblended_clip(tmp_path: Path) -> None:
+    pads, _ = _pad_over_a_short_bed(tmp_path, 4.0, 2.0)
+
+    assert [(c.source_start, c.source_end) for c in pads] == [pytest.approx((0.0, 2.0))]
+    assert (pads[0].fade_in_ms, pads[0].fade_out_ms) == (10, 10)
+
+
+def test_the_same_pad_position_tiles_the_bed_the_same_way(tmp_path: Path) -> None:
+    first, _ = _pad_over_a_short_bed(tmp_path / "one", 4.0, 20.0)
+    second, _ = _pad_over_a_short_bed(tmp_path / "two", 4.0, 20.0)
+
+    assert [(c.source_start, c.source_end) for c in first] == [
+        (c.source_start, c.source_end) for c in second
+    ]
+
+
+def _mute_fill_tiles(tmp_path: Path, mute: tuple[float, float], fill: tuple[float, float]):
+    from podcast_mcp.engines.audio import SourceAudio
+    from podcast_mcp.engines.timeline_render import _room_tone_under_mutes
+
+    project = _project(tmp_path, host=_host_audio())
+    track = project.track_by_id("host")
+    clip = Clip(id="c", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    clip.mute_regions = [
+        ClipMuteRegion(
+            start_s=mute[0], end_s=mute[1], fill=RoomToneFill(start_s=fill[0], end_s=fill[1])
+        )
+    ]
+    tiles = _room_tone_under_mutes(project, track, clip, 0.0, 10.0)
+    assert all(isinstance(t.audio, SourceAudio) for t in tiles)
+    return [(t.start_sec, t.audio) for t in tiles]
+
+
+def test_a_mute_fill_longer_than_its_span_overlaps_blended_tiles_inside_the_span(
+    tmp_path: Path,
+) -> None:
+    tiles = _mute_fill_tiles(tmp_path, (1.0, 9.0), (4.0, 7.0))
+
+    assert len(tiles) > 2
+    for _, leaf in tiles:
+        assert leaf.src_start >= 4.0 - 1e-9
+        assert leaf.src_end <= 7.0 + 1e-9
+    for (_, left), (_, right) in pairwise(tiles):
+        assert left.reach_out == right.reach_in > 0
+        assert left.fade_out_sec == right.fade_in_sec == pytest.approx(2 * left.reach_out)
+        assert left.nominal_start != right.nominal_start
+    nominal = sum(leaf.nominal_end - leaf.nominal_start for _, leaf in tiles)
+    assert nominal == pytest.approx(8.0)
+
+
+def test_a_mute_fill_the_span_covers_is_one_unblended_tile(tmp_path: Path) -> None:
+    tiles = _mute_fill_tiles(tmp_path, (1.0, 3.0), (4.0, 7.0))
+
+    assert [
+        (t, leaf.src_start, leaf.src_end, leaf.reach_in, leaf.reach_out) for t, leaf in tiles
+    ] == [pytest.approx((1.0, 4.0, 6.0, 0.0, 0.0))]
+
+
+def test_a_mute_fill_tiles_the_same_way_every_time(tmp_path: Path) -> None:
+    first = _mute_fill_tiles(tmp_path / "one", (1.0, 9.0), (4.0, 7.0))
+    second = _mute_fill_tiles(tmp_path / "two", (1.0, 9.0), (4.0, 7.0))
+
+    def geometry(tiles):
+        return [
+            (at, leaf.src_start, leaf.src_end, leaf.fade_in_sec, leaf.fade_out_sec)
+            for at, leaf in tiles
+        ]
+
+    assert geometry(first) == geometry(second)
 
 
 def test_room_tone_is_not_taken_from_source_a_pending_cut_still_plays(tmp_path: Path) -> None:

@@ -1,0 +1,94 @@
+"""Where the repeats of a room-tone span start when it fills a longer gap.
+
+A span shorter than its gap is played again and again. Butt-splicing repeats that all
+restart at the span's start puts a seam on a fixed period. Here every repeat reads its own
+stretch of an inset of the span, joined to the next by a blend whose borrowed audio stays
+inside the span, so a cough just outside a recorded bed is never read. The offsets are a
+function of the span and the seed position alone: a preview and the real render pick alike.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+CROSSFADE_REACH_SEC = 0.02
+CROSSFADE_MS = round(2 * CROSSFADE_REACH_SEC * 1000)
+MIN_TILE_SEC = 0.5
+TILE_FRACTION = 0.75
+_GOLDEN = (math.sqrt(5.0) - 1.0) / 2.0
+_HASH_MULTIPLIER = 2654435761
+_HASH_MODULUS = 1 << 32
+_FIT_EPS_SEC = 1e-6
+
+
+@dataclass(frozen=True)
+class Tile:
+    """``length`` seconds of the span read from ``source_start``.
+
+    ``reach_in`` and ``reach_out`` are the seconds the join to the previous and the next
+    tile borrows from the audio around it; both are zero when the tiles are butt-spliced.
+    """
+
+    source_start: float
+    length: float
+    reach_in: float = 0.0
+    reach_out: float = 0.0
+
+
+def tile_span(
+    span_start: float, span_end: float, gap_sec: float, seed_sec: float
+) -> tuple[Tile, ...]:
+    """The tiles that fill ``gap_sec`` from ``[span_start, span_end)``.
+
+    A gap the span covers is one tile from the span's start. A longer gap takes equal
+    tiles from an inset of the span, each at an offset derived from ``seed_sec`` and the
+    tile's index, blended at its joins. A span too short to inset is butt-spliced from its
+    start.
+    """
+    piece = span_end - span_start
+    if gap_sec <= 0 or piece <= 0:
+        return ()
+    if piece >= gap_sec - _FIT_EPS_SEC:
+        return (Tile(span_start, gap_sec),)
+    inner = piece - 2 * CROSSFADE_REACH_SEC
+    if inner < MIN_TILE_SEC / TILE_FRACTION:
+        return _butt(span_start, piece, gap_sec)
+    count = math.ceil(gap_sec / (inner * TILE_FRACTION) - _FIT_EPS_SEC)
+    length = gap_sec / count
+    low = span_start + CROSSFADE_REACH_SEC
+    high = low + inner - length
+    seed = _seed_fraction(seed_sec)
+    starts: list[float] = []
+    for index in range(count):
+        start = low + ((seed + index * _GOLDEN) % 1.0) * (high - low)
+        if starts:
+            behind = start - (starts[-1] + length)
+            if 0 < behind < 2 * CROSSFADE_REACH_SEC:
+                joined = starts[-1] + length
+                start = joined if joined <= high else low
+        starts.append(start)
+    return tuple(
+        Tile(
+            start,
+            length,
+            CROSSFADE_REACH_SEC if index else 0.0,
+            CROSSFADE_REACH_SEC if index + 1 < count else 0.0,
+        )
+        for index, start in enumerate(starts)
+    )
+
+
+def _butt(span_start: float, piece: float, gap_sec: float) -> tuple[Tile, ...]:
+    tiles: list[Tile] = []
+    placed = 0.0
+    while placed < gap_sec - _FIT_EPS_SEC:
+        use = min(piece, gap_sec - placed)
+        tiles.append(Tile(span_start, use))
+        placed += use
+    return tuple(tiles)
+
+
+def _seed_fraction(seed_sec: float) -> float:
+    key = round(seed_sec * 1000.0)
+    return ((key * _HASH_MULTIPLIER) % _HASH_MODULUS) / _HASH_MODULUS

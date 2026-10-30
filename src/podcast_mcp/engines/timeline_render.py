@@ -46,6 +46,7 @@ from podcast_mcp.engines.mute_regions import (
     room_tone_fills_for_source_window,
 )
 from podcast_mcp.engines.render_clock import read_render_clock
+from podcast_mcp.engines.room_tone_tiles import tile_span
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track
 from podcast_mcp.util.batch_scope import batch_scope
@@ -57,7 +58,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_gate import BleedGatePlan
 
-RENDER_SEMANTICS_REV = 22
+RENDER_SEMANTICS_REV = 23
 _MAX_GRID_RATE = 192_000
 
 
@@ -102,26 +103,36 @@ def _room_tone_under_mutes(
     tiles: list[At] = []
     for env, fill in room_tone_fills_for_source_window(clip, src_start, src_end):
         path = _source_audio_path(project, track, fill.source_id, owner=f"clip {clip.id} fill")
-        piece = fill.end_s - fill.start_s
         t, end = max(0.0, env.start), min(seg_dur, env.end)
-        while t < end - 1e-6:
-            use = min(piece, end - t)
+        repeats = tile_span(fill.start_s, fill.end_s, end - t, seed_sec=fill.start_s)
+        for index, tile in enumerate(repeats):
+            blends_in, blends_out = tile.reach_in > 0, tile.reach_out > 0
             tiles.append(
                 At(
-                    t,
+                    t - tile.reach_in,
                     SourceAudio(
                         path=path,
-                        src_start=fill.start_s,
-                        src_end=fill.start_s + use,
-                        fade_in_sec=env.fade_out_sec if t == env.start else 0.0,
-                        fade_out_sec=env.fade_in_sec if t + use >= env.end - 1e-6 else 0.0,
+                        src_start=tile.source_start - tile.reach_in,
+                        src_end=tile.source_start + tile.length + tile.reach_out,
+                        fade_in_sec=(
+                            2 * tile.reach_in
+                            if blends_in
+                            else (env.fade_out_sec if t == env.start else 0.0)
+                        ),
+                        fade_out_sec=(
+                            2 * tile.reach_out
+                            if blends_out
+                            else (env.fade_in_sec if index + 1 == len(repeats) else 0.0)
+                        ),
                         clip_id=clip.id,
                         source_id=fill.source_id,
                         is_fill=True,
+                        reach_in=tile.reach_in,
+                        reach_out=tile.reach_out,
                     ),
                 )
             )
-            t += use
+            t += tile.length
     return tiles
 
 
