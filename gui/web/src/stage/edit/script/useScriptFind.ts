@@ -15,9 +15,6 @@ import type { ScriptSpan } from "../../../system/scriptPieces";
 import { useStableCallback } from "../../../utils/useStableCallback";
 import type { ScriptModel } from "./scriptModel";
 
-export const REPLACE_ONE_GAP =
-  "Replace one hit is not available yet. Use Replace all.";
-
 export type ScriptFindState = {
   open: boolean;
   query: string;
@@ -42,7 +39,6 @@ export type ScriptFind = ScriptFindState & {
   next: () => void;
   previous: () => void;
   selectAll: () => void;
-  replaceOne: () => never;
   replaceAll: () => Promise<number>;
 };
 
@@ -159,9 +155,6 @@ export function useScriptFind(
     next: () => step(1),
     previous: () => step(-1),
     selectAll,
-    replaceOne: () => {
-      throw new Error(REPLACE_ONE_GAP);
-    },
     replaceAll,
   };
 }

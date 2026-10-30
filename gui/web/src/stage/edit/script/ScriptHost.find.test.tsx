@@ -163,7 +163,7 @@ describe("ScriptHost Find", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it("explains that a single Replace is not there yet", async () => {
+  it("offers Replace all only, with no single Replace", async () => {
     await openFind();
     await userEvent.type(findField(), "maya");
     await userEvent.click(screen.getByRole("button", { name: "Show replace" }));
@@ -171,9 +171,8 @@ describe("ScriptHost Find", () => {
       screen.getByRole("textbox", { name: "Replace with" }),
       "Maia",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Replace" }));
-    expect(await screen.findByText(/Use Replace all/)).toBeInTheDocument();
-    expect(replace).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Replace" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Replace all" })).toBeVisible();
   });
 
   it("offers no Cut all", async () => {
