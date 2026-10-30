@@ -1972,7 +1972,7 @@
     },
     {
       "id": "daw.export.transcript",
-      "label": "Export transcript",
+      "label": "Export transcript\u2026",
       "effect": "project",
       "service": "TranscriptService.export",
       "industry_standard_key": false,
@@ -1980,6 +1980,10 @@
         "hostProjectLoaded"
       ],
       "surfaces": {
+        "command": "export.transcript",
+        "gui": [
+          "deliverTranscript"
+        ],
         "mcp": [
           "export_transcript",
           "list_exported_transcripts"
@@ -1988,8 +1992,13 @@
         "skill": "podcast-transcript-workflow"
       },
       "omit": {
-        "keyboard_reason": "Deliver page action; the web command and gui surface land with the Transcript section",
+        "keyboard_reason": "Deliver page action, reached from the command palette",
         "guest": true
+      },
+      "tooltip": "Export transcript\u2026",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
       }
     },
     {

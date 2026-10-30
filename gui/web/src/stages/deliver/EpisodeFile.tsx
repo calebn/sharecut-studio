@@ -36,6 +36,8 @@ type Props = {
   /** The Export button lives in the phone dock instead of here. */
   dock?: boolean;
   options?: ExportOptions;
+  /** The Transcript section sits below, so the note points to it. */
+  transcriptBelow?: boolean;
   onSettings: (next: EpisodeSettings) => void;
   /** Without it the Saves to line is not shown. */
   onChangeFolder?: () => void;
@@ -55,6 +57,7 @@ export function EpisodeFile({
   state = "ready",
   dock = false,
   options = {},
+  transcriptBelow = false,
   onSettings,
   onChangeFolder,
   onExport,
@@ -149,7 +152,9 @@ export function EpisodeFile({
         />
       ) : null}
       <p className="dv-note">
-        Captions and transcript are written with every export.
+        {transcriptBelow
+          ? "The transcript is written with every export. Choose more files in Transcript below."
+          : "Captions and transcript are written with every export."}
       </p>
 
       {options.loudnessNote ? (

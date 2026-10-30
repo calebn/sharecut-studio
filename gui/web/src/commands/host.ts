@@ -182,6 +182,17 @@ export function registerHostCommands(): void {
     return { status: "ok" };
   });
 
+  registerCommand("export.transcript", (_args, ctx) => {
+    const blocked = hostProjectGate(ctx);
+    if (blocked) {
+      return blocked;
+    }
+    const s = useDawStore.getState();
+    s.openStage("deliver");
+    s.setTranscriptRequested(true);
+    return { status: "ok" };
+  });
+
   registerCommand("mcp.connect", () => {
     const s = useDawStore.getState();
     if (!canManageProjects(s.projectPath)) {

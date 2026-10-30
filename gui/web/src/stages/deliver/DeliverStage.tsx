@@ -46,6 +46,8 @@ import { ListenLink } from "./ListenLink";
 import { Readiness } from "./Readiness";
 import { ShareSection } from "./ShareSection";
 import type { ShareOptions } from "./shareLogic";
+import { TranscriptSection } from "./TranscriptSection";
+import type { TranscriptOptions } from "./transcriptLogic";
 import { useFocusRecovery } from "./useFocusRecovery";
 import { useWriteBack } from "./useWriteBack";
 
@@ -93,6 +95,8 @@ export type DeliverStageProps = {
   exportOptions?: ExportOptions;
   /** Without it the Bounce section is not shown. */
   bounce?: BounceOptions;
+  /** Without it the Transcript section is not shown. */
+  transcript?: TranscriptOptions;
   /** Without it the Share section is not shown, and the Listen link section stands in when `showLink` is on. */
   share?: ShareOptions;
   /** The Podcast listing section, mounted after Share. Without it the section is not shown. */
@@ -151,6 +155,7 @@ export function DeliverStage({
   showPlayer = true,
   exportOptions,
   bounce,
+  transcript,
   share,
   feed,
   clipUndo = true,
@@ -406,6 +411,7 @@ export function DeliverStage({
               env={env}
               state={sharedState}
               dock={phone}
+              transcriptBelow={transcript !== undefined}
               options={
                 exportOptions && {
                   ...exportOptions,
@@ -420,6 +426,13 @@ export function DeliverStage({
               onReveal={onReveal}
               onDownload={onDownload}
             />
+            {transcript ? (
+              <TranscriptSection
+                options={transcript}
+                state={sharedState}
+                compact={phone}
+              />
+            ) : null}
             {bounce ? (
               <BounceSection options={bounce} state={sharedState} />
             ) : null}

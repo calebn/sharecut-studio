@@ -369,6 +369,7 @@ describe("command governance", () => {
     const hostProjectCommands = [
       "export.bounce",
       "export.deliverables",
+      "export.transcript",
       "share.manage",
       "record.createRoom",
       "record.copyGuestLink",

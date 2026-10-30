@@ -168,7 +168,7 @@ Dialogs launched from Home are listed in section 7: DLG-MCP, DLG-MODELS, DLG-HEL
 
 ## 7. Dialogs, sheets and popovers
 
-All use `ui/Dialog.tsx` (phone renders as a bottom sheet) unless noted. Export deliverables and Bounce are not dialogs any more: they are the Episode file and Bounce sections of the Deliver stage (`stages/deliver/EpisodeFile.tsx`, `stages/deliver/BounceSection.tsx`, host `stage/hosts/DeliverStage.tsx`, run by `stage/hosts/exportFlow.tsx` and `stage/hosts/bounceFlow.tsx`). Stories for dialogs open the dialog by launcher (`test/storyDialog.ts`).
+All use `ui/Dialog.tsx` (phone renders as a bottom sheet) unless noted. Export deliverables and Bounce are not dialogs any more: they are the Episode file and Bounce sections of the Deliver stage (`stages/deliver/EpisodeFile.tsx`, `stages/deliver/BounceSection.tsx`, `stages/deliver/TranscriptSection.tsx`, host `stage/hosts/DeliverStage.tsx`, run by `stage/hosts/exportFlow.tsx` and `stage/hosts/bounceFlow.tsx`). Stories for dialogs open the dialog by launcher (`test/storyDialog.ts`).
 
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|

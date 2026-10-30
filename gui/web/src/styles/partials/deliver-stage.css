@@ -107,6 +107,87 @@
   display: flex;
 }
 
+.dv-tx-actions {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.dv-tx-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+}
+
+.dv-tx-turns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dv-tx-turn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.dv-tx-turn-body {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.dv-tx-turn-head,
+.dv-tx-text {
+  margin: 0;
+}
+
+.dv-tx-turn-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.dv-tx-speaker {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.dv-tx-time {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.dv-tx-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.dv-tx-foot {
+  margin: 0;
+}
+
+.dv-tx-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+}
+
+.dv-tx-cue {
+  overflow-wrap: anywhere;
+}
+
 .dv-export {
   min-block-size: 3rem;
   padding-inline: var(--space-6);
@@ -270,6 +351,15 @@
   .dv-clips {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.dv-stage[data-layout="phone"] .dv-tx-actions > button {
+  flex: 1 1 100%;
+}
+
+.dv-stage[data-layout="phone"] .dv-tx-text {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 
 /* The segmented choices stay inside the section instead of widening the page. */

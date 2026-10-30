@@ -68,6 +68,7 @@ import { openFeedSource } from "./feedSource";
 import { HostBody } from "./HostBody";
 import { hostStateOf } from "./hostModels";
 import { useShareFlow } from "./shareFlowContext";
+import { useTranscriptFlow } from "./useTranscriptFlow";
 import { useTunnelStatus } from "./useTunnelStatus";
 
 export type DeliverStageProps = {
@@ -125,6 +126,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     setExportRequested,
     bounceRequested,
     setBounceRequested,
+    transcriptRequested,
+    setTranscriptRequested,
     shareRequested,
     setShareRequested,
     bounceRange,
@@ -141,6 +144,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       setExportRequested: s.setExportRequested,
       bounceRequested: s.chrome.bounceRequested,
       setBounceRequested: s.setBounceRequested,
+      transcriptRequested: s.chrome.transcriptRequested,
+      setTranscriptRequested: s.setTranscriptRequested,
       shareRequested: s.chrome.shareRequested,
       setShareRequested: s.setShareRequested,
       bounceRange: s.bounceRangeTarget,
@@ -220,6 +225,24 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     [chosenFormats],
   );
   const edits = project ? editHeadOf(project.history) : undefined;
+  const transcriptFlow = useTranscriptFlow({
+    projectPath,
+    enabled: state === "ready",
+    hasTranscript: project?.transcript != null,
+    revision: project?.history.head_id,
+  });
+  const reloadTranscript = transcriptFlow.reload;
+  const exportDone = exportFlow.run.kind === "done";
+  useEffect(() => {
+    if (exportDone) reloadTranscript();
+  }, [exportDone, reloadTranscript]);
+  const [focusTranscript, setFocusTranscript] = useState(false);
+  const clearTranscriptFocus = useCallback(() => setFocusTranscript(false), []);
+  useEffect(() => {
+    if (!transcriptRequested || state !== "ready") return;
+    setTranscriptRequested(false);
+    setFocusTranscript(true);
+  }, [transcriptRequested, state, setTranscriptRequested]);
   const exportOptions = exportOptionsOf(exportFlow);
   const formatsBlocker =
     exportFlow.loading || exportFlow.settings === null
@@ -244,6 +267,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         useDawStore.getState().setExportRequested(false);
         useDawStore.getState().setBounceRequested(false);
         useDawStore.getState().setShareRequested(false);
+        useDawStore.getState().setTranscriptRequested(false);
       }, 0);
     };
   }, []);
@@ -462,6 +486,23 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
               />
             ) : undefined
           }
+          transcript={{
+            preview: transcriptFlow.preview,
+            run: transcriptFlow.run,
+            files: transcriptFlow.files,
+            choices: transcriptFlow.choices,
+            onChoices: transcriptFlow.setChoices,
+            exportRunning:
+              exportFlow.run.kind === "running" ||
+              bounceFlow.run.kind === "running",
+            copyState: transcriptFlow.copyState,
+            onExport: transcriptFlow.exportNow,
+            onCopy: transcriptFlow.copyText,
+            onRetry: transcriptFlow.reload,
+            onPrepare: () => runPointerCommand("stage.prepare"),
+            focusRequested: focusTranscript,
+            onFocused: clearTranscriptFocus,
+          }}
           share={
             shareOffered
               ? shareOptionsOf(shareFlow, {

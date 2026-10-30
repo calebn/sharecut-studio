@@ -248,6 +248,7 @@ type UiSlice = Pick<
   | "prepareFocusTrackId"
   | "setPrepareFocusTrackId"
   | "setShareRequested"
+  | "setTranscriptRequested"
   | "setHostMcpDialogOpen"
   | "setHelpDialogOpen"
   | "setModelsDialogOpen"
@@ -307,6 +308,7 @@ export function chromeInitial(): ChromeFlags {
     bounceRequested: false,
     exportRequested: false,
     shareRequested: false,
+    transcriptRequested: false,
     hostMcpDialogOpen: false,
     helpDialogOpen: false,
     modelsDialogOpen: false,
@@ -737,6 +739,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ prepareFocusTrackId }),
     setShareRequested: (on) =>
       set((s) => ({ chrome: { ...s.chrome, shareRequested: on } })),
+    setTranscriptRequested: (on) =>
+      set((s) => ({ chrome: { ...s.chrome, transcriptRequested: on } })),
     setHostMcpDialogOpen: (on) =>
       set((s) => ({ chrome: { ...s.chrome, hostMcpDialogOpen: on } })),
     setHelpDialogOpen: (on) =>

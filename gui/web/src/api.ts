@@ -158,6 +158,14 @@ export {
 } from "./api/sharesRecord";
 export type { SplitSpeakersRequest } from "./api/speakerSplit";
 export { startSplitSpeakersJob } from "./api/speakerSplit";
+export type {
+  ExportedTranscript,
+  TranscriptExportFile,
+  TranscriptExportResult,
+  TranscriptFormat,
+  TranscriptPreviewTurn,
+} from "./api/transcript";
+export { exportTranscript, listExportedTranscripts } from "./api/transcript";
 export {
   loadTranscriptCheck,
   markTranscriptChecked,
