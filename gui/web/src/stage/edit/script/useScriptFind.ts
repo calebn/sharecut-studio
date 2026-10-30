@@ -29,7 +29,6 @@ export type ScriptFind = ScriptFindState & {
   current: number;
   /** What the pane's live region says about the search; undefined while the bar is closed. */
   status: string | undefined;
-  bar: RefObject<FindBarHandle | null>;
   openBar: () => void;
   closeBar: () => void;
   setQuery: (query: string) => void;
@@ -145,7 +144,6 @@ export function useScriptFind(
     matches,
     current,
     status: open ? findCountText(query, matches.length, current) : undefined,
-    bar,
     openBar,
     closeBar,
     setQuery: (value) => edit({ query: value }),
