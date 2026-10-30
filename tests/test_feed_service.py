@@ -252,6 +252,35 @@ def test_unsetting_a_show_pin_with_no_show_store_is_refused_not_ignored(episode:
         _service(episode).apply(UnsetEdit(key="channel.title"), "person")
 
 
+def test_linking_a_show_that_is_gone_is_refused_and_creates_nothing(
+    episode: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.feed.show_store import ShowStore
+
+    store = ShowStore(tmp_path / "shows")
+    monkeypatch.setattr(feed_service, "default_show_source", lambda: store)
+
+    with pytest.raises(CodedValueError) as raised:
+        _service(episode).apply(SetEdit(key="show", value="old-show", link=True), "person")
+
+    assert raised.value.code == "feed_show_not_found"
+    assert list(store.shows()) == []
+    assert load_project(episode).feed.show_id is None
+
+
+def test_choosing_a_show_by_name_still_creates_it_without_the_link_flag(
+    episode: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.feed.show_store import ShowStore
+
+    store = ShowStore(tmp_path / "shows")
+    monkeypatch.setattr(feed_service, "default_show_source", lambda: store)
+
+    _service(episode).apply(SetEdit(key="show", value="Fresh Show"), "person")
+
+    assert [summary.title for summary in store.shows()] == ["Fresh Show"]
+
+
 def test_the_pins_and_identity_survive_save_and_load(episode: Path) -> None:
     _service(episode).apply(SetEdit(key="item.season", value=2), "person")
     project = load_project(episode)

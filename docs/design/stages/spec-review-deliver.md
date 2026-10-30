@@ -9,7 +9,7 @@
 > - Clip ideas use Approve (`check`), not Keep. Dismissing one is Remove.
 > - Stop sharing is an undo toast (10 s), not an inline confirm.
 > - Loudness lives in Deliver only. Vocabulary lives in Prepare only. Home's Help and "more" buttons fold into the app menu.
-> - Invites: one Invite sheet from the header on every stage, with Deliver embedding the Listen row (answers Q4). Guest header is the 48 px App header. Guest Editor gets Edit and Review.
+> - Invites: one Invite sheet from the header on every stage, with Deliver embedding the Listen row (answers Q4). Guest header is the 48 px App header. Guest Editor gets Edit, Review and Deliver (the Podcast listing only).
 > - Toast lasts 6 s, or 10 s for session-level undo. Loading shows "Still loading…" at 4 s (not 8).
 > - Storybook titles: `System/*` and `Stages/<Stage>/*`.
 

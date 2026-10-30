@@ -23,7 +23,7 @@ function FeedBody({
   onOpenSource,
 }: Props) {
   const feed = useFeed(projectPath, {
-    guest: access !== "host",
+    access,
     refreshKey,
     onCommand,
   });

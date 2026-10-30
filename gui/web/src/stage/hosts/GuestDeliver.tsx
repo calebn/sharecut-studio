@@ -2,6 +2,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { FeedPanel } from "../../stages/deliver/FeedPanel";
 import { useDawStore } from "../../state/dawStore";
+import { stageRoleOf } from "../../state/stageRoutes";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 import { openFeedSource } from "./feedSource";
@@ -42,7 +43,9 @@ export function GuestDeliver({ loadFailure }: Props) {
             <section className="dv-page" aria-label="Deliver">
               <FeedPanel
                 projectPath={projectPath}
-                access={guestMode === "edit" ? "editor" : "viewer"}
+                access={
+                  stageRoleOf(guestMode) === "editor" ? "editor" : "viewer"
+                }
                 refreshKey={project?.history.head_id}
                 onOpenSource={openFeedSource}
               />

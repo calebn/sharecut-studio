@@ -300,6 +300,16 @@ def test_post_edit_pins_and_returns_the_new_view_and_unset_undoes_it(episode: Pa
     assert cleared.json()["view"]["item"]["item.intro"]["source"]["kind"] == "pending"
 
 
+def test_post_edit_restores_the_author_an_undo_names(episode: Path) -> None:
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    edit = {"op": "set", "key": "item.intro", "value": "An agent wrote this."}
+
+    res = client.post("/api/feed/edit", json={"path": str(episode), "edit": edit, "by": "agent"})
+
+    assert res.status_code == 200, res.text
+    assert res.json()["view"]["item"]["item.intro"]["source"]["by"] == "agent"
+
+
 def test_post_edit_refuses_a_bad_edit_with_its_code(episode: Path) -> None:
     client = TestClient(create_app(), client=("127.0.0.1", 50000))
 

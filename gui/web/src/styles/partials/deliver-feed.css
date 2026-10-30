@@ -594,7 +594,10 @@
     min-block-size: var(--touch-min);
   }
 
-  .fd-badge {
+  .fd-badge,
+  .fd-input,
+  .fd-setup-form input,
+  .fd-setup-form select {
     min-block-size: var(--touch-min);
   }
 }

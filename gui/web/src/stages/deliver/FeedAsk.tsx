@@ -16,9 +16,17 @@ export function FeedAsk({ field, access, onSave, onCancel }: Props) {
   const spec = fieldOf(field);
   const [text, setText] = useState("");
   const value = text.trim();
-  const edit: FeedEdit = { op: "set", key: field, value };
+  const edit: FeedEdit = {
+    op: "set",
+    key: field,
+    value: spec.yesNo ? value === "yes" : value,
+  };
   const why =
-    value === "" ? `Enter the ${spec.label} to save.` : editBlock(access, edit);
+    value === ""
+      ? spec.yesNo
+        ? `Choose yes or no for ${spec.label} to save.`
+        : `Enter the ${spec.label} to save.`
+      : editBlock(access, edit);
   const reason = useDisabledReasonNote(why);
   return (
     <section className="fd-setup fd-ask" aria-label={spec.add}>
@@ -30,16 +38,30 @@ export function FeedAsk({ field, access, onSave, onCancel }: Props) {
         }}
       >
         <Field label={spec.label} className="fd-setup-field">
-          {(control) => (
-            <input
-              {...control}
-              // oxlint-disable-next-line jsx-a11y/no-autofocus -- the person just asked to supply this value
-              autoFocus
-              value={text}
-              autoComplete="off"
-              onChange={(event) => setText(event.target.value)}
-            />
-          )}
+          {(control) =>
+            spec.yesNo ? (
+              <select
+                {...control}
+                // oxlint-disable-next-line jsx-a11y/no-autofocus -- the person just asked to supply this value
+                autoFocus
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+              >
+                <option value="">Choose</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            ) : (
+              <input
+                {...control}
+                // oxlint-disable-next-line jsx-a11y/no-autofocus -- the person just asked to supply this value
+                autoFocus
+                value={text}
+                autoComplete="off"
+                onChange={(event) => setText(event.target.value)}
+              />
+            )
+          }
         </Field>
         <Button
           type="submit"

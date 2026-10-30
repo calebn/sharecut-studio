@@ -15,7 +15,13 @@ export type FieldValue = string | number | boolean | readonly string[];
  * holds no pin changes nothing.
  */
 export type FeedEdit =
-  | { op: "set"; key: FieldKey; value: FieldValue }
+  | {
+      op: "set";
+      key: FieldKey;
+      value: FieldValue;
+      /** For `show` only: the value is the id of a show that must exist, never a name to create. */
+      link?: boolean;
+    }
   | { op: "unset"; key: FieldKey };
 
 export type FeedCommand =
@@ -26,7 +32,12 @@ export type FeedCommand =
   | "write_feed";
 
 export type Fix =
-  | { kind: "edit"; edit: FeedEdit }
+  | {
+      kind: "edit";
+      edit: FeedEdit;
+      /** Who the pin is stamped as when the host restores a value, so an undo keeps its author. */
+      by?: PinAuthor;
+    }
   /** The fix is a value only a person can supply for `key`. A surface asks for it, then sends a set. */
   | { kind: "input"; key: FieldKey }
   | {
@@ -39,9 +50,10 @@ export type Derived = { kind: "derived"; rule: string };
 export type Inherited = { kind: "inherited"; from: FieldKey };
 export type Measured = { kind: "measured"; file: string };
 export type Minted = { kind: "minted"; at: string };
+export type PinAuthor = "person" | "agent" | "guest";
 export type Pinned = {
   kind: "pinned";
-  by: "person" | "agent" | "guest";
+  by: PinAuthor;
   /** The auto value changed since the pin was made. */
   drifted: boolean;
 };

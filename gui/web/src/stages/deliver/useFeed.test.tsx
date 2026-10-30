@@ -65,7 +65,7 @@ afterEach(() => {
 describe("useFeed as the host", () => {
   it("loads the listing from the host route", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(HOST, { guest: false }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     expect(result.current.load).toBe("loading");
     await waitFor(() => expect(result.current.load).toBe("ready"));
     expect(result.current.served?.view.file).toBe("current");
@@ -77,7 +77,7 @@ describe("useFeed as the host", () => {
 
   it("says why the listing did not load", async () => {
     fetchMock.mockRejectedValueOnce(new TypeError("offline"));
-    const { result } = renderHook(() => useFeed(HOST, { guest: false }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     await waitFor(() => expect(result.current.load).toBe("error"));
     expect(result.current.problem).toBe(
       "Couldn't reach the server. Check your connection and try again.",
@@ -86,7 +86,7 @@ describe("useFeed as the host", () => {
 
   it("shows a set value at once and then the service's own view", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(HOST, { guest: false }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     let answer: (response: Response) => void = () => {};
     fetchMock.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
@@ -114,13 +114,14 @@ describe("useFeed as the host", () => {
       body: {
         path: HOST,
         edit: { op: "set", key: "item.title", value: "New name" },
+        by: "person",
       },
     });
   });
 
   it("puts the service's view back and names the refusal when an edit fails", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(HOST, { guest: false }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     fetchMock.mockResolvedValueOnce(
       refusal(
@@ -147,7 +148,7 @@ describe("useFeed as the host", () => {
 
   it("sends edits one at a time and keeps a later one on screen while an earlier answers", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(HOST, { guest: false }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     let first: (response: Response) => void = () => {};
     fetchMock.mockReturnValueOnce(new Promise((resolve) => (first = resolve)));
@@ -173,7 +174,7 @@ describe("useFeed as the host", () => {
 
   it("writes the feed file and clears the request", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(STALE)));
-    const { result } = renderHook(() => useFeed(HOST, { guest: false }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
     act(() => result.current.act({ kind: "command", command: "write_feed" }));
@@ -189,7 +190,7 @@ describe("useFeed as the host", () => {
 
   it("reports a refused write in plain words and offers another try", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(STALE)));
-    const { result } = renderHook(() => useFeed(HOST, { guest: false }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     fetchMock.mockResolvedValueOnce(
       refusal(400, "feed_write_refused", "1 blocker stands."),
@@ -202,7 +203,7 @@ describe("useFeed as the host", () => {
 
   it("names the code's own words for a blocked feed", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(STALE)));
-    const { result } = renderHook(() => useFeed(HOST, { guest: false }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     fetchMock.mockResolvedValueOnce(
       refusal(400, "feed_blocked", "feed_blocked: item.title"),
@@ -217,7 +218,7 @@ describe("useFeed as the host", () => {
 
   it("creates and links a show as a set of the show", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(HOST, { guest: false }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     fetchMock.mockResolvedValue(reply(served(READY)));
     act(() =>
@@ -241,7 +242,7 @@ describe("useFeed as the host", () => {
         .map((c) => c.body.edit),
     ).toEqual([
       { op: "set", key: "show", value: "The Long River" },
-      { op: "set", key: "show", value: "field-notes" },
+      { op: "set", key: "show", value: "field-notes", link: true },
     ]);
   });
 
@@ -249,7 +250,7 @@ describe("useFeed as the host", () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
     const onCommand = vi.fn();
     const { result } = renderHook(() =>
-      useFeed(HOST, { guest: false, onCommand }),
+      useFeed(HOST, { access: "host", onCommand }),
     );
     await waitFor(() => expect(result.current.load).toBe("ready"));
     act(() =>
@@ -262,10 +263,58 @@ describe("useFeed as the host", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("never lets a read that started during an edit put the old value back", async () => {
+    fetchMock.mockResolvedValueOnce(reply(served(READY)));
+    const { result, rerender } = renderHook(
+      ({ key }) => useFeed(HOST, { access: "host", refreshKey: key }),
+      { initialProps: { key: "a" } },
+    );
+    await waitFor(() => expect(result.current.load).toBe("ready"));
+    let answerEdit: (response: Response) => void = () => {};
+    let answerRead: (response: Response) => void = () => {};
+    fetchMock.mockReturnValueOnce(
+      new Promise((resolve) => (answerEdit = resolve)),
+    );
+    await act(async () =>
+      result.current.act({
+        kind: "edit",
+        edit: { op: "set", key: "item.title", value: "Pinned" },
+      }),
+    );
+    fetchMock.mockReturnValueOnce(
+      new Promise((resolve) => (answerRead = resolve)),
+    );
+    rerender({ key: "b" });
+    await act(async () => answerEdit(reply(served(titled(READY, "Pinned")))));
+    await act(async () => answerRead(reply(served(READY))));
+    expect(result.current.served?.view.item["item.title"]?.value).toBe(
+      "Pinned",
+    );
+  });
+
+  it("sends the original author when an undo restores a pin", async () => {
+    fetchMock.mockResolvedValueOnce(reply(served(READY)));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
+    await waitFor(() => expect(result.current.load).toBe("ready"));
+    fetchMock.mockResolvedValueOnce(reply(served(titled(READY, "Mine"))));
+    act(() =>
+      result.current.act({
+        kind: "edit",
+        edit: { op: "set", key: "item.title", value: "Mine" },
+        by: "agent",
+      }),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(calls()[1].body.by).toBe("agent");
+    expect(
+      result.current.served?.view.item["item.title"]?.source,
+    ).toMatchObject({ by: "person" });
+  });
+
   it("reads again without blanking when the refresh key changes", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(STALE)));
     const { result, rerender } = renderHook(
-      ({ key }) => useFeed(HOST, { guest: false, refreshKey: key }),
+      ({ key }) => useFeed(HOST, { access: "host", refreshKey: key }),
       { initialProps: { key: "a" } },
     );
     await waitFor(() => expect(result.current.load).toBe("ready"));
@@ -279,7 +328,7 @@ describe("useFeed as the host", () => {
 
   it("keeps what it has when a quiet refresh fails", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(HOST, { guest: false }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     fetchMock.mockRejectedValueOnce(new TypeError("offline"));
     act(() => result.current.refresh());
@@ -289,17 +338,35 @@ describe("useFeed as the host", () => {
   });
 });
 
+describe("useFeed as a link that may not edit", () => {
+  it("drops an edit a viewer link may not send and says why", async () => {
+    fetchMock.mockResolvedValueOnce(reply(served(READY)));
+    const { result } = renderHook(() => useFeed(TOKEN, { access: "viewer" }));
+    await waitFor(() => expect(result.current.load).toBe("ready"));
+    act(() =>
+      result.current.act({
+        kind: "edit",
+        edit: { op: "set", key: "item.title", value: "A" },
+      }),
+    );
+    expect(calls()).toHaveLength(1);
+    expect(result.current.problem).toBe(
+      "This link can read the listing but not change it.",
+    );
+  });
+});
+
 describe("useFeed as a guest", () => {
   it("reads the listing through the review route", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(TOKEN, { guest: true }));
+    const { result } = renderHook(() => useFeed(TOKEN, { access: "editor" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     expect(calls()[0].url).toBe("/api/review/abc/feed");
   });
 
   it("sends a show value through the guest feed route and marks it as a guest's", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(TOKEN, { guest: true }));
+    const { result } = renderHook(() => useFeed(TOKEN, { access: "editor" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     let answer: (response: Response) => void = () => {};
     fetchMock.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
@@ -328,7 +395,7 @@ describe("useFeed as a guest", () => {
 
   it("sends an episode value as a document command and reads the listing again", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(TOKEN, { guest: true }));
+    const { result } = renderHook(() => useFeed(TOKEN, { access: "editor" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     submit.mockResolvedValue({});
     fetchMock.mockResolvedValueOnce(
@@ -354,9 +421,48 @@ describe("useFeed as a guest", () => {
     expect(calls()[1].url).toBe("/api/review/abc/feed");
   });
 
+  it("keeps the preview while the command queue holds the edit, and drops it once the head moves", async () => {
+    fetchMock.mockResolvedValueOnce(reply(served(READY)));
+    const { result, rerender } = renderHook(
+      ({ key }) => useFeed(TOKEN, { access: "editor", refreshKey: key }),
+      { initialProps: { key: "a" } },
+    );
+    await waitFor(() => expect(result.current.load).toBe("ready"));
+    submit.mockResolvedValue({ ok: true, queued: true });
+    act(() =>
+      result.current.act({
+        kind: "edit",
+        edit: { op: "set", key: "item.title", value: "Waiting" },
+      }),
+    );
+    await waitFor(() => expect(submit).toHaveBeenCalled());
+    await act(async () => {});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.served?.view.item["item.title"]).toEqual({
+      value: "Waiting",
+      source: { kind: "pinned", by: "guest", drifted: false },
+    });
+    fetchMock.mockResolvedValueOnce(
+      reply(served(titled(READY, "Waiting", "guest"))),
+    );
+    rerender({ key: "b" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(result.current.served?.view.item["item.title"]?.value).toBe(
+      "Waiting",
+    );
+    fetchMock.mockResolvedValueOnce(reply(served(READY)));
+    rerender({ key: "c" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await act(async () => {});
+    expect(result.current.served?.view.item["item.title"]).toEqual(
+      READY.item["item.title"],
+    );
+  });
+
   it("clears an episode value with the clear command", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(TOKEN, { guest: true }));
+    const { result } = renderHook(() => useFeed(TOKEN, { access: "editor" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     submit.mockResolvedValue({});
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
@@ -372,9 +478,9 @@ describe("useFeed as a guest", () => {
     });
   });
 
-  it("tells a guest the host owns a setting the service refuses", async () => {
+  it("tells a person the host owns a setting the service refuses (server backstop)", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
-    const { result } = renderHook(() => useFeed(TOKEN, { guest: true }));
+    const { result } = renderHook(() => useFeed(HOST, { access: "host" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     fetchMock.mockResolvedValueOnce(
       refusal(
@@ -402,7 +508,7 @@ describe("useFeed as a guest", () => {
 
   it("writes the feed file through the guest route", async () => {
     fetchMock.mockResolvedValueOnce(reply(served(STALE)));
-    const { result } = renderHook(() => useFeed(TOKEN, { guest: true }));
+    const { result } = renderHook(() => useFeed(TOKEN, { access: "editor" }));
     await waitFor(() => expect(result.current.load).toBe("ready"));
     fetchMock.mockResolvedValueOnce(reply(served(READY)));
     act(() => result.current.act({ kind: "command", command: "write_feed" }));

@@ -6894,6 +6894,11 @@
             "title": "Key",
             "type": "string"
           },
+          "link": {
+            "default": false,
+            "title": "Link",
+            "type": "boolean"
+          },
           "op": {
             "const": "set",
             "default": "set",

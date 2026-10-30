@@ -3554,7 +3554,7 @@
         "skill": "podcast-rss-feed"
       },
       "omit": {
-        "keyboard_reason": "CLI, MCP and the feed HTTP routes until the Deliver listing section lands"
+        "keyboard_reason": "CLI, MCP, the feed HTTP routes and the Deliver Podcast listing"
       },
       "tooltip": "Read the episode's podcast listing: show notes, chapters, people and what the feed still needs",
       "presence": {
@@ -3580,7 +3580,7 @@
         "skill": "podcast-rss-feed"
       },
       "omit": {
-        "keyboard_reason": "CLI, MCP and the feed HTTP routes until the Deliver listing section lands"
+        "keyboard_reason": "CLI, MCP, the feed HTTP routes and the Deliver Podcast listing"
       },
       "tooltip": "Pin or release one podcast listing value: an episode value in one undo step, a show value in the show",
       "presence": {

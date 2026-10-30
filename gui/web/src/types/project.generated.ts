@@ -118,6 +118,7 @@ export interface ExportDeliverablesRequest {
 export interface FeedEditRequest {
   path: string;
   edit: SetEdit | UnsetEdit;
+  by?: "person" | "agent" | "guest";
 }
 
 /** One show-level edit from an Editor share; the share link names the episode. */
@@ -228,6 +229,7 @@ export interface SetEdit {
   op?: "set";
   key: string;
   value: string | number | boolean | Array<string>;
+  link?: boolean;
 }
 
 /** Guest HTTP twin for MCP guest_set_action_done (no project path). */

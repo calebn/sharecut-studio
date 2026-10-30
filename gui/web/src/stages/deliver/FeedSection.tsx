@@ -23,6 +23,7 @@ import {
   FILE_LINE_STATE,
   fixBlock,
   fixLabel,
+  KEY,
   needsInput,
   PIN_FIELDS,
   READ_ONLY_WHY,
@@ -164,7 +165,11 @@ export function FeedSection({
     if (fromDrift) refocus.current = undoWith ? "undo" : change.key;
     if (undoWith)
       notify(undoWith.message, () => {
-        onAction(editFix(undoWith.edit));
+        onAction(
+          undoWith.by
+            ? { kind: "edit", edit: undoWith.edit, by: undoWith.by }
+            : editFix(undoWith.edit),
+        );
         refocus.current = undoWith.edit.key;
       });
   };
@@ -209,7 +214,10 @@ export function FeedSection({
     access === "viewer"
       ? undefined
       : ready.kind === "check"
-        ? { label: "Review", onAction: () => focusIn("[data-drift] button") }
+        ? // Only the notes show Keep mine and Use new in place; other values have nowhere to review.
+          ready.first.key === KEY.notes
+          ? { label: "Review", onAction: () => focusIn("[data-drift] button") }
+          : undefined
         : firstFix && !fixBlock(access, firstFix)
           ? { label: fixLabel(firstFix), onAction: () => runFix(firstFix) }
           : undefined;
@@ -247,7 +255,7 @@ export function FeedSection({
         {access === "host" ? null : (
           <p className="fd-access">
             {access === "editor"
-              ? "You can edit this listing. The host sets up the show and where it is hosted."
+              ? "You can edit this listing. The show and the hosting template stay with the host."
               : READ_ONLY_WHY}
           </p>
         )}

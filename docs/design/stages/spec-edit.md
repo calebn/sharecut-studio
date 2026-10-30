@@ -8,7 +8,7 @@
 > - The Blade tool and the Select/Blade toggle are removed. Split is a visible Action bar verb on S (and Mod+K), or Alt-click at the pointer; on touch it is the bar's Split or a long-press on a lane ("Split here"). Solo moves to Shift+S. B now means Hear after.
 > - Keys: hold O became hold A. Shift+M chapter became Shift+C. Mod+Shift+E became Mod+E. Mod+B is palette only. Mod+N is dropped. Tab is "next of the same kind" and F6 moves between regions.
 > - Icons: Keep is `shield-check` (not the U-turn arrow). Hear is `ear`. Follow is `locate-fixed`. The listen role is `ear`. Review stage is `inbox`. Prepare stage is `wand-sparkles`. Deliver stage is `send`. Failed is `octagon-alert`.
-> - Commenter guests get Review only (their Cut makes a Suggestion). Editor guests get Edit and Review, not Prepare.
+> - Commenter guests get Review only (their Cut makes a Suggestion). Editor guests get Edit, Review and Deliver (the Podcast listing only), not Prepare.
 > - The Script 68-character measure applies in Script focus only (about 44 characters at 400 px).
 > - Storybook titles: `System/*` and `Stages/Edit/*` replace `Shell/*` and `Edit/*`.
 
@@ -43,7 +43,7 @@ Today's status bar, transport bar, Menu, View menu, bottom dock tabs, layout pre
 - Keys: Mod+1 Prepare, Mod+2 Record, Mod+3 Edit, Mod+4 Review, Mod+5 Deliver. These replace today's Mod+1..4 layout presets.
 - Opening a project lands on the stage you last used for that project. First open: no audio lands on Prepare; audio present lands on Edit.
 - Badges carry state so you know where work is waiting without visiting: Prepare shows a progress ring while a job runs and an amber dot when a step needs you; Record shows a red dot and elapsed time while a take is live; Review shows the count of open suggestions plus open comments; Deliver shows a check when the readiness list passes.
-- Guests see only the stages their link allows (Viewer: Review; Commenter: Review and Edit in suggest mode; Editor: Prepare, Edit, Review). Record room guests never see this shell; they use the Record room (spec-record).
+- Guests see only the stages their link allows (Viewer: Review; Commenter: Review and Edit in suggest mode; Editor: Edit, Review and Deliver, where Deliver shows the Podcast listing only). Record room guests never see this shell; they use the Record room (spec-record).
 
 ### What the Edit stage is for
 
