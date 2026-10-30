@@ -213,16 +213,17 @@ function Phone({
   const [detent, setDetent] = useState<InspectorDetent>("half");
   const [tight, setTight] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const [lanes, setLanes] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    const lanes =
+    const parent =
       box.current?.querySelector<HTMLElement>(".sys-inspector")?.offsetParent;
-    if (!(lanes instanceof HTMLElement)) return;
-    const fit = () => setTight(lanes.clientHeight * SHEET_FULL < DOCK_ROOM_PX);
-    fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(lanes);
-    return () => observer.disconnect();
+    setLanes(parent instanceof HTMLElement ? parent : null);
   }, []);
+  const fit = useCallback(() => {
+    setTight(!!lanes && lanes.clientHeight * SHEET_FULL < DOCK_ROOM_PX);
+  }, [lanes]);
+  useLayoutEffect(fit, [fit]);
+  useResizeObserver(lanes, fit);
   const sections = useBodySections(sheet.rangeActionsInSheet);
   useInspectorFocus(box, true);
   return (
