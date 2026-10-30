@@ -26,7 +26,7 @@ export type ScriptHostModel = {
   texts: readonly string[];
   /** Window indices of words that sit only in a muted bleed row: never active, never unsure. */
   silent: ReadonlySet<number>;
-  /** Window indices of the words the transcript is unsure of, in order, bleed rows excluded. */
+  /** Window indices of the words the transcript is unsure of, in order, bleed rows and words with no project index excluded. */
   unsure: readonly number[];
   hasWords: boolean;
 };
@@ -80,7 +80,11 @@ export function useScriptModel(): ScriptHostModel {
     for (const turn of model.turns) {
       for (const word of turn.words) {
         texts[word.index] = word.text;
-        if (word.lowConfidence && !silent.has(word.index)) {
+        if (
+          word.lowConfidence &&
+          !silent.has(word.index) &&
+          model.refs[word.index]?.wordIndex != null
+        ) {
           unsure.push(word.index);
         }
       }

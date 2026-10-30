@@ -21,12 +21,13 @@ export function useScriptUnsure(
   unsure: readonly number[],
   scrollTo: (index: number, block?: ScrollLogicalPosition) => boolean,
   say: (message: string) => void,
-): () => void {
+): (note?: string) => number | undefined {
   const stops = useMemo<LowConfidenceStop[]>(
     () =>
       unsure.flatMap((index) => {
         const ref = model.refs[index];
-        if (!ref) return [];
+        // A word with no project index cannot be selected, and a cut word is not text.
+        if (!ref || ref.wordIndex === null || model.isCut(index)) return [];
         const seekSec = model.seekSecOf(index);
         return [
           {
@@ -43,10 +44,17 @@ export function useScriptUnsure(
   );
   const cursor = useRef<TranscriptReviewCursor | null>(null);
 
-  return useStableCallback(() => {
+  /**
+   * Go to the next unsure word and return its window index. `note` is said
+   * first, in the same announcement, so what led here is not talked over.
+   */
+  return useStableCallback((note?: string) => {
     const at = stepLowConfidence(stops, cursor.current, "next");
     const stop = stops[at];
-    if (!stop) return;
+    if (!stop) {
+      if (note) say(note);
+      return undefined;
+    }
     cursor.current = {
       trackId: stop.trackId,
       sourceId: stop.sourceId,
@@ -62,6 +70,8 @@ export function useScriptUnsure(
     });
     if (stop.seekSec !== null) void seekTransport(stop.seekSec);
     scrollTo(stop.order, "center");
-    say(`Unsure word ${at + 1} of ${stops.length}: ${stop.text}`);
+    const found = `Unsure word ${at + 1} of ${stops.length}: ${stop.text}`;
+    say(note ? `${note}. ${found}` : found);
+    return stop.order;
   });
 }
