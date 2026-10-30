@@ -984,7 +984,7 @@ def _measure_bed(path: Path, audio: np.ndarray) -> BedVerdict:
         if is_live
     ]
     usable = _longest_passing_run(
-        samples, track, minimum_sec=min(BED_MIN_USABLE_SEC, _covered_sec(samples))
+        samples, track, minimum_sec=min(BED_MIN_USABLE_SEC, _longest_live_stretch_sec(samples))
     )
     if usable is not None:
         return BedUsable(*usable)
@@ -1001,14 +1001,16 @@ def _measure_bed(path: Path, audio: np.ndarray) -> BedVerdict:
     return (failed,)
 
 
-def _covered_sec(samples: Sequence[Sample]) -> float:
-    """Seconds of audio the windows cover together."""
-    covered = 0.0
-    reached = 0.0
+def _longest_live_stretch_sec(samples: Sequence[Sample]) -> float:
+    """Seconds in the longest chain of overlapping windows, which no run can exceed."""
+    longest = 0.0
+    start = reached = None
     for sample in samples:
-        covered += sample.end - max(sample.start, reached)
+        if start is None or reached is None or sample.start >= reached:
+            start = sample.start
         reached = sample.end
-    return covered
+        longest = max(longest, reached - start)
+    return longest
 
 
 def _longest_passing_run(
