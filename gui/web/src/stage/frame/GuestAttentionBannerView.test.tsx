@@ -34,26 +34,57 @@ describe("GuestAttentionBannerView", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("opens recovery details from its summary", async () => {
-    render(
-      <GuestAttentionBannerView
-        pending={1}
-        conflicts={[
-          offlineConflict({ kind: "unknown", recovery: "inspect-history" }),
-        ]}
-        onDismissAll={vi.fn()}
-        onInspectHistory={vi.fn()}
-      />,
-    );
-    const summary = screen.getByLabelText(
-      "Needs attention details and recovery actions",
-    );
-    await userEvent.click(summary);
-    expect(summary.closest("details")).toHaveAttribute("open");
-    expect(
-      screen.getByRole("button", { name: "Inspect History" }),
-    ).toBeVisible();
-  });
+  it.each([
+    {
+      state: "pending and conflicting edits",
+      pending: 1,
+      conflicts: [
+        offlineConflict({ kind: "unknown", recovery: "inspect-history" }),
+      ],
+      unreadable: false,
+      visibleLabel: /^Needs attention\s*2\s*Details$/,
+      accessibleLabel: /^Needs attention\s+2\s+Details\b/,
+      recoveryAction: "Inspect History",
+    },
+    {
+      state: "unreadable saved edits with no count",
+      pending: 0,
+      conflicts: [],
+      unreadable: true,
+      visibleLabel: /^Needs attention\s*!\s*Details$/,
+      accessibleLabel: /^Needs attention\s+!\s+Details\b/,
+      recoveryAction: "Retry",
+    },
+  ])(
+    "includes the visible summary label and opens recovery details for $state",
+    async ({
+      pending,
+      conflicts,
+      unreadable,
+      visibleLabel,
+      accessibleLabel,
+      recoveryAction,
+    }) => {
+      render(
+        <GuestAttentionBannerView
+          pending={pending}
+          conflicts={conflicts}
+          unreadable={unreadable}
+          onDismissAll={vi.fn()}
+          onInspectHistory={vi.fn()}
+          onRetry={vi.fn()}
+        />,
+      );
+      const summary = screen.getByText("Needs attention").closest("summary")!;
+      expect(summary).toHaveTextContent(visibleLabel);
+      expect(summary).toHaveAccessibleName(accessibleLabel);
+      await userEvent.click(summary);
+      expect(summary.closest("details")).toHaveAttribute("open");
+      expect(
+        screen.getByRole("button", { name: recoveryAction }),
+      ).toBeVisible();
+    },
+  );
 
   it("keeps attention before app controls and removes each portal on unmount", () => {
     vi.useFakeTimers();
