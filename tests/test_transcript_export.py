@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 from pathlib import Path
 
@@ -304,6 +305,99 @@ def test_mime_for_every_format(ws):
         "srt": "application/x-subrip",
         "vtt": "text/vtt",
     }
+
+
+@pytest.mark.parametrize("stage", ["before-read", "before-stat"])
+def test_exported_omits_file_deleted_during_listing(ws, monkeypatch, stage):
+    svc = TranscriptService(ws)
+    exported = svc.export(["txt", "md", "srt", "vtt"])
+    txt = Path(exported.files[0].path)
+    txt.write_text("old transcript", encoding="utf-8")
+    ws.project.combined_transcript = None
+    expected = svc.exported()
+    assert [row.format for row in expected] == ["txt", "md", "srt", "vtt"]
+    assert [row.current for row in expected] == [False, True, True, True]
+    target = Path(exported.files[1].path)
+    project_before = ws.project.model_dump_json()
+    files_before = {path: path.read_bytes() for path in ws.path.parent.rglob("*") if path.is_file()}
+    read_bytes = Path.read_bytes
+    deleted = False
+
+    def read_with_deletion(path):
+        nonlocal deleted
+        if path == target and not deleted and stage == "before-read":
+            path.unlink()
+            deleted = True
+        data = read_bytes(path)
+        if path == target and not deleted and stage == "before-stat":
+            path.unlink()
+            deleted = True
+        return data
+
+    def refuse_lock(*args, **kwargs):
+        raise AssertionError("listing must not take the render lock")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "read_bytes", read_with_deletion)
+        patch.setattr("podcast_mcp.services.document.transcript.render_lock", refuse_lock)
+        listed = svc.exported()
+
+    assert deleted
+    assert listed == [row for row in expected if row.format != "md"]
+    assert ws.project.model_dump_json() == project_before
+    assert {path: path.read_bytes() for path in ws.path.parent.rglob("*") if path.is_file()} == {
+        path: data for path, data in files_before.items() if path != target
+    }
+
+
+@pytest.mark.parametrize("stage", ["read", "stat"])
+@pytest.mark.parametrize(
+    "error_type, error_number", [(PermissionError, errno.EACCES), (OSError, errno.EIO)]
+)
+def test_exported_propagates_other_file_io_errors(ws, monkeypatch, stage, error_type, error_number):
+    svc = TranscriptService(ws)
+    exported = svc.export(["txt", "md", "srt", "vtt"])
+    target = Path(exported.files[1].path)
+    failure = error_type(error_number, "cannot access transcript", str(target))
+    read_bytes = Path.read_bytes
+    stat = Path.stat
+    target_read = False
+
+    def read_with_error(path):
+        nonlocal target_read
+        if path == target and stage == "read":
+            raise failure
+        data = read_bytes(path)
+        if path == target:
+            target_read = True
+        return data
+
+    def stat_with_error(path, *args, **kwargs):
+        if path == target and target_read and stage == "stat":
+            raise failure
+        return stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", read_with_error)
+    monkeypatch.setattr(Path, "stat", stat_with_error)
+    with pytest.raises(error_type) as err:
+        svc.exported()
+    assert err.value is failure
+
+
+def test_exported_propagates_renderer_file_not_found(ws, monkeypatch):
+    svc = TranscriptService(ws)
+    svc.export(["txt", "md", "srt", "vtt"])
+    failure = FileNotFoundError(errno.ENOENT, "renderer input is missing")
+
+    def missing_input(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.transcript.render_transcript_formats", missing_input
+    )
+    with pytest.raises(FileNotFoundError) as err:
+        svc.exported()
+    assert err.value is failure
 
 
 def test_language_follows_transcripts(ws):
