@@ -1002,6 +1002,29 @@ describe("EditBoundaryMarkView", () => {
       expect(screen.queryByRole("dialog")).toBeNull();
     });
 
+    it("keeps the reason while focused, lets a tap without focus fade, and restarts on a re-tap", () => {
+      vi.useFakeTimers();
+      try {
+        const { mark } = renderReadOnly();
+        const reason = screen.getByText(TRANSCRIPT_BOUNDARY_READONLY_TIP);
+        expect(mark).not.toHaveAttribute("title");
+        act(() => mark.focus());
+        act(() => void vi.advanceTimersByTime(20000));
+        expect(reason).toHaveClass("edit-boundary-reason");
+        act(() => mark.blur());
+        expect(reason).toHaveClass("sr-only");
+        fireEvent.click(mark);
+        act(() => void vi.advanceTimersByTime(7000));
+        fireEvent.click(mark);
+        act(() => void vi.advanceTimersByTime(7000));
+        expect(reason).toHaveClass("edit-boundary-reason");
+        act(() => void vi.advanceTimersByTime(1500));
+        expect(reason).toHaveClass("sr-only");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("keeps the longer reason for a gap and drops it once the viewer can edit", () => {
       const gapRight = clip({
         id: "right",

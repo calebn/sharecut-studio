@@ -2,6 +2,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -191,7 +192,11 @@ export function EditBoundaryMarkView({
   const [lifecycle, setLifecycle] = useState<Lifecycle>({ kind: "idle" });
   const [precisionOpen, setPrecisionOpen] = useState(false);
   const reasonId = useId();
-  const [reasonShown, setReasonShown] = useState(false);
+  const [reason, setReason] = useState({ shown: false, taps: 0 });
+  const reasonShown = reason.shown;
+  const showReason = () =>
+    setReason((now) => ({ shown: true, taps: now.taps + 1 }));
+  const hideReason = () => setReason((now) => ({ ...now, shown: false }));
   const fallbackClip = leftClip ?? rightClip;
   const resolvedTarget =
     target ??
@@ -272,16 +277,26 @@ export function EditBoundaryMarkView({
     setLifecycle({ kind: "idle" });
   };
 
-  // A read-only mark shows why while it has focus or after a tap, and lets go
-  // after a few seconds so a tap on a touch screen does not leave it standing.
+  const reasonRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const note = reasonRef.current;
+    if (!note || !reason.shown) return;
+    note.style.translate = "";
+    const rect = note.getBoundingClientRect();
+    const rootRem =
+      Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
+      16;
+    const over = rect.right - (document.documentElement.clientWidth - rootRem);
+    if (over > 0) {
+      note.style.translate = `${-Math.min(over, rect.left - rootRem) / rootRem}rem`;
+    }
+  }, [reason.shown]);
+
   useEffect(() => {
-    if (!reasonShown) return;
-    const timer = window.setTimeout(
-      () => setReasonShown(false),
-      READ_ONLY_REASON_MS,
-    );
+    if (!reason.shown || document.activeElement === markRef.current) return;
+    const timer = window.setTimeout(hideReason, READ_ONLY_REASON_MS);
     return () => window.clearTimeout(timer);
-  }, [reasonShown]);
+  }, [reason]);
 
   const startDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -650,7 +665,7 @@ export function EditBoundaryMarkView({
         className={`edit-boundary-mark${dragging ? " dragging" : ""}${boundary.has_cutaway ? " has-cutaway" : ""}`}
         title={
           !canEdit
-            ? permissionTip
+            ? undefined
             : presentation.kind === "gap-trim"
               ? tip
               : canOpenPrecision
@@ -681,12 +696,12 @@ export function EditBoundaryMarkView({
         }
         onPointerDown={startDrag}
         onFocus={() => {
-          if (!canEdit) setReasonShown(true);
+          if (!canEdit) showReason();
         }}
         onClick={(event) => {
           if (!canEdit) {
             event.stopPropagation();
-            setReasonShown(true);
+            showReason();
             return;
           }
           if (suppressClickRef.current && event.detail > 0) {
@@ -700,11 +715,11 @@ export function EditBoundaryMarkView({
           }
         }}
         onBlur={() => {
-          setReasonShown(false);
+          hideReason();
           cancel();
         }}
         onKeyDown={(event) => {
-          if (event.key === "Escape" && reasonShown) setReasonShown(false);
+          if (event.key === "Escape" && reasonShown) hideReason();
           if (event.key !== "Escape" || !activeRef.current) return;
           event.preventDefault();
           event.stopPropagation();
@@ -717,6 +732,7 @@ export function EditBoundaryMarkView({
       </button>
       {!canEdit ? (
         <span
+          ref={reasonRef}
           id={reasonId}
           className={reasonShown ? "edit-boundary-reason" : "sr-only"}
         >

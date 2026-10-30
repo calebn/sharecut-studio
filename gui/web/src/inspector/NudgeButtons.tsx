@@ -48,7 +48,7 @@ export function NudgeButtons({
     <>
       <div
         className="nudge-row-buttons"
-        onPointerDownCapture={onPointerDownCapture}
+        onPointerDownCapture={reason ? undefined : onPointerDownCapture}
         role="group"
         aria-label={groupLabel}
       >
