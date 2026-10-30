@@ -6,7 +6,6 @@ import { useTrackMetaMutation } from "../../hooks/useTrackMetaMutation";
 import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
 import {
   canApplyPass12,
-  canEditEnvelopes,
   canIngestMedia,
   canManageProjects,
   guestHearsMixOnly,
@@ -29,7 +28,6 @@ import {
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { GUESTS_HEAR_FULL_MIX } from "../../utils/auditionModes";
 import { formatEffectParams } from "../../utils/effectParams";
-import { sortedVolumePoints } from "../../utils/envelopes";
 import { playTimelineRange } from "../../utils/playRange";
 import { splitSpeakersBlocker } from "../../utils/speakerSplit";
 import { ModifierInspector } from "../ModifierInspector";
@@ -45,8 +43,6 @@ export function TrackInspector({
 }) {
   const {
     projectPath,
-    project,
-    setSelection,
     setLayerVisible,
     layers,
     guestMode,
@@ -55,8 +51,6 @@ export function TrackInspector({
     setIsPlaying,
   } = useDaw((s) => ({
     projectPath: s.projectPath,
-    project: s.project,
-    setSelection: s.setSelection,
     setLayerVisible: s.setLayerVisible,
     layers: s.layers,
     guestMode: s.guestMode,
@@ -155,18 +149,6 @@ export function TrackInspector({
           onClick={() => setLayerVisible("showLevels", !layers.showLevels)}
         >
           {layers.showLevels ? "Hide volume envelope" : "Show volume envelope"}
-        </Button>
-        <Button
-          data-envelope-entry={track.id}
-          onClick={() => {
-            setSelection({ kind: "envelope", trackId: track.id });
-          }}
-        >
-          {!canEditEnvelopes(projectPath, guestMode, shareCapabilities)
-            ? "View volume envelope"
-            : sortedVolumePoints(project?.envelopes, track.id).length
-              ? "Edit volume envelope"
-              : "Add volume envelope"}
         </Button>
       </div>
       {editable ? (

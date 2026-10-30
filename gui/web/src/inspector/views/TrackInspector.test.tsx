@@ -86,11 +86,6 @@ describe("TrackInspector", () => {
     );
     expect(useDawStore.getState().layers.showLevels).toBe(false);
     expect(useDawStore.getState().project).toBe(project);
-
-    await user.click(
-      screen.getByRole("button", { name: "Add volume envelope" }),
-    );
-    expect(useDawStore.getState().layers.showLevels).toBe(false);
   });
 
   it("applies SetTrackMeta locally before the command resolves and reverts on failure", async () => {
