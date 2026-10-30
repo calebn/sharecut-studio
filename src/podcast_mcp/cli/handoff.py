@@ -271,6 +271,8 @@ _SAY_DIRECT_CODES = frozenset({"protocol", "env_differs"})
 
 
 def _refused_message(host: StudioHost, refusal: HandoffRefused) -> str:
+    if refusal.code == "project_alias":
+        return f"Error: {refusal.detail}"
     return (
         f"Error: Studio (pid {host.pid}) is serving this project but would not run the command: "
         f"{refusal.detail} Close the project in Studio, or set {DIRECT_ENV_VAR}=1 to write "

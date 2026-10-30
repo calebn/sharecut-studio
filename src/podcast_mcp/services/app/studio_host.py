@@ -76,7 +76,13 @@ _ENV_PREFIX = "PODCAST_"
 _ENV_SKIPPED_FRAGMENTS = ("TOKEN", "SECRET", "KEY", "PASSWORD", "SIDECAR")
 DIRECT_RUN_REFUSAL_CODES = frozenset({"not_served", "not_eligible", "protocol", "env_differs"})
 _TERMINAL_RUN_REFUSALS = frozenset(
-    {(401, "bad_token"), (403, "relayed"), (403, "not_local"), (429, "too_many")}
+    {
+        (401, "bad_token"),
+        (403, "relayed"),
+        (403, "not_local"),
+        (409, "project_alias"),
+        (429, "too_many"),
+    }
 )
 
 
