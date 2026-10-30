@@ -20,6 +20,7 @@ vi.mock("../../api", async (importOriginal) => ({
   addCommentReply: (...args: unknown[]) => addCommentReply(...args),
 }));
 
+const PENDING_LABEL = "Trim the long pause";
 const NAME_KEY = "podcast-mcp-guest-comment-name";
 
 function join(mode: "view" | "comment", comments = [sampleComment()]) {
@@ -27,7 +28,7 @@ function join(mode: "view" | "comment", comments = [sampleComment()]) {
     "share:tok",
     minimalProject({
       comments,
-      pending_edits: [pendingEditView()],
+      pending_edits: [pendingEditView({ label: PENDING_LABEL })],
       timeline_duration_sec: 600,
     }),
     mode,
@@ -67,10 +68,24 @@ describe("Review queue for a guest", () => {
   it("keeps the host's pending edits out of a guest's queue", () => {
     join("comment");
     render(<ReviewHost guestShare />);
-    const groups = screen.getAllByRole("region", { name: /./ });
+    expect(screen.queryByText(PENDING_LABEL)).toBeNull();
     expect(
-      groups.filter((g) => g.className === "rv-group").map((g) => g.ariaLabel),
+      [...document.querySelectorAll(".rv-group")].map((g) =>
+        g.getAttribute("aria-label"),
+      ),
     ).toEqual(["Comments"]);
+  });
+
+  it("shows the same pending edit to the host, so the guest test can tell", () => {
+    useDawStore.getState().hydrate(
+      "/tmp/host/episode.sharecut",
+      minimalProject({
+        pending_edits: [pendingEditView({ label: PENDING_LABEL })],
+      }),
+    );
+    useDawStore.setState({ stage: "review", guestMode: null });
+    render(<ReviewHost />);
+    expect(screen.getAllByText(PENDING_LABEL).length).toBeGreaterThan(0);
   });
 
   it("gives a commenter the field and no Resolve or decision", () => {
