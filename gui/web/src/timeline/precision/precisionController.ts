@@ -1,7 +1,7 @@
+import { mayNudge } from "../../edit/mayNudge";
 import { NUDGE_KINDS, type NudgeField, nudgeAxis } from "../../edit/nudge";
 import { softBoundaries } from "../../edit/nudgeBoundaries";
 import { GHOST_CLICK_MS } from "../../hooks/gestureConstants";
-import { mayNudge } from "../../inspector/mayNudge";
 import { useDawStore } from "../../state/dawStore";
 import type { ProjectView } from "../../types/project";
 import type { HitPoint } from "../hitCandidates";

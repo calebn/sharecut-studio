@@ -6,11 +6,12 @@
  * it; the run saves once (`useNudgeRun`). Expanding the sheet shows the full
  * inspector with its fields.
  */
+
+import { mayNudge } from "../edit/mayNudge";
 import { NUDGE_KINDS, nudgeAxis, nudgeKey } from "../edit/nudge";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
 import { RippleMark } from "../ui/RippleMark";
-import { mayNudge } from "./mayNudge";
 import type { PeekNudgeRow, PeekTarget } from "./peekTarget";
 import { type NudgeBump, useNudgeRun } from "./useNudgeRun";
 
