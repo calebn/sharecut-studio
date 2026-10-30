@@ -2559,3 +2559,278 @@ for (const [label, rootSize] of [
     expect(room.end).toBeGreaterThanOrEqual(0);
   });
 }
+
+type Box = { x: number; y: number; width: number; height: number };
+
+const boxOf = async (
+  page: import("@playwright/test").Page,
+  selector: string,
+  index = 0,
+): Promise<Box> => {
+  const box = await page.locator(selector).nth(index).boundingBox();
+  if (!box) throw new Error(`${selector} did not render`);
+  return box;
+};
+
+test("System/Lane is 72, 104 and 240 px tall with a 3 px edge in the track colour and a tint behind its clips", async ({
+  page,
+}) => {
+  await open(page, "system-lane--three-tracks", 1280);
+  await expect(page.locator(".sys-lane")).toHaveCount(3);
+  const lanes = await page.locator(".sys-lane").evaluateAll((els) =>
+    els.map((el) => {
+      const style = getComputedStyle(el);
+      const edge = getComputedStyle(el, "::before");
+      return {
+        height: el.getBoundingClientRect().height,
+        edgeWidth: edge.borderInlineStartWidth,
+        edgeColor: edge.borderInlineStartColor,
+        edgeSide: el.getBoundingClientRect().left,
+        trackColor: style.getPropertyValue("--sys-lane-color"),
+        background: style.backgroundColor,
+      };
+    }),
+  );
+  expect(lanes.map((lane) => lane.height)).toEqual([72, 104, 240]);
+  for (const lane of lanes) {
+    expect(lane.edgeWidth).toBe("3px");
+    expect(lane.edgeColor).not.toBe("rgba(0, 0, 0, 0)");
+  }
+  // Three track colours give three tints and three edges.
+  expect(new Set(lanes.map((lane) => lane.background)).size).toBe(3);
+  expect(new Set(lanes.map((lane) => lane.edgeColor)).size).toBe(3);
+});
+
+test("System/Lane a clip stands at the x its time gives, and a lane muted in the mix sits on the muted track colour", async ({
+  page,
+}) => {
+  await open(page, "system-lane--muted", 1280);
+  const lane = await boxOf(page, ".sys-lane", 0);
+  // "Maya, intro" begins at 0.5 s and "Maya, take 2" at 8 s, at 24 px/s.
+  const intro = await page
+    .getByRole("button", { name: "Maya, intro" })
+    .boundingBox();
+  const take = await page
+    .getByRole("button", { name: "Maya, take 2" })
+    .boundingBox();
+  expect(Math.abs((intro?.x ?? 0) - (lane.x + 12))).toBeLessThanOrEqual(1);
+  expect(Math.abs((take?.x ?? 0) - (lane.x + 192))).toBeLessThanOrEqual(1);
+  const backgrounds = await page
+    .locator(".sys-lane")
+    .evaluateAll((els) =>
+      els.map((el) => getComputedStyle(el).backgroundColor),
+    );
+  const muted = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.backgroundColor = "var(--color-track-muted)";
+    document.body.append(probe);
+    const color = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return color;
+  });
+  expect(backgrounds).toEqual([muted, muted, muted]);
+});
+
+test("System/Lane a loading lane draws a 1 px line through its middle", async ({
+  page,
+}) => {
+  await open(page, "system-lane--peaks-loading", 1280);
+  const lane = await boxOf(page, ".sys-lane", 0);
+  const line = await boxOf(page, ".sys-lane-flat", 0);
+  expect(line.width).toBeGreaterThan(300);
+  expect(Math.abs(line.y - (lane.y + lane.height / 2))).toBeLessThanOrEqual(1);
+  const style = await page
+    .locator(".sys-lane-flat")
+    .first()
+    .evaluate((el) => {
+      const css = getComputedStyle(el);
+      return {
+        width: css.borderBlockStartWidth,
+        color: css.borderBlockStartColor,
+      };
+    });
+  expect(style.width).toBe("1px");
+  expect(style.color).not.toBe("rgba(0, 0, 0, 0)");
+});
+
+test("System/Lane and System/Presence keep their edge, line and outline as borders under forced colors", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(
+    storyUrl("system-presence--remote-selection", { theme: "light" }),
+  );
+  await expect(page.locator(".sys-presence-line").first()).toBeVisible();
+  const measured = await page.evaluate(() => {
+    const first = (selector: string) => {
+      const el = document.querySelector(selector);
+      if (!el) throw new Error(selector);
+      return el;
+    };
+    const lane = getComputedStyle(first(".sys-lane"), "::before");
+    const line = getComputedStyle(first(".sys-presence-line"));
+    const outline = getComputedStyle(first(".sys-presence-sel"));
+    return {
+      edge: [lane.borderInlineStartWidth, lane.borderInlineStartColor],
+      line: [line.borderInlineStartWidth, line.borderInlineStartColor],
+      outline: [outline.borderTopWidth, outline.borderTopStyle],
+      outlineColor: outline.borderTopColor,
+    };
+  });
+  expect(measured.edge[0]).toBe("3px");
+  expect(measured.edge[1]).not.toBe("rgba(0, 0, 0, 0)");
+  expect(measured.line[0]).toBe("1px");
+  expect(measured.line[1]).not.toBe("rgba(0, 0, 0, 0)");
+  expect(measured.outline).toEqual(["1px", "dashed"]);
+  expect(measured.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
+});
+
+for (const [id, label] of [
+  ["stages-edit-timeline--three-tracks", "a whole pixel"],
+  ["stages-edit-timeline--deep-zoom", "a fractional pixel"],
+] as const) {
+  test(`Stages/Edit/Timeline a remote playhead on the ruler's time is within 0.5 px of the ruler's own playhead at ${label}`, async ({
+    page,
+  }) => {
+    await open(page, id, 1280);
+    await expect(page.locator(".sys-ruler-playhead")).toBeVisible();
+    const ruler = await boxOf(page, ".sys-ruler-playhead");
+    const maya = page.locator('.sys-presence-person[data-person="maya"]');
+    const line = await maya.locator(".sys-presence-line").boundingBox();
+    if (!line) throw new Error("Maya's line did not render");
+    const rulerCentre = ruler.x + ruler.width / 2;
+    const lineCentre = line.x + line.width / 2;
+    expect(line.width).toBe(1);
+    expect(ruler.width).toBe(2);
+    expect(Math.abs(lineCentre - rulerCentre)).toBeLessThanOrEqual(0.5);
+  });
+}
+
+test("Stages/Edit/Timeline the header column is 168 px and every part starts at the time column's edge", async ({
+  page,
+}) => {
+  await open(page, "stages-edit-timeline--three-tracks", 1280);
+  const header = await boxOf(page, ".sys-track", 0);
+  const column = await boxOf(page, '[data-testid="time-column"]');
+  expect(header.width).toBe(168);
+  expect(Math.abs(column.x - (header.x + 168))).toBeLessThanOrEqual(0.5);
+  for (const selector of [".sys-ruler", ".sys-markers", ".sys-lane"]) {
+    const part = await boxOf(page, selector);
+    expect(part.x, selector).toBe(column.x);
+    expect(part.width, selector).toBe(column.width);
+  }
+  const overlay = await boxOf(page, ".sys-presence");
+  expect(overlay.x).toBe(column.x);
+  expect(overlay.width).toBe(column.width);
+});
+
+test("Stages/Edit/Timeline a clip and a remote selection stand at the x and in the lane the window gives", async ({
+  page,
+}) => {
+  await open(page, "stages-edit-timeline--three-tracks", 1280);
+  const column = await boxOf(page, '[data-testid="time-column"]');
+  // "Anneke, answer" begins at 6.5 s, at 24 px/s, in the second lane.
+  const clip = await page
+    .getByRole("button", { name: "Anneke, answer" })
+    .boundingBox();
+  expect(Math.abs((clip?.x ?? 0) - (column.x + 156))).toBeLessThanOrEqual(1);
+  const lanes = [
+    await boxOf(page, ".sys-lane", 0),
+    await boxOf(page, ".sys-lane", 1),
+    await boxOf(page, ".sys-lane", 2),
+  ];
+  expect(lanes.map((lane) => lane.height)).toEqual([72, 104, 72]);
+  const selection = await boxOf(page, ".sys-presence-sel");
+  expect(Math.abs(selection.y - lanes[1].y)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(selection.height - lanes[1].height)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(selection.x - (column.x + 156))).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(selection.width - 240)).toBeLessThanOrEqual(0.5);
+  // The first lane starts under the ruler (24) and the marker row (24).
+  const ruler = await boxOf(page, ".sys-ruler");
+  expect(Math.abs(lanes[0].y - (ruler.y + 48))).toBeLessThanOrEqual(0.5);
+});
+
+test("Stages/Edit/Timeline a remote playhead runs from the ruler to the last lane, its 16 px flag sits on the ruler beside it, and neither takes the pointer", async ({
+  page,
+}) => {
+  await open(page, "stages-edit-timeline--three-tracks", 1280);
+  const ruler = await boxOf(page, ".sys-ruler");
+  const lastLane = await boxOf(page, ".sys-lane", 2);
+  const maya = page.locator('.sys-presence-person[data-person="maya"]');
+  const line = await maya.locator(".sys-presence-line").boundingBox();
+  const flag = await maya.locator(".sys-presence-flag").boundingBox();
+  if (!line || !flag) throw new Error("Maya's mark did not render");
+  expect(Math.abs(line.y - ruler.y)).toBeLessThanOrEqual(0.5);
+  expect(
+    Math.abs(line.y + line.height - (lastLane.y + lastLane.height)),
+  ).toBeLessThanOrEqual(0.5);
+  expect([flag.width, flag.height]).toEqual([16, 16]);
+  expect(flag.y).toBeGreaterThanOrEqual(ruler.y + 4 - 0.5);
+  expect(flag.y + flag.height).toBeLessThanOrEqual(ruler.y + ruler.height);
+  expect(flag.x).toBeGreaterThanOrEqual(line.x + line.width);
+  // The overlay never takes the pointer: what is under a line is the lane.
+  const target = await page.evaluate(
+    ([x, y]) => {
+      const hit = document.elementFromPoint(x, y);
+      return {
+        insideOverlay: hit?.closest(".sys-presence") !== null,
+        tag: hit?.className ?? "",
+      };
+    },
+    [line.x + 0.5, lastLane.y + lastLane.height / 2] as const,
+  );
+  expect(target.insideOverlay, target.tag).toBe(false);
+});
+
+test("Stages/Edit/Timeline on a phone the playhead stays at the middle of the time column, and a flag near the right edge flips left of its line", async ({
+  page,
+}) => {
+  await open(page, "stages-edit-timeline--phone-fixed-playhead", 360);
+  const header = await boxOf(page, ".sys-track", 0);
+  const column = await boxOf(page, '[data-testid="time-column"]');
+  expect(header.width).toBe(56);
+  const playhead = await boxOf(page, ".sys-ruler-playhead");
+  expect(
+    Math.abs(playhead.x + playhead.width / 2 - (column.x + column.width / 2)),
+  ).toBeLessThanOrEqual(1);
+  const maya = page.locator('.sys-presence-person[data-person="maya"]');
+  const line = await maya.locator(".sys-presence-line").boundingBox();
+  // Maya is 1 s (24 px) right of the playhead.
+  expect(
+    Math.abs((line?.x ?? 0) + 0.5 - (playhead.x + 1 + 24)),
+  ).toBeLessThanOrEqual(0.5);
+  // Anneke is 5.5 s (132 px) right of the playhead, 4 px from the column's right edge: her flag is left of her line, inside the column.
+  const anneke = page.locator('.sys-presence-person[data-person="anneke"]');
+  await expect(anneke.locator(".sys-presence-flag")).toHaveClass(
+    /sys-presence-flag--left/,
+  );
+  const flag = await anneke.locator(".sys-presence-flag").boundingBox();
+  const hers = await anneke.locator(".sys-presence-line").boundingBox();
+  expect(flag?.x ?? 0).toBeGreaterThanOrEqual(column.x);
+  expect((flag?.x ?? 0) + (flag?.width ?? 0)).toBeLessThanOrEqual(hers?.x ?? 0);
+  await expect(maya.locator(".sys-presence-flag")).toHaveClass(
+    /sys-presence-flag--right/,
+  );
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(360);
+});
+
+test("System/Presence a remote selection that runs past the window has no edge there", async ({
+  page,
+}) => {
+  await open(page, "system-presence--remote-selection", 360);
+  await expect(page.locator(".sys-presence-sel").first()).toBeAttached();
+  const edges = await page.locator(".sys-presence-sel").evaluateAll((els) =>
+    els.map((el) => ({
+      start: el.hasAttribute("data-clip-start"),
+      end: el.hasAttribute("data-clip-end"),
+      right: getComputedStyle(el).borderInlineEndWidth,
+    })),
+  );
+  expect(edges.length).toBeGreaterThan(0);
+  for (const edge of edges) {
+    expect(edge.right).toBe(edge.end ? "0px" : "1px");
+  }
+});
