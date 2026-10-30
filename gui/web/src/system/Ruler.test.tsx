@@ -48,6 +48,17 @@ describe("Ruler drawing", () => {
     expect(body()).toHaveAttribute("tabindex", "0");
   });
 
+  it("leaves the needle to a host that hides it, while the value and the keys still follow the playhead", () => {
+    const { container, onSeek } = setup({
+      hidePlayhead: true,
+      playhead: 608.5,
+    });
+    expect(container.querySelector(".sys-ruler-playhead")).toBeNull();
+    expect(body()).toHaveAttribute("aria-valuenow", "608.5");
+    fireEvent.keyDown(body(), { key: "ArrowRight" });
+    expect(onSeek).toHaveBeenCalledWith(610.5);
+  });
+
   it("clamps the slider's text to the episode like its value", () => {
     setup({ duration: 0, playhead: 10 });
     expect(body()).toHaveAttribute("aria-valuenow", "0");

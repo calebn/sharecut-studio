@@ -76,7 +76,6 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
   "transcript/EditBoundaryMarkView.tsx",
-  "timeline/TimeRulerView.tsx",
   "timeline/MarkerLaneView.tsx",
   "timeline/EnvelopeOverlayView.tsx",
   // The ARIA tablist pattern: arrows, Home and End move among the tabs.

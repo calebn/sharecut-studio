@@ -70,19 +70,16 @@ test("snap ticks, mute regions and a live trim ghost share the ruler geometry", 
         await expect(async () => {
           const geometry = await lane.evaluate((element, ids) => {
             const ticks = [
-              ...document.querySelectorAll<HTMLElement>(
-                `[data-testid="${ids.rulerTick}"], [data-testid="${ids.rulerEndTick}"]`,
-              ),
-            ].map((tick) => {
-              const box = tick.getBoundingClientRect();
-              return {
-                label: tick.textContent ?? "",
-                x:
-                  tick.dataset.testid === ids.rulerEndTick
-                    ? box.right
-                    : box.left,
-              };
-            });
+              ...document.querySelectorAll<HTMLElement>(".sys-ruler-tick"),
+            ]
+              .filter((tick) => tick.textContent)
+              .map((tick) => {
+                const box = tick.getBoundingClientRect();
+                return {
+                  label: tick.textContent ?? "",
+                  x: tick.dataset.align === "end" ? box.right : box.left,
+                };
+              });
             const snap = [
               ...element.querySelectorAll<HTMLElement>(
                 `[data-testid="${ids.snapTick}"]`,

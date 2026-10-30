@@ -55,7 +55,7 @@ export async function chromeBoxes(page: Page): Promise<{
       return { top, bottom };
     };
     return {
-      ruler: box(".time-ruler"),
+      ruler: box(".timeline-ruler"),
       marker: box(".marker-lane"),
       panel: box(".stage-frame-player"),
     };

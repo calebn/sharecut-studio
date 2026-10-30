@@ -266,13 +266,13 @@ describe("keepTargetClear", () => {
 
   it("lets a target rise to the ruler once the marker rows stop pinning", () => {
     document.body.innerHTML = `
-      <div class="timeline-scroll"><div class="time-ruler"></div>
+      <div class="timeline-scroll"><div class="timeline-ruler"></div>
         <div class="marker-lane" style="position: relative"></div>
         <button data-clip-id="c2"></button></div>
       <div class="bottom-sheet-root"><div class="bottom-sheet bottom-sheet--inspector bottom-sheet--compact"></div></div>`;
     const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
     place(scroller, 52, 700);
-    place(document.querySelector(".time-ruler")!, 52, 76);
+    place(document.querySelector(".timeline-ruler")!, 52, 76);
     place(document.querySelector(".marker-lane")!, 76, 148);
     place(document.querySelector("[data-clip-id]")!, 110, 650);
     place(document.querySelector(".bottom-sheet-root")!, 0, 748);

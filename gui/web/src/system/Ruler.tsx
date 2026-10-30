@@ -48,6 +48,8 @@ export type RulerProps = {
   width: number;
   duration: number;
   playhead: number;
+  /** A host that draws the needle itself (a fixed line, or a moving one that must not re-render the ruler) hides this one. The value, the keys and the labels still follow `playhead`. */
+  hidePlayhead?: boolean;
   selection?: TimeRange;
   /** Drawn as alternating bands behind the ticks. */
   sessions?: readonly RulerSession[];
@@ -103,6 +105,7 @@ export const Ruler = memo(function Ruler({
   width,
   duration,
   playhead,
+  hidePlayhead = false,
   selection,
   sessions,
   readOnly = false,
@@ -401,7 +404,8 @@ export const Ruler = memo(function Ruler({
             }
           />
         ) : null}
-        {playheadX >= -PLAYHEAD_BLEED_PX &&
+        {!hidePlayhead &&
+        playheadX >= -PLAYHEAD_BLEED_PX &&
         playheadX <= width + PLAYHEAD_BLEED_PX ? (
           <span
             className="sys-ruler-playhead"

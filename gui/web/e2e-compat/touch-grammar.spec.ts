@@ -693,7 +693,7 @@ async function measureCreateMenu(
     scroller.scrollTop += before.bottom - visibleBottom;
     const box = row.getBoundingClientRect();
     const ruler = document
-      .querySelector(".time-ruler")
+      .querySelector(".timeline-ruler")
       ?.getBoundingClientRect();
     const top = Math.max(box.top, view.top, ruler?.bottom ?? view.top);
     const bottom = Math.min(box.bottom, visibleBottom);
@@ -770,7 +770,7 @@ test("tablet landscape at 200% text still lets Zoom hit the ruler", async ({
     )
     .toBe("32px");
   await page
-    .locator(".time-ruler")
+    .locator(".sys-ruler-body")
     .first()
     .click({ position: { x: 4, y: 4 }, timeout: 8_000 });
 });

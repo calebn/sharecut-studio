@@ -15,22 +15,39 @@ import { openHostShare } from "./shareNavigation";
 import { armRange } from "./stageNav";
 import { setTheme } from "./theme";
 
+/** The ruler's scale read from its labelled ticks, in client x: it draws a window, so time 0 is not at its left edge once the timeline scrolls. */
 async function rulerScale(ruler: Locator) {
-  const ticks = await ruler.locator(".ruler-tick").evaluateAll((elements) =>
-    elements.map((element) => {
-      const clock = element.textContent!.split(":").map(Number);
-      return {
-        seconds: clock.reduce((seconds, part) => seconds * 60 + part, 0),
-        left: Number.parseFloat((element as HTMLElement).style.left),
-      };
-    }),
-  );
-  const tick = ticks.find((tick) => tick.seconds > 0 && tick.left > 0);
+  const ticks = await ruler
+    .locator("..")
+    .locator(".sys-ruler-tick")
+    .evaluateAll((elements) =>
+      elements
+        .filter((element) => element.textContent)
+        .map((element) => {
+          const clock = element.textContent!.split(":").map(Number);
+          const box = element.getBoundingClientRect();
+          return {
+            seconds: clock.reduce((seconds, part) => seconds * 60 + part, 0),
+            x:
+              (element as HTMLElement).dataset.align === "end"
+                ? box.right
+                : box.left,
+          };
+        }),
+    );
   expect(
-    tick,
-    "Preparation requires a literal nonzero ruler tick",
-  ).toBeDefined();
-  return { ticks, pxPerSecond: tick!.left / tick!.seconds };
+    ticks.length,
+    "Preparation requires two labelled ruler ticks",
+  ).toBeGreaterThanOrEqual(2);
+  const first = ticks[0]!;
+  const last = ticks.at(-1)!;
+  const pxPerSecond = (last.x - first.x) / (last.seconds - first.seconds);
+  return {
+    ticks,
+    pxPerSecond,
+    xAt: (seconds: number) => first.x + (seconds - first.seconds) * pxPerSecond,
+    secondsAt: (x: number) => first.seconds + (x - first.x) / pxPerSecond,
+  };
 }
 
 test("ruler End then ArrowRight stays inside its declared session endpoint", {
@@ -116,7 +133,7 @@ async function timePoint(ruler: Locator, seconds: number) {
   const rect = await ruler.boundingBox();
   expect(rect).not.toBeNull();
   const point = {
-    x: rect!.x + seconds * scale.pxPerSecond,
+    x: scale.xAt(seconds),
     y: rect!.y + rect!.height / 2,
   };
   expect(
@@ -180,13 +197,13 @@ function rulerCommands(
         Promise.resolve().then(() => rangeDomain(projectPath)),
         page.evaluate(() => ({
           hint: document
-            .querySelector(".time-ruler")
+            .querySelector(".sys-ruler-body")
             ?.getAttribute("aria-valuetext"),
           range: document
             .querySelector(".range-overlay[data-range-start]")
             ?.getAttribute("data-range-start"),
           ruler: document
-            .querySelector(".time-ruler")
+            .querySelector(".sys-ruler-body")
             ?.getAttribute("aria-valuenow"),
           scroll: document.querySelector(".timeline-scroll")?.scrollLeft,
         })),
@@ -376,7 +393,7 @@ test("phone fixed playhead clock follows native horizontal scroll and exposed ru
         viewport!.x + viewport!.width - 20,
         rect!.x + rect!.width - 2,
       );
-      const expected = (x - rect!.x) / scale.pxPerSecond;
+      const expected = scale.secondsAt(x);
       await page.mouse.click(x, rect!.y + rect!.height / 2);
       await expect
         .poll(async () => Math.abs((await value()) - expected))

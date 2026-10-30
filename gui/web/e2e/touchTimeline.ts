@@ -202,7 +202,7 @@ export async function openTimeline(
 
 /** Fit, then `steps` zoom-ins; returns px per second. */
 export async function setZoom(page: Page, steps: number): Promise<number> {
-  const ruler = page.locator(".time-ruler").first();
+  const ruler = page.locator(".sys-ruler-body").first();
   // A timeline scrolled sideways slides the ruler's start under the pinned
   // track headers, so click just past them when they cover its corner.
   const covered = await ruler.evaluate((el) => {

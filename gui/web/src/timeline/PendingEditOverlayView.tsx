@@ -122,7 +122,7 @@ function rootRem(): number {
 function timelineChromeBottom(): number {
   return Math.max(
     0,
-    ...[".time-ruler", ".marker-lane"].flatMap((selector) => {
+    ...[".timeline-ruler", ".marker-lane"].flatMap((selector) => {
       const chrome = document.querySelector(selector);
       return chrome ? [chrome.getBoundingClientRect().bottom] : [];
     }),

@@ -75,10 +75,10 @@ through a direct transform update during playback.
 controls with fictional track data, including stale and empty lanes, reorder
 cues, and a 360px phone rail. The live adapters retain DAW state, drag
 allowlisting, and command dispatch; stories pass props and action callbacks.
-`Templates/TimeRuler` shows the same prop-driven ruler view used by the live
-timeline at desktop and 360px widths, including comment-anchor mode. Its live
-adapter supplies DAW position and visible chunks; the story supplies fixed
-values and a production `PlayheadNeedle` without mounting DAW state.
+`System/Ruler` is the ruler the live timeline mounts, at 360px, at a deep
+zoom and with a host-drawn needle. Its live host (`timeline/TimelineRuler`)
+supplies the DAW position, scroll and zoom; the story supplies fixed values
+without mounting DAW state.
 `Templates/AppliedEditOverlay` previews the production applied-edit ticks in
 the timeline lane with fictional visible, selected, dense, filtered and empty
 records, including 360px variants. The ticks are decorative and cannot select

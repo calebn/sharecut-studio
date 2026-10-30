@@ -5,7 +5,7 @@ import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { Playhead } from "./Playhead";
 import { PlayheadNeedle } from "./PlayheadNeedle";
-import { TimeRuler } from "./TimeRuler";
+import { TimelineRuler } from "./TimelineRuler";
 
 describe("Playhead", () => {
   beforeEach(() => {
@@ -85,15 +85,21 @@ describe("Playhead", () => {
   it("is the same needle in the ruler", () => {
     useDawStore.setState({ playheadSec: 3, zoomPxPerSec: 20 });
     const { container } = render(
-      <TimeRuler
-        durationSec={10}
-        sessionDurationSec={10}
+      <TimelineRuler
+        canvasWidthPx={200}
+        viewportPx={200}
+        sessionSec={10}
         zoomPxPerSec={20}
+        fixedPlayhead={false}
         onSeek={vi.fn()}
+        onFit={vi.fn()}
       />,
     );
-    const el = container.querySelector(".time-ruler .playhead") as HTMLElement;
+    const el = container.querySelector(
+      ".timeline-ruler .playhead",
+    ) as HTMLElement;
     expect(el.style.transform).toBe("translateX(60px)");
     expect(el.style.height).toBe("100%");
+    expect(container.querySelector(".sys-ruler-playhead")).toBeNull();
   });
 });

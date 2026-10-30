@@ -369,6 +369,7 @@ describe("stable callback source governance", () => {
       "system/useGrab.ts:slopOf",
       "system/useGrab.ts:stopWatching",
       "timeline/JoinEditor.tsx:place",
+      "timeline/TimelineView.tsx:fitFromRuler",
       "timeline/TimelineView.tsx:measure",
       "timeline/TimelineView.tsx:onClipBodyEnd",
       "timeline/TimelineView.tsx:onClipBodyStart",
@@ -379,6 +380,7 @@ describe("stable callback source governance", () => {
       "timeline/TimelineView.tsx:onSelectClip",
       "timeline/TimelineView.tsx:onSelectPending",
       "timeline/TimelineView.tsx:onSelectTrack",
+      "timeline/TimelineView.tsx:seekFromRuler",
       "ui/useAnchoredPanel.ts:place",
     ]);
     for (const mutation of mutations) {

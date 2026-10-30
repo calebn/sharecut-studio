@@ -1300,33 +1300,27 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   will-change: transform;
 }
 
-.time-ruler {
+/* The ruler row: the canvas wide and pinned under the top edge, so the lanes
+   scroll beneath it. Its window, one time viewport wide, sticks beside the
+   headers; the needle is a sibling at canvas x, clipped to the row. */
+.timeline-ruler {
   position: sticky;
   top: 0;
   z-index: var(--z-timeline-chrome);
   /* px from utils/layout.ts (RULER_HEIGHT), matching the header chrome. */
   height: var(--ruler-height);
-  /* Same recessed well as lanes — avoids a surface strip + dark fit-gutter edge. */
-  background: var(--color-timeline-well);
-  border-bottom: 1px solid var(--color-timeline-border);
-  cursor: pointer;
-  overflow: hidden;
+  overflow: clip;
 }
 
-.ruler-tick {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  border-left: 1px solid var(--color-timeline-border);
-  font-size: var(--font-size-micro);
-  color: var(--color-timeline-text);
-  padding-left: var(--space-1);
-  padding-right: var(--space-1);
-  white-space: nowrap;
-  box-sizing: border-box;
-  pointer-events: none;
-  font-family: var(--font-family-mono);
-  font-variant-numeric: tabular-nums;
+.timeline-ruler-window {
+  position: sticky;
+  inset-inline-start: var(--timeline-header-offset, 0);
+  inline-size: fit-content;
+}
+
+/* The row keeps the lanes' px height at any root size. */
+.timeline-ruler .sys-ruler {
+  block-size: var(--ruler-height);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1339,14 +1333,6 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   to {
     transform: translateX(100%);
   }
-}
-
-.ruler-tick--end {
-  transform: translateX(-100%);
-  padding-left: 0;
-  text-align: right;
-  border-left: none;
-  border-right: 1px solid var(--color-timeline-border);
 }
 
 /* Lane-corner status caption: waveform (bottom) and the Prosody layer (top). */
