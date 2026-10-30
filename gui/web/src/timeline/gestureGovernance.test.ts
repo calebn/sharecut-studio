@@ -77,11 +77,6 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
     reason: "create menu items: router-owned overlay",
   },
   {
-    file: "timeline/TimeRulerView.tsx",
-    marker: "data-testid={timelineTestIds.ruler}",
-    reason: "the ruler sits above the routed lanes: seek and comment anchors",
-  },
-  {
     file: "timeline/PendingEditOverlayView.tsx",
     marker: 'aria-label="Pending edit actions"',
     reason: "the portaled action card only stops presses reaching the lanes",
@@ -98,7 +93,6 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
 const ARROW_ALLOWLIST: Record<string, string> = {
   "timeline/EnvelopeOverlayView.tsx":
     "the focused DOM slider owns native arrow and Home/End value keys, previews locally, then saves one existing SetEnvelope on key release; no catalog command owns line level",
-  "timeline/TimeRulerView.tsx": "the ruler seeks; it is not a target",
   "timeline/MarkerLaneView.tsx": "swallows keys while a marker drag is live",
   "timeline/ClipBlock.tsx": "swallows keys while a clip body drag is live",
   "timeline/useClipEdgeHandles.ts":

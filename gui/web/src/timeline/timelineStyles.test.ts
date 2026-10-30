@@ -16,7 +16,9 @@ describe("timeline styles", () => {
 
   it("sizes the ruler and marker rows from the px vars TimelineView sets", () => {
     const css = partial("timeline.css");
-    expect(rule(css, ".time-ruler")).toMatch(/height:\s*var\(--ruler-height\)/);
+    expect(rule(css, ".timeline-ruler")).toMatch(
+      /height:\s*var\(--ruler-height\)/,
+    );
     const row = rule(css, ".marker-row");
     expect(row).toMatch(/flex:\s*0 0 var\(--marker-row-height\)/);
     expect(row).toMatch(/height:\s*var\(--marker-row-height\)/);
@@ -36,7 +38,7 @@ describe("timeline styles", () => {
       join(here, "../styles/theme/tokens.css"),
       "utf8",
     );
-    const ruler = rule(css, ".time-ruler");
+    const ruler = rule(css, ".timeline-ruler");
     expect(ruler).toMatch(/position:\s*sticky/);
     expect(ruler).toMatch(/top:\s*0/);
     expect(ruler).toMatch(/z-index:\s*var\(--z-timeline-chrome\)/);

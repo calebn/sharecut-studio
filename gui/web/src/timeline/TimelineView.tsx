@@ -97,7 +97,7 @@ import { precisionHandoff } from "./precision/precisionController";
 import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
 import { TargetChooser } from "./TargetChooser";
 import { FollowPlayheadChip, SplitGuide } from "./TimelineLeaves";
-import { TimeRuler } from "./TimeRuler";
+import { TimelineRuler } from "./TimelineRuler";
 import { TrackLane } from "./TrackLane";
 import {
   type LaneFit,
@@ -687,6 +687,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   );
 
   const sessionSec = project?.timeline_duration_sec ?? 0;
+  const seekFromRuler = useStableCallback((sec: number) => {
+    void seekTransport(sec);
+    setSelection(null);
+  });
+  // fitToWindow sets the scroll; the sync effect writes it.
+  const fitFromRuler = useStableCallback(() => runPointerCommand("view.fit"));
 
   // Lane callbacks: one stable function each, taking the track id first, so
   // memoized lanes and clips see equal props. Hot fields (playhead, scroll)
@@ -921,19 +927,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                     zoomPxPerSec={zoomPxPerSec}
                     trailingPadPx={endLeadPx}
                   />
-                  <TimeRuler
-                    durationSec={canvasSec}
-                    sessionDurationSec={sessionSec}
+                  <TimelineRuler
+                    canvasWidthPx={width}
+                    viewportPx={timeViewportPx}
+                    sessionSec={sessionSec}
                     zoomPxPerSec={zoomPxPerSec}
-                    hidePlayhead={fixedPlayhead}
-                    onSeek={(sec) => {
-                      void seekTransport(sec);
-                      setSelection(null);
-                    }}
-                    onFit={() => {
-                      // fitToWindow sets the scroll; the sync effect writes it.
-                      runPointerCommand("view.fit");
-                    }}
+                    fixedPlayhead={fixedPlayhead}
+                    onSeek={seekFromRuler}
+                    onFit={fitFromRuler}
                   />
                   <div
                     ref={hitRootRef}

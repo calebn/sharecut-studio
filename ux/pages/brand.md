@@ -31,7 +31,7 @@ Paint and markup share one stack. ShareCut Studio uses the five-rung ladder from
 | Canvas | Place — the floor | `.cover`, `body` | `--color-bg-canvas` |
 | Surface | Chrome panes / durable cards | `.box`, tabs, track headers | `--color-bg-surface` (Studio: `--color-bg-base`) |
 | Elevated | Temporary object (form, coach, compose), inspector | `.box.elevated`, inspector | `--color-bg-elevated` (Studio: `--color-bg-raised`, `--color-bg-overlay`) |
-| Stage | Recessed work well (ruler → lanes / empty drop) | `.time-ruler`, `.marker-lane`, `.lane-row`, `.timeline-scroll` | `--color-timeline-*` |
+| Stage | Recessed work well (ruler → lanes / empty drop) | `.timeline-ruler`, `.marker-lane`, `.lane-row`, `.timeline-scroll` | `--color-timeline-*` |
 | Accent | Act — do this | `.primary`, links, focus | `--color-accent*` |
 | Function | State | `role="alert"`, `.badge`, danger / warning | `--color-danger` / `--color-warning` |
 

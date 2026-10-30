@@ -5,7 +5,7 @@
   box-shadow: var(--shadow-playhead-playing);
 }
 
-.time-ruler .playhead::before {
+.timeline-ruler .playhead::before {
   content: "";
   position: absolute;
   inset-block: 0;
@@ -16,7 +16,7 @@
   opacity: 0;
 }
 
-.timeline-area[data-playing="true"] .time-ruler .playhead::before {
+.timeline-area[data-playing="true"] .timeline-ruler .playhead::before {
   opacity: 1;
 }
 
@@ -73,7 +73,7 @@
       background-color var(--motion-hover) var(--motion-ease-out);
   }
 
-  .time-ruler .playhead::before {
+  .timeline-ruler .playhead::before {
     transition: opacity var(--motion-state) var(--motion-ease-out);
   }
 }

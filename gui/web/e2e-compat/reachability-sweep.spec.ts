@@ -112,7 +112,7 @@ const DENSE = [
   ".fade-corner",
   ".trim-handle",
   ".clip-hit",
-  ".time-ruler",
+  ".sys-ruler-body",
   ".track-headers-well",
   ".track-header-open",
   ".track-reorder-handle",

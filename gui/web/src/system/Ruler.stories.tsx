@@ -42,7 +42,7 @@ const meta: Meta<typeof Ruler> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The time ruler (design-system element 17a), 24 px tall. It takes plain data: the window's `start` and `pxPerSecond`, its `width`, the `playhead`, and optionally the selection and the recording sessions. Labels are Plex Mono 11 px at the smallest nice interval that keeps them 64 px apart, so zooming picks a coarser or finer step by itself. The playhead is a 2 px accent line with a 10 px triangle. A selection is a 4 px accent band along the bottom with a 12 px knob at each end.\n\nA click seeks (`onSeek`). A drag scrubs: `onScrubStart` (return `false` to refuse), `onScrub` with the pointer's time and `onScrubEnd`, which reports `committed: false` for Escape, a window blur, `pointercancel`, a lost capture or the ruler leaving the page, so the host puts the playhead back. A double-click fits (`onFit`). The knobs resize the selection with `onSelectionDragStart`, `onSelectionDrag` and `onSelectionDragEnd`. A guest gets no knobs.\n\nOne finger swipes along the ruler to scrub it: the body sets `touch-action: pan-y`, so a horizontal move reaches the page as pointer events after 10 px and a vertical one is left to the browser. A tap seeks, and a tap on a knob's 44 px area seeks too. Pinch and pan belong to the lanes host, and a second finger is ignored.\n\nThe ruler is one tab stop and a slider named for the playhead: Left and Right move it one tick (Shift ten) with `onSeek`, Home and End go to the ends. Alt with Left or Right walks focus to the selection knobs, which are sliders that Left and Right nudge by 10 ms (Shift 100 ms) with `onSelectionNudge` and `onSelectionNudgeEnd`.\n\n**Motion.** None. The playhead and the band move with no easing.",
+          "The time ruler (design-system element 17a), 24 px tall. It takes plain data: the window's `start` and `pxPerSecond`, its `width`, the `playhead`, and optionally the selection and the recording sessions. Labels are Plex Mono 11 px at the smallest nice interval that keeps them 64 px apart, so zooming picks a coarser or finer step by itself. The playhead is a 2 px accent line with a 10 px triangle; a host that draws the needle itself, such as the phone's fixed line or a moving one that must not re-render the ruler, sets `hidePlayhead`, and the slider value and keys still follow `playhead`. A selection is a 4 px accent band along the bottom with a 12 px knob at each end.\n\nA click seeks (`onSeek`). A drag scrubs: `onScrubStart` (return `false` to refuse), `onScrub` with the pointer's time and `onScrubEnd`, which reports `committed: false` for Escape, a window blur, `pointercancel`, a lost capture or the ruler leaving the page, so the host puts the playhead back. A double-click fits (`onFit`). The knobs resize the selection with `onSelectionDragStart`, `onSelectionDrag` and `onSelectionDragEnd`. A guest gets no knobs.\n\nOne finger swipes along the ruler to scrub it: the body sets `touch-action: pan-y`, so a horizontal move reaches the page as pointer events after 10 px and a vertical one is left to the browser. A tap seeks, and a tap on a knob's 44 px area seeks too. Pinch and pan belong to the lanes host, and a second finger is ignored.\n\nThe ruler is one tab stop and a slider named for the playhead: Left and Right move it one tick (Shift ten) with `onSeek`, Home and End go to the ends. Alt with Left or Right walks focus to the selection knobs, which are sliders that Left and Right nudge by 10 ms (Shift 100 ms) with `onSelectionNudge` and `onSelectionNudgeEnd`.\n\n**Motion.** None. The playhead and the band move with no easing.",
       },
     },
   },
@@ -449,5 +449,46 @@ export const Phone: Story = {
     await expect(
       canvas.getByRole("slider", { name: "Selection end" }),
     ).toBeVisible();
+  },
+};
+
+export const DeepZoom: Story = {
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view={{ start: 1799.9, pxPerSecond: 48_000 }}
+      playhead={1799.95}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const labels = [...canvasElement.querySelectorAll(".sys-ruler-tick")]
+      .map((tick) => tick.textContent ?? "")
+      .filter(Boolean);
+    await expect(labels.length).toBeGreaterThan(0);
+    await expect(labels.length).toBeLessThanOrEqual(8);
+    for (const label of labels)
+      await expect(label).toMatch(/^\d+:\d{2}\.\d{3}$/);
+    await expect(body(canvas)).toHaveAttribute("aria-valuetext", "29:59.950");
+  },
+};
+
+export const HostDrawnNeedle: Story = {
+  args: { hidePlayhead: true },
+  render: (args) => (
+    <LiveRuler
+      args={args}
+      view={{ start: 600, pxPerSecond: 24 }}
+      playhead={607.5}
+      touch
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvasElement.querySelector(".sys-ruler-playhead")).toBeNull();
+    await expect(body(canvas)).toHaveAttribute("aria-valuenow", "607.5");
+    body(canvas).focus();
+    await userEvent.keyboard("{ArrowRight}");
+    await expect(body(canvas)).not.toHaveAttribute("aria-valuenow", "607.5");
   },
 };

@@ -114,7 +114,7 @@ async function openAtFit(
   if (viewport === "phone") await openPhoneTimeline(page);
   await setTheme(page, theme);
   await page
-    .locator(".time-ruler")
+    .locator(".sys-ruler-body")
     .first()
     .click({ position: { x: 4, y: 4 } });
   await page.keyboard.press("\\");
@@ -139,7 +139,7 @@ async function centers(page: Page): Promise<number[]> {
 
 async function playheadSec(page: Page): Promise<number> {
   const now = await page
-    .locator(".time-ruler")
+    .locator(".sys-ruler-body")
     .first()
     .getAttribute("aria-valuenow");
   return Number(now);
@@ -475,7 +475,7 @@ for (const theme of ["light", "dark"] as const) {
     await oneCrossfade(page);
     await openAtFit(page, "desktop", theme);
     await page
-      .locator(".time-ruler")
+      .locator(".sys-ruler-body")
       .first()
       .click({ position: { x: 4, y: 4 } });
     const seen: Rung[] = [];
@@ -556,7 +556,7 @@ test("a crossfade label hides and returns as the root font size changes", async 
   }
   await openAtFit(page, "desktop", "dark");
   await page
-    .locator(".time-ruler")
+    .locator(".sys-ruler-body")
     .first()
     .click({ position: { x: 4, y: 4 } });
   const crossfade = page.locator(`${lane} .edit-mark--crossfade`);
@@ -617,7 +617,7 @@ test("a crossfade label refits when the real font set reports a load", async ({
   }
   await openAtFit(page, "desktop", "dark");
   await page
-    .locator(".time-ruler")
+    .locator(".sys-ruler-body")
     .first()
     .click({ position: { x: 4, y: 4 } });
   const crossfade = page.locator(`${lane} .edit-mark--crossfade`);

@@ -1,8 +1,6 @@
 /** Stable DOM hooks shared by timeline views and browser geometry checks. */
 export const timelineTestIds = {
   ruler: "timeline-ruler",
-  rulerTick: "timeline-ruler-tick",
-  rulerEndTick: "timeline-ruler-end-tick",
   lane: "timeline-lane",
   envelope: "timeline-envelope",
   clip: "timeline-clip",
