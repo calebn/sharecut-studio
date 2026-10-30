@@ -522,20 +522,24 @@ def stem_duration_matches_timeline(
 
 
 def stem_is_fresh(project: EpisodeProject, track_id: str, *, defaults: EffectiveConfig) -> bool:
-    """Hash matches current edit state and stem is not longer than timeline.
-
-    A pure conjunction, ordered by cost: the stem exists, its length fits the timeline
-    (a timeline extent and a cached probe), and only then the render hash, which walks
-    every clip, edit and word of the track. A stem that fails an earlier test is stale
-    whatever the hash says, so the hash is not computed for it (#2359).
-    """
+    """Hash matches current edit state and stem is not longer than timeline (#2359)."""
     stem = stem_path(project, track_id)
     if not stem.is_file():
         return False
-    if not stem_duration_matches_timeline(project, track_id):
-        return False
+    unresolvable: ValueError | None = None
+    try:
+        if not stem_duration_matches_timeline(project, track_id):
+            return False
+    except ValueError as exc:
+        # A source or media path outside the workspace. The hash tolerates it, and the
+        # hash-first order answered False for a stale stem before reaching this check.
+        unresolvable = exc
     stored = read_stem_hash(project, track_id)
-    return stored == track_render_hash(project, track_id, defaults=defaults)
+    if stored != track_render_hash(project, track_id, defaults=defaults):
+        return False
+    if unresolvable is not None:
+        raise unresolvable
+    return True
 
 
 def stem_hash_matches(project: EpisodeProject, track_id: str, render_hash: str) -> bool:

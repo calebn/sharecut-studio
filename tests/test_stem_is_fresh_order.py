@@ -2,13 +2,15 @@
 
 It is a pure conjunction (the stem exists, its sidecar names the track's render hash,
 the stem is not longer than the timeline), so reordering it may change what is computed
-and never what is answered.
+and never what is answered, nor whether it raises: a path outside the workspace makes the
+duration check raise ValueError, which the old order reached only after a hash match.
 """
 
 from __future__ import annotations
 
 import itertools
 import wave
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -24,13 +26,13 @@ from podcast_mcp.engines.play_audit import (
     track_render_hash,
     write_stem_hash,
 )
-from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
+from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, SourceRecording, Track, TrackRole
 
 DEFAULTS = load_defaults()
 RATE = 8000
 
 
-def _wav(path: Path, seconds: float) -> None:
+def _write_wav(path: Path, seconds: float) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as handle:
         handle.setnchannels(1)
@@ -41,7 +43,7 @@ def _wav(path: Path, seconds: float) -> None:
 
 def _project(tmp_path: Path, *, clips: bool) -> EpisodeProject:
     project = EpisodeProject.create("fresh", str(tmp_path))
-    _wav(tmp_path / "raw" / "host.wav", 4.0)
+    _write_wav(tmp_path / "raw" / "host.wav", 4.0)
     project.tracks = [
         Track(
             id="host",
@@ -59,7 +61,7 @@ def _project(tmp_path: Path, *, clips: bool) -> EpisodeProject:
 
 
 def _old(project: EpisodeProject, track_id: str) -> bool:
-    """The definition before the reorder."""
+    """The hash-first definition: exists, sidecar names the hash, then the duration check."""
     if not stem_path(project, track_id).is_file():
         return False
     stored = read_stem_hash(project, track_id)
@@ -74,7 +76,7 @@ SIDECAR = ("missing", "equal", "different")
 
 def _arrange(project: EpisodeProject, stem: str, sidecar: str) -> None:
     if stem != "missing":
-        _wav(stem_path(project, "host"), 1.0 if stem == "short" else 5.0)
+        _write_wav(stem_path(project, "host"), 1.0 if stem == "short" else 5.0)
     if sidecar == "equal":
         write_stem_hash(project, "host", defaults=DEFAULTS)
     elif sidecar == "different":
@@ -108,8 +110,7 @@ def test_the_answer_is_the_old_definitions_and_the_hash_is_only_computed_when_ne
     exists = stem != "missing"
     # a track with no clips has no timeline extent, so no stem is too long for it
     duration_ok = stem == "short" or not clips
-    assert (calls == ["hash"]) is (exists and duration_ok)
-    assert calls in ([], ["hash"])
+    assert calls == (["hash"] if exists and duration_ok else [])
 
 
 def test_a_fresh_stem_is_fresh_and_one_edit_later_it_is_not(tmp_path: Path) -> None:
@@ -136,3 +137,57 @@ def test_a_stem_longer_than_the_timeline_is_stale_without_hashing_it(
     assert stem_is_fresh(too_long, "host", defaults=DEFAULTS) is False
     with pytest.raises(RuntimeError, match="hashed"):
         stem_is_fresh(fits, "host", defaults=DEFAULTS)
+
+
+def _unresolvable(project: EpisodeProject) -> None:
+    """A clip whose source recording lies outside the workspace (the timeline cannot resolve it)."""
+    project.sources = [SourceRecording(id="s1", path="/etc/passwd.wav")]
+    project.clips[0].source_id = "s1"
+
+
+def _outcome(fn: Callable[[], bool]) -> bool | str:
+    try:
+        return fn()
+    except ValueError:
+        return "ValueError"
+
+
+@pytest.mark.parametrize("stem", ["short", "long"])
+def test_an_unresolvable_path_with_a_different_sidecar_is_stale_not_an_error(
+    tmp_path: Path, stem: str
+) -> None:
+    project = _project(tmp_path, clips=True)
+    _unresolvable(project)
+    _arrange(project, stem, "different")
+    with pytest.raises(ValueError):
+        stem_duration_matches_timeline(project, "host")
+    assert _old(project, "host") is False
+    assert stem_is_fresh(project, "host", defaults=DEFAULTS) is False
+
+
+def test_an_unresolvable_path_with_a_matching_sidecar_still_raises_like_the_old_order(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path, clips=True)
+    _arrange(project, "short", "equal")  # hashed while the path is still resolvable
+    _unresolvable(project)
+    write_stem_hash(project, "host", defaults=DEFAULTS)
+    with pytest.raises(ValueError):
+        _old(project, "host")
+    with pytest.raises(ValueError):
+        stem_is_fresh(project, "host", defaults=DEFAULTS)
+
+
+@pytest.mark.parametrize("bad", [False, True], ids=["resolvable", "unresolvable"])
+@pytest.mark.parametrize("clips", [True, False], ids=["clips", "no-clips"])
+@pytest.mark.parametrize(("stem", "sidecar"), list(itertools.product(STEM, SIDECAR)))
+def test_the_grid_with_an_unresolvable_path_answers_or_raises_as_the_old_definition(
+    tmp_path: Path, stem: str, sidecar: str, clips: bool, bad: bool
+) -> None:
+    project = _project(tmp_path, clips=clips)
+    if bad and clips:
+        _unresolvable(project)
+    _arrange(project, stem, sidecar)
+    assert _outcome(lambda: stem_is_fresh(project, "host", defaults=DEFAULTS)) == _outcome(
+        lambda: _old(project, "host")
+    )

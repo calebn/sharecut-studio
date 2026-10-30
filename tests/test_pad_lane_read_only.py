@@ -138,6 +138,16 @@ def _at_time(rng: random.Random, project: EpisodeProject, removal: RippleRemoval
     return rng.choice(((clip.timeline_start + clip.timeline_end) / 2, clip.timeline_end))
 
 
+def _scenario(
+    tmp_path: Path, seed: int, base: int
+) -> tuple[EpisodeProject, RippleRemoval | None, float]:
+    """A random project, an optional removal and the time a pad is bound at."""
+    rng = random.Random(base + seed)
+    project = _project(tmp_path, seed)
+    removal = _removal(rng, project)
+    return project, removal, _at_time(rng, project, removal)
+
+
 def _old_lane_clips(project: EpisodeProject, tid: str) -> list[Clip]:
     return [c.model_copy(deep=True) for c in clips_for_track(project, tid)]
 
@@ -152,10 +162,7 @@ def _dump(clips: object) -> object:
 def test_the_lane_is_what_the_deep_copying_version_returned(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seed: int
 ) -> None:
-    rng = random.Random(1000 + seed)
-    project = _project(tmp_path, seed)
-    removal = _removal(rng, project)
-    at_time = _at_time(rng, project, removal)
+    project, removal, at_time = _scenario(tmp_path, seed, 1000)
     new = {t: _project_pad_lane(project, t, at_time, removal, defaults=DEFAULTS) for t in TRACKS}
     monkeypatch.setattr(timeline_ops, "clips_for_track", _old_lane_clips)
     old = {t: _project_pad_lane(project, t, at_time, removal, defaults=DEFAULTS) for t in TRACKS}
@@ -165,10 +172,7 @@ def test_the_lane_is_what_the_deep_copying_version_returned(
 
 @pytest.mark.parametrize("seed", range(40))
 def test_the_lane_leaves_every_project_clip_as_it_was(tmp_path: Path, seed: int) -> None:
-    rng = random.Random(2000 + seed)
-    project = _project(tmp_path, seed)
-    removal = _removal(rng, project)
-    at_time = _at_time(rng, project, removal)
+    project, removal, at_time = _scenario(tmp_path, seed, 2000)
     before = _clip_json(project)
     ids = [id(c) for c in project.clips]
     for tid in TRACKS:
@@ -181,13 +185,10 @@ def test_the_lane_leaves_every_project_clip_as_it_was(tmp_path: Path, seed: int)
 def test_the_callers_leave_the_project_as_it_was_and_answer_as_before(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seed: int
 ) -> None:
-    rng = random.Random(3000 + seed)
-    project = _project(tmp_path, seed)
-    removal = _removal(rng, project)
-    at_time = _at_time(rng, project, removal)
+    project, removal, at_time = _scenario(tmp_path, seed, 3000)
     before = _clip_json(project)
 
-    def stub(project, tid, *, near_sec, near_source_id, timeline_sec, duration_sec, avoid):  # type: ignore[no-untyped-def]
+    def stub(_project_arg, _tid, *, near_sec, near_source_id, timeline_sec, duration_sec, avoid):  # type: ignore[no-untyped-def]
         """The seam a lane binds, as a sample: its source edge, source id and the pad's size."""
         return OwnQuietSample(
             Sample(
