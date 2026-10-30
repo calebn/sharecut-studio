@@ -19,7 +19,6 @@ import {
   rangeIsCurrent,
   resolveSelectionRange,
 } from "../edit/rangeSelection";
-import type { PendingRecordTarget } from "../state/stageSlice";
 import {
   canEditEnvelopes,
   canManageProjects,
@@ -30,6 +29,7 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { inspectorOpenFor, selectedClipIdsOf } from "../state/selection";
+import type { PendingRecordTarget } from "../state/stageSlice";
 import { transportAvailability } from "../state/transportAvailability";
 import type { BarItem } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
@@ -339,7 +339,9 @@ async function comment(facts: EditFacts): Promise<ExecuteResult> {
 }
 
 /** Open Record, then park the target for its room; a refusal parks nothing. */
-async function openRecordWith(target: PendingRecordTarget): Promise<ExecuteResult> {
+async function openRecordWith(
+  target: PendingRecordTarget,
+): Promise<ExecuteResult> {
   const opened = await executePointerCommand("stage.record");
   if (opened.status !== "ok") return opened;
   useDawStore.getState().setPendingRecordTarget(target);
