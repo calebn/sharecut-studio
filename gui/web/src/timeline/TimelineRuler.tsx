@@ -41,13 +41,18 @@ function selectRulerValueSec(s: {
 
 /**
  * The window the ruler draws, in canvas px: where it starts and how wide it is.
- * It is a chunk of the canvas, a viewport and a half-viewport of overscan each
- * side, that moves in half-viewport steps. The row scrolls with the lanes, so a
+ * The scroll is cut into chunks one viewport wide. The window for a chunk runs
+ * from one viewport before the chunk's start to two viewports after its end,
+ * so wherever the scroll sits inside the chunk, at least a full viewport of
+ * ruler lies beyond each edge of the visible row. A single scroll update of up
+ * to a viewport either way (a fast touch fling that outruns the next render)
+ * therefore still lands on drawn ticks. The row scrolls with the lanes, so a
  * tick sits at its canvas x whatever the scroll, and the ruler re-renders only
  * when the scroll crosses into the next chunk, not on every scroll frame.
  */
 function useRulerWindow(canvasWidthPx: number, viewportPx: number) {
-  const chunkPx = Math.max(MIN_CHUNK_PX, Math.round(viewportPx / 2));
+  const view = Math.max(0, viewportPx);
+  const chunkPx = Math.max(MIN_CHUNK_PX, Math.round(view));
   const lastScroll = Math.max(0, canvasWidthPx - viewportPx);
   const chunk = useDawStore(
     useCallback(
@@ -56,14 +61,9 @@ function useRulerWindow(canvasWidthPx: number, viewportPx: number) {
       [chunkPx, lastScroll],
     ),
   );
-  const left = Math.min(
-    Math.max(0, chunk * chunkPx - chunkPx),
-    Math.max(0, canvasWidthPx),
-  );
-  const right = Math.min(
-    Math.max(0, canvasWidthPx),
-    Math.max(viewportPx, 0) + chunk * chunkPx + chunkPx,
-  );
+  const canvas = Math.max(0, canvasWidthPx);
+  const left = Math.min(Math.max(0, chunk * chunkPx - view), canvas);
+  const right = Math.min(canvas, chunk * chunkPx + chunkPx + 2 * view);
   return { left, width: Math.max(0, right - left) };
 }
 
