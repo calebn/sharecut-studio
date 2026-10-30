@@ -106,7 +106,7 @@ function EditWorkspaceAdapter({
     false,
     setTimelineFocused,
   );
-  const scriptScroll = useStageScroll("edit", "script", ".transcript-list");
+  const scriptScroll = useStageScroll("edit", "script", ".sys-script-body");
 
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const loading = project == null;
@@ -184,7 +184,10 @@ function EditWorkspaceAdapter({
     </section>
   ) : (
     <div ref={scriptScroll} className="edit-script-body">
-      <ScriptHost layout={phone ? "phone" : "desktop"} />
+      <ScriptHost
+        key={projectPath ?? ""}
+        layout={phone ? "phone" : "desktop"}
+      />
     </div>
   );
 
