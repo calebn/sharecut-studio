@@ -1,8 +1,10 @@
 import type { ReactNode, Ref } from "react";
+import type { RecordSessionSummary } from "../../record";
 import type { ShellBreakpoint } from "../../state/types";
 import { RoomView, type RoomViewProps } from "../../system/RoomView";
 import { Button } from "../../ui";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
+import { EndedSessionCard } from "./EndedSessionCard";
 import { HostBody } from "./HostBody";
 import type { HostState } from "./hostModels";
 
@@ -22,6 +24,8 @@ export type RecordStageViewProps = {
   hydrateError: string | null;
   transportError: string | null;
   room: RoomViewProps | null;
+  lastSession?: RecordSessionSummary | null;
+  trackNames?: ReadonlyMap<string, string>;
   notices: readonly RecordNotice[];
   storage?: ReactNode;
   more?: ReactNode;
@@ -30,8 +34,12 @@ export type RecordStageViewProps = {
   onCheckAgain: () => void;
 };
 
+const NO_TRACK_NAMES: ReadonlyMap<string, string> = new Map();
+
 function EmptyRoom({
   lookup,
+  lastSession,
+  trackNames,
   busy,
   hydrateError,
   transportError,
@@ -40,6 +48,8 @@ function EmptyRoom({
 }: Pick<
   RecordStageViewProps,
   | "lookup"
+  | "lastSession"
+  | "trackNames"
   | "busy"
   | "hydrateError"
   | "transportError"
@@ -53,27 +63,35 @@ function EmptyRoom({
   ) : null;
   if (lookup === "none") {
     return (
-      <section
-        className="stage-host-section stage-host-record-empty"
-        aria-labelledby="record-room"
-      >
-        <h2 id="record-room" className="stage-host-title">
-          No record room yet
-        </h2>
-        <p className="stage-host-note">
-          Creating one copies a guest link you can send.
-        </p>
-        {failure}
-        <div className="stage-host-actions">
-          <Button
-            variant="primary"
-            aria-disabled={busy || undefined}
-            onClick={onCreateRoom}
-          >
-            Create record room
-          </Button>
-        </div>
-      </section>
+      <>
+        {lastSession ? (
+          <EndedSessionCard
+            session={lastSession}
+            trackNames={trackNames ?? NO_TRACK_NAMES}
+          />
+        ) : null}
+        <section
+          className="stage-host-section stage-host-record-empty"
+          aria-labelledby="record-room"
+        >
+          <h2 id="record-room" className="stage-host-title">
+            No record room yet
+          </h2>
+          <p className="stage-host-note">
+            Creating one copies a guest link you can send.
+          </p>
+          {failure}
+          <div className="stage-host-actions">
+            <Button
+              variant="primary"
+              aria-disabled={busy || undefined}
+              onClick={onCreateRoom}
+            >
+              Create record room
+            </Button>
+          </div>
+        </section>
+      </>
     );
   }
   if (lookup === "failed") {
@@ -118,6 +136,8 @@ export function RecordStageView({
   hydrateError,
   transportError,
   room,
+  lastSession,
+  trackNames,
   notices,
   storage,
   more,
@@ -152,6 +172,8 @@ export function RecordStageView({
       ) : (
         <EmptyRoom
           lookup={lookup}
+          lastSession={lastSession}
+          trackNames={trackNames}
           busy={busy}
           hydrateError={hydrateError}
           transportError={transportError}
