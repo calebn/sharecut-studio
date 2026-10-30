@@ -301,7 +301,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-WORD-CUT | Cut or mute selected words/range | Range actions on a text selection | CMP-RANGE-ACTIONS, CMP-WORDRANGE | none (Mod+X is Cut when `canApplyPass12`) | NONE |
 | INT-WORD-CORRECT | Correct a word | Correct intent, F2, double-click or double-tap | POP-WORD-EDIT, INS-WORD | F2 | NONE |
 | INT-WORD-TIMING | Adjust word timing | Wordbar handles or numeric fields | CMP-WORDBAR | none | NONE |
-| INT-WORD-IGNORE | Ignore or restore words | Transcript toolbar | PNL-TRANSCRIPT | none | NONE |
+| INT-WORD-IGNORE | Ignore or restore words | Action bar | PNL-TRANSCRIPT | none | NONE |
 | INT-LOWCONF | Step through low-confidence words | Prev/Next in toolbar | PNL-TRANSCRIPT | none | partial |
 | INT-FINDREPLACE | Find and replace in transcript | Toolbar button | CMP-FINDREPLACE | none | NONE |
 | INT-SPEAKER | Change speaker for a track | Speaker header button | POP-SPEAKER | none | NONE |
@@ -366,7 +366,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | CMP-RANGE-ACTIONS | Drag across an empty lane, or Shift-drag a clip; `region "Range actions"`. |
 | CMP-TRACK-HEADERS | `getByRole('group',{name:'Tracks'})`; buttons `Open track details, <label>`, `Reorder track <label>`, mute and solo by `aria-label`. |
 | CMP-TRACK-MIX, SHEET-PHONE-MIX | Phone: More > Mix. |
-| PNL-TRANSCRIPT, CMP-TURN, POP-SPEAKER, POP-WORD-EDIT, CMP-FINDREPLACE | R-HOST (aligned_dialogue for words). Wait for `[data-transcript-word]`. Toolbar toggles: `Correct`, `Select`, `Annotate`. Speaker: button "Change speaker <name>". Correct: set Correct, click a word, field "Correct word “…”" (or focus a word and press F2). Find: command `Find and replace transcript` (region "Find and replace transcript"). Phone: nav > Text. |
+| PNL-TRANSCRIPT, CMP-TURN, POP-SPEAKER, POP-WORD-EDIT, CMP-FINDREPLACE | R-HOST (aligned_dialogue for words). Wait for `.sys-script-word`. There are no mode toggles. Speaker: button "<name>, change speaker". Fix text: select a word and press Enter or F2 (or double-click), field "Fix text". Find: command `Find and replace transcript` (region "Find and replace transcript"). Phone: nav > Text. |
 | CMP-WORDBAR | Select one word, region "Word timing" in the inspector (see `e2e/wordbarFlow.ts`). |
 | CMP-EDITBOUNDARY, DLG-PRECISION | After a cut, boundary mark in the transcript; precision button opens dialog "Precision boundary" (see `e2e/edit-boundary-precision.spec.ts`, `e2e/boundaryFixture.ts`). |
 | PNL-COMMENTS, CMP-COMMENT-*, CMP-GUEST-NAME | Review queue; field label "Comment"; for the name field use a guest context with no stored name. |
@@ -456,7 +456,7 @@ Tally of the 153 non-interaction items, counted from the Story columns: 65 yes, 
 4. **DLG-HELP**. Stories: Empty, BundleCreated, Consent, Submitting, Queued, Published, Failed, NoRelay. Move the api calls into an adapter.
 5. **DLG-RECORD (the removed Record room dialog)**. Done: the dialog became the Record stage, with `RecordStage` stories NoRoom, LookingForRoom, LookupFailed, Lobby, Live, Paused, SavingTakes, MoreSheet, Loading, LoadError, PhoneLive and GuestViewer.
 6. **SCR-SHELL with real parts.** Add story-level composition that mounts real `TransportBar`, `Inspector`, panels against a hydrated store (reuse the ClipInspector hydrate pattern) so desktop, tablet and phone full screens can be seen and screenshotted; keep the fixture stand-ins for the isolated-chrome stories.
-7. **PNL-TRANSCRIPT** (the main host surface). Hydrate store with `aligned_dialogue`-like fixture. Stories: Navigate, Correct, Select with range, Annotate, Ignored restore chip, Find and replace open, Low confidence stepping, Empty or loading, Phone.
+7. **PNL-TRANSCRIPT** (the main host surface). Hydrate store with `aligned_dialogue`-like fixture. Stories: Reading, Selection, Fix text, Ignored, Find and replace open, Unsure chip, Empty or loading, Phone.
 8. **DLG-PRECISION**. Stories: Loading, Editing, Saving, Queued, Error, Guest-hidden.
 9. **INS-PENDING** (core review action) and **INS-TRACK**, **INS-WORD**, **INS-COMMENT**, **INS-APPLIED**, **INS-CHAPTER**, **INS-SOCIAL**. All need store hydration only.
 10. **PNL-REVIEW-QUEUE, PNL-HISTORY** as full panels (each has empty, populated, busy, error, guest variants; the queue has the guest name field).
