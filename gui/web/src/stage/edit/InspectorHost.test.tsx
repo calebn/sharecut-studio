@@ -199,6 +199,43 @@ describe("the Inspector card on the desktop and the tablet", () => {
   });
 });
 
+describe("shortcuts after the card opens", () => {
+  it("reach the keymap with the card holding focus", async () => {
+    stubViewportShell("desktop");
+    render(
+      <>
+        <Keys />
+        <EditWorkspace />
+      </>,
+    );
+    await inspect();
+    const card = screen.getByRole("dialog", { name: "Inspector" });
+    card.focus();
+    const event = new KeyboardEvent("keydown", {
+      key: "i",
+      code: "KeyI",
+      bubbles: true,
+      cancelable: true,
+    });
+    card.dispatchEvent(event);
+    expect(card).toHaveAttribute("tabindex", "-1");
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("Escape on the focused card closes it", async () => {
+    stubViewportShell("desktop");
+    render(<EditWorkspace />);
+    const from = opener();
+    await inspect();
+    const card = screen.getByRole("dialog", { name: "Inspector" });
+    card.focus();
+    fireEvent.keyDown(card, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(from).toHaveFocus();
+    from.remove();
+  });
+});
+
 describe("the I key", () => {
   it("opens the Inspector for the selection and Esc closes it, returning focus", async () => {
     stubViewportShell("desktop");

@@ -230,6 +230,8 @@ function Card({
       role="dialog"
       aria-modal="false"
       aria-label={label ?? name}
+      tabIndex={-1}
+      onKeyDown={closeOnEscape(onClose)}
       data-side={place.side}
       style={style}
     >
@@ -352,6 +354,8 @@ function Phone({
       role="dialog"
       aria-modal="false"
       aria-label={label ?? name}
+      tabIndex={-1}
+      onKeyDown={closeOnEscape(onClose)}
       data-detent={detent}
       data-dragging={dragging === null ? undefined : ""}
       style={style}

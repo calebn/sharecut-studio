@@ -8,6 +8,8 @@ test("keeps desktop feedback above the Player after resizing a side composer", a
   await page.setViewportSize({ width: 1440, height: 900 });
   await withShareableProject(async (projectPath) => {
     await openSuggestedPendingEdit(page, projectPath);
+    await expect(page.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+    await expect(page.locator("input:focus, textarea:focus")).toHaveCount(0);
     const composer = page.locator(".pending-ask-thread .comment-compose");
     await composer.scrollIntoViewIfNeeded();
     const textarea = composer.locator("textarea");
@@ -63,12 +65,6 @@ test("keeps desktop feedback above the Player after resizing a side composer", a
         body: JSON.stringify({ detail: "Bad request" }),
       }),
     );
-    // The Inspector card moves focus into its display-name field, and shortcuts
-    // are not heard while typing.
-    await page.evaluate(() => {
-      if (document.activeElement instanceof HTMLElement)
-        document.activeElement.blur();
-    });
     await page.keyboard.press("Control+b");
     const toast = page.locator(".ui-toast-region--app .ui-toast");
     await expect(toast).toBeVisible();
