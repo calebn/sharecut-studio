@@ -257,3 +257,39 @@ def test_a_synthesised_mute_fill_resolves_and_renders(tmp_path: Path) -> None:
 
     assert len(tiles) == 1
     assert tiles[0].audio.path.is_file()  # type: ignore[union-attr]
+
+
+def test_a_short_piece_of_a_long_bed_is_synthesised_when_the_gap_would_replay_it(
+    tmp_path: Path,
+) -> None:
+    project = _project_with_bed(tmp_path, _bed(8.0))
+
+    picked = room_tone_for_gap(
+        project,
+        "host",
+        gap_sec=6.0,
+        seed_sec=4.0,
+        near_sec=4.0,
+        near_source_id=None,
+        timeline_sec=4.0,
+        duration_sec=0.25,
+    )
+
+    assert isinstance(picked, SynthSample)
+    assert picked.path.is_relative_to(tmp_path / "raw" / "room-tone-synth")
+
+
+def test_an_error_while_synthesising_keeps_the_recorded_tiling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project_with_bed(tmp_path, _bed(8.0))
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(room_tone_synth, "_write_file", fail)
+
+    picked = _pick(project, 20.0)
+
+    assert not isinstance(picked, SynthSample)
+    assert not any(s.id.startswith(SYNTH_ID_PREFIX) for s in project.sources)
