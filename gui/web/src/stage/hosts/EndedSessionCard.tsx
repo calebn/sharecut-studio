@@ -1,4 +1,7 @@
+import { useState } from "react";
 import type { RecordSessionSummary } from "../../record";
+import { Button, Menu, MenuSection, ToggleButton } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
 
 const DATE = new Intl.DateTimeFormat("en-GB", {
   weekday: "short",
@@ -33,11 +36,81 @@ function takesLine({ takes }: RecordSessionSummary): string {
 export type EndedSessionCardProps = {
   session: RecordSessionSummary;
   trackNames: ReadonlyMap<string, string>;
+  /** The project's tracks, offered by each participant's change menu. */
+  tracks?: readonly { id: string; label: string }[];
+  /** Participants whose clips were found on the timeline; only they get a menu. */
+  movable?: ReadonlySet<string>;
+  /** A track change is in flight: the menus stay shut. */
+  busy?: boolean;
+  onRemap?: (participantId: string, trackId: string) => void;
 };
+
+const NO_TRACKS: readonly { id: string; label: string }[] = [];
+
+function TrackMenu({
+  name,
+  current,
+  target,
+  tracks,
+  busy,
+  onPick,
+}: {
+  name: string;
+  current: string | null;
+  target: string;
+  tracks: readonly { id: string; label: string }[];
+  busy: boolean;
+  onPick: (trackId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Menu
+      open={open}
+      onOpenChange={setOpen}
+      label={`Track for ${name}`}
+      className="ui-menu-root stage-host-track-menu"
+      trigger={(props) => (
+        <Button
+          {...props}
+          aria-label={`Track for ${name}: ${target}`}
+          aria-busy={busy || undefined}
+          disabledReason={busy ? BUSY_REASON : undefined}
+        >
+          {target}
+        </Button>
+      )}
+    >
+      <MenuSection label="Move to track">
+        {tracks.map((track) => (
+          <ToggleButton
+            key={track.id}
+            quiet
+            role="menuitemradio"
+            tabIndex={-1}
+            pressed={track.id === current}
+            aria-checked={track.id === current}
+            onClick={() => {
+              setOpen(false);
+              if (track.id !== current) {
+                onPick(track.id);
+              }
+            }}
+          >
+            {track.label}
+          </ToggleButton>
+        ))}
+      </MenuSection>
+    </Menu>
+  );
+}
 
 export function EndedSessionCard({
   session,
   trackNames,
+  tracks = NO_TRACKS,
+  movable,
+  busy = false,
+  onRemap,
 }: EndedSessionCardProps) {
   return (
     <section
@@ -51,11 +124,22 @@ export function EndedSessionCard({
       <ul className="stage-host-list">
         {session.participants.map((p) => {
           const name = p.display_name.trim() || "Guest";
+          const several =
+            session.landed &&
+            p.track_id === null &&
+            !!movable?.has(p.participant_id);
           const target = !session.landed
             ? null
-            : p.track_id === null
-              ? "New track"
-              : (trackNames.get(p.track_id) ?? "Track removed");
+            : several
+              ? "Several tracks"
+              : p.track_id === null
+                ? "New track"
+                : (trackNames.get(p.track_id) ?? "Track removed");
+          const menu =
+            target !== null &&
+            onRemap &&
+            tracks.length > 1 &&
+            movable?.has(p.participant_id);
           return (
             <li key={p.participant_id} className="stage-host-note">
               {name}
@@ -63,7 +147,19 @@ export function EndedSessionCard({
                 <>
                   {" "}
                   <span aria-hidden="true">→</span>
-                  <span className="sr-only"> to</span> {target}
+                  <span className="sr-only"> to</span>{" "}
+                  {menu ? (
+                    <TrackMenu
+                      name={name}
+                      current={p.track_id}
+                      target={target}
+                      tracks={tracks}
+                      busy={busy}
+                      onPick={(trackId) => onRemap?.(p.participant_id, trackId)}
+                    />
+                  ) : (
+                    target
+                  )}
                 </>
               )}
             </li>

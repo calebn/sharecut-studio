@@ -4,7 +4,10 @@ import type { ShellBreakpoint } from "../../state/types";
 import { RoomView, type RoomViewProps } from "../../system/RoomView";
 import { Button } from "../../ui";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
-import { EndedSessionCard } from "./EndedSessionCard";
+import {
+  EndedSessionCard,
+  type EndedSessionCardProps,
+} from "./EndedSessionCard";
 import { HostBody } from "./HostBody";
 import type { HostState } from "./hostModels";
 
@@ -26,6 +29,10 @@ export type RecordStageViewProps = {
   room: RoomViewProps | null;
   lastSession?: RecordSessionSummary | null;
   trackNames?: ReadonlyMap<string, string>;
+  tracks?: EndedSessionCardProps["tracks"];
+  movable?: EndedSessionCardProps["movable"];
+  remapBusy?: boolean;
+  onRemap?: EndedSessionCardProps["onRemap"];
   notices: readonly RecordNotice[];
   storage?: ReactNode;
   more?: ReactNode;
@@ -46,6 +53,10 @@ function EmptyRoom({
   lookup,
   lastSession,
   trackNames,
+  tracks,
+  movable,
+  remapBusy,
+  onRemap,
   busy,
   hydrateError,
   transportError,
@@ -56,6 +67,10 @@ function EmptyRoom({
   | "lookup"
   | "lastSession"
   | "trackNames"
+  | "tracks"
+  | "movable"
+  | "remapBusy"
+  | "onRemap"
   | "busy"
   | "hydrateError"
   | "transportError"
@@ -74,6 +89,10 @@ function EmptyRoom({
           <EndedSessionCard
             session={lastSession}
             trackNames={trackNames ?? NO_TRACK_NAMES}
+            tracks={tracks}
+            movable={movable}
+            busy={remapBusy}
+            onRemap={onRemap}
           />
         ) : null}
         <section
@@ -144,6 +163,10 @@ export function RecordStageView({
   room,
   lastSession,
   trackNames,
+  tracks,
+  movable,
+  remapBusy,
+  onRemap,
   notices,
   storage,
   more,
@@ -180,6 +203,10 @@ export function RecordStageView({
           lookup={lookup}
           lastSession={lastSession}
           trackNames={trackNames}
+          tracks={tracks}
+          movable={movable}
+          remapBusy={remapBusy}
+          onRemap={onRemap}
           busy={busy}
           hydrateError={hydrateError}
           transportError={transportError}

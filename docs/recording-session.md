@@ -150,7 +150,9 @@ server found no unsaved audio it can see (see Known gaps below).
 `session_id`, `number` (the stored landing number, `null` until it lands; a read never assigns one),
 `state` (`open` while any of its links is usable, else `ended`), `target_kind`, `takes`
 (`take_index`, `recording_ms`), `participants` (`participant_id`, `display_name`, `role`, `track_id`
-from the host's track choice or the session's landed clips), `landed` and `ended_at` (when the last
+from where the participant's landed clips are now, so a track change made after landing shows; only a
+participant with no landed clips falls back to the host's track choice or the saved summary, and clips
+on several tracks report `null`), `landed` and `ended_at` (when the last
 link was revoked; `null` for sessions ended before this was recorded). A session appears once it has
 a link row or a landing. The room's snapshot store holds one session and a newer mint resets it, so
 ending a room (`revoke_room`) or minting a new one saves that session's `takes` and `participants` to

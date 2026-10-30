@@ -320,6 +320,107 @@ describe("Record stage", () => {
       await expectNoA11yViolations(baseElement);
     });
 
+    it("moves all of a participant's session clips to the picked track in one command", async () => {
+      const base = minimalProject();
+      const row = (id: string, track: string, source: string, start: number) =>
+        ({
+          id,
+          track_id: track,
+          source_id: source,
+          timeline_start: start,
+        }) as never;
+      useDawStore.getState().hydrate("/tmp/p.json", {
+        ...base,
+        tracks: [
+          { id: "t_ava", label: "Ava" },
+          { id: "t_host", label: "Host" },
+        ] as never,
+        clips: {
+          clip_count: 4,
+          tracks: {
+            t_ava: [
+              row("c1", "t_ava", "rec-old-0-p_g-x", 1.25),
+              row("c2", "t_ava", "rec-old-1-p_g-x", 30),
+              row("c3", "t_ava", "rec-older-0-p_g-x", 2),
+            ],
+            t_host: [row("c4", "t_host", "rec-old-0-p_host-x", 1.25)],
+          },
+        },
+      });
+      vi.mocked(loadHostRecordSessions).mockResolvedValue([
+        {
+          ...ended,
+          participants: [{ ...ended.participants[0], track_id: "t_ava" }],
+        },
+      ]);
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Track for Ava: Ava" }),
+      );
+      await userEvent.click(
+        screen.getByRole("menuitemradio", { name: "Host" }),
+      );
+      expect(exec).toHaveBeenCalledWith(
+        "edit.moveClips",
+        {
+          clips: [
+            { clip_id: "c1", timeline_start: 1.25, track_id: "t_host" },
+            { clip_id: "c2", timeline_start: 30, track_id: "t_host" },
+          ],
+        },
+        { skipWhen: true },
+      );
+      await waitFor(() =>
+        expect(loadHostRecordSessions).toHaveBeenCalledTimes(2),
+      );
+    });
+
+    it("announces why a track change failed and leaves the card alone", async () => {
+      useDawStore.getState().hydrate("/tmp/p.json", {
+        ...minimalProject(),
+        tracks: [
+          { id: "t_ava", label: "Ava" },
+          { id: "t_host", label: "Host" },
+        ] as never,
+        clips: {
+          clip_count: 1,
+          tracks: {
+            t_ava: [
+              {
+                id: "c1",
+                track_id: "t_ava",
+                source_id: "rec-old-0-p_g-x",
+                timeline_start: 0,
+              } as never,
+            ],
+          },
+        },
+      });
+      exec.mockResolvedValue({
+        status: "disabled",
+        reason: "Edits not allowed",
+      } as never);
+      vi.mocked(loadHostRecordSessions).mockResolvedValue([
+        {
+          ...ended,
+          participants: [{ ...ended.participants[0], track_id: "t_ava" }],
+        },
+      ]);
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Track for Ava: Ava" }),
+      );
+      await userEvent.click(
+        screen.getByRole("menuitemradio", { name: "Host" }),
+      );
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Could not change the track: Edits not allowed",
+        ),
+      );
+      expect(loadHostRecordSessions).toHaveBeenCalledTimes(1);
+    });
+
     it("keeps Create record room when the last session has no number", async () => {
       vi.mocked(loadHostRecordSessions).mockResolvedValue([
         { ...ended, number: null },
