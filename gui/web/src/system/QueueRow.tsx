@@ -87,7 +87,10 @@ export function QueueRow({
         <SystemIcon name={RESULT_ICON[decided.result]} size={16} />
         <span className="sys-queue-decided-text">{decided.text}</span>
         {time !== undefined ? (
-          <span className="sys-mono sys-queue-time">{time}</span>
+          <>
+            {" "}
+            <span className="sys-mono sys-queue-time">{time}</span>
+          </>
         ) : null}
       </Row>
     );
