@@ -329,6 +329,29 @@ describe("verbs that call other commands", () => {
     expect(open).toHaveBeenCalledTimes(1);
   });
 
+  it("parks the target only after Record opened", async () => {
+    let parkedWhenOpened: unknown = "unset";
+    registerCommand("stage.record", () => {
+      parkedWhenOpened = useDawStore.getState().pendingRecordTarget;
+      return { status: "ok" as const };
+    });
+    host(EDIT_SELECTIONS.rangeOnAllTracks);
+    await runEditVerb("record", factsOf()!);
+    expect(parkedWhenOpened).toBeNull();
+    expect(useDawStore.getState().pendingRecordTarget).not.toBeNull();
+  });
+
+  it("parks nothing when Record does not open", async () => {
+    registerCommand("stage.record", () => ({
+      status: "disabled" as const,
+      reason: "No project loaded",
+    }));
+    host(EDIT_SELECTIONS.rangeOnAllTracks);
+    const result = await runEditVerb("record", factsOf()!);
+    expect(result.status).toBe("disabled");
+    expect(useDawStore.getState().pendingRecordTarget).toBeNull();
+  });
+
   it("offers Re-record only on a selection a take can replace", () => {
     host(EDIT_SELECTIONS.rangeOnAllTracks);
     const s = useDawStore.getState();

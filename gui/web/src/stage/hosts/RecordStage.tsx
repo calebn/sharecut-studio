@@ -175,7 +175,16 @@ function RecordStageBody({
 
   const setTarget = (target: SessionTarget) =>
     room.runCommand("record.setTarget", { target });
-  usePendingRecordTarget(snapshot, state, room.transportBusy, setTarget);
+  usePendingRecordTarget(
+    {
+      snapshot,
+      state,
+      lookup: room.roomLookup,
+      controlled: room.control !== null,
+      busy: room.transportBusy,
+    },
+    setTarget,
+  );
   const targetChip = snapshot ? (
     <RecordTargetChip
       snapshot={snapshot}

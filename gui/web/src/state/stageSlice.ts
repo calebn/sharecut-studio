@@ -1,5 +1,4 @@
 import type { StateCreator } from "zustand";
-import type { SessionTarget } from "../record";
 import type {
   EditSurface,
   ReviewSection,
@@ -16,6 +15,22 @@ import {
 } from "../utils/stagePref";
 import { stageRoleOf, stagesForRole } from "./stageRoutes";
 import type { DawStore } from "./types";
+
+/**
+ * A Record session target, as `record.setTarget` takes it. Structurally the
+ * record module's `SessionTarget`; written out here so the store (which the
+ * e2e type-check also loads) does not import the record module.
+ */
+export type PendingRecordTarget =
+  | { kind: "start" }
+  | { kind: "end" }
+  | { kind: "insert"; at_sec: number }
+  | {
+      kind: "replace";
+      from_sec: number;
+      to_sec: number;
+      track_ids: string[];
+    };
 
 type StageOpenOptions = {
   section?: ReviewSection;
@@ -40,14 +55,14 @@ export interface StageSliceState {
    * then clears it. Memory only: a reload drops it. Leaving Record and a
    * project switch drop it too, so it never reaches a later session.
    */
-  pendingRecordTarget: SessionTarget | null;
+  pendingRecordTarget: PendingRecordTarget | null;
   /**
    * Switch stage, or deep-link into one with `options`. In one write it saves
    * the leaving stage's view, restores the arriving one's, closes sheets and
    * routes keys; never from an unmount effect.
    */
   openStage: (stage: StageId, options?: StageOpenOptions) => void;
-  setPendingRecordTarget: (target: SessionTarget | null) => void;
+  setPendingRecordTarget: (target: PendingRecordTarget | null) => void;
   setReviewSection: (section: ReviewSection) => void;
   setEditSurface: (surface: EditSurface) => void;
   setOpenSheet: (sheet: StageSheet | null) => void;
@@ -66,7 +81,7 @@ export function stageProjectInitial(guestMode: string | null = null) {
     stageViews: {} as Partial<Record<StageId, StageView>>,
     openSheet: null as StageSheet | null,
     landingSettled: false,
-    pendingRecordTarget: null as SessionTarget | null,
+    pendingRecordTarget: null as PendingRecordTarget | null,
   };
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type {
+  RecordRoomLookup,
   RecordRoomState,
   RecordSnapshot,
   SessionTarget,
@@ -7,32 +8,53 @@ import type {
 import { useDawStore } from "../../state/dawStore";
 import { targetLocked } from "./recordStageModel";
 
+type PendingRecordTargetRoom = {
+  snapshot: RecordSnapshot | null;
+  state: RecordRoomState | undefined;
+  /** This project's room lookup finished (a room made since leaves it `none`); an earlier project's snapshot may still be in the store before that. */
+  lookup: RecordRoomLookup;
+  /** The host can drive the room. */
+  controlled: boolean;
+  busy: boolean;
+};
+
 /**
  * Hand the target Edit parked (Re-record, Record here) to the room once. It is
  * sent while the room is in the lobby with no take; any other state means the
- * session is past choosing, so the target is dropped without a word. It also
- * waits while a command is in flight and while the room has not loaded.
+ * session is past choosing, so the target is dropped without a word. It waits
+ * while the room has not loaded for this project, while the host cannot drive
+ * it, and while a command is in flight.
  */
 export function usePendingRecordTarget(
-  snapshot: RecordSnapshot | null,
-  state: RecordRoomState | undefined,
-  busy: boolean,
+  room: PendingRecordTargetRoom,
   send: (target: SessionTarget) => void,
 ): void {
   const pending = useDawStore((s) => s.pendingRecordTarget);
-  const clear = useDawStore((s) => s.setPendingRecordTarget);
   const sendRef = useRef(send);
-  sendRef.current = send;
-  const loaded = snapshot !== null;
-  const open =
-    state === "lobby" && snapshot !== null && !targetLocked(snapshot);
   useEffect(() => {
-    if (!pending || !loaded || busy) {
+    sendRef.current = send;
+  });
+  const { snapshot, state, lookup, controlled, busy } = room;
+  const ready =
+    snapshot !== null &&
+    (lookup === "found" || lookup === "none") &&
+    controlled &&
+    !busy;
+  const open =
+    ready && state === "lobby" && snapshot !== null && !targetLocked(snapshot);
+  useEffect(() => {
+    if (!pending || !ready) {
       return;
     }
-    clear(null);
-    if (open) {
-      sendRef.current(pending);
+    // Read and clear in the store, so a replayed effect finds it already gone.
+    const store = useDawStore.getState();
+    const target = store.pendingRecordTarget;
+    if (!target) {
+      return;
     }
-  }, [pending, loaded, open, busy, clear]);
+    store.setPendingRecordTarget(null);
+    if (open) {
+      sendRef.current(target);
+    }
+  }, [pending, ready, open]);
 }
