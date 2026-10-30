@@ -19,13 +19,6 @@ class OAuthClientConfig:
     redirect_uri: str
 
 
-def _config_dir() -> Path:
-    override = settings.text("PODCAST_CONFIG_DIR")
-    if override:
-        return Path(override).expanduser()
-    return Path.home() / ".config" / "podcast_mcp"
-
-
 def _default_redirect(provider: str) -> str:
     env_key = f"PODCAST_{provider.upper()}_OAUTH_REDIRECT_URI"
     explicit = settings.text(env_key)
@@ -67,7 +60,7 @@ def load_google_oauth() -> OAuthClientConfig | None:
     path = Path(
         settings.value(
             "PODCAST_GOOGLE_OAUTH_CLIENT_FILE",
-            str(_config_dir() / "google-oauth-client.json"),
+            str(settings.config_dir() / "google-oauth-client.json"),
         )
     ).expanduser()
     if not path.is_file():
@@ -103,7 +96,7 @@ def load_github_oauth() -> OAuthClientConfig | None:
     path = Path(
         settings.value(
             "PODCAST_GITHUB_OAUTH_CLIENT_FILE",
-            str(_config_dir() / "github-oauth.json"),
+            str(settings.config_dir() / "github-oauth.json"),
         )
     ).expanduser()
     if not path.is_file():

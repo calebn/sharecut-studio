@@ -106,6 +106,15 @@ def _drifted(pin: Pin, auto: Auto) -> bool:
     return not isinstance(auto, Found) or digest(auto.value) != pin.basis
 
 
+def _usable_pin(spec: FieldSpec, pin: Pin) -> bool:
+    """False when a stored pin is the wrong kind of value, such as a number where text belongs."""
+    try:
+        spec.value.validate_python(pin.value)
+    except ValidationError as exc:
+        return exc.errors()[0]["type"] == "value_error"
+    return True
+
+
 def _resolve_rows(
     inputs: FeedInputs, pins: Mapping[str, Pin]
 ) -> tuple[Resolution, dict[str, Auto]]:
@@ -116,6 +125,10 @@ def _resolve_rows(
         auto = autos[spec.key] = _auto(spec, res)
         pin = (show_pins if spec.scope == "show" else pins).get(spec.key)
         if pin is None or spec.edit != "pin":
+            res.facts[spec.key] = auto
+            continue
+        if not _usable_pin(spec, pin):
+            res.unusable_pins.add(spec.key)
             res.facts[spec.key] = auto
             continue
         pinned = Pinned(by=pin.by, drifted=_drifted(pin, auto))
@@ -184,6 +197,8 @@ def resolve(inputs: FeedInputs, pins: Mapping[str, Pin]) -> FeedView:
         if spec.scope == "show" and not show_ready:
             continue
         findings.extend(_row_findings(spec, fact, res))
+        if spec.key in res.unusable_pins:
+            findings.append(_unusable_pin_finding(spec))
         if isinstance(fact, Found) and isinstance(fact.source, Pinned) and fact.source.drifted:
             drift_detail[spec.key] = spec.drift_hint or DEFAULT_DRIFT_HINT
     view = FeedView(
@@ -233,6 +248,17 @@ def _row_findings(spec: FieldSpec, fact: Auto, res: Resolution) -> list[Finding]
             )
         )
     return found
+
+
+def _unusable_pin_finding(spec: FieldSpec) -> Finding:
+    return Finding(
+        key=spec.key,
+        severity="blocker",
+        platform="RSS",
+        message=f"The stored {spec.label} is not the kind of value this setting takes. "
+        "Set it again or unset it.",
+        fix=None,
+    )
 
 
 def _stored_value_findings(spec: FieldSpec, fact: Found) -> list[Finding]:
@@ -315,6 +341,27 @@ def clears(edit: FeedEdit) -> bool:
     return isinstance(edit, UnsetEdit) or (isinstance(edit.value, str) and not edit.value.strip())
 
 
+class FeedValueInvalidError(CodedValueError):
+    """A value the field refuses. The sentence names the field in plain words and is safe for a guest."""
+
+    code = "feed_value_invalid"
+
+    def __init__(self, sentence: str) -> None:
+        super().__init__(sentence)
+
+    def guest_message(self) -> str:
+        return str(self)
+
+
+def _refusal_sentence(spec: FieldSpec, exc: ValidationError) -> str:
+    """``A hosting address must be an https address.``: the field's label and the rule it broke."""
+    label = spec.label[:1].upper() + spec.label[1:]
+    first = exc.errors()[0]
+    if first["type"] != "value_error":
+        return f"That value isn't valid for the {spec.label}."
+    return f"{label} {first['msg'].removeprefix('Value error, ')}."
+
+
 def checked_value(edit: SetEdit) -> tuple[FieldSpec, Any]:
     """The row ``edit`` names and its value as that row stores it, or the refusal that says why not."""
     spec = lookup(edit.key)
@@ -330,8 +377,7 @@ def checked_value(edit: SetEdit) -> tuple[FieldSpec, Any]:
     try:
         return spec, spec.value.validate_python(edit.value)
     except ValidationError as exc:
-        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
-        raise CodedValueError(f"{edit.key} {reason}", code="feed_value_invalid") from exc
+        raise FeedValueInvalidError(_refusal_sentence(spec, exc)) from exc
 
 
 def edited_pins(

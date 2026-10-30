@@ -18,7 +18,7 @@ import type {
   Pending,
   PinAuthor,
   Resolved,
-} from "./feedView";
+} from "../../types/feedView";
 
 export type EditControls = {
   active: FieldKey | null;
@@ -36,15 +36,12 @@ export type OnEdit = (edit: FeedEdit, undo?: Undo) => void;
 export function Mark({ text }: { text: string }) {
   const guest = text === GUEST_MARK;
   return (
-    <span
-      className="fd-mark"
-      title={guest ? GUEST_MARK_WHY : undefined}
-      tabIndex={guest ? 0 : undefined}
-    >
+    <span className="fd-mark" title={guest ? GUEST_MARK_WHY : undefined}>
       {text === AGENT_MARK ? (
         <SystemIcon name="wand-sparkles" size={12} />
       ) : null}
       {text}
+      {guest ? <span className="sr-only">, {GUEST_MARK_WHY}</span> : null}
     </span>
   );
 }

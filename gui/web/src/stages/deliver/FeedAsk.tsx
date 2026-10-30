@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button, Field } from "../../ui";
 import { useDisabledReasonNote } from "../../ui/disabledReason";
 import { editBlock, type FeedAccess, fieldOf } from "./feedLogic";
-import type { FeedEdit, FieldKey } from "./feedView";
+import type { FeedEdit, FieldKey } from "../../types/feedView";
 
 type Props = {
   field: FieldKey;
@@ -24,7 +24,7 @@ export function FeedAsk({ field, access, onSave, onCancel }: Props) {
   const why =
     value === ""
       ? spec.yesNo
-        ? `Choose yes or no for ${spec.label} to save.`
+        ? `Choose ${spec.yesOnly ? "yes" : "yes or no"} for ${spec.label} to save.`
         : `Enter the ${spec.label} to save.`
       : editBlock(access, edit);
   const reason = useDisabledReasonNote(why);
@@ -49,7 +49,7 @@ export function FeedAsk({ field, access, onSave, onCancel }: Props) {
               >
                 <option value="">Choose</option>
                 <option value="yes">Yes</option>
-                <option value="no">No</option>
+                {spec.yesOnly ? null : <option value="no">No</option>}
               </select>
             ) : (
               <input

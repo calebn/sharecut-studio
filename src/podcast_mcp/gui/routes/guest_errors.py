@@ -43,7 +43,7 @@ def guest_http_error(
         )
     if isinstance(cause, (StaleWaveformKeyError, ModelMissing)) or refusal.code == "job_running":
         status = 409
-    elif isinstance(cause, HostSetupError):
+    elif isinstance(cause, HostSetupError) or refusal.code == "feed_write_failed":
         status = 500
     elif isinstance(cause, ProjectWriteFailedError):
         status = cause.status

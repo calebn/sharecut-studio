@@ -3,7 +3,7 @@ import { PersonAvatar } from "../../system/Person";
 import { Button, Field } from "../../ui";
 import { useDisabledReasonNote } from "../../ui/disabledReason";
 import { colorIndexOf } from "./feedLogic";
-import type { Fix, ShowState } from "./feedView";
+import type { Fix, ShowState } from "../../types/feedView";
 
 type Props = {
   show: Exclude<ShowState, { kind: "ready" }>;

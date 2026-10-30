@@ -80,16 +80,8 @@ class _Summary:
     mastered: str | None
 
 
-def config_dir() -> Path:
-    """Per-install config directory; ``PODCAST_CONFIG_DIR`` moves it (tests do)."""
-    override = settings.text("PODCAST_CONFIG_DIR")
-    if override:
-        return Path(override).expanduser()
-    return Path.home() / ".config" / "podcast_mcp"
-
-
 def recent_projects_path() -> Path:
-    return config_dir() / RECENT_FILENAME
+    return settings.config_dir() / RECENT_FILENAME
 
 
 def _parse(raw: object) -> list[RecentEntry]:

@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 
 from feed_helpers import complete_show
 from podcast_mcp.cli.main import app
+from podcast_mcp.feed.model import NoShows
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools import feed as mcp_feed
 from podcast_mcp.models import ChapterMarker, Track, TrackRole, load_project, save_project
@@ -23,7 +24,7 @@ runner = CliRunner()
 CODE = "X-Sharecut-Error-Code"
 
 
-class OneShow:
+class OneShow(NoShows):
     def __init__(self) -> None:
         self.profile_ = complete_show()
 
@@ -672,6 +673,36 @@ def test_a_stored_value_the_feed_now_refuses_is_a_blocker_on_every_surface(
     assert not (writable.parent / "export" / "test_episode.feed.xml").exists()
 
 
+@pytest.mark.parametrize("key", ["item.title", "item.pubDate", "item.image"])
+def test_a_hand_edited_pin_that_is_not_text_is_a_coded_blocker_not_a_crash(
+    writable: Path, key: str
+) -> None:
+    from podcast_mcp.models.feed import Pin
+
+    project = load_project(writable)
+    project.feed.pins[key] = Pin(value=5)
+    save_project(project, writable)
+
+    shown = json.loads(_cli("show", "-p", str(writable), "--json"))
+    refused = _cli("write", "-p", str(writable), code=1)
+
+    blocker = next(f for f in shown["findings"] if f["key"] == key)
+    assert blocker["severity"] == "blocker"
+    assert "stored" in blocker["message"] and key not in blocker["message"]
+    assert "feed_blocked" in refused
+
+
+def test_setting_a_show_person_echoes_the_show_hosts_not_the_episode_credits(
+    writable: Path,
+) -> None:
+    _cli("set", "show", "The Long River", "-p", str(writable))
+
+    out = json.loads(_cli("set", "channel.person[Zed Quill].role", "host", "-p", str(writable)))
+
+    assert out["fact"]["value"] is not None
+    assert out["fact"]["value"] == ["Zed Quill (host)"]
+
+
 def test_an_unreadable_show_is_reported_when_its_own_name_is_set_or_after_unsetting_it(
     writable: Path,
 ) -> None:
@@ -696,7 +727,7 @@ def test_a_roster_edit_echoes_the_credits_not_null(episode: Path) -> None:
     assert out["fact"] is not None
 
 
-def test_a_failed_publish_is_a_500_for_the_host_and_hides_the_folder_from_a_guest(
+def test_a_failed_publish_is_a_500_for_the_host_and_an_editor_and_hides_the_folder_from_a_guest(
     writable: Path, published_share
 ) -> None:
     from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
@@ -712,7 +743,7 @@ def test_a_failed_publish_is_a_500_for_the_host_and_hides_the_folder_from_a_gues
 
     assert on_host.status_code == 500
     assert on_host.headers[CODE] == "feed_write_failed"
-    assert as_guest.status_code >= 400
+    assert as_guest.status_code == 500
     assert as_guest.headers[CODE] == "feed_write_failed"
     assert str(writable.parent) not in as_guest.text
     assert "export" not in as_guest.text

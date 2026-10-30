@@ -23,7 +23,6 @@ const WORDS: Readonly<Record<string, string>> = {
 };
 
 const KEY_IN_TEXT = /\b(?:channel|item)\.[A-Za-z][A-Za-z.]*[A-Za-z]/g;
-const GENERIC_GUEST = /^That didn't work/;
 
 /** A service sentence with each setting named by its label, never by its key. */
 function byLabels(text: string): string {
@@ -37,7 +36,7 @@ export function feedErrorText(error: unknown): string {
     if (own) return own;
     if (error.code === "feed_value_invalid") {
       const detail = error.message.trim();
-      return detail === "" || GENERIC_GUEST.test(detail)
+      return detail === ""
         ? "That value isn't valid for this field."
         : byLabels(detail);
     }

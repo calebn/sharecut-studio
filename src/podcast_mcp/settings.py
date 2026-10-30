@@ -18,6 +18,7 @@ import os
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 ON_VALUES = frozenset({"1", "true", "yes", "on"})
 _RELAY_DEFAULT_BIND = "0.0.0.0"  # nosec B104
@@ -354,6 +355,14 @@ def max_bytes(name: str, default: int) -> int:
         return max(1, int(value))
     except ValueError:
         return int(default)
+
+
+def config_dir() -> Path:
+    """Per-install config directory; ``PODCAST_CONFIG_DIR`` moves it (tests do)."""
+    override = text("PODCAST_CONFIG_DIR")
+    if override:
+        return Path(override).expanduser()
+    return Path.home() / ".config" / "podcast_mcp"
 
 
 def export(name: str, value: str) -> None:

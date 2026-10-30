@@ -196,11 +196,10 @@ def authorize_document_payload(
     if caps is None:
         return
     if command_type in {"SetFeedField", "ClearFeedField"}:
-        from podcast_mcp.feed.fields import lookup
+        from podcast_mcp.feed.fields import guest_pinnable
 
         key = payload.get("key")
-        spec = lookup(key) if isinstance(key, str) else None
-        if spec is None or spec.scope != "episode" or spec.edit != "pin":
+        if not isinstance(key, str) or not guest_pinnable(key, "episode"):
             raise CodedPermissionError(
                 "guests edit this episode's listing values, not the show's",
                 code="share_capability_required",

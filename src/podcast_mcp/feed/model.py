@@ -1,6 +1,6 @@
 """Wire and domain types for the podcast listing.
 
-``FeedView`` serializes to the shape ``gui/web/src/stages/deliver/feedView.ts`` declares:
+``FeedView`` serializes to the shape ``gui/web/src/types/feedView.ts`` declares:
 ``FeedView.wire()`` is the one place that spells it.
 """
 
@@ -289,12 +289,28 @@ class ShowSource(Protocol):
 
     def profile(self, show_id: ShowId) -> ShowProfile | None: ...
 
+    def problems(self) -> Sequence[str]:
+        """One sentence for each show file that cannot be used."""
+        ...
+
+    def number_for(self, show_id: ShowId, guid: str, *, pinned: int | None = None) -> int | None:
+        """The episode number ``guid`` holds in the show, or None where the source keeps no ledger."""
+        ...
+
 
 class NoShows:
+    """A source with no shows: it has nothing to read and nothing to number."""
+
     def shows(self) -> Sequence[ShowSummary]:
         return ()
 
     def profile(self, show_id: ShowId) -> ShowProfile | None:
+        return None
+
+    def problems(self) -> Sequence[str]:
+        return ()
+
+    def number_for(self, show_id: ShowId, guid: str, *, pinned: int | None = None) -> int | None:
         return None
 
 

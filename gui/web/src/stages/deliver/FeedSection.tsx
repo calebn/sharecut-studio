@@ -40,7 +40,7 @@ import type {
   FieldKey,
   Fix,
   WriteRequest,
-} from "./feedView";
+} from "../../types/feedView";
 import { ShowHostNote, ShowSetup } from "./ShowSetup";
 
 type Props = {

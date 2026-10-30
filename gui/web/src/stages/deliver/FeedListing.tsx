@@ -26,7 +26,7 @@ import {
   type SourceOwner,
   textFact,
 } from "./feedLogic";
-import type { FeedEdit, FeedView } from "./feedView";
+import type { FeedEdit, FeedView } from "../../types/feedView";
 
 type Props = {
   view: FeedView;

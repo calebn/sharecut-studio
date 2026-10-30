@@ -107,6 +107,15 @@ def test_the_only_show_on_the_machine_is_the_episodes_show_with_no_linking(
     assert view.channel["channel.title"].value == "The Long River"
 
 
+def test_a_show_an_agent_creates_attributes_its_title_to_the_agent(
+    episode: Path, store: ShowStore
+) -> None:
+    view = _service(episode).set("show", "The Long River", "agent")
+
+    assert view.channel["channel.title"].source.by == "agent"
+    assert store.profile("the-long-river").pins["channel.title"].by == "agent"
+
+
 def test_two_shows_leave_the_choice_pending_until_one_is_linked(
     episode: Path, store: ShowStore
 ) -> None:

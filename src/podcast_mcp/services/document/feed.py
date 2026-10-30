@@ -149,7 +149,7 @@ class FeedService:
         """
         with _progress("edit", "Saving the change"):
             if edit.key == SHOW_KEY:
-                return self._choose_show(edit)
+                return self._choose_show(edit, by)
             spec = lookup(edit.key)
             if spec is not None and spec.scope == "show":
                 return self._apply_show(edit, by)
@@ -209,7 +209,7 @@ class FeedService:
         store.update(show_id, lambda show: _edit_show(show, edit.key, value, by))
         return self._read()
 
-    def _choose_show(self, edit: FeedEdit) -> FeedView:
+    def _choose_show(self, edit: FeedEdit, by: PinAuthor) -> FeedView:
         """Link the episode to a show, creating the show first when no show has that name or id."""
         store = self._store()
         project = self.ws.project
@@ -231,7 +231,7 @@ class FeedService:
             if project.feed.show_id is not None:
                 store.profile(project.feed.show_id)
             store.profile(show_id)
-            show_id = store.create(name).id
+            show_id = store.create(name, by).id
         if project.feed.show_id != show_id:
             self._link(show_id)
         return self._read()

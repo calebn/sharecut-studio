@@ -8,7 +8,7 @@ import type {
   PinAuthor,
   Served,
   WriteRequest,
-} from "./feedView";
+} from "../../types/feedView";
 
 export type FeedLoad = "loading" | "ready" | "error";
 
@@ -111,6 +111,7 @@ export function useFeed(
 
   useEffect(() => {
     path.current = projectPath;
+    // oxlint-disable-next-line react/set-state-in-effect -- reading the service is the external system; state is set only after the awaited answer
     void read(false);
     return () => {
       latestRead.current += 1;

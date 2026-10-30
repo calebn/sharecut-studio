@@ -17,7 +17,7 @@ import {
   writeLine,
   xmlLines,
 } from "./feedLogic";
-import type { Finding } from "./feedView";
+import type { Finding } from "../../types/feedView";
 
 describe("readiness", () => {
   it("is ready when only optional findings remain", () => {

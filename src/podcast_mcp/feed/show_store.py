@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from podcast_mcp import settings
 from podcast_mcp.feed.model import Person, ShowId, ShowSummary, usable_ledger
-from podcast_mcp.models.feed import Pin
+from podcast_mcp.models.feed import Pin, PinAuthor
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
@@ -63,9 +63,7 @@ def show_id_for(name: str) -> ShowId:
 
 def default_directory() -> Path:
     """``PODCAST_CONFIG_DIR/shows``, with the config directory defaulting as the app's own does."""
-    override = settings.text("PODCAST_CONFIG_DIR")
-    base = Path(override).expanduser() if override else Path.home() / ".config" / "podcast_mcp"
-    return base / "shows"
+    return settings.config_dir() / "shows"
 
 
 def _checked_id(show_id: str) -> ShowId:
@@ -164,15 +162,15 @@ class ShowStore:
             return None
         return self._read(show_id)
 
-    def create(self, name: str) -> ShowFile:
-        """Make the show ``name`` spells, titled ``name``. An existing show is never replaced."""
+    def create(self, name: str, by: PinAuthor = "person") -> ShowFile:
+        """Make the show ``name`` spells, titled ``name`` by ``by``. An existing show is never replaced."""
         show_id = show_id_for(name)
         with self._lock(show_id):
             if self._path(show_id).exists():
                 raise CodedValueError(
                     f"There is already a show called {show_id}.", code="feed_show_exists"
                 )
-            show = ShowFile(id=show_id, pins={TITLE_KEY: Pin(value=name.strip())})
+            show = ShowFile(id=show_id, pins={TITLE_KEY: Pin(value=name.strip(), by=by)})
             self._write(show)
             return show
 

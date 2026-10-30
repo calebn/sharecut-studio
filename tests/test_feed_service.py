@@ -24,7 +24,7 @@ from podcast_mcp.services.document_sync import DocumentSyncService, submit_host_
 from podcast_mcp.util.coded_error import CodedValueError
 
 
-class OneShow:
+class OneShow(NoShows):
     def __init__(self, profile: ShowProfile) -> None:
         self._profile = profile
 

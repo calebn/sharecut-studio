@@ -90,7 +90,7 @@ def _write_locked(
             project.feed.first_exported_at = before.first_exported_at
             project.feed.show_id = before.show_id
             raise
-    if isinstance(shows, ShowStore) and first.show is not None and project.feed.guid:
+    if first.show is not None and project.feed.guid:
         pin = project.feed.pins.get("item.episode")
         pinned = pin.value if pin is not None and isinstance(pin.value, int) else None
         shows.number_for(first.show.id, project.feed.guid, pinned=pinned)
