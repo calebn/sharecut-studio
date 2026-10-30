@@ -48,8 +48,8 @@ test("a late transcript word load keeps an open Move clip form and Apply sends o
   });
 
   await openProject(page, projectPath);
-  const correct = page.getByRole("button", { name: /correct/i }).first();
-  await expect(correct).toBeDisabled();
+  const words = page.locator(".sys-script-word");
+  await expect(words).toHaveCount(0);
   await page.locator(".clip-block .clip-hit").first().click();
   await ensureInspected(page);
   const entry = page.getByRole("button", { name: "Move clip", exact: true });
@@ -60,7 +60,7 @@ test("a late transcript word load keeps an open Move clip form and Apply sends o
   await expect(start).toHaveValue("7");
 
   release();
-  await expect(correct).toBeEnabled();
+  await expect(words.first()).toBeVisible();
   await expect(start).toHaveValue("7");
   const sent = page.waitForResponse(
     (response) =>
