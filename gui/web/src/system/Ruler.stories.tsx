@@ -42,7 +42,7 @@ const meta: Meta<typeof Ruler> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The time ruler (design-system element 17a), 24 px tall. It takes plain data: the window's `start` and `pxPerSecond`, its `width`, the `playhead`, and optionally the selection and the recording sessions. Labels are Plex Mono 11 px at the smallest nice interval that keeps them 64 px apart, so zooming picks a coarser or finer step by itself. The playhead is a 2 px accent line with a 10 px triangle; a host that draws the needle itself, such as the phone's fixed line or a moving one that must not re-render the ruler, sets `hidePlayhead`, and the slider value and keys still follow `playhead`. A selection is a 4 px accent band along the bottom with a 12 px knob at each end.\n\nA click seeks (`onSeek`). A drag scrubs: `onScrubStart` (return `false` to refuse), `onScrub` with the pointer's time and `onScrubEnd`, which reports `committed: false` for Escape, a window blur, `pointercancel`, a lost capture or the ruler leaving the page, so the host puts the playhead back. A double-click fits (`onFit`). The knobs resize the selection with `onSelectionDragStart`, `onSelectionDrag` and `onSelectionDragEnd`. A guest gets no knobs.\n\nOne finger swipes along the ruler to scrub it: the body sets `touch-action: pan-y`, so a horizontal move reaches the page as pointer events after 10 px and a vertical one is left to the browser. A tap seeks, and a tap on a knob's 44 px area seeks too. Pinch and pan belong to the lanes host, and a second finger is ignored.\n\nThe ruler is one tab stop and a slider named for the playhead: Left and Right move it one tick (Shift ten) with `onSeek`, Home and End go to the ends. Alt with Left or Right walks focus to the selection knobs, which are sliders that Left and Right nudge by 10 ms (Shift 100 ms) with `onSelectionNudge` and `onSelectionNudgeEnd`.\n\n**Motion.** None. The playhead and the band move with no easing.",
+          "The time ruler (design-system element 17a), 24 px tall. It takes plain data: the window's `start` and `pxPerSecond`, its `width`, the `playhead`, and optionally the selection and the recording sessions. Labels are Plex Mono 11 px at the smallest nice interval that keeps them 4 rem apart, so zooming picks a coarser or finer step by itself. The playhead is a 2 px accent line with a 10 px triangle; a host that draws the needle itself, such as the phone's fixed line or a moving one that must not re-render the ruler, sets `hidePlayhead`, and the slider value and keys still follow `playhead`. A selection is a 4 px accent band along the bottom with a 12 px knob at each end.\n\nA click seeks (`onSeek`). A drag scrubs: `onScrubStart` (return `false` to refuse), `onScrub` with the pointer's time and `onScrubEnd`, which reports `committed: false` for Escape, a window blur, `pointercancel`, a lost capture or the ruler leaving the page, so the host puts the playhead back. A double-click fits (`onFit`). The knobs resize the selection with `onSelectionDragStart`, `onSelectionDrag` and `onSelectionDragEnd`. A guest gets no knobs.\n\nA finger only taps the ruler: a tap seeks (and a tap on a knob's 44 px area seeks too), and a swipe starting on the body never scrubs, because under a coarse pointer the body sets `touch-action: pan-x pan-y` and the browser pans the timeline instead. A mouse (and a pen on a fine-pointer screen) drags to scrub. Pinch and pan belong to the lanes host, and a second finger is ignored.\n\nThe ruler is one tab stop and a slider named for the playhead: Left and Right move it one tick (Shift ten) with `onSeek`, Home and End go to the ends. Alt with Left or Right walks focus to the selection knobs, which are sliders that Left and Right nudge by 10 ms (Shift 100 ms) with `onSelectionNudge` and `onSelectionNudgeEnd`.\n\n**Motion.** None. The playhead and the band move with no easing.",
       },
     },
   },
@@ -218,6 +218,41 @@ export const EndTickRightAligned: Story = {
     await expect(
       Math.ceil(tick?.getBoundingClientRect().right ?? 0),
     ).toBeLessThanOrEqual(Math.ceil(ruler?.getBoundingClientRect().right ?? 0));
+  },
+};
+
+/** A 320 px phone's ruler (256 px of time) fitted to a minute: "0:45" would touch the end label, so it gives way and "1:00" stays. */
+export const NarrowEndLabel: Story = {
+  args: {
+    start: 0,
+    pxPerSecond: 256 / 60,
+    width: 256,
+    duration: 60,
+    playhead: 12,
+  },
+  render: (args) => (
+    <div style={stage}>
+      <div style={{ inlineSize: args.width }}>
+        <Ruler {...args} />
+      </div>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const labelled = [
+      ...canvasElement.querySelectorAll<HTMLElement>(".sys-ruler-tick"),
+    ].filter((tick) => tick.textContent);
+    await expect(labelled.map((tick) => tick.textContent)).toEqual([
+      "0:00",
+      "0:15",
+      "0:30",
+      "1:00",
+    ]);
+    const boxes = labelled.map((tick) => tick.getBoundingClientRect());
+    for (let i = 1; i < boxes.length; i++) {
+      await expect(boxes[i]?.left ?? 0).toBeGreaterThanOrEqual(
+        boxes[i - 1]?.right ?? 0,
+      );
+    }
   },
 };
 

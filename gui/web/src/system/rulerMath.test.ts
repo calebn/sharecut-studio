@@ -29,7 +29,7 @@ describe("rulerMath", () => {
     }
   });
 
-  it("keeps labels 64 px apart for a 10 hour episode fitted into 360 px", () => {
+  it("keeps the end label of a 10 hour episode fitted into 360 px and drops the one it would sit on", () => {
     const pps = 360 / 36000;
     const step = rulerStep(pps, 36000);
     expect(step).toBe(7200);
@@ -39,8 +39,8 @@ describe("rulerMath", () => {
       "2:00:00",
       "4:00:00",
       "6:00:00",
-      "8:00:00",
       "",
+      "10:00:00",
     ]);
     expect(ticks.at(-1)?.align).toBe("end");
     expect(ticks.map((t) => t.x)).toEqual([0, 72, 144, 216, 288, 360]);
@@ -87,8 +87,18 @@ describe("rulerMath", () => {
     expect(rulerTicks(0, 12, 270, 10, 36).at(-1)?.align).toBe("end");
   });
 
-  it("drops the label of a right-aligned tick that would sit on its neighbour's", () => {
+  it("drops the label before the episode's end when the end label would sit on it, and keeps the end", () => {
     const ticks = rulerTicks(0, 18, 162, 3, 9);
+    expect(ticks.map((t) => [t.x, t.label, t.align])).toEqual([
+      [0, "0:00", "start"],
+      [54, "0:03", "start"],
+      [108, "", "start"],
+      [162, "0:09", "end"],
+    ]);
+  });
+
+  it("drops a right-aligned label that is not the episode's end rather than the one before it", () => {
+    const ticks = rulerTicks(0, 18, 162, 3, 100);
     expect(ticks.map((t) => [t.x, t.label, t.align])).toEqual([
       [0, "0:00", "start"],
       [54, "0:03", "start"],
@@ -98,12 +108,16 @@ describe("rulerMath", () => {
   });
 
   it("does not drift at a deep zoom", () => {
-    const ticks = rulerTicks(12.0003, 20000, 400, 0.0005);
-    expect(ticks.slice(0, 3).map((t) => t.label)).toEqual([
-      "0:11.9975",
-      "0:11.9980",
-      "0:11.9985",
-    ]);
+    const step = rulerStep(20000, 12.02);
+    expect(step).toBe(0.005);
+    const ticks = rulerTicks(12.0003, 20000, 400, step);
+    expect(ticks.slice(0, 3).map((t) => [t.time, t.label])).toEqual(
+      [
+        [2400, "0:12.000"],
+        [2401, "0:12.005"],
+        [2402, "0:12.010"],
+      ].map(([index, label]) => [(index as number) * step, label]),
+    );
   });
 
   it("stops at the episode's end and for empty input", () => {
@@ -113,5 +127,59 @@ describe("rulerMath", () => {
     expect(rulerTicks(0, 1, 0, 60)).toEqual([]);
     expect(rulerTicks(0, 0, 360, 60)).toEqual([]);
     expect(rulerTicks(0, 1, 360, 0)).toEqual([]);
+  });
+
+  it("never leaves two labels overlapping at a phone's widths, root fonts or zooms, and always keeps the end label", () => {
+    const extent = (
+      tick: ReturnType<typeof rulerTicks>[number],
+      rem: number,
+    ) => {
+      const w = tick.label.length * 0.4125 * rem + 0.3125 * rem;
+      return tick.align === "end" ? [tick.x - w, tick.x] : [tick.x, tick.x + w];
+    };
+    let ends = 0;
+    for (const rem of [16, 20, 24, 32]) {
+      for (const width of [256, 296, 329, 1248]) {
+        for (const duration of [60, 600, 3600, 36000]) {
+          const pps = width / duration;
+          const step = rulerStep(pps, duration, rem);
+          const ticks = rulerTicks(0, pps, width, step, duration, rem);
+          const shown = ticks.filter((tick) => tick.label !== "");
+          const where = `rem ${rem}, width ${width}, duration ${duration}`;
+          for (let i = 1; i < shown.length; i++) {
+            const [, right] = extent(shown[i - 1]!, rem) as [number, number];
+            const [left] = extent(shown[i]!, rem) as [number, number];
+            expect(left, where).toBeGreaterThanOrEqual(right);
+          }
+          const end = ticks.at(-1)!;
+          if (end.time === duration) {
+            expect(end.label, where).not.toBe("");
+            ends++;
+          }
+        }
+      }
+    }
+    expect(ends).toBeGreaterThan(20);
+  });
+
+  it("leaves a root font's worth more room between labels, in rem not px", () => {
+    expect(rulerStep(10, 600, 32)).toBeGreaterThan(rulerStep(10, 600, 16));
+    const ticks = rulerTicks(0, 10, 600, rulerStep(10, 600, 32), 600, 32);
+    const gaps = ticks.slice(1).map((tick, i) => tick.x - ticks[i]!.x);
+    for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(128);
+  });
+
+  it("keeps the end label of a 1:00 episode at 320 px where '0:45' would have touched it", () => {
+    const width = 256;
+    const pps = width / 60;
+    const ticks = rulerTicks(0, pps, width, rulerStep(pps, 60), 60);
+    expect(ticks.map((t) => t.label)).toEqual([
+      "0:00",
+      "0:15",
+      "0:30",
+      "",
+      "1:00",
+    ]);
+    expect(ticks.at(-1)?.align).toBe("end");
   });
 });

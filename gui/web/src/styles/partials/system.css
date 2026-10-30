@@ -5694,6 +5694,13 @@ input.sys-edit-fix {
   touch-action: pan-y;
 }
 
+/* A finger only taps the body; a swipe along it pans the timeline. */
+@media (pointer: coarse) {
+  .sys-ruler-body {
+    touch-action: pan-x pan-y;
+  }
+}
+
 .sys-ruler-body:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: calc(var(--focus-ring-width) * -1);
