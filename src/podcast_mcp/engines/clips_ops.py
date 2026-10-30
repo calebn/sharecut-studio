@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import hmac
 import math
 import uuid
 from bisect import bisect_left, bisect_right
 from collections.abc import Mapping, Sequence
+from enum import Enum
 from itertools import pairwise
 from typing import Any, Literal
 
@@ -33,6 +35,32 @@ JOIN_GAP_TOLERANCE_SEC: float = contract_constant(
 
 def new_clip_id() -> str:
     return f"clip_{uuid.uuid4().hex[:8]}"
+
+
+_ATOMS = (str, int, float, bool, type(None), Enum)
+
+
+def shell_copy_clip(clip: Clip, update: Mapping[str, Any] | None = None) -> Clip:
+    """``clip.model_copy(deep=True, update=update)`` without deep-copying the usual empty lists.
+
+    Every field value that is not an atom gets a fresh ``[]`` or a deep copy, so a field added
+    to Clip is separated from the original the day it exists. Values go in through ``__dict__``
+    because assigning a field would add it to ``model_fields_set``, which decides whether the
+    optional automatic fields are dumped. ``update`` keys are written as ``model_copy`` writes
+    them, uncopied and marked set.
+    """
+    shell = clip.model_copy(update=update)
+    values = shell.__dict__
+    for name, value in values.items():
+        if isinstance(value, _ATOMS) or (update is not None and name in update):
+            continue
+        values[name] = [] if type(value) is list and not value else copy.deepcopy(value)
+    return shell
+
+
+def clip_clear_of_range(clip: Clip, timeline_start: float, timeline_end: float) -> bool:
+    """True when the clip lies wholly before or after the range, so a cut leaves its source alone."""
+    return clip.timeline_end <= timeline_start + 1e-9 or clip.timeline_start >= timeline_end - 1e-9
 
 
 def _split_parents() -> dict[str, str]:
@@ -216,12 +244,10 @@ def remove_timeline_range_from_clips(
     out: list[Clip] = []
     for clip in clips:
         tl_end = clip.timeline_end
-        if tl_end <= timeline_start + 1e-9 or clip.timeline_start >= timeline_end - 1e-9:
+        if clip_clear_of_range(clip, timeline_start, timeline_end):
             if clip.timeline_start >= timeline_end - 1e-9:
                 out.append(
-                    clip.model_copy(
-                        deep=True, update={"timeline_start": clip.timeline_start - duration}
-                    )
+                    shell_copy_clip(clip, {"timeline_start": clip.timeline_start - duration})
                 )
             else:
                 out.append(clip)

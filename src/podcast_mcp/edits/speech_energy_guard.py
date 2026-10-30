@@ -34,7 +34,11 @@ from podcast_mcp.engines.audio_audit import (
     timeline_frame_levels_db,
     timeline_window_samples,
 )
-from podcast_mcp.engines.clips_ops import clips_for_track, remove_timeline_range_from_clips
+from podcast_mcp.engines.clips_ops import (
+    clip_clear_of_range,
+    clips_for_track,
+    remove_timeline_range_from_clips,
+)
 from podcast_mcp.engines.lane_window import (
     SampleRun,
     lane_clip_placements,
@@ -215,12 +219,16 @@ def _removal_cells(
     kept_cells: list[tuple[float, float]] = []
     runs: list[SampleRun] = []
     for clip, (_, placement), cell in zip(clips, pairs, cells, strict=True):
-        kept = [
-            (round(piece.source_start * rate), round(piece.source_end * rate))
-            for piece in remove_timeline_range_from_clips(
-                [clip], removal_start, removal_end, defaults=defaults
-            )
-        ]
+        if removal_end <= removal_start or clip_clear_of_range(clip, removal_start, removal_end):
+            bounds = [(clip.source_start, clip.source_end)]
+        else:
+            bounds = [
+                (piece.source_start, piece.source_end)
+                for piece in remove_timeline_range_from_clips(
+                    [clip], removal_start, removal_end, defaults=defaults
+                )
+            ]
+        kept = [(round(a * rate), round(b * rate)) for a, b in bounds]
         gone = subtract_intervals([(cell.first, cell.first + cell.count)], kept)
         shift = cell.dest - cell.first
         gone_cells.extend((a + shift, b + shift) for a, b in gone)
