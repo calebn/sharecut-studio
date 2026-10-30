@@ -127,4 +127,18 @@ describe("ScriptHost speaker popover", () => {
     await userEvent.click(speakerButton("Maya"));
     expect(screen.getByRole("dialog", { name: "Speaker" })).toBeInTheDocument();
   });
+
+  it("does not say the speaker was renamed when the project is not open", async () => {
+    render(<ScriptHost />);
+    await userEvent.click(speakerButton("Maya"));
+    await userEvent.click(
+      screen.getAllByRole("button", { name: /Fix text/ })[0]!,
+    );
+    const field = screen.getByRole("textbox", { name: "Name for Maya" });
+    useDawStore.setState({ projectEditBasis: () => null });
+    await userEvent.type(field, "x{Enter}");
+    expect(await screen.findByText(/project is not open/i)).toBeInTheDocument();
+    expect(setTrackMeta).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Speaker renamed/)).toBeNull();
+  });
 });

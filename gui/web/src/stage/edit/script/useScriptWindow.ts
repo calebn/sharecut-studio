@@ -154,6 +154,8 @@ export function useScriptWindow(
       const at = turnOf(index);
       const target = around(at, total);
       const now = rangeRef.current;
+      // Its turn is drawn already, so the pane lacks the word itself: no window helps.
+      if (now.lo <= at && at <= now.hi) return false;
       const near = target.lo <= now.hi + 1 && target.hi >= now.lo - 1;
       // A word beside the window joins it; a far one replaces it.
       const next = near
@@ -177,7 +179,12 @@ export function useScriptWindow(
   const drawn = useRef("");
   useLayoutEffect(() => {
     const key = `${range.lo}:${range.hi}`;
-    if (drawn.current === key) return;
+    if (drawn.current === key) {
+      // Changes in one batch that came back here leave nothing to wait for.
+      retry.current = null;
+      eye.current = null;
+      return;
+    }
     drawn.current = key;
     const again = retry.current;
     retry.current = null;
@@ -211,22 +218,35 @@ export function useScriptWindow(
     [turnOf, grow],
   );
 
+  // The body is not drawn while the pane loads, so it can be a new node when the
+  // model is the same: look again after every commit and bind when it changed.
+  const growing = useRef(grow);
+  useLayoutEffect(() => {
+    growing.current = grow;
+  }, [grow]);
+  const bound = useRef<{ body: HTMLElement; off: () => void } | null>(null);
   useEffect(() => {
-    if (!windowed) return;
-    const body = bodyOf();
+    const body = windowed ? bodyOf() : null;
+    if (bound.current?.body === body) return;
+    bound.current?.off();
+    bound.current = null;
     if (!body) return;
     const onScroll = () => {
-      if (body.scrollTop < SCROLL_REACH) grow("up", true);
+      if (body.scrollTop < SCROLL_REACH) growing.current("up", true);
       if (
         body.scrollHeight - body.scrollTop - body.clientHeight <
         SCROLL_REACH
       ) {
-        grow("down", true);
+        growing.current("down", true);
       }
     };
     body.addEventListener("scroll", onScroll, { passive: true });
-    return () => body.removeEventListener("scroll", onScroll);
-  }, [windowed, bodyOf, grow, model.turns]);
+    bound.current = {
+      body,
+      off: () => body.removeEventListener("scroll", onScroll),
+    };
+  });
+  useEffect(() => () => bound.current?.off(), []);
 
   // While the playhead is followed, the pane keeps up with it.
   const { playKey, following, playing } = focus;
