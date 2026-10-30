@@ -6,18 +6,18 @@ const FIRST_CONTROL =
 /**
  * The first control takes focus unless the keymap would ignore it as a typing
  * target (any field, date and time included): a field would swallow the
- * shortcuts the user reaches for after opening. The dialog itself holds focus
- * then, and Tab enters the form.
+ * shortcuts the user reaches for after opening. The dialog's focus anchor
+ * (inside the Escape wrapper) holds focus then, and Tab enters the form.
  */
 export function focusFirstControl(box: HTMLElement) {
-  const dialog = box.querySelector<HTMLElement>('[role="dialog"]');
+  const anchor = box.querySelector<HTMLElement>("[data-inspector-anchor]");
   const first = [...box.querySelectorAll<HTMLElement>(FIRST_CONTROL)].find(
     (el) => !el.closest("[hidden], [inert]"),
   );
   const target =
     first && !isTypingTarget(first)
       ? first
-      : (dialog ??
+      : (anchor ??
         box.querySelector<HTMLElement>(".sys-inspector-grip, .dialog-close"));
   target?.focus({ preventScroll: true });
 }
