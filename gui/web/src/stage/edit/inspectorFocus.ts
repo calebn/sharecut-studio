@@ -1,7 +1,7 @@
 import { isTypingTarget } from "../../keymap/typing";
 
 const FIRST_CONTROL =
-  ".sys-inspector-scroll :is(button, input:not([type='hidden']), select, textarea, [tabindex]):not(:disabled, [tabindex='-1'])";
+  ".sys-inspector-scroll :is(button, input:not([type='hidden']), select, textarea, [tabindex]):not(:disabled, [aria-disabled='true'], [tabindex='-1'])";
 
 /**
  * The first control takes focus unless the keymap would ignore it as a typing
