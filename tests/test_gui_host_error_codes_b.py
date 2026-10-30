@@ -294,7 +294,7 @@ def test_pipeline_refusals(
         400,
         "pipeline_skip_steps_unknown",
     )
-    from podcast_mcp.gui.routes import pipeline
+    from podcast_mcp.gui.routes import pipeline, pipeline_jobs
 
     class FakeStore:
         put = staticmethod(_raiser(ValueError("bad value")))
@@ -305,7 +305,7 @@ def test_pipeline_refusals(
     _check(client.post("/api/pipeline/cancel", json={"job_id": "nope"}), 404, "job_not_found")
     _check(client.get("/api/pipeline/events", params={"job_id": "nope"}), 404, "job_not_found")
 
-    monkeypatch.setattr(pipeline, "ensure_whisper_cached_for_run", lambda **_k: None)
+    monkeypatch.setattr(pipeline_jobs, "ensure_whisper_cached_for_run", lambda **_k: None)
     jobs = type(client.app.state.jobs)  # type: ignore[attr-defined]
     for name, url, body in (
         ("start_analyze", "/api/pipeline/analyze", {"path": p}),
@@ -323,11 +323,11 @@ def test_pipeline_model_needed(
     tmp_path: Path,
 ) -> None:
     from podcast_mcp.engines.models.registry import require_model
-    from podcast_mcp.gui.routes import pipeline
+    from podcast_mcp.gui.routes import pipeline_jobs
 
     isolate_model_env(monkeypatch, tmp_path)
     monkeypatch.setattr(
-        pipeline, "ensure_whisper_cached_for_run", lambda **_k: require_model("rnnoise")
+        pipeline_jobs, "ensure_whisper_cached_for_run", lambda **_k: require_model("rnnoise")
     )
     _check(
         client.post("/api/pipeline/run", json={"path": str(minimal_project)}),

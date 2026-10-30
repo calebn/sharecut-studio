@@ -8,11 +8,17 @@ from fastapi.responses import StreamingResponse
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
     coded_exception_error,
-    coded_http_error,
     require_host,
     resolve_project,
 )
-from podcast_mcp.gui.routes.pipeline_jobs import cancel_job, find_job
+from podcast_mcp.gui.routes.pipeline_jobs import (
+    cancel_job,
+    check_steps,
+    find_job,
+    owner_busy_error,
+    resolve_skip_steps,
+    start_pipeline_job,
+)
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import (
     PipelineAnalyzeRequest,
@@ -26,11 +32,7 @@ from podcast_mcp.services.jobs import JobManager
 from podcast_mcp.services.pipeline import (
     build_config_payload,
     config_store,
-    ensure_whisper_cached_for_run,
-    ensure_word_aligner_for_run,
     merge_pipeline_config,
-    skip_steps_from_enabled,
-    transcribe_run_config,
 )
 
 router = APIRouter()
@@ -117,20 +119,7 @@ def pipeline_run(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     jobs = _jobs(request)
     project_path = resolve_project(req.path, request)
-    if req.from_step and req.from_step not in STEP_NAMES:
-        raise coded_http_error(
-            400, f"Unknown from_step: {req.from_step}", code="pipeline_from_step_unknown"
-        )
-    if req.only_step and req.only_step not in STEP_NAMES:
-        raise coded_http_error(
-            400, f"Unknown only_step: {req.only_step}", code="pipeline_only_step_unknown"
-        )
-    if req.skip_steps:
-        bad = [s for s in req.skip_steps if s not in STEP_NAMES]
-        if bad:
-            raise coded_http_error(
-                400, f"Unknown skip_steps: {bad}", code="pipeline_skip_steps_unknown"
-            )
+    check_steps(req.from_step, req.only_step, req.skip_steps)
 
     store = config_store()
     working = store.get(project_path) if req.use_working_set else None
@@ -148,24 +137,11 @@ def pipeline_run(
     if unattended is None:
         unattended = working.unattended if working is not None else True
 
-    skip_steps = req.skip_steps
-    if skip_steps is None and req.enabled_steps is not None:
-        skip_steps = skip_steps_from_enabled(req.enabled_steps)
-    elif skip_steps is None and working is not None and working.enabled_steps is not None:
-        skip_steps = skip_steps_from_enabled(working.enabled_steps)
+    skip_steps = resolve_skip_steps(
+        req.skip_steps, req.enabled_steps, working.enabled_steps if working is not None else None
+    )
 
-    try:
-        run_config = transcribe_run_config(
-            config,
-            force=req.force_transcribe,
-            overwrite_edited=req.overwrite_edited,
-            retime_words=req.retime_words,
-        )
-    except ValueError as exc:
-        raise bad_request_error(exc) from exc
-
-    # Persist run choices into working set for agent/GUI parity
-    if req.use_working_set:
+    def persist() -> None:
         store.put(
             project_path,
             config=config,
@@ -173,28 +149,20 @@ def pipeline_run(
             unattended=unattended,
         )
 
-    ensure_whisper_cached_for_run(
-        config=run_config,
+    job = start_pipeline_job(
+        jobs,
+        project_path,
+        config=config,
         from_step=req.from_step,
         only_step=req.only_step,
         skip_steps=skip_steps,
-        memoize=True,  # early 409 only; PipelineService.run re-hashes before its checkpoint
+        unattended=bool(unattended),
+        force_transcribe=req.force_transcribe,
+        overwrite_edited=req.overwrite_edited,
+        retime_words=req.retime_words,
+        persist=persist if req.use_working_set else None,
+        busy_error=owner_busy_error,
     )
-    ensure_word_aligner_for_run(
-        run_config, from_step=req.from_step, only_step=req.only_step, skip_steps=skip_steps
-    )
-
-    try:
-        job = jobs.start(
-            project_path,
-            from_step=req.from_step,
-            only_step=req.only_step,
-            skip_steps=skip_steps,
-            unattended=bool(unattended),
-            config=run_config,
-        )
-    except RuntimeError as exc:
-        raise coded_exception_error(409, exc, code="pipeline_busy") from exc
     return {"job": job.snapshot()}
 
 

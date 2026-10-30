@@ -15,7 +15,7 @@ import podcast_mcp.edits.transcript_search as transcript_search
 import podcast_mcp.services.collaboration as collaboration
 import podcast_mcp.services.jobs as service_jobs
 import podcast_mcp.services.record.service as record_service
-from podcast_mcp.gui.routes import record_share, remote_mcp, review_share
+from podcast_mcp.gui.routes import record_share, remote_mcp, review_editor, review_share
 from podcast_mcp.gui.routes.guest_ws_common import GUEST_MALFORMED_LIMIT
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
@@ -279,6 +279,9 @@ PROBES: dict[tuple[str, str], Probe] = {
     ),
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): Probe(
         Site(service_jobs.JobManager, "get_job")
+    ),
+    ("POST", "/api/review/{token}/daw/pipeline/run"): Probe(
+        Site(review_editor, "start_pipeline_job"), {"json": {}}
     ),
     ("GET", "/api/review/{token}/daw/pipeline/status"): Probe(
         Site(service_jobs.JobManager, "status")

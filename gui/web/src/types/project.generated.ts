@@ -131,6 +131,15 @@ export interface FeedWriteRequest {
   path: string;
 }
 
+/** Which steps an Editor share starts; the host's working-set config decides the rest. */
+export interface GuestPipelineRunRequest {
+  from_step?: string | null;
+  only_step?: string | null;
+  skip_steps?: Array<string> | null;
+  force_transcribe?: boolean;
+  retime_words?: boolean;
+}
+
 /** Base for the guest request bodies that carry fields of their own (comment, reply, action done, feed edit): unknown fields are refused. Document commands use their typed payloads instead. */
 export type GuestRequest = Record<string, unknown>;
 

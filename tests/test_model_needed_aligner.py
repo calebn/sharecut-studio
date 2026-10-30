@@ -33,7 +33,7 @@ def _options(value: object) -> AsrOptions:
 def _whisper_installed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     isolate_model_env(monkeypatch, tmp_path)
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.pipeline.ensure_whisper_cached_for_run", lambda **_k: None
+        "podcast_mcp.gui.routes.pipeline_jobs.ensure_whisper_cached_for_run", lambda **_k: None
     )
     monkeypatch.setattr(
         "podcast_mcp.mcp.tools.pipeline.ensure_whisper_cached_for_run", lambda **_k: None

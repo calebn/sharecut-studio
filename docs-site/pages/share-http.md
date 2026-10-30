@@ -51,6 +51,7 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `GET` | `…/daw/pipeline/jobs/{job_id}` | `Editor` | Read one job of this project; any other job id is 404 |
 | `POST` | `…/daw/pipeline/jobs/{job_id}/cancel` | `Editor` | Cancel one job of this project (works with PODCAST_GUEST_RENDER off) |
 | `GET` | `…/daw/pipeline/jobs/{job_id}/events` | `Editor` | SSE status frames of one job; closes when the job ends or the link is revoked |
+| `POST` | `…/daw/pipeline/run` | `Editor` | Start a pipeline run (no export step) with the host's working-set config (opt-in PODCAST_GUEST_RENDER) |
 | `GET` | `…/daw/pipeline/status` | `Editor` | Read the share project's job status (fixed copy, no host paths) |
 | `GET` | `…/daw/project` | `view` | Sanitized ProjectView (no host paths) |
 | `GET` | `…/daw/proxy/manifest` | `play` | Proxy chunk manifest |

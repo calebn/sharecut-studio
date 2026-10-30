@@ -60,6 +60,12 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch):
         )["token"]
         for role in ("viewer", "commenter", "editor")
     }
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.PipelineService.run",
+        lambda self, **_kwargs: SimpleNamespace(last_step=None, job_result=dict),
+    )
+    for check in ("ensure_whisper_cached_for_run", "ensure_word_aligner_for_run"):
+        monkeypatch.setattr(f"podcast_mcp.gui.routes.pipeline_jobs.{check}", lambda *_a, **_k: None)
     app = create_app()
     return SimpleNamespace(client=TestClient(app), app=app, ws=ws, tokens=tokens)
 
@@ -69,7 +75,8 @@ def _url(row: GuestRoute, token: str, job_id: str) -> str:
 
 
 def _call(world, row: GuestRoute, token: str, job_id: str = "j1"):
-    return world.client.request(row.method, _url(row, token, job_id))
+    body = {} if row.name == "pipeline_run" else None
+    return world.client.request(row.method, _url(row, token, job_id), json=body)
 
 
 def _editor_job_id(world, name: str) -> str:
@@ -77,6 +84,8 @@ def _editor_job_id(world, name: str) -> str:
         job = Job(id="pipeline-1", kind="pipeline", status="ok", project_path=str(world.ws.path))
         world.app.state.jobs._catalog._job = job
         return job.id
+    if name == "pipeline_run":
+        return "j1"
     start = GUEST_OWNER_ROUTES["render_preview"]
     return _call(world, start, world.tokens["editor"]).json()["job"]["id"]
 
@@ -85,6 +94,7 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
     assert set(GUEST_OWNER_ROUTES) == {
         "render_preview",
         "render_preview_status",
+        "pipeline_run",
         "pipeline_status",
         "pipeline_job_status",
         "pipeline_job_events",
@@ -94,17 +104,21 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
         assert row.name == name
         assert row.path.startswith("/api/review/{token}/daw/")
     assert GUEST_OWNER_ROUTES["render_preview"].needs_guest_render
-    assert [n for n, r in GUEST_OWNER_ROUTES.items() if r.needs_guest_render] == ["render_preview"]
+    assert [n for n, r in GUEST_OWNER_ROUTES.items() if r.needs_guest_render] == [
+        "render_preview",
+        "pipeline_run",
+    ]
+    assert GUEST_OWNER_ROUTES["pipeline_run"].rate_kind == "mutate"
     assert GUEST_OWNER_ROUTES["render_preview"].rate_kind == "mutate"
     assert GUEST_OWNER_ROUTES["render_preview_status"].rate_kind == "read"
 
 
 def test_a_route_with_no_row_is_denied() -> None:
     with pytest.raises(CodedPermissionError) as raised:
-        guest_owner_route("pipeline_run")
+        guest_owner_route("export_start")
     assert raised.value.code == "share_capability_required"
     with pytest.raises(CodedPermissionError):
-        review_editor.guest_route("pipeline_run")
+        review_editor.guest_route("export_start")
 
 
 @pytest.mark.parametrize("name", sorted(GUEST_OWNER_ROUTES))

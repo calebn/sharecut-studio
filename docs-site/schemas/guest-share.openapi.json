@@ -3984,6 +3984,61 @@
         "title": "FillRoomTonePayload",
         "type": "object"
       },
+      "GuestPipelineRunRequest": {
+        "additionalProperties": false,
+        "description": "Which steps an Editor share starts; the host's working-set config decides the rest.",
+        "properties": {
+          "force_transcribe": {
+            "default": false,
+            "title": "Force Transcribe",
+            "type": "boolean"
+          },
+          "from_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Step"
+          },
+          "only_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Only Step"
+          },
+          "retime_words": {
+            "default": false,
+            "title": "Retime Words",
+            "type": "boolean"
+          },
+          "skip_steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 24,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Steps"
+          }
+        },
+        "title": "GuestPipelineRunRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -12772,6 +12827,55 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/pipeline/run": {
+      "post": {
+        "description": "Runs the host's working-set config for this project and never writes it.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestPipelineRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"

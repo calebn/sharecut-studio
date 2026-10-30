@@ -11,6 +11,7 @@ if TYPE_CHECKING:
         run_bootstrap,
     )
     from podcast_mcp.services.pipeline.config import (
+        STEP_NAMES,
         analyze_working_set,
         asr_options_for,
         build_config_payload,
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
         WHISPER_MODEL_IDS,
         ModelSpec,
         WhisperWeightsMissingError,
+        WordAlignerMissingError,
         model_spec,
         models_for,
         persist_whisper_model,
@@ -53,6 +55,7 @@ if TYPE_CHECKING:
 __all__ = [
     "DEFAULT_WHISPER_MODEL",
     "MODELS",
+    "STEP_NAMES",
     "WHISPER_MODEL_IDS",
     "AudioExportResult",
     "BootstrapRequest",
@@ -61,6 +64,7 @@ __all__ = [
     "PipelineRunResult",
     "PipelineService",
     "WhisperWeightsMissingError",
+    "WordAlignerMissingError",
     "analyze_working_set",
     "asr_options_for",
     "build_config_payload",
@@ -134,6 +138,8 @@ _MODULE_BY_NAME = {
     "skip_steps_from_enabled": "config",
     "suggest_pipeline_tuning": "config",
     "transcribe_run_config": "config",
+    "STEP_NAMES": "config",
+    "WordAlignerMissingError": "models",
 }
 
 

@@ -15,6 +15,7 @@ from podcast_mcp.engines.models.whisper import (
     resolve_whisper_model,
     validate_whisper_model,
 )
+from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
 
 __all__ = [
     "DEFAULT_WHISPER_MODEL",
@@ -22,6 +23,7 @@ __all__ = [
     "WHISPER_MODEL_IDS",
     "ModelSpec",
     "WhisperWeightsMissingError",
+    "WordAlignerMissingError",
     "model_spec",
     "models_for",
     "persist_whisper_model",

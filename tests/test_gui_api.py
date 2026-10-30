@@ -36,7 +36,7 @@ from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError
 def _bypass_whisper_run_gate(monkeypatch: pytest.MonkeyPatch) -> None:
     """Happy-path GUI run tests stub the Whisper cache gate (409 covered elsewhere)."""
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.pipeline.ensure_whisper_cached_for_run",
+        "podcast_mcp.gui.routes.pipeline_jobs.ensure_whisper_cached_for_run",
         lambda **_kwargs: None,
     )
 
@@ -4520,7 +4520,7 @@ def test_api_pipeline_run_force_transcribe_is_run_only(minimal_project, monkeypa
 
     monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.run", fake_run)
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.pipeline.ensure_whisper_cached_for_run", lambda **_: None
+        "podcast_mcp.gui.routes.pipeline_jobs.ensure_whisper_cached_for_run", lambda **_: None
     )
     client = TestClient(create_app())
     res = client.post(
@@ -4557,10 +4557,10 @@ def test_api_pipeline_run_retime_words_is_run_only(minimal_project, monkeypatch)
 
     monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.run", fake_run)
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.pipeline.ensure_whisper_cached_for_run", lambda **_: None
+        "podcast_mcp.gui.routes.pipeline_jobs.ensure_whisper_cached_for_run", lambda **_: None
     )
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.pipeline.ensure_word_aligner_for_run", lambda *_a, **_k: None
+        "podcast_mcp.gui.routes.pipeline_jobs.ensure_word_aligner_for_run", lambda *_a, **_k: None
     )
     client = TestClient(create_app())
     res = client.post(
@@ -4596,7 +4596,7 @@ def test_api_pipeline_run_rejects_force_with_retime_words(minimal_project, monke
 
     monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.run", fake_run)
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.pipeline.ensure_whisper_cached_for_run", lambda **_: None
+        "podcast_mcp.gui.routes.pipeline_jobs.ensure_whisper_cached_for_run", lambda **_: None
     )
     client = TestClient(create_app())
     res = client.post(

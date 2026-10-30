@@ -554,6 +554,25 @@ an hour passes, and allows four open streams per link. None of these routes need
 with the flag off, so the host can turn it off and still let an Editor stop a
 running job.
 
+An Editor can also start the run (`POST …/daw/pipeline/run`, **202**), with the same
+steps the host can pick except export. The body is `GuestPipelineRunRequest`:
+`from_step`, `only_step`, `skip_steps` (at most one per step), `force_transcribe` and
+`retime_words`, and nothing else (a path, config, `use_working_set`, `unattended`,
+`enabled_steps` or `overwrite_edited` is a 422; `overwrite_edited` is not offered, so a guest
+run never replaces hand-edited transcripts). `export_deliverables` is never run for a guest:
+naming it in `from_step` or `only_step` answers 400 `pipeline_step_not_shared`, and every
+guest run skips it. The run uses the host's working-set config for the share's project, read
+as a copy without staging or changing it, so a guest run does not change the staged working
+set. If the host set the project to attended runs, the start answers 409 `pipeline_attended`
+before any job starts; with nothing staged the run is unattended. Starting spends host CPU,
+so it needs `PODCAST_GUEST_RENDER` like a render preview. Unknown step names answer the
+owner's 400 codes. A busy slot, including one held by a host job, answers 409 `job_running`
+with the same fixed copy as a render preview. A whisper model or a word aligner that is not
+usable answers 409 `model_needed` with the guest copy before any job starts: the model
+checks only read the cache and never download, so a guest cannot start a download. The
+response is the same fixed-copy job view, never the job snapshot, and the new job is
+reachable through the status, events and cancel twins.
+
 The Editor does not get these. The exceptions below are the audit's approved
 list; the routes and tools in them are not document commands, and slices after
 this one decide which owner routes get a share-scoped twin.
