@@ -240,16 +240,19 @@ class JobManager:
         project_path: Path,
         *,
         formats: list[dict[str, Any]] | None = None,
+        wait_for_rebuild: bool = True,
     ) -> Job:
         """Mastered deliverables via ``PipelineService.export_audio``.
 
         A mix rebuild of the same project (the automatic refresh after an edit, Undo or Redo)
         holds the slot only briefly, so the export queues behind it instead of refusing.
+        ``wait_for_rebuild=False`` tries the slot once and refuses at once when it is taken.
         """
         deadline = time.monotonic() + EXPORT_PREVIEW_WAIT_S
         scope = str(project_path.resolve())
         while True:
-            self._wait_out_mix_rebuild(scope, deadline)
+            if wait_for_rebuild:
+                self._wait_out_mix_rebuild(scope, deadline)
             try:
                 return self._spawn(
                     project_path,
@@ -258,7 +261,7 @@ class JobManager:
                     config={"formats": formats},
                 )
             except JobSlotBusyError:
-                if self._live_mix_rebuild(scope) is None:
+                if not wait_for_rebuild or self._live_mix_rebuild(scope) is None:
                     raise
 
     def _wait_out_mix_rebuild(self, scope: str, deadline: float) -> None:

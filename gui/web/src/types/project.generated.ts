@@ -131,6 +131,11 @@ export interface FeedWriteRequest {
   path: string;
 }
 
+/** Which deliverables an Editor share exports; each name is a format the host fixes. */
+export interface GuestExportRequest {
+  formats?: Array<"mp3" | "flac" | "m4a"> | null;
+}
+
 /** Which steps an Editor share starts; the host's working-set config decides the rest. */
 export interface GuestPipelineRunRequest {
   from_step?: string | null;

@@ -64,6 +64,10 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch):
         "podcast_mcp.services.pipeline.PipelineService.run",
         lambda self, **_kwargs: SimpleNamespace(last_step=None, job_result=dict),
     )
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.PipelineService.export_audio",
+        lambda self, formats=None, **_kwargs: SimpleNamespace(job_result=dict),
+    )
     for check in ("ensure_whisper_cached_for_run", "ensure_word_aligner_for_run"):
         monkeypatch.setattr(f"podcast_mcp.gui.routes.pipeline_jobs.{check}", lambda *_a, **_k: None)
     app = create_app()
@@ -75,7 +79,7 @@ def _url(row: GuestRoute, token: str, job_id: str) -> str:
 
 
 def _call(world, row: GuestRoute, token: str, job_id: str = "j1"):
-    body = {} if row.name == "pipeline_run" else None
+    body = {} if row.name in {"pipeline_run", "export_start"} else None
     return world.client.request(row.method, _url(row, token, job_id), json=body)
 
 
@@ -84,7 +88,11 @@ def _editor_job_id(world, name: str) -> str:
         job = Job(id="pipeline-1", kind="pipeline", status="ok", project_path=str(world.ws.path))
         world.app.state.jobs._catalog._job = job
         return job.id
-    if name == "pipeline_run":
+    if name.startswith("export_job"):
+        job = Job(id="export-1", kind="export", status="ok", project_path=str(world.ws.path))
+        world.app.state.jobs._catalog._job = job
+        return job.id
+    if name in {"pipeline_run", "export_start", "export_status"}:
         return "j1"
     start = GUEST_OWNER_ROUTES["render_preview"]
     return _call(world, start, world.tokens["editor"]).json()["job"]["id"]
@@ -99,6 +107,11 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
         "pipeline_job_status",
         "pipeline_job_events",
         "pipeline_job_cancel",
+        "export_start",
+        "export_status",
+        "export_job_status",
+        "export_job_events",
+        "export_job_cancel",
     }
     for name, row in GUEST_OWNER_ROUTES.items():
         assert row.name == name
@@ -107,18 +120,20 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
     assert [n for n, r in GUEST_OWNER_ROUTES.items() if r.needs_guest_render] == [
         "render_preview",
         "pipeline_run",
+        "export_start",
     ]
     assert GUEST_OWNER_ROUTES["pipeline_run"].rate_kind == "mutate"
     assert GUEST_OWNER_ROUTES["render_preview"].rate_kind == "mutate"
+    assert GUEST_OWNER_ROUTES["export_start"].rate_kind == "mutate"
     assert GUEST_OWNER_ROUTES["render_preview_status"].rate_kind == "read"
 
 
 def test_a_route_with_no_row_is_denied() -> None:
     with pytest.raises(CodedPermissionError) as raised:
-        guest_owner_route("export_start")
+        guest_owner_route("export_bounce")
     assert raised.value.code == "share_capability_required"
     with pytest.raises(CodedPermissionError):
-        review_editor.guest_route("export_start")
+        review_editor.guest_route("export_bounce")
 
 
 @pytest.mark.parametrize("name", sorted(GUEST_OWNER_ROUTES))
@@ -395,7 +410,7 @@ def _job(kind: str, project: Path, status: str = "running", error: str | None = 
 
 
 def test_the_job_view_table_names_what_guests_may_see(tmp_path) -> None:
-    assert set(GUEST_JOB_VIEW) == {"pipeline", "render_preview"}
+    assert set(GUEST_JOB_VIEW) == {"pipeline", "render_preview", "export"}
     project = tmp_path / "a" / "episode.sharecut"
     failed = _job("render_preview", project, "error", "boom /host/secret.wav")
 
