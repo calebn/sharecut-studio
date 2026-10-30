@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -437,6 +438,44 @@ def _timeline_cues(project: EpisodeProject, limits: CaptionLimits) -> list[_Cue]
     cues = _apply_min_duration(cues, limits)
     cues.sort(key=lambda cue: cue.start)
     return cues
+
+
+_CAPTION_TIMING = re.compile(r"^(?:\d+:)?\d{2}:\d{2}[,.]\d{3} --> ")
+
+
+def _parse_captions(text: str) -> list[tuple[str, list[str]]]:
+    """``(start, words)`` per cue of an SRT or VTT body, start as ``hh:mm:ss.mmm``."""
+    cues: list[tuple[str, list[str]]] = []
+    for block in re.split(r"\n\s*\n", text.replace("\r\n", "\n")):
+        lines = block.strip("\n").split("\n")
+        for i, line in enumerate(lines):
+            if _CAPTION_TIMING.match(line):
+                start = line.split(" --> ", 1)[0].replace(",", ".")
+                if start.count(":") == 1:
+                    start = f"00:{start}"
+                cues.append((start, " ".join(lines[i + 1 :]).split()))
+                break
+    return cues
+
+
+def captions_match(text: str, project: EpisodeProject) -> bool:
+    """Whether an SRT or VTT body still says what ``project`` says, at any cue limits.
+
+    The file does not record the limits it was cut with, so cue boundaries are not
+    compared. The words must read the same, and each cue must start where its first
+    word starts, which catches an edit that moves words in time.
+    """
+    expected = [w for _, words in _timeline_word_runs(project) for w in words]
+    expected.sort(key=lambda w: w.start)
+    cues = _parse_captions(text)
+    if [w for _, words in cues for w in words] != [t for w in expected for t in w.text.split()]:
+        return False
+    starts = Counter(
+        (_format_srt_time(w.start).replace(",", "."), w.text.split()[0])
+        for w in expected
+        if w.text.split()
+    )
+    return all(not words or (start, words[0]) in starts for start, words in cues)
 
 
 def utterances_to_srt(project: EpisodeProject, limits: CaptionLimits | None = None) -> str:
