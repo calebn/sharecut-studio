@@ -45,6 +45,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `ApplySuggestedActions` | — | `ids` (array \| null), `override_audio_checks` (boolean), `overrides` (object), `revise` (boolean), `skip_unsure` (boolean) |
 | `ApplyTranscriptCleanup` | `track_id` (string) | `phrases` (array \| null), `words` (array \| null) |
 | `ApproveEdits` | `ids` (array[string]) | `hold_blocked` (boolean), `override_audio_checks` (boolean), `skip_unsure` (boolean) |
+| `ClearFeedField` | `key` (string) | — |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `CrossfadeJoins` | — | `dry_run` (boolean \| null), `fade_ms` (integer \| null), `speaker` (string \| null), `track_id` (string \| null) |
@@ -82,6 +83,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetClipJoin` | `left_clip_id` (string), `mode` (fade \| crossfade \| cut), `right_clip_id` (string) | `length_ms` (integer \| null) |
 | `SetEffectBypass` | `bypass` (boolean), `effect_index` (integer), `track_id` (string) | — |
 | `SetEnvelope` | `expected_points` (array[object]), `track_id` (string) | `points` (array[object]) |
+| `SetFeedField` | `key` (string), `value` (string \| integer \| number \| boolean \| array) | `by` (person \| agent) |
 | `SetJoinMode` | `clip_id` (string), `join_in_mode` (fade \| crossfade \| cut) | — |
 | `SetTrackFader` | `fader_db` (number), `track_id` (string) | — |
 | `SetTrackMedia` | `rel_path` (string), `track_id` (string) | — |
@@ -109,7 +111,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 77 command types._
+_Generated 79 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`
