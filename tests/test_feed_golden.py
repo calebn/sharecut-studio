@@ -3,7 +3,8 @@
 The web fixture server passes the same file in vitest (``feedGolden.test.ts``), so the
 fixture cannot drift from the service. A view is the starting state; this test rebuilds
 the episode behind it, applies the fix through ``edited_pins`` and checks what ``resolve``
-and ``render`` say. Show creation, linking and writing land with the show store.
+and ``render`` say. Creating a show, linking one and writing the feed file run on a saved
+project, a real show store and ``FeedService`` instead.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import pytest
 from pydantic import TypeAdapter
 
 from feed_helpers import StubShow, complete_show, mp3, pin
+from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.feed.model import (
     ExportFiles,
     FeedEdit,
@@ -27,8 +29,11 @@ from podcast_mcp.feed.model import (
 )
 from podcast_mcp.feed.render import render
 from podcast_mcp.feed.resolve import edited_pins, resolve
-from podcast_mcp.models import ChapterMarker, EpisodeProject, Track, TrackRole
+from podcast_mcp.feed.show_store import ShowStore, default_directory
+from podcast_mcp.models import ChapterMarker, EpisodeProject, Track, TrackRole, save_project
 from podcast_mcp.models.feed import Pin
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import FeedService
 
 GOLDEN = json.loads(
     Path(__file__).with_name("fixtures").joinpath("feed", "feed_golden.json").read_text()
@@ -98,11 +103,10 @@ def _start(tmp_path: Path, name: str) -> FeedInputs:
     return _world(tmp_path, view, feed_xml=feed_xml)
 
 
-def test_the_copy_matches_the_web_golden_when_the_web_app_has_one() -> None:
+def test_the_copy_matches_the_web_golden() -> None:
     web = Path(__file__).resolve().parents[1] / "gui/web/src/stages/deliver/feedGolden.json"
-    if not web.is_file():
-        pytest.skip("the Deliver listing section has not landed in this checkout")
 
+    assert web.is_file(), "gui/web owns feedGolden.json; this copy must sit beside it"
     assert json.loads(web.read_text(encoding="utf-8")) == GOLDEN
 
 
@@ -118,6 +122,7 @@ def test_the_service_agrees_with_the_golden(case: dict[str, Any], tmp_path: Path
     inputs = _start(tmp_path, case["view"])
     pins = dict(inputs.project.feed.pins)
     steps = [case["fix"], *([case["then"]] if "then" in case else [])]
+    view = None
     for fix in steps:
         if fix["kind"] == "edit":
             pins = edited_pins(
@@ -128,8 +133,8 @@ def test_the_service_agrees_with_the_golden(case: dict[str, Any], tmp_path: Path
         elif fix["command"] in SHOW_CASES or (
             fix["command"] == "write_feed" and not _blocked(inputs, pins)
         ):
-            pytest.skip("the show store and the feed writer land with the show slice")
-    view = resolve(inputs, pins)
+            view = _run_on_disk(case, fix, tmp_path / "disk")
+    view = view or resolve(inputs, pins)
     wire = view.wire()
     want = case["expect"]
     for key, fact in want.get("item", {}).items():
@@ -157,3 +162,60 @@ def test_the_service_agrees_with_the_golden(case: dict[str, Any], tmp_path: Path
 
 def _blocked(inputs: FeedInputs, pins: dict[str, Pin]) -> bool:
     return any(f.severity == "blocker" for f in resolve(inputs, pins).findings)
+
+
+def _seed(store: ShowStore, show_id: str, title: str, *, hosts: list[Person]) -> None:
+    """A complete show, as the web fixture's shows are: only its title and id differ."""
+    store.create(show_id)
+    full = complete_show(media_url=None, roster=hosts)
+    store.update(
+        show_id,
+        lambda show: (
+            show.pins.update({**full.pins, "channel.title": pin(title)}),
+            show.roster.extend(full.roster),
+        ),
+    )
+
+
+def _run_on_disk(case: dict[str, Any], fix: dict[str, Any], tmp_path: Path) -> FeedView:
+    """The same world on a saved project: the show store and the service decide the view."""
+    view = GOLDEN["views"][case["view"]]
+    inputs = _world(tmp_path, view)
+    project = inputs.project
+    audio = view["sections"]["audio"]
+    project.ensure_dirs()
+    path = save_project(project)
+    exported = project.export_dir()
+    exported.mkdir(parents=True, exist_ok=True)
+    stem = sanitize_export_stem(project.name)
+    (exported / f"{stem}.mp3").write_bytes(b"x" * audio["value"]["bytes"])
+    if view["file"] == "stale":
+        (exported / f"{stem}.feed.xml").write_text("<rss/>", encoding="utf-8")
+    store = ShowStore(default_directory())
+    hosts = [Person(c["name"], role=c["role"]) for c in view["sections"]["credits"]["value"]]
+    for summary in view["show"].get("shows", []):
+        _seed(store, summary["id"], summary["title"], hosts=hosts)
+    if view["show"]["kind"] == "ready":
+        _seed(store, view["show"]["id"], "The Long River", hosts=hosts)
+    service = FeedService(ProjectWorkspace.open(path))
+    if fix["command"] == "create_show":
+        service.set("show", fix["args"]["title"], "person")
+        # A created show starts with its title only. Its other facts are filled in as a person
+        # fills them, so the findings that remain are the episode's.
+        _fill_rest(store, "the-long-river", hosts)
+    elif fix["command"] == "link_show":
+        service.set("show", fix["args"]["id"], "person")
+    else:
+        service.write()
+    return service.read()
+
+
+def _fill_rest(store: ShowStore, show_id: str, hosts: list[Person]) -> None:
+    full = complete_show(media_url=None, roster=hosts)
+    store.update(
+        show_id,
+        lambda show: (
+            show.pins.update({k: v for k, v in full.pins.items() if k != "channel.title"}),
+            show.roster.extend(full.roster),
+        ),
+    )

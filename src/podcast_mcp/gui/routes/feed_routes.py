@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Header, Query, Request
 
 from podcast_mcp.gui.routes.deps import coded_exception_error, require_host, resolve_project
+from podcast_mcp.gui.routes.guest_errors import guest_boundary
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
-from podcast_mcp.gui.schemas import FeedEditRequest
+from podcast_mcp.gui.routes.share_common import check_share_token, rate_limit_share
+from podcast_mcp.gui.schemas import FeedEditRequest, FeedWriteRequest
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration import require_share_edit
 from podcast_mcp.services.document import FeedService
 from podcast_mcp.util.coded_error import CodedValueError
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 def served(service: FeedService) -> dict[str, Any]:
@@ -51,3 +56,34 @@ def edit_feed(
     except CodedValueError as exc:
         raise coded_exception_error(400, exc, code="feed_edit_invalid") from exc
     return served(FeedService(ProjectWorkspace.open(project_path)))
+
+
+@router.post("/api/feed/write")
+def write_feed_file(
+    body: FeedWriteRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    """Write the episode's feed file as the host. Refused with 400 while a blocker stands."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(body.path, request)
+    pin_served_if_allowed(request, project_path)
+    service = FeedService(ProjectWorkspace.open(project_path))
+    try:
+        service.write()
+    except CodedValueError as exc:
+        raise coded_exception_error(400, exc, code="feed_write_refused") from exc
+    return served(FeedService(ProjectWorkspace.open(project_path)))
+
+
+@router.post("/api/review/{token}/feed/write")
+def write_feed_file_as_guest(token: str) -> dict[str, Any]:
+    """An Editor share may write the feed file. Show settings and local files stay host-only."""
+    check_share_token(token)
+    rate_limit_share(token, "mutate")
+    with guest_boundary(log, "review feed write"):
+        _row, ws = require_share_edit(token)
+        service = FeedService(ws)
+        service.write()
+        return served(FeedService(ProjectWorkspace.open(ws.path)))

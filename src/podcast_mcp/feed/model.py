@@ -263,9 +263,14 @@ class ShowProfile(Protocol):
     @property
     def media_url(self) -> str | None: ...
 
+    @property
+    def ledger(self) -> Mapping[str, int]:
+        """Episode numbers by guid, assigned when each episode's feed file is first written."""
+        ...
+
 
 class ShowSource(Protocol):
-    """Where shows come from. The show store lands after this module; ``NoShows`` stands in."""
+    """Where shows come from: the show store on a machine, ``NoShows`` when there is none."""
 
     def shows(self) -> Sequence[ShowSummary]: ...
 
@@ -303,3 +308,5 @@ class FeedInputs:
     show: ShowProfile | None = None
     shows: Sequence[ShowSummary] = ()
     files: ExportFiles = field(default_factory=ExportFiles)
+    # The show's artwork file on this machine, when the show names one instead of an address.
+    show_art: ExportFile | None = None

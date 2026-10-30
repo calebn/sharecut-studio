@@ -37,6 +37,9 @@ def export_episode_deliverables(
     A project without chapters has its previous ``.chapters.json`` removed after the new
     set is published. A crash or a locked file in between leaves the previous list behind.
 
+    The podcast feed file (``<stem>.feed.xml``) is refreshed last when the listing has no
+    blocker; a failure there never fails the export (``feed.writer.write_after_export``).
+
     Callers hold render_lock. Preparation failure or cancellation before publication
     preserves previous outputs. Final replacements are not a cross-file transaction.
     """
@@ -77,4 +80,8 @@ def export_episode_deliverables(
     if chapters_path not in sidecars:
         with suppress(OSError):
             chapters_path.unlink(missing_ok=True)
+    # The feed file follows the audio it names. Imported here: the feed reads export names.
+    from podcast_mcp.feed.writer import write_after_export
+
+    write_after_export(project)
     return written

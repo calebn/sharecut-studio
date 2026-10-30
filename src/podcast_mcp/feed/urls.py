@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote, urlsplit
 
 AUDIO_MIME = {".mp3": "audio/mpeg", ".m4a": "audio/x-m4a"}
@@ -22,6 +22,29 @@ def check_https_url(value: str) -> str:
     if parts.scheme != "https" or not parts.netloc or not _ASCII.fullmatch(value):
         raise ValueError("must be an https address with ASCII characters only")
     return value
+
+
+ART_EXTENSIONS = (".jpg", ".jpeg", ".png")
+
+
+def is_local_art(value: str) -> bool:
+    return not value.startswith(("https://", "http://"))
+
+
+def check_art_ref(value: str) -> str:
+    """An https address, or a .jpg or .png file on this machine (kept as an absolute path)."""
+    if not is_local_art(value):
+        return check_https_url(value)
+    path = Path(value).expanduser().resolve()
+    if path.suffix.lower() not in ART_EXTENSIONS or not path.is_file():
+        raise ValueError("must be an https address or an existing .jpg or .png file")
+    return str(path)
+
+
+def art_extension(value: str) -> str:
+    """The extension the exported copy of an art file takes: ``.jpg`` or ``.png``."""
+    suffix = Path(value).suffix.lower()
+    return ".jpg" if suffix == ".jpeg" else suffix
 
 
 def check_media_template(value: str) -> str:

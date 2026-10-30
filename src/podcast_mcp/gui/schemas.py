@@ -165,6 +165,12 @@ class FeedEditRequest(BaseModel):
     edit: FeedEdit
 
 
+class FeedWriteRequest(BaseModel):
+    """Write the episode's feed file."""
+
+    path: str
+
+
 class ViewerSessionSnapshot(BaseModel):
     """Partial DAW transport snapshot (compat POST → typed commands)."""
 

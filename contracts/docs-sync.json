@@ -200,8 +200,8 @@
     },
     {
       "id": "durable-stores",
-      "when": "Durable stores (project JSON, session sync sqlite, share registry, cache `prefs.yaml`)",
-      "update": "`docs/persistence.md` — extend an existing store; do not scatter new sidecars. Episode `artifacts/transcript_context.yaml.lock` only coordinates writers; the vocabulary revision lives in context YAML and each transcript's `vocabulary_revision` in project JSON.",
+      "when": "Durable stores (project JSON, session sync sqlite, share registry, cache `prefs.yaml`, show files)",
+      "update": "`docs/persistence.md` — extend an existing store; do not scatter new sidecars. Episode `artifacts/transcript_context.yaml.lock` only coordinates writers; the vocabulary revision lives in context YAML and each transcript's `vocabulary_revision` in project JSON. Show files (`PODCAST_CONFIG_DIR/shows/<id>.yaml`) change only through the show store, under its lock.",
       "docs": [
         "docs/persistence.md"
       ],
@@ -217,6 +217,7 @@
           "src/podcast_mcp/util/object_store.py",
           "src/podcast_mcp/util/sqlite_tx.py",
           "src/podcast_mcp/util/file_locks.py",
+          "src/podcast_mcp/feed/show_store.py",
           "src/podcast_mcp/services/session_sync/sqlite.py",
           "src/podcast_mcp/services/session_sync/log.py",
           "src/podcast_mcp/services/share_auth/store.py",

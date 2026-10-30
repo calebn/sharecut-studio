@@ -12,6 +12,7 @@ import uuid
 import xml.etree.ElementTree as ET
 from email.utils import format_datetime
 
+from podcast_mcp.feed.extras import Element
 from podcast_mcp.feed.fields import FIELDS, FieldSpec, Tag, parse_moment
 from podcast_mcp.feed.model import FeedView, Measured, Soundbite
 from podcast_mcp.feed.notes import MEDIA_URL_KEY, NOTES_KEY
@@ -84,7 +85,23 @@ def _rfc2822(iso: str) -> str | None:
         return None
 
 
+def _shaped(element: ET.Element, shape: Element) -> None:
+    for name, attribute in shape.attrs.items():
+        element.set(name, _clean(attribute))
+    if shape.text is not None:
+        element.text = _clean(shape.text)
+    for child in shape.children:
+        node = ET.SubElement(element, child.path)
+        for name, attribute in child.attrs.items():
+            node.set(name, _clean(attribute))
+        if child.text is not None:
+            node.text = _clean(child.text)
+
+
 def _put(parent: ET.Element, tag: Tag, value: object, build: _Builder, *, notes: bool) -> None:
+    if tag.shape is not None:
+        _shaped(_node(parent, tag.path), tag.shape(value))
+        return
     if tag.attr is not None:
         element = _child(parent, tag.path)
         element.set(tag.attr, _clean(_text(value)))

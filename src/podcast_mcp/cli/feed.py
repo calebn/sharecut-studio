@@ -163,3 +163,14 @@ def feed_unset_cmd(
     """Drop this episode's pin so the value goes back to automatic."""
     view = FeedService(ProjectWorkspace.open(project)).unset(key, "person")
     typer.echo(_edited(view, key))
+
+
+@feed_app.command("write")
+def feed_write_cmd(project: Path = _PROJECT) -> None:
+    """Write the feed file next to the exported audio. Refused while the feed has a blocker."""
+    result = FeedService(ProjectWorkspace.open(project)).write()
+    if not result.written:
+        typer.echo(f"The feed file is already current: {result.path}")
+        return
+    for path in result.written:
+        typer.echo(f"Wrote {path}")
