@@ -437,26 +437,113 @@ def test_settings_that_differ_from_studios_run_directly_and_say_so(studio: Studi
     assert "Writing directly instead" in result.stderr
 
 
-def test_cli_reads_a_same_file_alias_in_studio(studio: StudioRun) -> None:
+def test_cli_refuses_a_same_file_alias_without_suggesting_a_direct_write(studio: StudioRun) -> None:
     alias = studio.project.with_name("project-alias.json")
     alias.hardlink_to(studio.project)
-    assert alias.resolve() != studio.project.resolve()
-    assert alias.samefile(studio.project)
     before = studio.project.read_bytes()
 
     result = podcast("info", "--project", str(alias))
 
+    assert result.returncode == 1, result.stderr
+    assert str(studio.project) in result.stderr
+    assert "Nothing was run" in result.stderr
+    assert "PODCAST_NO_STUDIO_HANDOFF" not in result.stderr
+    assert "may have" not in result.stderr
+    assert studio.commands == []
+    assert alias.samefile(studio.project)
+    assert alias.read_bytes() == studio.project.read_bytes() == before
+
+
+@pytest.mark.parametrize("form", ["separate", "inline", "repeated", "env_differs"])
+def test_cli_alias_write_is_not_executed_or_replayed(studio: StudioRun, form: str) -> None:
+    alias = studio.project.with_name("project-alias.json")
+    alias.hardlink_to(studio.project)
+    before = studio.project.read_bytes()
+    history = studio.project.parent / "history"
+    history_before = {
+        p.relative_to(history): p.read_bytes() for p in history.rglob("*") if p.is_file()
+    }
+    project_args = ["--project", str(alias)]
+    if form == "inline":
+        project_args = [f"--project={alias}"]
+    elif form == "repeated":
+        project_args = ["--project", str(studio.project), f"--project={alias}"]
+    env = {"PODCAST_BATCH": "1"} if form == "env_differs" else None
+
+    result = podcast(
+        "comment", "add", *project_args, "--body", "must not land", "--author", "agent",
+        "--start", "1", env=env,
+    )  # fmt: skip
+
+    assert result.returncode == 1, result.stderr
+    assert "Nothing was run" in result.stderr
+    assert "Writing directly instead" not in result.stderr
+    assert studio.commands == []
+    assert alias.samefile(studio.project)
+    assert alias.read_bytes() == studio.project.read_bytes() == before
+    assert {
+        p.relative_to(history): p.read_bytes() for p in history.rglob("*") if p.is_file()
+    } == history_before
+
+
+@pytest.mark.parametrize("alias_kind", ["served", "symlink"])
+def test_a_write_through_the_served_filename_still_lands(
+    studio: StudioRun, alias_kind: str
+) -> None:
+    target = studio.project
+    if alias_kind == "symlink":
+        target = studio.project.with_name("project-symlink.json")
+        target.symlink_to(studio.project)
+
+    result = comment_add(target)
+
     assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout)["name"] == "test_episode"
-    assert studio.commands == [["info", "--project", str(alias)]]
-    assert studio.project.read_bytes() == before
+    assert studio.commands
+    assert comment_bodies(studio.project) == ["hello"]
+
+
+@pytest.mark.parametrize("alias_in", ["body", "argv"])
+@pytest.mark.parametrize("fallback", ["protocol", "env_differs"])
+def test_alias_run_refusal_precedes_local_replay_conditions(
+    studio: StudioRun, alias_in: str, fallback: str
+) -> None:
+    host = read_studio_host(studio.project)
+    assert host is not None
+    alias = studio.project.with_name("project-alias.json")
+    alias.hardlink_to(studio.project)
+    before = studio.project.read_bytes()
+    project = str(alias if alias_in == "body" else studio.project)
+    argv_project = str(alias if alias_in == "argv" else studio.project)
+    body = json.dumps(
+        {
+            "protocol": 999 if fallback == "protocol" else 1,
+            "argv": ["info", "--project", argv_project],
+            "project": project,
+            "cwd": str(studio.project.parent),
+            "env": {"PODCAST_BATCH": "1"} if fallback == "env_differs" else {},
+        }
+    ).encode()
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{studio.port}/api/handoff/run",
+        data=body,
+        headers={HANDOFF_TOKEN_HEADER: host.token, "Content-Type": "application/json"},
+    )
+
+    with pytest.raises(urllib.error.HTTPError) as denied:
+        urllib.request.urlopen(request, timeout=5)
+
+    assert denied.value.code == 409
+    assert json.load(denied.value)["code"] == "project_alias"
+    assert studio.commands == []
+    assert alias.samefile(studio.project)
+    assert alias.read_bytes() == studio.project.read_bytes() == before
 
 
 @pytest.mark.parametrize(
     ("case", "ping_serves", "refusal"),
     [
-        ("alias_body", True, None),
-        ("alias_argv", True, None),
+        ("alias_body", True, "project_alias"),
+        ("alias_argv", True, "project_alias"),
         ("workspace", True, None),
         ("different", False, "not_served"),
         ("missing", False, "not_served"),
