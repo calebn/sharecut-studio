@@ -62,7 +62,7 @@ const COVERED: Record<string, string[]> = {
   "CMP-TOOLRAIL": ["Stages/Edit/Corner"],
   "CMP-TABS": ["Stages/Edit/Frame"],
   "CMP-SAVEDOT": ["System/SaveIndicator"],
-  "CMP-RULER": ["Templates/TimeRuler", "System/Ruler"],
+  "CMP-RULER": ["System/Ruler"],
   "CMP-MARKERS": [
     "Templates/MarkerLane",
     "System/ReadoutChip",

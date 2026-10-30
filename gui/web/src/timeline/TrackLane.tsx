@@ -325,7 +325,7 @@ export function TrackLaneView({
         </div>
       ) : null}
       {/*
-        Position-based seek underlay; keyboard scrub uses TimeRuler (role=slider).
+        Position-based seek underlay; keyboard scrub uses TimelineRuler (role=slider).
         A div (not button) so Lighthouse target-size ignores this full-lane hit area.
       */}
       <div

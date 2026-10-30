@@ -4,9 +4,9 @@ import { viewportChunkRange } from "../utils/timelineViewport";
 
 /**
  * The on-screen {@link import("../utils/timelineViewport").VIEWPORT_CHUNK_PX}
- * chunk range of a `widthPx`-wide overlay, as a stable tuple. Shared by
- * `TimeRuler` and `EnvelopeOverlay` so a deep zoom never mounts millions of px
- * of ticks or SVG for either.
+ * chunk range of a `widthPx`-wide overlay, as a stable tuple. Used by
+ * `EnvelopeOverlay` and `ProsodyOverlay` so a deep zoom never mounts millions
+ * of px of SVG.
  */
 export function useVisibleChunks(widthPx: number): readonly [number, number] {
   const chunkRange = useDawStore(

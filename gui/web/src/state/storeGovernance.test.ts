@@ -516,8 +516,8 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "leaf that reads the presence roster itself",
   },
   {
-    file: "timeline/TimeRuler.tsx",
-    reason: "leaf that reads the live playhead itself",
+    file: "timeline/TimelineRuler.tsx",
+    reason: "leaf that reads the live playhead and scroll itself",
   },
   {
     file: "timeline/TimelineLeaves.tsx",

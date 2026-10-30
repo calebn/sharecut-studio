@@ -52,7 +52,7 @@ test("stage follows the theme and motion respects preference", async ({
       const controlMotion = getComputedStyle(control).transitionDuration;
       control.remove();
       const ruler = document.createElement("div");
-      ruler.className = "time-ruler";
+      ruler.className = "timeline-ruler";
       const rulerPlayhead = document.createElement("div");
       rulerPlayhead.className = "playhead";
       ruler.appendChild(rulerPlayhead);
@@ -87,7 +87,7 @@ test("stage follows the theme and motion respects preference", async ({
         const control = document.createElement("button");
         control.className = "ui-control";
         const ruler = document.createElement("div");
-        ruler.className = "time-ruler";
+        ruler.className = "timeline-ruler";
         const rulerPlayhead = document.createElement("div");
         rulerPlayhead.className = "playhead";
         ruler.appendChild(rulerPlayhead);

@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ToolModeToggle, EditToolStrip, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ToolModeToggle, EditToolStrip, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -166,11 +166,13 @@ prop-only paint used by the live `Playhead`, which retains its direct DAW
 store subscription and transform updates without React rerenders. The story
 uses fictional comments and a fixed zoom; it does not mount the live timeline
 or subscribe to the DAW store.
-`Templates/TimeRuler` renders the production `TimeRulerView` with fixed
-position and visible-chunk props at desktop and 360px widths, plus comment
-anchor mode. The live `TimeRuler` adapter reads those values from DAW state
-and supplies the store-driven `Playhead`, preserving its per-frame transform.
-Storybook supplies `PlayheadNeedle` at a fixed position instead.
+`System/Ruler` is the timeline's ruler: a props-only window (`start`,
+`pxPerSecond`, `width`) with stories at 360px, at a deep zoom (millisecond
+labels) and with a host-drawn needle (`hidePlayhead`). The live
+`timeline/TimelineRuler` host reads the playhead, scroll and zoom from DAW
+state and passes the window the marker lane will share. It keeps the
+store-driven `Playhead` as the needle, which moves by transform, so a playing
+playhead re-renders no ruler; the phone's fixed line is the needle there.
 `Templates/AppliedEditOverlay` renders the shipped applied-edit ticks in a
 production timeline lane. Fictional prop records cover visible and selected
 edits, densely spaced short cuts, and filtered and empty 360px lanes. The
@@ -311,7 +313,7 @@ Both stories share `frameStoryDecorator` for a real `.stage-frame` at
 desktop and 360px widths.
 
 `Templates/AvatarStack` and `Templates/OverlayLegend` follow the same
-adapter/view split as `TrackHeaderView`, `TimeRulerView` and
+adapter/view split as `TrackHeaderView` and
 `TranscriptTurnView`: each live component is a thin adapter that reads the DAW
 store and renders a props-only `XView`. `AvatarStackView` and
 `OverlayLegendView` take the roster/layers and callbacks as props; their adapters
@@ -411,7 +413,7 @@ one page and the stories would overwrite each other's hydration.
 `CommandButton` and `CommandMenuItem` are command-bus adapters over `Button`
 and `MenuItem`, which already have stories and need none of their own. Views
 extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
-examples are `TimeRulerView`, `TranscriptTurnView`, `FollowBannerView`,
+examples are `TranscriptTurnView`, `FollowBannerView`,
 `GuestAttentionBannerView`,
 `EditCornerView`, `CommandPaletteView`,
 `ClipBlockView`, `MarkerLaneView`, `PendingEditOverlayView`,
@@ -679,7 +681,7 @@ jsdom visibility checks.
   `PresenceOverlayView` and `CommentPlaybackBubbleView` as props-only
   production views, catalogued as `Templates/EnvelopeOverlay`,
   `Templates/PresenceOverlay` and `Templates/CommentPlaybackBubble`, and
-  added `timeline/useVisibleChunks.ts` shared by `TimeRuler` and
+  added `timeline/useVisibleChunks.ts` shared by the then ruler and
   `EnvelopeOverlay`.
 - 2026-09-27 — Closed #611: added props-only `ToolModeToggleView`,
   `EditingToolRailView` and `CommandPaletteView`, extracted from
@@ -718,8 +720,9 @@ jsdom visibility checks.
   above tracking follow-up refactor issues A–H for the remaining store-bound
   surfaces.
 
-- 2026-09-27 — Added `Templates/TimeRuler` with a prop-driven production
-  ruler view, desktop and 360px fixtures, and comment-anchor mode.
+- 2026-09-27 — Added a prop-driven production ruler view with desktop and
+  360px fixtures and comment-anchor mode. #2294 replaced it with
+  `System/Ruler` mounted by `timeline/TimelineRuler`.
 
 - 2026-09-27 — Added `Templates/TimelineRange` with production audition,
   comment selection, and prop-only playhead paint at a 360px viewport.

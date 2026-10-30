@@ -6,6 +6,7 @@ import {
   offGridPx,
   parseRulerLabel,
   rulerWidthPx,
+  rulerWindowPx,
   type StretchedProject,
   stretchProjectToSession,
 } from "../e2e/deepZoom";
@@ -43,17 +44,17 @@ async function laneGeometry(page: Page, trackId: string) {
         headerPx -
         scroller.scrollLeft;
       const ticks = [
-        ...document.querySelectorAll<HTMLElement>(
-          `[data-testid="${ids.rulerTick}"], [data-testid="${ids.rulerEndTick}"]`,
-        ),
-      ].map((el) => {
-        const r = el.getBoundingClientRect();
-        const end = el.dataset.testid === ids.rulerEndTick; // translateX(-100%): the tick is its right edge
-        return {
-          label: el.textContent ?? "",
-          x: (end ? r.right : r.left) - origin,
-        };
-      });
+        ...document.querySelectorAll<HTMLElement>(".sys-ruler-tick"),
+      ]
+        .filter((el) => el.textContent) // a tick that gave up its label to a neighbour keeps its line only
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          const end = el.dataset.align === "end"; // the label sits left of its line: the tick is its right edge
+          return {
+            label: el.textContent ?? "",
+            x: (end ? r.right : r.left) - origin,
+          };
+        });
       // Only this lane: other lanes' clips are not on this clip's tile grid.
       const tiles = [
         ...lane.querySelectorAll<HTMLCanvasElement>(
@@ -124,8 +125,12 @@ test.describe("deep zoom at the content ceiling", () => {
           .poll(() => rulerWidthPx(page))
           .toBeLessThanOrEqual(contentPx + DEEP_ZOOM_TOLERANCE_PX);
 
-        // The last tick is the session end, or one step before when dropped.
-        const lastTick = expectedLastRulerTick(HOUR_SEC, zoom);
+        // The last labelled tick of the window at the session end is the end, or one step before when `rulerTicks` leaves its label off.
+        const lastTick = expectedLastRulerTick(
+          HOUR_SEC,
+          zoom,
+          await rulerWindowPx(page),
+        );
         expect(HOUR_SEC - lastTick.sec).toBeLessThanOrEqual(
           lastTick.step + 1e-9,
         );

@@ -48,13 +48,14 @@ describe("expectedLastRulerTick", () => {
     const t = expectedLastRulerTick(
       HOUR_SEC,
       effectiveMaxZoomPxPerSec(HOUR_SEC),
+      1000,
     );
     expect(t.step).toBe(0.02);
     expect(t.label).toBe("59:59.98");
     expect(t.sec).toBeCloseTo(3599.98, 6);
   });
   it("keeps the end label when there is room", () => {
-    expect(expectedLastRulerTick(60, 100).label).toBe("1:00");
+    expect(expectedLastRulerTick(60, 100, 1000).label).toBe("1:00");
   });
 });
 

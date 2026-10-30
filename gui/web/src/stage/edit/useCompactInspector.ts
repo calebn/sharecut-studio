@@ -78,7 +78,7 @@ export function pinnedChromeBottom(scroller: HTMLElement): number {
   if (markers && getComputedStyle(markers).position === "sticky")
     return markers.getBoundingClientRect().bottom;
   return (
-    scroller.querySelector(".time-ruler")?.getBoundingClientRect().bottom ??
+    scroller.querySelector(".timeline-ruler")?.getBoundingClientRect().bottom ??
     scroller.getBoundingClientRect().top
   );
 }

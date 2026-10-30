@@ -1,11 +1,7 @@
 import fs from "node:fs";
 import type { Page } from "@playwright/test";
-import {
-  estimateRulerLabelWidthPx,
-  rulerEndTickDropped,
-} from "../src/timeline/rulerTicks";
+import { rulerStep, rulerTicks } from "../src/system/rulerMath";
 import { timelineTestIds } from "../src/timeline/selectors";
-import { formatRulerTime, niceTimeStep } from "../src/utils/time";
 
 /** Session length (s) of the stretched deep-zoom project. */
 export const HOUR_SEC = 3600;
@@ -94,23 +90,28 @@ export function parseRulerLabel(label: string): number {
   return (h ? Number(h) * 3600 : 0) + Number(min) * 60 + Number(sec);
 }
 
-/** The ruler's last rendered tick at the session end: the end label, or the one before when the end label is dropped (#169). */
+/**
+ * The last tick that shows a label when the ruler's window ends at the session
+ * end, `widthPx` wide: the end label, or the one before when `rulerTicks` leaves
+ * the end label off for room.
+ */
 export function expectedLastRulerTick(
   sessionSec: number,
   zoomPxPerSec: number,
+  widthPx: number,
 ): { sec: number; step: number; label: string } {
-  const step = niceTimeStep(zoomPxPerSec);
-  const last = Math.floor(sessionSec / step + 1e-9);
-  const width = sessionSec * zoomPxPerSec;
-  const dropped = rulerEndTickDropped(
-    sessionSec,
-    step,
+  const start = sessionSec - widthPx / zoomPxPerSec;
+  const step = rulerStep(zoomPxPerSec, sessionSec);
+  const labelled = rulerTicks(
+    start,
     zoomPxPerSec,
-    width,
-    estimateRulerLabelWidthPx(last * step, step),
-  );
-  const i = dropped ? last - 1 : last;
-  return { sec: i * step, step, label: formatRulerTime(i * step, step) };
+    widthPx,
+    step,
+    sessionSec,
+  ).filter((tick) => tick.label !== "");
+  const last = labelled.at(-1);
+  if (!last) throw new Error("The ruler window has no labelled tick");
+  return { sec: last.time, step, label: last.label };
 }
 
 /** Distance (px) from `offsetPx` to the nearest multiple of `gridPx`. */
@@ -119,8 +120,15 @@ export function offGridPx(offsetPx: number, gridPx: number): number {
   return Math.min(r, gridPx - r);
 }
 
-/** Ruler content width (CSS px, fractional `getBoundingClientRect` width, the same measure as the lane geometry). */
+/** The ruler row's width (CSS px, fractional `getBoundingClientRect` width, the same measure as the lane geometry): the whole canvas, of which the ruler draws the visible window. */
 export function rulerWidthPx(page: Page): Promise<number> {
+  return page
+    .locator(".timeline-ruler")
+    .evaluate((el) => el.getBoundingClientRect().width);
+}
+
+/** The width (CSS px) of the ruler's drawn window, the time viewport. */
+export function rulerWindowPx(page: Page): Promise<number> {
   return page
     .getByTestId(timelineTestIds.ruler)
     .evaluate((el) => el.getBoundingClientRect().width);

@@ -23,13 +23,13 @@ InspectorSeekFooter, InspectorSeekFooterView, LevelMeter, LoadingScreen, Menu
 ToggleButton, and UndoToast. Supporting hooks, exports, tokens, reading overrides,
 overlay styles, and inspector styles were included where they determine behavior.
 
-The domain composition inventory covered 42 story families. This is a snapshot from before #2292: BottomTabsSplitter, ListenHero, PipelineStatusChip, StatusBar, TransportFrame and TransportPlayControls were deleted with the old chrome, and EditingToolRail became `Stages/Edit/ToolStrip`.
+The domain composition inventory covered 42 story families. This is a snapshot from before #2292: BottomTabsSplitter, ListenHero, PipelineStatusChip, StatusBar, TransportFrame and TransportPlayControls were deleted with the old chrome, and EditingToolRail became `Stages/Edit/ToolStrip`. The Timeline row no longer lists its legacy ruler, which `System/Ruler` replaced in #2294.
 
 
 | Area | Story families |
 | --- | --- |
 | Layout (16) | AvatarStack, BottomTabsSplitter, BounceDialog, CommandPalette, EditingToolRail, FollowBanner, GuestAttentionBanner, HostMcpDialog, ListenHero, OverlayLegend, PipelineStatusChip, StatusBar, ToolModeToggle, TransportFrame, TransportPlayControls |
-| Timeline (12) | AppliedEditOverlay, ClipBlock, CommentPlaybackBubble, EditMarkerLayer, EnvelopeOverlay, JoinPopover, MarkerLane, PendingEditOverlay, PresenceOverlay, StaleInvalidationOverlay, TimeRuler, TimelineRange |
+| Timeline (11) | AppliedEditOverlay, ClipBlock, CommentPlaybackBubble, EditMarkerLayer, EnvelopeOverlay, JoinPopover, MarkerLane, PendingEditOverlay, PresenceOverlay, StaleInvalidationOverlay, TimelineRange |
 | Transcript (3) | EditBoundaryMark, GhostWordChips, TranscriptTurn |
 | Comments (2) | CommentCard, CommentCompose |
 | Recording (7) | ConsentGate, Declined, DeviceCheck, FullRoom, LiveComments, Lobby, RecIndicator |

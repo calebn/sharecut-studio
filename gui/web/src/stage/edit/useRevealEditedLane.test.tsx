@@ -11,12 +11,12 @@ function rect(top: number, bottom: number): DOMRect {
 function mount(laneTop: number, laneBottom: number): HTMLElement {
   document.body.innerHTML = `
     <div class="timeline-scroll">
-      <div class="time-ruler"></div>
+      <div class="timeline-ruler"></div>
       <div class="lane-row" data-track-id="host"></div>
     </div>`;
   const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
   scroller.getBoundingClientRect = () => rect(100, 300);
-  document.querySelector(".time-ruler")!.getBoundingClientRect = () =>
+  document.querySelector(".timeline-ruler")!.getBoundingClientRect = () =>
     rect(100, 120);
   const lane = document.querySelector(".lane-row")!;
   lane.getBoundingClientRect = () =>
