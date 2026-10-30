@@ -8,6 +8,7 @@ import type { Selection } from "../types/project";
 import { tokenHeightPx } from "./tokenHeight";
 
 export const INSPECTOR_SHEET_CLASS = "bottom-sheet--inspector";
+export const PHONE_SHEET_CLASS = "sys-inspector--phone";
 export const COMPACT_SHEET_CLASS = "bottom-sheet--compact";
 export const CHROME_SCROLLS_CLASS = "bottom-sheet--chrome-scrolls";
 
@@ -35,14 +36,17 @@ export function compactSheetSlot(): HTMLElement | null {
   );
 }
 
-/** The open inspector sheet, compact or regular, or null when none is open. */
+/** The open inspector sheet, compact, regular or the phone frame, or null when none is open. */
 export function inspectorSheetPanel(): HTMLElement | null {
-  return document.querySelector<HTMLElement>(`.${INSPECTOR_SHEET_CLASS}`);
+  return document.querySelector<HTMLElement>(
+    `.${INSPECTOR_SHEET_CLASS}, .${PHONE_SHEET_CLASS}`,
+  );
 }
 
 function restingTop(panel: HTMLElement | null): number | null {
-  const root = panel?.closest(".bottom-sheet-root");
-  if (!panel || !root) return null;
+  if (!panel) return null;
+  const root = panel.closest(".bottom-sheet-root");
+  if (!root) return panel.getBoundingClientRect().top;
   // The panel's resting top: its entrance animation moves the drawn box.
   return root.getBoundingClientRect().bottom - panel.offsetHeight;
 }
@@ -54,8 +58,10 @@ export function inspectorSheetTop(): number | null {
 
 /** Where the open inspector sheet's slot ends in viewport px, or null when none is open. */
 export function inspectorSheetBottom(): number | null {
-  const root = inspectorSheetPanel()?.closest(".bottom-sheet-root");
-  return root ? root.getBoundingClientRect().bottom : null;
+  const panel = inspectorSheetPanel();
+  if (!panel) return null;
+  return (panel.closest(".bottom-sheet-root") ?? panel).getBoundingClientRect()
+    .bottom;
 }
 
 /**

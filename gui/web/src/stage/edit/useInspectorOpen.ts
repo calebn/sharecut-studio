@@ -50,13 +50,11 @@ export function useInspectorOpen(
       (!touch || opensSheet(selection, screen)));
   const close = useCallback(() => {
     const s = useDawStore.getState();
-    if (touch) {
-      if (s.rangeArmed) s.setSelection(null);
-      s.setRangeArmed(false);
-      s.setSheetExpanded(false);
-    }
+    if (s.rangeArmed) s.setSelection(null);
+    s.setRangeArmed(false);
+    s.setSheetExpanded(false);
     s.setInspectorOpen(false);
-  }, [touch]);
+  }, []);
   const dismiss = useCallback(() => {
     const s = useDawStore.getState();
     s.setSelection(null);
