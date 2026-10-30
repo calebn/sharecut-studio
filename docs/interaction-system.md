@@ -227,7 +227,7 @@ There are three overlay primitives.
    is not a declaration.
 4. **One touch grammar.** `HIT_KINDS` and `TOUCH_GESTURES` cover every
    draggable in `gui/web/src/`, not only the timeline. A surface that keeps a
-   different gesture (comment swipe, splitter, reorder grip, fader, Listen
+   different gesture (splitter, reorder grip, fader, Listen
    scrub) is a line in `SURFACE_GESTURES` in
    `timeline/gestureGovernance.test.ts` naming the decision it keeps.
 5. **Focus is visible and ordered.** Tab order follows reading order; the focus

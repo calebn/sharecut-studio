@@ -132,7 +132,7 @@ loops, and essential state changes are immediate.
 | Token | Used for |
 | --- | --- |
 | `--motion-press` | Press-in on standalone `.ui-control`s (a 1px sink and 0.98 scale) and on Play, in the transport and on Listen (0.96). Menu rows (in a menu panel or not), segments and phone nav tabs keep a color-only press: a row that wide, or controls sharing an edge, would move their hit edge under the pointer. Release eases back on `--motion-toggle`. |
-| `--motion-hover` | Hover and color washes; menus dropping 0.25rem from their trigger (`drop-in`); comment-card swipe; stale highlights; edit-boundary chips. |
+| `--motion-hover` | Hover and color washes; menus dropping 0.25rem from their trigger (`drop-in`); stale highlights; edit-boundary chips. |
 | `--motion-toggle` | Control and track-row transforms; phone nav tab color; the pipeline progress bar. |
 | `--motion-panel` | Dialog panels rising in (`fade-in` with `rise-in`); dialog and bottom-sheet scrims fading in (`fade-in`); bottom sheets; undo toasts rising 0.5rem (`rise-in`); focus-pull out. |
 | `--motion-state` | Play's playing glow; track-row and empty-stage shadows; the ruler glow; focus-pull in. |
