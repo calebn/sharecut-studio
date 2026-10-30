@@ -145,6 +145,19 @@ function Harness({ capture = {} }: { capture?: HostRoomCapture }) {
   );
 }
 
+/** Let effects and resolved promises settle, so a "never sent" assertion runs after the hook had its chance. */
+const flush = async () => {
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+};
+
+const setTargetCalls = () =>
+  exec.mock.calls.filter((call: unknown[]) => call[0] === "record.setTarget");
+
 const mount = (capture: HostRoomCapture = {}) =>
   render(<Harness capture={capture} />);
 
@@ -1468,6 +1481,7 @@ describe("Record stage session target", () => {
       playheadSec: 0,
       selection: null,
       pendingRecordTarget: null,
+      recordScript: null,
     });
   });
 
@@ -1637,18 +1651,57 @@ describe("Record stage session target", () => {
     ).toHaveLength(1);
   });
 
+  it("shows the selected words under the chip while the target is that Replace", async () => {
+    withClip();
+    const line = "…the reason we didn't ship it…";
+    useDawStore.getState().setPendingRecordTarget({ ...pickup, script: line });
+    setRoom({ target: { kind: "end" } });
+    mount();
+    await waitFor(() =>
+      expect(exec).toHaveBeenCalledWith(
+        "record.setTarget",
+        { target: pickup },
+        { skipWhen: true },
+      ),
+    );
+    expect(useDawStore.getState().recordScript).toEqual({
+      fromSec: 724,
+      toSec: 1000,
+      text: line,
+    });
+    expect(screen.queryByText(line)).toBeNull();
+    act(() => setRoom({ target: pickup }));
+    expect(await screen.findByText(line)).toBeVisible();
+    // Another target drops the line.
+    act(() => setRoom({ target: { kind: "end" } }));
+    await waitFor(() => expect(screen.queryByText(line)).toBeNull());
+  });
+
+  it("clears the line when the host picks another target", async () => {
+    withClip();
+    useDawStore.setState({
+      recordScript: { fromSec: 724, toSec: 1000, text: "…a line…" },
+    });
+    setRoom({ target: pickup });
+    mount();
+    expect(await screen.findByText("…a line…")).toBeVisible();
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: /Where this session goes/ }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: /start/i }));
+    expect(useDawStore.getState().recordScript).toBeNull();
+  });
+
   it("waits for the room, then sends once it exists", async () => {
     withClip();
     useRecordHostStore.getState().setSnapshot(null);
     useDawStore.getState().setPendingRecordTarget(pickup);
     mount();
     await screen.findByRole("button", { name: "Create record room" });
+    await flush();
     expect(useDawStore.getState().pendingRecordTarget).toEqual(pickup);
-    expect(exec).not.toHaveBeenCalledWith(
-      "record.setTarget",
-      expect.anything(),
-      expect.anything(),
-    );
+    expect(setTargetCalls()).toHaveLength(0);
     act(() => setRoom({ target: { kind: "end" } }));
     await waitFor(() =>
       expect(exec).toHaveBeenCalledWith(
@@ -1670,12 +1723,9 @@ describe("Record stage session target", () => {
     useDawStore.getState().setPendingRecordTarget(pickup);
     mount();
     await screen.findByRole("button", { name: "Record" });
+    await flush();
     expect(useDawStore.getState().pendingRecordTarget).toEqual(pickup);
-    expect(exec).not.toHaveBeenCalledWith(
-      "record.setTarget",
-      expect.anything(),
-      expect.anything(),
-    );
+    expect(setTargetCalls()).toHaveLength(0);
     await act(async () => finish({ ...lobby, target: { kind: "end" } }));
     await waitFor(() =>
       expect(exec).toHaveBeenCalledWith(
@@ -1698,12 +1748,9 @@ describe("Record stage session target", () => {
     await waitFor(() =>
       expect(useDawStore.getState().pendingRecordTarget).toBeNull(),
     );
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(
-      exec.mock.calls.filter(
-        (call: unknown[]) => call[0] === "record.setTarget",
-      ),
-    ).toHaveLength(1);
+    await waitFor(() => expect(setTargetCalls()).toHaveLength(1));
+    await flush();
+    expect(setTargetCalls()).toHaveLength(1);
   });
 
   it("shows a refused target instead of dropping it silently", async () => {

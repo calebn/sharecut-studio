@@ -30,7 +30,12 @@ export type PendingRecordTarget =
       from_sec: number;
       to_sec: number;
       track_ids: string[];
+      /** The selected words, so the speaker can read the line; never sent. */
+      script?: string;
     };
+
+/** The line to read for a Replace over words: kept with the open room while its target is that Replace. */
+export type RecordScript = { fromSec: number; toSec: number; text: string };
 
 type StageOpenOptions = {
   section?: ReviewSection;
@@ -57,12 +62,19 @@ export interface StageSliceState {
    */
   pendingRecordTarget: PendingRecordTarget | null;
   /**
+   * The words under the Session target chip while the room's target is the
+   * Replace over this span. Set when the pending target is sent, cleared when
+   * the host picks another target or the project changes. Memory only.
+   */
+  recordScript: RecordScript | null;
+  /**
    * Switch stage, or deep-link into one with `options`. In one write it saves
    * the leaving stage's view, restores the arriving one's, closes sheets and
    * routes keys; never from an unmount effect.
    */
   openStage: (stage: StageId, options?: StageOpenOptions) => void;
   setPendingRecordTarget: (target: PendingRecordTarget | null) => void;
+  setRecordScript: (script: RecordScript | null) => void;
   setReviewSection: (section: ReviewSection) => void;
   setEditSurface: (surface: EditSurface) => void;
   setOpenSheet: (sheet: StageSheet | null) => void;
@@ -82,6 +94,7 @@ export function stageProjectInitial(guestMode: string | null = null) {
     openSheet: null as StageSheet | null,
     landingSettled: false,
     pendingRecordTarget: null as PendingRecordTarget | null,
+    recordScript: null as RecordScript | null,
   };
 }
 
@@ -143,6 +156,7 @@ export const createStageSlice: StateCreator<
     openStage,
     setPendingRecordTarget: (pendingRecordTarget) =>
       set({ pendingRecordTarget }),
+    setRecordScript: (recordScript) => set({ recordScript }),
     setReviewSection: (reviewSection) => set({ reviewSection }),
     setEditSurface: (editSurface) => set({ editSurface }),
     setOpenSheet: (openSheet) => set({ openSheet }),

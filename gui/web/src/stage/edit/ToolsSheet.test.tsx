@@ -91,6 +91,29 @@ describe("ToolsSheet", () => {
     expect(useDawStore.getState().openSheet).toBeNull();
   });
 
+  it("labels Record Re-record on a replaceable range and drops it past the timeline", () => {
+    const project = editFixtureProject();
+    useDawStore.setState({
+      project,
+      projectPath: "/tmp/tools/p.json",
+      stage: "edit",
+      selection: EDIT_SELECTIONS.rangeOnAllTracks as never,
+      openSheet: "tools",
+    });
+    const { unmount } = render(<ToolsSheet />);
+    expect(screen.getByRole("button", { name: /^Re-record/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^Record/ })).toBeNull();
+    unmount();
+    useDawStore.setState({
+      project: {
+        ...project,
+        clips: { ...project.clips, timeline_duration_sec: 1.5 },
+      },
+    });
+    render(<ToolsSheet />);
+    expect(screen.queryByRole("button", { name: /record/i })).toBeNull();
+  });
+
   it("on a tablet holds the corner with the Script toggle and no surface switch", () => {
     viewport.shell = "tablet";
     render(<ToolsSheet />);

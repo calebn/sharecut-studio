@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -29,7 +29,7 @@ describe("PlusMenu", () => {
       expect.stringContaining("Import audio"),
       expect.stringContaining("New track"),
       expect.stringContaining("Add chapter at playhead"),
-      expect.stringContaining("Go to Record"),
+      expect.stringContaining("Record here"),
     ]);
   });
 
@@ -37,7 +37,6 @@ describe("PlusMenu", () => {
     ["track.add", /New track/],
     ["media.import", /Import audio/],
     ["edit.addChapter", /Add chapter at playhead/],
-    ["stage.record", /Go to Record/],
   ])("%s runs from its row and closes the menu", async (id, name) => {
     const handler = vi.fn(() => ({ status: "ok" as const }));
     registerCommand(id, handler);
@@ -46,6 +45,22 @@ describe("PlusMenu", () => {
     await user.click(screen.getByRole("button", { name: "+" }));
     await user.click(screen.getByRole("menuitem", { name }));
     expect(handler).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("Record here opens Record with an Insert target at the playhead", async () => {
+    registerCommand("stage.record", () => ({ status: "ok" as const }));
+    useDawStore.setState({ playheadSec: 12 });
+    const user = userEvent.setup();
+    render(<PlusMenu />);
+    await user.click(screen.getByRole("button", { name: "+" }));
+    await user.click(screen.getByRole("menuitem", { name: "Record here" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().pendingRecordTarget).toEqual({
+        kind: "insert",
+        at_sec: 12,
+      }),
+    );
     expect(screen.queryByRole("menu")).toBeNull();
   });
 

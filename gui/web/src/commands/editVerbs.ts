@@ -13,7 +13,11 @@ import {
   type EditRole,
   editFacts,
 } from "../edit/editSelection";
-import { replaceableSpan, replaceTargetOf } from "../edit/pickupTarget";
+import {
+  replaceableSpan,
+  replaceTargetOf,
+  scriptOf,
+} from "../edit/pickupTarget";
 import {
   makeRangeTarget,
   rangeIsCurrent,
@@ -359,8 +363,18 @@ async function record(facts: EditFacts): Promise<ExecuteResult> {
   if (facts.kind === "words" || facts.kind === "range") {
     const span = replaceableSpan(facts.span, s.project);
     if (!span) return disabled("Select words or a range on the timeline first");
-    return openRecordWith(replaceTargetOf(span));
+    return openRecordWith(
+      replaceTargetOf(span, scriptOf(s.selection, s.project)),
+    );
   }
+  return recordHere();
+}
+
+/** Record here: open Record with an Insert-at-playhead target. Host only. */
+export async function recordHere(): Promise<ExecuteResult> {
+  const s = useDawStore.getState();
+  if (!canManageProjects(s.projectPath))
+    return disabled("Only the host can record");
   return openRecordWith({ kind: "insert", at_sec: s.playheadSec });
 }
 

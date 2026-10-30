@@ -64,6 +64,7 @@ const RESET_ON_SWITCH: Reset = {
   openSheet: null,
   landingSettled: false,
   pendingRecordTarget: null,
+  recordScript: null,
 };
 
 const SENTINEL = { sentinel: true };

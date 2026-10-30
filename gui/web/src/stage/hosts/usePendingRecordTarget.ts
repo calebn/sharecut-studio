@@ -54,7 +54,13 @@ export function usePendingRecordTarget(
     }
     store.setPendingRecordTarget(null);
     if (open) {
-      sendRef.current(target);
+      const { script, ...wire } = target as typeof target & { script?: string };
+      store.setRecordScript(
+        target.kind === "replace" && script
+          ? { fromSec: target.from_sec, toSec: target.to_sec, text: script }
+          : null,
+      );
+      sendRef.current(wire);
     }
   }, [pending, ready, open]);
 }

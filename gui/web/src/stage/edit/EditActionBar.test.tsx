@@ -94,6 +94,29 @@ describe("EditActionBar on the phone dock", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("labels Record exactly Re-record on a replaceable range", () => {
+    host(EDIT_SELECTIONS.rangeOnAllTracks);
+    render(<EditActionBar form="dock" root={null} />);
+    const bar = screen.getByRole("group", { name: "Edit actions" });
+    expect(
+      within(bar).getAllByRole("button", { name: /Re-record/ }),
+    ).toHaveLength(1);
+    expect(names()).toContain("Re-record");
+    expect(names()).not.toContain("Record here");
+  });
+
+  it("has no Record button on a range that ends past the timeline", () => {
+    const project = editFixtureProject();
+    host(EDIT_SELECTIONS.rangeOnAllTracks, {
+      project: {
+        ...project,
+        clips: { ...project.clips, timeline_duration_sec: 1.5 },
+      },
+    });
+    render(<EditActionBar form="dock" root={null} />);
+    expect(names().filter((n) => /record/i.test(n ?? ""))).toEqual([]);
+  });
+
   it("counts several selected clips in the leading slot", () => {
     host(EDIT_SELECTIONS.clips);
     render(<EditActionBar form="dock" root={null} />);

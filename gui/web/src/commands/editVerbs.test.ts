@@ -317,6 +317,19 @@ describe("verbs that call other commands", () => {
     expect(open).toHaveBeenCalledTimes(1);
   });
 
+  it("parks the selected words as the script of a Re-record over words", async () => {
+    registerCommand("stage.record", () => ({ status: "ok" as const }));
+    host(EDIT_SELECTIONS.liveWords);
+    await runEditVerb("record", factsOf()!);
+    expect(useDawStore.getState().pendingRecordTarget).toEqual({
+      kind: "replace",
+      from_sec: 7,
+      to_sec: 8,
+      track_ids: [MIRA],
+      script: "…this…",
+    });
+  });
+
   it("parks an Insert target at the playhead on Record here", async () => {
     const open = vi.fn(() => ({ status: "ok" as const }));
     registerCommand("stage.record", open);

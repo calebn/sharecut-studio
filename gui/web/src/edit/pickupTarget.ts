@@ -1,5 +1,6 @@
 import type { PendingRecordTarget } from "../state/stageSlice";
-import type { ProjectView } from "../types/project";
+import type { ProjectView, Selection } from "../types/project";
+import { transcriptSpanText } from "../utils/transcript";
 import type { EditSpan } from "./editSelection";
 
 // The server refuses a replace that ends past the timeline by more than this.
@@ -38,11 +39,31 @@ export function replaceableSpan(
 }
 
 /** Replace the selected span: the target Re-record asks Record to open with. */
-export function replaceTargetOf(span: EditSpan): PendingRecordTarget {
+export function replaceTargetOf(
+  span: EditSpan,
+  script?: string,
+): PendingRecordTarget {
   return {
     kind: "replace",
     from_sec: span.start,
     to_sec: span.end,
     track_ids: [...span.trackIds],
+    ...(script ? { script } : {}),
   };
+}
+
+/** The selected words as the line a speaker reads, '…like this…'; null unless words are selected. */
+export function scriptOf(
+  selection: Selection,
+  project: ProjectView | null,
+): string | undefined {
+  if (selection?.kind !== "transcriptRange") return undefined;
+  const text = transcriptSpanText(
+    project,
+    selection.trackId,
+    selection.startWordIndex,
+    selection.endWordIndex,
+    selection.sourceId,
+  )?.trim();
+  return text ? `…${text}…` : undefined;
 }
