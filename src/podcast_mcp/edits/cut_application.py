@@ -83,6 +83,7 @@ from podcast_mcp.engines.clips_ops import (
     clips_for_track,
     punch_timeline_range_from_clips,
     set_track_clips,
+    shell_copy_clip,
 )
 from podcast_mcp.engines.mute_regions import add_source_mute
 from podcast_mcp.engines.off_speaker_regions import MuteOwnership, add_off_speaker_mute
@@ -448,7 +449,9 @@ def _meta_copy(meta: ProjectMeta) -> ProjectMeta:
 
 def _timeline_copy(timeline: TimelineSection) -> TimelineSection:
     return _replaced(
-        timeline, tracks=copy.deepcopy(timeline.tracks), clips=copy.deepcopy(timeline.clips)
+        timeline,
+        tracks=copy.deepcopy(timeline.tracks),
+        clips=[shell_copy_clip(clip) for clip in timeline.clips],
     )
 
 

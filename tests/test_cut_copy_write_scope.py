@@ -37,7 +37,14 @@ from podcast_mcp.models import (
     TranscriptWord,
     save_project,
 )
-from podcast_mcp.models.episode import CutIntent, SpeakerIngestAlignment
+from podcast_mcp.models.episode import (
+    ClipBleedRestore,
+    ClipOffSpeakerMuteRegion,
+    CutIntent,
+    RoomToneFill,
+    SourceSpan,
+    SpeakerIngestAlignment,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 
 RATE = 16_000
@@ -102,17 +109,26 @@ def build(tmp_path: Path, *, implicit_guest: bool = False) -> ProjectWorkspace:
         )
         if track_id == "guest" and implicit_guest:
             continue
-        project.clips.append(
+        project.clips.extend(
             Clip(
-                id=track_id,
+                id=f"{track_id}{half}",
                 track_id=track_id,
-                source_start=0,
-                source_end=DURATION,
-                timeline_start=0,
+                source_start=half * DURATION / 2,
+                source_end=(half + 1) * DURATION / 2,
+                timeline_start=half * DURATION / 2,
             )
+            for half in (0, 1)
         )
     project.timeline.duration_sec = DURATION
-    project.clips[0].mute_regions = [ClipMuteRegion(start_s=33.0, end_s=33.4)]
+    for clip in project.clips:
+        if clip.id.endswith("1"):
+            clip.off_speaker_mute_regions = [ClipOffSpeakerMuteRegion(start_s=40.0, end_s=40.2)]
+            clip.bleed_restore = ClipBleedRestore(
+                source_sha256="c" * 64, regions=[SourceSpan(start_s=45.0, end_s=45.5)]
+            )
+    project.clips[1].mute_regions = [
+        ClipMuteRegion(start_s=33.0, end_s=33.4, fill=RoomToneFill(start_s=1.0, end_s=1.4))
+    ]
     project.meta.ingest_alignment = {"host:host": SpeakerIngestAlignment(align_method="manual")}
     project.transcripts = [
         Transcript(
