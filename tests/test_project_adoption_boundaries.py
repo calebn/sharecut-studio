@@ -321,6 +321,34 @@ def test_forgetting_a_presented_entry_removes_the_stored_retired_one(
     assert read_recent() == []
 
 
+@pytest.mark.parametrize("use_folder", [False, True], ids=["retired-file", "workspace-folder"])
+def test_tunnel_invalid_config_leaves_project_untouched(legacy: Path, tmp_path: Path, use_folder):
+    original = legacy.read_bytes()
+    entries = sorted(legacy.parent.iterdir())
+    config = tmp_path / "relay.yaml"
+    config.write_text("host_id: tunnel-config-test\n", encoding="utf-8")
+
+    result = runner.invoke(
+        cli_app,
+        [
+            "tunnel",
+            "--project",
+            str(legacy.parent if use_folder else legacy),
+            "--config",
+            str(config),
+            "--relay-url",
+            "https://invalid.example/tunnel",
+            "--host-token",
+            "test-token",
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "Invalid relay configuration" in result.output
+    assert sorted(legacy.parent.iterdir()) == entries
+    assert legacy.read_bytes() == original
+
+
 def test_tunnel_resolves_the_retired_file_once_at_entry(minimal_project: Path, published_share):
     published_share(label="tunnel")
     legacy = minimal_project.rename(minimal_project.with_name(RETIRED_PROJECT_FILENAME))
