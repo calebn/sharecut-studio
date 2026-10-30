@@ -462,13 +462,13 @@ def captions_match(text: str, project: EpisodeProject) -> bool:
     """Whether an SRT or VTT body still says what ``project`` says, at any cue limits.
 
     The file does not record the limits it was cut with, so cue boundaries are not
-    compared. The words must read the same, and each cue must start where its first
+    compared. The words must be the same (cues interleave overlapping tracks, so order is not compared), and each cue must start where its first
     word starts, which catches an edit that moves words in time.
     """
     expected = [w for _, words in _timeline_word_runs(project) for w in words]
-    expected.sort(key=lambda w: w.start)
     cues = _parse_captions(text)
-    if [w for _, words in cues for w in words] != [t for w in expected for t in w.text.split()]:
+    spoken = Counter(t for w in expected for t in w.text.split())
+    if Counter(w for _, words in cues for w in words) != spoken:
         return False
     starts = Counter(
         (_format_srt_time(w.start).replace(",", "."), w.text.split()[0])
