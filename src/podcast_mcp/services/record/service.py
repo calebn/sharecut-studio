@@ -344,6 +344,11 @@ def begin_record_session(
         if snap.state in ("recording", "paused"):
             raise RecordStateError(TAKE_OPEN_REMINT_MSG)
 
+    outgoing = (store.get_snapshot() or {}).get("session_id")
+    if outgoing and outgoing != session_id:
+        from podcast_mcp.services.record.sessions import persist_session_summary
+
+        persist_session_summary(project, str(outgoing))
     store.reset(empty_record_snapshot(session_id, room_target).model_dump(), guard=guard)
     _participants_for(project).clear_all()
     live_comment_store_for(project).clear_all()

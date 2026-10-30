@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -67,28 +68,44 @@ def _summaries_path(workspace: Path) -> Path:
     return workspace_artifacts_dir(workspace) / _SUMMARIES_NAME
 
 
-def _load_summaries(workspace: Path) -> dict[str, dict[str, Any]]:
+def _read_summaries(workspace: Path) -> dict[str, dict[str, Any]] | None:
+    """The saved summaries; empty when there is no file, None when the file is unreadable."""
+    path = _summaries_path(workspace)
+    if not path.exists():
+        return {}
     try:
-        data = json.loads(_summaries_path(workspace).read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {}
+        return None
     if not isinstance(data, dict):
-        return {}
+        return None
     return {sid: row for sid, row in data.items() if isinstance(row, dict)}
 
 
-def persist_session_summary(project: EpisodeProject, session_id: str) -> None:
-    """Keep the ended room's takes and participants once a newer room resets the store.
+def _load_summaries(workspace: Path) -> dict[str, dict[str, Any]]:
+    return _read_summaries(workspace) or {}
 
-    The first summary wins, so a repeated end never replaces it. Never raises.
+
+def persist_session_summary(project: EpisodeProject, session_id: str) -> None:
+    """Keep a session's takes and participants before the single-session store forgets them.
+
+    Nothing is saved for a session the store holds no takes or participants for. The first
+    summary wins, so a repeated call never replaces it. An unreadable sidecar is renamed aside,
+    never overwritten. Never raises.
     """
     try:
         snap, choices = _snapshot(project, session_id)
-        if not snap:
+        if not snap or not (snap.get("takes") or snap.get("participants")):
             return
         workspace = project.workspace_path()
         with _summaries_lock:
-            rows = _load_summaries(workspace)
+            rows = _read_summaries(workspace)
+            if rows is None:
+                path = _summaries_path(workspace)
+                aside = path.with_name(f"{path.name}.corrupt-{time.time_ns()}")
+                path.replace(aside)
+                log.warning("unreadable record session summaries kept at %s", aside)
+                rows = {}
             if session_id in rows:
                 return
             rows[session_id] = {
@@ -134,7 +151,10 @@ def _ended_at(rows: list[dict[str, Any]]) -> str | None:
 
 
 def list_record_sessions(project: EpisodeProject) -> list[dict[str, Any]]:
-    """Every record session with a room or a landing, oldest to newest. Never writes."""
+    """Every record session with a room or a landing, oldest to newest. Never writes.
+
+    Ordered by the first link's creation time; a session with no link row sorts first, by number.
+    """
     rows = _session_rows(project)
     landed_ids = _landed_ids(project)
     summaries = _load_summaries(project.workspace_path())
