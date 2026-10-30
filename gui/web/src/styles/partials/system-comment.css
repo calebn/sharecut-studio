@@ -152,7 +152,6 @@ button.sys-composer-chip {
 @media (pointer: coarse) {
   .sys-composer-input,
   .sys-composer-chip,
-  .sys-composer-input,
   .sys-composer-field .sys-composer-body {
     min-block-size: var(--touch-min);
   }
