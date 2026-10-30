@@ -91,7 +91,7 @@ for (const width of [1440, 360]) {
         await expect(page.locator("body")).not.toHaveClass(
           /is-boundary-dragging/,
         );
-        await expect(page.locator(".transcript-list")).not.toHaveClass(
+        await expect(page.locator(".sys-script-body")).not.toHaveClass(
           /is-boundary-dragging/,
         );
         await expect(page.locator(".edit-boundary-preview")).toHaveCount(0);
@@ -151,7 +151,7 @@ test("Tab away cancels the gesture before Escape or pointer release", async ({
   await page.keyboard.press("Tab");
   await expect(mark).toHaveAttribute("aria-grabbed", "false");
   await expect(page.locator("body")).not.toHaveClass(/is-boundary-dragging/);
-  await expect(page.locator(".transcript-list")).not.toHaveClass(
+  await expect(page.locator(".sys-script-body")).not.toHaveClass(
     /is-boundary-dragging/,
   );
   await page.keyboard.press("Escape");
