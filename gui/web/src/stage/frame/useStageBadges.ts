@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { shallow } from "zustand/shallow";
 import { useHostRoomSelector, useRecordHostStore } from "../../record";
-import { reviewEntriesOf } from "../../review/reviewItems";
+import { reviewCountOf } from "../../review/reviewItems";
 import { canReviewPendingEdit, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
@@ -71,7 +71,7 @@ export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
     pendingReviewCount:
       isShareProjectKey(s.projectPath) &&
       canReviewPendingEdit(s.projectPath, s.shareCapabilities)
-        ? reviewEntriesOf(s.project?.pending_edits ?? []).length
+        ? reviewCountOf(s.project?.pending_edits ?? [])
         : (s.project?.edit_impact.pending_review_count ?? 0),
     openCommentCount:
       s.project?.comments?.filter((c) => !c.resolved).length ?? 0,
