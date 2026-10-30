@@ -6,6 +6,7 @@ import { BUSY_REASON } from "../ui/disabledReason";
 import { NudgeButtons, UNAPPLIED_VALUE_REASON } from "./NudgeButtons";
 
 function setup(unavailable?: string) {
+  const onCapture = vi.fn();
   const onClick = vi.fn();
   const onPointerDown = vi.fn();
   const view = render(
@@ -13,6 +14,7 @@ function setup(unavailable?: string) {
       groupLabel="Nudge start"
       deltas={[-1, 1]}
       unavailable={unavailable}
+      onPointerDownCapture={onCapture}
       label={(delta) =>
         `${Math.abs(delta)} s ${delta < 0 ? "earlier" : "later"}`
       }
@@ -20,7 +22,7 @@ function setup(unavailable?: string) {
       propsFor={() => ({ onClick, onPointerDown })}
     />,
   );
-  return { ...view, onClick, onPointerDown };
+  return { ...view, onClick, onPointerDown, onCapture };
 }
 
 describe("NudgeButtons", () => {
@@ -56,6 +58,16 @@ describe("NudgeButtons", () => {
       await expectNoA11yViolations(container);
     },
   );
+
+  it("lets the row react to a press only while the nudges can run", () => {
+    const ready = setup();
+    fireEvent.pointerDown(screen.getByRole("button", { name: "1 s later" }));
+    expect(ready.onCapture).toHaveBeenCalledTimes(1);
+    ready.unmount();
+    const held = setup(UNAPPLIED_VALUE_REASON);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "1 s later" }));
+    expect(held.onCapture).not.toHaveBeenCalled();
+  });
 
   it("treats a blank reason as unavailable, not as ready", () => {
     setup("  ");

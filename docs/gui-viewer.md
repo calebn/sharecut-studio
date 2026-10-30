@@ -359,7 +359,8 @@ Guest playback prefers **proxy media** when `GET /api/review/{token}/daw/proxy/m
 Track headers include a sample-peak playback meter with the shared dBFS zones
 and peak hold. A clip light latches at -1 dBFS until **Clear clip light** is
 activated, including after Pause, Stop, seeking, or switching responsive shells.
-In the track inspector the reset is labeled and, with nothing to clear, stays focusable and shows "No clipping to clear." Wide headers keep the icon reset button. Narrow identity rails show a passive clip
+In the track inspector the reset is labeled and, with nothing to clear, stays focusable and shows "No clipping to clear."
+Wide headers keep the icon reset button. Narrow identity rails show a passive clip
 indicator and expose the labeled reset in track details, so the reset target
 does not overlap track entry. It resets for a different project or a removed track. These are track-output measurements before the
 premix/master, not a loudness or true-peak measurement.

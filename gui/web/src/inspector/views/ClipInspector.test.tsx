@@ -419,6 +419,14 @@ describe("ClipInspector fades", () => {
     render(<ClipInspector clip={clip} />);
     expect(screen.queryByText(/^max /)).toBeNull();
     expect(screen.getByLabelText("Fade in ms")).toBeDisabled();
+    const nudge = within(
+      screen.getByRole("group", { name: "Nudge fade in" }),
+    ).getByRole("button", { name: "10 ms longer" });
+    expect(nudge).toHaveAttribute("aria-disabled", "true");
+    expect(nudge).toHaveAccessibleDescription(
+      "The fade limit is still loading. Wait a moment, then try again.",
+    );
+    expect(screen.queryByText("Fades do not apply at a cut.")).toBeNull();
   });
 
   it("nudges a fade by the same steps as the arrow keys and saves once on release", async () => {

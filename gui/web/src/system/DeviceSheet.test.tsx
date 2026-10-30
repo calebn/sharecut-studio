@@ -156,10 +156,30 @@ describe("DeviceSheet", () => {
     render(
       sheet({ tone: { ...TONE, disabledReason: "Record between takes." } }),
     );
-    expect(screen.getByRole("button", { name: TONE.label })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: TONE.label }),
-    ).toHaveAccessibleDescription("Record between takes.");
+    const button = screen.getByRole("button", { name: TONE.label });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toBeEnabled();
+    expect(button).toHaveAccessibleDescription("Record between takes.");
+    expect(screen.getByText("Record between takes.")).toBeVisible();
+    button.focus();
+    expect(button).toHaveFocus();
+  });
+
+  it("refuses to record room tone while it waits and records once it is ready", async () => {
+    const onRecordRoomTone = vi.fn();
+    const { rerender } = render(
+      sheet({
+        tone: { ...TONE, disabledReason: "Record between takes." },
+        onRecordRoomTone,
+      }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: TONE.label }));
+    expect(onRecordRoomTone).not.toHaveBeenCalled();
+    rerender(sheet({ onRecordRoomTone }));
+    const button = screen.getByRole("button", { name: TONE.label });
+    expect(button).not.toHaveAttribute("aria-disabled");
+    await userEvent.click(button);
+    expect(onRecordRoomTone).toHaveBeenCalledTimes(1);
   });
 
   it("shows a room tone that was too loud", async () => {

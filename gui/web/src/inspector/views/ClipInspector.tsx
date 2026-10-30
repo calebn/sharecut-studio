@@ -51,6 +51,8 @@ type FadeDraftState = {
 };
 
 const FADE_AT_CUT_REASON = "Fades do not apply at a cut.";
+const FADE_LIMIT_LOADING_REASON =
+  "The fade limit is still loading. Wait a moment, then try again.";
 
 export function ClipInspector({ clip }: { clip: ClipRow }) {
   const { projectPath, projectEpoch, guestMode, shareCapabilities } = useDaw(
@@ -394,7 +396,11 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
     const deltas = [-large, -small, small, large];
     const saved = edge === "in" ? clip.fade_in_ms : clip.fade_out_ms;
     const dirty = fadeDraft(edge) !== String(saved);
-    const unavailable = !capKnown || (edge === "in" ? cutIn : cutOut);
+    const atCut = edge === "in" ? cutIn : cutOut;
+    const unavailable = !capKnown || atCut;
+    const fadeReason = !capKnown
+      ? FADE_LIMIT_LOADING_REASON
+      : FADE_AT_CUT_REASON;
     const busyReason =
       clipMutationBusy || trimRun.running ? BUSY_REASON : undefined;
     return (
@@ -417,7 +423,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 disabledReason={
                   busyReason ??
                   (unavailable
-                    ? FADE_AT_CUT_REASON
+                    ? fadeReason
                     : dirty
                       ? undefined
                       : "Type a length to apply.")
@@ -434,7 +440,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 clipMutationBusy
                   ? BUSY_REASON
                   : unavailable
-                    ? FADE_AT_CUT_REASON
+                    ? fadeReason
                     : dirty
                       ? UNAPPLIED_VALUE_REASON
                       : undefined

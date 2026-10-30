@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
+import { unavailableReason, useDisabledReasonNote } from "../ui/disabledReason";
 import {
   DEVICE_TEXT,
   type DeviceMic,
@@ -76,6 +77,9 @@ export function DeviceSheet({
     output,
   });
   const toneControls = useRef<HTMLDivElement>(null);
+  const { note: toneNote, describedBy: toneDescribedBy } =
+    useDisabledReasonNote(tone.disabledReason);
+  const toneWaits = unavailableReason(tone.disabledReason) !== undefined;
   // Record gives way to End early and Cancel, and back: focus follows to the
   // button that replaces the one pressed (Cancel while a take runs, else Record).
   useFocusRescue(toneControls, (target) => {
@@ -141,12 +145,18 @@ export function DeviceSheet({
                 <Button onClick={onCancelRoomTone}>Cancel</Button>
               </div>
             ) : (
-              <Button
-                disabledReason={tone.disabledReason}
-                onClick={onRecordRoomTone}
-              >
-                {tone.label}
-              </Button>
+              <>
+                <Button
+                  aria-disabled={toneWaits || undefined}
+                  {...toneDescribedBy}
+                  onClick={() => {
+                    if (!toneWaits) onRecordRoomTone();
+                  }}
+                >
+                  {tone.label}
+                </Button>
+                {toneNote}
+              </>
             )}
           </div>
         </SheetRow>

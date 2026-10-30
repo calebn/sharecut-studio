@@ -100,8 +100,6 @@ export function TrackPlaybackMeter({
     });
   }, [playing, source, trackId, projectEpoch]);
 
-  // The inspector button carries a label, so it stays focusable and says why
-  // there is nothing to clear; the rail's icon-only button keeps native disabled.
   const inspectorReason =
     inspector && !clipped ? NO_CLIPPING_REASON : undefined;
   const { note: clearNote, describedBy: clearDescribedBy } =

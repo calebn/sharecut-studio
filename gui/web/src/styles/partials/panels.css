@@ -265,6 +265,10 @@
   user-select: none;
 }
 
+.edit-boundary-mark[aria-disabled="true"] {
+  cursor: default;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .edit-boundary-mark {
     transition:
