@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -81,6 +81,39 @@ describe("TranscriptSection", () => {
     );
     expect(screen.queryByRole("button")).toBeNull();
   });
+
+  it.each(["page", "preview"] as const)(
+    "retries a slow transcript load once when %s is loading",
+    (loading) => {
+      vi.useFakeTimers();
+      let unmount: (() => void) | undefined;
+      try {
+        const onRetry = vi.fn();
+        ({ unmount } = render(
+          <TranscriptSection
+            state={loading === "page" ? "loading" : "ready"}
+            options={transcriptOptions({
+              ...(loading === "preview"
+                ? { preview: { kind: "loading" as const } }
+                : {}),
+              onRetry,
+            })}
+          />,
+        ));
+        act(() => vi.advanceTimersByTime(3999));
+        expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+        act(() => vi.advanceTimersByTime(1));
+        expect(screen.getByRole("status")).toHaveTextContent("Still loading");
+        expect(onRetry).not.toHaveBeenCalled();
+        fireEvent.click(button("Retry"));
+        expect(onRetry).toHaveBeenCalledOnce();
+      } finally {
+        unmount?.();
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it("disables export while writing", () => {
     render(
