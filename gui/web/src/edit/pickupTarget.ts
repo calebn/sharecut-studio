@@ -1,4 +1,4 @@
-import type { SessionTarget } from "../record";
+import type { PendingRecordTarget } from "../state/stageSlice";
 import type { ProjectView } from "../types/project";
 import type { EditSpan } from "./editSelection";
 
@@ -38,7 +38,7 @@ export function replaceableSpan(
 }
 
 /** Replace the selected span: the target Re-record asks Record to open with. */
-export function replaceTargetOf(span: EditSpan): SessionTarget {
+export function replaceTargetOf(span: EditSpan): PendingRecordTarget {
   return {
     kind: "replace",
     from_sec: span.start,
