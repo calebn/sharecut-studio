@@ -526,18 +526,19 @@ def stem_is_fresh(project: EpisodeProject, track_id: str, *, defaults: Effective
     stem = stem_path(project, track_id)
     if not stem.is_file():
         return False
-    unresolvable: ValueError | None = None
+    duration_error: Exception | None = None
     try:
         if not stem_duration_matches_timeline(project, track_id):
             return False
-    except ValueError as exc:
-        # A path outside the workspace: a stale stem still answers False, a fresh one raises.
-        unresolvable = exc
+    except Exception as exc:
+        # The old order reached the duration check only after a hash match: a stale stem
+        # answers False, a fresh one raises.
+        duration_error = exc
     stored = read_stem_hash(project, track_id)
     if stored != track_render_hash(project, track_id, defaults=defaults):
         return False
-    if unresolvable is not None:
-        raise unresolvable
+    if duration_error is not None:
+        raise duration_error
     return True
 
 
