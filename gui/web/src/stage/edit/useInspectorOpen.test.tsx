@@ -97,12 +97,14 @@ describe("useInspectorOpen open state", () => {
   });
 
   it("clears the selection when the phone sheet is dismissed", () => {
+    useDawStore.setState({ sheetExpanded: true });
     const { result } = renderHook(() => useInspectorOpen("phone", "timeline"));
     act(() => result.current.dismiss());
     expect(useDawStore.getState()).toMatchObject({
       inspectorKey: null,
       selection: null,
       rangeArmed: false,
+      sheetExpanded: false,
     });
   });
 

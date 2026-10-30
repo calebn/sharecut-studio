@@ -289,11 +289,7 @@ function inspect() {
 const sheet = () =>
   screen
     .queryAllByRole("dialog")
-    .find(
-      (dialog) =>
-        dialog.classList.contains("sys-inspector") ||
-        dialog.classList.contains("bottom-sheet--inspector"),
-    ) ?? null;
+    .find((dialog) => dialog.classList.contains("sys-inspector")) ?? null;
 const rangeRegions = () =>
   screen.queryAllByRole("region", { name: "Range fields" });
 
