@@ -64,9 +64,7 @@ type Dismissal = {
 };
 
 function openDetails() {
-  const details = screen.getByLabelText(
-    "Needs attention details and recovery actions",
-  );
+  const details = screen.getByLabelText(/^Needs attention (?:\d+|!) Details$/);
   if (!details.closest("details")?.hasAttribute("open"))
     fireEvent.click(details);
 }

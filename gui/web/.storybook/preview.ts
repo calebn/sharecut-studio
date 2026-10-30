@@ -26,10 +26,12 @@ const preview: Preview = {
     backgrounds: { disable: true },
     docs: { container: StudioDocsContainer },
     a11y: {
-      // The addon panel runs the WCAG 2.0 A and AA rules, contrast included.
-      // e2e-storybook/coverage.spec.ts runs the same rules on every story in
-      // both themes, so a failing pair of theme tokens fails CI.
-      options: { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa"] } },
+      options: {
+        runOnly: {
+          type: "tag",
+          values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"],
+        },
+      },
     },
   },
   globalTypes: {

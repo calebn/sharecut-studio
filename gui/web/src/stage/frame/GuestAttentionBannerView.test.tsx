@@ -17,9 +17,7 @@ afterEach(() => {
 });
 
 function expandDetails() {
-  fireEvent.click(
-    screen.getByLabelText("Needs attention details and recovery actions"),
-  );
+  fireEvent.click(screen.getByLabelText(/^Needs attention (?:\d+|!) Details$/));
 }
 
 describe("GuestAttentionBannerView", () => {
@@ -111,9 +109,7 @@ describe("GuestAttentionBannerView", () => {
     expect(
       screen.getAllByRole("region", { name: /Needs attention/ }),
     ).toHaveLength(2);
-    const summary = screen.getAllByLabelText(
-      "Needs attention details and recovery actions",
-    )[0];
+    const summary = screen.getByLabelText("Needs attention 1 Details");
     expect(
       summary.compareDocumentPosition(
         screen.getByRole("button", { name: "Transport" }),
@@ -151,9 +147,7 @@ describe("GuestAttentionBannerView", () => {
         <GuestAttentionBannerView {...props} />
       </StrictMode>,
     );
-    const summary = screen.getByLabelText(
-      "Needs attention details and recovery actions",
-    );
+    const summary = screen.getByLabelText("Needs attention 1 Details");
     await userEvent.click(summary);
     const details = summary.closest("details")!;
     const action = screen.getByRole("button", { name: "Send now" });
@@ -201,20 +195,16 @@ describe("GuestAttentionBannerView", () => {
     const { rerender } = render(
       <GuestAttentionBannerView key="first-project" {...props} />,
     );
-    const summary = screen.getByLabelText(
-      "Needs attention details and recovery actions",
-    );
+    const summary = screen.getByLabelText("Needs attention 1 Details");
     await userEvent.click(summary);
     summary.focus();
     rerender(<GuestAttentionBannerView key="second-project" {...props} />);
     expect(
-      screen
-        .getByLabelText("Needs attention details and recovery actions")
-        .closest("details"),
+      screen.getByLabelText("Needs attention 1 Details").closest("details"),
     ).not.toHaveAttribute("open");
     expect(summary).not.toBeInTheDocument();
     expect(
-      screen.getByLabelText("Needs attention details and recovery actions"),
+      screen.getByLabelText("Needs attention 1 Details"),
     ).not.toHaveFocus();
   });
 
@@ -228,9 +218,7 @@ describe("GuestAttentionBannerView", () => {
     );
     expandDetails();
     expect(
-      screen
-        .getByLabelText("Needs attention details and recovery actions")
-        .closest("details"),
+      screen.getByLabelText("Needs attention 1 Details").closest("details"),
     ).toHaveAttribute("open");
     rerender(
       <GuestAttentionBannerView
@@ -240,7 +228,7 @@ describe("GuestAttentionBannerView", () => {
       />,
     );
     expect(
-      screen.queryByLabelText("Needs attention details and recovery actions"),
+      screen.queryByLabelText("Needs attention 1 Details"),
     ).not.toBeInTheDocument();
     rerender(
       <GuestAttentionBannerView
@@ -250,9 +238,7 @@ describe("GuestAttentionBannerView", () => {
       />,
     );
     expect(
-      screen
-        .getByLabelText("Needs attention details and recovery actions")
-        .closest("details"),
+      screen.getByLabelText("Needs attention 1 Details").closest("details"),
     ).not.toHaveAttribute("open");
   });
 
@@ -514,15 +500,13 @@ describe("GuestAttentionBannerView", () => {
           />,
         );
         return screen
-          .getByLabelText("Needs attention details and recovery actions")
+          .getByLabelText("Needs attention 1 Details")
           .closest("details") as HTMLDetailsElement;
       }
 
       it("brings the waiver form into view and leaves focus on the summary", async () => {
         const details = renderGated();
-        const summary = screen.getByLabelText(
-          "Needs attention details and recovery actions",
-        );
+        const summary = screen.getByLabelText("Needs attention 1 Details");
         summary.focus();
         scrollIntoView.mockClear();
         details.open = true;

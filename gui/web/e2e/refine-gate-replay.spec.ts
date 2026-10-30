@@ -50,9 +50,7 @@ for (const phone of PHONES) {
     await expect(banner).toBeVisible();
     online = true;
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await banner
-      .getByLabel("Needs attention details and recovery actions")
-      .click();
+    await banner.getByLabel("Needs attention 1 Details").click();
     const waive = banner.getByRole("button", { name: "Waive with reason" });
     await expect(waive).toBeVisible();
     await expect(waive).toBeInViewport();
