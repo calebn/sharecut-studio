@@ -78,7 +78,7 @@ Transcript **Find and replace** row wraps its
 controls on a coarse pointer so landscape panels stay inside the panel. At large text
 or in a short window, the Transcript panel scrolls as a whole so its chrome does
 not cover the rows under it.
-The envelope-point select, the effect **Bypass** toggles and the comment fields and track picks are 44 CSS px tall on touch too.
+The envelope point's Time and Level, the effect **Bypass** toggles and the comment fields and track picks are 44 CSS px tall on touch too.
 
 The overlay toggles in the Edit stage's eye sheet (Pending edits, Markers, Comments and the rest) are whole rows at least 44 CSS px tall on touch.
 
@@ -119,12 +119,12 @@ A short sheet, such as the Tools sheet on a phone held sideways at large text, k
 enough half height for a scrollable body. On the Prepare stage, resizing the window
 keeps the focused control in view.
 
-To adjust a track's volume envelope, open track details and choose **Add volume
-envelope** or **Edit volume envelope**. Choose **Add point** or select a point
-and choose **Edit point**, enter Time and Level, then choose **Save point**.
-**Cancel** keeps the saved points. After Save or Cancel, the selected point is
-visible again; **Done** returns to the track's envelope action. Scrolling and
-changing sheet size keep the current draft.
+To adjust a track's volume envelope, open track details and choose **Show
+volume envelope**. Long-press the lane to add a point with **Add envelope
+point**, or select an existing point, then choose **Inspect**. The sheet shows
+the point's **Time** and **Level**; each change saves at once and Undo takes it
+back. **Remove point** deletes it. A failed save stays in the sheet with
+**Reload points** when the envelope changed under you.
 
 Desktop and tablet editor panels use a resize separator. Escape cancels its
 current preview and restores the previous panel preference, including the
@@ -193,7 +193,7 @@ Safari's address bar and toolbar take a lot of room, especially with the phone h
 
 Held sideways, tracks get shorter so at least three fit on screen, and the controls keep their full-size touch targets. The empty marker band under the ruler steps aside until there are markers to show. The layout also stays clear of the camera cutout and the home indicator. On a short screen the app header and a bottom sheet's header each fit on one row: the sheet's title shortens with an ellipsis, and Undo, Redo, Expand and Close stay at full touch size. A sheet has no half height when that height could not hold its header and one row of content, so it opens at full height instead. When the Script, view and zoom controls would cover a track, they move into the **Tools** button in the header, so the tracks stay clear and their Mute and Solo buttons stay reachable.
 
-Editing a volume envelope with the phone held sideways keeps the track you are editing on screen above the editor, along with the ruler. The player and the tab bar step aside until you are done, so do the chapter, comment and clip rows (scroll up to see them); the status line with the save light stays. On the shortest screens (about 914×331, or an iPhone SE held sideways) those rows scroll with the tracks at all times, so a tap on a track's name always reaches it. The point form is one row (**Time**, **Level**, **Save point**, **Cancel**), and **Done** stays on the editor's top row, in view with the form. Turning the phone with the editor open puts the track back where you can see it. If you turn the phone while you are typing a point, what you typed is still there. On a short window, dragging the divider above the tabs can make the tabs smaller as well as larger.
+Editing a volume envelope point with the phone held sideways keeps the track you are editing on screen beside the card, along with the ruler. On the shortest screens (about 914×331, or an iPhone SE held sideways) the chapter, comment and clip rows scroll with the tracks at all times, so a tap on a track's name always reaches it. **Time**, **Level** and **Remove point** stay in view in the card. Turning the phone with a point open keeps it open. On a short window, dragging the divider above the tabs can make the tabs smaller as well as larger.
 
 ### Mix tracks
 

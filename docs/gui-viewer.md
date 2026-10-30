@@ -370,34 +370,32 @@ peak markers while clip detection remains active. The **Volume envelope** layer
 still controls automation curves independently of playback meters.
 
 Inspector sheets scroll as one region, including their header, actions, fields,
-errors, related commands, and footer. The envelope workspace retains its draft
-through view sizing and scrolling. On short phone screens, use ordinary scrolling
-and the **Expand** icon button to reach complete controls. Opening the workspace
-does not expand the sheet automatically. Focus transitions reveal the current
-control within its sheet or desktop inspector; they do not scroll the page or
-timeline. Desktop modifier inspectors scroll as one aside, with fields and
-errors in natural flow.
+errors, related commands, and footer. On short phone screens, use ordinary
+scrolling and the **Expand** icon button to reach complete controls. Focus
+transitions reveal the current control within its sheet or desktop inspector;
+they do not scroll the page or timeline. Desktop modifier inspectors scroll as
+one aside, with fields and errors in natural flow.
 See [responsive inspector evidence](https://github.com/calebn/sharecut-studio/pull/963#issuecomment-5998148488) for the text-size profiles
 and owner acceptance limits.
 
-The track’s **Add volume envelope** or **Edit volume envelope** action opens
-`EnvelopeWorkspace` without changing the shared layer visibility or creating
-automation. If the shared layer is hidden, choose **Show volume envelope**
-before adding, editing, or deleting points. The flat line can be dragged
+A volume-envelope point is edited in the Inspector, not in a workspace. Choose
+**Show volume envelope** in the track's sheet (or the Layers popover) first;
+points cannot change while the layer is hidden. The flat line can be dragged
 vertically to set a constant gain without placing a
 point. The shown empty line starts at unity and showing it saves nothing.
 Dragging it saves equal-level endpoint anchors in one undoable edit. The line
 is a focusable slider; arrow keys adjust it by 0.01, and Home/End choose the
 range limits. A saved flat line remains adjustable. A shaped curve uses its
-individual point controls. The point list selects by immutable ID;
-**Add point** and **Edit point** open numeric time
-and level drafts. Time and Level use decimal text fields so wheel scrolling
-does not step the draft values; the existing numeric validation reports errors.
-**Save point**, **Delete point**, and removing the last point
-use `SetEnvelope` with the exact ordered saved baseline and one undoable change.
-Cancel, form Escape, and unchanged saves write nothing. A conflict preserves the
-draft and offers **Discard draft and reload points**. Editor links edit volume envelopes as the host does; Commenter and Viewer
-links expose **View volume envelope** without mutation controls. Timeline point drags retain
+individual points. Add a point from the create menu (long press, right click,
+or Shift+F10 on the lane); it is selected, and Inspect opens its **Time** and
+**Level** Scrub fields. Each field commits once per gesture (a drag, an arrow
+step, or a typed value with Enter) with the exact ordered saved baseline and one
+undoable change, and the fields are read-only while a save is in flight.
+**Remove point** (or **Remove volume envelope** for the last one) and the
+Delete or Backspace key on the selected point share the same write. A conflict
+stays in the sheet as an alert with **Reload points**; a time already taken
+offers **Select the point there**. Editor links edit volume envelopes as the host does; Commenter and Viewer
+links see the fields read-only with no Remove. Timeline point drags retain
 their local pointer ownership and cancellation behavior.
 
 When the timeline / transport / track headers **or the Transcript tab** are focused (including after selecting transcript text):
