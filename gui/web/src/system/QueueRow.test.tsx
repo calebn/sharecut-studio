@@ -100,6 +100,28 @@ describe("QueueRow", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  it.each([
+    { time: "18:36", label: "Resolved 18:36" },
+    { time: undefined, label: "Resolved" },
+  ])(
+    "preserves the decided label and optional time for $label",
+    ({ time, label }) => {
+      render(
+        <QueueRow
+          kind="comment"
+          snippet="Hi"
+          author={{ name: "Rosa" }}
+          time={time}
+          decided={{ result: "applied", text: "Resolved" }}
+          onSelect={vi.fn()}
+        />,
+      );
+      const button = screen.getByRole("button");
+      expect(button.textContent).toBe(label);
+      expect(button).toHaveAccessibleName(new RegExp(`^${label}(?:,|$)`));
+    },
+  );
+
   it("shows unread and waiting-to-send", () => {
     render(
       <QueueRow
