@@ -48,6 +48,10 @@ def _clip_json(project: EpisodeProject) -> list[str]:
     return [c.model_dump_json() for c in project.clips]
 
 
+def _project_json(project: EpisodeProject) -> str:
+    return project.model_dump_json()
+
+
 def _random_clip(rng: random.Random, tid: str, index: int, timeline: float) -> Clip:
     length = rng.uniform(0.5, 6.0)
     source = rng.uniform(0.0, 40.0)
@@ -174,11 +178,11 @@ def test_the_lane_is_what_the_deep_copying_version_returned(
 @pytest.mark.parametrize("seed", range(40))
 def test_the_lane_leaves_every_project_clip_as_it_was(tmp_path: Path, seed: int) -> None:
     project, removal, at_time = _scenario(tmp_path, seed, 2000)
-    before = _clip_json(project)
+    before = _project_json(project)
     ids = [id(c) for c in project.clips]
     for tid in TRACKS:
         _project_pad_lane(project, tid, at_time, removal, defaults=DEFAULTS)
-    assert _clip_json(project) == before
+    assert _project_json(project) == before
     assert [id(c) for c in project.clips] == ids
 
 
@@ -225,7 +229,7 @@ def test_the_callers_leave_the_project_as_it_was_and_answer_as_before(
 
 @pytest.mark.parametrize("seed", range(10))
 def test_binding_effects_at_a_clip_edge_leaves_the_shared_clip_as_it_was(
-    tmp_path: Path, seed: int
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seed: int
 ) -> None:
     project = _project(tmp_path, seed)
     edge = clips_for_track(project, "host")[0].timeline_end
@@ -233,16 +237,24 @@ def test_binding_effects_at_a_clip_edge_leaves_the_shared_clip_as_it_was(
     lane = _project_pad_lane(project, "host", edge, removal, defaults=DEFAULTS)
     assert not isinstance(lane, LaneUnavailable)
     assert any(c is p for c in lane for p in project.clips)
-    before = _clip_json(project)
-    bind_pause_effects(
-        project,
-        edge,
-        removal,
-        observation=GeometricPause(activity=()),
-        splice_fade_ms=20,
-        defaults=DEFAULTS,
-    )
-    assert _clip_json(project) == before
+    before = _project_json(project)
+
+    def bind() -> object:
+        return bind_pause_effects(
+            project,
+            edge,
+            removal,
+            observation=GeometricPause(activity=()),
+            splice_fade_ms=20,
+            defaults=DEFAULTS,
+        )
+
+    bound = bind()
+    assert not isinstance(bound, LaneUnavailable)
+    assert bound
+    assert _project_json(project) == before
+    monkeypatch.setattr(timeline_ops, "clips_for_track", _old_lane_clips)
+    assert bind() == bound
 
 
 def test_a_removal_that_touches_no_clip_returns_the_projects_own_clips_unchanged(
