@@ -16,8 +16,8 @@ export type GrabMove = GrabPointer & {
 };
 
 type GrabOptions<G> = {
-  /** The direction the slop is measured along; the default is horizontal. */
-  axis?: "x" | "y";
+  /** The direction the slop is measured along; the default is horizontal. `both` measures the distance from the press, for a grip that moves in both. */
+  axis?: "x" | "y" | "both";
   canGrab: (grip: G, event: PointerEvent<HTMLElement>) => boolean;
   slop?: (grip: G, event: PointerEvent<HTMLElement>) => number;
   /** A node moved in the DOM loses its pointer capture, so a lasting ancestor takes it when the drag starts. */
@@ -136,10 +136,14 @@ export function useGrab<G>(options: GrabOptions<G>) {
     const grab = held.current;
     if (!grab || grab.pointerId !== event.pointerId) return;
     if (!grab.moved) {
+      const across = event.clientX - grab.fromX;
+      const down = event.clientY - grab.fromY;
       const along =
         options.axis === "y"
-          ? event.clientY - grab.fromY
-          : event.clientX - grab.fromX;
+          ? down
+          : options.axis === "both"
+            ? Math.hypot(across, down)
+            : across;
       const slop = slopOf(grab.grip, event);
       if (Math.abs(along) < slop) return;
       grab.moved = true;

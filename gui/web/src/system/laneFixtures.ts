@@ -113,3 +113,16 @@ export const LANE_ROWS: readonly LaneRow[] = [
     ],
   },
 ];
+
+/** Maya's volume envelope: a dip under her second clip. Keep it stable between renders. */
+export const ENVELOPE_POINTS: readonly {
+  id: string;
+  time: number;
+  db: number;
+}[] = [
+  { id: "env-1", time: 1, db: 0 },
+  { id: "env-2", time: 4, db: -6 },
+  { id: "env-3", time: 7.2, db: -3 },
+  { id: "env-4", time: 10, db: -12 },
+  { id: "env-5", time: 13, db: 0 },
+];

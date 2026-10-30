@@ -2,8 +2,15 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { swallowsDuringDrag, useGrab } from "./useGrab";
 
-function Part({ states }: { states: boolean[] }) {
+function Part({
+  states,
+  axis,
+}: {
+  states: boolean[];
+  axis?: "x" | "y" | "both";
+}) {
   const grab = useGrab<"a">({
+    axis,
     canGrab: () => true,
     onStart: () => true,
     onMove: () => undefined,
@@ -40,6 +47,35 @@ describe("useGrab.dragging", () => {
     fireEvent.pointerCancel(part, { pointerId: 2 });
     key();
     expect(states).toEqual([false, false, true, false, true, false]);
+  });
+});
+
+describe("useGrab axis", () => {
+  const dragged = (
+    axis: "x" | "y" | "both" | undefined,
+    to: [number, number],
+  ) => {
+    const states: boolean[] = [];
+    const { unmount } = render(<Part states={states} axis={axis} />);
+    const part = screen.getByRole("button");
+    fireEvent.pointerDown(part, { pointerId: 1, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(part, {
+      pointerId: 1,
+      clientX: to[0],
+      clientY: to[1],
+    });
+    fireEvent.keyDown(part, { key: "Home" });
+    unmount();
+    return states[0];
+  };
+
+  it("measures the slop along x by default, along y, or from the press with both", () => {
+    expect(dragged(undefined, [10, 60])).toBe(false);
+    expect(dragged("y", [60, 10])).toBe(false);
+    expect(dragged("y", [10, 60])).toBe(true);
+    expect(dragged("both", [10, 60])).toBe(true);
+    expect(dragged("both", [60, 10])).toBe(true);
+    expect(dragged("both", [11, 11])).toBe(false);
   });
 });
 
