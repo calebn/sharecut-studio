@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { Ruler, type RulerProps } from "./Ruler";
 
 const base: RulerProps = {
@@ -125,6 +126,39 @@ describe("Ruler drawing", () => {
       expect(ticks.at(-1)).toHaveAttribute("data-align", "end");
     } finally {
       root.style.fontSize = was;
+    }
+  });
+
+  it("re-thins the labels when the root font size changes after mount", () => {
+    stubResizeObserver();
+    const root = document.documentElement;
+    const was = root.style.fontSize;
+    try {
+      const { container } = setup({
+        start: 0,
+        pxPerSecond: 256 / 60,
+        width: 256,
+        duration: 60,
+      });
+      expect(labels(container).filter(Boolean)).toEqual([
+        "0:00",
+        "0:15",
+        "0:30",
+        "1:00",
+      ]);
+      const probe = container.querySelector<HTMLElement>(
+        '.sys-ruler > [aria-hidden="true"][style*="1rem"]',
+      );
+      expect(probe).not.toBeNull();
+      root.style.fontSize = "32px";
+      act(() => FakeResizeObserver.of(probe as Element).fire(probe as Element));
+      expect(labels(container).filter(Boolean)).toEqual(["0:00", "1:00"]);
+      root.style.fontSize = was;
+      act(() => FakeResizeObserver.of(probe as Element).fire(probe as Element));
+      expect(labels(container).filter(Boolean)).toHaveLength(4);
+    } finally {
+      root.style.fontSize = was;
+      vi.unstubAllGlobals();
     }
   });
 
