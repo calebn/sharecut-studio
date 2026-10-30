@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import http.server
 import io
+import json
 import signal
 import ssl
 import subprocess
@@ -323,6 +324,134 @@ def test_configuration_is_idempotent_and_preserves_source_metadata(api, tmp_path
     assert (methods / method.METHOD).stat().st_mode & 0o777 == 0o755
     assert (installation / "ci_apt_acquisition.py").stat().st_mode & 0o777 == 0o644
     assert (apt / "apt.conf.d/99sharecut-acquisition").stat().st_mode & 0o777 == 0o644
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "http://mirror.example.net/ubuntu",
+        "https://mirror.example.net/ubuntu/",
+        "https://mirror.example.net/ubuntu/\tpriority:10",
+        "http://mirror.example.net/ubuntu  priority:2",
+        "                https://mirror.example.net/ubuntu/\tpriority:999999",
+    ],
+)
+@pytest.mark.parametrize("ending", ["\n", "\r\n"])
+def test_rejected_public_mirror_diagnostic_identifies_exact_entry(api, entry, ending):
+    _, method = api
+    source = ending.join(("# runner mirrors", "", "https://archive.ubuntu.com/ubuntu/", entry, ""))
+    with pytest.raises(ValueError, match="unsupported runner Ubuntu mirror entry") as error:
+        method.rewrite_mirrors(source)
+    message = str(error.value)
+    prefix = "unsupported runner Ubuntu mirror entry "
+    assert message.startswith(prefix)
+    assert len(message.splitlines()) == 1
+    assert len(message.encode()) <= 2048
+    assert json.loads(message.removeprefix(prefix)) == {
+        "line": 4,
+        "length": len(entry),
+        "entry": entry,
+    }
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "https://fixture-user:fixture-secret@mirror.example.net/ubuntu/",
+        "https://mirror.example.net/ubuntu/?token=fixture-secret",
+        "https://mirror.example.net/ubuntu/#fixture-secret",
+        "https://mirror.example.net/ubuntu/\tfixture-secret",
+        "https://mirror.example.net/ubuntu/\tpriority:fixture-secret",
+        "https://mirror.example.net/ubuntu/\tpriority:1000000",
+        "                 https://mirror.example.net/ubuntu/",
+        "https://mirror.example.net/ubuntu/\x00fixture-secret",
+        "https://mirror.example.net/ubuntu/\x1b[31mfixture-secret",
+        "https://mirror.example.net/ubuntu/\u202efixture-secret",
+        "https://mírror.example.net/ubuntu/",
+        "https://mirror.example.net:443/ubuntu/",
+        "https://[::1]/ubuntu/",
+        "https://-mirror.example.net/ubuntu/",
+        "https://mirror..example.net/ubuntu/",
+        "https://" + "x" * 64 + ".example.net/ubuntu/",
+        "https://" + ".".join(["x" * 63] * 4) + "/ubuntu/",
+        "https://mirror.example.net/private-fixture-secret/",
+        "https:///ubuntu/fixture-secret",
+        "::error::fixture-secret",
+        "https://mirror.example.net/ubuntu/ " + "9" * 4096,
+        "https://mirror.example.net/ubuntu/\tpriority:" + "9" * 4096,
+    ],
+)
+def test_rejected_unsafe_mirror_diagnostic_redacts_entire_entry(api, entry):
+    _, method = api
+    source = "https://archive.ubuntu.com/ubuntu/\n" + entry + "\n"
+    with pytest.raises(ValueError, match="unsupported runner Ubuntu mirror entry") as error:
+        method.rewrite_mirrors(source)
+    message = str(error.value)
+    prefix = "unsupported runner Ubuntu mirror entry "
+    assert message.startswith(prefix)
+    assert len(message.splitlines()) == 1
+    assert len(message.encode()) <= 2048
+    assert json.loads(message.removeprefix(prefix)) == {
+        "line": 2,
+        "length": len(entry),
+        "entry": "<redacted>",
+    }
+    assert "fixture-secret" not in message
+    assert "mirror.example.net" not in message
+
+
+@pytest.mark.parametrize("existing_installation", [False, True])
+def test_rejected_mirror_configuration_preserves_all_files(api, tmp_path, existing_installation):
+    _, method = api
+    apt = tmp_path / "apt"
+    (apt / "sources.list.d").mkdir(parents=True)
+    (apt / "apt.conf.d").mkdir()
+    methods = tmp_path / "methods"
+    methods.mkdir()
+    (apt / "apt-mirrors.txt").write_text(
+        "# runner mirrors\nhttps://archive.ubuntu.com/ubuntu/\tpriority:2\n"
+        "https://security.ubuntu.com/ubuntu/\tpriority:3\n"
+        "https://mirror.example.net/ubuntu/\tpriority:4\n"
+    )
+    (apt / "sources.list.d/ubuntu.sources").write_text(
+        "Types: deb\nURIs: mirror+file:/etc/apt/apt-mirrors.txt\nSuites: resolute\n"
+        "Components: main\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n"
+    )
+    installation = tmp_path / "installed"
+    if existing_installation:
+        installation.mkdir(mode=0o755)
+        for path in (
+            installation / "ci_apt_method.py",
+            installation / "ci_apt_acquisition.py",
+            methods / method.METHOD,
+            apt / "apt.conf.d/99sharecut-acquisition",
+        ):
+            path.write_bytes(b"existing configuration\n")
+            path.chmod(0o600)
+    before = {
+        path.relative_to(tmp_path): (
+            path.stat().st_mode,
+            path.read_bytes() if path.is_file() else None,
+        )
+        for path in tmp_path.rglob("*")
+    }
+    with pytest.raises(ValueError, match="unsupported runner Ubuntu mirror entry") as error:
+        method.configure(apt, installation, methods)
+    after = {
+        path.relative_to(tmp_path): (
+            path.stat().st_mode,
+            path.read_bytes() if path.is_file() else None,
+        )
+        for path in tmp_path.rglob("*")
+    }
+    assert after == before
+    prefix = "unsupported runner Ubuntu mirror entry "
+    assert str(error.value).startswith(prefix)
+    assert json.loads(str(error.value).removeprefix(prefix)) == {
+        "line": 4,
+        "length": len("https://mirror.example.net/ubuntu/\tpriority:4"),
+        "entry": "https://mirror.example.net/ubuntu/\tpriority:4",
+    }
 
 
 def test_cancelled_transfer_reaps_children_and_publishes_nothing(api, endpoint, tmp_path):
