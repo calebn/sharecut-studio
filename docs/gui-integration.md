@@ -148,6 +148,11 @@ Guest-initiated long work (remote MCP / guest tools) does **not** use host `/api
 
 Model downloads (`/api/bootstrap/*`) use the same job plane and one client owner: `ModelsProvider` (`gui/web/src/models/`). The job snapshot's `download` (`component`, `bytes`, `total`) fills the byte bar on that model's row (`total: null` draws an indeterminate bar), the other components of the run show as queued, and the terminal snapshot's `result.results[id]` supplies each failed row's typed `failure`. The server has one download slot: a second run answers 409 `bootstrap_job_running`, and the UI disables every other **Download** with a reason instead of queueing. The wizard, the **Models** dialog and the Pipeline, Whisper and Split speakers download buttons all call the provider's `download`; none starts a bootstrap job of its own.
 
+Deliver's Export and Bounce providers apply a failed Cancel reply only when its
+job ID still matches the running job. The current job keeps its pending
+cancellation when an older reply fails; its own failure shows the error and
+permits another attempt.
+
 ## MCP progress
 
 Host MCP installs a choke-point wrap on `add_tool` / `call_tool` so every tool opens `progress_task` and binds a reporter (best-effort `notifications/progress` when MCP Context is available). When Studio is in-process, that wrap also fans into the job manager as above. Guest remote MCP (`/mcp/{token}/mcp`) reads `params._meta.progressToken` and, when set, streams `notifications/progress` over Streamable HTTP SSE before the JSON-RPC result, plus the token-scoped guest WS plane — not host SSE. Domain code uses `resolve_progress()` / `progress_task` — do not hardcode `NullProgress()` at MCP edges. See [progress.md](progress.md).

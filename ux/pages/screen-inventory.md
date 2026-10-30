@@ -115,6 +115,10 @@ model is asked for inside the section. A project switch stops following the
 job and returns the section to its choices. A range from Edit stays until it is
 bounced or let go. Storybook: `Stages/Deliver/Bounce`.
 
+For both Episode file and Bounce, a failed Cancel shows its error and permits
+another attempt only while that job is current. A late failure from an earlier
+job leaves the current job's progress and pending cancellation unchanged.
+
 ---
 
 ## Host: Share (Deliver section)
