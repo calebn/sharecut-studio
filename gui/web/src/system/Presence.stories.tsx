@@ -24,8 +24,8 @@ const LANES = LANE_ROWS.slice(0, 2);
 const ROWS = laneRows(LANES, RULER_HEIGHT);
 
 const PEOPLE: readonly PresencePerson[] = [
-  { id: "maya", name: "Maya Okafor", colorIndex: 0, playhead: 12.5 },
-  { id: "anneke", name: "Anneke de Vries", colorIndex: 1, playhead: 14 },
+  { id: "maya", name: "Maya Okafor", colorIndex: 0, playhead: 8 },
+  { id: "anneke", name: "Anneke de Vries", colorIndex: 1, playhead: 10.5 },
 ];
 
 const SELECTIONS: readonly PresenceSelection[] = [
