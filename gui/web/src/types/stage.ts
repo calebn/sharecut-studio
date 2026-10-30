@@ -8,8 +8,8 @@ export const STAGE_IDS = [
 
 export type StageId = (typeof STAGE_IDS)[number];
 
-/** The host reads comments in the queue; Comments is the guest's section. */
-export const REVIEW_SECTIONS = ["queue", "comments"] as const;
+/** Review is the Queue alone; comments are queue items for every role. */
+export const REVIEW_SECTIONS = ["queue"] as const;
 
 export type ReviewSection = (typeof REVIEW_SECTIONS)[number];
 

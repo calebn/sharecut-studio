@@ -80,14 +80,14 @@ export const STAGE_FOR_TAB: Record<PresenceTab, StageTarget> = {
 };
 
 /** The server validates the wire tab (`commands.py:150`), so Queue stays `impact` on the wire. */
-export function wireTabOf(section: ReviewSection): PresenceTab {
-  return section === "queue" ? "impact" : section;
+export function wireTabOf(_section: ReviewSection): PresenceTab {
+  return "impact";
 }
 
 /** The wire `tab` for a stage; Record and Deliver have none. */
 export function tabForStage(
   stage: StageId,
-  reviewSection: ReviewSection,
+  reviewTab: "impact" | "comments" = "impact",
 ): PresenceTab | null {
   switch (stage) {
     case "edit":
@@ -95,7 +95,7 @@ export function tabForStage(
     case "prepare":
       return "pipeline";
     case "review":
-      return wireTabOf(reviewSection);
+      return reviewTab;
     default:
       return null;
   }
