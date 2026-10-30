@@ -1,5 +1,4 @@
 import type { CSSProperties, ReactNode, Ref } from "react";
-import type { SideYield } from "./sideFit";
 
 /**
  * Side by side from 1000 px, stacked on a narrower tablet, one surface at a
@@ -18,8 +17,6 @@ export interface EditWorkspaceViewProps {
   /** Shift+T gives the Script the whole stage. */
   scriptFocus: boolean;
   scriptWidthRem: number;
-  /** The pane that gives way because the side layout cannot hold them all. */
-  yields?: SideYield;
   /** In and Out, the occurrence choice and the word handles, when the selection sheet does not carry them. */
   rangeFields?: ReactNode;
   actionBar?: ReactNode;
@@ -29,11 +26,9 @@ export interface EditWorkspaceViewProps {
   corner: ReactNode;
   divider: ReactNode;
   script: ReactNode;
-  /** The desktop Inspector column; null while nothing is selected. */
-  inspector?: ReactNode;
   /** Replaces everything on a phone. */
   phone?: ReactNode;
-  /** Sheets that hang off the workspace (the tablet and phone Inspector). */
+  /** The Inspector, a card beside the selection or the phone's bottom sheet. */
   sheet?: ReactNode;
   bindings?: {
     root?: Ref<HTMLDivElement>;
@@ -52,14 +47,12 @@ export function EditWorkspaceView({
   scriptHidden,
   scriptFocus,
   scriptWidthRem,
-  yields = null,
   rangeFields,
   actionBar,
   timeline,
   corner,
   divider,
   script,
-  inspector,
   phone,
   sheet,
   bindings,
@@ -88,8 +81,6 @@ export function EditWorkspaceView({
         guest ? "edit-workspace--guest" : "",
         scriptFocus ? "edit-workspace--script-focus" : "",
         scriptShown ? "" : "edit-workspace--script-hidden",
-        inspector ? "edit-workspace--inspector" : "",
-        yields ? `edit-workspace--yield-${yields}` : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -116,11 +107,6 @@ export function EditWorkspaceView({
       {scriptShown ? (
         <div ref={bindings?.script} className="edit-script">
           {script}
-        </div>
-      ) : null}
-      {inspector ? (
-        <div ref={bindings?.inspector} className="edit-inspector">
-          {inspector}
         </div>
       ) : null}
       {actionBar}

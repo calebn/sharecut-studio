@@ -129,6 +129,14 @@ describe("InspectorSheet card", () => {
     ).toBeNull();
   });
 
+  it("keeps a fixed accessible name when the host gives a label, and shows the name as the title", () => {
+    card({ label: "Inspector" });
+    expect(
+      screen.getByRole("dialog", { name: "Inspector" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Maya" })).toBeInTheDocument();
+  });
+
   it("places 8 px below an anchor with room, centred on it, and 60 % tall at most", () => {
     card();
     const style = screen.getByRole("dialog", { name: "Maya" }).style;

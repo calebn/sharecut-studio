@@ -49,9 +49,7 @@ afterEach(() => {
 
 describe("useCompactInspector", () => {
   it("opens the strip on a phone's timeline selection", () => {
-    const { result } = renderHook(() =>
-      useCompactInspector("phone", false, true),
-    );
+    const { result } = renderHook(() => useCompactInspector(true, true));
     expect(result.current?.peek.title).toBe("Trim start");
     expect(compactSheetProps(result.current!)).toMatchObject({
       title: "Trim start",
@@ -85,29 +83,12 @@ describe("useCompactInspector", () => {
     sheet.unmount();
   });
 
-  it("has no strip where the Inspector is a side column", () => {
+  it("is off when the phone shows the Script and on a tablet or the desktop", () => {
     expect(
-      renderHook(() => useCompactInspector("phone", true, true)).result.current,
-    ).toBeNull();
-    stubMatchMedia(true);
-    expect(
-      renderHook(() => useCompactInspector("tablet", true, true)).result
-        .current,
-    ).toBeNull();
-  });
-
-  it("is off when the phone shows the Script and peeks on a tablet upright or sideways", () => {
-    expect(
-      renderHook(() => useCompactInspector("phone", false, false)).result
-        .current,
+      renderHook(() => useCompactInspector(true, false)).result.current,
     ).toBe(null);
-    const media = stubMatchMedia(false);
-    const tablet = renderHook(() => useCompactInspector("tablet", false, true));
-    expect(tablet.result.current?.peek.title).toBe("Trim start");
-    act(() => media.setMatches(true));
-    expect(tablet.result.current?.peek.title).toBe("Trim start");
     expect(
-      renderHook(() => useCompactInspector(null, false, true)).result.current,
+      renderHook(() => useCompactInspector(false, true)).result.current,
     ).toBe(null);
   });
 
@@ -118,9 +99,7 @@ describe("useCompactInspector", () => {
         selectionHit: null,
       }),
     );
-    const { result } = renderHook(() =>
-      useCompactInspector("phone", false, true),
-    );
+    const { result } = renderHook(() => useCompactInspector(true, true));
     expect(result.current).toBeNull();
     act(() =>
       useDawStore
@@ -146,9 +125,7 @@ describe("useCompactInspector", () => {
         selectionHit: null,
       }),
     );
-    const { result } = renderHook(() =>
-      useCompactInspector("phone", false, true),
-    );
+    const { result } = renderHook(() => useCompactInspector(true, true));
     expect(result.current).toBeNull();
     act(() => useDawStore.getState().selectClip("c2", "host"));
     expect(result.current?.peek.title).toBe("host clip");
@@ -168,9 +145,7 @@ describe("useCompactInspector", () => {
   });
 
   it("remembers the drawer's detent for the next selection, and stows during a drag", () => {
-    const { result } = renderHook(() =>
-      useCompactInspector("phone", false, true),
-    );
+    const { result } = renderHook(() => useCompactInspector(true, true));
     act(() =>
       compactSheetProps(result.current!).drawer?.onDetentChange("full"),
     );
@@ -195,7 +170,7 @@ describe("useCompactInspector", () => {
 });
 
 function CompactSheet() {
-  const compact = useCompactInspector("phone", false, true);
+  const compact = useCompactInspector(true, true);
   return compact ? (
     <BottomSheet
       open

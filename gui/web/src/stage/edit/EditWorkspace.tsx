@@ -10,7 +10,6 @@ import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { canEditMix, canIngestMedia } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
-import { inspectorOpenFor } from "../../state/selection";
 import { Cover } from "../../system/Cover";
 import { Skeleton } from "../../system/Skeleton";
 import { RangeFields } from "../../timeline/RangeFields";
@@ -22,16 +21,14 @@ import { EditActionBar } from "./EditActionBar";
 import { EditCorner } from "./EditCorner";
 import { type EditArrangement, EditWorkspaceView } from "./EditWorkspaceView";
 import { EmptySession } from "./EmptySession";
-import { InspectorColumn } from "./InspectorColumn";
-import { InspectorSheet } from "./InspectorSheet";
+import { InspectorHost } from "./InspectorHost";
 import { PhoneEditSurfaceView } from "./PhoneEditSurfaceView";
 import { PlusMenu } from "./PlusMenu";
 import { ScriptDivider } from "./ScriptDivider";
 import { ScriptHost } from "./script/ScriptHost";
-import { useSideYield } from "./sideFit";
 import { useAudioDrop } from "./useAudioDrop";
+import { useInspectorOpen } from "./useInspectorOpen";
 import { useScriptSize } from "./useScriptSize";
-import { useSelectionSheet } from "./useSelectionSheet";
 
 const SIDE_BY_SIDE_MQ = "(min-width: 62.5rem)";
 const subscribeSide = mediaQuerySubscription([SIDE_BY_SIDE_MQ]);
@@ -52,8 +49,6 @@ function EditWorkspaceAdapter({
 }: EditWorkspaceProps) {
   const {
     project,
-    selection,
-    inspectorKey,
     scriptCollapsed,
     scriptFocus,
     editSurface,
@@ -65,8 +60,6 @@ function EditWorkspaceAdapter({
   } = useDawStore(
     useShallow((s) => ({
       project: s.project,
-      selection: s.selection,
-      inspectorKey: s.inspectorKey,
       scriptCollapsed: s.scriptCollapsed,
       scriptFocus: s.scriptFocus,
       editSurface: s.editSurface,
@@ -113,10 +106,9 @@ function EditWorkspaceAdapter({
   const emptySession = !loading && project.tracks.length === 0;
   const drop = useAudioDrop();
 
-  const sheetShell = shell === "phone" || shell === "tablet" ? shell : null;
   const phoneLanes = editSurface === "lanes";
-  const selectionSheet = useSelectionSheet(
-    sheetShell,
+  const inspector = useInspectorOpen(
+    shell,
     shell === "phone"
       ? phoneLanes
         ? "timeline"
@@ -193,18 +185,9 @@ function EditWorkspaceAdapter({
 
   // The Inspector opens on Inspect (I, the verb, a double-click), never
   // because something is selected; a new selection, Esc or Close shuts it.
-  const showInspector =
-    shell === "desktop" && inspectorOpenFor(selection, inspectorKey);
-  const yields = useSideYield(
-    arrangement === "side" ? root : null,
-    showInspector,
-    scriptFocus,
+  const rangeFields = inspector.rangeActionsInSheet ? null : (
+    <RangeFields numeric={!phone} />
   );
-  const fieldsInInspector = showInspector && selection?.kind === "range";
-  const rangeFields =
-    selectionSheet.rangeActionsInSheet || fieldsInInspector ? null : (
-      <RangeFields numeric={!phone} />
-    );
   const actionBar = (
     <EditActionBar form={phone ? "dock" : "floating"} root={root} />
   );
@@ -218,7 +201,6 @@ function EditWorkspaceAdapter({
       scriptHidden={scriptCollapsed}
       scriptFocus={scriptFocus}
       scriptWidthRem={size.widthRem}
-      yields={yields}
       rangeFields={rangeFields}
       actionBar={actionBar}
       timeline={timeline}
@@ -231,7 +213,6 @@ function EditWorkspaceAdapter({
         />
       }
       script={script}
-      inspector={showInspector ? <InspectorColumn /> : null}
       phone={
         <PhoneEditSurfaceView
           surface={editSurface}
@@ -250,19 +231,19 @@ function EditWorkspaceAdapter({
         />
       }
       sheet={
-        sheetShell ? (
-          <InspectorSheet
-            sheet={selectionSheet}
-            feedbackHostRef={feedbackHostRef}
-          />
-        ) : null
+        <InspectorHost
+          shell={shell}
+          sheet={inspector}
+          root={root}
+          regionRef={inspectorRegion}
+          feedbackHostRef={feedbackHostRef}
+        />
       }
       bindings={{
         root: setRoot,
         timeline: timelineRegion,
         divider: dividerRegion,
         script: scriptRegion,
-        inspector: inspectorRegion,
       }}
     />
   );
