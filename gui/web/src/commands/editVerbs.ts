@@ -338,10 +338,12 @@ async function comment(facts: EditFacts): Promise<ExecuteResult> {
   return executePointerCommand("comment.draftAt", {});
 }
 
-/** Park the target for Record's room and open the stage; the host stage sends it once. */
-function openRecordWith(target: SessionTarget): Promise<ExecuteResult> {
+/** Open Record, then park the target for its room; a refusal parks nothing. */
+async function openRecordWith(target: SessionTarget): Promise<ExecuteResult> {
+  const opened = await executePointerCommand("stage.record");
+  if (opened.status !== "ok") return opened;
   useDawStore.getState().setPendingRecordTarget(target);
-  return executePointerCommand("stage.record");
+  return opened;
 }
 
 /**

@@ -39,6 +39,8 @@ import { useRoomToneCapture } from "./useRoomToneCapture";
 export type RecordRoomLookup = "checking" | "none" | "found" | "failed";
 
 const SHOWN_RESULTS = new Set(["record.createRoom", "record.copyGuestLink"]);
+// A refusal with no thrown error would otherwise leave the person guessing.
+const SHOWN_REFUSALS = new Set(["record.setTarget"]);
 
 const NO_DEVICES: MediaDeviceInfo[] = [];
 
@@ -209,6 +211,9 @@ export function useHostRoom(
       .then((result) => {
         if (result.status === "ok" && SHOWN_RESULTS.has(commandId)) {
           setDoneNotice(useDawStore.getState().statusAnnouncement);
+        }
+        if (result.status === "disabled" && SHOWN_REFUSALS.has(commandId)) {
+          setTransportError(result.reason);
         }
       })
       .finally(() => {

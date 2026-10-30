@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
@@ -1630,11 +1631,13 @@ describe("Record stage session target", () => {
     setRoom({ target: pickup });
     await screen.findByText("Replaces 12:04-16:40");
     expect(
-      exec.mock.calls.filter(([id]) => id === "record.setTarget"),
+      exec.mock.calls.filter(
+        (call: unknown[]) => call[0] === "record.setTarget",
+      ),
     ).toHaveLength(1);
   });
 
-  it("waits for the room, then sends", async () => {
+  it("waits for the room, then sends once it exists", async () => {
     withClip();
     useRecordHostStore.getState().setSnapshot(null);
     useDawStore.getState().setPendingRecordTarget(pickup);
@@ -1645,6 +1648,77 @@ describe("Record stage session target", () => {
       "record.setTarget",
       expect.anything(),
       expect.anything(),
+    );
+    act(() => setRoom({ target: { kind: "end" } }));
+    await waitFor(() =>
+      expect(exec).toHaveBeenCalledWith(
+        "record.setTarget",
+        { target: pickup },
+        { skipWhen: true },
+      ),
+    );
+    expect(useDawStore.getState().pendingRecordTarget).toBeNull();
+  });
+
+  it("does not send into another project's stale room before this one is looked up", async () => {
+    withClip();
+    let finish: (value: unknown) => void = () => undefined;
+    vi.mocked(loadHostRecordState).mockImplementation(
+      () => new Promise((resolve) => (finish = resolve)) as never,
+    );
+    setRoom({ target: { kind: "end" } });
+    useDawStore.getState().setPendingRecordTarget(pickup);
+    mount();
+    await screen.findByRole("button", { name: "Record" });
+    expect(useDawStore.getState().pendingRecordTarget).toEqual(pickup);
+    expect(exec).not.toHaveBeenCalledWith(
+      "record.setTarget",
+      expect.anything(),
+      expect.anything(),
+    );
+    await act(async () => finish({ ...lobby, target: { kind: "end" } }));
+    await waitFor(() =>
+      expect(exec).toHaveBeenCalledWith(
+        "record.setTarget",
+        { target: pickup },
+        { skipWhen: true },
+      ),
+    );
+  });
+
+  it("sends once under StrictMode", async () => {
+    withClip();
+    useDawStore.getState().setPendingRecordTarget(pickup);
+    setRoom({ target: { kind: "end" } });
+    render(
+      <StrictMode>
+        <Harness capture={{}} />
+      </StrictMode>,
+    );
+    await waitFor(() =>
+      expect(useDawStore.getState().pendingRecordTarget).toBeNull(),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(
+      exec.mock.calls.filter(
+        (call: unknown[]) => call[0] === "record.setTarget",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("shows a refused target instead of dropping it silently", async () => {
+    withClip();
+    exec.mockResolvedValue({
+      status: "disabled",
+      reason: "Takes already landed.",
+    } as never);
+    useDawStore.getState().setPendingRecordTarget(pickup);
+    setRoom({ target: { kind: "end" } });
+    mount();
+    await waitFor(() =>
+      expect(useRecordHostStore.getState().transportError).toBe(
+        "Takes already landed.",
+      ),
     );
   });
 

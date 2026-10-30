@@ -1,3 +1,4 @@
+import { lastClipEndSec } from "../../edit/pickupTarget";
 import type {
   RecordSnapshot,
   SegmentAckRow,
@@ -10,7 +11,6 @@ import { clockText } from "../../system/roomPhase";
 import type { ViewerWidth } from "../../system/roomViewModel";
 import type { SessionTargetView } from "../../system/sessionTargetText";
 import type { TakeInput, TakeLineInput } from "../../system/takesTrayModel";
-import type { ProjectView } from "../../types/project";
 
 export function viewerWidthOf(shell: ShellBreakpoint): ViewerWidth {
   return shell === "phone" ? "phone" : "desktop";
@@ -119,19 +119,6 @@ export function takeIndexOf(id: string): number {
   return Number(id.replace("take-", ""));
 }
 
-/** The end of the last clip on the timeline, or undefined for an empty one. */
-export function lastClipEndSec(
-  project: ProjectView | null,
-): number | undefined {
-  let end: number | undefined;
-  for (const clips of Object.values(project?.clips.tracks ?? {})) {
-    for (const clip of clips) {
-      end = Math.max(end ?? 0, clip.timeline_end);
-    }
-  }
-  return end;
-}
-
 /** The server's target as the chip shows it; no snapshot target is the server's default, the end. */
 export function targetViewOf(
   target: SessionTarget | undefined,
@@ -179,3 +166,5 @@ export function wireTargetOf(
 export function targetLocked(snapshot: RecordSnapshot): boolean {
   return (snapshot.takes?.length ?? 0) > 0;
 }
+
+export { lastClipEndSec };

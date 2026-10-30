@@ -48,6 +48,7 @@ export {
   isRecordTransportVisible,
   LOCAL_KEEPER_COPY,
   RECORD_ROOM_RECONNECTING_COPY,
+  type RecordRoomState,
   type RecordSnapshot,
   ROOM_TONE_CAPTURING_COPY,
   ROOM_TONE_DEVICE_COPY,
@@ -58,6 +59,10 @@ export {
   type SessionTarget,
 } from "./types";
 export { UploadStatus } from "./UploadStatus";
-export { type HostRoom, useHostRoom } from "./useHostRoom";
+export {
+  type HostRoom,
+  type RecordRoomLookup,
+  useHostRoom,
+} from "./useHostRoom";
 export { useInputPeakDb } from "./useInputPeakDb";
 export { useRoomToneAnnouncement } from "./useRoomToneAnnouncement";

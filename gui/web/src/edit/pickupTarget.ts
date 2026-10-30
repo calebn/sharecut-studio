@@ -5,10 +5,15 @@ import type { EditSpan } from "./editSelection";
 // The server refuses a replace that ends past the timeline by more than this.
 const TIMELINE_EPSILON = 1e-3;
 
-function lastClipEnd(project: ProjectView): number {
-  let end = 0;
-  for (const clips of Object.values(project.clips.tracks)) {
-    for (const clip of clips) end = Math.max(end, clip.timeline_end);
+/** The end of the last clip on the timeline, or undefined for an empty one. */
+export function lastClipEndSec(
+  project: ProjectView | null,
+): number | undefined {
+  let end: number | undefined;
+  for (const clips of Object.values(project?.clips.tracks ?? {})) {
+    for (const clip of clips) {
+      end = Math.max(end ?? 0, clip.timeline_end);
+    }
   }
   return end;
 }
@@ -24,7 +29,7 @@ export function replaceableSpan(
 ): EditSpan | null {
   if (!span || !project) return null;
   const timelineEnd =
-    project.clips.timeline_duration_sec ?? lastClipEnd(project);
+    project.clips.timeline_duration_sec ?? lastClipEndSec(project) ?? 0;
   return span.end > span.start &&
     span.trackIds.length > 0 &&
     span.end <= timelineEnd + TIMELINE_EPSILON
