@@ -504,7 +504,7 @@ def _room_tone_bed(
             return f"recorded room-tone bed rejected ({', '.join(bed.rejected_checks)})"
         return "no recorded room-tone bed"
     registered = float(track.room_tone.duration_sec or 0.0) if track.room_tone else 0.0
-    if bed.end - bed.start < min(registered, LOOP_SEC) - 1e-6:
+    if bed.end - bed.start < min(registered, LOOP_SEC) - SPEECH_GUARD_SEC:
         return "recorded room-tone bed has too little clean room tone left to loop"
     samples = load_mono_window(
         bed.path,

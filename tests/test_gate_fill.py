@@ -535,6 +535,25 @@ def test_a_bed_with_a_cough_late_enough_keeps_a_loop_long_enough(tmp_path: Path)
     assert track.gate_fill.source is GateFillSource.ROOM_TONE_BED
 
 
+def test_a_clean_bed_a_frame_longer_than_its_decode_is_not_refused(tmp_path: Path) -> None:
+    project = _project(tmp_path, _gated_track())
+    sr = 48000
+    frames = 15 * sr + 1
+    t = np.arange(frames) / sr
+    bed = 10 ** (-60 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 220 * t)
+    _write_wav(tmp_path / "raw" / "room-tone" / "guest.wav", bed, sr)
+    track = project.track_by_id("guest")
+    track.room_tone = MediaAsset(path="raw/room-tone/guest.wav", duration_sec=frames / sr)
+    project.sources.append(
+        SourceRecording(id=room_tone_source_id("guest"), path="raw/room-tone/guest.wav")
+    )
+
+    fill_gate_holes(project, _defaults())
+
+    assert track.gate_fill is not None
+    assert track.gate_fill.source is GateFillSource.ROOM_TONE_BED
+
+
 def test_fill_never_carries_another_tracks_bleed(tmp_path: Path) -> None:
     alone = _project(tmp_path / "alone", _gated_track())
     with_peer = _project(tmp_path / "peer", _gated_track(), peer=_peer_track())
