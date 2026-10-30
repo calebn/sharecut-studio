@@ -6,7 +6,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
-import { selectCommentCard } from "./stageNav";
+import { goToStage, selectCommentCard } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
 const COMMENTER_BANNER =
@@ -147,6 +147,76 @@ test("a Viewer link shows no comment field on the phone", async ({
           guest.getByRole("textbox", { name: "Comment", exact: true }),
         ).toHaveCount(0);
         await expect(guest.locator(".rv-compose")).toHaveCount(0);
+      },
+    );
+  });
+});
+
+async function suggestCut(host: Page, projectPath: string): Promise<void> {
+  const query = `?path=${encodeURIComponent(projectPath)}`;
+  const shell = await host.request.get(`/api/project${query}&phase=shell`);
+  const { tracks } = (await shell.json()) as {
+    tracks: { id: string; role?: string }[];
+  };
+  const track = tracks.find((t) => t.role === "dialogue") ?? tracks[0];
+  const sent = await host.request.post(`/api/document/command${query}`, {
+    data: {
+      type: "SuggestPendingEdit",
+      payload: {
+        track_id: track.id,
+        start: 0,
+        end: 2,
+        reason: "guest:suggest",
+      },
+      client_id: "e2e-editor-queue",
+      role: "viewer",
+      client_seq: Date.now(),
+    },
+  });
+  expect(sent.ok(), await sent.text()).toBeTruthy();
+  await host.request.post("/api/transcript/refine/waive", {
+    data: { path: projectPath, reason: "e2e editor queue" },
+  });
+}
+
+test("an Editor link gets the suggested cuts in Review and Cut applies one, a Commenter link does not", async ({
+  browser,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [
+        {},
+        { viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" },
+        { viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" },
+      ],
+      async ([host, editor, commenter]) => {
+        await openHostShare(host, projectPath);
+        await suggestCut(host, projectPath);
+        await openGuestShare(
+          commenter,
+          await createReviewShare(host, projectPath, "commenter"),
+        );
+        await expect(commenter.locator(".rv-queue")).toBeVisible();
+        await expect(commenter.locator(".sys-queue-row")).toHaveCount(0);
+        await expect(
+          commenter.getByRole("button", { name: /^Cut/ }),
+        ).toHaveCount(0);
+
+        await openGuestShare(
+          editor,
+          await createReviewShare(host, projectPath, "editor"),
+        );
+        await goToStage(editor, "review");
+        const rows = editor.locator(
+          '.sys-queue-row:not([data-kind="comment"])',
+        );
+        await expect(rows.first()).toBeVisible();
+        const before = await rows.count();
+        await editor.getByRole("button", { name: /^Cut/ }).first().click();
+        await expect(editor.getByText(/of \d+ decided/)).toBeVisible();
+        await expect.poll(() => rows.count()).toBeLessThan(before);
+        await expectPageAxeClean(editor);
       },
     );
   });
