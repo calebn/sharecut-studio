@@ -25,6 +25,12 @@ The thread pool keeps file isolation and bounded parallelism after fork workers
 stalled on a macOS host with endpoint scanning. Keep a separate Playwright
 browser run for real-browser checks.
 
+Storybook's accessibility addon and `e2e/axe.ts` apply the WCAG 2.0 and 2.1
+A and AA tags, including contrast and label-content-name-mismatch.
+`e2e-storybook/coverage.spec.ts` checks each story in both themes and its
+supported phone and desktop widths. These checks do not certify the live
+palette, which also needs browser verification against the current catalog.
+
 Before adding a test, check existing coverage and state the behavior that the
 new test covers and existing tests do not. Prefer one focused test per
 invariant. Extend an existing test when it already covers that behavior. Use

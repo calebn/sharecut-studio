@@ -8,8 +8,6 @@ import { TRANSCRIPT_REFINE_REFUSAL } from "../../utils/apiError";
 import { frameStoryDecorator } from "./frameStoryDecorator";
 import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
 
-const DETAILS = "Needs attention details and recovery actions";
-
 /** The banner draws into the document body, outside the story canvas. */
 const region = (canvasElement: HTMLElement, name: string) =>
   within(
@@ -60,9 +58,7 @@ export const Conflicts: Story = {
         name: "Needs attention. 2 conflicts",
       }),
     );
-    await userEvent.click(
-      canvas.getByLabelText("Needs attention details and recovery actions"),
-    );
+    await userEvent.click(canvas.getByLabelText("Needs attention 2 Details"));
     await userEvent.click(canvas.getByRole("button", { name: "Dismiss all" }));
     await expect(args.onDismissAll).toHaveBeenCalledTimes(1);
   },
@@ -100,9 +96,7 @@ export const PhoneManyConflicts: Story = {
         name: "Needs attention. 7 conflicts",
       }),
     );
-    await userEvent.click(
-      canvas.getByLabelText("Needs attention details and recovery actions"),
-    );
+    await userEvent.click(canvas.getByLabelText("Needs attention 7 Details"));
     await expect(canvas.getAllByRole("listitem")).toHaveLength(6);
     await expect(canvas.getByText("+2 more")).toHaveClass(
       "guest-attention-more",
@@ -129,7 +123,7 @@ export const RefineWaiver: Story = {
   },
   play: async ({ canvasElement }) => {
     const banner = region(canvasElement, "Needs attention. 1 conflict");
-    await userEvent.click(banner.getByLabelText(DETAILS));
+    await userEvent.click(banner.getByLabelText("Needs attention 1 Details"));
     await expect(banner.getByText(/^Approve:/)).toBeVisible();
     await expect(
       banner.getByRole("region", { name: "Transcript refine recovery" }),
@@ -162,7 +156,7 @@ export const SendPendingNow: Story = {
   args: { pending: 2, onSendNow: fn() },
   play: async ({ canvasElement, args }) => {
     const banner = region(canvasElement, "Needs attention. 2 pending");
-    await userEvent.click(banner.getByLabelText(DETAILS));
+    await userEvent.click(banner.getByLabelText("Needs attention 2 Details"));
     await userEvent.click(banner.getByRole("button", { name: "Send now" }));
     await expect(args.onSendNow).toHaveBeenCalledTimes(1);
   },
@@ -175,7 +169,7 @@ export const Unreadable: Story = {
       canvasElement,
       "Needs attention. Saved edits could not be read",
     );
-    await userEvent.click(banner.getByLabelText(DETAILS));
+    await userEvent.click(banner.getByLabelText("Needs attention ! Details"));
     await expect(
       banner.getByText(/Could not read saved edits on this device/),
     ).toBeVisible();
@@ -195,7 +189,7 @@ export const DismissFailed: Story = {
       canvasElement,
       "Needs attention. 1 conflict. Dismissal failed",
     );
-    await userEvent.click(banner.getByLabelText(DETAILS));
+    await userEvent.click(banner.getByLabelText("Needs attention 1 Details"));
     await expect(banner.getByRole("button", { name: "Retry" })).toBeVisible();
     await expect(
       banner.getByRole("button", { name: "Dismiss all" }),
@@ -210,7 +204,7 @@ export const CheckingSavedEdits: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const banner = region(canvasElement, "Needs attention. 1 conflict");
-    await userEvent.click(banner.getByLabelText(DETAILS));
+    await userEvent.click(banner.getByLabelText("Needs attention 1 Details"));
     const dismiss = banner.getByRole("button", { name: "Dismiss all" });
     await expect(dismiss).toHaveAttribute("aria-disabled", "true");
     await expect(dismiss).toHaveAccessibleDescription(
@@ -234,7 +228,7 @@ export const InspectHistory: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const banner = region(canvasElement, "Needs attention. 1 conflict");
-    await userEvent.click(banner.getByLabelText(DETAILS));
+    await userEvent.click(banner.getByLabelText("Needs attention 1 Details"));
     await expect(
       banner.getByText("Inspect History before trying this action again."),
     ).toBeVisible();
@@ -258,7 +252,7 @@ export const GuestProjectFileBroken: Story = {
   },
   play: async ({ canvasElement }) => {
     const banner = region(canvasElement, "Needs attention. 1 conflict");
-    await userEvent.click(banner.getByLabelText(DETAILS));
+    await userEvent.click(banner.getByLabelText("Needs attention 1 Details"));
     await expect(
       banner.getByText("Ask the project owner to check the project."),
     ).toBeVisible();

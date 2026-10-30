@@ -10,7 +10,6 @@ import {
 } from "../../utils/apiError";
 import { overflowLabel } from "../../utils/format";
 import {
-  ATTENTION_DETAILS_LABEL,
   attentionCountLabel,
   attentionRegionLabel,
   NEEDS_ATTENTION,
@@ -205,7 +204,7 @@ export function GuestAttentionBannerView({
           >
             <summary
               className="guest-attention-head"
-              aria-label={ATTENTION_DETAILS_LABEL}
+              aria-label={`${NEEDS_ATTENTION} ${attentionCount || "!"} Details`}
             >
               <strong>{NEEDS_ATTENTION}</strong>
               <span role="img" aria-label={countLabel || regionLabel}>
