@@ -91,14 +91,14 @@ describe("deviceSheetModel", () => {
       ).toBe("Default");
     });
 
-    it("turns an error into a warning note under the row", () => {
+    it("turns an error into a warning note and a row that needs you", () => {
       const output = withOutput({
         supported: true,
         devices,
         selectedId: "",
         error: "Couldn't switch speakers. Using the default.",
       }).output;
-      expect(output?.row.state).toBe("done");
+      expect(output?.row.state).toBe("needs-you");
       expect(output?.notes).toEqual([
         {
           tone: "warning",

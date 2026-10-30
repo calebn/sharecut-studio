@@ -1304,8 +1304,8 @@ cannot. Every button runs the same `record.*` command as the palette.
   and, last, **Invite and links…** (opens Share). **Record 1 minute of room
   tone** is in the Devices sheet and works only in the lobby or after Stop;
   otherwise it is disabled ("Record room tone between takes."). The same sheet
-  has a **Speaker** menu where the browser's `AudioContext.setSinkId` exists
-  (where the browser supports it; absent elsewhere). The pick calls `setSinkId` on the monitor's
+  has a **Speaker** menu where the browser supports `AudioContext.setSinkId`
+  (absent elsewhere). The pick calls `setSinkId` on the monitor's
   `AudioContext` (`useRecordMonitor`, again on each new context), is stored under
   `record:output` for the browser (only ever by the person's own pick), and the
   room plays on the default speaker, with a note, while that device is missing

@@ -59,4 +59,31 @@ describe("Field", () => {
       screen.getByRole("textbox", { name: "End" }),
     ).toHaveAccessibleDescription("Too late");
   });
+
+  it("announces a live hint politely, and only when there is one", () => {
+    const { rerender } = render(
+      <Field label="Name" hintLive>
+        {(control) => <input {...control} />}
+      </Field>,
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    rerender(
+      <Field label="Name" hint="Saved name is gone" hintLive>
+        {(control) => <input {...control} />}
+      </Field>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Saved name is gone");
+    expect(
+      screen.getByRole("textbox", { name: "Name" }),
+    ).toHaveAccessibleDescription("Saved name is gone");
+  });
+
+  it("leaves a plain hint out of the live regions", () => {
+    render(
+      <Field label="Name" hint="Required">
+        {(control) => <input {...control} />}
+      </Field>,
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+  });
 });

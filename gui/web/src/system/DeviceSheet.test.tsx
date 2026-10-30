@@ -250,6 +250,7 @@ describe("DeviceSheet", () => {
       const { baseElement } = render(sheet({ output, onOutputChange }));
       const menu = screen.getByLabelText("Speaker");
       expect(menu).toHaveValue("hp");
+      expect(menu).not.toHaveAttribute("aria-describedby");
       expect(menu).toBeEnabled();
       await userEvent.selectOptions(menu, "sp");
       expect(onOutputChange).toHaveBeenCalledWith("sp");
@@ -281,6 +282,9 @@ describe("DeviceSheet", () => {
       expect(screen.getByLabelText("Speaker")).toHaveAccessibleDescription(
         "Couldn't switch speakers. Using the default.",
       );
+      expect(
+        screen.getByText("Couldn't switch speakers. Using the default."),
+      ).toHaveAttribute("role", "status");
       await expectNoA11yViolations(baseElement);
     });
   });
