@@ -48,10 +48,13 @@ export function useScriptSelection(
   );
 
   const onSelect = useStableCallback((next: WordsSelection) => {
-    const target = wordsTargetOf(model, next);
     reached(next.head);
+    const target = wordsTargetOf(model, next);
     if (!target) return;
-    setCaret(undefined);
+    // A click selects the one word and keeps the caret there, as the old panel
+    // did: the caret shows again when the selection is cleared, and Shift
+    // extends from it. A longer selection replaces the caret.
+    if (next.anchor !== next.head) setCaret(undefined);
     const { setSelection, project } = useDawStore.getState();
     if (target.kind === "track") {
       setSelection({
@@ -77,7 +80,6 @@ export function useScriptSelection(
     setCaret(before);
   });
   const onClearSelection = useStableCallback(() => {
-    setCaret(undefined);
     useDawStore.getState().setSelection(null);
   });
 
