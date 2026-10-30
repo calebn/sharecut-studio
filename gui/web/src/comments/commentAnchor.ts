@@ -26,8 +26,9 @@ export function commentDraftFromRange(target: ExactRangeTarget): CommentDraft {
 }
 
 /**
- * The time a comment posted now lands on: the draft a ruler press, the time
- * chip or the create menu set; else the one selected range; else the playhead.
+ * The time a comment posted now lands on: the draft that C, the Player bar's
+ * comment button or the first keystroke set; else the one selected range; else
+ * the playhead.
  */
 export function resolveCommentAnchor(s: AnchorInputs): CommentAnchor {
   if (s.commentDraft) return { draft: s.commentDraft, source: "draft" };
