@@ -1,5 +1,6 @@
 import { type CSSProperties, useState } from "react";
 import { Clip } from "../../system/Clip";
+import { Lane, LaneItem } from "../../system/Lane";
 import { VOICE_PEAKS } from "../../system/prepareFixtures";
 import {
   TrackHeader,
@@ -19,13 +20,8 @@ const frame: CSSProperties = {
   border: "1px solid var(--color-border)",
 };
 
-const lane: CSSProperties = {
-  position: "relative",
-  blockSize: "4.5rem",
-  inlineSize: `${21 * PX_PER_SECOND}px`,
-  borderBlockEnd: "1px solid var(--color-border)",
-  background: "var(--color-bg-sunken)",
-};
+/** Seconds of lane the demo draws, so the three lanes are as wide as the longest clip's end. */
+const LANE_SECONDS = 21;
 
 type TracksProps = {
   tracks?: readonly DemoTrack[];
@@ -73,7 +69,6 @@ export function Tracks({
             : anySolo && !now.solo
               ? "implied"
               : "off";
-          const silent = mute === "saved" || mute === "implied";
           return (
             <div key={track.id} style={{ display: "flex" }}>
               <TrackHeader
@@ -93,20 +88,19 @@ export function Tracks({
                 onSolo={() => change(track.id, { solo: !now.solo })}
                 onLevel={(_, level) => change(track.id, { level })}
               />
-              <div
-                style={{
-                  ...lane,
-                  filter: silent ? "grayscale(1)" : undefined,
-                }}
+              <Lane
+                name={track.name}
+                colorIndex={track.colorIndex}
+                mute={mute}
+                start={0}
+                pxPerSecond={PX_PER_SECOND}
+                width={LANE_SECONDS * PX_PER_SECOND}
               >
                 {track.clips.map((item) => (
-                  <div
+                  <LaneItem
                     key={item.name}
-                    style={{
-                      position: "absolute",
-                      insetBlock: "var(--space-3)",
-                      insetInlineStart: `${item.start * PX_PER_SECOND}px`,
-                    }}
+                    at={item.start}
+                    duration={item.duration}
                   >
                     <Clip
                       {...item}
@@ -119,9 +113,9 @@ export function Tracks({
                       readOnly={readOnly}
                       onSelect={setClip}
                     />
-                  </div>
+                  </LaneItem>
                 ))}
-              </div>
+              </Lane>
             </div>
           );
         })}
