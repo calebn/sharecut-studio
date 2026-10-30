@@ -206,10 +206,10 @@ export function GuestAttentionBannerView({
               className="guest-attention-head"
               aria-label={`${NEEDS_ATTENTION} ${attentionCount || "!"} Details`}
             >
-              <strong>{NEEDS_ATTENTION}</strong>
+              <strong>{NEEDS_ATTENTION}</strong>{" "}
               <span role="img" aria-label={countLabel || regionLabel}>
                 {attentionCount || "!"}
-              </span>
+              </span>{" "}
               <span>Details</span>
             </summary>
             <div className="guest-attention-details-content">
