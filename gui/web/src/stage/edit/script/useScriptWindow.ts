@@ -11,10 +11,8 @@ import type { ScriptPaneHandle } from "../../../system/ScriptPane";
 import type { ScriptTurn } from "../../../system/scriptPieces";
 import type { ScriptModel } from "./scriptModel";
 
-/** Up to this many turns the pane gets them all. */
+/** Up to this many turns the pane gets them all, and never more are drawn at once: a widening that would pass it drops the far end. */
 export const WINDOW_LIMIT = 150;
-/** The most turns ever drawn at once: a widening that would pass it drops the far end. */
-export const WINDOW_MAX_SPAN = WINDOW_LIMIT;
 /** Turns kept either side of where the reader is. */
 export const WINDOW_MARGIN = 40;
 /** A keyboard move this close to the window's edge widens it. */
@@ -41,7 +39,7 @@ type EyeMark = { turnId: string; offset: number };
  * is followed) or the top, and moves with the reader: a jump to a word the pane
  * lacks puts the window around that word, and the body's own scroll or a key
  * near an edge grows it on that side and drops turns from the far end, so it
- * never draws more than `WINDOW_MAX_SPAN` turns. The pane draws every turn it
+ * never draws more than `WINDOW_LIMIT` turns. The pane draws every turn it
  * is given and does not tell the host when a key reaches its edge, so the host
  * learns of edges from the selection and caret and from the body's scroll.
  * A change the reader did not make with the scroll bar keeps the turn they were
@@ -260,19 +258,19 @@ function around(turn: number, total: number): Range {
 /** `range` grown past the cap loses its far end: the one opposite `keep`. */
 function capFrom(range: Range, total: number, keep: "lo" | "hi"): Range {
   const next = clamp(range, total);
-  if (next.hi - next.lo + 1 <= WINDOW_MAX_SPAN) return next;
+  if (next.hi - next.lo + 1 <= WINDOW_LIMIT) return next;
   return keep === "lo"
-    ? { lo: next.lo, hi: next.lo + WINDOW_MAX_SPAN - 1 }
-    : { lo: next.hi - WINDOW_MAX_SPAN + 1, hi: next.hi };
+    ? { lo: next.lo, hi: next.lo + WINDOW_LIMIT - 1 }
+    : { lo: next.hi - WINDOW_LIMIT + 1, hi: next.hi };
 }
 
 /** `range` grown past the cap is cut to a span centred on `turn`. */
 function capAround(range: Range, turn: number, total: number): Range {
   const next = clamp(range, total);
-  if (next.hi - next.lo + 1 <= WINDOW_MAX_SPAN) return next;
+  if (next.hi - next.lo + 1 <= WINDOW_LIMIT) return next;
   const lo = Math.min(
-    Math.max(next.lo, turn - (WINDOW_MAX_SPAN >> 1)),
-    next.hi - WINDOW_MAX_SPAN + 1,
+    Math.max(next.lo, turn - (WINDOW_LIMIT >> 1)),
+    next.hi - WINDOW_LIMIT + 1,
   );
-  return { lo, hi: lo + WINDOW_MAX_SPAN - 1 };
+  return { lo, hi: lo + WINDOW_LIMIT - 1 };
 }
