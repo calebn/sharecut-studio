@@ -420,6 +420,8 @@ everyone but an Editor.
 | Commenter | Yes | **Suggest cut** / **Suggest mute** create a pending edit for review | Only its own suggestions (pending edits its share authored) | Refused |
 | Viewer, or a share with no role | No (untimed utterance text) | Refused by the document-command gate | Refused | Refused |
 
+In ShareCut Studio an Editor link's Review queue lists the pending edits with **Cut** and **Keep** (the commands are `ApproveEdits` and `RejectEdits`). Unsure-word fixes, the transcript check and the waive route stay host-only, so a cut held for an unchecked transcript waits for the host. A Commenter or Viewer link's queue is comments only.
+
 An Editor also edits volume envelopes as the host does: `SetEnvelope` is in
 the Editor command set, and the Studio's envelope overlay, envelope inspector,
 peek strip and touch create menu read `canEditEnvelopes`. Commenter and
