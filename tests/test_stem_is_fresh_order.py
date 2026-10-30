@@ -178,6 +178,26 @@ def test_an_unresolvable_path_with_a_matching_sidecar_still_raises_like_the_old_
         stem_is_fresh(project, "host", defaults=DEFAULTS)
 
 
+@pytest.mark.parametrize("error", [OSError, RuntimeError], ids=["OSError", "RuntimeError"])
+def test_any_error_from_the_duration_check_waits_for_the_hash_like_the_old_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: type[Exception]
+) -> None:
+    def broken(*args: object, **kwargs: object) -> bool:
+        raise error("duration")
+
+    monkeypatch.setattr(play_audit, "stem_duration_matches_timeline", broken)
+    monkeypatch.setitem(globals(), "stem_duration_matches_timeline", broken)
+    project = _project(tmp_path, clips=True)
+    _arrange(project, "short", "different")
+    assert _old(project, "host") is False
+    assert stem_is_fresh(project, "host", defaults=DEFAULTS) is False
+    write_stem_hash(project, "host", defaults=DEFAULTS)
+    with pytest.raises(error):
+        _old(project, "host")
+    with pytest.raises(error):
+        stem_is_fresh(project, "host", defaults=DEFAULTS)
+
+
 @pytest.mark.parametrize("bad", [False, True], ids=["resolvable", "unresolvable"])
 @pytest.mark.parametrize("clips", [True, False], ids=["clips", "no-clips"])
 @pytest.mark.parametrize(("stem", "sidecar"), list(itertools.product(STEM, SIDECAR)))
