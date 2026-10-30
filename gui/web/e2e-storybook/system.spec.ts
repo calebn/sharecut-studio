@@ -3151,3 +3151,31 @@ test("System/Envelope read-only: a point is selected but not dragged, nudged or 
     page.getByRole("slider", { name: "Envelope point 4" }),
   ).toHaveAttribute("aria-current", "true");
 });
+
+test("Stages/Edit/Timeline an envelope point stands at the x its time gives in the time column, in Maya's 72 px lane, with 0 dB on its guide", async ({
+  page,
+}) => {
+  await open(page, "stages-edit-timeline--with-envelope", 1280);
+  await expect(page.locator(".sys-env-point")).toHaveCount(5);
+  const column = await boxOf(page, '[data-testid="time-column"]');
+  const lane = await boxOf(page, ".sys-lane", 0);
+  const envelope = await boxOf(page, ".sys-env");
+  expect([envelope.x, envelope.y, envelope.height]).toEqual([
+    column.x,
+    lane.y,
+    72,
+  ]);
+  // "env-4" is at 10 s, at 24 px/s, and -12 dB.
+  const dot = await centreOf(envPoint(page, "env-4"));
+  expect(Math.abs(dot.x - (column.x + 240))).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(dot.y - (lane.y + dbToY(-12, 72)))).toBeLessThanOrEqual(1);
+  // A clip in another lane, and the presence overlay, are not covered by it.
+  const other = await page
+    .getByRole("button", { name: "Anneke, answer" })
+    .boundingBox();
+  const owner = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x, y)?.closest(".sys-env") !== null,
+    [(other?.x ?? 0) + 20, (other?.y ?? 0) + 20] as const,
+  );
+  expect(owner).toBe(false);
+});

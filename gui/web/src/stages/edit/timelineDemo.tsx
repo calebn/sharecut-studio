@@ -1,6 +1,7 @@
 import { type CSSProperties, useState } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../../presence/anchors";
 import { Clip } from "../../system/Clip";
+import { Envelope, type EnvelopePointData } from "../../system/Envelope";
 import { Lane, LaneItem } from "../../system/Lane";
 import { ALL_KINDS, EPISODE_SECONDS, stage } from "../../system/laneFixtures";
 import { laneRows, windowStartFor } from "../../system/laneMath";
@@ -33,6 +34,9 @@ const LANES = DEMO_TRACKS.map((track, index) => ({
 }));
 const ROWS = laneRows(LANES);
 
+/** The track whose lane carries the envelope. */
+const ENVELOPE_TRACK = "maya";
+
 const noop = () => undefined;
 
 const frame: CSSProperties = { display: "flex", inlineSize: "100%" };
@@ -50,6 +54,9 @@ export type TimelineProps = {
   selections?: readonly PresenceSelection[];
   followed?: string | null;
   selectedClip?: string;
+  /** Maya's volume envelope, drawn over her lane; none draws no envelope. */
+  envelope?: readonly EnvelopePointData[];
+  envelopeSelected?: string | null;
 };
 
 /**
@@ -68,8 +75,12 @@ export function Timeline({
   selections,
   followed,
   selectedClip,
+  envelope,
+  envelopeSelected = null,
 }: TimelineProps) {
   const [clip, setClip] = useState(selectedClip);
+  const [points, setPoints] = useState(envelope);
+  const [picked, setPicked] = useState(envelopeSelected);
   const headerPx = HEADER_PX[form];
   return (
     <div style={stage}>
@@ -159,6 +170,33 @@ export function Timeline({
                         />
                       </LaneItem>
                     ))}
+                    {points && track.id === ENVELOPE_TRACK ? (
+                      <Envelope
+                        points={points}
+                        trackName={track.name}
+                        colorIndex={track.colorIndex}
+                        start={windowStart}
+                        pxPerSecond={pxPerSecond}
+                        width={width}
+                        height={track.height}
+                        duration={EPISODE_SECONDS}
+                        selected={picked}
+                        onSelect={setPicked}
+                        onMove={(id, change) =>
+                          setPoints((now) =>
+                            now?.map((point) =>
+                              point.id === id
+                                ? {
+                                    ...point,
+                                    time: change.timeSeconds ?? point.time,
+                                    db: change.db ?? point.db,
+                                  }
+                                : point,
+                            ),
+                          )
+                        }
+                      />
+                    ) : null}
                   </Lane>
                 ))}
                 <Presence
