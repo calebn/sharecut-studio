@@ -750,23 +750,3 @@ button.history-row {
   min-height: 0;
   overflow: auto;
 }
-
-@media (pointer: coarse) {
-  @container app (max-height: 40rem) {
-    .transcript-panel {
-      overflow-y: auto;
-    }
-
-    .transcript-panel > :not(.transcript-list) {
-      flex-shrink: 0;
-    }
-
-    .transcript-panel > .transcript-list {
-      flex: 1 0 16rem;
-    }
-
-    .transcript-find-replace {
-      max-block-size: none;
-    }
-  }
-}
