@@ -1,5 +1,6 @@
 import type { SystemIconName } from "../../system/icons";
 import type { ProjectView, Selection } from "../../types/project";
+import { sortedVolumePoints } from "../../utils/envelopes";
 
 export interface InspectorHeading {
   icon: SystemIconName;
@@ -63,7 +64,16 @@ export function inspectorHeading(
     case "bleedAttenuation":
       return { icon: "shield-check", name: "Auto reduction" };
     case "envelope":
-    case "envelopePoint":
-      return { icon: "volume-1", name: "Volume envelope" };
+      return { icon: "volume-1", name: trackLabel(project, selection.trackId) };
+    case "envelopePoint": {
+      const index = sortedVolumePoints(
+        project?.envelopes,
+        selection.trackId,
+      ).findIndex((point) => point.id === selection.pointId);
+      return {
+        icon: "volume-1",
+        name: `${trackLabel(project, selection.trackId)} point${index < 0 ? "" : ` ${index + 1}`}`,
+      };
+    }
   }
 }

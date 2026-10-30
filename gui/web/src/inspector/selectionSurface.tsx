@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { CommandContext } from "../commands/context";
 import { seekTransport } from "../commands/seek";
 import { rangeClips } from "../edit/rangeSelection";
+import { EnvelopePointBody } from "../stage/edit/envelopePointSections";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import { RangeFields } from "../timeline/RangeFields";
 import type { ProjectView, Selection } from "../types/project";
@@ -25,7 +26,6 @@ import { ChapterInspector } from "./views/ChapterInspector";
 import { ClipBleedHost } from "./views/ClipBleedHost";
 import { ClipInspector } from "./views/ClipInspector";
 import { CommentInspector } from "./views/CommentInspector";
-import { EnvelopeWorkspace } from "./views/EnvelopeWorkspace";
 import { PendingEditInspector } from "./views/PendingEditInspector";
 import { SocialClipInspector } from "./views/SocialClipInspector";
 import { TrackInspector } from "./views/TrackInspector";
@@ -80,6 +80,19 @@ const noRelated = () => [];
 const noMore = () => [];
 /** A kind with no peek strip and no Related or More commands. */
 const plain = { peek: noPeek, related: noRelated, more: noMore } as const;
+
+const trackBody = (sel: { trackId: string }, { project }: SurfaceContext) => {
+  const track = project.tracks.find((t) => t.id === sel.trackId);
+  return track ? (
+    <TrackInspector
+      key={track.id}
+      track={track}
+      effects={project.effects_by_track[sel.trackId] ?? []}
+    />
+  ) : (
+    notFound("Track not found")
+  );
+};
 
 const rangeSurface = {
   ...plain,
@@ -163,18 +176,7 @@ export const SELECTION_SURFACES: {
     ...plain,
     screens: ANYWHERE,
     more: moreMoveTrack,
-    body: (sel, { project }) => {
-      const track = project.tracks.find((t) => t.id === sel.trackId);
-      return track ? (
-        <TrackInspector
-          key={track.id}
-          track={track}
-          effects={project.effects_by_track[sel.trackId] ?? []}
-        />
-      ) : (
-        notFound("Track not found")
-      );
-    },
+    body: trackBody,
   },
   chapter: {
     ...plain,
@@ -216,28 +218,12 @@ export const SELECTION_SURFACES: {
       );
     },
   },
-  envelope: {
-    ...plain,
-    screens: ANYWHERE,
-    body: (sel, { projectEpoch }) => (
-      <EnvelopeWorkspace
-        key={`${projectEpoch}:${sel.trackId}:workspace`}
-        trackId={sel.trackId}
-        pointId={null}
-      />
-    ),
-  },
+  envelope: { ...plain, screens: ANYWHERE, body: trackBody },
   envelopePoint: {
     ...plain,
     screens: ANYWHERE,
     peek: peekEnvelopePoint,
-    body: (sel, { projectEpoch }) => (
-      <EnvelopeWorkspace
-        key={`${projectEpoch}:${sel.trackId}:${sel.pointId}`}
-        trackId={sel.trackId}
-        pointId={sel.pointId}
-      />
-    ),
+    body: () => <EnvelopePointBody />,
   },
 };
 
