@@ -1301,8 +1301,9 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 }
 
 /* The ruler row: the canvas wide and pinned under the top edge, so the lanes
-   scroll beneath it. Its window, one time viewport wide, sticks beside the
-   headers; the needle is a sibling at canvas x, clipped to the row. */
+   scroll beneath it. Its window is a chunk of the canvas around the viewport,
+   placed at its canvas x so it scrolls with the lanes; the needle is a
+   sibling at canvas x, clipped to the row. */
 .timeline-ruler {
   position: sticky;
   top: 0;
@@ -1313,14 +1314,21 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 }
 
 .timeline-ruler-window {
-  position: sticky;
-  inset-inline-start: var(--timeline-header-offset, 0);
+  position: absolute;
+  inset-block-start: 0;
   inline-size: fit-content;
 }
 
 /* The row keeps the lanes' px height at any root size. */
 .timeline-ruler .sys-ruler {
   block-size: var(--ruler-height);
+}
+
+/* A larger root font makes a label taller than the px row: it gives up its
+   line height and top pad instead of being cut off. */
+.timeline-ruler .sys-ruler-tick {
+  line-height: min(1rem, var(--ruler-height));
+  padding-block-start: min(var(--space-0), calc(var(--ruler-height) - 1rem));
 }
 
 @media (prefers-reduced-motion: no-preference) {
