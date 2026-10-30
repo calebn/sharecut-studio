@@ -426,6 +426,13 @@ peek strip and touch create menu read `canEditEnvelopes`. Commenter and
 Viewer links see envelopes view-only (owner, 2026-10-06; see
 [touch-editor-decisions.md](touch-editor-decisions.md#decision-one-touch-input-grammar-for-timeline-editing)).
 
+An Editor also writes the episode's podcast listing: `SetFeedField` and
+`ClearFeedField` are in the Editor command set, limited to `item.*` keys (never
+the show's `channel.*` settings) authored as a person. Commenter and Viewer links
+are refused with `share_capability_required`. Any link that can view reads the
+listing at `GET /api/review/{token}/feed`. See
+[podcast-feed.md](podcast-feed.md#guests).
+
 An Editor is trusted to approve: approving applies an edit. The host can
 undo every change an Editor makes (applied cut or mute, approval,
 rejection, retime) with one History Undo each.

@@ -26,7 +26,7 @@ from podcast_mcp.feed.model import (
     Person,
     ShowSummary,
 )
-from podcast_mcp.feed.resolve import digest, edited_pins, resolve
+from podcast_mcp.feed.resolve import cleared_pins, digest, edited_pins, resolve
 from podcast_mcp.models.feed import FeedSection
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -448,3 +448,206 @@ def test_every_person_in_the_roster_keeps_their_attributes(tmp_path: Path) -> No
         "https://a.example.test",
         None,
     )
+
+
+@pytest.mark.parametrize(
+    ("given", "stored"),
+    [
+        ("2026-10-23T09:00:00Z", "2026-10-23T09:00:00Z"),
+        ("2026-10-23T09:00:00+02:00", "2026-10-23T07:00:00Z"),
+        ("2026-10-23T09:00:00-05:30", "2026-10-23T14:30:00Z"),
+        ("2026-10-23T09:00:00", "2026-10-23T09:00:00Z"),
+        ("2026-10-23 09:00", "2026-10-23T09:00:00Z"),
+        ("2026-10-23", "2026-10-23T00:00:00Z"),
+        ("20261023", "2026-10-23T00:00:00Z"),
+    ],
+)
+def test_a_publish_date_is_stored_as_utc_and_renders_as_rfc_2822(
+    tmp_path: Path, given: str, stored: str
+) -> None:
+    from email.utils import parsedate_to_datetime
+
+    from podcast_mcp.feed.render import render
+
+    world = inputs(make_project(tmp_path), show=complete_show())
+
+    pins = edited_pins(world, {}, _set("item.pubDate", given), "person")
+
+    assert pins["item.pubDate"].value == stored
+    xml = render(resolve(world, pins), item_only=True)
+    date = xml.split("<pubDate>")[1].split("</pubDate>")[0]
+    assert date.endswith(" GMT")
+    assert parsedate_to_datetime(date).isoformat().startswith(stored[:19])
+
+
+@pytest.mark.parametrize("given", ["garbage", "2026-13-45", "0001-01-01T00:00:00+14:00", "  "])
+def test_a_publish_date_that_is_not_a_time_is_refused_or_unset(tmp_path: Path, given: str) -> None:
+    world = inputs(make_project(tmp_path), show=complete_show())
+
+    if given.strip():
+        with pytest.raises(CodedValueError) as raised:
+            edited_pins(world, {}, _set("item.pubDate", given), "person")
+        assert raised.value.code == "feed_value_invalid"
+    else:
+        assert (
+            edited_pins(
+                world,
+                {"item.pubDate": pin("2026-10-23T09:00:00Z")},
+                _set("item.pubDate", given),
+                "person",
+            )
+            == {}
+        )
+
+
+def test_a_stored_pin_that_is_not_a_time_never_breaks_the_render(tmp_path: Path) -> None:
+    from podcast_mcp.feed.render import render
+
+    world = inputs(make_project(tmp_path), show=complete_show())
+    view = resolve(world, {"item.pubDate": pin("garbage")})
+
+    assert "<pubDate>" not in render(view)
+    assert "<title>" in render(view, item_only=True)
+
+
+def test_blank_text_is_an_unset_not_an_invalid_value(tmp_path: Path) -> None:
+    world = inputs(make_project(tmp_path), show=complete_show())
+    pins = {"item.intro": pin("Hello"), "item.season": pin(2)}
+
+    assert edited_pins(world, pins, _set("item.intro", "   \n\t"), "person") == {
+        "item.season": pins["item.season"]
+    }
+
+
+@pytest.mark.parametrize("value", [True, False, 0, 1_000_000, "x", 2.5])
+def test_season_and_episode_are_whole_numbers_in_range(tmp_path: Path, value: object) -> None:
+    world = inputs(make_project(tmp_path), show=complete_show())
+
+    for key in ("item.season", "item.episode"):
+        with pytest.raises(CodedValueError) as raised:
+            edited_pins(world, {}, _set(key, value), "person")
+        assert raised.value.code == "feed_value_invalid"
+
+
+def test_a_number_may_arrive_as_text(tmp_path: Path) -> None:
+    world = inputs(make_project(tmp_path), show=complete_show())
+
+    assert edited_pins(world, {}, _set("item.season", "3"), "person")["item.season"].value == 3
+    assert (
+        edited_pins(world, {}, _set("item.season", 999_999), "person")["item.season"].value
+        == 999_999
+    )
+
+
+def test_the_channel_language_keeps_its_case(tmp_path: Path) -> None:
+    project = make_project(tmp_path)
+    with_transcript(project, "pt-BR")
+
+    pins = {k: v for k, v in complete_show().pins.items() if k != "channel.language"}
+
+    view = resolve(inputs(project, show=complete_show(pins=pins)), {})
+
+    assert view.channel["channel.language"].value == "pt-BR"
+
+
+def test_a_missing_guid_is_a_finding_that_blocks_nothing(tmp_path: Path) -> None:
+    from podcast_mcp.feed.render import render
+
+    project = make_project(tmp_path)
+    project.feed.guid = None
+
+    view = resolve(inputs(project, show=complete_show()), {})
+
+    finding = next(f for f in view.findings if f.key == "item.guid")
+    assert (finding.severity, finding.message) == ("info", "Created when you write the feed file.")
+    assert "<guid" not in render(view)
+    assert not [f for f in view.findings if f.severity == "blocker"]
+
+
+def test_a_minted_guid_has_no_finding(tmp_path: Path) -> None:
+    view = resolve(inputs(make_project(tmp_path), show=complete_show()), {})
+
+    assert [f for f in view.findings if f.key == "item.guid"] == []
+
+
+@pytest.mark.parametrize("name", ["Ana [host]", "Ana]", "[x]", "A].role"])
+def test_a_speaker_whose_name_holds_a_bracket_can_be_pinned_and_excluded(
+    tmp_path: Path, name: str
+) -> None:
+    project = make_project(tmp_path, speakers=(name,))
+    world = inputs(project, show=complete_show())
+    key = f"item.person[{name}].href"
+
+    pins = edited_pins(world, {}, _set(key, "https://a.example.test"), "person")
+    hidden = edited_pins(world, pins, _set(f"item.person[{name}].exclude", True), "person")
+
+    assert lookup(key).key == key
+    assert resolve(world, pins).sections.credits.value[0].href == "https://a.example.test"
+    assert resolve(world, hidden).sections.credits.value == []
+
+
+def test_a_person_pin_needs_a_speaker_but_a_stale_one_can_still_be_cleared(
+    tmp_path: Path,
+) -> None:
+    world = inputs(make_project(tmp_path), show=complete_show())
+    key = "item.person[Nobody].role"
+
+    with pytest.raises(CodedValueError) as set_raised:
+        edited_pins(world, {}, _set(key, "host"), "person")
+    with pytest.raises(CodedValueError) as unset_raised:
+        cleared_pins(world, {}, key)
+
+    assert (set_raised.value.code, unset_raised.value.code) == ("feed_field_unknown",) * 2
+    assert cleared_pins(world, {key: pin("host")}, key) == {}
+
+
+def test_a_role_must_come_from_the_podcast_taxonomy(tmp_path: Path) -> None:
+    world = inputs(make_project(tmp_path), show=complete_show())
+    key = "item.person[Ana Reyes].role"
+
+    pins = edited_pins(world, {}, _set(key, "  Co-Host "), "person")
+    with pytest.raises(CodedValueError) as raised:
+        edited_pins(world, {}, _set(key, "bogus role"), "person")
+
+    assert pins[key].value == "co-host"
+    assert raised.value.code == "feed_value_invalid" and "guest host" in str(raised.value)
+
+
+def test_person_text_and_soundbite_titles_are_capped(tmp_path: Path) -> None:
+    project = make_project(tmp_path)
+    add_clip(project, 0, 30, "t" * 500)
+    world = inputs(project, show=complete_show())
+
+    with pytest.raises(CodedValueError):
+        edited_pins(world, {}, _set("item.person[Ana Reyes].group", "g" * 129), "person")
+    assert len(resolve(world, {}).sections.soundbites.value[0].title) == 128
+
+
+@pytest.mark.parametrize("edit", [_set("channel.title", "X"), _unset("channel.title")])
+def test_show_settings_are_refused_for_every_edit_before_any_pin_is_written(
+    tmp_path: Path, edit: FeedEdit
+) -> None:
+    world = inputs(make_project(tmp_path), show=complete_show())
+
+    with pytest.raises(CodedValueError) as raised:
+        edited_pins(world, {}, edit, "person")
+
+    assert raised.value.code == "feed_show_unavailable"
+
+
+def test_unsetting_a_key_that_names_nothing_is_refused(tmp_path: Path) -> None:
+    world = inputs(make_project(tmp_path), show=complete_show())
+
+    with pytest.raises(CodedValueError) as raised:
+        cleared_pins(world, {}, "item.nope")
+
+    assert raised.value.code == "feed_field_unknown"
+    assert cleared_pins(world, {}, "item.title") == {}
+
+
+def test_pinned_notes_never_use_a_line_break_element() -> None:
+    from podcast_mcp.feed.notes import pinned_notes_html
+
+    html = pinned_notes_html("line1\nline2\n\n  \nline3 <b>")
+
+    assert html == "<p>line1</p><p>line2</p><p>line3 &lt;b&gt;</p>"

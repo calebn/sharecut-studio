@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from podcast_mcp.export.names import sanitize_export_stem
-from podcast_mcp.feed.fields import FIELDS, AtSource, FieldSpec, lookup
+from podcast_mcp.feed.fields import FIELDS, AtSource, FieldSpec
 from podcast_mcp.feed.model import (
     ExportFile,
     ExportFiles,
@@ -20,9 +20,9 @@ from podcast_mcp.feed.model import (
     UnsetEdit,
 )
 from podcast_mcp.feed.render import render
-from podcast_mcp.feed.resolve import edited_pins, resolve
+from podcast_mcp.feed.resolve import cleared_pins, clears, edited_pins, resolve
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.models.feed import FieldValue, PinAuthor
+from podcast_mcp.models.feed import FieldValue, Pin, PinAuthor
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.wav import open_wav
@@ -46,7 +46,7 @@ def _wav_seconds(path: Path) -> float | None:
         return None
 
 
-def export_files(project: EpisodeProject) -> ExportFiles:
+def _export_files(project: EpisodeProject) -> ExportFiles:
     """What the export directory holds for this episode, found by the export's own file names."""
     directory = project.export_dir()
     stem = sanitize_export_stem(project.name)
@@ -60,9 +60,9 @@ def export_files(project: EpisodeProject) -> ExportFiles:
         wav = ExportFile(name=wav.name, bytes=wav.bytes, seconds=_wav_seconds(directory / wav.name))
     feed = directory / f"{stem}.feed.xml"
     try:
-        feed_xml = feed.read_text(encoding="utf-8") if feed.is_file() else None
-    except (OSError, UnicodeDecodeError):
-        feed_xml = None
+        feed_xml = feed.read_text(encoding="utf-8", errors="replace") if feed.is_file() else None
+    except OSError:
+        feed_xml = ""
     return ExportFiles(
         audio=audio,
         wav=wav,
@@ -106,19 +106,19 @@ def default_show_source() -> ShowSource:
 class FeedService:
     """``read`` shows the listing; ``apply`` edits it. Every surface calls these."""
 
-    def __init__(self, ws: ProjectWorkspace, shows: ShowSource | None = None) -> None:
+    def __init__(self, ws: ProjectWorkspace) -> None:
         self.ws = ws
-        self.shows: ShowSource = shows or default_show_source()
+        self.shows: ShowSource = default_show_source()
 
-    def inputs(self, project: EpisodeProject) -> FeedInputs:
+    def _inputs(self, project: EpisodeProject) -> FeedInputs:
         shows = tuple(self.shows.shows())
         show_id = project.feed.show_id or (shows[0].id if len(shows) == 1 else None)
         profile = self.shows.profile(show_id) if show_id else None
-        return FeedInputs(project=project, show=profile, shows=shows, files=export_files(project))
+        return FeedInputs(project=project, show=profile, shows=shows, files=_export_files(project))
 
     def read(self) -> FeedView:
         project = self.ws.project
-        return resolve(self.inputs(project), project.feed.pins)
+        return resolve(self._inputs(project), project.feed.pins)
 
     def present(self, kind: FeedViewKind = "facts") -> dict[str, Any] | str:
         """One read in the shape a surface asked for: the wire view, the XML or the notes."""
@@ -134,6 +134,11 @@ class FeedService:
                 return render(view, item_only=True)
             case "feed_xml":
                 return render(view)
+            case _:
+                raise CodedValueError(
+                    f"{kind} is not a view; use facts, item_xml, feed_xml, notes_html or show",
+                    code="feed_view_unknown",
+                )
 
     def set(self, key: str, value: FieldValue, by: PinAuthor) -> FeedView:
         return self.apply(SetEdit(key=key, value=value), by)
@@ -144,47 +149,44 @@ class FeedService:
     def apply(self, edit: FeedEdit, by: PinAuthor) -> FeedView:
         """Edit one value as a document command, so it undoes and syncs like any episode edit.
 
-        Setting the empty string unsets. Unsetting a key that holds no pin changes nothing.
+        Blank text unsets. Unsetting a known key that holds no pin changes nothing.
         """
         from podcast_mcp.services.document_sync import submit_host_document_command
 
-        project = self.ws.project
-        pins = project.feed.pins
-        clears = isinstance(edit, UnsetEdit) or edit.value == ""
-        if clears and edit.key not in pins:
-            return self.read()
-        if (spec := lookup(edit.key)) is not None and spec.scope == "show":
-            raise CodedValueError(
-                "Show settings are not available yet", code="feed_show_unavailable"
+        if clears(edit):
+            if edit.key not in self.ws.project.feed.pins:
+                self._pins_after(self.ws.project, edit, by)
+                return self.read()
+            submit_host_document_command(
+                self.ws.path, "ClearFeedField", {"key": edit.key}, client_id=f"feed:{by}"
             )
-        if not clears:
+        else:
             assert isinstance(edit, SetEdit)
-            edited_pins(self.inputs(project), pins, edit, by)
             submit_host_document_command(
                 self.ws.path,
                 "SetFeedField",
                 {"key": edit.key, "value": edit.value, "by": by},
                 client_id=f"feed:{by}",
             )
-        else:
-            submit_host_document_command(
-                self.ws.path, "ClearFeedField", {"key": edit.key}, client_id=f"feed:{by}"
-            )
         self.ws.reload()
         return self.read()
 
+    def _pins_after(self, project: EpisodeProject, edit: FeedEdit, by: PinAuthor) -> dict[str, Pin]:
+        inputs, pins = self._inputs(project), project.feed.pins
+        if clears(edit):
+            return cleared_pins(inputs, pins, edit.key)
+        return edited_pins(inputs, pins, edit, by)
+
     def set_field(self, key: str, value: FieldValue, by: PinAuthor) -> dict[str, Any]:
         def pin(project: EpisodeProject) -> dict[str, Any]:
-            project.feed.pins = edited_pins(
-                self.inputs(project), project.feed.pins, SetEdit(key=key, value=value), by
-            )
+            project.feed.pins = self._pins_after(project, SetEdit(key=key, value=value), by)
             return {"key": key, "pinned": key in project.feed.pins}
 
         return self.ws.mutate("before set listing field", "after set listing field", pin)
 
     def clear_field(self, key: str) -> dict[str, Any]:
         def clear(project: EpisodeProject) -> dict[str, Any]:
-            project.feed.pins = {k: p for k, p in project.feed.pins.items() if k != key}
+            project.feed.pins = cleared_pins(self._inputs(project), project.feed.pins, key)
             return {"key": key, "pinned": False}
 
         return self.ws.mutate("before clear listing field", "after clear listing field", clear)

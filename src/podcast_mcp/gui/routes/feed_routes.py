@@ -16,7 +16,7 @@ from podcast_mcp.util.coded_error import CodedValueError
 router = APIRouter()
 
 
-def _served(service: FeedService) -> dict[str, Any]:
+def served(service: FeedService) -> dict[str, Any]:
     """The wire view and the item as the feed file will carry it, for the XML pane."""
     return {"view": service.present("facts"), "itemXml": service.present("item_xml")}
 
@@ -31,7 +31,7 @@ def get_feed(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     pin_served_if_allowed(request, project_path)
-    return _served(FeedService(ProjectWorkspace.open(project_path)))
+    return served(FeedService(ProjectWorkspace.open(project_path)))
 
 
 @router.post("/api/feed/edit")
@@ -50,4 +50,4 @@ def edit_feed(
         service.apply(body.edit, "person")
     except CodedValueError as exc:
         raise coded_exception_error(400, exc, code="feed_edit_invalid") from exc
-    return _served(FeedService(ProjectWorkspace.open(project_path)))
+    return served(FeedService(ProjectWorkspace.open(project_path)))

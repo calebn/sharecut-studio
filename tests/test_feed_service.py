@@ -203,7 +203,7 @@ def test_unsetting_what_holds_no_pin_writes_nothing(episode: Path) -> None:
 
     service.apply(UnsetEdit(key="item.title"), "person")
     service.apply(SetEdit(key="item.intro", value=""), "person")
-    service.apply(UnsetEdit(key="item.nope"), "agent")
+    service.apply(SetEdit(key="item.intro", value="  \n"), "person")
 
     assert _rows(episode) == []
     assert len(load_project(episode).history.entries) == entries
@@ -220,6 +220,12 @@ def test_unsetting_what_holds_no_pin_writes_nothing(episode: Path) -> None:
             "feed_value_invalid",
         ),
         (SetEdit(key="channel.title", value="The Long River"), "feed_show_unavailable"),
+        (UnsetEdit(key="item.nope"), "feed_field_unknown"),
+        (SetEdit(key="item.nope", value=" "), "feed_field_unknown"),
+        (UnsetEdit(key="item.person[Nobody].role"), "feed_field_unknown"),
+        (SetEdit(key="item.person[Nobody].role", value="host"), "feed_field_unknown"),
+        (SetEdit(key="item.person[Ana Reyes].role", value="bogus"), "feed_value_invalid"),
+        (SetEdit(key="item.pubDate", value="garbage"), "feed_value_invalid"),
     ],
 )
 def test_a_refused_edit_leaves_no_journal_row_and_no_history_step(
@@ -270,8 +276,50 @@ def test_the_docs_describe_every_registry_row_and_the_skill_names_every_tool() -
 
 
 @pytest.mark.parametrize("command", ["SetFeedField", "ClearFeedField"])
-def test_no_guest_role_may_edit_the_listing(command: str) -> None:
-    from podcast_mcp.services.collaboration import ReviewRole
-    from podcast_mcp.services.document_sync.capabilities import ROLE_DOCUMENT_COMMANDS
+def test_the_document_plane_refuses_show_settings_like_the_service(
+    episode: Path, command: str
+) -> None:
+    payload = (
+        {"key": "channel.title", "value": "Sneaky"}
+        if command == "SetFeedField"
+        else {"key": "channel.title"}
+    )
 
-    assert [r for r in ReviewRole if command in ROLE_DOCUMENT_COMMANDS[r]] == []
+    with pytest.raises(CodedValueError) as raised:
+        submit_host_document_command(episode, command, payload)
+
+    assert raised.value.code == "feed_show_unavailable"
+    assert "channel.title" not in load_project(episode).feed.pins
+
+
+def test_an_offset_publish_date_is_stored_in_utc_and_the_feed_still_renders(episode: Path) -> None:
+    service = _service(episode)
+
+    service.apply(SetEdit(key="item.pubDate", value="2026-10-23T09:00:00+02:00"), "person")
+
+    assert load_project(episode).feed.pins["item.pubDate"].value == "2026-10-23T07:00:00Z"
+    assert "<pubDate>Fri, 23 Oct 2026 07:00:00 GMT</pubDate>" in _service(episode).present(
+        "item_xml"
+    )
+
+
+def test_an_unknown_view_is_a_coded_error(episode: Path) -> None:
+    with pytest.raises(CodedValueError) as raised:
+        _service(episode).present("bogus")  # type: ignore[arg-type]
+
+    assert raised.value.code == "feed_view_unknown"
+
+
+def test_a_feed_file_that_is_not_utf8_reads_as_stale(episode: Path) -> None:
+    directory = _export(episode, mp3=b"x" * 10)
+    directory.with_name(f"{directory.name}.feed.xml").write_bytes(b"\xff\xfe bad")
+
+    assert _service(episode).read().file == "stale"
+
+
+def test_the_service_has_one_show_source_for_the_caller_and_the_handler() -> None:
+    import inspect
+
+    assert list(inspect.signature(FeedService).parameters) == ["ws"]
+    public = {n for n in vars(FeedService) if not n.startswith("_")}
+    assert public == {"read", "present", "set", "unset", "apply", "set_field", "clear_field"}

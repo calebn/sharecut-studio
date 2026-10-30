@@ -15,7 +15,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import AfterValidator, StringConstraints, TypeAdapter
+from pydantic import AfterValidator, BeforeValidator, StringConstraints, TypeAdapter
 
 from podcast_mcp.feed.model import (
     Art,
@@ -153,13 +153,23 @@ _TEXT = TypeAdapter(Text)
 _BOOL = TypeAdapter(bool)
 
 
-def _positive(value: int) -> int:
-    if value < 1:
-        raise ValueError("must be 1 or more")
+MAX_NUMBER = 999_999
+NAME_MAX = 128
+
+
+def _count(value: int) -> int:
+    if not 1 <= value <= MAX_NUMBER:
+        raise ValueError(f"must be between 1 and {MAX_NUMBER}")
     return value
 
 
-_NUMBER = TypeAdapter(Annotated[int, AfterValidator(_positive)])
+def _not_bool(value: Any) -> Any:
+    if isinstance(value, bool):
+        raise ValueError("must be a whole number")
+    return value
+
+
+_NUMBER = TypeAdapter(Annotated[int, BeforeValidator(_not_bool), AfterValidator(_count)])
 _EPISODE_TYPE = TypeAdapter(Literal["full", "trailer", "bonus"])
 
 
@@ -168,9 +178,17 @@ def iso_z(moment: datetime) -> str:
     return aware.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def parse_moment(value: str) -> datetime:
+    """An ISO 8601 date or time as UTC: a bare time is UTC and a bare date is midnight UTC."""
+    moment = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    return (moment if moment.tzinfo else moment.replace(tzinfo=UTC)).astimezone(UTC)
+
+
 def _check_iso(value: str) -> str:
-    datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return value
+    try:
+        return iso_z(parse_moment(value))
+    except (ValueError, OverflowError):
+        raise ValueError("must be an ISO 8601 date or time") from None
 
 
 _MOMENT = TypeAdapter(Annotated[str, AfterValidator(_check_iso)])
@@ -196,7 +214,7 @@ def _pub_date(res: Resolution) -> Auto:
 def _guid(res: Resolution) -> Auto:
     feed = res.inputs.project.feed
     if not feed.guid:
-        return Missing("Made when the feed file is first written.", None)
+        return Missing("Created when you write the feed file.", None)
     at = iso_z(feed.first_exported_at) if feed.first_exported_at else ""
     return Found(feed.guid, Minted(at=at))
 
@@ -288,7 +306,7 @@ def _transcripts(res: Resolution) -> Auto:
 
 def _soundbites(res: Resolution) -> Auto:
     clips = [
-        Soundbite(title=c.title_suggestion or "", start=c.start, end=c.end)
+        Soundbite(title=(c.title_suggestion or "")[:NAME_MAX], start=c.start, end=c.end)
         for c in res.inputs.project.social_clip_candidates
         if c.approved
     ]
@@ -296,8 +314,8 @@ def _soundbites(res: Resolution) -> Auto:
 
 
 PERSON_ATTRS = ("role", "group", "img", "href", "exclude")
-_PERSON_KEY = re.compile(
-    r"^item\.person\[(?P<name>[^\]]+)\]\.(?P<attr>" + "|".join(PERSON_ATTRS) + ")$"
+PERSON_KEY = re.compile(
+    r"^item\.person\[(?P<name>.+)\]\.(?P<attr>" + "|".join(PERSON_ATTRS) + ")$", re.DOTALL
 )
 
 
@@ -426,7 +444,7 @@ def _language(res: Resolution) -> Auto:
     transcripts = res.inputs.project.transcripts
     if not transcripts:
         return Missing("Set once for the show.", InputFix(key="channel.language"))
-    return Found(transcripts[0].language.lower(), Derived(rule="the transcript language"))
+    return Found(transcripts[0].language, Derived(rule="the transcript language"))
 
 
 def _media_url(res: Resolution) -> Auto:
@@ -644,6 +662,7 @@ FIELDS: tuple[FieldSpec, ...] = (
         edit="mint",
         tags=(Tag("guid", fixed=(("isPermaLink", "false"),)),),
         derive=_guid,
+        needs=Need("info", "RSS", "Created when you write the feed file."),
     ),
     FieldSpec(
         key="item.enclosure.url",
@@ -816,9 +835,87 @@ FIELDS: tuple[FieldSpec, ...] = (
 
 FIELD_BY_KEY: Mapping[str, FieldSpec] = {spec.key: spec for spec in FIELDS}
 
+TAXONOMY_ROLES = (
+    "host",
+    "co-host",
+    "guest",
+    "guest host",
+    "voice actor",
+    "narrator",
+    "announcer",
+    "reporter",
+    "author",
+    "editorial director",
+    "co-writer",
+    "writing staff",
+    "songwriter",
+    "guest writer",
+    "story editor",
+    "managing editor",
+    "script editor",
+    "script coordinator",
+    "researcher",
+    "editor",
+    "fact checker",
+    "translator",
+    "transcriber",
+    "logger",
+    "studio coordinator",
+    "technical director",
+    "technical manager",
+    "audio engineer",
+    "remote recording engineer",
+    "post production engineer",
+    "audio editor",
+    "sound designer",
+    "foley artist",
+    "composer",
+    "theme music",
+    "music production",
+    "music contributor",
+    "production coordinator",
+    "booking coordinator",
+    "production assistant",
+    "content manager",
+    "marketing manager",
+    "sales representative",
+    "sales manager",
+    "graphic designer",
+    "cover art designer",
+    "social media manager",
+    "consultant",
+    "intern",
+    "camera operator",
+    "lighting designer",
+    "camera grip",
+    "assistant camera",
+    "producer",
+    "executive producer",
+    "senior producer",
+    "supervising producer",
+    "associate producer",
+    "director",
+    "assistant director",
+    "creative director",
+    "art director",
+    "community manager",
+    "moderator",
+)
+
+
+def _taxonomy_role(value: str) -> str:
+    role = " ".join(value.split()).casefold()
+    if role not in TAXONOMY_ROLES:
+        raise ValueError(f"must be a Podcast Taxonomy role: {', '.join(TAXONOMY_ROLES)}")
+    return role
+
+
+_PERSON_TEXT = TypeAdapter(
+    Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=NAME_MAX)]
+)
 _PERSON_VALUES: Mapping[str, TypeAdapter[Any]] = {
-    "role": _TEXT,
-    "group": _TEXT,
+    "role": TypeAdapter(Annotated[str, AfterValidator(_taxonomy_role)]),
+    "group": _PERSON_TEXT,
     "img": TypeAdapter(Https),
     "href": TypeAdapter(Https),
     "exclude": _BOOL,
@@ -837,6 +934,6 @@ def lookup(key: str) -> FieldSpec | None:
     """The row for ``key``, including a per-person attribute such as ``item.person[Ana].href``."""
     if (spec := FIELD_BY_KEY.get(key)) is not None:
         return spec
-    if (match := _PERSON_KEY.match(key)) is not None:
+    if (match := PERSON_KEY.match(key)) is not None:
         return replace(_PERSON_PIN, key=key, value=_PERSON_VALUES[match["attr"]])
     return None

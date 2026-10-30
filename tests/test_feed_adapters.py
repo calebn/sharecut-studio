@@ -16,6 +16,7 @@ from podcast_mcp.mcp.tools import feed as mcp_feed
 from podcast_mcp.models import ChapterMarker, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.document import feed as feed_service
 from podcast_mcp.services.document_sync import DocumentSyncService
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER
 
 runner = CliRunner()
@@ -68,13 +69,26 @@ def test_cli_show_json_xml_item_and_notes_are_the_views(episode: Path) -> None:
     assert wire["show"] == {"kind": "ready", "id": "long-river"}
     assert wire["item"]["item.title"]["source"] == {"kind": "derived", "rule": "the project name"}
 
-    assert _cli("show", "-p", str(episode), "--xml").startswith('<?xml version="1.0"')
+    assert _cli("show", "-p", str(episode), "--xml", code=1).startswith('<?xml version="1.0"')
     assert _cli("show", "-p", str(episode), "--item").startswith("<item>")
     assert "<ol><li>0:00 Cold open</li></ol>" in _cli("show", "-p", str(episode), "--notes")
     assert json.loads(_cli("show", "-p", str(episode), "--shows")) == {
         "kind": "ready",
         "id": "long-river",
     }
+
+
+def test_cli_xml_warns_and_exits_one_while_a_blocker_stands_and_is_quiet_when_none_does(
+    episode: Path,
+) -> None:
+    out = _cli("show", "-p", str(episode), "--xml", code=1)
+
+    assert "Warning: this feed is not valid yet (" in out
+    export = load_project(episode).export_dir()
+    export.mkdir(parents=True, exist_ok=True)
+    (export / "test_episode.mp3").write_bytes(b"x" * 10)
+    quiet = _cli("show", "-p", str(episode), "--xml")
+    assert "Warning" not in quiet and quiet.startswith("<?xml")
 
 
 def test_cli_show_refuses_two_views_at_once(episode: Path) -> None:
@@ -143,6 +157,28 @@ def test_cli_set_refuses_a_bad_value_with_its_code(episode: Path) -> None:
     assert "feed_field_not_editable" in out
 
 
+@pytest.mark.parametrize("target", ["missing.txt", ""])
+def test_cli_set_from_an_unreadable_file_is_a_coded_error_not_a_traceback(
+    episode: Path, tmp_path: Path, target: str
+) -> None:
+    (tmp_path / "binary.bin").write_bytes(b"\xff\xfe\x00")
+    for name in (target or str(tmp_path), "binary.bin"):
+        path = name if name.startswith("/") else str(tmp_path / name)
+        out = _cli("set", "item.intro", f"@{path}", "-p", str(episode), code=1)
+
+        assert "feed_file_unreadable" in out and "Traceback" not in out
+    assert load_project(episode).feed.pins == {}
+
+
+def test_cli_unset_of_a_typo_is_refused_but_a_known_key_with_no_pin_is_not(episode: Path) -> None:
+    assert "feed_field_unknown" in _cli("unset", "item.nonsense", "-p", str(episode), code=1)
+    assert "feed_field_unknown" in _cli(
+        "unset", "item.person[Nobody].role", "-p", str(episode), code=1
+    )
+    _cli("unset", "item.intro", "-p", str(episode))
+    assert _rows(episode) == []
+
+
 def test_cli_fields_lists_every_row_with_how_it_is_edited(episode: Path) -> None:
     rows = json.loads(_cli("fields", "--json"))
     by_key = {r["key"]: r for r in rows}
@@ -179,12 +215,49 @@ def test_mcp_feed_set_pins_as_an_agent_and_unset_releases_it(episode: Path) -> N
     assert _rows(episode) == ["SetFeedField", "ClearFeedField"]
 
 
-def test_mcp_feed_set_takes_numbers_and_lists_as_typed(episode: Path) -> None:
-    mcp_feed.feed_set(str(episode), "item.season", 2)
-    mcp_feed.feed_set(str(episode), "item.explicit", True)
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("key", "sent", "stored"),
+    [
+        ("item.season", 2, 2),
+        ("item.season", "2", 2),
+        ("item.explicit", True, True),
+        ("item.explicit", "false", False),
+        ("item.intro", "7", "7"),
+        ("item.intro", '"quoted"', '"quoted"'),
+    ],
+)
+async def test_a_real_mcp_client_may_send_text_numbers_and_booleans(
+    episode: Path, key: str, sent: object, stored: object
+) -> None:
+    from mcp.client import Client
 
-    pins = load_project(episode).feed.pins
-    assert (pins["item.season"].value, pins["item.explicit"].value) == (2, True)
+    from podcast_mcp.mcp import server
+
+    async with Client(server.mcp) as client:
+        result = await client.call_tool(
+            "feed_set", {"project_path": str(episode), "field": key, "value": sent}
+        )
+
+    assert not result.is_error, result.content
+    assert load_project(episode).feed.pins[key].value == stored
+
+
+@pytest.mark.asyncio
+async def test_a_real_mcp_client_gets_the_code_for_a_bad_view_or_key(episode: Path) -> None:
+    from mcp.client import Client
+
+    from podcast_mcp.mcp import server
+
+    async with Client(server.mcp) as client:
+        unset = await client.call_tool(
+            "feed_unset", {"project_path": str(episode), "field": "item.nope"}
+        )
+
+    assert unset.is_error and "feed_field_unknown" in str(unset.structured_content or unset.content)
+    with pytest.raises(CodedValueError) as raised:
+        mcp_feed.feed_read(str(episode), view="bogus")  # type: ignore[arg-type]
+    assert raised.value.code == "feed_view_unknown"
 
 
 def test_the_tools_are_registered_on_the_server() -> None:
@@ -235,6 +308,17 @@ def test_post_edit_refuses_a_bad_edit_with_its_code(episode: Path) -> None:
 
     assert res.status_code == 400
     assert res.headers[CODE] == "feed_field_edit_at_source"
+
+
+def test_post_edit_with_an_offset_publish_date_leaves_the_page_readable(episode: Path) -> None:
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    edit = {"op": "set", "key": "item.pubDate", "value": "2026-10-23T09:00:00+02:00"}
+
+    res = client.post("/api/feed/edit", json={"path": str(episode), "edit": edit})
+
+    assert res.status_code == 200, res.text
+    assert "<pubDate>Fri, 23 Oct 2026 07:00:00 GMT</pubDate>" in res.json()["itemXml"]
+    assert client.get("/api/feed", params={"path": str(episode)}).status_code == 200
 
 
 def test_a_relayed_guest_cannot_read_or_edit_the_listing(episode: Path) -> None:

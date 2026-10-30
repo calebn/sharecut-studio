@@ -26,6 +26,7 @@ from podcast_mcp.gui.audio import pending_preview_headers, pinned_audio_response
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
 from podcast_mcp.gui.routes.deps import NO_STORE, coded_http_error
 from podcast_mcp.gui.routes.document import RangeAudioInput
+from podcast_mcp.gui.routes.feed_routes import served as served_feed
 from podcast_mcp.gui.routes.guest_errors import guest_boundary, guest_http_error, guest_ws_error
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
@@ -93,6 +94,7 @@ from podcast_mcp.services.document import (
     PENDING_PREVIEW_PAD_MAX_SEC,
     PENDING_PREVIEW_PAD_MIN_SEC,
     EditService,
+    FeedService,
     cross_process_lease,
 )
 from podcast_mcp.services.document_sync import (
@@ -560,6 +562,16 @@ def get_daw_document_state(
             {"snapshot": snapshot},
             transcript_words=guest_selects_transcript_words(row.get("capabilities")),
         )["snapshot"]
+
+
+@router.get("/api/review/{token}/feed")
+def get_review_feed(token: str) -> dict[str, Any]:
+    """The podcast listing for a share that can view: the wire view and the item XML."""
+    _check_token(token)
+    _rate_limit(token, "read")
+    with guest_boundary(log, "review request"):
+        _row, ws = require_share_cap(token, CAP_VIEW)
+        return served_feed(FeedService(ws))
 
 
 @router.post("/api/review/{token}/daw/boundary/context")

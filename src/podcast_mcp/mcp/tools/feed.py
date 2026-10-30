@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from mcp.server import MCPServer
+from pydantic import BeforeValidator
 
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import FeedService, FeedViewKind
+
+
+def _text(value: object) -> object:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value) if isinstance(value, int | float) else value
 
 
 def feed_read(
@@ -32,15 +39,16 @@ def feed_read(
 def feed_set(
     project_path: str,
     field: str,
-    value: str,
+    value: Annotated[str, BeforeValidator(_text)],
 ) -> str:
     """Pin one podcast-listing value for this episode, as an agent. Undoable with history.
 
     ``field`` is a key from ``feed_read``, such as ``item.intro``, ``item.title``,
     ``item.notes``, ``item.enclosure.url``, ``item.season`` or ``item.person[Name].href``.
     Write the episode intro with ``item.intro``: one or two sentences, plain text. Setting
-    ``item.notes`` pins the whole notes text, so prefer ``item.intro``. An empty string
-    unsets. Numbers and lists are sent as text, as on the command line. Chapters, clips, speakers and transcripts are edited where they live, not here.
+    ``item.notes`` pins the whole notes text, so prefer ``item.intro``. Blank text
+    unsets. ``value`` is text; a number or true/false is read as its text, so ``2`` and ``"2"`` both
+    set season 2. Chapters, clips, speakers and transcripts are edited where they live, not here.
     Returns the updated facts. Not ``add_chapter_tool``.
     """
     view = FeedService(ProjectWorkspace.open(project_path)).set(field, value, "agent")

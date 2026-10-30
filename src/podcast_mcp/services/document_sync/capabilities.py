@@ -55,6 +55,9 @@ EDIT_COMMANDS: frozenset[str] = frozenset(
         "ReorderTrack",
         # Editors change volume envelopes as the host does (owner, #1051).
         "SetEnvelope",
+        # Editors write the episode's podcast listing; show settings stay with the host.
+        "SetFeedField",
+        "ClearFeedField",
         *STRUCTURAL_COMMANDS,
     }
 )
@@ -125,9 +128,22 @@ def authorize_document_payload(
     """Raise PermissionError if *caps* may run *command_type* but not this payload shape.
 
     A room tone fill without a range (no ``start_sec``/``end_sec``) is host-only; a guest
-    Editor fills an explicit range. ``caps is None`` means host / unrestricted (always allowed).
+    Editor fills an explicit range. A guest edits only this episode's listing values
+    (``item.*``), never the show's (``channel.*``). ``caps is None`` means host / unrestricted
+    (always allowed).
     """
     if caps is None:
+        return
+    if command_type in {"SetFeedField", "ClearFeedField"}:
+        key = payload.get("key")
+        if (
+            not (isinstance(key, str) and key.startswith("item."))
+            or payload.get("by", "person") != "person"
+        ):
+            raise CodedPermissionError(
+                "guests edit this episode's listing values, not the show's",
+                code="share_capability_required",
+            )
         return
     if command_type == "FillRoomTone" and (
         payload.get("start_sec") is None or payload.get("end_sec") is None
