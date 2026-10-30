@@ -125,6 +125,43 @@ export const Lobby: Story = {
   },
 };
 
+/** Edit's Re-record parked a Replace target; the room takes it on opening. */
+export const HostPickupFromSelection: Story = {
+  parameters: {
+    episode: {
+      state: {
+        stage: "record" as const,
+        pendingRecordTarget: {
+          kind: "replace" as const,
+          from_sec: 724,
+          to_sec: 1000,
+          track_ids: ["t1"],
+        },
+      },
+      record: room({ state: "lobby", take_index: -1, recording_ms: 0 }),
+      responses: {
+        [STATE]: room({ state: "lobby", take_index: -1, recording_ms: 0 }),
+        "POST /api/record/command": room({
+          state: "lobby",
+          take_index: -1,
+          recording_ms: 0,
+          target: {
+            kind: "replace",
+            from_sec: 724,
+            to_sec: 1000,
+            track_ids: ["t1"],
+          },
+        }),
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByText("Replaces 12:04-16:40"),
+    ).toBeVisible();
+  },
+};
+
 export const Live: Story = {
   parameters: withRoom(room({ state: "recording", recording_ms: 70_000 })),
   play: async ({ canvasElement }) => {

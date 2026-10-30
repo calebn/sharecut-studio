@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import type { SessionTarget } from "../record";
 import type {
   EditSurface,
   ReviewSection,
@@ -34,11 +35,19 @@ export interface StageSliceState {
   /** The landing stage has been chosen for this project, by rule or by the person. */
   landingSettled: boolean;
   /**
+   * Where Edit asked the next Record session to land (Re-record, Record here).
+   * The Record host stage sends it once, when its room is open and unlocked,
+   * then clears it. Memory only: a reload drops it. Leaving Record and a
+   * project switch drop it too, so it never reaches a later session.
+   */
+  pendingRecordTarget: SessionTarget | null;
+  /**
    * Switch stage, or deep-link into one with `options`. In one write it saves
    * the leaving stage's view, restores the arriving one's, closes sheets and
    * routes keys; never from an unmount effect.
    */
   openStage: (stage: StageId, options?: StageOpenOptions) => void;
+  setPendingRecordTarget: (target: SessionTarget | null) => void;
   setReviewSection: (section: ReviewSection) => void;
   setEditSurface: (surface: EditSurface) => void;
   setOpenSheet: (sheet: StageSheet | null) => void;
@@ -57,6 +66,7 @@ export function stageProjectInitial(guestMode: string | null = null) {
     stageViews: {} as Partial<Record<StageId, StageView>>,
     openSheet: null as StageSheet | null,
     landingSettled: false,
+    pendingRecordTarget: null as SessionTarget | null,
   };
 }
 
@@ -78,6 +88,8 @@ export const createStageSlice: StateCreator<
       return {
         // A comment draft belongs to the Review stage it opened.
         ...(prev === "review" ? { commentDraft: null } : {}),
+        // The pending target waits for Record's room, not for a later visit.
+        ...(next === "record" ? {} : { pendingRecordTarget: null }),
         stage: next,
         reviewSection: section,
         openSheet: sheet,
@@ -114,6 +126,8 @@ export const createStageSlice: StateCreator<
     scriptCollapsed: readScriptCollapsed(),
     scriptFocus: readScriptFocus(),
     openStage,
+    setPendingRecordTarget: (pendingRecordTarget) =>
+      set({ pendingRecordTarget }),
     setReviewSection: (reviewSection) => set({ reviewSection }),
     setEditSurface: (editSurface) => set({ editSurface }),
     setOpenSheet: (openSheet) => set({ openSheet }),

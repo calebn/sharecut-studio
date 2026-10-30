@@ -1463,7 +1463,11 @@ describe("Record stage partial keeper recovery", () => {
 
 describe("Record stage session target", () => {
   beforeEach(() => {
-    useDawStore.setState({ playheadSec: 0, selection: null });
+    useDawStore.setState({
+      playheadSec: 0,
+      selection: null,
+      pendingRecordTarget: null,
+    });
   });
 
   const clipRow = {
@@ -1601,6 +1605,77 @@ describe("Record stage session target", () => {
     expect(
       screen.getByRole("menuitem", { name: "At the playhead (0:00)" }),
     ).toBeVisible();
+  });
+
+  const pickup = {
+    kind: "replace" as const,
+    from_sec: 724,
+    to_sec: 1000,
+    track_ids: ["t1"],
+  };
+
+  it("sends the target Edit parked once, then clears it", async () => {
+    withClip();
+    useDawStore.getState().setPendingRecordTarget(pickup);
+    setRoom({ target: { kind: "end" } });
+    mount();
+    await waitFor(() =>
+      expect(exec).toHaveBeenCalledWith(
+        "record.setTarget",
+        { target: pickup },
+        { skipWhen: true },
+      ),
+    );
+    expect(useDawStore.getState().pendingRecordTarget).toBeNull();
+    setRoom({ target: pickup });
+    await screen.findByText("Replaces 12:04-16:40");
+    expect(
+      exec.mock.calls.filter(([id]) => id === "record.setTarget"),
+    ).toHaveLength(1);
+  });
+
+  it("waits for the room, then sends", async () => {
+    withClip();
+    useRecordHostStore.getState().setSnapshot(null);
+    useDawStore.getState().setPendingRecordTarget(pickup);
+    mount();
+    await screen.findByRole("button", { name: "Create record room" });
+    expect(useDawStore.getState().pendingRecordTarget).toEqual(pickup);
+    expect(exec).not.toHaveBeenCalledWith(
+      "record.setTarget",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("drops the parked target once a take has landed", async () => {
+    withClip();
+    useDawStore.getState().setPendingRecordTarget(pickup);
+    setRoom({
+      state: "stopped",
+      take_index: 0,
+      target: { kind: "end" },
+      takes: [
+        {
+          take_index: 0,
+          session_start_wall_ms: 1000,
+          session_start_iso: "t",
+          stopped_wall_ms: 61_000,
+          pauses: [],
+          consented_participant_ids: ["p_host"],
+        },
+      ],
+    });
+    mount();
+    await screen.findByText("Set when the first take landed");
+    await waitFor(() =>
+      expect(useDawStore.getState().pendingRecordTarget).toBeNull(),
+    );
+    expect(exec).not.toHaveBeenCalledWith(
+      "record.setTarget",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it("disables the chip while a command is in flight", async () => {

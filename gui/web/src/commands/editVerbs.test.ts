@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
+import type { EditFacts } from "../edit/editSelection";
 import { useDawStore } from "../state/dawStore";
 import {
   EDIT_SELECTIONS,
@@ -54,6 +55,7 @@ function host(selection: unknown, extra: Record<string, unknown> = {}) {
     rangeBusy: false,
     joinMutationInFlight: false,
     playheadSec: 1,
+    pendingRecordTarget: null,
     statusAnnouncement: "",
     ...extra,
   });
@@ -301,31 +303,58 @@ describe("verbs that call other commands", () => {
     expect(play).toHaveBeenCalled();
   });
 
-  it("starts a Replace take over a range and an Insert take at the playhead", async () => {
-    const setTarget = vi.fn(() => ({ status: "ok" as const }));
+  it("parks a Replace target and opens Record on Re-record over a range", async () => {
     const open = vi.fn(() => ({ status: "ok" as const }));
-    registerCommand("record.setTarget", setTarget);
     registerCommand("stage.record", open);
     host(EDIT_SELECTIONS.rangeOnAllTracks);
     await runEditVerb("record", factsOf()!);
-    expect(setTarget).toHaveBeenLastCalledWith(
-      {
-        target: {
-          kind: "replace",
-          from_sec: 1,
-          to_sec: 2,
-          track_ids: [MIRA, JONAS],
-        },
-      },
-      expect.anything(),
-    );
+    expect(useDawStore.getState().pendingRecordTarget).toEqual({
+      kind: "replace",
+      from_sec: 1,
+      to_sec: 2,
+      track_ids: [MIRA, JONAS],
+    });
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it("parks an Insert target at the playhead on Record here", async () => {
+    const open = vi.fn(() => ({ status: "ok" as const }));
+    registerCommand("stage.record", open);
     host(null, { playheadSec: 6 });
     await runEditVerb("record", factsOf()!);
-    expect(setTarget).toHaveBeenLastCalledWith(
-      { target: { kind: "insert", at_sec: 6 } },
-      expect.anything(),
+    expect(useDawStore.getState().pendingRecordTarget).toEqual({
+      kind: "insert",
+      at_sec: 6,
+    });
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Re-record only on a selection a take can replace", () => {
+    host(EDIT_SELECTIONS.rangeOnAllTracks);
+    const s = useDawStore.getState();
+    const ids = (facts: EditFacts) =>
+      barModelOf(facts, s).items.map((item) => item.id);
+    expect(ids(factsOf()!)).toContain("record");
+    expect(ids({ ...factsOf()!, span: null })).not.toContain("record");
+    expect(
+      ids({ ...factsOf()!, span: { start: 1, end: 2, trackIds: [] } }),
+    ).not.toContain("record");
+    expect(
+      ids({ ...factsOf()!, span: { start: 1, end: 9999, trackIds: [MIRA] } }),
+    ).not.toContain("record");
+  });
+
+  it("labels Record as Re-record over a range and Record here on the playhead", () => {
+    host(EDIT_SELECTIONS.rangeOnAllTracks);
+    const over = barModelOf(factsOf()!, useDawStore.getState()).items.find(
+      (item) => item.id === "record",
     );
-    expect(open).toHaveBeenCalledTimes(2);
+    expect(over?.label).toBe("Re-record");
+    host(null, { playheadSec: 6 });
+    const record = barModelOf(factsOf()!, useDawStore.getState()).items.find(
+      (item) => item.id === "record",
+    );
+    expect(record?.label).toBe("Record here");
   });
 
   it("refuses to record for a guest", async () => {
@@ -335,6 +364,7 @@ describe("verbs that call other commands", () => {
       status: "disabled",
       reason: "Only the host can record",
     });
+    expect(useDawStore.getState().pendingRecordTarget).toBeNull();
   });
 
   it("mutes words, a range and a track each through its own command", async () => {

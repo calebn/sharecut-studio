@@ -13,11 +13,13 @@ import {
   type EditRole,
   editFacts,
 } from "../edit/editSelection";
+import { replaceableSpan, replaceTargetOf } from "../edit/pickupTarget";
 import {
   makeRangeTarget,
   rangeIsCurrent,
   resolveSelectionRange,
 } from "../edit/rangeSelection";
+import type { SessionTarget } from "../record";
 import {
   canEditEnvelopes,
   canManageProjects,
@@ -336,26 +338,26 @@ async function comment(facts: EditFacts): Promise<ExecuteResult> {
   return executePointerCommand("comment.draftAt", {});
 }
 
+/** Park the target for Record's room and open the stage; the host stage sends it once. */
+function openRecordWith(target: SessionTarget): Promise<ExecuteResult> {
+  useDawStore.getState().setPendingRecordTarget(target);
+  return executePointerCommand("stage.record");
+}
+
+/**
+ * The Record verb from Edit. Over words or a range it is Re-record: a pickup
+ * that replaces the selection. On the playhead it is Record here: an insert.
+ */
 async function record(facts: EditFacts): Promise<ExecuteResult> {
   const s = useDawStore.getState();
   if (!canManageProjects(s.projectPath))
     return disabled("Only the host can record");
-  const span = facts.span;
-  const target =
-    (facts.kind === "words" || facts.kind === "range") &&
-    span &&
-    span.end > span.start &&
-    span.trackIds.length
-      ? {
-          kind: "replace",
-          from_sec: span.start,
-          to_sec: span.end,
-          track_ids: [...span.trackIds],
-        }
-      : { kind: "insert", at_sec: s.playheadSec };
-  const set = await executePointerCommand("record.setTarget", { target });
-  if (set.status !== "ok") return set;
-  return executePointerCommand("stage.record");
+  if (facts.kind === "words" || facts.kind === "range") {
+    const span = replaceableSpan(facts.span, s.project);
+    if (!span) return disabled("Select words or a range on the timeline first");
+    return openRecordWith(replaceTargetOf(span));
+  }
+  return openRecordWith({ kind: "insert", at_sec: s.playheadSec });
 }
 
 function singleClipTarget(project: ProjectView, selection: Selection) {
@@ -590,6 +592,10 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
   const items: BarItem[] = resolved.bar
     .filter((id) => readOnly || wired.includes(id))
     .filter((id) => id !== "fixText" || oneWordOf(s.selection) !== null)
+    .filter(
+      (id) =>
+        id !== "record" || !rangeLike || replaceableSpan(facts.span, project),
+    )
     .map((id): BarItem => {
       const guestMix =
         id === "hear" && descriptor("play")?.label === PLAY_FULL_MIX_LABEL;
@@ -600,6 +606,8 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
         !hasShareCapability(s.shareCapabilities, "comment")
       )
         return { id, disabledReason: "This share cannot add comments" };
+      if (id === "record")
+        return { id, label: rangeLike ? "Re-record" : "Record here" };
       return { id };
     });
 

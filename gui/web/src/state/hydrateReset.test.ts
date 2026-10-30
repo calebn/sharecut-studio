@@ -63,6 +63,7 @@ const RESET_ON_SWITCH: Reset = {
   stageViews: {},
   openSheet: null,
   landingSettled: false,
+  pendingRecordTarget: null,
 };
 
 const SENTINEL = { sentinel: true };

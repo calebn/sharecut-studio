@@ -1,4 +1,5 @@
 import { selectionSpan } from "../../edit/editSelection";
+import { replaceableSpan } from "../../edit/pickupTarget";
 import type { RecordSnapshot, SessionTarget } from "../../record";
 import { useDawStore } from "../../state/dawStore";
 import { SessionTargetChip } from "../../system/SessionTargetChip";
@@ -9,9 +10,6 @@ import {
   targetViewOf,
   wireTargetOf,
 } from "./recordStageModel";
-
-// The server refuses a replace that ends past the timeline by more than this.
-const TIMELINE_EPSILON = 1e-3;
 
 type RecordTargetChipProps = {
   snapshot: RecordSnapshot;
@@ -35,14 +33,7 @@ export function RecordTargetChip({
   const endSec = lastClipEndSec(project);
   const selected =
     project && editSelection ? selectionSpan(editSelection, project) : null;
-  const replaceable =
-    selected &&
-    selected.end > selected.start &&
-    selected.trackIds.length > 0 &&
-    selected.end <=
-      (project?.clips.timeline_duration_sec ?? endSec ?? 0) + TIMELINE_EPSILON
-      ? selected
-      : null;
+  const replaceable = replaceableSpan(selected, project);
   return (
     <SessionTargetChip
       target={targetViewOf(snapshot.target, endSec)}
