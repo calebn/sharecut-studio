@@ -1,4 +1,10 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 import { rulerWidthPx } from "../e2e/deepZoom";
 import { postDocumentCommand } from "../e2e/documentCommand";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
@@ -200,24 +206,50 @@ test("Keep decides one queue item at a thumb-sized target, then one Undo brings 
     await openProject(page, projectPath);
     await expect(page.locator(".stage-frame")).toBeVisible();
     await suggestPendingEdits(page, projectPath);
-    await openProject(page, projectPath);
-    await expect(page.locator(".stage-frame")).toBeVisible();
-    await openPanel(page, "queue");
+    let releaseStatus!: () => void;
+    const statusReleased = new Promise<void>((resolve) => {
+      releaseStatus = resolve;
+    });
+    const statusResponses: Promise<void>[] = [];
+    const statusUrl = (url: URL) =>
+      url.pathname === "/api/transcript/refine/status" &&
+      url.searchParams.get("path") === projectPath;
+    const holdStatus = (route: Route) => {
+      const response = (async () => {
+        const fetched = await route.fetch({ timeout: 15_000 });
+        await statusReleased;
+        await route.fulfill({ response: fetched });
+      })();
+      statusResponses.push(response);
+      return response;
+    };
+    await page.route(statusUrl, holdStatus);
+    try {
+      await openProject(page, projectPath);
+      await expect(page.locator(".stage-frame")).toBeVisible();
+      await openPanel(page, "queue");
 
-    const position = page.getByRole("button", { name: /^\d+ of \d+$/ });
-    await expect(position).toHaveText(/of \d+$/);
-    const total = (await position.innerText()).replace(/^\d+/, "");
-    const stage = page.locator(".rv-stage");
-    const keep = stage.getByRole("button", { name: "Keep" });
-    expect((await keep.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      const position = page.getByRole("button", { name: /^\d+ of \d+$/ });
+      await expect(position).toHaveText("1 of 3");
+      const total = (await position.innerText()).replace(/^\d+/, "");
+      releaseStatus();
+      await expect(position).toHaveText("2 of 4");
+      const stage = page.locator(".rv-stage");
+      const keep = stage.getByRole("button", { name: "Keep" });
+      expect((await keep.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
-    await keep.tap();
-    const toast = page.locator(".ui-toast-region--app");
-    await expect(toast.getByText("Kept")).toBeVisible();
-    await expect(position).toContainText(total);
-    await toast.getByRole("button", { name: /undo/i }).tap();
-    await expect(toast.getByText(/Undone/)).toBeVisible();
-    await expect(stage).toBeFocused();
+      await keep.tap();
+      const toast = page.locator(".ui-toast-region--app");
+      await expect(toast.getByText("Kept")).toBeVisible();
+      await expect(position).toContainText(total);
+      await toast.getByRole("button", { name: /undo/i }).tap();
+      await expect(toast.getByText(/Undone/)).toBeVisible();
+      await expect(stage).toBeFocused();
+    } finally {
+      releaseStatus();
+      await page.unroute(statusUrl, holdStatus);
+      await Promise.all(statusResponses);
+    }
   });
 });
 
