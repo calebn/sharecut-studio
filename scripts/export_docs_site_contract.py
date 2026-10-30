@@ -107,6 +107,10 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Editor",
         "Start stem/premix render job (opt-in PODCAST_GUEST_RENDER)",
     ),
+    ("POST", "/api/review/{token}/feed/write"): (
+        "Editor",
+        "Write the episode's podcast feed file; returns the listing view",
+    ),
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): (
         "Editor",
         "Read project-scoped render job status (no host paths)",
@@ -192,6 +196,9 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ),
     ("POST", "/api/review/{token}/daw/render-preview"): "guest_render_preview",
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): "guest_render_preview_job",
+    ("POST", "/api/review/{token}/feed/write"): (
+        "http-only: the host's feed_write tool; not a guest MCP tool"
+    ),
     ("POST", "/api/review/{token}/daw/document/command"): "guest_submit_document_command",
     ("POST", "/api/review/{token}/daw/media/upload"): "guest_upload_media",
     ("POST", "/api/review/{token}/comments"): "guest_add_comment",

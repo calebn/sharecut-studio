@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>The Long River</title>
+    <description>A show about water and the people who move it.</description>
+    <link>https://long-river.example.test</link>
+    <language>en</language>
+    <itunes:author>Ana Reyes</itunes:author>
+    <itunes:category text="Society &amp; Culture"/>
+    <itunes:explicit>false</itunes:explicit>
+    <itunes:image href="https://cdn.example.test/long-river/cover.jpg"/>
+    <itunes:owner>
+      <itunes:name>Ana Reyes</itunes:name>
+      <itunes:email>ana@example.test</itunes:email>
+    </itunes:owner>
+    <copyright>2026 The Long River</copyright>
+    <atom:link href="https://cdn.example.test/long-river/test_episode.feed.xml" rel="self" type="application/rss+xml"/>
+    <podcast:guid>1027b8f4-44da-5373-8383-ccbdc19eb5a7</podcast:guid>
+    <item>
+      <title>test_episode</title>
+      <description><![CDATA[<p>Why the river moved.</p><p>Chapters</p><ol><li>0:00 Cold open</li><li>1:00 B</li></ol><p>With</p><ul><li>Ana Reyes, host</li></ul><p><a href="https://cdn.example.test/long-river/test_episode.vtt">Transcript</a></p>]]></description>
+      <content:encoded><![CDATA[<p>Why the river moved.</p><p>Chapters</p><ol><li>0:00 Cold open</li><li>1:00 B</li></ol><p>With</p><ul><li>Ana Reyes, host</li></ul><p><a href="https://cdn.example.test/long-river/test_episode.vtt">Transcript</a></p>]]></content:encoded>
+      <pubDate>Fri, 23 Oct 2026 09:00:00 GMT</pubDate>
+      <guid isPermaLink="false">urn:uuid:7c0e5a1e-4f3b-4a52-9d0e-6a1b2c3d4e5f</guid>
+      <enclosure url="https://cdn.example.test/long-river/test_episode.mp3" length="1234" type="audio/mpeg"/>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:episode>1</itunes:episode>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:image href="https://cdn.example.test/long-river/cover.jpg"/>
+      <podcast:chapters url="https://cdn.example.test/long-river/test_episode.chapters.json" type="application/json+chapters"/>
+      <podcast:transcript url="https://cdn.example.test/long-river/test_episode.vtt" type="text/vtt" language="en"/>
+      <podcast:person role="host">Ana Reyes</podcast:person>
+    </item>
+  </channel>
+</rss>

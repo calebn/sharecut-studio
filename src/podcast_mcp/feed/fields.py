@@ -13,10 +13,13 @@ import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BeforeValidator, StringConstraints, TypeAdapter
 
+from podcast_mcp.export.names import sanitize_export_stem
+from podcast_mcp.feed import extras
 from podcast_mcp.feed.model import (
     Art,
     AudioFile,
@@ -39,10 +42,13 @@ from podcast_mcp.feed.model import (
 )
 from podcast_mcp.feed.notes import NotesParts, compose_notes, transcript_href
 from podcast_mcp.feed.urls import (
+    art_extension,
     audio_mime,
+    check_art_ref,
     check_https_url,
     check_media_template,
     hosted_url,
+    is_local_art,
     podcast_guid,
     stem_of,
 )
@@ -91,7 +97,7 @@ class Resolution:
 class AtSource:
     """A row edited where its source lives, never in the listing."""
 
-    owner: Literal["chapters", "clips", "speakers", "transcript"]
+    owner: Literal["chapters", "clips", "speakers", "transcript", "roster"]
     where: str
 
 
@@ -106,6 +112,8 @@ class Tag:
     attr: str | None = None
     fixed: tuple[tuple[str, str], ...] = ()
     cdata: bool = False
+    # Reads the value into the element's attributes, text and children (``extras.py``).
+    shape: extras.Shape | None = None
 
 
 @dataclass(frozen=True)
@@ -141,10 +149,13 @@ class FieldSpec:
     checks: tuple[Check, ...] = ()
     drift_hint: str | None = None
     pin_shape: Callable[[Resolution, Any], Any] | None = None
+    # Turns a pinned value into the fact it stands for, which may be pending (hosting not known yet).
+    pin_resolve: Callable[[Resolution, Any], Auto] | None = None
 
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 Https = Annotated[str, AfterValidator(check_https_url)]
+ArtRef = Annotated[str, AfterValidator(check_art_ref)]
 Template = Annotated[str, AfterValidator(check_media_template)]
 Email = Annotated[str, StringConstraints(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=254)]
 Language = Annotated[str, StringConstraints(pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$")]
@@ -464,6 +475,41 @@ def _feed_url(res: Resolution) -> Auto:
     )
 
 
+def cover_file_name(project_name: str, source: str) -> str:
+    """The name the show's artwork file takes in this episode's export set."""
+    return f"{sanitize_export_stem(project_name)}.cover{art_extension(source)}"
+
+
+def _channel_image(res: Resolution, value: str) -> Auto:
+    """Show artwork named by an address stands as is; a file here is hosted beside the audio."""
+    if not is_local_art(value):
+        return Found(value, Derived(rule="the address"))
+    if res.inputs.show_art is None:
+        return Missing(f"The artwork file {Path(value).name} is missing.", _CHOOSE_ART)
+    template = res.show.media_url if res.show else None
+    if template is None:
+        return Missing("Where will this be hosted?", InputFix(key="channel.mediaUrl"))
+    name = cover_file_name(res.inputs.project.name, value)
+    return Found(
+        hosted_url(template, name), Derived(rule="the artwork file and the hosting address")
+    )
+
+
+def _roster_names(res: Resolution) -> Auto:
+    roster = res.show.roster if res.show else ()
+    if not roster:
+        return Missing("Add the people who host the show.", None)
+    return Found([f"{p.name} ({p.role})" for p in roster], Derived(rule="the show's host list"))
+
+
+def _episode_number(res: Resolution) -> Auto:
+    guid = res.inputs.project.feed.guid
+    number = res.show.ledger.get(guid) if res.show and guid else None
+    if number is None:
+        return Missing("Numbered when the feed file is first written.", None)
+    return Found(number, Derived(rule="the show's episode count"))
+
+
 def _podcast_guid(res: Resolution) -> Auto:
     url = res.value("channel.feedUrl")
     if not isinstance(url, str):
@@ -483,6 +529,7 @@ def _show(
     missing: str = "Set once for the show.",
     edit: Edit = "pin",
     listed: Literal["always", "known", "pinned"] = "always",
+    pin_resolve: Callable[[Resolution, Any], Auto] | None = None,
 ) -> FieldSpec:
     return FieldSpec(
         key=key,
@@ -497,10 +544,267 @@ def _show(
         needs=needs,
         checks=checks,
         listed=listed,
+        pin_resolve=pin_resolve,
     )
 
 
-FIELDS: tuple[FieldSpec, ...] = (
+def _optional(
+    scope: Literal["show", "episode"],
+    name: str,
+    label: str,
+    help_: str,
+    usage: str,
+    path: str,
+    shape: extras.Shape,
+    *,
+    value: TypeAdapter[Any] | None = None,
+    checks: tuple[Check, ...] = (),
+) -> FieldSpec:
+    """An optional namespace row: absent unless pinned, and a pin renders exactly as it was checked."""
+    prefix = "channel" if scope == "show" else "item"
+    adapter = value or TypeAdapter(Annotated[str, AfterValidator(extras.checked(shape))])
+    return FieldSpec(
+        key=f"{prefix}.{name}",
+        scope=scope,
+        label=label,
+        help=f"{help_} Written as {usage}." if usage else help_,
+        value=adapter,
+        edit="pin",
+        tags=(Tag(path, shape=shape),),
+        listed="known",
+        missing="Optional.",
+        checks=checks,
+    )
+
+
+def _yes_only() -> TypeAdapter[Any]:
+    return TypeAdapter(Annotated[bool, AfterValidator(extras.yes_only)])
+
+
+def _advice(key: str, message: str, platform: str) -> Check:
+    def check(_: Resolution, found: Found) -> Iterable[Finding]:
+        yield Finding(key=key, severity="info", platform=platform, message=message, fix=None)
+
+    return check
+
+
+def _optional_rows() -> tuple[FieldSpec, ...]:
+    """Slice 5 of the feed: the rest of the Apple and Podcasting 2.0 elements, all optional."""
+    show: Literal["show"] = "show"
+    episode: Literal["episode"] = "episode"
+    rows = [
+        _optional(
+            show,
+            "locked",
+            "locked",
+            "Whether other hosts may import this feed.",
+            "yes or no",
+            "podcast:locked",
+            extras.locked,
+            value=TypeAdapter(bool),
+        ),
+        _optional(
+            show,
+            "type",
+            "show type",
+            "episodic (newest first) or serial (oldest first).",
+            "episodic or serial",
+            "itunes:type",
+            extras.plain,
+            value=TypeAdapter(Literal["episodic", "serial"]),
+        ),
+        _optional(
+            show,
+            "block",
+            "hidden from Apple",
+            "Keeps the show out of Apple Podcasts.",
+            "yes",
+            "itunes:block",
+            extras.flag,
+            value=_yes_only(),
+            checks=(
+                _advice(
+                    "channel.block", "Apple Podcasts hides the show while this is on.", "Apple"
+                ),
+            ),
+        ),
+        _optional(
+            show,
+            "complete",
+            "finished",
+            "Says the show will have no more episodes.",
+            "yes",
+            "itunes:complete",
+            extras.flag,
+            value=_yes_only(),
+            checks=(
+                _advice(
+                    "channel.complete",
+                    "Apple stops looking for new episodes of a finished show.",
+                    "Apple",
+                ),
+            ),
+        ),
+        _optional(
+            show,
+            "newFeedUrl",
+            "new feed address",
+            "Where the show's feed has moved to.",
+            "https://example.test/feed.xml",
+            "itunes:new-feed-url",
+            extras.plain,
+            value=TypeAdapter(Https),
+            checks=(
+                _advice(
+                    "channel.newFeedUrl",
+                    "Apps move listeners to the new address. Keep this feed up for a few weeks.",
+                    "Apple",
+                ),
+            ),
+        ),
+        _optional(
+            show,
+            "medium",
+            "medium",
+            "What the show is: podcast, music, video, film, audiobook, newsletter or blog.",
+            "podcast",
+            "podcast:medium",
+            extras.plain,
+            value=TypeAdapter(
+                Literal["podcast", "music", "video", "film", "audiobook", "newsletter", "blog"]
+            ),
+        ),
+        _optional(
+            show,
+            "updateFrequency",
+            "update schedule",
+            "How often new episodes come, in your words.",
+            "Weekly",
+            "podcast:updateFrequency",
+            extras.plain,
+            value=_TEXT,
+        ),
+        _optional(
+            show,
+            "trailer",
+            "trailer",
+            "A short preview of the show.",
+            "https://example.test/trailer.mp3 2026-11-01T09:00:00Z Trailer title",
+            "podcast:trailer",
+            extras.trailer,
+        ),
+        _optional(
+            show,
+            "podroll",
+            "recommended shows",
+            "Shows you recommend, one feed per line.",
+            "feed-guid [https://example.test/feed.xml]",
+            "podcast:podroll",
+            extras.podroll,
+        ),
+        _optional(
+            show,
+            "publisher",
+            "publisher",
+            "The company that publishes this show.",
+            "feed-guid [https://example.test/feed.xml]",
+            "podcast:publisher",
+            extras.publisher,
+        ),
+    ]
+    scopes: tuple[Literal["show", "episode"], ...] = (show, episode)
+    for scope in scopes:
+        rows += [
+            _optional(
+                scope,
+                "funding",
+                "funding link",
+                "Where listeners can give money.",
+                "https://example.test/give [message]",
+                "podcast:funding",
+                extras.funding,
+            ),
+            _optional(
+                scope,
+                "license",
+                "license",
+                "The license the content is under.",
+                "cc-by-4.0 [https://example.test/license]",
+                "podcast:license",
+                extras.license_,
+            ),
+            _optional(
+                scope,
+                "location",
+                "location",
+                "The place the content is about.",
+                "",
+                "podcast:location",
+                extras.plain,
+                value=_TEXT,
+            ),
+            _optional(
+                scope,
+                "txt",
+                "note for apps",
+                "A short text note for apps and hosts.",
+                "",
+                "podcast:txt",
+                extras.plain,
+                value=_TEXT,
+            ),
+            _optional(
+                scope,
+                "socialInteract",
+                "social thread",
+                "The post listeners reply to.",
+                "activitypub https://example.test/@show/1 [@show@example.test]",
+                "podcast:socialInteract",
+                extras.social_interact,
+            ),
+            _optional(
+                scope,
+                "chat",
+                "chat room",
+                "A live chat room for the show.",
+                "irc irc.example.test [space]",
+                "podcast:chat",
+                extras.chat,
+            ),
+            _optional(
+                scope,
+                "value",
+                "value for value",
+                "A Lightning node that listeners can send to.",
+                "node-address [name]",
+                "podcast:value",
+                extras.value_node,
+            ),
+        ]
+    rows += [
+        _optional(
+            episode,
+            "alternateEnclosure",
+            "another format",
+            "Another file of this episode, such as video.",
+            "https://example.test/ep.ogg [audio/ogg]",
+            "podcast:alternateEnclosure",
+            extras.alternate_enclosure,
+        ),
+        _optional(
+            episode,
+            "remoteItem",
+            "related episode",
+            "An episode of another feed this one belongs with.",
+            "feed-guid [item-guid]",
+            "podcast:remoteItem",
+            extras.remote_item,
+        ),
+    ]
+    return tuple(rows)
+
+
+_CORE_FIELDS: tuple[FieldSpec, ...] = (
     _show(
         "channel.title",
         "show title",
@@ -562,10 +866,11 @@ FIELDS: tuple[FieldSpec, ...] = (
     _show(
         "channel.image",
         "artwork",
-        "Square show artwork, 1400 to 3000 pixels, at an https address.",
-        TypeAdapter(Https),
+        "Square show artwork, 1400 to 3000 pixels: an https address, or a .jpg or .png file here that the export copies beside the audio.",
+        TypeAdapter(ArtRef),
         Tag("itunes:image", attr="href"),
         needs=Need("warn", "Apple", "Apple needs show artwork of at least 1400 by 1400 pixels."),
+        pin_resolve=_channel_image,
     ),
     _show(
         "channel.owner.name",
@@ -619,6 +924,22 @@ FIELDS: tuple[FieldSpec, ...] = (
         Tag("podcast:guid"),
         derive=_podcast_guid,
         edit="none",
+    ),
+    _show(
+        "channel.season",
+        "season",
+        "The season every episode of the show is in until an episode sets its own.",
+        _NUMBER,
+        listed="known",
+    ),
+    _show(
+        "channel.roster",
+        "hosts",
+        "The people who host the show, matched to speakers by name.",
+        TypeAdapter(list[str]),
+        derive=_roster_names,
+        edit=AtSource("roster", "Set a person with channel.person[Name].role, group, img or href."),
+        listed="known",
     ),
     FieldSpec(
         key="item.title",
@@ -726,6 +1047,7 @@ FIELDS: tuple[FieldSpec, ...] = (
         value=_NUMBER,
         edit="pin",
         tags=(Tag("itunes:season"),),
+        inherit="channel.season",
         listed="known",
     ),
     FieldSpec(
@@ -736,6 +1058,7 @@ FIELDS: tuple[FieldSpec, ...] = (
         value=_NUMBER,
         edit="pin",
         tags=(Tag("itunes:episode"),),
+        derive=_episode_number,
         listed="known",
         needs=Need("info", "Apple", "No episode number. Apple groups numbered episodes."),
     ),
@@ -833,6 +1156,8 @@ FIELDS: tuple[FieldSpec, ...] = (
     ),
 )
 
+FIELDS: tuple[FieldSpec, ...] = (*_CORE_FIELDS, *_optional_rows())
+
 FIELD_BY_KEY: Mapping[str, FieldSpec] = {spec.key: spec for spec in FIELDS}
 
 TAXONOMY_ROLES = (
@@ -920,6 +1245,17 @@ _PERSON_VALUES: Mapping[str, TypeAdapter[Any]] = {
     "href": TypeAdapter(Https),
     "exclude": _BOOL,
 }
+SHOW_PERSON_KEY = re.compile(
+    r"^channel\.person\[(?P<name>[^\]]+)\](?:\.(?P<attr>role|group|img|href))?$"
+)
+_SHOW_PERSON_PIN = FieldSpec(
+    key="channel.person[*]",
+    scope="show",
+    label="host",
+    help="One attribute of one person on the show's host list.",
+    value=_TEXT,
+    edit="pin",
+)
 _PERSON_PIN = FieldSpec(
     key="item.person[*]",
     scope="episode",
@@ -936,4 +1272,7 @@ def lookup(key: str) -> FieldSpec | None:
         return spec
     if (match := PERSON_KEY.match(key)) is not None:
         return replace(_PERSON_PIN, key=key, value=_PERSON_VALUES[match["attr"]])
+    if (match := SHOW_PERSON_KEY.match(key)) is not None:
+        attr = match["attr"]
+        return replace(_SHOW_PERSON_PIN, key=key, value=_PERSON_VALUES[attr] if attr else _TEXT)
     return None

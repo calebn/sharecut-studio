@@ -36,6 +36,7 @@ from podcast_mcp.feed.model import (
     Pinned,
     ReadyShow,
     Sections,
+    SetEdit,
     ShowChoice,
     ShowSuggestion,
     UnsetEdit,
@@ -112,8 +113,15 @@ def _resolve_rows(
         if pin is None or spec.edit != "pin":
             res.facts[spec.key] = auto
             continue
+        pinned = Pinned(by=pin.by, drifted=_drifted(pin, auto))
+        if spec.pin_resolve is not None:
+            resolved = spec.pin_resolve(res, pin.value)
+            res.facts[spec.key] = (
+                Found(resolved.value, pinned) if isinstance(resolved, Found) else resolved
+            )
+            continue
         value = spec.pin_shape(res, pin.value) if spec.pin_shape else pin.value
-        res.facts[spec.key] = Found(value, Pinned(by=pin.by, drifted=_drifted(pin, auto)))
+        res.facts[spec.key] = Found(value, pinned)
     return res, autos
 
 
@@ -260,6 +268,25 @@ def clears(edit: FeedEdit) -> bool:
     return isinstance(edit, UnsetEdit) or (isinstance(edit.value, str) and not edit.value.strip())
 
 
+def checked_value(edit: SetEdit) -> tuple[FieldSpec, Any]:
+    """The row ``edit`` names and its value as that row stores it, or the refusal that says why not."""
+    spec = lookup(edit.key)
+    if spec is None:
+        raise CodedValueError(f"{edit.key} is not a listing field", code="feed_field_unknown")
+    if isinstance(spec.edit, AtSource):
+        raise CodedValueError(spec.edit.where, code="feed_field_edit_at_source")
+    if spec.edit != "pin":
+        raise CodedValueError(
+            f"{edit.key} is {'made once' if spec.edit == 'mint' else 'measured from the export'} and cannot be edited",
+            code="feed_field_not_editable",
+        )
+    try:
+        return spec, spec.value.validate_python(edit.value)
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise CodedValueError(f"{edit.key} {reason}", code="feed_value_invalid") from exc
+
+
 def edited_pins(
     inputs: FeedInputs,
     pins: Mapping[str, Pin],
@@ -272,24 +299,16 @@ def edited_pins(
     """
     spec = lookup(edit.key)
     if spec is not None and spec.scope == "show":
-        raise CodedValueError("Show settings are not available yet", code="feed_show_unavailable")
-    if clears(edit):
-        return {k: p for k, p in pins.items() if k != edit.key}
-    if spec is None:
-        raise CodedValueError(f"{edit.key} is not a listing field", code="feed_field_unknown")
-    assert not isinstance(edit, UnsetEdit)
-    if isinstance(spec.edit, AtSource):
-        raise CodedValueError(spec.edit.where, code="feed_field_edit_at_source")
-    if spec.edit != "pin":
         raise CodedValueError(
-            f"{edit.key} is {'made once' if spec.edit == 'mint' else 'measured from the export'} and cannot be edited",
-            code="feed_field_not_editable",
+            f"{edit.key} is a show setting; it is saved on the show, not the episode",
+            code="feed_show_unavailable",
         )
-    try:
-        value = spec.value.validate_python(edit.value)
-    except ValidationError as exc:
-        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
-        raise CodedValueError(f"{edit.key} {reason}", code="feed_value_invalid") from exc
+    if clears(edit):
+        if spec is None and isinstance(edit, SetEdit) and edit.key not in pins:
+            raise CodedValueError(f"{edit.key} is not a listing field", code="feed_field_unknown")
+        return {k: p for k, p in pins.items() if k != edit.key}
+    assert isinstance(edit, SetEdit)
+    _, value = checked_value(edit)
     _require_speaker(inputs, edit.key)
     others = {k: p for k, p in pins.items() if k != edit.key}
     _, auto = _resolve_rows(inputs, others)

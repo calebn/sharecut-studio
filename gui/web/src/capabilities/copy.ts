@@ -558,7 +558,12 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.feed.edit": {
     label: "Edit podcast listing",
     tooltip:
-      "Pin or release one podcast listing value for this episode in one undo step",
+      "Pin or release one podcast listing value: an episode value in one undo step, a show value in the show",
+  },
+  "daw.feed.write": {
+    label: "Write podcast feed file",
+    tooltip:
+      "Write the episode's feed file next to the exported audio; refused while the feed has a blocker",
   },
 };
 

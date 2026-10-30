@@ -185,8 +185,10 @@ def test_cli_fields_lists_every_row_with_how_it_is_edited(episode: Path) -> None
 
     assert by_key["item.intro"]["editable"] is True
     assert by_key["item.guid"]["editable"] is False
-    assert by_key["channel.title"]["editable"] is False
-    assert by_key["channel.title"]["edit"] == "Set on the show. Not available yet."
+    assert by_key["channel.title"]["editable"] is True
+    assert by_key["channel.title"]["edit"] == "feed set"
+    assert by_key["show"]["editable"] is True
+    assert by_key["channel.roster"]["edit"].startswith("Set a person with channel.person[Name]")
     assert by_key["item.chapters"]["edit"] == "Edit chapters in the Chapters list."
     assert "enclosure@url" in by_key["item.enclosure.url"]["tags"]
     assert "item.title  [episode] feed set" in _cli("fields")
@@ -267,7 +269,7 @@ def test_the_tools_are_registered_on_the_server() -> None:
 
     names = {tool.name for tool in asyncio.run(mcp.list_tools())}
 
-    assert {"feed_read", "feed_set", "feed_unset"} <= names
+    assert {"feed_read", "feed_set", "feed_unset", "feed_write"} <= names
 
 
 def test_get_feed_returns_the_view_and_the_item_xml(episode: Path) -> None:
@@ -340,3 +342,105 @@ def test_strict_authz_refuses_a_remote_peer(episode: Path, monkeypatch: pytest.M
     remote = TestClient(create_app(), client=("203.0.113.9", 50000))
 
     assert remote.get("/api/feed", params={"path": str(episode)}).status_code == 403
+
+
+# --- writing the feed file ---------------------------------------------------------------
+
+
+@pytest.fixture
+def writable(minimal_project: Path) -> Path:
+    """An episode with a real show store, a complete show and an exported MP3."""
+    from podcast_mcp.export.names import sanitize_export_stem
+    from podcast_mcp.feed.show_store import ShowStore, default_directory
+
+    store = ShowStore(default_directory())
+    full = complete_show()
+    store.create("The Long River")
+    store.update(
+        "the-long-river",
+        lambda show: (
+            show.pins.update({k: v for k, v in full.pins.items() if k != "channel.title"}),
+            setattr(show, "media_url", full.media_url),
+        ),
+    )
+    project = load_project(minimal_project)
+    project.export_dir().mkdir(parents=True, exist_ok=True)
+    stem = sanitize_export_stem(project.name)
+    (project.export_dir() / f"{stem}.mp3").write_bytes(b"x" * 100)
+    return minimal_project
+
+
+def test_cli_write_writes_the_file_and_a_second_call_says_it_is_current(writable: Path) -> None:
+    first = _cli("write", "-p", str(writable))
+    again = _cli("write", "-p", str(writable))
+
+    assert "Wrote" in first and "test_episode.feed.xml" in first
+    assert "already current" in again
+    assert "File: current" in _cli("show", "-p", str(writable))
+
+
+def test_cli_write_is_refused_while_a_blocker_stands(minimal_project: Path) -> None:
+    out = _cli("write", "-p", str(minimal_project), code=1)
+
+    assert "feed_blocked" in out
+
+
+def test_cli_set_creates_and_links_a_show_then_a_show_value(minimal_project: Path) -> None:
+    _cli("set", "show", "The Long River", "-p", str(minimal_project))
+    _cli("set", "channel.author", "Ana Reyes", "-p", str(minimal_project))
+
+    shown = json.loads(_cli("show", "-p", str(minimal_project), "--json"))
+
+    assert shown["show"] == {"kind": "ready", "id": "the-long-river"}
+    assert shown["channel"]["channel.author"]["value"] == "Ana Reyes"
+    assert load_project(minimal_project).feed.show_id == "the-long-river"
+
+
+def test_mcp_feed_write_returns_the_path_and_the_file_state(writable: Path) -> None:
+    result = json.loads(mcp_feed.feed_write(str(writable)))
+
+    assert result["path"].endswith("test_episode.feed.xml")
+    assert [Path(p).name for p in result["written"]] == ["test_episode.feed.xml"]
+    assert result["file"] == "current"
+    assert json.loads(mcp_feed.feed_write(str(writable)))["written"] == []
+
+
+def test_post_write_writes_and_refuses_with_its_code(writable: Path, minimal_project: Path) -> None:
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+
+    res = client.post("/api/feed/write", json={"path": str(writable)})
+
+    assert res.status_code == 200, res.text
+    assert res.json()["view"]["file"] == "current"
+    assert (writable.parent / "export" / "test_episode.feed.xml").is_file()
+
+
+def test_post_write_with_a_blocker_is_a_400_and_a_guest_is_a_403(minimal_project: Path) -> None:
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    refused = client.post("/api/feed/write", json={"path": str(minimal_project)})
+    relayed = TestClient(
+        create_app(), client=("127.0.0.1", 50000), headers={RELAYED_REQUEST_HEADER: "1"}
+    ).post("/api/feed/write", json={"path": str(minimal_project)})
+
+    assert refused.status_code == 400
+    assert refused.headers[CODE] == "feed_blocked"
+    assert relayed.status_code == 403
+
+
+def test_an_editor_share_may_write_the_feed_file_and_a_commenter_may_not(
+    writable: Path, published_share
+) -> None:
+    from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+
+    client = TestClient(create_app(), client=("203.0.113.9", 50000))
+    editor = published_share(capabilities=capabilities_for_role("editor"))[2]["token"]
+    commenter = published_share(capabilities=capabilities_for_role("commenter"))[2]["token"]
+
+    denied = client.post(f"/api/review/{commenter}/feed/write")
+    allowed = client.post(f"/api/review/{editor}/feed/write")
+
+    assert denied.status_code == 403
+    assert allowed.status_code == 200, allowed.text
+    assert allowed.json()["view"]["file"] == "current"
+    assert str(writable.parent) not in allowed.text
+    assert (writable.parent / "export" / "test_episode.feed.xml").is_file()

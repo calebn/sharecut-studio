@@ -1,122 +1,116 @@
-"""The podcast listing for one episode: read it, and edit it through undoable pins."""
+"""The podcast listing for one episode: read it, edit it, and write its feed file.
+
+Episode edits are undoable pins saved through document commands. Show edits go to the show
+store under its lock. ``write`` publishes ``<stem>.feed.xml`` beside the exported audio.
+"""
 
 from __future__ import annotations
 
-import wave
-from pathlib import Path
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import replace
 from typing import Any, Literal
 
-from podcast_mcp.export.names import sanitize_export_stem
-from podcast_mcp.feed.fields import FIELDS, AtSource, FieldSpec
+from podcast_mcp.feed.fields import FIELDS, SHOW_PERSON_KEY, AtSource, FieldSpec, lookup
+from podcast_mcp.feed.inputs import export_files, gather_inputs, linked_show_id
 from podcast_mcp.feed.model import (
-    ExportFile,
-    ExportFiles,
     FeedEdit,
     FeedInputs,
     FeedView,
-    NoShows,
+    Person,
     SetEdit,
     ShowSource,
     UnsetEdit,
 )
 from podcast_mcp.feed.render import render
-from podcast_mcp.feed.resolve import cleared_pins, clears, edited_pins, resolve
+from podcast_mcp.feed.resolve import checked_value, cleared_pins, clears, edited_pins, resolve
+from podcast_mcp.feed.show_store import ShowFile, ShowStore, default_directory, show_id_for
+from podcast_mcp.feed.writer import FeedWrite, refuse_while_blocked, write_feed
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.models.feed import FieldValue, Pin, PinAuthor
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.wav import open_wav
+from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
 
-FEED_AUDIO_EXTENSIONS = ("mp3", "m4a")
-TRANSCRIPT_EXTENSIONS = ("vtt", "srt")
+__all__ = ["FeedService", "FeedViewKind", "describe_fields", "export_files"]
 
-
-def _file(path: Path) -> ExportFile | None:
-    try:
-        return ExportFile(name=path.name, bytes=path.stat().st_size) if path.is_file() else None
-    except OSError:
-        return None
-
-
-def _wav_seconds(path: Path) -> float | None:
-    try:
-        with open_wav(path) as reader:
-            return reader.getnframes() / reader.getframerate()
-    except (wave.Error, EOFError, OSError, ZeroDivisionError):
-        return None
+SHOW_KEY = "show"
+ROSTER_ATTRS = ("role", "group", "img", "href")
+ROSTER_DEFAULTS: dict[str, str | None] = {
+    "role": "host",
+    "group": "cast",
+    "img": None,
+    "href": None,
+}
 
 
-def _export_files(project: EpisodeProject) -> ExportFiles:
-    """What the export directory holds for this episode, found by the export's own file names."""
-    directory = project.export_dir()
-    stem = sanitize_export_stem(project.name)
-
-    def named(extension: str) -> ExportFile | None:
-        return _file(directory / f"{stem}.{extension}")
-
-    audio = next((f for ext in FEED_AUDIO_EXTENSIONS if (f := named(ext))), None)
-    wav = named("wav")
-    if wav is not None:
-        wav = ExportFile(name=wav.name, bytes=wav.bytes, seconds=_wav_seconds(directory / wav.name))
-    feed = directory / f"{stem}.feed.xml"
-    try:
-        feed_xml = feed.read_text(encoding="utf-8", errors="replace") if feed.is_file() else None
-    except OSError:
-        feed_xml = ""
-    return ExportFiles(
-        audio=audio,
-        wav=wav,
-        transcripts=tuple(f for ext in TRANSCRIPT_EXTENSIONS if (f := named(ext))),
-        feed_xml=feed_xml,
-    )
+@contextmanager
+def _progress(phase: str, headline: str) -> Iterator[ProgressTask]:
+    """The listing's progress task: reuse the adapter's, or open ``feed`` when called alone."""
+    with resolve_progress_task("feed", "Podcast listing", prefer_parent=True) as task:
+        task.set_phase(phase, headline)
+        yield task
 
 
 FeedViewKind = Literal["facts", "item_xml", "feed_xml", "notes_html", "show"]
+
+_SHOW_ROW = {
+    "key": SHOW_KEY,
+    "scope": "episode",
+    "label": "show",
+    "help": "The show this episode belongs to. A show's name creates it, a show's id chooses it.",
+    "edit": "feed set",
+    "editable": True,
+    "tags": [],
+}
 
 
 def _edit_text(spec: FieldSpec) -> str:
     if isinstance(spec.edit, AtSource):
         return spec.edit.where
-    if spec.edit == "pin" and spec.scope == "show":
-        return "Set on the show. Not available yet."
     return {"pin": "feed set", "mint": "made once", "none": "measured or made"}[spec.edit]
 
 
 def describe_fields() -> list[dict[str, Any]]:
     """The listing rows as plain data: the one source for CLI help, the MCP schema and the docs."""
-    return [
-        {
-            "key": spec.key,
-            "scope": spec.scope,
-            "label": spec.label,
-            "help": spec.help,
-            "edit": _edit_text(spec),
-            "editable": spec.edit == "pin" and spec.scope == "episode",
-            "tags": [t.path + (f"@{t.attr}" if t.attr else "") for t in spec.tags],
-        }
-        for spec in FIELDS
-    ]
+    with _progress("fields", "Listing the fields"):
+        return [
+            _SHOW_ROW,
+            *(
+                {
+                    "key": spec.key,
+                    "scope": spec.scope,
+                    "label": spec.label,
+                    "help": spec.help,
+                    "edit": _edit_text(spec),
+                    "editable": spec.edit == "pin",
+                    "tags": [t.path + (f"@{t.attr}" if t.attr else "") for t in spec.tags],
+                }
+                for spec in FIELDS
+            ),
+        ]
 
 
 def default_show_source() -> ShowSource:
-    """Where this machine's shows live. The show store replaces ``NoShows`` here."""
-    return NoShows()
+    """Where this machine's shows live: ``PODCAST_CONFIG_DIR/shows``."""
+    return ShowStore(default_directory())
 
 
 class FeedService:
-    """``read`` shows the listing; ``apply`` edits it. Every surface calls these."""
+    """``read`` shows the listing; ``apply`` edits it; ``write`` publishes the feed file."""
 
     def __init__(self, ws: ProjectWorkspace) -> None:
         self.ws = ws
         self.shows: ShowSource = default_show_source()
 
     def _inputs(self, project: EpisodeProject) -> FeedInputs:
-        shows = tuple(self.shows.shows())
-        show_id = project.feed.show_id or (shows[0].id if len(shows) == 1 else None)
-        profile = self.shows.profile(show_id) if show_id else None
-        return FeedInputs(project=project, show=profile, shows=shows, files=_export_files(project))
+        return gather_inputs(project, self.shows)
 
     def read(self) -> FeedView:
+        with _progress("read", "Reading the listing"):
+            return self._read()
+
+    def _read(self) -> FeedView:
         project = self.ws.project
         return resolve(self._inputs(project), project.feed.pins)
 
@@ -147,21 +141,33 @@ class FeedService:
         return self.apply(UnsetEdit(key=key), by)
 
     def apply(self, edit: FeedEdit, by: PinAuthor) -> FeedView:
-        """Edit one value as a document command, so it undoes and syncs like any episode edit.
+        """Edit one value. Setting the empty string unsets; unsetting what holds no pin changes nothing.
 
-        Blank text unsets. Unsetting a known key that holds no pin changes nothing.
+        An episode value is a document command, so it undoes and syncs like any episode edit.
+        A show value is saved in the show store under its lock. ``show`` links or creates the show.
         """
+        with _progress("edit", "Saving the change"):
+            if edit.key == SHOW_KEY:
+                return self._choose_show(edit)
+            spec = lookup(edit.key)
+            if spec is not None and spec.scope == "show":
+                return self._apply_show(edit, by)
+            return self._apply_episode(edit, by)
+
+    def _apply_episode(self, edit: FeedEdit, by: PinAuthor) -> FeedView:
         from podcast_mcp.services.document_sync import submit_host_document_command
 
         if clears(edit):
+            self.ws.reload()
             if edit.key not in self.ws.project.feed.pins:
                 self._pins_after(self.ws.project, edit, by)
-                return self.read()
+                return self._read()
             submit_host_document_command(
                 self.ws.path, "ClearFeedField", {"key": edit.key}, client_id=f"feed:{by}"
             )
         else:
             assert isinstance(edit, SetEdit)
+            self._pins_after(self.ws.project, edit, by)
             submit_host_document_command(
                 self.ws.path,
                 "SetFeedField",
@@ -169,13 +175,80 @@ class FeedService:
                 client_id=f"feed:{by}",
             )
         self.ws.reload()
-        return self.read()
+        return self._read()
 
     def _pins_after(self, project: EpisodeProject, edit: FeedEdit, by: PinAuthor) -> dict[str, Pin]:
         inputs, pins = self._inputs(project), project.feed.pins
         if clears(edit):
             return cleared_pins(inputs, pins, edit.key)
         return edited_pins(inputs, pins, edit, by)
+
+    def _store(self) -> ShowStore:
+        if not isinstance(self.shows, ShowStore):
+            raise CodedValueError(
+                "Show settings are not available yet", code="feed_show_unavailable"
+            )
+        return self.shows
+
+    def _apply_show(self, edit: FeedEdit, by: PinAuthor) -> FeedView:
+        store = self._store()
+        project = self.ws.project
+        blank = clears(edit)
+        show_id = linked_show_id(project, store.shows())
+        if show_id is None:
+            if blank:
+                return self._read()
+            raise CodedValueError(
+                "This episode has no show yet. Create or choose one with: feed set show <name>",
+                code="feed_show_missing",
+            )
+        value = None
+        if not isinstance(edit, UnsetEdit) and not blank:
+            value = checked_value(edit)[1]
+        store.update(show_id, lambda show: _edit_show(show, edit.key, value, by))
+        return self._read()
+
+    def _choose_show(self, edit: FeedEdit) -> FeedView:
+        """Link the episode to a show, creating the show first when no show has that name or id."""
+        store = self._store()
+        project = self.ws.project
+        if clears(edit):
+            if project.feed.show_id is not None:
+                self._link(None)
+            return self._read()
+        assert isinstance(edit, SetEdit)
+        name = str(edit.value).strip()
+        ids = {summary.id for summary in store.shows()}
+        show_id = name if name in ids else show_id_for(name)
+        if show_id not in ids:
+            show_id = store.create(name).id
+        if project.feed.show_id != show_id:
+            self._link(show_id)
+        return self._read()
+
+    def _link(self, show_id: str | None) -> None:
+        def link(project: EpisodeProject) -> None:
+            project.feed.show_id = show_id
+
+        self.ws.mutate("before linking the show", "after linking the show", link)
+        self.ws.reload()
+
+    def write(self) -> FeedWrite:
+        """Write ``<stem>.feed.xml``. Refused while a blocker stands; a second call changes nothing."""
+        with _progress("check", "Checking the listing") as task:
+            self.ws.reload()
+            project = self.ws.project
+            refuse_while_blocked(self._read())
+            if project.feed.guid is None or project.feed.first_exported_at is None:
+                task.set_phase("identity", "Giving the episode its id")
+                self.ws.mutate(
+                    "before minting the episode id",
+                    "after minting the episode id",
+                    lambda p: p.feed.mint_identity(),
+                )
+                self.ws.reload()
+            task.set_phase("write", "Writing the feed file")
+            return write_feed(self.ws.project, self.shows)
 
     def set_field(self, key: str, value: FieldValue, by: PinAuthor) -> dict[str, Any]:
         def pin(project: EpisodeProject) -> dict[str, Any]:
@@ -190,3 +263,34 @@ class FeedService:
             return {"key": key, "pinned": False}
 
         return self.ws.mutate("before clear listing field", "after clear listing field", clear)
+
+
+def _edit_show(show: ShowFile, key: str, value: Any, by: PinAuthor) -> None:
+    """Apply one show-scope edit to a show opened for update; ``value`` None removes."""
+    if (match := SHOW_PERSON_KEY.match(key)) is not None:
+        _edit_roster(show, match["name"].strip(), match["attr"], value)
+    elif key == "channel.mediaUrl":
+        show.media_url = value
+    elif value is None:
+        show.pins.pop(key, None)
+    else:
+        show.pins[key] = Pin(value=value, by=by)
+
+
+def _edit_roster(show: ShowFile, name: str, attr: str | None, value: Any) -> None:
+    found = next(
+        (i for i, p in enumerate(show.roster) if p.name.casefold() == name.casefold()), None
+    )
+    if value is None and attr is None:
+        if found is not None:
+            del show.roster[found]
+        return
+    if found is None:
+        if value is None:
+            return
+        show.roster.append(Person(name=name))
+        found = len(show.roster) - 1
+    changes: dict[str, Any] = {
+        attr or "role": ROSTER_DEFAULTS[attr or "role"] if value is None else value
+    }
+    show.roster[found] = replace(show.roster[found], **changes)

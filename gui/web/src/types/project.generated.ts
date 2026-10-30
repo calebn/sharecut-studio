@@ -120,6 +120,11 @@ export interface FeedEditRequest {
   edit: SetEdit | UnsetEdit;
 }
 
+/** Write the episode's feed file. */
+export interface FeedWriteRequest {
+  path: string;
+}
+
 export interface PipelineAnalyzeRequest {
   path: string;
   apply?: boolean;

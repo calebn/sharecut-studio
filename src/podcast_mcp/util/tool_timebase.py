@@ -77,6 +77,7 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "feed_read": "na",
     "feed_set": "na",
     "feed_unset": "na",
+    "feed_write": "na",
     "remove_chapter_tool": "na",
     "add_comment_tool": "timeline",
     "list_comments_tool": "na",

@@ -55,7 +55,13 @@ def apply_editable_snapshot(project: Any, snap: dict[str, Any]) -> None:
     project.transcript_data = TranscriptsSection.model_validate(snap["transcripts"])
     project.mix = MixSection.model_validate(snap["mix"])
     project.social = SocialSection.model_validate(snap["social"])
-    project.feed = FeedSection.model_validate(snap.get("feed") or {})
+    restored = FeedSection.model_validate(snap.get("feed") or {})
+    # The guid and first export time are made once: going back in history never takes them away.
+    kept = getattr(project, "feed", None)
+    if kept is not None:
+        restored.guid = kept.guid or restored.guid
+        restored.first_exported_at = kept.first_exported_at or restored.first_exported_at
+    project.feed = restored
     project.review = ReviewSection.model_validate(snap.get("review") or {"comments": []})
     project.render.last_completed_step = snap.get("render_last_completed_step")
     meta = snap.get("meta")

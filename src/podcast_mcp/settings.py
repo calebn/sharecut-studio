@@ -74,7 +74,7 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         (
             "PODCAST_CONFIG_DIR",
-            "Directory for the OAuth client files and the recent episodes list.",
+            "Directory for the OAuth client files, the recent episodes list and the podcast show files (`shows/`).",
             "~/.config/podcast_mcp",
         ),
         (

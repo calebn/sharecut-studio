@@ -30,6 +30,7 @@ class StubShow:
     pins: Mapping[str, Pin] = field(default_factory=dict)
     roster: Sequence[Person] = ()
     media_url: str | None = None
+    ledger: Mapping[str, int] = field(default_factory=dict)
 
 
 def pin(value: object, by: str = "person", basis: str | None = None) -> Pin:

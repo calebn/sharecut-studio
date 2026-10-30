@@ -1,4 +1,4 @@
-"""Podcast listing tools: read the facts, notes and feed XML, and pin or release a value."""
+"""Podcast listing tools: read the facts, notes and feed XML, pin or release a value, write the feed file."""
 
 from __future__ import annotations
 
@@ -65,7 +65,25 @@ def feed_unset(project_path: str, field: str) -> str:
     return to_json(view.wire())
 
 
+def feed_write(project_path: str) -> str:
+    """Write the episode's feed file (``<name>.feed.xml``) next to its exported audio.
+
+    Refused while ``feed_read`` shows a blocker, such as no show, no hosting address or no
+    exported MP3. Idempotent: a second call with nothing changed writes nothing. The export
+    job also writes it. Returns the path, the files written and the file state.
+    """
+    service = FeedService(ProjectWorkspace.open(project_path))
+    result = service.write()
+    return to_json(
+        {
+            "path": str(result.path),
+            "written": [str(path) for path in result.written],
+            "file": service.read().file,
+        }
+    )
+
+
 def register(mcp: MCPServer) -> None:
     """Register the podcast listing tools on the MCP server."""
-    for fn in (feed_read, feed_set, feed_unset):
+    for fn in (feed_read, feed_set, feed_unset, feed_write):
         mcp.tool()(fn)
