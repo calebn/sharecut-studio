@@ -43,8 +43,9 @@ def tile_span(
     """The tiles that fill ``gap_sec`` from ``[span_start, span_end)``.
 
     A gap the span covers is one tile from the span's start. A longer gap takes equal
-    tiles from an inset of the span, each at an offset derived from ``seed_sec`` and the
-    tile's index, blended at its joins. A span too short to inset is butt-spliced from its
+    tiles from an inset of the span, one per evenly spaced slot so the span is replayed no
+    more than the gap forces, visited in an order derived from ``seed_sec`` and blended at
+    its joins. A span too short to inset is butt-spliced from its
     start.
     """
     piece = span_end - span_start
@@ -61,10 +62,12 @@ def tile_span(
         return _butt(span_start, piece, gap_sec)
     low = span_start + CROSSFADE_REACH_SEC
     high = low + inner - length
-    seed = _seed_fraction(seed_sec)
+    stride = (high - low) / (count - 1)
+    step = _slot_step(count)
+    first = int(_seed_fraction(seed_sec) * count)
     starts: list[float] = []
     for index in range(count):
-        start = low + ((seed + index * _GOLDEN) % 1.0) * (high - low)
+        start = low + ((first + index * step) % count) * stride
         if starts:
             behind = start - (starts[-1] + length)
             if 0 < behind < 2 * CROSSFADE_REACH_SEC:
@@ -89,6 +92,15 @@ def _butt(span_start: float, piece: float, gap_sec: float) -> tuple[Tile, ...]:
     if len(lengths) > 1 and lengths[-1] < _SLIVER_SEC:
         lengths[-2:] = [(lengths[-2] + lengths[-1]) / 2] * 2
     return tuple(Tile(span_start, length) for length in lengths)
+
+
+def _slot_step(count: int) -> int:
+    near = max(1, min(count - 1, round(_GOLDEN * count)))
+    for reach in range(count):
+        for step in (near - reach, near + reach):
+            if 1 <= step < count and math.gcd(step, count) == 1:
+                return step
+    return 1
 
 
 def _seed_fraction(seed_sec: float) -> float:
