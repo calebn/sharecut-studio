@@ -101,26 +101,25 @@ describe("tab and stage mapping", () => {
 
   it("round trips every tab that has a stage of its own", () => {
     for (const tab of TABS) {
-      const { stage, section, sheet } = STAGE_FOR_TAB[tab];
-      const back = tabForStage(stage, section ?? "comments");
+      const { stage, sheet } = STAGE_FOR_TAB[tab];
+      const back = tabForStage(stage);
       const expected = tab === "tighten" || tab === "comments" ? "impact" : tab;
       expect(back).toBe(sheet ? "transcript" : expected);
     }
   });
 
   it("gives Record and Deliver no tab", () => {
-    expect(tabForStage("record", "queue")).toBeNull();
+    expect(tabForStage("record")).toBeNull();
     expect(tabForStage("deliver", "comments")).toBeNull();
   });
 
-  it("follows the review section", () => {
-    expect(tabForStage("review", "queue")).toBe("impact");
+  it("publishes the Queue as impact, or comments for a guest", () => {
+    expect(tabForStage("review")).toBe("impact");
     expect(tabForStage("review", "comments")).toBe("comments");
   });
 
   it("keeps the wire name impact for the Queue section only", () => {
     expect(wireTabOf("queue")).toBe("impact");
-    expect(wireTabOf("comments")).toBe("comments");
   });
 
   it("derives the legacy phone mode", () => {

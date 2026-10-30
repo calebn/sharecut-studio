@@ -205,7 +205,7 @@ describe("usePresencePublisher", () => {
       useDawStore.setState({ isPlaying: true, playheadSec: 4 });
       useDawStore.setState({ playheadSec: 5 });
       useDawStore.setState({ scrollLeft: 120 });
-      useDawStore.setState({ stage: "review", reviewSection: "comments" });
+      useDawStore.setState({ stage: "review" });
     });
     expect(renders).toBe(rendersAfterMount);
     await act(async () => {

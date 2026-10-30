@@ -150,7 +150,7 @@ export function usePresencePublisher(
       push({
         ui: {
           // A guest still publishes `comments` for its Queue (older hosts know it); a host publishes `impact`.
-          tab: tabForStage(s.stage, s.guestMode ? "comments" : "queue"),
+          tab: tabForStage(s.stage, s.guestMode ? "comments" : "impact"),
           mobile_mode:
             s.shellBreakpoint === "phone" || s.pointerKind === "coarse"
               ? mobileModeForStage(s.stage, s.editSurface)

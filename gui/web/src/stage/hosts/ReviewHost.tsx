@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
@@ -6,12 +6,11 @@ import { ModelGateDialog } from "../../models";
 import { ReviewStage } from "../../review/ReviewStage";
 import { isGuestSession, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
-import { stageRoleOf } from "../../state/stageRoutes";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 
 import { GuestScriptHost } from "./GuestScriptHost";
-import { effectiveSection, hostStateOf, reviewSectionsFor } from "./hostModels";
+import { hostStateOf } from "./hostModels";
 import { ReviewStageView } from "./ReviewStageView";
 import { useFindMore } from "./useFindMore";
 import { useReviewQueue } from "./useReviewQueue";
@@ -44,34 +43,23 @@ function ReviewHostAdapter({
   loadFailure,
 }: ReviewHostProps) {
   const queue = useReviewQueue(guestShare);
-  const { project, projectPath, guestMode, reviewSection } = useDawStore(
+  const { project, projectPath, guestMode } = useDawStore(
     useShallow((s) => ({
       project: s.project,
       projectPath: s.projectPath,
       guestMode: s.guestMode,
-      reviewSection: s.reviewSection,
     })),
   );
-  const role = stageRoleOf(guestMode);
   const guest = isGuestSession(projectPath, guestMode, guestShare);
   const find = useFindMore(!guest && !isShareProjectKey(projectPath));
   const shell = useViewportClass();
-  const sections = useMemo(() => reviewSectionsFor(role), [role]);
-  const active = effectiveSection(reviewSection, sections);
-  const scrollRef = useStageScroll("review", `section:${active}`);
-  const waiting = {
-    queue: (project?.edit_impact.pending_review_count ?? 0) > 0,
-  };
+  const scrollRef = useStageScroll("review", "section:queue");
   return (
     <>
       <ReviewStageView
         shell={shell}
         state={hostStateOf(project, loadFailure)}
         failure={loadFailure}
-        sections={sections}
-        active={active}
-        waiting={waiting}
-        onSection={(section) => runPointerCommand("stage.review", { section })}
         panel={panelFor(
           queue,
           find,

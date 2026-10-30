@@ -136,9 +136,9 @@ describe("stageSlice", () => {
 
   it("sets the review section with a deep link", () => {
     expect(st().reviewSection).toBe("queue");
-    st().openStage("review", { section: "comments" });
+    st().openStage("review", { section: "queue" });
     expect(st().stage).toBe("review");
-    expect(st().reviewSection).toBe("comments");
+    expect(st().reviewSection).toBe("queue");
   });
 
   it("applies a section or sheet to the current stage without a snapshot", () => {

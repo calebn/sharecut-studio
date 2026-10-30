@@ -148,9 +148,8 @@ describe("StageHost gating", () => {
 });
 
 describe("Review host", () => {
-  it("gives the host the Queue alone, with a stored Comments choice landing on it", () => {
+  it("gives the host the Queue alone", () => {
     asHost("review");
-    useDawStore.setState({ reviewSection: "comments" });
     mount();
     expect(
       screen.queryByRole("tablist", { name: "Review sections" }),
@@ -158,9 +157,8 @@ describe("Review host", () => {
     expect(screen.getByRole("region", { name: "Decision" })).toBeVisible();
   });
 
-  it("gives a guest the Queue alone, even when the slice names Comments", () => {
+  it("gives a guest the Queue alone", () => {
     asGuest("review", "comment");
-    useDawStore.setState({ reviewSection: "comments" });
     mount(true);
     expect(
       screen.queryByRole("tablist", { name: "Review sections" }),

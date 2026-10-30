@@ -10,8 +10,7 @@ const tracks = [sampleTrack({ id: "host" })];
 
 /** The wire tab of what the follower is showing; a host's comments tab lands on Queue, so it reads `impact`. */
 const shownTab = () => {
-  const { stage, reviewSection } = useDawStore.getState();
-  return tabForStage(stage, reviewSection);
+  return tabForStage(useDawStore.getState().stage);
 };
 
 /** What the follower chose for itself: the stage a tab lives in. */
@@ -98,7 +97,6 @@ describe("useFollowUi", () => {
   it("opens the leader's stage on the first tick", () => {
     useDawStore.setState({
       stage: "review",
-      reviewSection: "comments",
       openSheet: "view",
       sessionClients: sessionRoster([leader({ tab: "comments" })]),
     });
