@@ -229,7 +229,7 @@ export function useReviewComments(guest: boolean) {
     session.current += 1;
     const stage = stageOf();
     setBody("");
-    postComment.setError(null);
+    postComment.cancel();
     useDawStore.getState().setCommentDraft(null);
     stage?.focus({ preventScroll: true });
   };

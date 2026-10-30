@@ -443,7 +443,7 @@ test.describe("Keys and focus", () => {
     await selectFirstClip(page);
     const sent = watchCommands(page);
     await page.locator("body").press("c");
-    const composer = page.getByRole("textbox", {
+    const composer = page.locator(".rv-compose").getByRole("textbox", {
       name: "Comment",
       exact: true,
     });

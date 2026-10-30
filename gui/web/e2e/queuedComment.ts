@@ -39,9 +39,12 @@ export async function interceptCommentCommands(page: Page): Promise<{
 export async function postHostComment(page: Page, body: string): Promise<void> {
   await openPanel(page, "comments");
   await page.keyboard.press("c");
-  await expect(page.getByRole("textbox", { name: "Your name" })).toHaveValue(
+  const compose = page.locator(".rv-compose");
+  await expect(compose.getByRole("textbox", { name: "Your name" })).toHaveValue(
     "Host",
   );
-  await page.getByRole("textbox", { name: "Comment", exact: true }).fill(body);
-  await page.getByRole("button", { name: "Post", exact: true }).click();
+  await compose
+    .getByRole("textbox", { name: "Comment", exact: true })
+    .fill(body);
+  await compose.getByRole("button", { name: "Post", exact: true }).click();
 }

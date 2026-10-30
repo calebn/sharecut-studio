@@ -913,6 +913,30 @@ describe("Review host comments", () => {
       expect(field()).toBeVisible();
     });
 
+    it("does not show Posting when C reopens the field while the old post is in flight", async () => {
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      wire.post.mockImplementation(async (_path: string, body) => {
+        if (body.type === "AddComment") await held;
+        return answer(body);
+      });
+      mount();
+      act(() => {
+        press("c");
+      });
+      await userEvent.type(field(), "Old{Enter}");
+      await waitFor(() => expect(sent("AddComment")).toHaveLength(1));
+      fireEvent.keyDown(field(), { key: "Escape" });
+      act(() => {
+        press("c");
+      });
+      expect(screen.getByRole("button", { name: "Post" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Posting…" })).toBeNull();
+      release();
+    });
+
     it("ignores Escape while an IME composition is open", async () => {
       mount();
       act(() => {

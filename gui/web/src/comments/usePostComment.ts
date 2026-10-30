@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { createComment } from "../api";
 import { commentRole } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -35,12 +35,22 @@ export function usePostComment(): {
   busy: boolean;
   error: string | null;
   setError: (message: string | null) => void;
+  /** Forgets a post in flight: its outcome no longer shows as busy or as an error. */
+  cancel: () => void;
   post: (input: CommentInput) => Promise<PostResult>;
 } {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const generation = useRef(0);
+
+  const cancel = useCallback(() => {
+    generation.current += 1;
+    setBusy(false);
+    setError(null);
+  }, []);
 
   const post = useCallback(async (input: CommentInput): Promise<PostResult> => {
+    const mine = generation.current;
     setError(null);
     const author = input.author.trim();
     const body = input.body.trim();
@@ -74,9 +84,9 @@ export function usePostComment(): {
       setError(errorMessage(e));
       return { ok: false };
     } finally {
-      setBusy(false);
+      if (mine === generation.current) setBusy(false);
     }
   }, []);
 
-  return { busy, error, setError, post };
+  return { busy, error, setError, cancel, post };
 }

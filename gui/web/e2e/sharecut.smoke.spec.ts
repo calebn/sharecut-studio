@@ -48,7 +48,9 @@ test.describe("ShareCut Studio smoke", () => {
       page.getByText("AddComment did not return a comment"),
     ).toHaveCount(0);
     await expect(
-      page.getByRole("textbox", { name: "Comment", exact: true }),
+      page
+        .locator(".rv-compose")
+        .getByRole("textbox", { name: "Comment", exact: true }),
     ).toHaveCount(0);
 
     setOffline(false);

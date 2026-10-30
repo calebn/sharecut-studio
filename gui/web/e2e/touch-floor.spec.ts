@@ -109,7 +109,9 @@ for (const size of SIZES) {
     // The Review comment field (C) holds the floor too.
     await page.keyboard.press("c");
     await expect(
-      page.getByRole("textbox", { name: "Comment", exact: true }),
+      page
+        .locator(".rv-compose")
+        .getByRole("textbox", { name: "Comment", exact: true }),
     ).toBeVisible();
     found.push(
       ...(await undersized(page, exceptions)).map((row) => `[composer] ${row}`),
