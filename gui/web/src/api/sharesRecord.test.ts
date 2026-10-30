@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createHostShare } from "./sharesRecord";
+import { createHostShare, loadHostRecordSessions } from "./sharesRecord";
 
 const hostFetch = vi.fn();
 
@@ -26,5 +26,48 @@ describe("createHostShare", () => {
       status: 409,
       message: "Refresh the mix first.",
     });
+  });
+});
+
+describe("loadHostRecordSessions", () => {
+  beforeEach(() => {
+    hostFetch.mockReset();
+    vi.stubGlobal("fetch", hostFetch);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns the sessions list from the host route", async () => {
+    const sessions = [
+      {
+        session_id: "aaaaaaaaaaaa",
+        number: 1,
+        state: "ended",
+        target_kind: "end",
+        takes: [{ take_index: 0, recording_ms: 3000 }],
+        participants: [],
+        landed: true,
+        ended_at: "2026-01-02T00:00:00+00:00",
+      },
+    ];
+    hostFetch.mockResolvedValue(
+      new Response(JSON.stringify({ sessions }), { status: 200 }),
+    );
+
+    await expect(
+      loadHostRecordSessions("/tmp/ep isode.sharecut"),
+    ).resolves.toEqual(sessions);
+    expect(String(hostFetch.mock.calls[0][0])).toContain(
+      "/api/record/sessions?path=%2Ftmp%2Fep%20isode.sharecut",
+    );
+  });
+
+  it("surfaces a failed response as an ApiError", async () => {
+    hostFetch.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "nope" }), { status: 500 }),
+    );
+
+    await expect(
+      loadHostRecordSessions("/tmp/episode.sharecut"),
+    ).rejects.toMatchObject({ name: "ApiError", status: 500 });
   });
 });

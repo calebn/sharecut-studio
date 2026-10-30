@@ -32,6 +32,7 @@ from podcast_mcp.services.record import (
     RecordUploadError,
     RecordUploadService,
     RoomFullError,
+    list_record_sessions,
     parse_upload_kind,
     with_unsaved_takes,
 )
@@ -62,6 +63,18 @@ def get_record_state(
     return with_unsaved_takes(
         ws.project, RecordSessionService(ws.project, session_id=session_id).snapshot()
     )
+
+
+@router.get("/api/record/sessions")
+def get_record_sessions(
+    request: Request,
+    path: str = Query(..., description="Path to episode.sharecut"),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(path, request))
+    return {"sessions": list_record_sessions(ws.project)}
 
 
 @router.post("/api/record/command")

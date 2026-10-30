@@ -1,0 +1,115 @@
+"""Read model of record sessions, open and ended, for the host Record stage."""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from podcast_mcp.models import EpisodeProject
+from podcast_mcp.services.collaboration import SHARE_KIND_RECORD, list_shares, share_is_usable
+from podcast_mcp.services.record.landing_math import record_source_prefix, session_landed_before
+from podcast_mcp.services.record.service import RecordSessionService
+from podcast_mcp.services.record.state import (
+    TakeState,
+    recording_ms_at,
+)
+
+_SESSION_ID = re.compile(r"^rec-([0-9a-f]{12})-")
+
+
+def _session_rows(project: EpisodeProject) -> dict[str, list[dict[str, Any]]]:
+    rows: dict[str, list[dict[str, Any]]] = {}
+    for row in list_shares(project):
+        sid = str(row.get("session_id") or "")
+        if sid and str(row.get("kind") or "") == SHARE_KIND_RECORD:
+            rows.setdefault(sid, []).append(row)
+    return rows
+
+
+def _landed_ids(project: EpisodeProject) -> set[str]:
+    ids = {row.session_id for row in project.editorial.record_sessions}
+    for clip in project.clips:
+        found = _SESSION_ID.match(clip.source_id or "")
+        if found:
+            ids.add(found.group(1))
+    return ids
+
+
+def _snapshot(project: EpisodeProject, session_id: str) -> tuple[dict[str, Any], dict[str, str]]:
+    """The session's snapshot and track choices; empty when the store holds another session."""
+    try:
+        service = RecordSessionService(project, session_id=session_id)
+        snap = service.snapshot()
+        choices = service.track_choices()
+    except Exception:
+        return {}, {}
+    return (snap, choices) if snap.get("session_id") == session_id else ({}, {})
+
+
+def _landed_track(project: EpisodeProject, session_id: str, participant_id: str) -> str | None:
+    prefix = record_source_prefix(session_id)
+    tracks = {
+        clip.track_id
+        for clip in project.clips
+        if (clip.source_id or "").startswith(prefix)
+        and re.match(rf"\d+-{re.escape(participant_id)}-", (clip.source_id or "")[len(prefix) :])
+    }
+    return next(iter(tracks)) if len(tracks) == 1 else None
+
+
+def _takes(snap: dict[str, Any]) -> list[dict[str, int]]:
+    out = []
+    for raw in snap.get("takes") or []:
+        take = TakeState.model_validate(raw)
+        wall = take.stopped_wall_ms or int(snap.get("server_time_ns") or 0) // 1_000_000
+        out.append(
+            {"take_index": take.take_index, "recording_ms": recording_ms_at(take, wall_ms=wall)}
+        )
+    return out
+
+
+def _participants(
+    project: EpisodeProject, session_id: str, snap: dict[str, Any], choices: dict[str, str]
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "participant_id": person["participant_id"],
+            "display_name": person["display_name"],
+            "role": person["role"],
+            "track_id": choices.get(person["participant_id"])
+            or _landed_track(project, session_id, person["participant_id"]),
+        }
+        for person in snap.get("participants") or []
+        if not person.get("removed")
+    ]
+
+
+def _ended_at(rows: list[dict[str, Any]]) -> str | None:
+    stamps = [str(row["revoked_at"]) for row in rows if row.get("revoked_at")]
+    return max(stamps) if stamps and not any(share_is_usable(row) for row in rows) else None
+
+
+def list_record_sessions(project: EpisodeProject) -> list[dict[str, Any]]:
+    """Every record session with a room or a landing, oldest to newest. Never writes."""
+    rows = _session_rows(project)
+    landed_ids = _landed_ids(project)
+    numbers = {row.session_id: row for row in project.editorial.record_sessions}
+    out: list[tuple[tuple[str, int], dict[str, Any]]] = []
+    for sid in rows.keys() | landed_ids:
+        snap, choices = _snapshot(project, sid)
+        stored = numbers.get(sid)
+        share_rows = rows.get(sid, [])
+        target = stored.target_kind if stored else (snap.get("target") or {}).get("kind")
+        item = {
+            "session_id": sid,
+            "number": stored.number if stored else None,
+            "state": "open" if any(share_is_usable(row) for row in share_rows) else "ended",
+            "target_kind": target,
+            "takes": _takes(snap),
+            "participants": _participants(project, sid, snap, choices),
+            "landed": sid in landed_ids or session_landed_before(project, sid),
+            "ended_at": _ended_at(share_rows),
+        }
+        created = min((str(row.get("created_at") or "") for row in share_rows), default="")
+        out.append(((created, stored.number if stored else 0), item))
+    return [item for _key, item in sorted(out, key=lambda pair: (*pair[0], pair[1]["session_id"]))]

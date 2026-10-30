@@ -1,5 +1,5 @@
 import { hostFetch } from "../api/documentTransport";
-import type { RecordSnapshot } from "../record/types";
+import type { RecordSessionSummary, RecordSnapshot } from "../record/types";
 import {
   copyUploadBody,
   recordUploadSearchParams,
@@ -130,6 +130,22 @@ export async function loadHostRecordState(
     throw await readApiFailure(res);
   }
   return res.json() as Promise<RecordSnapshot>;
+}
+
+export async function loadHostRecordSessions(
+  projectPath: string,
+): Promise<RecordSessionSummary[]> {
+  if (isShareProjectKey(projectPath)) {
+    return [];
+  }
+  const res = await hostFetch(
+    `/api/record/sessions?path=${encodeURIComponent(projectPath)}`,
+  );
+  if (!res.ok) {
+    throw await readApiFailure(res);
+  }
+  const data = (await res.json()) as { sessions: RecordSessionSummary[] };
+  return data.sessions;
 }
 
 export async function postHostRecordCommand(
