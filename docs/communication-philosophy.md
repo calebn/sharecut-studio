@@ -449,7 +449,7 @@ audited finding.
   handles to 44 px, and the Comments and Edits lists are the equivalent
   controls), inline transcript words and
   timestamps, but not the speaker button (a taller hit area would take the
-  next line's taps; the ruler and transport seek at 44 px), the track reorder grip (Move up/down are the
+  next line's taps; the transport seeks at 44 px; the ruler is 24 px by design and sits in the `DENSE` exemption of `e2e-compat/reachability-sweep.spec.ts`), the track reorder grip (Move up/down are the
   44 px equivalent), and tablet status chips (the tab strip carries the same
   actions). A new exception needs a line there and here (#1422).
 - [ ] No hover-only, mouse-only, or double-click-only path for any

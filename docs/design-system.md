@@ -167,11 +167,11 @@ store subscription and transform updates without React rerenders. The story
 uses fictional comments and a fixed zoom; it does not mount the live timeline
 or subscribe to the DAW store.
 `System/Ruler` is the timeline's ruler: a props-only window (`start`,
-`pxPerSecond`, `width`) with stories at 360px, at a deep zoom (millisecond
+`pxPerSecond`, `width`) with stories at 360px and 320px, at a deep zoom (millisecond
 labels) and with a host-drawn needle (`hidePlayhead`). The live
-`timeline/TimelineRuler` host reads the playhead, scroll and zoom from DAW
-state and passes the window the marker lane will share. It keeps the
-store-driven `Playhead` as the needle, which moves by transform, so a playing
+`timeline/TimelineRuler` host reads the playhead and scroll from DAW
+state (zoom arrives as a prop) and passes the window the marker lane will
+share. It keeps the store-driven `Playhead` as the needle, which moves by transform, so a playing
 playhead re-renders no ruler; the phone's fixed line is the needle there.
 `Templates/AppliedEditOverlay` renders the shipped applied-edit ticks in a
 production timeline lane. Fictional prop records cover visible and selected

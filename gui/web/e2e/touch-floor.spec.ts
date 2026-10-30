@@ -17,8 +17,9 @@ import {
  *   dense-target pattern, with 44px inspector fields and nudges as the equivalent;
  * - transcript text (`.sys-script-word`, and `.sys-script-time` timestamps but not the
  *   speaker name, which opens the speaker popover): inline words in running text,
- *   where a taller hit area would take the neighbouring line's taps; the ruler and transport
- *   seek at 44px;
+ *   where a taller hit area would take the neighbouring line's taps; the transport seeks at
+ *   44px, while the ruler is 24px by design and is in the `DENSE` exemption of
+ *   `e2e-compat/reachability-sweep.spec.ts`;
  * - `.track-reorder-handle`: a drag shortcut whose equivalent is the 44px Move up/down buttons;
  */
 const DOCUMENTED_EXCEPTIONS = [
