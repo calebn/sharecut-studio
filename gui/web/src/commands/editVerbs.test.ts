@@ -342,6 +342,26 @@ describe("verbs that call other commands", () => {
     expect(open).toHaveBeenCalledTimes(1);
   });
 
+  it("opens Record without a target on Record here over an empty timeline", async () => {
+    const open = vi.fn(() => ({ status: "ok" as const }));
+    registerCommand("stage.record", open);
+    const project = editFixtureProject();
+    host(null, {
+      project: {
+        ...project,
+        clips: {
+          ...project.clips,
+          tracks: Object.fromEntries(
+            Object.keys(project.clips.tracks).map((id) => [id, []]),
+          ),
+        },
+      },
+    });
+    await runEditVerb("record", factsOf()!);
+    expect(useDawStore.getState().pendingRecordTarget).toBeNull();
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
   it("parks the target only after Record opened", async () => {
     let parkedWhenOpened: unknown = "unset";
     registerCommand("stage.record", () => {
