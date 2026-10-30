@@ -221,6 +221,41 @@ def test_exported_stays_current_for_captions_written_with_custom_limits(ws):
     assert [e.current for e in TranscriptService(ws2).exported()] == [False, False]
 
 
+def _current(ws, edit) -> list[bool]:
+    TranscriptService(ws).export(["srt", "vtt"])
+    ws2 = ProjectWorkspace.open(ws.path)
+    edit(ws2.project)
+    return [e.current for e in TranscriptService(ws2).exported()]
+
+
+def _set_words(proj, texts):
+    proj.transcripts = [Transcript(track_id="host", words=_words(texts, start=3.0))]
+
+
+@pytest.mark.parametrize(
+    "before, after",
+    [
+        (["a" * 40, "1990", "b" * 40, "end."], ["a" * 40, "1991", "b" * 40, "end."]),
+        (["go", "-->", "home", "now."], ["go", "-->", "there", "now."]),
+    ],
+)
+def test_caption_edits_on_numeric_or_arrow_lines_make_the_file_stale(ws, before, after):
+    _set_words(ws.project, before)
+    save_project(ws.project, ws.path)
+    ws = ProjectWorkspace.open(ws.path)
+    assert _current(ws, lambda p: _set_words(p, after)) == [False, False]
+
+
+def test_moving_words_in_time_makes_captions_stale(ws):
+    def shift(proj):
+        for t in proj.transcripts:
+            for w in t.words:
+                w.start += 4.0
+                w.end += 4.0
+
+    assert _current(ws, shift) == [False, False]
+
+
 def test_exported_current_stale_and_scope(ws):
     svc = TranscriptService(ws)
     assert svc.exported() == []
