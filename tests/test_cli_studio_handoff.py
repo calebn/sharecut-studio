@@ -556,16 +556,17 @@ def test_an_admitted_alias_stays_terminal_after_studio_replaces_its_file(
     saved_bytes = replacement.read_bytes()
     stat_file = Path.stat
     resolve_path = Path.resolve
-    alias_reads = 0
+    is_directory = Path.is_dir
+    alias_identity: os.stat_result | None = None
     replaced = False
 
     def stat_then_publish(path: Path, *args: Any, **kwargs: Any) -> os.stat_result:
-        nonlocal alias_reads, replaced
+        nonlocal alias_identity, replaced
         observed = stat_file(path, *args, **kwargs)
         if path == alias:
-            alias_reads += 1
-        elif path == studio.project and alias_reads >= 2 and not replaced:
-            assert observed.st_ino == stat_file(alias).st_ino
+            alias_identity = observed
+        elif path == studio.project and alias_identity is not None and not replaced:
+            assert os.path.samestat(alias_identity, observed)
             replacement.replace(studio.project)
             replaced = True
         return observed
@@ -575,7 +576,13 @@ def test_an_admitted_alias_stays_terminal_after_studio_replaces_its_file(
             return path
         return resolve_path(path, *args, **kwargs)
 
+    def is_project_directory(path: Path, *args: Any, **kwargs: Any) -> bool:
+        if path in {alias, studio.project}:
+            return False
+        return is_directory(path, *args, **kwargs)
+
     monkeypatch.setattr(Path, "resolve", resolve_project_file)
+    monkeypatch.setattr(Path, "is_dir", is_project_directory)
     monkeypatch.setattr(Path, "stat", stat_then_publish)
     body = json.dumps(
         {
@@ -602,12 +609,17 @@ def test_an_admitted_alias_stays_terminal_after_studio_replaces_its_file(
         headers={HANDOFF_TOKEN_HEADER: host.token, "Content-Type": "application/json"},
     )
 
-    with pytest.raises(urllib.error.HTTPError) as denied:
-        urllib.request.urlopen(request, timeout=5)
+    try:
+        response = urllib.request.urlopen(request, timeout=5)
+    except urllib.error.HTTPError as denied:
+        response = denied
+    with response:
+        status = response.status
+        reply_body = response.read()
 
     assert replaced
-    assert denied.value.code == 409
-    assert json.load(denied.value)["code"] == "project_alias"
+    assert status == 409
+    assert json.loads(reply_body)["code"] == "project_alias"
     assert studio.commands == []
     assert alias.read_bytes() == before
     assert studio.project.read_bytes() == saved_bytes
