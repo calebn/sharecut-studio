@@ -32,7 +32,7 @@ def feed_read(
 def feed_set(
     project_path: str,
     field: str,
-    value: str | int | float | bool | list[str],
+    value: str,
 ) -> str:
     """Pin one podcast-listing value for this episode, as an agent. Undoable with history.
 
@@ -40,7 +40,7 @@ def feed_set(
     ``item.notes``, ``item.enclosure.url``, ``item.season`` or ``item.person[Name].href``.
     Write the episode intro with ``item.intro``: one or two sentences, plain text. Setting
     ``item.notes`` pins the whole notes text, so prefer ``item.intro``. An empty string
-    unsets. Chapters, clips, speakers and transcripts are edited where they live, not here.
+    unsets. Numbers and lists are sent as text, as on the command line. Chapters, clips, speakers and transcripts are edited where they live, not here.
     Returns the updated facts. Not ``add_chapter_tool``.
     """
     view = FeedService(ProjectWorkspace.open(project_path)).set(field, value, "agent")
