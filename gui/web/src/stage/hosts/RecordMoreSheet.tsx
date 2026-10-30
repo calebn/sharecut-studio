@@ -19,8 +19,10 @@ export type RecordMoreSheetProps = {
   removedInvite: boolean;
   onInvite: () => void;
   onDevices: () => void;
-  /** Absent while a take is running or the end is already pending. */
+  /** Absent once the end is pending or being sent. */
   onEndSession?: () => void;
+  /** Why End session cannot start yet. */
+  endReason?: string;
 };
 
 export function RecordMoreSheet({
@@ -39,6 +41,7 @@ export function RecordMoreSheet({
   onInvite,
   onDevices,
   onEndSession,
+  endReason,
 }: RecordMoreSheetProps) {
   const [confirming, setConfirming] = useState(false);
   return (
@@ -101,6 +104,7 @@ export function RecordMoreSheet({
         {onEndSession ? (
           <Button
             variant="danger"
+            disabledReason={endReason}
             onClick={() => {
               onClose();
               onEndSession();

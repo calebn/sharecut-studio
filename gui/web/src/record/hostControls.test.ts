@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { recordSnapshot } from "../test/fixtures";
-import { landGate, startBlockerItems } from "./hostControls";
+import { endGate, landGate, startBlockerItems } from "./hostControls";
 
 const ready = {
   storageReady: true,
@@ -154,5 +154,53 @@ describe("landGate", () => {
 
   it("leaves an unread upload status to the server", () => {
     expect(landGate(stopped, null)).toEqual({ enabled: true, label: "Land" });
+  });
+});
+
+describe("endGate", () => {
+  const stopped = recordSnapshot({ state: "stopped", take_index: 0 });
+
+  it("allows ending a room with nothing recorded", () => {
+    expect(
+      endGate(recordSnapshot({ state: "lobby", take_index: -1 }), []),
+    ).toEqual({
+      enabled: true,
+    });
+  });
+
+  it("waits for a running take", () => {
+    expect(
+      endGate(recordSnapshot({ state: "recording", take_index: 0 }), []),
+    ).toEqual({ enabled: false, reason: "Stop the take first." });
+  });
+
+  it("blocks while any recording is unsaved or not on the timeline", () => {
+    for (const segments of [
+      null,
+      [segment({ file_ack: false })],
+      [segment({ file_ack: true, landed: false })],
+      [
+        segment({ file_ack: true, landed: true }),
+        { ...segment({ file_ack: true, landed: false }), segment_index: 1 },
+      ],
+    ]) {
+      expect(endGate(stopped, segments).enabled).toBe(false);
+    }
+  });
+
+  it("blocks while live notes are waiting to land", () => {
+    const withNote = recordSnapshot({
+      state: "stopped",
+      take_index: 0,
+      comments: [{ id: "c1" } as never],
+    });
+    const gate = endGate(withNote, [segment({ file_ack: true, landed: true })]);
+    expect(gate.enabled).toBe(false);
+  });
+
+  it("allows ending once every take has landed", () => {
+    expect(
+      endGate(stopped, [segment({ file_ack: true, landed: true })]),
+    ).toEqual({ enabled: true });
   });
 });

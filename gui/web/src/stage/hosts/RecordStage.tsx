@@ -303,9 +303,12 @@ function RecordStageBody({
         setDeviceOpen(true);
       }}
       onEndSession={
-        toneAvailable && !room.endSession.ending
-          ? room.endSession.end
-          : undefined
+        room.endSession.ending || room.endSession.busy
+          ? undefined
+          : room.endSession.end
+      }
+      endReason={
+        room.endSession.gate.enabled ? undefined : room.endSession.gate.reason
       }
     />
   ) : undefined;

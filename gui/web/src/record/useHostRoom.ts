@@ -6,7 +6,12 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { errorMessage } from "../utils/apiError";
 import { sourceIdPointToTimeline } from "../utils/timebase";
-import { landGate, startBlockerItems, TAKE_CONTROL } from "./hostControls";
+import {
+  endGate,
+  landGate,
+  startBlockerItems,
+  TAKE_CONTROL,
+} from "./hostControls";
 import {
   prepareHostKeeperStorage,
   retryHostKeeperStorage,
@@ -269,10 +274,13 @@ export function useHostRoom(
 
   const recheck = useCallback(() => setLookupNonce((value) => value + 1), []);
   const announceStatus = useDawStore((s) => s.announceStatus);
+  const end = snapshot
+    ? endGate(snapshot, hostSegments)
+    : { enabled: false as const, reason: "" };
   const endSession = useEndSession({
     projectPath,
     sessionId: snapshot?.session_id ?? null,
-    canEnd: state === "lobby" || state === "stopped",
+    canEnd: end.enabled,
     onEnded: () => {
       setSnapshot(null);
       setRoomLookup("none");
@@ -356,7 +364,7 @@ export function useHostRoom(
     hydrateError,
     roomLookup,
     recheck,
-    endSession,
+    endSession: { ...endSession, gate: end },
     doneNotice,
     transportBusy,
     runCommand,

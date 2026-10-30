@@ -91,6 +91,40 @@ describe("useEndSession", () => {
     expect(none.result.current.ending).toBe(false);
   });
 
+  it("is busy while the revoke is in flight and ignores a second press", async () => {
+    let settle!: () => void;
+    revokeHostRoom.mockReturnValue(
+      new Promise<void>((resolve) => {
+        settle = resolve;
+      }),
+    );
+    const { result } = mountHook();
+    act(() => result.current.end());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(END_SESSION_UNDO_MS);
+    });
+    expect(result.current.busy).toBe(true);
+    act(() => result.current.end());
+    expect(result.current.ending).toBe(false);
+    await act(async () => {
+      settle();
+    });
+    expect(result.current.busy).toBe(false);
+    expect(revokeHostRoom).toHaveBeenCalledTimes(1);
+    expect(onEnded).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not report after the stage unmounted", async () => {
+    revokeHostRoom.mockRejectedValue(new Error("offline"));
+    const { result, unmount } = mountHook();
+    act(() => result.current.end());
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(onFailed).not.toHaveBeenCalled();
+  });
+
   it("reports a failed revoke", async () => {
     revokeHostRoom.mockRejectedValue(new Error("offline"));
     const { result } = mountHook();

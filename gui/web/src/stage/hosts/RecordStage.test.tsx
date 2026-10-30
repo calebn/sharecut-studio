@@ -758,13 +758,25 @@ describe("Record stage End session", () => {
     expect(revokeHostRoom).not.toHaveBeenCalled();
   });
 
-  it("offers no End session while a take is running", async () => {
+  it("keeps End session unavailable while a take is running", async () => {
     setRoom({ state: "recording", take_index: 0, participants: [avaGuest()] });
     mount();
     const dialog = await openMore();
-    expect(
-      within(dialog).queryByRole("button", { name: "End session" }),
-    ).toBeNull();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "End session" }),
+    );
+    expect(screen.queryByText(END_SESSION_PENDING_COPY)).toBeNull();
+    expect(revokeHostRoom).not.toHaveBeenCalled();
+  });
+
+  it("keeps End session unavailable while a take is not on the timeline", async () => {
+    setRoom({ state: "stopped", take_index: 0, participants: [avaGuest()] });
+    mount();
+    const dialog = await openMore();
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "End session" }),
+    );
+    expect(screen.queryByText(END_SESSION_PENDING_COPY)).toBeNull();
   });
 });
 
