@@ -1662,11 +1662,6 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   min-inline-size: 0;
   font-weight: 500;
   overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
 }
 
 .sys-status-detail {
@@ -2718,6 +2713,11 @@ button.sys-picker-option:focus-visible {
   font-size: var(--font-size-ui);
   font-style: italic;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 /* Stage hand-off */
