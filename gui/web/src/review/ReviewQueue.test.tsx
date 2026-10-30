@@ -81,6 +81,41 @@ describe("ReviewQueue", () => {
     expect(queryByText(/to decide one by one/)).toBeNull();
   });
 
+  it("keeps Cut all and Find more apart for an Editor guest", () => {
+    const { getAllByRole, queryByRole } = render(
+      <ReviewQueue
+        items={fillers}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        guest
+        canDecide
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(getAllByRole("button", { name: /Cut all/ }).length).toBeGreaterThan(
+      0,
+    );
+    expect(queryByRole("button", { name: /Find more/ })).toBeNull();
+  });
+
+  it("words a comments-only queue for comments", () => {
+    const { getByText, queryByRole } = render(
+      <ReviewQueue
+        items={fillers}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        guest
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(getByText(/resolved$/)).toBeInTheDocument();
+    expect(queryByRole("button", { name: /^Checks/ })).toBeNull();
+  });
+
   it("shows the bulk row for a group that has left the queue, without a fake bar", () => {
     const { getByText, queryByRole, queryByText } = render(
       <ReviewQueue

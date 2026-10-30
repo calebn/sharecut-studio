@@ -11,6 +11,12 @@ import {
 import { stubViewportShell } from "../../test/viewportShell";
 import { ReviewHost } from "./ReviewHost";
 
+const postGuest = vi.hoisted(() => vi.fn());
+vi.mock("../../api/documentTransport", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../api/documentTransport")>()),
+  postGuestDocumentCommand: postGuest,
+}));
+
 const createComment = vi.fn();
 const addCommentReply = vi.fn();
 
@@ -23,7 +29,13 @@ vi.mock("../../api", async (importOriginal) => ({
 const PENDING_LABEL = "Trim the long pause";
 const NAME_KEY = "podcast-mcp-guest-comment-name";
 
-function join(mode: "view" | "comment", comments = [sampleComment()]) {
+const CAPS = {
+  view: ["view"],
+  comment: ["view", "comment"],
+  edit: ["view", "comment", "edit"],
+};
+
+function join(mode: "view" | "comment" | "edit", comments = [sampleComment()]) {
   useDawStore.getState().hydrate(
     "share:tok",
     minimalProject({
@@ -32,7 +44,7 @@ function join(mode: "view" | "comment", comments = [sampleComment()]) {
       timeline_duration_sec: 600,
     }),
     mode,
-    mode === "view" ? ["view"] : ["view", "comment"],
+    CAPS[mode],
   );
   useDawStore.setState({
     stage: "review",
@@ -50,6 +62,7 @@ describe("Review queue for a guest", () => {
   beforeEach(() => {
     localStorage.clear();
     stubViewportShell("desktop");
+    postGuest.mockReset().mockResolvedValue({ ok: true, data: {} });
     createComment.mockReset().mockResolvedValue(sampleComment({ id: "new" }));
     addCommentReply.mockReset().mockResolvedValue({});
   });
@@ -72,15 +85,49 @@ describe("Review queue for a guest", () => {
     expect(screen.queryByText("Nothing to decide")).toBeNull();
   });
 
-  it("keeps the host's pending edits out of a guest's queue", () => {
-    join("comment");
+  it.each(["view", "comment"] as const)(
+    "keeps the host's suggested cuts out of a %s guest's queue",
+    (mode) => {
+      join(mode);
+      render(<ReviewHost guestShare />);
+      expect(screen.queryByText(PENDING_LABEL)).toBeNull();
+      expect(
+        [...document.querySelectorAll(".rv-group")].map((g) =>
+          g.getAttribute("aria-label"),
+        ),
+      ).toEqual(["Comments"]);
+      expect(screen.getByText(/of 1 resolved/)).toBeVisible();
+      expect(screen.queryByText(/saves/)).toBeNull();
+      expect(screen.queryByRole("button", { name: /^Suggestions/ })).toBeNull();
+    },
+  );
+
+  it("gives an Editor the suggested cuts to Cut or Keep, without Find more, Deliver or Resolve", () => {
+    join("edit", []);
     render(<ReviewHost guestShare />);
-    expect(screen.queryByText(PENDING_LABEL)).toBeNull();
+    expect(screen.getAllByText(PENDING_LABEL).length).toBeGreaterThan(0);
+    expect(screen.getByText(/of 1 decided/)).toBeVisible();
     expect(
-      [...document.querySelectorAll(".rv-group")].map((g) =>
-        g.getAttribute("aria-label"),
+      screen.getAllByRole("button", { name: /^Cut/ }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("button", { name: /^Keep/ }).length,
+    ).toBeGreaterThan(0);
+    for (const label of [/Find more/, /Deliver/, /Fix/, /Looks right/])
+      expect(screen.queryByRole("button", { name: label })).toBeNull();
+  });
+
+  it("sends an Editor's Cut as ApproveEdits", async () => {
+    const user = userEvent.setup();
+    join("edit", []);
+    render(<ReviewHost guestShare />);
+    await user.click(screen.getAllByRole("button", { name: /^Cut/ })[0]);
+    await waitFor(() =>
+      expect(postGuest).toHaveBeenCalledWith(
+        "tok",
+        expect.objectContaining({ type: "ApproveEdits" }),
       ),
-    ).toEqual(["Comments"]);
+    );
   });
 
   it("shows the same pending edit to the host, so the guest test can tell", () => {

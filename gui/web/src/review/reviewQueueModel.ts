@@ -187,6 +187,11 @@ export function progressLine(items: readonly ReviewItem[]): string {
   return `${decided} of ${items.length} decided · saves ${formatSeconds(secondsSaved(items))}`;
 }
 
+/** "2 of 5 resolved" for a queue that is only comments. */
+export function commentLine(items: readonly ReviewItem[]): string {
+  return `${items.filter(isDecided).length} of ${items.length} resolved`;
+}
+
 /** "Cut 0.8 s", "Looks right", "Kept". */
 export function resultText(item: ReviewItem): string {
   if (item.result === "kept") return "Kept";

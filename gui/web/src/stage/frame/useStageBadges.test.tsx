@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HostRoom } from "../../record";
 import { HostRoomProvider } from "../../record/hostRoomContext";
 import { useDawStore } from "../../state/dawStore";
+import { minimalProject, pendingEditView } from "../../test/fixtures";
 import { useRecordBadge, useStageBadges } from "./useStageBadges";
 
 const room = (micLossNeedsAttention: boolean) =>
@@ -98,5 +99,34 @@ describe("useRecordBadge", () => {
     act(() => setRoom(waiting({ state: "paused" })));
     expect(result.current).toEqual({ kind: "paused", alert: false });
     expect(renders.mock.calls.length).toBeGreaterThan(before);
+  });
+});
+
+describe("useStageBadges pending cuts for a guest", () => {
+  const join = (caps: string[]) => {
+    useDawStore
+      .getState()
+      .hydrate(
+        "share:tok",
+        minimalProject({ pending_edits: [pendingEditView()] }),
+        caps.includes("edit") ? "edit" : "comment",
+        caps,
+      );
+  };
+
+  it("counts an Editor's pending cuts, which the stubbed impact reports as zero", () => {
+    join(["view", "comment", "edit"]);
+    const { result } = renderHook(() => useStageBadges(), {
+      wrapper: wrap(room(false)),
+    });
+    expect(result.current.review).toEqual({ kind: "needs-you", count: 1 });
+  });
+
+  it("leaves a Commenter without the count", () => {
+    join(["view", "comment"]);
+    const { result } = renderHook(() => useStageBadges(), {
+      wrapper: wrap(room(false)),
+    });
+    expect(result.current.review).toBeUndefined();
   });
 });
