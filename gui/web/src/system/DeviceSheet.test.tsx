@@ -258,6 +258,12 @@ describe("DeviceSheet", () => {
       await expectNoA11yViolations(baseElement);
     });
 
+    it("asks for a fresh speaker list when the sheet opens", () => {
+      const onOutputRefresh = vi.fn();
+      render(sheet({ output, onOutputRefresh }));
+      expect(onOutputRefresh).toHaveBeenCalledOnce();
+    });
+
     it("says when a pick did not stick", async () => {
       const { baseElement } = render(
         sheet({
@@ -272,6 +278,9 @@ describe("DeviceSheet", () => {
         screen.getByText("Couldn't switch speakers. Using the default."),
       ).toBeVisible();
       expect(screen.getByLabelText("Speaker")).toHaveValue("");
+      expect(screen.getByLabelText("Speaker")).toHaveAccessibleDescription(
+        "Couldn't switch speakers. Using the default.",
+      );
       await expectNoA11yViolations(baseElement);
     });
   });

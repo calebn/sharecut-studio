@@ -447,6 +447,7 @@ function GuestRoomSession({
           onHeadphonesChange={setHeadphonesOk}
           output={output}
           onOutputChange={output.onChange}
+          onOutputRefresh={output.refresh}
           tone={deviceTone({
             status: roomTone.status,
             delivery: roomTone.delivery,

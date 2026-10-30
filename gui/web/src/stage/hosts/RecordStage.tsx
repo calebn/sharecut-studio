@@ -326,6 +326,7 @@ function RecordStageBody({
         onInputChange={cap.onDeviceChange}
         output={cap.output}
         onOutputChange={cap.output.onChange}
+        onOutputRefresh={cap.output.refresh}
         tone={deviceTone({
           status: room.roomTone.status,
           delivery: room.roomTone.delivery,

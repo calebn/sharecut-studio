@@ -304,11 +304,11 @@ describe("useRecordMonitor speaker", () => {
     );
     expect(result.current.outputSupported).toBe(true);
     expect(result.current.contextGeneration).toBe(0);
-    await result.current.setSinkId("hp");
+    await expect(result.current.setSinkId("hp")).resolves.toBe(false);
     expect(sinkCalls).toEqual([]);
     rerender({ enabled: true });
     expect(result.current.contextGeneration).toBe(1);
-    await result.current.setSinkId("hp");
+    await expect(result.current.setSinkId("hp")).resolves.toBe(true);
     expect(sinkCalls).toEqual(["hp"]);
     rerender({ enabled: false });
     rerender({ enabled: true });
@@ -321,7 +321,7 @@ describe("useRecordMonitor speaker", () => {
       useRecordMonitor({ ...args, enabled: true }),
     );
     expect(result.current.outputSupported).toBe(false);
-    await expect(result.current.setSinkId("hp")).resolves.toBeUndefined();
+    await expect(result.current.setSinkId("hp")).resolves.toBe(false);
     expect(sinkCalls).toEqual([]);
   });
 });

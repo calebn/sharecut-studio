@@ -427,6 +427,7 @@ describe("GuestRoomApp in the room", () => {
           devices: [{ id: "hp", label: "Headset" }],
           selectedId: "",
           onChange,
+          refresh: vi.fn(),
         },
       });
       render(<GuestRoomApp token="t" />);
