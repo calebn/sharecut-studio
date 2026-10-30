@@ -29,11 +29,29 @@ test("a finger drags the phone Inspector sheet through its detents and off the s
     const box = (await grip.boundingBox())!;
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   };
+  await page.evaluate(() => {
+    const w = window as unknown as { lastMove: number };
+    w.lastMove = 0;
+    addEventListener(
+      "pointermove",
+      () => (w.lastMove = performance.now()),
+      true,
+    );
+  });
   const drag = async (dy: number) => {
     const from = await center();
     await finger.down(from);
     await finger.slide({ x: from.x, y: from.y + dy }, 12, 30);
-    await page.waitForTimeout(400);
+    // Lifting straight after a move reads as a flick; let the finger rest first.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            performance.now() -
+            (window as unknown as { lastMove: number }).lastMove,
+        ),
+      )
+      .toBeGreaterThan(150);
     await finger.up();
   };
 
@@ -47,7 +65,7 @@ test("a finger drags the phone Inspector sheet through its detents and off the s
   await expect(grip).toHaveAttribute("aria-valuetext", "Half height");
   expect(Math.abs((await height()) - half)).toBeLessThan(4);
 
-  await drag(250);
+  await drag(Math.round(half * 0.75));
   await expect(grip).toHaveAttribute("aria-valuetext", "Dock");
   expect(await height()).toBeLessThan(half / 2);
 

@@ -5,7 +5,7 @@ import { exerciseTouchSheetAffordances } from "./touchAffordances";
 const cases = [
   { width: 360, height: 800, sheetExpected: true },
   { width: 667, height: 360, sheetExpected: true },
-  { width: 820, height: 1180, sheetExpected: true },
+  { width: 820, height: 1180, sheetExpected: false },
   { width: 1440, height: 900, sheetExpected: false },
 ] as const;
 

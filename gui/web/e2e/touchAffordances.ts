@@ -89,13 +89,14 @@ export async function exerciseTouchSheetAffordances(
     }
   });
 
-  // A track opens the plain inspector sheet; a timeline target on a phone
-  // opens the compact drawer instead, which touch-peek.spec.ts covers. Enter
-  // keeps focus on the button, which a WebKit click does not.
-  const trigger = page.locator(".track-header-open").first();
-  await trigger.focus();
-  await expect(trigger).toBeFocused();
-  await trigger.press("Enter");
+  // A track opens the system Inspector sheet, so the legacy BottomSheet is
+  // reached the way a phone reaches it: Inspect on a selected clip. The key
+  // is pressed with focus left on the clip, which a WebKit click does not move.
+  const clip = page.locator(".lane-row .clip-hit").first();
+  await clip.focus();
+  await clip.press("Enter");
+  await expect(clip).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("i");
   const sheet = page.locator(".bottom-sheet");
   if (!viewport.sheetExpected) {
     await expect(sheet).toHaveCount(0);
@@ -116,8 +117,9 @@ export async function exerciseTouchSheetAffordances(
     );
   });
   const close = sheet.getByRole("button", { name: "Close" });
-  const resize = sheet.locator(".bottom-sheet-resize-action");
-  await expect(resize).toHaveAccessibleName("Expand");
+  const resize = sheet.getByRole("button", { name: "Expand to half height" });
+  const collapse = sheet.getByRole("button", { name: "Collapse to strip" });
+  await expect(resize).toBeVisible();
   await expect(close).toBeFocused();
   const geometry = async (): Promise<SheetGeometry> => {
     const shellChrome: ShellChromeGeometry = {
@@ -143,7 +145,10 @@ export async function exerciseTouchSheetAffordances(
       headerBox,
       titleBox,
       bodyBox,
-      resizeBox: await resize.boundingBox(),
+      resizeBox: await sheet
+        .locator(".bottom-sheet-resize-action")
+        .first()
+        .boundingBox(),
       closeBox,
     };
   };
@@ -206,7 +211,7 @@ export async function exerciseTouchSheetAffordances(
 
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
-  await expect(trigger).toBeFocused();
+  await expect(clip).toBeFocused();
   const focusAfterEscape = await page.evaluate(() => ({
     tag: document.activeElement?.tagName ?? null,
     className:
@@ -218,8 +223,8 @@ export async function exerciseTouchSheetAffordances(
         ? document.activeElement.getAttribute("aria-label")
         : null,
   }));
-  await expect(trigger).toBeFocused();
-  await trigger.press("Enter");
+  await expect(clip).toBeFocused();
+  await page.keyboard.press("i");
   await expect(sheet).toBeVisible();
   await sheet.evaluate(async (element) => {
     await Promise.all(
@@ -229,10 +234,8 @@ export async function exerciseTouchSheetAffordances(
   const reopened = await sheet.boundingBox();
   if (reopened === null) throw new Error("The reopened sheet has no geometry");
   await resize.click();
-  await expect(resize).toHaveAccessibleName("Collapse");
-  await expect
-    .poll(async () => (await sheet.boundingBox())?.height ?? 0)
-    .toBeGreaterThan(reopened.height);
+  await expect(collapse).toBeVisible();
+  await expect(sheet).toHaveClass(/bottom-sheet--half/);
   const expandedGeometry = await geometry();
   await test.info().attach("sheet-full.png", {
     body: await page.screenshot({ type: "png" }),
@@ -268,8 +271,8 @@ export async function exerciseTouchSheetAffordances(
   const fullBox = await sheet.boundingBox();
   if (fullBox === null) throw new Error("The expanded sheet has no geometry");
   if (!viewport.requireBodyOverflow) {
-    await resize.click();
-    await expect(resize).toHaveAccessibleName("Expand");
+    await collapse.click();
+    await expect(resize).toBeVisible();
     await expect
       .poll(async () => (await sheet.boundingBox())?.height ?? 0)
       .toBeLessThan(fullBox.height);
@@ -281,7 +284,7 @@ export async function exerciseTouchSheetAffordances(
     ? null
     : ((await sheet.boundingBox())?.height ?? null);
 
-  const scrollRegion = sheet;
+  const scrollRegion = sheet.locator(".bottom-sheet-body");
   const scrollState = await scrollRegion.evaluate((element) => ({
     scrollHeight: element.scrollHeight,
     clientHeight: element.clientHeight,
@@ -319,7 +322,7 @@ export async function exerciseTouchSheetAffordances(
 
   await pointerControl(page, close, []);
   await expect(sheet).toHaveCount(0);
-  await expect(trigger).toBeFocused();
+  await expect(clip).toBeFocused();
   const focusAfterClose = await page.evaluate(() => ({
     tag: document.activeElement?.tagName ?? null,
     className:
@@ -360,7 +363,11 @@ export async function exerciseTouchSheetAffordances(
     ),
     contentType: "application/json",
   });
-  expect(await browserStorageState(page)).toBe(localPreferences);
+  // Resizing the drawer remembers its detent, which is not a stray preference.
+  const detentPreference = /,\["sharecut\.compactInspector","[^"]*"\]/;
+  expect((await browserStorageState(page)).replace(detentPreference, "")).toBe(
+    localPreferences,
+  );
   expect(documentCommands).toEqual([]);
   expect(fs.readFileSync(e2eProjectPath, "utf8")).toBe(savedProject);
   if (viewport.width <= 767) {

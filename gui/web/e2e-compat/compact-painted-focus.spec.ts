@@ -16,7 +16,7 @@ import {
 import { setTheme, withAppearance } from "../e2e/theme";
 import { json } from "../e2e/touchTimeline";
 
-for (const { cell: width, theme } of withAppearance([667, 844])) {
+for (const { cell: width, theme } of withAppearance([667, 767])) {
   test.describe(`painted focus ${width}x360 root32 ${theme}`, () => {
     test.use({ viewport: { width, height: 360 }, reducedMotion: "reduce" });
     test("every native compact Tab target paints its focus indicator inside actual clips", async ({
