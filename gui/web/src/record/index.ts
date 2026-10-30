@@ -50,6 +50,7 @@ export {
   LOCAL_KEEPER_COPY,
   RECORD_ROOM_RECONNECTING_COPY,
   type RecordRoomState,
+  type RecordSessionSummary,
   type RecordSnapshot,
   ROOM_TONE_CAPTURING_COPY,
   ROOM_TONE_DEVICE_COPY,
@@ -66,4 +67,5 @@ export {
   useHostRoom,
 } from "./useHostRoom";
 export { useInputPeakDb } from "./useInputPeakDb";
+export { useLastEndedSession } from "./useLastEndedSession";
 export { useRoomToneAnnouncement } from "./useRoomToneAnnouncement";

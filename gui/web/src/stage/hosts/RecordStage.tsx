@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { runPointerCommand } from "../../commands/pointer";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
@@ -24,6 +24,7 @@ import {
   useHostRoom,
   useHostRoomContext,
   useInputPeakDb,
+  useLastEndedSession,
   useRecordHostStore,
   useRoomToneAnnouncement,
   useSheetMic,
@@ -70,6 +71,7 @@ function RecordStageBody({
   loadFailure,
 }: RecordStageProps & { room: HostRoom }) {
   const project = useDawStore((s) => s.project);
+  const projectPath = useDawStore((s) => s.projectPath);
   const announceStatus = useDawStore((s) => s.announceStatus);
   const receivedAtMs = useRecordHostStore((s) => s.receivedAtMs);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
@@ -83,6 +85,12 @@ function RecordStageBody({
   const [moreOpen, setMoreOpen] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false);
   const { snapshot, state, host, capture: cap } = room;
+  const lookup = lookupOf(room);
+  const lastSession = useLastEndedSession(projectPath, lookup === "none");
+  const trackNames = useMemo(
+    () => new Map((project?.tracks ?? []).map((t) => [t.id, t.label])),
+    [project?.tracks],
+  );
   const ticking = state === "recording" || state === "lobby";
   const elapsed = useElapsedSince(receivedAtMs, ticking);
   const meter = useInputPeakDb(cap.stream);
@@ -348,11 +356,13 @@ function RecordStageBody({
       shell={shell}
       state={hostStateOf(project, loadFailure)}
       failure={loadFailure}
-      lookup={lookupOf(room)}
+      lookup={lookup}
       busy={room.transportBusy}
       hydrateError={room.hydrateError}
       transportError={room.transportError}
       room={roomProps}
+      lastSession={lastSession}
+      trackNames={trackNames}
       storage={
         <StorageHeadroomWarning
           visible={state === "lobby" || state === "stopped"}

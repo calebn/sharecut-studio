@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadHostRecordState } from "../../api";
+import { loadHostRecordSessions, loadHostRecordState } from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { HostRoomProvider } from "../../record/hostRoomContext";
@@ -102,6 +102,7 @@ const revokeHostRoom = vi.fn(async () => undefined);
 
 vi.mock("../../api", () => ({
   loadHostRecordState: vi.fn(async () => null),
+  loadHostRecordSessions: vi.fn(async () => []),
   revokeHostRoom: (...args: unknown[]) => revokeHostRoom(...(args as [])),
   hostRecordUploadTransport: () => ({
     status: () => uploadStatus(),
@@ -181,6 +182,8 @@ beforeEach(() => {
   postTransport.mockReset();
   uploadStatus.mockReset();
   uploadStatus.mockResolvedValue({ segments: [] });
+  vi.mocked(loadHostRecordSessions).mockReset();
+  vi.mocked(loadHostRecordSessions).mockResolvedValue([]);
   vi.mocked(loadHostRecordState).mockReset();
   vi.mocked(loadHostRecordState).mockImplementation(
     async () => useRecordHostStore.getState().snapshot,
@@ -280,6 +283,61 @@ describe("Record stage", () => {
     );
     await waitFor(() => expect(record()).toBeVisible());
     await expectNoA11yViolations(baseElement);
+  });
+
+  describe("previous session summary", () => {
+    const ended = {
+      session_id: "old",
+      number: 1,
+      state: "ended" as const,
+      target_kind: null,
+      takes: [{ take_index: 0, recording_ms: 61_000 }],
+      participants: [
+        {
+          participant_id: "p_g",
+          display_name: "Ava",
+          role: "guest" as const,
+          track_id: null,
+        },
+      ],
+      landed: true,
+      ended_at: "2026-10-25T18:00:00Z",
+    };
+
+    it("shows the card above Create record room when no room is open", async () => {
+      vi.mocked(loadHostRecordSessions).mockResolvedValue([ended]);
+      const { baseElement } = mount();
+      const card = await screen.findByRole("region", {
+        name: "Session 1 · Sun 25 Oct",
+      });
+      expect(within(card).getByText("Ava → New track")).toBeInTheDocument();
+      const create = screen.getByRole("button", { name: "Create record room" });
+      expect(
+        card.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      await expectNoA11yViolations(baseElement);
+    });
+
+    it("shows no card while a room is open", async () => {
+      vi.mocked(loadHostRecordSessions).mockResolvedValue([ended]);
+      setRoom();
+      mount();
+      await waitFor(() => expect(record()).toBeVisible());
+      expect(
+        screen.queryByRole("region", { name: /Session 1/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps only the empty state when the fetch fails", async () => {
+      vi.mocked(loadHostRecordSessions).mockRejectedValue(new Error("down"));
+      mount();
+      expect(
+        await screen.findByRole("button", { name: "Create record room" }),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(loadHostRecordSessions).toHaveBeenCalled());
+      expect(screen.queryByText(/Session 1/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
   });
 
   it("drops a stale room once the server says it has ended", async () => {

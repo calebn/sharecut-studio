@@ -5,6 +5,7 @@ import {
   studioViewports,
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
+import { MIRA } from "../../test/episodeFixture";
 import { recordParticipant, recordSnapshot } from "../../test/fixtures";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import { StageFrame } from "../frame/StageFrame";
@@ -89,6 +90,58 @@ export const NoRoom: Story = {
     await expect(
       canvas.queryByRole("group", { name: "Recording controls" }),
     ).toBeNull();
+  },
+};
+
+export const HostEndedSessionSummary: Story = {
+  parameters: {
+    episode: {
+      state: { stage: "record" as const },
+      responses: {
+        [STATE]: null,
+        "GET /api/record/sessions": {
+          sessions: [
+            {
+              session_id: "s1",
+              number: 1,
+              state: "ended",
+              target_kind: null,
+              takes: [
+                { take_index: 0, recording_ms: 420_000 },
+                { take_index: 1, recording_ms: 304_000 },
+              ],
+              participants: [
+                {
+                  participant_id: "p_ava",
+                  display_name: "Ava Lindgren",
+                  role: "guest",
+                  track_id: MIRA,
+                },
+                {
+                  participant_id: "p_sam",
+                  display_name: "Sam",
+                  role: "guest",
+                  track_id: null,
+                },
+              ],
+              landed: true,
+              ended_at: "2026-10-25T18:00:00Z",
+            },
+          ],
+        },
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("region", { name: /^Session 1/ }),
+    ).toBeVisible();
+    await expect(canvas.getByText("Ava Lindgren → Mira")).toBeVisible();
+    await expect(canvas.getByText("Sam → New track")).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Create record room" }),
+    ).toBeVisible();
   },
 };
 
