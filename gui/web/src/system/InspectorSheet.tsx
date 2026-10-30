@@ -10,6 +10,7 @@ import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
 import { CloseButton } from "../ui";
 import type { SystemIconName } from "./icons";
 import {
+  CARD_WIDTH_PX,
   DOCK_PX,
   dragHeight,
   INSPECTOR_DETENTS,
@@ -211,7 +212,11 @@ function Card({
   anchor,
   bounds,
 }: InspectorCardProps) {
-  const place = placeCard(anchor, bounds);
+  const place = placeCard(
+    anchor,
+    bounds,
+    (CARD_WIDTH_PX * (rootRem() || DEFAULT_ROOT_PX)) / DEFAULT_ROOT_PX,
+  );
   const style: CSSProperties = {
     insetInlineStart: place.inline,
     maxBlockSize: place.maxBlock,
@@ -241,6 +246,7 @@ function Card({
 }
 
 const DOCK_REM = 4;
+const DEFAULT_ROOT_PX = 16;
 const DOCK_TOLERANCE_PX = 0.5;
 
 function rootRem() {

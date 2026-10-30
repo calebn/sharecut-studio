@@ -115,6 +115,13 @@ describe("inspectorSheetMath card placement", () => {
     });
   });
 
+  it("keeps a card wider than 320 px, as at a larger text size, inside the box", () => {
+    const tablet = { width: 820, height: 1180 };
+    expect(
+      placeCard({ x: 700, y: 100, width: 80, height: 40 }, tablet, 640).inline,
+    ).toBe(172);
+  });
+
   it("flips above when the card does not fit below, hanging from the anchor's top", () => {
     expect(
       placeCard({ x: 600, y: 600, width: 80, height: 40 }, desktop),

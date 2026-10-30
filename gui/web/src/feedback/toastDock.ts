@@ -12,6 +12,7 @@ const FLOOR_SELECTORS = [
   ".join-edit-rail",
   ".precision-jog",
   ".bottom-sheet:not(.bottom-sheet--column)",
+  ".sys-inspector--phone",
 ] as const;
 
 const PROTECT_SELECTORS = [".comment-compose", ".sys-composer"] as const;

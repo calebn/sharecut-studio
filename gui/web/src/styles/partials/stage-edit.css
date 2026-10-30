@@ -98,6 +98,19 @@
   display: none;
 }
 
+/* The card and the phone sheet sit over the lanes' headers, playhead and corner. */
+.edit-workspace .sys-inspector {
+  z-index: var(--z-timeline-popover);
+}
+
+/* The legacy bodies stack in the sheet's one row until each kind is rebuilt. */
+.edit-inspector-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
 /* The slot only carries the divider's focus region. */
 .edit-divider-slot {
   display: contents;
@@ -246,6 +259,10 @@ html[data-frame-short] .edit-dock {
 
 /* The open Inspector sheet carries the Action bar as its own dock; this one
    keeps the layout still beneath it. */
+.edit-workspace .sys-inspector-dock:empty {
+  display: none;
+}
+
 .edit-workspace:has(.sys-inspector--phone) .edit-dock {
   visibility: hidden;
 }
