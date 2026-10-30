@@ -243,7 +243,11 @@ export function useReviewComments(guest: boolean) {
     try {
       const result = await postComment.post({
         body,
-        author: commitCommentActor(name, role, setName),
+        author: commitCommentActor(
+          name,
+          role,
+          guest && !capCommentName(name) ? undefined : setName,
+        ),
       });
       // Escape closed the field while this was in flight: its outcome is moot.
       if (started !== session.current) {

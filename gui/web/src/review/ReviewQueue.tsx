@@ -313,7 +313,11 @@ export function ReviewQueue({
       ) : null}
       {groups.length === 0 && !cuttingAlone ? (
         <EmptyState as="div" role="status">
-          {filter === "all" ? "Nothing to decide" : "Nothing here"}
+          {filter !== "all"
+            ? "Nothing here"
+            : guest
+              ? "No comments yet"
+              : "Nothing to decide"}
         </EmptyState>
       ) : null}
       {groups.map((group) => {

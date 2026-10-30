@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
@@ -65,6 +65,13 @@ describe("Review queue for a guest", () => {
       expect(screen.queryByRole("button", { name: label })).toBeNull();
   });
 
+  it("says so when a guest has no comments, not that there is nothing to decide", () => {
+    join("view", []);
+    render(<ReviewHost guestShare />);
+    expect(screen.getAllByText("No comments yet").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Nothing to decide")).toBeNull();
+  });
+
   it("keeps the host's pending edits out of a guest's queue", () => {
     join("comment");
     render(<ReviewHost guestShare />);
@@ -106,6 +113,21 @@ describe("Review queue for a guest", () => {
       "share:tok",
       expect.objectContaining({ body: "Hello", author: "Guest" }),
     );
+    expect(localStorage.getItem(NAME_KEY)).toBeNull();
+  });
+
+  it("leaves a blank name blank after a failed post, and never saves it", async () => {
+    const user = userEvent.setup();
+    createComment.mockRejectedValueOnce(new Error("Server said no"));
+    join("comment");
+    render(<ReviewHost guestShare />);
+    await user.type(field(), "Try");
+    await user.click(post());
+    await screen.findByRole("alert");
+    expect(name()).toHaveValue("");
+    await user.click(post());
+    await waitFor(() => expect(createComment).toHaveBeenCalledTimes(2));
+    expect(name()).toHaveValue("");
     expect(localStorage.getItem(NAME_KEY)).toBeNull();
   });
 

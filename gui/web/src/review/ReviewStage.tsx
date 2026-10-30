@@ -373,7 +373,9 @@ export function ReviewStage({
           <div className="rv-phone-top">
             <Button aria-haspopup="dialog" onClick={() => setSheetOpen(true)}>
               <SystemIcon name="inbox" size={14} />
-              {position} of {items.length}
+              {guest && items.length === 0
+                ? "No comments"
+                : `${position} of ${items.length}`}
             </Button>
           </div>
         ) : (

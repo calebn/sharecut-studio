@@ -196,7 +196,7 @@ test("a phone guest can leave the name blank and change it later", async ({
       await field.fill("Anonymous note");
       await post.tap();
       await expect(field).toHaveValue("");
-      await expect(name).toHaveValue("Guest");
+      await expect(name).toHaveValue("");
 
       await name.fill("Alex");
       await field.fill("Named note");
