@@ -1432,7 +1432,7 @@ def _project_pad_lane(
 ) -> list[Clip] | LaneUnavailable:
 
     track = project.track_by_id(tid)
-    clips = list(clips_for_track(project, tid))
+    clips = clips_for_track(project, tid)
     if not clips and track is not None and not track.timeline_empty and track.media:
         duration = track.media.duration_sec
         if duration is None or not math.isfinite(duration) or duration <= 0:

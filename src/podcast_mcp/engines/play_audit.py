@@ -531,8 +531,7 @@ def stem_is_fresh(project: EpisodeProject, track_id: str, *, defaults: Effective
         if not stem_duration_matches_timeline(project, track_id):
             return False
     except ValueError as exc:
-        # A source or media path outside the workspace. The hash tolerates it, and the
-        # hash-first order answered False for a stale stem before reaching this check.
+        # A path outside the workspace: a stale stem still answers False, a fresh one raises.
         unresolvable = exc
     stored = read_stem_hash(project, track_id)
     if stored != track_render_hash(project, track_id, defaults=defaults):
