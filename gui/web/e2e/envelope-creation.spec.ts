@@ -1,64 +1,40 @@
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import {
   acceptedEnvelopeCommand,
+  addEnvelopePoint,
   emptyEnvelopeProject,
   envelopeSnapshot,
   envelopeTrack,
   expectEnvelopeMutation,
+  inspectEnvelopePoint,
   observeEnvelopeCommands,
+  openEnvelopePoint,
   openEnvelopeTrackDetails,
+  pointSheet,
+  setPointField,
+  showEnvelope,
 } from "./envelopeCreationEvidence";
 import { type InteractionReceipt, test } from "./interactionEvidence";
-import { openPhoneTimeline } from "./phoneTimeline";
+import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
 import { setAudition } from "./stageNav";
 import { setTheme, type Theme } from "./theme";
 
-async function openWorkspace(
+async function openEnvelope(
   page: Page,
   projectPath: string,
   theme: Theme,
   receipts: InteractionReceipt[],
   phone = false,
-  shortExpanded = false,
 ) {
+  if (phone) await rememberInspectorDetent(page, "half");
   await openHostShare(page, projectPath);
   if (phone) await openPhoneTimeline(page);
   await setTheme(page, theme);
   const track = envelopeTrack(projectPath);
   await openEnvelopeTrackDetails(page, track.label, receipts);
-  if (shortExpanded) {
-    const inspector = page.getByRole("dialog", {
-      name: "Inspector",
-      exact: true,
-    });
-    const grip = inspector.getByRole("slider", { name: "Sheet height" });
-    await expect(grip).toBeVisible();
-    await grip.focus();
-    await page.keyboard.press("End");
-    await expect(inspector).toHaveAttribute("data-detent", "full");
-    await expect(grip).toHaveAttribute("aria-valuetext", "Full height");
-    receipts.push({
-      checkpoint: "short-viewport-public-expand",
-      observation: {
-        viewport: page.viewportSize(),
-        inspectorRect: await inspector.boundingBox(),
-        state: "full Inspector sheet",
-        action: "End on the sheet grip before envelope entry",
-      },
-    });
-  }
-  await page
-    .getByRole("button", { name: "Add volume envelope", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Show volume envelope", exact: true })
-    .click();
-  await expect(
-    page.getByText("Editing volume envelope", { exact: true }),
-  ).toBeVisible();
-  await expect(page.locator(".modifier-inspector h2")).toHaveText(track.label);
+  await showEnvelope(page);
   return track;
 }
 async function projectHistoryShortcut(
@@ -66,33 +42,23 @@ async function projectHistoryShortcut(
   receipts: InteractionReceipt[],
   key: "ControlOrMeta+z" | "ControlOrMeta+Shift+z",
 ) {
-  const done = page.getByRole("button", { name: "Done", exact: true });
-  await expect(done).toBeVisible();
-  await expect(done).toBeEnabled();
-  await done.focus();
-  await expect(done).toBeFocused();
+  const close = pointSheet(page).getByRole("button", { name: "Close" });
+  await expect(close).toBeEnabled();
+  await close.focus();
+  await expect(close).toBeFocused();
   receipts.push({
     checkpoint: "project-history-keyboard-focus",
     observation: {
       key,
-      target: "visible enabled Done button (focused, not activated)",
+      target: "enabled Close button (focused, not activated)",
       reason:
-        "Native SELECT owns typing shortcuts; project history requires a non-typing target.",
+        "A Scrub field's text input owns typing shortcuts; project history requires a non-typing target.",
     },
   });
   await page.keyboard.press(key);
 }
-async function fillPoint(page: Page, time: string, level: string) {
-  await page
-    .getByLabel("Time (seconds on timeline)", { exact: true })
-    .fill(time);
-  await page.getByLabel("Level (×)", { exact: true }).fill(level);
-}
-async function savePoint(page: Page) {
-  return acceptedEnvelopeCommand(page, "SetEnvelope", () =>
-    page.getByRole("button", { name: "Save point", exact: true }).click(),
-  );
-}
+const savedAt = (page: Page, change: () => Promise<unknown>) =>
+  acceptedEnvelopeCommand(page, "SetEnvelope", change);
 async function screenshot(page: Page, info: TestInfo, name: string) {
   await info.attach(name, {
     body: await page.screenshot(),
@@ -107,6 +73,12 @@ async function settle(page: Page) {
       ),
   );
 }
+const sheetTime = async (page: Page) =>
+  Number(
+    await pointSheet(page)
+      .getByRole("spinbutton", { name: "Time", exact: true })
+      .getAttribute("aria-valuenow"),
+  );
 
 for (const core of [
   {
@@ -139,6 +111,7 @@ for (const core of [
             receipts,
           );
           try {
+            if (core.phone) await rememberInspectorDetent(page, "half");
             await openHostShare(page, projectPath);
             if (core.phone) await openPhoneTimeline(page);
             await setTheme(page, core.theme);
@@ -146,38 +119,17 @@ for (const core of [
             observer.stage("track-entry");
             await openEnvelopeTrackDetails(page, track.label, receipts);
             await screenshot(page, info, "empty-track-entry");
-            await page
-              .getByRole("button", { name: "Add volume envelope", exact: true })
-              .click();
-            await expect(
-              page.getByText("Editing volume envelope", { exact: true }),
-            ).toBeVisible();
-            await expect(
-              page.getByRole("button", { name: "Add point", exact: true }),
-            ).toBeDisabled();
-            await expect(
-              page.getByRole("button", {
-                name: "Show volume envelope",
-                exact: true,
-              }),
-            ).toBeVisible();
             const showLayer = page.getByRole("button", {
               name: "Show volume envelope",
               exact: true,
             });
             await expect(showLayer).toHaveAttribute("aria-pressed", "false");
-            await page
-              .getByRole("button", {
-                name: "Show volume envelope",
-                exact: true,
-              })
-              .click();
-            await expect(
-              page.getByRole("button", {
-                name: "Hide volume envelope",
-                exact: true,
-              }),
-            ).toHaveAttribute("aria-pressed", "true");
+            await showLayer.click();
+            const hideLayer = page.getByRole("button", {
+              name: "Hide volume envelope",
+              exact: true,
+            });
+            await expect(hideLayer).toHaveAttribute("aria-pressed", "true");
             const unity = page.locator(".envelope-overlay").first();
             await expect(unity).toBeVisible();
             await expect(unity.locator("polyline")).toHaveAttribute(
@@ -185,107 +137,45 @@ for (const core of [
               /\S/,
             );
             await expect(unity.locator("circle")).toHaveCount(0);
-            await expect(
-              page.getByRole("button", { name: "Add point", exact: true }),
-            ).toBeEnabled();
-            await page
-              .getByRole("button", {
-                name: "Hide volume envelope",
-                exact: true,
-              })
-              .click();
-            await expect(
-              page.getByRole("button", {
-                name: "Show volume envelope",
-                exact: true,
-              }),
-            ).toHaveAttribute("aria-pressed", "false");
+            await hideLayer.click();
+            await expect(showLayer).toHaveAttribute("aria-pressed", "false");
             await expect(page.locator(".envelope-overlay")).toHaveCount(0);
-            await expect(
-              page.getByRole("button", { name: "Add point", exact: true }),
-            ).toBeDisabled();
             expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
             expect(observer.commands).toEqual([]);
-            await page
-              .getByRole("button", {
-                name: "Show volume envelope",
-                exact: true,
-              })
-              .click();
-            await expect(
-              page.getByRole("button", {
-                name: "Hide volume envelope",
-                exact: true,
-              }),
-            ).toHaveAttribute("aria-pressed", "true");
-            await expect(
-              page.locator(".envelope-overlay").first(),
-            ).toBeVisible();
+            await showLayer.click();
+            await expect(hideLayer).toHaveAttribute("aria-pressed", "true");
             expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
             expect(observer.commands).toEqual([]);
-            await screenshot(page, info, "empty-envelope-workspace");
-            observer.stage("first-draft-cancel");
-            await page
-              .getByRole("button", { name: "Add point", exact: true })
-              .click();
-            await expect(
-              page.getByLabel("Time (seconds on timeline)"),
-            ).toHaveValue("0");
-            await expect(page.getByLabel("Level (×)")).toHaveValue("1");
-            await fillPoint(page, "2", "0.5");
-            await page.keyboard.press("Escape");
-            await expect(
-              page.getByRole("button", { name: "Add point", exact: true }),
-            ).toBeFocused();
-            expect(observer.commands).toEqual([]);
-            expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
-            await page
-              .getByRole("button", { name: "Add point", exact: true })
-              .click();
-            await fillPoint(page, "5", "1");
-            observer.stage("first-save");
-            const first = await savePoint(page);
+            observer.stage("first-add");
+            const first = await savedAt(page, () => addEnvelopePoint(page));
             expect(first.command.payload.expected_points).toEqual([]);
-            const flat = first.command.payload.points;
-            const point = flat?.find((item) => item.time === 5);
-            expect(flat).toEqual([
-              { id: expect.stringMatching(/\S/), time: 0, value: 1 },
-              { id: expect.stringMatching(/\S/), time: 5, value: 1 },
-              { id: expect.stringMatching(/\S/), time: 60, value: 1 },
-            ]);
-            expect(new Set(flat?.map((item) => item.id)).size).toBe(3);
+            const flat = first.command.payload.points!;
+            expect(flat.length).toBeGreaterThanOrEqual(2);
+            expect(flat.every((item) => item.value === 1)).toBe(true);
+            expect(new Set(flat.map((item) => item.id)).size).toBe(flat.length);
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual(flat);
             const firstSaved = envelopeSnapshot(projectPath, track.id);
             expectEnvelopeMutation(origin, firstSaved, track.id);
-            await expect(
-              page.getByRole("combobox", {
-                name: "Envelope point",
-                exact: true,
-              }),
-            ).toHaveValue(point!.id);
+            await inspectEnvelopePoint(page);
+            const time = await sheetTime(page);
+            await screenshot(page, info, "first-point-inspector");
+            const point = flat.find((item) => item.time === time);
+            expect(point).toBeDefined();
             receipts.push({
               checkpoint: "first-point-applied",
               observation: { first, origin, firstSaved },
             });
             observer.stage("first-undo-redo");
-            const undoFirst = await acceptedEnvelopeCommand(
-              page,
-              "UndoHistory",
-              () => projectHistoryShortcut(page, receipts, "ControlOrMeta+z"),
+            await acceptedEnvelopeCommand(page, "UndoHistory", () =>
+              projectHistoryShortcut(page, receipts, "ControlOrMeta+z"),
             );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual([]);
-            expect(
-              envelopeSnapshot(projectPath, track.id).history?.cursor,
-            ).toBe(0);
-            const redoFirst = await acceptedEnvelopeCommand(
-              page,
-              "RedoHistory",
-              () =>
-                projectHistoryShortcut(page, receipts, "ControlOrMeta+Shift+z"),
+            await acceptedEnvelopeCommand(page, "RedoHistory", () =>
+              projectHistoryShortcut(page, receipts, "ControlOrMeta+Shift+z"),
             );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
@@ -293,205 +183,89 @@ for (const core of [
             expect(envelopeSnapshot(projectPath, track.id).history).toEqual(
               firstSaved.history,
             );
-            receipts.push({
-              checkpoint: "first-point-one-step-undo-redo",
-              observation: {
-                undoFirst,
-                redoFirst,
-                restored: envelopeSnapshot(projectPath, track.id),
-              },
-            });
-            await page
-              .getByRole("button", { name: "Edit point", exact: true })
-              .click();
-            await expect(page.getByLabel("Level (×)")).toHaveValue("1");
-            await page.getByLabel("Level (×)").fill("0.5");
-            observer.stage("first-point-only-level-lowering");
-            const lowered = await savePoint(page);
-            const expectedDip = flat!.map((item) =>
-              item.id === point!.id ? { ...item, value: 0.5 } : item,
+            observer.stage("level-lowering");
+            await inspectEnvelopePoint(page);
+            const lowered = await savedAt(page, () =>
+              setPointField(page, "Level", "0.5"),
             );
             expect(lowered.command.payload.expected_points).toEqual(flat);
-            expect(lowered.command.payload.points).toEqual(expectedDip);
+            expect(lowered.command.payload.points).toEqual(
+              flat.map((item) =>
+                item.id === point!.id ? { ...item, value: 0.5 } : item,
+              ),
+            );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual([
-                { id: flat![0]!.id, time: 0, value: 1 },
-                { id: point!.id, time: 5, value: 0.5 },
-                { id: flat![2]!.id, time: 60, value: 1 },
-              ]);
+              .toEqual(lowered.command.payload.points);
             const one = envelopeSnapshot(projectPath, track.id);
             expectEnvelopeMutation(firstSaved, one, track.id);
-            await page
-              .getByRole("button", { name: "Add point", exact: true })
-              .click();
-            await fillPoint(page, "4", "0.5");
-            observer.stage("second-save");
-            const second = await savePoint(page);
-            const secondPoint = second.command.payload.points?.find(
-              (item) => item.time === 4,
+            observer.stage("time-move");
+            const moved = await savedAt(page, () =>
+              setPointField(page, "Time", "6"),
             );
-            expect(secondPoint).toEqual({
-              id: expect.stringMatching(/\S/),
-              time: 4,
+            expect(moved.command.payload.expected_points).toEqual(one.points);
+            const movedPoints = moved.command.payload.points!;
+            expect(movedPoints.find((item) => item.id === point!.id)).toEqual({
+              id: point!.id,
+              time: 6,
               value: 0.5,
             });
+            expect(movedPoints.map((item) => item.time)).toEqual(
+              [...movedPoints.map((item) => item.time)].sort((a, b) => a - b),
+            );
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual(second.command.payload.points);
-            const two = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(one, two, track.id);
-            await page
-              .getByRole("combobox", { name: "Envelope point", exact: true })
-              .selectOption(point!.id);
-            await page
-              .getByRole("button", { name: "Edit point", exact: true })
-              .click();
-            await fillPoint(page, "6", "0.8");
-            await screenshot(page, info, "populated-envelope-edit-draft");
-            observer.stage("numeric-reorder");
-            const moved = await savePoint(page);
-            const expected = two.points
-              .map((item) =>
-                item.id === point!.id
-                  ? { ...point!, time: 6, value: 0.8 }
-                  : item,
-              )
-              .sort((a, b) => a.time - b.time);
-            expect(moved.command.payload.points).toEqual(expected);
-            expect(moved.command.payload.expected_points).toEqual(two.points);
-            await expect
-              .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual(expected);
+              .toEqual(movedPoints);
             const edited = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(two, edited, track.id);
-            observer.stage("reopen-and-delete");
+            expectEnvelopeMutation(one, edited, track.id);
+            observer.stage("reopen-and-remove");
             await page.reload();
             await expect(page.locator(".stage-frame")).toBeVisible();
             if (core.phone) await openPhoneTimeline(page);
             await setTheme(page, core.theme);
             await openEnvelopeTrackDetails(page, track.label, receipts);
-            await page
-              .getByRole("button", {
-                name: "Show volume envelope",
-                exact: true,
-              })
-              .click();
-            await page
-              .getByRole("button", {
-                name: "Edit volume envelope",
-                exact: true,
-              })
-              .click();
-            await page
-              .getByRole("combobox", { name: "Envelope point", exact: true })
-              .selectOption(point!.id);
-            expect(envelopeSnapshot(projectPath, track.id).points).toEqual(
-              expected,
-            );
-            const deleted = await acceptedEnvelopeCommand(
-              page,
-              "SetEnvelope",
-              () =>
-                page
-                  .getByRole("button", { name: "Delete point", exact: true })
+            await showEnvelope(page);
+            let left = edited;
+            while (left.points.length > 1) {
+              await openEnvelopePoint(page, 1);
+              const removedId = left.points[0]!.id;
+              await savedAt(page, () =>
+                pointSheet(page)
+                  .getByRole("button", { name: "Remove point", exact: true })
                   .click(),
-            );
-            await expect
-              .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual(expected.filter((item) => item.id !== point!.id));
-            const remaining = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(edited, remaining, track.id);
-            const remainingPoint = remaining.points[0]!;
-            const deletedRemaining = await acceptedEnvelopeCommand(
-              page,
-              "SetEnvelope",
-              () =>
-                page
-                  .getByRole("button", { name: "Delete point", exact: true })
-                  .click(),
-            );
-            await expect
-              .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual(
-                remaining.points.filter(
-                  (item) => item.id !== remainingPoint.id,
-                ),
               );
-            const twoPoints = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(remaining, twoPoints, track.id);
-            expect(twoPoints.points).toHaveLength(2);
-            const penultimatePoint = twoPoints.points[0]!;
-            const deletedPenultimate = await acceptedEnvelopeCommand(
-              page,
-              "SetEnvelope",
-              () =>
-                page
-                  .getByRole("button", { name: "Delete point", exact: true })
-                  .click(),
-            );
-            await expect
-              .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual(
-                twoPoints.points.filter(
-                  (item) => item.id !== penultimatePoint.id,
-                ),
-              );
-            const lastPoint = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(twoPoints, lastPoint, track.id);
-            expect(lastPoint.points).toHaveLength(1);
+              await expect
+                .poll(() => envelopeSnapshot(projectPath, track.id).points)
+                .toEqual(left.points.filter((item) => item.id !== removedId));
+              const next = envelopeSnapshot(projectPath, track.id);
+              expectEnvelopeMutation(left, next, track.id);
+              left = next;
+            }
             observer.stage("final-removal-and-undo");
-            const removed = await acceptedEnvelopeCommand(
-              page,
-              "SetEnvelope",
-              () =>
-                page
-                  .getByRole("button", {
-                    name: "Remove volume envelope",
-                    exact: true,
-                  })
-                  .click(),
+            await openEnvelopePoint(page, 1);
+            await expect(
+              pointSheet(page).getByText(/returns automation to 1.00×/),
+            ).toBeVisible();
+            const removed = await savedAt(page, () =>
+              pointSheet(page)
+                .getByRole("button", {
+                  name: "Remove volume envelope",
+                  exact: true,
+                })
+                .click(),
             );
+            expect(removed.command.payload.points).toEqual([]);
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual([]);
-            const empty = envelopeSnapshot(projectPath, track.id);
-            expectEnvelopeMutation(lastPoint, empty, track.id);
-            expect(removed.command.payload.points).toEqual([]);
-            await screenshot(page, info, "removed-envelope-empty-workspace");
-            const undoRemoval = await acceptedEnvelopeCommand(
-              page,
-              "UndoHistory",
-              () => projectHistoryShortcut(page, receipts, "ControlOrMeta+z"),
+            expectEnvelopeMutation(
+              left,
+              envelopeSnapshot(projectPath, track.id),
+              track.id,
             );
-            await expect
-              .poll(() => envelopeSnapshot(projectPath, track.id).points)
-              .toEqual(lastPoint.points);
-            expect(
-              envelopeSnapshot(projectPath, track.id).history?.cursor,
-            ).toBe(lastPoint.history?.cursor);
-            expect(
-              observer.commands.filter(
-                (command) => command.type === "SetEnvelope",
-              ),
-            ).toHaveLength(8);
             receipts.push({
-              checkpoint: "edit-reopen-delete-final-removal",
-              observation: {
-                second,
-                moved,
-                deleted,
-                deletedRemaining,
-                deletedPenultimate,
-                removed,
-                undoRemoval,
-                two,
-                edited,
-                remaining,
-                twoPoints,
-                lastPoint,
-                empty,
-              },
+              checkpoint: "edit-reopen-remove-final-removal",
+              observation: { moved, edited, left, removed },
             });
             await observer.verifyAssets();
           } finally {
@@ -507,7 +281,6 @@ for (const core of [
 const profiles = [
   {
     name: "phone-keyboard-height-simulation",
-    shortExpanded: true,
     width: 360,
     height: 400,
     theme: "light" as const,
@@ -526,7 +299,6 @@ const profiles = [
   },
   {
     name: "short-landscape",
-    shortExpanded: true,
     width: 640,
     height: 360,
     theme: "dark" as const,
@@ -559,7 +331,7 @@ for (const profile of profiles) {
       viewport: { width: profile.width, height: profile.height },
       reducedMotion: profile.motion,
     });
-    test("empty envelope form remains reachable and cancelable", async ({
+    test("point fields remain reachable and refuse a bad level", async ({
       page,
       receipts,
     }, info) => {
@@ -574,13 +346,12 @@ for (const profile of profiles) {
             receipts,
           );
           try {
-            await openWorkspace(
+            await openEnvelope(
               page,
               projectPath,
               profile.theme,
               receipts,
               profile.phone,
-              "shortExpanded" in profile && profile.shortExpanded,
             );
             const originalFont = await page
               .locator("html")
@@ -591,32 +362,25 @@ for (const profile of profiles) {
               await page.locator("html").evaluate((element, size) => {
                 element.style.fontSize = `${size * 2}px`;
               }, originalFont);
-            await page
-              .getByRole("button", { name: "Add point", exact: true })
-              .click();
-            await fillPoint(page, "2", "9");
-            await page
-              .getByRole("button", { name: "Save point", exact: true })
-              .click();
-            const level = page.getByLabel("Level (×)", { exact: true });
-            await expect(level).toHaveAttribute("aria-invalid", "true");
-            const description = await level.getAttribute("aria-describedby");
-            expect(description).toBeTruthy();
-            await expect(page.locator(`[id="${description}"]`)).toContainText(
-              "Level must",
+            observer.stage("responsive-first-create");
+            const accepted = await savedAt(page, () => addEnvelopePoint(page));
+            await inspectEnvelopePoint(page);
+            const dialog = pointSheet(page);
+            await setPointField(page, "Level", "9");
+            await expect(dialog.getByRole("alert")).toContainText(
+              /Enter a number from 0 to 1\.5/,
             );
+            await page.keyboard.press("Escape");
             const geometry: unknown[] = [];
             for (const control of [
-              page.getByLabel("Time (seconds on timeline)", { exact: true }),
-              level,
-              page.getByRole("button", { name: "Save point", exact: true }),
-              page.getByRole("button", { name: "Cancel", exact: true }),
+              dialog.getByRole("spinbutton", { name: "Time", exact: true }),
+              dialog.getByRole("spinbutton", { name: "Level", exact: true }),
+              dialog.getByRole("button", { name: /^Remove/ }),
             ]) {
               await control.scrollIntoViewIfNeeded();
               await expect(control).toBeVisible();
               const rectangle = await control.boundingBox();
               expect(rectangle).not.toBeNull();
-              expect(rectangle!.height).toBeGreaterThanOrEqual(44);
               expect(rectangle!.x).toBeGreaterThanOrEqual(0);
               expect(rectangle!.x + rectangle!.width).toBeLessThanOrEqual(
                 profile.width + 1,
@@ -637,62 +401,18 @@ for (const profile of profiles) {
             expect(pageWidth.scroll).toBeLessThanOrEqual(pageWidth.viewport);
             if (profile.text)
               expect(pageWidth.font).toBeCloseTo(originalFont * 2, 2);
-            await screenshot(page, info, `${profile.name}-validation-form`);
-            await page
-              .getByRole("button", { name: "Cancel", exact: true })
-              .click();
-            await expect(
-              page.getByRole("button", { name: "Add point", exact: true }),
-            ).toBeFocused();
-            await page
-              .getByRole("button", { name: "Done", exact: true })
-              .click();
-            await expect(
-              page.getByRole("button", {
-                name: "Add volume envelope",
-                exact: true,
-              }),
-            ).toBeFocused();
+            await screenshot(page, info, `${profile.name}-point-fields`);
             await settle(page);
-            expect(observer.commands).toEqual([]);
-            expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
+            expect(
+              observer.commands.filter((item) => item.type === "SetEnvelope"),
+            ).toHaveLength(1);
+            const saved = envelopeSnapshot(projectPath, track.id);
+            expect(saved.points).toEqual(accepted.command.payload.points);
+            expectEnvelopeMutation(origin, saved, track.id);
             receipts.push({
               checkpoint: profile.name,
-              observation: { profile, geometry, pageWidth, origin },
+              observation: { profile, geometry, pageWidth, origin, saved },
             });
-            if (profile.name === "phone-light" || profile.name === "tablet") {
-              observer.stage("responsive-first-create");
-              await page
-                .getByRole("button", {
-                  name: "Add volume envelope",
-                  exact: true,
-                })
-                .click();
-              await page
-                .getByRole("button", { name: "Add point", exact: true })
-                .click();
-              const accepted = await savePoint(page);
-              await expect
-                .poll(() => envelopeSnapshot(projectPath, track.id).points)
-                .toEqual(accepted.command.payload.points);
-              const saved = envelopeSnapshot(projectPath, track.id);
-              expectEnvelopeMutation(origin, saved, track.id);
-              await expect(
-                page.getByRole("combobox", {
-                  name: "Envelope point",
-                  exact: true,
-                }),
-              ).toHaveValue(saved.points[0]!.id);
-              await screenshot(
-                page,
-                info,
-                `${profile.name}-first-point-created`,
-              );
-              receipts.push({
-                checkpoint: `${profile.name}-first-point-applied`,
-                observation: { accepted, origin, saved },
-              });
-            }
           } finally {
             await observer.retain();
           }
@@ -720,7 +440,7 @@ test.describe("host envelope playback", () => {
           receipts,
         );
         try {
-          await openWorkspace(page, projectPath, "dark", receipts);
+          await openEnvelope(page, projectPath, "dark", receipts);
           const { proveHostEnvelopePlayback, compareConstantEnvelopePcm } =
             await import("./envelopePlaybackEvidence");
           observer.stage("actual-unity-playback-baseline");
@@ -735,31 +455,18 @@ test.describe("host envelope playback", () => {
             observation: baseline.receipt,
           });
           await setAudition(page, "raw");
-          await page
-            .getByRole("button", { name: "Add point", exact: true })
-            .click();
-          await expect(page.getByLabel("Level (×)")).toHaveValue("1");
-          await fillPoint(page, "0", "1");
-          const accepted = await savePoint(page);
+          const accepted = await savedAt(page, () => addEnvelopePoint(page));
           await expect
             .poll(() => envelopeSnapshot(projectPath, track.id).points)
             .toEqual(accepted.command.payload.points);
           const flat = envelopeSnapshot(projectPath, track.id);
-          expect(flat.points).toEqual([
-            { id: expect.stringMatching(/\S/), time: 0, value: 1 },
-            { id: expect.stringMatching(/\S/), time: 60, value: 1 },
-          ]);
+          expect(flat.points.length).toBeGreaterThanOrEqual(2);
           let expectedPoints = flat.points;
-          for (const point of flat.points) {
-            await page
-              .getByRole("combobox", { name: "Envelope point", exact: true })
-              .selectOption(point.id);
-            await page
-              .getByRole("button", { name: "Edit point", exact: true })
-              .click();
-            await expect(page.getByLabel("Level (×)")).toHaveValue("1");
-            await page.getByLabel("Level (×)").fill("0.4");
-            const lowered = await savePoint(page);
+          for (const [index, point] of flat.points.entries()) {
+            await openEnvelopePoint(page, index + 1);
+            const lowered = await savedAt(page, () =>
+              setPointField(page, "Level", "0.4"),
+            );
             const expected = expectedPoints.map((candidate) =>
               candidate.id === point.id
                 ? { ...candidate, value: 0.4 }

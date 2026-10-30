@@ -1,5 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
+import {
+  addEnvelopePoint,
+  inspectEnvelopePoint,
+  pointSheet,
+  setPointField,
+  showEnvelope,
+} from "./envelopeCreationEvidence";
 import { installNetworkOutage } from "./networkOutage";
+import { rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import {
   createReviewShare,
@@ -76,18 +84,13 @@ function resources(page: Page): Promise<Resources> {
   );
 }
 
-async function saveEnvelopePoint(page: Page, time: number): Promise<void> {
-  await page.getByRole("button", { name: "Add point", exact: true }).click();
-  await page
-    .getByLabel("Time (seconds on timeline)", { exact: true })
-    .fill(String(time));
-  await page.getByLabel("Level (×)", { exact: true }).fill("0.5");
+async function moveEnvelopePoint(page: Page, time: number): Promise<void> {
   const saved = page.waitForResponse(
     (r) =>
       r.request().method() === "POST" &&
       r.url().includes("/daw/document/command"),
   );
-  await page.getByRole("button", { name: "Save point", exact: true }).click();
+  await setPointField(page, "Time", String(time));
   expect((await saved).status()).toBe(200);
 }
 
@@ -108,6 +111,7 @@ test("a guest keeps its envelope editor and baseline resources across socket rec
     try {
       const guest = await context.newPage();
       await guest.addInitScript({ content: RESOURCE_PROBE });
+      await rememberInspectorDetent(guest, "half");
       const outage = await installNetworkOutage(guest, {
         webSocket: /\/api\/review\/[^/]+\/daw\/ws/,
       });
@@ -124,20 +128,18 @@ test("a guest keeps its envelope editor and baseline resources across socket rec
       await guest
         .getByRole("button", { name: "Open track details, guest", exact: true })
         .click();
-      await guest
-        .getByRole("button", { name: "Add volume envelope", exact: true })
-        .click();
-      await guest
-        .getByRole("button", { name: "Show volume envelope", exact: true })
-        .click();
-      const editing = guest.getByText("Editing volume envelope", {
+      await showEnvelope(guest);
+      await addEnvelopePoint(guest);
+      await inspectEnvelopePoint(guest);
+      const editing = pointSheet(guest).getByRole("spinbutton", {
+        name: "Time",
         exact: true,
       });
       await expect(editing).toBeVisible();
       const baseline = await resources(guest);
 
       for (let cycle = 1; cycle <= CYCLES; cycle += 1) {
-        await saveEnvelopePoint(guest, 2 + cycle * 3);
+        await moveEnvelopePoint(guest, 2 + cycle * 3);
         await outage.drop();
         outage.restore();
         await expect
@@ -158,7 +160,7 @@ test("a guest keeps its envelope editor and baseline resources across socket rec
         sockets: baseline.sockets + CYCLES,
       });
 
-      await guest.getByRole("button", { name: "Done", exact: true }).click();
+      await pointSheet(guest).getByRole("button", { name: "Close" }).click();
       await phone.showListen(guest);
       await expect(
         guest.getByRole("button", { name: "Play", exact: true }).first(),

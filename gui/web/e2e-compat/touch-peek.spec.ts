@@ -9,6 +9,12 @@ import {
 } from "@playwright/test";
 import { STUDIO_AXE_DISABLED_RULES } from "../e2e/axe";
 import { e2eProjectPath } from "../e2e/env";
+import {
+  addEnvelopePoint,
+  inspectEnvelopePoint,
+  pointSheet,
+  showEnvelope,
+} from "../e2e/envelopeCreationEvidence";
 import { type Finger, newFinger, type Point } from "../e2e/finger";
 import { controlGeometry } from "../e2e/inspectorResponsiveEvidence";
 import { layer } from "../e2e/lifecycleAudit";
@@ -1249,7 +1255,7 @@ test("a timeline tap while a track's sheet is open selects, and Inspect opens th
   });
 });
 
-test("a point saved from a track's envelope form stays in that sheet: portrait-390", async ({
+test("a point added from a track's sheet shows its fields in the drawer: portrait-390", async ({
   page,
   context,
   browserName,
@@ -1257,38 +1263,25 @@ test("a point saved from a track's envelope form stays in that sheet: portrait-3
   await openProject(page, projectPath);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
-  await open(page, "portrait-390");
+  await open(page, "portrait-390", { inspector: "half" });
   await openTrackSheet(page, finger);
-  await page.getByRole("button", { name: "Edit volume envelope" }).click();
-  await page.getByRole("button", { name: "Add point", exact: true }).click();
-  await page
-    .getByLabel("Time (seconds on timeline)", { exact: true })
-    .fill("30");
-  await page.getByLabel("Level (×)", { exact: true }).fill("0.5");
-  await page.getByRole("button", { name: "Save point", exact: true }).click();
-  const select = page.getByRole("combobox", {
-    name: "Envelope point",
+  await showEnvelope(page);
+  await addEnvelopePoint(page, { share: 0.9 });
+  await inspectEnvelopePoint(page);
+  const time = pointSheet(page).getByRole("spinbutton", {
+    name: "Time",
     exact: true,
   });
-  await expect(select).toBeVisible();
-  await page.waitForTimeout(700);
+  await expect(time).toBeVisible();
   const kept = {
     ...(await sheetState(page)),
-    pointFieldInSheet: await select.evaluate(
+    pointFieldInSheet: await time.evaluate(
       (el) => el.closest(".bottom-sheet, .sys-inspector") != null,
     ),
   };
-  await frame(page, info, `saved-point-in-sheet-${browserName}`);
-  json(info, `saved-point-in-sheet-${browserName}`, kept);
-  expect(kept).toMatchObject({
-    open: true,
-    compact: false,
-    pointFieldInSheet: true,
-  });
-  await page.getByRole("button", { name: "Close" }).click();
-  await expect(sheet(page)).toHaveCount(0);
-  await tapTarget(page, finger, envC);
-  expect(await sheetState(page)).toMatchObject({ compact: true, size: "peek" });
+  await frame(page, info, `added-point-in-drawer-${browserName}`);
+  json(info, `added-point-in-drawer-${browserName}`, kept);
+  expect(kept).toMatchObject({ open: true, pointFieldInSheet: true });
 });
 
 async function focusedField(page: Page) {

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   expect,
+  type Locator,
   type Page,
   type Request,
   type Response,
@@ -10,6 +11,7 @@ import {
 import { repoRoot } from "./env";
 import type { InteractionReceipt } from "./interactionEvidence";
 import { createRelocatedE2eProject } from "./liveProject";
+import { inspectSelection } from "./stageNav";
 
 export async function openEnvelopeTrackDetails(
   page: Page,
@@ -74,6 +76,96 @@ export async function openEnvelopeTrackDetails(
   expect(geometry.insideViewport).toBe(true);
   expect(geometry.hitsButton).toBe(true);
   await button.click({ position: geometry.position });
+}
+
+/** Where the open point's fields are: the Inspector card or sheet, or the phone's peek drawer. */
+export const pointSheet = (page: Page) =>
+  page.getByRole("dialog").filter({
+    has: page.getByRole("spinbutton", { name: "Time", exact: true }),
+  });
+
+export async function showEnvelope(page: Page) {
+  await page
+    .getByRole("button", { name: "Show volume envelope", exact: true })
+    .click();
+}
+
+/**
+ * Adds a point through the lane's create menu: from the keyboard on the flat
+ * level line (of `lane`, else the first), or, given a share of the lane's
+ * width, where a right click lands.
+ */
+export async function addEnvelopePoint(
+  page: Page,
+  at: { trackId?: string; share?: number; lane?: Locator } = {},
+) {
+  if (at.share !== undefined) {
+    const lane = page
+      .locator(
+        at.trackId
+          ? `.lane-row[data-track-id="${at.trackId}"]`
+          : ".lane-row[data-track-id]",
+      )
+      .first();
+    const box = await lane.boundingBox();
+    if (!box) throw new Error("The track has no lane to add a point on");
+    const left = Math.max(box.x, 0);
+    const right = Math.min(box.x + box.width, page.viewportSize()!.width);
+    await page.mouse.click(
+      left + (right - left) * at.share,
+      box.y + box.height / 2,
+      { button: "right" },
+    );
+  } else {
+    await (at.lane ?? page)
+      .getByRole("slider", { name: "Envelope level" })
+      .first()
+      .focus();
+    await page.keyboard.press("Shift+F10");
+  }
+  await page
+    .getByRole("menu", { name: /^Create at / })
+    .getByRole("menuitem", { name: /Add envelope point/ })
+    .click();
+}
+
+/** Opens the selected point in the Inspector; the phone shows its peek strip until Inspect. */
+export async function inspectEnvelopePoint(page: Page) {
+  const time = pointSheet(page).getByRole("spinbutton", {
+    name: "Time",
+    exact: true,
+  });
+  const open = await time.waitFor({ state: "visible", timeout: 2000 }).then(
+    () => true,
+    () => false,
+  );
+  if (!open) await inspectSelection(page);
+  await expect(time).toBeVisible();
+}
+
+/** Selects the nth point on the lane from the keyboard and opens it in the Inspector. */
+export async function openEnvelopePoint(page: Page, n: number) {
+  const point = page
+    .locator(`circle[aria-label^="Envelope point ${n} at"]`)
+    .first();
+  await point.focus();
+  await page.keyboard.press("Enter");
+  await expect(point).toHaveAttribute("aria-pressed", "true");
+  await inspectEnvelopePoint(page);
+}
+
+/** Types a value into one of the open point's Scrub fields. */
+export async function setPointField(
+  page: Page,
+  name: "Time" | "Level",
+  value: string,
+) {
+  const dialog = pointSheet(page);
+  await dialog.getByRole("spinbutton", { name, exact: true }).focus();
+  await page.keyboard.press("Enter");
+  const input = dialog.getByRole("textbox", { name, exact: true });
+  await input.fill(value);
+  await input.press("Enter");
 }
 
 export type EnvelopePoint = { id: string; time: number; value: number };
@@ -249,8 +341,8 @@ export function observeEnvelopeCommands(
     "gui/web/e2e/envelope-permissions.spec.ts",
     "gui/web/e2e/envelopeCreationEvidence.ts",
     "gui/web/e2e/envelopePlaybackEvidence.ts",
-    "gui/web/src/inspector/views/EnvelopeWorkspace.tsx",
-    "gui/web/src/inspector/views/EnvelopeWorkspaceView.tsx",
+    "gui/web/src/stage/edit/envelopePointSections.tsx",
+    "gui/web/src/commands/envelopes.ts",
     "gui/web/dist/index.html",
   ];
   receipts.push({

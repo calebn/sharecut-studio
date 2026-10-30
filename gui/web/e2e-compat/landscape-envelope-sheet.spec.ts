@@ -2,17 +2,27 @@ import path from "node:path";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { postDocumentCommand } from "../e2e/documentCommand";
 import { repoRoot } from "../e2e/env";
-import { openEnvelopeTrackDetails } from "../e2e/envelopeCreationEvidence";
+import {
+  addEnvelopePoint,
+  inspectEnvelopePoint,
+  openEnvelopeTrackDetails,
+  pointSheet,
+  setPointField,
+  showEnvelope,
+} from "../e2e/envelopeCreationEvidence";
 import { createRelocatedE2eProject } from "../e2e/liveProject";
-import { openPhoneTimeline } from "../e2e/phoneTimeline";
+import {
+  openPhoneTimeline,
+  rememberInspectorDetent,
+} from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openProject } from "../e2e/stageNav";
 
 /*
  * #1694 a phone held sideways (the short tablet shell) editing a volume
- * envelope: the lane being edited, the ruler above it and the entry form all
- * stay on screen, Add point, Done, Save and Cancel stay reachable with and
- * without the software keyboard, and a typed draft survives a rotation.
+ * envelope point: the lane being edited, the ruler above it and the point's
+ * Time and Level all stay on screen, Remove stays reachable with and without
+ * the software keyboard, and the open point survives a rotation.
  * Playwright cannot emulate iOS safe-area insets or a real software keypad;
  * the keyboard is the `--keyboard-inset` the sheet reads from useKeyboardInset.
  */
@@ -43,16 +53,24 @@ async function seed(page: Page, projectPath: string) {
 
 async function openEnvelope(page: Page) {
   await openEnvelopeTrackDetails(page, TRACK, []);
-  await page
-    .getByRole("button", { name: "Add volume envelope", exact: true })
-    .tap();
-  await page
-    .getByRole("button", { name: "Show volume envelope", exact: true })
-    .tap();
+  await showEnvelope(page);
   await expect(
     page.getByRole("button", { name: "Hide volume envelope", exact: true }),
   ).toBeVisible();
 }
+
+async function openPoint(page: Page) {
+  await openEnvelope(page);
+  await addEnvelopePoint(page, {
+    lane: page.locator(".lane-row").nth(TRACK_INDEX),
+  });
+  await inspectEnvelopePoint(page);
+}
+
+const field = (page: Page, name: "Time" | "Level") =>
+  pointSheet(page).getByRole("spinbutton", { name, exact: true });
+const remove = (page: Page) =>
+  pointSheet(page).getByRole("button", { name: /^Remove/ });
 
 async function setKeyboard(page: Page, px: number | null) {
   await page.evaluate((inset) => {
@@ -139,38 +157,27 @@ async function editedLaneInReach(page: Page, vp: Viewport) {
     await openProject(page, projectPath);
     await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     await seed(page, projectPath);
-    await openEnvelope(page);
+    await openPoint(page);
 
     const band = await laneBand(page, TRACK_INDEX);
     expect(band.visible).toBeGreaterThanOrEqual(
       band.laneHeight - LANE_SLACK_PX,
     );
-    await expectInSheet(
-      page.getByRole("button", { name: "Add point", exact: true }),
-      "Add point",
-    );
-    await expectInSheet(
-      page.getByRole("button", { name: "Done", exact: true }),
-      "Done",
-    );
+    await expectInSheet(field(page, "Time"), "Time");
+    await expectInSheet(remove(page), "Remove");
   });
 }
 
-async function formInReach(page: Page, vp: Viewport) {
+async function fieldsInReach(page: Page, vp: Viewport) {
   await page.setViewportSize(vp);
   await withShareableProject(async (projectPath) => {
     await openProject(page, projectPath);
     await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     await seed(page, projectPath);
-    await openEnvelope(page);
-    await page.getByRole("button", { name: "Add point", exact: true }).tap();
+    await openPoint(page);
 
-    const time = page.getByLabel("Time (seconds on timeline)");
-    const level = page.getByLabel("Level (×)");
-    const save = page.getByRole("button", { name: "Save point" });
-    const cancel = page
-      .locator(".sys-inspector")
-      .getByRole("button", { name: "Cancel" });
+    const time = field(page, "Time");
+    const level = field(page, "Level");
     const band = await laneBand(page, TRACK_INDEX);
     expect(band.visible).toBeGreaterThanOrEqual(
       band.laneHeight - LANE_SLACK_PX,
@@ -178,8 +185,7 @@ async function formInReach(page: Page, vp: Viewport) {
     for (const [control, label] of [
       [time, "Time"],
       [level, "Level"],
-      [save, "Save point"],
-      [cancel, "Cancel"],
+      [remove(page), "Remove"],
     ] as const)
       await expectInSheet(control, label);
 
@@ -188,99 +194,86 @@ async function formInReach(page: Page, vp: Viewport) {
     for (const [control, label] of [
       [time, "Time"],
       [level, "Level"],
-      [save, "Save point"],
-      [cancel, "Cancel"],
+      [remove(page), "Remove"],
     ] as const)
       await expectInSheet(control, `${label} with keyboard`);
-    const done = page.getByRole("button", { name: "Done", exact: true });
-    await done.scrollIntoViewIfNeeded();
-    await expectInSheet(done, "Done with keyboard");
+    const close = pointSheet(page).getByRole("button", { name: "Close" });
+    await close.scrollIntoViewIfNeeded();
+    await expectInSheet(close, "Close with keyboard");
   });
 }
 
-async function formRuns(page: Page, vp: Viewport) {
+async function fieldsRun(page: Page, vp: Viewport) {
   await page.setViewportSize(vp);
   await withShareableProject(async (projectPath) => {
     await openProject(page, projectPath);
     await expect(page.locator(".stage-frame--tablet")).toBeVisible();
     await seed(page, projectPath);
-    await openEnvelope(page);
-    await page.getByRole("button", { name: "Add point", exact: true }).tap();
-    await page
-      .locator(".sys-inspector")
-      .getByRole("button", { name: "Cancel" })
-      .tap();
-    await expect(page.getByLabel("Level (×)")).toHaveCount(0);
-    await page.getByRole("button", { name: "Add point", exact: true }).tap();
-    await page.getByLabel("Level (×)").fill("0.5");
-    await page.getByRole("button", { name: "Save point" }).tap();
-    await expect(page.getByLabel("Level (×)")).toHaveCount(0);
-    await expect(
-      page.getByRole("combobox", { name: /Envelope point/ }),
-    ).toBeVisible();
+    await openPoint(page);
+    await setPointField(page, "Level", "0.5");
+    await expect(field(page, "Level")).toHaveAttribute("aria-valuenow", "0.5");
+    await remove(page).tap();
+    await expect(field(page, "Level")).toHaveCount(0);
   });
 }
 
-test("932x430: the edited lane stays above the sheet and Add point and Done are in reach", async ({
+test("932x430: the edited lane stays beside the card and Time and Remove are in reach", async ({
   page,
 }) => {
   await editedLaneInReach(page, VIEWPORTS[0]!);
 });
 
-test("932x430: the form, Save and Cancel are visible with the lane, and with the keyboard up", async ({
+test("932x430: Time, Level and Remove are visible with the lane, and with the keyboard up", async ({
   page,
 }) => {
-  await formInReach(page, VIEWPORTS[0]!);
+  await fieldsInReach(page, VIEWPORTS[0]!);
 });
 
-test("932x430: Add point, Save and Cancel run from inside the sheet", async ({
+test("932x430: Level and Remove run from inside the sheet", async ({
   page,
 }) => {
-  await formRuns(page, VIEWPORTS[0]!);
+  await fieldsRun(page, VIEWPORTS[0]!);
 });
 
-test("914x331: the edited lane stays above the sheet and Add point and Done are in reach", async ({
+test("914x331: the edited lane stays beside the card and Time and Remove are in reach", async ({
   page,
 }) => {
   await editedLaneInReach(page, VIEWPORTS[1]!);
 });
 
-test("914x331: the form, Save and Cancel are visible with the lane, and with the keyboard up", async ({
+test("914x331: Time, Level and Remove are visible with the lane, and with the keyboard up", async ({
   page,
 }) => {
-  await formInReach(page, VIEWPORTS[1]!);
+  await fieldsInReach(page, VIEWPORTS[1]!);
 });
 
-test("914x331: Add point, Save and Cancel run from inside the sheet", async ({
+test("914x331: Level and Remove run from inside the sheet", async ({
   page,
 }) => {
-  await formRuns(page, VIEWPORTS[1]!);
+  await fieldsRun(page, VIEWPORTS[1]!);
 });
 
-test("a typed envelope draft survives rotating from portrait to landscape", async ({
+test("an open envelope point survives rotating from portrait to landscape", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 430, height: 932 });
+  await rememberInspectorDetent(page, "half");
   await withShareableProject(async (projectPath) => {
     await openProject(page, projectPath);
     await expect(page.locator(".stage-frame--phone")).toBeVisible();
     await openPhoneTimeline(page);
     await seed(page, projectPath);
-    await openEnvelope(page);
-    await page.getByRole("button", { name: "Add point", exact: true }).tap();
-    await page.getByLabel("Time (seconds on timeline)").fill("7");
-    await page.getByLabel("Level (×)").fill("0.25");
+    await openPoint(page);
+    await setPointField(page, "Level", "0.25");
+    await expect(field(page, "Level")).toHaveAttribute("aria-valuenow", "0.25");
 
     await page.setViewportSize({ width: 932, height: 430 });
     await expect(page.locator(".stage-frame--tablet")).toBeVisible();
-    await expect(page.getByLabel("Time (seconds on timeline)")).toHaveValue(
-      "7",
-    );
-    await expect(page.getByLabel("Level (×)")).toHaveValue("0.25");
+    await expect(field(page, "Level")).toHaveAttribute("aria-valuenow", "0.25");
 
     await page.setViewportSize({ width: 430, height: 932 });
     await expect(page.locator(".stage-frame--phone")).toBeVisible();
-    await expect(page.getByLabel("Level (×)")).toHaveValue("0.25");
+    await expect(field(page, "Level")).toHaveAttribute("aria-valuenow", "0.25");
   });
 });
 
@@ -293,7 +286,7 @@ function withDemoProject(fn: (projectPath: string) => Promise<void>) {
     createRelocatedE2eProject(prefix, undefined, DEMO_ROOT),
   );
 }
-async function formLayout(
+async function fieldLayout(
   page: Page,
   vp: { width: number; height: number },
   shell: "tablet" | "phone" = "tablet",
@@ -304,14 +297,11 @@ async function formLayout(
     await expect(page.locator(`.stage-frame--${shell}`)).toBeVisible();
     if (shell === "phone") await openPhoneTimeline(page);
     await seed(page, projectPath);
-    await openEnvelope(page);
-    await page.getByRole("button", { name: "Add point", exact: true }).tap();
-    const time = await page
-      .getByLabel("Time (seconds on timeline)")
-      .boundingBox();
-    const level = await page.getByLabel("Level (×)").boundingBox();
-    const help = await page
-      .getByText(/^Time is measured on the timeline/)
+    await openPoint(page);
+    const time = await field(page, "Time").boundingBox();
+    const level = await field(page, "Level").boundingBox();
+    const help = await pointSheet(page)
+      .getByText(/^Level multiplies this track/)
       .boundingBox();
     return {
       oneRow: Math.abs(time!.y - level!.y) < 1,
@@ -320,23 +310,23 @@ async function formLayout(
   });
 }
 
-test("1194x834 iPad landscape keeps the regular envelope form and its visible help", async ({
+test("1194x834 iPad landscape keeps Time and Level stacked with their visible help", async ({
   page,
 }) => {
-  const layout = await formLayout(page, { width: 1194, height: 834 });
+  const layout = await fieldLayout(page, { width: 1194, height: 834 });
   expect(layout.oneRow).toBe(false);
   expect(layout.helpHeight).toBeGreaterThan(8);
 });
 
-test("932x430 phone landscape keeps the regular stacked form and its help, in the Inspector card", async ({
+test("932x430 phone landscape keeps Time and Level stacked with their help, in the Inspector card", async ({
   page,
 }) => {
-  const layout = await formLayout(page, { width: 932, height: 430 });
+  const layout = await fieldLayout(page, { width: 932, height: 430 });
   expect(layout.oneRow).toBe(false);
   expect(layout.helpHeight).toBeGreaterThan(8);
 });
 
-test("914x331 idle: a touch tap on the guest track header opens its details and reaches Add volume envelope", async ({
+test("914x331 idle: a touch tap on the guest track header opens its details and reaches Show volume envelope", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 914, height: 331 });
@@ -370,7 +360,7 @@ test("914x331 idle: a touch tap on the guest track header opens its details and 
     ).toBe(true);
     await page.touchscreen.tap(point.x, point.y);
     await expect(
-      page.getByRole("button", { name: "Add volume envelope", exact: true }),
+      page.getByRole("button", { name: "Show volume envelope", exact: true }),
     ).toBeVisible();
   });
 });

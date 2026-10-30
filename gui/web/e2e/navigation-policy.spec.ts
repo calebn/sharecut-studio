@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
+import { inspectEnvelopePoint, pointSheet } from "./envelopeCreationEvidence";
 import { layer } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
 import { withShareableProject } from "./shareableProject";
@@ -8,7 +9,6 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
-import { ensureInspected } from "./stageNav";
 import { setTheme } from "./theme";
 import { openTranscriptPanel } from "./transcriptEdit";
 
@@ -219,17 +219,17 @@ test("F09 host numeric inspector opens an envelope point's time and level", asyn
         .locator('circle[aria-label^="Envelope point 1 at"]')
         .first();
       await owner.click();
-      await ensureInspected(page);
-      await page
-        .getByRole("button", { name: "Edit point", exact: true })
-        .click();
-      await expect(page.getByLabel("Time (seconds on timeline)")).toHaveValue(
-        "2",
-      );
-      await expect(page.getByLabel("Level (×)")).toHaveValue("0.8");
+      await inspectEnvelopePoint(page);
+      const dialog = pointSheet(page);
       await expect(
-        page.getByRole("button", { name: "Save point", exact: true }),
-      ).toBeEnabled();
+        dialog.getByRole("spinbutton", { name: "Time", exact: true }),
+      ).toHaveAttribute("aria-valuenow", "2");
+      const level = dialog.getByRole("spinbutton", {
+        name: "Level",
+        exact: true,
+      });
+      await expect(level).toHaveAttribute("aria-valuenow", "0.8");
+      await expect(level).not.toHaveAttribute("aria-readonly", "true");
     },
     undefined,
     seed,
