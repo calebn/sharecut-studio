@@ -196,9 +196,11 @@ def authorize_document_payload(
     if caps is None:
         return
     if command_type in {"SetFeedField", "ClearFeedField"}:
-        from podcast_mcp.feed.fields import guest_pinnable
+        from podcast_mcp.feed.fields import guest_pinnable, lookup
 
         key = payload.get("key")
+        if isinstance(key, str) and lookup(key) is None:
+            raise CodedValueError(f"{key} is not a listing field", code="feed_field_unknown")
         if not isinstance(key, str) or not guest_pinnable(key, "episode"):
             raise CodedPermissionError(
                 "guests edit this episode's listing values, not the show's",

@@ -697,6 +697,41 @@ def test_minting_with_a_naive_time_means_utc_not_this_machines_zone(
         ("channel.podroll", "ftp://x", "Recommended shows must start with a feed guid"),
         ("channel.explicit", "maybe", "That isn't the kind of value the explicit setting takes."),
         (
+            "channel.link",
+            "https://a.example.test/a b",
+            "Website must be an https address with no spaces or special characters.",
+        ),
+        (
+            "channel.link",
+            "https://a.example.test/" + "a" * 2000,
+            "Website must be at most 2000 characters.",
+        ),
+        (
+            "channel.owner.email",
+            "not-an-email",
+            "Owner email must be an email address with a name, an @ and a domain.",
+        ),
+        (
+            "channel.language",
+            "zzzz",
+            "Language must be a language code of two or three letters, with an optional region.",
+        ),
+        (
+            "channel.person[Ana].href",
+            "nope",
+            "A host's link must be an https address with no spaces or special characters.",
+        ),
+        (
+            "channel.person[Ana].img",
+            "nope",
+            "A host's picture must be an https address with no spaces or special characters.",
+        ),
+        (
+            "item.person[Ana].href",
+            "nope",
+            "A person's link must be an https address with no spaces or special characters.",
+        ),
+        (
             "channel.mediaUrl",
             "https://cdn.example.test/a.mp3",
             "must have exactly one place for the file name.",
@@ -743,9 +778,9 @@ def test_the_guest_sentence_of_a_refusal_never_carries_a_host_path() -> None:
     from podcast_mcp.feed.resolve import FeedValueInvalidError
     from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 
-    leaky = FeedValueInvalidError("Artwork /Users/ana/Podcasts/private/cover.png is not valid.")
+    leaky = FeedValueInvalidError("Artwork /Users/host/Podcasts/private/cover.png is not valid.")
     plain = FeedValueInvalidError("Show title is too long.")
 
-    assert "/Users/ana" not in leaky.guest_message()
+    assert "/Users/host" not in leaky.guest_message()
     assert leaky.guest_message() == GENERIC_GUEST_MESSAGE
     assert plain.guest_message() == "Show title is too long."

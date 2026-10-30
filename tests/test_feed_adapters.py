@@ -783,6 +783,32 @@ def test_a_hand_edited_pin_that_is_not_text_is_a_coded_blocker_not_a_crash(
     assert "feed_blocked" in refused
 
 
+@pytest.mark.parametrize(("key", "value"), [("item.season", 99_999_999), ("item.episode", -4)])
+def test_a_stored_count_out_of_range_is_a_coded_blocker_over_the_service_and_http(
+    writable: Path, key: str, value: int
+) -> None:
+    from podcast_mcp.models.feed import Pin
+
+    project = load_project(writable)
+    project.feed.pins[key] = Pin(value=value, by="guest")
+    save_project(project, writable)
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+
+    shown = json.loads(_cli("show", "-p", str(writable), "--json"))
+    refused = _cli("write", "-p", str(writable), code=1)
+    served = client.get("/api/feed", params={"path": str(writable)})
+    over_http = client.post("/api/feed/write", json={"path": str(writable)})
+
+    blocker = next(f for f in shown["findings"] if f["key"] == key)
+    assert blocker["severity"] == "blocker"
+    assert "outside the allowed range" in blocker["message"]
+    assert "feed_blocked" in refused
+    assert served.status_code == 200, served.text
+    assert over_http.status_code == 400
+    assert over_http.headers[CODE] == "feed_blocked"
+    assert not (writable.parent / "export" / "test_episode.feed.xml").exists()
+
+
 def test_setting_a_show_person_echoes_the_show_hosts_not_the_episode_credits(
     writable: Path,
 ) -> None:

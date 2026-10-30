@@ -159,7 +159,7 @@ export function useFeed(
         }
       });
     },
-    [projectPath, show],
+    [projectPath, show, access],
   );
 
   const act = useCallback(
