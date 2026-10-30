@@ -397,8 +397,8 @@ with axe before the collected results are asserted.
 | an app toast stays topmost and tappable over the Project menu that was open before it | `gui/web/e2e-compat/menu-viewport.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | focused feedback Undo survives a phone turning sideways | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | focused feedback Dismiss survives a phone turning sideways | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| focused feedback Undo stays in the column or its toast when a phone turns to 844x390 | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| focused feedback Dismiss stays in the column or its toast when a phone turns to 844x390 | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| focused feedback Undo stays in the card or its toast when a phone turns to 844x390 | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| focused feedback Dismiss stays in the card or its toast when a phone turns to 844x390 | `gui/web/e2e-compat/compact-feedback-focus.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | feedback preserves selected half and full geometry and permitted ruler and lane room | `gui/web/e2e-compat/compact-feedback-detents.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clipped removal feedback keeps remaining lifetime after closing the compact host | `gui/web/e2e-compat/compact-feedback-host-lifetime.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | unavailable history feedback stays above a real inspector refusal | `gui/web/e2e-compat/compact-history-hint.spec.ts` | CSS / layout | Pass | Pass | Not run |

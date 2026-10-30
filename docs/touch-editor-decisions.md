@@ -990,11 +990,14 @@ enforced-by:
 - gui/web/src/system/InspectorSheet.test.tsx::dismisses when let go more than 24 px below the dock
 - gui/web/src/stage/edit/useInspectorOpen.test.tsx::clears the selection when the phone sheet is dismissed
 - gui/web/src/stage/edit/useInspectorOpen.test.tsx::peeks only on the phone's lanes
+- gui/web/e2e/inspector-sheet-drag.spec.ts::a 667x375 phone shell gets the Inspector sheet and no column
 supersedes: D-inspector-column
 -->
 
-On the phone the Inspector is the Inspector sheet (dock, half, full) whatever
-the orientation; the desktop and the tablet get the card beside the selection.
+On the phone shell (up to 767 px wide, `PHONE_MAX_PX`) the Inspector is the
+Inspector sheet (dock, half, full) whatever the orientation; the tablet and
+desktop shells, which include a wider phone held sideways, get the card beside
+the selection.
 A timeline target on the phone still opens the peek strip until the legacy
 bodies are replaced.
 

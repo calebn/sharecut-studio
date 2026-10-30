@@ -24,13 +24,13 @@ test("focused feedback Dismiss survives a phone turning sideways", async ({
   await checkRemount(page, info, "Dismiss");
 });
 
-test("focused feedback Undo stays in the column or its toast when a phone turns to 844x390", async ({
+test("focused feedback Undo stays in the card or its toast when a phone turns to 844x390", async ({
   page,
 }, info) => {
   await checkColumnHandoff(page, info, "Undo");
 });
 
-test("focused feedback Dismiss stays in the column or its toast when a phone turns to 844x390", async ({
+test("focused feedback Dismiss stays in the card or its toast when a phone turns to 844x390", async ({
   page,
 }, info) => {
   await checkColumnHandoff(page, info, "Dismiss");
