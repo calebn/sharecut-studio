@@ -49,11 +49,6 @@ export function savedGuestName(): string {
   return capCommentName(readLocal(GUEST_NAME_KEY) ?? "");
 }
 
-/** Whether this browser's guest has already named themselves or skipped. */
-export function guestNameChosen(): boolean {
-  return readLocal(GUEST_NAME_KEY) !== null;
-}
-
 /**
  * Name this viewer shows as in the session: the role's saved comment name,
  * else the role's presence label. The host's saved placeholder (`viewer`,

@@ -710,7 +710,7 @@ armed Select range controls and Listen, that the control
 
 It also holds the editing rail to one row (#1347) and sweeps the Transcript and
 Prepare stage whole at every size and text scale, the Find and replace row
-included (#1433, #1445), and, on the tablet and desktop shells, the Comments panel with a comment typed so its action items and track picks show (phones comment from Listen, swept above). A fourth test seeds
+included (#1433, #1445), and, on the tablet and desktop shells, the Review queue composer with a comment typed so its action items and track picks show (phones comment from Listen, swept above). A fourth test seeds
 a copy of the fixture whose first track has a volume envelope and an effect chain, so
 the track surface and the envelope workspace show the Envelope point select and the
 Bypass toggles. A control inside a closed `<details>` is not measured until it opens.

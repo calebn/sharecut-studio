@@ -300,7 +300,7 @@ the empty state, not a separate discovery task.
   repeats.
   Only a status that a persistent control already shows (the job chip,
   the presence avatars, the Needs attention summary) passes
-  `{ toast: false }`. The Comments panel resolves through the same toast, with
+  `{ toast: false }`. Resolving a comment in the Review queue uses the same toast, with
   a `reverse` Undo that reopens the comment. A failure passes
   `{ tone: "error" }` and reads in the error look: it names what failed and the
   next step, never an environment variable, a path or an id. A message about a
