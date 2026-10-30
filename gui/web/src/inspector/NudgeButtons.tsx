@@ -25,6 +25,11 @@ export interface NudgeButtonsProps {
    * reason beside the group and refuses to nudge.
    */
   unavailable?: string;
+  /**
+   * A save is in flight. The buttons refuse to nudge (`aria-disabled`) but show
+   * no note, so the rows below do not jump on every release.
+   */
+  saving?: boolean;
   onPointerDownCapture?: () => void;
 }
 
@@ -40,6 +45,7 @@ export function NudgeButtons({
   label,
   propsFor,
   unavailable,
+  saving = false,
   onPointerDownCapture,
 }: NudgeButtonsProps) {
   const reason = unavailableReason(unavailable);
@@ -48,7 +54,9 @@ export function NudgeButtons({
     <>
       <div
         className="nudge-row-buttons"
-        onPointerDownCapture={reason ? undefined : onPointerDownCapture}
+        onPointerDownCapture={
+          reason || saving ? undefined : onPointerDownCapture
+        }
         role="group"
         aria-label={groupLabel}
       >
@@ -64,7 +72,12 @@ export function NudgeButtons({
                   onClick: (event) => event.preventDefault(),
                   ...describedBy,
                 }
-              : propsFor(delta))}
+              : saving
+                ? {
+                    "aria-disabled": true,
+                    onClick: (event) => event.preventDefault(),
+                  }
+                : propsFor(delta))}
           >
             {text(delta)}
           </button>

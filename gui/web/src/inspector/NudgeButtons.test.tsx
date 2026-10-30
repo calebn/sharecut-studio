@@ -5,7 +5,7 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { NudgeButtons, UNAPPLIED_VALUE_REASON } from "./NudgeButtons";
 
-function setup(unavailable?: string) {
+function setup(unavailable?: string, saving = false) {
   const onCapture = vi.fn();
   const onClick = vi.fn();
   const onPointerDown = vi.fn();
@@ -14,6 +14,7 @@ function setup(unavailable?: string) {
       groupLabel="Nudge start"
       deltas={[-1, 1]}
       unavailable={unavailable}
+      saving={saving}
       onPointerDownCapture={onCapture}
       label={(delta) =>
         `${Math.abs(delta)} s ${delta < 0 ? "earlier" : "later"}`
@@ -67,6 +68,24 @@ describe("NudgeButtons", () => {
     const held = setup(UNAPPLIED_VALUE_REASON);
     fireEvent.pointerDown(screen.getByRole("button", { name: "1 s later" }));
     expect(held.onCapture).not.toHaveBeenCalled();
+  });
+
+  it("refuses to nudge while saving without showing a note that would move the rows below", async () => {
+    const { onClick, onPointerDown, onCapture, container } = setup(
+      undefined,
+      true,
+    );
+    const button = screen.getByRole("button", { name: "1 s later" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toHaveAttribute("aria-describedby");
+    expect(container.querySelector(".export-dialog-note")).toBeNull();
+    button.focus();
+    expect(button).toHaveFocus();
+    fireEvent.pointerDown(button);
+    await userEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onPointerDown).not.toHaveBeenCalled();
+    expect(onCapture).not.toHaveBeenCalled();
   });
 
   it("treats a blank reason as unavailable, not as ready", () => {

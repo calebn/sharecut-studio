@@ -19,6 +19,7 @@ import { findCountText, replacementOk } from "./findMatches";
 
 /** Why Replace waits when the search has no hits. */
 const NO_MATCHES_REASON = "No matches to replace. Change the search first.";
+const NO_QUERY_REASON = "Enter text to find first.";
 /** Why Replace waits on the replacement text (see `replacementOk`). */
 const REPLACEMENT_REASON =
   "Enter replacement text with a letter or a number to replace.";
@@ -186,11 +187,13 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
   const hits = count > 0;
   const replaceWait = !idle
     ? BUSY_REASON
-    : !hits
-      ? NO_MATCHES_REASON
-      : !replaceReady
-        ? REPLACEMENT_REASON
-        : undefined;
+    : query.trim() === ""
+      ? NO_QUERY_REASON
+      : !hits
+        ? NO_MATCHES_REASON
+        : !replaceReady
+          ? REPLACEMENT_REASON
+          : undefined;
   const { note: replaceNote, describedBy: replaceDescribedBy } =
     useDisabledReasonNote(replace?.open ? replaceWait : undefined);
   const replaceUnavailable =

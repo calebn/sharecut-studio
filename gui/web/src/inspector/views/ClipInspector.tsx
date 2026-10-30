@@ -299,13 +299,8 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
             <NudgeButtons
               groupLabel={`Nudge source ${name}`}
               deltas={deltas}
-              unavailable={
-                clipMutationBusy
-                  ? BUSY_REASON
-                  : dirty
-                    ? UNAPPLIED_VALUE_REASON
-                    : undefined
-              }
+              unavailable={dirty ? UNAPPLIED_VALUE_REASON : undefined}
+              saving={clipMutationBusy}
               onPointerDownCapture={() => {
                 if (!clipMutationBusy && !dirty) cancelClipPlacement();
               }}
@@ -437,14 +432,13 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
               groupLabel={`Nudge ${name.toLowerCase()}`}
               deltas={deltas}
               unavailable={
-                clipMutationBusy
-                  ? BUSY_REASON
-                  : unavailable
-                    ? fadeReason
-                    : dirty
-                      ? UNAPPLIED_VALUE_REASON
-                      : undefined
+                unavailable
+                  ? fadeReason
+                  : dirty
+                    ? UNAPPLIED_VALUE_REASON
+                    : undefined
               }
+              saving={clipMutationBusy}
               onPointerDownCapture={() => {
                 if (!clipMutationBusy && !dirty) cancelClipPlacement();
               }}

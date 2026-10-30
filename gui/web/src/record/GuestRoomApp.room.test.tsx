@@ -446,11 +446,17 @@ describe("GuestRoomApp in the room", () => {
       await userEvent.click(screen.getByRole("button", { name: "Devices" }));
       const dialog = await screen.findByRole("dialog", { name: "Devices" });
       expect(within(dialog).getByLabelText("Input")).toBeDisabled();
+      const tone = within(dialog).getByRole("button", {
+        name: "Record 1 minute of room tone",
+      });
+      expect(tone).toHaveAttribute("aria-disabled", "true");
+      expect(tone).toBeEnabled();
+      expect(tone).toHaveAccessibleDescription(
+        "Record room tone between takes.",
+      );
       expect(
-        within(dialog).getByRole("button", {
-          name: "Record 1 minute of room tone",
-        }),
-      ).toBeDisabled();
+        within(dialog).getByText("Record room tone between takes."),
+      ).toBeVisible();
     });
 
     it("keeps the Input menu mounted and focused while the new input opens", async () => {
