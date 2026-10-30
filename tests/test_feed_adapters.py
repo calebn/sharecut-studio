@@ -444,3 +444,57 @@ def test_an_editor_share_may_write_the_feed_file_and_a_commenter_may_not(
     assert allowed.json()["view"]["file"] == "current"
     assert str(writable.parent) not in allowed.text
     assert (writable.parent / "export" / "test_episode.feed.xml").is_file()
+
+
+@pytest.mark.parametrize(
+    ("role", "key", "value", "status"),
+    [
+        ("viewer", "channel.author", "Ana", 403),
+        ("commenter", "channel.author", "Ana", 403),
+        ("editor", "channel.author", "Ana", 200),
+        ("editor", "channel.title", "The Long River", 200),
+        ("editor", "channel.owner.email", "ana@example.test", 200),
+        ("editor", "channel.person[Ana Reyes].role", "host", 200),
+        ("editor", "channel.image", "https://cdn.example.test/c.jpg", 200),
+        ("editor", "show", "Other Show", 403),
+        ("editor", "channel.mediaUrl", "https://evil.example.test/{file}", 403),
+        ("editor", "channel.image", "/etc/passwd", 403),
+        ("editor", "item.intro", "Use the document route", 403),
+    ],
+)
+def test_a_guest_may_edit_a_show_value_by_role(
+    writable: Path, published_share, role: str, key: str, value: str, status: int
+) -> None:
+    from podcast_mcp.feed.show_store import ShowStore, default_directory
+    from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+
+    client = TestClient(create_app(), client=("203.0.113.9", 50000))
+    token = published_share(capabilities=capabilities_for_role(role))[2]["token"]
+
+    res = client.post(
+        f"/api/review/{token}/feed/edit", json={"edit": {"op": "set", "key": key, "value": value}}
+    )
+
+    assert res.status_code == status, res.text
+    shows = ShowStore(default_directory())
+    show = shows.profile("the-long-river")
+    held = show.pins.get(key)
+    if key.startswith("channel.person"):
+        assert (show.roster[0].role == value) == (status == 200) if show.roster else status != 200
+    else:
+        assert (held is not None and held.value == value) == (status == 200)
+    assert show.media_url == "https://cdn.example.test/long-river/{file}"
+    assert [s.id for s in shows.shows()] == ["the-long-river"]
+
+
+def test_the_host_may_edit_everything_a_guest_may_not(writable: Path) -> None:
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    for key, value in (
+        ("channel.mediaUrl", "https://cdn.example.test/x/{file}"),
+        ("show", "Other"),
+    ):
+        res = client.post(
+            "/api/feed/edit",
+            json={"path": str(writable), "edit": {"op": "set", "key": key, "value": value}},
+        )
+        assert res.status_code == 200, res.text

@@ -165,6 +165,12 @@ class FeedEditRequest(BaseModel):
     edit: FeedEdit
 
 
+class FeedGuestEditRequest(BaseModel):
+    """One show-level edit from an Editor share; the share link names the episode."""
+
+    edit: FeedEdit
+
+
 class FeedWriteRequest(BaseModel):
     """Write the episode's feed file."""
 

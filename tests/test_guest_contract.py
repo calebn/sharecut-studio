@@ -273,6 +273,10 @@ PROBES: dict[tuple[str, str], Probe] = {
         Site(service_jobs.JobManager, "start_render_preview"), {"json": {}}
     ),
     ("POST", "/api/review/{token}/feed/write"): Probe(Site(feed_routes, "FeedService")),
+    ("POST", "/api/review/{token}/feed/edit"): Probe(
+        Site(feed_routes, "FeedService"),
+        {"json": {"edit": {"op": "set", "key": "channel.author", "value": "Ana"}}},
+    ),
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): Probe(
         Site(service_jobs, "guest_render_job")
     ),

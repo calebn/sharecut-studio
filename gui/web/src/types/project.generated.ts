@@ -120,6 +120,11 @@ export interface FeedEditRequest {
   edit: SetEdit | UnsetEdit;
 }
 
+/** One show-level edit from an Editor share; the share link names the episode. */
+export interface FeedGuestEditRequest {
+  edit: SetEdit | UnsetEdit;
+}
+
 /** Write the episode's feed file. */
 export interface FeedWriteRequest {
   path: string;
