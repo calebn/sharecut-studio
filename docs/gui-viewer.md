@@ -230,7 +230,7 @@ independent of duration or mute.
 
 Keyboard word actions: in Navigate mode, Enter on a focused timed word seeks
 through its native button action. F2 opens inline correction for a hydrated
-host project. F2 does nothing in Correct or Select mode, on guest shares, or
+host project. F2 does nothing on guest shares, or
 while a correction is saving. Enter retains the native Correct/Select word
 action in those modes; Enter in the inline editor saves and Escape cancels.
 

@@ -51,8 +51,8 @@ export function detachedWordFailure({
 }
 
 /**
- * Store a detached failure for the transcript's late-failure banner. It lives
- * in the DAW store, so it outlives the editor and the transcript panel.
+ * Store a detached failure for the Script to say (useScriptLateFailure). It
+ * lives in the DAW store, so it outlives the editor and the Inspector.
  */
 export function reportDetachedWordFailure(
   input: DetachedWordFailureInput,

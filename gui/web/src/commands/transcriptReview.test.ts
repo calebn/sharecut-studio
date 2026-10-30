@@ -142,6 +142,16 @@ describe("transcript.next/prevLowConfidence", () => {
     }
   });
 
+  it("selects the stop's word as the transcript range", async () => {
+    await execute("transcript.nextLowConfidence", {});
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "transcriptRange",
+      trackId: "host",
+      startWordIndex: 1,
+      endWordIndex: 1,
+    });
+  });
+
   it("prev with no cursor goes to the last stop, and wraps from the first", async () => {
     let result = await execute("transcript.prevLowConfidence", {});
     expect(result).toEqual({ status: "ok" });

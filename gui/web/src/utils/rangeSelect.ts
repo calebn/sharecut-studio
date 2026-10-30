@@ -87,27 +87,6 @@ export type WordTarget = {
   wordIndex: number;
 };
 
-/** The word chip a viewport point is over, even where a sheet covers it. */
-export function wordAtPoint(
-  doc: Pick<Document, "elementsFromPoint">,
-  x: number,
-  y: number,
-): WordTarget | null {
-  for (const el of doc.elementsFromPoint(x, y)) {
-    const chip = el.closest<HTMLElement>("[data-transcript-word]");
-    if (!chip) continue;
-    const wordIndex = Number(chip.dataset.wordIndex);
-    const trackId = chip.dataset.trackId;
-    if (trackId && Number.isInteger(wordIndex))
-      return {
-        trackId,
-        sourceId: chip.dataset.sourceId || null,
-        wordIndex,
-      };
-  }
-  return null;
-}
-
 /** The word `selection` holds when it is a range of exactly one word. */
 export function oneWordOf(selection: Selection): WordTarget | null {
   if (

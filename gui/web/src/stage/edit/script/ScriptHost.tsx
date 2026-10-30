@@ -12,6 +12,7 @@ import type { ScriptStatus } from "../../../system/scriptPieces";
 import { ScriptJoin } from "./ScriptJoin";
 import { useScriptFind } from "./useScriptFind";
 import { useScriptFixText } from "./useScriptFixText";
+import { useScriptLateFailure } from "./useScriptLateFailure";
 import { useScriptModel } from "./useScriptModel";
 import { useScriptPlayback } from "./useScriptPlayback";
 import { useScriptSelection } from "./useScriptSelection";
@@ -59,6 +60,7 @@ export function ScriptHost({
   onTranscribe,
 }: ScriptHostProps) {
   const projectPath = useDawStore((s) => s.projectPath);
+  useScriptLateFailure();
   const guestMode = useDawStore((s) => s.guestMode);
   const capabilities = useDawStore((s) => s.shareCapabilities);
   const breakpoint = useDawStore((s) => s.shellBreakpoint);

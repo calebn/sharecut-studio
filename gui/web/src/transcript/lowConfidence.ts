@@ -29,7 +29,7 @@ export interface LowConfidenceStop {
 }
 
 /**
- * Indexed low-confidence words among the utterances the transcript panel lists
+ * Indexed low-confidence words among the utterances the Script lists
  * (`isTranscriptUtteranceVisible`), in transcript order. Pass the full
  * `project.transcript.utterances`: `order` counts every indexed word, hidden
  * cut-away ones included.
