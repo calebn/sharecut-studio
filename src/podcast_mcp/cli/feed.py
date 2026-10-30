@@ -153,6 +153,8 @@ def _edited(view: Any, key: str) -> str:
     if key == "show":
         return json.dumps({"key": key, "show": wire["show"]}, indent=2, ensure_ascii=False)
     fact = wire["item"].get(key) or wire["channel"].get(key)
+    if fact is None and ".person[" in key:
+        fact = wire["sections"].get("credits")
     return json.dumps({"key": key, "fact": fact}, indent=2, ensure_ascii=False)
 
 

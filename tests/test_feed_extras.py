@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from feed_helpers import StubShow, complete_show, inputs, make_project, mp3, pin
+from podcast_mcp.feed import extras
 from podcast_mcp.feed.model import ExportFiles, SetEdit
 from podcast_mcp.feed.render import render
 from podcast_mcp.feed.resolve import checked_value, edited_pins, resolve
@@ -276,3 +277,16 @@ def test_an_uppercase_scheme_is_an_address_not_a_file_on_this_machine() -> None:
     assert not is_local_art("HTTPS://cdn.example.test/x.jpg")
     assert check_art_ref("HTTPS://cdn.example.test/x.jpg") == "HTTPS://cdn.example.test/x.jpg"
     assert is_local_art("/srv/private/x.jpg")
+
+
+@pytest.mark.parametrize("guid", ["ep-42", "urn:uuid:7e987b0f-fea7-464c-84dc-8f109256000b"])
+def test_a_remote_item_guid_is_any_text(guid: str) -> None:
+    feed = "917393e3-1b1e-5cef-ace4-edaa54e1f810"
+
+    assert extras.remote_item(f"{feed} {guid}").attrs["itemGuid"] == guid
+
+
+@pytest.mark.parametrize("guid", ["x" * 128, "a\x07b"])
+def test_a_remote_item_guid_is_not_huge_or_a_control_character(guid: str) -> None:
+    with pytest.raises(ValueError):
+        extras.remote_item(f"917393e3-1b1e-5cef-ace4-edaa54e1f810 {guid}")

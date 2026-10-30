@@ -100,7 +100,11 @@ def _shaped(element: ET.Element, shape: Element) -> None:
 
 def _put(parent: ET.Element, tag: Tag, value: object, build: _Builder, *, notes: bool) -> None:
     if tag.shape is not None:
-        _shaped(_node(parent, tag.path), tag.shape(value))
+        try:
+            shaped = tag.shape(value)
+        except ValueError:
+            return
+        _shaped(_node(parent, tag.path), shaped)
         return
     if tag.attr is not None:
         element = _child(parent, tag.path)

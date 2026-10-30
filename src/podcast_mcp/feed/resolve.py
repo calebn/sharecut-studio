@@ -221,6 +221,7 @@ def _row_findings(spec: FieldSpec, fact: Auto, res: Resolution) -> list[Finding]
             )
         ]
     found = [finding for check in spec.checks for finding in check(res, fact)]
+    found.extend(_stored_value_findings(spec, fact))
     if isinstance(fact.source, Pinned) and fact.source.drifted:
         found.append(
             Finding(
@@ -232,6 +233,26 @@ def _row_findings(spec: FieldSpec, fact: Auto, res: Resolution) -> list[Finding]
             )
         )
     return found
+
+
+def _stored_value_findings(spec: FieldSpec, fact: Found) -> list[Finding]:
+    """A stored value its XML shape now refuses is a blocker naming the field, never an exception."""
+    for tag in spec.tags:
+        if tag.shape is None or fact.value in (None, ""):
+            continue
+        try:
+            tag.shape(fact.value)
+        except ValueError as exc:
+            return [
+                Finding(
+                    key=spec.key,
+                    severity="blocker",
+                    platform="RSS",
+                    message=f"The stored {spec.label} is not valid: {exc}. Set it again or unset it.",
+                    fix=None,
+                )
+            ]
+    return []
 
 
 def _show_file_findings(inputs: FeedInputs) -> list[Finding]:
