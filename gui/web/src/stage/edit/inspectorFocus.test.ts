@@ -3,7 +3,7 @@ import { focusFirstControl } from "./inspectorFocus";
 
 function mount(body: string) {
   const box = document.createElement("div");
-  box.innerHTML = `<section role="dialog" aria-label="Inspector" tabindex="-1"><div class="sys-inspector-scroll">${body}</div></section>`;
+  box.innerHTML = `<section role="dialog" aria-label="Inspector"><div class="sys-inspector-keys"><div tabindex="-1" data-inspector-anchor></div></div><div class="sys-inspector-scroll">${body}</div></section>`;
   document.body.append(box);
   return box;
 }
@@ -18,7 +18,9 @@ describe("focusFirstControl", () => {
       '<input type="text" aria-label="Your name"><button>Go</button>',
     );
     focusFirstControl(box);
-    expect(document.activeElement).toBe(box.querySelector('[role="dialog"]'));
+    expect(document.activeElement).toBe(
+      box.querySelector("[data-inspector-anchor]"),
+    );
   });
 
   it.each(["<textarea></textarea>", "<select></select>"])(
@@ -26,7 +28,9 @@ describe("focusFirstControl", () => {
     (field) => {
       const box = mount(`${field}<button>Go</button>`);
       focusFirstControl(box);
-      expect(document.activeElement).toBe(box.querySelector('[role="dialog"]'));
+      expect(document.activeElement).toBe(
+        box.querySelector("[data-inspector-anchor]"),
+      );
     },
   );
 
@@ -43,7 +47,9 @@ describe("focusFirstControl", () => {
         `<input type="${type}" aria-label="Field"><button>Go</button>`,
       );
       focusFirstControl(box);
-      expect(document.activeElement).toBe(box.querySelector('[role="dialog"]'));
+      expect(document.activeElement).toBe(
+        box.querySelector("[data-inspector-anchor]"),
+      );
     },
   );
 
