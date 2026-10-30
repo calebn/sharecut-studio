@@ -1,8 +1,14 @@
 import { useState } from "react";
+import { recordHere } from "../../commands/editVerbs";
 import { newTracksDropLabel } from "../../ingest/dropLabels";
 import { canIngestMedia, isShareProjectKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
-import { CommandMenuItem, Menu, type MenuTriggerProps } from "../../ui";
+import {
+  CommandMenuItem,
+  Menu,
+  MenuItem,
+  type MenuTriggerProps,
+} from "../../ui";
 import type { AudioDropHandlers } from "./useAudioDrop";
 
 export type PlusMenuProps = {
@@ -53,7 +59,14 @@ export function PlusMenu({
       {host ? (
         <>
           <CommandMenuItem commandId="edit.addChapter" onSelect={close} />
-          <CommandMenuItem commandId="stage.record" onSelect={close} />
+          <MenuItem
+            onSelect={() => {
+              close();
+              void recordHere();
+            }}
+          >
+            Record here
+          </MenuItem>
         </>
       ) : null}
     </Menu>

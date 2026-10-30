@@ -2705,6 +2705,16 @@ button.sys-picker-option:focus-visible {
   inline-size: 1rem;
 }
 
+/* The line to read under a Replace target */
+
+.sys-target-script {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
 /* Stage hand-off */
 
 .sys-handoff-wrap {

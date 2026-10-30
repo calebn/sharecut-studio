@@ -644,14 +644,14 @@
   flex: none;
   align-items: center;
   gap: var(--space-3);
-  block-size: 3rem;
+  min-block-size: 3rem;
   padding-inline: var(--space-5);
   border-block-end: 1px solid var(--color-border-subtle);
 }
 
 .sys-room-view-header--embedded {
   justify-content: flex-end;
-  block-size: 2.5rem;
+  min-block-size: 2.5rem;
 }
 
 .sys-room-view-target {
@@ -755,7 +755,7 @@
 
 .sys-room-view[data-width="phone"] .sys-room-view-header,
 .sys-room-view[data-width="phone-landscape"] .sys-room-view-header {
-  block-size: 2.75rem;
+  min-block-size: 2.75rem;
   padding-inline: var(--space-4);
 }
 

@@ -416,7 +416,7 @@ const REMOVED_SURFACES: Entry[] = [
   ]),
   entry("transport Menu", "Share", "share.manage", [headerInvite]),
   entry("transport Menu", "Record room", "stage.record", [
-    plusMenuRow(/Go to Record/, "stage.record"),
+    plusMenuRow(/^Record here/, "stage.record"),
   ]),
   entry("transport Menu", "Connect agent", "mcp.connect", [
     projectMenuRow("Connect agent", "mcp.connect"),

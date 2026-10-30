@@ -136,6 +136,7 @@ export const HostPickupFromSelection: Story = {
           from_sec: 724,
           to_sec: 1000,
           track_ids: ["t1"],
+          script: "…the reason we didn't ship it…",
         },
       },
       record: room({ state: "lobby", take_index: -1, recording_ms: 0 }),
@@ -158,6 +159,9 @@ export const HostPickupFromSelection: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       await within(canvasElement).findByText("Replaces 12:04-16:40"),
+    ).toBeVisible();
+    await expect(
+      await within(canvasElement).findByText("…the reason we didn't ship it…"),
     ).toBeVisible();
   },
 };

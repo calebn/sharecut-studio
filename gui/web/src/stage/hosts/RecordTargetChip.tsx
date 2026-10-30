@@ -11,6 +11,8 @@ import {
   wireTargetOf,
 } from "./recordStageModel";
 
+const SPAN_EPSILON = 1e-6;
+
 type RecordTargetChipProps = {
   snapshot: RecordSnapshot;
   busy: boolean;
@@ -30,11 +32,21 @@ export function RecordTargetChip({
   // Whole seconds, so playback does not re-render the chip on every frame.
   const playheadSec = useDawStore((s) => Math.floor(s.playheadSec));
   const editSelection = useDawStore((s) => s.selection);
+  const recordScript = useDawStore((s) => s.recordScript);
   const endSec = lastClipEndSec(project);
   const selected =
     project && editSelection ? selectionSpan(editSelection, project) : null;
   const replaceable = replaceableSpan(selected, project);
-  return (
+  const target = snapshot.target;
+  // Only while the room's target is still the Replace the words were parked with.
+  const script =
+    recordScript &&
+    target?.kind === "replace" &&
+    Math.abs(target.from_sec - recordScript.fromSec) < SPAN_EPSILON &&
+    Math.abs(target.to_sec - recordScript.toSec) < SPAN_EPSILON
+      ? recordScript.text
+      : null;
+  const chip = (
     <SessionTargetChip
       target={targetViewOf(snapshot.target, endSec)}
       locked={targetLocked(snapshot)}
@@ -46,9 +58,17 @@ export function RecordTargetChip({
           ? { fromSec: replaceable.start, toSec: replaceable.end }
           : undefined
       }
-      onChange={(next) =>
-        onSetTarget(wireTargetOf(next, replaceable?.trackIds ?? []))
-      }
+      onChange={(next) => {
+        useDawStore.getState().setRecordScript(null);
+        onSetTarget(wireTargetOf(next, replaceable?.trackIds ?? []));
+      }}
     />
+  );
+  if (!script) return chip;
+  return (
+    <>
+      {chip}
+      <p className="sys-target-script">{script}</p>
+    </>
   );
 }
