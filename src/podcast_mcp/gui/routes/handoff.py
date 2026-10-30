@@ -197,23 +197,33 @@ def _unauthorized(request: Request) -> JSONResponse | None:
     return None
 
 
-def _serves(served: Path | None, project: Path | str) -> bool:
+@dataclass(frozen=True)
+class _ProjectMatch:
+    served: Path
+    hardlink_alias: bool
+
+
+def _match_project(served: Path | None, project: Path | str) -> _ProjectMatch | None:
     if served is None:
-        return False
+        return None
     try:
-        return resolve_project_path(project).samefile(resolve_project_path(served))
+        requested = resolve_project_path(project)
+        served_path = resolve_project_path(served)
+        requested_stat = requested.stat()
+        if not os.path.samestat(requested_stat, served_path.stat()):
+            return None
+        return _ProjectMatch(served_path, requested != served_path and requested_stat.st_nlink > 1)
     except (OSError, ValueError):
-        return False
+        return None
 
 
-def _alias_refusal(project: Path | str, served: Path) -> JSONResponse | None:
-    requested = resolve_project_path(project)
-    if requested != served and requested.stat().st_nlink > 1:
+def _alias_refusal(match: _ProjectMatch) -> JSONResponse | None:
+    if match.hardlink_alias:
         return _refuse(
             409,
             "project_alias",
-            f"Use Studio's served project filename, {served}, instead of another hardlink name. "
-            "Nothing was run.",
+            f"Use Studio's served project filename, {match.served}, instead of another hardlink "
+            "name. Nothing was run.",
         )
     return None
 
@@ -227,7 +237,7 @@ def ping(request: Request, project: str) -> JSONResponse:
         {
             "instance": _state(request.app).instance,
             "protocol": HANDOFF_PROTOCOL,
-            "serves": _serves(request.app.state.served_project, project),
+            "serves": _match_project(request.app.state.served_project, project) is not None,
             "mcp": getattr(request.app.state, "host_mcp_session_manager", None) is not None,
             "version": __version__,
         }
@@ -248,19 +258,21 @@ async def run(request: Request, body: RunBody) -> StreamingResponse | JSONRespon
     denied = _unauthorized(request)
     if denied is not None:
         return denied
-    served = request.app.state.served_project
-    if not _serves(served, body.project):
+    matched = _match_project(request.app.state.served_project, body.project)
+    if matched is None:
         return _refuse(409, "not_served", "This Studio is not serving that project.")
-    served = resolve_project_path(served)
-    denied = _alias_refusal(body.project, served)
+    denied = _alias_refusal(matched)
     if denied is not None:
         return denied
     from podcast_mcp.cli.main import app as cli_app
 
     plan = plan_handoff(_click_root(cli_app), body.argv, Path(body.cwd))
-    if plan is None or plan.argv != body.argv or not _serves(served, plan.project):
+    if plan is None or plan.argv != body.argv:
         return _refuse(409, "not_eligible", "That command does not run in Studio.")
-    denied = _alias_refusal(plan.project, served)
+    matched = _match_project(matched.served, plan.project)
+    if matched is None:
+        return _refuse(409, "not_eligible", "That command does not run in Studio.")
+    denied = _alias_refusal(matched)
     if denied is not None:
         return denied
     if body.protocol != HANDOFF_PROTOCOL:
