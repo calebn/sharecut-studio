@@ -16,7 +16,6 @@ from podcast_mcp.feed.model import (
     ShowSource,
     ShowSummary,
 )
-from podcast_mcp.feed.show_store import ShowStore
 from podcast_mcp.feed.urls import is_local_art
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
@@ -87,7 +86,7 @@ def linked_show_id(project: EpisodeProject, summaries: Sequence[ShowSummary]) ->
 
 def gather_inputs(project: EpisodeProject, shows: ShowSource) -> FeedInputs:
     summaries = tuple(shows.shows())
-    problems = list(shows.problems()) if isinstance(shows, ShowStore) else []
+    problems = list(shows.problems())
     show_id = linked_show_id(project, summaries)
     profile = None
     unreadable = None

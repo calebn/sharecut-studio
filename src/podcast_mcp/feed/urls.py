@@ -20,7 +20,7 @@ _ASCII = re.compile(r"[\x21-\x7e]+")
 def check_https_url(value: str) -> str:
     parts = urlsplit(value)
     if parts.scheme != "https" or not parts.netloc or not _ASCII.fullmatch(value):
-        raise ValueError("must be an https address with ASCII characters only")
+        raise ValueError("must be an https address, using plain letters and numbers")
     return value
 
 

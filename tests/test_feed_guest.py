@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from feed_helpers import complete_show
-from podcast_mcp.feed.model import ShowSummary
+from podcast_mcp.feed.model import NoShows, ShowSummary
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -30,7 +30,7 @@ Share = Callable[..., tuple[Any, dict[str, Any], dict[str, Any]]]
 FEED_COMMANDS = ("SetFeedField", "ClearFeedField")
 
 
-class OneShow:
+class OneShow(NoShows):
     def shows(self):
         return ()
 
@@ -219,7 +219,7 @@ def test_the_payload_gate_lets_a_guest_edit_one_person_attribute() -> None:
     )
 
 
-class TwoShows:
+class TwoShows(NoShows):
     def shows(self):
         return (ShowSummary("long-river", "The Long River"), ShowSummary("secret", "Unreleased"))
 
@@ -256,7 +256,11 @@ def test_a_guest_value_is_checked_like_the_hosts(episode: Path, published_share:
         {"key": "item.enclosure.url", "value": "file:///etc/passwd"},
     )
 
-    assert res.status_code >= 400
+    assert res.status_code == 400
+    assert res.headers["X-Sharecut-Error-Code"] == "feed_value_invalid"
+    assert res.json()["detail"] == (
+        "Hosting address must be an https address, using plain letters and numbers."
+    )
     assert _pins(episode) == {}
 
 

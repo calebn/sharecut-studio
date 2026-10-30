@@ -21,6 +21,7 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketState
 
+from podcast_mcp.feed.fields import guest_pinnable, lookup
 from podcast_mcp.feed.model import FeedEdit, SetEdit
 from podcast_mcp.feed.urls import is_local_art
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
@@ -590,13 +591,12 @@ def write_feed_file_as_guest(token: str) -> dict[str, Any]:
         return served_feed(FeedService(ProjectWorkspace.open(ws.path)), guest=True)
 
 
-# What an Editor share may change on the show. Choosing the show and where files are hosted
-# stay with the host, and so does artwork named by a file path on the host's machine.
-GUEST_HOST_ONLY_KEYS = frozenset({"show", "channel.mediaUrl"})
-
-
 def require_guest_show_edit(edit: FeedEdit) -> None:
-    """Raise unless an Editor share may make ``edit``: a plain channel value, never a host setting."""
+    """Raise unless an Editor share may make ``edit``: a plain show value the registry lets a guest pin.
+
+    Choosing the show and where files are hosted stay with the host, and so does artwork named
+    by a file path on the host's machine.
+    """
     key = edit.key
     local_art = (
         key == "channel.image"
@@ -604,7 +604,9 @@ def require_guest_show_edit(edit: FeedEdit) -> None:
         and isinstance(edit.value, str)
         and is_local_art(edit.value)
     )
-    if not key.startswith("channel.") or key in GUEST_HOST_ONLY_KEYS or local_art:
+    # A key the registry does not know falls through to the service, which answers it as unknown.
+    known = lookup(key) is not None
+    if not key.startswith("channel.") or (known and not guest_pinnable(key, "show")) or local_art:
         raise CodedPermissionError(
             "That setting is changed by the host", code="share_capability_required"
         )

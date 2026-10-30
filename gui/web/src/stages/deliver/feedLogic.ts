@@ -1,3 +1,4 @@
+import type { StageRole } from "../../types/stage";
 import type { StatusState } from "../../system/statusText";
 import { plural, thingsLeft } from "./deliverLogic";
 import type {
@@ -14,7 +15,7 @@ import type {
   Resolved,
   Severity,
   WriteRequest,
-} from "./feedView";
+} from "../../types/feedView";
 
 export { plural };
 
@@ -72,6 +73,8 @@ type PinField = {
   reset: "Use auto" | "Clear";
   /** A yes or no, asked with a choice instead of free text. */
   yesNo?: true;
+  /** A flag the service only accepts switched on; there is no No to choose, a clear is the way back. */
+  yesOnly?: true;
 };
 
 /** The rows a click can edit. A key not listed here is shown, never edited. */
@@ -177,6 +180,7 @@ const SHOW_FIELDS: Readonly<Record<FieldKey, PinField>> = {
     multiline: false,
     reset: "Clear",
     yesNo: true,
+    yesOnly: true,
   },
   "channel.complete": {
     label: "show is finished",
@@ -184,6 +188,7 @@ const SHOW_FIELDS: Readonly<Record<FieldKey, PinField>> = {
     multiline: false,
     reset: "Clear",
     yesNo: true,
+    yesOnly: true,
   },
   "channel.mediaUrl": {
     label: "hosting address template",
@@ -342,6 +347,18 @@ export const EMPTY_VIEW: FeedView = {
 
 /** Who is looking: the host, someone on an Editor link, or someone who can only read. */
 export type FeedAccess = "host" | "editor" | "viewer";
+
+/** What a stage role may do to the listing: only an Editor link edits; Viewer and Commenter read. */
+export function feedAccessOf(role: StageRole): FeedAccess {
+  switch (role) {
+    case "host":
+      return "host";
+    case "editor":
+      return "editor";
+    default:
+      return "viewer";
+  }
+}
 
 export const HOST_ONLY_WHY = "Only the host can change this.";
 export const READ_ONLY_WHY =

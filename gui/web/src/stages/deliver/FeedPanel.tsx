@@ -1,6 +1,6 @@
 import { FeedSection } from "./FeedSection";
 import { EMPTY_VIEW, type FeedAccess, type SourceOwner } from "./feedLogic";
-import type { Fix } from "./feedView";
+import type { Fix } from "../../types/feedView";
 import { useFeed } from "./useFeed";
 
 type Props = {

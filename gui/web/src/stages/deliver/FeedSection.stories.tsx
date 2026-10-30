@@ -20,7 +20,7 @@ import {
   STALE,
   UNREADABLE,
 } from "./feedFixture";
-import type { FeedView, WriteRequest } from "./feedView";
+import type { FeedView, WriteRequest } from "../../types/feedView";
 
 const meta: Meta<typeof FeedSection> = {
   title: "Stages/Deliver/Podcast listing",

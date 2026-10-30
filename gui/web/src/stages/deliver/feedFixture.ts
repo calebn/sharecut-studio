@@ -16,7 +16,7 @@ import type {
   Sections,
   Served,
   ShowState,
-} from "./feedView";
+} from "../../types/feedView";
 
 const COVER = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240"><rect width="240" height="240" fill="#14343b"/><circle cx="170" cy="72" r="30" fill="#f2b45a"/><path d="M0 150 C40 120 80 180 120 150 S200 120 240 150 V240 H0Z" fill="#2a6f78"/><path d="M0 188 C40 158 80 218 120 188 S200 158 240 188 V240 H0Z" fill="#3f9aa3"/></svg>`;
 

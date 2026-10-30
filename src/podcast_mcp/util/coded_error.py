@@ -34,6 +34,7 @@ GENERIC_GUEST_MESSAGE = "That didn't work; ask the host to check this episode."
 _GUEST_MESSAGES = {
     "clip_not_found": "That clip is unavailable. Ask the host to refresh the project.",
     "cut_scope_changed": "This edit needs another review. Ask the host to review it in the editor before applying it.",
+    "feed_write_failed": "The feed file could not be written on the host's computer. Ask the host to check that its disk has space and is not read-only, then try again.",
     "invalid_audio": "This upload is not a playable audio file. Choose a supported audio file and try again.",
     "invalid_lease": "Your recording access is no longer valid. Ask the host to reconnect you.",
     "mix_out_of_date": "The mix is out of date. Ask the host to refresh it before playing this range.",

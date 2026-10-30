@@ -17,15 +17,21 @@ describe("feedErrorText", () => {
     ).toBe("hosting address must be an https address");
   });
 
-  it("says the value is not valid when a guest gets only the generic line", () => {
+  it("shows the service's sentence as written", () => {
     expect(
       feedErrorText(
         refused(
-          "That didn't work; ask the host to check this episode.",
+          "Hosting address must be an https address.",
           "feed_value_invalid",
         ),
       ),
-    ).toBe("That value isn't valid for this field.");
+    ).toBe("Hosting address must be an https address.");
+  });
+
+  it("falls back when the refusal carries no words", () => {
+    expect(feedErrorText(refused("", "feed_value_invalid"))).toBe(
+      "That value isn't valid for this field.",
+    );
   });
 
   it.each([

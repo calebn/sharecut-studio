@@ -79,6 +79,8 @@ class Resolution:
     inputs: FeedInputs
     pins: Mapping[str, Pin]
     facts: dict[str, Auto] = field(default_factory=dict)
+    # Pinned rows whose stored value is not the kind of value the row takes (a hand edit).
+    unusable_pins: set[str] = field(default_factory=set)
 
     @property
     def show(self) -> ShowProfile | None:
@@ -152,6 +154,8 @@ class FieldSpec:
     pin_shape: Callable[[Resolution, Any], Any] | None = None
     # Turns a pinned value into the fact it stands for, which may be pending (hosting not known yet).
     pin_resolve: Callable[[Resolution, Any], Auto] | None = None
+    # Where files live is the host's to say: a share link never pins this row.
+    host_only: bool = False
 
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
@@ -531,6 +535,7 @@ def _show(
     edit: Edit = "pin",
     listed: Literal["always", "known", "pinned"] = "always",
     pin_resolve: Callable[[Resolution, Any], Auto] | None = None,
+    host_only: bool = False,
 ) -> FieldSpec:
     return FieldSpec(
         key=key,
@@ -546,6 +551,7 @@ def _show(
         checks=checks,
         listed=listed,
         pin_resolve=pin_resolve,
+        host_only=host_only,
     )
 
 
@@ -774,7 +780,7 @@ def _optional_rows() -> tuple[FieldSpec, ...]:
             _optional(
                 scope,
                 "value",
-                "value for value",
+                "payment address",
                 "A Lightning node that listeners can send to.",
                 "node-address [name]",
                 "podcast:value",
@@ -906,6 +912,7 @@ _CORE_FIELDS: tuple[FieldSpec, ...] = (
         "Where files will live, with {file} where the file name goes.",
         TypeAdapter(Template),
         derive=_media_url,
+        host_only=True,
     ),
     _show(
         "channel.feedUrl",
@@ -1264,6 +1271,12 @@ _PERSON_PIN = FieldSpec(
     value=_TEXT,
     edit="pin",
 )
+
+
+def guest_pinnable(key: str, scope: Literal["show", "episode"]) -> bool:
+    """Whether a share link may pin ``key``: a row of ``scope`` that a pin edits and the host has not kept."""
+    spec = lookup(key)
+    return spec is not None and spec.scope == scope and spec.edit == "pin" and not spec.host_only
 
 
 def lookup(key: str) -> FieldSpec | None:

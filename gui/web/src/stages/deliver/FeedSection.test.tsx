@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
@@ -16,7 +16,7 @@ import {
   STALE,
 } from "./feedFixture";
 import type { FeedAccess } from "./feedLogic";
-import type { FeedView, WriteRequest } from "./feedView";
+import type { FeedView, WriteRequest } from "../../types/feedView";
 
 function setup(
   first: FeedView = READY,
@@ -532,6 +532,38 @@ describe("FeedSection", () => {
       );
     });
 
+    it("offers only Yes for a flag the service accepts only switched on", async () => {
+      const { user } = setup(
+        {
+          ...CHECKS,
+          findings: [
+            {
+              key: "channel.block",
+              severity: "warn",
+              platform: "Apple",
+              message: "Choose whether to hide the show.",
+              fix: { kind: "input", key: "channel.block" },
+            },
+          ],
+        },
+        { access: "editor" },
+      );
+      await user.click(screen.getByText("Checks"));
+      await user.click(
+        screen.getByRole("button", {
+          name: /^Choose whether to hide the show:/,
+        }),
+      );
+      const choice = screen.getByRole("combobox", {
+        name: "hide from directories",
+      });
+      expect(
+        within(choice)
+          .getAllByRole("option")
+          .map((o) => o.textContent),
+      ).toEqual(["Choose", "Yes"]);
+    });
+
     it("asks an Editor for artwork as an https address only", async () => {
       const { user, onAction } = setup(CHECKS, { access: "editor" });
       await user.click(screen.getByText("Checks"));
@@ -554,7 +586,7 @@ describe("FeedSection", () => {
       );
     });
 
-    it("makes the Guest mark reachable by keyboard with its explanation", () => {
+    it("gives the Guest mark its explanation as text, not a focus stop", () => {
       const guest: FeedView = {
         ...READY,
         item: {
@@ -567,8 +599,8 @@ describe("FeedSection", () => {
       };
       setup(guest, { access: "editor" });
       const mark = screen.getByTitle("Set with an edit link");
-      expect(mark).toHaveAttribute("tabindex", "0");
-      expect(mark).toHaveAttribute("title", "Set with an edit link");
+      expect(mark).not.toHaveAttribute("tabindex");
+      expect(mark).toHaveTextContent("Guest, Set with an edit link");
     });
 
     it("marks a value a guest wrote", () => {
@@ -584,7 +616,7 @@ describe("FeedSection", () => {
       };
       setup(guest, { access: "editor" });
       expect(screen.getByTitle("Set with an edit link")).toHaveTextContent(
-        "Guest",
+        /^Guest/,
       );
     });
 
