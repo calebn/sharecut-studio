@@ -1,5 +1,10 @@
 import type { MuteState } from "../utils/audio";
-import { LANE_HEIGHT, MAX_FIT_LANE_HEIGHT } from "../utils/layout";
+import {
+  LANE_HEIGHT,
+  MARKER_ROW_HEIGHT,
+  MAX_FIT_LANE_HEIGHT,
+  RULER_HEIGHT,
+} from "../utils/layout";
 import { PLAYHEAD_BLEED_PX, xAtTime } from "./rulerMath";
 
 type ItemBox = { left: number; width: number };
@@ -58,4 +63,25 @@ export function laneMuteLook(mute: MuteState): {
     default:
       return { silent: false, description: "" };
   }
+}
+
+export type LaneRowBox = { id: string; top: number; height: number };
+
+/**
+ * Each lane's top and height in px from the top of the ruler, for the
+ * presence overlay. The heights are the ones `Lane` draws (clamped), so the
+ * overlay and the lanes cannot disagree; `top` is the ruler plus one marker
+ * row unless the stack above the lanes is taller.
+ */
+export function laneRows(
+  lanes: readonly { id: string; height?: number }[],
+  top: number = RULER_HEIGHT + MARKER_ROW_HEIGHT,
+): LaneRowBox[] {
+  let y = top;
+  return lanes.map((lane) => {
+    const height = clampLaneHeight(lane.height);
+    const row = { id: lane.id, top: y, height };
+    y += height;
+    return row;
+  });
 }

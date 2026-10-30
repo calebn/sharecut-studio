@@ -4,6 +4,7 @@ import {
   itemBox,
   itemVisible,
   laneMuteLook,
+  laneRows,
   windowStartFor,
 } from "./laneMath";
 
@@ -73,5 +74,28 @@ describe("laneMuteLook", () => {
       silent: true,
       description: "Silent while another track is soloed",
     });
+  });
+});
+
+describe("laneRows", () => {
+  it("stacks the clamped heights under the ruler and one marker row", () => {
+    expect(
+      laneRows([
+        { id: "a" },
+        { id: "b", height: 104 },
+        { id: "c", height: 300 },
+      ]),
+    ).toEqual([
+      { id: "a", top: 48, height: 72 },
+      { id: "b", top: 120, height: 104 },
+      { id: "c", top: 224, height: 240 },
+    ]);
+  });
+
+  it("starts lower under a taller stack, and is empty without lanes", () => {
+    expect(laneRows([{ id: "a", height: 90 }], 96)).toEqual([
+      { id: "a", top: 96, height: 90 },
+    ]);
+    expect(laneRows([])).toEqual([]);
   });
 });
