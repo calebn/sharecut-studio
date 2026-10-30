@@ -14,6 +14,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
+from podcast_mcp.export.audio import GUEST_EXPORT_FORMATS
 from podcast_mcp.gui.job_events import GUEST_STREAM_SLOTS
 from podcast_mcp.gui.routes.deps import coded_http_error
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
@@ -25,7 +26,7 @@ from podcast_mcp.gui.routes.pipeline_jobs import (
 )
 from podcast_mcp.gui.routes.share_common import check_share_token, rate_limit_share
 from podcast_mcp.gui.routes.sse_common import guest_job_events_response
-from podcast_mcp.gui.schemas import GuestPipelineRunRequest
+from podcast_mcp.gui.schemas import GuestExportRequest, GuestPipelineRunRequest
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     GUEST_OWNER_ROUTES,
@@ -34,9 +35,11 @@ from podcast_mcp.services.collaboration import (
     require_share_edit,
 )
 from podcast_mcp.services.jobs import (
+    GUEST_EXPORT_KINDS,
     GUEST_PIPELINE_KINDS,
     GUEST_RENDER_KINDS,
     Job,
+    guest_job_projection,
     guest_job_view,
     guest_status_view,
     guest_visible_job,
@@ -120,6 +123,17 @@ PipelineEventsScope = Annotated[
 PipelineCancelScope = Annotated[
     GuestJobScope, Depends(guest_job_route("pipeline_job_cancel", GUEST_PIPELINE_KINDS))
 ]
+ExportStartWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_start"))]
+ExportStatusWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_status"))]
+ExportJobScope = Annotated[
+    GuestJobScope, Depends(guest_job_route("export_job_status", GUEST_EXPORT_KINDS))
+]
+ExportEventsScope = Annotated[
+    GuestJobScope, Depends(guest_job_route("export_job_events", GUEST_EXPORT_KINDS))
+]
+ExportCancelScope = Annotated[
+    GuestJobScope, Depends(guest_job_route("export_job_cancel", GUEST_EXPORT_KINDS))
+]
 
 
 def _projected(job: Job, scope: GuestJobScope) -> dict[str, Any]:
@@ -198,8 +212,7 @@ def get_daw_pipeline_job(scope: PipelineJobScope) -> dict[str, Any]:
     return _projected(scope.job, scope)
 
 
-@router.get("/api/review/{token}/daw/pipeline/jobs/{job_id}/events")
-def get_daw_pipeline_job_events(token: str, scope: PipelineEventsScope) -> StreamingResponse:
+def _job_events(token: str, scope: GuestJobScope) -> StreamingResponse:
     lease = GUEST_STREAM_SLOTS.acquire(token)
     if lease is None:
         raise coded_http_error(429, STREAMS_FULL, code="rate_limited", headers={"Retry-After": "5"})
@@ -221,12 +234,56 @@ def get_daw_pipeline_job_events(token: str, scope: PipelineEventsScope) -> Strea
         raise
 
 
+def _cancelled(request: Request, scope: GuestJobScope, operation: str) -> dict[str, Any]:
+    with guest_boundary(log, operation):
+        job = cancel_job(request.app.state.jobs, scope.job.id, detail=JOB_NOT_FOUND)
+    return _projected(job, scope)
+
+
+@router.get("/api/review/{token}/daw/pipeline/jobs/{job_id}/events")
+def get_daw_pipeline_job_events(token: str, scope: PipelineEventsScope) -> StreamingResponse:
+    return _job_events(token, scope)
+
+
 @router.post("/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel")
 def post_daw_pipeline_job_cancel(request: Request, scope: PipelineCancelScope) -> dict[str, Any]:
     """Runs with ``PODCAST_GUEST_RENDER`` off, so the host can stop a job after turning it off."""
-    with guest_boundary(log, "review pipeline cancel"):
-        job = cancel_job(request.app.state.jobs, scope.job.id, detail=JOB_NOT_FOUND)
-    return _projected(job, scope)
+    return _cancelled(request, scope, "review pipeline cancel")
+
+
+@router.post("/api/review/{token}/daw/export", status_code=202)
+def post_daw_export(
+    token: str, request: Request, req: GuestExportRequest, ws: ExportStartWorkspace
+) -> dict[str, Any]:
+    """Exports into the project's own export folder; the client names formats, never a path."""
+    with guest_boundary(log, "review export"):
+        formats = (
+            None if req.formats is None else [dict(GUEST_EXPORT_FORMATS[f]) for f in req.formats]
+        )
+        job = request.app.state.jobs.start_export(ws.path, formats=formats, wait_for_rebuild=False)
+    log.info("guest export started token=%s job=%s", token[:8], job.id)
+    return {"job": guest_job_projection(job)}
+
+
+@router.get("/api/review/{token}/daw/export/status")
+def get_daw_export_status(request: Request, ws: ExportStatusWorkspace) -> dict[str, Any]:
+    with guest_boundary(log, "review export status"):
+        return guest_status_view(request.app.state.jobs.status(), ws.path, GUEST_EXPORT_KINDS)
+
+
+@router.get("/api/review/{token}/daw/export/jobs/{job_id}")
+def get_daw_export_job(scope: ExportJobScope) -> dict[str, Any]:
+    return _projected(scope.job, scope)
+
+
+@router.get("/api/review/{token}/daw/export/jobs/{job_id}/events")
+def get_daw_export_job_events(token: str, scope: ExportEventsScope) -> StreamingResponse:
+    return _job_events(token, scope)
+
+
+@router.post("/api/review/{token}/daw/export/jobs/{job_id}/cancel")
+def post_daw_export_job_cancel(request: Request, scope: ExportCancelScope) -> dict[str, Any]:
+    return _cancelled(request, scope, "review export cancel")
 
 
 def check_guest_router(router: APIRouter, registry: Mapping[str, GuestRoute]) -> None:

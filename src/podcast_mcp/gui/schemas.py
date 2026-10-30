@@ -193,6 +193,21 @@ class GuestPipelineRunRequest(GuestRequest):
     retime_words: bool = False
 
 
+class GuestExportRequest(GuestRequest):
+    """Which deliverables an Editor share exports; each name is a format the host fixes."""
+
+    formats: list[Literal["mp3", "flac", "m4a"]] | None = Field(
+        default=None, min_length=1, max_length=3
+    )
+
+    @field_validator("formats")
+    @classmethod
+    def _distinct(cls, formats: list[str] | None) -> list[str] | None:
+        if formats is not None and len(set(formats)) != len(formats):
+            raise ValueError("formats must not repeat")
+        return formats
+
+
 class FeedWriteRequest(BaseModel):
     """Write the episode's feed file."""
 

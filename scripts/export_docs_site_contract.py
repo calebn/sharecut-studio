@@ -139,6 +139,26 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Editor",
         "Cancel one job of this project (works with PODCAST_GUEST_RENDER off)",
     ),
+    ("POST", "/api/review/{token}/daw/export"): (
+        "Editor",
+        "Start the mastered-deliverables export into the project's export folder from a closed set of format names (opt-in PODCAST_GUEST_RENDER)",
+    ),
+    ("GET", "/api/review/{token}/daw/export/status"): (
+        "Editor",
+        "Read the share project's export jobs (fixed copy, no host paths)",
+    ),
+    ("GET", "/api/review/{token}/daw/export/jobs/{job_id}"): (
+        "Editor",
+        "Read one export job of this project; any other job id is 404",
+    ),
+    ("GET", "/api/review/{token}/daw/export/jobs/{job_id}/events"): (
+        "Editor",
+        "SSE status frames of one export job; closes when the job ends or the link is revoked",
+    ),
+    ("POST", "/api/review/{token}/daw/export/jobs/{job_id}/cancel"): (
+        "Editor",
+        "Cancel one export job of this project (works with PODCAST_GUEST_RENDER off)",
+    ),
     ("POST", "/api/review/{token}/daw/document/command"): (
         "role's command set",
         "Typed body — see Document commands",
@@ -232,6 +252,17 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
         "http-only: SSE stream for ShareCut Studio"
     ),
     ("POST", "/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel"): (
+        "http-only: no guest MCP job tool yet"
+    ),
+    ("POST", "/api/review/{token}/daw/export"): "http-only: no guest MCP export tool yet",
+    ("GET", "/api/review/{token}/daw/export/status"): ("http-only: no guest MCP job tool yet"),
+    ("GET", "/api/review/{token}/daw/export/jobs/{job_id}"): (
+        "http-only: no guest MCP job tool yet"
+    ),
+    ("GET", "/api/review/{token}/daw/export/jobs/{job_id}/events"): (
+        "http-only: SSE stream for ShareCut Studio"
+    ),
+    ("POST", "/api/review/{token}/daw/export/jobs/{job_id}/cancel"): (
         "http-only: no guest MCP job tool yet"
     ),
     ("POST", "/api/review/{token}/feed/edit"): (

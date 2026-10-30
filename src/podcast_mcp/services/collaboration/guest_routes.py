@@ -65,6 +65,24 @@ _ROUTES = (
         "/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel",
         "mutate",
     ),
+    GuestRoute(
+        "export_start",
+        "POST",
+        "/api/review/{token}/daw/export",
+        "mutate",
+        needs_guest_render=True,
+    ),
+    GuestRoute("export_status", "GET", "/api/review/{token}/daw/export/status", "read"),
+    GuestRoute("export_job_status", "GET", "/api/review/{token}/daw/export/jobs/{job_id}", "read"),
+    GuestRoute(
+        "export_job_events", "GET", "/api/review/{token}/daw/export/jobs/{job_id}/events", "read"
+    ),
+    GuestRoute(
+        "export_job_cancel",
+        "POST",
+        "/api/review/{token}/daw/export/jobs/{job_id}/cancel",
+        "mutate",
+    ),
 )
 
 GUEST_OWNER_ROUTES: Mapping[str, GuestRoute] = MappingProxyType({r.name: r for r in _ROUTES})

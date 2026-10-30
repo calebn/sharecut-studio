@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import shutil
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from podcast_mcp.engines.ffmpeg import ENCODE_CANCELLED, FFmpegEngine
@@ -48,6 +49,14 @@ class ExportFormatSpec:
 M4A_AAC = ExportFormatSpec(ext="m4a", codec="aac", format="ipod", bitrate_kbps=128)
 
 EXPORT_PRESETS: dict[str, ExportFormatSpec] = {M4A_AAC.ext: M4A_AAC}
+
+GUEST_EXPORT_FORMATS: Mapping[str, Mapping[str, Any]] = MappingProxyType(
+    {
+        "mp3": MappingProxyType({"ext": "mp3", "codec": "libmp3lame", "bitrate_kbps": 128}),
+        "flac": MappingProxyType({"ext": "flac", "codec": "flac"}),
+        "m4a": MappingProxyType({"ext": "m4a"}),
+    }
+)
 
 
 def require_preset_encoder(eng: FFmpegEngine, spec: ExportFormatSpec) -> None:

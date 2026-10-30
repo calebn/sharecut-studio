@@ -43,6 +43,11 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `POST` | `…/daw/boundary/context` | `Editor` | Source-safe trim/roll limits and revision for a visible boundary |
 | `POST` | `…/daw/document/command` | `role's command set` | Typed body — see Document commands |
 | `GET` | `…/daw/document/state` | `view` | Atomic sanitized document state with sequence and opaque basis token |
+| `POST` | `…/daw/export` | `Editor` | Start the mastered-deliverables export into the project's export folder from a closed set of format names (opt-in PODCAST_GUEST_RENDER) |
+| `GET` | `…/daw/export/jobs/{job_id}` | `Editor` | Read one export job of this project; any other job id is 404 |
+| `POST` | `…/daw/export/jobs/{job_id}/cancel` | `Editor` | Cancel one export job of this project (works with PODCAST_GUEST_RENDER off) |
+| `GET` | `…/daw/export/jobs/{job_id}/events` | `Editor` | SSE status frames of one export job; closes when the job ends or the link is revoked |
+| `GET` | `…/daw/export/status` | `Editor` | Read the share project's export jobs (fixed copy, no host paths) |
 | `POST` | `…/daw/media/upload` | `Editor` | Chunked audio into host raw/ |
 | `GET` | `…/daw/meta` | `view` | mtime/size + document server_seq for poll reload (server_seq omitted when document.db is unreadable) |
 | `GET` | `…/daw/pending-edits/{edit_id}/cut-suggestion` | `Commenter or Editor` | Read-only full-source pending cut suggestion; no-store; read rate class |

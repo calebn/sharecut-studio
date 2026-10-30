@@ -573,6 +573,42 @@ checks only read the cache and never download, so a guest cannot start a downloa
 response is the same fixed-copy job view, never the job snapshot, and the new job is
 reachable through the status, events and cancel twins.
 
+An Editor can start the mastered-deliverables export (`POST …/daw/export`, **202**) and
+follow it on its own twins: the project's export jobs (`…/daw/export/status`, so a reload can
+find a running export) and one job under `…/daw/export/jobs/{job_id}` (status, `/events`,
+`/cancel`).
+The pipeline twins stay pipeline-only and the export twins serve only `export` jobs
+(`GUEST_EXPORT_KINDS`), so a job of the other kind answers the same 404 `job_not_found` on
+either set; the project status listing and the guest MCP render tools are unchanged. The body
+is `GuestExportRequest`: `formats`, a list of one to three distinct names from `mp3`, `flac`
+and `m4a`, or omitted for the host's configured formats; nothing else (a `path`, `dest`,
+`output_dir`, `filename`, `ext`, `codec` or `extra_args` is a 422, and so is any other format
+name). The owner route takes full format entries (`ext`, `codec`, `format`, `bitrate_kbps`,
+`sample_rate`, `channels` and `extra_args`, the last passed to FFmpeg and `ext` becoming the
+file suffix), so none of those can be offered; the host maps each name to a fixed entry
+(`GUEST_EXPORT_FORMATS`: MP3 fixed at 128 kbps whatever the host configured, FLAC, and the
+pinned M4A preset). Files always go to the project's own export folder under the project's
+name.
+
+An Editor's export is the host's export (an Editor can do what the host can on the episode),
+and nothing is suppressed. It masters the project if the master is stale, then writes the
+master WAV, the transcript sidecars (SRT and Markdown, and a VTT or TXT already there), the
+chapters file and the feed file per the host's settings, saves the project (the feed guid and
+number, the master hash and QC), and replaces same-named deliverables already in the export
+folder; there is no undo and the job does not record which link started it, so the host log
+carries an INFO line with the first characters of the token. Choosing `formats` replaces the
+host's list for that run (a host `mp3` at 192 kbps or an `m4a` the host configured is not
+rewritten and is left as it was); omitting `formats` runs the host's whole export config,
+including its bitrates, sample rate, channels and extra FFmpeg arguments. Any Editor can
+cancel any export of the project, including one the host started, and sees it in the
+listing. Starting spends host CPU, so it needs `PODCAST_GUEST_RENDER`; the twins do not, and
+cancel works with the flag off. The start never waits: a busy slot, including a mix rebuild of
+the same project, answers 409 `job_running` with the fixed copy at once (the owner route
+still waits for a rebuild). The job view says only running, done or failed ("Export failed", whatever the cause);
+the Editor is not handed the exported files or their paths, and downloading them is a later
+decision. Bounce (it names track ids, the raw stems exception) and transcript export stay
+host-only here.
+
 The Editor does not get these. The exceptions below are the audit's approved
 list; the routes and tools in them are not document commands, and slices after
 this one decide which owner routes get a share-scoped twin.

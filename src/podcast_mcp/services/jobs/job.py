@@ -270,12 +270,14 @@ GUEST_JOB_VIEW: Mapping[str, GuestJobView] = MappingProxyType(
     {
         "pipeline": GuestJobView("Running pipeline", "Pipeline failed"),
         "render_preview": GuestJobView("Rendering preview", "Render preview failed"),
+        "export": GuestJobView("Exporting deliverables", "Export failed"),
     }
 )
 
 
 GUEST_PIPELINE_KINDS = frozenset({"pipeline"})
 GUEST_RENDER_KINDS = frozenset({"render_preview"})
+GUEST_EXPORT_KINDS = frozenset({"export"})
 
 
 def _path_in_project(path: str, project_path: Path) -> bool:
@@ -319,6 +321,11 @@ def _guest_projection(snap: Mapping[str, Any]) -> dict[str, Any]:
         "message": view.running if status not in view.terminal else None,
         "error": view.failed if status in view.failure else None,
     }
+
+
+def guest_job_projection(job: Job) -> dict[str, Any]:
+    """The guest view of a job the caller just started for the guest's own project."""
+    return _guest_projection(job.snapshot())
 
 
 def guest_job_view(

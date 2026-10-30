@@ -13,6 +13,7 @@ if TYPE_CHECKING:
         publish_job_event,
     )
     from podcast_mcp.services.jobs.job import (
+        GUEST_EXPORT_KINDS,
         GUEST_PIPELINE_KINDS,
         GUEST_RENDER_KINDS,
         BootstrapSlotBusyError,
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
         JobSlotBusyError,
         StepTiming,
         guest_job_done,
+        guest_job_projection,
         guest_job_view,
         guest_status_view,
         guest_visible_job,
@@ -34,6 +36,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.jobs.reporter import AgentJobFanInReporter, SsePublishReporter
 
 __all__ = [
+    "GUEST_EXPORT_KINDS",
     "GUEST_PIPELINE_KINDS",
     "GUEST_RENDER_KINDS",
     "JOB_EVENT_QUEUE_MAX",
@@ -48,6 +51,7 @@ __all__ = [
     "SsePublishReporter",
     "StepTiming",
     "guest_job_done",
+    "guest_job_projection",
     "guest_job_view",
     "guest_status_view",
     "guest_visible_job",
@@ -72,9 +76,11 @@ _MODULE_BY_NAME = {
     "JobSlotBusyError": "job",
     "SsePublishReporter": "reporter",
     "StepTiming": "job",
+    "GUEST_EXPORT_KINDS": "job",
     "GUEST_PIPELINE_KINDS": "job",
     "GUEST_RENDER_KINDS": "job",
     "guest_job_done": "job",
+    "guest_job_projection": "job",
     "guest_job_view": "job",
     "guest_status_view": "job",
     "guest_visible_job": "job",
