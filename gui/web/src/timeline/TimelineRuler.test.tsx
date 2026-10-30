@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { Profiler } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
@@ -46,7 +47,13 @@ afterEach(() => {
 });
 
 describe("TimelineRuler", () => {
-  it("draws the window the lanes show: ticks from the scroll, at the canvas x", () => {
+  const windowLeft = (container: HTMLElement) =>
+    Number.parseFloat(
+      container.querySelector<HTMLElement>(".timeline-ruler-window")?.style
+        .insetInlineStart ?? "NaN",
+    );
+
+  it("draws a chunk of the canvas around the viewport, each tick at its canvas x", () => {
     // 60 s at 48,000 px/s: 2.88M px of canvas, 2 ms ticks 96 px apart.
     useDawStore.setState({ scrollLeft: 1_000_000 });
     const { container } = render(
@@ -57,15 +64,29 @@ describe("TimelineRuler", () => {
         viewportPx={1200}
       />,
     );
+    // The chunk is 600 px: scroll 1,000,000 is in the chunk from 999,600, with a chunk of overscan either side.
+    expect(windowLeft(container)).toBe(999_000);
+    expect(
+      container
+        .querySelector<HTMLElement>(".sys-ruler")
+        ?.style.getPropertyValue("--sys-ruler-width"),
+    ).toBe("2400px");
     const shown = ticks(container).filter((tick) => tick.textContent);
     expect(shown.length).toBeGreaterThan(0);
-    expect(shown.length).toBeLessThanOrEqual(Math.ceil((1200 + 64) / 64) + 1);
+    expect(shown.length).toBeLessThanOrEqual(Math.ceil((2400 + 64) / 64) + 1);
     for (const tick of shown) {
       expect(tick.textContent).toMatch(/^\d+:\d{2}\.\d{3}$/);
       const x = Number.parseFloat(tick.style.getPropertyValue("--sys-ruler-x"));
-      const seconds = (1_000_000 + x) / 48_000;
-      expect(seconds * 48_000).toBeGreaterThanOrEqual(1_000_000 - 64);
-      expect(x).toBeLessThanOrEqual(1200);
+      const canvasX = windowLeft(container) + x;
+      expect(canvasX).toBeGreaterThanOrEqual(999_000 - 64);
+      expect(canvasX).toBeLessThanOrEqual(1_001_400);
+      // The label names the time its canvas x is (to the label's millisecond), and the tick sits on the step grid.
+      const [minutes, secs] = (tick.textContent ?? "0:0").split(":");
+      const seconds = Number(minutes) * 60 + Number(secs);
+      expect(Math.abs(canvasX - seconds * 48_000)).toBeLessThanOrEqual(24);
+      expect(Math.abs(canvasX / 96 - Math.round(canvasX / 96))).toBeLessThan(
+        1e-6,
+      );
     }
     expect(screen.getByRole("slider", sliderName)).toHaveAttribute(
       "aria-valuetext",
@@ -76,24 +97,53 @@ describe("TimelineRuler", () => {
     expect(moved[0]?.textContent).not.toBe(shown[0]?.textContent);
   });
 
-  it("holds the window inside the canvas where the sticky row rests", () => {
+  it("re-renders only when the scroll crosses into another chunk, not on every scroll frame", () => {
+    useDawStore.setState({ scrollLeft: 1_000 });
+    let commits = 0;
+    const { container } = render(
+      <Profiler id="ruler" onRender={() => commits++}>
+        <Ruler
+          sessionSec={60}
+          zoomPxPerSec={48_000}
+          canvasWidthPx={2_880_000}
+          viewportPx={1200}
+        />
+      </Profiler>,
+    );
+    const first = commits;
+    const left = windowLeft(container);
+    for (let scrollLeft = 1_001; scrollLeft < 1_190; scrollLeft += 7) {
+      act(() => useDawStore.setState({ scrollLeft }));
+    }
+    expect(commits).toBe(first);
+    expect(windowLeft(container)).toBe(left);
+    act(() => useDawStore.setState({ scrollLeft: 1_250 }));
+    expect(commits).toBe(first + 1);
+    expect(windowLeft(container)).toBe(left + 600);
+    // The window still holds the whole viewport at the edges of its chunk.
+    const scrolled = 1_250;
+    expect(windowLeft(container)).toBeLessThanOrEqual(scrolled);
+  });
+
+  it("holds the window inside the canvas, even when the scroll runs past it", () => {
     useDawStore.setState({ scrollLeft: 5_000 });
     const { container } = render(
       <Ruler sessionSec={9} zoomPxPerSec={40} viewportPx={200} />,
     );
-    // 360 px of canvas, 200 px window: it starts 160 px in, at 4 s.
+    // 360 px of canvas, 200 px viewport: the last chunk shows 4 s to the end.
     const labels = ticks(container).map((tick) => tick.textContent);
+    expect(windowLeft(container)).toBeGreaterThanOrEqual(0);
     expect(labels).toContain("0:08");
-    expect(labels).not.toContain("0:02");
     // Before time 0 (a phone's lead pad) it starts at 0.
     act(() => useDawStore.setState({ scrollLeft: -300 }));
+    expect(windowLeft(container)).toBe(0);
     expect(ticks(container).map((tick) => tick.textContent)).toContain("0:00");
   });
 
-  it("is as wide as the viewport, and never wider than the canvas", () => {
+  it("is a few viewports wide, and never wider than the canvas", () => {
     const { container, rerender } = render(<Ruler viewportPx={200} />);
     const ruler = () => container.querySelector<HTMLElement>(".sys-ruler");
-    expect(ruler()?.style.getPropertyValue("--sys-ruler-width")).toBe("200px");
+    expect(ruler()?.style.getPropertyValue("--sys-ruler-width")).toBe("300px");
     rerender(<Ruler viewportPx={900} canvasWidthPx={360} />);
     expect(ruler()?.style.getPropertyValue("--sys-ruler-width")).toBe("360px");
   });
