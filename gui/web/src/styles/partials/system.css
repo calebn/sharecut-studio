@@ -5934,6 +5934,128 @@ input.sys-edit-fix {
   }
 }
 
+/* Lane (element 15a) */
+
+.sys-lane {
+  --sys-lane-tint: color-mix(
+    in srgb,
+    var(--sys-lane-color) 6%,
+    var(--color-bg-sunken)
+  );
+
+  position: relative;
+  box-sizing: border-box;
+  inline-size: var(--sys-lane-width);
+  block-size: var(--sys-lane-height);
+  border-block-end: 1px solid var(--color-timeline-border);
+  background: var(--sys-lane-tint);
+
+  /* The readout above a dragged clip rises out of the lane, so only the sides clip. */
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+.sys-lane[data-mute]:not([data-mute="off"]) {
+  background: var(--color-track-muted);
+}
+
+/* The colour edge is a border so it survives forced colours, and a pseudo-element so x = 0 stays the time column's edge. */
+.sys-lane::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-inline-start: 0.1875rem solid var(--sys-lane-color);
+  pointer-events: none;
+}
+
+.sys-lane-flat {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline: 0;
+  border-block-start: 1px solid var(--sys-lane-color);
+  pointer-events: none;
+}
+
+.sys-lane-item {
+  position: absolute;
+  inset-block: var(--space-3);
+  inset-inline-start: var(--sys-lane-x);
+  inline-size: var(--sys-lane-w);
+}
+
+/* Presence (OVL-PRESENCE) */
+
+.sys-presence {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.sys-presence-line {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(
+    var(--sys-presence-x) - var(--selection-remote-width) / 2
+  );
+  border-inline-start: var(--selection-remote-width) solid
+    var(--sys-presence-color);
+}
+
+.sys-presence-flag {
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-start: calc(
+    var(--sys-presence-x) + var(--selection-remote-width)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1rem;
+  block-size: 1rem;
+  border-radius: 50%;
+  background: var(--sys-presence-color);
+  color: var(--color-bg-canvas);
+  font-size: var(--font-size-micro);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.sys-presence-flag--left {
+  inset-inline-start: calc(
+    var(--sys-presence-x) - 1rem - var(--selection-remote-width)
+  );
+}
+
+.sys-presence-sel {
+  position: absolute;
+  inset-block-start: var(--sys-presence-top);
+  inset-inline-start: var(--sys-presence-left);
+  box-sizing: border-box;
+  inline-size: calc(var(--sys-presence-right) - var(--sys-presence-left));
+  block-size: var(--sys-presence-height);
+  border: var(--selection-remote-width) solid var(--sys-presence-color);
+}
+
+/* A span that runs past the window has no edge there. */
+.sys-presence-sel[data-clip-start] {
+  border-inline-start-width: 0;
+}
+
+.sys-presence-sel[data-clip-end] {
+  border-inline-end-width: 0;
+}
+
+@media (forced-colors: active) {
+  .sys-presence-sel {
+    border-style: dashed;
+  }
+
+  .sys-presence-flag {
+    border: 1px solid var(--color-border-strong);
+  }
+}
+
 /* Inspector sheet (element 9a) */
 
 .sys-inspector {

@@ -13,7 +13,14 @@ import { formatRulerTime, formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
 import { edgeBounds, within } from "./dragBounds";
 import type { MarkerAttrs } from "./Marker";
-import { round3, rulerStep, rulerTicks, timeAtX, xAtTime } from "./rulerMath";
+import {
+  PLAYHEAD_BLEED_PX,
+  round3,
+  rulerStep,
+  rulerTicks,
+  timeAtX,
+  xAtTime,
+} from "./rulerMath";
 import type { TimeRange } from "./seconds";
 import {
   type GrabMove,
@@ -81,8 +88,6 @@ export const RULER_MIN_SELECTION = 0.01;
 const SELECTION_NUDGE = 0.01;
 const SELECTION_NUDGE_BIG = 0.1;
 const SEEK_BIG_TICKS = 10;
-/** The playhead's triangle is 10 px wide, so a half-visible one still shows. */
-const PLAYHEAD_BLEED_PX = 6;
 
 const EDGES: readonly RulerEdge[] = ["start", "end"];
 const EDGE_NAMES: Record<RulerEdge, string> = {
