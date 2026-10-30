@@ -3,7 +3,6 @@ import {
   approveEdits,
   deleteChapter,
   rejectEdits,
-  setEnvelope,
 } from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
 import { getClipboard } from "../edit/clipboard";
@@ -25,7 +24,6 @@ import {
   resolveSelectionRange,
 } from "../edit/rangeSelection";
 import {
-  canEditEnvelopes,
   canManageProjects,
   canReviewPendingEdit,
   hasShareCapability,
@@ -41,7 +39,6 @@ import { type BarId, resolveBar } from "../system/editActionSets";
 import type { ProjectView, Selection } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { errorMessage } from "../utils/apiError";
-import { findVolumeEnvelope } from "../utils/envelopes";
 import {
   capturePendingReview,
   finishPendingReview,
@@ -54,6 +51,7 @@ import {
 } from "../utils/speakerSplit";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { runDeleteClips } from "./editing";
+import { removeEnvelopePoint } from "./envelopes";
 import { registerCommand } from "./execute";
 import { executePointerCommand } from "./pointer";
 import {
@@ -270,23 +268,13 @@ async function removeMarker(
       useDawStore.getState().announceStatus("Chapter removed");
       return OK;
     }
-    if (!canEditEnvelopes(s.projectPath, s.guestMode, s.shareCapabilities))
-      return disabled("Only the host and editors can change envelopes");
-    const origin = (
-      findVolumeEnvelope(s.project?.envelopes, selection.trackId)?.points ?? []
-    ).map((point) => ({ ...point }));
-    if (!origin.some((point) => point.id === selection.pointId))
-      return disabled("That point is gone");
-    const undo = await setEnvelope(
-      s.projectPath,
+    const written = await removeEnvelopePoint(
       selection.trackId,
-      origin.filter((point) => point.id !== selection.pointId),
-      origin,
+      selection.pointId,
     );
-    const live = useDawStore.getState();
-    live.setSelection({ kind: "envelope", trackId: selection.trackId });
-    live.announceStatus("Envelope point removed", { undo });
-    return OK;
+    if (written.status === "ok") return OK;
+    useDawStore.getState().announceStatus(written.reason, { tone: "error" });
+    return disabled(written.reason);
   } catch (error) {
     const reason = errorMessage(error);
     useDawStore.getState().announceStatus(reason, { tone: "error" });
