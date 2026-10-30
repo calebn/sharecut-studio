@@ -64,22 +64,22 @@ describe("TimelineRuler", () => {
         viewportPx={1200}
       />,
     );
-    // The chunk is 600 px: scroll 1,000,000 is in the chunk from 999,600, with a chunk of overscan either side.
-    expect(windowLeft(container)).toBe(999_000);
+    // The chunk is one viewport (1200 px): scroll 1,000,000 is in the chunk from 999,600, and the window starts a viewport before it.
+    expect(windowLeft(container)).toBe(998_400);
     expect(
       container
         .querySelector<HTMLElement>(".sys-ruler")
         ?.style.getPropertyValue("--sys-ruler-width"),
-    ).toBe("2400px");
+    ).toBe("4800px");
     const shown = ticks(container).filter((tick) => tick.textContent);
     expect(shown.length).toBeGreaterThan(0);
-    expect(shown.length).toBeLessThanOrEqual(Math.ceil((2400 + 64) / 64) + 1);
+    expect(shown.length).toBeLessThanOrEqual(Math.ceil((4800 + 64) / 64) + 1);
     for (const tick of shown) {
       expect(tick.textContent).toMatch(/^\d+:\d{2}\.\d{3}$/);
       const x = Number.parseFloat(tick.style.getPropertyValue("--sys-ruler-x"));
       const canvasX = windowLeft(container) + x;
-      expect(canvasX).toBeGreaterThanOrEqual(999_000 - 64);
-      expect(canvasX).toBeLessThanOrEqual(1_001_400);
+      expect(canvasX).toBeGreaterThanOrEqual(998_400 - 64);
+      expect(canvasX).toBeLessThanOrEqual(1_003_200);
       // The label names the time its canvas x is (to the label's millisecond), and the tick sits on the step grid.
       const [minutes, secs] = (tick.textContent ?? "0:0").split(":");
       const seconds = Number(minutes) * 60 + Number(secs);
@@ -98,7 +98,7 @@ describe("TimelineRuler", () => {
   });
 
   it("re-renders only when the scroll crosses into another chunk, not on every scroll frame", () => {
-    useDawStore.setState({ scrollLeft: 1_000 });
+    useDawStore.setState({ scrollLeft: 3_000 });
     let commits = 0;
     const { container } = render(
       <Profiler id="ruler" onRender={() => commits++}>
@@ -112,17 +112,47 @@ describe("TimelineRuler", () => {
     );
     const first = commits;
     const left = windowLeft(container);
-    for (let scrollLeft = 1_001; scrollLeft < 1_190; scrollLeft += 7) {
+    for (let scrollLeft = 3_001; scrollLeft < 3_590; scrollLeft += 7) {
       act(() => useDawStore.setState({ scrollLeft }));
     }
     expect(commits).toBe(first);
     expect(windowLeft(container)).toBe(left);
-    act(() => useDawStore.setState({ scrollLeft: 1_250 }));
+    // The chunk is one viewport (1200 px): 3,000 is in the chunk from 2,400, and 3,700 in the one from 3,600.
+    act(() => useDawStore.setState({ scrollLeft: 3_700 }));
     expect(commits).toBe(first + 1);
-    expect(windowLeft(container)).toBe(left + 600);
-    // The window still holds the whole viewport at the edges of its chunk.
-    const scrolled = 1_250;
-    expect(windowLeft(container)).toBeLessThanOrEqual(scrolled);
+    expect(windowLeft(container)).toBe(left + 1200);
+  });
+
+  it("covers the visible row after a jump of up to one viewport in a single update, either way", () => {
+    const viewportPx = 1200;
+    const { container } = render(
+      <Ruler
+        sessionSec={60}
+        zoomPxPerSec={48_000}
+        canvasWidthPx={2_880_000}
+        viewportPx={viewportPx}
+      />,
+    );
+    const covered = (from: number, to: number) => {
+      const left = windowLeft(container);
+      const width = Number.parseFloat(
+        container
+          .querySelector<HTMLElement>(".sys-ruler")
+          ?.style.getPropertyValue("--sys-ruler-width") ?? "NaN",
+      );
+      return left <= from && left + width >= to;
+    };
+    // The start, middle and last px of a chunk: the worst cases for the margin ahead.
+    for (const scroll of [1_000_800, 1_001_000, 1_001_399]) {
+      for (const jump of [viewportPx, -viewportPx]) {
+        act(() => useDawStore.setState({ scrollLeft: scroll }));
+        // Before the host sees the jump, the window drawn for `scroll` already covers where it lands.
+        const target = scroll + jump;
+        expect(covered(target, target + viewportPx)).toBe(true);
+        act(() => useDawStore.setState({ scrollLeft: target }));
+        expect(covered(target, target + viewportPx)).toBe(true);
+      }
+    }
   });
 
   it("holds the window inside the canvas, even when the scroll runs past it", () => {
@@ -141,9 +171,11 @@ describe("TimelineRuler", () => {
   });
 
   it("is a few viewports wide, and never wider than the canvas", () => {
-    const { container, rerender } = render(<Ruler viewportPx={200} />);
+    const { container, rerender } = render(
+      <Ruler viewportPx={200} canvasWidthPx={2000} sessionSec={50} />,
+    );
     const ruler = () => container.querySelector<HTMLElement>(".sys-ruler");
-    expect(ruler()?.style.getPropertyValue("--sys-ruler-width")).toBe("300px");
+    expect(ruler()?.style.getPropertyValue("--sys-ruler-width")).toBe("600px");
     rerender(<Ruler viewportPx={900} canvasWidthPx={360} />);
     expect(ruler()?.style.getPropertyValue("--sys-ruler-width")).toBe("360px");
   });
