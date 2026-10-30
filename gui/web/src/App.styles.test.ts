@@ -137,7 +137,7 @@ describe("App styles", () => {
     expect(at).toBeGreaterThan(-1);
     const body = css.slice(at, css.indexOf("\n}", at));
     expect(body).toMatch(/-webkit-user-select:\s*none/);
-    expect(body).toMatch(/\buser-select:\s*none/);
+    expect(body).toMatch(/(?<!-webkit-)user-select:\s*none/);
     expect(body).toMatch(/-webkit-touch-callout:\s*none/);
   });
 

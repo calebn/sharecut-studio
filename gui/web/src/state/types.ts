@@ -314,7 +314,7 @@ export interface DawState {
   wordDraft: WordDraftEntry | null;
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
-  /** The Transcript panel is in Correct intent: a tapped word edits its text, not the audio. */
+  /** Vestigial: the Script has no Correct intent; a word edits only through Fix text. */
   transcriptCorrecting: boolean;
   transcriptTimingRequest: TranscriptInlineEditRequest | null;
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;

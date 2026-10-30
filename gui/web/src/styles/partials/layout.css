@@ -285,14 +285,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
   font-size: var(--font-size-caption);
 }
 
-@media (pointer: fine) {
-  @container app (max-height: 40rem) {
-    .transcript-mode-hint {
-      margin-block-end: 0;
-    }
-  }
-}
-
 .track-headers-chrome {
   flex-shrink: 0;
   display: flex;

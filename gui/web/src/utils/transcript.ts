@@ -337,7 +337,7 @@ export function selectUnmappedUtterances(
   return utterances.filter((u) => !isMappedUtterance(u));
 }
 
-/** Whether the transcript panel lists `u`: cut-away ones only under Annotate + Show cut away. */
+/** Whether the Script lists `u`: cut-away ones only under Annotate + Show cut away. */
 export function isTranscriptUtteranceVisible(
   u: CombinedUtterance,
   annotate: boolean,
@@ -346,7 +346,7 @@ export function isTranscriptUtteranceVisible(
   return (annotate && showCutAway) || isMappedUtterance(u);
 }
 
-/** Utterances the transcript panel lists: cut-away ones only under Annotate + Show cut away. */
+/** Utterances the Script lists: cut-away ones only under Annotate + Show cut away. */
 export function visibleTranscriptUtterances(
   utterances: CombinedUtterance[],
   annotate: boolean,

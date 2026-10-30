@@ -161,7 +161,7 @@ export function registerTranscriptViewCommands(): void {
   });
 
   registerCommand("transcript.correctIntent", () => {
-    // Intent is owned by TranscriptPanel; store annotate stays independent.
+    // The Script has no intent; store annotate stays independent.
     return { status: "ok" };
   });
 

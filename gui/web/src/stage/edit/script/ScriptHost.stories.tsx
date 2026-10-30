@@ -15,11 +15,15 @@ import {
   PLAYHEAD_SEC,
   splitLanesEpisode,
 } from "./scriptHostFixtures";
+import { forgetHeldFixText } from "./useScriptFixText";
 
 const meta: Meta<ScriptHostProps> = {
   title: "Stages/Edit/ScriptHost",
   component: ScriptHost,
-  beforeEach: episodeBeforeEach,
+  beforeEach: (context) => {
+    forgetHeldFixText();
+    return episodeBeforeEach(context);
+  },
   render: (props) => (
     <div style={scriptFrame(props.layout === "phone" ? "22.5rem" : "100%")}>
       <ScriptHost {...props} />

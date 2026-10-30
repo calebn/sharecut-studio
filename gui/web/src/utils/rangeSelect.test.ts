@@ -7,7 +7,6 @@ import {
   selectedWordsMessage,
   spanBetween,
   stepWordSpan,
-  wordAtPoint,
   wordCountOf,
 } from "./rangeSelect";
 
@@ -99,30 +98,5 @@ describe("range helpers", () => {
     expect(isRangeStep({ edge: "middle", by: 1 })).toBe(false);
     expect(isRangeStep({ edge: "start", by: 2 })).toBe(false);
     expect(isRangeStep(null)).toBe(false);
-  });
-});
-
-describe("wordAtPoint", () => {
-  it("finds the word chip under a point, past a sheet that covers it", () => {
-    const sheet = document.createElement("div");
-    const chip = document.createElement("button");
-    chip.dataset.transcriptWord = "";
-    chip.dataset.trackId = "guest";
-    chip.dataset.wordIndex = "7";
-    const inner = document.createElement("span");
-    chip.append(inner);
-    expect(
-      wordAtPoint({ elementsFromPoint: () => [sheet, inner] }, 10, 10),
-    ).toEqual({ trackId: "guest", sourceId: null, wordIndex: 7 });
-  });
-
-  it("finds nothing over plain text", () => {
-    expect(
-      wordAtPoint(
-        { elementsFromPoint: () => [document.createElement("p")] },
-        1,
-        1,
-      ),
-    ).toBeNull();
   });
 });
