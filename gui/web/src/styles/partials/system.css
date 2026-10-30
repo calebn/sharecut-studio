@@ -5947,7 +5947,8 @@ input.sys-edit-fix {
   box-sizing: border-box;
   inline-size: var(--sys-lane-width);
   block-size: var(--sys-lane-height);
-  border-block-end: 1px solid var(--color-timeline-border);
+  border-block-end: var(--selection-remote-width) solid
+    var(--color-timeline-border);
   background: var(--sys-lane-tint);
 
   /* The readout above a dragged clip rises out of the lane, so only the sides clip. */
@@ -5973,7 +5974,8 @@ input.sys-edit-fix {
   position: absolute;
   inset-block-start: 50%;
   inset-inline: 0;
-  border-block-start: 1px solid var(--sys-lane-color);
+  border-block-start: var(--selection-remote-width) solid
+    var(--sys-lane-color);
   pointer-events: none;
 }
 
@@ -6015,8 +6017,8 @@ input.sys-edit-fix {
   display: flex;
   align-items: center;
   justify-content: center;
-  inline-size: 1rem;
-  block-size: 1rem;
+  inline-size: var(--sys-presence-flag);
+  block-size: var(--sys-presence-flag);
   border-radius: 50%;
   background: var(--sys-presence-color);
   color: var(--color-bg-canvas);
@@ -6027,7 +6029,8 @@ input.sys-edit-fix {
 
 .sys-presence-flag--left {
   inset-inline-start: calc(
-    var(--sys-presence-x) - 1rem - var(--selection-remote-width)
+    var(--sys-presence-x) - var(--sys-presence-flag) -
+      var(--selection-remote-width)
   );
 }
 
@@ -6056,7 +6059,7 @@ input.sys-edit-fix {
   }
 
   .sys-presence-flag {
-    border: 1px solid var(--color-border-strong);
+    border: var(--selection-remote-width) solid var(--color-border-strong);
   }
 }
 

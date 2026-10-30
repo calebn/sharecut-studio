@@ -2601,7 +2601,7 @@ test("System/Lane is 72, 104 and 240 px tall with a 3 px edge in the track colou
   expect(new Set(lanes.map((lane) => lane.edgeColor)).size).toBe(3);
 });
 
-test("System/Lane a clip stands at the x its time gives, and a lane muted in the mix sits on the muted track colour", async ({
+test("System/Lane a clip stands at the x its time gives, and a lane muted in the mix, for you only or by a solo sits on the muted track colour", async ({
   page,
 }) => {
   await open(page, "system-lane--muted", 1280);
@@ -2629,6 +2629,28 @@ test("System/Lane a clip stands at the x its time gives, and a lane muted in the
     return color;
   });
   expect(backgrounds).toEqual([muted, muted, muted]);
+});
+
+test("System/Lane a lane muted for you only reads as muted like its header, whose avatar greys for the same state", async ({
+  page,
+}) => {
+  await open(page, "system-trackheader--muted-for-you", 1280);
+  const filter = await page
+    .locator(".sys-person-avatar")
+    .first()
+    .evaluate((el) => getComputedStyle(el).filter);
+  expect(filter).toBe("grayscale(1)");
+});
+
+test("System/Presence the flag is as wide as FLAG_PX says, at any root font size", async ({
+  page,
+}) => {
+  await open(page, "stages-edit-timeline--three-tracks", 1280);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "20px";
+  });
+  const flag = await page.locator(".sys-presence-flag").first().boundingBox();
+  expect([flag?.width, flag?.height]).toEqual([16, 16]);
 });
 
 test("System/Lane a loading lane draws a 1 px line through its middle", async ({

@@ -57,21 +57,18 @@ describe("itemVisible", () => {
 });
 
 describe("laneMuteLook", () => {
-  it("is not silent when off", () => {
-    expect(laneMuteLook("off")).toEqual({ silent: false, description: "" });
+  it("has no words when off", () => {
+    expect(laneMuteLook("off")).toEqual({ description: "" });
   });
 
   it("says why a lane is silent in the header's words", () => {
     expect(laneMuteLook("saved")).toEqual({
-      silent: true,
       description: "Muted in the mix",
     });
     expect(laneMuteLook("listen")).toEqual({
-      silent: true,
       description: "Muted for you only",
     });
     expect(laneMuteLook("implied")).toEqual({
-      silent: true,
       description: "Silent while another track is soloed",
     });
   });

@@ -3,6 +3,7 @@ import { initials, presenceColorVar } from "../presence/colors";
 import type { PresencePerson } from "../presence/presencePeople";
 import type { LaneRowBox } from "./laneMath";
 import {
+  FLAG_PX,
   flagSide,
   playheadVisible,
   presenceX,
@@ -60,7 +61,11 @@ export const Presence = memo(function Presence({
   width,
 }: PresenceProps) {
   return (
-    <div className="sys-presence" aria-hidden="true">
+    <div
+      className="sys-presence"
+      aria-hidden="true"
+      style={{ "--sys-presence-flag": px(FLAG_PX) } as CSSProperties}
+    >
       {selections.map((selection) => {
         const row = rows.find((item) => item.id === selection.laneId);
         if (row === undefined || selection.personId === followed) return null;
