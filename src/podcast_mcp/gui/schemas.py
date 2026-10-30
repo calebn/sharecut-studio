@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from podcast_mcp.feed.model import FeedEdit
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project.transcript_context import VOCABULARY_MAX_ENTRIES
 from podcast_mcp.services.document_sync import (
@@ -155,6 +156,13 @@ class SpeakerMoveLaneSpanRequest(BaseModel):
 class ExportDeliverablesRequest(BaseModel):
     path: str
     formats: list[dict] | None = None
+
+
+class FeedEditRequest(BaseModel):
+    """One edit to the episode's podcast listing; the empty string unsets."""
+
+    path: str
+    edit: FeedEdit
 
 
 class ViewerSessionSnapshot(BaseModel):

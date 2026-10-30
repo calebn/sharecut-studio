@@ -1846,6 +1846,112 @@
         "title": "BoundaryContextInput",
         "type": "object"
       },
+      "ClearFeedFieldCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ClearFeedFieldPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ClearFeedField",
+            "default": "ClearFeedField",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "ClearFeedFieldCommand",
+        "type": "object"
+      },
+      "ClearFeedFieldPayload": {
+        "description": "Drop an episode's pin so the listing value goes back to automatic.",
+        "properties": {
+          "key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "ClearFeedFieldPayload",
+        "type": "object"
+      },
       "Clip": {
         "properties": {
           "bleed_restore": {
@@ -6986,6 +7092,145 @@
         "title": "SetEnvelopePayload",
         "type": "object"
       },
+      "SetFeedFieldCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetFeedFieldPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetFeedField",
+            "default": "SetFeedField",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "SetFeedFieldCommand",
+        "type": "object"
+      },
+      "SetFeedFieldPayload": {
+        "description": "Pin one podcast-listing value for this episode; ``key`` is a ``feed fields`` key.",
+        "properties": {
+          "by": {
+            "default": "person",
+            "enum": [
+              "person",
+              "agent"
+            ],
+            "title": "By",
+            "type": "string"
+          },
+          "key": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "title": "SetFeedFieldPayload",
+        "type": "object"
+      },
       "SetJoinModeCommand": {
         "properties": {
           "causation_id": {
@@ -11605,6 +11850,7 @@
                     "ApplySuggestedActions": "#/components/schemas/ApplySuggestedActionsCommand",
                     "ApplyTranscriptCleanup": "#/components/schemas/ApplyTranscriptCleanupCommand",
                     "ApproveEdits": "#/components/schemas/ApproveEditsCommand",
+                    "ClearFeedField": "#/components/schemas/ClearFeedFieldCommand",
                     "CorrectTranscriptPhrase": "#/components/schemas/CorrectTranscriptPhraseCommand",
                     "CorrectTranscriptWord": "#/components/schemas/CorrectTranscriptWordCommand",
                     "CrossfadeJoins": "#/components/schemas/CrossfadeJoinsCommand",
@@ -11642,6 +11888,7 @@
                     "SetClipJoin": "#/components/schemas/SetClipJoinCommand",
                     "SetEffectBypass": "#/components/schemas/SetEffectBypassCommand",
                     "SetEnvelope": "#/components/schemas/SetEnvelopeCommand",
+                    "SetFeedField": "#/components/schemas/SetFeedFieldCommand",
                     "SetJoinMode": "#/components/schemas/SetJoinModeCommand",
                     "SetTrackFader": "#/components/schemas/SetTrackFaderCommand",
                     "SetTrackMedia": "#/components/schemas/SetTrackMediaCommand",
@@ -11794,6 +12041,12 @@
                   },
                   {
                     "$ref": "#/components/schemas/DeleteChapterCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetFeedFieldCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClearFeedFieldCommand"
                   },
                   {
                     "$ref": "#/components/schemas/AddSocialClipCommand"

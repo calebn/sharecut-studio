@@ -33,6 +33,7 @@ from podcast_mcp.gui.routes import (
     diagnostics,
     document,
     export_routes,
+    feed_routes,
     handoff,
     host,
     media,
@@ -321,6 +322,7 @@ def create_app(
     app.include_router(bootstrap.router)
     app.include_router(diagnostics.router)
     app.include_router(export_routes.router)
+    app.include_router(feed_routes.router)
     app.include_router(speaker.router)
     app.include_router(comments.router)
     app.include_router(media.router)

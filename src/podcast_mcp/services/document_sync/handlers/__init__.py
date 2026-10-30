@@ -10,6 +10,7 @@ from podcast_mcp.services.document_sync.handlers import (
     comments,
     edits,
     episode,
+    feed,
     history,
     markers,
     transcript,
@@ -20,6 +21,7 @@ Handler = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
 
 HANDLERS: dict[str, Handler] = {
     **comments.HANDLERS,
+    **feed.HANDLERS,
     "UndoHistory": history.undo_history,
     "RedoHistory": history.redo_history,
     "EditSelectedRange": edits.edit_selected_range,

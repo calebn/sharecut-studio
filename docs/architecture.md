@@ -84,7 +84,7 @@ adapters are rejected.
 The collaboration context owns the share and review stores: the sqlite share
 registry (`share_registry.py`), review share lifecycle and sidecars
 (`review_shares.py`), review mix versions (`review_versions.py`) and the share
-capability ACL (`share_capabilities.py`). `edits/` is pure domain logic and
+capability ACL (`share_capabilities.py`). `feed/` is the pure podcast-listing domain (field registry, `resolve`, XML `render`); `services/document/feed.py` gathers its inputs and the CLI, MCP tools and `/api/feed` routes call that service ([podcast-feed.md](podcast-feed.md)). `edits/` is pure domain logic and
 opens no sqlite, so the one former domain-to-services edge
 (`review_shares` importing `share_auth`) is gone. CLI, GUI, MCP, scripts and
 sibling contexts reach these names through the `podcast_mcp.services.collaboration`

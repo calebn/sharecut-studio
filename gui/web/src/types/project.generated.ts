@@ -114,6 +114,12 @@ export interface ExportDeliverablesRequest {
   formats?: Array<Record<string, unknown>> | null;
 }
 
+/** One edit to the episode's podcast listing; the empty string unsets. */
+export interface FeedEditRequest {
+  path: string;
+  edit: SetEdit | UnsetEdit;
+}
+
 export interface PipelineAnalyzeRequest {
   path: string;
   apply?: boolean;
@@ -206,6 +212,12 @@ export interface SessionCommandRequest {
   command_id?: string | null;
   causation_id?: string | null;
   label?: string | null;
+}
+
+export interface SetEdit {
+  op?: "set";
+  key: string;
+  value: string | number | boolean | Array<string>;
 }
 
 /** Guest HTTP twin for MCP guest_set_action_done (no project path). */
@@ -316,6 +328,11 @@ export interface TranscriptWordTimingContextRequest {
   path: string;
   target: WordTimingTargetPayload;
   expected_word: ExpectedTimingWord;
+}
+
+export interface UnsetEdit {
+  op?: "unset";
+  key: string;
 }
 
 /** Partial DAW transport snapshot (compat POST → typed commands). */
