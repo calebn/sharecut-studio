@@ -130,6 +130,9 @@ export interface FeedWriteRequest {
   path: string;
 }
 
+/** Base for the guest request bodies that carry fields of their own (comment, reply, action done, feed edit): unknown fields are refused. Document commands use their typed payloads instead. */
+export type GuestRequest = Record<string, unknown>;
+
 export interface PipelineAnalyzeRequest {
   path: string;
   apply?: boolean;

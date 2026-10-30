@@ -3,10 +3,10 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from podcast_mcp.services.jobs import guest_render_job
+from podcast_mcp.services.jobs import guest_job_view
 
 
-def test_guest_render_job_scoped_and_sanitized() -> None:
+def test_guest_job_view_scoped_and_sanitized() -> None:
     job = SimpleNamespace(
         id="render-1",
         kind="render_preview",
@@ -21,8 +21,8 @@ def test_guest_render_job_scoped_and_sanitized() -> None:
             "result": {"premix_path": "/host/private/mix.wav"},
         },
     )
-    assert guest_render_job(job, Path("/host/two/episode.sharecut")) is None
-    assert guest_render_job(job, Path(job.project_path)) == {
+    assert guest_job_view(job, Path("/host/two/episode.sharecut")) is None
+    assert guest_job_view(job, Path(job.project_path)) == {
         "id": "render-1",
         "status": "running",
         "current": 2,
@@ -36,8 +36,8 @@ def test_guest_render_job_scoped_and_sanitized() -> None:
         "total": 4,
         "error": "/host/private/audio.wav",
     }
-    assert guest_render_job(job, Path(job.project_path))["error"] == "Render preview failed"
+    assert guest_job_view(job, Path(job.project_path))["error"] == "Render preview failed"
     job.snapshot = lambda: {"status": "cancelled", "current": 3, "total": 4}
-    assert guest_render_job(job, Path(job.project_path))["status"] == "cancelled"
+    assert guest_job_view(job, Path(job.project_path))["status"] == "cancelled"
     job.kind = "pipeline"
-    assert guest_render_job(job, Path(job.project_path)) is None
+    assert guest_job_view(job, Path(job.project_path)) is None

@@ -318,7 +318,7 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
 def guest_render_preview() -> dict[str, Any]:
     """Rebuild stems/premix (requires ``edit`` + ``PODCAST_GUEST_RENDER=1``)."""
     _require_tool("guest_render_preview")
-    from podcast_mcp.services.jobs import guest_render_job, shared_job_manager
+    from podcast_mcp.services.jobs import guest_job_view, shared_job_manager
     from podcast_mcp.util.guest_render import require_guest_render
 
     require_guest_render()
@@ -326,7 +326,7 @@ def guest_render_preview() -> dict[str, Any]:
     jobs = shared_job_manager()
     # A busy job slot (``JobSlotBusyError``) is a refusal the guest sees, not a caps deny (-32003).
     job = jobs.start_render_preview(ctx.workspace.path)
-    projected = guest_render_job(job, ctx.workspace.path)
+    projected = guest_job_view(job, ctx.workspace.path)
     if projected is None:
         raise RuntimeError("Render preview job unavailable")
     return {"job": projected}
@@ -335,10 +335,10 @@ def guest_render_preview() -> dict[str, Any]:
 def guest_render_preview_job(job_id: str) -> dict[str, Any]:
     """Read a guest render job scoped to the current edit share."""
     _require_tool("guest_render_preview_job")
-    from podcast_mcp.services.jobs import guest_render_job, shared_job_manager
+    from podcast_mcp.services.jobs import guest_job_view, shared_job_manager
 
     ctx = get_remote_mcp_context()
-    job = guest_render_job(shared_job_manager().get_job(job_id), ctx.workspace.path)
+    job = guest_job_view(shared_job_manager().get_job(job_id), ctx.workspace.path)
     if job is None:
         raise CodedKeyError("Render preview job not found", code="job_not_found")
     return {"job": job}

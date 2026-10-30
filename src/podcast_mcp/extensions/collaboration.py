@@ -55,6 +55,7 @@ class CollaborationExtension:
         from podcast_mcp.gui.routes import (
             record_share,
             remote_mcp,
+            review_editor,
             review_share,
             shares,
             tunnel,
@@ -62,6 +63,7 @@ class CollaborationExtension:
 
         registry.add_middleware(ShareIdentityMiddleware, source=self.name)
         for router in (
+            review_editor.router,
             review_share.router,
             record_share.router,
             remote_mcp.router,

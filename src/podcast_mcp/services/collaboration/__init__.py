@@ -9,6 +9,11 @@ if TYPE_CHECKING:
         reset_guest_progress_hub,
         scrub_guest_progress_text,
     )
+    from podcast_mcp.services.collaboration.guest_routes import (
+        GUEST_OWNER_ROUTES,
+        GuestRoute,
+        guest_owner_route,
+    )
     from podcast_mcp.services.collaboration.record_share import record_bootstrap
     from podcast_mcp.services.collaboration.review import ReviewService
     from podcast_mcp.services.collaboration.review_shares import (
@@ -117,8 +122,10 @@ __all__ = [
     "CAP_SUGGEST",
     "CAP_VIEW",
     "DEFAULT_CAPABILITIES",
+    "GUEST_OWNER_ROUTES",
     "SHARE_KIND_RECORD",
     "SHARE_KIND_REVIEW",
+    "GuestRoute",
     "MixUnavailableError",
     "RecordStaleLinksError",
     "ReviewRole",
@@ -136,6 +143,7 @@ __all__ = [
     "encode_version_mp3",
     "get_share_registry",
     "get_version",
+    "guest_owner_route",
     "guest_progress_hub",
     "guest_selects_transcript_words",
     "guest_ws_progress_sink",
@@ -201,6 +209,9 @@ _MODULE_BY_NAME = {
     "TunnelError": "tunnel_failure",
     "build_share_head_tags": "share_page",
     "drop_absolute_path_strings": "share",
+    "GUEST_OWNER_ROUTES": "guest_routes",
+    "GuestRoute": "guest_routes",
+    "guest_owner_route": "guest_routes",
     "guest_progress_hub": "guest_progress",
     "guest_selects_transcript_words": "share",
     "guest_ws_progress_sink": "guest_progress",

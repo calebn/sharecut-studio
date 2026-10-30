@@ -930,7 +930,7 @@ def test_guest_mcp_sse_failure_is_generic(monkeypatch, caplog):
     assert any(r.exc_info for r in caplog.records)
 
 
-def test_guest_render_job_lookups_and_upload_arguments_are_refusals(
+def test_guest_job_lookups_and_upload_arguments_are_refusals(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed_premix(minimal_project, sample_wav)

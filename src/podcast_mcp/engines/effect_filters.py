@@ -90,7 +90,7 @@ def _coerce(effect: str, key: str, spec: _Param, value: Any) -> int | float | st
         raise _invalid(effect, key, "must be a number")
     try:
         number = float(value)
-    except ValueError:
+    except (ValueError, OverflowError):
         raise _invalid(effect, key, "must be a number") from None
     if not math.isfinite(number) or not spec.low <= number <= spec.high:
         raise _invalid(effect, key, f"must be between {spec.low:g} and {spec.high:g}")
@@ -102,6 +102,8 @@ def validate_effect_params(effect: str, params: Mapping[str, Any] | None) -> dic
 
     Effects this renderer does not know pass through: they are never rendered.
     """
+    if not isinstance(effect, str):
+        raise CodedValueError("effect must be a string", code="invalid_effect_params")
     if params is not None and not isinstance(params, Mapping):
         raise CodedValueError(f"{effect} params must be an object", code="invalid_effect_params")
     schema = _EFFECT_PARAMS.get(effect)

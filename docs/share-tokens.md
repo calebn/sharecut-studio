@@ -523,6 +523,22 @@ An `arnndn` `model` may not contain `,`, `;`, `[` or `]`. Effect params already
 saved outside the schema now fail at render with `invalid_effect_params`; they
 used to render.
 
+Owner routes stay host-only: a relayed call to one is refused with
+`authz_denied`, and the tunnel forwards only `/api/review/{token}`. An Editor
+reaches project work through a share-scoped twin under
+`/api/review/{token}/daw/*`. Every twin is a row in `GUEST_OWNER_ROUTES`
+(`services/collaboration/guest_routes.py`: method, path, rate-limit kind and
+whether it needs `PODCAST_GUEST_RENDER`; every twin needs the Editor role), and
+the `guest_route(name)` dependency in `gui/routes/review_editor.py` checks the token, the rate limit and
+the Editor role and returns the share's workspace. A route with no row is denied,
+and a handler never takes a project path from the client. Guest request models
+extend `GuestRequest`, which refuses unknown fields. A guest sees a job only
+through `GUEST_JOB_VIEW` (`services/jobs/job.py`), only when it belongs to the
+share's project: another project's job answers 404. An Editor may poll a render
+of the same project that the host started, because host and guests share one
+render lock; the view is only id, status, current, total and fixed copy. So far the render preview
+status and start routes are twins.
+
 The Editor does not get these. The exceptions below are the audit's approved
 list; the routes and tools in them are not document commands, and slices after
 this one decide which owner routes get a share-scoped twin.

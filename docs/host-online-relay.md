@@ -342,7 +342,7 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 | `GET /api/rec/{token}/upload` | record `join` | Own full-quality recording chunk ACK status (lease required; host removal revokes it and returns 403 `invalid lease`) |
 | `POST /api/rec/{token}/upload` | record `join` | Full-quality recording PCM parts (5 MB / 30 s); resume on the same token. Full-quality recording parts only for takes the participant consented to; `kind=room_tone` only while consented (403 `consent required`). Host removal revokes the lease (403 `invalid lease`). Not `…/daw/media/upload`. |
 | `DELETE /api/rec/{token}/upload` | record `join` | Revoke an ACK'd room-tone bed (`kind=room_tone`) |
-| `POST …/daw/render-preview` | Editor (`edit_commands_allowed`) | Start a stem/premix render via the host `JobManager` (services/jobs) lock. Returns **202** with a job ID immediately; **409** if the slot is busy. |
+| `POST …/daw/render-preview` | Editor (`edit_commands_allowed`) + `PODCAST_GUEST_RENDER=1` | Start a stem/premix render via the host `JobManager` (services/jobs) lock. Returns **202** with a job ID immediately; **409** if the slot is busy. |
 | `GET …/daw/render-preview/{job_id}` | Editor (`edit_commands_allowed`) | Read a job's status for this share's project. Response includes only safe progress fields, with no host paths. |
 | `GET …/audio` | `play` | Frozen review mix for link previews and agents — prefers `mix.mp3`; **302** to an object-store presigned URL when configured |
 | `POST …/comments` | `comment` | Timeline comment (body max **8000** chars) |

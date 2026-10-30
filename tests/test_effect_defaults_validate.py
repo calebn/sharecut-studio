@@ -10,6 +10,7 @@ from podcast_mcp.effects.presets import _BUILTIN_PRESETS
 from podcast_mcp.engines.effect_filters import validate_effect_params
 from podcast_mcp.pipeline import steps
 from podcast_mcp.pipeline.meta import PARAM_FIELDS
+from podcast_mcp.util.coded_error import CodedValueError
 from test_pipeline_steps import _project_with_host
 
 
@@ -58,3 +59,17 @@ def test_master_bounds_in_the_ui_fit_the_loudnorm_schema(path):
     field = next(f for f in PARAM_FIELDS if f.path == path)
     for bound in (field.minimum, field.maximum, field.default):
         validate_effect_params("loudnorm", {path.split(".", 1)[1]: bound})
+
+
+@pytest.mark.parametrize("value", [10**400, -(10**400), "1" + "0" * 400])
+def test_a_number_too_large_for_a_float_is_a_coded_refusal(value):
+    with pytest.raises(CodedValueError) as raised:
+        validate_effect_params("highpass", {"frequency": value})
+    assert raised.value.code == "invalid_effect_params"
+
+
+@pytest.mark.parametrize("effect", [None, 3, ["highpass"], {"a": 1}])
+def test_the_effect_name_must_be_a_string(effect):
+    with pytest.raises(CodedValueError) as raised:
+        validate_effect_params(effect, {})
+    assert raised.value.code == "invalid_effect_params"

@@ -3814,6 +3814,7 @@
         "type": "object"
       },
       "FeedGuestEditRequest": {
+        "additionalProperties": false,
         "description": "One show-level edit from an Editor share; the share link names the episode.",
         "properties": {
           "edit": {
@@ -8423,6 +8424,7 @@
         "type": "object"
       },
       "ShareActionDoneRequest": {
+        "additionalProperties": false,
         "description": "Guest HTTP twin for MCP guest_set_action_done (no project path).",
         "properties": {
           "by": {
@@ -8441,6 +8443,7 @@
         "type": "object"
       },
       "ShareCommentRequest": {
+        "additionalProperties": false,
         "properties": {
           "author": {
             "maxLength": 200,
@@ -8520,6 +8523,7 @@
         "type": "object"
       },
       "ShareReplyRequest": {
+        "additionalProperties": false,
         "properties": {
           "author": {
             "maxLength": 200,
@@ -12844,7 +12848,7 @@
     },
     "/api/review/{token}/daw/render-preview": {
       "post": {
-        "description": "Docs Editor (``edit``) may rebuild stems/premix on the host project.\n\nOpt-in via ``PODCAST_GUEST_RENDER=1``. Uses the same ``JobManager``\nlock as the host GUI so concurrent host/guest renders cannot race.",
+        "description": "Uses the same ``JobManager`` lock as the host GUI so concurrent host and guest renders cannot race.",
         "parameters": [
           {
             "in": "path",
@@ -12883,23 +12887,22 @@
     },
     "/api/review/{token}/daw/render-preview/{job_id}": {
       "get": {
-        "description": "Poll a render belonging to this edit share's project.",
         "parameters": [
-          {
-            "in": "path",
-            "name": "token",
-            "required": true,
-            "schema": {
-              "title": "Token",
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "job_id",
             "required": true,
             "schema": {
               "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
               "type": "string"
             }
           }

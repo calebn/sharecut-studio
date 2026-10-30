@@ -18,6 +18,14 @@ from podcast_mcp.services.document_sync import (
 DocumentCommandRequest = DocumentCommandBody
 
 
+class GuestRequest(BaseModel):
+    """Base for the guest request bodies that carry fields of their own (comment, reply,
+    action done, feed edit): unknown fields are refused. Document commands use their typed
+    payloads instead."""
+
+    model_config = {"extra": "forbid"}
+
+
 class PipelineRunRequest(BaseModel):
     path: str
     from_step: str | None = None
@@ -165,7 +173,7 @@ class FeedEditRequest(BaseModel):
     edit: FeedEdit
 
 
-class FeedGuestEditRequest(BaseModel):
+class FeedGuestEditRequest(GuestRequest):
     """One show-level edit from an Editor share; the share link names the episode."""
 
     edit: FeedEdit
@@ -295,7 +303,7 @@ class CommentReplyRequest(BaseModel):
 GUEST_NAME_FIELD_MAX = 200
 
 
-class ShareActionDoneRequest(BaseModel):
+class ShareActionDoneRequest(GuestRequest):
     """Guest HTTP twin for MCP guest_set_action_done (no project path)."""
 
     done: bool = True
