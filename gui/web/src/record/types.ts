@@ -106,6 +106,24 @@ export type RecordSnapshot = {
   host_offline_gap_ms?: number | null;
 };
 
+/** One row of the host's record-session read model (`GET /api/record/sessions`), open or ended. */
+export type RecordSessionSummary = {
+  session_id: string;
+  /** Null until the session has landed on the timeline. */
+  number: number | null;
+  state: "open" | "ended";
+  target_kind: SessionTarget["kind"] | null;
+  takes: { take_index: number; recording_ms: number }[];
+  participants: {
+    participant_id: string;
+    display_name: string;
+    role: RecordRole;
+    track_id: string | null;
+  }[];
+  landed: boolean;
+  ended_at: string | null;
+};
+
 export function hostReconnectPauseCopy(offlineGapMs: number): string {
   const seconds = Math.max(0, Math.round(offlineGapMs / 1000));
   return `Paused: the host was offline for ${seconds}s. Resume when everyone is ready.`;

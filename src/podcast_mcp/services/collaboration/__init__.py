@@ -104,6 +104,7 @@ if TYPE_CHECKING:
         backup_share_registry,
         default_share_registry_db_path,
         get_share_registry,
+        share_is_usable,
     )
     from podcast_mcp.services.collaboration.tunnel import run_tunnel_sync
     from podcast_mcp.services.collaboration.tunnel_failure import TunnelError
@@ -183,6 +184,7 @@ __all__ = [
     "share_daw_waveform_status",
     "share_daw_waveform_tiles",
     "share_episode_name",
+    "share_is_usable",
     "share_pending_cut_suggestion",
     "share_pending_preview_image",
     "share_pending_preview_image_cached",
@@ -266,6 +268,7 @@ _MODULE_BY_NAME = {
     "backup_share_registry": "share_registry",
     "default_share_registry_db_path": "share_registry",
     "get_share_registry": "share_registry",
+    "share_is_usable": "share_registry",
     "effective_review_version_id": "review_shares",
     "list_shares": "review_shares",
     "list_usable_shares": "review_shares",

@@ -146,6 +146,15 @@ something now. A take recorded after the room's staged session was accepted or s
 counts too (landing refuses it, so it cannot be saved into that room); 0 means the
 server found no unsaved audio it can see (see Known gaps below).
 
+`GET /api/record/sessions` (host only) lists every record session, open or ended, oldest first:
+`session_id`, `number` (the stored landing number, `null` until it lands; a read never assigns one),
+`state` (`open` while any of its links is usable, else `ended`), `target_kind`, `takes`
+(`take_index`, `recording_ms`), `participants` (`participant_id`, `display_name`, `role`, `track_id`
+from the host's track choice or the session's landed clips), `landed` and `ended_at` (when the last
+link was revoked; `null` for sessions ended before this was recorded). A session appears once it has
+a link row or a landing. The room's snapshot store holds one session, so after a newer room is
+minted an older session reports no `takes` or `participants`, only what the project holds.
+
 Every mint (`podcast review share --kind record`, `create_record_room_tool`,
 `POST /api/shares/record`) returns the same fields, describing what the mint left
 behind that the server can see (recomputed after a land-first), and a plain `warning` ("1 stopped take in this

@@ -41,6 +41,7 @@ if TYPE_CHECKING:
         record_hub_key,
         route_record_ws_message,
     )
+    from podcast_mcp.services.record.sessions import list_record_sessions
     from podcast_mcp.services.record.state import (
         HOST_PARTICIPANT_ID,
         RecordRole,
@@ -89,6 +90,7 @@ __all__ = [
     "invalidate_record_session_cache",
     "land_first_would_work",
     "left_behind_message",
+    "list_record_sessions",
     "parse_participant_id",
     "parse_session_target",
     "parse_upload_kind",
@@ -142,6 +144,7 @@ _MODULE_BY_NAME = {
     "unsaved_takes": "preflight",
     "Unsaved": "preflight",
     "land_first_would_work": "preflight",
+    "list_record_sessions": "sessions",
     "left_behind_message": "preflight",
     "refuse_land_first": "preflight",
     "with_unsaved_takes": "preflight",

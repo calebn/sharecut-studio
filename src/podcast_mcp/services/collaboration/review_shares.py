@@ -238,6 +238,8 @@ def revoke_share_for_workspace(workspace: Path, token: str) -> bool:
         found = False
         for row in rows:
             if row.get("id") == share_id:
+                if not row.get("revoked"):
+                    row["revoked_at"] = _now_iso()
                 row["revoked"] = True
                 found = True
         if found:

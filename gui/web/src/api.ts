@@ -150,6 +150,7 @@ export {
   hostLandRecord,
   hostRecordUploadTransport,
   listHostShares,
+  loadHostRecordSessions,
   loadHostRecordState,
   postHostRecordCommand,
   replaceHostRecordInvite,
