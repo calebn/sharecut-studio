@@ -195,6 +195,19 @@ describe("ScriptHost window", () => {
     expect(hasWord("a0")).toBe(false);
   });
 
+  it("keeps the words being read when the reader stops following the playhead", () => {
+    seedScript({
+      utterances: longTranscript(),
+      playheadSec: 600.2,
+      transcriptFollowPlayhead: true,
+    });
+    render(<ScriptHost />);
+    expect(hasWord("a300")).toBe(true);
+    act(() => useDawStore.getState().setTranscriptFollowPlayhead(false));
+    expect(hasWord("a300")).toBe(true);
+    expect(hasWord("a0")).toBe(false);
+  });
+
   it("widens when a caret lands near the window's edge", () => {
     render(<ScriptHost />);
     expect(hasWord(`a${WINDOW_MARGIN + 20}`)).toBe(false);

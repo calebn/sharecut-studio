@@ -79,9 +79,12 @@ export function useScriptWindow(
   );
 
   const [view, setView] = useState<Range | null>(null);
-  const start =
-    (focus.following ? (focus.playing[0] ?? focus.playheadWord) : undefined) ??
-    0;
+  const liveWord = focus.following
+    ? (focus.playing[0] ?? focus.playheadWord)
+    : undefined;
+  const anchor = useRef(0);
+  if (liveWord !== undefined) anchor.current = liveWord;
+  const start = anchor.current;
   const range = useMemo<Range>(() => {
     if (!windowed) return { lo: 0, hi: Math.max(total - 1, 0) };
     const base = view ?? around(turnOf(start), total);
