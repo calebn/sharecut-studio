@@ -26,7 +26,8 @@ function setup(props: Partial<ReviewStageHarnessProps> = {}) {
     />,
   );
   const stage = view.container.querySelector(".rv-stage") as HTMLElement;
-  const decided = () => screen.getByText(/of \d+ decided/).textContent;
+  const decided = () =>
+    screen.getByText(/of \d+ (decided|resolved)/).textContent;
   const press = (key: string, init: KeyboardEventInit = {}) =>
     fireEvent.keyDown(stage, { key, ...init });
   return { stage, decided, press, ...view };
@@ -205,6 +206,24 @@ describe("ReviewStage", () => {
     const before = decided();
     press("Enter");
     expect(decided()).toBe(before);
+  });
+
+  it("lets an Editor guest decide", () => {
+    const { decided, press } = setup({ guest: true, canDecide: true });
+    const before = decided();
+    press("Enter");
+    expect(decided()).not.toBe(before);
+  });
+
+  it("gives an Editor guest no unsure-word controls", () => {
+    setup({
+      initialItems: QUEUE_ITEMS,
+      initialSelectedId: "f3",
+      guest: true,
+      canDecide: true,
+    });
+    expect(screen.queryByRole("button", { name: /Fix text/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Looks right/ })).toBeNull();
   });
 
   it("shows a non-guest the unsure-word controls", () => {

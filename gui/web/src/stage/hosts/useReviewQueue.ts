@@ -29,7 +29,11 @@ import {
 } from "../../review/reviewItems";
 import { kindInFilter, verbOf } from "../../review/reviewQueueModel";
 import { useReviewSession } from "../../review/reviewSession";
-import { isGuestSession, isShareProjectKey } from "../../shareMode";
+import {
+  canReviewPendingEdit,
+  isGuestSession,
+  isShareProjectKey,
+} from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { AuditionSide } from "../../system/auditionWindow";
@@ -84,13 +88,15 @@ type Reply = {
 };
 
 export function useReviewQueue(guestShare = false) {
-  const { project, projectPath, shell, guestMode, picked } = useDaw((s) => ({
-    project: s.project,
-    projectPath: s.projectPath,
-    shell: s.shellBreakpoint,
-    guestMode: s.guestMode,
-    picked: s.selection?.kind === "comment" ? s.selection : null,
-  }));
+  const { project, projectPath, shell, guestMode, shareCapabilities, picked } =
+    useDaw((s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      shell: s.shellBreakpoint,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+      picked: s.selection?.kind === "comment" ? s.selection : null,
+    }));
   const guest = isGuestSession(projectPath, guestMode, guestShare);
   const comments = useReviewComments(guest);
   const [status, setStatus] = useState<TranscriptCheckStatus | null>(null);
@@ -102,7 +108,9 @@ export function useReviewQueue(guestShare = false) {
   const stageRef = useRef<HTMLDivElement>(null);
   const requests = useRef(0);
   const confirmed = useRef(new Set<string>());
-  const pending = guest ? undefined : project?.pending_edits;
+  const canDecide =
+    !guest || canReviewPendingEdit(projectPath, shareCapabilities);
+  const pending = canDecide ? project?.pending_edits : undefined;
 
   const refreshStatus = useStableCallback(async () => {
     if (guest || isShareProjectKey(projectPath)) return null;
@@ -526,6 +534,7 @@ export function useReviewQueue(guestShare = false) {
       layout: shell === "phone" ? ("phone" as const) : ("desktop" as const),
       bulkRunning: bulkRunning ?? undefined,
       guest,
+      canDecide,
       ...comments.stageProps,
       onDecide,
       onHear,

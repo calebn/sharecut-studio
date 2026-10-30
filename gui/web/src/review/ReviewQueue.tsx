@@ -14,6 +14,7 @@ import { Button, EmptyState, SegmentedControl, ToggleButton } from "../ui";
 import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
 import { formatTimeShort } from "../utils/time";
 import {
+  commentLine,
   decidedItems,
   filterCounts,
   filterItems,
@@ -71,8 +72,10 @@ export type ReviewQueueProps = {
   /** The pipeline job finding suggestions, or the error of the one that failed. */
   job?: QueueJob;
   bulkRunning?: BulkProgress;
-  /** A guest reads the queue: no bulk verbs, no Find more, no swipes. */
+  /** A guest has no Find more. */
   guest?: boolean;
+  /** Without it the queue is comments only: no bulk verbs, Cut or Keep, swipes. */
+  canDecide?: boolean;
   state?: "ready" | "loading" | "error";
   onFilter: (filter: ReviewFilter) => void;
   onSelect: (id: string) => void;
@@ -142,17 +145,17 @@ function BulkRow({ running }: { running: BulkProgress }) {
 function GroupHeader({
   group,
   running,
-  guest,
+  canDecide,
   onBulk,
 }: {
   group: ReviewGroup;
   running?: BulkProgress;
-  guest: boolean;
+  canDecide: boolean;
   onBulk?: (group: ReviewGroup) => void;
 }) {
   const meta = KIND_META[group.kind];
   if (running) return <BulkRow running={running} />;
-  const bulk = guest ? null : group.bulk;
+  const bulk = canDecide ? group.bulk : null;
   const verb = bulk ? verbOf(bulk.verb) : null;
   const heldId = `rv-held-${group.kind}`;
   const bulkLabel =
@@ -183,7 +186,7 @@ function GroupHeader({
           </Button>
         </>
       ) : null}
-      {group.held > 0 && !guest ? (
+      {group.held > 0 && canDecide ? (
         <span id={heldId} className="sys-mono">
           {group.held} to decide one by one
         </span>
@@ -200,6 +203,7 @@ export function ReviewQueue({
   job,
   bulkRunning,
   guest = false,
+  canDecide = !guest,
   state = "ready",
   onFilter,
   onSelect,
@@ -244,11 +248,13 @@ export function ReviewQueue({
   const header = (
     <header className="rv-head">
       <p className="rv-progress sys-mono" aria-live="polite">
-        {progressLine(items)}
+        {canDecide ? progressLine(items) : commentLine(items)}
       </p>
       <div className="rv-filter">
         <SegmentedControl label="Filter">
-          {FILTERS.map(({ id, label, icon }) => (
+          {FILTERS.filter(
+            ({ id }) => canDecide || (id !== "suggestions" && id !== "checks"),
+          ).map(({ id, label, icon }) => (
             <ToggleButton
               key={id}
               quiet
@@ -315,7 +321,7 @@ export function ReviewQueue({
         <EmptyState as="div" role="status">
           {filter !== "all"
             ? "Nothing here"
-            : guest
+            : !canDecide
               ? "No comments yet"
               : "Nothing to decide"}
         </EmptyState>
@@ -333,7 +339,7 @@ export function ReviewQueue({
             <GroupHeader
               group={group}
               running={running}
-              guest={guest}
+              canDecide={canDecide}
               onBulk={onBulk}
             />
             {group.items.map((item) => {
@@ -366,12 +372,12 @@ export function ReviewQueue({
                   selected={selected}
                   onSelect={() => onSelect(item.id)}
                   onVerb={
-                    guest || running || item.blocked
+                    !canDecide || running || item.blocked
                       ? undefined
                       : () => onVerb?.(item.id)
                   }
                   onKeep={
-                    guest || running ? undefined : () => onKeep?.(item.id)
+                    !canDecide || running ? undefined : () => onKeep?.(item.id)
                   }
                 />
               );

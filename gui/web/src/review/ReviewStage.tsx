@@ -58,8 +58,10 @@ export type ReviewStageProps = {
   /** Episode length in seconds. */
   duration: number;
   peaks?: readonly number[];
-  /** A guest reads and comments; nothing here decides. */
+  /** A guest reads and comments; the host owns Resolve, Find more and Deliver. */
   guest?: boolean;
+  /** Who may Cut or Keep: the host and Editor guests. Defaults to everyone but a guest. */
+  canDecide?: boolean;
   layout?: "desktop" | "phone";
   state?: "ready" | "loading" | "error";
   job?: QueueJob;
@@ -101,6 +103,7 @@ export function ReviewStage({
   duration,
   peaks,
   guest = false,
+  canDecide = !guest,
   layout = "desktop",
   state = "ready",
   job,
@@ -172,7 +175,7 @@ export function ReviewStage({
 
   const keep = (id: string) => {
     if (
-      !guest &&
+      canDecide &&
       items.some(
         (i) =>
           i.id === id &&
@@ -186,10 +189,10 @@ export function ReviewStage({
   };
 
   const verb = (id: string) => {
-    if (guest) return;
     const item = items.find((i) => i.id === id);
     if (item?.kind === "comment")
-      return item.result ? undefined : onResolve?.(id);
+      return item.result || guest ? undefined : onResolve?.(id);
+    if (!canDecide) return;
     if (item && verbOf(item) === "keep")
       return item.blocked ? undefined : keep(id);
     if (!cuttable(id)) return;
@@ -199,7 +202,7 @@ export function ReviewStage({
 
   const bulk = (all: readonly string[] | undefined) => {
     const ids = all?.filter(cuttable) ?? [];
-    if (guest || bulkRunning || !ids.length) return;
+    if (!canDecide || bulkRunning || !ids.length) return;
     if (holdsGate(ids)) setPending({ ids, group: true });
     else void onDecide({ ids, result: "applied", group: true });
   };
@@ -211,7 +214,7 @@ export function ReviewStage({
 
   const confirmAnyway = (note?: string) => {
     const ids = armed?.ids.filter(cuttable) ?? [];
-    if (guest || bulkRunning || !ids.length) return;
+    if (!canDecide || bulkRunning || !ids.length) return;
     const done = onDecide({
       ids,
       result: "applied",
@@ -312,7 +315,7 @@ export function ReviewStage({
       : 0;
   const card = body?.card ?? EMPTY_CARD;
   const unsure =
-    body?.card.unsure && selected
+    body?.card.unsure && selected && !guest
       ? {
           ...body.card.unsure,
           resolved: looksRight.has(selected.id),
@@ -320,7 +323,7 @@ export function ReviewStage({
             ? { onHear: () => onHear(selected.id, "A") }
             : {}),
           onFix: (text: string) => {
-            if (guest || selected.result) return;
+            if (selected.result) return;
             if (selected.kind === "unsure-word")
               return void onDecide({
                 ids: [selected.id],
@@ -331,7 +334,7 @@ export function ReviewStage({
             if (word) void onDecide({ ids: [word], result: "applied", text });
             onSelect(selected.id);
           },
-          onLooksRight: () => !guest && onLooksRight(selected.id),
+          onLooksRight: () => onLooksRight(selected.id),
         }
       : undefined;
   const unsureWords = openOf(items, "unsure-word").length;
@@ -348,6 +351,7 @@ export function ReviewStage({
       job={job}
       bulkRunning={bulkRunning}
       guest={guest}
+      canDecide={canDecide}
       state={state}
       onFilter={onFilter}
       onSelect={(id) => {
@@ -373,7 +377,7 @@ export function ReviewStage({
           <div className="rv-phone-top">
             <Button aria-haspopup="dialog" onClick={() => setSheetOpen(true)}>
               <SystemIcon name="inbox" size={14} />
-              {guest && items.length === 0
+              {!canDecide && items.length === 0
                 ? "No comments"
                 : `${position} of ${items.length}`}
             </Button>
@@ -392,11 +396,13 @@ export function ReviewStage({
             {...card}
             verb={selected ? verbOf(selected) : undefined}
             verbDisabledReason={
-              selected?.blocked
-                ? "Open it in Edit to resolve."
-                : selected?.kind === "comment" && selected.result
-                  ? "Already resolved."
-                  : undefined
+              guest && selected?.kind === "comment"
+                ? "The host resolves comments."
+                : selected?.blocked
+                  ? "Open it in Edit to resolve."
+                  : selected?.kind === "comment" && selected.result
+                    ? "Already resolved."
+                    : undefined
             }
             thread={selected && thread?.(selected)}
             why={selected?.blocked ? (card.why ?? BLOCKED_WHY) : card.why}
@@ -418,7 +424,8 @@ export function ReviewStage({
                   }
                 : undefined
             }
-            readOnly={guest}
+            readOnly={!canDecide}
+            canEdit={!guest}
             layout={phone ? "phone" : "card"}
             emptyAction={
               onHandOff

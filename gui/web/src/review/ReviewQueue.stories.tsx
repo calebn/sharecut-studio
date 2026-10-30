@@ -147,6 +147,22 @@ export const PhoneQueueSheet: Story = {
   },
 };
 
+export const EditorGuest: Story = {
+  args: {
+    guest: true,
+    canDecide: true,
+    filter: "suggestions",
+    selectedId: "f1",
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(
+      view.getAllByRole("button", { name: /Cut all/ }).length,
+    ).toBeGreaterThan(0);
+    await expect(view.queryByRole("button", { name: /Find more/ })).toBeNull();
+  },
+};
+
 export const GuestFiltered: Story = {
   args: { guest: true, filter: "suggestions", selectedId: "f1" },
   play: async ({ canvasElement }) => {

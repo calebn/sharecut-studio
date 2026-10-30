@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { QUEUE_ITEMS } from "../storybook/reviewFixtures";
 import {
+  commentLine,
   decidedItems,
   decisionMessage,
   filterCounts,
@@ -143,6 +144,10 @@ describe("counts and progress", () => {
 
   it("writes one progress sentence", () => {
     expect(progressLine(QUEUE_ITEMS)).toBe("2 of 12 decided · saves 0.5 s");
+  });
+
+  it("writes a comment sentence without savings", () => {
+    expect(commentLine(QUEUE_ITEMS)).toBe("2 of 12 resolved");
   });
 });
 

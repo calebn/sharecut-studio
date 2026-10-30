@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { shallow } from "zustand/shallow";
 import { useHostRoomSelector, useRecordHostStore } from "../../record";
+import { canReviewPendingEdit, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { RecordBadge, StageBadge } from "../../system/StageBadgeViews";
@@ -66,7 +67,11 @@ export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
   const input = useDaw((s) => ({
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
-    pendingReviewCount: s.project?.edit_impact.pending_review_count ?? 0,
+    pendingReviewCount:
+      isShareProjectKey(s.projectPath) &&
+      canReviewPendingEdit(s.projectPath, s.shareCapabilities)
+        ? (s.project?.pending_edits?.length ?? 0)
+        : (s.project?.edit_impact.pending_review_count ?? 0),
     openCommentCount:
       s.project?.comments?.filter((c) => !c.resolved).length ?? 0,
     recordAttention,

@@ -206,6 +206,15 @@ export const Guest: Story = {
   }),
 };
 
+export const EditorGuest: Story = {
+  args: { guest: true, canDecide: true },
+  play: playInCanvas(async ({ canvasElement }) => {
+    const before = progress(canvasElement);
+    await press(canvasElement, "{Enter}");
+    await expect(progress(canvasElement)).not.toBe(before);
+  }),
+};
+
 export const Phone: Story = {
   args: { layout: "phone" },
   parameters: isolatedStoryParameters,
