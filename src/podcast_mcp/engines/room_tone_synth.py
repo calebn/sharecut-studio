@@ -10,8 +10,8 @@ which has no period inside its ``SYNTH_FILE_SEC`` file (a fill past that length 
 
 Only a steady room is synthesised. A spectrum alone does not make a sound that is not
 stationary noise (McDermott and Simoncelli 2011), so a stretch whose level moves by more
-than ``NOISE_SPREAD_DB`` between half seconds, or that has a tone standing ``TONAL_PEAK_DB``
-over its neighbours (mains hum, a fan), keeps its recorded audio and the tiling. So does a
+than ``NOISE_SPREAD_DB`` between half seconds, or that has a tone reaching the noise in its
+critical band (mains hum, a fan; ``TONAL_TO_BAND_DB``), keeps its recorded audio and the tiling. So does a
 stretch under ``MIN_ROOM_SEC``, whose spectrum is too poorly measured to reproduce, and one
 whose synthesised level lands more than ``LEVEL_TOLERANCE_DB`` from the stretch's own.
 
@@ -25,6 +25,7 @@ source. Each fill reads from its own place in the file, derived from its positio
 from __future__ import annotations
 
 import hashlib
+import math
 import wave
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
@@ -79,9 +80,12 @@ SYNTH_RATE = 48000
 SYNTH_DIR = "raw/room-tone-synth"
 SYNTH_ID_PREFIX = "synth-room-tone-"
 STEADY_WINDOW_SEC = 0.5
-TONAL_PEAK_DB = 10.0
+# A tone is heard once its power reaches the noise in its critical band (Zwicker: a tone in
+# noise is masked until about 0 to -5 dB), so this is the lenient end of that range.
+TONAL_TO_BAND_DB = 0.0
 TONAL_NEIGHBOURS = 6
-TONAL_NFFT = 8192
+# Analysis frame for the tone check: about 6 Hz bins at 48 kHz, whatever the rate.
+TONAL_FRAME_SEC = 0.17
 LEVEL_TOLERANCE_DB = 0.5
 PROBE_SEC = 2.0
 WRITE_CHUNK = 1 << 16
@@ -187,9 +191,9 @@ def _params() -> str:
             SYNTH_MAX_REPLAY_SEC,
             SYNTH_FILE_SEC,
             SYNTH_MAX_FILL_SEC,
-            TONAL_NFFT,
+            TONAL_FRAME_SEC,
             LEVEL_TOLERANCE_DB,
-            TONAL_PEAK_DB,
+            TONAL_TO_BAND_DB,
             NOISE_SPREAD_DB,
         )
     )
@@ -301,31 +305,36 @@ def _steady(samples: np.ndarray, rate: int) -> bool:
 
 
 def _tonal(samples: np.ndarray, rate: int) -> bool:
-    """A bin standing ``TONAL_PEAK_DB`` over the median of the bins around it.
+    """A line whose power reaches ``TONAL_TO_BAND_DB`` over the noise in its critical band.
 
     The frames are long enough (about 6 Hz bins at 48 kHz) that the harmonics of a 50 or 60 Hz
-    buzz sit bins apart, so they do not raise the neighbours a peak is compared with.
+    buzz sit bins apart and do not raise the neighbours a line is compared with. A line's power
+    is its three bins less the floor they would hold, and the noise it must stand over is the
+    floor of the critical band around it (ERB, Glasberg and Moore 1990): a line a few bins
+    wide that is only a little over its neighbours is masked and does not make a tone.
     """
-    nfft = TONAL_NFFT
+    nfft = 1 << round(math.log2(TONAL_FRAME_SEC * rate))
     if samples.size < nfft:
         return False
     window = np.hanning(nfft)
-    starts = range(0, samples.size - nfft + 1, nfft // 2)
-    psd = np.mean(
-        [
-            np.abs(np.fft.rfft((samples[i : i + nfft] - samples[i : i + nfft].mean()) * window))
-            ** 2
-            for i in starts
-        ],
-        axis=0,
-    )
-    first = int(np.searchsorted(np.fft.rfftfreq(nfft, 1.0 / rate), MIN_FILL_HZ))
-    ratio = 10 ** (TONAL_PEAK_DB / 10)
-    for index in range(first, psd.size):
-        low = max(0, index - TONAL_NEIGHBOURS)
-        high = min(psd.size, index + TONAL_NEIGHBOURS + 1)
-        around = np.delete(psd[low:high], index - low)
-        if psd[index] > ratio * np.median(around):
+    frames = [
+        (samples[i : i + nfft] - samples[i : i + nfft].mean()) * window
+        for i in range(0, samples.size - nfft + 1, nfft // 2)
+    ]
+    psd = np.mean(np.abs(np.fft.rfft(frames, axis=1)) ** 2, axis=0)
+    width = rate / nfft
+    ratio = 10 ** (TONAL_TO_BAND_DB / 10)
+    for index in range(int(np.ceil(MIN_FILL_HZ / width)), psd.size - 1):
+        erb = 24.7 * (4.37 * index * width / 1000 + 1)
+        reach = max(TONAL_NEIGHBOURS, round(erb / 2 / width))
+        around = np.concatenate(
+            (psd[max(0, index - reach) : max(0, index - 1)], psd[index + 2 : index + reach + 1])
+        )
+        if around.size == 0:
+            continue
+        floor = float(np.median(around))
+        line = float(psd[index - 1 : index + 2].sum()) - 3 * floor
+        if line > ratio * floor * erb / width:
             return True
     return False
 
