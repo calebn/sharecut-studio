@@ -82,6 +82,17 @@ describe("useEndSession", () => {
     expect(revokeHostRoom).not.toHaveBeenCalled();
   });
 
+  it("withdraws the end when another room replaces this one", async () => {
+    const { result, rerender } = mountHook();
+    act(() => result.current.end());
+    rerender({ ...base, sessionId: "room2" });
+    expect(result.current.ending).toBe(false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(END_SESSION_UNDO_MS * 2);
+    });
+    expect(revokeHostRoom).not.toHaveBeenCalled();
+  });
+
   it("does not start while a take is running or there is no room", () => {
     const running = mountHook({ ...base, canEnd: false });
     act(() => running.result.current.end());
@@ -119,6 +130,7 @@ describe("useEndSession", () => {
     const { result, unmount } = mountHook();
     act(() => result.current.end());
     unmount();
+    expect(revokeHostRoom).toHaveBeenCalledTimes(1);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
