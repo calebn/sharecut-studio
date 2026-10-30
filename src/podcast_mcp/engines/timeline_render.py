@@ -122,7 +122,11 @@ def _room_tone_under_mutes(
                         fade_out_sec=(
                             2 * tile.reach_out
                             if blends_out
-                            else (env.fade_in_sec if index + 1 == len(repeats) else 0.0)
+                            else (
+                                env.fade_in_sec
+                                if index + 1 == len(repeats) and env.end <= seg_dur + 1e-6
+                                else 0.0
+                            )
                         ),
                         clip_id=clip.id,
                         source_id=fill.source_id,

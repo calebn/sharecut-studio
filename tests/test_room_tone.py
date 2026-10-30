@@ -625,6 +625,14 @@ def test_a_mute_fill_longer_than_its_span_overlaps_blended_tiles_inside_the_span
     assert nominal == pytest.approx(8.0)
 
 
+def test_a_mute_fill_cut_off_by_the_window_does_not_fade_out_at_the_cut(tmp_path: Path) -> None:
+    cut_off = _mute_fill_tiles(tmp_path / "cut", (8.0, 12.0), (4.0, 7.0))
+    whole = _mute_fill_tiles(tmp_path / "whole", (2.0, 8.0), (4.0, 7.0))
+
+    assert cut_off[-1][1].fade_out_sec == 0.0
+    assert whole[-1][1].fade_out_sec > 0.0
+
+
 def test_a_mute_fill_the_span_covers_is_one_unblended_tile(tmp_path: Path) -> None:
     tiles = _mute_fill_tiles(tmp_path, (1.0, 3.0), (4.0, 7.0))
 
