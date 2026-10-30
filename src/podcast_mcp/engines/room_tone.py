@@ -966,13 +966,7 @@ def _measure_bed(path: Path, audio: np.ndarray) -> BedVerdict:
         live = np.ones(len(starts), dtype=bool)
     levels = levels_all[live]
     floor_db = float(np.percentile(levels, FLOOR_PERCENTILE))
-    loud = levels[levels > floor_db + FLOOR_BAND_DB]
-    track = TrackFloor(
-        path=path,
-        floor_db=floor_db,
-        speech_db=float(np.percentile(loud, SPEECH_PERCENTILE)) if loud.size else None,
-        runs=(),
-    )
+    track = TrackFloor(path=path, floor_db=floor_db, speech_db=None, runs=())
     samples = [
         Sample(
             i / SAMPLE_RATE,

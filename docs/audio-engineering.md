@@ -615,7 +615,7 @@ the two always sum to the room.
 
 **Sources**, tried in order, all the lane's own (`engines/bleed_fill.py`, `engines/gate_fill.py`):
 
-1. the lane's recorded room-tone bed (`track.room_tone`), read from its usable stretch (the longest run of 0.5 s windows that pass its own levels and voice check, at least 3 s or the whole live bed when shorter), so one cough in a long bed does not discard it (#2699); when a cough has left less than 20 s of it the fill moves on to comfort noise rather than loop a short stretch;
+1. the lane's recorded room-tone bed (`track.room_tone`), read from its usable stretch (the longest run of 0.5 s windows that pass its own levels and voice check, at least 3 s or the whole live bed when shorter), so one cough in a long bed does not discard it (#2699); when a cough has left less than 20 s of a longer bed (or less of a shorter one than its whole length) the fill moves on to comfort noise rather than loop a short stretch;
 2. comfort noise read from the stretches the plan found to hold neither a foreign copy nor
    the lane's own voice, trimmed 150 ms from each end. A copy that fills the lane's pauses
    is never read as its room, and the plan, not the audio, says where the copies are. It

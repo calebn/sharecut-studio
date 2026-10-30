@@ -365,6 +365,18 @@ def test_a_gated_bed_with_two_separate_pockets_keeps_the_longer_one(tmp_path: Pa
     assert (selected.start, selected.end) == pytest.approx((0.0, 1.0), abs=0.01)
 
 
+def test_a_faint_blip_does_not_make_the_clean_bed_near_speech(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = np.random.default_rng(7).normal(0.0, 10 ** (-70.0 / 20), 60 * SR)
+    _add_voice(bed, 30.0, 30.05, -45.0)
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_bed(project, "host")
+
+    assert isinstance(selected, RecordedBedSample)
+    assert selected.end <= 30.0 or selected.start >= 30.05
+
+
 def test_a_bed_loud_throughout_is_still_rejected(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     bed = _noise(-62.0, seed=7)
