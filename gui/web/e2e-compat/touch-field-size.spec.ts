@@ -1,9 +1,16 @@
 import { expect, type Locator, test } from "@playwright/test";
 import {
+  addEnvelopePoint,
   envelopeTrack,
+  inspectEnvelopePoint,
   openEnvelopeTrackDetails,
+  pointSheet,
+  showEnvelope,
 } from "../e2e/envelopeCreationEvidence";
-import { openPhoneTimeline } from "../e2e/phoneTimeline";
+import {
+  openPhoneTimeline,
+  rememberInspectorDetent,
+} from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
 import { openPanel } from "../e2e/stageNav";
@@ -23,6 +30,7 @@ test.describe("touch field size", () => {
   test("iPhone envelope Time field is at least 16px", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await withShareableProject(async (projectPath) => {
+      await rememberInspectorDetent(page, "half");
       await openHostShare(page, projectPath);
       await openPhoneTimeline(page);
       await expect
@@ -35,16 +43,15 @@ test.describe("touch field size", () => {
         envelopeTrack(projectPath).label,
         [],
       );
-      await page
-        .getByRole("button", { name: "Add volume envelope", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "Show volume envelope", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "Add point", exact: true })
-        .click();
-      const time = page.getByLabel("Time (seconds on timeline)", {
+      await showEnvelope(page);
+      await addEnvelopePoint(page);
+      await inspectEnvelopePoint(page);
+      await pointSheet(page)
+        .getByRole("spinbutton", { name: "Time", exact: true })
+        .focus();
+      await page.keyboard.press("Enter");
+      const time = pointSheet(page).getByRole("textbox", {
+        name: "Time",
         exact: true,
       });
       await expect(time).toBeVisible();

@@ -1,9 +1,16 @@
 import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
+import {
+  openEnvelopePoint,
+  showEnvelope,
+} from "../e2e/envelopeCreationEvidence";
 import { createRelocatedE2eProject } from "../e2e/liveProject";
 import { openHostProject } from "../e2e/overlayReachability";
 import { openSuggestedPendingEdit } from "../e2e/pendingEdit";
-import { openPhoneTimeline } from "../e2e/phoneTimeline";
+import {
+  openPhoneTimeline,
+  rememberInspectorDetent,
+} from "../e2e/phoneTimeline";
 import { describeReach, type Reach, reachFailures } from "../e2e/reachability";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openHostShare } from "../e2e/shareNavigation";
@@ -315,7 +322,7 @@ async function sweepCell(
 
 /**
  * A copy of the fixture whose first track carries a volume envelope and an effect
- * chain, so the track surface shows the envelope workspace and the Bypass toggles.
+ * chain, so the track surface shows the Bypass toggles and its first point opens in the Inspector.
  */
 function seededProject(prefix: string) {
   const fixture = createRelocatedE2eProject(prefix);
@@ -353,6 +360,7 @@ async function sweepSeededTrack(
   cells: readonly Cell[],
 ): Promise<string> {
   const reports: string[] = [];
+  await rememberInspectorDetent(page, "half");
   for (const { cell, theme, reducedMotion } of withAppearance(cells)) {
     await page.emulateMedia({
       reducedMotion: reducedMotion ? "reduce" : "no-preference",
@@ -373,15 +381,11 @@ async function sweepSeededTrack(
       dense: DENSE,
       sizeExempt: SIZE_EXEMPT,
     });
-    await page
-      .getByRole("button", { name: "Edit volume envelope", exact: true })
-      .click();
-    await expect(
-      page.getByRole("combobox", { name: "Envelope point" }),
-    ).toBeVisible();
+    await showEnvelope(page);
+    await openEnvelopePoint(page, 1);
     await settle(page);
     const envelope = await reachFailures(page, {
-      scope: surface,
+      scope: cell.width <= 1194 ? SHEET : ".sys-inspector",
       dense: DENSE,
       sizeExempt: SIZE_EXEMPT,
     });

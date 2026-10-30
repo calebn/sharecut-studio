@@ -2,13 +2,17 @@ import { randomUUID } from "node:crypto";
 import { type Browser, expect, type Page } from "@playwright/test";
 import {
   acceptedEnvelopeCommand,
+  addEnvelopePoint,
   type EnvelopeCommand,
   type EnvelopeSnapshot,
   emptyEnvelopeProject,
   envelopeSnapshot,
   envelopeTrack,
   observeEnvelopeCommands,
+  openEnvelopePoint,
   openEnvelopeTrackDetails,
+  setPointField,
+  showEnvelope,
 } from "./envelopeCreationEvidence";
 import { type InteractionReceipt, test } from "./interactionEvidence";
 import { withShareableProject } from "./shareableProject";
@@ -52,17 +56,9 @@ async function withGuestEnvelope(
       const track = envelopeTrack(projectPath);
       await openHostShare(page, projectPath);
       await openEnvelopeTrackDetails(page, track.label, receipts);
-      await page
-        .getByRole("button", { name: "Show volume envelope", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "Add volume envelope", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "Add point", exact: true })
-        .click();
+      await showEnvelope(page);
       const accepted = await acceptedEnvelopeCommand(page, "SetEnvelope", () =>
-        page.getByRole("button", { name: "Save point", exact: true }).click(),
+        addEnvelopePoint(page),
       );
       const token = await createReviewShare(page, projectPath, role);
       const context = await browser.newContext({
@@ -92,12 +88,7 @@ async function withGuestEnvelope(
           // A Viewer share has no Edit stage, so there is no envelope GUI to open.
           if (role !== "viewer") {
             await openEnvelopeTrackDetails(guest, track.label, receipts);
-            await guest
-              .getByRole("button", {
-                name: "Show volume envelope",
-                exact: true,
-              })
-              .click();
+            await showEnvelope(guest);
           }
           await body({
             guest,
@@ -199,9 +190,7 @@ test("editor share edits a volume envelope point", async ({
     "editor",
     { page, browser, receipts },
     async ({ guest, track, accepted, baseline, requests, projectPath }) => {
-      await guest
-        .getByRole("button", { name: "Edit volume envelope", exact: true })
-        .click();
+      await openEnvelopePoint(guest, 1);
       await expect(
         guest.getByText(
           "This link can view, but not edit, the volume envelope.",
@@ -209,21 +198,12 @@ test("editor share edits a volume envelope point", async ({
         ),
       ).toHaveCount(0);
       const pointId = accepted.command.payload.points![0]!.id;
-      await guest
-        .getByRole("combobox", { name: "Envelope point", exact: true })
-        .selectOption(pointId);
-      await guest
-        .getByRole("button", { name: "Edit point", exact: true })
-        .click();
-      await guest.getByRole("textbox", { name: "Level (×)" }).fill("0.5");
       const saved = guest.waitForResponse(
         (response) =>
           response.request().method() === "POST" &&
           new URL(response.url()).pathname.endsWith("/daw/document/command"),
       );
-      await guest
-        .getByRole("button", { name: "Save point", exact: true })
-        .click();
+      await setPointField(guest, "Level", "0.5");
       const response = await saved;
       expect(response.status()).toBe(200);
       expect(requests.map((command) => command.type)).toEqual(["SetEnvelope"]);

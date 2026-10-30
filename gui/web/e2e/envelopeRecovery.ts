@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, type Page, type TestInfo } from "@playwright/test";
+import { pointSheet } from "./envelopeCreationEvidence";
 import { layer } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
@@ -202,7 +203,7 @@ export async function exerciseEnvelopeRecovery(
       await expect.poll(geometry).toEqual(original);
       await expect(owner).toHaveAttribute("aria-pressed", "false");
       await expect(
-        page.getByRole("combobox", { name: "Envelope point", exact: true }),
+        pointSheet(page).getByRole("spinbutton", { name: "Time", exact: true }),
       ).toHaveCount(0);
       await expect(owner).toBeFocused();
       expect(
@@ -306,12 +307,12 @@ export async function exerciseEnvelopeRecovery(
       await otherControl.focus();
       await page.keyboard.press("Escape");
       await expect(
-        page.getByRole("combobox", { name: "Envelope point", exact: true }),
+        pointSheet(page).getByRole("spinbutton", { name: "Time", exact: true }),
       ).toHaveCount(0);
       await owner.click();
       await inspectSelection(page);
       await expect(
-        page.getByRole("combobox", { name: "Envelope point", exact: true }),
+        pointSheet(page).getByRole("spinbutton", { name: "Time", exact: true }),
       ).toBeVisible();
       await settle();
       expect(commands).toHaveLength(1);
@@ -371,7 +372,7 @@ export async function exerciseEnvelopeRecovery(
       await expect(second).toHaveAttribute("aria-pressed", "false");
       await expect(owner).toHaveAttribute("aria-pressed", "true");
       await expect(
-        page.getByRole("combobox", { name: "Envelope point", exact: true }),
+        pointSheet(page).getByRole("spinbutton", { name: "Time", exact: true }),
       ).toBeVisible();
       expect(
         await second.evaluate((element) => ({
