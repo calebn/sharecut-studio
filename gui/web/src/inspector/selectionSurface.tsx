@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { CommandContext } from "../commands/context";
 import { seekTransport } from "../commands/seek";
 import { rangeClips } from "../edit/rangeSelection";
-import { EnvelopePointBody } from "../stage/edit/envelopePointSections";
+import { EnvelopePointBody } from "../stage/edit/EnvelopePointBody";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import { RangeFields } from "../timeline/RangeFields";
 import type { ProjectView, Selection } from "../types/project";
