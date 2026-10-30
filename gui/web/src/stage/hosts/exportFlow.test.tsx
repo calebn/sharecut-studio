@@ -361,6 +361,66 @@ describe("the export flow over the server's routes", () => {
     expect((flow.run as { cancelError: string }).cancelError).toContain("gone");
   });
 
+  it("ignores an old cancel failure while the next export is cancelling", async () => {
+    const oldCancel = deferred<Response>();
+    const nextCancel = deferred<Response>();
+    const fetchRoute = fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        if (
+          typeof input === "string" &&
+          input.includes("/api/pipeline/cancel")
+        ) {
+          server.cancelRequests.push(JSON.parse(init?.body as string));
+          return server.cancelRequests.length === 1
+            ? oldCancel.promise
+            : nextCancel.promise;
+        }
+        return fetchRoute(input, init);
+      }),
+    );
+    mount();
+    await loaded();
+    act(() => flow.start(["mp3"], REQUEST));
+    await running();
+    act(() => flow.cancel());
+    await waitFor(() =>
+      expect(server.cancelRequests).toEqual([{ job_id: "x1" }]),
+    );
+    await act(async () =>
+      server.settle({ ...EXPORT_STARTED, status: "cancelled" }),
+    );
+    await waitFor(() => expect(flow.run.kind).toBe("cancelled"));
+
+    server.reopen();
+    server.started = { ...EXPORT_STARTED, id: "x2" };
+    act(() => flow.again());
+    act(() => flow.start(["mp3"], REQUEST));
+    await waitFor(() => expect(flow.run).toMatchObject({ jobId: "x2" }));
+    act(() => flow.cancel());
+    expect(server.cancelRequests).toEqual([{ job_id: "x1" }, { job_id: "x2" }]);
+    expect(flow.run).toMatchObject({ cancelling: true, cancelError: null });
+
+    await act(async () => oldCancel.reject(new Error("old cancel refused")));
+    expect(flow.run).toMatchObject({
+      kind: "running",
+      jobId: "x2",
+      cancelling: true,
+      cancelError: null,
+    });
+
+    await act(async () =>
+      nextCancel.reject(new Error("current cancel refused")),
+    );
+    expect(flow.run).toMatchObject({
+      kind: "running",
+      jobId: "x2",
+      cancelling: false,
+      cancelError: "current cancel refused",
+    });
+  });
+
   it("names a failure", async () => {
     mount();
     await loaded();
