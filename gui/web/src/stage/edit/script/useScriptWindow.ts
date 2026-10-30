@@ -173,8 +173,11 @@ export function useScriptWindow(
   );
   // Once per request: the new window is drawn, so the word can be found now.
   // A change of window the reader did not ask for keeps the turn they were on.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the drawn range changes
+  const drawn = useRef("");
   useLayoutEffect(() => {
+    const key = `${range.lo}:${range.hi}`;
+    if (drawn.current === key) return;
+    drawn.current = key;
     const again = retry.current;
     retry.current = null;
     if (again) {
@@ -226,11 +229,17 @@ export function useScriptWindow(
 
   // While the playhead is followed, the pane keeps up with it.
   const { playKey, following, playing } = focus;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new highlight is the trigger
+  const followed = useRef<string | null>(null);
   useEffect(() => {
     const word = playing[0];
-    if (following && word !== undefined) scrollTo(word, "nearest");
-  }, [playKey, following]);
+    if (!following || word === undefined) {
+      followed.current = null;
+      return;
+    }
+    if (followed.current === playKey) return;
+    followed.current = playKey;
+    scrollTo(word, "nearest");
+  }, [playKey, following, playing, scrollTo]);
 
   return { turns, scrollTo, reached };
 }
