@@ -276,7 +276,15 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - The live take band in the lanes becomes the session band on the ruler when it lands.
 - Used: CMP-TIMELINE, CMP-RULER, CMP-MARKERS, OVL-RECORDING, OVL-RANGE, OVL-PRESENCE, SCR-PHONE-TIMELINE.
 - Replaces: corner zoom cluster and marker lane (edit, now parts of this element), the Session marker in the marker lane (record).
-- Story: `System/Timeline` (parts), `Stages/Edit/Timeline` (compositions).
+- Story: `System/Ruler`, `System/MarkerLane`, `System/Lane`, `System/Presence` (parts), `Stages/Edit/Timeline` (composition: ThreeTracks, DeepZoom, PhoneFixedPlayhead). There is no `System/Timeline`: the stack is built from the parts.
+
+**15a. Lane**
+- One track's stripe of element 15, built from plain data: the track's `name` and `colorIndex`, the window (`start`, `pxPerSecond`, `width`, the same three the ruler and the marker lane take), an optional `height`, `mute` and `loading`, and `LaneItem` children. It is 72 to 240 px tall (the host passes 104 on touch) and holds any other number to that range. It is tinted 6% in the track colour behind its clips, and draws the colour as a 3 px edge on its own inline start: the lane owns the edge, not the header, and the edge is a border laid over the first 3 px so it survives forced colours and x = 0 stays the time column's edge.
+- It owns the time-to-x window and nothing a clip does. A `LaneItem` takes the clip's `at` and `duration` in seconds and stands the child `Clip` where the window puts it, with the formula the ruler uses, so a time lands at the same x in the ruler, the marker lane, the lane and the presence overlay; a clip wholly outside the window is not drawn. Selecting, trimming and fading stay with `Clip`, and a guest's limits are a rule of the clip: the lane has no guest look. Lane heights are props, never measured, so the presence overlay can be told where each lane is (`laneRows`).
+- States: empty (no children), peaks loading (`loading`: a flat 1 px line in the track colour through the middle, `aria-busy`), silent (`mute` saved, listen or implied: the muted track colour behind the clips and the reason in words, the header's words). The lane is a group named `Track <name>`, never `Tracks`, which is the column's. It takes no pointer and no keys, and is no tab stop: the Tab and arrow walk over clips and lanes is the host's, with `tabIndex={-1}` on all but one clip.
+- Not built: the "+" add-track row and the corner zoom cluster (host chrome), Suggestion and Seam in lanes, and the lane cursor of OVL-PRESENCE (remote pointer data, so wiring).
+- Used: CMP-TIMELINE.
+- Story: `System/Lane`: Empty, ThreeTracks, PeaksLoading, Muted.
 
 **16. Track header**
 - Person 28 px with the level ring, name, then on hover or when set: Mute (`volume-x`), Solo (`headphones`), a level Scrub field. Drag anywhere on the header except a control to reorder. The wide form (280 px) is the desktop mixer. The phone form is 56 px, avatar only, and its select button is a 44 x 44 target.
@@ -432,7 +440,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 ### People and sharing
 
 **32. Person.** One person, one colour (their track colour when they have a track), everywhere.
-- Avatar sizes: 20 (Script margin), 24 (presence, comments), 28 (track header, listener row), 32 (Cover, Join header).
+- Avatar sizes: 20 (Script margin), 24 (people list, comments), 28 (track header, listener row), 32 (Cover, Join header). The flag of a remote playhead on the ruler is 16 px, as the Edit spec says, and is drawn by `System/Presence` as a coloured circle with the person's first initial, not as a size of the avatar: two initials do not fit in 16 px at the smallest type size, and the 24 px ruler has no room for a larger flag. It is the one exception.
 - The ring is the live level in the person's colour, with a 2 s red tick on a clip.
 - The tile form (Record grid) is 4:3, radius 12, avatar at 40 %, with the name bottom-left and a glyph cluster bottom-right (`mic-off`, signal, `ear` for a listener). The top-right holds a clip count and an amber triangle for an alert. The ring becomes the saving ring after Stop.
 - Host tile: a small Record glyph badge (no accent outline, since accent means selection).

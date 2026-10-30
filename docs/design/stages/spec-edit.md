@@ -314,7 +314,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Fate:** restyle.
 - **Spec:**
   - Stack top to bottom: ruler 24 px; marker lane 24 px; lanes filling the rest. On phone and when Script focus is on, the NEW: Overview strip (16 px) sits above the ruler showing the whole episode with a draggable viewport rectangle.
-  - Lane: track color as a 3 px left edge on the header and a 6 % tint behind the lane. Clips draw as rounded 6 px rectangles in the track color with the waveform at 70 % contrast.
+  - Lane: track color as a 3 px edge on the lane's own inline start (System/Lane draws it, not the header) and a 6 % tint behind the lane. Clips draw as rounded 6 px rectangles in the track color with the waveform at 70 % contrast.
   - Playhead: 2 px accent line across ruler and lanes with a 10 px triangle on the ruler; on phone it is fixed at the horizontal center (existing fixed-playhead behavior) and content scrolls under it.
   - Suggestions draw in-lane as hatched regions (shared Suggestion element); applied cuts draw as Seam marks.
   - Corner zoom cluster: bottom-right of the lanes, floating 8 px inside, a 3-button pill: Fit (arrows-out), Zoom out, Zoom in; plus the eye button. 32 px buttons, 44 px on touch.
@@ -325,7 +325,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Touch:** one-finger horizontal swipe pans; pinch zooms about the fingers; tap selects; long-press empty opens Create here; long-press then drag selects a range.
 - **States:** empty (SCR-SHELL-INGEST), loading peaks (flat center line in track color until peaks arrive), recording (OVL-RECORDING), guest read-only (no handles; tap selects for Comment/Hear only).
 - **Shared elements used:** Suggestion, NEW: Seam, NEW: Overview strip, NEW: Corner zoom cluster, Action bar.
-- **Story to build:** `Edit/Timeline` stories `ThreeTracks`, `TwelveTracks`, `DeepZoom`, `WithSuggestions`, `WithCuts`, `PeaksLoading`, `ReadOnlyGuest`, `PhoneFixedPlayhead`.
+- **Story to build:** `Stages/Edit/Timeline` stories `ThreeTracks`, `DeepZoom`, `PhoneFixedPlayhead` (built from the parts, S7b-1a); `System/Lane` stories `Empty`, `ThreeTracks`, `PeaksLoading`, `Muted`. Still to build, with the parts they need: `TwelveTracks`, `WithSuggestions`, `WithCuts`, `ReadOnlyGuest`. A guest's read-only look is the clip's, not the lane's.
 
 ### CMP-RULER · Time ruler
 
@@ -424,9 +424,9 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** MENU-PEOPLE--desktop-light.png (G avatar pinned on the lane). Consistency: avatar sits on the clip label.
 - **Fate:** restyle.
-- **Spec:** remote playhead: 1 px line in the person's color with a 16 px avatar flag on the ruler. Remote selection: 1 px outline in their color, no fill. Cursor shown only within the lanes. Hidden for the person you follow.
+- **Spec:** remote playhead: 1 px line in the person's color with a 16 px flag on the ruler (a circle in their color with their first initial, drawn by System/Presence; it is not a Person avatar size, see design-system element 32). Remote selection: 1 px outline in their color, no fill (dashed under forced colors). Hidden for the person you follow. One overlay over ruler, marker lane and lanes in the time column, taking no pointer. The cursor shown only within the lanes is not built yet: it is remote pointer data and waits for the wiring slice.
 - **Shared elements used:** Person tile (avatar form).
-- **Story to build:** `Edit/Presence` stories `TwoRemote`, `RemoteSelection`, `Phone`.
+- **Story to build:** `System/Presence` stories `TwoRemote`, `RemoteSelection`, `FollowedHidden`; the phone form is `PhoneFixedPlayhead` in `Stages/Edit/Timeline`.
 
 ### OVL-ENVELOPE · Volume envelope
 
@@ -454,7 +454,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Today:** no shot. Feedback: the only in-Edit sign of a live take.
 - **Fate:** keep; coordinate with spec-record.
 - **Spec:** while a take records, each recording lane shows a red-tinted band growing from the take start to the live edge with a live waveform; the Record stage badge pulses (static dot until the animation pass). Clips under the band can't be edited until the take lands; tapping the band offers "Go to Record".
-- **Story to build:** `Edit/Timeline` story `RecordingLive`.
+- **Story to build:** `Stages/Edit/Timeline` story `RecordingLive`.
 
 ### OVL-RANGE · Range and comment span overlay
 
