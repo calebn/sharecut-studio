@@ -176,6 +176,12 @@ const decided = async () => {
     await userEvent.click(toggle);
   return screen.getByRole("region", { name: "Decided" });
 };
+const landed = async (release: () => void) => {
+  await act(async () => {
+    release();
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+  });
+};
 const toast = () => useDawStore.getState().feedbackToast?.message;
 
 function App() {
@@ -836,9 +842,7 @@ describe("Review host comments", () => {
         press("c");
       });
       await waitFor(() => expect(field()).toHaveFocus());
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      });
+      await landed(() => {});
       useDawStore.setState({ setCommentDraft: original });
       expect(writes).toBe(1);
     });
@@ -879,10 +883,7 @@ describe("Review host comments", () => {
       act(() => {
         press("c");
       });
-      release();
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 30));
-      });
+      await landed(release);
       expect(screen.queryByRole("alert")).toBeNull();
     });
 
@@ -905,10 +906,7 @@ describe("Review host comments", () => {
       act(() => {
         press("c");
       });
-      release();
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 30));
-      });
+      await landed(release);
       expect(useDawStore.getState().commentDraft).not.toBeNull();
       expect(field()).toBeVisible();
     });

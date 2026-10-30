@@ -81,7 +81,7 @@ export function usePostComment(): {
         useDawStore.getState().setCommentDraft(null);
       return { ok: true, comment };
     } catch (e) {
-      setError(errorMessage(e));
+      if (mine === generation.current) setError(errorMessage(e));
       return { ok: false };
     } finally {
       if (mine === generation.current) setBusy(false);
