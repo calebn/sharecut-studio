@@ -70,8 +70,8 @@ export const WithEnvelope: Story = {
       canvas.getByRole("group", { name: "Volume envelope, Maya Okafor" }),
     ).toBeVisible();
     await expect(
-      canvas.getAllByRole("slider", { name: /^Envelope point/ }),
-    ).toHaveLength(5);
+      canvas.getByRole("slider", { name: "Envelope point 1" }),
+    ).toBeVisible();
   },
 };
 

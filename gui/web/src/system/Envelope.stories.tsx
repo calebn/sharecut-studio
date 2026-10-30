@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useRef, useState } from "react";
-import { expect, fireEvent, within } from "storybook/test";
+import { expect, fireEvent, waitFor, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { Clip } from "./Clip";
 import {
@@ -166,7 +166,9 @@ export const Empty: Story = {
     await expect(
       canvas.getByRole("group", { name: "Volume envelope, Maya Okafor" }),
     ).toBeVisible();
-    await expect(canvas.queryAllByRole("slider")).toHaveLength(0);
+    await expect(canvasElement.querySelectorAll(".sys-env-point")).toHaveLength(
+      0,
+    );
   },
 };
 
@@ -206,7 +208,9 @@ export const Dragging: Story = {
       clientX: at.clientX + 24,
       clientY: at.clientY - 12,
     });
-    await expect(canvasElement.querySelector(".sys-readout")).not.toBeNull();
+    await waitFor(() =>
+      expect(canvasElement.querySelector(".sys-readout")).not.toBeNull(),
+    );
   },
 };
 
