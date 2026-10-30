@@ -294,7 +294,7 @@ export const GuestCommenterEmpty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      (await canvas.findAllByText("Nothing to decide"))[0],
+      (await canvas.findAllByText("No comments yet"))[0],
     ).toBeVisible();
     await expect(canvas.queryByRole("button", { name: /Deliver/ })).toBeNull();
     await expect(

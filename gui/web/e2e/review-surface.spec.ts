@@ -123,7 +123,7 @@ for (const theme of ["light", "dark"] as const) {
 
           await expect(
             dock.getByRole("textbox", { name: "Your name" }),
-          ).toHaveValue("Guest");
+          ).toHaveValue("");
           await expectNoHorizontalScroll(guest, 320);
         },
       );

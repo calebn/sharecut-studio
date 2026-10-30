@@ -259,7 +259,7 @@ export function DecisionCard(props: DecisionCardProps) {
           <div className="sys-decision-empty">
             <SystemIcon name="inbox" size={48} />
             <EmptyState as="div" action={emptyAction}>
-              Nothing to decide
+              {readOnly ? "No comments yet" : "Nothing to decide"}
             </EmptyState>
           </div>
         ) : null}
