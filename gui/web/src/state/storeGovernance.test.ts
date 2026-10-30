@@ -480,6 +480,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "the selector floors the live playhead to whole seconds, so the guest Composer's time chip re-renders once a second and the comment list not at all",
   },
   {
+    file: "stage/edit/script/useScriptPlayback.ts",
+    reason:
+      "the selector turns the live playhead into a key of the playing words, so the Script re-renders only when a word changes",
+  },
+  {
     file: "stage/hosts/GuestScriptHost.tsx",
     reason:
       "the selector turns the live playhead into a key of the playing words, so the Script re-renders only when a word changes",
