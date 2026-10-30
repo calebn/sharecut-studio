@@ -25,7 +25,7 @@ def feed_read(
     """Read the episode's podcast listing: every fact with where it came from, and what is missing.
 
     ``facts`` (default) is JSON: each value says whether it is derived, inherited, measured,
-    minted, pinned (by a person or an agent, and whether the automatic value moved since) or
+    minted, pinned (by a person, an agent or a guest, and whether the automatic value moved since) or
     pending with the edit that would fix it, plus findings tagged blocker, warn or info.
     ``notes_html`` is the show notes, ``item_xml`` the bare ``<item>``, ``feed_xml`` the feed
     file and ``show`` which show the episode belongs to. Use this before ``feed_set``. Not
@@ -41,7 +41,11 @@ def feed_set(
     field: str,
     value: Annotated[str, BeforeValidator(_text)],
 ) -> str:
-    """Pin one podcast-listing value for this episode, as an agent. Undoable with history.
+    """Pin one podcast-listing value, as an agent. An episode value undoes with history.
+
+    ``item.*`` keys are pinned on this episode. ``channel.*`` keys and ``show`` (link this
+    episode to a show by name, creating it when new) change the show every episode shares,
+    are saved in the show's file and are not undone by history.
 
     ``field`` is a key from ``feed_read``, such as ``item.intro``, ``item.title``,
     ``item.notes``, ``item.enclosure.url``, ``item.season`` or ``item.person[Name].href``.
@@ -59,7 +63,8 @@ def feed_unset(project_path: str, field: str) -> str:
     """Drop this episode's pin on a listing value so it goes back to automatic.
 
     Also how to take the new automatic value after ``feed_read`` reports a pin whose
-    source changed. Unsetting a field that holds no pin changes nothing. Undoable with history.
+    source changed. Unsetting a field that holds no pin changes nothing. An episode value undoes
+    with history; a show value (``channel.*``) is dropped from the show and does not.
     """
     view = FeedService(ProjectWorkspace.open(project_path)).unset(field, "agent")
     return to_json(view.wire())

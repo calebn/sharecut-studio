@@ -114,7 +114,7 @@ A show holds what every episode of a podcast shares, so a weekly episode never c
 - **media_url**: the hosting address template, such as `https://cdn.example.com/show/{file}`. It is used for the audio, the chapters file, the transcripts, the artwork and the feed address, and it starts empty.
 - **ledger**: the episode number of each episode, by guid.
 
-Every change reads the file, edits it and replaces it atomically while holding a lock file beside it (`.<id>.lock`), so two writers (a CLI call and Studio, or two exports) never lose each other's update. A file that cannot be read is named in the error ("The show file the-long-river.yaml cannot be used"); it is never treated as no show.
+Every change reads the file, edits it and replaces it atomically while holding a lock file beside it (`.<id>.lock`), so two writers (a CLI call and Studio, or two exports) never lose each other's update. A file that cannot be read is named in the error ("The show file the-long-river.yaml cannot be used"); it is never treated as no show: the episode's view lists the blocker with that sentence, offers only a pick among the other shows, and `feed set show <name>` refuses to create a replacement (`feed_show_unreadable`) until the file is fixed or the link is cleared with `feed unset show`.
 
 **Which show an episode belongs to.** The episode stores only a show id (`feed.show_id`).
 
@@ -133,7 +133,7 @@ Every change reads the file, edits it and replaces it atomically while holding a
 - `channel.season` is the season every episode is in until an episode sets `item.season` itself.
 - `channel.image` is an https address or a `.jpg` / `.png` file on this machine. A file is copied into the export set when the feed is written ([Writing the feed file](#writing-the-feed-file)); until the hosting address exists the row says "Where will this be hosted?".
 
-**Numbers.** Episode numbers are automatic. The first successful write of an episode gives it the next number in its show's ledger (the highest number plus one) and keeps it, so renaming the episode or writing again never renumbers it. Until then `item.episode` reads "Numbered when the feed file is first written." Pin `item.episode` to override the number for one episode; the ledger still records its own.
+**Numbers.** Episode numbers are automatic. The first successful write of an episode gives it the next number in its show's ledger (the highest number plus one) and keeps it, so renaming the episode or writing again never renumbers it. Until then `item.episode` reads "Numbered when the feed file is first written." The number lives only in the show's machine-local ledger, not in `episode.sharecut`; a project moved to another machine is numbered by that machine's ledger. Pin `item.episode` to override the number for one episode; the ledger still records its own.
 
 ## Writing the feed file
 
@@ -159,14 +159,14 @@ The rest of the Apple and Podcasting 2.0 elements are rows you set only when you
 | `channel.updateFrequency` | free text such as `Weekly` | `podcast:updateFrequency` |
 | `channel.trailer` | `URL ISO-time Title`, such as `https://example.test/t.mp3 2026-11-01T09:00:00Z Season trailer` | `podcast:trailer` |
 | `channel.podroll` | one `feed-guid [feed-url]` per line | `podcast:podroll` with `podcast:remoteItem` |
-| `channel.publisher` | `feed-guid [feed-url]` | `podcast:publisher` with `podcast:remoteItem` |
+| `channel.publisher` | `feed-guid [feed-url]` | `podcast:publisher` with `podcast:remoteItem medium="publisher"` (the guid is a UUID) |
 | `channel.funding`, `item.funding` | `URL [message]` (the message defaults to "Support the show") | `podcast:funding` |
 | `channel.license`, `item.license` | `name [URL]` | `podcast:license` |
 | `channel.location`, `item.location` | the place's name | `podcast:location` |
 | `channel.txt`, `item.txt` | free text | `podcast:txt` |
 | `channel.socialInteract`, `item.socialInteract` | `protocol URI [account-id]` | `podcast:socialInteract` |
 | `channel.chat`, `item.chat` | `protocol server [space]` | `podcast:chat` |
-| `channel.value`, `item.value` | `node-address [name]`: a Lightning keysend recipient with the whole split | `podcast:value` with `podcast:valueRecipient` |
+| `channel.value`, `item.value` | `node-address [name]` (the node public key in hexadecimal): a Lightning keysend recipient with the whole split | `podcast:value` with `podcast:valueRecipient` |
 | `item.alternateEnclosure` | `URL [media-type]` (the type is read from the extension when it is known) | `podcast:alternateEnclosure` with `podcast:source` |
 | `item.remoteItem` | `feed-guid [item-guid]` | `podcast:remoteItem` |
 
@@ -208,7 +208,7 @@ A share that can view reads the listing with `GET /api/review/{token}/feed`, whi
 | MCP | `feed_read(project_path, view)` with `view` one of `facts`, `item_xml`, `feed_xml`, `notes_html`, `show` | `feed_set(project_path, field, value)`, `feed_unset(project_path, field)`, `feed_write(project_path)`. Agent pins are marked `agent`. |
 | HTTP | `GET /api/feed?path=` returns `{view, itemXml}`; guests: `GET /api/review/{token}/feed` | `POST /api/feed/edit` with `{path, edit}` where `edit` is `{op: "set", key, value}` or `{op: "unset", key}`; `POST /api/feed/write` with `{path}` returns the same `{view, itemXml}` (400 `feed_blocked` while a blocker stands) |
 
-`--check` exits 1 when a blocker stands. `--xml` prints the file and then, while a blocker stands, warns on stderr and exits 1, so a script cannot save an invalid feed unnoticed; `--item` is never held back. A `@file` that cannot be read as UTF-8 text is `feed_file_unreadable`. An unknown MCP `view` is `feed_view_unknown`. `feed_set` takes text, a number or true/false for `value`; `2` and `"2"` are the same. `--strict` also fails on warnings and changed pins. The `/api/feed` routes require the host role, except two routes an Editor share link may call, both returning the same `{view, itemXml}`: `POST /api/review/{token}/feed/write` (writes the file) and `POST /api/review/{token}/feed/edit` with `{edit}` (one plain show value such as `channel.title`, `channel.author`, `channel.owner.email` or a host's role). Episode values reach a guest through the document command route. Creating or linking a show, `channel.mediaUrl` and artwork given as a file path stay host-only; an Editor adds artwork through the media upload. The capability rows are `daw.feed.read`, `daw.feed.edit` and `daw.feed.write`; the skill is `podcast-rss-feed`.
+`--check` exits 1 when a blocker stands. `--xml` prints the file and then, while a blocker stands, warns on stderr and exits 1, so a script cannot save an invalid feed unnoticed; `--item` is never held back. A `@file` that cannot be read as UTF-8 text is `feed_file_unreadable`. An unknown MCP `view` is `feed_view_unknown`. `feed_set` takes text, a number or true/false for `value`; `2` and `"2"` are the same. `--strict` also fails on warnings and changed pins. The `/api/feed` routes require the host role, except two routes an Editor share link may call, both returning the same `{view, itemXml}`: `POST /api/review/{token}/feed/write` (writes the file) and `POST /api/review/{token}/feed/edit` with `{edit}` (one plain show value such as `channel.title`, `channel.author`, `channel.owner.email` or a host's role). Episode values reach a guest through the document command route. Creating or linking a show, `channel.mediaUrl` and artwork given as a file path stay host-only; an Editor can set artwork only as an https address. A failed publish (a locked or unwritable export folder) is `feed_write_failed`. The capability rows are `daw.feed.read`, `daw.feed.edit` and `daw.feed.write`; the skill is `podcast-rss-feed`.
 
 Each feed command reports a progress phase (`read`, `edit`, `check`, `identity`, `write`, `fields`) on the task the CLI or MCP adapter opened, so a long wait on a locked show or export directory shows what it is doing ([progress.md](progress.md)). They are listed in `contracts/progress-richness.json`.
 
@@ -224,5 +224,5 @@ An agent writes the episode intro with `feed_set(project_path, "item.intro", tex
 | Persisted shape | `src/podcast_mcp/models/feed.py`, `EpisodeProject.feed` ([episode format](episode-format-v2.md#feed)) |
 | Service | `src/podcast_mcp/services/document/feed.py` |
 | Document commands | `SetFeedField`, `ClearFeedField` ([session sync](session-sync.md#document-plane-api)) |
-| Adapters | `cli/feed.py`, `mcp/tools/feed.py`, `gui/routes/feed_routes.py` |
+| Adapters | `cli/feed.py`, `mcp/tools/feed.py`, `gui/routes/feed_routes.py`, `gui/routes/review_share.py` (the Editor routes) |
 | Export hook | `export/episode.py` calls `feed.writer.write_after_export` |

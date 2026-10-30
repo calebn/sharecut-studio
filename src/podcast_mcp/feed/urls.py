@@ -28,7 +28,7 @@ ART_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
 
 def is_local_art(value: str) -> bool:
-    return not value.startswith(("https://", "http://"))
+    return not value.lower().startswith(("https://", "http://"))
 
 
 def check_art_ref(value: str) -> str:

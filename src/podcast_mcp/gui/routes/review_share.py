@@ -21,6 +21,8 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketState
 
+from podcast_mcp.feed.model import FeedEdit, SetEdit
+from podcast_mcp.feed.urls import is_local_art
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pending_preview_headers, pinned_audio_response
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
@@ -49,8 +51,10 @@ from podcast_mcp.gui.routes.waveform import (
 from podcast_mcp.gui.schemas import (
     GUEST_NAME_FIELD_MAX,
     DocumentCommandRequest,
+    FeedGuestEditRequest,
     ShareActionDoneRequest,
 )
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     CAP_VIEW,
     SHARE_KIND_REVIEW,
@@ -121,7 +125,7 @@ from podcast_mcp.services.session_sync import (
     sanitize_display_name,
 )
 from podcast_mcp.services.share_auth import access_required
-from podcast_mcp.util.coded_error import CodedFileNotFoundError, GuardRefusal
+from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedPermissionError, GuardRefusal
 from podcast_mcp.util.rate_limit_http import rate_limited_error
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
@@ -572,6 +576,51 @@ def get_review_feed(token: str) -> dict[str, Any]:
     with guest_boundary(log, "review request"):
         _row, ws = require_share_cap(token, CAP_VIEW)
         return served_feed(FeedService(ws), guest=True)
+
+
+@router.post("/api/review/{token}/feed/write")
+def write_feed_file_as_guest(token: str) -> dict[str, Any]:
+    """An Editor share may write the feed file. Show settings and local files stay host-only."""
+    _check_token(token)
+    _rate_limit(token, "mutate")
+    with guest_boundary(log, "review request"):
+        _row, ws = require_share_edit(token)
+        service = FeedService(ws)
+        service.write()
+        return served_feed(FeedService(ProjectWorkspace.open(ws.path)), guest=True)
+
+
+# What an Editor share may change on the show. Choosing the show and where files are hosted
+# stay with the host, and so does artwork named by a file path on the host's machine.
+GUEST_HOST_ONLY_KEYS = frozenset({"show", "channel.mediaUrl"})
+
+
+def require_guest_show_edit(edit: FeedEdit) -> None:
+    """Raise unless an Editor share may make ``edit``: a plain channel value, never a host setting."""
+    key = edit.key
+    local_art = (
+        key == "channel.image"
+        and isinstance(edit, SetEdit)
+        and isinstance(edit.value, str)
+        and is_local_art(edit.value)
+    )
+    if not key.startswith("channel.") or key in GUEST_HOST_ONLY_KEYS or local_art:
+        raise CodedPermissionError(
+            "That setting is changed by the host", code="share_capability_required"
+        )
+
+
+@router.post("/api/review/{token}/feed/edit")
+def edit_feed_show_as_guest(token: str, body: FeedGuestEditRequest) -> dict[str, Any]:
+    """An Editor share may change the show's plain values. Episode values use the document route."""
+    _check_token(token)
+    _rate_limit(token, "mutate")
+    with guest_boundary(log, "review request"):
+        _row, ws = require_share_edit(token)
+        require_guest_show_edit(body.edit)
+        service = FeedService(ws)
+        service.apply(body.edit, "guest")
+        return served_feed(FeedService(ProjectWorkspace.open(ws.path)), guest=True)
 
 
 @router.post("/api/review/{token}/daw/boundary/context")

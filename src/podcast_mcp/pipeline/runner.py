@@ -41,7 +41,11 @@ StepFn = Callable[[EpisodeProject, dict], str | None]
 
 
 def _run_step_published(
-    project: EpisodeProject, name: str, fn: StepFn, step_defaults: dict
+    project: EpisodeProject,
+    name: str,
+    fn: StepFn,
+    step_defaults: dict,
+    persist: Callable[[], object] | None = None,
 ) -> str | None:
     """Run ``fn`` on a private copy of ``project``; publish its changes in one locked swap (#357).
 
@@ -53,12 +57,26 @@ def _run_step_published(
     lets guards inside the step compare against the live project (``live_project``).
     A step must not hand ``work`` to work that outlives it: background jobs capture paths,
     not the project (``schedule_stem_waveforms`` resolves its refs before queueing).
+
+    ``persist`` reaches the step as ``defaults["_pipeline_persist"]``: it publishes the
+    step's changes so far, then saves, for a step that makes something public from state it
+    just minted (the feed's identity) and must not rely on the save after the step.
     """
     with project_state_lock(project):
         work = project.model_copy(deep=True)
     # ``work`` equals ``project`` as of the copy and nothing else touches it, so its dump is
     # the merge base; taking it outside the lock keeps the locked section to the copy.
     base = project_merge_data(work)
+
+    def persist_step() -> None:
+        nonlocal base
+        publish_project_changes(project, base, work)
+        base = project_merge_data(work)
+        if persist is not None:
+            persist()
+
+    if persist is not None:
+        step_defaults = {**step_defaults, "_pipeline_persist": persist_step}
     try:
         with step_copy(project, work):
             summary = fn(work, step_defaults)
@@ -241,6 +259,7 @@ class PipelineRunner:
         only_step: str | None = None,
         skip_steps: list[str] | None = None,
         on_step_complete: Callable[[str], None] | None = None,
+        persist: Callable[[], object] | None = None,
         progress: ProgressReporter | None = None,
         unattended: bool = False,
         cancel_check: Callable[[], bool] | None = None,
@@ -304,7 +323,7 @@ class PipelineRunner:
                     reporter.message("pipeline", f"Running {name}")
                     step_prog.set_phase("running", title)
                     try:
-                        summary = _run_step_published(project, name, fn, step_defaults)
+                        summary = _run_step_published(project, name, fn, step_defaults, persist)
                         log = _current_log(project, run, log)
                         log.status = "ok"
                         if summary:

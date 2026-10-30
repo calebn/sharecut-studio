@@ -323,3 +323,5 @@ class FeedInputs:
     show_art: ExportFile | None = None
     # Show files that could not be used, one sentence each naming the file.
     show_problems: tuple[str, ...] = ()
+    # Why the show this episode is linked to cannot be used, when its file is unreadable.
+    show_unreadable: str | None = None

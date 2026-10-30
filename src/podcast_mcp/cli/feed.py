@@ -30,6 +30,16 @@ def _value(text: str) -> str:
         ) from exc
 
 
+# What to type for the fixes the GUI offers as buttons; an empty text prints no hint.
+_COMMAND_FIXES = {
+    "create_show": 'podcast feed set show "<title>"',
+    "link_show": "podcast feed set show <title or id>",
+    "choose_art": "podcast feed set channel.image <https address or .jpg or .png file>",
+    "export_episode": "podcast pipeline export-audio",
+    "write_feed": "podcast feed write",
+}
+
+
 def _fix_text(fix: dict[str, Any] | None) -> str:
     if fix is None:
         return ""
@@ -40,7 +50,7 @@ def _fix_text(fix: dict[str, Any] | None) -> str:
         )
     if fix["kind"] == "input":
         return f"podcast feed set {fix['key']} <value>"
-    return f"command: {fix['command']}"
+    return _COMMAND_FIXES.get(fix["command"], "")
 
 
 def _show_text(view: dict[str, Any]) -> str:
@@ -140,6 +150,8 @@ def feed_fields_cmd(as_json: bool = typer.Option(False, "--json")) -> None:
 
 def _edited(view: Any, key: str) -> str:
     wire = view.wire()
+    if key == "show":
+        return json.dumps({"key": key, "show": wire["show"]}, indent=2, ensure_ascii=False)
     fact = wire["item"].get(key) or wire["channel"].get(key)
     return json.dumps({"key": key, "fact": fact}, indent=2, ensure_ascii=False)
 
@@ -150,7 +162,11 @@ def feed_set_cmd(
     value: str = typer.Argument(..., help="The value, or @file to read it from a file"),
     project: Path = _PROJECT,
 ) -> None:
-    """Pin a listing value for this episode. The empty string goes back to automatic."""
+    """Pin a listing value: an episode value (item.*) for this episode, a show value (channel.*) for the show.
+
+    The empty string goes back to automatic. `show` links this episode to a show by name,
+    creating it when new. Episode values undo with history; show values do not.
+    """
     view = FeedService(ProjectWorkspace.open(project)).set(key, _value(value), "person")
     typer.echo(_edited(view, key))
 
@@ -160,7 +176,7 @@ def feed_unset_cmd(
     key: str = typer.Argument(..., help="A key from `podcast feed fields`"),
     project: Path = _PROJECT,
 ) -> None:
-    """Drop this episode's pin so the value goes back to automatic."""
+    """Drop a pin so the value goes back to automatic. A show value is dropped from the show, not undoable."""
     view = FeedService(ProjectWorkspace.open(project)).unset(key, "person")
     typer.echo(_edited(view, key))
 

@@ -18,7 +18,7 @@ from pathlib import Path
 
 from podcast_mcp.feed.fields import cover_file_name
 from podcast_mcp.feed.inputs import feed_path, gather_inputs, show_art_source
-from podcast_mcp.feed.model import FeedView, ShowSource, usable_ledger
+from podcast_mcp.feed.model import FeedView, ShowSource
 from podcast_mcp.feed.render import render
 from podcast_mcp.feed.resolve import resolve
 from podcast_mcp.feed.show_store import ShowStore, default_directory
@@ -35,8 +35,6 @@ class FeedWrite:
     path: Path
     # The files published by this call; empty when the feed and artwork were already current.
     written: tuple[Path, ...]
-    # Whether the call gave the project an identity or the show a number, so the project needs saving.
-    identity_changed: bool
 
 
 def blockers(view: FeedView) -> list[str]:
@@ -92,13 +90,10 @@ def _write_locked(
             project.feed.first_exported_at = before.first_exported_at
             project.feed.show_id = before.show_id
             raise
-    identity_changed = project_changed
     if isinstance(shows, ShowStore) and first.show is not None and project.feed.guid:
-        had = usable_ledger(first.show.ledger).get(project.feed.guid)
         pin = project.feed.pins.get("item.episode")
         pinned = pin.value if pin is not None and isinstance(pin.value, int) else None
-        number = shows.number_for(first.show.id, project.feed.guid, pinned=pinned)
-        identity_changed = identity_changed or number != had
+        shows.number_for(first.show.id, project.feed.guid, pinned=pinned)
     inputs = gather_inputs(project, shows)
     view = resolve(inputs, project.feed.pins)
     refuse_while_blocked(view)
@@ -114,7 +109,7 @@ def _write_locked(
         art_to is None or (art_from is not None and _same_file(art_from, art_to))
     )
     if current:
-        return FeedWrite(destination, (), identity_changed)
+        return FeedWrite(destination, ())
 
     # Artwork first: a crash between the two never leaves a feed pointing at missing art.
     paths = ([art_to] if art_to is not None else []) + [destination]
@@ -124,8 +119,14 @@ def _write_locked(
         if art_from is not None:
             shutil.copyfile(art_from, temps[0])
 
-    written = render_atomic_all(paths, render_all)
-    return FeedWrite(destination, tuple(written), identity_changed)
+    try:
+        written = render_atomic_all(paths, render_all)
+    except OSError as exc:
+        raise CodedValueError(
+            f"The feed file could not be written to {destination.parent}: {exc.strerror or exc}",
+            code="feed_write_failed",
+        ) from exc
+    return FeedWrite(destination, tuple(written))
 
 
 def _same_file(source: Path, copy: Path) -> bool:

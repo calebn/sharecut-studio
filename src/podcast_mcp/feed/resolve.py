@@ -76,7 +76,10 @@ def digest(value: Any) -> str:
     return short_digest(json.dumps(value, default=plain, sort_keys=True, ensure_ascii=False), 16)
 
 
-def _show_fix(inputs: FeedInputs) -> Fix:
+def _show_fix(inputs: FeedInputs) -> Fix | None:
+    """Create or pick a show; for a linked show whose file is unreadable, pick another or nothing."""
+    if inputs.show_unreadable is not None:
+        return CommandFix(command="link_show") if inputs.shows else None
     return CommandFix(command="link_show" if len(inputs.shows) > 1 else "create_show")
 
 
@@ -90,7 +93,8 @@ def _auto(spec: FieldSpec, res: Resolution) -> Auto:
     if isinstance(auto, Found):
         return auto
     if spec.scope == "show" and res.show is None:
-        return Missing("Your show is not set up yet.", _show_fix(res.inputs))
+        why = "The show file cannot be used." if res.inputs.show_unreadable else None
+        return Missing(why or "Your show is not set up yet.", _show_fix(res.inputs))
     if auto is not None:
         return auto
     return Missing(spec.missing or "Not set.", InputFix(key=spec.key) if spec.ask else None)
@@ -129,7 +133,7 @@ def _resolve_rows(
 def _show_state(inputs: FeedInputs, credits: list[Credit]) -> NoShow | ChooseShow | ReadyShow:
     if inputs.show is not None:
         return ReadyShow(id=inputs.show.id)
-    if len(inputs.shows) > 1:
+    if len(inputs.shows) > 1 or inputs.show_unreadable is not None:
         return ChooseShow(shows=[ShowChoice(id=s.id, title=s.title) for s in inputs.shows])
     transcripts = inputs.project.transcripts
     code = transcripts[0].language.lower() if transcripts else "en"
@@ -161,7 +165,7 @@ def resolve(inputs: FeedInputs, pins: Mapping[str, Pin]) -> FeedView:
                 key=None,
                 severity="blocker",
                 platform="RSS",
-                message="The feed needs a show to belong to.",
+                message=inputs.show_unreadable or "The feed needs a show to belong to.",
                 fix=_show_fix(inputs),
             )
         )

@@ -682,8 +682,7 @@ def _optional_rows() -> tuple[FieldSpec, ...]:
             "How often new episodes come, in your words.",
             "Weekly",
             "podcast:updateFrequency",
-            extras.plain,
-            value=_TEXT,
+            extras.short,
         ),
         _optional(
             show,
