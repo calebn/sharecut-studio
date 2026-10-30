@@ -34,6 +34,15 @@ export function commentRole(
     : "host";
 }
 
+/** True on a share route, share key or guest mode: the session reads and comments as a guest. */
+export function isGuestSession(
+  projectPath: string,
+  guestMode: string | null,
+  guestShare = false,
+): boolean {
+  return commentRole(projectPath, guestMode, guestShare) === "guest";
+}
+
 export { reviewApiBase } from "./shareRoute";
 
 /** Mirrors ``has_capability`` (view→play, comment→reply). */

@@ -17,20 +17,27 @@ import {
   commentItemId,
 } from "../../review/reviewItems";
 import type { ReviewFilter, ReviewItem } from "../../review/reviewQueueModel";
+import {
+  canComment,
+  canReply,
+  canSetAction,
+  commentRole,
+} from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
-import { Composer } from "../../system/Composer";
 import { InlineError } from "../../ui";
 import { errorMessage } from "../../utils/apiError";
 import {
+  capCommentName,
   commitCommentActor,
   limitCommentName,
+  saveCommentAuthor,
+  savedGuestName,
   sessionDisplayName,
 } from "../../utils/commentAuthor";
+import { ComposeAnchor } from "./ComposeAnchor";
 import { commentCardOf } from "./commentCardData";
-
-const COMMENT_ROLE = "host";
 
 export type CommentNav = {
   items: readonly ReviewItem[];
@@ -43,23 +50,33 @@ export type CommentNav = {
 };
 
 /**
- * The host's comments in the Review queue: one item per comment, the thread
- * on its card, and the field that posts a new one. Resolving is server state, not a Review decision, so it keeps its own
- * optimistic state and Undo.
+ * The comments in the Review queue: one item per comment, the thread on its
+ * card, and the field that posts a new one. A host opens the field with C; a
+ * guest who may comment always has it, and only a host resolves. Resolving is
+ * server state, not a Review decision, so it keeps its own optimistic state
+ * and Undo.
  */
-export function useReviewComments(enabled: boolean) {
-  const { project, projectPath, commentDraft } = useDaw((s) => ({
-    project: s.project,
-    projectPath: s.projectPath,
-    commentDraft: s.commentDraft,
-  }));
+export function useReviewComments(guest: boolean) {
+  const { project, projectPath, commentDraft, guestMode, capabilities } =
+    useDaw((s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      commentDraft: s.commentDraft,
+      guestMode: s.guestMode,
+      capabilities: s.shareCapabilities,
+    }));
+  const role = commentRole(projectPath, guestMode, guest);
+  const mayComment = canComment(projectPath, guestMode, capabilities);
+  const mayReply = canReply(projectPath, guestMode, capabilities);
+  const mayAction = canSetAction(projectPath, capabilities);
+  const showComposer = mayComment && (guest || commentDraft !== null);
   const duration = project?.timeline_duration_sec ?? Number.NaN;
-  const comments = enabled ? project?.comments : undefined;
+  const comments = project?.comments;
   const [flipped, setFlipped] = useState<ReadonlyMap<string, boolean>>(
     new Map(),
   );
   const [replies, setReplies] = useState<Readonly<Record<string, string>>>({});
-  const actions = useCommentActions({ role: COMMENT_ROLE });
+  const actions = useCommentActions({ role });
   const replyRef = useRef<HTMLTextAreaElement>(null);
   const sending = useRef(
     new Map<string, { to: boolean; done: Promise<boolean> }>(),
@@ -69,7 +86,9 @@ export function useReviewComments(enabled: boolean) {
   const composeRef = useRef<HTMLTextAreaElement>(null);
   const postComment = usePostComment();
   const [body, setBody] = useState("");
-  const [name, setName] = useState(() => sessionDisplayName(COMMENT_ROLE));
+  const [name, setName] = useState(() =>
+    guest ? savedGuestName() : sessionDisplayName(role),
+  );
   const sent = useRef(new Set<string>());
   const [replyErrors, setReplyErrors] = useState<
     Readonly<Record<string, string | null>>
@@ -90,8 +109,8 @@ export function useReviewComments(enabled: boolean) {
 
   // A new draft, from C or the Edit verb, opens the field with focus.
   useEffect(() => {
-    if (enabled && commentDraft) composeRef.current?.focus();
-  }, [enabled, commentDraft]);
+    if (showComposer && commentDraft) composeRef.current?.focus();
+  }, [showComposer, commentDraft]);
 
   const entries = useMemo(
     () => commentEntriesOf(comments ?? [], flipped),
@@ -141,7 +160,7 @@ export function useReviewComments(enabled: boolean) {
           )
         : null;
     if (nav && resolved) nav.onSelect(next);
-    const by = commitCommentActor(null, COMMENT_ROLE);
+    const by = commitCommentActor(null, role);
     let settle: (ok: boolean) => void = () => {};
     const mine = {
       to: resolved,
@@ -224,7 +243,7 @@ export function useReviewComments(enabled: boolean) {
     try {
       const result = await postComment.post({
         body,
-        author: commitCommentActor(name, COMMENT_ROLE, setName),
+        author: commitCommentActor(name, role, setName),
       });
       // Escape closed the field while this was in flight: its outcome is moot.
       if (started !== session.current) {
@@ -232,6 +251,7 @@ export function useReviewComments(enabled: boolean) {
         return;
       }
       if (!result.ok) return;
+      if (guest && capCommentName(name)) saveCommentAuthor(name, role);
       setBody("");
       useDawStore
         .getState()
@@ -242,31 +262,31 @@ export function useReviewComments(enabled: boolean) {
     }
   };
 
-  const composer =
-    enabled && commentDraft ? (
-      <div className="rv-compose">
-        <Composer
-          compact
-          onEscape={close}
-          body={body}
-          onBodyChange={setBody}
-          onSubmit={() => void post()}
-          anchor={{
-            kind: "pinned",
-            start: commentDraft.startSec,
-            end: commentDraft.endSec ?? undefined,
-          }}
-          name={{
-            value: name,
-            onChange: (v) => setName(limitCommentName(v)),
-            placeholder: "Your name",
-          }}
-          state={postComment.busy ? "posting" : "idle"}
-          inputRef={composeRef}
-        />
-        <InlineError message={postComment.error} />
-      </div>
-    ) : undefined;
+  const type = (value: string) => {
+    const state = useDawStore.getState();
+    if (value && !state.commentDraft)
+      state.setCommentDraft(resolveCommentAnchor(state).draft);
+    setBody(value);
+  };
+
+  const composer = showComposer ? (
+    <div className="rv-compose">
+      <ComposeAnchor
+        compact
+        onEscape={close}
+        body={body}
+        onBodyChange={type}
+        onSubmit={() => void post()}
+        name={{
+          value: name,
+          onChange: (v) => setName(limitCommentName(v)),
+        }}
+        state={postComment.busy ? "posting" : "idle"}
+        inputRef={composeRef}
+      />
+      <InlineError message={postComment.error} />
+    </div>
+  ) : undefined;
 
   const thread = (item: ReviewItem) => {
     const id = commentIdOf(item.id);
@@ -280,32 +300,42 @@ export function useReviewComments(enabled: boolean) {
         <CommentCard
           comment={commentCardOf(c, resolved, duration)}
           onSelect={() => playComment(c)}
-          onResolve={resolved ? () => void resolve(c.id, false) : undefined}
-          onToggleAction={(actionId, done) => {
-            setAsked(c.id);
-            void actions.toggleAction(c, actionId, done);
-          }}
-          reply={{
-            body: draft,
-            onBodyChange: (next) =>
-              setReplies((prev) => ({ ...prev, [c.id]: next })),
-            onSubmit: () => {
-              if (posting.current.has(c.id)) return;
-              posting.current.add(c.id);
-              setPostingIds(new Set(posting.current));
-              setAsked(c.id);
-              const fail = (msg: string) =>
-                setReplyErrors((prev) => ({ ...prev, [c.id]: msg }));
-              setReplyErrors((prev) => ({ ...prev, [c.id]: null }));
-              void actions.reply(c, draft, fail).then((ok) => {
-                posting.current.delete(c.id);
-                setPostingIds(new Set(posting.current));
-                if (ok) setReplies((prev) => ({ ...prev, [c.id]: "" }));
-              });
-            },
-            state: postingIds.has(c.id) ? "posting" : "idle",
-            inputRef: replyRef,
-          }}
+          onResolve={
+            !guest && resolved ? () => void resolve(c.id, false) : undefined
+          }
+          onToggleAction={
+            mayAction
+              ? (actionId, done) => {
+                  setAsked(c.id);
+                  void actions.toggleAction(c, actionId, done);
+                }
+              : undefined
+          }
+          reply={
+            mayReply
+              ? {
+                  body: draft,
+                  onBodyChange: (next) =>
+                    setReplies((prev) => ({ ...prev, [c.id]: next })),
+                  onSubmit: () => {
+                    if (posting.current.has(c.id)) return;
+                    posting.current.add(c.id);
+                    setPostingIds(new Set(posting.current));
+                    setAsked(c.id);
+                    const fail = (msg: string) =>
+                      setReplyErrors((prev) => ({ ...prev, [c.id]: msg }));
+                    setReplyErrors((prev) => ({ ...prev, [c.id]: null }));
+                    void actions.reply(c, draft, fail).then((ok) => {
+                      posting.current.delete(c.id);
+                      setPostingIds(new Set(posting.current));
+                      if (ok) setReplies((prev) => ({ ...prev, [c.id]: "" }));
+                    });
+                  },
+                  state: postingIds.has(c.id) ? "posting" : "idle",
+                  inputRef: replyRef,
+                }
+              : undefined
+          }
         />
         <InlineError
           message={replyErrors[c.id] ?? (mine ? actions.error : null)}
@@ -321,7 +351,7 @@ export function useReviewComments(enabled: boolean) {
       composer,
       onReply: () => replyRef.current?.focus(),
     },
-    onComment: open,
+    onComment: mayComment ? open : undefined,
     onResolve: (id: string, nav: CommentNav) => {
       const commentId = commentIdOf(id);
       if (commentId) void resolve(commentId, true, nav);

@@ -83,12 +83,12 @@ export function ActionBarInline({
         Open in {edit?.label ?? "Edit"}
       </Button>
     ) : null;
-  const comment = (
+  const comment = onComment ? (
     <Button variant="link" onClick={onComment} title={commentButton.title}>
       <SystemIcon name={commentButton.icon} size={16} />
       {commentButton.label}
     </Button>
-  );
+  ) : null;
   const onBarVerb = (id: BarId) => {
     if (primary && id === primary.id) onVerb?.();
     else if (id === "keep") onKeep?.();
@@ -103,7 +103,7 @@ export function ActionBarInline({
       <ActionBar
         placement={placement}
         leading={dock ? undefined : comment}
-        items={dock ? [{ id: "comment" }] : []}
+        items={dock && onComment ? [{ id: "comment" }] : []}
         center={center}
         trailing={openInEdit}
         onVerb={onBarVerb}

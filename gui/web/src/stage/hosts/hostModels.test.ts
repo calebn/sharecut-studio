@@ -25,10 +25,10 @@ describe("stageAvailable", () => {
 });
 
 describe("review sections", () => {
-  it("gives the host the Queue and a guest Comments", () => {
+  it("gives every role the Queue alone", () => {
     expect(reviewSectionsFor("host")).toEqual(["queue"]);
-    expect(reviewSectionsFor("commenter")).toEqual(["comments"]);
-    expect(reviewSectionsFor("editor")).toEqual(["comments"]);
+    expect(reviewSectionsFor("commenter")).toEqual(["queue"]);
+    expect(reviewSectionsFor("editor")).toEqual(["queue"]);
   });
 
   it("falls back to the first section the role has", () => {

@@ -20,12 +20,6 @@ import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
 import { ShareFlowProvider } from "./shareFlow";
 
-vi.mock("../../panels/CommentsPanel", () => ({
-  CommentsPanel: () => <div>comments panel</div>,
-}));
-vi.mock("./GuestComments", () => ({
-  GuestComments: () => <div>guest comments panel</div>,
-}));
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   loadHostRecordState: vi.fn(
@@ -161,18 +155,17 @@ describe("Review host", () => {
     expect(
       screen.queryByRole("tablist", { name: "Review sections" }),
     ).toBeNull();
-    expect(screen.queryByText("comments panel")).toBeNull();
     expect(screen.getByRole("region", { name: "Decision" })).toBeVisible();
   });
 
-  it("gives a guest Comments only, even when the slice names Queue", () => {
+  it("gives a guest the Queue alone, even when the slice names Comments", () => {
     asGuest("review", "comment");
-    useDawStore.setState({ reviewSection: "queue" });
+    useDawStore.setState({ reviewSection: "comments" });
     mount(true);
     expect(
       screen.queryByRole("tablist", { name: "Review sections" }),
     ).toBeNull();
-    expect(screen.getByText("guest comments panel")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Decision" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Deliver" })).toBeNull();
   });
 
@@ -206,7 +199,7 @@ describe("Review host", () => {
     useDawStore.setState({ stage: "review", guestMode: "comment" });
     const { unmount } = mount(true);
     const script = screen.getByRole("button", { name: "Welcome" });
-    const comments = screen.getByText("guest comments panel");
+    const comments = screen.getByRole("region", { name: "Decision" });
     expect(
       script.compareDocumentPosition(comments) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -257,7 +250,7 @@ describe("Review host", () => {
       useDawStore.getState().hydrate("share:abc", project);
       useDawStore.setState({ stage: "review", guestMode: "view" });
       mount(true);
-      expect(screen.getByText("guest comments panel")).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Decision" })).toBeVisible();
       expect(document.querySelector(".stage-host-guest-script") !== null).toBe(
         shown,
       );

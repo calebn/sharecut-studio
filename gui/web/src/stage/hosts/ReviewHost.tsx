@@ -3,16 +3,13 @@ import { useShallow } from "zustand/react/shallow";
 import { runPointerCommand } from "../../commands/pointer";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { ModelGateDialog } from "../../models";
-import { CommentsPanel } from "../../panels/CommentsPanel";
 import { ReviewStage } from "../../review/ReviewStage";
-import { isShareProjectKey } from "../../shareMode";
+import { isGuestSession, isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
-import type { ReviewSection, StageRole } from "../../types/stage";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 
-import { GuestComments } from "./GuestComments";
 import { GuestScriptHost } from "./GuestScriptHost";
 import { effectiveSection, hostStateOf, reviewSectionsFor } from "./hostModels";
 import { ReviewStageView } from "./ReviewStageView";
@@ -25,42 +22,28 @@ export type ReviewHostProps = {
 };
 
 function panelFor(
-  section: ReviewSection,
-  guestShare: boolean,
   queue: ReturnType<typeof useReviewQueue>,
   find: ReturnType<typeof useFindMore>,
-  role: StageRole,
   scripted: boolean,
 ) {
-  switch (section) {
-    case "queue":
-      return (
-        <ReviewStage
-          {...queue.stageProps}
-          job={find.job}
-          onFindMore={find.onFindMore}
-          findMoreDisabled={find.findMoreDisabled}
-        />
-      );
-    case "comments":
-      return (
-        <>
-          {scripted ? <GuestScriptHost /> : null}
-          {role === "host" && !guestShare ? (
-            <CommentsPanel />
-          ) : (
-            <GuestComments guestShare={guestShare} />
-          )}
-        </>
-      );
-  }
+  return (
+    <>
+      {scripted ? <GuestScriptHost /> : null}
+      <ReviewStage
+        {...queue.stageProps}
+        job={find.job}
+        onFindMore={find.onFindMore}
+        findMoreDisabled={find.findMoreDisabled}
+      />
+    </>
+  );
 }
 
 function ReviewHostAdapter({
   guestShare = false,
   loadFailure,
 }: ReviewHostProps) {
-  const queue = useReviewQueue();
+  const queue = useReviewQueue(guestShare);
   const { project, projectPath, guestMode, reviewSection } = useDawStore(
     useShallow((s) => ({
       project: s.project,
@@ -70,14 +53,14 @@ function ReviewHostAdapter({
     })),
   );
   const role = stageRoleOf(guestMode);
-  const find = useFindMore(role === "host" && !isShareProjectKey(projectPath));
+  const guest = isGuestSession(projectPath, guestMode, guestShare);
+  const find = useFindMore(!guest && !isShareProjectKey(projectPath));
   const shell = useViewportClass();
   const sections = useMemo(() => reviewSectionsFor(role), [role]);
   const active = effectiveSection(reviewSection, sections);
   const scrollRef = useStageScroll("review", `section:${active}`);
   const waiting = {
     queue: (project?.edit_impact.pending_review_count ?? 0) > 0,
-    comments: project?.comments?.some((c) => !c.resolved) ?? false,
   };
   return (
     <>
@@ -90,17 +73,11 @@ function ReviewHostAdapter({
         waiting={waiting}
         onSection={(section) => runPointerCommand("stage.review", { section })}
         panel={panelFor(
-          active,
-          guestShare,
           queue,
           find,
-          role,
-          role !== "host" &&
-            project?.meta.hydration?.transcript_words !== false,
+          guest && project?.meta.hydration?.transcript_words !== false,
         )}
-        onDeliver={
-          role === "host" ? () => runPointerCommand("stage.deliver") : undefined
-        }
+        onDeliver={guest ? undefined : () => runPointerCommand("stage.deliver")}
         scrollRef={scrollRef}
       />
       <ModelGateDialog gate={find.gate} />
@@ -109,8 +86,8 @@ function ReviewHostAdapter({
 }
 
 /**
- * The Review stage host: the Queue alone, where a host's comments are items
- * and the comment field opens. A guest sees the Comments section only,
- * because the queue acts on the project.
+ * The Review stage host: the Queue alone, where comments are items and the
+ * comment field opens. A guest gets the Queue as a reader (`guest`): comments
+ * only, and nothing that decides, because the queue acts on the project.
  */
 export const ReviewHost = memo(ReviewHostAdapter);

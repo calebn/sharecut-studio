@@ -37,7 +37,7 @@ const meta: Meta<StageHostProps> = {
     docs: {
       description: {
         component:
-          "The Review stage host: the host's Queue, where comments are items next to suggestions and checks, and the comment field opens above the card. A Viewer or Commenter link gets the Comments section only and no Stage bar.\n\n**Motion.** Selecting a comment swaps the card in one frame. The comment field opens with focus and closes on Escape.",
+          "The Review stage host: the Queue, where comments are items next to suggestions and checks, and the comment field opens above the card for a host. A Viewer or Commenter link gets the same Queue as a reader, with comments only and no Stage bar: a Commenter has the comment field, a Viewer has none.\n\n**Motion.** Selecting a comment swaps the card in one frame. The comment field opens with focus and closes on Escape.",
       },
     },
   },
@@ -236,37 +236,87 @@ export const Phone: Story = {
   },
 };
 
-export const PhoneGuestCommenter: Story = {
-  ...phone,
+const phone390 = {
+  globals: { viewport: { value: "mobile390", isRotated: false } },
+} as const;
+
+const asGuest = (role: "commenter" | "viewer", episodeState: object = {}) => ({
   args: { guestShare: true },
-  parameters: { episode: { role: "commenter", state: { stage: "review" } } },
+  parameters: {
+    episode: { role, state: { stage: "review" }, ...episodeState },
+  },
+});
+
+const NO_COMMENTS = episode({ comments: [] });
+
+const noDecisions = async (canvas: ReturnType<typeof within>) => {
+  await expect(
+    await canvas.findByRole("region", { name: "Queue" }),
+  ).toBeVisible();
+  await expect(
+    canvas.queryByRole("tablist", { name: "Review sections" }),
+  ).toBeNull();
+  for (const name of [/^Cut/, /^Keep/, /Find more/, /Deliver/, /Resolve/])
+    await expect(canvas.queryByRole("button", { name })).toBeNull();
+};
+
+const commenterPlay: Story["play"] = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  await noDecisions(canvas);
+  await expect(
+    await canvas.findByRole("textbox", { name: "Comment" }),
+  ).toBeVisible();
+  await expect(
+    canvas.getByRole("textbox", { name: "Your name" }),
+  ).toBeVisible();
+};
+
+export const GuestCommenter: Story = {
+  ...asGuest("commenter"),
+  play: commenterPlay,
+};
+
+export const GuestCommenterPhone: Story = {
+  ...phone,
+  ...asGuest("commenter"),
+  play: commenterPlay,
+};
+
+export const GuestCommenterPhone390: Story = {
+  ...phone390,
+  ...asGuest("commenter"),
+  play: commenterPlay,
+};
+
+export const GuestCommenterEmpty: Story = {
+  ...phone,
+  ...asGuest("commenter", { project: NO_COMMENTS }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      await canvas.findByRole("region", { name: "Comments" }),
+      (await canvas.findAllByText("Nothing to decide"))[0],
     ).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: /Deliver/ })).toBeNull();
     await expect(
-      canvas.queryByRole("tablist", { name: "Review sections" }),
-    ).toBeNull();
-    await expect(
-      await canvas.findByRole("textbox", { name: "Comment" }),
-    ).toBeVisible();
-    await expect(
-      await canvas.findByRole("textbox", { name: "Your name" }),
+      canvas.getByRole("textbox", { name: "Comment" }),
     ).toBeVisible();
   },
 };
 
+const viewerPlay: Story["play"] = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  await noDecisions(canvas);
+  await expect(canvas.queryByRole("textbox", { name: "Comment" })).toBeNull();
+  await expect(canvas.queryByRole("button", { name: "Comment" })).toBeNull();
+};
+
 export const GuestViewer: Story = {
-  args: { guestShare: true },
-  parameters: { episode: { role: "viewer", state: { stage: "review" } } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      await canvas.findByRole("region", { name: "Comments" }),
-    ).toBeVisible();
-    await expect(canvas.queryByRole("button", { name: "Deliver" })).toBeNull();
-    await expect(canvas.queryByRole("tab", { name: /Queue/ })).toBeNull();
-    await expect(canvas.queryByRole("textbox", { name: "Comment" })).toBeNull();
-  },
+  ...asGuest("viewer"),
+  play: viewerPlay,
+};
+
+export const GuestViewerPhone: Story = {
+  ...phone,
+  ...asGuest("viewer"),
+  play: viewerPlay,
 };

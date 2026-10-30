@@ -11,9 +11,9 @@ export function stageAvailable(stage: StageId, role: StageRole): boolean {
   return stagesForRole(role).includes(stage);
 }
 
-/** A host's comments are queue items; a guest still reads them in the Comments section. */
-export function reviewSectionsFor(role: StageRole): readonly ReviewSection[] {
-  return role === "host" ? ["queue"] : ["comments"];
+/** Comments are queue items for every role; a guest's queue is read-only. */
+export function reviewSectionsFor(_role: StageRole): readonly ReviewSection[] {
+  return ["queue"];
 }
 
 /** The stored section, or the first one the role has when it names one they cannot see. */

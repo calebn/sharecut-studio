@@ -974,13 +974,4 @@ describe("Review host comments", () => {
     mount();
     expect(screen.getByRole("button", { name: "Comments, 2" })).toBeVisible();
   });
-
-  it("gives a guest the Comments section and no queue comments", () => {
-    server.comments = [OPEN];
-    useDawStore.getState().hydrate(PATH, projectOf());
-    useDawStore.setState({ stage: "review", guestMode: "comment" });
-    render(<App />);
-    expect(document.querySelector(".rv-stage")).toBeNull();
-    expect(document.querySelector(".stage-host-guest-comments")).not.toBeNull();
-  });
 });
