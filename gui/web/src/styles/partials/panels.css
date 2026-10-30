@@ -1,75 +1,5 @@
 /* Bottom panels, transcript, comments, pipeline */
-/* Scroll container for the comments list; `.ui-toast-region` (ui.css)
-   is position: sticky against it. Keep overflow here. */
-.comments-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  height: 100%;
-  overflow: auto;
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--font-size-small);
-}
 
-.comments-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: flex-end;
-}
-
-.comments-toolbar label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0);
-  color: var(--color-text-secondary);
-}
-
-.comments-toolbar input {
-  background: var(--color-field);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-primary);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
-  min-width: 8rem;
-}
-
-.comment-author-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 var(--space-3);
-  margin: 0;
-  align-self: center;
-  color: var(--color-text-secondary);
-}
-
-.comment-author-line strong {
-  color: var(--color-text-primary);
-  overflow-wrap: anywhere;
-}
-
-.comment-author-line > span {
-  min-width: 0;
-}
-
-.comment-author-edit {
-  min-width: 0;
-}
-
-.comment-author-edit input {
-  min-width: 0;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-@media (pointer: coarse) {
-  .comment-author-edit input {
-    min-block-size: var(--touch-min);
-  }
-}
-
-.comments-toolbar > button,
 .comment-compose button,
 .comment-card-footer button {
   /* Interaction paint from .ui-control */
@@ -118,75 +48,12 @@
   margin-inline-start: auto;
 }
 
-.comment-compose .comment-time-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-field);
-  color: var(--color-text-secondary);
-}
-
-.comment-time {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
-}
-
-.comment-time-hint {
-  font-size: var(--font-size-caption);
-  color: var(--color-text-secondary);
-}
-
-.comment-time-chip-value,
-.comment-time-field {
-  font-family: var(--font-family-mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-primary);
-}
-
-.comment-time-field {
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  background: var(--color-field);
-  font-size: var(--font-size-review);
-}
-
 @media (pointer: coarse) {
   .comment-compose input:not([type="checkbox"]),
   .comment-compose textarea,
-  .comment-compose .comment-time-chip,
-  .comment-compose .comment-time-field,
   .comment-compose-submit > .primary {
     min-block-size: var(--touch-min);
   }
-
-  .comment-track-picks label {
-    display: inline-flex;
-    align-items: center;
-    min-block-size: var(--touch-min);
-  }
-}
-
-.comment-track-picks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: center;
-  color: var(--color-text-secondary);
-}
-
-.comments-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
 }
 
 .comment-card {

@@ -12,8 +12,8 @@ function CardHarness(args: Args) {
   const [replyDraft, setReplyDraft] = useState(args.replyDraft ?? "");
   const [selected, setSelected] = useState(args.selected ?? false);
   return (
-    <div className="comments-panel">
-      <ul className="comments-list">
+    <div>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
         <CommentCard
           {...args}
           comment={comment}

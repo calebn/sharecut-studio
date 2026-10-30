@@ -185,8 +185,8 @@ const COVERED: Record<string, Proof> = {
     test: "offers Undo on the toast for the history entry the command left",
   },
   "comment.resolve": {
-    file: "panels/CommentsPanel.test.tsx",
-    test: "shows an Undo toast after resolving and reopens on Undo",
+    file: "stage/hosts/ReviewHost.comments.test.tsx",
+    test: "resolves with Enter, moves to the next comment, and Undo reopens it",
     shows: /name: "Undo"/,
   },
 };

@@ -24,11 +24,6 @@ const COVERED: Record<string, string[]> = {
     "System/Seam",
     "System/InspectorSheet",
   ],
-  "PNL-COMMENTS": [
-    "Templates/Editor · Comments panel",
-    "Templates/CommentCard",
-    "Templates/CommentCompose",
-  ],
   "CMP-GUEST-NAME": ["System/Composer"],
   "DLG-STEP-PARAMS": ["Stages/Prepare/AdvancedSteps"],
   "PNL-PIPELINE": ["Stages/Prepare/AdvancedSteps", "Stages/Prepare/ReadyList"],
@@ -251,7 +246,7 @@ describe("story coverage manifest", () => {
   });
 
   it("lists exactly the surfaces in the inventory", () => {
-    expect(INVENTORY_IDS).toHaveLength(130);
+    expect(INVENTORY_IDS).toHaveLength(129);
     expect(ids.filter((id) => !INVENTORY_IDS.includes(id))).toEqual([]);
     expect(INVENTORY_IDS.filter((id) => !ids.includes(id))).toEqual([]);
   });

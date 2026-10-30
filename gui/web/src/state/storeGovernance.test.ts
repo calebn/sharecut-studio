@@ -411,8 +411,7 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
   },
   {
     file: "comments/commentAnchor.ts",
-    reason:
-      "pure anchor resolution: the CommentAnchorChip leaf selects only its label string, and a post reads it once",
+    reason: "pure anchor resolution: a post reads it once",
   },
   {
     file: "hooks/useAudioTransport.ts",
