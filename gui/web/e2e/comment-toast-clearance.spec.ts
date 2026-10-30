@@ -15,8 +15,7 @@ const PHONES = [
   { name: "keyboard-open", width: 390, height: 340 },
 ] as const;
 
-const COMPOSER =
-  ".sys-composer, .comment-compose, .comment-author-line, .comment-author-edit";
+const COMPOSER = ".sys-composer";
 
 async function settle(page: Page) {
   await page.evaluate(
@@ -77,7 +76,7 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
           const token = await createReviewShare(host, projectPath, "commenter");
           await openGuestShare(guest, token);
 
-          const dock = guest.locator(".stage-host-guest-comments");
+          const dock = guest.locator(".rv-compose");
           const field = dock.getByRole("textbox", {
             name: "Comment",
             exact: true,
@@ -108,17 +107,6 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
           await expect(toast).toBeVisible();
           await settle(guest);
           await shot("posted-focused");
-          expect(await overlaps(guest)).toEqual([]);
-
-          await dock
-            .getByRole("button", { name: "Change your comment name" })
-            .tap();
-          await expect(
-            dock.getByRole("textbox", { name: "Your name" }),
-          ).toBeVisible();
-          await expect(toast).toBeVisible();
-          await settle(guest);
-          await shot("changing-name");
           expect(await overlaps(guest)).toEqual([]);
         },
       );

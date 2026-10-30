@@ -54,7 +54,7 @@ async function hostComments(host: Page, count: number): Promise<string[]> {
 }
 
 function composer(guest: Page): Locator {
-  return guest.locator(".stage-host-guest-comments");
+  return guest.locator(".rv-compose");
 }
 
 const POST = { name: "Post", exact: true } as const;
@@ -122,7 +122,7 @@ async function withNamedGuest(
       await field.fill("First");
       await name.fill(who);
       await post.tap();
-      await expect(dock.locator(".comment-author-line strong")).toHaveText(who);
+      await expect(name).toHaveValue(who);
       await run(guest, dock);
     },
     colorScheme,
@@ -164,13 +164,7 @@ for (const theme of ["light", "dark"] as const) {
           await name.fill("Riley Okafor");
           await post.tap();
           await expect(field).toHaveValue("");
-          await expect(name).toHaveCount(0);
-          await expect(dock.locator(".comment-author-line strong")).toHaveText(
-            "Riley Okafor",
-          );
-          await expectTouchTarget(
-            dock.getByRole("button", { name: "Change your comment name" }),
-          );
+          await expect(name).toHaveValue("Riley Okafor");
           await expectNoHorizontalScroll(guest, phone.width);
 
           const rows = await hostComments(host, 1);
@@ -178,14 +172,12 @@ for (const theme of ["light", "dark"] as const) {
           expect(rows[0]).not.toContain("Guest");
 
           await guest.reload();
-          await expect(dock.locator(".comment-author-line strong")).toHaveText(
-            "Riley Okafor",
-          );
+          await expect(name).toHaveValue("Riley Okafor");
           await field.tap();
           await field.fill("Second note");
           await post.tap();
-          await expect(name).toHaveCount(0);
           await expect(field).toHaveValue("");
+          await expect(name).toHaveValue("Riley Okafor");
         },
         theme,
       );
@@ -200,20 +192,13 @@ test("a phone guest can leave the name blank and change it later", async ({
     browser,
     { width: 390, height: 844 },
     async (_guest, host, dock) => {
-      const { field, post } = fields(dock);
+      const { field, name, post } = fields(dock);
       await field.fill("Anonymous note");
       await post.tap();
       await expect(field).toHaveValue("");
-      await expect(dock.locator(".comment-author-line strong")).toHaveText(
-        "Guest",
-      );
+      await expect(name).toHaveValue("Guest");
 
-      await dock
-        .getByRole("button", { name: "Change your comment name" })
-        .tap();
-      const rename = dock.getByRole("textbox", { name: "Your name" });
-      await rename.fill("Alex");
-      await rename.press("Enter");
+      await name.fill("Alex");
       await field.fill("Named note");
       await post.tap();
       await expect(field).toHaveValue("");
@@ -270,7 +255,7 @@ for (const size of DOCK_SIZES) {
     });
   });
 
-  test(`a 40-character unbroken name stays inside the composer and its Change editor stays in its column, at ${label}`, async ({
+  test(`a 40-character unbroken name stays inside the composer, at ${label}`, async ({
     browser,
   }) => {
     await withNamedGuest(browser, size, "W".repeat(40), async (guest, dock) => {
@@ -280,29 +265,14 @@ for (const size of DOCK_SIZES) {
         "composer scrolls sideways",
       ).toBe(true);
       const panel = await dock.boundingBox();
-      const strong = await dock
-        .locator(".comment-author-line strong")
-        .boundingBox();
-      if (strong && panel) {
-        expect(strong.x + strong.width).toBeLessThanOrEqual(
+      const input = await fields(dock).name.boundingBox();
+      expect(panel).not.toBeNull();
+      expect(input).not.toBeNull();
+      if (panel && input) {
+        expect(input.x + input.width).toBeLessThanOrEqual(
           panel.x + panel.width + 0.5,
         );
       }
-      await dock
-        .getByRole("button", { name: "Change your comment name" })
-        .tap();
-      const edit = await dock.locator(".comment-author-edit").boundingBox();
-      const input = await dock
-        .getByRole("textbox", { name: "Your name" })
-        .boundingBox();
-      expect(edit).not.toBeNull();
-      expect(input).not.toBeNull();
-      if (edit && input) {
-        expect(input.x + input.width).toBeLessThanOrEqual(
-          edit.x + edit.width + 0.5,
-        );
-      }
-      await expectNoHorizontalScroll(guest, size.width);
     });
   });
 }
