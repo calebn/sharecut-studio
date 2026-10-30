@@ -78,6 +78,7 @@ from podcast_mcp.edits.timeline_ops import (
 )
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 from podcast_mcp.engines.clips_ops import (
+    SPLICE_SOURCE_EPS_SEC,
     abutting_pairs,
     clip_split_origin,
     clips_for_track,
@@ -975,9 +976,14 @@ def _write_join_fades(
                 for clip in (left, right)
             ):
                 continue
+            if right.source_start < left.source_end - SPLICE_SOURCE_EPS_SEC:
+                continue
             join_src = left.source_end
             matching = [
-                d for d in decs if abs(d.end - join_src) < 0.08 or abs(d.start - join_src) < 0.08
+                d
+                for d in decs
+                if (abs(d.end - join_src) < 0.08 or abs(d.start - join_src) < 0.08)
+                and left.source_id in project.equivalent_source_ids(tid, d.source_id)
             ]
             if not matching:
                 continue

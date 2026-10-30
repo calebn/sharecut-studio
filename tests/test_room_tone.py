@@ -20,6 +20,7 @@ from podcast_mcp.edits.timeline_ops import (
     insert_room_tone_pad,
     mute_room_tone_fill,
 )
+from podcast_mcp.engines.audio import SourceAudio
 from podcast_mcp.engines.clips_ops import (
     crossfade_block_reason,
     crossfade_borrow_sec,
@@ -591,8 +592,9 @@ def test_the_same_pad_position_tiles_the_bed_the_same_way(tmp_path: Path) -> Non
     ]
 
 
-def _mute_fill_tiles(tmp_path: Path, mute: tuple[float, float], fill: tuple[float, float]):
-    from podcast_mcp.engines.audio import SourceAudio
+def _mute_fill_tiles(
+    tmp_path: Path, mute: tuple[float, float], fill: tuple[float, float]
+) -> list[tuple[float, SourceAudio]]:
     from podcast_mcp.engines.timeline_render import _room_tone_under_mutes
 
     project = _project(tmp_path, host=_host_audio())
@@ -645,7 +647,7 @@ def test_a_mute_fill_tiles_the_same_way_every_time(tmp_path: Path) -> None:
     first = _mute_fill_tiles(tmp_path / "one", (1.0, 9.0), (4.0, 7.0))
     second = _mute_fill_tiles(tmp_path / "two", (1.0, 9.0), (4.0, 7.0))
 
-    def geometry(tiles):
+    def geometry(tiles: list[tuple[float, SourceAudio]]) -> list[tuple[float, ...]]:
         return [
             (at, leaf.src_start, leaf.src_end, leaf.fade_in_sec, leaf.fade_out_sec)
             for at, leaf in tiles
@@ -1650,3 +1652,74 @@ def test_a_peer_recording_that_ends_early_does_not_reject_later_room_tone(tmp_pa
 
     assert fill is not None
     assert (fill.start_s, fill.end_s) == pytest.approx((5.15, 5.65))
+
+
+def test_a_cut_decision_near_a_fill_join_does_not_rewrite_the_fill_crossfade(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.edits.cut_application import _write_join_fades
+
+    project = _project(tmp_path, host=_host_audio())
+    _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 3 * SR])
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=4.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=4.5, source_end=10.0, timeline_start=4.0),
+    ]
+    insert_room_tone_pad(project, 4.0, 20.0, defaults=load_defaults())
+    pads = sorted(
+        (c for c in project.clips if c.source_id == "room-tone-host"),
+        key=lambda c: c.timeline_start,
+    )
+    join = pads[0].source_end
+    before = [(c.join_in_mode, c.fade_in_ms, c.fade_out_ms) for c in pads]
+
+    _write_join_fades(
+        project,
+        [
+            EditDecision(
+                id="d",
+                track_id="host",
+                type=EditDecisionType.REMOVE,
+                start=join - 1.0,
+                end=join + 0.01,
+                crossfade_ms=10,
+            )
+        ],
+        defaults=load_defaults(),
+    )
+
+    assert [(c.join_in_mode, c.fade_in_ms, c.fade_out_ms) for c in pads] == before
+
+
+def test_a_rewind_join_in_the_same_source_is_not_a_cut(tmp_path: Path) -> None:
+    from podcast_mcp.edits.cut_application import _write_join_fades
+
+    project = _project(tmp_path, host=_host_audio())
+    project.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=2.0,
+            source_end=3.0,
+            timeline_start=0.0,
+            fade_out_ms=40,
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=1.0,
+            source_end=2.0,
+            timeline_start=1.0,
+            fade_in_ms=40,
+            join_in_mode=ClipJoinMode.CROSSFADE,
+        ),
+    ]
+
+    result = _write_join_fades(
+        project,
+        [EditDecision(id="d", track_id="host", start=2.9, end=3.0, crossfade_ms=10)],
+        defaults=load_defaults(),
+    )
+
+    assert result["affected_tracks"] == []
+    assert project.clips[1].join_in_mode == ClipJoinMode.CROSSFADE
