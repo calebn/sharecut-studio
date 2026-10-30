@@ -14,6 +14,7 @@ import {
   editFacts,
 } from "../edit/editSelection";
 import {
+  lastClipEndSec,
   replaceableSpan,
   replaceTargetOf,
   scriptOf,
@@ -370,11 +371,17 @@ async function record(facts: EditFacts): Promise<ExecuteResult> {
   return recordHere();
 }
 
-/** Record here: open Record with an Insert-at-playhead target. Host only. */
+/**
+ * Record here: open Record with an Insert-at-playhead target. Host only. On an
+ * empty timeline there is nothing to insert into, so Record opens with its
+ * default target.
+ */
 export async function recordHere(): Promise<ExecuteResult> {
   const s = useDawStore.getState();
   if (!canManageProjects(s.projectPath))
     return disabled("Only the host can record");
+  if (lastClipEndSec(s.project) === undefined)
+    return executePointerCommand("stage.record");
   return openRecordWith({ kind: "insert", at_sec: s.playheadSec });
 }
 
