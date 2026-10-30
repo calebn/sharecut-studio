@@ -109,7 +109,7 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ),
     ("POST", "/api/review/{token}/feed/edit"): (
         "Editor",
-        "Change one plain show value (not the hosting address, not choosing the show)",
+        "Change one plain show value (not the hosting address, not choosing the show, not artwork named by a file path)",
     ),
     ("POST", "/api/review/{token}/feed/write"): (
         "Editor",

@@ -21,9 +21,9 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketState
 
+from podcast_mcp.feed.fields import guest_pinnable
 from podcast_mcp.feed.model import FeedEdit, SetEdit
 from podcast_mcp.feed.resolve import pin_row
-from podcast_mcp.feed.urls import is_local_art
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pending_preview_headers, pinned_audio_response
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
@@ -615,14 +615,8 @@ def require_guest_show_edit(edit: FeedEdit) -> None:
             f"{key} is an episode setting; it is edited on the episode",
             code="feed_field_not_editable",
         )
-    local_art = (
-        key == "channel.image"
-        and isinstance(edit, SetEdit)
-        and isinstance(edit.value, str)
-        and bool(edit.value.strip())
-        and is_local_art(edit.value)
-    )
-    if spec.host_only or local_art:
+    value = edit.value if isinstance(edit, SetEdit) else None
+    if not guest_pinnable(key, "show", value):
         raise CodedPermissionError(
             "That setting is changed by the host", code="share_capability_required"
         )

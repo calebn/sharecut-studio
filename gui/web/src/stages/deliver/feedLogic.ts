@@ -364,7 +364,8 @@ export const HOST_ONLY_WHY = "Only the host can change this.";
 export const READ_ONLY_WHY =
   "This link can read the listing but not change it.";
 const ART_WHY = "An edit link can set artwork only as an https address.";
-const HOSTING_WHY = "An episode hosting address must be an https address.";
+const HOSTING_WHY =
+  "Episode hosting address must be an https address with no spaces or special characters.";
 
 /** The settings an Editor link leaves with the host: the show itself and where its files live. */
 const HOST_ONLY_KEYS: ReadonlySet<FieldKey> = new Set([

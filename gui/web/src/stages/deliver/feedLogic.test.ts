@@ -203,7 +203,9 @@ describe("what a link may change", () => {
   it("asks an Editor for a hosting address as https only", () => {
     expect(
       editBlock("editor", set("item.enclosure.url", "http://x.test/a.mp3")),
-    ).toBe("An episode hosting address must be an https address.");
+    ).toBe(
+      "Episode hosting address must be an https address with no spaces or special characters.",
+    );
     expect(
       editBlock("editor", set("item.enclosure.url", "https://x.test/a.mp3")),
     ).toBeNull();

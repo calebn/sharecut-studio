@@ -9,8 +9,10 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from podcast_mcp.feed.fields import (
+    COUNT_RANGE_RULE,
     FIELDS,
     PERSON_KEY,
+    SHOW_PERSON_KEY,
     AtSource,
     Auto,
     FieldSpec,
@@ -124,6 +126,16 @@ def _limit_phrase(exc: ValidationError) -> str | None:
     return _LIMIT_PHRASES.get(exc.errors()[0]["type"])
 
 
+def _stored_limit_phrase(exc: ValidationError) -> str | None:
+    """Like ``_limit_phrase``, and a count outside its range (a value error carrying that rule) too."""
+    if (phrase := _limit_phrase(exc)) is not None:
+        return phrase
+    first = exc.errors()[0]
+    if first["type"] == "value_error" and str(first["msg"]).endswith(COUNT_RANGE_RULE):
+        return "is outside the allowed range"
+    return None
+
+
 def _usable_pin(spec: FieldSpec, pin: Pin, res: Resolution) -> bool:
     """False when a stored pin is the wrong kind of value, such as a number where text belongs.
 
@@ -132,7 +144,7 @@ def _usable_pin(spec: FieldSpec, pin: Pin, res: Resolution) -> bool:
     try:
         spec.value.validate_python(pin.value)
     except ValidationError as exc:
-        if (phrase := _limit_phrase(exc)) is not None:
+        if (phrase := _stored_limit_phrase(exc)) is not None:
             res.refused_pins[spec.key] = phrase
             return True
         return exc.errors()[0]["type"] == "value_error"
@@ -391,15 +403,27 @@ class FeedValueInvalidError(CodedValueError):
         return GENERIC_GUEST_MESSAGE if mentions_host_path(text) else text
 
 
+_PERSON_ATTR_WORDS = {"role": "role", "group": "group", "img": "picture", "href": "link"}
+
+
+def _noun(spec: FieldSpec) -> tuple[str, str]:
+    """What a sentence is about and its article: the row's label, or ``host's link`` for one attribute of one person."""
+    match = PERSON_KEY.match(spec.key) or SHOW_PERSON_KEY.match(spec.key)
+    if match is None:
+        return spec.label, ""
+    return f"{spec.label}'s {_PERSON_ATTR_WORDS.get(match['attr'] or 'role', 'setting')}", "A "
+
+
 def _refusal_sentence(spec: FieldSpec, exc: ValidationError) -> str:
     """``Hosting address template must have exactly one place for the file name.``: label and rule broken."""
-    label = spec.label[:1].upper() + spec.label[1:]
+    noun, article = _noun(spec)
+    subject = f"{article}{noun}" if article else noun[:1].upper() + noun[1:]
     first = exc.errors()[0]
     if (phrase := _limit_phrase(exc)) is not None:
-        return f"{label} {phrase}."
+        return f"{subject} {phrase}."
     if first["type"] != "value_error":
-        return f"That isn't the kind of value the {spec.label} setting takes."
-    return f"{label} {first['msg'].removeprefix('Value error, ')}."
+        return f"That isn't the kind of value the {noun} setting takes."
+    return f"{subject} {first['msg'].removeprefix('Value error, ')}."
 
 
 def pin_row(key: str) -> FieldSpec:

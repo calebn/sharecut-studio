@@ -163,8 +163,24 @@ Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 Https = Annotated[str, AfterValidator(check_https_url)]
 ArtRef = Annotated[str, AfterValidator(check_art_ref)]
 Template = Annotated[str, AfterValidator(check_media_template)]
-Email = Annotated[str, StringConstraints(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=254)]
-Language = Annotated[str, StringConstraints(pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$")]
+_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+_LANGUAGE_CODE = re.compile(r"[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*")
+
+
+def _check_email(value: str) -> str:
+    if _EMAIL.fullmatch(value) is None:
+        raise ValueError("must be an email address with a name, an @ and a domain")
+    return value
+
+
+def _check_language(value: str) -> str:
+    if _LANGUAGE_CODE.fullmatch(value) is None:
+        raise ValueError("must be a language code of two or three letters, with an optional region")
+    return value
+
+
+Email = Annotated[str, StringConstraints(max_length=254), AfterValidator(_check_email)]
+Language = Annotated[str, AfterValidator(_check_language)]
 
 _TEXT = TypeAdapter(Text)
 _BOOL = TypeAdapter(bool)
@@ -174,9 +190,12 @@ MAX_NUMBER = 999_999
 NAME_MAX = 128
 
 
+COUNT_RANGE_RULE = f"must be between 1 and {MAX_NUMBER}"
+
+
 def _count(value: int) -> int:
     if not 1 <= value <= MAX_NUMBER:
-        raise ValueError(f"must be between 1 and {MAX_NUMBER}")
+        raise ValueError(COUNT_RANGE_RULE)
     return value
 
 
@@ -1274,10 +1293,22 @@ _PERSON_PIN = FieldSpec(
 )
 
 
-def guest_pinnable(key: str, scope: Literal["show", "episode"]) -> bool:
-    """Whether a share link may pin ``key``: a row of ``scope`` that a pin edits and the host has not kept."""
+def guest_pinnable(key: str, scope: Literal["show", "episode"], value: Any = None) -> bool:
+    """Whether a share link may pin ``key`` to ``value``: a row of ``scope`` that a pin edits and the host has not kept.
+
+    The one place the host-only rules live. Artwork named by a file path on the host's machine is
+    the host's too, so a non-blank ``value`` for ``channel.image`` that is not an https address
+    is refused here; a blank one is an unset, which any editor may do.
+    """
     spec = lookup(key)
-    return spec is not None and spec.scope == scope and spec.edit == "pin" and not spec.host_only
+    if spec is None or spec.scope != scope or spec.edit != "pin" or spec.host_only:
+        return False
+    return not (
+        key == "channel.image"
+        and isinstance(value, str)
+        and bool(value.strip())
+        and is_local_art(value)
+    )
 
 
 def lookup(key: str) -> FieldSpec | None:

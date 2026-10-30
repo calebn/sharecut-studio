@@ -17,10 +17,15 @@ _SLOT = "{file}"
 _ASCII = re.compile(r"[\x21-\x7e]+")
 
 
+MAX_URL_LENGTH = 2000
+
+
 def check_https_url(value: str) -> str:
+    if len(value) > MAX_URL_LENGTH:
+        raise ValueError(f"must be at most {MAX_URL_LENGTH} characters")
     parts = urlsplit(value)
     if parts.scheme != "https" or not parts.netloc or not _ASCII.fullmatch(value):
-        raise ValueError("must be an https address, using plain letters and numbers")
+        raise ValueError("must be an https address with no spaces or special characters")
     return value
 
 

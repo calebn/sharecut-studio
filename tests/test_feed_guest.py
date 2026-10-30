@@ -140,7 +140,6 @@ def test_a_guest_edit_undoes_as_a_guest(episode: Path, published_share: Share) -
     [
         ("SetFeedField", {"key": "channel.title", "value": "Hijacked"}),
         ("ClearFeedField", {"key": "channel.title"}),
-        ("SetFeedField", {"key": "../../etc/passwd", "value": "x"}),
     ],
 )
 def test_a_guest_cannot_touch_show_settings_or_forge_an_author(
@@ -198,10 +197,8 @@ def test_a_guest_pin_reads_as_the_guests_in_the_host_view(
     "key",
     [
         "item.guid",
-        "item.nope",
         "item.enclosure.length",
         "channel.mediaUrl",
-        "item.person[Ana Reyes]",
     ],
 )
 def test_the_payload_gate_asks_the_registry_not_the_key_prefix(key: str) -> None:
@@ -209,6 +206,44 @@ def test_the_payload_gate_asks_the_registry_not_the_key_prefix(key: str) -> None
 
     with pytest.raises(CodedPermissionError):
         authorize_document_payload(editor, "SetFeedField", {"key": key, "value": "x"})
+
+
+@pytest.mark.parametrize(
+    "key", ["item.nope", "../../etc/passwd", "channel.nope", "item.person[Ana Reyes]"]
+)
+@pytest.mark.parametrize("kind", FEED_COMMANDS)
+def test_an_unknown_key_is_feed_field_unknown_on_the_document_route_as_on_feed_edit(
+    episode: Path, published_share: Share, kind: str, key: str
+) -> None:
+    client = TestClient(create_app())
+    token = _token(published_share, "editor")
+
+    res = _command(client, token, kind, {"key": key, "value": "x"})
+    edit = client.post(
+        f"/api/review/{token}/feed/edit",
+        json={"edit": {"op": "set", "key": key, "value": "x"}},
+    )
+
+    assert res.status_code == 400
+    assert res.headers["X-Sharecut-Error-Code"] == "feed_field_unknown"
+    assert edit.headers["X-Sharecut-Error-Code"] == "feed_field_unknown"
+    assert _pins(episode) == {}
+
+
+def test_the_web_host_only_list_is_the_registrys_host_only_rows() -> None:
+    import re
+
+    from podcast_mcp.feed.fields import FIELDS
+    from podcast_mcp.services.document import SHOW_KEY
+
+    source = (Path(__file__).parent.parent / "gui/web/src/stages/deliver/feedLogic.ts").read_text(
+        encoding="utf-8"
+    )
+    block = re.search(r"const HOST_ONLY_KEYS[^=]*=\s*new Set\(\[(.*?)\]\)", source, re.DOTALL)
+    assert block is not None
+    web = set(re.findall(r'"([^"]+)"', block.group(1)))
+
+    assert web == {SHOW_KEY, *(f.key for f in FIELDS if f.host_only)}
 
 
 def test_the_payload_gate_lets_a_guest_edit_one_person_attribute() -> None:
@@ -259,7 +294,7 @@ def test_a_guest_value_is_checked_like_the_hosts(episode: Path, published_share:
     assert res.status_code == 400
     assert res.headers["X-Sharecut-Error-Code"] == "feed_value_invalid"
     assert res.json()["detail"] == (
-        "Episode hosting address must be an https address, using plain letters and numbers."
+        "Episode hosting address must be an https address with no spaces or special characters."
     )
     assert _pins(episode) == {}
 
