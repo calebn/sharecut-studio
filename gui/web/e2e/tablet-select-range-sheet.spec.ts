@@ -1,12 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { openHostProject } from "./overlayReachability";
 
-/*
- * Doing controls sit in the bottom zone (#1793): on a tablet, arming Select range opens the Inspector
- * card, pinned to the bottom edge of the Edit stage with nothing selected, with In, Out, the track
- * checkboxes, Select range and Cancel inside it, not a card at the top.
- */
-
 // The Select range toggle is a touch control in the Edit corner; isMobile makes the pointer coarse from the first paint.
 test.use({ hasTouch: true, isMobile: true });
 
