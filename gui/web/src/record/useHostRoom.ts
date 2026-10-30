@@ -33,6 +33,7 @@ import {
   useHostUploadSegments,
   useRecordUpload,
 } from "./upload/useRecordUpload";
+import { useEndSession } from "./useEndSession";
 import { useRecordLiveComments } from "./useRecordLiveComments";
 import { useRoomToneCapture } from "./useRoomToneCapture";
 
@@ -267,6 +268,18 @@ export function useHostRoom(
   }, [hydrate, projectPath, setSnapshot, lookupNonce]);
 
   const recheck = useCallback(() => setLookupNonce((value) => value + 1), []);
+  const announceStatus = useDawStore((s) => s.announceStatus);
+  const endSession = useEndSession({
+    projectPath,
+    sessionId: snapshot?.session_id ?? null,
+    canEnd: state === "lobby" || state === "stopped",
+    onEnded: () => {
+      setSnapshot(null);
+      setRoomLookup("none");
+      announceStatus("Session ended");
+    },
+    onFailed: setTransportError,
+  });
   const resumeUpload = useCallback(
     () => setUploadRetryNonce((value) => value + 1),
     [],
@@ -343,6 +356,7 @@ export function useHostRoom(
     hydrateError,
     roomLookup,
     recheck,
+    endSession,
     doneNotice,
     transportBusy,
     runCommand,

@@ -44,6 +44,7 @@ export { SAVE_STATE_COPY, type SegmentAckRow } from "./saveStatus";
 export { type TakeInput, takeInputs } from "./takeInputs";
 export {
   type CaptureHealth,
+  END_SESSION_PENDING_COPY,
   HEARING_COPY,
   isRecordTransportVisible,
   LOCAL_KEEPER_COPY,
