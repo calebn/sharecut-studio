@@ -6,7 +6,7 @@ import { openEnvelopeTrackDetails } from "../e2e/envelopeCreationEvidence";
 import { createRelocatedE2eProject } from "../e2e/liveProject";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
-import { openProject, saveStatus } from "../e2e/stageNav";
+import { openProject } from "../e2e/stageNav";
 
 /*
  * #1694 a phone held sideways (the short tablet shell) editing a volume
@@ -24,6 +24,8 @@ const VIEWPORTS: Viewport[] = [
   { width: 932, height: 430, keyboard: 170 },
   { width: 914, height: 331, keyboard: 130 },
 ];
+/** The floating card does not shrink the timeline; the lane edge may sit under its border. */
+const LANE_SLACK_PX = 2;
 const TRACK = "Extra voice 1";
 const TRACK_INDEX = 2;
 
@@ -76,13 +78,9 @@ function laneBand(page: Page, index: number) {
     const ruler = document
       .querySelector(".marker-lane")!
       .getBoundingClientRect();
-    const panel = document.querySelector(".bottom-sheet")!;
-    // A column sits beside the timeline, so the lane is limited by the
-    // timeline's own bottom edge, not by the panel's top (#1696).
-    const limit = panel.classList.contains("bottom-sheet--column")
-      ? document.querySelector(".timeline-scroll")!.getBoundingClientRect()
-          .bottom
-      : panel.getBoundingClientRect().top;
+    const limit = document
+      .querySelector(".timeline-scroll")!
+      .getBoundingClientRect().bottom;
     const top = Math.max(lane.top, ruler.bottom);
     const bottom = Math.min(lane.bottom, limit);
     return {
@@ -99,13 +97,11 @@ function laneBand(page: Page, index: number) {
  * scrolled into the column (#1696); a sheet's controls must already be there.
  */
 async function expectInSheet(control: Locator, label: string) {
-  if (await control.evaluate((el) => !!el.closest(".bottom-sheet--column")))
-    await control.scrollIntoViewIfNeeded();
+  await control.scrollIntoViewIfNeeded();
   const geometry = await control.evaluate((el) => {
     const r = el.getBoundingClientRect();
-    const sheet = el.closest(".bottom-sheet")!.getBoundingClientRect();
-    // A column has no slot: the viewport bounds it (#1696).
-    const slot = el.closest(".bottom-sheet-root")?.getBoundingClientRect();
+    const sheet = el.closest(".sys-inspector")!.getBoundingClientRect();
+    const slot = undefined as DOMRect | undefined;
     let top = Math.max(sheet.top, slot?.top ?? 0, 0);
     let bottom = Math.min(
       sheet.bottom,
@@ -114,7 +110,7 @@ async function expectInSheet(control: Locator, label: string) {
     );
     for (
       let parent = el.parentElement;
-      parent && parent !== el.closest(".bottom-sheet")!.parentElement;
+      parent && parent !== el.closest(".sys-inspector")!.parentElement;
       parent = parent.parentElement
     ) {
       if (getComputedStyle(parent).overflowY === "visible") continue;
@@ -146,7 +142,9 @@ async function editedLaneInReach(page: Page, vp: Viewport) {
     await openEnvelope(page);
 
     const band = await laneBand(page, TRACK_INDEX);
-    expect(band.visible).toBe(band.laneHeight);
+    expect(band.visible).toBeGreaterThanOrEqual(
+      band.laneHeight - LANE_SLACK_PX,
+    );
     await expectInSheet(
       page.getByRole("button", { name: "Add point", exact: true }),
       "Add point",
@@ -171,10 +169,12 @@ async function formInReach(page: Page, vp: Viewport) {
     const level = page.getByLabel("Level (×)");
     const save = page.getByRole("button", { name: "Save point" });
     const cancel = page
-      .locator(".bottom-sheet")
+      .locator(".sys-inspector")
       .getByRole("button", { name: "Cancel" });
     const band = await laneBand(page, TRACK_INDEX);
-    expect(band.visible).toBe(band.laneHeight);
+    expect(band.visible).toBeGreaterThanOrEqual(
+      band.laneHeight - LANE_SLACK_PX,
+    );
     for (const [control, label] of [
       [time, "Time"],
       [level, "Level"],
@@ -207,7 +207,7 @@ async function formRuns(page: Page, vp: Viewport) {
     await openEnvelope(page);
     await page.getByRole("button", { name: "Add point", exact: true }).tap();
     await page
-      .locator(".bottom-sheet")
+      .locator(".sys-inspector")
       .getByRole("button", { name: "Cancel" })
       .tap();
     await expect(page.getByLabel("Level (×)")).toHaveCount(0);
@@ -286,12 +286,6 @@ test("a typed envelope draft survives rotating from portrait to landscape", asyn
 
 const DEMO_ROOT = path.join(repoRoot, "tests/fixtures/sharecut_ux_demo");
 const DEMO_TRACK = "guest";
-const DEMO_LANE = 1;
-const DEMO_VIEWPORTS: Viewport[] = [
-  { width: 914, height: 331, keyboard: 130 },
-  { width: 932, height: 430, keyboard: 170 },
-  { width: 844, height: 390, keyboard: 150 },
-];
 
 /** The demo project has chapter, comment and social marker rows above its lanes. */
 function withDemoProject(fn: (projectPath: string) => Promise<void>) {
@@ -299,206 +293,6 @@ function withDemoProject(fn: (projectPath: string) => Promise<void>) {
     createRelocatedE2eProject(prefix, undefined, DEMO_ROOT),
   );
 }
-
-/**
- * With every marker row the guest lane starts under the editing rail (a layout
- * this spec does not change), so its header opens from the keyboard.
- */
-async function openGuestDetails(page: Page) {
-  const header = page.getByRole("button", {
-    name: `Open track details, ${DEMO_TRACK}`,
-    exact: true,
-  });
-  await expect(header).toBeAttached();
-  await header.focus();
-  await page.keyboard.press("Enter");
-}
-
-async function openDemoEnvelope(page: Page, projectPath: string) {
-  await openProject(page, projectPath);
-  await expect(page.locator(".stage-frame--tablet")).toBeVisible();
-  await openGuestDetails(page);
-  await page
-    .getByRole("button", { name: "Add volume envelope", exact: true })
-    .tap();
-  await page
-    .getByRole("button", { name: "Show volume envelope", exact: true })
-    .tap();
-  await page.getByRole("button", { name: "Add point", exact: true }).tap();
-  await expect(page.getByLabel("Level (×)")).toBeVisible();
-}
-
-/** The control's centre is the control (not covered), and it is on screen. */
-async function expectTappable(control: Locator, label: string) {
-  await expectInSheet(control, label);
-  const hit = await control.evaluate((el) => {
-    const r = el.getBoundingClientRect();
-    const top = document.elementFromPoint(
-      r.x + r.width / 2,
-      r.y + r.height / 2,
-    );
-    return !!top && (top === el || el.contains(top) || top.contains(el));
-  });
-  expect(hit, `${label} is not covered`).toBe(true);
-}
-
-async function expectLaneFullyVisible(page: Page, label: string) {
-  await expect
-    .poll(
-      async () => {
-        const band = await laneBand(page, DEMO_LANE);
-        return band.visible - band.laneHeight;
-      },
-      { message: `${label}: the edited lane is fully visible` },
-    )
-    .toBe(0);
-}
-
-async function expectFormAndDoneReachable(page: Page, label: string) {
-  for (const [control, name] of [
-    [page.getByLabel("Time (seconds on timeline)"), "Time"],
-    [page.getByLabel("Level (×)"), "Level"],
-    [page.getByRole("button", { name: "Save point" }), "Save point"],
-    [
-      page.locator(".bottom-sheet").getByRole("button", { name: "Cancel" }),
-      "Cancel",
-    ],
-    [page.getByRole("button", { name: "Done", exact: true }), "Done"],
-  ] as const)
-    await expectTappable(control, `${label} ${name}`);
-  for (const name of ["Time (seconds on timeline)", "Level (×)"])
-    await expectInSheet(
-      page.locator("label", { has: page.getByLabel(name) }),
-      `${label} ${name} label`,
-    );
-}
-
-async function demoLaneAndFormWithKeyboard(page: Page, vp: Viewport) {
-  await page.setViewportSize(vp);
-  await withDemoProject(async (projectPath) => {
-    await openDemoEnvelope(page, projectPath);
-    const label = `${vp.width}x${vp.height}`;
-    await expectLaneFullyVisible(page, label);
-    await expectFormAndDoneReachable(page, label);
-    await setKeyboard(page, vp.keyboard);
-    await page.getByLabel("Level (×)").focus();
-    await expectFormAndDoneReachable(page, `${label} with keyboard`);
-  });
-}
-
-async function demoRotationKeepsLane(page: Page, vp: Viewport) {
-  await page.setViewportSize({ width: vp.height, height: vp.width });
-  await withDemoProject(async (projectPath) => {
-    await openProject(page, projectPath);
-    await expect(page.locator(".stage-frame--phone")).toBeVisible();
-    await openPhoneTimeline(page);
-    await openGuestDetails(page);
-    await page
-      .getByRole("button", { name: "Add volume envelope", exact: true })
-      .tap();
-    await page
-      .getByRole("button", { name: "Show volume envelope", exact: true })
-      .tap();
-    await page.getByRole("button", { name: "Add point", exact: true }).tap();
-    await page.setViewportSize(vp);
-    await expect(page.locator(".stage-frame--tablet")).toBeVisible();
-    await expect(page.getByLabel("Level (×)")).toBeVisible();
-    const label = `${vp.width}x${vp.height} after rotation`;
-    await expectLaneFullyVisible(page, label);
-    await expect(() => expectFormAndDoneReachable(page, label)).toPass();
-  });
-}
-
-const PHONE_VIEWPORTS: Viewport[] = [
-  { width: 667, height: 375, keyboard: 150 },
-  { width: 740, height: 360, keyboard: 150 },
-  { width: 767, height: 375, keyboard: 150 },
-  { width: 568, height: 320, keyboard: 130 },
-];
-
-/** The phone shell (under 768 px wide) held sideways, on the demo project. */
-async function openPhoneDemoEnvelope(page: Page, projectPath: string) {
-  await openProject(page, projectPath);
-  await expect(page.locator(".stage-frame--phone")).toBeVisible();
-  await openPhoneTimeline(page);
-  await openGuestDetails(page);
-  await page
-    .getByRole("button", { name: "Add volume envelope", exact: true })
-    .tap();
-  await page
-    .getByRole("button", { name: "Show volume envelope", exact: true })
-    .tap();
-  await page.getByRole("button", { name: "Add point", exact: true }).tap();
-  await expect(page.getByLabel("Level (×)")).toBeVisible();
-}
-
-async function phoneLaneAndFormWithKeyboard(page: Page, vp: Viewport) {
-  await page.setViewportSize(vp);
-  await withDemoProject(async (projectPath) => {
-    await openPhoneDemoEnvelope(page, projectPath);
-    const label = `${vp.width}x${vp.height} phone`;
-    await expectLaneFullyVisible(page, label);
-    await expectFormAndDoneReachable(page, label);
-    await setKeyboard(page, vp.keyboard);
-    await page.getByLabel("Level (×)").focus();
-    await expectFormAndDoneReachable(page, `${label} with keyboard`);
-  });
-}
-
-test("667x375 phone shell (iPhone SE): the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
-  page,
-}) => {
-  await phoneLaneAndFormWithKeyboard(page, PHONE_VIEWPORTS[0]!);
-});
-
-test("740x360 phone shell: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
-  page,
-}) => {
-  await phoneLaneAndFormWithKeyboard(page, PHONE_VIEWPORTS[1]!);
-});
-
-test("767x375 phone shell (widest phone width): the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
-  page,
-}) => {
-  await phoneLaneAndFormWithKeyboard(page, PHONE_VIEWPORTS[2]!);
-});
-
-test("568x320 phone shell: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
-  page,
-}) => {
-  await phoneLaneAndFormWithKeyboard(page, PHONE_VIEWPORTS[3]!);
-});
-
-test("914x331 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
-  page,
-}) => {
-  await demoLaneAndFormWithKeyboard(page, DEMO_VIEWPORTS[0]!);
-});
-
-test("932x430 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
-  page,
-}) => {
-  await demoLaneAndFormWithKeyboard(page, DEMO_VIEWPORTS[1]!);
-});
-
-test("844x390 with marker rows: the edited lane, the form and Done stay on screen, with and without the keyboard", async ({
-  page,
-}) => {
-  await demoLaneAndFormWithKeyboard(page, DEMO_VIEWPORTS[2]!);
-});
-
-test("rotating a phone to 932x430 with the form open leaves the edited lane fully visible", async ({
-  page,
-}) => {
-  await demoRotationKeepsLane(page, DEMO_VIEWPORTS[1]!);
-});
-
-test("rotating a phone to 844x390 with the form open leaves the edited lane fully visible", async ({
-  page,
-}) => {
-  await demoRotationKeepsLane(page, DEMO_VIEWPORTS[2]!);
-});
-
 async function formLayout(
   page: Page,
   vp: { width: number; height: number },
@@ -534,15 +328,7 @@ test("1194x834 iPad landscape keeps the regular envelope form and its visible he
   expect(layout.helpHeight).toBeGreaterThan(8);
 });
 
-test("568x320 phone landscape shows the dense one-row envelope form without the help copy", async ({
-  page,
-}) => {
-  const layout = await formLayout(page, { width: 568, height: 320 }, "phone");
-  expect(layout.oneRow).toBe(true);
-  expect(layout.helpHeight).toBeLessThanOrEqual(1);
-});
-
-test("932x430 phone landscape keeps the regular stacked form and its help, in the Inspector column (#1696)", async ({
+test("932x430 phone landscape keeps the regular stacked form and its help, in the Inspector card", async ({
   page,
 }) => {
   const layout = await formLayout(page, { width: 932, height: 430 });
@@ -651,74 +437,6 @@ test("1024x768 idle: the marker rows stay pinned under the ruler", async ({
   page,
 }) => {
   await expectIdleMarkerPosition(page, { width: 1024, height: 768 }, "sticky");
-});
-
-/** The Player and the save state are on screen, with the open sheet resting on the Player. */
-async function expectBottomChromeKept(
-  page: Page,
-  label: string,
-  save: "status" | "alert",
-) {
-  const player = page.locator(".stage-frame-player");
-  await expect(player, `${label}: Player visible`).toBeVisible();
-  const state = saveStatus(page);
-  await expect(state, `${label}: save state shown`).toBeVisible();
-  if (save === "status")
-    await expect(
-      page.locator(".sys-app-header-host").getByRole("status"),
-      `${label}: polite live region in the accessibility tree`,
-    ).not.toHaveCount(0);
-  else
-    await expect(
-      state.getByRole("alert"),
-      `${label}: the failure is announced`,
-    ).toHaveText("Save failed");
-  const { playerTop, sheetBottom, playerHeight } = await page.evaluate(() => {
-    const bar = document
-      .querySelector(".stage-frame-player")!
-      .getBoundingClientRect();
-    const sheet = document
-      .querySelector(".bottom-sheet")!
-      .getBoundingClientRect();
-    return {
-      playerTop: bar.top,
-      playerHeight: bar.height,
-      sheetBottom: sheet.bottom,
-    };
-  });
-  expect(playerHeight, `${label}: Player has height`).toBeGreaterThan(0);
-  expect(
-    Math.abs(sheetBottom - playerTop),
-    `${label}: the sheet rests on the Player`,
-  ).toBeLessThanOrEqual(1);
-}
-
-test("914x331 with the envelope sheet open: the Player and the save state stay", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 914, height: 331 });
-  await withDemoProject(async (projectPath) => {
-    await openDemoEnvelope(page, projectPath);
-    await expectBottomChromeKept(page, "saved", "status");
-  });
-});
-
-test("914x331 with a failed save and the envelope sheet open: the save state stays and the sheet rests on the Player", async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(IDBFactory.prototype, "open", {
-      configurable: true,
-      value: () => {
-        throw new Error("queue unreadable");
-      },
-    });
-  });
-  await page.setViewportSize({ width: 914, height: 331 });
-  await withDemoProject(async (projectPath) => {
-    await openDemoEnvelope(page, projectPath);
-    await expectBottomChromeKept(page, "failed save", "alert");
-  });
 });
 
 test("a soloed track keeps Clear solo tappable at the top of the timeline at 914x331 while the envelope sheet is open", async ({

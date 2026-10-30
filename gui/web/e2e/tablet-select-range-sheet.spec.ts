@@ -2,14 +2,15 @@ import { expect, test } from "@playwright/test";
 import { openHostProject } from "./overlayReachability";
 
 /*
- * Doing controls sit in the bottom zone (#1793): on a tablet, arming Select range opens the selection
- * sheet with In, Out, the track checkboxes, Select range and Cancel inside it, not a card at the top.
+ * Doing controls sit in the bottom zone (#1793): on a tablet, arming Select range opens the Inspector
+ * card, pinned to the bottom edge of the Edit stage with nothing selected, with In, Out, the track
+ * checkboxes, Select range and Cancel inside it, not a card at the top.
  */
 
 // The Select range toggle is a touch control in the Edit corner; isMobile makes the pointer coarse from the first paint.
 test.use({ hasTouch: true, isMobile: true });
 
-test("tablet Select range puts In, Out, Select range and Cancel in the sheet at the bottom", async ({
+test("tablet Select range puts In, Out, Select range and Cancel in the Inspector card at the bottom", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1194, height: 834 });
@@ -40,8 +41,7 @@ test("tablet Select range puts In, Out, Select range and Cancel in the sheet at 
       name: "Range fields",
     }),
   ).toHaveCount(0);
-  // The sheet sits below the lanes it selects across, so they stay in view.
-  // Poll: the sheet's slide-in settles before the lanes are measured.
+  // The card sits below the lanes it selects across, so they stay in view.
   await expect
     .poll(async () => {
       const sheetBox = await sheet.boundingBox();

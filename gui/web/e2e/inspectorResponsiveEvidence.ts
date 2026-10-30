@@ -220,7 +220,7 @@ export async function wheelInspector(
   receipts: InteractionReceipt[],
   delta: number,
 ) {
-  const sheetBody = page.locator(".bottom-sheet-body");
+  const sheetBody = page.locator(".bottom-sheet-body, .sys-inspector-scroll");
   const body = (await sheetBody.count())
     ? sheetBody
     : page.locator(".inspector .modifier-body");
@@ -230,7 +230,9 @@ export async function wheelInspector(
   const fallback = visibleBody
     ? null
     : await controlGeometry(
-        page.locator(".bottom-sheet, .inspector").filter({ has: body }),
+        page
+          .locator(".bottom-sheet, .sys-inspector, .inspector")
+          .filter({ has: body }),
       );
   const bounds = visibleBody ? area.bounds : fallback?.measured[0].visibleArea;
   const visibleRect =
@@ -291,6 +293,17 @@ export async function exposeControl(
         await page.waitForTimeout(100);
         continue;
       }
+    }
+    const grip = page.getByRole("slider", { name: "Sheet height" });
+    if (
+      (step === 0 || cannotFit) &&
+      (await grip.count()) &&
+      (await grip.getAttribute("aria-valuetext")) !== "Full height"
+    ) {
+      await grip.focus();
+      await page.keyboard.press("End");
+      await page.waitForTimeout(300);
+      continue;
     }
     const first =
       geometry.measured.find((item) => !item.full) ?? geometry.measured[0];

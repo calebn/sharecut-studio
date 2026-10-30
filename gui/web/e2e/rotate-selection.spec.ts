@@ -103,9 +103,12 @@ test.describe("rotating with the word editor open (#1870)", () => {
       // The phone shows one Edit surface at a time and opens on the Timeline.
       if (from[0] >= 768 && to[0] < 768) await phone.showText(page);
 
-      await expect(
-        page.locator('[data-transcript-word][data-word-index="0"]').first(),
-      ).toHaveClass(/selected/);
+      const rotated = page
+        .locator('[data-transcript-word][data-word-index="0"]')
+        .first();
+      await expect(rotated).toHaveClass(/selected/);
+      // The tablet's card hides while its word is out of view; bring it back.
+      await rotated.scrollIntoViewIfNeeded();
       await expect(page.getByLabel("Corrected text")).toBeVisible();
       await expect(page.locator("[data-transcript-intent]")).toHaveAttribute(
         "data-transcript-intent",
