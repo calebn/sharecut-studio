@@ -142,7 +142,7 @@ export const HostEndedSessionSummary: Story = {
         .map((li) => li.textContent),
     ).toEqual(["Ava Lindgren → to Mira", "Sam → to New track"]);
     await expect(
-      canvas.getByRole("button", { name: "Create record room" }),
+      canvas.getByRole("button", { name: "Start Session 2" }),
     ).toBeVisible();
   },
 };
@@ -285,6 +285,22 @@ export const MoreSheet: Story = {
     await expect(
       await within(document.body).findByRole("dialog", { name: "More" }),
     ).toBeVisible();
+  },
+};
+
+export const EndSessionDisabled: Story = {
+  parameters: withRoom(
+    room({ state: "recording", take_index: 0, recording_ms: 5_000 }),
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: "More" }));
+    const dialog = await within(document.body).findByRole("dialog", {
+      name: "More",
+    });
+    await expect(
+      within(dialog).getByRole("button", { name: "End session" }),
+    ).toHaveAccessibleDescription("Stop the take first.");
   },
 };
 

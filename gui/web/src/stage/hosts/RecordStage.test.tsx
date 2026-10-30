@@ -304,7 +304,7 @@ describe("Record stage", () => {
       ended_at: "2026-10-25T12:00:00Z",
     };
 
-    it("shows the card above Create record room when no room is open", async () => {
+    it("shows the card above Start Session 2 when no room is open", async () => {
       vi.mocked(loadHostRecordSessions).mockResolvedValue([ended]);
       const { baseElement } = mount();
       const card = await screen.findByRole("region", {
@@ -313,11 +313,22 @@ describe("Record stage", () => {
       expect(within(card).getByRole("listitem").textContent).toBe(
         "Ava → to New track",
       );
-      const create = screen.getByRole("button", { name: "Create record room" });
+      const create = screen.getByRole("button", { name: "Start Session 2" });
       expect(
         card.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
       await expectNoA11yViolations(baseElement);
+    });
+
+    it("keeps Create record room when the last session has no number", async () => {
+      vi.mocked(loadHostRecordSessions).mockResolvedValue([
+        { ...ended, number: null },
+      ]);
+      mount();
+      await screen.findByRole("region", { name: /^Last session/ });
+      expect(
+        screen.getByRole("button", { name: "Create record room" }),
+      ).toBeInTheDocument();
     });
 
     it("shows no card while a room is open", async () => {
@@ -835,7 +846,10 @@ describe("Record stage End session", () => {
     await userEvent.click(
       within(dialog).getByRole("button", { name: "End session" }),
     );
-    expect(await screen.findByText(END_SESSION_PENDING_COPY)).toBeVisible();
+    const pending = await screen.findByText(END_SESSION_PENDING_COPY);
+    expect(pending).toBeVisible();
+    expect(pending.closest("[aria-live='polite']")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() =>
       expect(screen.queryByText(END_SESSION_PENDING_COPY)).toBeNull(),
