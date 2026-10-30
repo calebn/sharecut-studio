@@ -36,7 +36,7 @@ const meta: Meta<SurfaceProps> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Find and replace (spec CMP-FINDREPLACE): a 44 px bar under the Script header with the Find field, its count (\"3 of 12\"), previous and next, a Match case toggle, a Replace toggle that opens a second row with Replace and All, and two verbs for the common case, Select all and Cut all. Matches take a tint in the text and the current one an outline.\n\nKeys, in the Find field. Enter and Down step to the next hit, Shift+Enter and Up to the previous one, Mod+Shift+Enter (Ctrl or Cmd) cuts all hits as one undo step, and Esc closes from anywhere in the bar. Cut all also has its own button. In the Replace field Enter replaces the current hit. Replace and All wait until the replacement has a letter or a number, as the backend requires. A reader who cannot edit gets no Replace.\n\nMatching is the backend's: whole words, edge punctuation ignored, case folded, muted and already-cut words skipped (`findMatches`). The bar takes `busy`, `error` and `maxLength` (500) so a slow or refused request has somewhere to show.\n\nMod+F belongs to the host: it opens the bar, and when the bar is open it calls the handle's `focus()`. The count is plain text; the pane's one live region speaks it through `findStatus`. When the bar closes, and after Cut all or Replace all settle, the bar calls `returnFocus`, which the host points at the pane handle's `focusFind()`. The host also passes the hits to the pane as `matches` and `currentMatch` and scrolls the current one into view. Replace all returns how many it replaced, for the host's \"Replaced 12 · Undo\" toast.\n\n**Motion.** None.",
+          "Find and replace (spec CMP-FINDREPLACE): a 44 px bar under the Script header with the Find field, its count (\"3 of 12\"), previous and next, a Match case toggle, a Replace toggle that opens a second row with Replace and All, and two verbs for the common case, Select all and Cut all. Matches take a tint in the text and the current one an outline.\n\nKeys, in the Find field. Enter and Down step to the next hit, Shift+Enter and Up to the previous one, Mod+Shift+Enter (Ctrl or Cmd) cuts all hits as one undo step, and Esc closes from anywhere in the bar. Cut all also has its own button. In the Replace field Enter replaces the current hit. Replace and All wait until there is a hit and the replacement has a letter or a number, as the backend requires. While they wait they stay focusable and a line under the row says what is missing. A reader who cannot edit gets no Replace.\n\nMatching is the backend's: whole words, edge punctuation ignored, case folded, muted and already-cut words skipped (`findMatches`). The bar takes `busy`, `error` and `maxLength` (500) so a slow or refused request has somewhere to show.\n\nMod+F belongs to the host: it opens the bar, and when the bar is open it calls the handle's `focus()`. The count is plain text; the pane's one live region speaks it through `findStatus`. When the bar closes, and after Cut all or Replace all settle, the bar calls `returnFocus`, which the host points at the pane handle's `focusFind()`. The host also passes the hits to the pane as `matches` and `currentMatch` and scrolls the current one into view. Replace all returns how many it replaced, for the host's \"Replaced 12 · Undo\" toast.\n\n**Motion.** None.",
       },
     },
   },
@@ -233,6 +233,24 @@ export const NoMatches: Story = {
   },
 };
 
+export const ReplaceHeld: Story = {
+  render,
+  args: { query: "zzz", replaceOpen: true, replaceText: "space" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const all = canvas.getByRole("button", { name: "Replace all" });
+    await expect(all).toHaveAttribute("aria-disabled", "true");
+    await expect(all).toHaveAccessibleDescription(
+      "No matches to replace. Change the search first.",
+    );
+    await expect(
+      canvas.getByText("No matches to replace. Change the search first."),
+    ).toBeVisible();
+    all.focus();
+    await expect(all).toHaveFocus();
+  },
+};
+
 export const CutAll: Story = {
   render,
   args: { query: "room" },
@@ -331,16 +349,19 @@ export const NeedsAReplacement: Story = {
   args: { query: "room", replaceOpen: true, replaceText: "" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      canvas.getByRole("button", { name: "Replace" }),
-    ).toBeDisabled();
-    await expect(
-      canvas.getByRole("button", { name: "Replace all" }),
-    ).toBeDisabled();
+    for (const name of ["Replace", "Replace all"]) {
+      const button = canvas.getByRole("button", { name });
+      await expect(button).toHaveAttribute("aria-disabled", "true");
+      await expect(button).toHaveAccessibleDescription(
+        "Enter replacement text with a letter or a number to replace.",
+      );
+    }
     await userEvent.type(
       canvas.getByRole("textbox", { name: "Replace with" }),
       "space",
     );
-    await expect(canvas.getByRole("button", { name: "Replace" })).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Replace" }),
+    ).not.toHaveAttribute("aria-disabled");
   },
 };

@@ -14,6 +14,7 @@ import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import type { ClipRow } from "../../types/project";
 import { BottomSheet } from "../../ui/BottomSheet";
+import { UNAPPLIED_VALUE_REASON } from "../NudgeButtons";
 import { ClipInspector } from "./ClipInspector";
 
 vi.mock("../../api", () => ({
@@ -176,9 +177,11 @@ describe("ClipInspector presentation", () => {
       name: "10 ms later",
     });
     expect(start).toHaveValue(0);
-    expect(later).toBeEnabled();
+    expect(later).not.toHaveAttribute("aria-disabled");
     fireEvent.change(start, { target: { value: "0.25" } });
-    expect(later).toBeDisabled();
+    expect(later).toHaveAttribute("aria-disabled", "true");
+    expect(later).toBeEnabled();
+    expect(later).toHaveAccessibleDescription(UNAPPLIED_VALUE_REASON);
     expect(screen.getByRole("spinbutton", { name: "Source end" })).toHaveValue(
       2,
     );
@@ -436,16 +439,27 @@ describe("ClipInspector fades", () => {
     });
   });
 
-  it("holds the nudges while a typed length is waiting for Apply", () => {
+  it("holds the nudges while a typed length is waiting for Apply, and says so", async () => {
     hydrateClipProject(sampleTrack());
-    render(<ClipInspector clip={clip} />);
+    const { container } = render(<ClipInspector clip={clip} />);
     const group = screen.getByRole("group", { name: "Nudge fade in" });
     fireEvent.change(screen.getByLabelText("Fade in ms"), {
       target: { value: "20" },
     });
-    expect(
-      within(group).getByRole("button", { name: "10 ms longer" }),
-    ).toBeDisabled();
+    const longer = within(group).getByRole("button", { name: "10 ms longer" });
+    expect(longer).toHaveAttribute("aria-disabled", "true");
+    expect(longer).toBeEnabled();
+    const note = screen.getAllByText(UNAPPLIED_VALUE_REASON)[0];
+    expect(note).toBeVisible();
+    expect(longer).toHaveAttribute("aria-describedby", note?.id);
+    longer.focus();
+    expect(longer).toHaveFocus();
+    fireEvent.pointerDown(longer, { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(longer, { pointerId: 1 });
+    fireEvent.click(longer);
+    await userEvent.keyboard("{Enter}");
+    expect(setClipFade).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
   });
 
   it("ignores a rejected write after switching projects", async () => {
@@ -683,6 +697,18 @@ describe("ClipInspector join", () => {
     expect(screen.getByLabelText("Fade in ms")).toBeDisabled();
     expect(screen.getByLabelText("Fade out ms")).toBeEnabled();
     expect(screen.getByText(/Fade in ignored/)).toBeInTheDocument();
+    const nudge = within(
+      screen.getByRole("group", { name: "Nudge fade in" }),
+    ).getByRole("button", { name: "10 ms longer" });
+    expect(nudge).toHaveAttribute("aria-disabled", "true");
+    expect(nudge).toBeEnabled();
+    expect(nudge).toHaveAccessibleDescription("Fades do not apply at a cut.");
+    expect(
+      within(screen.getByRole("group", { name: "Nudge fade out" })).getByRole(
+        "button",
+        { name: "10 ms longer" },
+      ),
+    ).not.toHaveAttribute("aria-disabled");
     expect(screen.queryByLabelText("Transition length ms")).toBeNull();
     expect(screen.getByText(/hard cut/)).toBeInTheDocument();
   });

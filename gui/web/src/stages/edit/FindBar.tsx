@@ -9,8 +9,19 @@ import {
   useState,
 } from "react";
 import { SystemIcon } from "../../system/SystemIcon";
+import {
+  BUSY_REASON,
+  unavailableReason,
+  useDisabledReasonNote,
+} from "../../ui/disabledReason";
 import { InlineError } from "../../ui/InlineError";
 import { findCountText, replacementOk } from "./findMatches";
+
+/** Why Replace waits when the search has no hits. */
+const NO_MATCHES_REASON = "No matches to replace. Change the search first.";
+/** Why Replace waits on the replacement text (see `replacementOk`). */
+const REPLACEMENT_REASON =
+  "Enter replacement text with a letter or a number to replace.";
 
 export type FindBarHandle = {
   /** Put the cursor in the Find field and select its text. */
@@ -173,6 +184,17 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
   }, [settled]);
 
   const hits = count > 0;
+  const replaceWait = !idle
+    ? BUSY_REASON
+    : !hits
+      ? NO_MATCHES_REASON
+      : !replaceReady
+        ? REPLACEMENT_REASON
+        : undefined;
+  const { note: replaceNote, describedBy: replaceDescribedBy } =
+    useDisabledReasonNote(replace?.open ? replaceWait : undefined);
+  const replaceUnavailable =
+    replace?.open && unavailableReason(replaceWait) !== undefined;
   const closeBar = () => {
     onClose();
     returnFocusRef.current?.();
@@ -347,7 +369,8 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
             <button
               type="button"
               className="sys-text-btn"
-              disabled={!hits || !idle || !replaceReady}
+              aria-disabled={replaceUnavailable || undefined}
+              {...replaceDescribedBy}
               onClick={replaceOne}
               onKeyDown={onButtonKey}
             >
@@ -358,7 +381,8 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
             type="button"
             className="sys-text-btn"
             aria-label="Replace all"
-            disabled={!hits || !idle || !replaceReady}
+            aria-disabled={replaceUnavailable || undefined}
+            {...replaceDescribedBy}
             onClick={replaceAll}
             onKeyDown={onButtonKey}
           >
@@ -366,6 +390,7 @@ export const FindBar = forwardRef<FindBarHandle, FindBarProps>(function FindBar(
           </button>
         </div>
       ) : null}
+      {replaceNote}
       <InlineError message={error ?? failure} />
     </div>
   );

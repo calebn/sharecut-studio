@@ -8,7 +8,10 @@ import { clipRow } from "../test/fixtures";
 import type { EditBoundaryView } from "../types/project";
 import { resolveBoundaryPresentation } from "./boundaryPresentation";
 import { EditBoundaryMarkView } from "./EditBoundaryMarkView";
-import { TRANSCRIPT_EDIT_BOUNDARY_TIP } from "./transcriptModeCopy";
+import {
+  TRANSCRIPT_BOUNDARY_READONLY_TIP,
+  TRANSCRIPT_EDIT_BOUNDARY_TIP,
+} from "./transcriptModeCopy";
 
 const boundary: EditBoundaryView = {
   id: "eb:left:right",
@@ -148,8 +151,16 @@ export const HostOnlyPrecisionEdit: Story = {
   args: { canEdit: false },
   play: async ({ canvasElement }) => {
     const mark = within(canvasElement).getByRole("button");
-    await expect(mark).toBeDisabled();
-    await expect(mark).toHaveAccessibleName(/available to editors/i);
+    await expect(mark).toHaveAttribute("aria-disabled", "true");
+    await expect(mark).toHaveAccessibleName("Edit boundary");
+    await expect(mark).toHaveAccessibleDescription(
+      TRANSCRIPT_BOUNDARY_READONLY_TIP,
+    );
+    mark.focus();
+    await expect(mark).toHaveFocus();
+    await expect(
+      within(canvasElement).getByText(TRANSCRIPT_BOUNDARY_READONLY_TIP),
+    ).toBeVisible();
   },
 };
 
