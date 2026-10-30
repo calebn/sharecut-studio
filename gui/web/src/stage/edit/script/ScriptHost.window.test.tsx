@@ -9,10 +9,7 @@ import {
 } from "../../../test/scriptHostKit";
 import type { CombinedUtterance } from "../../../types/project";
 import { ScriptHost } from "./ScriptHost";
-import {
-  WINDOW_LIMIT,
-  WINDOW_MARGIN,
-} from "./useScriptWindow";
+import { WINDOW_LIMIT, WINDOW_MARGIN } from "./useScriptWindow";
 
 const seekTransport = vi.hoisted(() => vi.fn());
 vi.mock("../../../commands/seek", () => ({ seekTransport }));
