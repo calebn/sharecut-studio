@@ -1,4 +1,3 @@
-import type { NudgeField } from "../edit/nudge";
 import {
   canApplyPass12,
   canEditEnvelopes,
@@ -6,6 +5,7 @@ import {
 } from "../shareMode";
 import type { DawState } from "../state/types";
 import type { ProjectView } from "../types/project";
+import type { NudgeField } from "./nudge";
 
 type Access = Pick<
   DawState,
