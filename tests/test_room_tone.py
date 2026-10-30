@@ -338,6 +338,33 @@ def test_the_bed_stretch_is_the_longest_quiet_run(tmp_path: Path) -> None:
     assert (selected.start, selected.end) == pytest.approx((0.0, 41.0), abs=0.5)
 
 
+def test_a_pad_reads_the_bed_from_the_start_of_its_quiet_stretch(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = _noise(-62.0, seed=7)
+    _add_voice(bed, 1.0, 1.6, VOICE_DB)
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_span(project, "host", near_sec=4.0, near_source_id=None, duration_sec=2.0)
+
+    assert isinstance(selected, RecordedBedSample)
+    assert selected.start >= 1.6 + SPEECH_GUARD_SEC
+    assert selected.end - selected.start == pytest.approx(2.0)
+
+
+def test_a_gated_bed_with_two_separate_pockets_keeps_the_longer_one(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    bed = np.zeros(6 * SR)
+    bed[:SR] = _noise(-62.0, seed=7)[:SR]
+    bed[5 * SR :] = _noise(-62.0, seed=8)[:SR]
+    bed[5 * SR + SR // 2 :] = 0.0
+    _add_bed(project, tmp_path, bed)
+
+    selected = room_tone_bed(project, "host")
+
+    assert isinstance(selected, RecordedBedSample)
+    assert (selected.start, selected.end) == pytest.approx((0.0, 1.0), abs=0.01)
+
+
 def test_a_bed_loud_throughout_is_still_rejected(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     bed = _noise(-62.0, seed=7)
