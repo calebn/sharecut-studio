@@ -1,21 +1,13 @@
+import { isTypingTarget } from "../../keymap/typing";
+
 const FIRST_CONTROL =
-  ".sys-inspector-scroll :is(button, input, select, textarea, [tabindex]):not(:disabled, [tabindex='-1'])";
-
-const NON_TEXT_INPUT = /^(button|checkbox|radio|range|submit|reset|image)$/;
-
-function takesText(el: HTMLElement) {
-  if (el instanceof HTMLInputElement) return !NON_TEXT_INPUT.test(el.type);
-  return (
-    el instanceof HTMLTextAreaElement ||
-    el instanceof HTMLSelectElement ||
-    el.isContentEditable
-  );
-}
+  ".sys-inspector-scroll :is(button, input:not([type='hidden']), select, textarea, [tabindex]):not(:disabled, [tabindex='-1'])";
 
 /**
- * The first control takes focus unless it takes text: the keymap ignores a
- * typing target, so a field would swallow the shortcuts the user reaches for
- * after opening. The dialog itself holds focus then, and Tab enters the form.
+ * The first control takes focus unless the keymap would ignore it as a typing
+ * target (any field, date and time included): a field would swallow the
+ * shortcuts the user reaches for after opening. The dialog itself holds focus
+ * then, and Tab enters the form.
  */
 export function focusFirstControl(box: HTMLElement) {
   const dialog = box.querySelector<HTMLElement>('[role="dialog"]');
@@ -23,7 +15,7 @@ export function focusFirstControl(box: HTMLElement) {
     (el) => !el.closest("[hidden], [inert]"),
   );
   const target =
-    first && !takesText(first)
+    first && !isTypingTarget(first)
       ? first
       : (dialog ??
         box.querySelector<HTMLElement>(".sys-inspector-grip, .dialog-close"));

@@ -6089,7 +6089,7 @@ input.sys-edit-fix {
   display: contents;
 }
 
-.sys-inspector:focus {
+.sys-inspector:focus:not(:focus-visible) {
   outline: none;
 }
 

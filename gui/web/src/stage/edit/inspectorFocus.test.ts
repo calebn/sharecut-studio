@@ -36,9 +36,20 @@ describe("focusFirstControl", () => {
     expect(document.activeElement).toBe(box.querySelector("button"));
   });
 
-  it("lands on a checkbox as a control that takes no text", () => {
-    const box = mount('<input type="checkbox" aria-label="Mute">');
+  it.each(["checkbox", "date", "time"])(
+    "lands on the dialog for a %s input, which the keymap also ignores",
+    (type) => {
+      const box = mount(
+        `<input type="${type}" aria-label="Field"><button>Go</button>`,
+      );
+      focusFirstControl(box);
+      expect(document.activeElement).toBe(box.querySelector('[role="dialog"]'));
+    },
+  );
+
+  it("skips a hidden input when it looks for the first control", () => {
+    const box = mount('<input type="hidden" name="k"><button>Split</button>');
     focusFirstControl(box);
-    expect(document.activeElement).toBe(box.querySelector("input"));
+    expect(document.activeElement).toBe(box.querySelector("button"));
   });
 });
