@@ -2,7 +2,6 @@ import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import type { PendingJobResults, PipelineJobSnapshot } from "../types/pipeline";
 import type {
-  AutomationPoint,
   ClipRow,
   HistoryEntryId,
   ProjectView,
@@ -107,47 +106,6 @@ export type ShellBreakpoint = "phone" | "tablet" | "desktop";
  * presence `mobile_mode` payload), never presence visibility.
  */
 export type PointerKind = "fine" | "coarse";
-
-/** The envelope point form's text. */
-export type EnvelopeForm = {
-  kind: "add" | "edit";
-  pointId: string;
-  time: string;
-  level: string;
-  notice?: string;
-};
-
-/** An open envelope point form and the baseline it was opened against. */
-export type EnvelopeDraft = {
-  form: EnvelopeForm;
-  origin: AutomationPoint[];
-  endpointIds: { start: string; end: string } | null;
-};
-
-/**
- * An open envelope point draft and the target it belongs to. It lives in the
- * store, not in the form, so it outlives the phone and tablet shells swapping
- * on rotation; `dawStore` drops it when the selection leaves its target.
- */
-export type EnvelopeDraftEntry = {
-  projectPath: string;
-  projectEpoch: number;
-  trackId: string;
-  /** The selected point of the workspace that opened it; null for the track's envelope. */
-  pointId: string | null;
-  draft: EnvelopeDraft;
-};
-
-/**
- * An envelope save in flight and the target it writes. The saves live in the
- * store, not in the form, so a remount (the phone and tablet shells swapping
- * on rotation) neither enables a second Save nor loses the busy state.
- */
-export type EnvelopeSaving = {
-  projectPath: string;
-  projectEpoch: number;
-  trackId: string;
-};
 
 /**
  * Typed but unsaved word-editor fields and the word they belong to. It lives
@@ -310,8 +268,6 @@ export interface DawState {
   userZoomed: boolean;
   layers: LayerVisibility;
   commentDraft: CommentDraft | null;
-  envelopeDraft: EnvelopeDraftEntry | null;
-  envelopeSaving: EnvelopeSaving[];
   wordDraft: WordDraftEntry | null;
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
@@ -543,9 +499,6 @@ export interface DawState {
   resetTimelineViewportWidth: () => void;
   setLayerVisible: (key: keyof LayerVisibility, visible: boolean) => void;
   setCommentDraft: (draft: CommentDraft | null) => void;
-  setEnvelopeDraft: (entry: EnvelopeDraftEntry | null) => void;
-  beginEnvelopeSave: (target: EnvelopeSaving) => void;
-  endEnvelopeSave: (target: EnvelopeSaving) => void;
   setWordDraft: (entry: WordDraftEntry | null) => void;
   selectTracks: (trackIds: readonly string[]) => void;
   toggleTrackSelected: (trackId: string, additive: boolean) => void;

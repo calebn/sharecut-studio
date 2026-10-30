@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
-import { BUSY_REASON } from "../ui/disabledReason";
 import { ApiError } from "../utils/apiError";
 import { removeEnvelopePoint, setEnvelopePoint } from "./envelopes";
 import { clearRegisteredCommands, execute } from "./execute";
@@ -166,7 +165,7 @@ describe("envelope point writes", () => {
     const first = setEnvelopePoint("host", "b", { value: 0.2 });
     expect(await setEnvelopePoint("host", "b", { value: 0.3 })).toMatchObject({
       status: "disabled",
-      reason: BUSY_REASON,
+      reason: "Wait for the volume envelope to finish saving",
     });
     release(null);
     expect(await first).toEqual({ status: "ok" });

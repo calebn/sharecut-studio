@@ -95,7 +95,6 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "stages/deliver/ClipTrimWave.tsx",
   // Escape cancels only this region's active pointer gesture.
   "timeline/PendingEditOverlayView.tsx",
-  "inspector/views/EnvelopeWorkspaceView.tsx",
   // Focused clip handles route key edits locally; Escape cancels their preview.
   "timeline/ClipBlockView.tsx",
   "inspector/views/TranscriptWordInspector.tsx",
