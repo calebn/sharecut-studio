@@ -1313,7 +1313,8 @@
               "default": "person",
               "enum": [
                 "person",
-                "agent"
+                "agent",
+                "guest"
               ],
               "type": "string"
             },
@@ -4841,7 +4842,8 @@
               "default": "person",
               "enum": [
                 "person",
-                "agent"
+                "agent",
+                "guest"
               ],
               "type": "string"
             },

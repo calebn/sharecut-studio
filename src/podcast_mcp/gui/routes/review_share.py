@@ -571,7 +571,7 @@ def get_review_feed(token: str) -> dict[str, Any]:
     _rate_limit(token, "read")
     with guest_boundary(log, "review request"):
         _row, ws = require_share_cap(token, CAP_VIEW)
-        return served_feed(FeedService(ws))
+        return served_feed(FeedService(ws), guest=True)
 
 
 @router.post("/api/review/{token}/daw/boundary/context")

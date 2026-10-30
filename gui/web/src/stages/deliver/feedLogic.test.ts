@@ -97,6 +97,9 @@ describe("marks and fixes", () => {
     expect(markOf({ kind: "pinned", by: "agent", drifted: false })).toBe(
       "Agent",
     );
+    expect(markOf({ kind: "pinned", by: "guest", drifted: false })).toBe(
+      "Guest",
+    );
     expect(markOf({ kind: "pinned", by: "person", drifted: false })).toBe(
       "Edited",
     );

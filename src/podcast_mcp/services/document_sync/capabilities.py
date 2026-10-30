@@ -120,6 +120,13 @@ def authorize_document_command(
     )
 
 
+def stamp_guest_payload(command_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """The payload a share's command runs with: a listing value it sets is marked as the guest's."""
+    if command_type == "SetFeedField":
+        return {**payload, "by": "guest"}
+    return payload
+
+
 def authorize_document_payload(
     caps: list[str] | None,
     command_type: str,
@@ -129,19 +136,24 @@ def authorize_document_payload(
 
     A room tone fill without a range (no ``start_sec``/``end_sec``) is host-only; a guest
     Editor fills an explicit range. A guest edits only this episode's listing values
-    (``item.*``), never the show's (``channel.*``). ``caps is None`` means host / unrestricted
-    (always allowed).
+    (an episode row a person may pin), never the show's (``channel.*``). ``caps is None``
+    means host / unrestricted (always allowed).
     """
     if caps is None:
         return
     if command_type in {"SetFeedField", "ClearFeedField"}:
+        from podcast_mcp.feed.fields import lookup
+
         key = payload.get("key")
-        if (
-            not (isinstance(key, str) and key.startswith("item."))
-            or payload.get("by", "person") != "person"
-        ):
+        spec = lookup(key) if isinstance(key, str) else None
+        if spec is None or spec.scope != "episode" or spec.edit != "pin":
             raise CodedPermissionError(
                 "guests edit this episode's listing values, not the show's",
+                code="share_capability_required",
+            )
+        if payload.get("by", "person") not in {"person", "guest"}:
+            raise CodedPermissionError(
+                "a share link edits as a person; only an agent session can set a value as an agent",
                 code="share_capability_required",
             )
         return

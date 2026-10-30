@@ -334,3 +334,22 @@ def test_the_service_has_one_show_source_for_the_caller_and_the_handler() -> Non
         "set_field",
         "clear_field",
     }
+
+
+def test_a_blank_value_on_an_unknown_key_is_refused_not_ignored(episode: Path) -> None:
+    for edit in (SetEdit(key="item.nope", value=""), SetEdit(key="item.nope", value="   ")):
+        with pytest.raises(CodedValueError) as raised:
+            _service(episode).apply(edit, "person")
+
+        assert raised.value.code == "feed_field_unknown"
+
+
+def test_a_host_clear_sees_a_pin_set_after_the_service_opened(episode: Path) -> None:
+    stale = _service(episode)
+    _service(episode).set("item.intro", "Set meanwhile.", "person")
+    assert "item.intro" not in stale.ws.project.feed.pins
+
+    view = stale.unset("item.intro", "person")
+
+    assert load_project(episode).feed.pins == {}
+    assert view.item["item.intro"].source.kind != "pinned"

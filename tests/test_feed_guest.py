@@ -10,10 +10,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from feed_helpers import complete_show
+from podcast_mcp.feed.model import ShowSummary
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Track, TrackRole, load_project, save_project
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import ReviewRole
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+from podcast_mcp.services.document import FeedService
 from podcast_mcp.services.document import feed as feed_service
 from podcast_mcp.services.document_sync.capabilities import (
     EDIT_COMMANDS,
@@ -107,7 +110,7 @@ def test_an_editor_link_sets_and_clears_a_value_and_the_event_leaks_nothing(
 
     assert res.status_code == 200, res.text
     assert _pins(episode) == {"item.intro": "From a guest."}
-    assert load_project(episode).feed.pins["item.intro"].by == "person"
+    assert load_project(episode).feed.pins["item.intro"].by == "guest"
     body = res.text
     assert str(episode.parent) not in body and "From a guest." not in body
     assert res.json()["command"] == {"type": "SetFeedField"}
@@ -137,7 +140,6 @@ def test_a_guest_edit_undoes_as_a_guest(episode: Path, published_share: Share) -
     [
         ("SetFeedField", {"key": "channel.title", "value": "Hijacked"}),
         ("ClearFeedField", {"key": "channel.title"}),
-        ("SetFeedField", {"key": "item.intro", "value": "x", "by": "agent"}),
         ("SetFeedField", {"key": "../../etc/passwd", "value": "x"}),
     ],
 )
@@ -151,6 +153,97 @@ def test_a_guest_cannot_touch_show_settings_or_forge_an_author(
     assert res.status_code == 403
     assert res.headers["X-Sharecut-Error-Code"] == "share_capability_required"
     assert _pins(episode) == {}
+
+
+def test_a_guest_asking_to_be_an_agent_is_told_why() -> None:
+    editor = capabilities_for_role("editor")
+
+    with pytest.raises(CodedPermissionError, match="edits as a person") as raised:
+        authorize_document_payload(
+            editor, "SetFeedField", {"key": "item.intro", "value": "x", "by": "agent"}
+        )
+
+    assert raised.value.code == "share_capability_required"
+
+
+def test_a_guest_cannot_pose_as_an_agent_over_the_route(
+    episode: Path, published_share: Share
+) -> None:
+    token = _token(published_share, "editor")
+
+    res = _command(
+        TestClient(create_app()),
+        token,
+        "SetFeedField",
+        {"key": "item.intro", "value": "x", "by": "agent"},
+    )
+
+    assert res.status_code == 403
+    assert _pins(episode) == {}
+
+
+def test_a_guest_pin_reads_as_the_guests_in_the_host_view(
+    episode: Path, published_share: Share
+) -> None:
+    token = _token(published_share, "editor")
+    client = TestClient(create_app())
+
+    _command(client, token, "SetFeedField", {"key": "item.intro", "value": "By a guest."})
+
+    view = FeedService(ProjectWorkspace.open(episode)).read().wire()
+    assert view["item"]["item.intro"]["source"]["by"] == "guest"
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "item.guid",
+        "item.nope",
+        "item.enclosure.length",
+        "channel.mediaUrl",
+        "item.person[Ana Reyes]",
+    ],
+)
+def test_the_payload_gate_asks_the_registry_not_the_key_prefix(key: str) -> None:
+    editor = capabilities_for_role("editor")
+
+    with pytest.raises(CodedPermissionError):
+        authorize_document_payload(editor, "SetFeedField", {"key": key, "value": "x"})
+
+
+def test_the_payload_gate_lets_a_guest_edit_one_person_attribute() -> None:
+    editor = capabilities_for_role("editor")
+
+    authorize_document_payload(
+        editor, "SetFeedField", {"key": "item.person[Ana Reyes].role", "value": "host"}
+    )
+
+
+class TwoShows:
+    def shows(self):
+        return (ShowSummary("long-river", "The Long River"), ShowSummary("secret", "Unreleased"))
+
+    def profile(self, show_id):
+        return None
+
+
+def test_a_guest_never_sees_the_titles_of_shows_the_episode_is_not_linked_to(
+    episode: Path, published_share: Share, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(feed_service, "default_show_source", TwoShows)
+    project = load_project(episode)
+    project.feed.show_id = None
+    save_project(project, episode)
+    token = _token(published_share, "editor")
+    client = TestClient(create_app())
+
+    read = client.get(f"/api/review/{token}/feed")
+    wrote = client.post(f"/api/review/{token}/feed/write")
+
+    assert read.json()["view"]["show"] == {"kind": "choose", "shows": []}
+    assert "Unreleased" not in read.text and "Unreleased" not in wrote.text
+    host = FeedService(ProjectWorkspace.open(episode)).read().wire()
+    assert [s["title"] for s in host["show"]["shows"]] == ["The Long River", "Unreleased"]
 
 
 def test_a_guest_value_is_checked_like_the_hosts(episode: Path, published_share: Share) -> None:
