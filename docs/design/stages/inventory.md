@@ -132,8 +132,8 @@ Dialogs launched from Home are listed in section 7: DLG-MCP, DLG-MODELS, DLG-HEL
 
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|
-| PNL-COMMENTS | Comments panel: filter (open/resolved/all), list, compose, EmptyState (host; guests use `stage/hosts/GuestComments.tsx`) | Tab "Comments"; phone More > Comments or Listen "Open all"; status bar "Open comments" | `panels/CommentsPanel.tsx`, `comments/CommentCard.tsx`, `comments/CommentCompose.tsx`, `comments/InlineEditInput.tsx`, `comments/CommentAnchorChip.tsx`, `comments/CommentTimeChip.tsx`, `comments/CommentAuthorLine.tsx` | Parts: `comments/CommentCard.stories.tsx` (Open, Resolved, ResolveAndReopen, ActionsAndReplies, Busy, ReadOnly, MobileLongThread); `comments/CommentCompose.stories.tsx` (Empty, DraftAndPost, Posting). Panel NONE | Props for the pieces; Store for the panel | Discuss and resolve feedback |
-| CMP-GUEST-NAME | "Your name" field above the first comment, before a guest's first comment | Guest posts a comment with no stored name | `system/Composer.tsx` (name field), `stage/hosts/GuestComments.tsx`, `comments/useGuestName.ts` | `System/Composer`, `Stages/Review/Composer` | Props | Identify the guest |
+| PNL-COMMENTS | Removed in #2293: comments are Review queue items for every role (see PNL-REVIEW-QUEUE); the pieces below remain | Review queue, comment rows; C opens the comment field | `comments/CommentCard.tsx`, `comments/CommentCompose.tsx` (the Ask composer), `stage/hosts/useReviewComments.tsx` | Parts: `comments/CommentCard.stories.tsx`, `comments/CommentCompose.stories.tsx`. Guest states: `Stages/Review/Host` GuestCommenter, GuestCommenterPhone, GuestCommenterPhone390, GuestCommenterEmpty, GuestViewer, GuestViewerPhone | Props for the pieces; Store for the host | Discuss and resolve feedback |
+| CMP-GUEST-NAME | "Your name" field in the Composer (a guest's saved name, else blank and posted as Guest) | Always, with the comment field | `system/Composer.tsx` (name field), `stage/hosts/useReviewComments.tsx` | `System/Composer`, `Stages/Review/Composer` | Props | Identify the guest |
 | PNL-HISTORY | History panel: Undo, Redo, grouped steps, diff view with raw toggle, Loading history… | Tab "History" (host); phone More > History | `panels/HistoryPanel.tsx`, `layout/useHistoryControls.ts` | NONE | Store | Browse and restore past states |
 | PNL-REVIEW-QUEUE | Removed in #2293: the Impact tab is now the Review Queue (`stage/hosts/ReviewHost.tsx`, `review/ReviewStage.tsx`). Totals, per-track seconds, the Applied edits list and all-kinds Approve all / Reject all are gone; unplaced edits are the last row of their group | Review > Queue (host); status bar pending chip | `stage/hosts/useReviewQueue.ts`, `utils/pendingReviewPass.ts` | NONE | Store | Decide pending suggestions one at a time or by group |
 | PNL-TIGHTEN | Removed in #2293: the Tighten tab is gone; Find more, group Cut all and the Review Queue replace it. Search, Track, Harsh only, per-hit Preview and Go to, and the Just applied list are dropped | Review > Queue (host) | `stage/hosts/useFindMore.ts`, `stage/hosts/useReviewQueue.ts` | NONE | Store | Find and remove fillers, silences and breaths |
@@ -223,7 +223,7 @@ Guest mode comes from `guest_mode` in the review bootstrap: Viewer `view`, Comme
 | BAN-GUEST-VERSION | Guest "newer version available" notice | Host republishes while the guest is open | `layout/GuestVersionNotice.tsx`, `layout/GuestVersionNoticeView.tsx` | NONE | View | Prompt refresh |
 | BAN-GUEST-ATTENTION | Offline / pending host edits / conflicts attention banner | Guest with queued or conflicting edits | `layout/GuestAttentionBanner.tsx`, `layout/GuestAttentionBannerView.tsx` | `layout/GuestAttentionBannerView.stories.tsx` | View | Surface sync state |
 | BAN-FOLLOW | "Following X" banner (host, guest, agent leader; host-only-tab notice; Esc to stop) | Click an avatar > Follow | `layout/FollowBanner.tsx`, `layout/FollowBannerView.tsx` | `layout/FollowBannerView.stories.tsx` (Following, AgentLeader, GuestHostOnlyTab, HostMirrorsAudition, PhoneLongName) | View | Follow someone else's view |
-| CMP-GUEST-COMMENT | Guest comment compose and name field | Comments tab or Listen composer | `comments/CommentCompose.tsx`, `system/Composer.tsx`, `layout/ListenCommentComposer.tsx` | CommentCompose and Composer yes; Listen composer NONE | Props | Leave feedback |
+| CMP-GUEST-COMMENT | Guest comment compose and name field | Review queue composer (always shown to a Commenter) or Listen composer | `comments/CommentCompose.tsx`, `system/Composer.tsx`, `layout/ListenCommentComposer.tsx` | CommentCompose and Composer yes; Listen composer NONE | Props | Leave feedback |
 
 Guest-specific interactions: INT-COMMENT-MODE, INT-COMMENT-RESOLVE (host only), INT-FOLLOW, INT-PENDING-SUGGEST (Commenter blade or select-range proposes edits for host review).
 
@@ -295,7 +295,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-DELETE | Delete clip, ripple delete | Delete key; Clip inspector Delete clip | INS-CLIP | Backspace/Delete; Mod+Backspace (ripple) | partial |
 | INT-RIPPLE | Ripple on cut or delete (RippleArrow) | Cut or delete with ripple | OVL-PENDING, CMP-CLIP | Mod+Backspace | partial |
 | INT-RANGE | Select a time range; act on it (Play, Cut, Mute, Room tone, Move to speaker, Comment, Bounce) | Drag empty lane; Shift-drag clip; Select range tool; phone Select range | CMP-RANGE-ACTIONS, OVL-RANGE | none | NONE for actions |
-| INT-COMMENT-MODE | Removed in #2294: the ruler no longer anchors a comment; compose from the Comments panel or the Player bar | none | PNL-COMMENTS | none | n/a |
+| INT-COMMENT-MODE | Removed in #2294: the ruler no longer anchors a comment; compose from the Review queue field (C) or the Player bar | none | PNL-REVIEW-QUEUE | none | n/a |
 | INT-COMMENT-RESOLVE | Resolve/reopen, reply, edit a comment | Comment card actions; swipe right on touch (Review queue) | CMP-COMMENT-CARD, INS-COMMENT | swipe right | yes |
 | INT-WORD-SELECT | Select words by click, Shift-click, drag, hold-then-drag on touch | Transcript Select intent | PNL-TRANSCRIPT, CMP-RANGE-ACTIONS | long-press then drag | partial (Active/Selected turn) |
 | INT-WORD-CUT | Cut or mute selected words/range | Range actions on a text selection | CMP-RANGE-ACTIONS, CMP-WORDRANGE | none (Mod+X is Cut when `canApplyPass12`) | NONE |
@@ -369,7 +369,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | PNL-TRANSCRIPT, CMP-TURN, POP-SPEAKER, POP-WORD-EDIT, CMP-FINDREPLACE | R-HOST (aligned_dialogue for words). Wait for `[data-transcript-word]`. Toolbar toggles: `Correct`, `Select`, `Annotate`. Speaker: button "Change speaker <name>". Correct: set Correct, click a word, field "Correct word “…”" (or focus a word and press F2). Find: command `Find and replace transcript` (region "Find and replace transcript"). Phone: nav > Text. |
 | CMP-WORDBAR | Select one word, region "Word timing" in the inspector (see `e2e/wordbarFlow.ts`). |
 | CMP-EDITBOUNDARY, DLG-PRECISION | After a cut, boundary mark in the transcript; precision button opens dialog "Precision boundary" (see `e2e/edit-boundary-precision.spec.ts`, `e2e/boundaryFixture.ts`). |
-| PNL-COMMENTS, CMP-COMMENT-*, CMP-GUEST-NAME | Tab Comments; field label per CommentCompose; for the name field use a guest context with no stored name. |
+| PNL-COMMENTS, CMP-COMMENT-*, CMP-GUEST-NAME | Review queue; field label "Comment"; for the name field use a guest context with no stored name. |
 | PNL-HISTORY, PNL-REVIEW-QUEUE, PNL-PIPELINE | Tab by name. Pipeline needs `/api/pipeline/config` (see `e2e/pipeline-*.spec.ts`); the Review Queue needs hits from Find more. |
 | DLG-STEP-PARAMS | Phone: More > Pipeline > tap a step. |
 | INS-* | Click the object: clip (`.clip-block`), pending region, track header, chapter marker, comment pin, word, envelope point. Tablet: `.bottom-sheet[role=dialog]`; phone: compact inspector at the remembered detent. |
@@ -418,7 +418,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | PNL-TRANSCRIPT | partial | Turn, ghost chips, boundary mark only |
 | POP-WORD-EDIT, POP-SPEAKER, CMP-FINDREPLACE, CMP-WORDBAR, CMP-WORDRANGE, CMP-VOCAB | no | |
 | DLG-PRECISION | no | |
-| PNL-COMMENTS | partial | Card and compose; panel no |
+| PNL-COMMENTS | partial | Card and compose; the panel is gone (queue stories cover the guest states) |
 | PNL-HISTORY, PNL-REVIEW-QUEUE, PNL-PIPELINE, DLG-STEP-PARAMS | no | All store-bound; no View split |
 | INS-CLIP | yes | Multi-select no |
 | INS-ENVELOPE, INS-BLEED | yes | |
@@ -459,7 +459,7 @@ Tally of the 153 non-interaction items, counted from the Story columns: 65 yes, 
 7. **PNL-TRANSCRIPT** (the main host surface). Hydrate store with `aligned_dialogue`-like fixture. Stories: Navigate, Correct, Select with range, Annotate, Ignored restore chip, Find and replace open, Low confidence stepping, Empty or loading, Phone.
 8. **DLG-PRECISION**. Stories: Loading, Editing, Saving, Queued, Error, Guest-hidden.
 9. **INS-PENDING** (core review action) and **INS-TRACK**, **INS-WORD**, **INS-COMMENT**, **INS-APPLIED**, **INS-CHAPTER**, **INS-SOCIAL**. All need store hydration only.
-10. **PNL-REVIEW-QUEUE, PNL-HISTORY, PNL-COMMENTS** as full panels (each has empty, populated, busy, error, guest variants; Comments has the guest name field).
+10. **PNL-REVIEW-QUEUE, PNL-HISTORY** as full panels (each has empty, populated, busy, error, guest variants; the queue has the guest name field).
 11. **PNL-PIPELINE and DLG-STEP-PARAMS, DLG-WHISPER**. Largest panel (1435 lines); needs a pipeline-config fixture and a split.
 12. **SCR-PHONE-MORE and SCR-PHONE-LISTEN bodies.** Extract `MoreHub` as a View (it is already a separate function in `MobileShell.tsx`), add Listen body stories with chips and comments list, guest variant.
 13. **MENU-MAIN and MENU-VIEW as real menus.** Story with Menu open for host, guest, collapsed (tablet/phone) and menu-only (Listen).
