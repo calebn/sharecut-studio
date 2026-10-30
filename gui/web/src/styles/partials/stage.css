@@ -1,13 +1,6 @@
 /* Stage lighting and row interaction depth (timeline, transcript toolbar,
    track rows). Transport paint lives in transport.css. */
 
-/* Quiet at rest; pressed falls through to the shared .ui-control chip. */
-.transcript-toolbar
-  .transcript-annotate-btn:not([aria-pressed="true"], :hover) {
-  border-color: transparent;
-  background: transparent;
-}
-
 .timeline-area[data-playing="true"] .playhead {
   box-shadow: var(--shadow-playhead-playing);
 }

@@ -488,9 +488,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
     await openProject(page, e2eProjectPath);
     await phone.showText(page);
     // The first transcript chip can be a temporary turn-level placeholder.
-    const word = page
-      .locator('[data-transcript-word][data-word-index="0"]')
-      .first();
+    const word = page.locator('.sys-script-word[data-word-key$=":0"]').first();
     await expect(word).toBeVisible();
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setTouchEmulationEnabled", {
@@ -523,9 +521,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
     await openProject(page, e2eProjectPath);
     await phone.showText(page);
     // Wait for a word-level chip before capturing coordinates for both taps.
-    const word = page
-      .locator('[data-transcript-word][data-word-index="0"]')
-      .first();
+    const word = page.locator('.sys-script-word[data-word-key$=":0"]').first();
     await expect(word).toBeVisible();
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setTouchEmulationEnabled", {
@@ -549,7 +545,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
         touchPoints: [],
       });
     }
-    await expect(word).toHaveClass(/selected/);
+    await expect(word).toHaveAttribute("data-selected", "");
     await expect(page.locator('[role="dialog"]')).toBeVisible();
     await expect(page.getByLabel("Corrected text")).toBeVisible();
   });

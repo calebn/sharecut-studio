@@ -119,8 +119,8 @@ const DENSE = [
   // Transcript text: inline words in running text, where a taller hit area would take
   // the neighbouring line's taps (docs/communication-philosophy.md, #1602). The speaker
   // button holds the floor.
-  ".utterance-word",
-  ".utterance-seek:not(.utterance-speaker)",
+  ".sys-script-word",
+  ".sys-script-time",
   // The drawer's detent range is the keyboard route; a finger swipes the header or
   // taps the resize buttons.
   ".bottom-sheet-detent",
@@ -264,8 +264,13 @@ async function sweepCell(
   }
 
   await stagePhone.showText(page);
-  await page.getByRole("button", { name: "Find and replace" }).first().click();
-  await expect(page.locator(".transcript-find-replace")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Find in transcript" })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("search", { name: "Find in transcript" }),
+  ).toBeVisible();
   found["transcript panel"] = await reachFailures(page, {
     scope: PANELS.join(","),
     skip: [".bottom-sheet-root"],
@@ -510,11 +515,8 @@ test("pending-edit and transcript-word sheet bodies keep every control reachable
 
     await page.setViewportSize({ width: 390, height: 844 });
     await stagePhone.showText(page);
-    const word = page
-      .locator(".transcript-list [data-transcript-word]")
-      .first();
+    const word = page.locator(".sys-script-body .sys-script-word").first();
     await expect(word).toBeVisible();
-    await page.getByRole("button", { name: /^Correct:/ }).click();
     await word.click();
     await scanSelection("Suppress", "text");
     return reports.join("\n\n");

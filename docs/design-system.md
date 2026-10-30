@@ -253,13 +253,10 @@ public review page in a fullscreen canvas. DraftAndPost clears its draft after
 the story-local successful submit; ActionsAndReplies ignores blank replies
 and displays trimmed successful replies, as the public review page does.
 
-`Templates/TranscriptTurn` renders the same `TranscriptTurnView` used by the
-live `TranscriptPanel`. The panel owns seeking, selection, touch gestures,
-presence anchors, edit-boundary placement and virtualization; the view paints
-props for mapped, active/selected, suppressed/low-confidence, cut-away, and
-360px long-turn examples. Story callbacks use local state only. Applied edit
-boundaries may appear in the live row, but there is no pending-edit row state
-to preview yet.
+`System/ScriptPane` is the pure Script pane; `stage/edit/script/ScriptHost`
+reads the store, builds its turns with `scriptModel`, and owns seeking,
+selection, Fix text, Find, the speaker popover and the word window.
+`Stages/Edit/ScriptHost` stories run the host over fictional store data.
 `Templates/EditBoundaryMark` renders the production `EditBoundaryMarkView`
 inline in a transcript row: a roll join, a live roll drag previewing
 restored words, a single-clip trim edge and a 360px row. The live
@@ -312,7 +309,7 @@ desktop and 360px widths.
 
 `Templates/AvatarStack` and `Templates/OverlayLegend` follow the same
 adapter/view split as `TrackHeaderView`, `TimeRulerView` and
-`TranscriptTurnView`: each live component is a thin adapter that reads the DAW
+`ScriptPane`: each live component is a thin adapter that reads the DAW
 store and renders a props-only `XView`. `AvatarStackView` and
 `OverlayLegendView` take the roster/layers and callbacks as props; their adapters
 keep the store selectors, the presence-follow command dispatch, and the
@@ -363,7 +360,7 @@ eligibility. Hydrated stories share one store, so the Frame story never takes
 the `autodocs` tag.
 
 Stories compose fictional factory data with `TrackHeaderView`,
-`TranscriptTurnView` and `FollowBannerView`. Callbacks forward to `fn()` spies
+`ScriptPane` and `FollowBannerView`. Callbacks forward to `fn()` spies
 and update local state. The fullscreen fixture frame has a definite block size
 and sets document shell metadata for portaled sheets; cleanup restores the
 previous document metadata. Phone stories use a 360 CSS-pixel frame.
@@ -402,7 +399,7 @@ one page and the stories would overwrite each other's hydration.
 `CommandButton` and `CommandMenuItem` are command-bus adapters over `Button`
 and `MenuItem`, which already have stories and need none of their own. Views
 extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
-examples are `TimeRulerView`, `TranscriptTurnView`, `FollowBannerView`,
+examples are `TimeRulerView`, `ScriptPane`, `FollowBannerView`,
 `GuestAttentionBannerView`,
 `EditCornerView`, `CommandPaletteView`,
 `ClipBlockView`, `MarkerLaneView`, `PendingEditOverlayView`,

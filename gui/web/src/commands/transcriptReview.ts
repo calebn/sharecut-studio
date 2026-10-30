@@ -28,6 +28,13 @@ function stepReview(direction: ReviewDirection): ExecuteResult {
     wordIndex: stop.wordIndex,
     order: stop.order,
   });
+  s.setSelection({
+    kind: "transcriptRange",
+    trackId: stop.trackId,
+    sourceId: stop.sourceId ?? null,
+    startWordIndex: stop.wordIndex,
+    endWordIndex: stop.wordIndex,
+  });
   if (stop.seekSec != null) s.setPlayheadSec(stop.seekSec);
   s.setTranscriptScrollRequest(
     transcriptWordPresenceAnchor(

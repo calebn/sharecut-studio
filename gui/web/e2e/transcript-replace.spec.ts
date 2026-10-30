@@ -4,62 +4,40 @@ import { e2eProjectPath } from "./env";
 import { openProject } from "./stageNav";
 import {
   openTranscriptPanel,
+  SCRIPT_WORD,
   withDocumentCommandTypes,
 } from "./transcriptEdit";
 
-test("reviewed replace all is one command and one Undo restores every instance", async ({
+test("replace all is one command and one Undo restores every instance", async ({
   page,
 }) => {
   await openProject(page, e2eProjectPath);
   const list = await openTranscriptPanel(page);
-  const word = list
-    .locator(".utterance-word")
-    .filter({ hasText: /^delighted$/i })
-    .first();
-  await expect(word).toBeVisible();
-  const originalCount = await list
-    .locator(".utterance-word")
-    .filter({ hasText: /^delighted$/i })
-    .count();
+  const words = (text: RegExp) =>
+    list.locator(SCRIPT_WORD).filter({ hasText: text });
+  await expect(words(/^delighted$/i).first()).toBeVisible();
+  const originalCount = await words(/^delighted$/i).count();
   expect(originalCount).toBeGreaterThan(1);
-  await page
-    .getByRole("button", { name: "Find and replace", exact: true })
-    .click();
-  const replace = page.getByRole("region", {
-    name: "Find and replace transcript",
-  });
-  await replace
-    .getByRole("textbox", { name: "Find", exact: true })
+  await page.getByRole("button", { name: "Find in transcript" }).click();
+  const bar = page.getByRole("search", { name: "Find in transcript" });
+  await bar
+    .getByRole("searchbox", { name: "Find", exact: true })
     .fill("delighted");
-  await replace
+  await bar.getByRole("button", { name: "Show replace" }).click();
+  await bar
     .getByRole("textbox", { name: "Replace with" })
     .fill("Testreplacement");
-  await replace.getByRole("button", { name: "Preview replacements" }).click();
-  await expect(
-    replace.getByRole("list", { name: "Replacement preview" }),
-  ).toBeVisible();
-  await expectPageAxeClean(page, ".transcript-panel");
+  await expectPageAxeClean(page, ".sys-script");
   await withDocumentCommandTypes(page, async (types) => {
-    await replace.getByRole("button", { name: /^Replace all/ }).click();
-    await expect(
-      replace.getByRole("button", { name: "Undo replacements" }),
-    ).toBeEnabled();
-    await expect(
-      list.locator(".utterance-word").filter({ hasText: /^delighted$/i }),
-    ).toHaveCount(0);
-    await expect(
-      list.locator(".utterance-word").filter({ hasText: /^Testreplacement$/ }),
-    ).toHaveCount(originalCount);
+    await bar.getByRole("button", { name: "Replace all" }).click();
+    await expect(words(/^delighted$/i)).toHaveCount(0);
+    await expect(words(/^Testreplacement$/)).toHaveCount(originalCount);
     expect(
       types.filter((type) => type === "ReplaceTranscriptMatches"),
     ).toHaveLength(1);
-    await replace.getByRole("button", { name: "Undo replacements" }).click();
-    await expect(
-      list.locator(".utterance-word").filter({ hasText: /^delighted$/i }),
-    ).toHaveCount(originalCount);
-    await expect(
-      list.locator(".utterance-word").filter({ hasText: /^Testreplacement$/ }),
-    ).toHaveCount(0);
+    await page.keyboard.press("ControlOrMeta+Z");
+    await expect(words(/^delighted$/i)).toHaveCount(originalCount);
+    await expect(words(/^Testreplacement$/)).toHaveCount(0);
     expect(types.filter((type) => type === "UndoHistory")).toHaveLength(1);
   });
 });

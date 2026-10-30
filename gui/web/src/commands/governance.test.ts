@@ -96,9 +96,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   // Focused clip handles route key edits locally; Escape cancels their preview.
   "timeline/ClipBlockView.tsx",
   "inspector/views/TranscriptWordInspector.tsx",
-  "transcript/InlineWordEditor.tsx",
   "transcript/TranscriptWordbar.tsx",
-  "transcript/TranscriptSpeakerEditor.tsx",
   // The separator pattern: arrows resize the Script pane, Enter resets it.
   "stage/edit/ScriptDivider.tsx",
   "tracks/TrackHeaderView.tsx",

@@ -44,21 +44,14 @@ export function registerTranscriptWordCommands(): void {
     const s = useDawStore.getState();
     if (!s.project || isShareProjectKey(s.projectPath))
       return { status: "disabled", reason: "Host project required" };
-    const chip = document.activeElement;
-    if (
-      !(chip instanceof HTMLElement) ||
-      !chip.matches("button[data-transcript-word]") ||
-      chip
-        .closest("[data-transcript-intent]")
-        ?.getAttribute("data-transcript-intent") !== "navigate"
-    ) {
-      return { status: "disabled", reason: "Focus a word in Navigate mode" };
-    }
-    const rawIndex = chip.dataset.wordIndex;
+    const sel = s.selection;
+    if (sel?.kind !== "transcriptRange")
+      return { status: "disabled", reason: "Select words to fix" };
     return requestInlineEdit(
-      chip.dataset.trackId ?? "",
-      chip.dataset.sourceId || null,
-      rawIndex ? Number(rawIndex) : Number.NaN,
+      sel.trackId,
+      sel.sourceId ?? null,
+      sel.startWordIndex,
+      sel.endWordIndex,
     );
   });
 }
@@ -67,6 +60,7 @@ export function requestInlineEdit(
   trackId: string,
   sourceId: string | null,
   wordIndex: number,
+  endWordIndex: number = wordIndex,
 ): ExecuteResult {
   const s = useDawStore.getState();
   if (!s.project || isShareProjectKey(s.projectPath))
@@ -88,6 +82,7 @@ export function requestInlineEdit(
     trackId,
     sourceId,
     wordIndex,
+    ...(endWordIndex !== wordIndex ? { endWordIndex } : {}),
   });
   return { status: "ok" };
 }

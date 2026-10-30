@@ -9,17 +9,11 @@ import { INVENTORY_IDS } from "./storyInventory";
  */
 const COVERED: Record<string, string[]> = {
   "PNL-TRANSCRIPT": [
-    "Templates/Editor · Transcript panel",
-    "Templates/TranscriptTurn",
     "System/ScriptPane",
     "Stages/Edit/ScriptPane",
     "Stages/Edit/ScriptHost",
   ],
-  "CMP-FINDREPLACE": [
-    "Templates/Editor · Transcript panel",
-    "Stages/Edit/FindBar",
-    "Stages/Edit/ScriptHost",
-  ],
+  "CMP-FINDREPLACE": ["Stages/Edit/FindBar", "Stages/Edit/ScriptHost"],
   "DLG-PRECISION": [
     "Templates/Editor · Precision boundary dialog",
     "System/ScrubField",
@@ -96,7 +90,7 @@ const COVERED: Record<string, string[]> = {
   "CMP-TRACK-FADER": ["Templates/TrackFader", "System/ScrubField"],
   "CMP-LEGEND": ["Templates/OverlayLegend"],
   "CMP-TRACK-MIX": ["Templates/TrackMix"],
-  "CMP-TURN": ["Templates/TranscriptTurn", "System/ScriptPane"],
+  "CMP-TURN": ["System/ScriptPane"],
   "CMP-GHOST": ["Templates/GhostWordChips"],
   "CMP-EDITBOUNDARY": ["Templates/EditBoundaryMark", "System/Seam"],
   "CMP-REFINE": ["Templates/GuestAttentionBanner"],
@@ -160,16 +154,8 @@ const COVERED: Record<string, string[]> = {
   "DLG-RECORD": ["Stages/Record/Host"],
   "DLG-MODELS": ["Templates/Models dialog"],
   "DLG-MODEL-GATE": ["Templates/Model gate"],
-  "POP-WORD-EDIT": [
-    "Templates/Editor · Transcript editors",
-    "Stages/Edit/ScriptPane",
-    "Stages/Edit/ScriptHost",
-  ],
-  "POP-SPEAKER": [
-    "Templates/Editor · Transcript editors",
-    "Stages/Edit/SpeakerPopover",
-    "Stages/Edit/ScriptHost",
-  ],
+  "POP-WORD-EDIT": ["Stages/Edit/ScriptPane", "Stages/Edit/ScriptHost"],
+  "POP-SPEAKER": ["Stages/Edit/SpeakerPopover", "Stages/Edit/ScriptHost"],
   "CMP-WORDBAR": [
     "Templates/Editor · Inspector · Word",
     "System/ScrubField",

@@ -8,7 +8,6 @@ import {
 } from "../../hooks/useMediaQueryStore";
 import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useViewportClass } from "../../hooks/useViewportClass";
-import { TranscriptPanel } from "../../panels/TranscriptPanel";
 import { canEditMix, canIngestMedia } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { inspectorOpenFor } from "../../state/selection";
@@ -28,6 +27,7 @@ import { InspectorSheet } from "./InspectorSheet";
 import { PhoneEditSurfaceView } from "./PhoneEditSurfaceView";
 import { PlusMenu } from "./PlusMenu";
 import { ScriptDivider } from "./ScriptDivider";
+import { ScriptHost } from "./script/ScriptHost";
 import { useSideYield } from "./sideFit";
 import { useAudioDrop } from "./useAudioDrop";
 import { useScriptSize } from "./useScriptSize";
@@ -166,20 +166,25 @@ function EditWorkspaceAdapter({
       <TimelineView fixedPlayhead={phone} headerSlot={headers} />
     );
 
+  // The pane is the Script region once it shows; before that the shell names it.
   const script = loadFailure ? (
-    <Cover
-      size="region"
-      glyph="triangle-alert"
-      title="Script could not load"
-      primary={{ label: "Retry", onClick: loadFailure.onRetry }}
-    >
-      {loadFailure.message}
-    </Cover>
+    <section aria-label="Script" className="edit-script-state">
+      <Cover
+        size="region"
+        glyph="triangle-alert"
+        title="Script could not load"
+        primary={{ label: "Retry", onClick: loadFailure.onRetry }}
+      >
+        {loadFailure.message}
+      </Cover>
+    </section>
   ) : loading ? (
-    <Skeleton layout="list" />
+    <section aria-label="Script" className="edit-script-state">
+      <Skeleton layout="list" />
+    </section>
   ) : (
     <div ref={scriptScroll} className="edit-script-body">
-      <TranscriptPanel />
+      <ScriptHost layout={phone ? "phone" : "desktop"} />
     </div>
   );
 

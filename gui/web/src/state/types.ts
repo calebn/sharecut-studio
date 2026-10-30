@@ -92,6 +92,8 @@ export interface TranscriptInlineEditRequest {
   trackId: string;
   sourceId?: string | null;
   wordIndex: number;
+  /** Fix text on this run of words in the track; left out, the one word. */
+  endWordIndex?: number;
 }
 
 export type DawTab = PresenceTab;
@@ -316,11 +318,11 @@ export interface DawState {
   transcriptCorrecting: boolean;
   transcriptTimingRequest: TranscriptInlineEditRequest | null;
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
-  /** An inline transcript word fix is saving; outlives a TranscriptPanel remount (tab switch). */
+  /** An inline transcript word fix is saving; outlives a Script remount (tab switch). */
   transcriptInlineCommitPending: boolean;
-  /** Late failure of an inline word fix; outlives a TranscriptPanel remount. */
+  /** Late failure of an inline word fix; outlives a Script remount. */
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
-  /** Current low-confidence walkthrough stop; outlives a TranscriptPanel remount, reset by a project switch (hydrate). */
+  /** Current low-confidence walkthrough stop; outlives a Script remount, reset by a project switch (hydrate). */
   transcriptReviewCursor: TranscriptReviewCursor | null;
   /** `edit.addChapter` (plus menu, touch create menu) is in flight for the current project; outlives a menu remount, reset by a project switch (hydrate). */
   chapterAddPending: boolean;

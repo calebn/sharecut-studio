@@ -120,10 +120,10 @@ test keeps the views themselves free of direct store/API imports.
 `Templates/GhostWordChips` show the shipped comment and transcript preview
 components with fictional, local-only state, including 360px phone variants.
 They do not mount the live comment panel.
-`Templates/TranscriptTurn` uses the production `TranscriptTurnView` shared with
-`TranscriptPanel` for mapped, selected, annotated, cut-away and 360px long-turn
-examples. The panel retains DAW state, gestures, presence, and virtualization;
-stories pass fixture props and local callbacks only.
+`System/ScriptPane` is the production Script pane; `Stages/Edit/ScriptHost`
+runs `stage/edit/script/ScriptHost` over fixture store data for mapped,
+selected, cut and 360px long-turn examples. The host retains DAW state,
+gestures and the word window; the pane takes props and local callbacks only.
 `Templates/TrackMix` renders the production `TrackMixView` with controlled six,
 many, long-name, saved/implied mute, read-only, loading, and empty fixtures.
 `TrackMix` owns one non-hot selector and projects rows outside it; the view owns

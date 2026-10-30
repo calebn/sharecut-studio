@@ -29,10 +29,11 @@ for (const tablet of TABLETS) {
     await page.setViewportSize(tablet);
     await openHostProject(page);
     const list = await openTranscriptPanel(page);
-    await page.getByRole("button", { name: /^Select:/ }).click();
-    const word = list.locator("[data-transcript-word][data-track-id]").nth(3);
+    const word = list.locator(".sys-script-word").nth(3);
     await word.click();
-    await expect(list.locator(".utterance-word.selected")).toHaveCount(1);
+    await expect(list.locator(".sys-script-word[data-selected]")).toHaveCount(
+      1,
+    );
     await inspectSelectionByKey(page);
     await expect(page.locator(".bottom-sheet")).toBeVisible();
   });

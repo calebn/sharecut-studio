@@ -1,6 +1,7 @@
 import {
   type ReactNode,
   type RefObject,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -166,6 +167,30 @@ export function useScriptFixText(
       close(where);
     },
   );
+
+  // The Fix text command (F2, the verb) asks for the words it was run on.
+  const request = useDawStore((s) => s.transcriptInlineEditRequest);
+  useEffect(() => {
+    if (!request) return;
+    const store = useDawStore.getState();
+    store.setTranscriptInlineEditRequest(null);
+    if (!enabledNow.current || request.projectPath !== store.projectPath)
+      return;
+    const lane = {
+      trackId: request.trackId,
+      sourceId: request.sourceId ?? null,
+    };
+    const start = model.indexOf(
+      { ...lane, wordIndex: request.wordIndex },
+      "first",
+    );
+    const end = model.indexOf(
+      { ...lane, wordIndex: request.endWordIndex ?? request.wordIndex },
+      "last",
+    );
+    if (start === undefined || end === undefined || end < start) return;
+    onFixText({ start, end });
+  }, [request, model, onFixText]);
 
   const renderEditor = (span: ScriptSpan) => {
     const count = span.end - span.start + 1;
