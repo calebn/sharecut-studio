@@ -169,8 +169,8 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | Align accept gate | project | `align_status_tool`, `align_brief_tool`, `align_done_tool`, `align_waive_tool` | `podcast align` | `podcast-align-audio` | yes |
 | Speaker attribution | project | `speaker_doctor_tool`, `speaker_enroll_tool`, `speaker_profiles_tool`, `speaker_score_tool`, `speaker_compare_window_tool`, `speaker_compare_pair_tool`, +6 | `podcast speaker` | `podcast-speaker-attribution` | yes |
 | Open ShareCut Studio GUI | session | `open_gui_tool` | `podcast gui` | `podcast-open-gui` | yes |
-| Read podcast listing | view | `feed_read` | `podcast feed show` | `podcast-rss-feed` | yes |
-| Edit podcast listing | project | `feed_set`, `feed_unset` | `podcast feed set` | `podcast-rss-feed` | yes |
+| Read podcast listing | view | `feed_read` | `podcast feed show` | `podcast-rss-feed` | — |
+| Edit podcast listing | project | `feed_set`, `feed_unset` | `podcast feed set` | `podcast-rss-feed` | — |
 
 ## Hub skills
 

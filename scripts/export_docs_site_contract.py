@@ -46,6 +46,10 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/review/{token}/features"): ("view", "Extension / feature manifest"),
     ("GET", "/api/review/{token}/audio"): ("play", "Frozen review mix (link previews, agents)"),
     ("GET", "/api/review/{token}/daw/project"): ("view", "Sanitized ProjectView (no host paths)"),
+    ("GET", "/api/review/{token}/feed"): (
+        "view",
+        "Podcast listing: the facts and the item XML (an Editor edits it with SetFeedField)",
+    ),
     ("GET", "/api/review/{token}/daw/document/state"): (
         "view",
         "Atomic sanitized document state with sequence and opaque basis token",
@@ -156,6 +160,9 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ("GET", "/api/review/{token}/audio"): "guest_audio_info",
     ("GET", "/api/review/{token}/daw/project"): "guest_get_project",
     ("GET", "/api/review/{token}/daw/document/state"): "http-only: sequenced DAW recovery",
+    ("GET", "/api/review/{token}/feed"): (
+        "http-only: guest agents write the listing with guest_submit_document_command"
+    ),
     ("POST", "/api/review/{token}/daw/boundary/context"): (
         "http-only: ShareCut Studio guarded boundary dragging"
     ),

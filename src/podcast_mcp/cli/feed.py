@@ -10,6 +10,7 @@ import typer
 
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import FeedService, describe_fields
+from podcast_mcp.util.coded_error import CodedValueError
 
 feed_app = typer.Typer(help="The podcast listing: show notes, chapters, people and the feed.")
 
@@ -20,7 +21,13 @@ def _value(text: str) -> str:
     """``@file`` reads a file's text, so notes and intros can be longer than a shell argument."""
     if not text.startswith("@"):
         return text
-    return Path(text[1:]).expanduser().read_text(encoding="utf-8")
+    path = Path(text[1:]).expanduser()
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise CodedValueError(
+            f"Cannot read {path} as UTF-8 text", code="feed_file_unreadable"
+        ) from exc
 
 
 def _fix_text(fix: dict[str, Any] | None) -> str:
@@ -65,7 +72,9 @@ def _show_text(view: dict[str, Any]) -> str:
 def feed_show_cmd(
     project: Path = _PROJECT,
     as_json: bool = typer.Option(False, "--json", help="The full view as JSON"),
-    xml: bool = typer.Option(False, "--xml", help="The feed file's XML"),
+    xml: bool = typer.Option(
+        False, "--xml", help="The feed file's XML. Exits 1 with a warning while a blocker stands"
+    ),
     item: bool = typer.Option(False, "--item", help="The bare <item> for your own feed"),
     notes: bool = typer.Option(False, "--notes", help="The show notes as HTML"),
     shows: bool = typer.Option(False, "--shows", help="The show state: none, choose or ready"),
@@ -96,6 +105,14 @@ def feed_show_cmd(
             typer.echo(json.dumps(view.wire(), indent=2, ensure_ascii=False))
         case ["xml"]:
             typer.echo(service.present("feed_xml"), nl=False)
+            blockers = sum(f.severity == "blocker" for f in view.findings)
+            if blockers:
+                typer.echo(
+                    f"Warning: this feed is not valid yet ({blockers} blocker"
+                    f"{'' if blockers == 1 else 's'}). Run `podcast feed show` to see them.",
+                    err=True,
+                )
+                raise typer.Exit(1)
         case ["item"]:
             typer.echo(service.present("item_xml"), nl=False)
         case ["notes"]:

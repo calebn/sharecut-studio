@@ -1,10 +1,9 @@
-"""Show notes as the HTML podcast apps accept: p, ol, ul, li, a, b and i."""
+"""Show notes as the HTML every podcast app accepts: p, ol, ul, li and a."""
 
 from __future__ import annotations
 
 import html
 import math
-import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -68,10 +67,8 @@ def compose_notes(parts: NotesParts) -> str:
 
 
 def pinned_notes_html(text: str) -> str:
-    return "".join(
-        "<p>" + _text(paragraph).replace("\n", "<br>") + "</p>"
-        for paragraph in re.split(r"\n{2,}", text.strip("\n"))
-    )
+    """One ``<p>`` per non-blank line: a line break would need ``<br>``, which apps do not accept."""
+    return "".join(f"<p>{_text(line)}</p>" for line in text.splitlines() if line.strip())
 
 
 def notes_html(view: FeedView) -> str:

@@ -10,10 +10,9 @@ from __future__ import annotations
 import re
 import uuid
 import xml.etree.ElementTree as ET
-from datetime import datetime
 from email.utils import format_datetime
 
-from podcast_mcp.feed.fields import FIELDS, FieldSpec, Tag
+from podcast_mcp.feed.fields import FIELDS, FieldSpec, Tag, parse_moment
 from podcast_mcp.feed.model import FeedView, Measured, Soundbite
 from podcast_mcp.feed.notes import MEDIA_URL_KEY, NOTES_KEY
 from podcast_mcp.feed.urls import (
@@ -78,8 +77,11 @@ def _text(value: object) -> str:
     return ("true" if value else "false") if isinstance(value, bool) else str(value)
 
 
-def _rfc2822(iso: str) -> str:
-    return format_datetime(datetime.fromisoformat(iso.replace("Z", "+00:00")), usegmt=True)
+def _rfc2822(iso: str) -> str | None:
+    try:
+        return format_datetime(parse_moment(iso), usegmt=True)
+    except (ValueError, OverflowError):
+        return None
 
 
 def _put(parent: ET.Element, tag: Tag, value: object, build: _Builder, *, notes: bool) -> None:

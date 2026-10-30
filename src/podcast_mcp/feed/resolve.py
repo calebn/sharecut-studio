@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from podcast_mcp.feed.fields import (
     FIELDS,
+    PERSON_KEY,
     AtSource,
     Auto,
     FieldSpec,
@@ -17,6 +18,7 @@ from podcast_mcp.feed.fields import (
     Missing,
     Resolution,
     lookup,
+    speakers,
 )
 from podcast_mcp.feed.model import (
     ChooseShow,
@@ -253,18 +255,29 @@ def _file_state(view: FeedView, feed_xml: str | None) -> FileState:
     return "current" if render(view) == feed_xml else "stale"
 
 
+def clears(edit: FeedEdit) -> bool:
+    """An unset, or a set of nothing but whitespace: both hand the value back to automatic."""
+    return isinstance(edit, UnsetEdit) or (isinstance(edit.value, str) and not edit.value.strip())
+
+
 def edited_pins(
     inputs: FeedInputs,
     pins: Mapping[str, Pin],
     edit: FeedEdit,
     by: PinAuthor,
 ) -> dict[str, Pin]:
-    """The pins after ``edit``. A set of the empty string is an unset; unsetting no pin changes nothing."""
-    if isinstance(edit, UnsetEdit) or edit.value == "":
-        return {k: p for k, p in pins.items() if k != edit.key}
+    """The pins after ``edit``, or the coded refusal every entry point shares.
+
+    A set of blank text is an unset, and unsetting a key that holds no pin changes nothing.
+    """
     spec = lookup(edit.key)
+    if spec is not None and spec.scope == "show":
+        raise CodedValueError("Show settings are not available yet", code="feed_show_unavailable")
+    if clears(edit):
+        return {k: p for k, p in pins.items() if k != edit.key}
     if spec is None:
         raise CodedValueError(f"{edit.key} is not a listing field", code="feed_field_unknown")
+    assert not isinstance(edit, UnsetEdit)
     if isinstance(spec.edit, AtSource):
         raise CodedValueError(spec.edit.where, code="feed_field_edit_at_source")
     if spec.edit != "pin":
@@ -277,8 +290,26 @@ def edited_pins(
     except ValidationError as exc:
         reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
         raise CodedValueError(f"{edit.key} {reason}", code="feed_value_invalid") from exc
+    _require_speaker(inputs, edit.key)
     others = {k: p for k, p in pins.items() if k != edit.key}
     _, auto = _resolve_rows(inputs, others)
     basis_fact = auto.get(edit.key)
     basis = digest(basis_fact.value) if isinstance(basis_fact, Found) else None
     return {**others, edit.key: Pin(value=value, basis=basis, by=by)}
+
+
+def cleared_pins(inputs: FeedInputs, pins: Mapping[str, Pin], key: str) -> dict[str, Pin]:
+    """The pins without ``key``. A key that names nothing is refused, so a typo is not silent."""
+    if key not in pins:
+        if lookup(key) is None:
+            raise CodedValueError(f"{key} is not a listing field", code="feed_field_unknown")
+        _require_speaker(inputs, key)
+    return edited_pins(inputs, pins, UnsetEdit(key=key), "person")
+
+
+def _require_speaker(inputs: FeedInputs, key: str) -> None:
+    match = PERSON_KEY.match(key)
+    if match is not None and match["name"] not in speakers(Resolution(inputs=inputs, pins={})):
+        raise CodedValueError(
+            f"{match['name']} is not a speaker on this episode", code="feed_field_unknown"
+        )

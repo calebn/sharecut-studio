@@ -17,7 +17,7 @@ The listing is computed on every read from the project and `export/`. Only edits
 | Tool | CLI | Use |
 |------|-----|-----|
 | `feed_read(project_path, view)` | `podcast feed show -p P [--json \| --xml \| --item \| --notes \| --check]` | `facts` (default) is JSON; `notes_html`, `item_xml`, `feed_xml` and `show` are the other views |
-| `feed_set(project_path, field, value)` | `podcast feed set -p P KEY VALUE` | Pin one value. The empty string unsets |
+| `feed_set(project_path, field, value)` | `podcast feed set -p P KEY VALUE` | Pin one value. Empty or blank text unsets. A number or true/false is read as text |
 | `feed_unset(project_path, field)` | `podcast feed unset -p P KEY` | Go back to the automatic value |
 | | `podcast feed fields` | Every key, how it is edited and which feed tags it feeds |
 

@@ -59,6 +59,7 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `GET` | `…/daw/waveform/tiles/{key}` | `view` | Binary min/max/RMS pyramid tiles |
 | `WEBSOCKET` | `…/daw/ws` | `view` | Receive-only session+document fanout (progress plane too) |
 | `GET` | `…/features` | `view` | Extension / feature manifest |
+| `GET` | `…/feed` | `view` | Podcast listing: the facts and the item XML (an Editor edits it with SetFeedField) |
 | `GET` | `…/project` | `token` | Review-share project JSON: capabilities, guest mode, review version |
 | `GET` | `…rec/bootstrap` | `kind=record` | Record lobby bootstrap JSON (no review mix) |
 | `GET` | `…rec/features` | `kind=record` | Extension / feature manifest |
