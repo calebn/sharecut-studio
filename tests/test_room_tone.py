@@ -20,6 +20,7 @@ from podcast_mcp.edits.timeline_ops import (
     insert_room_tone_pad,
     mute_room_tone_fill,
 )
+from podcast_mcp.engines import room_tone_synth
 from podcast_mcp.engines.audio import SourceAudio
 from podcast_mcp.engines.clips_ops import (
     crossfade_block_reason,
@@ -533,6 +534,12 @@ def test_sampled_tiles_fade_only_at_the_pad_edges(tmp_path: Path) -> None:
     assert [(c.fade_in_ms, c.fade_out_ms) for c in pads] == [(10, 0), (0, 0), (0, 10)]
 
 
+@pytest.fixture
+def tiling_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep recorded audio and the tiler for a fill that would otherwise be synthesised."""
+    monkeypatch.setattr(room_tone_synth, "SYNTH_MAX_REPLAY_SEC", float("inf"))
+
+
 def _pad_over_a_short_bed(
     tmp_path: Path, at_time: float, seconds: float
 ) -> tuple[list[Clip], EpisodeProject]:
@@ -550,7 +557,7 @@ def _pad_over_a_short_bed(
     return pads, project
 
 
-def test_a_pad_longer_than_the_bed_blends_its_repeats(tmp_path: Path) -> None:
+def test_a_pad_longer_than_the_bed_blends_its_repeats(tmp_path: Path, tiling_only: None) -> None:
     pads, project = _pad_over_a_short_bed(tmp_path, 4.0, 20.0)
 
     assert len(pads) > 2
@@ -566,7 +573,9 @@ def test_a_pad_longer_than_the_bed_blends_its_repeats(tmp_path: Path) -> None:
     ]
 
 
-def test_a_blended_repeat_never_borrows_audio_outside_the_bed(tmp_path: Path) -> None:
+def test_a_blended_repeat_never_borrows_audio_outside_the_bed(
+    tmp_path: Path, tiling_only: None
+) -> None:
     pads, project = _pad_over_a_short_bed(tmp_path, 4.0, 20.0)
 
     for left, right in pairwise(pads):
@@ -583,7 +592,9 @@ def test_a_pad_the_bed_covers_is_one_unblended_clip(tmp_path: Path) -> None:
     assert (pads[0].fade_in_ms, pads[0].fade_out_ms) == (10, 10)
 
 
-def test_the_same_pad_position_tiles_the_bed_the_same_way(tmp_path: Path) -> None:
+def test_the_same_pad_position_tiles_the_bed_the_same_way(
+    tmp_path: Path, tiling_only: None
+) -> None:
     first, _ = _pad_over_a_short_bed(tmp_path / "one", 4.0, 20.0)
     second, _ = _pad_over_a_short_bed(tmp_path / "two", 4.0, 20.0)
 
@@ -1655,7 +1666,7 @@ def test_a_peer_recording_that_ends_early_does_not_reject_later_room_tone(tmp_pa
 
 
 def test_a_cut_decision_near_a_fill_join_does_not_rewrite_the_fill_crossfade(
-    tmp_path: Path,
+    tmp_path: Path, tiling_only: None
 ) -> None:
     from podcast_mcp.edits.cut_application import _write_join_fades
 

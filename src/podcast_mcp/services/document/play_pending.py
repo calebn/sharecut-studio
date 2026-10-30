@@ -36,6 +36,7 @@ from podcast_mcp.engines.room_tone import (
     room_tone_bed_digest,
     room_tone_pool_digest,
 )
+from podcast_mcp.engines.room_tone_synth import room_tone_synth_digest
 from podcast_mcp.engines.timeline_render import render_track_segment, timeline_duration_sec
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_render import render_atomic
@@ -348,6 +349,7 @@ class _PlayPending(_PlayCompose, _PlayHeadroom):
                 "defaults": self._defaults,
                 "room_tone_pool": room_tone_pool_digest(self.project),
                 "room_tone_bed": room_tone_bed_digest(self.project),
+                "room_tone_synth": room_tone_synth_digest(),
             },
             sort_keys=True,
         )

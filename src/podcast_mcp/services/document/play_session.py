@@ -11,6 +11,7 @@ from typing import Any
 from podcast_mcp.edits.pending_preview import DEFAULT_AB_GAP_SEC, DEFAULT_SESSION_PAD_SEC
 from podcast_mcp.edits.session_suggestions import apply_session_suggestion_for_preview
 from podcast_mcp.engines.room_tone import room_tone_bed_digest, room_tone_pool_digest
+from podcast_mcp.engines.room_tone_synth import room_tone_synth_digest
 from podcast_mcp.models import EpisodeProject, SessionSuggestion
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.batch_scope import batch_scope
@@ -182,6 +183,7 @@ class _PlaySession(_PlayPending):
             self._defaults,
             room_tone_pool_digest(project),
             room_tone_bed_digest(project),
+            room_tone_synth_digest(),
         )
 
     def _session_window_path(self, key: str, side: str) -> Path:

@@ -466,9 +466,11 @@ def synthesise_noise(
     *,
     source_rate: int | None = None,
     seed_key: str,
+    length_sec: float = LOOP_SEC,
 ) -> np.ndarray:
     """A seamless loop of Gaussian noise with power spectrum ``psd`` (random phase, one IFFT),
-    with nothing under ``MIN_FILL_HZ``.
+    with nothing under ``MIN_FILL_HZ``. It is at least ``length_sec`` long (``LOOP_SEC`` by
+    default, the loop gate and bleed fill read).
 
     ``psd`` is read at ``source_rate`` (default ``sample_rate``). At another rate the same
     noise is realised: the band above the source's Nyquist is empty, and the level follows
@@ -477,7 +479,7 @@ def synthesise_noise(
     The draw is seeded from ``seed_key`` and ``sample_rate``, never from the spectrum, so a
     last-bit difference in a measurement cannot change the noise (#2556).
     """
-    length = 1 << math.ceil(math.log2(LOOP_SEC * sample_rate))
+    length = 1 << math.ceil(math.log2(length_sec * sample_rate))
     seed_text = f"gate-fill:{seed_key}:{sample_rate}"
     seed = int.from_bytes(hashlib.sha256(seed_text.encode()).digest()[:8], "little")
     white = np.random.default_rng(seed).standard_normal(length)
@@ -490,6 +492,15 @@ def synthesise_noise(
         shape = shape * (sample_rate / source)
     shape[freqs < MIN_FILL_HZ] = 0.0
     return np.fft.irfft(np.fft.rfft(white) * np.sqrt(shape), length).astype(np.float32)
+
+
+def measure_noise_psd(samples: np.ndarray, sample_rate: int) -> tuple[np.ndarray, int] | None:
+    """``(psd, nfft)`` of mono ``samples``: the mean periodogram of the frames within
+    ``NOISE_SPREAD_DB`` of the median, or None when ``samples`` is shorter than one frame."""
+    nfft = _frame_len(sample_rate)
+    if samples.shape[0] < nfft:
+        return None
+    return _noise_psd(list(_periodograms(_frames(samples[:, None], nfft), nfft))), nfft
 
 
 def _room_tone_bed(
@@ -512,17 +523,13 @@ def _room_tone_bed(
         duration_sec=bed.end - bed.start,
         sample_rate=holes.sample_rate,
     )
-    nfft = _frame_len(holes.sample_rate)
-    psd = None
-    if samples.shape[0] >= nfft:
-        rows = list(_periodograms(_frames(samples[:, None], nfft), nfft))
-        psd = _noise_psd(rows)
+    measured = measure_noise_psd(samples, holes.sample_rate)
     return FillLoop(
         samples=samples,
         level_db=rms_db(samples),
         noise_db=None,
-        psd=psd,
-        nfft=nfft if psd is not None else 0,
+        psd=measured[0] if measured else None,
+        nfft=measured[1] if measured else 0,
         sample_rate=holes.sample_rate,
     )
 

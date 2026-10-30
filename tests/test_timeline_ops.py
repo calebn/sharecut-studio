@@ -870,7 +870,7 @@ def test_fill_with_room_tone_two_clips() -> None:
         ),
     ]
     with patch(
-        "podcast_mcp.edits.timeline_ops.room_tone_span",
+        "podcast_mcp.engines.room_tone_synth.room_tone_span",
         return_value=OwnQuietSample(Sample(5.0, 5.25, -70.0, None)),
     ) as span:
         summary = fill_with_room_tone(p, "host", sample_duration_sec=0.25, defaults=load_defaults())
@@ -882,6 +882,7 @@ def test_fill_with_room_tone_two_clips() -> None:
         near_source_id=None,
         timeline_sec=2.0,
         duration_sec=0.25,
+        avoid=(),
         also_taken=(),
     )
     host = sorted((c for c in p.clips if c.track_id == "host"), key=lambda c: c.timeline_start)
