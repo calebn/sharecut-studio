@@ -246,6 +246,22 @@ def test_caption_edits_on_numeric_or_arrow_lines_make_the_file_stale(ws, before,
     assert _current(ws, lambda p: _set_words(p, after)) == [False, False]
 
 
+def test_overlapping_tracks_stay_current(ws):
+    def overlap(proj):
+        proj.transcripts = [
+            Transcript(track_id="host", words=_words(["a", "b", "c", "d", "e", "f"], start=3.0)),
+            Transcript(track_id="guest", words=_words(["x", "y"], start=4.0)),
+        ]
+
+    TranscriptService(ws).export(["srt", "vtt"])
+    ws2 = ProjectWorkspace.open(ws.path)
+    overlap(ws2.project)
+    save_project(ws2.project, ws2.path)
+    svc = TranscriptService(ProjectWorkspace.open(ws.path))
+    svc.export(["srt", "vtt"])
+    assert [e.current for e in svc.exported()] == [True, True]
+
+
 def test_moving_words_in_time_makes_captions_stale(ws):
     def shift(proj):
         for t in proj.transcripts:
