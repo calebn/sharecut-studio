@@ -259,6 +259,11 @@ html[data-frame-short] .edit-dock {
 
 /* The open Inspector sheet carries the Action bar as its own dock; this one
    keeps the layout still beneath it. */
+.edit-inspector-body > .related-commands {
+  padding-inline: var(--space-5);
+  padding-block-end: var(--space-5);
+}
+
 .edit-workspace .sys-inspector-dock:empty {
   display: none;
 }

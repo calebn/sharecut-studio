@@ -61,6 +61,8 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
   useEffect(() => {
     if (!ready || entered.current) return;
     entered.current = true;
+    if (document.activeElement?.closest(".ui-toast, .ui-toast-region--app"))
+      return;
     focusFirstControl(box.current);
   }, [ready, box]);
 }
