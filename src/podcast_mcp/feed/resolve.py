@@ -46,8 +46,9 @@ from podcast_mcp.feed.model import (
 from podcast_mcp.feed.notes import NOTES_KEY, notes_html
 from podcast_mcp.feed.render import render
 from podcast_mcp.models.feed import Pin, PinAuthor
-from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE, CodedValueError
 from podcast_mcp.util.hashing import short_digest
+from podcast_mcp.util.redact import mentions_host_path
 
 _SEVERITY_RANK = {"blocker": 0, "warn": 1, "info": 2}
 _LANGUAGE_NAMES = {
@@ -106,11 +107,34 @@ def _drifted(pin: Pin, auto: Auto) -> bool:
     return not isinstance(auto, Found) or digest(auto.value) != pin.basis
 
 
-def _usable_pin(spec: FieldSpec, pin: Pin) -> bool:
-    """False when a stored pin is the wrong kind of value, such as a number where text belongs."""
+_LIMIT_PHRASES = {
+    "string_too_long": "is too long",
+    "too_long": "is too long",
+    "string_too_short": "is blank",
+    "too_short": "is blank",
+    "greater_than": "is outside the allowed range",
+    "greater_than_equal": "is outside the allowed range",
+    "less_than": "is outside the allowed range",
+    "less_than_equal": "is outside the allowed range",
+}
+
+
+def _limit_phrase(exc: ValidationError) -> str | None:
+    """How a value of the right kind broke a size or range limit, or None for any other failure."""
+    return _LIMIT_PHRASES.get(exc.errors()[0]["type"])
+
+
+def _usable_pin(spec: FieldSpec, pin: Pin, res: Resolution) -> bool:
+    """False when a stored pin is the wrong kind of value, such as a number where text belongs.
+
+    A value of the right kind that breaks a limit stays visible, with a blocker saying which limit.
+    """
     try:
         spec.value.validate_python(pin.value)
     except ValidationError as exc:
+        if (phrase := _limit_phrase(exc)) is not None:
+            res.refused_pins[spec.key] = phrase
+            return True
         return exc.errors()[0]["type"] == "value_error"
     return True
 
@@ -127,7 +151,7 @@ def _resolve_rows(
         if pin is None or spec.edit != "pin":
             res.facts[spec.key] = auto
             continue
-        if not _usable_pin(spec, pin):
+        if not _usable_pin(spec, pin, res):
             res.unusable_pins.add(spec.key)
             res.facts[spec.key] = auto
             continue
@@ -199,6 +223,8 @@ def resolve(inputs: FeedInputs, pins: Mapping[str, Pin]) -> FeedView:
         findings.extend(_row_findings(spec, fact, res))
         if spec.key in res.unusable_pins:
             findings.append(_unusable_pin_finding(spec))
+        if spec.key in res.refused_pins:
+            findings.append(_refused_pin_finding(spec, res.refused_pins[spec.key]))
         if isinstance(fact, Found) and isinstance(fact.source, Pinned) and fact.source.drifted:
             drift_detail[spec.key] = spec.drift_hint or DEFAULT_DRIFT_HINT
     view = FeedView(
@@ -257,6 +283,16 @@ def _unusable_pin_finding(spec: FieldSpec) -> Finding:
         platform="RSS",
         message=f"The stored {spec.label} is not the kind of value this setting takes. "
         "Set it again or unset it.",
+        fix=None,
+    )
+
+
+def _refused_pin_finding(spec: FieldSpec, phrase: str) -> Finding:
+    return Finding(
+        key=spec.key,
+        severity="blocker",
+        platform="RSS",
+        message=f"The stored {spec.label} {phrase}. Set it again or unset it.",
         fix=None,
     )
 
@@ -350,30 +386,40 @@ class FeedValueInvalidError(CodedValueError):
         super().__init__(sentence)
 
     def guest_message(self) -> str:
-        return str(self)
+        """The sentence, unless it mentions a path on the host's machine."""
+        text = str(self)
+        return GENERIC_GUEST_MESSAGE if mentions_host_path(text) else text
 
 
 def _refusal_sentence(spec: FieldSpec, exc: ValidationError) -> str:
-    """``A hosting address must be an https address.``: the field's label and the rule it broke."""
+    """``Hosting address template must have exactly one place for the file name.``: label and rule broken."""
     label = spec.label[:1].upper() + spec.label[1:]
     first = exc.errors()[0]
+    if (phrase := _limit_phrase(exc)) is not None:
+        return f"{label} {phrase}."
     if first["type"] != "value_error":
-        return f"That value isn't valid for the {spec.label}."
+        return f"That isn't the kind of value the {spec.label} setting takes."
     return f"{label} {first['msg'].removeprefix('Value error, ')}."
 
 
-def checked_value(edit: SetEdit) -> tuple[FieldSpec, Any]:
-    """The row ``edit`` names and its value as that row stores it, or the refusal that says why not."""
-    spec = lookup(edit.key)
+def pin_row(key: str) -> FieldSpec:
+    """The row ``key`` names when a pin edits it, or the coded refusal that says why not."""
+    spec = lookup(key)
     if spec is None:
-        raise CodedValueError(f"{edit.key} is not a listing field", code="feed_field_unknown")
+        raise CodedValueError(f"{key} is not a listing field", code="feed_field_unknown")
     if isinstance(spec.edit, AtSource):
         raise CodedValueError(spec.edit.where, code="feed_field_edit_at_source")
     if spec.edit != "pin":
         raise CodedValueError(
-            f"{edit.key} is {'made once' if spec.edit == 'mint' else 'measured from the export'} and cannot be edited",
+            f"{key} is {'made once' if spec.edit == 'mint' else 'measured from the export'} and cannot be edited",
             code="feed_field_not_editable",
         )
+    return spec
+
+
+def checked_value(edit: SetEdit) -> tuple[FieldSpec, Any]:
+    """The row ``edit`` names and its value as that row stores it, or the refusal that says why not."""
+    spec = pin_row(edit.key)
     try:
         return spec, spec.value.validate_python(edit.value)
     except ValidationError as exc:

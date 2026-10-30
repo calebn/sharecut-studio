@@ -1,8 +1,8 @@
 import type { SystemIconName } from "../../system/icons";
 import { SystemIcon } from "../../system/SystemIcon";
+import type { Finding, Fix, Severity } from "../../types/feedView";
 import { Button, Pill } from "../../ui";
 import { fixLabel, sortFindings } from "./feedLogic";
-import type { Finding, Fix, Severity } from "../../types/feedView";
 
 const GLYPH: Record<Severity, { icon: SystemIconName; word: string }> = {
   blocker: { icon: "octagon-alert", word: "Blocks the feed" },

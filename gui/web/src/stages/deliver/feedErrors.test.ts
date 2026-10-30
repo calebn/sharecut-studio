@@ -13,8 +13,9 @@ describe("feedErrorText", () => {
           "item.enclosure.url must be an https address",
           "feed_value_invalid",
         ),
+        "host",
       ),
-    ).toBe("hosting address must be an https address");
+    ).toBe("episode hosting address must be an https address");
   });
 
   it("shows the service's sentence as written", () => {
@@ -24,12 +25,13 @@ describe("feedErrorText", () => {
           "Hosting address must be an https address.",
           "feed_value_invalid",
         ),
+        "host",
       ),
     ).toBe("Hosting address must be an https address.");
   });
 
   it("falls back when the refusal carries no words", () => {
-    expect(feedErrorText(refused("", "feed_value_invalid"))).toBe(
+    expect(feedErrorText(refused("", "feed_value_invalid"), "host")).toBe(
       "That value isn't valid for this field.",
     );
   });
@@ -39,8 +41,20 @@ describe("feedErrorText", () => {
     "feed_field_edit_at_source",
     "feed_field_not_editable",
   ])("has words for %s", (code) => {
-    expect(feedErrorText(refused("channel.title boom", code))).not.toContain(
-      "channel.",
+    expect(
+      feedErrorText(refused("channel.title boom", code), "editor"),
+    ).not.toContain("channel.");
+  });
+
+  it("tells the host to close what holds the export folder", () => {
+    expect(feedErrorText(refused("", "feed_write_failed"), "host")).toContain(
+      "export folder",
     );
+  });
+
+  it("gives an Editor advice they can act on, not the host's folder", () => {
+    const text = feedErrorText(refused("", "feed_write_failed"), "editor");
+    expect(text).toContain("Ask the host");
+    expect(text).not.toContain("export folder");
   });
 });

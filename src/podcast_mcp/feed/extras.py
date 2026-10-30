@@ -31,7 +31,6 @@ _MEDIA_TYPES = {
 # The survey's limit for a short label such as a funding message or an update schedule.
 TEXT_LIMIT = 128
 DEFAULT_FUNDING_TEXT = "Support the show"
-_UUID_EXAMPLE = "917393e3-1b1e-5cef-ace4-edaa54e1f810"
 
 
 @dataclass(frozen=True)
@@ -53,13 +52,14 @@ class Element:
 Shape = Callable[[Any], Element]
 
 
-def _words(value: Any, usage: str, *, low: int, high: int | None = None) -> list[str]:
+def _words(value: Any, *, low: int, high: int | None = None) -> list[str]:
     """The words of ``value``; the last allowed word keeps the rest of the line."""
     if not isinstance(value, str):
-        raise ValueError(f"must be text such as {usage}")
+        raise ValueError("must be text")
     parts = value.split(None, (high - 1) if high else -1)
     if len(parts) < low or (high is not None and len(parts) > high):
-        raise ValueError(f"must look like {usage}")
+        count = f"{low}" if high == low else f"{low} to {high}" if high else f"at least {low}"
+        raise ValueError(f"needs {count} parts separated by spaces; see the example for this field")
     return parts
 
 
@@ -67,9 +67,7 @@ def _https(address: str) -> str:
     try:
         return check_https_url(address)
     except ValueError as exc:
-        raise ValueError(
-            f"{address!r} must be an https address with ASCII characters only"
-        ) from exc
+        raise ValueError("must be an https address with ASCII characters only") from exc
 
 
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -78,14 +76,14 @@ _NODE_ADDRESS = re.compile(r"[0-9a-fA-F]{8,128}")
 
 def _guid(word: str) -> str:
     if not _UUID.fullmatch(word):
-        raise ValueError(f"{word!r} is not a feed guid, which looks like {_UUID_EXAMPLE}")
+        raise ValueError("must start with a feed guid, such as the guid in the other show's feed")
     return word
 
 
 def _item_guid(word: str) -> str:
     """The remote item's own guid: any text, as an episode's guid is."""
     if len(word) >= TEXT_LIMIT or any(ord(ch) < 32 or ord(ch) == 127 for ch in word):
-        raise ValueError(f"{word!r} is not an item guid; use the remote episode's guid text")
+        raise ValueError("needs the remote episode's guid as plain text with no control characters")
     return word
 
 
@@ -123,20 +121,18 @@ def flag(value: Any) -> Element:
 
 
 def funding(value: Any) -> Element:
-    url, *rest = _words(value, "https://example.test/give [message]", low=1, high=2)
+    url, *rest = _words(value, low=1, high=2)
     message = _short(rest[0], "the message") if rest else DEFAULT_FUNDING_TEXT
     return Element(attrs={"url": _https(url)}, text=message)
 
 
 def license_(value: Any) -> Element:
-    name, *rest = _words(value, "cc-by-4.0 [https://example.test/license]", low=1, high=2)
+    name, *rest = _words(value, low=1, high=2)
     return Element(attrs={"url": _https(rest[0])} if rest else {}, text=name)
 
 
 def social_interact(value: Any) -> Element:
-    protocol, uri, *rest = _words(
-        value, "activitypub https://example.test/@show/1 [@show@example.test]", low=2, high=3
-    )
+    protocol, uri, *rest = _words(value, low=2, high=3)
     attrs = {"protocol": protocol, "uri": _https(uri)}
     if rest:
         attrs["accountId"] = rest[0]
@@ -144,7 +140,7 @@ def social_interact(value: Any) -> Element:
 
 
 def chat(value: Any) -> Element:
-    protocol, server, *rest = _words(value, "irc irc.example.test [space]", low=2, high=3)
+    protocol, server, *rest = _words(value, low=2, high=3)
     attrs = {"protocol": protocol, "server": server}
     if rest:
         attrs["space"] = rest[0]
@@ -152,9 +148,9 @@ def chat(value: Any) -> Element:
 
 
 def value_node(value: Any) -> Element:
-    address, *rest = _words(value, "02ab...node-address [name]", low=1, high=2)
+    address, *rest = _words(value, low=1, high=2)
     if not _NODE_ADDRESS.fullmatch(address):
-        raise ValueError(f"{address!r} must be a node public key in hexadecimal")
+        raise ValueError("must start with a node public key in hexadecimal")
     recipient = {"type": "node", "address": address, "split": "100"}
     if rest:
         recipient["name"] = rest[0]
@@ -164,8 +160,8 @@ def value_node(value: Any) -> Element:
     )
 
 
-def remote_item_attrs(value: Any, usage: str, second: str) -> dict[str, str]:
-    guid, *rest = _words(value, usage, low=1, high=2)
+def remote_item_attrs(value: Any, second: str) -> dict[str, str]:
+    guid, *rest = _words(value, low=1, high=2)
     attrs = {"feedGuid": _guid(guid)}
     if rest:
         attrs[second] = _https(rest[0]) if second == "feedUrl" else _item_guid(rest[0])
@@ -173,25 +169,23 @@ def remote_item_attrs(value: Any, usage: str, second: str) -> dict[str, str]:
 
 
 def remote_item(value: Any) -> Element:
-    return Element(attrs=remote_item_attrs(value, "feed-guid [item-guid]", "itemGuid"))
+    return Element(attrs=remote_item_attrs(value, "itemGuid"))
 
 
 def publisher(value: Any) -> Element:
-    attrs = remote_item_attrs(value, "feed-guid [https://example.test/feed.xml]", "feedUrl")
+    attrs = remote_item_attrs(value, "feedUrl")
     return Element(children=(Child("podcast:remoteItem", {**attrs, "medium": "publisher"}),))
 
 
 def podroll(value: Any) -> Element:
     lines = [line.strip() for line in str(value).splitlines() if line.strip()]
     if not lines:
-        raise ValueError(
-            "must list one feed per line, as feed-guid [https://example.test/feed.xml]"
-        )
+        raise ValueError("must list one feed per line")
     return Element(
         children=tuple(
             Child(
                 "podcast:remoteItem",
-                remote_item_attrs(line, "feed-guid [https://example.test/feed.xml]", "feedUrl"),
+                remote_item_attrs(line, "feedUrl"),
             )
             for line in lines
         )
@@ -199,15 +193,13 @@ def podroll(value: Any) -> Element:
 
 
 def trailer(value: Any) -> Element:
-    url, when, *title = _words(
-        value, "https://example.test/trailer.mp3 2026-11-01T09:00:00Z Trailer title", low=3, high=3
-    )
+    url, when, *title = _words(value, low=3, high=3)
     try:
         moment = datetime.fromisoformat(when.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise ValueError(f"{when!r} must be an ISO 8601 time such as 2026-11-01T09:00:00Z") from exc
+        raise ValueError("needs an ISO 8601 date and time as its second part") from exc
     if moment.tzinfo is None:
-        raise ValueError(f"{when!r} needs a time zone, such as Z")
+        raise ValueError("needs a time zone on its date and time")
     attrs = {"pubdate": format_datetime(moment, usegmt=True), "url": _https(url)}
     if kind := _MEDIA_TYPES.get(PurePosixPath(url).suffix.lower()):
         attrs["type"] = kind
@@ -215,7 +207,7 @@ def trailer(value: Any) -> Element:
 
 
 def alternate_enclosure(value: Any) -> Element:
-    url, *rest = _words(value, "https://example.test/ep.ogg [audio/ogg]", low=1, high=2)
+    url, *rest = _words(value, low=1, high=2)
     kind = rest[0] if rest else _MEDIA_TYPES.get(PurePosixPath(url).suffix.lower())
     if kind is None:
         raise ValueError("needs a media type when the address does not end in a known extension")

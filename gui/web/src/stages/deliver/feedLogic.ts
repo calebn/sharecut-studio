@@ -1,6 +1,4 @@
-import type { StageRole } from "../../types/stage";
 import type { StatusState } from "../../system/statusText";
-import { plural, thingsLeft } from "./deliverLogic";
 import type {
   Fact,
   FeedCommand,
@@ -16,6 +14,8 @@ import type {
   Severity,
   WriteRequest,
 } from "../../types/feedView";
+import type { StageRole } from "../../types/stage";
+import { plural, thingsLeft } from "./deliverLogic";
 
 export { plural };
 
@@ -98,7 +98,7 @@ export const PIN_FIELDS: Readonly<Record<FieldKey, PinField>> = {
     reset: "Use auto",
   },
   [KEY.hosting]: {
-    label: "hosting address",
+    label: "episode hosting address",
     add: "Add address",
     multiline: false,
     reset: "Clear",
@@ -364,7 +364,7 @@ export const HOST_ONLY_WHY = "Only the host can change this.";
 export const READ_ONLY_WHY =
   "This link can read the listing but not change it.";
 const ART_WHY = "An edit link can set artwork only as an https address.";
-const HOSTING_WHY = "A hosting address must be an https address.";
+const HOSTING_WHY = "An episode hosting address must be an https address.";
 
 /** The settings an Editor link leaves with the host: the show itself and where its files live. */
 const HOST_ONLY_KEYS: ReadonlySet<FieldKey> = new Set([

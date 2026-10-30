@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Finding } from "../../types/feedView";
 import { CHECKS, DRIFTED, PENDING, READY } from "./feedFixture";
 import {
   checksSummary,
@@ -17,7 +18,6 @@ import {
   writeLine,
   xmlLines,
 } from "./feedLogic";
-import type { Finding } from "../../types/feedView";
 
 describe("readiness", () => {
   it("is ready when only optional findings remain", () => {
@@ -203,7 +203,7 @@ describe("what a link may change", () => {
   it("asks an Editor for a hosting address as https only", () => {
     expect(
       editBlock("editor", set("item.enclosure.url", "http://x.test/a.mp3")),
-    ).toBe("A hosting address must be an https address.");
+    ).toBe("An episode hosting address must be an https address.");
     expect(
       editBlock("editor", set("item.enclosure.url", "https://x.test/a.mp3")),
     ).toBeNull();

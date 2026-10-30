@@ -1,7 +1,7 @@
 import { useState } from "react";
+import type { Fix } from "../../types/feedView";
 import { FeedSection } from "./FeedSection";
 import { applyFix, type Served, serve } from "./feedFixture";
-import type { Fix } from "../../types/feedView";
 
 type Props = Omit<React.ComponentProps<typeof FeedSection>, "itemXml">;
 

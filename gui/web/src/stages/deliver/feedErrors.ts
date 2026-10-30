@@ -1,5 +1,5 @@
 import { ApiError } from "../../utils/apiError";
-import { fieldOf } from "./feedLogic";
+import { type FeedAccess, fieldOf } from "./feedLogic";
 
 /** The service's coded refusals that need words of their own; the rest carry a sentence the service already wrote. */
 const WORDS: Readonly<Record<string, string>> = {
@@ -22,6 +22,12 @@ const WORDS: Readonly<Record<string, string>> = {
     "Couldn't reach the server. Check your connection and try again.",
 };
 
+/** Words for a person on a share link, who cannot reach the host's folders or settings. */
+const EDITOR_WORDS: Readonly<Record<string, string>> = {
+  feed_write_failed:
+    "The feed file could not be written on the host's computer. Ask the host to check that its disk has space and is not read-only, then try again.",
+};
+
 const KEY_IN_TEXT = /\b(?:channel|item)\.[A-Za-z][A-Za-z.]*[A-Za-z]/g;
 
 /** A service sentence with each setting named by its label, never by its key. */
@@ -30,9 +36,13 @@ function byLabels(text: string): string {
 }
 
 /** What went wrong with a listing request, in words a person can act on. */
-export function feedErrorText(error: unknown): string {
+export function feedErrorText(error: unknown, access: FeedAccess): string {
   if (error instanceof ApiError) {
-    const own = error.code === null ? undefined : WORDS[error.code];
+    const own =
+      error.code === null
+        ? undefined
+        : ((access === "host" ? undefined : EDITOR_WORDS[error.code]) ??
+          WORDS[error.code]);
     if (own) return own;
     if (error.code === "feed_value_invalid") {
       const detail = error.message.trim();

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
+import type { FeedView, WriteRequest } from "../../types/feedView";
 import { FeedLive } from "./FeedLive";
 import { FeedSection } from "./FeedSection";
 import {
@@ -16,7 +17,6 @@ import {
   STALE,
 } from "./feedFixture";
 import type { FeedAccess } from "./feedLogic";
-import type { FeedView, WriteRequest } from "../../types/feedView";
 
 function setup(
   first: FeedView = READY,
@@ -155,7 +155,7 @@ describe("FeedSection", () => {
     ).toHaveLength(0);
     await user.click(buttons[0]);
     expect(
-      screen.getByRole("textbox", { name: "Edit hosting address" }),
+      screen.getByRole("textbox", { name: "Edit episode hosting address" }),
     ).toHaveFocus();
     await user.keyboard("https://cdn.example.test/a.mp3{Enter}");
     expect(onAction).toHaveBeenCalledExactlyOnceWith(
@@ -170,7 +170,7 @@ describe("FeedSection", () => {
       screen.getByRole("button", { name: "Where will this be hosted?" }),
     );
     expect(
-      screen.getByRole("textbox", { name: "Edit hosting address" }),
+      screen.getByRole("textbox", { name: "Edit episode hosting address" }),
     ).toHaveFocus();
   });
 

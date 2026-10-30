@@ -1,9 +1,9 @@
 import { useId, useState } from "react";
 import { PersonAvatar } from "../../system/Person";
+import type { Fix, ShowState } from "../../types/feedView";
 import { Button, Field } from "../../ui";
 import { useDisabledReasonNote } from "../../ui/disabledReason";
 import { colorIndexOf } from "./feedLogic";
-import type { Fix, ShowState } from "../../types/feedView";
 
 type Props = {
   show: Exclude<ShowState, { kind: "ready" }>;
