@@ -43,6 +43,7 @@ export function focusAndReveal(target: HTMLElement | null): void {
   if (document.activeElement !== target) return;
   const boundary =
     target.closest<HTMLElement>(".bottom-sheet") ??
+    target.closest<HTMLElement>(".sys-inspector") ??
     target.closest<HTMLElement>(".inspector");
   if (!boundary) return;
   const label = target.closest<HTMLElement>("label");
