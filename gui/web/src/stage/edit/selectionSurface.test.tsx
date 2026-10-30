@@ -477,7 +477,7 @@ describe("a tapped word is one kind", () => {
     },
   );
 
-  it("puts Cut in the bar and the word correction in the card on the desktop", () => {
+  it("puts Cut in the bar and the word's Suppress in the card on the desktop", () => {
     mount("desktop");
     select(WORD);
     expect(sheet()).toBeNull();
