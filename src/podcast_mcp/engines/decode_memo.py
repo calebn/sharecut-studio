@@ -155,7 +155,7 @@ class DecodeMemo:
     def __init__(self) -> None:
         self._entries: OrderedDict[_Key, _Decoded] = OrderedDict()
         self._bytes = 0
-        # Leaving RAM but still served: waiting for a spill. Mapped: read back from the spool.
+        # RAM-evicted entries awaiting a spill; mapped entries read from the spool.
         self._pending: OrderedDict[_Key, _Decoded] = OrderedDict()
         self._pending_bytes = 0
         self._spilling: set[_Key] = set()
