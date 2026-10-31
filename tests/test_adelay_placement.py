@@ -867,12 +867,15 @@ def test_negotiated_inputs_follow_the_render_input_order(
     assert inputs[0] == main.resolve()
 
 
-def _refusals() -> list[tuple[OSError, bool]]:
-    return [
-        (OSError(errno.E2BIG, "Argument list too long"), True),
-        (_WindowsTooLong(errno.ENOENT, "The filename or extension is too long"), True),
-        (FileNotFoundError(errno.ENOENT, "No such file or directory"), False),
-    ]
+_REFUSALS = [
+    pytest.param(OSError(errno.E2BIG, "Argument list too long"), True, id="e2big"),
+    pytest.param(
+        _WindowsTooLong(errno.ENOENT, "The filename or extension is too long"),
+        True,
+        id="winerror-206",
+    ),
+    pytest.param(FileNotFoundError(errno.ENOENT, "No such file or directory"), False, id="missing"),
+]
 
 
 def _assert_refusal(error: OSError, coded: bool, call: Callable[[], object]) -> None:
@@ -887,7 +890,7 @@ def _assert_refusal(error: OSError, coded: bool, call: Callable[[], object]) -> 
         assert raised.value is error
 
 
-@pytest.mark.parametrize("refusal,coded", _refusals(), ids=["e2big", "winerror-206", "missing"])
+@pytest.mark.parametrize("refusal,coded", _REFUSALS)
 def test_run_cancellable_spawn_refusal(
     monkeypatch: pytest.MonkeyPatch, refusal: OSError, coded: bool
 ) -> None:
@@ -898,7 +901,7 @@ def test_run_cancellable_spawn_refusal(
     _assert_refusal(refusal, coded, lambda: ff._run_cancellable(["ffmpeg"], lambda: False))
 
 
-@pytest.mark.parametrize("refusal,coded", _refusals(), ids=["e2big", "winerror-206", "missing"])
+@pytest.mark.parametrize("refusal,coded", _REFUSALS)
 def test_proxy_execute_spawn_refusal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, refusal: OSError, coded: bool
 ) -> None:
