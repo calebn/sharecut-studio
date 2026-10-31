@@ -33,7 +33,7 @@ export type LivePresenceClients = {
  * store update) re-renders and restarts it. `others` is memoised on the
  * roster and its live ids, so a render that only ticks the clock or changes
  * an unrelated prop hands callers the same array. Shared by every presence
- * surface that filters the roster by staleness (`PresenceOverlay`,
+ * surface that filters the roster by staleness (`TimelinePresence`,
  * `AvatarStack`, `PresenceGhostLayer`).
  */
 export function useLivePresenceClients(

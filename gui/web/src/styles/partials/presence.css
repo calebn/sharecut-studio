@@ -106,28 +106,16 @@
   position: fixed;
 }
 
-.presence-overlay {
+/* The remote playhead layer: the ruler's own window, over the ruler, the marker
+   lane and the lanes. One step above the sticky ruler and marker lane so the
+   16 px flag shows on the ruler and the line crosses the marker rows. It scrolls
+   with the lanes, so under a vertical scroll the flag and the line's marker-row
+   part leave the pinned ruler with them. */
+.timeline-presence-window {
   position: absolute;
-  inset: 0;
+  inset-block: 0;
   pointer-events: none;
-  z-index: var(--z-overlay);
-}
-
-.presence-playhead {
-  position: absolute;
-  inset-block-start: 0;
-  inline-size: 0.125rem;
-  background: var(--presence-color, var(--color-presence-0));
-  pointer-events: none;
-}
-
-/* Inside the top of the lanes, right of the needle: above the lanes it sat on
-   the marker rows and covered chapter diamonds and labels (#701). */
-.presence-playhead-chip {
-  position: absolute;
-  inset-block-start: var(--space-1);
-  inset-inline-start: 100%;
-  margin-inline-start: var(--space-1);
+  z-index: calc(var(--z-timeline-chrome) + 1);
 }
 
 .presence-cursor-tag {
