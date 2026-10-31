@@ -70,6 +70,20 @@ class ClipTiming(BaseModel):
             if step.at + max(0.0, -step.delta_sec) > source_end + MIN_STEP_GAP_SEC:
                 raise ValueError(f"step at {step.at} skips past source_end {source_end}")
 
+    def sliced(self, source_a: float, source_b: float) -> ClipTiming | None:
+        """The steps that stay strictly inside ``(source_a, source_b)``; None when none do.
+
+        A step at a bound is not kept: its shift is already part of where the neighbouring
+        clip sits on the timeline.
+        """
+        keep = [
+            step
+            for step in self.steps
+            if source_a < step.at < source_b
+            and step.at + max(0.0, -step.delta_sec) <= source_b + MIN_STEP_GAP_SEC
+        ]
+        return self.model_copy(update={"steps": keep}) if keep else None
+
     def total_delta(self) -> float:
         return math.fsum(step.delta_sec for step in self.steps)
 
