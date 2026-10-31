@@ -39,6 +39,9 @@ class ExportedFile:
     current: bool
 
 
+ListedFiles = list[tuple[ExportedFile, str]]
+
+
 @dataclass(frozen=True)
 class ServedFile:
     """A listed file with the host path to stream it from; never serialized."""
@@ -47,6 +50,7 @@ class ServedFile:
     kind: ExportedFileKind
     path: Path
     media_type: str
+    version: str
 
 
 def _same_text(path: Path, expected: str) -> bool:
@@ -83,7 +87,10 @@ class ExportFilesService:
                 return None
             if not resolved.is_file() or not resolved.is_relative_to(root):
                 return None
-            return ServedFile(relative, kind, resolved, media_type)
+            stat = resolved.stat()
+            return ServedFile(
+                relative, kind, resolved, media_type, f"{stat.st_size}-{stat.st_mtime_ns}"
+            )
 
         wanted: list[tuple[str, ExportedFileKind, str]] = [
             (f"{stem}.{ext}", "audio", media) for ext, media in AUDIO_EXPORT_MEDIA.items()
@@ -110,9 +117,13 @@ class ExportFilesService:
         raise CodedFileNotFoundError("That export file is not listed.", code="export_file_gone")
 
     def list(self) -> list[ExportedFile]:
-        """Every listed file. Audio, chapters and the feed are judged against the project here.
+        """Every listed file; see ``listed``."""
+        return [entry for entry, _ in self.listed()]
 
-        Transcripts reuse ``TranscriptService.exported`` for ``current``. Chapters are current
+    def listed(self) -> ListedFiles:
+        """Every listed file with its version (size and mtime), read in one pass.
+
+        Audio, chapters and the feed are judged against the project here. Transcripts reuse ``TranscriptService.exported`` for ``current``. Chapters are current
         when the file equals a fresh render. The feed is current when the listing's own check
         says so. Audio has no record of the edit state it was rendered from, so it is always
         reported current; the Deliver status row keeps the stale judgement for it.
@@ -121,7 +132,7 @@ class ExportFilesService:
         transcript_current = {t.name: t.current for t in TranscriptService(self.ws).exported()}
         chapters_text = render_chapters_json(project.chapters) if project.chapters else None
         feed_current: bool | None = None
-        out: list[ExportedFile] = []
+        out: ListedFiles = []
         for found in self._found():
             name = found.path.name
             try:
@@ -138,16 +149,15 @@ class ExportFilesService:
                 current = feed_current
             else:
                 current = True
-            out.append(
-                ExportedFile(
-                    id=found.id,
-                    name=name,
-                    kind=found.kind,
-                    label=self._label(found),
-                    bytes=size,
-                    current=current,
-                )
+            entry = ExportedFile(
+                id=found.id,
+                name=name,
+                kind=found.kind,
+                label=self._label(found),
+                bytes=size,
+                current=current,
             )
+            out.append((entry, found.version))
         return out
 
     @staticmethod

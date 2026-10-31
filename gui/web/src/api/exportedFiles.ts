@@ -1,4 +1,3 @@
-import { withSessionTokenQuery } from "../sessionAuth";
 import { reviewApiBase, shareTokenFromKey } from "../shareMode";
 import { apiFetch, HOST_KEY } from "./http";
 
@@ -13,6 +12,8 @@ export type ExportedFileEntry = {
   label: string;
   bytes: number;
   current: boolean;
+  /** Host listing only: a short-lived signed ticket that downloads this file as listed. */
+  ticket?: string;
 };
 
 /** A share key reaches the files through the review routes; a project path through the host's. */
@@ -43,15 +44,19 @@ export async function listExportedFiles(
 
 /**
  * A plain link to one file. The browser downloads it itself, so it shows progress and resumes.
- * A guest's token is already in the path; the host's session token rides in the query.
+ * A guest's token is already in the path; the host's link carries the listing's ticket and
+ * never the session token.
  */
-export function exportedFileHref(projectPath: string, id: string): string {
+export function exportedFileHref(
+  projectPath: string,
+  file: Pick<ExportedFileEntry, "id" | "ticket">,
+): string {
   const token = shareTokenFromKey(projectPath);
   if (token !== null)
-    return `${reviewApiBase(token)}/daw/export/files/${encodeId(id)}`;
-  return withSessionTokenQuery(
-    `/api/export/files/${encodeId(id)}?path=${encodeURIComponent(projectPath)}`,
-  );
+    return `${reviewApiBase(token)}/daw/export/files/${encodeId(file.id)}`;
+  const query = new URLSearchParams({ path: projectPath });
+  if (file.ticket !== undefined) query.set("ticket", file.ticket);
+  return `/api/export/files/${encodeId(file.id)}?${query}`;
 }
 
 export async function revealExportedFile(
