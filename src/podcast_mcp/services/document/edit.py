@@ -433,7 +433,7 @@ class EditService(CutMutatingService):
             return 0
 
         try:
-            with verdict_cache.approving(), batch_scope():
+            with self._record_pools_after_success(), verdict_cache.approving(), batch_scope():
                 return self.ws.mutate(
                     "before approve edits",
                     "after approve edits",

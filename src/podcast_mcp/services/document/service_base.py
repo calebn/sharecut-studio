@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from podcast_mcp.edits.cut_speech import (
     UnconfirmedCutSpeech,
 )
 from podcast_mcp.edits.ripple import RippleRemoval
+from podcast_mcp.engines import room_tone
 from podcast_mcp.models import CutIntent, EditMode, EpisodeProject
 from podcast_mcp.project.history.rollback import RollbackOutcome
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.tracks import resolve_track
+
+log = logging.getLogger(__name__)
 
 
 class WorkspaceService:
@@ -24,6 +29,20 @@ class WorkspaceService:
 
 
 class CutMutatingService(WorkspaceService):
+    @contextmanager
+    def _record_pools_after_success(self) -> Iterator[None]:
+        """After a body that applied without raising, queue the project's missing room-tone pools.
+
+        For a process that never loaded the project through the host (a CLI command, an MCP
+        call): the next batch reads the pool, this one picked without it. A body that raises
+        queues nothing.
+        """
+        yield
+        try:
+            room_tone.schedule_room_tone_pools(self.ws.project)
+        except Exception:
+            log.debug("room tone pools not scheduled", exc_info=True)
+
     def _apply_cut(
         self,
         label: str,
