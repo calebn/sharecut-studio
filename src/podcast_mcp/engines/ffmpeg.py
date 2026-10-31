@@ -2131,6 +2131,38 @@ class FFmpegEngine:
             "integrated_threshold_lufs": float(thr_m.group(1)) if thr_m else None,
         }
 
+    def measure_loudness_screen(self, path: Path) -> dict[str, float] | None:
+        """Integrated LUFS and sample peak from ebur128, without its oversampled true peak.
+
+        The integrated figure is the one ``measure_loudness_full`` reports; the sample
+        peak never exceeds the true peak, so it bounds true-peak headroom from above.
+        About a sixth of the cost of ``measure_loudness_full``.
+        """
+        r = run(
+            [
+                self.ffmpeg,
+                "-i",
+                str(path),
+                "-vn",
+                "-af",
+                "ebur128=framelog=verbose:peak=sample",
+                "-f",
+                "null",
+                "-",
+            ],
+            capture_output=True,
+        )
+        if r.returncode != 0:
+            return None
+        text = ebur128_summary_text(r.stderr)
+        if decoded_no_frames(text):
+            return None
+        i_m = re.search(r"\bI:\s*(-?\d+\.?\d*)\s*LUFS", text)
+        peak_m = re.search(r"Peak:\s*(-?\d+\.?\d*)\s*dBFS", text)
+        if i_m is None or peak_m is None:
+            return None
+        return {"integrated_lufs": float(i_m.group(1)), "sample_peak_db": float(peak_m.group(1))}
+
     def _run_with_progress(
         self,
         argv: list[str],
@@ -2259,6 +2291,17 @@ class FFmpegEngine:
                 renders += 1
                 af = limiter_af(drive_db, limit_db, sample_rate)
                 render(input_path, limited, af, "-c:a", "pcm_f32le")
+                if renders < LIMITER_MAX_RENDERS:
+                    screen = self.measure_loudness_screen(limited)
+                    if screen is not None:
+                        screen_shortfall = round(integrated_lufs - screen["integrated_lufs"], 2)
+                        screen_headroom = round(
+                            true_peak_db - screen["sample_peak_db"] - TRUE_PEAK_PRINT_ROUNDING_DB,
+                            2,
+                        )
+                        if screen_shortfall > screen_headroom:
+                            drive_db = round(drive_db + screen_shortfall, 2)
+                            continue
                 level = self.measure_loudness_full(limited) or {}
                 lufs, peak = level.get("integrated_lufs"), level.get("true_peak_db")
                 if lufs is None or peak is None:

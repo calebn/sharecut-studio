@@ -162,3 +162,56 @@ def test_a_limiter_that_cannot_reach_the_target_reports_that_it_did_not_converge
     assert measured is not None
     assert measured["integrated_lufs"] == -17.7
     assert measured["true_peak_db"] <= -1.5
+
+
+def test_the_screen_measure_reports_the_same_integrated_loudness_as_the_full_measure(
+    eng: FFmpegEngine, peaky_wav: Path
+):
+    screen = eng.measure_loudness_screen(peaky_wav)
+    full = eng.measure_loudness_full(peaky_wav)
+
+    assert screen is not None and full is not None
+    assert screen["integrated_lufs"] == full["integrated_lufs"]
+    assert screen["sample_peak_db"] <= full["true_peak_db"]
+
+
+def test_the_screen_measure_is_none_for_an_unreadable_file(eng: FFmpegEngine, tmp_path: Path):
+    missing = tmp_path / "missing.wav"
+    assert eng.measure_loudness_screen(missing) is None
+
+
+def test_a_round_that_cannot_converge_skips_the_exact_true_peak_measure(
+    eng: FFmpegEngine, dense_clicks_wav: Path, tmp_path: Path
+):
+    with (
+        patch.object(eng, "measure_loudness_full", wraps=eng.measure_loudness_full) as full,
+        patch.object(eng, "measure_loudness_screen", wraps=eng.measure_loudness_screen) as screen,
+    ):
+        result = eng.master_loudness(
+            dense_clicks_wav, tmp_path / "mastered.wav", integrated_lufs=-16.0, true_peak_db=-1.5
+        )
+
+    assert result.limiter is not None
+    renders = result.limiter.renders
+    assert renders == 3
+    # the final round is always measured exactly; earlier rounds are screened first
+    assert screen.call_count == renders - 1
+    assert (
+        full.call_count < renders + 2
+    )  # input stats + QC + only the rounds the screen couldn't skip
+
+
+def test_an_unusable_screen_falls_back_to_the_exact_measure(
+    eng: FFmpegEngine, dense_clicks_wav: Path, tmp_path: Path
+):
+    out = tmp_path / "mastered.wav"
+    baseline = eng.master_loudness(
+        dense_clicks_wav, tmp_path / "base.wav", integrated_lufs=-16.0, true_peak_db=-1.5
+    )
+    with patch.object(eng, "measure_loudness_screen", return_value=None):
+        result = eng.master_loudness(
+            dense_clicks_wav, out, integrated_lufs=-16.0, true_peak_db=-1.5
+        )
+
+    assert result.limiter == baseline.limiter
+    assert result.plan == baseline.plan
