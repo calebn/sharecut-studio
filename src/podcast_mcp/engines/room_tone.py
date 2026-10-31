@@ -794,7 +794,7 @@ def _pick_sample(
             if excess <= PEER_QUIET_DB:
                 return OwnQuietSample(sample)
             passed.append((excess, order, sample))
-            if len(passed) >= MAX_RANKED:
+            if sum(1 for p in passed if p[0] != math.inf) >= MAX_RANKED:
                 break
         elif failed not in rejected:
             rejected.append(failed)
