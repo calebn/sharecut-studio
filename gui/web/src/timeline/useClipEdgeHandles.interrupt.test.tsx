@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { trimClipEdge } from "../api";
+import { runFocusedClipHandle } from "../commands/focusedClipHandle";
 import { trimNeighborBounds } from "../edit/trimLimits";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
@@ -39,6 +40,7 @@ function Harness() {
       onPointerDown={(e) => h.onPointerDown("trim-in", e)}
       onPointerMove={h.onPointerMove}
       onPointerUp={h.onPointerUp}
+      onFocus={(e) => h.onFocus("trim-in", e)}
     >
       Trim
     </button>
@@ -103,6 +105,32 @@ describe("a trim-handle drag interrupted by the window", () => {
     );
     act(() => {
       fireEvent.blur(window);
+    });
+    await waitFor(() => expect(trimClipEdge).toHaveBeenCalledOnce());
+  });
+
+  it("keeps a held-arrow preview through window blur and saves on key release", async () => {
+    const end = vi.fn();
+    useDawStore.setState({ endGestureFeedback: end });
+    const button = render(<Harness />).getByRole("button");
+    act(() => button.focus());
+    await act(async () => {
+      await runFocusedClipHandle("trim", {
+        phase: "nudge",
+        direction: 1,
+        shift: false,
+        held: false,
+      });
+    });
+    act(() => {
+      fireEvent.blur(window);
+    });
+    expect(end).not.toHaveBeenCalled();
+    await act(async () => {
+      await runFocusedClipHandle("trim", {
+        phase: "finish",
+        key: "ArrowRight",
+      });
     });
     await waitFor(() => expect(trimClipEdge).toHaveBeenCalledOnce());
   });
