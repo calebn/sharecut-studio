@@ -6,6 +6,7 @@ Planning paths read ``artifacts/level_profiles`` but never write it; the pipelin
 from __future__ import annotations
 
 import os
+import subprocess
 import wave
 from pathlib import Path
 from types import SimpleNamespace
@@ -123,6 +124,19 @@ def test_recording_only_dialogue_tracks_with_media(tmp_path: Path) -> None:
     project.timeline.tracks.append(Track(id="empty", label="empty", role=TrackRole.DIALOGUE))
     record_track_level_profiles(project)
     assert len(_records(project)) == len(RATES)
+
+
+def test_a_profile_that_cannot_be_measured_does_not_fail_the_recording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, ("host",))
+
+    def undecodable(*args: object, **kwargs: object) -> None:
+        raise subprocess.CalledProcessError(1, "ffmpeg")
+
+    monkeypatch.setattr(audio_cache, "track_level_profile", undecodable)
+    record_track_level_profiles(project)
+    assert not _records(project)
 
 
 def test_a_record_is_a_few_dozen_bytes(tmp_path: Path) -> None:

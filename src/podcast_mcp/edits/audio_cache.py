@@ -195,7 +195,7 @@ def record_track_level_profiles(project: EpisodeProject) -> None:
         for rate in (WAVEFORM_SAMPLE_RATE, JUMP_SAMPLE_RATE):
             try:
                 track_level_profile(project, track_id, sample_rate=rate, record=True)
-            except (OSError, ValueError, KeyError):
+            except Exception:
                 log.debug("level profile not recorded for %s", track_id, exc_info=True)
 
 
