@@ -22,18 +22,22 @@ export class ApiError extends Error {
   readonly code: string | null;
   readonly status: number | null;
   readonly model: ModelNeeded | null;
+  /** The parsed JSON body of the failed response, or null when it had none. */
+  readonly body: unknown;
 
   constructor(
     message: string,
     code: string | null,
     status: number | null = null,
     model: ModelNeeded | null = null,
+    body: unknown = null,
   ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
     this.model = model;
+    this.body = body;
   }
 }
 
@@ -244,5 +248,5 @@ export async function readApiFailure(res: Response): Promise<ApiError> {
     res.status === 409 && code === MODEL_NEEDED_CODE
       ? pickModelNeeded(body)
       : null;
-  return new ApiError(message, code, res.status, model);
+  return new ApiError(message, code, res.status, model, body);
 }

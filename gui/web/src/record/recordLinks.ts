@@ -1,5 +1,5 @@
 import { createHostRecordRoom } from "../api";
-import type { HostRecordRoom, HostShareRow } from "../types/shares";
+import type { HostShareRow, MintedRecordRoom } from "../types/shares";
 import { errorMessage } from "../utils/apiError";
 
 export async function copyText(text: string): Promise<void> {
@@ -27,8 +27,12 @@ export function activeGuestLink(
   return row?.url ?? null;
 }
 
+/** What to tell a host whose new room is ready but earlier rooms' links may still work. */
+export const STALE_ROOM_LINKS_WARNING =
+  "Your new room is ready. Links to an earlier room may still work. End the earlier room in Share to turn them off.";
+
 export type CreatedRecordRoom = {
-  room: HostRecordRoom;
+  room: MintedRecordRoom;
   copied: boolean;
   /** Why a guest link that exists could not be copied. */
   copyError: string | null;
