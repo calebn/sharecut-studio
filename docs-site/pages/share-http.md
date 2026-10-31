@@ -43,6 +43,7 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `POST` | `…/daw/boundary/context` | `Editor` | Source-safe trim/roll limits and revision for a visible boundary |
 | `POST` | `…/daw/document/command` | `role's command set` | Typed body — see Document commands |
 | `GET` | `…/daw/document/state` | `view` | Atomic sanitized document state with sequence and opaque basis token |
+| `GET` | `…/daw/edit-impact` | `Editor` | Seconds cut, edits applied and pending, per track, with their segments; `markdown=true` for the Markdown report |
 | `POST` | `…/daw/export` | `Editor` | Start the mastered-deliverables export into the project's export folder from a closed set of format names (opt-in PODCAST_GUEST_RENDER) |
 | `GET` | `…/daw/export/jobs/{job_id}` | `Editor` | Read one export job of this project; any other job id is 404 |
 | `POST` | `…/daw/export/jobs/{job_id}/cancel` | `Editor` | Cancel one export job of this project (works with PODCAST_GUEST_RENDER off) |
@@ -64,6 +65,7 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `POST` | `…/daw/range-audio` | `play` | Exact timeline islands from the full mix, with silent gaps. Never isolated stems. |
 | `POST` | `…/daw/render-preview` | `Editor` | Start stem/premix render job (opt-in PODCAST_GUEST_RENDER) |
 | `GET` | `…/daw/render-preview/{job_id}` | `Editor` | Read project-scoped render job status (no host paths) |
+| `GET` | `…/daw/social-clips` | `Editor` | The project's social clip candidates; `approved` and `review_required` filter; an exported clip says so, never where |
 | `GET` | `…/daw/speaker/jobs/{job_id}` | `Editor` | Read one speaker split job of this project; any other job id is 404 |
 | `POST` | `…/daw/speaker/jobs/{job_id}/cancel` | `Editor` | Cancel one speaker split job of this project (works with PODCAST_GUEST_RENDER off) |
 | `GET` | `…/daw/speaker/jobs/{job_id}/events` | `Editor` | SSE status frames of one speaker split job; closes when the job ends or the link is revoked |

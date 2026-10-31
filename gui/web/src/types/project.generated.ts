@@ -131,6 +131,11 @@ export interface FeedWriteRequest {
   path: string;
 }
 
+/** Whether an Editor share's edit impact read answers as Markdown text instead of fields. */
+export interface GuestEditImpactRequest {
+  markdown?: boolean;
+}
+
 export interface GuestExpectedTimingWord {
   text: string;
   start: number;
@@ -176,6 +181,12 @@ export interface GuestReplacementPreviewRequest {
 
 /** Base for the guest request bodies that carry fields of their own: unknown fields are refused. Document commands use their typed payloads instead. */
 export type GuestRequest = Record<string, unknown>;
+
+/** Which of the project's social clip candidates an Editor share lists. */
+export interface GuestSocialClipsRequest {
+  approved?: boolean | null;
+  review_required?: boolean | null;
+}
 
 /** Move a timeline range between two lanes of one speaker split. */
 export interface GuestSpeakerMoveLaneSpanRequest {

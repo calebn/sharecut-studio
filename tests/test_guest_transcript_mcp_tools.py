@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from guest_helpers import (
+    call_tool,
     mcp_ok,
     mcp_refusal,
     raising,
@@ -105,18 +106,6 @@ def world(minimal_project, sample_wav, tmp_workspace):
     return SimpleNamespace(client=TestClient(app), app=app, ws=ws, tokens=tokens, share=share)
 
 
-def _call(world, name: str, arguments: dict | None = None, link: str = "editor") -> dict:
-    return handle_mcp_jsonrpc(
-        world.tokens[link],
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {"name": name, "arguments": arguments or {}},
-        },
-    )
-
-
 def _http(world, tool: str, body: dict | None = None, link: str = "editor"):
     row = HTTP_OF[tool]
     url = row.path.format(token=world.tokens[link])
@@ -173,7 +162,7 @@ def test_a_lesser_role_is_refused_with_the_fixed_copy_and_nothing_changes(
 ) -> None:
     before = _revision(world)
 
-    res = _call(world, tool, _body(tool, world), link=role)
+    res = call_tool(world, tool, _body(tool, world), link=role)
 
     assert res["error"]["code"] == -32003
     assert res["error"]["message"] == guest_message_for_code("share_capability_required")
@@ -194,7 +183,7 @@ def test_a_revoked_or_expired_link_is_refused(world, tool, link) -> None:
     else:
         world.tokens["editor"] = world.tokens["expired"]
 
-    res = _call(world, tool, _body(tool, world))
+    res = call_tool(world, tool, _body(tool, world))
 
     assert res["error"] == {"code": -32004, "message": "share not found"}
     assert _exported(world) == []
@@ -202,7 +191,7 @@ def test_a_revoked_or_expired_link_is_refused(world, tool, link) -> None:
 
 @pytest.mark.parametrize("tool", sorted(ARGS))
 def test_the_editor_is_answered_and_nothing_names_a_host_path(world, tool) -> None:
-    result = mcp_ok(_call(world, tool, _body(tool, world)))
+    result = mcp_ok(call_tool(world, tool, _body(tool, world)))
 
     text = json.dumps(result)
     for hidden in (str(world.ws.path.parent), str(world.ws.path), "raw/host.wav"):
@@ -211,7 +200,7 @@ def test_the_editor_is_answered_and_nothing_names_a_host_path(world, tool) -> No
 
 @pytest.mark.parametrize("tool", sorted(ARGS))
 def test_an_unknown_argument_is_invalid_params_and_changes_nothing(world, tool) -> None:
-    res = _call(world, tool, {**_body(tool, world), "path": "/x"})
+    res = call_tool(world, tool, {**_body(tool, world), "path": "/x"})
 
     assert res["error"]["code"] == -32602
     assert _exported(world) == []
@@ -237,7 +226,7 @@ def test_an_unknown_argument_is_invalid_params_and_changes_nothing(world, tool) 
     ],
 )
 def test_arguments_are_bounded_like_the_http_bodies(world, tool, bad) -> None:
-    res = _call(world, tool, bad)
+    res = call_tool(world, tool, bad)
 
     assert res["error"]["code"] == -32602
     assert _exported(world) == []
@@ -260,13 +249,13 @@ def test_the_input_schemas_are_the_http_request_models() -> None:
 
 @pytest.mark.parametrize("tool", sorted(set(ARGS) - WRITES))
 def test_the_reads_answer_what_the_http_twin_answers(world, tool) -> None:
-    assert mcp_ok(_call(world, tool, ARGS[tool])) == _http(world, tool).json()
+    assert mcp_ok(call_tool(world, tool, ARGS[tool])) == _http(world, tool).json()
 
 
 def test_a_dry_run_export_answers_what_the_http_twin_answers(world) -> None:
     body = {"formats": ["md", "srt"], "dry_run": True, "with_text": True}
 
-    got = mcp_ok(_call(world, "guest_transcript_export", body))
+    got = mcp_ok(call_tool(world, "guest_transcript_export", body))
 
     assert got == _http(world, "guest_transcript_export", body).json()
     assert _exported(world) == []
@@ -274,14 +263,14 @@ def test_a_dry_run_export_answers_what_the_http_twin_answers(world) -> None:
 
 def test_the_export_writes_the_project_files_and_the_listing_names_them(world, caplog) -> None:
     with caplog.at_level(logging.INFO, logger=guest_transcript_ops.__name__):
-        got = mcp_ok(_call(world, "guest_transcript_export", {"formats": ["md", "srt"]}))
+        got = mcp_ok(call_tool(world, "guest_transcript_export", {"formats": ["md", "srt"]}))
 
     assert [f["format"] for f in got["files"]] == ["md", "srt"]
     for row in got["files"]:
         assert set(row) == set(guest_transcript_ops.GUEST_EXPORT_FILE_KEYS)
         assert row["written"] and row["current"]
     assert _exported(world) == sorted(f["name"] for f in got["files"])
-    listing = mcp_ok(_call(world, "guest_transcript_exports"))
+    listing = mcp_ok(call_tool(world, "guest_transcript_exports"))
     assert sorted(row["name"] for row in listing) == _exported(world)
     assert all(set(row) == set(guest_transcript_ops.GUEST_EXPORTED_KEYS) for row in listing)
     assert f"by=share:{share_id(world)}" in caplog.text
@@ -291,21 +280,21 @@ def test_the_export_writes_the_project_files_and_the_listing_names_them(world, c
 def test_the_vocabulary_saves_and_a_stale_save_is_the_owners_409_code(world, caplog) -> None:
     body = _put(world)
     with caplog.at_level(logging.INFO, logger=guest_transcript_ops.__name__):
-        saved = mcp_ok(_call(world, "guest_transcript_vocabulary_put", body))
+        saved = mcp_ok(call_tool(world, "guest_transcript_vocabulary_put", body))
 
     assert (saved["terms"], saved["guest_names"]) == (["Sharecut"], ["Ana"])
     assert set(saved) == set(guest_transcript_ops.GUEST_VOCABULARY_KEYS)
-    assert mcp_ok(_call(world, "guest_transcript_vocabulary_get")) == saved
+    assert mcp_ok(call_tool(world, "guest_transcript_vocabulary_get")) == saved
     assert f"by=share:{share_id(world)}" in caplog.text
     stale = _http(world, "guest_transcript_vocabulary_put", body)
-    code, text = mcp_refusal(_call(world, "guest_transcript_vocabulary_put", body))
+    code, text = mcp_refusal(call_tool(world, "guest_transcript_vocabulary_put", body))
     assert (code, text) == (stale.headers[CODE], stale.json()["detail"])
     assert code == "vocabulary_conflict"
     assert text == guest_message_for_code(code)
 
 
 def test_a_done_mark_records_the_share_as_the_actor(world) -> None:
-    done = mcp_ok(_call(world, "guest_transcript_refine_done", {"notes": "Looks right"}))
+    done = mcp_ok(call_tool(world, "guest_transcript_refine_done", {"notes": "Looks right"}))
 
     assert (done["status"], done["source"], done["notes"]) == ("done", "guest", "")
     stored = sidecar(world)
@@ -315,14 +304,14 @@ def test_a_done_mark_records_the_share_as_the_actor(world) -> None:
 
 @pytest.mark.parametrize("link", ["editor", "other"])
 def test_each_share_is_its_own_actor(world, link) -> None:
-    mcp_ok(_call(world, "guest_transcript_refine_done", {}, link=link))
+    mcp_ok(call_tool(world, "guest_transcript_refine_done", {}, link=link))
 
     assert sidecar(world)["source"] == f"share:{share_id(world, link)}"
     assert share_id(world, "editor") != share_id(world, "other")
 
 
 def test_a_waiver_records_the_share_and_a_marked_reason(world) -> None:
-    waived = mcp_ok(_call(world, "guest_transcript_refine_waive", {"reason": "Cut anyway"}))
+    waived = mcp_ok(call_tool(world, "guest_transcript_refine_waive", {"reason": "Cut anyway"}))
 
     assert waived["source"] == "guest"
     stored = sidecar(world)
@@ -332,7 +321,7 @@ def test_a_waiver_records_the_share_and_a_marked_reason(world) -> None:
 
 def test_a_done_mark_and_the_http_twin_leave_the_same_gate(world) -> None:
     via_http = _http(world, "guest_transcript_refine_done", {}, link="other").json()
-    via_mcp = mcp_ok(_call(world, "guest_transcript_refine_done", {}))
+    via_mcp = mcp_ok(call_tool(world, "guest_transcript_refine_done", {}))
 
     assert {k: v for k, v in via_mcp.items() if k != "checked_at"} == {
         k: v for k, v in via_http.items() if k != "checked_at"
@@ -427,7 +416,7 @@ def test_a_domain_refusal_keeps_the_owners_code_with_fixed_copy(
     monkeypatch.setattr(service, attribute, raising(error))
     http = _http(world, tool, _body(tool, world))
 
-    got_code, text = mcp_refusal(_call(world, tool, _body(tool, world)))
+    got_code, text = mcp_refusal(call_tool(world, tool, _body(tool, world)))
 
     assert (got_code, text) == (http.headers[CODE], http.json()["detail"])
     assert got_code == code
@@ -440,7 +429,7 @@ def test_a_stale_word_and_a_missing_one_are_the_owners_codes(world) -> None:
     gone = {**TIMING, "target": {**TARGET, "word_index": 99}}
 
     codes = [
-        mcp_refusal(_call(world, "guest_transcript_word_timing_context", body))[0]
+        mcp_refusal(call_tool(world, "guest_transcript_word_timing_context", body))[0]
         for body in (stale, gone)
     ]
     http = [
@@ -464,12 +453,12 @@ def test_exports_beyond_the_slots_are_busy_and_a_slot_comes_back(world, monkeypa
     monkeypatch.setattr(TranscriptService, "export", held)
     first: list = []
     worker = threading.Thread(
-        target=lambda: first.append(_call(world, "guest_transcript_export", {}))
+        target=lambda: first.append(call_tool(world, "guest_transcript_export", {}))
     )
     worker.start()
     try:
         assert started.wait(5)
-        code, text = mcp_refusal(_call(world, "guest_transcript_export", {}))
+        code, text = mcp_refusal(call_tool(world, "guest_transcript_export", {}))
         busy_http = _http(world, "guest_transcript_export", {})
     finally:
         gate.set()
@@ -478,7 +467,7 @@ def test_exports_beyond_the_slots_are_busy_and_a_slot_comes_back(world, monkeypa
     assert (code, text) == ("export_busy", guest_message_for_code("export_busy"))
     assert (busy_http.status_code, busy_http.headers[CODE]) == (503, "export_busy")
     mcp_ok(first[0])
-    mcp_ok(_call(world, "guest_transcript_export", {}))
+    mcp_ok(call_tool(world, "guest_transcript_export", {}))
 
 
 @pytest.mark.parametrize("tool", sorted(ARGS))
@@ -496,7 +485,7 @@ def test_a_bare_error_is_the_fixed_internal_error(world, monkeypatch, caplog, to
     monkeypatch.setattr(TranscriptPrecorrectService, "set_vocabulary", refuse)
 
     with caplog.at_level(logging.ERROR):
-        res = _call(world, tool, body)
+        res = call_tool(world, tool, body)
 
     result = res["result"]
     assert result["isError"] is True
@@ -529,7 +518,7 @@ def test_the_check_shows_the_fields_of_the_http_view_and_no_sidecar_path(world) 
         TranscriptRefineStatusView.model_fields
     )
     for tool in ("guest_transcript_refine_status", "guest_transcript_refine_done"):
-        got = mcp_ok(_call(world, tool, {}))
+        got = mcp_ok(call_tool(world, tool, {}))
         assert set(got) == set(guest_transcript_ops.GUEST_REFINE_KEYS)
         assert "transcript_refine_status.json" not in json.dumps(got)
 
@@ -543,7 +532,7 @@ def test_a_waiver_leaves_a_gate_that_is_already_clear_alone(world, host_action) 
         service.waive(reason="host", source="user")
     before = sidecar(world)
 
-    got = mcp_ok(_call(world, "guest_transcript_refine_waive", {"reason": "Cut anyway"}))
+    got = mcp_ok(call_tool(world, "guest_transcript_refine_waive", {"reason": "Cut anyway"}))
 
     assert sidecar(world) == before
     assert before["source"] == "user"
@@ -551,10 +540,10 @@ def test_a_waiver_leaves_a_gate_that_is_already_clear_alone(world, host_action) 
 
 
 def test_a_repeated_done_mark_writes_nothing(world) -> None:
-    mcp_ok(_call(world, "guest_transcript_refine_done", {"notes": "first"}))
+    mcp_ok(call_tool(world, "guest_transcript_refine_done", {"notes": "first"}))
     before = sidecar(world)
 
-    again = mcp_ok(_call(world, "guest_transcript_refine_done", {"notes": "second"}))
+    again = mcp_ok(call_tool(world, "guest_transcript_refine_done", {"notes": "second"}))
 
     assert sidecar(world) == before
     assert again["status"] == "done"

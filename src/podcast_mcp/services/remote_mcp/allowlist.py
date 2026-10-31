@@ -123,6 +123,14 @@ TRANSCRIPT_TOOLS: frozenset[str] = frozenset(
 EDITOR_PROJECT_TOOLS: frozenset[str] = (
     PIPELINE_TOOLS | EXPORT_TOOLS | SPEAKER_TOOLS | TRANSCRIPT_TOOLS
 )
+# What the host reads of the edit state: the twins of the ``/daw/edit-impact`` and
+# ``/daw/social-clips`` routes. Read only.
+EDITOR_INSIGHT_TOOLS: frozenset[str] = frozenset(
+    {
+        "guest_edit_impact",
+        "guest_social_clips",
+    }
+)
 
 ALL_GUEST_TOOLS: frozenset[str] = (
     PLAY_TOOLS
@@ -133,6 +141,7 @@ ALL_GUEST_TOOLS: frozenset[str] = (
     | DOCUMENT_COMMAND_TOOLS
     | EDIT_TOOLS
     | EDITOR_PROJECT_TOOLS
+    | EDITOR_INSIGHT_TOOLS
 )
 
 
@@ -152,7 +161,7 @@ def tools_for_capabilities(caps: list[str] | None) -> frozenset[str]:
     if document_command_types_for_caps(caps):
         out |= DOCUMENT_COMMAND_TOOLS
     if edit_commands_allowed(caps):
-        out |= EDIT_TOOLS | EDITOR_PROJECT_TOOLS
+        out |= EDIT_TOOLS | EDITOR_PROJECT_TOOLS | EDITOR_INSIGHT_TOOLS
     return frozenset(out)
 
 

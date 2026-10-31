@@ -27,7 +27,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration import guest_project_ops
+from podcast_mcp.services.collaboration import guest_insight_ops, guest_project_ops
 from podcast_mcp.services.collaboration.guest_progress import guest_ws_progress_sink
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.review_versions import get_version, version_audio_path
@@ -349,6 +349,12 @@ PROBES: dict[tuple[str, str], Probe] = {
             }
         },
     ),
+    ("GET", "/api/review/{token}/daw/edit-impact"): Probe(
+        Site(guest_insight_ops, "edit_impact_report")
+    ),
+    ("GET", "/api/review/{token}/daw/social-clips"): Probe(
+        Site(guest_insight_ops, "list_social_clips")
+    ),
     ("GET", "/api/review/{token}/daw/transcript/vocabulary"): Probe(
         Site(TranscriptPrecorrectService, "vocabulary_status")
     ),
@@ -514,6 +520,8 @@ TOOLS: dict[str, tuple[Site | None, dict[str, object]]] = {
     ),
     "guest_transcript_export": (Site(TranscriptService, "export"), {}),
     "guest_transcript_exports": (Site(TranscriptService, "exported"), {}),
+    "guest_edit_impact": (Site(guest_insight_ops, "edit_impact_report"), {}),
+    "guest_social_clips": (Site(guest_insight_ops, "list_social_clips"), {}),
     **{
         f"guest_{family}_{op}": (Site(service_jobs.JobManager, site), arguments)
         for family in ("pipeline", "export", "speaker")

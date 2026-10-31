@@ -17,6 +17,7 @@ from podcast_mcp.services.collaboration import (
     CAP_PLAY,
     CAP_VIEW,
     guest_cancel_job,
+    guest_edit_impact_view,
     guest_export_transcript,
     guest_exports,
     guest_job_status_view,
@@ -27,6 +28,7 @@ from podcast_mcp.services.collaboration import (
     guest_refine_waive,
     guest_replacement_preview,
     guest_save_vocabulary,
+    guest_social_clip_view,
     guest_start_export,
     guest_start_pipeline_run,
     guest_start_speaker_split,
@@ -62,12 +64,14 @@ from podcast_mcp.util.tool_refusal import guest_failure_detail
 
 if typing.TYPE_CHECKING:
     from podcast_mcp.gui.schemas import (
+        GuestEditImpactRequest,
         GuestExportRequest,
         GuestJobRequest,
         GuestPipelineRunRequest,
         GuestRefineDoneRequest,
         GuestRefineWaiveRequest,
         GuestReplacementPreviewRequest,
+        GuestSocialClipsRequest,
         GuestSpeakerMoveLaneSpanRequest,
         GuestSpeakerSplitRequest,
         GuestTranscriptExportRequest,
@@ -436,6 +440,22 @@ def guest_speaker_move_lane_span(req: GuestSpeakerMoveLaneSpanRequest) -> dict[s
     return guest_move_lane_span(ctx.workspace, ctx.author, **req.model_dump())
 
 
+def guest_edit_impact(req: GuestEditImpactRequest) -> dict[str, Any]:
+    """Seconds cut, edits applied and pending, and the segments behind them (requires ``edit``)."""
+    _require_tool("guest_edit_impact")
+    return guest_edit_impact_view(get_remote_mcp_context().workspace, markdown=req.markdown)
+
+
+def guest_social_clips(req: GuestSocialClipsRequest) -> dict[str, Any]:
+    """The project's social clip candidates, optionally by state (requires ``edit``)."""
+    _require_tool("guest_social_clips")
+    return guest_social_clip_view(
+        get_remote_mcp_context().workspace,
+        approved=req.approved,
+        review_required=req.review_required,
+    )
+
+
 def _job_tools(
     family: str,
 ) -> tuple[
@@ -611,6 +631,8 @@ TOOL_HANDLERS: dict[str, Any] = {
     "guest_transcript_word_timing_context": guest_transcript_word_timing_context,
     "guest_transcript_export": guest_transcript_export,
     "guest_transcript_exports": guest_transcript_exports,
+    "guest_edit_impact": guest_edit_impact,
+    "guest_social_clips": guest_social_clips,
 }
 
 # Tools whose one argument, ``req``, is a guest request model shared with their HTTP twin.
@@ -699,6 +721,14 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
     ),
     "guest_transcript_exports": (
         "The transcript files already exported (names and whether current; no paths)."
+    ),
+    "guest_edit_impact": (
+        "Seconds cut and edits applied or pending, per track, with the segments behind them "
+        "(requires edit; markdown=true for the host's report)."
+    ),
+    "guest_social_clips": (
+        "The project's social clip candidates with score, title and review state "
+        "(requires edit; filter by approved or review_required)."
     ),
 }
 
@@ -816,12 +846,14 @@ def list_tool_defs(caps: list[str] | None) -> list[dict[str, Any]]:
 def _request_models() -> dict[str, type[BaseModel]]:
     """The HTTP twins' request model of each tool whose one argument, ``req``, is that model."""
     from podcast_mcp.gui.schemas import (
+        GuestEditImpactRequest,
         GuestExportRequest,
         GuestJobRequest,
         GuestPipelineRunRequest,
         GuestRefineDoneRequest,
         GuestRefineWaiveRequest,
         GuestReplacementPreviewRequest,
+        GuestSocialClipsRequest,
         GuestSpeakerMoveLaneSpanRequest,
         GuestSpeakerSplitRequest,
         GuestTranscriptExportRequest,
@@ -830,6 +862,8 @@ def _request_models() -> dict[str, type[BaseModel]]:
     )
 
     return {
+        "guest_edit_impact": GuestEditImpactRequest,
+        "guest_social_clips": GuestSocialClipsRequest,
         "guest_pipeline_run": GuestPipelineRunRequest,
         "guest_export_start": GuestExportRequest,
         "guest_speaker_split": GuestSpeakerSplitRequest,

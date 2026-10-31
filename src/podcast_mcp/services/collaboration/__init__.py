@@ -3,6 +3,10 @@ from typing import TYPE_CHECKING
 from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
+    from podcast_mcp.services.collaboration.guest_insight_ops import (
+        guest_edit_impact_view,
+        guest_social_clip_view,
+    )
     from podcast_mcp.services.collaboration.guest_progress import (
         guest_progress_hub,
         guest_ws_progress_sink,
@@ -174,6 +178,7 @@ __all__ = [
     "get_share_registry",
     "get_version",
     "guest_cancel_job",
+    "guest_edit_impact_view",
     "guest_export_transcript",
     "guest_exports",
     "guest_job_status_view",
@@ -188,6 +193,7 @@ __all__ = [
     "guest_replacement_preview",
     "guest_save_vocabulary",
     "guest_selects_transcript_words",
+    "guest_social_clip_view",
     "guest_start_export",
     "guest_start_pipeline_run",
     "guest_start_speaker_split",
@@ -261,6 +267,8 @@ _MODULE_BY_NAME = {
     "guest_refine_done": "guest_transcript_ops",
     "guest_exports": "guest_transcript_ops",
     "guest_export_transcript": "guest_transcript_ops",
+    "guest_edit_impact_view": "guest_insight_ops",
+    "guest_social_clip_view": "guest_insight_ops",
     "GuestRefusal": "guest_project_ops",
     "guest_cancel_job": "guest_project_ops",
     "guest_job_status_view": "guest_project_ops",
