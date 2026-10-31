@@ -274,6 +274,10 @@ for (const core of [
               envelopeSnapshot(projectPath, track.id),
               track.id,
             );
+            // Six saves (add, level, time, two removes, final removal): one history entry each.
+            const final = envelopeSnapshot(projectPath, track.id);
+            expect(final.history?.cursor).toBe(6);
+            expect(final.history?.entries).toHaveLength(7);
             receipts.push({
               checkpoint: "edit-reopen-remove-final-removal",
               observation: { moved, edited, left, removed },
@@ -402,6 +406,20 @@ for (const profile of profiles) {
             expect(envelopeSnapshot(projectPath, track.id)).toEqual(
               beforeRefusal,
             );
+            await setPointField(page, "Time", "999");
+            const refusedTime = dialog.getByRole("textbox", {
+              name: "Time",
+              exact: true,
+            });
+            await expect(refusedTime).toHaveAttribute("aria-invalid", "true");
+            await expect(dialog.getByRole("alert")).toBeVisible();
+            await page.keyboard.press("Escape");
+            await expect(refusedTime).toBeHidden();
+            await settle(page);
+            expect(observer.commands).toHaveLength(commandsBefore);
+            expect(envelopeSnapshot(projectPath, track.id)).toEqual(
+              beforeRefusal,
+            );
             const geometry: unknown[] = [];
             for (const control of [
               dialog.getByRole("spinbutton", { name: "Time", exact: true }),
@@ -430,6 +448,7 @@ for (const profile of profiles) {
                 dialog.getByRole("button", { name: /^Remove/ }),
                 dialog.getByRole("button", { name: "Close", exact: true }),
               ]) {
+                await control.scrollIntoViewIfNeeded();
                 const box = await control.boundingBox();
                 expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
               }
