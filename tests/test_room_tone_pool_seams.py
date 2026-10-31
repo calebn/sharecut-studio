@@ -109,25 +109,34 @@ def test_a_rejected_approve_schedules_nothing_and_leaves_no_pool_file(
     assert not (tmp_path / "artifacts" / "room_tone_pools").exists()
 
 
-def test_the_host_project_load_route_schedules_once(
+def test_the_host_queues_the_pools_once_when_it_starts_serving_a_project(
     minimal_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
 
-    seen: list[str] = []
+    seen: list[bool] = []
     monkeypatch.setattr(
-        room_tone,
-        "schedule_room_tone_pools",
-        lambda p, *_a, **_k: seen.append(p.meta.workspace_dir) or 0,
+        room_tone, "schedule_room_tone_pools", lambda p, *_a, **k: seen.append(k["owned"]) or 0
     )
-    client = TestClient(create_app())
 
-    assert client.get("/api/project", params={"path": str(minimal_project)}).status_code == 200
-    assert len(seen) == 1
-    assert (
-        client.get("/api/project", params={"path": str(minimal_project), "phase": "x"}).status_code
-        == 400
-    )
-    assert len(seen) == 1  # a refused request schedules nothing
+    started = TestClient(create_app(served_project=minimal_project))  # `--project` at startup
+    assert seen == [True]
+    started.get("/api/document/state", params={"path": str(minimal_project)})
+    assert seen == [True]  # the project is already served
+
+    opened = TestClient(create_app(), client=("127.0.0.1", 50000))  # opened from Home or by a path
+    assert seen == [True]
+    for _ in range(2):
+        response = opened.get("/api/document/state", params={"path": str(minimal_project)})
+        assert response.status_code == 200
+    assert seen == [True, True]  # queued by the first load that pinned it, not by the second
+
+
+def test_a_project_that_cannot_be_opened_queues_nothing_and_does_not_raise(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.services.document import queue_room_tone_pools
+
+    assert queue_room_tone_pools(tmp_path / "missing" / "episode.sharecut") == 0

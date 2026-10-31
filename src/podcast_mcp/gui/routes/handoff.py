@@ -48,6 +48,7 @@ from podcast_mcp.services.app import (
     new_token,
     withdraw_studio_host,
 )
+from podcast_mcp.services.document import queue_room_tone_pools
 from podcast_mcp.services.jobs import LIVE_JOB_STATUSES
 from podcast_mcp.services.session_sync import is_loopback_host
 from podcast_mcp.util.proxy_paths import is_relayed_request
@@ -115,6 +116,10 @@ def set_served_project(app: Any, project_path: Path | None) -> None:
     app.state.served_project = project_path
     app.state.jobs.set_served_project(project_path)
     _announce(app)
+    if project_path is not None:
+        # A project at a new path has no room-tone pool under its key: record it now, ahead of
+        # the idle warms the UI starts once it has loaded the project.
+        queue_room_tone_pools(project_path)
 
 
 def _announce(app: Any) -> None:
