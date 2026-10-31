@@ -57,6 +57,7 @@ def test_payload_lists_only_pending_suggestions_as_a_small_view(ws) -> None:
             "to_sec": 4.0,
             "track_ids": ["host"],
             "take_count": 2,
+            "take_indexes": [0, 1],
             "selected_take": None,
         }
     ]
@@ -173,3 +174,69 @@ def test_only_the_host_decides_a_staged_session(command: str) -> None:
         with pytest.raises(PermissionError) as raised:
             authorize_document_command(caps, command)
         assert raised.value.code == "share_capability_required"
+
+
+def test_take_count_counts_takes_not_tracks_or_segments(ws) -> None:
+    _stage_replace(
+        ws,
+        2.0,
+        4.0,
+        {
+            0: [("host", 0.0, 3.0), ("guest", 0.0, 3.0), ("host", 3.0, 1.0)],
+            1: [("host", 0.0, 2.0), ("guest", 0.0, 2.0)],
+        },
+        track_ids=["host", "guest"],
+    )
+    [row] = _view(ws)["session_suggestions"]
+    assert (row["take_count"], row["take_indexes"]) == (2, [0, 1])
+
+
+def test_non_contiguous_take_indexes_are_reported_as_they_are(ws) -> None:
+    sid = _stage_replace(ws, 2.0, 4.0, {0: [("host", 0.0, 3.0)], 3: [("host", 0.0, 2.0)]})
+    [row] = _view(ws)["session_suggestions"]
+    assert (row["take_count"], row["take_indexes"]) == (2, [0, 3])
+    apply_command(ws, "SelectSessionTake", {"suggestion_id": sid, "take_index": 3})
+    assert _view(ws)["session_suggestions"][0]["selected_take"] == 3
+
+
+@pytest.mark.parametrize("command", COMMANDS)
+def test_an_unknown_suggestion_is_refused(ws, command: str) -> None:
+    payload = {"suggestion_id": "ss-nope", "take_index": 0}
+    with pytest.raises(KeyError) as err:
+        apply_command(ws, command, payload)
+    assert err.value.code == "session_suggestion_not_found"
+
+
+def test_select_refuses_an_unknown_take_and_changes_nothing(ws) -> None:
+    sid = _stage_replace(ws, 2.0, 4.0, {0: [("host", 0.0, 3.0)], 1: [("host", 0.0, 2.0)]})
+    before = _everything(ws)
+    for bad in (2, -1):
+        with pytest.raises(CodedValueError) as err:
+            apply_command(ws, "SelectSessionTake", {"suggestion_id": sid, "take_index": bad})
+        assert err.value.code == "take_not_found"
+    assert _everything(ws) == before
+
+
+def test_select_on_an_insert_is_not_applicable(minimal_project, sample_wav, tmp_workspace) -> None:
+    ws = _seed(minimal_project, sample_wav)
+    _seed_timeline(ws)
+    room, _guest, _svc, _landed = _stage(ws, INSERT, takes=2)
+    before = _everything(ws)
+    with pytest.raises(CodedValueError) as err:
+        apply_command(
+            ws,
+            "SelectSessionTake",
+            {"suggestion_id": f"ss-{room['session_id']}", "take_index": 0},
+        )
+    assert err.value.code == "take_not_applicable"
+    assert _everything(ws) == before
+
+
+def test_selecting_the_selected_take_writes_no_history_step(ws) -> None:
+    sid = _stage_replace(ws, 2.0, 4.0, {0: [("host", 0.0, 3.0)], 1: [("host", 0.0, 2.0)]})
+    apply_command(ws, "SelectSessionTake", {"suggestion_id": sid, "take_index": 1})
+    steps = _titles(ws)
+    before = _everything(ws)
+    apply_command(ws, "SelectSessionTake", {"suggestion_id": sid, "take_index": 1})
+    assert _titles(ws) == steps
+    assert _everything(ws) == before
