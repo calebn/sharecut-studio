@@ -192,13 +192,14 @@ export function EnvelopeOverlayView({
           .join(" ");
 
   const dipLines = (clipDips ?? [])
-    .filter((dip) => {
+    .map((dip, i) => ({ dip, i }))
+    .filter(({ dip }) => {
       const start = dip.points[0]!.time * zoomPxPerSec;
       const end = dip.points[dip.points.length - 1]!.time * zoomPxPerSec;
       return end >= x0 && start <= x1;
     })
-    .map((dip) => ({
-      key: `${dip.clipId}:${dip.points[0]!.time}`,
+    .map(({ dip, i }) => ({
+      key: `${dip.clipId}:${i}`,
       x: dip.points[0]!.time * zoomPxPerSec - x0,
       points: dip.points
         .map((p) => `${p.time * zoomPxPerSec - x0},${valueToY(p.gain, height)}`)

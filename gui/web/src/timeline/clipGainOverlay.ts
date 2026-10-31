@@ -7,11 +7,7 @@ import {
   renderedFadeSec,
   type VolumePoint,
 } from "../audio/gainCurve";
-import {
-  clipIdsBeforeCut,
-  isCrossfadeJoin,
-  isCutJoin,
-} from "../edit/joinRender";
+import { clipIdsBeforeCut, isCutJoin } from "../edit/joinRender";
 import type { ClipRow } from "../types/project";
 
 export interface ClipGainPoint {
@@ -42,35 +38,48 @@ function dipOver(
   };
 }
 
-// A crossfade join is skipped: the render replaces both edge fades there with the overlap's blend.
+// The render replaces both edge fades with the overlap's blend only where a crossfade actually blends.
+function blends(clip: ClipRow): boolean {
+  return (
+    clip.join_left_clip_id != null &&
+    clip.join_in_mode === "crossfade" &&
+    clip.join_crossfade_blocked == null &&
+    (clip.join_crossfade_ms ?? 0) > 0
+  );
+}
+
 export function clipGainDips(
   clips: readonly ClipRow[],
   volume: readonly VolumePoint[],
 ): ClipGainDip[] {
-  const beforeCut = clipIdsBeforeCut([...clips]);
+  const beforeCut = clipIdsBeforeCut(clips);
+  const blendedLeft = new Set<string>();
+  for (const c of clips) {
+    if (blends(c) && c.join_left_clip_id) blendedLeft.add(c.join_left_clip_id);
+  }
   const out: ClipGainDip[] = [];
   for (const clip of clips) {
-    const crossfadeIn = isCrossfadeJoin(clip);
+    const crossfadeIn = blends(clip);
     const fadeInSec =
       isCutJoin(clip) || crossfadeIn ? 0 : Math.max(0, clip.fade_in_ms) / 1000;
-    const crossfadeOut = clips.some(
-      (other) => other.join_left_clip_id === clip.id && isCrossfadeJoin(other),
-    );
+    const crossfadeOut = blendedLeft.has(clip.id);
     const fadeOutSec =
       beforeCut.has(clip.id) || crossfadeOut
         ? 0
         : Math.max(0, clip.fade_out_ms) / 1000;
+    const mute = muteSpansOf([
+      ...(clip.mute_regions ?? []),
+      ...(clip.ignored_word_regions ?? []),
+    ]);
+    const automaticMute = automaticSpansOf(clip.off_speaker_mute_regions);
     const fade: ClipFade = {
       timelineStartSec: clip.timeline_start,
       timelineEndSec: clip.timeline_end,
       fadeInSec,
       fadeOutSec,
       sourceStartSec: clip.source_start,
-      mute: muteSpansOf([
-        ...(clip.mute_regions ?? []),
-        ...(clip.ignored_word_regions ?? []),
-      ]),
-      automaticMute: automaticSpansOf(clip.off_speaker_mute_regions),
+      mute,
+      automaticMute,
     };
     const length = clip.timeline_end - clip.timeline_start;
     const regions: [number, number][] = [];
@@ -85,7 +94,7 @@ export function clipGainDips(
         clip.timeline_end,
       ]);
     const shift = clip.timeline_start - clip.source_start;
-    for (const span of [...(fade.mute ?? []), ...(fade.automaticMute ?? [])])
+    for (const span of [...mute, ...automaticMute])
       regions.push([
         Math.max(clip.timeline_start, span.start + shift),
         Math.min(clip.timeline_end, span.end + shift),

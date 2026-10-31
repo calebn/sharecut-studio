@@ -94,7 +94,7 @@ export function joinLengthMs(
 
 /** Ids of clips whose outgoing join is a cut (render drops their fade-out). */
 export function clipIdsBeforeCut(
-  clips: Pick<ClipRow, "join_in_mode" | "join_left_clip_id">[],
+  clips: readonly Pick<ClipRow, "join_in_mode" | "join_left_clip_id">[],
 ): Set<string> {
   const ids = new Set<string>();
   for (const c of clips) {

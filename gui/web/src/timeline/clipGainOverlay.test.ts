@@ -84,7 +84,42 @@ describe("clipGainDips", () => {
       fade_in_ms: 300,
       join_in_mode: "crossfade",
       join_left_clip_id: "a",
+      join_crossfade_ms: 200,
     });
     expect(clipGainDips([left, right], unity)).toEqual([]);
+  });
+
+  it("still draws the edge fades of a crossfade that does not blend", () => {
+    const left = clip({ id: "a", fade_out_ms: 300, timeline_end: 5 });
+    const right = clip({
+      id: "b",
+      timeline_start: 5,
+      timeline_end: 10,
+      fade_in_ms: 300,
+      join_in_mode: "crossfade",
+      join_left_clip_id: "a",
+      join_crossfade_ms: 0,
+      join_crossfade_blocked: "no_headroom",
+    });
+    expect(clipGainDips([left, right], unity)).toHaveLength(2);
+  });
+
+  it("draws the fade-in of a first clip even when it is set to crossfade", () => {
+    const first = clip({ fade_in_ms: 300, join_in_mode: "crossfade" });
+    expect(clipGainDips([first], unity)).toHaveLength(1);
+  });
+
+  it("draws a fade-in and a mute that start together as two dips", () => {
+    const dips = clipGainDips(
+      [
+        clip({
+          fade_in_ms: 500,
+          mute_regions: [{ start_s: 0, end_s: 1 }] as never,
+        }),
+      ],
+      unity,
+    );
+    expect(dips).toHaveLength(2);
+    expect(dips[0]?.points[0]?.time).toBe(dips[1]?.points[0]?.time);
   });
 });
