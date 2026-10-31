@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
-import { _resetClipboardForTests, getClipboard } from "../edit/clipboard";
+import {
+  _resetClipboardForTests,
+  getClipboard,
+  setClipboard,
+} from "../edit/clipboard";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { wordSelection } from "../utils/rangeSelect";
@@ -91,6 +95,35 @@ describe("edit.copy/cut/paste", () => {
     expect((await execute("edit.paste")).status).toBe("ok");
     expect(api.pasteSegment).toHaveBeenCalled();
     expect(api.duplicateSegment).not.toHaveBeenCalled();
+  });
+
+  it("pastes at the playhead without a time and at atTime with one", async () => {
+    expect((await execute("edit.cut")).status).toBe("ok");
+    expect((await execute("edit.paste")).status).toBe("ok");
+    expect(vi.mocked(api.pasteSegment).mock.calls[0]?.[1]).toBe(8);
+    expect((await execute("edit.paste", { atTime: 12.5 })).status).toBe("ok");
+    expect(vi.mocked(api.pasteSegment).mock.calls[1]?.[1]).toBe(12.5);
+    expect(useDawStore.getState().statusAnnouncement).toContain("00:12.500");
+  });
+
+  it("duplicates a copied range at atTime", async () => {
+    setClipboard({
+      timelineStart: 0,
+      timelineEnd: 5,
+      mode: "copy",
+      extracts: [],
+    });
+    expect((await execute("edit.paste", { atTime: 3 })).status).toBe("ok");
+    expect(api.duplicateSegment).toHaveBeenCalledWith("/tmp/ep", 0, 5, 3);
+  });
+
+  it("refuses a paste time that is not a number, changing nothing", async () => {
+    expect((await execute("edit.cut")).status).toBe("ok");
+    expect(await execute("edit.paste", { atTime: "soon" })).toEqual({
+      status: "disabled",
+      reason: "atTime must be a number",
+    });
+    expect(api.pasteSegment).not.toHaveBeenCalled();
   });
 
   it("refuses a media cut of a tapped word in Correct mode", async () => {
