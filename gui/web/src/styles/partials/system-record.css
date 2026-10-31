@@ -661,6 +661,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+  margin-inline-end: auto;
+}
+
+.sys-room-view-session:has(+ .sys-room-view-target) {
+  margin-inline-end: var(--space-3);
 }
 
 .sys-room-view-target {
