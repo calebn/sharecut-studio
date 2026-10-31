@@ -415,7 +415,7 @@ with axe before the collected results are asserted.
 | an armed drag holds at a soft boundary, and saves there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a long-press arms a clip, which moves in time only, holds at its neighbour's edge and saves there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels an armed clip move | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
-| a long-press on empty space opens the create menu; Add envelope point adds one there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
+| a long-press on empty space opens the create menu; Add volume point adds one there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a long-press past the last clip opens the create menu and selects no text | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | tablet landscape at 200% text still lets Zoom hit the ruler | `gui/web/e2e-compat/touch-grammar.spec.ts` | CSS / layout | Pass | Pass | Not run |
