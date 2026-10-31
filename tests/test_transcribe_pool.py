@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import threading
-import time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -318,7 +317,7 @@ def test_concurrent_tracks_keep_their_own_progress_row_and_heartbeat(engine, mon
     assert {"transcribe_audio:t0", "transcribe_audio:t1"} in open_rows
 
 
-def _race(workers: list[TranscriptionEngine], use: Any) -> None:
+def _race(workers: list[TranscriptionEngine], use: Any, after_start: Any = None) -> None:
     barrier = threading.Barrier(len(workers), timeout=WAIT)
 
     def go(worker: TranscriptionEngine) -> None:
@@ -328,16 +327,21 @@ def _race(workers: list[TranscriptionEngine], use: Any) -> None:
     threads = [threading.Thread(target=go, args=(w,)) for w in workers]
     for thread in threads:
         thread.start()
+    if after_start is not None:
+        after_start()
     for thread in threads:
         thread.join(WAIT)
 
 
 def test_aligner_is_built_once_when_slow_loads_race(engine, monkeypatch):
     loads: list[int] = []
+    entered = threading.Event()
+    release = threading.Event()
 
     def slow_load(cls, *a, **k):
         loads.append(1)
-        time.sleep(0.2)
+        entered.set()
+        assert release.wait(WAIT)
         return object()
 
     monkeypatch.setattr("podcast_mcp.engines.word_align.WordAligner.load", classmethod(slow_load))
@@ -345,6 +349,7 @@ def test_aligner_is_built_once_when_slow_loads_race(engine, monkeypatch):
     _race(
         [engine.fork_worker(WORKER_CPU_THREADS) for _ in range(4)],
         lambda worker: got.append(worker.load_word_aligner()),
+        after_start=lambda: (entered.wait(WAIT), release.set()),
     )
     assert len(loads) == 1
     assert len(got) == 4
@@ -353,10 +358,13 @@ def test_aligner_is_built_once_when_slow_loads_race(engine, monkeypatch):
 
 def test_speech_levels_are_built_once_when_slow_builds_race(engine, monkeypatch):
     builds: list[int] = []
+    entered = threading.Event()
+    release = threading.Event()
 
     def slow_build(cls, *a, **k):
         builds.append(1)
-        time.sleep(0.2)
+        entered.set()
+        assert release.wait(WAIT)
         return object()
 
     monkeypatch.setattr(
@@ -366,6 +374,7 @@ def test_speech_levels_are_built_once_when_slow_builds_race(engine, monkeypatch)
     _race(
         [engine.fork_worker(WORKER_CPU_THREADS) for _ in range(4)],
         lambda worker: got.append(worker.speech_levels(MagicMock())),
+        after_start=lambda: (entered.wait(WAIT), release.set()),
     )
     assert len(builds) == 1
     assert len(got) == 4
