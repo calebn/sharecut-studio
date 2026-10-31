@@ -248,6 +248,33 @@ describe("TargetChooser caption", () => {
   });
 });
 
+describe("TargetChooser with a blank label", () => {
+  it("draws no caption pill and names the chip by its kind alone", () => {
+    const blank = { ...clip, label: "   " };
+    const { container } = render(
+      <TargetChooser
+        {...props({
+          targets: [blank, { ...comment, label: "" }],
+          over: "clip-1",
+        })}
+      />,
+    );
+    expect(container.querySelector(".edit-target-chooser-caption")).toBeNull();
+    expect(chips().map((chip) => chip.getAttribute("aria-label"))).toEqual([
+      "Clip",
+      "Comment",
+    ]);
+  });
+});
+
+describe("TargetChooser keyboard ring while a finger is over a chip", () => {
+  it("hides the focus ring of the chips that are not over, and only while one is", () => {
+    expect(css).toMatch(
+      /\.edit-target-chooser:has\(\[data-over\]\)\s+\.edit-target-chooser-chip:not\(\.is-over\):focus-visible \{\s*outline: none;/,
+    );
+  });
+});
+
 describe("TargetChooser picking", () => {
   it("reports the chip's id on a click", async () => {
     const onPick = vi.fn();

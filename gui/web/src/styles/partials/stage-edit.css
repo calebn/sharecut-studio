@@ -554,6 +554,15 @@ html[data-frame-short] .edit-dock {
   background: var(--edit-chooser-over-well);
 }
 
+/* The hook focuses the first chip when the fan opens, and a touch or mouse
+   hold would leave that keyboard ring on it beside the chip the finger is over.
+   While the host reports a chip over, only that chip is marked; the ring stays
+   for keyboard use, where nothing is ever over. */
+.edit-target-chooser:has([data-over])
+  .edit-target-chooser-chip:not(.is-over):focus-visible {
+  outline: none;
+}
+
 /* One caption for the chip under the finger, on the side of the arc away from
    the press point. */
 .edit-target-chooser-caption {
