@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from podcast_mcp import settings
+from podcast_mcp.util import process
 
 log = logging.getLogger(__name__)
 
@@ -256,10 +257,13 @@ def available_ram_bytes() -> int | None:
         if sys.platform == "win32":
             return _ram_bytes_win32("ullAvailPhys")
         if sys.platform == "darwin":
-            out = subprocess.run(  # nosec B603 B607
+            out = process.run(
                 ["vm_stat"], capture_output=True, text=True, timeout=_PROBE_TIMEOUT_SEC, check=True
             ).stdout
-            page = int(re.search(r"page size of (\d+) bytes", out).group(1))  # type: ignore[union-attr]
+            page_match = re.search(r"page size of (\d+) bytes", out)
+            if page_match is None:
+                return None
+            page = int(page_match.group(1))
             pages = sum(
                 int(m.group(1))
                 for m in re.finditer(r"Pages (?:free|inactive|speculative):\s+(\d+)", out)

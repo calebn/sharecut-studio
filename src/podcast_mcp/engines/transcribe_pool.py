@@ -20,7 +20,7 @@ T = TypeVar("T")
 J = TypeVar("J")
 
 WORKER_CPU_THREADS = 4
-# Measured with the default product model: about 1 GB per extra loaded model plus its working set.
+# Estimate (not measured here): about 1 GB per extra loaded model plus its working set; validate on the Mac.
 DEFAULT_WORKER_RAM_BYTES = 2_400_000_000
 WORKER_OVERHEAD_BYTES = 800_000_000
 AVAILABLE_RAM_FRACTION = 0.7
