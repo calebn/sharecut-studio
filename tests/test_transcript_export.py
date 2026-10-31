@@ -296,6 +296,32 @@ def test_exported_current_stale_and_scope(ws):
     assert ws2.project.transcripts[0].words[0].text == "Howdy"
 
 
+def _rewrite_crlf(ws, edit=None):
+    paths = [_export_dir(ws) / f"{ws.project.name}.{fmt}" for fmt in ("txt", "md")]
+    for path in paths:
+        lf = path.read_bytes()
+        if edit:
+            lf = lf.replace(*edit, 1)
+        path.write_bytes(lf.replace(b"\n", b"\r\n"))
+    return paths
+
+
+def test_crlf_export_stays_current(ws):
+    svc = TranscriptService(ws)
+    svc.export(["txt", "md"])
+    paths = _rewrite_crlf(ws)
+    listed = svc.exported()
+    assert [e.current for e in listed] == [True, True]
+    assert [e.bytes for e in listed] == [p.stat().st_size for p in paths]
+
+
+def test_crlf_with_changed_word_is_stale(ws):
+    svc = TranscriptService(ws)
+    svc.export(["txt", "md"])
+    _rewrite_crlf(ws, (b"Hello", b"Howdy"))
+    assert [e.current for e in svc.exported()] == [False, False]
+
+
 def test_mime_for_every_format(ws):
     TranscriptService(ws).export(["txt", "md", "srt", "vtt"])
     mimes = {e.format: e.mime for e in TranscriptService(ws).exported()}
