@@ -33,6 +33,9 @@ export const Resolved: Story = {
     await expect(
       await canvas.findByRole("heading", { name: "Comment" }),
     ).toBeVisible();
+    await expect(await canvas.findByText("Resolved by Mira")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Reopen" })).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Resolve" })).toBeNull();
   },
 };
 
@@ -43,5 +46,11 @@ export const Commenter: Story = {
     await expect(
       await canvas.findByRole("heading", { name: "Comment" }),
     ).toBeVisible();
+    // A commenter may reply but not resolve.
+    await expect(
+      canvas.getByRole("textbox", { name: "Reply to comment" }),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Resolve" })).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Reopen" })).toBeNull();
   },
 };

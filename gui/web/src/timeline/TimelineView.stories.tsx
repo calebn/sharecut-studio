@@ -57,6 +57,9 @@ export const Arranged: Story = {
         name: "Open track details, Mira",
       }),
     ).toBeVisible();
+    await expect(
+      canvasElement.querySelector(".clip-block.selected"),
+    ).toBeNull();
   },
 };
 
@@ -68,6 +71,12 @@ export const ClipSelected: Story = {
         name: "Open track details, Mira",
       }),
     ).toBeVisible();
+    // The selected clip block is drawn pressed.
+    await expect(
+      canvasElement.querySelector(
+        ".clip-block.selected .clip-hit[aria-pressed='true']",
+      ),
+    ).not.toBeNull();
   },
 };
 

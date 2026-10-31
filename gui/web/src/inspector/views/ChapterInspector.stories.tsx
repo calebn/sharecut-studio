@@ -33,5 +33,12 @@ export const Viewer: Story = {
     await expect(
       await canvas.findByRole("heading", { name: "The harbor depot" }),
     ).toBeVisible();
+    await expect(
+      canvas.queryByRole("textbox", { name: "Chapter title" }),
+    ).toBeNull();
+    await expect(
+      canvas.queryByRole("spinbutton", { name: "Chapter time" }),
+    ).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Delete" })).toBeNull();
   },
 };

@@ -37,5 +37,10 @@ export const Viewer: Story = {
         name: "A loaf tells you when it is ready",
       }),
     ).toBeVisible();
+    await expect(
+      canvas.queryByRole("spinbutton", { name: "Social clip start" }),
+    ).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Apply" })).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Delete" })).toBeNull();
   },
 };

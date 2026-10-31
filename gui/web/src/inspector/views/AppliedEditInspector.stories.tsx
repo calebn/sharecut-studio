@@ -33,5 +33,9 @@ export const Viewer: Story = {
     await expect(
       await canvas.findByRole("heading", { name: "Applied edit" }),
     ).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Restore" })).toBeNull();
+    await expect(
+      canvas.queryByRole("button", { name: "Open History" }),
+    ).toBeNull();
   },
 };

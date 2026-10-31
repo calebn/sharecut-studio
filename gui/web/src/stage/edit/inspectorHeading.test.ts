@@ -41,3 +41,20 @@ describe("inspectorHeading for the volume envelope", () => {
     ).toBe("Mira");
   });
 });
+
+describe("inspectorHeading for a track selection", () => {
+  it("names one track by its label", () => {
+    expect(
+      inspectorHeading({ kind: "track", trackId: "host" }, project).name,
+    ).toBe("Mira");
+  });
+
+  it("counts a multi-track selection instead of naming one track", () => {
+    expect(
+      inspectorHeading(
+        { kind: "track", trackId: "host", trackIds: ["host", "guest"] },
+        project,
+      ).name,
+    ).toBe("2 tracks");
+  });
+});
