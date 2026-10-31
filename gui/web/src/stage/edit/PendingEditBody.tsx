@@ -13,6 +13,16 @@ import { CommentCard, CommentCompose, useCommentActions } from "../../comments";
 import { NUDGE_KINDS, type NudgeField, nudgeAxis } from "../../edit/nudge";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import {
+  NudgeButtons,
+  UNAPPLIED_VALUE_REASON,
+} from "../../inspector/NudgeButtons";
+import {
+  REFINE_GATE_GUI_MESSAGE,
+  TranscriptRefineRecovery,
+} from "../../inspector/TranscriptRefineRecovery";
+import { useNudgeRun } from "../../inspector/useNudgeRun";
+import { useQueuedReviewNotice } from "../../inspector/useQueuedReviewNotice";
+import {
   canComment,
   canReply,
   canRetimePendingEdit,
@@ -23,7 +33,13 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { PendingEditView } from "../../types/project";
-import { Button, DefItem, DefinitionList, FieldRow } from "../../ui";
+import {
+  Button,
+  DefItem,
+  DefinitionList,
+  FieldRow,
+  InlineError,
+} from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../../utils/apiError";
 import {
@@ -41,16 +57,8 @@ import {
 } from "../../utils/pendingReviewPass";
 import type { PreviewMode } from "../../utils/playRange";
 import { formatTimeMs, parseTimecode } from "../../utils/time";
-import { ModifierInspector } from "../ModifierInspector";
-import { NudgeButtons, UNAPPLIED_VALUE_REASON } from "../NudgeButtons";
-import { PendingPreviewFooter } from "../PendingPreviewFooter";
-import {
-  REFINE_GATE_GUI_MESSAGE,
-  TranscriptRefineRecovery,
-} from "../TranscriptRefineRecovery";
-import { useNudgeRun } from "../useNudgeRun";
-import { usePendingCutSuggestion } from "../usePendingCutSuggestion";
-import { useQueuedReviewNotice } from "../useQueuedReviewNotice";
+import { PendingPreview } from "./PendingPreview";
+import { usePendingCutSuggestion } from "./usePendingCutSuggestion";
 
 function signedMilliseconds(value: number): string {
   return `${value >= 0 ? "+" : ""}${Number(value.toFixed(3))} ms`;
@@ -87,7 +95,7 @@ function sourceTime(value: number | null): string {
   return value === null ? "Unavailable" : formatTimeMs(value);
 }
 
-export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
+export function PendingEditBody({ edit }: { edit: PendingEditView }) {
   const {
     project,
     projectPath,
@@ -513,51 +521,341 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const tlStart = edit.timeline_start ?? edit.source_start;
   const combinedError = error ?? threadError;
 
+  const title = edit.exact_range
+    ? `Pending ${pendingTypeLabel(edit.type).toLowerCase()}`
+    : isSplit
+      ? "Pending split"
+      : "Pending edit";
+  const primaryActions =
+    canApply || edit.exact_range
+      ? [
+          {
+            label: "Approve",
+            variant: "primary" as const,
+            action: "approve" as const,
+          },
+          {
+            label: "Reject",
+            variant: "danger" as const,
+            action: "reject" as const,
+          },
+        ]
+      : [];
+  const shownError =
+    error && errorCode === TRANSCRIPT_REFINE_REQUIRED_CODE
+      ? REFINE_GATE_GUI_MESSAGE
+      : combinedError;
+
   return (
-    <ModifierInspector
-      badge="Pending"
-      title={
-        edit.exact_range
-          ? `Pending ${pendingTypeLabel(edit.type).toLowerCase()}`
-          : isSplit
-            ? "Pending split"
-            : "Pending edit"
-      }
-      subtitle={pendingReasonLabel(edit.reason, edit.kind)}
-      primaryActions={
-        canApply || edit.exact_range
-          ? [
-              {
-                label: "Approve",
-                variant: "primary" as const,
-                disabledReason: timingBusy
+    <aside className="inspector modifier-inspector">
+      <header className="modifier-header">
+        <div className="modifier-titles">
+          <h3>{title}</h3>
+          <p className="modifier-subtitle">
+            {pendingReasonLabel(edit.reason, edit.kind)}
+          </p>
+        </div>
+      </header>
+      {primaryActions.length > 0 ? (
+        <div className="modifier-primary-actions">
+          {primaryActions.map(({ label, variant, action }) => (
+            <Button
+              key={label}
+              variant={variant}
+              disabledReason={
+                timingBusy
                   ? BUSY_REASON
                   : !canApply
                     ? "Only the host or an Editor can review exact range proposals."
-                    : undefined,
-                onClick: () => void runAction("approve"),
-              },
-              {
-                label: "Reject",
-                variant: "danger" as const,
-                disabledReason: timingBusy
+                    : undefined
+              }
+              onClick={() => void runAction(action)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      <div className="modifier-body">
+        {edit.exact_range && !canApply ? (
+          <p className="ui-field-hint">
+            Only the host or an Editor can review exact range proposals.
+          </p>
+        ) : null}
+        <DefinitionList>
+          {!edit.exact_range ? (
+            <DefItem label="Type">{pendingTypeLabel(edit.type)}</DefItem>
+          ) : null}
+          {edit.exact_range ? (
+            <>
+              <DefItem label="Timeline islands">
+                {edit.exact_range.intervals
+                  .map(
+                    (r) => `${formatTimeMs(r.start)} – ${formatTimeMs(r.end)}`,
+                  )
+                  .join(" · ")}
+              </DefItem>
+              <DefItem label="Tracks">
+                {edit.exact_range.track_ids.join(", ")}
+              </DefItem>
+            </>
+          ) : isSplit ? (
+            <>
+              <DefItem label="Cut time (timeline)">
+                {canNudge ? (
+                  <FieldRow>
+                    <input
+                      type="text"
+                      spellCheck={false}
+                      placeholder="m:ss.mmm"
+                      value={startStr}
+                      disabled={timingFieldsDisabled}
+                      aria-label="Cut time"
+                      aria-describedby={timeHintId}
+                      onChange={(e) => setStartStr(e.target.value)}
+                    />
+                    <span id={timeHintId} className="ui-field-hint">
+                      m:ss.mmm or seconds
+                    </span>
+                    <Button
+                      disabledReason={timingBusy ? BUSY_REASON : undefined}
+                      onClick={() => void applyNudge()}
+                    >
+                      Apply
+                    </Button>
+                  </FieldRow>
+                ) : (
+                  sourceTime(edit.source_start)
+                )}
+              </DefItem>
+              <DefItem label="Tracks">
+                {canNudge ? (
+                  <FieldRow>
+                    <input
+                      type="text"
+                      value={tracksStr}
+                      disabled={timingBusy}
+                      aria-label="Track ids"
+                      onChange={(e) => setTracksStr(e.target.value)}
+                    />
+                    <Button
+                      disabledReason={timingBusy ? BUSY_REASON : undefined}
+                      onClick={() => void applyNudge()}
+                    >
+                      Apply tracks
+                    </Button>
+                  </FieldRow>
+                ) : (
+                  (edit.track_ids ?? [edit.track_id]).join(", ")
+                )}
+              </DefItem>
+            </>
+          ) : (
+            <DefItem label="Source">
+              {canNudge ? (
+                <FieldRow>
+                  <input
+                    id={pendingEditTimingFieldId(edit.id, "start")}
+                    className="pending-source-time-field"
+                    type="text"
+                    spellCheck={false}
+                    placeholder="m:ss.mmm"
+                    value={startStr}
+                    disabled={timingFieldsDisabled}
+                    aria-label="Source start"
+                    aria-describedby={timeHintId}
+                    onChange={(e) => setStartStr(e.target.value)}
+                  />
+                  {renderTimingNudges("start")}
+                  <span>–</span>
+                  <input
+                    id={pendingEditTimingFieldId(edit.id, "end")}
+                    className="pending-source-time-field"
+                    type="text"
+                    spellCheck={false}
+                    placeholder="m:ss.mmm"
+                    value={endStr}
+                    disabled={timingFieldsDisabled}
+                    aria-label="Source end"
+                    aria-describedby={timeHintId}
+                    onChange={(e) => setEndStr(e.target.value)}
+                  />
+                  {renderTimingNudges("end")}
+                  <span id={timeHintId} className="ui-field-hint">
+                    m:ss.mmm or seconds
+                  </span>
+                  <label className="pending-snap-option">
+                    <input
+                      type="checkbox"
+                      checked={snapToSilence}
+                      disabled={timingBusy}
+                      onChange={(event) =>
+                        void recheckSnap(event.currentTarget.checked)
+                      }
+                    />
+                    Snap to silence
+                  </label>
+                  <Button
+                    className="pending-source-time-apply"
+                    disabledReason={
+                      timingFieldsDisabled ? BUSY_REASON : undefined
+                    }
+                    onClick={() => void applyNudge()}
+                  >
+                    Apply timing
+                  </Button>
+                </FieldRow>
+              ) : (
+                `${sourceTime(edit.source_start)} – ${sourceTime(edit.source_end)}`
+              )}
+            </DefItem>
+          )}
+          {!isSplit && !edit.exact_range ? (
+            <DefItem label="Timeline">
+              {edit.mappable && edit.timeline_start != null
+                ? `${formatTimeMs(edit.timeline_start)} – ${formatTimeMs(edit.timeline_end ?? edit.timeline_start)}`
+                : "Not mappable (cut away)"}
+            </DefItem>
+          ) : null}
+          {edit.crossfade_ms != null && !isSplit && !edit.exact_range ? (
+            <DefItem label="Join fade">{edit.crossfade_ms} ms</DefItem>
+          ) : null}
+          {edit.boundary_mode ? (
+            <DefItem label="Boundary">{edit.boundary_mode}</DefItem>
+          ) : null}
+          <DefItem label="Review">
+            {edit.review_required ? "required" : "no"}
+          </DefItem>
+          {edit.cut_confidence != null ? (
+            <DefItem label="Confidence">
+              {edit.cut_confidence.toFixed(2)}
+            </DefItem>
+          ) : null}
+        </DefinitionList>
+        {canSuggestBounds ? (
+          <section
+            className="pending-cut-suggestion"
+            aria-label="Suggested bounds"
+          >
+            <h3>Suggested bounds</h3>
+            <DefinitionList>
+              <DefItem label="Original source">
+                {exactSourceTime(edit.source_start)} to{" "}
+                {exactSourceTime(edit.source_end)}
+              </DefItem>
+              {suggestion.state?.kind === "ready" ? (
+                <>
+                  <DefItem label="Suggested source">
+                    {exactSourceTime(suggestion.state.proposal.suggested.start)}{" "}
+                    to{" "}
+                    {exactSourceTime(suggestion.state.proposal.suggested.end)}
+                  </DefItem>
+                  <DefItem label="Start shift">
+                    {signedMilliseconds(suggestion.state.proposal.startShiftMs)}
+                  </DefItem>
+                  <DefItem label="End shift">
+                    {signedMilliseconds(suggestion.state.proposal.endShiftMs)}
+                  </DefItem>
+                  <DefItem label="Edit duration change">
+                    {signedMilliseconds(
+                      suggestion.state.proposal.durationDeltaMs,
+                    )}
+                  </DefItem>
+                </>
+              ) : null}
+            </DefinitionList>
+            {suggestion.state?.kind === "unavailable" ? (
+              <>
+                <p className="ui-field-hint">
+                  Suggestion unavailable. {suggestion.state.message}
+                </p>
+                <Button
+                  disabledReason={timingBusy ? BUSY_REASON : undefined}
+                  onClick={suggestion.retry}
+                >
+                  Retry suggestion
+                </Button>
+              </>
+            ) : !queued && suggestion.state?.kind !== "ready" ? (
+              <p className="ui-field-hint">Loading suggested bounds…</p>
+            ) : null}
+            {timingDirty ? (
+              <p className="ui-field-hint">
+                Apply timing first to review a suggestion for your changes.
+              </p>
+            ) : null}
+            <Button
+              disabledReason={
+                timingBusy
                   ? BUSY_REASON
-                  : !canApply
-                    ? "Only the host or an Editor can review exact range proposals."
-                    : undefined,
-                onClick: () => void runAction("reject"),
-              },
-            ]
-          : undefined
-      }
-      error={
-        error && errorCode === TRANSCRIPT_REFINE_REQUIRED_CODE
-          ? REFINE_GATE_GUI_MESSAGE
-          : combinedError
-      }
-      footer={
-        tlStart != null ? (
-          <PendingPreviewFooter
+                  : timingDirty
+                    ? "Apply timing first to review a suggestion for your changes."
+                    : suggestion.state?.kind !== "ready"
+                      ? "Wait for the suggested bounds to load."
+                      : undefined
+              }
+              onClick={() => void acceptSuggestion()}
+            >
+              Use suggestion
+            </Button>
+          </section>
+        ) : null}
+        {queuedNotice}
+        {!isShareProjectKey(projectPath) ? (
+          <TranscriptRefineRecovery
+            key={edit.id}
+            projectPath={projectPath}
+            error={error}
+            errorCode={errorCode}
+            onRecovered={() => setError(null)}
+          />
+        ) : null}
+        <section
+          className="pending-ask-thread"
+          aria-label="Ask about this edit"
+        >
+          <h3>Ask</h3>
+          {thread ? (
+            <ul className="pending-ask-list">
+              <CommentCard
+                comment={thread}
+                guestShare={!canApply}
+                showResolve={canApply}
+                showReply={false}
+                showActions={canApply}
+                onResolve={(resolved) => void resolve(thread, resolved)}
+              />
+            </ul>
+          ) : (
+            <p className="inspector-body">
+              Hear Suggested, then approve, reject, or ask a question in this
+              thread.
+            </p>
+          )}
+          {(thread ? mayReply : mayAsk) ? (
+            <CommentCompose
+              body={askBody}
+              onBodyChange={setAskBody}
+              busy={busy || threadBusy}
+              submitLabel={thread ? "Reply" : "Ask"}
+              bodyPlaceholder={
+                thread ? "Reply…" : "Ask for more context before deciding…"
+              }
+              onSubmit={() => void postAsk()}
+              author={author}
+              onAuthorChange={setAuthor}
+            />
+          ) : null}
+        </section>
+      </div>
+      {shownError ? (
+        <div className="modifier-error">
+          <InlineError message={shownError} />
+        </div>
+      ) : null}
+      {tlStart != null ? (
+        <footer className="modifier-footer">
+          <PendingPreview
             edit={edit}
             projectPath={projectPath}
             seekSec={tlStart}
@@ -565,271 +863,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
             onModeChange={setPreviewMode}
             onError={setThreadError}
           />
-        ) : undefined
-      }
-    >
-      {edit.exact_range && !canApply ? (
-        <p className="ui-field-hint">
-          Only the host or an Editor can review exact range proposals.
-        </p>
+        </footer>
       ) : null}
-      <DefinitionList>
-        {!edit.exact_range ? (
-          <DefItem label="Type">{pendingTypeLabel(edit.type)}</DefItem>
-        ) : null}
-        {edit.exact_range ? (
-          <>
-            <DefItem label="Timeline islands">
-              {edit.exact_range.intervals
-                .map((r) => `${formatTimeMs(r.start)} – ${formatTimeMs(r.end)}`)
-                .join(" · ")}
-            </DefItem>
-            <DefItem label="Tracks">
-              {edit.exact_range.track_ids.join(", ")}
-            </DefItem>
-          </>
-        ) : isSplit ? (
-          <>
-            <DefItem label="Cut time (timeline)">
-              {canNudge ? (
-                <FieldRow>
-                  <input
-                    type="text"
-                    spellCheck={false}
-                    placeholder="m:ss.mmm"
-                    value={startStr}
-                    disabled={timingFieldsDisabled}
-                    aria-label="Cut time"
-                    aria-describedby={timeHintId}
-                    onChange={(e) => setStartStr(e.target.value)}
-                  />
-                  <span id={timeHintId} className="ui-field-hint">
-                    m:ss.mmm or seconds
-                  </span>
-                  <Button
-                    disabledReason={timingBusy ? BUSY_REASON : undefined}
-                    onClick={() => void applyNudge()}
-                  >
-                    Apply
-                  </Button>
-                </FieldRow>
-              ) : (
-                sourceTime(edit.source_start)
-              )}
-            </DefItem>
-            <DefItem label="Tracks">
-              {canNudge ? (
-                <FieldRow>
-                  <input
-                    type="text"
-                    value={tracksStr}
-                    disabled={timingBusy}
-                    aria-label="Track ids"
-                    onChange={(e) => setTracksStr(e.target.value)}
-                  />
-                  <Button
-                    disabledReason={timingBusy ? BUSY_REASON : undefined}
-                    onClick={() => void applyNudge()}
-                  >
-                    Apply tracks
-                  </Button>
-                </FieldRow>
-              ) : (
-                (edit.track_ids ?? [edit.track_id]).join(", ")
-              )}
-            </DefItem>
-          </>
-        ) : (
-          <DefItem label="Source">
-            {canNudge ? (
-              <FieldRow>
-                <input
-                  id={pendingEditTimingFieldId(edit.id, "start")}
-                  className="pending-source-time-field"
-                  type="text"
-                  spellCheck={false}
-                  placeholder="m:ss.mmm"
-                  value={startStr}
-                  disabled={timingFieldsDisabled}
-                  aria-label="Source start"
-                  aria-describedby={timeHintId}
-                  onChange={(e) => setStartStr(e.target.value)}
-                />
-                {renderTimingNudges("start")}
-                <span>–</span>
-                <input
-                  id={pendingEditTimingFieldId(edit.id, "end")}
-                  className="pending-source-time-field"
-                  type="text"
-                  spellCheck={false}
-                  placeholder="m:ss.mmm"
-                  value={endStr}
-                  disabled={timingFieldsDisabled}
-                  aria-label="Source end"
-                  aria-describedby={timeHintId}
-                  onChange={(e) => setEndStr(e.target.value)}
-                />
-                {renderTimingNudges("end")}
-                <span id={timeHintId} className="ui-field-hint">
-                  m:ss.mmm or seconds
-                </span>
-                <label className="pending-snap-option">
-                  <input
-                    type="checkbox"
-                    checked={snapToSilence}
-                    disabled={timingBusy}
-                    onChange={(event) =>
-                      void recheckSnap(event.currentTarget.checked)
-                    }
-                  />
-                  Snap to silence
-                </label>
-                <Button
-                  className="pending-source-time-apply"
-                  disabledReason={
-                    timingFieldsDisabled ? BUSY_REASON : undefined
-                  }
-                  onClick={() => void applyNudge()}
-                >
-                  Apply timing
-                </Button>
-              </FieldRow>
-            ) : (
-              `${sourceTime(edit.source_start)} – ${sourceTime(edit.source_end)}`
-            )}
-          </DefItem>
-        )}
-        {!isSplit && !edit.exact_range ? (
-          <DefItem label="Timeline">
-            {edit.mappable && edit.timeline_start != null
-              ? `${formatTimeMs(edit.timeline_start)} – ${formatTimeMs(edit.timeline_end ?? edit.timeline_start)}`
-              : "Not mappable (cut away)"}
-          </DefItem>
-        ) : null}
-        {edit.crossfade_ms != null && !isSplit && !edit.exact_range ? (
-          <DefItem label="Join fade">{edit.crossfade_ms} ms</DefItem>
-        ) : null}
-        {edit.boundary_mode ? (
-          <DefItem label="Boundary">{edit.boundary_mode}</DefItem>
-        ) : null}
-        <DefItem label="Review">
-          {edit.review_required ? "required" : "no"}
-        </DefItem>
-        {edit.cut_confidence != null ? (
-          <DefItem label="Confidence">{edit.cut_confidence.toFixed(2)}</DefItem>
-        ) : null}
-      </DefinitionList>
-      {canSuggestBounds ? (
-        <section
-          className="pending-cut-suggestion"
-          aria-label="Suggested bounds"
-        >
-          <h3>Suggested bounds</h3>
-          <DefinitionList>
-            <DefItem label="Original source">
-              {exactSourceTime(edit.source_start)} to{" "}
-              {exactSourceTime(edit.source_end)}
-            </DefItem>
-            {suggestion.state?.kind === "ready" ? (
-              <>
-                <DefItem label="Suggested source">
-                  {exactSourceTime(suggestion.state.proposal.suggested.start)}{" "}
-                  to {exactSourceTime(suggestion.state.proposal.suggested.end)}
-                </DefItem>
-                <DefItem label="Start shift">
-                  {signedMilliseconds(suggestion.state.proposal.startShiftMs)}
-                </DefItem>
-                <DefItem label="End shift">
-                  {signedMilliseconds(suggestion.state.proposal.endShiftMs)}
-                </DefItem>
-                <DefItem label="Edit duration change">
-                  {signedMilliseconds(
-                    suggestion.state.proposal.durationDeltaMs,
-                  )}
-                </DefItem>
-              </>
-            ) : null}
-          </DefinitionList>
-          {suggestion.state?.kind === "unavailable" ? (
-            <>
-              <p className="ui-field-hint">
-                Suggestion unavailable. {suggestion.state.message}
-              </p>
-              <Button
-                disabledReason={timingBusy ? BUSY_REASON : undefined}
-                onClick={suggestion.retry}
-              >
-                Retry suggestion
-              </Button>
-            </>
-          ) : !queued && suggestion.state?.kind !== "ready" ? (
-            <p className="ui-field-hint">Loading suggested bounds…</p>
-          ) : null}
-          {timingDirty ? (
-            <p className="ui-field-hint">
-              Apply timing first to review a suggestion for your changes.
-            </p>
-          ) : null}
-          <Button
-            disabledReason={
-              timingBusy
-                ? BUSY_REASON
-                : timingDirty
-                  ? "Apply timing first to review a suggestion for your changes."
-                  : suggestion.state?.kind !== "ready"
-                    ? "Wait for the suggested bounds to load."
-                    : undefined
-            }
-            onClick={() => void acceptSuggestion()}
-          >
-            Use suggestion
-          </Button>
-        </section>
-      ) : null}
-      {queuedNotice}
-      {!isShareProjectKey(projectPath) ? (
-        <TranscriptRefineRecovery
-          key={edit.id}
-          projectPath={projectPath}
-          error={error}
-          errorCode={errorCode}
-          onRecovered={() => setError(null)}
-        />
-      ) : null}
-      <section className="pending-ask-thread" aria-label="Ask about this edit">
-        <h3>Ask</h3>
-        {thread ? (
-          <ul className="pending-ask-list">
-            <CommentCard
-              comment={thread}
-              guestShare={!canApply}
-              showResolve={canApply}
-              showReply={false}
-              showActions={canApply}
-              onResolve={(resolved) => void resolve(thread, resolved)}
-            />
-          </ul>
-        ) : (
-          <p className="inspector-body">
-            Hear Suggested, then approve, reject, or ask a question in this
-            thread.
-          </p>
-        )}
-        {(thread ? mayReply : mayAsk) ? (
-          <CommentCompose
-            body={askBody}
-            onBodyChange={setAskBody}
-            busy={busy || threadBusy}
-            submitLabel={thread ? "Reply" : "Ask"}
-            bodyPlaceholder={
-              thread ? "Reply…" : "Ask for more context before deciding…"
-            }
-            onSubmit={() => void postAsk()}
-            author={author}
-            onAuthorChange={setAuthor}
-          />
-        ) : null}
-      </section>
-    </ModifierInspector>
+    </aside>
   );
 }

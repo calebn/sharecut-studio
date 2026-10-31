@@ -655,6 +655,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Today:** INS-PENDING--desktop-light.png, --phone-light.png. Interaction cost: Approve/Reject plus two source fields with eight step buttons, "Apply timing" and "Snap to silence". Language: "Review required", "Boundary inaudible".
 - **Fate:** restyle; full decision flow is the Review stage (spec-review).
 - **Spec:** header: kind glyph + "Filler · Jon · 0.8 s". Rows: Why (one sentence from the suggester), Start and End Scrub fields with snap-to-silence as the default behavior (Alt disables while dragging), Confidence as a 5-dot meter. Verbs on the action bar (Hear A/B, Cut, Keep). After Cut or Keep, the sheet follows the selection to the next suggestion.
+- **Built (#2294 W3b2b step 1):** a pending edit, and a comment linked to a still-pending edit, open as an Inspector sheet section (`stage/edit/pendingSections.tsx`, `PendingEditBody.tsx`): the same fields, Approve and Reject, nudges, Apply timing, Suggested bounds, Ask thread and preview footer as before, relocated with no change in copy or save cadence. The Decision card form (Cut and Keep verbs, Scrub fields, Hear on the action bar) is the next slice. Story `System/InspectorSheet` `Suggestion` is a static demo.
 - **Story to build:** `Edit/InspectorSheet` stories `Suggestion`, `SuggestionLowConfidence`.
 
 ### INS-APPLIED · Applied edit
@@ -690,7 +691,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Fate:** replace with a comment popover in place (thread UI owned by spec-review; same component).
 - **Spec:** clicking a comment pin opens a 320 px popover anchored to it: author avatar + name + relative time, body, replies, reply field (Enter sends), resolve check icon in the header. Edit shows it in place; Review shows it in the queue. Same component.
 - **Story to build:** `Edit/CommentPopover` stories `Open`, `WithReplies`, `Resolved`, `Phone`.
-- **Built (#2294 W3b2a):** a bare comment opens as Inspector sheet sections (`stage/edit/commentSections.tsx`, story `System/InspectorSheet` `Comment`): Time (seek), author, status, tracks, body, action items, replies, Reply and Resolve or Reopen. The 320 px popover form with the header resolve check and Enter-to-send is not built; a comment with a linked pending edit still opens the pending body until W3b2b.
+- **Built (#2294 W3b2a):** a bare comment opens as Inspector sheet sections (`stage/edit/commentSections.tsx`, story `System/InspectorSheet` `Comment`): Time (seek), author, status, tracks, body, action items, replies, Reply and Resolve or Reopen. The 320 px popover form with the header resolve check and Enter-to-send is not built; a comment with a linked pending edit opens the pending sheet section (W3b2b).
 
 ### INS-WORD · Words
 
