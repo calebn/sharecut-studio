@@ -648,6 +648,20 @@ describe("Envelope keys", () => {
     expect(onMove).not.toHaveBeenCalled();
   });
 
+  it("keeps the browser's scroll off a guest's Up and Down without stopping them", () => {
+    setup({ readOnly: true });
+    let prevented: boolean[] = [];
+    const listen = (event: KeyboardEvent) =>
+      prevented.push(event.defaultPrevented);
+    document.addEventListener("keydown", listen);
+    for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft"]) {
+      fireEvent.keyDown(point(2), { key });
+    }
+    document.removeEventListener("keydown", listen);
+    expect(prevented).toEqual([true, true, false]);
+    prevented = [];
+  });
+
   it("still keeps a guest's Alt walk, Backspace, Delete, Enter and Space from the keymap", () => {
     setup({ readOnly: true, selected: "b" });
     const seen: string[] = [];

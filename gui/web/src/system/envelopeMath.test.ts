@@ -199,6 +199,8 @@ describe("pointVisible", () => {
   });
 });
 
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
 /** The vertices of a path made of M and L only. */
 function vertices(path: string): [number, number][] {
   return path
@@ -287,6 +289,48 @@ describe("linePath", () => {
         );
       }
       expect(worst).toBeLessThan(0.1);
+    }
+  });
+
+  it("stays within 0.1 px of the curve on short steep segments, 2 to 20 px wide", () => {
+    for (const [from, to] of [
+      [0, ENVELOPE_FLOOR_DB],
+      [ENVELOPE_TOP_DB, ENVELOPE_FLOOR_DB],
+      [0, -20],
+    ] as const) {
+      for (const height of [72, 240]) {
+        for (const span of [2, 5, 10, 20]) {
+          const sorted = [
+            { id: "a", time: 0, db: from },
+            { id: "b", time: span / 24, db: to },
+          ];
+          const verts = vertices(linePath(sorted, 0, 24, 100, height));
+          const g0 = dbToGain(from);
+          const g1 = dbToGain(to);
+          // Distance from the drawn line to the true curve, so the path's 0.01 px grid on a steep part does not count as height.
+          const curve: [number, number][] = [];
+          for (let x = 0; x <= span; x += 0.01) {
+            const gain = g0 + ((g1 - g0) * x) / span;
+            curve.push([x, dbToY(gainToDb(gain), height)]);
+          }
+          // And by level, so a steep part is as dense as a flat one.
+          for (let k = 0; k <= 6000; k += 1) {
+            const db = from + ((to - from) * k) / 6000;
+            const x = clamp01((10 ** (db / 20) - g0) / (g1 - g0)) * span;
+            curve.push([x, dbToY(db, height)]);
+          }
+          let worst = 0;
+          for (let x = 0; x <= span; x += 0.05) {
+            const y = yAtX(verts, x);
+            let near = Number.POSITIVE_INFINITY;
+            for (const [cx, cy] of curve) {
+              near = Math.min(near, Math.hypot(cx - x, cy - y));
+            }
+            worst = Math.max(worst, near);
+          }
+          expect(worst).toBeLessThan(0.1);
+        }
+      }
     }
   });
 

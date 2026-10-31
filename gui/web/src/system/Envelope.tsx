@@ -119,7 +119,7 @@ export type EnvelopeProps = {
   onMove?: (id: string, change: EnvelopeChange) => void;
   /** First movement of a drag, never a tap. Return `false` to refuse it. */
   onDragStart?: (id: string, pointer: GrabPointer) => boolean | undefined;
-  /** `committed` is false when Escape, a blur, the browser, a lost capture or unmounting ended it: the host puts the point back. */
+  /** `committed` is false when Escape, a blur, the browser, a lost capture or unmounting ended it. The leaf never sends a revert: the host must put the point back to the snapshot it took at `onDragStart`. */
   onDragEnd?: (id: string, committed: boolean) => void;
   /** The arrow was released or focus left: close the undo step. */
   onNudgeEnd?: (id: string) => void;
@@ -482,7 +482,13 @@ export const Envelope = memo(function Envelope({
         return;
       }
       // Product default (Q1): a read-only guest's plain arrows are not the envelope's; they reach the keymap.
-      if (readOnly) return;
+      if (readOnly) {
+        // The keymap hears it (playhead on Left and Right, amplitude zoom on Shift+Up and Down), and it
+        // calls preventDefault for what it handles; Up and Down it often does not, and the browser would
+        // scroll the lane, so a guest's are kept from that without stopping propagation.
+        if (key === "ArrowUp" || key === "ArrowDown") event.preventDefault();
+        return;
+      }
       stop(event);
       nudge(id, key, event);
     },
