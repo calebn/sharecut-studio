@@ -92,3 +92,23 @@ export const PhoneEmpty: Story = {
     await expect(overlay?.querySelectorAll("circle")).toHaveLength(0);
   },
 };
+
+export const WithClipFades: Story = {
+  args: {
+    clipDips: [
+      {
+        clipId: "c1",
+        points: [
+          { time: 1, gain: 0 },
+          { time: 1.5, gain: 1 },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByTestId("clip-gain-dip"),
+    ).toHaveTextContent("clip fade");
+    await expect(canvasElement.querySelectorAll("circle")).toHaveLength(3);
+  },
+};

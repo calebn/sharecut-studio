@@ -12,6 +12,7 @@ import {
 } from "../utils/envelopes";
 import { formatTime } from "../utils/time";
 import { VIEWPORT_CHUNK_PX } from "../utils/timelineViewport";
+import type { ClipGainDip } from "./clipGainOverlay";
 import { hitTargetProps, OWN_TAP_HIT_SURFACE_PROPS } from "./hitTargets";
 import { timelineTestIds } from "./selectors";
 
@@ -86,6 +87,8 @@ export interface EnvelopeOverlayViewProps {
    * pointerdown so `height` cannot change before the first pointermove.
    */
   holdGeometry?: () => () => void;
+  /** Read-only: where clip fades and mutes pull the level off the envelope. */
+  clipDips?: readonly ClipGainDip[];
 }
 
 /** Prop-driven envelope overlay used by the live adapter and the catalog. */
@@ -104,6 +107,7 @@ export function EnvelopeOverlayView({
   onCommitPoints,
   onCommitError,
   holdGeometry,
+  clipDips,
 }: EnvelopeOverlayViewProps) {
   const [draft, setDraft] = useState<AutomationPoint[] | null>(null);
   const lineId = useId();
@@ -187,6 +191,20 @@ export function EnvelopeOverlayView({
           .slice(first, last + 1)
           .map((p) => `${xOf(p) - x0},${valueToY(p.value, height)}`)
           .join(" ");
+
+  const dipLines = (clipDips ?? [])
+    .filter((dip) => {
+      const start = dip.points[0]!.time * zoomPxPerSec;
+      const end = dip.points[dip.points.length - 1]!.time * zoomPxPerSec;
+      return end >= x0 && start <= x1;
+    })
+    .map((dip) => ({
+      key: `${dip.clipId}:${dip.points[0]!.time}`,
+      x: dip.points[0]!.time * zoomPxPerSec - x0,
+      points: dip.points
+        .map((p) => `${p.time * zoomPxPerSec - x0},${valueToY(p.gain, height)}`)
+        .join(" "),
+    }));
 
   const clearDrag = () => {
     const drag = dragRef.current;
@@ -316,6 +334,28 @@ export function EnvelopeOverlayView({
             pointerEvents="none"
             aria-hidden="true"
           />
+          {dipLines.map((dip, index) => (
+            <g key={dip.key} pointerEvents="none" data-testid="clip-gain-dip">
+              <polyline
+                fill="none"
+                stroke="var(--color-envelope-line)"
+                strokeWidth="1.5"
+                strokeDasharray="3 2"
+                opacity="0.7"
+                points={dip.points}
+              />
+              {index === 0 && (
+                <text
+                  x={Math.max(2, dip.x + 3)}
+                  y={12}
+                  fontSize={9}
+                  fill="var(--color-envelope-line)"
+                >
+                  clip fade
+                </text>
+              )}
+            </g>
+          ))}
           {shownLevel !== null && (
             <rect
               x={0}
