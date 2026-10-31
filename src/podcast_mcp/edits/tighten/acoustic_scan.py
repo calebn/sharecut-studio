@@ -15,7 +15,7 @@ from podcast_mcp.edits.acoustic_gap import (
     AcousticGapRun,
     find_voiced_gap_runs,
 )
-from podcast_mcp.edits.acoustic_phrase import phrase_hit_indexes, word_step_ceiling
+from podcast_mcp.edits.acoustic_phrase import phrase_hit_indexes, word_silence_ceiling
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.tighten_reasons import (
@@ -163,11 +163,11 @@ def _collect_acoustic_candidates(
 
     A peer voiced where a run sounds makes that run most likely bleed; a peer voiced
     elsewhere in the gap says nothing about it. Three or more runs in a row, each within
-    the speaker's longest ordinary word step of the next, are a phrase the transcript
+    the speaker's longest ordinary silence between words of the next, are a phrase the transcript
     dropped, so none is proposed.
     """
     candidates: list[_CutCandidate] = []
-    step_ceiling = word_step_ceiling(words, cfg.min_gap_sec)
+    silence_ceiling = word_silence_ceiling(words, cfg.min_gap_sec)
     for word, nxt in _acoustic_scan_gaps(words, cfg):
         gap_start, gap_end = word.end, nxt.start
         if _word_not_owner(word, track_id) or _word_not_owner(nxt, track_id):
@@ -200,7 +200,7 @@ def _collect_acoustic_candidates(
                 continue
             own_runs.append(run)
         free = [run for run in own_runs if lo < run.start and run.end < hi]
-        phrase = {free[i] for i in phrase_hit_indexes(free, step_ceiling)}
+        phrase = {free[i] for i in phrase_hit_indexes(free, silence_ceiling)}
         for run in own_runs:
             if run in phrase:
                 _count_skip(skip_counts, "acoustic:phrase")
