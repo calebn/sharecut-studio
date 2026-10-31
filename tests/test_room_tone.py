@@ -1691,8 +1691,50 @@ def test_an_off_clock_mute_fill_rotates_the_pool_by_its_source_position(
     assert (at_2500.start_s, at_2500.end_s) == pytest.approx((20.75, 21.25))
 
 
+def test_a_nearer_window_under_a_loud_peer_loses_to_a_farther_one_where_the_peer_is_quiet(
+    tmp_path: Path,
+) -> None:
+    # The host's mic stays at its floor, so no envelope follows the guest and nothing is
+    # rejected; the guest is loud over the nearest quiet stretch and at its floor over the next.
+    guest = _noise(-64.0, seed=2)
+    _add_voice(guest, 5.0, 8.0, -25.0)
+    project = _project(tmp_path, host=_host_audio(), guest=guest)
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
+    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
+
+
+def test_with_no_window_where_the_peer_is_quiet_the_quietest_peer_wins_over_the_nearest(
+    tmp_path: Path,
+) -> None:
+    guest = _noise(-64.0, seed=2)
+    _add_voice(guest, 0.0, 5.0, -50.0)
+    _add_voice(guest, 5.0, 10.0, -25.0)
+    project = _project(tmp_path, host=_host_audio(), guest=guest)
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
+    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
+
+
+def test_a_peer_file_that_does_not_cover_a_window_ranks_it_after_one_it_covers(
+    tmp_path: Path,
+) -> None:
+    guest = _noise(-64.0, seed=2)[: SR * 5]
+    _add_voice(guest, 0.0, 3.0, -50.0)
+    project = _project(tmp_path, host=_host_audio(), guest=guest)
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
+    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
+
+
 def test_a_peer_recording_that_ends_early_does_not_reject_later_room_tone(tmp_path: Path) -> None:
-    guest = _noise(-64.0, seed=2)[: SR * 3]
+    guest = _noise(-64.0, seed=2)[: SR // 5]
     project = _project(tmp_path, host=_host_audio(), guest=guest)
 
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
