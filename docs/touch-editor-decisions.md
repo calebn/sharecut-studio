@@ -1198,7 +1198,7 @@ chooser lab until the owner made it the default (2026-10-07).
   here** first, then **Comment here** and **Add chapter here**, then **Record here** (host
   only; opens Record with an Insert target at the held time), then, below a
   divider, **Add volume point** (on a lane; picking it turns the volume layer
-  on if it is hidden), then **Paste** while the clipboard holds something
+  on if it is hidden), then **Paste** while the clipboard has audio
   (#2294 W1b: the menu is how a touch user splits on a lane, and Split heads
   it). Split here cuts the selected tracks, else every dialogue track, as it
   always did; the menu no longer says which. Paste lands at the held time on
