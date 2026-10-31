@@ -21,12 +21,10 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     hold_blocked = p.get("hold_blocked") is True
     skip_unsure = p.get("skip_unsure") is True
     report = hold_blocked or skip_unsure
-    known = {e.id for e in ws.project.edit_decisions}
+    known = {e.id for e in ws.project.edit_decisions} | {
+        i for record in ws.project.editorial.edit_log for i in record.decision_ids
+    }
     unknown_ids = [i for i in dict.fromkeys(ids) if i not in known]
-    if report and ids and len(unknown_ids) == len(set(ids)):
-        raise CodedValueError(
-            f"no edit matches {', '.join(unknown_ids)}", code="approve_unknown_ids"
-        )
     held: list[HeldEdit] = []
     unsure_held: list[HeldEdit] = []
     asked: list[AskedEdits] = []
@@ -40,7 +38,10 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         unsure_out=unsure_held if skip_unsure else None,
     )
     if isinstance(outcome, CutSpeechConfirmation):
-        return outcome.result("approve_edits")
+        confirmation = outcome.result("approve_edits")
+        if report:
+            confirmation["unknown_ids"] = unknown_ids
+        return confirmation
     if not report:
         return {"count": outcome}
     held = [*held, *unsure_held]
