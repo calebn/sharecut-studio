@@ -98,6 +98,12 @@ def _isolate_host_limiters() -> None:
 
 
 @pytest.fixture(autouse=True)
+def _serial_transcription(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep a host's core and RAM count from deciding whether a test's tracks run side by side."""
+    monkeypatch.setattr("podcast_mcp.engines.transcribe.transcribe_worker_count", lambda *_: 1)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_share_registry(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Pin the host share registry to a per-test sqlite file.
 
