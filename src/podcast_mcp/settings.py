@@ -169,6 +169,16 @@ VARIABLES: tuple[Variable, ...] = (
             "90",
         ),
         (
+            "PODCAST_DECODE_MEMO_SPILL_MB",
+            "Megabytes of disk where a decode memo entry that is released or evicted is kept as a read-only map of a temp file, so Approve after a pause does not decode the recording again (least recently used out first; no resident memory; not on tmpfs, Windows or with less than the entry plus 2 GiB free); 0 keeps none.",
+            "1536",
+        ),
+        (
+            "PODCAST_DECODE_MEMO_SPILL_IDLE_S",
+            "Seconds without a hit on a spilled decode memo entry before the spilled tier is dropped and its temp files are freed (capped at 86400); 0 never drops.",
+            "2700",
+        ),
+        (
             "PODCAST_EVIDENCE_KEEP_MB",
             "Megabytes of disk for track evidence kept between batches, so Approve reuses what propose built (least recently used out first; temp files read through the page cache, no resident memory); 0 keeps none.",
             "3072",

@@ -29,6 +29,21 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
   the last use. ``0`` (or a negative number) never releases; a value that is not a finite number
   falls back to the default; one above a day counts as a day. A daemon timer, armed only while the
   memo holds an entry, does the check; if it cannot start, the memo simply keeps its entries.
+* **Spill**: the release (and an eviction past the cap) demotes an entry instead of dropping it: its
+  samples are copied to an unlinked file of the decode spool and read back through a read-only map
+  (``decoded_source.spill``), so the next call after a review pause maps the bytes instead of
+  decoding the recording again, and no anonymous memory stays resident. ``PODCAST_DECODE_MEMO_SPILL_MB``
+  (default 1536; ``0`` or less keeps nothing, which is the memo without this tier) caps the disk it
+  uses, least recently used out first, and ``PODCAST_DECODE_MEMO_SPILL_IDLE_S`` (default 2700, as the
+  retained evidence) drops the tier after that long without a hit. The key, the stat and racy checks
+  and the verify check are the same for a mapped entry, which a hit never promotes back to RAM. The
+  write is never made under the memo lock: a lookup that arrives meanwhile is served from RAM, and the
+  swap happens only if the entry is still the one that was copied. An eviction is demoted by a short
+  background thread, never inside the decode that evicted it, and only while the evicted bytes waiting
+  for it stay under half the cap. Where ``spill_allowed`` says no (Windows, tmpfs, less than the entry
+  plus 2 GiB free) or the write fails, the entry is dropped, as without the tier. Each mapped entry
+  holds one descriptor until its last view is gone; a view handed out earlier stays valid after a
+  release or ``clear``. A different ffmpeg build drops the whole tier.
 * **Read-only**: with the memo on, every call returns samples that are read-only, whether the
   decode was stored, served, too big, racy or changed under the decode. Only the cap-0 path
   returns the build untouched.
@@ -40,6 +55,7 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
 from __future__ import annotations
 
 import dataclasses
+import logging
 import math
 import threading
 import time
@@ -51,6 +67,7 @@ from typing import Any, Protocol, TypeVar, cast
 import numpy as np
 
 from podcast_mcp import settings
+from podcast_mcp.engines.decoded_source import spill, spill_allowed
 from podcast_mcp.engines.ungated_audio import ffmpeg_build_id
 from podcast_mcp.util.batch_scope import unscoped
 from podcast_mcp.util.fingerprint import FileStamp, file_stamp
@@ -61,7 +78,13 @@ VERIFY_ENVS = ("PODCAST_VERDICT_VERIFY", "PODCAST_EVIDENCE_VERIFY")
 IDLE_ENV = "PODCAST_DECODE_MEMO_IDLE_S"
 DEFAULT_IDLE_S = 90.0
 MAX_IDLE_S = 86400.0
+SPILL_ENV = "PODCAST_DECODE_MEMO_SPILL_MB"
+DEFAULT_SPILL_MB = 1536
+SPILL_IDLE_ENV = "PODCAST_DECODE_MEMO_SPILL_IDLE_S"
+DEFAULT_SPILL_IDLE_S = 2700.0
 RACY_SECONDS = 2.0
+
+_LOG = logging.getLogger(__name__)
 
 
 class _Decoded(Protocol):
@@ -94,6 +117,23 @@ def idle_seconds() -> float:
     return min(seconds, MAX_IDLE_S) if math.isfinite(seconds) else DEFAULT_IDLE_S
 
 
+def spill_cap_bytes() -> int:
+    """The disk cap of the spilled tier now in force; ``0`` keeps nothing. Not finite is the default."""
+    megabytes = settings.number(SPILL_ENV, DEFAULT_SPILL_MB)
+    if not math.isfinite(megabytes):
+        megabytes = DEFAULT_SPILL_MB
+    return max(0, int(megabytes * (1 << 20)))
+
+
+def spill_idle_seconds() -> float:
+    """The idle time after which the spilled tier is dropped; read live. ``0`` or less never drops.
+
+    Clamped like :func:`idle_seconds`.
+    """
+    seconds = settings.number(SPILL_IDLE_ENV, DEFAULT_SPILL_IDLE_S)
+    return min(seconds, MAX_IDLE_S) if math.isfinite(seconds) else DEFAULT_SPILL_IDLE_S
+
+
 def _now_ns() -> int:
     return time.time_ns()
 
@@ -124,6 +164,13 @@ class DecodeMemo:
     def __init__(self) -> None:
         self._entries: OrderedDict[_Key, _Decoded] = OrderedDict()
         self._bytes = 0
+        # Leaving RAM but still served: waiting for a spill. Mapped: read back from the spool.
+        self._pending: OrderedDict[_Key, _Decoded] = OrderedDict()
+        self._pending_bytes = 0
+        self._spilling: set[_Key] = set()
+        self._spilled: OrderedDict[_Key, _Decoded] = OrderedDict()
+        self._spilled_bytes = 0
+        self._worker_running = False
         self._lock = threading.Lock()
         self._building: dict[_Key, _Flight] = {}
         self._timer: threading.Timer | None = None
@@ -151,6 +198,7 @@ class DecodeMemo:
             self._forget(key, keep=None)
             return _frozen(build(resolved))
         with self._lock:
+            self._drop_other_builds(key[3])
             held = self._find(key)
             flight = None
             if held is None:
@@ -190,13 +238,19 @@ class DecodeMemo:
             self._forget(key, keep=None)
             return _frozen(built)
         entry = _frozen(built)
+        spill_cap = spill_cap_bytes()
+        queued = False
         with self._lock:
             self._drop_older(key, keep=key)
             self._entries[key] = entry
             self._bytes += nbytes
             while self._bytes > cap:
-                self._drop(next(iter(self._entries)))
+                queued |= self._evict(next(iter(self._entries)), cap, spill_cap)
             self._touch()
+            start = queued and not self._worker_running
+            self._worker_running |= start
+        if start:
+            self._start_worker()
         return dataclasses.replace(cast(Any, entry))
 
     def _forget(self, key: _Key, keep: _Key | None) -> None:
@@ -204,22 +258,68 @@ class DecodeMemo:
             self._drop_older(key, keep)
 
     def _drop_older(self, key: _Key, keep: _Key | None) -> None:
-        for old in [k for k in self._entries if k[0] == key[0] and k[2] == key[2] and k != keep]:
-            self._drop(old)
+        for tier in (self._entries, self._pending, self._spilled):
+            for old in [k for k in tier if k[0] == key[0] and k[2] == key[2] and k != keep]:
+                self._remove(tier, old)
+
+    def _drop_other_builds(self, build: tuple[object, ...]) -> None:
+        """Drop what the tiers behind RAM hold for another ffmpeg build; the lock is held."""
+        for tier in (self._pending, self._spilled):
+            for old in [k for k in tier if k[3] != build]:
+                self._remove(tier, old)
+
+    def _remove(self, tier: OrderedDict[_Key, _Decoded], key: _Key) -> None:
+        """Take ``key`` out of ``tier`` and its bytes off that tier's count; the lock is held."""
+        nbytes = int(tier.pop(key).samples.nbytes)
+        if tier is self._entries:
+            self._bytes -= nbytes
+        elif tier is self._pending:
+            self._pending_bytes -= nbytes
+        else:
+            self._spilled_bytes -= nbytes
 
     def _find(self, key: _Key) -> Any | None:
-        entry = self._entries.get(key)
-        if entry is not None:
-            self._entries.move_to_end(key)
-            self._touch()
-        return entry
+        for tier in (self._entries, self._pending, self._spilled):
+            entry = tier.get(key)
+            if entry is not None:
+                tier.move_to_end(key)
+                self._touch()
+                return entry
+        return None
+
+    def _evict(self, key: _Key, cap: int, spill_cap: int) -> bool:
+        """Take ``key`` out of RAM, queued for a spill if one is worth it; the lock is held."""
+        nbytes = int(self._entries[key].samples.nbytes)
+        waiting = self._pending_bytes + nbytes
+        if nbytes > spill_cap or waiting > min(spill_cap, cap // 2):
+            self._remove(self._entries, key)
+            return False
+        entry = self._entries.pop(key)
+        self._bytes -= nbytes
+        self._pending[key] = entry
+        self._pending_bytes = waiting
+        return True
 
     def _touch(self) -> None:
         """Note activity and arm the idle timer if none is pending; the lock is held."""
         self._active = _monotonic()
-        idle = idle_seconds()
-        if self._timer is None and self._entries and idle > 0:
-            self._arm(idle)
+        self._arm_for_remaining()
+
+    def _deadlines(self) -> list[float]:
+        """Seconds until each held tier is due; the lock is held. RAM waits ``idle``, the map longer."""
+        elapsed = _monotonic() - self._active
+        idle, spill_idle = idle_seconds(), spill_idle_seconds()
+        due = []
+        if self._entries and idle > 0:
+            due.append(idle - elapsed)
+        if self._spilled and spill_idle > 0:
+            due.append(spill_idle - elapsed)
+        return due
+
+    def _arm_for_remaining(self) -> None:
+        due = self._deadlines()
+        if self._timer is None and due:
+            self._arm(max(min(due), 0.0) or min(idle_seconds(), spill_idle_seconds()))
 
     def _arm(self, delay: float) -> None:
         timer = threading.Timer(delay, self._fire)
@@ -233,40 +333,123 @@ class DecodeMemo:
     def _fire(self) -> None:
         """The timer's callback; a timer that ``clear`` or a newer arm replaced does nothing."""
         with self._lock:
-            if self._timer is threading.current_thread():
-                self._release_locked()
+            if self._timer is not threading.current_thread():
+                return
+            demote = self._release_locked()
+        if demote:
+            self._demote_pending()
 
     def _release_if_idle(self) -> None:
         with self._lock:
-            self._release_locked()
+            demote = self._release_locked()
+        if demote:
+            self._demote_pending()
 
-    def _release_locked(self) -> None:
-        """Clear if idle long enough and nothing is decoding, else look again; the lock is held."""
+    def _release_locked(self) -> bool:
+        """Release what is idle long enough and nothing is decoding, else look again; lock held.
+
+        Returns whether entries were queued for a spill, which the caller does outside the lock.
+        """
         self._timer = None
-        idle = idle_seconds()
-        if not self._entries or idle <= 0:
-            return
-        remaining = idle - (_monotonic() - self._active)
+        due = self._deadlines()
+        if not due:
+            return False
+        remaining = min(due)
         if self._building or remaining > 0:
-            self._arm(max(remaining, 0.0) or idle)
-            return
-        self._entries.clear()
-        self._bytes = 0
+            self._arm(max(remaining, 0.0) or min(idle_seconds(), spill_idle_seconds()))
+            return False
+        elapsed = _monotonic() - self._active
+        spill_idle = spill_idle_seconds()
+        if self._spilled and spill_idle > 0 and elapsed >= spill_idle:
+            self._spilled.clear()
+            self._spilled_bytes = 0
+        queued = False
+        idle = idle_seconds()
+        if self._entries and idle > 0 and elapsed >= idle:
+            if spill_cap_bytes() > 0:
+                self._pending.update(self._entries)
+                self._pending_bytes += self._bytes
+                queued = True
+            self._entries.clear()
+            self._bytes = 0
+        if not queued:
+            self._arm_for_remaining()
+        return queued
 
-    def _drop(self, key: _Key) -> None:
-        self._bytes -= int(self._entries.pop(key).samples.nbytes)
+    def _start_worker(self) -> None:
+        worker = threading.Thread(
+            target=self._demote_pending, name="decode-memo-spill", daemon=True
+        )
+        try:
+            worker.start()
+        except RuntimeError:
+            with self._lock:
+                self._worker_running = False
+                for key in [k for k in self._pending if k not in self._spilling]:
+                    self._remove(self._pending, key)
+
+    def _demote_pending(self) -> None:
+        """Spill each queued entry outside the lock and swap it in if nothing dropped it meanwhile."""
+        while True:
+            with self._lock:
+                item = next(
+                    ((k, e) for k, e in self._pending.items() if k not in self._spilling), None
+                )
+                if item is None:
+                    self._worker_running = False
+                    self._arm_for_remaining()
+                    return
+                self._spilling.add(item[0])
+            key, entry = item
+            mapped = self._spill_entry(key, entry)
+            with self._lock:
+                self._spilling.discard(key)
+                if self._pending.get(key) is not entry:
+                    continue  # dropped or replaced while it was written: the copy is discarded
+                self._remove(self._pending, key)
+                if mapped is not None:
+                    self._spilled[key] = mapped
+                    self._spilled_bytes += int(mapped.samples.nbytes)
+                    cap = spill_cap_bytes()
+                    while self._spilled_bytes > cap and self._spilled:
+                        self._remove(self._spilled, next(iter(self._spilled)))
+                    self._arm_for_remaining()  # the demotion is not a use: the clock stays
+
+    def _spill_entry(self, key: _Key, entry: _Decoded) -> _Decoded | None:
+        """``entry`` with its samples mapped from the spool, or None to drop it. Never raises."""
+        try:
+            nbytes = int(entry.samples.nbytes)
+            if (
+                key[3] != ffmpeg_build_id()
+                or nbytes > spill_cap_bytes()
+                or not spill_allowed(nbytes)
+            ):
+                return None
+            return dataclasses.replace(cast(Any, entry), samples=spill(entry.samples))
+        except Exception as exc:
+            _LOG.info("decode memo entry not kept: the spill failed (%s)", exc)
+            return None
 
     def clear(self) -> None:
         with self._lock:
             if self._timer is not None:
                 self._timer.cancel()
                 self._timer = None
-            self._entries.clear()
-            self._bytes = 0
+            for tier in (self._entries, self._pending, self._spilled):
+                tier.clear()
+            self._bytes = self._pending_bytes = self._spilled_bytes = 0
 
     def held_bytes(self) -> int:
         with self._lock:
             return self._bytes
+
+    def spilled_bytes(self) -> int:
+        with self._lock:
+            return self._spilled_bytes
+
+    def spilled_count(self) -> int:
+        with self._lock:
+            return len(self._spilled)
 
     def __len__(self) -> int:
         with self._lock:
