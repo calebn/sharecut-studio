@@ -159,7 +159,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |
 | Set clip join | `edit.setClipJoin` | Host or shared edit mode | Join glyph popover on the timeline; Incoming transition select and Apply transition length in the clip inspector |
 | Move clips | `edit.moveClips` | Host or shared edit mode | Args: { clips: non-empty list } — Clip inspector Apply move or pointer body drag; one clip or a multi-selection. Inspector placementToken is rechecked inside the mutation queue. |
-| Add envelope point | `envelope.addPoint` | Host or shared edit mode | Args: { trackId: string, atTime: number } → the volume layer must be showing (the Create menu turns it on first); SetEnvelope with a point at the envelope's current level there; the touch create menu (menu row: Add volume point) |
+| Add envelope point | `envelope.addPoint` | Host or shared edit mode | Args: { trackId: string, atTime: number } → the volume layer must be showing (the Create menu turns it on first); SetEnvelope with a point at the envelope's current level there; the touch create menu |
 | Record here | `record.here` | Loaded host project | Args: { atTime?: number } → open Record with an Insert target at that time (the create menu), else at the playhead; an empty timeline opens Record with its default target; host only |
 
 ## Governance

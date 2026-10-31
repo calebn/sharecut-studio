@@ -145,8 +145,7 @@ export const WithNote: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const split = await canvas.findByRole("menuitem", { name: "Split here" });
-    await expect(split).toHaveAttribute(
-      "aria-description",
+    await expect(split).toHaveAccessibleDescription(
       "Cuts at this time, not the playhead",
     );
     await expect(split).toHaveAttribute(

@@ -199,18 +199,18 @@ describe("CreateMenu row note", () => {
   it("exposes a note as the item's description and tooltip, not its name or its text", () => {
     render(<CreateMenu {...props({ rows: noted() })} />);
     const split = screen.getByRole("menuitem", { name: "Split here" });
-    expect(split).toHaveAttribute("aria-description", NOTE);
+    expect(split).toHaveAccessibleDescription(NOTE);
     expect(split).toHaveAttribute("title", NOTE);
     expect(split.textContent).not.toContain(NOTE);
     expect(
       screen.getByRole("menuitem", { name: "Comment here" }),
-    ).not.toHaveAttribute("aria-description");
+    ).not.toHaveAttribute("aria-describedby");
   });
 
   it("does the same in the phone Sheet", async () => {
     render(<CreateMenu {...props({ phone: true, rows: noted() })} />);
     const split = await screen.findByRole("button", { name: "Split here" });
-    expect(split).toHaveAttribute("aria-description", NOTE);
+    expect(split).toHaveAccessibleDescription(NOTE);
     expect(split).toHaveAttribute("title", NOTE);
     expect(split.textContent).toBe("Split here");
   });
