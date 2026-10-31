@@ -180,7 +180,7 @@ export const Points: Story = {
     ).toHaveLength(5);
     await expect(
       canvas.getByRole("slider", { name: "Envelope point 2" }),
-    ).toHaveAttribute("aria-valuetext", "−6.0 dB at 0:04.0");
+    ).toHaveAttribute("aria-valuetext", "−6.0 dB at 0:04.00");
   },
 };
 
