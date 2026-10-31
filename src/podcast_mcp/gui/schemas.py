@@ -220,9 +220,30 @@ GUEST_SPEAKER_NAME_MAX_CHARS = 80
 GUEST_ENROLLMENT_SPANS_MAX = 16
 GUEST_ENROLLMENT_SECONDS_PER_SPEAKER = 600.0
 GUEST_ENROLLMENT_SECONDS_TOTAL = 1800.0
+
+
+_BIDI_OVERRIDES = frozenset("\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")
+
+
+def _plain_text(text: str) -> str:
+    """Refuse control characters and bidi overrides in guest free text.
+
+    A newline, return or tab is fine, and so are joiners (Persian, Indic, emoji text).
+    """
+    if any(
+        (unicodedata.category(c) == "Cc" and c not in "\n\r\t") or c in _BIDI_OVERRIDES
+        for c in text
+    ):
+        raise ValueError("text must not contain control characters")
+    return text
+
+
+VocabularyEntry = Annotated[
+    str, Field(max_length=VOCABULARY_MAX_ENTRY_CHARS), AfterValidator(_plain_text)
+]
+GuestNote = Annotated[str, Field(max_length=GUEST_NOTE_MAX_CHARS), AfterValidator(_plain_text)]
 TranscriptFormat = Literal["txt", "md", "srt", "vtt"]
 DEFAULT_TRANSCRIPT_EXPORT_FORMATS: tuple[TranscriptFormat, ...] = ("md", "srt")
-VocabularyEntry = Annotated[str, Field(max_length=VOCABULARY_MAX_ENTRY_CHARS)]
 
 
 class GuestJobRequest(GuestRequest):
@@ -255,14 +276,14 @@ class GuestVocabularyPutRequest(GuestRequest):
 class GuestRefineDoneRequest(GuestRequest):
     """Mark the transcript checked; the share, not the body, says who did it."""
 
-    notes: str | None = Field(default=None, max_length=GUEST_NOTE_MAX_CHARS)
+    notes: GuestNote | None = None
     expected_fingerprint: str | None = Field(default=None, max_length=64)
 
 
 class GuestRefineWaiveRequest(GuestRequest):
     """Waive the transcript check; the share, not the body, says who did it."""
 
-    reason: str = Field(min_length=1, max_length=GUEST_NOTE_MAX_CHARS)
+    reason: GuestNote = Field(min_length=1)
 
     @field_validator("reason")
     @classmethod

@@ -21,6 +21,8 @@
 
 ### Fixes
 
+* Notes, waive reasons and vocabulary terms sent by a share guest (HTTP or MCP) are now refused with a 422 when they hold a control character or a bidi override (null, escape, U+202E and the like); line breaks, tabs and joiners are still fine (#2827)
+
 * Error and progress text for a share guest that holds any backslash, or a percent-encoded one (`%5c`), such as `Podcasts\ep 12\raw.wav` or `..\host\raw.wav`, is now withheld like other host paths instead of reaching the guest (#2827).
 
 * An over-long ffmpeg command line from a cancellable render or a source-proxy audio pass now fails with `render_command_too_long` instead of a raw OS error, as the other render commands already do (#2104).
