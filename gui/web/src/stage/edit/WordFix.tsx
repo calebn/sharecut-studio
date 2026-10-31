@@ -199,7 +199,7 @@ export function WordFix({ trackId, sourceId, wordIndex }: WordRef) {
     endIndexNum >= wordIndex &&
     expectedText == null;
   return (
-    <>
+    <div className="inspector edit-sheet-part">
       <DefinitionList>
         <DefItem label="Text">
           <FieldRow>
@@ -252,6 +252,6 @@ export function WordFix({ trackId, sourceId, wordIndex }: WordRef) {
       >
         {spanUnverified ? TRANSCRIPT_SPAN_UNVERIFIED_NOTE : null}
       </p>
-    </>
+    </div>
   );
 }

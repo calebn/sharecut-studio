@@ -45,7 +45,7 @@ export function AppliedEdit({ rec }: { rec: AppliedEditRecord }) {
     });
   const tlStart = rec.timeline_start ?? 0;
   return (
-    <>
+    <div className="inspector edit-sheet-part">
       {canRestore ? (
         <Button
           variant="primary"
@@ -93,12 +93,14 @@ export function AppliedEdit({ rec }: { rec: AppliedEditRecord }) {
         ) : null}
       </DefinitionList>
       {rec.timeline_start != null ? (
-        <InspectorSeekFooter
-          seekSec={tlStart}
-          playStart={tlStart}
-          playEnd={rec.timeline_end ?? tlStart}
-        />
+        <footer className="modifier-footer">
+          <InspectorSeekFooter
+            seekSec={tlStart}
+            playStart={tlStart}
+            playEnd={rec.timeline_end ?? tlStart}
+          />
+        </footer>
       ) : null}
-    </>
+    </div>
   );
 }
