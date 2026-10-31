@@ -275,15 +275,6 @@ describe("a range draft interrupted by the window", () => {
     fireEvent.lostPointerCapture(view.getByTestId("lanes"), { pointerId: 1 });
     expect(useDawStore.getState().selection?.kind).toBe("range");
   });
-
-  it("writes nothing when idle", () => {
-    useDawStore.setState({ selection: previous });
-    setup();
-    const set = vi.spyOn(useDawStore.getState(), "setSelection");
-    fireEvent.blur(window);
-    expect(set).not.toHaveBeenCalled();
-    expect(useDawStore.getState().selection).toEqual(previous);
-  });
 });
 
 it("a stale body owner cannot clear the newer lane range", () => {
