@@ -597,6 +597,8 @@ class RetainedEvidence:
                 self._bytes -= self._entries.pop(old).nbytes
             for old in [k for k in self._declined if _superseded(k, key)]:
                 del self._declined[old]
+            if (replaced := self._entries.pop(key, None)) is not None:
+                self._bytes -= replaced.nbytes
             self._entries[key] = entry
             self._bytes += entry.nbytes
             while len(self._entries) > 1 and (
