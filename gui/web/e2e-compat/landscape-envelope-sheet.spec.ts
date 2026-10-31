@@ -115,7 +115,7 @@ function laneBand(page: Page, index: number) {
  * scrolled into the column (#1696); a sheet's controls must already be there.
  */
 async function expectInSheet(control: Locator, label: string) {
-  await control.scrollIntoViewIfNeeded();
+  await control.evaluate((el) => el.scrollIntoView({ block: "nearest" }));
   const geometry = await control.evaluate((el) => {
     const r = el.getBoundingClientRect();
     const sheet = el.closest(".sys-inspector")!.getBoundingClientRect();

@@ -13,7 +13,6 @@ import {
   addEnvelopePoint,
   inspectEnvelopePoint,
   pointSheet,
-  showEnvelope,
 } from "../e2e/envelopeCreationEvidence";
 import { type Finger, newFinger, type Point } from "../e2e/finger";
 import { controlGeometry } from "../e2e/inspectorResponsiveEvidence";
@@ -1265,7 +1264,6 @@ test("a point added from a track's sheet shows its fields in the drawer: portrai
   const finger = await newFinger(context, page, browserName);
   await open(page, "portrait-390", { inspector: "half" });
   await openTrackSheet(page, finger);
-  await showEnvelope(page);
   await addEnvelopePoint(page, { share: 0.9 });
   await inspectEnvelopePoint(page);
   const time = pointSheet(page).getByRole("spinbutton", {
