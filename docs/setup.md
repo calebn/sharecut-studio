@@ -647,7 +647,7 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PODCAST_MCP_CACHE` | `~/.cache/podcast_mcp` | Base for downloaded models, FFmpeg and caches. |
-| `PODCAST_CONFIG_DIR` | `~/.config/podcast_mcp` | Directory for the OAuth client files, the recent episodes list and the podcast show files (`shows/`). |
+| `PODCAST_CONFIG_DIR` | `~/.config/podcast_mcp` | Directory for the OAuth client files, the recent episodes list, the podcast show files (`shows/`) and the segment library (`segments/`). |
 | `PODCAST_WORKSPACE_ROOT` | `~/ShareCut` | Folder that holds episodes Home creates when no folder is named. |
 | `PODCAST_MCP_PROJECT` |  | Project path the MCP tools use when none is passed. |
 | `PODCAST_MCP_PIPELINE_DEFAULTS` |  | Pipeline defaults YAML replacing the shipped one. |
