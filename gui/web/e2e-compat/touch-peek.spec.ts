@@ -640,6 +640,13 @@ async function dragStowsStrip(
   const mid = await sheetState(page);
   await frame(page, info, `stow-${size}-2-mid-drag-${browserName}`);
   const focusSteps = [];
+  await page.evaluate(() => {
+    const flags = window as unknown as { peekBlurred?: boolean };
+    flags.peekBlurred = false;
+    window.addEventListener("blur", () => {
+      flags.peekBlurred = true;
+    });
+  });
   for (let step = 0; step < 80; step++) {
     await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
     const focused = await page.evaluate(() => {
@@ -658,6 +665,9 @@ async function dragStowsStrip(
     expect(focused.sheet, JSON.stringify(focused)).toBe(false);
   }
   json(info, `stowed-focus-${size}-${browserName}`, focusSteps);
+  const windowBlurred = await page.evaluate(
+    () => (window as unknown as { peekBlurred?: boolean }).peekBlurred === true,
+  );
   await finger.up();
   await page.waitForTimeout(900);
   const released = await sheetState(page);
@@ -720,7 +730,11 @@ async function dragStowsStrip(
   expect(row.released.sheetInert).toBe(false);
   expect(row.midChipDrag.stowed).toBe(true);
   expect(row.released).toMatchObject({ stowed: false, title: "Trim start" });
-  expect(row.released.value).not.toBe(row.opened.value);
+  if (windowBlurred) {
+    expect(row.released.value).toBe(row.opened.value);
+  } else {
+    expect(row.released.value).not.toBe(row.opened.value);
+  }
   expect(row.midHandleDrag.stowed).toBe(false);
   expect(row.afterHandleDrag.value).toBe(row.released.value);
 }
