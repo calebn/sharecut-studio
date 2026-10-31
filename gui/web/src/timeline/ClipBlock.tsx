@@ -46,11 +46,12 @@ import { useHitRouter } from "./hitRouterContext";
 import { HIT_KINDS } from "./inputContract";
 import { useHoldTimelineMetrics } from "./timelineMetrics";
 import { useClipEdgeHandles } from "./useClipEdgeHandles";
+import type { RangeGesture } from "./useRangeGesture";
 import { isSplitModifier } from "./useSplitAtPointer";
 import { WaveformLayer } from "./WaveformLayer";
 
 export interface ClipBlockProps {
-  onRangeGesture?: import("./useRangeGesture").RangeGesture;
+  onRangeGesture?: RangeGesture;
   clip: ClipRow;
   trackId: string;
   role: string;

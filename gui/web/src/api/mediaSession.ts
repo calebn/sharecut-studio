@@ -1,3 +1,4 @@
+import type { ProxyManifest } from "../audio/proxyMath";
 import { getSessionToken } from "../sessionAuth";
 import {
   isShareProjectKey,
@@ -14,7 +15,7 @@ import { apiFetch, apiSend } from "./http";
 
 export async function loadProxyManifest(
   projectPath: string,
-): Promise<import("../audio/proxyMath").ProxyManifest | null> {
+): Promise<ProxyManifest | null> {
   if (!isShareProjectKey(projectPath)) {
     return null;
   }
@@ -25,7 +26,7 @@ export async function loadProxyManifest(
   if (!res.ok) {
     return null;
   }
-  return (await res.json()) as import("../audio/proxyMath").ProxyManifest;
+  return (await res.json()) as ProxyManifest;
 }
 
 export function audioUrl(

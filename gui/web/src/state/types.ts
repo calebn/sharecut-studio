@@ -1,8 +1,10 @@
+import type { RippleTrim } from "../edit/ripplePreview";
 import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import type { PendingJobResults, PipelineJobSnapshot } from "../types/pipeline";
 import type {
   ClipRow,
+  ExactRangeTarget,
   HistoryEntryId,
   ProjectView,
   Selection,
@@ -324,10 +326,8 @@ export interface DawState {
   /** Lane height the mounted timeline last resolved (fit or fixed); null with no timeline. Stepping from fit mode starts here. */
   drawnLaneHeightPx: number | null;
   chrome: ChromeFlags;
-  bounceRangeTarget: import("../types/project").ExactRangeTarget | null;
-  setBounceRangeTarget: (
-    target: import("../types/project").ExactRangeTarget | null,
-  ) => void;
+  bounceRangeTarget: ExactRangeTarget | null;
+  setBounceRangeTarget: (target: ExactRangeTarget | null) => void;
   /** Source Prepare shows its split prompt for, set by "Split speakers…"; null otherwise. */
   prepareFocusTrackId: string | null;
   /** The drawn join whose popover is open (its right clip's id), or null. One at a time (timeline/editMarkers/EditMarkerLayer.tsx). */
@@ -348,7 +348,7 @@ export interface DawState {
    * null. Every lane it ripples draws where its later clips go
    * (edit/ripplePreview.ts); a project switch clears it.
    */
-  rippleTrim: import("../edit/ripplePreview").RippleTrim | null;
+  rippleTrim: RippleTrim | null;
   /** Hover/focus Stale pill → highlight stale lanes on the timeline. */
   highlightStaleRender: boolean;
   /** Refresh-mix / render_preview in flight. */
@@ -530,9 +530,7 @@ export interface DawState {
   setOpenJoinId: (id: string | null) => void;
   setJoinMutationInFlight: (on: boolean) => void;
   setJoinDraft: (draft: ClipRow | null) => void;
-  setRippleTrim: (
-    trim: import("../edit/ripplePreview").RippleTrim | null,
-  ) => void;
+  setRippleTrim: (trim: RippleTrim | null) => void;
   setHighlightStaleRender: (on: boolean) => void;
   setRenderPreviewBusy: (on: boolean) => void;
   setIngestBusy: (on: boolean, fileCount?: number) => void;
