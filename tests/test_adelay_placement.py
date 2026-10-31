@@ -920,7 +920,7 @@ def test_proxy_execute_spawn_refusal(
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="E2BIG limit is Linux's")
 def test_run_cancellable_real_oversized_argument_is_render_command_too_long() -> None:
-    cmd = [sys.executable, "-c", "pass", "x" * 200_000]
+    cmd = [sys.executable, "-c", "pass", *["x" * 100_000] * 50]
     with pytest.raises(CodedValueError) as error:
         ff._run_cancellable(cmd, lambda: False)
     assert error.value.code == "render_command_too_long"
