@@ -1,5 +1,7 @@
+import type { SessionTakes } from "../api";
 import type { DecisionKind } from "../system/decisionKinds";
 import { formatSeconds } from "../system/seconds";
+import type { TakeOption } from "../system/TakeSwitcher";
 import { selectLowConfidenceStops } from "../transcript/lowConfidence";
 import type {
   CombinedUtterance,
@@ -81,10 +83,40 @@ const joinNames = (names: readonly string[]) =>
     ? names.join(" and ")
     : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
-/** One item per staged record session still waiting for a decision. Host payload only. */
+/** A replace with more than one take has a take switcher; an insert plays its takes in order. */
+export const hasTakeSwitcher = (s: SessionSuggestionView): boolean =>
+  s.kind === "replace" && s.take_indexes.length > 1;
+
+const wordsOf = (n: number) => plural(n, "word", "words");
+
+/** The switcher's options: the position from the project, the detail from the takes route when it has arrived. */
+function takeOptionsOf(
+  s: SessionSuggestionView,
+  detail: SessionTakes | undefined,
+): TakeOption[] {
+  return s.take_indexes.map((takeIndex): TakeOption => {
+    const found = detail?.takes.find((t) => t.take_index === takeIndex);
+    if (!found) return { takeIndex };
+    return {
+      takeIndex,
+      length: formatSeconds(found.duration_s),
+      ...(found.word_count === null
+        ? {}
+        : { words: wordsOf(found.word_count) }),
+      ...(found.speech_text ? { snippet: found.speech_text } : {}),
+      ...(found.refusal ? { refusal: found.refusal.message } : {}),
+    };
+  });
+}
+
+/**
+ * One item per staged record session still waiting for a decision. Host payload only.
+ * `details` holds each session's reply from the takes route, by suggestion id.
+ */
 export function sessionEntriesOf(
   suggestions: readonly SessionSuggestionView[],
   tracks: readonly Pick<TrackView, "id" | "label">[],
+  details: ReadonlyMap<string, SessionTakes> = new Map(),
 ): ReviewEntry[] {
   return suggestions.map((s): ReviewEntry => {
     const start = sessionStartSec(s);
@@ -109,7 +141,15 @@ export function sessionEntriesOf(
       s.kind === "replace" && s.take_count > 1 && at1 >= 0
         ? `Take ${at1 + 1} of ${s.take_count}`
         : plural(s.take_count, "take", "takes");
-    const why = names.length ? `${takeLine} · ${joinNames(names)}` : takeLine;
+    const switcher = hasTakeSwitcher(s) && take !== undefined;
+    // The switcher says "Take N of M", so the card's line then names the tracks only.
+    const why = switcher
+      ? names.length
+        ? joinNames(names)
+        : undefined
+      : names.length
+        ? `${takeLine} · ${joinNames(names)}`
+        : takeLine;
     return {
       item: {
         id: sessionItemId(s.id),
@@ -120,10 +160,18 @@ export function sessionEntriesOf(
       },
       content: {
         row: { snippet: title, time, value: takeLine },
+        ...(switcher
+          ? {
+              takes: {
+                takes: takeOptionsOf(s, details.get(s.id)),
+                selected: take,
+              },
+            }
+          : {}),
         card: {
           title,
           time,
-          why,
+          ...(why === undefined ? {} : { why }),
           ...(start !== null ? { change: { start, end: end ?? start } } : {}),
         },
       },

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { SessionTakes } from "../api/sessionTakes";
 import {
   pendingEditView,
   sampleComment,
@@ -501,12 +502,17 @@ describe("sessionEntriesOf", () => {
     expect(entry?.item.hostOnly).toBeUndefined();
   });
 
-  it("titles a replace with its range and shows the default take as plain text", () => {
+  it("titles a replace with its range; the switcher carries the take, the line names the tracks", () => {
     const [entry] = sessionEntriesOf([replace], tracks);
     expect(entry?.content.card.title).toBe(
       "Replace 12:04–17:29 with Session 3",
     );
-    expect(entry?.content.card.why).toBe("Take 3 of 3 · Jon and Rosa");
+    expect(entry?.content.card.why).toBe("Jon and Rosa");
+    expect(entry?.content.row.value).toBe("Take 3 of 3");
+    expect(entry?.content.takes).toEqual({
+      selected: 2,
+      takes: [{ takeIndex: 0 }, { takeIndex: 1 }, { takeIndex: 2 }],
+    });
     expect(entry?.content.card.change).toEqual({ start: 724, end: 1049 });
     expect(entry?.item.pickup).toEqual({ kind: "replace", number: 3 });
   });
@@ -516,7 +522,74 @@ describe("sessionEntriesOf", () => {
       [{ ...replace, take_indexes: [0, 2, 5], selected_take: 2 }],
       tracks,
     );
-    expect(entry?.content.card.why).toBe("Take 2 of 3 · Jon and Rosa");
+    expect(entry?.content.row.value).toBe("Take 2 of 3");
+    expect(entry?.content.takes?.selected).toBe(2);
+  });
+
+  it("adds each take's length, words, snippet and refusal once the takes route has answered", () => {
+    const detail = (
+      take_index: number,
+      over: Partial<SessionTakes["takes"][number]> = {},
+    ): SessionTakes["takes"][number] => ({
+      take_index,
+      duration_s: 8.44,
+      word_count: 22,
+      speech_text: "The reason we",
+      chosen: false,
+      default: false,
+      acceptable: true,
+      refusal: null,
+      ...over,
+    });
+    const reply: SessionTakes = {
+      suggestion_id: "ss-r",
+      kind: "replace",
+      selectable: true,
+      selected_take: null,
+      default_take: 2,
+      takes: [
+        detail(0),
+        detail(1, { word_count: null, speech_text: null }),
+        detail(2, {
+          word_count: 1,
+          acceptable: false,
+          refusal: { code: "x", message: "Too short." },
+        }),
+      ],
+    };
+    const [entry] = sessionEntriesOf(
+      [replace],
+      tracks,
+      new Map([["ss-r", reply]]),
+    );
+    expect(entry?.content.takes?.takes).toEqual([
+      {
+        takeIndex: 0,
+        length: "8.4 s",
+        words: "22 words",
+        snippet: "The reason we",
+      },
+      { takeIndex: 1, length: "8.4 s" },
+      {
+        takeIndex: 2,
+        length: "8.4 s",
+        words: "1 word",
+        snippet: "The reason we",
+        refusal: "Too short.",
+      },
+    ]);
+  });
+
+  it("has no switcher for an insert or a single-take replace", () => {
+    const [insert, single] = sessionEntriesOf(
+      [
+        sessionSuggestionView({ take_count: 2, take_indexes: [0, 1] }),
+        { ...replace, take_count: 1, take_indexes: [0] },
+      ],
+      tracks,
+    );
+    expect(insert?.content.takes).toBeUndefined();
+    expect(single?.content.takes).toBeUndefined();
   });
 
   it("says one take for a single take and falls back to the track id", () => {

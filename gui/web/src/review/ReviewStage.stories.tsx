@@ -228,9 +228,52 @@ export const PickupReplace: Story = {
         name: "Replace 26:00–26:25 with Session 3",
       }),
     ).toBeInTheDocument();
-    await expect(card.getByText("Take 2 of 3 · Jon")).toBeInTheDocument();
+    await expect(card.getByText("Jon")).toBeInTheDocument();
+    await expect(card.getByText("Take 2 of 3")).toBeInTheDocument();
     await expect(card.getByRole("button", { name: "Replace" })).toBeEnabled();
     await expect(card.getByRole("button", { name: "B" })).toBeInTheDocument();
+  }),
+};
+
+export const PickupTakeSwitcher: Story = {
+  args: {
+    initialItems: pickup("pk2"),
+    initialSelectedId: "pk2",
+    onSelectTake: fn(),
+  },
+  play: playInCanvas(async ({ canvasElement, args }) => {
+    const card = within(await within(canvasElement).findByRole("article"));
+    await expect(card.getByText("Take 2 of 3")).toBeInTheDocument();
+    await expect(card.getByText("9.1 s · 25 words")).toBeInTheDocument();
+    const next = card.getByRole("button", { name: "Next take" });
+    await expect(next).toBeDisabled();
+    await expect(next).toHaveAttribute(
+      "title",
+      "Take 3 cannot be placed: It is shorter than the 25 s it replaces.",
+    );
+    await userEvent.click(card.getByRole("button", { name: "Previous take" }));
+    await expect(args.onSelectTake).toHaveBeenCalledWith("pk2", 0);
+    await expect(card.getByText("Take 1 of 3")).toBeInTheDocument();
+    await expect(
+      card.getByText(/The reason we shipped late was the vendor, not/),
+    ).toBeInTheDocument();
+    await expect(
+      card.getByRole("button", { name: "Previous take" }),
+    ).toBeDisabled();
+  }),
+};
+
+export const PickupTakeSwitcherPhone: Story = {
+  args: {
+    layout: "phone",
+    initialItems: pickup("pk2"),
+    initialSelectedId: "pk2",
+  },
+  parameters: isolatedStoryParameters,
+  play: playInCanvas(async ({ canvasElement }) => {
+    const card = within(await within(canvasElement).findByRole("article"));
+    await userEvent.click(card.getByRole("button", { name: "Previous take" }));
+    await expect(card.getByText("Take 1 of 3")).toBeInTheDocument();
   }),
 };
 

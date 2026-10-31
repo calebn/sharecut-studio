@@ -7,6 +7,7 @@ import { Skeleton } from "../system/Skeleton";
 import { StatusRow } from "../system/StatusRow";
 import { SystemIcon } from "../system/SystemIcon";
 import { formatSeconds } from "../system/seconds";
+import type { TakeSwitcherProps } from "../system/TakeSwitcher";
 import { VerbButton } from "../system/VerbButton";
 import { hintOf, iconOf, verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
@@ -35,6 +36,8 @@ export type ReviewContent = {
   check?: { title: string; detail?: string; actionLabel: string };
   /** A held pickup: the line that asks before it goes ahead anyway. */
   confirm?: { message: string };
+  /** A replace pickup with several takes: the switcher's data. The stage adds `onSelect`. */
+  takes?: Omit<TakeSwitcherProps, "onSelect">;
   card: Pick<
     DecisionCardProps,
     | "title"

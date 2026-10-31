@@ -24,7 +24,11 @@ type Spec = {
   comment?: { by: string; body: string; replies?: number; unread?: boolean };
   detail?: string;
   /** A staged record session: the range it replaces, and the line a held replace asks. */
-  pickup?: { range: readonly [number, number]; confirm?: string };
+  pickup?: {
+    range: readonly [number, number];
+    confirm?: string;
+    takes?: ReviewContent["takes"];
+  };
 };
 
 const around = (
@@ -159,8 +163,34 @@ const SPECS: readonly Spec[] = [
     id: "pk2",
     time: "26:00",
     title: "Replace 26:00–26:25 with Session 3",
-    why: "Take 2 of 3 · Jon",
-    pickup: { range: [1560, 1585] },
+    why: "Jon",
+    pickup: {
+      range: [1560, 1585],
+      takes: {
+        selected: 1,
+        takes: [
+          {
+            takeIndex: 0,
+            length: "8.4 s",
+            words: "22 words",
+            snippet: "The reason we shipped late was the vendor, not the team…",
+          },
+          {
+            takeIndex: 1,
+            length: "9.1 s",
+            words: "25 words",
+            snippet: "Honestly the reason we shipped late was the vendor…",
+          },
+          {
+            takeIndex: 2,
+            length: "1.2 s",
+            words: "3 words",
+            snippet: "The reason we",
+            refusal: "It is shorter than the 25 s it replaces.",
+          },
+        ],
+      },
+    },
   },
   {
     id: "pk3",
@@ -238,6 +268,7 @@ export function reviewContent(item: ReviewItem): ReviewContent {
     },
     check: detail ? { title, detail, actionLabel: "Check" } : undefined,
     confirm: pickup?.confirm ? { message: pickup.confirm } : undefined,
+    takes: pickup?.takes,
     card: {
       change: pickup && { start: pickup.range[0], end: pickup.range[1] },
       title,

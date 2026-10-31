@@ -27,6 +27,19 @@ describe("stageActionFor", () => {
     expect(stageActionFor(key("Enter", { shiftKey: true }))).toBe("applyAll");
   });
 
+  it("leaves the arrow keys to a group that keeps them", () => {
+    const group = document.createElement("div");
+    group.setAttribute("data-own-arrows", "");
+    const button = document.createElement("button");
+    group.append(button);
+    expect(stageActionFor(key("ArrowDown", { target: button }))).toBeNull();
+    expect(stageActionFor(key("ArrowRight", { target: button }))).toBeNull();
+    expect(stageActionFor(key("x", { target: button }))).toBe("keep");
+    expect(stageActionFor(key("ArrowDown", { target: document.body }))).toBe(
+      "next",
+    );
+  });
+
   it("ignores editable targets", () => {
     const input = document.createElement("input");
     expect(stageActionFor(key("x", { target: input }))).toBeNull();
