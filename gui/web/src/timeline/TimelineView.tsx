@@ -82,12 +82,13 @@ import {
   type DetentView,
   type HitRouter,
 } from "./hitRouting";
+import { chapterMarkerId } from "./laneMarkers";
 import {
   appliedRecordTrackIds,
   envelopeTrackIds,
   useByTrack,
 } from "./laneOverlaySlices";
-import { MarkerLane } from "./MarkerLane";
+import { LiveMarkerLane } from "./MarkerLaneHost";
 import { Playhead } from "./Playhead";
 import { PresenceOverlay } from "./PresenceOverlay";
 import { ProsodyStatusAnnouncer } from "./ProsodyStatusAnnouncer";
@@ -102,6 +103,7 @@ import { TrackLane } from "./TrackLane";
 import {
   type LaneFit,
   markerLaneHeight,
+  markerLaneRow,
   markerRows,
   resolveLaneHeight,
   shortTouchFloorPx,
@@ -465,6 +467,16 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     () =>
       project ? clippingFlags(project.clips.tracks, project.tracks) : EMPTY_ARR,
     [project],
+  );
+  const selectedMarkerId =
+    selection?.kind === "chapter"
+      ? chapterMarkerId({ time: selection.time, title: selection.id })
+      : selection?.kind === "social" || selection?.kind === "comment"
+        ? selection.id
+        : null;
+  const selectedMarkerIds = useMemo(
+    () => (selectedMarkerId ? [selectedMarkerId] : EMPTY_ARR),
+    [selectedMarkerId],
   );
   const liveRows = useMemo(
     () =>
@@ -944,14 +956,17 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                     style={{ position: "relative", width }}
                     {...touchPress}
                   >
-                    <MarkerLane
+                    <LiveMarkerLane
                       chapters={chapters}
                       socialClips={socialClips}
                       comments={comments}
-                      rows={rows}
-                      selectedCommentId={selectedCommentId}
+                      showMarkers={layers.showMarkers}
+                      showComments={layers.showComments}
+                      laneRow={markerLaneRow(rows, laneFit)}
+                      selected={selectedMarkerIds}
                       zoomPxPerSec={zoomPxPerSec}
                       width={width}
+                      duration={sessionSec}
                       onSelectChapter={(ch) => {
                         setSelection({
                           kind: "chapter",
