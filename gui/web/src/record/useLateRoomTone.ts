@@ -70,7 +70,10 @@ export function useLateRoomTone({
       .status()
       .then((remote) => {
         const done = (remote.room_tone_status ?? []).some(
-          (row) => row.participant_id === participantId && row.file_ack,
+          (row) =>
+            row.participant_id === participantId &&
+            row.file_ack &&
+            !row.land_failed,
         );
         if (live) {
           setResolved({ key, done });
