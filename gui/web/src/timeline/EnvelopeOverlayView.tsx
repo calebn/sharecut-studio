@@ -87,7 +87,6 @@ export interface EnvelopeOverlayViewProps {
    * pointerdown so `height` cannot change before the first pointermove.
    */
   holdGeometry?: () => () => void;
-  /** Read-only: where clip fades and mutes pull the level off the envelope. */
   clipDips?: readonly ClipGainDip[];
 }
 
@@ -351,7 +350,7 @@ export function EnvelopeOverlayView({
                   fontSize={9}
                   fill="var(--color-envelope-line)"
                 >
-                  clip fade
+                  clip fade or mute
                 </text>
               )}
             </g>
