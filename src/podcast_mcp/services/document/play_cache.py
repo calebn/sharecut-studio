@@ -15,7 +15,6 @@ from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.fingerprint import file_stamp, mtime_ns_if_file
 from podcast_mcp.util.hashing import short_digest
-from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import (
     play_cache_lock_path,
 )
@@ -159,46 +158,7 @@ class _PlayCache:
         with open_wav(wav_a) as w:
             rate = w.getframerate() or 48000
             channels = w.getnchannels() or 1
-
-        ch_layout = "mono" if channels <= 1 else "stereo"
-        silence = out.with_name(f".{out.stem}_gap.wav")
-        cmd_sil = [
-            eng.ffmpeg,
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            f"anullsrc=r={rate}:cl={ch_layout}",
-            "-t",
-            f"{gap_sec:.6f}",
-            "-acodec",
-            "pcm_s16le",
-            str(silence),
-        ]
-        run(cmd_sil, check=True, capture_output=True)
-        try:
-            # Filter concat so mismatched layouts still join cleanly.
-            cmd = [
-                eng.ffmpeg,
-                "-y",
-                "-i",
-                str(wav_a),
-                "-i",
-                str(silence),
-                "-i",
-                str(wav_b),
-                "-filter_complex",
-                "[0:a][1:a][2:a]concat=n=3:v=0:a=1[out]",
-                "-map",
-                "[out]",
-                "-acodec",
-                "pcm_s16le",
-                str(out),
-            ]
-            run(cmd, check=True, capture_output=True)
-        finally:
-            silence.unlink(missing_ok=True)
-        return out
+        return eng.concat_with_gap(wav_a, wav_b, out, gap_sec=gap_sec, rate=rate, channels=channels)
 
     def _player_command(self, player: str | None, wav: Path) -> list[str]:
         if player:
