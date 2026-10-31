@@ -10,10 +10,12 @@ import { expectNoA11yViolations } from "../../test/a11y";
 import { keymapHandoff, overlayOpen } from "../../ui/modalGate";
 import {
   type ChooserKind,
-  type ChooserTarget,
   KIND_ICONS,
   KIND_NAMES,
   TARGET_ID_ATTR,
+} from "./chooserKinds";
+import {
+  type ChooserTarget,
   TargetChooser,
   type TargetChooserProps,
 } from "./TargetChooser";
