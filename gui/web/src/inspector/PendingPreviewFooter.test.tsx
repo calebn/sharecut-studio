@@ -296,8 +296,8 @@ describe("pending preview footer", () => {
     expect(
       screen.getByRole("button", { name: "Suggested" }),
     ).toHaveAccessibleDescription(SPLIT_REASON);
-    expect(playButton()).toBeDisabled();
-    expect(playButton()).toHaveAttribute("title", SPLIT_REASON);
+    expect(playButton()).toHaveAttribute("aria-disabled", "true");
+    expect(playButton()).toHaveAccessibleDescription(SPLIT_REASON);
     fireEvent.click(playButton());
     expect(hostFetch).not.toHaveBeenCalled();
   });
@@ -410,9 +410,8 @@ describe("pending preview footer", () => {
   it("keeps Play disabled with a reason when a share loses playback", () => {
     setup({ path: shareProjectKey("token") });
     act(() => useDawStore.setState({ shareCapabilities: ["edit"] }));
-    expect(playButton()).toBeDisabled();
-    expect(playButton()).toHaveAttribute(
-      "title",
+    expect(playButton()).toHaveAttribute("aria-disabled", "true");
+    expect(playButton()).toHaveAccessibleDescription(
       "This share cannot play audio",
     );
   });

@@ -21,6 +21,8 @@
 
 ### Fixes
 
+* The inspector footer's play action (for example "Preview effects at track start" for a share guest who hears the full mix only) now stays focusable when it is unavailable and shows why beside the footer, instead of a hover-only tooltip on a dead button, so touch and keyboard users see the reason (Part of #1686)
+
 * Error and progress text for a share guest that holds any backslash, or a percent-encoded one (`%5c`), such as `Podcasts\ep 12\raw.wav` or `..\host\raw.wav`, is now withheld like other host paths instead of reaching the guest (#2827).
 
 * An over-long ffmpeg command line from a cancellable render or a source-proxy audio pass now fails with `render_command_too_long` instead of a raw OS error, as the other render commands already do (#2104).
