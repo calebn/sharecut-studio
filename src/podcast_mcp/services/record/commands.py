@@ -209,9 +209,9 @@ def validate_record_payload(command_type: str, payload: dict[str, Any]) -> dict[
         return {}
     if command_type == "SetTarget":
         raw_target = (payload or {}).get("target")
-        if not isinstance(raw_target, dict):
+        if not isinstance(raw_target, (dict, str)):
             raise CodedValueError(
-                'target: pass an object such as {"kind": "end"}, {"kind": "start"}, {"kind": "insert", ...} '
+                'target: pass "end", "start", or an object such as {"kind": "insert", ...} '
                 'or {"kind": "replace", ...}',
                 code="invalid_record_request",
             )
