@@ -175,6 +175,37 @@ describe("useLateRoomTone", () => {
     status,
   });
 
+  it("asks again after a recorded bed the host could not save, even on the device that recorded it", async () => {
+    const failed = withStatus(async () => ({
+      segments: [],
+      room_tone_status: [
+        { participant_id: "p_late", file_ack: true, land_failed: true },
+      ],
+    }));
+    const first = setup({ transport: failed });
+    await waitFor(() => expect(first.result.current).not.toBeNull());
+    first.rerender({ status: "recorded" });
+    first.unmount();
+    const reloaded = setup({ transport: failed });
+    await waitFor(() =>
+      expect(reloaded.result.current?.kind).toBe("room-tone"),
+    );
+  });
+
+  it("does not ask again after a recorded bed when the host status cannot be read", async () => {
+    const first = setup();
+    await waitFor(() => expect(first.result.current).not.toBeNull());
+    first.rerender({ status: "recorded" });
+    first.unmount();
+    const reloaded = setup({
+      transport: withStatus(async () => {
+        throw new Error("offline");
+      }),
+    });
+    await act(async () => {});
+    expect(reloaded.result.current).toBeNull();
+  });
+
   it("trusts the host's upload status when this device forgot", async () => {
     const { result } = setup({
       transport: withStatus(async () => ({

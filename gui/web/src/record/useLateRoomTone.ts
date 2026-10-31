@@ -58,7 +58,8 @@ export function useLateRoomTone({
     if (!key || !consented || producer) {
       return;
     }
-    if (readRoomToneMark(key)) {
+    const mark = readRoomToneMark(key);
+    if (mark === "skipped" || (mark === "recorded" && !transport)) {
       setResolved({ key, done: true });
       return;
     }
@@ -69,19 +70,21 @@ export function useLateRoomTone({
     transport
       .status()
       .then((remote) => {
-        const done = (remote.room_tone_status ?? []).some(
-          (row) =>
-            row.participant_id === participantId &&
-            row.file_ack &&
-            !row.land_failed,
+        const rows = (remote.room_tone_status ?? []).filter(
+          (row) => row.participant_id === participantId,
         );
+        // A bed this device recorded counts unless the host says it could not save it.
+        const done =
+          mark === "recorded"
+            ? !rows.some((row) => row.file_ack && row.land_failed)
+            : rows.some((row) => row.file_ack && !row.land_failed);
         if (live) {
           setResolved({ key, done });
         }
       })
       .catch(() => {
         if (live) {
-          setResolved({ key, done: false });
+          setResolved({ key, done: mark === "recorded" });
         }
       });
     return () => {
