@@ -6,6 +6,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { trackHeaderButton } from "./trackHeader";
 
 /**
  * A guest tab closed with an edit still queued; the next tab has a new
@@ -125,6 +126,7 @@ test("a prior tab's queued edit replays before a later tab's edit, and the later
       const commandRoute = "**/api/review/*/daw/document/command";
       await guest.route(commandRoute, (route) => route.abort("failed"));
       await openGuestShare(guest, token);
+      await trackHeaderButton(guest, "guest").hover();
       await guest.getByRole("button", { name: "Mute guest" }).click();
       await expect
         .poll(async () => (await storedQueue(guest, token)).length)
