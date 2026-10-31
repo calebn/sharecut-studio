@@ -42,15 +42,21 @@ async function projectHistoryShortcut(
   receipts: InteractionReceipt[],
   key: "ControlOrMeta+z" | "ControlOrMeta+Shift+z",
 ) {
+  // Undo can remove the only selected point, which closes its sheet.
   const close = pointSheet(page).getByRole("button", { name: "Close" });
-  await expect(close).toBeEnabled();
-  await close.focus();
-  await expect(close).toBeFocused();
+  const target = (await close.count())
+    ? close
+    : page.getByRole("slider", { name: "Envelope level" }).first();
+  await expect(target).toBeEnabled();
+  await target.focus();
+  await expect(target).toBeFocused();
   receipts.push({
     checkpoint: "project-history-keyboard-focus",
     observation: {
       key,
-      target: "enabled Close button (focused, not activated)",
+      target: (await close.count())
+        ? "enabled Close button (focused, not activated)"
+        : "Envelope level slider (focused, no point sheet open)",
       reason:
         "A Scrub field's text input owns typing shortcuts; project history requires a non-typing target.",
     },

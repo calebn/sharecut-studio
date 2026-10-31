@@ -3,6 +3,7 @@ import { expect, type Page } from "@playwright/test";
 import {
   acceptedEnvelopeCommand,
   addEnvelopePoint,
+  dismissToast,
   emptyEnvelopeProject,
   envelopeSnapshot,
   envelopeTrack,
@@ -79,6 +80,7 @@ async function setup(
   });
 }
 async function openClip(page: Page, receipts: InteractionReceipt[]) {
+  await dismissToast(page);
   const hit = page.locator(".lane-row .clip-hit").first();
   const geometry = await hit.evaluate((element) => {
     const rect = element.getBoundingClientRect();
@@ -274,6 +276,7 @@ for (const {
               .toEqual(changed.command.payload.points);
             const edited = envelopeSnapshot(projectPath, track.id);
             expectEnvelopeMutation(saved, edited, track.id);
+            await dismissToast(page, "Envelope point changed");
             const commandCount = observer.commands.length;
             await wheelInspector(page, receipts, 220);
             await expect(level).toHaveAttribute("aria-valuenow", "0.75");
