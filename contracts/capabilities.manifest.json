@@ -2983,33 +2983,6 @@
       }
     },
     {
-      "id": "daw.comment.draftAt",
-      "label": "Add comment",
-      "effect": "view",
-      "tooltip": "Start a comment at the held time",
-      "service": "CommentService",
-      "industry_standard_key": false,
-      "gates": [
-        "canComment"
-      ],
-      "surfaces": {
-        "command": "comment.draftAt",
-        "gui": [
-          "timeline.createMenu",
-          "actionBar"
-        ],
-        "touch": [
-          "long-press-empty"
-        ],
-        "keyboard": "C"
-      },
-      "omit": {},
-      "presence": {
-        "cursor": "time",
-        "follow": "none"
-      }
-    },
-    {
       "id": "daw.record.here",
       "label": "Record here",
       "effect": "view",
@@ -3034,6 +3007,33 @@
       "presence": {
         "cursor": "time",
         "follow": "look"
+      }
+    },
+    {
+      "id": "daw.comment.draftAt",
+      "label": "Add comment",
+      "effect": "view",
+      "tooltip": "Start a comment at the held time",
+      "service": "CommentService",
+      "industry_standard_key": false,
+      "gates": [
+        "canComment"
+      ],
+      "surfaces": {
+        "command": "comment.draftAt",
+        "gui": [
+          "timeline.createMenu",
+          "actionBar"
+        ],
+        "touch": [
+          "long-press-empty"
+        ],
+        "keyboard": "C"
+      },
+      "omit": {},
+      "presence": {
+        "cursor": "time",
+        "follow": "none"
       }
     },
     {

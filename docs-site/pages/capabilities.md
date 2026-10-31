@@ -115,8 +115,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Move clips | project | `edit.moveClips` | — (Move clip inspector controls or pointer clip-body drag; arrow keys stay playhead nudge) | `long-press-arm-drag` | `timeline.clip.body`, `clipInspector` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
 | Add chapter at playhead | project | `edit.addChapter` | `C` | `long-press-empty` | `timeline.createMenu`, `editPlusMenu`, `actionBar` | `add_chapter_tool` | `podcast edit add-chapter` | — | yes | none · none |
 | Add envelope point | project | `envelope.addPoint` | — (create menu; Shift+F10 or the Menu key on a lane opens it from the keyboard) | `long-press-empty` | `timeline.createMenu` | `set_envelope` | — | — | — | time · none |
-| Add comment | view | `comment.draftAt` | `C` | `long-press-empty` | `timeline.createMenu`, `actionBar` | — | — | — | — | time · none |
 | Record here | view | `record.here` | — (not industry-standard; the Create menu and the Action bar verb) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · look |
+| Add comment | view | `comment.draftAt` | `C` | `long-press-empty` | `timeline.createMenu`, `actionBar` | — | — | — | — | time · none |
 | Restore original audio | project | `edit.restoreClipBleed` | — (Select a region in the Bleed reductions inspector; no default shortcut) | — | `restoreClipBleed` | `restore_clip_bleed_tool` | — | — | yes | none · none |
 | Roll clip join | project | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `long-press-arm-drag` | `timeline.clip.joinDiamond`, `transcript.editBoundary` | `roll_clip_join_tool` | `podcast edit roll-join` | — | — | time · none |
 | Set clip fade | project | `edit.setClipFade` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.fadeHandle` | `set_clip_fade_tool` | — | — | — | time · none |
