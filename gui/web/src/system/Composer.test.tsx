@@ -65,6 +65,102 @@ describe("Composer", () => {
   });
 
   describe("keys on a fine pointer", () => {
+    it.each([
+      { label: "Comment", chord: "Enter", ctrlKey: false, metaKey: false },
+      { label: "Comment", chord: "Ctrl+Enter", ctrlKey: true, metaKey: false },
+      { label: "Comment", chord: "Cmd+Enter", ctrlKey: false, metaKey: true },
+      {
+        label: "Your name",
+        chord: "Ctrl+Enter",
+        ctrlKey: true,
+        metaKey: false,
+      },
+      { label: "Your name", chord: "Cmd+Enter", ctrlKey: false, metaKey: true },
+    ])(
+      "submits once per press and consumes repeated $chord in $label",
+      ({ label, ctrlKey, metaKey }) => {
+        const onSubmit = vi.fn();
+        const onBubble = vi.fn();
+        render(
+          <div role="presentation" onKeyDown={onBubble}>
+            <Harness
+              start="Hi"
+              onSubmit={onSubmit}
+              name={
+                label === "Your name"
+                  ? { value: "Rosa", onChange: noop }
+                  : undefined
+              }
+            />
+          </div>,
+        );
+        const input = screen.getByRole("textbox", { name: label });
+        fireEvent.keyDown(input, {
+          key: "Enter",
+          ctrlKey,
+          metaKey,
+          repeat: false,
+        });
+        expect(onSubmit).toHaveBeenCalledOnce();
+
+        const repeat = new KeyboardEvent("keydown", {
+          key: "Enter",
+          ctrlKey,
+          metaKey,
+          repeat: true,
+          bubbles: true,
+          cancelable: true,
+        });
+        fireEvent(input, repeat);
+        expect(repeat.defaultPrevented).toBe(true);
+        expect(onBubble).not.toHaveBeenCalled();
+        expect(onSubmit).toHaveBeenCalledOnce();
+
+        fireEvent.keyUp(input, { key: "Enter", ctrlKey, metaKey });
+        fireEvent.keyDown(input, {
+          key: "Enter",
+          ctrlKey,
+          metaKey,
+          repeat: false,
+        });
+        expect(onSubmit).toHaveBeenCalledTimes(2);
+      },
+    );
+
+    it("does not submit when held Enter moves from the name to the comment", () => {
+      const onSubmit = vi.fn();
+      const onBubble = vi.fn();
+      render(
+        <div role="presentation" onKeyDown={onBubble}>
+          <Harness
+            start="Hi"
+            onSubmit={onSubmit}
+            name={{ value: "Rosa", onChange: noop }}
+          />
+        </div>,
+      );
+      const name = screen.getByRole("textbox", { name: "Your name" });
+      name.focus();
+      fireEvent.keyDown(name, { key: "Enter", repeat: false });
+      expect(field()).toHaveFocus();
+      expect(onSubmit).not.toHaveBeenCalled();
+
+      const repeat = new KeyboardEvent("keydown", {
+        key: "Enter",
+        repeat: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      fireEvent(document.activeElement as HTMLElement, repeat);
+      expect(repeat.defaultPrevented).toBe(true);
+      expect(onBubble).not.toHaveBeenCalled();
+      expect(onSubmit).not.toHaveBeenCalled();
+
+      fireEvent.keyUp(field(), { key: "Enter" });
+      fireEvent.keyDown(field(), { key: "Enter", repeat: false });
+      expect(onSubmit).toHaveBeenCalledOnce();
+    });
+
     it("posts on Enter and adds no line", async () => {
       const onSubmit = vi.fn();
       const user = userEvent.setup();

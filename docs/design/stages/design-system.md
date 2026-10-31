@@ -400,8 +400,8 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **25. Composer**
 - One field with a leading time chip, which pins when typing starts or takes the selection. Tap the chip to re-anchor, or clear it to make a whole-episode note.
-- A send arrow sits inside the field. Enter posts and Shift+Enter adds a line.
-- On a guest's first post, a name line appears above.
+- A send arrow sits inside the field. Enter posts and Shift+Enter adds a line. On a coarse pointer, Return adds a line; Cmd or Ctrl+Enter posts on either pointer type. Holding a submit key does not request another post until a fresh press.
+- On a guest's first post, a name line appears above. Enter in the name moves focus to the comment without posting. Keeping Enter held after that move does not post the comment; release it and press a submit shortcut to post.
 - Optional visibility chip (Record, open-questions Q6).
 - Used: PNL-COMMENTS, CMP-GUEST-NAME, CMP-GUEST-COMMENT, CMP-REC-LIVECOMMENTS, the Decision card reply, INS-COMMENT reply, the expanded Player comment.
 - Story: `System/Composer`.
