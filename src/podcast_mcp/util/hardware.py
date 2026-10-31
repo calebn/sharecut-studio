@@ -18,6 +18,7 @@ import logging
 import math
 import os
 import platform
+import re
 import shutil
 import subprocess  # nosec B404
 import sys
@@ -43,6 +44,7 @@ CPU_PROVIDER = "CPUExecutionProvider"
 PROVIDER_PRIORITY = (CUDA_PROVIDER, COREML_PROVIDER, DIRECTML_PROVIDER, CPU_PROVIDER)
 
 _CGROUP_ROOT = Path("/sys/fs/cgroup")
+_MEMINFO = Path("/proc/meminfo")
 _PROBE_TIMEOUT_SEC = 3.0
 
 
@@ -218,31 +220,86 @@ def _physical_cores() -> int | None:
     return None
 
 
+def _ram_bytes_win32(field: str) -> int | None:
+    class _MemoryStatus(ctypes.Structure):
+        _fields_ = [
+            ("dwLength", ctypes.c_ulong),
+            ("dwMemoryLoad", ctypes.c_ulong),
+            ("ullTotalPhys", ctypes.c_ulonglong),
+            ("ullAvailPhys", ctypes.c_ulonglong),
+            ("ullTotalPageFile", ctypes.c_ulonglong),
+            ("ullAvailPageFile", ctypes.c_ulonglong),
+            ("ullTotalVirtual", ctypes.c_ulonglong),
+            ("ullAvailVirtual", ctypes.c_ulonglong),
+            ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+        ]
+
+    status = _MemoryStatus()
+    status.dwLength = ctypes.sizeof(_MemoryStatus)
+    if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):  # type: ignore[attr-defined]
+        return int(getattr(status, field))
+    return None
+
+
 def _ram_bytes() -> int | None:
     try:
         if sys.platform == "win32":
-
-            class _MemoryStatus(ctypes.Structure):
-                _fields_ = [
-                    ("dwLength", ctypes.c_ulong),
-                    ("dwMemoryLoad", ctypes.c_ulong),
-                    ("ullTotalPhys", ctypes.c_ulonglong),
-                    ("ullAvailPhys", ctypes.c_ulonglong),
-                    ("ullTotalPageFile", ctypes.c_ulonglong),
-                    ("ullAvailPageFile", ctypes.c_ulonglong),
-                    ("ullTotalVirtual", ctypes.c_ulonglong),
-                    ("ullAvailVirtual", ctypes.c_ulonglong),
-                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
-                ]
-
-            status = _MemoryStatus()
-            status.dwLength = ctypes.sizeof(_MemoryStatus)
-            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):  # type: ignore[attr-defined]
-                return int(status.ullTotalPhys)
-            return None
+            return _ram_bytes_win32("ullTotalPhys")
         return int(os.sysconf("SC_PAGE_SIZE")) * int(os.sysconf("SC_PHYS_PAGES"))
     except (OSError, ValueError, AttributeError):
         return None
+
+
+def available_ram_bytes() -> int | None:
+    """RAM that can be handed out now without swapping, or None when the platform will not say."""
+    try:
+        if sys.platform == "win32":
+            return _ram_bytes_win32("ullAvailPhys")
+        if sys.platform == "darwin":
+            out = subprocess.run(  # nosec B603 B607
+                ["vm_stat"], capture_output=True, text=True, timeout=_PROBE_TIMEOUT_SEC, check=True
+            ).stdout
+            page = int(re.search(r"page size of (\d+) bytes", out).group(1))  # type: ignore[union-attr]
+            pages = sum(
+                int(m.group(1))
+                for m in re.finditer(r"Pages (?:free|inactive|speculative):\s+(\d+)", out)
+            )
+            return pages * page
+        for line in _MEMINFO.read_text(encoding="ascii").splitlines():
+            if line.startswith("MemAvailable:"):
+                host = int(line.split()[1]) * 1024
+                room = _cgroup_headroom_bytes()
+                return host if room is None else min(host, room)
+    except (OSError, ValueError, AttributeError, subprocess.SubprocessError):
+        pass
+    return None
+
+
+_NO_LIMIT_BYTES = 1 << 60  # cgroup v1 reports an unlimited limit as a near-2^63 page-rounded number
+
+
+def _read_cgroup_int(path: Path) -> int | None:
+    """The file's integer, or None when missing, unreadable or "max" (no limit)."""
+    try:
+        text = path.read_text(encoding="ascii").strip()
+        return None if text == "max" else int(text)
+    except (OSError, ValueError):
+        return None
+
+
+def _cgroup_headroom_bytes(root: Path | None = None) -> int | None:
+    """Bytes left under this container's memory limit (cgroup v2, else v1); None when unlimited."""
+    root = _CGROUP_ROOT if root is None else root
+    for limit_file, used_file in (
+        (root / "memory.max", root / "memory.current"),
+        (root / "memory" / "memory.limit_in_bytes", root / "memory" / "memory.usage_in_bytes"),
+    ):
+        limit = _read_cgroup_int(limit_file)
+        used = _read_cgroup_int(used_file)
+        if limit is None or used is None or limit >= _NO_LIMIT_BYTES:
+            continue
+        return max(0, limit - used)
+    return None
 
 
 def _onnx_providers() -> tuple[str, ...]:

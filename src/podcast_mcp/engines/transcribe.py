@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import re
+import threading
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
@@ -36,6 +37,7 @@ from podcast_mcp.engines.models.whisper import (
     resolve_whisper_model_path,
     validate_whisper_model,
 )
+from podcast_mcp.engines.transcribe_pool import run_jobs_concurrently, transcribe_worker_count
 from podcast_mcp.engines.utterance_runs import transcript_word_runs, utterance_text
 from podcast_mcp.engines.whisper_device import CPU_PLACEMENT, WhisperPlacement, choose_placement
 from podcast_mcp.models import (
@@ -123,6 +125,11 @@ class TranscribeJob:
         if self.source_id is None:
             return self.track_id
         return f"{self.track_id}__{self.source_id}"
+
+    @property
+    def progress_task_id(self) -> str:
+        """Distinct per job: tracks transcribed side by side must not share a progress row."""
+        return f"transcribe_audio:{self.cache_id}"
 
     @property
     def label(self) -> str:
@@ -821,6 +828,7 @@ class TranscriptionEngine:
         initial_prompt: str | None = None,
         max_word_sec: float = DEFAULT_MAX_WORD_DURATION_SEC,
         progress_label: str | None = None,
+        progress_task_id: str = "transcribe_audio",
     ) -> Transcript:
         return self._with_cpu_fallback(
             lambda: self._transcribe_file(
@@ -829,6 +837,7 @@ class TranscriptionEngine:
                 initial_prompt=initial_prompt,
                 max_word_sec=max_word_sec,
                 progress_label=progress_label,
+                progress_task_id=progress_task_id,
             )
         )
 
@@ -840,6 +849,7 @@ class TranscriptionEngine:
         initial_prompt: str | None,
         max_word_sec: float,
         progress_label: str | None,
+        progress_task_id: str,
     ) -> Transcript:
         model = self._get_model()
         kwargs: dict = {
@@ -853,9 +863,7 @@ class TranscriptionEngine:
         label = progress_label or audio_path.name
         words: list[TranscriptWord] = []
         window_ratios: list[object] = []
-        with resolve_progress_task(
-            "transcribe_audio", f"Transcribing {label}", total=total
-        ) as task:
+        with resolve_progress_task(progress_task_id, f"Transcribing {label}", total=total) as task:
             for segment in segments:
                 before = len(words)
                 if segment.words:
@@ -928,6 +936,7 @@ class TranscriptionEngine:
                 initial_prompt=initial_prompt,
                 max_word_sec=max_word_sec,
                 progress_label=job.label,
+                progress_task_id=job.progress_task_id,
             )
         transcript.track_id = job.track_id
         transcript.source_id = job.source_id
@@ -1050,7 +1059,6 @@ class TranscriptionEngine:
         job_list = dialogue_transcribe_jobs(project) if jobs is None else jobs
         hashes = audio_hashes or {}
         total = max(len(job_list), 1)
-        results: list[Transcript] = []
         with resolve_progress_task(
             "transcribe",
             "Transcribing tracks",
@@ -1058,22 +1066,35 @@ class TranscriptionEngine:
             prefer_parent=True,
             progress=progress,
         ) as task:
-            for job in job_list:
+            progress_lock = threading.Lock()
+
+            def run(engine: TranscriptionEngine, job: TranscribeJob) -> Transcript:
                 raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
-                task.set_phase("track" if job.source_id is None else "source", job.label)
-                results.append(
-                    self.transcribe_job(
-                        project,
-                        job,
-                        language=language,
-                        initial_prompt=initial_prompt,
-                        max_word_sec=max_word_sec,
-                        audio_sha256=hashes.get(job.key),
-                        use_cache=use_cache,
-                    )
+                with progress_lock:
+                    task.set_phase("track" if job.source_id is None else "source", job.label)
+                transcript = engine.transcribe_job(
+                    project,
+                    job,
+                    language=language,
+                    initial_prompt=initial_prompt,
+                    max_word_sec=max_word_sec,
+                    audio_sha256=hashes.get(job.key),
+                    use_cache=use_cache,
                 )
-                task.advance(1, message=job.label, total=total)
-        return results
+                with progress_lock:
+                    task.advance(1, message=job.label, total=total)
+                return transcript
+
+            workers = self._concurrent_workers(len(job_list))
+            if workers > 1:
+                return run_jobs_concurrently(self, job_list, workers, run)
+            return [run(self, job) for job in job_list]
+
+    def _concurrent_workers(self, job_count: int) -> int:
+        workers = transcribe_worker_count(self.model_size, job_count)
+        if workers > 1 and self._choose_placement().device != "cpu":
+            return 1
+        return workers
 
     def merge_transcripts(self, project: EpisodeProject) -> CombinedTranscript:
         utterances = [
