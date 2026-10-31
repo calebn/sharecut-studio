@@ -40,7 +40,7 @@
     "tests/test_edits.py": 0,
     "tests/test_export_cancel.py": 2,
     "tests/test_fanout_hub.py": 0,
-    "tests/test_guest_progress.py": 10,
+    "tests/test_guest_progress.py": 0,
     "tests/test_guest_ws_common.py": 0,
     "tests/test_gui_api.py": 16,
     "tests/test_gui_speaker_split.py": 1,

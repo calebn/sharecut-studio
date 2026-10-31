@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -95,10 +94,11 @@ async def test_throttled_task_final_value_reaches_guest_ws_before_end(monkeypatc
     q = hub.subscribe("tok", asyncio.get_running_loop())
     reporter = GuestWsProgressReporter(hub, "tok")
     try:
-        with progress_task("t", "Work", total=100, reporter=reporter) as p:
-            for _ in range(20):
-                p.advance(1, message="working")
-        await asyncio.sleep(0.05)
+        with _guest_payload_accepted(q, {"kind": "end", "task_id": "t"}) as accepted:
+            with progress_task("t", "Work", total=100, reporter=reporter) as p:
+                for _ in range(20):
+                    p.advance(1, message="working")
+            await asyncio.wait_for(accepted, timeout=5)
         events = drain(q)
         kinds = [e.get("kind") for e in events]
         assert kinds[-1] == "end"
@@ -293,19 +293,21 @@ async def test_guest_reporter_fail_cancel_and_heartbeat_when_visible():
     q = hub.subscribe("tok", loop)
     reporter = GuestWsProgressReporter(hub, "tok")
     try:
-        reporter.update("t", 1, message="go")
-        reporter.heartbeat("t", message="still working")
-        reporter.fail("t", message="boom", phase="mix")
-        await asyncio.sleep(0.05)
+        with _guest_payload_accepted(q, {"kind": "fail", "task_id": "t"}) as accepted:
+            reporter.update("t", 1, message="go")
+            reporter.heartbeat("t", message="still working")
+            reporter.fail("t", message="boom", phase="mix")
+            await asyncio.wait_for(accepted, timeout=5)
         kinds = [item["kind"] for item in drain(q)]
         assert "update" in kinds
         assert "heartbeat" in kinds
         assert "fail" in kinds
         reporter2 = GuestWsProgressReporter(hub, "tok")
         try:
-            reporter2.update("u", 1, message="go")
-            reporter2.cancel("u", message="stop")
-            await asyncio.sleep(0.05)
+            with _guest_payload_accepted(q, {"kind": "cancel", "task_id": "u"}) as accepted2:
+                reporter2.update("u", 1, message="go")
+                reporter2.cancel("u", message="stop")
+                await asyncio.wait_for(accepted2, timeout=5)
             kinds2 = [item["kind"] for item in drain(q)]
             assert "cancel" in kinds2
         finally:
@@ -323,10 +325,13 @@ async def test_guest_reporter_instant_tool_does_not_flash():
     q = hub.subscribe("tok", loop)
     reporter = GuestWsProgressReporter(hub, "tok")
     try:
-        reporter.start("guest_get_project", "guest_get_project")
-        reporter.end("guest_get_project", message="done")
-        await asyncio.sleep(0.05)
-        assert q.empty()
+        sentinel = {"kind": "message", "task_id": "fence", "status": "running"}
+        with _guest_payload_accepted(q, sentinel) as fenced:
+            reporter.start("guest_get_project", "guest_get_project")
+            reporter.end("guest_get_project", message="done")
+            hub.publish("tok", sentinel)
+            await asyncio.wait_for(fenced, timeout=5)
+        assert drain(q) == [sentinel]
     finally:
         reporter.close()
         hub.unsubscribe("tok", q)
@@ -340,12 +345,12 @@ async def test_guest_reporter_coalesces_updates():
     q = hub.subscribe("tok", loop)
     reporter = GuestWsProgressReporter(hub, "tok")
     try:
-        reporter.start("t", "Work", total=20)
-        for i in range(1, 21):
-            reporter.update("t", i, total=20, message=f"step {i}")
-        reporter.end("t", message="done")
-        time.sleep(0.3)
-        await asyncio.sleep(0.05)
+        with _guest_payload_accepted(q, {"kind": "end", "task_id": "t"}) as accepted:
+            reporter.start("t", "Work", total=20)
+            for i in range(1, 21):
+                reporter.update("t", i, total=20, message=f"step {i}")
+            reporter.end("t", message="done")
+            await asyncio.wait_for(accepted, timeout=5)
         events = []
         while not q.empty():
             events.append(q.get_nowait())
@@ -425,7 +430,6 @@ async def test_handle_mcp_jsonrpc_progress_token_uses_guest_context(
             },
         },
     )
-    await asyncio.sleep(0)
     assert out is not None
     assert "error" not in out
     assert captured
@@ -733,15 +737,19 @@ async def test_guest_reporter_ignores_timer_after_terminal():
     q = hub.subscribe("tok", loop)
     reporter = GuestWsProgressReporter(hub, "tok")
     try:
-        reporter.update("t", 1, message="go")
-        stale_gen = reporter._generation
-        reporter.fail("t", message="boom")
-        await asyncio.sleep(0.05)
+        with _guest_payload_accepted(q, {"kind": "fail", "task_id": "t"}) as failed:
+            reporter.update("t", 1, message="go")
+            stale_gen = reporter._generation
+            reporter.fail("t", message="boom")
+            await asyncio.wait_for(failed, timeout=5)
         drain(q)
-        reporter._flush_pending(stale_gen)
-        reporter._on_lazy(stale_gen)
-        await asyncio.sleep(0.05)
-        leftover = drain(q)
+        sentinel = {"kind": "message", "task_id": "fence", "status": "running"}
+        with _guest_payload_accepted(q, sentinel) as fenced:
+            reporter._flush_pending(stale_gen)
+            reporter._on_lazy(stale_gen)
+            hub.publish("tok", sentinel)
+            await asyncio.wait_for(fenced, timeout=5)
+        leftover = [item for item in drain(q) if item != sentinel]
         assert leftover == []
     finally:
         reporter.close()
@@ -774,13 +782,14 @@ async def test_guest_reporter_fail_strips_traceback():
     q = hub.subscribe("tok", loop)
     reporter = GuestWsProgressReporter(hub, "tok")
     try:
-        reporter.update("t", 1, message="go")
-        reporter.fail(
-            "t",
-            message="Traceback (most recent call last):\n  File",
-            phase="mix",
-        )
-        await asyncio.sleep(0.05)
+        with _guest_payload_accepted(q, {"kind": "fail", "task_id": "t"}) as accepted:
+            reporter.update("t", 1, message="go")
+            reporter.fail(
+                "t",
+                message="Traceback (most recent call last):\n  File",
+                phase="mix",
+            )
+            await asyncio.wait_for(accepted, timeout=5)
         fail = next(item for item in drain(q) if item.get("kind") == "fail")
         assert fail["status"] == "error"
         assert fail["message"] == "mix"
