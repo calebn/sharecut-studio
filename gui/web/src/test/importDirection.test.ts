@@ -191,7 +191,7 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
   "state -> commands/edit": [
     "state/projectSlice.ts -> edit/clipEdgePreview (type)",
     "state/projectSlice.ts -> edit/ripplePreview (static)",
-    "state/types.ts -> edit/ripplePreview (dynamic)",
+    "state/types.ts -> edit/ripplePreview (type)",
   ],
   "state -> hooks": [
     "presence/useLivePresenceClients.ts -> hooks/useIntervalTick (static)",
@@ -211,7 +211,7 @@ const BACK_EDGE_ALLOWLIST: Record<string, readonly string[]> = {
   ],
   "api -> services": [
     "api/documentEdits.ts -> services/commandQueue (static)",
-    "api/mediaSession.ts -> audio/proxyMath (dynamic)",
+    "api/mediaSession.ts -> audio/proxyMath (type)",
     "api/transcriptTiming.ts -> waveform/types (type)",
     "api/waveform.ts -> waveform/types (type)",
   ],
