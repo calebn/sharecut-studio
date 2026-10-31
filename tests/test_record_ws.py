@@ -2267,13 +2267,13 @@ def test_http_set_target_refusals_name_the_field(
         )
         assert refused.status_code == 400, refused.text
         assert "target:" in refused.text
-    for bare, needle in (("insert", "at_sec"), ("replace", "track_ids"), ("middle", "end, start")):
+    for bare in ("insert", "replace", "middle", "End", '{"kind": "insert", "at_sec": 5}'):
         refused = client.post(
             "/api/record/command",
             json={"path": str(ws.path), "command_type": "SetTarget", "payload": {"target": bare}},
         )
         assert refused.status_code == 400, refused.text
-        assert needle in refused.text
+        assert "target: pass" in refused.text and "start" in refused.text
     for bare in ("start", "end"):
         bare_ok = client.post(
             "/api/record/command",
