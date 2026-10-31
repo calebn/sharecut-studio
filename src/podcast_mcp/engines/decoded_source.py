@@ -10,7 +10,7 @@ decoded, so a SIGTERM or a crash leaves nothing behind; elsewhere the files sit 
 per-process directory that the next process to spool sweeps once its owner is gone.
 
 :func:`spill` puts a finished array in the same directory and reads it back through a read-only
-map, for results worth keeping beyond a batch (#2359). The map is the page cache's to reclaim;
+map, for results worth keeping beyond a batch. The map is the page cache's to reclaim;
 nothing is resident that the kernel cannot take back.
 """
 
@@ -106,7 +106,7 @@ def _spool_directory() -> Path:
 
 
 def _identity(path: Path, sample_rate: int) -> tuple[object, ...]:
-    """The decode's key: the whole file stamp (``ctime`` catches a copy that keeps size and mtime) and the ffmpeg build."""
+    """The decode's key: the whole file stamp, the ffmpeg build and the rate."""
     return (str(path.resolve()), *file_stamp(path), ffmpeg_build_id(), sample_rate)
 
 
@@ -190,7 +190,7 @@ class DecodedSources:
 
 
 def _in_memory_filesystem(directory: Path) -> bool:
-    """Whether ``directory`` sits on tmpfs or ramfs, where a spill is RAM the kernel cannot reclaim without swap."""
+    """Whether ``directory`` sits on tmpfs or ramfs, where a spill is RAM the kernel keeps."""
     try:
         lines = _MOUNTINFO.read_text(encoding="utf-8").splitlines()
     except OSError:
@@ -203,7 +203,7 @@ def _in_memory_filesystem(directory: Path) -> bool:
         if len(fields) < 5 or not tail:
             continue
         mount = fields[4].replace("\\040", " ")
-        if len(mount) > len(best) and (
+        if len(mount) >= len(best) and (
             target == mount or target.startswith(mount.rstrip("/") + "/")
         ):
             best, kind = mount, tail.split()[0]
@@ -211,7 +211,10 @@ def _in_memory_filesystem(directory: Path) -> bool:
 
 
 def spill_allowed(size: int) -> bool:
-    """Whether :func:`spill` may write ``size`` bytes: POSIX, a spool directory on disk, and ``size`` plus ``SPILL_HEADROOM_BYTES`` free."""
+    """Whether :func:`spill` may write ``size`` bytes.
+
+    That takes POSIX, a spool directory on disk, and ``size`` plus ``SPILL_HEADROOM_BYTES`` free.
+    """
     if os.name == "nt":
         return False
     try:
@@ -226,7 +229,7 @@ def spill_allowed(size: int) -> bool:
 
 
 def spill(array: np.ndarray) -> np.ndarray:
-    """``array``'s bytes in an unlinked file of the spool directory, read back through a read-only map.
+    """``array``'s bytes in an unlinked file of the spool, read back through a read-only map.
 
     The file is unlinked before the first write and written with ``os.write``, so a full disk
     raises ``OSError`` here rather than a signal on a later page flush, and a failed spill leaves
@@ -234,6 +237,10 @@ def spill(array: np.ndarray) -> np.ndarray:
     of it is gone. POSIX only (:func:`spill_allowed`).
     """
     data = np.ascontiguousarray(array)
+    if data.nbytes == 0:  # nothing to map
+        data = data.copy()
+        data.flags.writeable = False
+        return data
     with _lock:
         directory = _spool_directory()
     fd, name = tempfile.mkstemp(dir=directory, suffix=".f32")
