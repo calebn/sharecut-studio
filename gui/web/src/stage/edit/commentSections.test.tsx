@@ -65,9 +65,13 @@ describe("comment sheet sections", () => {
   });
 
   it("offers Reopen on a resolved comment", () => {
-    open(["/tmp/p.json"], sampleComment({ resolved: true }));
+    open(
+      ["/tmp/p.json"],
+      sampleComment({ resolved: true, resolved_by: "Mira" }),
+    );
     expect(screen.getByRole("button", { name: "Reopen" })).toBeVisible();
-    expect(screen.getByText("Resolved")).toBeVisible();
+    expect(screen.getByText("Resolved by Mira")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
   });
 
   it("keeps resolve unavailable to guests", () => {
@@ -143,6 +147,7 @@ describe("comment sheet sections", () => {
     expect(
       screen.queryByRole("button", { name: "Resolve" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reopen" })).toBeNull();
   });
 
   it("renders a comment whose linked decision is no longer pending", () => {
