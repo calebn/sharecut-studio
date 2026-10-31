@@ -913,6 +913,49 @@ export async function setRecordSessionNameCommand(
   );
 }
 
+/** Place a pending staged record session; the reply may carry `needs_confirmation` for a held replace. */
+export async function acceptSessionSuggestionCommand(
+  projectPath: string,
+  suggestionId: string,
+  options: { takeIndex?: number; overrideAudioChecks?: boolean } = {},
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(
+    projectPath,
+    DocumentCommand.AcceptSessionSuggestion,
+    {
+      suggestion_id: suggestionId,
+      ...(options.takeIndex === undefined
+        ? {}
+        : { take_index: options.takeIndex }),
+      override_audio_checks: options.overrideAudioChecks ?? false,
+    },
+  );
+}
+
+/** Skip a pending staged record session; its sources stay registered. */
+export async function skipSessionSuggestionCommand(
+  projectPath: string,
+  suggestionId: string,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(
+    projectPath,
+    DocumentCommand.SkipSessionSuggestion,
+    { suggestion_id: suggestionId },
+  );
+}
+
+/** Pick the take Accept places for a pending replace. */
+export async function selectSessionTakeCommand(
+  projectPath: string,
+  suggestionId: string,
+  takeIndex: number,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, DocumentCommand.SelectSessionTake, {
+    suggestion_id: suggestionId,
+    take_index: takeIndex,
+  });
+}
+
 export async function setTrackMetaCommand(
   projectPath: string,
   trackId: string,

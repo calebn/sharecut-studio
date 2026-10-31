@@ -873,6 +873,21 @@ class SetRecordSessionNamePayload(BaseModel):
     name: str
 
 
+class AcceptSessionSuggestionPayload(BaseModel):
+    suggestion_id: str
+    take_index: int | None = None
+    override_audio_checks: bool = False
+
+
+class SkipSessionSuggestionPayload(BaseModel):
+    suggestion_id: str
+
+
+class SelectSessionTakePayload(BaseModel):
+    suggestion_id: str
+    take_index: int
+
+
 class AddTrackPayload(BaseModel):
     track_id: str | None = None
     label: str | None = None
@@ -1293,6 +1308,21 @@ class SetRecordSessionNameCommand(DocumentCommandEnvelope):
     payload: SetRecordSessionNamePayload
 
 
+class AcceptSessionSuggestionCommand(DocumentCommandEnvelope):
+    type: Literal["AcceptSessionSuggestion"] = "AcceptSessionSuggestion"
+    payload: AcceptSessionSuggestionPayload
+
+
+class SkipSessionSuggestionCommand(DocumentCommandEnvelope):
+    type: Literal["SkipSessionSuggestion"] = "SkipSessionSuggestion"
+    payload: SkipSessionSuggestionPayload
+
+
+class SelectSessionTakeCommand(DocumentCommandEnvelope):
+    type: Literal["SelectSessionTake"] = "SelectSessionTake"
+    payload: SelectSessionTakePayload
+
+
 class AddTrackCommand(DocumentCommandEnvelope):
     type: Literal["AddTrack"] = "AddTrack"
     payload: AddTrackPayload = Field(default_factory=AddTrackPayload)
@@ -1402,6 +1432,9 @@ DocumentCommandBody = Annotated[
     | RippleDeleteTextCommand
     | RenameProjectCommand
     | SetRecordSessionNameCommand
+    | AcceptSessionSuggestionCommand
+    | SkipSessionSuggestionCommand
+    | SelectSessionTakeCommand
     | AddTrackCommand
     | SetTrackMediaCommand
     | SetTrackMetaCommand
@@ -1540,6 +1573,9 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "RippleDeleteText": RippleDeleteTextPayload,
     "RenameProject": RenameProjectPayload,
     "SetRecordSessionName": SetRecordSessionNamePayload,
+    "AcceptSessionSuggestion": AcceptSessionSuggestionPayload,
+    "SkipSessionSuggestion": SkipSessionSuggestionPayload,
+    "SelectSessionTake": SelectSessionTakePayload,
     "AddTrack": AddTrackPayload,
     "SetTrackMedia": SetTrackMediaPayload,
     "SetTrackMeta": SetTrackMetaPayload,

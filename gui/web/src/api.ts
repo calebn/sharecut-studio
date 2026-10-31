@@ -44,6 +44,7 @@ export {
   setCommentActionDone,
 } from "./api/comments";
 export {
+  acceptSessionSuggestionCommand,
   addChapter,
   addSocialClip,
   addTrackCommand,
@@ -70,6 +71,7 @@ export {
   restoreAppliedEdit,
   rippleDeleteClips,
   rollClipJoin,
+  selectSessionTakeCommand,
   setClipFade,
   setClipJoin,
   setEffectBypass,
@@ -82,6 +84,7 @@ export {
   setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
+  skipSessionSuggestionCommand,
   splitAtTime,
   submitDocumentCommand,
   trimClipEdge,

@@ -224,6 +224,23 @@ export interface ChapterMarker {
   image_url?: string | null;
 }
 
+/** A staged record session (insert or replace) still waiting for a decision; host payload only. */
+export interface SessionSuggestionView {
+  id: string;
+  kind: "insert" | "replace";
+  session_id: string;
+  session_number: number;
+  /** Insert point on the timeline; null for a replace. */
+  at_sec: number | null;
+  /** Replace range on the timeline; null for an insert or an off-audio range. */
+  from_sec: number | null;
+  to_sec: number | null;
+  track_ids: string[];
+  take_count: number;
+  /** The take Accept places (a replace); null when none is picked. */
+  selected_take: number | null;
+}
+
 export interface SocialClipView {
   id: string;
   track_id: string;
@@ -416,6 +433,7 @@ export interface ProjectView
     | "clips"
     | "chapters"
     | "pending_edits"
+    | "session_suggestions"
     | "edit_boundaries"
     | "applied_edits"
     | "effects_by_track"
@@ -443,6 +461,8 @@ export interface ProjectView
   };
   chapters: ChapterMarker[];
   pending_edits: PendingEditView[];
+  /** Pending staged record sessions; absent on a share guest's view. */
+  session_suggestions?: SessionSuggestionView[];
   edit_boundaries?: EditBoundaryView[];
   applied_edits: { count: number; records: AppliedEditRecord[] };
   effects_by_track: Record<

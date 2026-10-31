@@ -257,6 +257,7 @@ export interface ProjectView {
   clips: Record<string, unknown>;
   chapters: Array<Record<string, unknown>>;
   pending_edits: Array<Record<string, unknown>>;
+  session_suggestions?: Array<Record<string, unknown>>;
   edit_boundaries?: Array<Record<string, unknown>>;
   applied_edits: Record<string, unknown>;
   effects_by_track: Record<string, Array<Record<string, unknown>>>;

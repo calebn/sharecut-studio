@@ -460,6 +460,8 @@ class ProjectView(BaseModel):
     clips: dict[str, Any]
     chapters: list[dict[str, Any]]
     pending_edits: list[dict[str, Any]]
+    # Pending staged record sessions (insert/replace); host payload only, never a share guest's.
+    session_suggestions: list[dict[str, Any]] = Field(default_factory=list)
     edit_boundaries: list[dict[str, Any]] = Field(default_factory=list)
     applied_edits: dict[str, Any]
     effects_by_track: dict[str, list[dict[str, Any]]]
