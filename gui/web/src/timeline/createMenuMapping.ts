@@ -11,20 +11,14 @@ import { useDawStore } from "../state/dawStore";
 import { errorMessage } from "../utils/apiError";
 import type { CreateMenuPlace } from "./touchGrammar";
 
-/**
- * Rows of the host's own. The leaf's `CreateRowId` lists the rows it knows,
- * and Record here (#2609, host only) is not one of them. The leaf draws rows
- * from data and hands the picked id back unread, so the host adds this one and
- * takes the id back as its own.
- */
-export type HostRowId = CreateRowId | "recordHere";
-
-const RECORD_ROW = {
+const RECORD_ROW: CreateRow = {
   id: "recordHere",
   label: "Record here",
   icon: "mic",
   keys: [],
-} as unknown as CreateRow;
+};
+
+const SPLIT_NOTE = "Cuts at this time, not the playhead";
 
 /**
  * The command each Create menu row runs. A row whose command's gate is shut
@@ -38,11 +32,11 @@ export const CREATE_MENU_COMMANDS = {
   addVolumePoint: "envelope.addPoint",
   paste: "edit.paste",
   recordHere: "record.here",
-} as const satisfies Record<HostRowId, string>;
+} as const satisfies Record<CreateRowId, string>;
 
 /** What a row's command is called with at the held `place`. */
 export function createPickArgs(
-  id: HostRowId,
+  id: CreateRowId,
   place: Pick<CreateMenuPlace, "atTime" | "trackId">,
 ): Record<string, unknown> {
   const { atTime, trackId } = place;
@@ -84,9 +78,44 @@ export function createMenuRowsFor(
       // The leaf takes Split's chord from the verb table, but the chord runs
       // edit.split at the playhead while the row cuts at the held time, and the
       // keymap is held while the menu is open: the cap would name a key that
-      // does something else.
-      .map((row) => (row.id === "split" ? { ...row, keys: [] } : row))
+      // does something else, so the row says what it does instead.
+      .map((row) =>
+        row.id === "split" ? { ...row, keys: [], note: SPLIT_NOTE } : row,
+      )
   );
+}
+
+/** The lane row of a track, or null while it is not drawn. */
+export function laneRow(trackId: string): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    `.lane-row[data-track-id="${CSS.escape(trackId)}"]`,
+  );
+}
+
+/** Focus sits nowhere in particular: on the page, or on an element that has gone. */
+export function focusIsFree(): boolean {
+  const active = document.activeElement;
+  return !active || active === document.body || !active.isConnected;
+}
+
+/**
+ * Moves focus to a track's lane. The lane row is neither a tab stop nor a
+ * named region, so the first time it is asked for focus it takes a script-only
+ * stop (`tabindex="-1"`) and its track's name.
+ */
+export function focusLane(trackId: string): boolean {
+  const row = laneRow(trackId);
+  if (!row) return false;
+  if (!row.hasAttribute("tabindex")) {
+    const track = useDawStore
+      .getState()
+      .project?.tracks.find((t) => t.id === trackId);
+    row.tabIndex = -1;
+    row.setAttribute("role", "group");
+    row.setAttribute("aria-label", track?.label || trackId);
+  }
+  row.focus({ preventScroll: true });
+  return true;
 }
 
 /** "Create at 00:12.400 on Maya, 4 actions", for the live region. */
@@ -108,7 +137,7 @@ export function createAnnouncement(
  * refuses. A refusal is told, since the menu is gone by then.
  */
 export async function runCreatePick(
-  id: HostRowId,
+  id: CreateRowId,
   place: Pick<CreateMenuPlace, "atTime" | "trackId">,
 ): Promise<void> {
   const store = useDawStore.getState();
@@ -140,6 +169,14 @@ export async function runCreatePick(
       );
     if (result.status === "disabled" && !told) {
       live.announceStatus(result.reason, { tone: "error" });
+    }
+    if (id === "paste" && result.status === "ok") {
+      const trackId = place.trackId;
+      if (trackId) {
+        requestAnimationFrame(() => {
+          if (focusIsFree()) focusLane(trackId);
+        });
+      }
     }
   } catch (error) {
     useDawStore

@@ -227,6 +227,8 @@ type MenuItemProps = DisabledReasonProps & {
   keyShortcuts?: string;
   /** A line under the label that says what the choice will act on. */
   description?: string;
+  /** Extra description for assistive tech and the tooltip; draws nothing. */
+  ariaDescription?: string;
   /** Trailing value, decorative: the label already carries it. */
   detail?: string;
   /** Marks the item a sliding finger is over (lift to pick it). */
@@ -254,12 +256,14 @@ export function MenuItem({
   shortcut,
   keyShortcuts,
   description,
+  ariaDescription,
   detail,
   over,
   onPointerDown,
   dataAttrs,
 }: MenuItemProps) {
   const reasonId = useId();
+  const noteId = useId();
   const reason = unavailableReason(disabledReason);
   const caption = reason ?? description;
   const classes = [
@@ -284,39 +288,48 @@ export function MenuItem({
     children
   );
   return (
-    <button
-      type="button"
-      role="menuitem"
-      tabIndex={-1}
-      className={classes}
-      title={reason ?? title}
-      aria-keyshortcuts={keyShortcuts}
-      aria-disabled={reason ? true : undefined}
-      aria-describedby={caption ? reasonId : undefined}
-      {...dataAttrs}
-      onPointerDown={onPointerDown}
-      onPointerEnter={onPointerEnter}
-      onPointerLeave={onPointerLeave}
-      onFocus={onFocus}
-      onBlur={onBlur}
-      onClick={() => {
-        if (!reason) {
-          onSelect?.();
+    <>
+      <button
+        type="button"
+        role="menuitem"
+        tabIndex={-1}
+        className={classes}
+        title={reason ?? title ?? ariaDescription}
+        aria-keyshortcuts={keyShortcuts}
+        aria-disabled={reason ? true : undefined}
+        aria-describedby={
+          caption ? reasonId : ariaDescription ? noteId : undefined
         }
-      }}
-    >
-      {body}
-      {shortcut ? (
-        <kbd className="ui-menu-shortcut" aria-hidden="true">
-          {shortcut}
-        </kbd>
-      ) : null}
-      {detail ? (
-        <span className="ui-menu-detail" aria-hidden="true">
-          {detail}
+        {...dataAttrs}
+        onPointerDown={onPointerDown}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        onClick={() => {
+          if (!reason) {
+            onSelect?.();
+          }
+        }}
+      >
+        {body}
+        {shortcut ? (
+          <kbd className="ui-menu-shortcut" aria-hidden="true">
+            {shortcut}
+          </kbd>
+        ) : null}
+        {detail ? (
+          <span className="ui-menu-detail" aria-hidden="true">
+            {detail}
+          </span>
+        ) : null}
+      </button>
+      {ariaDescription ? (
+        <span id={noteId} className="sr-only" aria-hidden="true">
+          {ariaDescription}
         </span>
       ) : null}
-    </button>
+    </>
   );
 }
 

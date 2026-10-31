@@ -30,12 +30,15 @@ const PICKED: Record<CreateRowId, string> = {
   addChapter: "Add chapter here",
   addVolumePoint: "Add volume point",
   paste: "Paste",
+  recordHere: "Record here",
 };
 
 type DemoProps = {
   facts?: CreateFacts;
   /** The held point; a negative x counts from the box's right edge. */
   at: { x: number; y: number };
+  /** A note on Split here, as the timeline host gives it. */
+  splitNote?: string;
 };
 
 const box = {
@@ -56,10 +59,12 @@ const lane = {
 } as const;
 
 /** The positioned box the leaf is mounted in, and the open state a host would keep. */
-function Demo({ facts = FACTS, at }: DemoProps) {
+function Demo({ facts = FACTS, at, splitNote }: DemoProps) {
   const [open, setOpen] = useState(true);
   const [picked, setPicked] = useState<string | null>(null);
-  const rows = createMenuRows(facts);
+  const rows = createMenuRows(facts).map((row) =>
+    row.id === "split" && splitNote ? { ...row, note: splitNote } : row,
+  );
   return (
     <div style={{ padding: "var(--space-4)" }}>
       <Measured>
@@ -132,6 +137,21 @@ export const Lane: Story = {
       "Add chapter here⇧ C",
       "Add volume point",
     ]);
+  },
+};
+
+export const WithNote: Story = {
+  args: { splitNote: "Cuts at this time, not the playhead" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const split = await canvas.findByRole("menuitem", { name: "Split here" });
+    await expect(split).toHaveAccessibleDescription(
+      "Cuts at this time, not the playhead",
+    );
+    await expect(split).toHaveAttribute(
+      "title",
+      "Cuts at this time, not the playhead",
+    );
   },
 };
 

@@ -358,6 +358,38 @@ describe("TimelineCreateMenu popover form", () => {
   });
 });
 
+describe("TimelineCreateMenu focus after close", () => {
+  function lane() {
+    const row = document.createElement("div");
+    row.className = "lane-row";
+    row.dataset.trackId = "host";
+    const empty = document.createElement("div");
+    row.append(empty);
+    document.body.append(row);
+    return { row, empty };
+  }
+
+  it("lands on the held lane when the press target has no focusable of its own", async () => {
+    const { row, empty } = lane();
+    const { rerender } = mount(false, { surface: empty });
+    await waitFor(() =>
+      expect(screen.getAllByRole("menuitem")[0]).toHaveFocus(),
+    );
+    rerender(tree(false, { surface: empty }, false));
+    await waitFor(() => expect(row).toHaveFocus());
+    row.remove();
+  });
+
+  it("lands on the held lane after a phone Sheet goes", async () => {
+    const { row, empty } = lane();
+    const { unmount } = mount(true, { surface: empty });
+    await screen.findByRole("dialog");
+    unmount();
+    await waitFor(() => expect(row).toHaveFocus());
+    row.remove();
+  });
+});
+
 describe("TimelineCreateMenu phone form", () => {
   it("is the Sheet alone, named for the held time and lane, with no top-layer wrapper", async () => {
     mount(true);

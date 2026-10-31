@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CreateMenu, type CreateMenuProps } from "../stages/edit/CreateMenu";
+import type { CreateRowId } from "../stages/edit/createMenuRows";
 import { useDawStore } from "../state/dawStore";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
 import { useTopLayerPanel } from "../ui/useTopLayerPanel";
@@ -9,7 +10,8 @@ import type { ChooserBounds } from "./chooserLayout";
 import {
   createAnnouncement,
   createMenuRowsFor,
-  type HostRowId,
+  focusIsFree,
+  focusLane,
   runCreatePick,
 } from "./createMenuMapping";
 import type { CreateView, HitRouter } from "./hitRouting";
@@ -65,17 +67,22 @@ function useSheetKeyboard(close: () => void) {
 /**
  * A touch open never focuses anything, so when the menu goes the focus has
  * nowhere to return to and falls to the page. Give it the press's own
- * focusable (a clip or a level), else the ruler's position slider.
+ * focusable (a clip or a level), else the held lane, else the ruler's
+ * position slider.
  */
-function focusAfterClose(surface: Element): void {
-  const active = document.activeElement;
-  if (active && active !== document.body && active.isConnected) return;
-  const target =
-    surface.closest<HTMLElement>("[tabindex]") ??
-    document.querySelector<HTMLElement>(
+function focusAfterClose(surface: Element, trackId: string | null): void {
+  if (!focusIsFree()) return;
+  const target = surface.closest<HTMLElement>("[tabindex]");
+  if (target) {
+    target.focus({ preventScroll: true });
+    return;
+  }
+  if (trackId && focusLane(trackId)) return;
+  document
+    .querySelector<HTMLElement>(
       '[role="slider"][aria-label="Timeline position"]',
-    );
-  target?.focus({ preventScroll: true });
+    )
+    ?.focus({ preventScroll: true });
 }
 
 /**
@@ -110,12 +117,15 @@ export function TimelineCreateMenu({
   const time = formatTime(place.atTime);
   const surfaceRef = useRef(view.surface);
   surfaceRef.current = view.surface;
+  const trackIdRef = useRef(place.trackId);
+  trackIdRef.current = place.trackId;
   useEffect(
     () => () => {
       const surface = surfaceRef.current;
+      const trackId = trackIdRef.current;
       // After the menu keyboard's own cleanup, which returns focus to where
       // the press began when that was a focusable; this only catches a fall.
-      queueMicrotask(() => focusAfterClose(surface));
+      queueMicrotask(() => focusAfterClose(surface, trackId));
     },
     [],
   );
@@ -134,7 +144,7 @@ export function TimelineCreateMenu({
     if (empty) router.close();
   }, [empty, router]);
   const onPick = useCallback(
-    (id: HostRowId) => {
+    (id: CreateRowId) => {
       router.close();
       void runCreatePick(id, place);
     },

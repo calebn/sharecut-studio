@@ -96,6 +96,27 @@ describe("createMenuRowsFor", () => {
     expect(rows.find((row) => row.id === "addChapter")?.keys.length).toBe(1);
   });
 
+  it("types Record here as a row of its own, with a label and an icon", () => {
+    const record = createMenuRowsFor(lane).find(
+      (row) => row.id === "recordHere",
+    );
+    expect(record).toMatchObject({
+      label: "Record here",
+      icon: "mic",
+      keys: [],
+    });
+  });
+
+  it("gives Split a note naming the held time, and no other row one", () => {
+    const rows = createMenuRowsFor(lane);
+    expect(rows.find((row) => row.id === "split")?.note).toBe(
+      "Cuts at this time, not the playhead",
+    );
+    expect(
+      rows.filter((row) => row.id !== "split").map((row) => row.note),
+    ).toEqual(rows.filter((row) => row.id !== "split").map(() => undefined));
+  });
+
   it("keeps the envelope row for an editor link", () => {
     session(["view", "play", "comment", "reply", "suggest", "edit"]);
     expect(ids(lane)).toContain("addVolumePoint");
@@ -133,6 +154,57 @@ describe("runCreatePick", () => {
     expect(executePointerCommand).toHaveBeenCalledOnce();
     expect(executePointerCommand).toHaveBeenCalledWith(command, args);
     expect(CREATE_MENU_COMMANDS[id]).toBe(command);
+  });
+
+  it("focuses the held lane once a paste is done", async () => {
+    const row = document.createElement("div");
+    row.className = "lane-row";
+    row.dataset.trackId = "host";
+    document.body.append(row);
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      cb(0);
+      return 0;
+    });
+    await runCreatePick("paste", lane);
+    expect(row).toHaveFocus();
+    expect(row).toHaveAccessibleName(
+      useDawStore.getState().project?.tracks[0]?.label || "host",
+    );
+    row.remove();
+  });
+
+  it("leaves focus where it went in the frame before the lane would take it", async () => {
+    const row = document.createElement("div");
+    row.className = "lane-row";
+    row.dataset.trackId = "host";
+    const other = document.createElement("button");
+    document.body.append(row, other);
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    await runCreatePick("paste", lane);
+    other.focus();
+    for (const frame of frames) frame(0);
+    expect(other).toHaveFocus();
+    row.remove();
+    other.remove();
+  });
+
+  it("moves no focus for a refused paste", async () => {
+    const row = document.createElement("div");
+    row.className = "lane-row";
+    row.dataset.trackId = "host";
+    document.body.append(row);
+    const frame = vi.spyOn(window, "requestAnimationFrame");
+    executePointerCommand.mockResolvedValue({
+      status: "disabled",
+      reason: "Nothing to paste",
+    });
+    await runCreatePick("paste", lane);
+    expect(frame).not.toHaveBeenCalled();
+    row.remove();
   });
 
   it("cuts at the held time with edit.bladeCut, never at the playhead with edit.split", async () => {

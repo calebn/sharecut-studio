@@ -136,8 +136,9 @@ all timeline editing. Portrait phone is the primary target.
   crowded. Only an armed target drags, and only along its own axes: an
   envelope point moves in time and level, an edge moves in time, and a clip
   body moves its clip in time.
-- A long press on empty space opens a create menu: envelope point, split,
-  marker, comment, and (host) Record here.
+- A long press on empty space opens a create menu: Split here, Comment here,
+  Add chapter here, (host) Record here, Add volume point on a lane, and Paste
+  when the clipboard has audio.
 - This grammar is for touch. A mouse acts on press: it selects and drags at
   once with no arming, and a right click on a lane or target opens the same
   create menu, so desktop editing does not change by accident (#1793). The
@@ -1197,7 +1198,7 @@ chooser lab until the owner made it the default (2026-10-07).
   here** first, then **Comment here** and **Add chapter here**, then **Record here** (host
   only; opens Record with an Insert target at the held time), then, below a
   divider, **Add volume point** (on a lane; picking it turns the volume layer
-  on if it is hidden), then **Paste** while the clipboard holds something
+  on if it is hidden), then **Paste** while the clipboard has audio
   (#2294 W1b: the menu is how a touch user splits on a lane, and Split heads
   it). Split here cuts the selected tracks, else every dialogue track, as it
   always did; the menu no longer says which. Paste lands at the held time on

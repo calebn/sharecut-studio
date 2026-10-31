@@ -189,6 +189,33 @@ describe("CreateMenu rows", () => {
   });
 });
 
+describe("CreateMenu row note", () => {
+  const NOTE = "Cuts at this time, not the playhead";
+  const noted = () =>
+    createMenuRows(LANE).map((row) =>
+      row.id === "split" ? { ...row, note: NOTE } : row,
+    );
+
+  it("exposes a note as the item's description and tooltip, not its name or its text", () => {
+    render(<CreateMenu {...props({ rows: noted() })} />);
+    const split = screen.getByRole("menuitem", { name: "Split here" });
+    expect(split).toHaveAccessibleDescription(NOTE);
+    expect(split).toHaveAttribute("title", NOTE);
+    expect(split.textContent).not.toContain(NOTE);
+    expect(
+      screen.getByRole("menuitem", { name: "Comment here" }),
+    ).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("does the same in the phone Sheet", async () => {
+    render(<CreateMenu {...props({ phone: true, rows: noted() })} />);
+    const split = await screen.findByRole("button", { name: "Split here" });
+    expect(split).toHaveAccessibleDescription(NOTE);
+    expect(split).toHaveAttribute("title", NOTE);
+    expect(split.textContent).toBe("Split here");
+  });
+});
+
 describe("CreateMenu sizes", () => {
   it("is 220 px wide (13.75 rem), with 36 px rows and 44 px rows under a coarse pointer", () => {
     expect(css).toMatch(
