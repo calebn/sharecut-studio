@@ -419,7 +419,7 @@ describe("automatic reduction sheet content", () => {
     const restoreButton = () =>
       screen.getByRole("button", { name: "Restore original audio" });
 
-    it("submits only the selected region's target, with Enter and Space on a region", async () => {
+    it("submits only the selected region's target, with Enter on a region", async () => {
       load({
         regions: [...inspection().regions, second],
         planState: "disabled",
