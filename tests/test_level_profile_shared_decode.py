@@ -191,7 +191,8 @@ def test_a_same_size_rewrite_with_a_new_mtime_is_not_seeded_into_the_batch(
 def test_an_atomic_replacement_with_the_same_size_and_mtime_is_not_seeded_into_the_batch(
     minimal_project, raw_decodes: list[int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _, path = _host_project(minimal_project)
+    project, path = _host_project(minimal_project)
+    audio_cache.track_level_profile(project, "host", sample_rate=RATE)
     aged = path.stat().st_mtime_ns
     real_once = audio_audit.decode_once
     old: list = []
