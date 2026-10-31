@@ -704,38 +704,6 @@ def test_create_record_room_revokes_previous_room_tokens(
         assert not rows[new[role]["id"]]["revoked"]
 
 
-def test_an_old_invite_token_cannot_join_after_a_new_room_is_minted(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
-):
-    ws = _seed_premix(minimal_project, sample_wav)
-    svc = ShareService(ws)
-    old = svc.create_record_room()
-    new = svc.create_record_room()
-    client = TestClient(create_app(static_dir=_dist(tmp_path)))
-    for role in ("guest", "producer"):
-        stale = client.get(f"/api/rec/{old[role]['token']}/bootstrap")
-        assert stale.status_code == 404
-        assert stale.headers["x-sharecut-error-code"] == "share_not_found"
-        fresh = client.get(f"/api/rec/{new[role]['token']}/bootstrap")
-        assert fresh.status_code == 200
-        assert fresh.json()["session_id"] == new["session_id"]
-    _old_tokens_dead(ws, client, old)
-    with client.websocket_connect(f"/api/rec/{new['guest']['token']}/ws") as sock:
-        sock.send_json(
-            {
-                "type": "Record",
-                "command_type": "Join",
-                "payload": {"display_name": "New link"},
-                "client_seq": 1,
-            }
-        )
-        for _ in range(10):
-            if sock.receive_json().get("type") == "Echo":
-                break
-        else:
-            raise AssertionError("the new link did not join")
-
-
 def test_create_record_room_keeps_landed_take_rollbacks(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

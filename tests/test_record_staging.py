@@ -1791,16 +1791,19 @@ def test_set_target_accepts_a_bare_kind_string_like_the_cli():
     assert validate_record_payload("SetTarget", {"target": " end "}) == {"target": {"kind": "end"}}
 
 
-def test_set_target_refuses_a_bare_string_that_needs_more_or_is_unknown():
+def test_set_target_refuses_every_string_but_end_and_start():
     from podcast_mcp.services.record.commands import validate_record_payload
 
-    for bare, needle in (
-        ("insert", "at_sec"),
-        ("replace", "track_ids"),
-        ("middle", "use end, start, insert or replace"),
-        ("", "use end, start, insert or replace"),
+    for bare in (
+        "insert",
+        "replace",
+        "middle",
+        "",
+        "End",
+        '{"kind": "insert", "at_sec": 5}',
+        ' {"kind": "end"}',
     ):
-        with pytest.raises(CodedValueError, match=needle) as raised:
+        with pytest.raises(CodedValueError, match=r'^target: pass "end", "start"') as raised:
             validate_record_payload("SetTarget", {"target": bare})
         assert raised.value.code == "invalid_record_request"
 
