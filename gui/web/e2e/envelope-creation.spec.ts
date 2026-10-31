@@ -156,9 +156,13 @@ for (const core of [
             const first = await savedAt(page, () => addEnvelopePoint(page));
             expect(first.command.payload.expected_points).toEqual([]);
             const flat = first.command.payload.points!;
-            expect(flat.length).toBeGreaterThanOrEqual(2);
-            expect(flat.every((item) => item.value === 1)).toBe(true);
-            expect(new Set(flat.map((item) => item.id)).size).toBe(flat.length);
+            // The keyboard add lands mid-fixture: both ends of the 60 s fixture plus 30 s.
+            expect(flat.map((item) => [item.time, item.value])).toEqual([
+              [0, 1],
+              [30, 1],
+              [60, 1],
+            ]);
+            expect(new Set(flat.map((item) => item.id)).size).toBe(3);
             await expect
               .poll(() => envelopeSnapshot(projectPath, track.id).points)
               .toEqual(flat);
@@ -245,6 +249,7 @@ for (const core of [
                 .toEqual(left.points.filter((item) => item.id !== removedId));
               const next = envelopeSnapshot(projectPath, track.id);
               expectEnvelopeMutation(left, next, track.id);
+              expect(next.points).toHaveLength(left.points.length - 1);
               left = next;
             }
             observer.stage("final-removal-and-undo");
@@ -336,6 +341,7 @@ for (const profile of profiles) {
     test.use({
       viewport: { width: profile.width, height: profile.height },
       reducedMotion: profile.motion,
+      hasTouch: profile.phone,
     });
     test("point fields remain reachable and refuse a bad level", async ({
       page,
@@ -372,11 +378,25 @@ for (const profile of profiles) {
             const accepted = await savedAt(page, () => addEnvelopePoint(page));
             await inspectEnvelopePoint(page);
             const dialog = pointSheet(page);
+            const beforeRefusal = envelopeSnapshot(projectPath, track.id);
+            const commandsBefore = observer.commands.length;
             await setPointField(page, "Level", "9");
             await expect(dialog.getByRole("alert")).toContainText(
               /Enter a number from 0 to 1\.5/,
             );
+            const refused = dialog.getByRole("textbox", {
+              name: "Level",
+              exact: true,
+            });
+            await expect(refused).toHaveAttribute("aria-invalid", "true");
+            await expect(refused).toHaveAttribute("aria-describedby", /\S/);
             await page.keyboard.press("Escape");
+            // A refused value saves nothing: no command, the same file.
+            await settle(page);
+            expect(observer.commands).toHaveLength(commandsBefore);
+            expect(envelopeSnapshot(projectPath, track.id)).toEqual(
+              beforeRefusal,
+            );
             const geometry: unknown[] = [];
             for (const control of [
               dialog.getByRole("spinbutton", { name: "Time", exact: true }),
@@ -396,6 +416,18 @@ for (const profile of profiles) {
                 profile.height + 1,
               );
               geometry.push(rectangle);
+            }
+            if (profile.phone) {
+              // Touch targets (the profile emulates touch): the fields, Remove and Close are at least 44 px tall.
+              for (const control of [
+                dialog.getByRole("spinbutton", { name: "Time", exact: true }),
+                dialog.getByRole("spinbutton", { name: "Level", exact: true }),
+                dialog.getByRole("button", { name: /^Remove/ }),
+                dialog.getByRole("button", { name: "Close", exact: true }),
+              ]) {
+                const box = await control.boundingBox();
+                expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+              }
             }
             const pageWidth = await page.evaluate(() => ({
               scroll: document.documentElement.scrollWidth,
