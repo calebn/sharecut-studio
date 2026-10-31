@@ -68,7 +68,7 @@ describe("Envelope drawing", () => {
 
   it("draws nothing when it is not shown and there are no points", () => {
     const { container, again } = setup({ points: [] });
-    expect(container).toBeEmptyDOMElement();
+    expect(container.querySelector(".sys-env")).toBeNull();
     again({ visible: true });
     expect(group()).toBeVisible();
     again({ visible: false, points: POINTS });
@@ -97,7 +97,7 @@ describe("Envelope drawing", () => {
     expect(point(2)).toHaveAttribute("aria-valuemin", "-60");
     expect(point(2)).toHaveAttribute("aria-valuemax", "3.52");
     expect(point(2)).toHaveAttribute("aria-valuenow", "-6");
-    expect(point(2)).toHaveAttribute("aria-valuetext", "−6.0 dB at 0:04.0");
+    expect(point(2)).toHaveAttribute("aria-valuetext", "−6.0 dB at 0:04.00");
   });
 
   it("draws no dot for a point more than 6 px outside the window", () => {
@@ -197,12 +197,54 @@ describe("Envelope adding", () => {
     expect(onAdd).not.toHaveBeenCalled();
   });
 
+  it("refuses a time within a millisecond of a point", () => {
+    const { container, onAdd } = setup();
+    fireEvent.click(band(container), { clientX: 96, clientY: 30, detail: 1 });
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
   it("announces the add once, politely", () => {
     const { container } = setup();
     fireEvent.click(band(container), { clientX: 120, clientY: 10, detail: 1 });
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Added envelope point at 0:05.0, −2.4 dB",
+      "Added envelope point at 0:05.00, −2.4 dB",
     );
+  });
+});
+
+describe("Envelope after an aborted gesture", () => {
+  it("adds on the first click on the line after a drag that ended off a point", () => {
+    const { container, onAdd } = setup();
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    fireEvent.pointerMove(point(2), mouse(136, 20));
+    fireEvent.pointerUp(group(), mouse(136, 20));
+    fireEvent.pointerDown(band(container), mouse(120, 30));
+    fireEvent.click(band(container), { clientX: 120, clientY: 30, detail: 1 });
+    expect(onAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds on the first click on the line after Escape aborted a drag", () => {
+    const { container, onAdd, onDragEnd } = setup();
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    fireEvent.pointerMove(point(2), mouse(136, 20));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onDragEnd).toHaveBeenCalledWith("b", false);
+    fireEvent.pointerDown(band(container), mouse(120, 30));
+    fireEvent.click(band(container), { clientX: 120, clientY: 30, detail: 1 });
+    expect(onAdd).toHaveBeenCalledTimes(1);
+  });
+
+  it("selects on the first click on a point after a blur aborted a drag", () => {
+    const { onSelect } = setup({ selected: "b" });
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    fireEvent.pointerMove(point(2), mouse(136, 20));
+    fireEvent.blur(window);
+    onSelect.mockClear();
+    fireEvent.pointerDown(point(3), mouse(172, 20));
+    fireEvent.pointerUp(point(3), mouse(172, 20));
+    fireEvent.click(point(3), { detail: 1 });
+    expect(onSelect).toHaveBeenCalledWith("c");
   });
 });
 
@@ -223,7 +265,7 @@ describe("Envelope dragging", () => {
       "−15.9 dB · 0:05.0",
     );
     expect(point(2)).toHaveAttribute("data-dragging", "true");
-    expect(point(2)).toHaveAttribute("aria-valuetext", "−15.9 dB at 0:05.0");
+    expect(point(2)).toHaveAttribute("aria-valuetext", "−15.9 dB at 0:05.00");
   });
 
   it("commits on release and announces it once", () => {
@@ -382,8 +424,65 @@ describe("Envelope keys", () => {
     fireEvent.keyUp(point(2), { key: "ArrowRight" });
     expect(onNudgeEnd).toHaveBeenCalledWith("b");
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Envelope point at 0:04.0, −6.0 dB",
+      "Envelope point at 0:04.01, −6.0 dB",
     );
+  });
+
+  it("holds crowded points where they are, and does not end a step nothing began", () => {
+    const { onMove, onNudgeEnd } = setup({
+      points: [
+        { id: "a", time: 1, db: 0 },
+        { id: "b", time: 1, db: 0 },
+        { id: "c", time: 1, db: 0 },
+      ],
+    });
+    fireEvent.keyDown(point(2), { key: "ArrowRight" });
+    fireEvent.keyUp(point(2), { key: "ArrowRight" });
+    fireEvent.keyDown(point(2), { key: "ArrowLeft", shiftKey: true });
+    fireEvent.keyUp(point(2), { key: "ArrowLeft" });
+    expect(onMove).not.toHaveBeenCalled();
+    expect(onNudgeEnd).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("ends and announces nothing for an arrow that moved nothing at a bound", () => {
+    const { onMove, onNudgeEnd } = setup({
+      points: [{ id: "a", time: 1, db: 3.52 }],
+    });
+    fireEvent.keyDown(point(1), { key: "ArrowUp" });
+    fireEvent.keyUp(point(1), { key: "ArrowUp" });
+    expect(onMove).not.toHaveBeenCalled();
+    expect(onNudgeEnd).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("makes each 10 ms nudge audible in the slider text", () => {
+    const { again } = setup({ points: [{ id: "a", time: 12.04, db: -3 }] });
+    expect(point(1)).toHaveAttribute("aria-valuetext", "−3.0 dB at 0:12.04");
+    again({ points: [{ id: "a", time: 12.05, db: -3 }] });
+    expect(point(1)).toHaveAttribute("aria-valuetext", "−3.0 dB at 0:12.05");
+  });
+
+  it("ends the nudge when the window culls the focused point mid-step", () => {
+    const { onNudgeEnd, again } = setup();
+    fireEvent.keyDown(point(2), { key: "ArrowRight" });
+    again({ start: 100 });
+    expect(onNudgeEnd).toHaveBeenCalledTimes(1);
+    expect(onNudgeEnd).toHaveBeenCalledWith("b");
+  });
+
+  it("keeps the live region mounted so removing the last point with the envelope hidden is spoken", () => {
+    const { again } = setup({
+      points: [{ id: "a", time: 1, db: 0 }],
+      selected: "a",
+    });
+    const region = screen.getByRole("status");
+    point(1).focus();
+    fireEvent.keyDown(point(1), { key: "Delete" });
+    again({ points: [] });
+    expect(group).toThrow();
+    expect(screen.getByRole("status")).toBe(region);
+    expect(region).toHaveTextContent("Removed envelope point at 0:01.00");
   });
 
   it("removes a selected point with Backspace or Delete, and moves focus to its neighbour", () => {

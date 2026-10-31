@@ -11,7 +11,6 @@ import {
 } from "react";
 import { presenceColorVar } from "../presence/colors";
 import { clamp } from "../utils/math";
-import { formatRulerTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
 import { type Bounds, boundedDelta, within } from "./dragBounds";
 import {
@@ -19,6 +18,7 @@ import {
   dbAfterDrag,
   dbToY,
   ENVELOPE_FLOOR_DB,
+  ENVELOPE_POINT_GAP_SEC,
   ENVELOPE_TOP_DB,
   type EnvelopePointData,
   formatDb,
@@ -33,6 +33,7 @@ import {
   round2,
   roundDb,
   sortPoints,
+  spokenTime,
   timeStep,
   valueText,
   yToDb,
@@ -249,9 +250,7 @@ export const Envelope = memo(function Envelope({
   );
 
   const announce = (text: string, point: { db: number; time: number }) =>
-    setStatus(
-      `${text} at ${formatRulerTime(point.time, 0.1)}, ${formatDb(point.db)}`,
-    );
+    setStatus(`${text} at ${spokenTime(point.time)}, ${formatDb(point.db)}`);
 
   const grab = useGrab<{ id: string }>({
     axis: "both",
@@ -355,19 +354,22 @@ export const Envelope = memo(function Envelope({
     const index = sorted.findIndex((point) => point.id === id);
     const point = sorted[index];
     if (!point) return;
-    nudging.current = id;
     if (key === "ArrowLeft" || key === "ArrowRight") {
       const step = timeStep(event.shiftKey) * (key === "ArrowLeft" ? -1 : 1);
       const timeSeconds = round3(
         within(pointBounds(sorted, index, duration), point.time + step),
       );
-      if (timeSeconds !== point.time) onMove?.(id, { timeSeconds });
+      if (timeSeconds === point.time) return;
+      nudging.current = id;
+      onMove?.(id, { timeSeconds });
       return;
     }
     const step =
       levelStep(event.shiftKey, event.altKey) * (key === "ArrowUp" ? 1 : -1);
     const db = round2(clampDb(point.db + step));
-    if (db !== point.db) onMove?.(id, { db });
+    if (db === point.db) return;
+    nudging.current = id;
+    onMove?.(id, { db });
   };
 
   const keyDown = useStableCallback(
@@ -420,12 +422,41 @@ export const Envelope = memo(function Envelope({
     const timeSeconds = round3(
       clamp(timeAtX(event.clientX - box.left, start, pxPerSecond), 0, ceiling),
     );
+    if (
+      sorted.some(
+        (point) =>
+          Math.abs(point.time - timeSeconds) < ENVELOPE_POINT_GAP_SEC - 1e-9,
+      )
+    ) {
+      return;
+    }
     const db = roundDb(yToDb(event.clientY - box.top, lane));
     onAdd(timeSeconds, db);
     announce("Added envelope point", { time: timeSeconds, db });
   };
 
-  if (!visible && points.length === 0) return null;
+  useEffect(() => {
+    const id = nudging.current;
+    if (!id) return;
+    const at = drawn.find((point) => point.id === id);
+    if (!at || !pointVisible(at.time, start, pxPerSecond, width)) endNudge(id);
+  }, [drawn, start, pxPerSecond, width, endNudge]);
+
+  const live = (
+    <span className="sr-only" role="status">
+      {status}
+    </span>
+  );
+  // The status region keeps its place in the tree either way, so a removal announced as the last
+  // point goes is still spoken.
+  if (!visible && points.length === 0) {
+    return (
+      <>
+        {null}
+        {live}
+      </>
+    );
+  }
 
   const place = new Map(drawn.map((point, index) => [point.id, index]));
   const shown = drawn.filter(
@@ -442,78 +473,79 @@ export const Envelope = memo(function Envelope({
   const routes: Routes = { press, click, keyDown, keyUp, endNudge };
 
   return (
-    <div
-      ref={root}
-      {...anchorProps}
-      className="sys-env"
-      role="group"
-      aria-label={`Volume envelope, ${trackName}`}
-      data-readonly={readOnly || undefined}
-      data-touch={touch || undefined}
-      style={
-        {
-          "--sys-env-color": presenceColorVar(colorIndex),
-          "--sys-env-width": px(width),
-          "--sys-env-height": px(lane),
-          "--sys-env-top": px(top),
-          "--sys-env-zero-y": px(dbToY(0, lane)),
-        } as CSSProperties
-      }
-      onPointerMove={move}
-      onPointerUp={up}
-      onPointerCancel={cancel}
-      onLostPointerCapture={(event) => {
-        if (event.target === event.currentTarget) cancel(event);
-      }}
-    >
-      <svg
-        className="sys-env-svg"
-        width={width}
-        height={lane}
-        aria-hidden="true"
-        focusable="false"
+    <>
+      <div
+        ref={root}
+        {...anchorProps}
+        className="sys-env"
+        role="group"
+        aria-label={`Volume envelope, ${trackName}`}
+        data-readonly={readOnly || undefined}
+        data-touch={touch || undefined}
+        style={
+          {
+            "--sys-env-color": presenceColorVar(colorIndex),
+            "--sys-env-width": px(width),
+            "--sys-env-height": px(lane),
+            "--sys-env-top": px(top),
+            "--sys-env-zero-y": px(dbToY(0, lane)),
+          } as CSSProperties
+        }
+        onPointerDown={() => grab.clearClick()}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={cancel}
+        onLostPointerCapture={(event) => {
+          if (event.target === event.currentTarget) cancel(event);
+        }}
       >
-        <path className="sys-env-line" d={path} />
-        <path className="sys-env-band" d={path} onClick={add} />
-      </svg>
-      <span className="sys-env-zero" aria-hidden="true">
-        0 dB
-      </span>
-      {shown.map((point) => {
-        const index = place.get(point.id) ?? 0;
-        const gap = nearestGapPx(drawn, index, pxPerSecond);
-        return (
-          <EnvelopePoint
-            key={point.id}
-            id={point.id}
-            place={index + 1}
-            time={point.time}
-            db={point.db}
-            x={xAtTime(point.time, start, pxPerSecond)}
-            y={pointY(point.db, lane)}
-            fine={2 * hitRadius(false, gap)}
-            coarse={2 * hitRadius(true, gap)}
-            selected={selected === point.id}
-            tabStop={tabId === point.id}
-            dragging={held?.id === point.id}
-            readOnly={readOnly}
-            {...routes}
+        <svg
+          className="sys-env-svg"
+          width={width}
+          height={lane}
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path className="sys-env-line" d={path} />
+          <path className="sys-env-band" d={path} onClick={add} />
+        </svg>
+        <span className="sys-env-zero" aria-hidden="true">
+          0 dB
+        </span>
+        {shown.map((point) => {
+          const index = place.get(point.id) ?? 0;
+          const gap = nearestGapPx(drawn, index, pxPerSecond);
+          return (
+            <EnvelopePoint
+              key={point.id}
+              id={point.id}
+              place={index + 1}
+              time={point.time}
+              db={point.db}
+              x={xAtTime(point.time, start, pxPerSecond)}
+              y={pointY(point.db, lane)}
+              fine={2 * hitRadius(false, gap)}
+              coarse={2 * hitRadius(true, gap)}
+              selected={selected === point.id}
+              tabStop={tabId === point.id}
+              dragging={held?.id === point.id}
+              readOnly={readOnly}
+              {...routes}
+            />
+          );
+        })}
+        {held && heldPoint ? (
+          <ReadoutChip
+            value={readoutText(held.db, held.time)}
+            atLimit={held.limit}
+            at={{
+              x: xAtTime(held.time, start, pxPerSecond),
+              y: pointY(held.db, lane),
+            }}
           />
-        );
-      })}
-      {held && heldPoint ? (
-        <ReadoutChip
-          value={readoutText(held.db, held.time)}
-          atLimit={held.limit}
-          at={{
-            x: xAtTime(held.time, start, pxPerSecond),
-            y: pointY(held.db, lane),
-          }}
-        />
-      ) : null}
-      <span className="sr-only" role="status">
-        {status}
-      </span>
-    </div>
+        ) : null}
+      </div>
+      {live}
+    </>
   );
 });

@@ -147,6 +147,23 @@ describe("pointBounds", () => {
     const [min, max] = pointBounds(tight, 1, 30);
     expect(max).toBeGreaterThanOrEqual(min);
   });
+
+  it("holds a crowded point where it is, so no nudge can jump a neighbour", () => {
+    const same = sortPoints([
+      { id: "a", time: 1, db: 0 },
+      { id: "b", time: 1, db: 0 },
+      { id: "c", time: 1, db: 0 },
+    ]);
+    expect(pointBounds(same, 1, 30)).toEqual([1, 1]);
+    const tight = sortPoints([
+      { id: "a", time: 1, db: 0 },
+      { id: "b", time: 1.001, db: 0 },
+      { id: "c", time: 1.002, db: 0 },
+    ]);
+    const [min, max] = pointBounds(tight, 1, 30);
+    expect(min).toBeCloseTo(1.001, 9);
+    expect(max).toBeCloseTo(1.001, 9);
+  });
 });
 
 describe("hit areas", () => {
@@ -214,7 +231,7 @@ describe("text", () => {
   });
 
   it("writes a slider's value text with the time", () => {
-    expect(valueText(-3, 724.3)).toBe("−3.0 dB at 12:04.3");
+    expect(valueText(-3, 724.3)).toBe("−3.0 dB at 12:04.30");
   });
 
   it("rounds a level to 0.1", () => {
