@@ -116,6 +116,38 @@ export const SkipUnavailable: Story = {
   },
 };
 
+export const PlayUnavailable: Story = {
+  args: {
+    playLabel: "Preview effects at track start",
+    playDisabledReason:
+      "Guests hear the full mix. Ask the host for editor access.",
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const play = canvas.getByRole("button", {
+      name: "Preview effects at track start",
+    });
+    await expect(play).toHaveAttribute("aria-disabled", "true");
+    await expect(play).toHaveAccessibleDescription(
+      "Guests hear the full mix. Ask the host for editor access.",
+    );
+    await userEvent.click(play);
+    await expect(args.onPlay).not.toHaveBeenCalled();
+  },
+};
+
+export const PlayPreparing: Story = {
+  args: { playPreparing: true },
+  play: async ({ canvasElement, args }) => {
+    const play = within(canvasElement).getByRole("button", {
+      name: "Play around",
+    });
+    await expect(play).toHaveAttribute("aria-busy", "true");
+    await userEvent.click(play);
+    await expect(args.onPlay).not.toHaveBeenCalled();
+  },
+};
+
 export const PhoneWidth: Story = {
   parameters: { ...recordMobileViewport.parameters, footerPhone: true },
   globals: recordMobileViewport.globals,

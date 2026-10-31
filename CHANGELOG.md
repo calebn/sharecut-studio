@@ -21,7 +21,7 @@
 
 ### Fixes
 
-* The inspector footer's play action (for example "Preview effects at track start" for a share guest who hears the full mix only) now stays focusable when it is unavailable and shows why beside the footer, instead of a hover-only tooltip on a dead button, so touch and keyboard users see the reason (Part of #1686)
+* The inspector footer's play action (for example "Preview effects at track start" for a share guest who hears the full mix only) now stays focusable when it is unavailable and shows why below the footer actions, instead of a hover-only tooltip on a dead button, so touch and keyboard users see the reason (Part of #1686)
 
 * Error and progress text for a share guest that holds any backslash, or a percent-encoded one (`%5c`), such as `Podcasts\ep 12\raw.wav` or `..\host\raw.wav`, is now withheld like other host paths instead of reaching the guest (#2827).
 
