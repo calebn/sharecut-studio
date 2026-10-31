@@ -56,7 +56,11 @@ const meta: Meta<Args> = {
       >
         <div
           className="timeline-area"
-          style={{ ["--lane-height" as string]: "72px", overflow: "visible" }}
+          style={{
+            ["--lane-height" as string]: "72px",
+            overflow: "visible",
+            inlineSize: context.args.framePhone ? undefined : "40rem",
+          }}
         >
           <Story />
         </div>
