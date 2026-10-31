@@ -128,3 +128,26 @@ def test_show_export_and_import_errors(tmp_path: Path) -> None:
     bad.write_text("nope")
     imported = runner.invoke(app, ["segment", "import", str(bad)])
     assert imported.exit_code == 1 and "(code segment_bundle_invalid)" in imported.output
+
+
+def test_remove_deletes_a_segment_and_a_damaged_one_shows_in_list(
+    project: Path, _config_dir: Path
+) -> None:
+    assert _save(project, "--clips", "c1").exit_code == 0
+    segment_id = json.loads(runner.invoke(app, ["segment", "list", "--json"]).stdout)[0]["id"]
+    (_config_dir / "segments" / segment_id / "v1" / "clip-01.flac").write_bytes(b"rot")
+
+    listed = runner.invoke(app, ["segment", "list"])
+    assert "DAMAGED" in listed.stdout and segment_id in listed.stdout
+    assert "No segments yet" not in listed.stdout
+    rows = json.loads(runner.invoke(app, ["segment", "list", "--json"]).stdout)
+    assert rows[0]["damaged"] is True and rows[0]["code"] == "segment_hash_mismatch"
+
+    assert _save(project, "--clips", "c1").exit_code == 0  # repairs as a new version
+    assert "DAMAGED" not in runner.invoke(app, ["segment", "list"]).stdout
+
+    removed = runner.invoke(app, ["segment", "remove", segment_id])
+    assert removed.exit_code == 0
+    assert json.loads(runner.invoke(app, ["segment", "list", "--json"]).stdout) == []
+    again = runner.invoke(app, ["segment", "remove", segment_id])
+    assert again.exit_code == 1 and "(code segment_unknown)" in again.output

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import zipfile
 from pathlib import Path
 
@@ -15,6 +16,8 @@ from podcast_mcp.segments.model import (
 )
 from podcast_mcp.segments.store import sha256_file
 
+_COUNTER = itertools.count(1)
+
 
 def make_segment_dir(
     root: Path,
@@ -24,7 +27,7 @@ def make_segment_dir(
     kind: str = "intro",
     fader_db: float = 0.0,
 ) -> Path:
-    folder = root / f"seg-{name.replace(' ', '_')}-{abs(hash(audio)) % 10**6}"
+    folder = root / f"seg-{next(_COUNTER):04d}"
     folder.mkdir(parents=True)
     (folder / "clip-01.flac").write_bytes(audio)
     segment = SegmentFile.model_validate(

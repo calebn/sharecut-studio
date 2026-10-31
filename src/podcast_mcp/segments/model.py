@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import unicodedata
+from pathlib import Path
 from typing import Annotated, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -17,6 +18,8 @@ SegmentKind = Literal["intro", "outro", "sponsor", "sting", "other"]
 
 SEGMENT_KINDS: tuple[SegmentKind, ...] = get_args(SegmentKind)
 SEGMENT_JSON = "segment.json"
+MANIFEST_NAME = "MANIFEST.sha256"
+MAX_SEGMENT_JSON_BYTES = 1024 * 1024
 _SLUG_MAX = 48
 _VALID_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -51,7 +54,23 @@ def is_segment_id(value: str) -> bool:
 
 def is_safe_media_name(name: str) -> bool:
     """A plain file name: no directories, no leading dot, and not the manifest files."""
-    return bool(_SAFE_NAME.fullmatch(name)) and name != SEGMENT_JSON and ".." not in name
+    return (
+        bool(_SAFE_NAME.fullmatch(name))
+        and name.casefold() not in (SEGMENT_JSON, MANIFEST_NAME.casefold())
+        and ".." not in name
+    )
+
+
+def read_capped(path: Path, limit: int, *, what: str, code: str) -> bytes:
+    """Read a small metadata file, refusing one over ``limit`` bytes or that cannot be read."""
+    try:
+        with path.open("rb") as handle:
+            raw = handle.read(limit + 1)
+    except OSError as exc:
+        raise CodedValueError(f"{what} cannot be read: {exc.strerror or exc}.", code=code) from exc
+    if len(raw) > limit:
+        raise CodedValueError(f"{what} is larger than {limit} bytes.", code=code)
+    return raw
 
 
 class MediaEntry(BaseModel):
@@ -114,6 +133,8 @@ class SegmentFile(BaseModel):
         for name in self.media:
             if not is_safe_media_name(name):
                 raise ValueError(f"{name!r} is not a plain media file name")
+        if len({name.casefold() for name in self.media}) != len(self.media):
+            raise ValueError("media file names must differ by more than letter case")
         for clip in self.clips:
             if clip.audio not in self.media:
                 raise ValueError(f"clip audio {clip.audio!r} is not in media")
