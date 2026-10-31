@@ -177,7 +177,7 @@ test.describe("pyramid waveforms", () => {
       .toBeGreaterThan(0);
     expect(seen.audioWindows).toBe(0);
 
-    // Ruler: millisecond labels, and only the viewport's chunks mount.
+    // Ruler: millisecond labels, and only a few viewports of ticks mount.
     const ruler = await page.evaluate(() => {
       const view =
         (document.querySelector(".timeline-scroll") as HTMLElement | null)
@@ -191,9 +191,9 @@ test.describe("pyramid waveforms", () => {
     for (const label of ruler.labels) {
       expect(label).toMatch(/^\d+:\d{2}\.\d{3,4}$/);
     }
-    // The ruler draws its window and one label's bleed, a tick per 64 px at most.
+    // The ruler draws a window of at most four viewports and one label's bleed, a tick per 64 px at most.
     expect(ruler.labels.length).toBeLessThanOrEqual(
-      Math.ceil((ruler.view + 64) / 64) + 1,
+      Math.ceil((4 * ruler.view + 64) / 64) + 1,
     );
   });
 
