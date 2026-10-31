@@ -260,7 +260,8 @@ def _synthesise(
     if basis.end - basis.start < MIN_ROOM_SEC:
         return None
     try:
-        analysis = _analyse(str(basis.path), file_revision(basis.path), basis)
+        revision = file_revision(basis.path)
+        analysis = _analyse(str(basis.path), revision, basis)
     except OSError:
         return None
     if analysis is None:
@@ -277,7 +278,15 @@ def _synthesise(
         return None
     length = min(gap_sec, SYNTH_MAX_FILL_SEC)
     start = seed_fraction(seed_sec) * (SYNTH_FILE_SEC - length)
-    sample = SynthSample(start, start + length, source_id, dest, rel_path, SYNTH_FILE_SEC)
+    sample = SynthSample(
+        start,
+        start + length,
+        source_id,
+        dest,
+        rel_path,
+        SYNTH_FILE_SEC,
+        revision=revision,
+    )
     register_synth_source(project, sample)
     return sample
 
