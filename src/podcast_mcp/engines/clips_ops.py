@@ -20,6 +20,7 @@ from podcast_mcp.engines.session_timeline import (
     clip_timeline_point_to_source,
 )
 from podcast_mcp.models import Clip, ClipJoinMode, EditMode, EpisodeProject, SourceRecording
+from podcast_mcp.models.clip_timing import MIN_STEP_GAP_SEC
 from podcast_mcp.util.batch_scope import scoped
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.contracts import contract_constant
@@ -184,6 +185,25 @@ def set_track_clips(project: EpisodeProject, track_id: str, clips: list[Clip]) -
     project.clips = [c for c in project.clips if c.track_id != track_id] + clips
 
 
+def _timed_split_point(clip: Clip, timeline_time: float) -> tuple[float, float]:
+    """``(source_split, right_timeline_start)`` for a split of a clip with a timing map.
+
+    A time inside an inserted hole splits at the hole's source point, and the hole stays
+    as the gap between the two clips.
+    """
+    pieces = clip.virtual_pieces()
+    for index, (src_a, src_b, tl_a) in enumerate(pieces):
+        if tl_a <= timeline_time < tl_a + (src_b - src_a):
+            return src_a + (timeline_time - tl_a), timeline_time
+        following = pieces[index + 1] if index + 1 < len(pieces) else None
+        if following is not None and tl_a + (src_b - src_a) <= timeline_time < following[2]:
+            return following[0], following[2]
+    raise CodedValueError(
+        "split time must be strictly inside clip timeline bounds. Pick a time between the clip's start and end.",
+        code="split_outside_clip",
+    )
+
+
 def split_clip_at(
     clip: Clip, timeline_time: float, *, defaults: EffectiveConfig
 ) -> tuple[Clip, Clip]:
@@ -194,7 +214,13 @@ def split_clip_at(
             "split time must be strictly inside clip timeline bounds. Pick a time between the clip's start and end.",
             code="split_outside_clip",
         )
-    source_split = clip_timeline_point_to_source(clip, timeline_time)
+    if clip.timing is None:
+        source_split, after_start = (
+            clip_timeline_point_to_source(clip, timeline_time),
+            timeline_time,
+        )
+    else:
+        source_split, after_start = _timed_split_point(clip, timeline_time)
     fade = join_micro_fade_ms(defaults=defaults)
     before = clip.model_copy(
         deep=True,
@@ -209,11 +235,14 @@ def split_clip_at(
         update={
             "id": new_clip_id(),
             "source_start": source_split,
-            "timeline_start": timeline_time,
+            "timeline_start": after_start,
             "fade_in_ms": max(clip.fade_in_ms, fade),
             "join_in_mode": ClipJoinMode.FADE,
         },
     )
+    if clip.timing is not None:
+        before.timing = clip.timing.sliced(before.source_start, source_split)
+        after.timing = clip.timing.sliced(source_split, after.source_end)
     before.mute_regions = mute_regions_overlapping(
         clip.mute_regions, before.source_start, before.source_end
     )
@@ -415,6 +444,21 @@ def _same_recording(project: EpisodeProject, first: Clip, second: Clip) -> bool:
     )
 
 
+def _first_step_clearance(clip: Clip) -> float:
+    """Latest source second the in edge may take without reaching the first timing step."""
+    if clip.timing is None:
+        return math.inf
+    return max(clip.source_start, clip.timing.steps[0].at - MIN_STEP_GAP_SEC)
+
+
+def _last_step_clearance(clip: Clip) -> float:
+    """Earliest source second the out edge may take after the last timing step and its skip."""
+    if clip.timing is None:
+        return -math.inf
+    last = clip.timing.steps[-1]
+    return min(clip.source_end, last.at + max(0.0, -last.delta_sec) + MIN_STEP_GAP_SEC)
+
+
 def trim_edge_limits(
     project: EpisodeProject, clip: Clip, edge: str, mode: EditMode
 ) -> tuple[float, float]:
@@ -449,7 +493,7 @@ def trim_edge_limits(
             if following:
                 room = min(following) - clip.timeline_end
                 hi = min(hi, clip.source_end + max(0.0, room))
-        return clip.source_start + _MIN_CLIP_SPAN_SEC, hi
+        return max(clip.source_start + _MIN_CLIP_SPAN_SEC, _last_step_clearance(clip)), hi
     lo = (
         max(0.0, float(prev.source_end))
         if prev is not None and _same_recording(project, clip, prev)
@@ -462,7 +506,7 @@ def trim_edge_limits(
         )
         room = clip.timeline_start - preceding
         lo = max(lo, clip.source_start - max(0.0, room))
-    return lo, clip.source_end - _MIN_CLIP_SPAN_SEC
+    return lo, min(clip.source_end - _MIN_CLIP_SPAN_SEC, _first_step_clearance(clip))
 
 
 CrossfadeBlocked = Literal["not_abutting", "no_fade_out", "no_fade_in", "no_headroom"]
@@ -796,6 +840,8 @@ def roll_join_limits(
         left.source_end - left.source_start - _MIN_CLIP_SPAN_SEC,
         right.source_start - right_floor,
     )
+    max_pos = min(max_pos, _first_step_clearance(right) - right.source_start)
+    max_neg = min(max_neg, left.source_end - _last_step_clearance(left))
     return -max(0.0, max_neg), max(0.0, max_pos)
 
 
