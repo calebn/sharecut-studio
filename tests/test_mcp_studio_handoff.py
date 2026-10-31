@@ -13,9 +13,11 @@ import errno
 import json
 import os
 import socket
+import sys
 import threading
 import time
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -107,6 +109,15 @@ def _wrapped() -> _Direct:
     return server
 
 
+@dataclass
+class _ShutdownPing:
+    pending: threading.Event = field(default_factory=threading.Event)
+    release: threading.Event = field(default_factory=threading.Event)
+    request_id: str | int | None = None
+    pings: int = 0
+    errors: list[str] = field(default_factory=list)
+
+
 @contextlib.contextmanager
 def _deadline_peer(
     project: Path,
@@ -117,6 +128,7 @@ def _deadline_peer(
     ping_answers: bool = True,
     ping_error: bool = False,
     wedge_call: bool = False,
+    shutdown_ping: _ShutdownPing | None = None,
 ) -> Iterator[tuple[list[str], threading.Event, threading.Event]]:
     methods: list[str] = []
     initialized = threading.Event()
@@ -124,6 +136,11 @@ def _deadline_peer(
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+
+        def setup(self) -> None:
+            super().setup()
+            if shutdown_ping is not None:
+                self.connection.settimeout(5)
 
         def log_message(self, *_args: Any) -> None:
             return None
@@ -181,6 +198,14 @@ def _deadline_peer(
                     "serverInfo": {"name": "deadline-peer", "version": "1"},
                 }
             elif method == "ping":
+                if shutdown_ping is not None:
+                    shutdown_ping.pings += 1
+                    if shutdown_ping.pings == 2:
+                        shutdown_ping.request_id = request["id"]
+                        shutdown_ping.pending.set()
+                        assert shutdown_ping.release.wait(5), (
+                            "Session did not release the late ping"
+                        )
                 if not ping_answers:
                     self.stream()
                     return
@@ -191,6 +216,16 @@ def _deadline_peer(
                 result = {}
             elif method == "tools/call":
                 token = request["params"].get("_meta", {}).get("progressToken")
+                if shutdown_ping is not None:
+                    assert shutdown_ping.pending.wait(5), "No ping arrived during the tool call"
+                    self.reply(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request["id"],
+                            "result": {"content": [{"type": "text", "text": "finished"}]},
+                        }
+                    )
+                    return
                 if wedge_call:
                     self.stream()
                     return
@@ -223,9 +258,16 @@ def _deadline_peer(
                 result = {"tools": []}
             self.reply({"jsonrpc": "2.0", "id": request["id"], "result": result})
 
-    peer = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    peer.daemon_threads = True
-    thread = threading.Thread(target=peer.serve_forever, daemon=True)
+    class Server(ThreadingHTTPServer):
+        def handle_error(self, request: Any, client_address: Any) -> None:
+            if shutdown_ping is None:
+                super().handle_error(request, client_address)
+            else:
+                shutdown_ping.errors.append(repr(sys.exception()))
+
+    peer = Server(("127.0.0.1", 0), Handler)
+    peer.daemon_threads = shutdown_ping is None
+    thread = threading.Thread(target=peer.serve_forever, daemon=shutdown_ping is None)
     thread.start()
     announce_studio_host(
         project,
@@ -235,9 +277,14 @@ def _deadline_peer(
         yield methods, initialized, stop
     finally:
         stop.set()
+        if shutdown_ping is not None:
+            shutdown_ping.release.set()
         peer.shutdown()
         peer.server_close()
         thread.join(3)
+        if shutdown_ping is not None:
+            assert not thread.is_alive()
+            assert shutdown_ping.errors == []
 
 
 def test_deadline_peer_accepts_notifications_before_an_ordinary_request(
@@ -392,6 +439,103 @@ def test_a_long_tool_on_a_studio_that_answers_pings_is_not_cut_short(
     assert result.content[0].text == "finished"
     assert methods.count("ping") >= 2
     assert methods.count("tools/call") == 1
+
+
+@pytest.mark.parametrize("ping_error", [False, True])
+def test_a_late_ping_reply_preserves_the_completed_tool_result(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch, ping_error: bool
+) -> None:
+    from anyio.streams.memory import MemoryObjectSendStream
+    from mcp.shared.message import SessionMessage
+    from mcp_types.jsonrpc import JSONRPCError, JSONRPCResponse
+
+    import podcast_mcp.mcp.studio_handoff as handoff
+    from podcast_mcp.services.app import read_studio_host
+
+    shutdown_ping = _ShutdownPing()
+    original_session = handoff.ClientSession
+    original_send = MemoryObjectSendStream.send_nowait
+    completed: list[CallToolResult] = []
+    closed_readers: list[bool] = []
+    late_delivery_outcomes: list[str] = []
+    order: list[str] = []
+    monkeypatch.setattr(handoff, "HEARTBEAT_INTERVAL_SEC", 0.01)
+    monkeypatch.setattr(handoff, "HEARTBEAT_TIMEOUT_SEC", 5)
+
+    async def call(host: StudioHost) -> Any:
+        delivered = anyio.Event()
+        read_state: Any = None
+
+        class ObservedSession(original_session):
+            def __init__(self, read: Any, write: Any, *args: Any, **kwargs: Any) -> None:
+                nonlocal read_state
+                super().__init__(read, write, *args, **kwargs)
+                self.observed_read = read
+                read_state = read._inner._state
+
+            async def call_tool(self, *args: Any, **kwargs: Any) -> CallToolResult:
+                result = await super().call_tool(*args, **kwargs)
+                completed.append(result)
+                order.append("tool_completed")
+                return result
+
+            async def __aexit__(self, *args: Any) -> Any:
+                result = await super().__aexit__(*args)
+                closed_readers.append(self.observed_read._inner._closed)
+                order.append("session_closed")
+                shutdown_ping.release.set()
+                # Hold transport exit to exercise a reply after the SDK session closes.
+                with anyio.fail_after(5):
+                    await delivered.wait()
+                return result
+
+        def observe_send(stream: Any, envelope: Any) -> Any:
+            late_reply = (
+                isinstance(envelope, tuple)
+                and len(envelope) == 2
+                and isinstance(envelope[1], SessionMessage)
+                and isinstance(envelope[1].message, (JSONRPCResponse, JSONRPCError))
+                and envelope[1].message.id == shutdown_ping.request_id
+                and stream._state is read_state
+            )
+            if not late_reply:
+                return original_send(stream, envelope)
+            order.append("late_reply")
+            try:
+                outcome = original_send(stream, envelope)
+            except BaseException as error:
+                late_delivery_outcomes.append(type(error).__name__)
+                raise
+            else:
+                late_delivery_outcomes.append("delivered")
+                return outcome
+            finally:
+                delivered.set()
+
+        monkeypatch.setattr(handoff, "ClientSession", ObservedSession)
+        monkeypatch.setattr(MemoryObjectSendStream, "send_nowait", observe_send)
+        with anyio.fail_after(10):
+            return await handoff._run_in_studio(host, "list_clips_tool", {})
+
+    with _deadline_peer(
+        minimal_project, stalled=False, ping_error=ping_error, shutdown_ping=shutdown_ping
+    ) as (methods, _, _):
+        host = read_studio_host(minimal_project)
+        assert host is not None
+        result = asyncio.run(call(host))
+
+    assert len(completed) == 1
+    assert not completed[0].is_error
+    assert completed[0].content[0].text == "finished"
+    assert closed_readers == [True]
+    assert order == ["tool_completed", "session_closed", "late_reply"]
+    assert methods.count("tools/call") == 1
+    assert "DELETE" not in methods
+    assert not result.is_error, (
+        f"Late ping delivery {late_delivery_outcomes} discarded the completed tool result"
+    )
+    assert result is completed[0]
+    assert result.content[0].text == "finished"
 
 
 @pytest.mark.parametrize("progress", [False, True])
