@@ -6257,7 +6257,6 @@ input.sys-edit-fix {
   position: absolute;
   inline-size: 0;
   block-size: 0;
-  outline: none;
 }
 
 .sys-inspector-anchor:focus-visible {
