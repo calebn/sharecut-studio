@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+import wave
 
 import pytest
 
@@ -113,3 +114,52 @@ def test_a_batch_reads_the_decode_under_the_path_it_was_given(
         cache = TrackRmsCache.from_recording(link, sample_rate=RATE)
         assert load_mono_full(link, sample_rate=RATE) is cache.samples
     assert raw_decodes == [RATE]
+
+
+def _host_project(minimal_project):
+    project = ProjectWorkspace.open(minimal_project).project
+    project.tracks = [
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=1.0),
+        )
+    ]
+    path = track_audio_path(project, "host")
+    then = time.time_ns() - 3600 * 10**9
+    os.utime(path, ns=(then, then))
+    return project, path
+
+
+def test_a_file_rewritten_after_the_memo_decode_is_not_seeded_into_the_batch(
+    minimal_project, raw_decodes: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, path = _host_project(minimal_project)
+    real_once = audio_audit.decode_once
+
+    def rewrite_after(*args, **kwargs):  # type: ignore[no-untyped-def]
+        result = real_once(*args, **kwargs)
+        with wave.open(str(path), "wb") as out:
+            out.setnchannels(1)
+            out.setsampwidth(2)
+            out.setframerate(RATE)
+            out.writeframes(b"\x01\x00" * (3 * RATE))
+        return result
+
+    monkeypatch.setattr(audio_audit, "decode_once", rewrite_after)
+    with batch_scope():
+        TrackRmsCache.from_recording(path, sample_rate=RATE)
+        assert load_mono_full(path, sample_rate=RATE).size == 3 * RATE
+
+
+def test_the_batch_decode_is_seeded_at_the_rate_it_was_made(
+    minimal_project, raw_decodes: list[int]
+) -> None:
+    project, path = _host_project(minimal_project)
+    audio_cache.track_level_profile(project, "host", sample_rate=16000)
+
+    with batch_scope():
+        cache = TrackRmsCache.from_recording(path, sample_rate=16000)
+        assert load_mono_full(path, sample_rate=16000) is cache.samples
+        assert load_mono_full(path, sample_rate=RATE).size != cache.samples.size

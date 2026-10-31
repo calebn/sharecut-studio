@@ -22,7 +22,7 @@ from podcast_mcp.models import ClipJoinMode, EpisodeProject
 from podcast_mcp.util.batch_scope import scoped_by_file, scoped_by_file_if_held, snapshot
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.fingerprint import file_stamp
+from podcast_mcp.util.fingerprint import FileStamp, file_stamp
 from podcast_mcp.util.tracks import track_audio_path
 from podcast_mcp.util.wav import open_wav
 
@@ -200,17 +200,25 @@ def held_mono_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray | None:
     )
 
 
-def keep_mono_full(path: Path, samples: np.ndarray, *, sample_rate: int = 8000) -> None:
+def keep_mono_full(
+    path: Path,
+    samples: np.ndarray,
+    *,
+    sample_rate: int = 8000,
+    unchanged_since: FileStamp | None = None,
+) -> None:
     """Hand the batch a decode made elsewhere, so :func:`load_mono_full` of the same file reuses it.
 
-    A no-op outside a batch. ``samples`` must be what :func:`load_mono_full` returns for
-    these arguments, and the batch keeps the array as given.
+    A no-op outside a batch, and when ``unchanged_since`` is given and the file no longer has
+    that stamp. ``samples`` must be what :func:`load_mono_full` returns for these arguments,
+    and the batch keeps the array as given.
     """
     if snapshot()[0] is None:
         return
-    scoped_by_file(
-        "decode", path, (sample_rate, None, tuple(ffmpeg_mono_mean_layout(path))), lambda: samples
-    )
+    key = (sample_rate, None, tuple(ffmpeg_mono_mean_layout(path)))
+    if unchanged_since is not None and file_stamp(path) != unchanged_since:
+        return
+    scoped_by_file("decode", path, key, lambda: samples)
 
 
 def load_channels_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray:
