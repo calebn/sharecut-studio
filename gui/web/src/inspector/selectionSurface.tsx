@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 import type { CommandContext } from "../commands/context";
 import { seekTransport } from "../commands/seek";
 import { rangeClips } from "../edit/rangeSelection";
+import { SectionsBody } from "../stage/edit/SectionsBody";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import { RangeFields } from "../timeline/RangeFields";
 import type { ProjectView, Selection } from "../types/project";
-import { TranscriptRangeBody } from "./OneWordEditor";
 import {
   type PeekTarget,
   peekChapter,
@@ -20,7 +20,6 @@ import {
   relatedCopy,
   relatedCopyWord,
 } from "./relatedRows";
-import { AppliedEditInspector } from "./views/AppliedEditInspector";
 import { ChapterInspector } from "./views/ChapterInspector";
 import { ClipBleedHost } from "./views/ClipBleedHost";
 import { ClipInspector } from "./views/ClipInspector";
@@ -96,9 +95,7 @@ export const SELECTION_SURFACES: {
     peek: noPeek,
     related: relatedCopyWord,
     more: noMore,
-    body: (sel, { placement }) => (
-      <TranscriptRangeBody selection={sel} placement={placement} />
-    ),
+    body: () => <SectionsBody />,
   },
   clip: {
     screens: ANYWHERE,
@@ -150,14 +147,7 @@ export const SELECTION_SURFACES: {
   applied: {
     ...plain,
     screens: ANYWHERE,
-    body: (sel, { project }) => {
-      const rec = project.applied_edits.records.find((r) => r.id === sel.id);
-      return rec ? (
-        <AppliedEditInspector rec={rec} />
-      ) : (
-        notFound("Record not found")
-      );
-    },
+    body: () => <SectionsBody />,
   },
   track: {
     ...plain,

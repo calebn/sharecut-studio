@@ -27,7 +27,7 @@ const COVERED: Record<string, string[]> = {
   "PNL-HISTORY": ["Templates/Editor · History panel"],
   "INS-PEEK": ["Templates/Editor · Inspector · Peek"],
   "INS-RANGE": ["Templates/Editor · Inspector · Range", "System/ScrubField"],
-  "INS-WORD": ["Templates/Editor · Inspector · Word"],
+  "INS-WORD": ["System/InspectorSheet", "System/ScrubField"],
   "INS-COMMENT": ["Templates/Editor · Inspector · Comment"],
   "INS-SOCIAL": [
     "Templates/Editor · Inspector · Social clip",
@@ -40,7 +40,7 @@ const COVERED: Record<string, string[]> = {
     "System/Marker",
   ],
   "INS-TRACK": ["Templates/Editor · Inspector · Track", "System/ScrubField"],
-  "INS-APPLIED": ["Templates/Editor · Inspector · Applied edit", "System/Seam"],
+  "INS-APPLIED": ["System/InspectorSheet", "System/Seam"],
   "INS-PENDING": [
     "Templates/Editor · Inspector · Pending edit",
     "System/ScrubField",
@@ -160,11 +160,7 @@ const COVERED: Record<string, string[]> = {
   "DLG-MODEL-GATE": ["Templates/Model gate"],
   "POP-WORD-EDIT": ["Stages/Edit/ScriptPane", "Stages/Edit/ScriptHost"],
   "POP-SPEAKER": ["Stages/Edit/SpeakerPopover", "Stages/Edit/ScriptHost"],
-  "CMP-WORDBAR": [
-    "Templates/Editor · Inspector · Word",
-    "System/ScrubField",
-    "System/InspectorSheet",
-  ],
+  "CMP-WORDBAR": ["System/ScrubField", "System/InspectorSheet"],
   "CMP-WORDRANGE": [
     "Templates/Editor · Inspector · Range",
     "System/SelectionHandles",

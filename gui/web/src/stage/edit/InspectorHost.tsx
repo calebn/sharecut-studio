@@ -26,6 +26,7 @@ import { useResizeObserver } from "../../ui/useResizeObserver";
 import { EditActionBar } from "./EditActionBar";
 import { focusFirstControl } from "./inspectorFocus";
 import { type InspectorHeading, inspectorHeading } from "./inspectorHeading";
+import { useSelectionSections } from "./selectionSections";
 import type { InspectorOpen, InspectorShell } from "./useInspectorOpen";
 import { bandLocator, useKeepBandClear } from "./useKeepBandClear";
 import { useSelectionAnchor } from "./useSelectionAnchor";
@@ -68,7 +69,11 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
 function useBodySections(
   rangeActionsInSheet: boolean,
 ): readonly InspectorSection[] {
-  return useMemo(
+  const rebuilt = useSelectionSections(
+    useDaw((s) => s.selection),
+    rangeActionsInSheet,
+  );
+  const legacy = useMemo(
     () => [
       {
         id: "body",
@@ -89,6 +94,7 @@ function useBodySections(
     ],
     [rangeActionsInSheet],
   );
+  return rebuilt ?? legacy;
 }
 
 const rounded = (rect: InspectorRect): InspectorRect => ({
@@ -285,8 +291,8 @@ function PeekStrip({
  * Mounts the Inspector sheet (design system 9a) for the Edit stage: a card
  * beside the selection on the desktop and the tablet, a bottom sheet with the
  * Action bar as its dock on the phone, where a timeline target still opens the
- * peek strip. Each kind's body is the legacy one, as one section of the frame,
- * until it is rebuilt from Scrub fields.
+ * peek strip. Words and applied edits are sections of the frame; each other kind's body is the legacy one,
+ * as one section, until it is rebuilt from Scrub fields.
  */
 export function InspectorHost({
   shell,

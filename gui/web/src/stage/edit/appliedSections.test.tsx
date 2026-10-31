@@ -11,7 +11,8 @@ import {
   COMMENTER_CAPABILITIES,
   minimalProject,
 } from "../../test/fixtures";
-import { AppliedEditInspector } from "./AppliedEditInspector";
+import { AppliedEdit } from "./AppliedEdit";
+import { SectionsBody } from "./SectionsBody";
 
 vi.mock("../../api", () => ({
   restoreAppliedEdit: vi.fn(async () => undefined),
@@ -26,7 +27,7 @@ afterEach(() => {
   clearRegisteredCommands();
 });
 
-describe("AppliedEditInspector restore", () => {
+describe("applied edit sheet content", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
@@ -36,9 +37,7 @@ describe("AppliedEditInspector restore", () => {
     const user = userEvent.setup();
     useDawStore.getState().setSelection({ kind: "applied", id: "edit-1" });
     const { container } = render(
-      <AppliedEditInspector
-        rec={appliedEditRecord({ params: { mute: true } })}
-      />,
+      <AppliedEdit rec={appliedEditRecord({ params: { mute: true } })} />,
     );
     await expectNoA11yViolations(container);
     await user.click(screen.getByRole("button", { name: "Restore" }));
@@ -48,7 +47,7 @@ describe("AppliedEditInspector restore", () => {
 
   it("explains missing clocks to an owner who can use History", () => {
     render(
-      <AppliedEditInspector
+      <AppliedEdit
         rec={appliedEditRecord({ source_start: null, params: { mute: true } })}
       />,
     );
@@ -74,9 +73,7 @@ describe("AppliedEditInspector restore", () => {
         .getState()
         .hydrate("share:token", minimalProject(), "view", capabilities);
       const { container } = render(
-        <AppliedEditInspector
-          rec={appliedEditRecord({ params: { mute: true } })}
-        />,
+        <AppliedEdit rec={appliedEditRecord({ params: { mute: true } })} />,
       );
       expect(
         screen.queryByRole("button", { name: "Restore" }),
@@ -97,11 +94,7 @@ describe("AppliedEditInspector restore", () => {
       .getState()
       .hydrate("share:token", minimalProject(), "view", ["edit"]);
     const user = userEvent.setup();
-    render(
-      <AppliedEditInspector
-        rec={appliedEditRecord({ params: { mute: true } })}
-      />,
-    );
+    render(<AppliedEdit rec={appliedEditRecord({ params: { mute: true } })} />);
     await user.click(screen.getByRole("button", { name: "Restore" }));
     expect(restoreAppliedEdit).toHaveBeenCalledWith("share:token", "edit-1");
     expect(screen.queryByText(/current access/)).not.toBeInTheDocument();
@@ -118,7 +111,7 @@ describe("AppliedEditInspector restore", () => {
   ])("directs a cut to whole-action History Undo for %j", async (record) => {
     const user = userEvent.setup();
     const { container } = render(
-      <AppliedEditInspector rec={appliedEditRecord(record)} />,
+      <AppliedEdit rec={appliedEditRecord(record)} />,
     );
     expect(
       screen.queryByRole("button", { name: "Restore" }),
@@ -138,7 +131,7 @@ describe("AppliedEditInspector restore", () => {
   it("allows a source mute without timeline clocks", async () => {
     const user = userEvent.setup();
     render(
-      <AppliedEditInspector
+      <AppliedEdit
         rec={appliedEditRecord({
           params: { mute: true },
           timeline_start: null,
@@ -157,11 +150,7 @@ describe("AppliedEditInspector restore", () => {
     );
     useDawStore.getState().setSelection({ kind: "applied", id: "edit-1" });
     const user = userEvent.setup();
-    render(
-      <AppliedEditInspector
-        rec={appliedEditRecord({ params: { mute: true } })}
-      />,
-    );
+    render(<AppliedEdit rec={appliedEditRecord({ params: { mute: true } })} />);
     await user.click(screen.getByRole("button", { name: "Restore" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Restore failed",
@@ -170,5 +159,20 @@ describe("AppliedEditInspector restore", () => {
       kind: "applied",
       id: "edit-1",
     });
+  });
+
+  it("builds the sheet content for the selected record and says when it is gone", () => {
+    const project = minimalProject();
+    project.applied_edits.records = [
+      appliedEditRecord({ params: { mute: true } }),
+    ];
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    useDawStore.getState().setSelection({ kind: "applied", id: "edit-1" });
+    const { unmount } = render(<SectionsBody />);
+    expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument();
+    unmount();
+    useDawStore.getState().setSelection({ kind: "applied", id: "gone" });
+    render(<SectionsBody />);
+    expect(screen.getByText("Record not found")).toBeInTheDocument();
   });
 });
