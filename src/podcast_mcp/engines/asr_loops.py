@@ -32,6 +32,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from podcast_mcp.models import Transcript, TranscriptWord
+from podcast_mcp.models.words_revision import set_words
 
 log = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ def guard_transcript(
     if not (report.dropped or report.dense_words or report.looped_segments):
         return None
     if report.dropped:
-        transcript.words = report.kept
+        set_words(transcript, report.kept)
         log.warning(
             "dropped %d looped word(s) at %.2f-%.2fs (zlib ratio %.1f)",
             len(report.dropped),

@@ -18,7 +18,10 @@ from __future__ import annotations
 import functools
 import itertools
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from podcast_mcp.models.episode import Transcript, TranscriptWord
 
 _counter = itertools.count(1)
 _revision = 0
@@ -58,3 +61,13 @@ def bumps_words_revision(method: Callable[..., Any]) -> Any:
         return result
 
     return wrapper
+
+
+def set_word(transcript: Transcript, index: int, word: TranscriptWord) -> None:
+    """Replace one transcript word. The only place a word is written by index."""
+    transcript.words[index] = word
+
+
+def set_words(transcript: Transcript, words: list[TranscriptWord]) -> None:
+    """Replace a transcript's whole word list. The only place the list is reassigned."""
+    transcript.words = words

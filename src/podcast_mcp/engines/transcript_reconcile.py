@@ -15,6 +15,7 @@ from podcast_mcp.engines.lane_words import WordKey, transcript_word_key, word_ke
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
+from podcast_mcp.models.words_revision import set_word
 from podcast_mcp.util.progress import (
     ProgressReporter,
     resolve_progress_task,
@@ -86,11 +87,15 @@ def _reconcile_word(
         result.status_updates += 1
 
     if update_status or apply_suppression:
-        tr.words[i] = w.model_copy(
-            update={
-                "audibility_status": status,
-                "dominant_track": dominant,
-            }
+        set_word(
+            tr,
+            i,
+            w.model_copy(
+                update={
+                    "audibility_status": status,
+                    "dominant_track": dominant,
+                }
+            ),
         )
         w = tr.words[i]
 
@@ -115,7 +120,7 @@ def _reconcile_word(
                 }
             )
         if apply_suppression:
-            tr.words[i] = tr.words[i].model_copy(update={"suppressed": True})
+            set_word(tr, i, tr.words[i].model_copy(update={"suppressed": True}))
 
     elif not _should_suppress(status) and w.suppressed:
         result.unsuppress.append(
@@ -130,7 +135,7 @@ def _reconcile_word(
             }
         )
         if apply_suppression:
-            tr.words[i] = tr.words[i].model_copy(update={"suppressed": False})
+            set_word(tr, i, tr.words[i].model_copy(update={"suppressed": False}))
 
 
 def word_targets(
