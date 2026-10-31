@@ -109,12 +109,10 @@ tiers of a 120 ms crossfade (the wide one with its "Crossfade 120 ms" label), a
 label-room lane where a cut's label fits and a longer one would not, and a
 count chip with its phone-width twin. The live `TrackLane` plans the lane's joins (`timeline/editMarkers/plan.ts`) and decides
 which draw as glyphs and which fold into a chip.
-`Templates/EnvelopeOverlay`, `Templates/PresenceOverlay`, and
-`Templates/CommentPlaybackBubble` preview the shipped live-timeline overlays
-as props-only views (`EnvelopeOverlayView`, `PresenceOverlayView`,
+`Templates/EnvelopeOverlay` and `Templates/CommentPlaybackBubble` preview the
+shipped live-timeline overlays as props-only views (`EnvelopeOverlayView`,
 `CommentPlaybackBubbleView`); the live adapters keep the store, API and
-timeline-metrics reads, including a fixed `nowMs` for presence instead of the
-server clock. Each has a 360px story alongside its desktop ones, and a guard
+timeline-metrics reads. Each has a 360px story alongside its desktop ones, and a guard
 test keeps the views themselves free of direct store/API imports.
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` show the shipped comment and transcript preview
