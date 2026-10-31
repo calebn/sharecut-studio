@@ -16,6 +16,7 @@ const ENTRY = {
   label: "Clip",
   bytes: 5,
   current: true,
+  ticket: "1700000000.5-9.sig",
 };
 const PATH = "/tmp/ep/episode.sharecut";
 
@@ -32,6 +33,9 @@ describe("useExportedFiles", () => {
     await waitFor(() => expect(download.result.current.load).toBe("ready"));
     expect(download.result.current.files[0]?.href).toContain(
       "/api/export/files/clips/a.wav",
+    );
+    expect(download.result.current.files[0]?.href).toContain(
+      "ticket=1700000000.5-9.sig",
     );
     const reveal = renderHook(() =>
       useExportedFiles(PATH, { access: "reveal" }),

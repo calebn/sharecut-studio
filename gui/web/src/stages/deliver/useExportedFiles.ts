@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { exportedFileHref, listExportedFiles } from "../../api";
+import {
+  type ExportedFileEntry,
+  exportedFileHref,
+  listExportedFiles,
+} from "../../api";
 import { isAbortError } from "../../utils/apiError";
 import type { ExportedFile, FileAccess } from "./exportedFileModel";
 
@@ -29,7 +33,7 @@ export function useExportedFiles(
 ): ExportedFilesData {
   const [listed, setListed] = useState<{
     path: string;
-    files: readonly Omit<ExportedFile, "href">[];
+    files: readonly ExportedFileEntry[];
   } | null>(null);
   const [load, setLoad] = useState<ExportedFilesLoad>("loading");
   const [reads, setReads] = useState(0);
@@ -65,10 +69,17 @@ export function useExportedFiles(
   const files = useMemo(
     () =>
       listed && listed.path === projectPath
-        ? listed.files.map((file) =>
-            access === "download" && projectPath !== null
-              ? { ...file, href: exportedFileHref(projectPath, file.id) }
-              : file,
+        ? listed.files.map(
+            ({ ticket, ...file }): ExportedFile =>
+              access === "download" && projectPath !== null
+                ? {
+                    ...file,
+                    href: exportedFileHref(projectPath, {
+                      id: file.id,
+                      ticket,
+                    }),
+                  }
+                : file,
           )
         : [],
     [listed, projectPath, access],

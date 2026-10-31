@@ -47,6 +47,7 @@ class ServedFile:
     kind: ExportedFileKind
     path: Path
     media_type: str
+    version: str
 
 
 def _same_text(path: Path, expected: str) -> bool:
@@ -83,7 +84,10 @@ class ExportFilesService:
                 return None
             if not resolved.is_file() or not resolved.is_relative_to(root):
                 return None
-            return ServedFile(relative, kind, resolved, media_type)
+            stat = resolved.stat()
+            return ServedFile(
+                relative, kind, resolved, media_type, f"{stat.st_size}-{stat.st_mtime_ns}"
+            )
 
         wanted: list[tuple[str, ExportedFileKind, str]] = [
             (f"{stem}.{ext}", "audio", media) for ext, media in AUDIO_EXPORT_MEDIA.items()
@@ -101,6 +105,10 @@ class ExportFilesService:
         wanted.append((f"{stem}.chapters.json", "chapters", _JSON_CHAPTERS_MEDIA))
         wanted.append((feed_path(project).name, "feed", _FEED_MEDIA))
         return [found for item in wanted if (found := served(*item)) is not None]
+
+    def served(self) -> list[ServedFile]:
+        """Every listed file with the host path to stream it from."""
+        return self._found()
 
     def open(self, file_id: str) -> ServedFile:
         """The listed file *file_id*; raises ``CodedFileNotFoundError`` (``export_file_gone``)."""
