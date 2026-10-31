@@ -140,3 +140,135 @@ def test_a_sweep_on_windows_asks_whether_the_owner_is_alive_not_how_old_the_dire
 
     assert not gone.exists()
     assert idle.exists()
+
+
+def _fd_count() -> int:
+    return len(os.listdir("/dev/fd"))
+
+
+def _write_tone(path: Path, frequency: float) -> None:
+    import wave
+
+    t = np.arange(48000) / 48000
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(48000)
+        handle.writeframes(
+            (0.3 * np.sin(2 * np.pi * frequency * t) * 32767).astype("<i2").tobytes()
+        )
+
+
+@posix_only
+def test_a_spill_reads_back_the_array_bit_for_bit_and_leaves_no_file() -> None:
+    array = np.random.default_rng(3).normal(size=100_003).astype(np.float32)
+    array[:3] = (-0.0, np.nan, np.inf)
+
+    spilled = decoded_source.spill(array)
+
+    assert type(spilled) is np.ndarray
+    assert not spilled.flags.writeable
+    assert spilled.shape == array.shape
+    np.testing.assert_array_equal(spilled.view(np.uint32), array.view(np.uint32))
+    assert _spool_files(decoded_source._spool_directory()) == []
+
+
+@posix_only
+def test_a_spill_that_hits_a_full_disk_raises_and_leaves_no_file_or_descriptor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import errno
+
+    real = os.write
+
+    def full(fd: int, data: object) -> int:
+        if fd > 2:
+            raise OSError(errno.ENOSPC, "No space left on device")
+        return real(fd, data)  # type: ignore[arg-type]
+
+    before = _fd_count()
+    monkeypatch.setattr(decoded_source.os, "write", full)
+    with pytest.raises(OSError):
+        decoded_source.spill(np.ones(1000, dtype=np.float32))
+    monkeypatch.undo()
+
+    assert _fd_count() == before
+    assert _spool_files(decoded_source._spool_directory()) == []
+
+
+@posix_only
+def test_a_short_write_is_finished_before_the_map_is_made(monkeypatch: pytest.MonkeyPatch) -> None:
+    real = os.write
+    monkeypatch.setattr(
+        decoded_source.os,
+        "write",
+        lambda fd, data: real(fd, bytes(data)[:7]) if fd > 2 else real(fd, data),
+    )
+    array = np.arange(5000, dtype=np.float32)
+
+    np.testing.assert_array_equal(decoded_source.spill(array), array)
+
+
+def test_a_temp_directory_on_tmpfs_is_a_memory_filesystem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mountinfo = tmp_path / "mountinfo"
+    mountinfo.write_text(
+        "22 1 8:1 / / rw - ext4 /dev/vda rw\n"
+        "30 22 0:25 / /tmp rw - tmpfs tmpfs rw\n"
+        "31 22 0:26 / /tmpfoo rw - ext4 /dev/vdb rw\n"
+        "32 30 0:27 / /tmp/with\\040space rw - ext4 /dev/vdc rw\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(decoded_source, "_MOUNTINFO", mountinfo)
+
+    assert decoded_source._in_memory_filesystem(Path("/tmp/spool"))
+    assert not decoded_source._in_memory_filesystem(Path("/tmpfoo/spool"))
+    assert not decoded_source._in_memory_filesystem(Path("/tmp/with space/spool"))
+    assert not decoded_source._in_memory_filesystem(Path("/home/spool"))
+    monkeypatch.setattr(decoded_source, "_MOUNTINFO", tmp_path / "missing")
+    assert not decoded_source._in_memory_filesystem(Path("/tmp/spool"))
+
+
+@posix_only
+def test_a_spill_wants_disk_headroom_and_a_disk_backed_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    free = types.SimpleNamespace(free=decoded_source.SPILL_HEADROOM_BYTES + 1000)
+    monkeypatch.setattr(decoded_source.shutil, "disk_usage", lambda path: free)
+    monkeypatch.setattr(decoded_source, "_in_memory_filesystem", lambda directory: False)
+
+    assert decoded_source.spill_allowed(1000)
+    assert not decoded_source.spill_allowed(1001)
+    monkeypatch.setattr(decoded_source, "_in_memory_filesystem", lambda directory: True)
+    assert not decoded_source.spill_allowed(1)
+
+
+def test_no_spill_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(decoded_source.os, "name", "nt")
+
+    assert not decoded_source.spill_allowed(1)
+
+
+def test_a_source_overwritten_in_place_with_its_size_and_mtime_is_decoded_again(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "tone.wav"
+    _write_tone(source, 330)
+    stat = source.stat()
+    with decoded_sources(48000) as reader:
+        before = reader(source).read(0, 4800).copy()
+
+    other = tmp_path / "other.wav"
+    _write_tone(other, 660)
+    with source.open("r+b") as handle:
+        handle.write(other.read_bytes())
+    os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    assert source.stat().st_size == stat.st_size and source.stat().st_mtime_ns == stat.st_mtime_ns
+    assert source.stat().st_ino == stat.st_ino
+
+    with decoded_sources(48000) as reader:
+        after = reader(source).read(0, 4800)
+
+    assert not np.array_equal(before, after)
+    np.testing.assert_array_equal(after, load_mono_full(other, sample_rate=48000)[:4800])
