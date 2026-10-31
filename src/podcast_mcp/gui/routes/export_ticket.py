@@ -57,7 +57,7 @@ def verified_version(ticket: str, path: str, file_id: str) -> str:
         raise _refused(403, "export_ticket_invalid")
     try:
         project = Path(path).expanduser().resolve()
-    except (OSError, ValueError) as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         raise _refused(403, "export_ticket_invalid") from exc
     expires = int(expires_text)
     if not hmac.compare_digest(signature, _sign(project, file_id, version, expires)):
