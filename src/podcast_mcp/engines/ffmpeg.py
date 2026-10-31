@@ -2086,6 +2086,8 @@ class FFmpegEngine:
         The integrated figure is the one ``measure_loudness_full`` reports; the sample
         peak does not exceed the true peak on any signal tried (the limiter loop adds
         ``SCREEN_PEAK_SLACK_DB`` of slack), so it bounds true-peak headroom from above.
+        The one exception is a loudest sample in the last few samples of the file, which
+        ffmpeg's true-peak pass omits.
         About a sixth of the cost of ``measure_loudness_full``.
         """
         r = run(
