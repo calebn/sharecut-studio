@@ -26,6 +26,15 @@ def test_a_control_character_in_a_note_a_reason_or_a_term_is_refused(text: str) 
         GuestVocabularyPutRequest(terms=[], guest_names=[text], base_revision=None)
 
 
+@pytest.mark.parametrize("text", ["a\nb", "a\r\nb", "a\tb", "a\u2028b", "a\u2029b"])
+def test_a_vocabulary_term_is_a_single_line(text: str) -> None:
+    with pytest.raises(ValidationError):
+        GuestVocabularyPutRequest(terms=[text], guest_names=[], base_revision=None)
+    with pytest.raises(ValidationError):
+        GuestVocabularyPutRequest(terms=[], guest_names=[text], base_revision=None)
+    assert GuestRefineDoneRequest(notes=text).notes == text
+
+
 def test_line_breaks_and_tabs_stay_welcome_in_free_text() -> None:
     text = "first line\r\nsecond\tcolumn\nthird, with é and 日本語"
     assert GuestRefineDoneRequest(notes=text).notes == text
