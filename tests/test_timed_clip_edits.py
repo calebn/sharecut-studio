@@ -228,3 +228,50 @@ def test_a_range_wholly_inside_a_hole_changes_nothing_when_punched(
     out = punch_timeline_range_from_clips([clip], *span, defaults=_DEFAULTS)
     assert out[-1].timeline_end == clip.timeline_end
     assert _played(*out)[-1] == (31, 40, 122)
+
+
+def test_a_slice_drops_a_skip_that_would_cross_its_end() -> None:
+    timing = _clip([{"at": 30, "delta_sec": -5, "quiet": _q(29, 36)}]).timing
+    assert timing is not None
+    assert timing.sliced(10, 33) is None
+    kept = timing.sliced(10, 36.5)
+    assert kept is not None and [step.at for step in kept.steps] == [30]
+
+
+def test_a_range_straddling_the_start_of_a_hole_removes_the_audio_and_part_of_the_hole() -> None:
+    clip = _clip(_STEPS)
+    out = remove_timeline_range_from_clips([clip], 108.0, 111.0, defaults=_DEFAULTS)
+    assert out[0].timeline_end == 108
+    assert _played(*out)[-1] == (31, 40, 122 - 3)
+    assert (20, 30, 109) in _played(*out)
+
+
+def test_a_range_straddling_the_end_of_a_hole_removes_part_of_the_hole_and_the_audio() -> None:
+    clip = _clip(_STEPS)
+    out = remove_timeline_range_from_clips([clip], 111.0, 114.0, defaults=_DEFAULTS)
+    assert out[0].timeline_end == 110
+    assert _played(*out)[-1] == (31, 40, 122 - 3)
+    assert (22, 30, 111) in _played(*out)
+
+
+def test_rolling_a_join_stops_after_a_skip_at_the_end_of_the_left_clip() -> None:
+    left = _clip([{"at": 20, "delta_sec": -2, "quiet": _q(19, 23)}], id="l", source_end=30)
+    right = Clip.model_validate(
+        {
+            "id": "r",
+            "track_id": "host",
+            "source_start": 30,
+            "source_end": 60,
+            "timeline_start": left.timeline_end,
+        }
+    )
+    project = _project([left, right])
+    neg, _ = roll_join_limits(project, "l", "r")
+    assert neg == pytest.approx(-(30 - 22), abs=1e-5)
+
+
+def test_trim_limits_in_gap_mode_still_stop_at_the_steps() -> None:
+    clip = _clip(_STEPS)
+    project = _project([clip])
+    assert trim_edge_limits(project, clip, "in", EditMode.GAP)[1] < 20
+    assert trim_edge_limits(project, clip, "out", EditMode.GAP)[0] > 31
