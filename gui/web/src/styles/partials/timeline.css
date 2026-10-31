@@ -1922,16 +1922,38 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
    time on its lane; the menu sits above the finger (below it near the top,
    beside it on a short screen) and never over it, beside the fixed playhead
    when there is room. */
-.create-menu-layer,
+.timeline-create-layer,
 .target-chooser {
   position: fixed;
   inset: 0;
   z-index: var(--z-menu);
 }
 
+/* The create menu's host (timeline/TimelineCreateMenu): a full-viewport layer
+   the leaf menu is placed in, over a scrim that takes an outside press. The
+   dashed mark and the menu are the leaf's (stage-edit.css). */
+.timeline-create-layer .edit-create-menu:not([data-scrolls]) {
+  touch-action: none;
+}
+
+.timeline-create-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--color-scrim);
+  touch-action: none;
+}
+
+/* The phone's Sheet is non-modal and portals to the body on its own, so its
+   scrim lets presses through; this one sits just under it and is clear. */
+.timeline-create-scrim[data-phone] {
+  position: fixed;
+  z-index: var(--z-timeline-popover);
+  background: transparent;
+}
+
 /* In the top layer these are popovers: undo the UA's centered, bordered,
    scrolling box so the layer stays a full-viewport sheet of geometry. */
-:is(.create-menu-layer, .target-chooser)[popover] {
+:is(.timeline-create-layer, .target-chooser)[popover] {
   inline-size: 100%;
   block-size: 100%;
   margin: 0;

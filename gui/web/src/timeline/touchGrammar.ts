@@ -7,9 +7,7 @@ import { type SoftBoundary, softBoundaries } from "../edit/nudgeBoundaries";
 import { useDawStore } from "../state/dawStore";
 import { selectedTrackIdsOf } from "../state/selection";
 import { dialogueTrackIds } from "../utils/bladeTracks";
-import { envelopeValueAt, sortedVolumePoints } from "../utils/envelopes";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
-import type { CreateMenuPlace } from "./CreateMenu";
 import type { HitPoint } from "./hitCandidates";
 import type { ArmedTarget, CreateView, RoutedTarget } from "./hitRouting";
 import { closestHitSurface, closestHitTarget } from "./hitTargets";
@@ -61,7 +59,19 @@ export function vibrate(): void {
   }
 }
 
-/** The time, lane and envelope level a create menu acts on. */
+/** The held place the create menu acts on, as the timeline resolved it. */
+export interface CreateMenuPlace {
+  /** Timeline seconds under the finger. */
+  atTime: number;
+  /** The track whose lane it landed on, if any. */
+  trackId: string | null;
+  /** The held lane's name ("Avery"), if it landed on one. */
+  trackLabel: string | null;
+  /** The held lane's top and bottom, viewport px, for the time mark. */
+  lane: { top: number; bottom: number } | null;
+}
+
+/** The time and lane a create menu acts on. */
 export function createPlace(
   view: CreateView,
   canvas: HTMLElement,
@@ -83,12 +93,6 @@ export function createPlace(
     trackId: track?.id ?? null,
     trackLabel: track ? track.speaker || track.label : null,
     lane: box ? { top: box.top, bottom: box.bottom } : null,
-    level: track
-      ? envelopeValueAt(
-          sortedVolumePoints(project?.envelopes, track.id),
-          atTime,
-        )
-      : null,
   };
 }
 

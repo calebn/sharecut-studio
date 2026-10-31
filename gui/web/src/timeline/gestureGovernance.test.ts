@@ -77,6 +77,11 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
     reason: "create menu items: router-owned overlay",
   },
   {
+    file: "timeline/TimelineCreateMenu.tsx",
+    marker: 'className="timeline-create-scrim"',
+    reason: "the create menu's scrim closes it",
+  },
+  {
     file: "timeline/PendingEditOverlayView.tsx",
     marker: 'aria-label="Pending edit actions"',
     reason: "the portaled action card only stops presses reaching the lanes",
