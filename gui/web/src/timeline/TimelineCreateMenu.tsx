@@ -112,7 +112,10 @@ export function TimelineCreateMenu({
   surfaceRef.current = view.surface;
   useEffect(
     () => () => {
-      focusAfterClose(surfaceRef.current);
+      const surface = surfaceRef.current;
+      // After the menu keyboard's own cleanup, which returns focus to where
+      // the press began when that was a focusable; this only catches a fall.
+      queueMicrotask(() => focusAfterClose(surface));
     },
     [],
   );

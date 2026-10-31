@@ -411,7 +411,7 @@ describe("TimelineCreateMenu phone form", () => {
     const { unmount } = mount(true);
     await screen.findByRole("dialog");
     unmount();
-    expect(slider).toHaveFocus();
+    await waitFor(() => expect(slider).toHaveFocus());
     slider.remove();
   });
 
