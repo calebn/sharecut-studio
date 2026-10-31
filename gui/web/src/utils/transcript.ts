@@ -50,7 +50,7 @@ export function findTranscriptWord(
 
 /** Indexed words on `trackId` with `lo <= word_index <= hi`, in transcript order (duplicates included). */
 function* trackWordsInRange(
-  project: ProjectView | null,
+  project: Pick<ProjectView, "transcript"> | null,
   trackId: string,
   lo: number,
   hi: number,
@@ -108,21 +108,21 @@ function joinIndexedTexts(texts: Map<number, string>): string {
  * copy, not a guard, so a duplicate that disagrees keeps its first listing.
  */
 export function transcriptWordRange(
-  project: ProjectView | null,
+  project: Pick<ProjectView, "transcript"> | null,
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,
   options?: { boundsOnly?: false; sourceId?: string | null },
 ): { start: number; end: number; text: string } | null;
 export function transcriptWordRange(
-  project: ProjectView | null,
+  project: Pick<ProjectView, "transcript"> | null,
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,
   options: { boundsOnly: true; sourceId?: string | null },
 ): { start: number; end: number } | null;
 export function transcriptWordRange(
-  project: ProjectView | null,
+  project: Pick<ProjectView, "transcript"> | null,
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,

@@ -96,6 +96,9 @@ describe("timeline styles", () => {
       /z-index:\s*calc\(var\(--z-timeline-chrome\)\s*\+\s*1\)/,
     );
     expect(layer).toMatch(/pointer-events:\s*none/);
+    // Not sticky: under a vertical scroll the layer moves with the lanes while
+    // the ruler and marker lane stay pinned (the documented option A).
+    expect(layer).not.toMatch(/sticky/);
   });
 
   it("truncates a chapter label to the room before the next chapter", () => {

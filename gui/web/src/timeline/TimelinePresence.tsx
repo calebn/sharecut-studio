@@ -12,7 +12,10 @@ import {
   remotePlayheadSec,
   serverNowMs,
 } from "../presence/followSync";
-import { presencePeople } from "../presence/presencePeople";
+import {
+  type PresencePerson,
+  presencePeople,
+} from "../presence/presencePeople";
 import { sessionClientList } from "../presence/roster";
 import {
   presenceIdsKey,
@@ -160,14 +163,49 @@ export const TimelinePresence = memo(function TimelinePresence({
     zoomPxPerSec,
   );
 
-  const people = useMemo(
+  const previousPeople = useRef<readonly PresencePerson[]>([]);
+  const people = useMemo(() => {
     // Never older than the ticker's last frame, never older than now.
-    () => presencePeople(others, durationSec, Math.max(tickMs, serverNowMs())),
-    [others, durationSec, tickMs],
+    const next = presencePeople(
+      others,
+      durationSec,
+      Math.max(tickMs, serverNowMs()),
+    );
+    // A person whose name, colour and playhead did not change keeps their object.
+    return next.map((person) => {
+      const before = previousPeople.current.find((p) => p.id === person.id);
+      return before !== undefined &&
+        before.name === person.name &&
+        before.colorIndex === person.colorIndex &&
+        before.playhead === person.playhead
+        ? before
+        : person;
+    });
+  }, [others, durationSec, tickMs]);
+  useEffect(() => {
+    previousPeople.current = people;
+  }, [people]);
+  // Only what a selection is drawn from, so an unrelated project edit (a
+  // comment, a chapter, a mix change) does not rebuild the selections.
+  const tracksOf = project?.tracks;
+  const clipsOf = project?.clips;
+  const envelopesOf = project?.envelopes;
+  const transcriptOf = project?.transcript;
+  const selectionProject = useMemo(
+    () =>
+      tracksOf && clipsOf && envelopesOf
+        ? {
+            tracks: tracksOf,
+            clips: clipsOf,
+            envelopes: envelopesOf,
+            transcript: transcriptOf ?? null,
+          }
+        : null,
+    [tracksOf, clipsOf, envelopesOf, transcriptOf],
   );
   const selections = useMemo(
-    () => presenceSelections(others, project, zoomPxPerSec),
-    [others, project, zoomPxPerSec],
+    () => presenceSelections(others, selectionProject, zoomPxPerSec),
+    [others, selectionProject, zoomPxPerSec],
   );
   const tracks = project?.tracks ?? NO_TRACKS;
   const rows = useMemo(
