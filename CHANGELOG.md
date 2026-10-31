@@ -21,6 +21,8 @@
 
 ### Fixes
 
+* Room-tone fills and pad pools now prefer a window where every other speaker is at their floor, else the quietest of the four nearest, instead of the nearest quiet window, so a fill is less likely to sit beside a loud peer and carry faint bleed. The nearest window where every peer sits at its own floor still wins; a window a peer's recording does not cover now ranks after one it covers. Recorded room-tone pools are picked again on the next ingest or warm (#2699).
+
 * Error and progress text for a share guest that holds any backslash, or a percent-encoded one (`%5c`), such as `Podcasts\ep 12\raw.wav` or `..\host\raw.wav`, is now withheld like other host paths instead of reaching the guest (#2827).
 
 * An over-long ffmpeg command line from a cancellable render or a source-proxy audio pass now fails with `render_command_too_long` instead of a raw OS error, as the other render commands already do (#2104).

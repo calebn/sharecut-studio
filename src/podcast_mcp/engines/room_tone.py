@@ -24,7 +24,8 @@ level for the same credibility rule (``engines/gate_fill.py``).
 
 A request ranks the quiet runs by distance from the cut (all of them sit at the floor,
 so the nearest matches the room at the cut best), takes the window of its length nearest
-the cut from each, and returns the first window that passes every row of ``CHECKS``.
+the cut from each, and returns the first window that passes every row of ``CHECKS`` and leaves every other speaker at their floor;
+with no such window among the first few that pass, the one under the quietest other speaker.
 Picking is done once per recording: :func:`record_room_tone_pool` runs that pick at evenly
 spaced points along the track, keeps the samples that passed, and records them under the
 project's ``artifacts``, keyed on the recording's identity. A request on a track with a pool
@@ -91,6 +92,13 @@ MIN_SAMPLE_SEC = 0.25
 # while it is still voice, which no level check or absent voice detector can catch.
 SPEECH_GUARD_SEC = 0.15
 MAX_CANDIDATES = 16
+# A candidate whose every peer sits within this of its own floor carries no one's voice: the
+# nearest such candidate is taken at once. Otherwise the candidates are ranked by how far the
+# loudest peer rises above its floor, quietest first.
+PEER_QUIET_DB = 3.0
+# Ranking stops once this many samples pass: each one costs a read of every peer's file, and
+# the nearest few already hold the quietest peer a nearby window offers.
+MAX_RANKED = 4
 # A bed is checked in windows this long, hopping by half: a burst of speech in a long
 # bed must not be averaged away by the steady room around it. A usable run shorter than
 # ``BED_MIN_USABLE_SEC`` would be tiled into a stutter.
@@ -308,7 +316,7 @@ POOL_ANCHOR_SPACING_SEC = 60.0
 POOL_SAMPLE_SEC = 2.0
 # A pooled sample shorter than this is a scrap that a pad tiles into a stutter.
 POOL_MIN_SAMPLE_SEC = 1.0
-_POOL_REV = 5
+_POOL_REV = 6
 _SHIFT_EPS_SEC = 1e-3
 # A pooled sample that a clip or mute fill this close to a pad (timeline seconds, either
 # side) already plays ranks after the unused ones: the listener hears both fills together.
@@ -683,11 +691,15 @@ def _follows(own: np.ndarray, other: np.ndarray) -> bool:
     return float(np.corrcoef(a, b)[0, 1]) >= BLEED_ENVELOPE_CORRELATION
 
 
-def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span], bool]:
+def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span], float | None]:
     """While another track speaks, its voice reaches this microphone as bleed that sits near
     the room's floor, below any level check: a pad tiles such a sample and repeats the word.
     Each track's primary file sits on its own session clock, so the window is read from a
     peer's file shifted by the difference of their ingest alignments.
+
+    The answer is None for a window a peer's voice follows, else how many dB the loudest peer
+    rises above its floor there (0 with no peers; infinite when a peer's file does not cover
+    the window, which is no evidence either way and so ranks last).
     """
     own_path = track_audio_path(project, track_id)
     own_shift = _ingest_shift(project, track_id)
@@ -708,28 +720,32 @@ def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span]
         )
         return _envelope_db(audio)
 
-    def clear(span: Span) -> bool:
+    def clear(span: Span) -> float | None:
         try:
             own = envelope(own_path, span)
         except Exception as exc:
             log.warning("room tone window %.2f-%.2f unreadable: %s", span[0], span[1], exc)
-            return False
+            return None
+        excess = 0.0
         for path, floor_db, offset in others:
             if span[0] + offset < 0:
+                excess = math.inf
                 continue
             try:
                 theirs = envelope(path, (span[0] + offset, span[1] + offset))
             except Exception as exc:
                 # A recording that ends before the window has no voice there to bleed in.
                 log.debug("room tone window %.2f-%.2f not on %s: %s", span[0], span[1], path, exc)
+                excess = math.inf
                 continue
-            if (
-                theirs.size
-                and float(np.max(theirs)) > floor_db + FLOOR_BAND_DB
-                and _follows(own, theirs)
-            ):
-                return False
-        return True
+            if not theirs.size:
+                excess = math.inf
+                continue
+            peak = float(np.max(theirs)) - floor_db
+            if peak > FLOOR_BAND_DB and _follows(own, theirs):
+                return None
+            excess = max(excess, peak)
+        return excess
 
     return clear
 
@@ -741,9 +757,14 @@ def _pick_sample(
     duration_sec: float,
     avoid: Sequence[Span] = (),
     min_sec: float = MIN_SAMPLE_SEC,
-    clear: Callable[[Span], bool] | None = None,
+    clear: Callable[[Span], float | None] | None = None,
 ) -> OwnQuietSample | SampleAbsent:
-    """The room-tone sample nearest ``near_sec``: quiet runs nearest first, first to pass."""
+    """The room-tone sample least likely to carry another voice, nearest ``near_sec`` among equals.
+
+    Quiet runs are tried nearest first. The first passing sample whose peers all sit at their
+    floor (``PEER_QUIET_DB``) is taken at once; with none, the passing sample under the quietest
+    peer wins, the nearer run breaking ties.
+    """
     need = min(duration_sec, min_sec)
     if not track.runs:
         return SampleAbsent("no_quiet_run")
@@ -756,18 +777,30 @@ def _pick_sample(
         return SampleAbsent("excluded")
     rejected: list[str] = []
     unreadable = 0
-    for run in runs[:MAX_CANDIDATES]:
+    passed: list[tuple[float, int, Sample]] = []
+    for order, run in enumerate(runs[:MAX_CANDIDATES]):
         sample = _measure(track, _window_nearest(run, near_sec, duration_sec))
         if sample is None:
             unreadable += 1
             continue
         failed = rejection(sample, track)
-        if failed is None and clear is not None and not clear((sample.start, sample.end)):
-            failed = "other_voice"
+        excess = 0.0
+        if failed is None and clear is not None:
+            heard = clear((sample.start, sample.end))
+            if heard is None:
+                failed = "other_voice"
+            else:
+                excess = heard
         if failed is None:
-            return OwnQuietSample(sample)
-        if failed not in rejected:
+            if excess <= PEER_QUIET_DB:
+                return OwnQuietSample(sample)
+            passed.append((excess, order, sample))
+            if len(passed) >= MAX_RANKED:
+                break
+        elif failed not in rejected:
             rejected.append(failed)
+    if passed:
+        return OwnQuietSample(min(passed, key=lambda x: x[:2])[2])
     if len(runs) > MAX_CANDIDATES:
         return SampleAbsent("candidate_limit", tuple(rejected), unreadable)
     if rejected:
