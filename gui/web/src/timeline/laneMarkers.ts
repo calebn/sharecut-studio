@@ -1,9 +1,14 @@
-import type { LaneMarker } from "../system/MarkerLane";
+import {
+  type LaneMarker,
+  MARKER_MIN_SPAN,
+  type MarkerGrip,
+} from "../system/MarkerLane";
 import type {
   ChapterMarker,
   SocialClipView,
   TimelineComment,
 } from "../types/project";
+import { socialSpanAfterDrag } from "./socialDrag";
 
 /** A chapter has no id of its own: its time and title name it. */
 export function chapterMarkerId(chapter: ChapterMarker): string {
@@ -50,4 +55,27 @@ export function laneMarkers(input: {
       });
   }
   return out;
+}
+
+/**
+ * Where a marker sits once it has moved `delta` seconds by `grip`, held to the
+ * episode: a chapter moves whole; a social clip moves whole (`move`) or by one
+ * bound (`start`, `end`) and keeps its minimum span. Comments never move.
+ */
+export function movedMarker(
+  marker: LaneMarker,
+  grip: MarkerGrip,
+  delta: number,
+  duration: number,
+): LaneMarker {
+  if (marker.kind === "chapter")
+    return {
+      ...marker,
+      start: Math.max(0, Math.min(duration, marker.start + delta)),
+    };
+  if (marker.kind !== "clip") return marker;
+  const span = socialSpanAfterDrag(grip, marker.start, marker.end, delta);
+  const start = Math.max(0, span.start);
+  const end = Math.min(duration, Math.max(span.end, start + MARKER_MIN_SPAN));
+  return { ...marker, start, end };
 }

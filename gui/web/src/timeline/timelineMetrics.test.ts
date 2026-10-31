@@ -8,6 +8,7 @@ import {
 import {
   fitLaneHeight,
   markerLaneHeight,
+  markerLaneRow,
   markerRows,
   resolveLaneHeight,
   shortTouchFloorPx,
@@ -232,5 +233,28 @@ describe("marker rows", () => {
         clipping: true,
       }),
     ).toBe(2 * MARKER_ROW_HEIGHT);
+  });
+
+  it("keeps the marker lane's own row under the clipping row when only flags exist", () => {
+    const rows = {
+      chapters: false,
+      social: false,
+      comments: false,
+      clipping: true,
+    };
+    expect(markerLaneRow(rows)).toBe(true);
+    expect(markerLaneHeight(rows)).toBe(2 * MARKER_ROW_HEIGHT);
+  });
+
+  it("drops the empty marker lane on a short touch screen but keeps the clipping row", () => {
+    const short = { kind: "touchShort", floorPx: 72 } as const;
+    const rows = {
+      chapters: false,
+      social: false,
+      comments: false,
+      clipping: true,
+    };
+    expect(markerLaneRow(rows, short)).toBe(false);
+    expect(markerLaneHeight(rows, short)).toBe(MARKER_ROW_HEIGHT);
   });
 });

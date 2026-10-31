@@ -70,6 +70,7 @@ const meta: Meta<typeof MarkerLaneHost> = {
     readOnly: false,
     selected: [],
     duration: 30,
+    laneRow: true,
     onSelectChapter: fn(),
     onSelectSocial: fn(),
     onSelectComment: fn(),

@@ -83,6 +83,7 @@ import {
   type DetentView,
   type HitRouter,
 } from "./hitRouting";
+import { chapterMarkerId } from "./laneMarkers";
 import {
   appliedRecordTrackIds,
   envelopeTrackIds,
@@ -102,6 +103,7 @@ import { TrackLane } from "./TrackLane";
 import {
   type LaneFit,
   markerLaneHeight,
+  markerLaneRow,
   markerRows,
   resolveLaneHeight,
   shortTouchFloorPx,
@@ -467,7 +469,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   );
   const selectedMarkerId =
     selection?.kind === "chapter"
-      ? `${selection.time}-${selection.id}`
+      ? chapterMarkerId({ time: selection.time, title: selection.id })
       : selection?.kind === "social" || selection?.kind === "comment"
         ? selection.id
         : null;
@@ -575,7 +577,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     [fittedLaneHeight, liveMarkerLaneHeightPx, liveRows],
   );
   const { value: layout, hold: holdLayout } = useGestureStable(liveLayout);
-  const { laneHeight, markerLaneHeightPx } = layout;
+  const { laneHeight, markerLaneHeightPx, rows } = layout;
   const moving = movePlacements != null;
   useEffect(() => (moving ? holdLayout() : undefined), [moving, holdLayout]);
 
@@ -959,6 +961,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                       comments={comments}
                       showMarkers={layers.showMarkers}
                       showComments={layers.showComments}
+                      laneRow={markerLaneRow(rows, laneFit)}
                       selected={selectedMarkerIds}
                       zoomPxPerSec={zoomPxPerSec}
                       width={width}

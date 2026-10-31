@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { resolvePresenceAnchor } from "../presence/anchors";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -8,7 +8,7 @@ import type {
   SocialClipView,
   TimelineComment,
 } from "../types/project";
-import { chapterMarkerId, laneMarkers } from "./laneMarkers";
+import { chapterMarkerId, laneMarkers, movedMarker } from "./laneMarkers";
 import { MarkerLaneHost } from "./MarkerLaneHost";
 import { socialSpanAfterDrag } from "./socialDrag";
 
@@ -53,6 +53,7 @@ function setup(over: Record<string, unknown> = {}) {
       zoomPxPerSec={10}
       width={400}
       duration={40}
+      laneRow
       readOnly={false}
       {...handlers}
       {...over}
@@ -100,6 +101,54 @@ describe("laneMarkers", () => {
   });
 });
 
+describe("movedMarker", () => {
+  const chapter = {
+    kind: "chapter",
+    id: "c",
+    start: 2,
+    title: "Intro",
+  } as const;
+  const clip = {
+    kind: "clip",
+    id: "s",
+    start: 10,
+    end: 14,
+    title: "T",
+  } as const;
+
+  it("holds a chapter to the episode", () => {
+    expect(movedMarker(chapter, "move", -5, 40).start).toBe(0);
+    expect(movedMarker(chapter, "move", 100, 40).start).toBe(40);
+    expect(movedMarker(chapter, "move", 1.5, 40).start).toBe(3.5);
+  });
+
+  it("moves a clip whole or by one bound and keeps its minimum span", () => {
+    expect(movedMarker(clip, "move", 2, 40)).toMatchObject({
+      start: 12,
+      end: 16,
+    });
+    expect(movedMarker(clip, "end", 3, 40)).toMatchObject({
+      start: 10,
+      end: 17,
+    });
+    const squeezed = movedMarker(clip, "end", -10, 40);
+    expect(
+      squeezed.kind === "clip" && squeezed.end - squeezed.start,
+    ).toBeGreaterThanOrEqual(0.1 - 1e-9);
+    expect(movedMarker(clip, "end", 100, 40)).toMatchObject({ end: 40 });
+  });
+
+  it("never moves a comment", () => {
+    const comment = {
+      kind: "comment",
+      id: "m",
+      start: 4,
+      author: "Ada",
+    } as const;
+    expect(movedMarker(comment, "move", 3, 40)).toBe(comment);
+  });
+});
+
 describe("socialSpanAfterDrag", () => {
   it.each([
     ["move" as const, 1, 3, -5, { start: 0, end: 2 }],
@@ -117,6 +166,11 @@ describe("MarkerLaneHost", () => {
     const { container } = setup();
     expect(container.querySelectorAll(".sys-markers")).toHaveLength(1);
     expect(container.querySelector(".marker-row.clipping")).toBeNull();
+  });
+
+  it("leaves the system lane out when the metrics give its row away", () => {
+    const { container } = setup({ laneRow: false });
+    expect(container.querySelector(".sys-markers")).toBeNull();
   });
 
   it("collapses to the quiet lane when nothing shows", () => {
@@ -182,6 +236,30 @@ describe("MarkerLaneHost", () => {
     expect(next).toBeCloseTo(2.2);
   });
 
+  it("draws the held marker where the keys have put it, and lets it go once saved", async () => {
+    const { onMoveChapter } = setup({ selected: ["2-Intro"] });
+    const chapter = screen.getByRole("button", { name: /^Chapter Intro,/ });
+    const before = chapter.getAttribute("aria-label");
+    chapter.focus();
+    fireEvent.keyDown(chapter, { key: "ArrowRight", shiftKey: true });
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("button", { name: /^Chapter Intro,/ })
+          .getAttribute("aria-label"),
+      ).not.toBe(before),
+    );
+    fireEvent.keyUp(chapter, { key: "ArrowRight" });
+    expect(onMoveChapter).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("button", { name: /^Chapter Intro,/ })
+          .getAttribute("aria-label"),
+      ).toBe(before),
+    );
+  });
+
   it("commits a social clip nudge as new bounds", () => {
     const { onMoveSocial } = setup({ selected: ["s1"] });
     const clip = screen.getByRole("button", { name: /Big laugh/ });
@@ -207,6 +285,39 @@ describe("MarkerLaneHost", () => {
     fireEvent.click(chapter);
     expect(onMoveChapter).not.toHaveBeenCalled();
     expect(onSelectChapter).toHaveBeenCalled();
+  });
+
+  it("names a chapter added by a double-click on the empty lane", () => {
+    const onAddChapter = vi.fn();
+    const { container } = setup({ onAddChapter });
+    const track = container.querySelector(".sys-markers-track")!;
+    fireEvent.doubleClick(track, { clientX: 300 });
+    const field = screen.getByRole("textbox", { name: "Chapter name" });
+    fireEvent.change(field, { target: { value: "Outro" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(onAddChapter).toHaveBeenCalledTimes(1);
+    expect(onAddChapter.mock.calls[0]![1]).toBe("Outro");
+    expect(screen.queryByRole("textbox", { name: "Chapter name" })).toBeNull();
+  });
+
+  it("drops an unnamed add with Escape, and never adds for a guest", () => {
+    const onAddChapter = vi.fn();
+    const { container, unmount } = setup({ onAddChapter });
+    const track = container.querySelector(".sys-markers-track")!;
+    fireEvent.doubleClick(track, { clientX: 300 });
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Chapter name" }), {
+      key: "Escape",
+    });
+    expect(onAddChapter).not.toHaveBeenCalled();
+    unmount();
+    const guest = setup({ onAddChapter, readOnly: true });
+    fireEvent.doubleClick(
+      guest.container.querySelector(".sys-markers-track")!,
+      {
+        clientX: 300,
+      },
+    );
+    expect(screen.queryByRole("textbox", { name: "Chapter name" })).toBeNull();
   });
 
   it("selects a clipping flag", () => {

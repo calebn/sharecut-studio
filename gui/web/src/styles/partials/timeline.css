@@ -1058,6 +1058,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
    computes at any root font size. */
 .marker-lane > .sys-markers {
   flex: none;
+  block-size: var(--marker-row-height);
 }
 
 .marker-row {
