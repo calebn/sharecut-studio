@@ -70,7 +70,7 @@ for (const viewport of [
         await expect(region).toHaveAttribute("aria-pressed", "false");
         await expect(restore).toBeDisabled();
         await region.click();
-        await expectPageAxeClean(page, ".inspector");
+        await expectPageAxeClean(page, ".sys-inspector");
         const command = page.waitForRequest((request) => {
           if (!request.url().includes("/api/document/command")) return false;
           return request.postDataJSON()?.type === "RestoreClipBleed";
