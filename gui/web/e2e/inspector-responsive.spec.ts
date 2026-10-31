@@ -26,6 +26,7 @@ import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
 import { closeTools, inspectSelection, openToolsIfFolded } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
+import { trackHeaderButton } from "./trackHeader";
 
 const viewports = [
   { width: 360, height: 740 },
@@ -154,10 +155,7 @@ for (const {
           try {
             await setup(page, projectPath, theme, rootFont, receipts);
             await observer.verifyAssets();
-            const identity = page.getByRole("button", {
-              name: `Open track details, ${track.label}`,
-              exact: true,
-            });
+            const identity = trackHeaderButton(page, track.label);
             await captureInspector(
               page,
               info,
@@ -381,10 +379,7 @@ test.describe("root32 phone many points and request recovery", () => {
           await setup(page, projectPath, "dark", 32, receipts);
           await pointerControl(
             page,
-            page.getByRole("button", {
-              name: `Open track details, ${track.label}`,
-              exact: true,
-            }),
+            trackHeaderButton(page, track.label),
             receipts,
             true,
           );

@@ -50,22 +50,7 @@
   }
 }
 
-.track-header-row {
-  --color-track-hover: color-mix(
-    in srgb,
-    var(--track-identity-color) 11%,
-    var(--color-bg-base)
-  );
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .track-header-row:hover:not(.dragging, .selected) {
-    background: var(--color-track-hover);
-  }
-}
-
 @media (prefers-reduced-motion: no-preference) {
-  .track-header-row,
   .empty-session-drop {
     transition:
       transform var(--motion-toggle) var(--motion-ease-out),

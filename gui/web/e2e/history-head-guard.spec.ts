@@ -7,6 +7,7 @@ import {
   openGuestShare,
   openHostShare,
 } from "./shareNavigation";
+import { trackHeaderButton } from "./trackHeader";
 
 /**
  * Undo is guarded by the history head the person saw (#1031): the tab's own
@@ -149,9 +150,7 @@ test("an open confirm holds Mod+Z, so nothing is undone behind it, and Escape re
     page.on("response", (response) => {
       if (isHistoryMove(response)) moves.push(response);
     });
-    await page
-      .getByRole("button", { name: "Open track details, guest", exact: true })
-      .dispatchEvent("click");
+    await trackHeaderButton(page, "guest").dispatchEvent("click");
     const inspector = page.locator(".modifier-inspector");
     await expect(inspector).toBeVisible();
     const remove = inspector.getByRole("button", { name: "Remove track" });
