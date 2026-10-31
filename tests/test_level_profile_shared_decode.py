@@ -88,3 +88,28 @@ def test_a_batch_reads_the_memos_decode_instead_of_decoding_again(
         cache = TrackRmsCache.from_recording(path, sample_rate=RATE)
         assert load_mono_full(path.resolve(), sample_rate=RATE) is cache.samples
     assert raw_decodes == [RATE]
+
+
+def test_a_batch_reads_the_decode_under_the_path_it_was_given(
+    minimal_project, raw_decodes: list[int], tmp_path
+) -> None:
+    project = ProjectWorkspace.open(minimal_project).project
+    project.tracks = [
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=1.0),
+        )
+    ]
+    real = track_audio_path(project, "host")
+    then = time.time_ns() - 3600 * 10**9
+    os.utime(real, ns=(then, then))
+    link = tmp_path / "linked.wav"
+    link.symlink_to(real)
+
+    audio_cache.track_level_profile(project, "host", sample_rate=RATE)
+    with batch_scope():
+        cache = TrackRmsCache.from_recording(link, sample_rate=RATE)
+        assert load_mono_full(link, sample_rate=RATE) is cache.samples
+    assert raw_decodes == [RATE]
