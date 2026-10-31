@@ -6,6 +6,7 @@ import {
 } from "../../commands/pointer";
 import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
+import { slugText, uniqueTrackId } from "../../ingest/ingestFiles";
 import {
   copyForMicStatus,
   deviceMic,
@@ -185,15 +186,15 @@ function RecordStageBody({
     setRemapBusy(true);
     try {
       const name = person.display_name.trim() || "Guest";
-      const reply = await addTrackCommand(projectPath, {
+      const trackId = uniqueTrackId(
+        slugText(name),
+        new Set((project?.tracks ?? []).map((t) => t.id)),
+      );
+      await addTrackCommand(projectPath, {
+        track_id: trackId,
         label: name,
         speaker: name,
       });
-      const trackId = reply.track_id;
-      if (typeof trackId !== "string") {
-        failRemap("try again");
-        return;
-      }
       await moveTo(participantId, trackId);
     } catch (e) {
       failRemap(e instanceof Error ? e.message : "try again");
@@ -205,7 +206,10 @@ function RecordStageBody({
     if (!handoff) {
       return;
     }
-    await executePointerCommand("stage.edit");
+    const opened = await executePointerCommand("stage.edit");
+    if (opened.status !== "ok") {
+      return;
+    }
     await executePointerCommand("transport.seek", { sec: handoff.startSec });
     useDawStore.getState().setSelection({
       kind: "clip",

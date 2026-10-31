@@ -575,7 +575,7 @@ describe("Record stage", () => {
     it("New track makes a track named for the person, then moves their clips there keeping starts", async () => {
       handoffProject();
       withAva();
-      vi.mocked(addTrackCommand).mockResolvedValue({ track_id: "ava_2" });
+      vi.mocked(addTrackCommand).mockResolvedValue({});
       mount();
       await userEvent.click(
         await screen.findByRole("button", { name: "Track for Ava: Ava" }),
@@ -590,23 +590,79 @@ describe("Record stage", () => {
           "edit.moveClips",
           {
             clips: [
-              { clip_id: "c1", timeline_start: 42.5, track_id: "ava_2" },
-              { clip_id: "c2", timeline_start: 12.25, track_id: "ava_2" },
+              { clip_id: "c1", timeline_start: 42.5, track_id: "ava" },
+              { clip_id: "c2", timeline_start: 12.25, track_id: "ava" },
             ],
           },
           { skipWhen: true },
         ),
       );
       expect(addTrackCommand).toHaveBeenCalledWith("/tmp/p.json", {
+        track_id: "ava",
         label: "Ava",
         speaker: "Ava",
       });
     });
 
+    it("gives the new track a unique id when the name's slug is taken", async () => {
+      handoffProject();
+      const project = useDawStore.getState().project;
+      act(() =>
+        useDawStore.getState().hydrate("/tmp/p.json", {
+          ...project!,
+          tracks: [
+            { id: "t_ava", label: "Ava" },
+            { id: "ava", label: "Other" },
+          ] as never,
+        }),
+      );
+      withAva();
+      vi.mocked(addTrackCommand).mockResolvedValue({});
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Track for Ava: Ava" }),
+      );
+      await userEvent.click(
+        screen.getByRole("menuitem", { name: "New track" }),
+      );
+      await waitFor(() =>
+        expect(exec).toHaveBeenCalledWith(
+          "edit.moveClips",
+          expect.objectContaining({
+            clips: expect.arrayContaining([
+              expect.objectContaining({ track_id: "ava_2" }),
+            ]),
+          }),
+          { skipWhen: true },
+        ),
+      );
+      expect(addTrackCommand).toHaveBeenCalledWith("/tmp/p.json", {
+        track_id: "ava_2",
+        label: "Ava",
+        speaker: "Ava",
+      });
+    });
+
+    it("does not seek or select when Edit cannot open", async () => {
+      handoffProject();
+      withAva();
+      useDawStore.getState().setSelection(null);
+      exec.mockResolvedValue({ status: "disabled", reason: "No" } as never);
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Edit Session 1" }),
+      );
+      await waitFor(() =>
+        expect(exec).toHaveBeenCalledWith("stage.edit", {}, { skipWhen: true }),
+      );
+      expect(exec).toHaveBeenCalledTimes(1);
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
     it("announces a failed move after New track and leaves the empty track", async () => {
       handoffProject();
       withAva();
-      vi.mocked(addTrackCommand).mockResolvedValue({ track_id: "ava_2" });
+      vi.mocked(addTrackCommand).mockResolvedValue({});
       exec.mockResolvedValue({
         status: "disabled",
         reason: "Unknown clip or track",

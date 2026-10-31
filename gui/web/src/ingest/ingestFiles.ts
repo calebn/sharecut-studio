@@ -22,15 +22,20 @@ function stemLabel(filename: string): string {
   return base || "Track";
 }
 
-function slugId(filename: string): string {
-  const stem = stemLabel(filename)
+/** A track id from free text: lowercase, `[a-z0-9_-]` only. */
+export function slugText(text: string): string {
+  const stem = text
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "_")
     .replace(/^_+|_+$/g, "");
   return stem || "track";
 }
 
-function uniqueTrackId(preferred: string, taken: Set<string>): string {
+function slugId(filename: string): string {
+  return slugText(stemLabel(filename));
+}
+
+export function uniqueTrackId(preferred: string, taken: Set<string>): string {
   if (!taken.has(preferred)) {
     return preferred;
   }
