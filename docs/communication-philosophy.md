@@ -186,7 +186,7 @@ is the fix, enforced in copy review.
   first.", "Enter text to find first.", "Enter replacement text with a letter or a number to replace."),
   the track inspector's Clear clip light ("No clipping to clear."), the
   inspector footer's play action ("Preview effects at track start" for a guest
-  who hears the full mix only; the note shows beside the footer, and not while
+  who hears the full mix only; the note shows below the footer actions, and not while
   the preview is only preparing) and a
   boundary mark a viewer cannot edit (its reason shows on focus and on tap).
   Native `disabled` stays for a short wait the control itself caused, such as
