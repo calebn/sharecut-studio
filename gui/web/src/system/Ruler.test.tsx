@@ -185,6 +185,29 @@ describe("Ruler drawing", () => {
     }
   });
 
+  it("reads the root font size once while the ruler redraws", () => {
+    stubResizeObserver();
+    const real = window.getComputedStyle.bind(window);
+    const rootReads = vi.fn();
+    vi.spyOn(window, "getComputedStyle").mockImplementation(
+      (el: Element, pseudo?: string | null) => {
+        if (el === document.documentElement) rootReads();
+        return real(el, pseudo);
+      },
+    );
+    try {
+      const { rerender } = setup();
+      const afterMount = rootReads.mock.calls.length;
+      for (const playhead of [610, 612, 614]) {
+        rerender(<Ruler {...base} playhead={playhead} />);
+      }
+      expect(rootReads.mock.calls.length).toBe(afterMount);
+    } finally {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("places the playhead, the selection band and the sessions in pixels of the window", () => {
     const { container } = setup({
       selection,
