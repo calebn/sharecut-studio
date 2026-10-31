@@ -10,6 +10,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const wire = vi.hoisted(() => ({
+  release: vi.fn(),
+  odd: false,
   post: vi.fn(),
   fetch: vi.fn(),
   rows: [] as { command_id: string }[],
@@ -41,6 +43,10 @@ vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
   removeHostQueuedCommands: async (_path: string, ids: string[]) => {
     wire.rows = wire.rows.filter((r) => !ids.includes(r.command_id));
   },
+}));
+vi.mock("../../audio/pendingPreview", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../audio/pendingPreview")>()),
+  releaseSessionPreview: wire.release,
 }));
 vi.mock("../edit/EditWorkspace", () => ({
   EditWorkspace: () => <div>edit workspace</div>,
@@ -127,6 +133,7 @@ function answer(body: { type: string; payload: Record<string, unknown> }) {
       failure: new ApiError("Broke", null, 422),
     };
   server.seq += 1;
+  if (wire.odd) return { ok: true, data: { needs_confirmation: "yes" } };
   if (body.type === "AcceptSessionSuggestion" && server.hold) {
     if (body.payload.override_audio_checks !== true)
       return {
@@ -203,6 +210,7 @@ beforeEach(() => {
     fail: false,
   });
   wire.rows = [];
+  wire.odd = false;
   wire.post.mockImplementation(async (_path: string, body) => answer(body));
   wire.fetch.mockImplementation(async (url: string) =>
     String(url).includes("/warm")
@@ -385,5 +393,93 @@ describe("Review host pickups", () => {
     press("Enter");
     await screen.findByText(/Replace anyway\?/);
     await expectNoA11yViolations(container);
+  });
+
+  it("stops a pickup's preview when another item is selected and when the queue unmounts", async () => {
+    const view = mount();
+    await userEvent.click(screen.getByText("Insert Session 2 at 12:04"));
+    expect(wire.release).toHaveBeenCalledWith("ss-r");
+    view.unmount();
+    expect(wire.release).toHaveBeenCalledWith("ss-i");
+  });
+
+  it("shows an error, not Added Session, for a confirmation that is not an object", async () => {
+    wire.odd = true;
+    mount([INSERT]);
+    press("Enter");
+    await waitFor(() =>
+      expect(toast()).toBe(
+        "The host sent an unexpected reply. Nothing changed.",
+      ),
+    );
+    expect(screen.getByText("0 of 1 decided · saves 0.0 s")).toBeVisible();
+  });
+
+  it("sends nothing for a replace another client already handled, and reloads", async () => {
+    mount([REPLACE]);
+    const real = useDawStore.getState();
+    const spy = vi.spyOn(useDawStore, "getState").mockImplementation(() => ({
+      ...real,
+      project: real.project && { ...real.project, session_suggestions: [] },
+    }));
+    press("Enter");
+    spy.mockRestore();
+    await waitFor(() =>
+      expect(toast()).toBe("This suggestion was already handled."),
+    );
+    expect(sent("AcceptSessionSuggestion")).toHaveLength(0);
+    expect(screen.getByText("0 of 1 decided · saves 0.0 s")).toBeVisible();
+  });
+
+  it("lists a replace with no distinct takes and accepts it without a take_index", async () => {
+    mount([{ ...REPLACE, take_indexes: [], selected_take: null }]);
+    expect(screen.getByText(/3 takes · Jon/)).toBeVisible();
+    press("Enter");
+    await waitFor(() =>
+      expect(sent("AcceptSessionSuggestion")).toHaveLength(1),
+    );
+    expect(sent("AcceptSessionSuggestion")[0].payload).not.toHaveProperty(
+      "take_index",
+    );
+  });
+
+  it("offers no A/B and plays nothing for a replace with no range", async () => {
+    mount([{ ...REPLACE, from_sec: null, to_sec: null }]);
+    expect(screen.queryByRole("button", { name: "B" })).toBeNull();
+    press("b");
+    press("a");
+    await Promise.resolve();
+    expect(
+      wire.fetch.mock.calls.some(([u]) => String(u).includes("hear-wav")),
+    ).toBe(false);
+  });
+
+  it("lets the keyboard reach Replace anyway and press it with Enter", async () => {
+    server.hold = true;
+    mount([REPLACE]);
+    press("Enter");
+    const button = await screen.findByRole("button", {
+      name: "Replace anyway",
+    });
+    button.focus();
+    expect(button).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(toast()).toBe("Added Session 3"));
+    expect(
+      sent("AcceptSessionSuggestion")[1].payload.override_audio_checks,
+    ).toBe(true);
+  });
+
+  it("skips a pickup on the server with a left swipe on the phone", async () => {
+    stubViewportShell("phone");
+    mount([INSERT]);
+    act(() => useDawStore.setState({ shellBreakpoint: "phone" }));
+    const body = document.querySelector(".sys-decision-body") as HTMLElement;
+    const at = { clientX: 200, clientY: 300, isPrimary: true, pointerId: 1 };
+    fireEvent.pointerDown(body, at);
+    fireEvent.pointerMove(body, { ...at, clientX: 100 });
+    fireEvent.pointerUp(body, { ...at, clientX: 100 });
+    await waitFor(() => expect(toast()).toBe("Skipped Session 2"));
+    expect(sent("SkipSessionSuggestion")).toHaveLength(1);
   });
 });
