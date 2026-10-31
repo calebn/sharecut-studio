@@ -392,7 +392,11 @@ def _score_all_samples(samples: np.ndarray, config: InaudibleCutConfig) -> np.nd
         local_rms = np.sqrt(np.mean(windows[: hi - lo], axis=1)).astype(np.float64)
         cur = samples[idx]
         prev, nxt = samples[lo - 1 : hi - 1], samples[lo + 1 : hi + 1]
-        crossed = ((prev <= 0) & (cur >= 0)) | ((cur <= 0) & (nxt >= 0)) | (prev * cur < 0)
+        crossed = (
+            ((prev <= 0) & (cur >= 0))
+            | ((cur <= 0) & (nxt >= 0))
+            | (prev.astype(np.float64) * cur.astype(np.float64) < 0)
+        )
         zero_cross = np.where(
             crossed,
             0.0,
@@ -431,7 +435,9 @@ def _snap_boundary_to_waveform(
         )
     if samples.size < 8:
         return center_time
-    return start + (int(np.argmin(_score_all_samples(samples, config))) / sample_rate)
+    scores = _score_all_samples(samples, config)
+    best = int(np.argmin(np.where(np.isnan(scores), np.inf, scores)))
+    return start + (best / sample_rate)
 
 
 def _rms_db_hops(
