@@ -21,12 +21,12 @@ import {
 } from "../document/authorityState";
 import { FeedbackToast } from "../feedback/FeedbackToast";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
-import { PendingEditInspector } from "../inspector/views/PendingEditInspector";
 import {
   submitLiveHistoryCommand,
   submitQueuedDocumentCommand,
 } from "../services/commandQueue";
 import { shareProjectKey } from "../shareMode";
+import { PendingEditBody } from "../stage/edit/PendingEditBody";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import {
@@ -1567,7 +1567,7 @@ describe("single pending review feedback", () => {
     render(
       <>
         {entrypoint === "inspector" ? (
-          <PendingEditInspector edit={edit} />
+          <PendingEditBody edit={edit} />
         ) : (
           <PendingEditOverlay
             edits={[edit]}

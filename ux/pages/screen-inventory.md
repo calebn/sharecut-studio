@@ -199,6 +199,8 @@ A selected automatic reduction (from the clip's Inspect automatic audio reductio
 
 A selected comment with no pending edit behind it opens the same sheet: a Time button that seeks, the author, status and tracks, the comment text, action items, replies, a **Reply** field and **Resolve** (or **Reopen**). A share link without reply permission has no Reply field, and a share link never sees Resolve.
 
+A selected suggestion (a pending edit), or a comment on one that is still pending, opens in the same sheet with its source times, nudges, **Apply timing**, suggested bounds, **Approve** and **Reject**, the Ask thread and the Current, Suggested and A/B listen controls. It reads the same as before; only the frame around it changed.
+
 ---
 
 ## Phone — Review (the old Listen)

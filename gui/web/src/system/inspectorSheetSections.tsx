@@ -335,3 +335,27 @@ export const COMMENT_SECTIONS: readonly InspectorSection[] = [
     ],
   },
 ];
+
+export const PENDING_SECTIONS: readonly InspectorSection[] = [
+  {
+    id: "pending",
+    rows: [
+      {
+        id: "pending",
+        control: (
+          <div className="inspector edit-sheet-part">
+            <DefinitionList>
+              <DefItem label="Type">Remove</DefItem>
+              <DefItem label="Source">0:12.400 – 0:13.100</DefItem>
+              <DefItem label="Confidence">0.82</DefItem>
+            </DefinitionList>
+            <div className="modifier-primary-actions">
+              <Button variant="primary">Approve</Button>
+              <Button variant="danger">Reject</Button>
+            </div>
+          </div>
+        ),
+      },
+    ],
+  },
+];

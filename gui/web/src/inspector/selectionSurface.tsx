@@ -22,7 +22,6 @@ import {
 } from "./relatedRows";
 import { ChapterInspector } from "./views/ChapterInspector";
 import { ClipInspector } from "./views/ClipInspector";
-import { PendingEditInspector } from "./views/PendingEditInspector";
 import { SocialClipInspector } from "./views/SocialClipInspector";
 import { TrackInspector } from "./views/TrackInspector";
 
@@ -130,14 +129,7 @@ export const SELECTION_SURFACES: {
     ...plain,
     screens: ANYWHERE,
     peek: peekPending,
-    body: (sel, { project }) => {
-      const edit = project.pending_edits.find((e) => e.id === sel.id);
-      return edit ? (
-        <PendingEditInspector edit={edit} />
-      ) : (
-        notFound("Edit not found")
-      );
-    },
+    body: () => <SectionsBody withRange={false} />,
   },
   applied: {
     ...plain,
@@ -174,18 +166,7 @@ export const SELECTION_SURFACES: {
   comment: {
     ...plain,
     screens: ANYWHERE,
-    body: (sel, { project }) => {
-      const comment = (project.comments ?? []).find((c) => c.id === sel.id);
-      if (!comment) return notFound("Comment not found");
-      const linked = comment.edit_decision_id
-        ? project.pending_edits.find((e) => e.id === comment.edit_decision_id)
-        : undefined;
-      return linked ? (
-        <PendingEditInspector edit={linked} />
-      ) : (
-        <SectionsBody withRange={false} />
-      );
-    },
+    body: () => <SectionsBody withRange={false} />,
   },
   envelope: { ...plain, screens: ANYWHERE, body: trackBody },
   envelopePoint: {
