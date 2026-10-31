@@ -6253,6 +6253,10 @@ input.sys-edit-fix {
   outline: none;
 }
 
+.sys-inspector-anchor:focus-visible {
+  outline: none;
+}
+
 .sys-inspector--card {
   position: absolute;
   z-index: 1;
