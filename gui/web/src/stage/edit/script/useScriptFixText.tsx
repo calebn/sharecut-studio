@@ -5,7 +5,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
+  useSyncExternalStore,
 } from "react";
 import {
   FixTextField,
@@ -43,14 +43,27 @@ type Pinned = {
 };
 
 /**
- * The field open on the last Script, so a shell change that remounts the Script
- * (a rotation to another layout) keeps it, as the old panel's store-held state did.
+ * The field open on the last Script and what was typed in it, so a shell change
+ * that remounts the Script (a rotation to another layout) keeps both, as the
+ * old panel's store-held state did. It is read through useSyncExternalStore;
+ * only the pin notifies, the draft is read when a field mounts.
  */
-let held: { projectPath: string; pin: Pinned } | null = null;
+let held: { projectPath: string; pin: Pinned; draft: string | null } | null =
+  null;
+const heldListeners = new Set<() => void>();
+const subscribeHeld = (listener: () => void) => {
+  heldListeners.add(listener);
+  return () => void heldListeners.delete(listener);
+};
+const readHeld = () => held;
+function setHeld(next: typeof held): void {
+  held = next;
+  for (const listener of heldListeners) listener();
+}
 
 /** Drop the held field; for tests that start from a clean Script. */
 export function forgetHeldFixText(): void {
-  held = null;
+  setHeld(null);
 }
 
 const addressable = (
@@ -74,23 +87,29 @@ export function useScriptFixText(
   pane: RefObject<ScriptPaneHandle | null>,
   enabled: boolean,
   say: (message: string) => void,
-  onTab: (note: string) => number | undefined,
+  onTab: (note?: string) => number | undefined,
 ): ScriptFixTextProps {
-  const [pinned, setPinnedState] = useState<Pinned | null>(() => {
-    const path = useDawStore.getState().projectPath;
-    return held?.projectPath === path ? held.pin : null;
-  });
-  const setPinned = (pin: Pinned | null) => {
-    held = pin
-      ? { projectPath: useDawStore.getState().projectPath, pin }
-      : null;
-    setPinnedState(pin);
-  };
+  const projectPath = useDawStore((st) => st.projectPath);
+  const keep = useSyncExternalStore(subscribeHeld, readHeld);
+  const pinned = keep?.projectPath === projectPath ? keep.pin : null;
+  const setPinned = (pin: Pinned | null) =>
+    setHeld(
+      pin
+        ? {
+            projectPath: useDawStore.getState().projectPath,
+            pin,
+            draft: null,
+          }
+        : null,
+    );
   // A field opened before the right was lost must not come back with it. A
   // Script that mounts before its words settle keeps the field it was handed.
   const wasEnabled = useRef(enabled);
   if (enabled) wasEnabled.current = true;
-  if (!enabled && wasEnabled.current && pinned !== null) setPinned(null);
+  const lost = !enabled && wasEnabled.current && pinned !== null;
+  useEffect(() => {
+    if (lost) setPinned(null);
+  }, [lost]);
   const enabledNow = useRef(enabled);
   enabledNow.current = enabled;
   const focusAfter = useRef<{ index: number; tries: number } | null>(null);
@@ -159,8 +178,9 @@ export function useScriptFixText(
       if (!enabledNow.current) return FIX_OFF;
       // The words are still where the field opened on them.
       if (editing === null) return FIX_MOVED;
+      let head: Awaited<ReturnType<typeof submitWordCorrection>>;
       try {
-        await submitWordCorrection(
+        head = await submitWordCorrection(
           useDawStore.getState().projectPath,
           pin.first.trackId,
           pin.first.wordIndex,
@@ -174,19 +194,18 @@ export function useScriptFixText(
         say(`Text not fixed. ${message}`);
         return message;
       }
-      const done = `Text fixed: ${text}`;
+      // The toast carries Undo for the fix; Tab's own note then says only the jump.
+      useDawStore
+        .getState()
+        .announceStatus(`Text fixed: ${text}`, { undo: head });
       // The right was lost while the correction was sent: it is written, but the
       // Script no longer moves the reader.
-      if (!enabledNow.current) {
-        say(done);
-        return;
-      }
+      if (!enabledNow.current) return;
       if (via === "tab") {
-        const landed = onTab(done);
+        const landed = onTab();
         close(landed ?? where);
         return;
       }
-      say(done);
       close(where);
     },
   );
@@ -222,6 +241,10 @@ export function useScriptFixText(
     return (
       <FixTextField
         value={value}
+        initialDraft={keep?.pin === pin ? (keep.draft ?? undefined) : undefined}
+        onDraftChange={(draft) => {
+          if (held && held.pin === pin) held.draft = draft;
+        }}
         label={count === 1 ? "Fix text" : `Fix text, ${count} words`}
         onDone={(text, via, original) =>
           pin ? commit(pin, text, via, original) : Promise.resolve(FIX_MOVED)

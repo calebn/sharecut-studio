@@ -1,12 +1,12 @@
 import { useEffect } from "react";
-import { useDawStore } from "../../../state/dawStore";
+import { useDawStore } from "../../state/dawStore";
 
 /**
  * A word action that failed after its editor or the Inspector had closed
  * (Suppress, Ignore, the timing sheet) leaves its message in the store. The
- * Script says it once, as an error toast, and clears it.
+ * frame says it once, as an error toast, and clears it, whichever stage is open.
  */
-export function useScriptLateFailure(): void {
+export function useLateWordFailure(): void {
   const failure = useDawStore((s) => s.transcriptInlineEditFailure);
   const projectPath = useDawStore((s) => s.projectPath);
   useEffect(() => {

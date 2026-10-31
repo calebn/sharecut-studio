@@ -4714,6 +4714,7 @@ button.sys-script-speaker {
   inline-size: 0;
   block-size: 1.25em;
   vertical-align: text-bottom;
+  pointer-events: none;
 }
 
 .sys-script-caret::before {

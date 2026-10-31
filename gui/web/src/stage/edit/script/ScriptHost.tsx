@@ -10,9 +10,9 @@ import { useDawStore } from "../../../state/dawStore";
 import { ScriptPane, type ScriptPaneHandle } from "../../../system/ScriptPane";
 import type { ScriptStatus } from "../../../system/scriptPieces";
 import { ScriptJoin } from "./ScriptJoin";
+import { useScriptCarets } from "./useScriptCarets";
 import { useScriptFind } from "./useScriptFind";
 import { useScriptFixText } from "./useScriptFixText";
-import { useScriptLateFailure } from "./useScriptLateFailure";
 import { useScriptModel } from "./useScriptModel";
 import { useScriptPlayback } from "./useScriptPlayback";
 import { useScriptSelection } from "./useScriptSelection";
@@ -59,7 +59,6 @@ export function ScriptHost({
   onTranscribe,
 }: ScriptHostProps) {
   const projectPath = useDawStore((s) => s.projectPath);
-  useScriptLateFailure();
   const guestMode = useDawStore((s) => s.guestMode);
   const capabilities = useDawStore((s) => s.shareCapabilities);
   const breakpoint = useDawStore((s) => s.shellBreakpoint);
@@ -94,6 +93,7 @@ export function ScriptHost({
   const playback = useScriptPlayback(model, silent);
   const win = useScriptWindow(model, pane, hostEl, playback);
   const selection = useScriptSelection(model, mode !== "none", win.reached);
+  const carets = useScriptCarets(model, selection.carets);
   const jump = useScriptUnsure(model, texts, unsure, win.scrollTo, say);
   const fix = useScriptFixText(
     model,
@@ -120,7 +120,7 @@ export function ScriptHost({
         playing={playback.playing}
         playheadWord={playback.playheadWord}
         selection={selection.selection}
-        carets={selection.carets}
+        carets={carets}
         matches={find.matches}
         currentMatch={find.current}
         findStatus={find.status}
@@ -163,12 +163,17 @@ export function ScriptHost({
         onCaret={selection.onCaret}
         onSelect={selection.onSelect}
         onClearSelection={selection.onClearSelection}
+        onSeamSelect={selection.onSeamSelect}
+        onSuggestionSelect={selection.onSuggestionSelect}
         onFixText={fix.onFixText}
         onSeek={playback.onSeek}
         onSeekTurn={playback.onSeekTurn}
         onSpeaker={speaker.onSpeaker}
         onFind={find.openBar}
         onNextUnsure={mode === "none" ? undefined : () => jump()}
+        onPreviousUnsure={
+          mode === "none" ? undefined : () => jump(undefined, "previous")
+        }
         onShowCutTextChange={(show) =>
           useDawStore.getState().setShowCutAwayUtterances(show)
         }
