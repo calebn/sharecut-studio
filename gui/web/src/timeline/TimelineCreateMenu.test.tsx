@@ -416,7 +416,11 @@ describe("TimelineCreateMenu phone form", () => {
     const user = userEvent.setup();
     const { rerender } = mount(true);
     await screen.findByRole("dialog");
-    // A press on a focused button is the button's, not the keymap's.
+    // The Sheet focuses Close a frame after it mounts; wait for that, or it
+    // lands after the blur below and the keys go to the button, not the keymap.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
+    );
     (document.activeElement as HTMLElement | null)?.blur();
     await user.keyboard(" ");
     await user.keyboard("{Control>}z{/Control}");
