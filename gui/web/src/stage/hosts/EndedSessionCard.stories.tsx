@@ -50,7 +50,7 @@ const meta: Meta<typeof EndedSessionCard> = {
     docs: {
       description: {
         component:
-          "The previous session on the Record stage. Once a session has landed, each person's track is a menu of the project's tracks; picking one moves all of that person's clips of the session there, keeping their start times, as one undo step. A person whose clips sit on several tracks reads Several tracks. Without a landing, with one track or with no clips found, the row is plain text.\n\n**Motion.** None beyond the shared Menu drop-in.",
+          "The previous session on the Record stage. Once a session has landed, each person's track is a menu of the project's tracks, ending in New track; picking a track moves all of that person's clips of the session there, keeping their start times, as one undo step. New track first adds a track named for the person. A landed session with clips on the timeline has the primary Edit Session N, which opens Edit at the session start with its clips selected. A person whose clips sit on several tracks reads Several tracks. Without a landing, with one track or with no clips found, the row is plain text.\n\n**Motion.** None beyond the shared Menu drop-in.",
       },
     },
   },
@@ -60,6 +60,9 @@ const meta: Meta<typeof EndedSessionCard> = {
     tracks,
     movable: new Set(["p_ava", "p_sam"]),
     onRemap: fn(),
+    onNewTrack: fn(),
+    onEdit: fn(),
+    hasClips: true,
   },
 };
 
@@ -89,4 +92,39 @@ export const Busy: Story = { args: { busy: true } };
 
 export const NotLanded: Story = {
   args: { session: { ...session, landed: false } },
+};
+
+export const EditHandoff: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Edit Session 2" }),
+    );
+    await expect(args.onEdit).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const NoClipsOnTimeline: Story = {
+  args: { hasClips: false, movable: new Set<string>() },
+};
+
+export const NewTrackWithOneTrack: Story = {
+  args: {
+    tracks: [{ id: "t_ava", label: "Ava" }],
+    session: {
+      ...session,
+      participants: [session.participants[0]],
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Track for Ava Lindgren: Ava" }),
+    );
+    const menu = within(
+      await within(canvasElement.ownerDocument.body).findByRole("menu"),
+    );
+    await userEvent.click(menu.getByRole("menuitem", { name: "New track" }));
+    await expect(args.onNewTrack).toHaveBeenCalledWith("p_ava");
+  },
 };

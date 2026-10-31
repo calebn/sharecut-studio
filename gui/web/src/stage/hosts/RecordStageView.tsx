@@ -33,6 +33,9 @@ export type RecordStageViewProps = {
   movable?: EndedSessionCardProps["movable"];
   remapBusy?: boolean;
   onRemap?: EndedSessionCardProps["onRemap"];
+  onNewTrack?: EndedSessionCardProps["onNewTrack"];
+  onEdit?: EndedSessionCardProps["onEdit"];
+  hasClips?: boolean;
   notices: readonly RecordNotice[];
   storage?: ReactNode;
   more?: ReactNode;
@@ -57,6 +60,9 @@ function EmptyRoom({
   movable,
   remapBusy,
   onRemap,
+  onNewTrack,
+  onEdit,
+  hasClips,
   busy,
   hydrateError,
   transportError,
@@ -71,6 +77,9 @@ function EmptyRoom({
   | "movable"
   | "remapBusy"
   | "onRemap"
+  | "onNewTrack"
+  | "onEdit"
+  | "hasClips"
   | "busy"
   | "hydrateError"
   | "transportError"
@@ -93,6 +102,9 @@ function EmptyRoom({
             movable={movable}
             busy={remapBusy}
             onRemap={onRemap}
+            onNewTrack={onNewTrack}
+            onEdit={onEdit}
+            hasClips={hasClips}
           />
         ) : null}
         <section
@@ -167,6 +179,9 @@ export function RecordStageView({
   movable,
   remapBusy,
   onRemap,
+  onNewTrack,
+  onEdit,
+  hasClips,
   notices,
   storage,
   more,
@@ -207,6 +222,9 @@ export function RecordStageView({
           movable={movable}
           remapBusy={remapBusy}
           onRemap={onRemap}
+          onNewTrack={onNewTrack}
+          onEdit={onEdit}
+          hasClips={hasClips}
           busy={busy}
           hydrateError={hydrateError}
           transportError={transportError}

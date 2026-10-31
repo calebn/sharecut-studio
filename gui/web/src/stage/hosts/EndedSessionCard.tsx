@@ -1,6 +1,13 @@
 import { useState } from "react";
 import type { RecordSessionSummary } from "../../record";
-import { Button, Menu, MenuSection, ToggleButton } from "../../ui";
+import {
+  Button,
+  Menu,
+  MenuItem,
+  MenuSection,
+  MenuSeparator,
+  ToggleButton,
+} from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 
 const DATE = new Intl.DateTimeFormat("en-GB", {
@@ -43,6 +50,11 @@ export type EndedSessionCardProps = {
   /** A track change is in flight: the menus stay shut. */
   busy?: boolean;
   onRemap?: (participantId: string, trackId: string) => void;
+  /** Offers "New track" at the foot of each menu; works with a single project track. */
+  onNewTrack?: (participantId: string) => void;
+  /** Edit hand-off; the primary button shows only for a landed session with clips on the timeline. */
+  onEdit?: () => void;
+  hasClips?: boolean;
 };
 
 const NO_TRACKS: readonly { id: string; label: string }[] = [];
@@ -54,6 +66,7 @@ function TrackMenu({
   tracks,
   busy,
   onPick,
+  onNewTrack,
 }: {
   name: string;
   current: string | null;
@@ -61,6 +74,7 @@ function TrackMenu({
   tracks: readonly { id: string; label: string }[];
   busy: boolean;
   onPick: (trackId: string) => void;
+  onNewTrack?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -99,6 +113,19 @@ function TrackMenu({
             {track.label}
           </ToggleButton>
         ))}
+        {onNewTrack ? (
+          <>
+            <MenuSeparator />
+            <MenuItem
+              onSelect={() => {
+                setOpen(false);
+                onNewTrack();
+              }}
+            >
+              New track
+            </MenuItem>
+          </>
+        ) : null}
       </MenuSection>
     </Menu>
   );
@@ -111,6 +138,9 @@ export function EndedSessionCard({
   movable,
   busy = false,
   onRemap,
+  onNewTrack,
+  onEdit,
+  hasClips = false,
 }: EndedSessionCardProps) {
   return (
     <section
@@ -137,8 +167,8 @@ export function EndedSessionCard({
                 : (trackNames.get(p.track_id) ?? "Track removed");
           const menu =
             target !== null &&
-            onRemap &&
-            tracks.length > 1 &&
+            !!onRemap &&
+            (tracks.length > 1 || !!onNewTrack) &&
             movable?.has(p.participant_id);
           return (
             <li key={p.participant_id} className="stage-host-note">
@@ -156,6 +186,11 @@ export function EndedSessionCard({
                       tracks={tracks}
                       busy={busy}
                       onPick={(trackId) => onRemap?.(p.participant_id, trackId)}
+                      onNewTrack={
+                        onNewTrack
+                          ? () => onNewTrack(p.participant_id)
+                          : undefined
+                      }
                     />
                   ) : (
                     target
@@ -166,6 +201,15 @@ export function EndedSessionCard({
           );
         })}
       </ul>
+      {session.landed && hasClips && onEdit ? (
+        <div className="stage-host-actions">
+          <Button variant="primary" onClick={onEdit}>
+            {session.number === null
+              ? "Edit session"
+              : `Edit Session ${session.number}`}
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }

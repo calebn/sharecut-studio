@@ -97,6 +97,54 @@ describe("EndedSessionCard", () => {
     expect(screen.getByText("1 take · 1:02:05")).toBeInTheDocument();
   });
 
+  describe("Edit hand-off", () => {
+    const edit = (
+      over: Partial<RecordSessionSummary> = {},
+      props: Partial<React.ComponentProps<typeof EndedSessionCard>> = {},
+    ) => {
+      const onEdit = vi.fn();
+      const view = render(
+        <EndedSessionCard
+          session={{ ...base, ...over }}
+          trackNames={names}
+          hasClips
+          onEdit={onEdit}
+          {...props}
+        />,
+      );
+      return { onEdit, ...view };
+    };
+
+    it("offers Edit Session N as the primary action and calls back", async () => {
+      const { onEdit, baseElement } = edit();
+      const button = screen.getByRole("button", { name: "Edit Session 2" });
+      expect(button).toHaveClass("primary");
+      await expectNoA11yViolations(baseElement);
+      await userEvent.click(button);
+      expect(onEdit).toHaveBeenCalledTimes(1);
+    });
+
+    it("reads Edit session when the session has no number", () => {
+      edit({ number: null });
+      expect(
+        screen.getByRole("button", { name: "Edit session" }),
+      ).toBeInTheDocument();
+    });
+
+    it("is absent without clips, before landing or without a handler", () => {
+      const cases: [Partial<RecordSessionSummary>, object][] = [
+        [{}, { hasClips: false }],
+        [{ landed: false }, {}],
+        [{}, { onEdit: undefined }],
+      ];
+      for (const [over, props] of cases) {
+        const { unmount } = edit(over, props);
+        expect(screen.queryByRole("button")).not.toBeInTheDocument();
+        unmount();
+      }
+    });
+  });
+
   describe("track menu", () => {
     const tracks = [
       { id: "t1", label: "Ava" },
@@ -174,6 +222,35 @@ describe("EndedSessionCard", () => {
       expect(screen.getAllByRole("listitem")[0].textContent).toBe(
         "Ava → to Ava",
       );
+    });
+
+    it("ends the menu with New track, even with a single project track", async () => {
+      const onNewTrack = vi.fn();
+      const { baseElement } = menuMount(
+        {},
+        { tracks: [tracks[0]], onNewTrack },
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Track for Ava: Ava" }),
+      );
+      const menu = screen.getByRole("menu", { name: "Track for Ava" });
+      expect(
+        [
+          ...within(menu).getAllByRole("menuitemradio"),
+          ...within(menu).getAllByRole("menuitem"),
+        ].map((i) => i.textContent),
+      ).toEqual(["Ava", "New track"]);
+      await expectNoA11yViolations(baseElement);
+      await userEvent.click(
+        within(menu).getByRole("menuitem", { name: "New track" }),
+      );
+      expect(onNewTrack).toHaveBeenCalledWith("a");
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    });
+
+    it("hides New track without clips or before landing", () => {
+      menuMount({}, { movable: new Set<string>(), onNewTrack: vi.fn() });
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
     });
 
     it("disables the trigger while busy", () => {
