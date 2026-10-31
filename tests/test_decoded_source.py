@@ -278,3 +278,52 @@ def test_a_source_overwritten_in_place_with_its_size_and_mtime_is_decoded_again(
 
     assert not np.array_equal(before, after)
     np.testing.assert_array_equal(after, load_mono_full(other, sample_rate=48000)[:4800])
+
+
+def test_a_changed_ffmpeg_build_decodes_an_unchanged_file_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "tone.wav"
+    _write_tone(source, 330)
+    decodes: list[Path] = []
+    real = decoded_source._decode
+
+    def counting(path: Path, sample_rate: int, target: Path) -> int:
+        decodes.append(path)
+        return real(path, sample_rate, target)
+
+    monkeypatch.setattr(decoded_source, "_decode", counting)
+    monkeypatch.setattr(decoded_source, "ffmpeg_build_id", lambda: ("build", "A"))
+    with decoded_sources(48000) as reader:
+        reader(source)
+    with decoded_sources(48000) as reader:
+        reader(source)
+    assert len(decodes) == 1  # the same build is served from the spool
+
+    monkeypatch.setattr(decoded_source, "ffmpeg_build_id", lambda: ("build", "B"))
+    with decoded_sources(48000) as reader:
+        reader(source)
+
+    assert len(decodes) == 2
+
+
+@posix_only
+def test_a_spill_that_comes_up_a_sample_short_raises_and_leaves_no_file_or_descriptor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = os.fstat
+
+    def short(fd: int) -> os.stat_result:
+        result = real(fd)
+        fields = list(result)
+        fields[6] -= 4  # st_size
+        return os.stat_result(fields)
+
+    before = _fd_count()
+    monkeypatch.setattr(decoded_source.os, "fstat", short)
+    with pytest.raises(OSError, match="short write"):
+        decoded_source.spill(np.ones(1000, dtype=np.float32))
+    monkeypatch.undo()
+
+    assert _fd_count() == before
+    assert _spool_files(decoded_source._spool_directory()) == []

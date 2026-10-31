@@ -426,6 +426,22 @@ def test_the_least_recently_used_entry_goes_first_past_the_cap(
 
 
 @posix_only
+def test_a_key_kept_twice_by_racing_builders_is_counted_once(tmp_path: Path) -> None:
+    tree = _tree(_tone(tmp_path / "a.wav"))
+    key = EvidenceKey(tree, "tri", track_evidence._stamps(tree))
+    cap = track_evidence.keep_bytes()
+
+    def build() -> Evidence | Declined:
+        return real_evaluate(tree, "tri")
+
+    RETAINED._keep(key, tree, build, cap)
+    kept = RETAINED._keep(key, tree, build, cap)
+
+    assert isinstance(kept, _Entry)
+    assert len(RETAINED) == 1 and RETAINED.held_bytes() == kept.nbytes
+
+
+@posix_only
 def test_an_entry_over_the_cap_is_not_kept(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(track_evidence.KEEP_ENV, "0.1")
     built = Calls().get(_tree(_tone(tmp_path / "a.wav")))
