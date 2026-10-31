@@ -21,7 +21,7 @@
 
 ### Fixes
 
-* Error and progress text for a share guest that holds a backslash path with no drive or leading folder (or a percent-encoded one), such as `Podcasts\ep 12\raw.wav` or `..\host\raw.wav`, is now withheld like other host paths instead of reaching the guest (#2827).
+* Error and progress text for a share guest that holds any backslash, or a percent-encoded one (`%5c`), such as `Podcasts\ep 12\raw.wav` or `..\host\raw.wav`, is now withheld like other host paths instead of reaching the guest (#2827).
 
 * An over-long ffmpeg command line from a cancellable render or a source-proxy audio pass now fails with `render_command_too_long` instead of a raw OS error, as the other render commands already do (#2104).
 
