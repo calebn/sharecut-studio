@@ -39,6 +39,6 @@ def test_gui_queue_groups_are_the_non_other_review_kinds() -> None:
     ts = _web("review/reviewQueueModel.ts")
     block = ts[ts.index("const QUEUE_KIND") :].split("};", 1)[0]
     kinds = re.findall(r'^\s+"?([\w-]+)"?: kind\("[^"]+", "suggestions"', block, re.M)
-    assert sorted(k for k in kinds if k != "suggestion") == sorted(
+    assert sorted(k for k in kinds if k not in ("suggestion", "pickup")) == sorted(
         k for k in get_args(ReviewKind) if k != "other"
     )
