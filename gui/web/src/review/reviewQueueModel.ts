@@ -14,6 +14,8 @@ export type ReviewItem = {
   /** Seconds the item removes when applied. Zero for comments and checks. */
   savedSeconds: number;
   unsure?: boolean;
+  /** A staged record session waiting to be placed: its verb is Insert or Replace. */
+  pickup?: { kind: "insert" | "replace"; number: number };
   /** The server will not apply it yet. */
   blocked?: boolean;
   /** Only the host can settle it, so a guest sees it held with no verb. */
@@ -54,6 +56,7 @@ const QUEUE_KIND: Readonly<Record<DecisionKind, ReturnType<typeof kind>>> = {
   check: kind("Checks", "checks"),
   "unsure-word": kind("Unsure words", "checks"),
   comment: kind("Comments", "comments"),
+  pickup: kind("Pickups", "suggestions"),
   filler: kind("Fillers", "suggestions", true),
   pause: kind("Pauses", "suggestions", true),
   repeat: kind("Repeats", "suggestions", true),
@@ -67,6 +70,7 @@ const KIND_ORDER = Object.keys(QUEUE_KIND) as DecisionKind[];
 export const holdsGateKind = (item: ReviewItem) => QUEUE_KIND[item.kind].gated;
 
 export function verbOf(item: ReviewItem): VerbId {
+  if (item.pickup) return item.pickup.kind;
   switch (item.suggested) {
     case "cut":
     case "shorten":
@@ -197,6 +201,10 @@ export function commentLine(items: readonly ReviewItem[]): string {
 
 /** "Cut 0.8 s", "Looks right", "Kept". */
 export function resultText(item: ReviewItem): string {
+  if (item.pickup)
+    return item.result === "kept"
+      ? `Skipped Session ${item.pickup.number}`
+      : `Added Session ${item.pickup.number}`;
   if (item.result === "kept") return "Kept";
   if (item.kind === "comment") return "Resolved";
   const verb = verbOf(item);

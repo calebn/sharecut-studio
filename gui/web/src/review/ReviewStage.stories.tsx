@@ -10,6 +10,7 @@ import {
 import { reviewContent } from "../storybook/reviewContent";
 import {
   EXTRA_KIND_ITEMS,
+  PICKUP_ITEMS,
   QUEUE_CHECKED,
   QUEUE_ITEMS,
   QUEUE_WITHOUT_CHECKS,
@@ -195,6 +196,67 @@ export const FalseStart: Story = {
 
 export const OtherSuggestion: Story = {
   args: { initialItems: EXTRA_KIND_ITEMS, initialSelectedId: "g1" },
+};
+
+const pickup = (id: string) => PICKUP_ITEMS.filter((item) => item.id === id);
+
+export const PickupInsert: Story = {
+  args: { initialItems: pickup("pk1"), initialSelectedId: "pk1" },
+  play: playInCanvas(async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    const card = within(await view.findByRole("article"));
+    await expect(
+      card.getByRole("heading", { name: "Insert Session 2 at 12:04" }),
+    ).toBeInTheDocument();
+    await expect(
+      card.getByRole("button", { name: "Skip" }),
+    ).toBeInTheDocument();
+    await userEvent.click(card.getByRole("button", { name: "Insert" }));
+    await expect(args.onDecide).toHaveBeenCalledWith(
+      expect.objectContaining({ ids: ["pk1"], result: "applied" }),
+    );
+    await expect(await view.findByText("Added Session 2")).toBeInTheDocument();
+  }),
+};
+
+export const PickupReplace: Story = {
+  args: { initialItems: pickup("pk2"), initialSelectedId: "pk2" },
+  play: playInCanvas(async ({ canvasElement }) => {
+    const card = within(await within(canvasElement).findByRole("article"));
+    await expect(
+      card.getByRole("heading", {
+        name: "Replace 26:00–26:25 with Session 3",
+      }),
+    ).toBeInTheDocument();
+    await expect(card.getByText("Take 2 of 3 · Jon")).toBeInTheDocument();
+    await expect(card.getByRole("button", { name: "Replace" })).toBeEnabled();
+    await expect(card.getByRole("button", { name: "B" })).toBeInTheDocument();
+  }),
+};
+
+export const PickupNeedsConfirmation: Story = {
+  args: { initialItems: pickup("pk3"), initialSelectedId: "pk3" },
+  play: playInCanvas(async ({ canvasElement, args }) => {
+    const view = within(canvasElement);
+    await expect(
+      await view.findByText(
+        "This also removes speech from Rosa. Replace anyway?",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(view.getByRole("button", { name: "Replace anyway" }));
+    await expect(args.onDecide).toHaveBeenCalledWith(
+      expect.objectContaining({ ids: ["pk3"], override: true }),
+    );
+  }),
+};
+
+export const PickupPhone: Story = {
+  args: {
+    layout: "phone",
+    initialItems: PICKUP_ITEMS,
+    initialSelectedId: "pk2",
+  },
+  parameters: isolatedStoryParameters,
 };
 
 export const Guest: Story = {

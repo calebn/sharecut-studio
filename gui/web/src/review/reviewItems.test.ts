@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { pendingEditView, sampleComment } from "../test/fixtures";
+import {
+  pendingEditView,
+  sampleComment,
+  sampleTrack,
+  sessionSuggestionView,
+} from "../test/fixtures";
 import type { PendingKind, TranscriptCheckStatus } from "../types/project";
 import {
   CHECK_ID,
@@ -8,9 +13,15 @@ import {
   commentIdOf,
   commentItemId,
   editIdOf,
+  pickupConfirmation,
   reviewCountOf,
   reviewEntriesOf,
   reviewIdOf,
+  sessionEntriesOf,
+  sessionIdOf,
+  sessionItemId,
+  sessionStartSec,
+  takeToPlace,
   unsureEntriesOf,
 } from "./reviewItems";
 import {
@@ -451,5 +462,115 @@ describe("commentEntriesOf", () => {
     const [entry] = commentEntriesOf([at("c", Number.NaN)]);
     expect(entry?.content.row.time).toBe("Unplaced");
     expect(entry?.item.at).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
+describe("sessionEntriesOf", () => {
+  const tracks = [
+    sampleTrack({ id: "host", label: "Jon" }),
+    sampleTrack({ id: "guest", label: "Rosa" }),
+  ];
+  const replace = sessionSuggestionView({
+    id: "ss-r",
+    kind: "replace",
+    session_number: 3,
+    at_sec: null,
+    from_sec: 724,
+    to_sec: 1049,
+    track_ids: ["host", "guest"],
+    take_count: 3,
+    take_indexes: [0, 1, 2],
+    selected_take: null,
+  });
+
+  it("titles an insert with its session and time, and names the tracks and takes", () => {
+    const [entry] = sessionEntriesOf(
+      [sessionSuggestionView({ take_count: 2, take_indexes: [0, 1] })],
+      tracks,
+    );
+    expect(entry?.content.card.title).toBe("Insert Session 2 at 12:04");
+    expect(entry?.content.card.why).toBe("2 takes · Jon");
+    expect(entry?.content.card.change).toEqual({ start: 724, end: 724 });
+    expect(entry?.item).toMatchObject({
+      id: "session:ss-1",
+      kind: "pickup",
+      at: 724,
+      savedSeconds: 0,
+      pickup: { kind: "insert", number: 2 },
+    });
+    expect(entry?.item.hostOnly).toBeUndefined();
+  });
+
+  it("titles a replace with its range and shows the default take as plain text", () => {
+    const [entry] = sessionEntriesOf([replace], tracks);
+    expect(entry?.content.card.title).toBe(
+      "Replace 12:04–17:29 with Session 3",
+    );
+    expect(entry?.content.card.why).toBe("Take 3 of 3 · Jon and Rosa");
+    expect(entry?.content.card.change).toEqual({ start: 724, end: 1049 });
+    expect(entry?.item.pickup).toEqual({ kind: "replace", number: 3 });
+  });
+
+  it("shows the selected take, by its position among the distinct takes", () => {
+    const [entry] = sessionEntriesOf(
+      [{ ...replace, take_indexes: [0, 2, 5], selected_take: 2 }],
+      tracks,
+    );
+    expect(entry?.content.card.why).toBe("Take 2 of 3 · Jon and Rosa");
+  });
+
+  it("says one take for a single take and falls back to the track id", () => {
+    const [entry] = sessionEntriesOf(
+      [{ ...replace, take_count: 1, take_indexes: [0], track_ids: ["x"] }],
+      tracks,
+    );
+    expect(entry?.content.card.why).toBe("1 take · x");
+  });
+
+  it("places an unplaced session last, with no range to hear", () => {
+    const [entry] = sessionEntriesOf(
+      [{ ...replace, from_sec: null, to_sec: null }],
+      tracks,
+    );
+    expect(entry?.item.at).toBe(Number.POSITIVE_INFINITY);
+    expect(entry?.content.row.time).toBe("Unplaced");
+    expect(entry?.content.card.change).toBeUndefined();
+  });
+
+  it("reads the id round trip, the start and the take to place", () => {
+    expect(sessionIdOf(sessionItemId("ss-9"))).toBe("ss-9");
+    expect(sessionIdOf("edit:ss-9")).toBeNull();
+    expect(sessionStartSec(replace)).toBe(724);
+    expect(sessionStartSec(sessionSuggestionView())).toBe(724);
+    expect(takeToPlace(replace)).toBe(2);
+    expect(takeToPlace({ ...replace, selected_take: 1 })).toBe(1);
+    expect(takeToPlace(sessionSuggestionView())).toBeUndefined();
+  });
+});
+
+describe("pickupConfirmation", () => {
+  const tracks = [sampleTrack({ id: "guest", label: "Rosa" })];
+  const ask = (rows: unknown) => ({
+    needs_confirmation: { message: "x", speech: { tracks: rows } },
+  });
+
+  it("names the speakers whose speech goes", () => {
+    expect(
+      pickupConfirmation(
+        ask([
+          { track_id: "a", speaker: "Jon" },
+          { track_id: "guest", speaker: "" },
+          { track_id: "a", speaker: "Jon" },
+        ]),
+        tracks,
+      ),
+    ).toBe("This also removes speech from Jon and Rosa.");
+  });
+
+  it("is null for a reply that was not held and plain when no name is known", () => {
+    expect(pickupConfirmation({ ok: true }, tracks)).toBeNull();
+    expect(pickupConfirmation(ask([]), tracks)).toBe(
+      "This also removes speech from another track.",
+    );
   });
 });

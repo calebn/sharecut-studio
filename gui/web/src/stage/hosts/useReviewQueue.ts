@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  acceptSessionSuggestionCommand,
   applySuggestedActions,
   approveEdits,
   correctTranscriptWord,
   loadTranscriptCheck,
   markTranscriptChecked,
   rejectEdits,
+  skipSessionSuggestionCommand,
   waiveTranscriptRefine,
 } from "../../api";
-import { playPendingPreview } from "../../audio/pendingPreview";
+import { replyHistoryHead } from "../../api/documentEdits";
+import {
+  playPendingPreview,
+  playSessionPreview,
+  warmSessionPreview,
+} from "../../audio/pendingPreview";
 import { runPointerCommand } from "../../commands/pointer";
 import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../../document/cursor";
@@ -20,9 +27,15 @@ import {
   checkEntryOf,
   commentItemId,
   editIdOf,
+  pickupConfirmation,
   type ReviewEntry,
   reviewEntriesOf,
   reviewIdOf,
+  sessionEntriesOf,
+  sessionIdOf,
+  sessionItemId,
+  sessionStartSec,
+  takeToPlace,
   unsureEntriesOf,
   type WordTarget,
   wordIdOf,
@@ -109,9 +122,14 @@ export function useReviewQueue(guestShare = false) {
   const stageRef = useRef<HTMLDivElement>(null);
   const requests = useRef(0);
   const confirmed = useRef(new Set<string>());
+  const [askedPickups, setAskedPickups] = useState<ReadonlyMap<string, string>>(
+    new Map(),
+  );
   const canDecide =
     !guest || canReviewPendingEdit(projectPath, shareCapabilities);
   const pending = canDecide ? project?.pending_edits : undefined;
+  const sessions = guest ? undefined : project?.session_suggestions;
+  const tracks = project?.tracks;
 
   const refreshStatus = useStableCallback(async () => {
     if (guest || isShareProjectKey(projectPath)) return null;
@@ -141,6 +159,14 @@ export function useReviewQueue(guestShare = false) {
       return kept.length === prev.size ? prev : new Map(kept);
     });
   }, [pending]);
+
+  useEffect(() => {
+    const listed = new Set((sessions ?? []).map((s) => sessionItemId(s.id)));
+    setAskedPickups((prev) => {
+      const kept = [...prev].filter(([id]) => listed.has(id));
+      return kept.length === prev.size ? prev : new Map(kept);
+    });
+  }, [sessions]);
 
   const utterances = guest ? undefined : project?.transcript?.utterances;
   const words = useMemo(
@@ -172,13 +198,32 @@ export function useReviewQueue(guestShare = false) {
           };
     });
     const check = status && checkEntryOf(status);
+    const pickups = sessionEntriesOf(sessions ?? [], tracks ?? []).map(
+      ({ item, content }) => {
+        const message = askedPickups.get(item.id);
+        return message
+          ? { item, content: { ...content, confirm: { message } } }
+          : { item, content };
+      },
+    );
     return [
       ...entries,
+      ...pickups,
       ...words.entries,
       ...(check ? [check] : []),
       ...comments.entries,
     ];
-  }, [guest, pending, held, status, words, comments.entries]);
+  }, [
+    guest,
+    pending,
+    held,
+    status,
+    words,
+    comments.entries,
+    sessions,
+    tracks,
+    askedPickups,
+  ]);
   const session = useReviewSession(open);
   const { revert } = session;
   const select = useStableCallback(session.props.onSelect);
@@ -192,6 +237,11 @@ export function useReviewQueue(guestShare = false) {
   useEffect(() => {
     if (picked) land(commentItemId(picked.id));
   }, [picked, land]);
+  const selectedSession = sessionIdOf(session.props.selectedId ?? "");
+  useEffect(() => {
+    if (selectedSession && !guest)
+      void warmSessionPreview(projectPath, selectedSession);
+  }, [selectedSession, guest, projectPath]);
   const head = project?.history.head_id;
   useEffect(() => {
     const listed = new Set(open.map((e) => e.item.id));
@@ -328,9 +378,82 @@ export function useReviewQueue(guestShare = false) {
     return freed;
   };
 
+  /** Accept or Skip one staged record session; a held replace asks before it goes ahead. */
+  const decideSession = async (
+    intent: ReviewIntent,
+    plan: NonNullable<ReturnType<typeof session.decide>>,
+    suggestionId: string,
+  ) => {
+    const { projectPath: path, projectEpoch: epoch } = useDawStore.getState();
+    const { announceStatus: say } = useDawStore.getState();
+    const current = () => {
+      const s = useDawStore.getState();
+      return s.projectPath === path && s.projectEpoch === epoch;
+    };
+    const itemId = sessionItemId(suggestionId);
+    const row = useDawStore
+      .getState()
+      .project?.session_suggestions?.find((s) => s.id === suggestionId);
+    try {
+      const takeIndex = row ? takeToPlace(row) : undefined;
+      const reply =
+        intent.result === "kept"
+          ? await skipSessionSuggestionCommand(path, suggestionId)
+          : await acceptSessionSuggestionCommand(path, suggestionId, {
+              ...(takeIndex === undefined ? {} : { takeIndex }),
+              overrideAudioChecks: intent.override === true,
+            });
+      if (!current()) return;
+      const ask = pickupConfirmation(
+        reply,
+        useDawStore.getState().project?.tracks ?? [],
+      );
+      if (reply.needs_confirmation !== undefined && ask) {
+        session.revert(plan.decidedIds, plan.selectedId);
+        setAskedPickups((prev) => new Map(prev).set(itemId, ask));
+        return false;
+      }
+      setAskedPickups((prev) => {
+        if (!prev.has(itemId)) return prev;
+        const next = new Map(prev);
+        next.delete(itemId);
+        return next;
+      });
+      if (reply.queued === true) return say(PENDING_REVIEW_QUEUED_MESSAGE);
+      const historyHead = replyHistoryHead(reply);
+      if (historyHead)
+        settled.current.set(itemId, {
+          head: historyHead,
+          seq: currentDocumentSeq(),
+        });
+      say(plan.message, {
+        undo: historyHead,
+        onUndone: () => {
+          session.revert(plan.decidedIds);
+          stageRef.current?.focus({ preventScroll: true });
+        },
+        returnFocus: () => stageRef.current,
+      });
+      return true;
+    } catch (error) {
+      session.revert(plan.decidedIds, plan.selectedId);
+      if (!current()) return false;
+      const gate =
+        error instanceof ApiError &&
+        error.code === TRANSCRIPT_REFINE_REQUIRED_CODE;
+      if (gate) void refreshStatus();
+      say(gate ? REFINE_GATE_GUI_MESSAGE : errorMessage(error), {
+        tone: "error",
+      });
+      return false;
+    }
+  };
+
   const onDecide = useStableCallback(async (intent: ReviewIntent) => {
     const plan = session.decide(intent);
     if (!plan) return;
+    const suggestionId = sessionIdOf(intent.ids[0] ?? "");
+    if (suggestionId) return decideSession(intent, plan, suggestionId);
     const back = (ids: readonly string[]) =>
       session.revert(ids, plan.selectedId);
     const { projectPath: path, projectEpoch: epoch } = useDawStore.getState();
@@ -502,6 +625,25 @@ export function useReviewQueue(guestShare = false) {
         setIsPlaying,
       });
     }
+    const suggestionId = sessionIdOf(id);
+    if (suggestionId) {
+      const row = sessions?.find((s) => s.id === suggestionId);
+      const takeIndex = row ? takeToPlace(row) : undefined;
+      const outcome = await playSessionPreview(
+        projectPath,
+        suggestionId,
+        side === "A" ? "current" : "suggested",
+        {
+          padSec: HEAR_PAD_SEC + 1,
+          ...(takeIndex === undefined ? {} : { takeIndex }),
+        },
+      );
+      if (outcome.status === "disabled")
+        useDawStore
+          .getState()
+          .announceStatus(outcome.reason, { tone: "error" });
+      return;
+    }
     const editId = editIdOf(id);
     if (!editId) return;
     const mode = side === "A" ? "current" : "suggested";
@@ -524,6 +666,13 @@ export function useReviewQueue(guestShare = false) {
         endWordIndex: word.wordIndex,
       });
       if (word.at !== null) state.setPlayheadSec(word.at);
+      return runPointerCommand("stage.edit");
+    }
+    const suggestionId = sessionIdOf(id);
+    if (suggestionId) {
+      const row = sessions?.find((s) => s.id === suggestionId);
+      const at = row ? sessionStartSec(row) : null;
+      if (at !== null) useDawStore.getState().setPlayheadSec(at);
       return runPointerCommand("stage.edit");
     }
     const editId = editIdOf(id);

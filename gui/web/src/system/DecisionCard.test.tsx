@@ -535,4 +535,59 @@ describe("DecisionCard verb", () => {
     expect(screen.getByRole("button", { name: "Comment" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
   });
+
+  it("words a pickup's Keep side Skip and its verb Insert or Replace", () => {
+    const { rerender } = render(
+      <DecisionCard
+        {...base()}
+        kind="pickup"
+        verb="insert"
+        title="Insert Session 2 at 12:04"
+        waveform={undefined}
+        change={{ start: 724, end: 724 }}
+      />,
+    );
+    const bar = () => within(screen.getByRole("group", { name: "Actions" }));
+    expect(
+      bar()
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Open in Edit", "Skip", "Later", "Insert"]);
+    rerender(
+      <DecisionCard
+        {...base()}
+        kind="pickup"
+        verb="replace"
+        waveform={undefined}
+      />,
+    );
+    expect(bar().getByRole("button", { name: "Replace" })).toBeVisible();
+    expect(screen.getByText("Pickup")).toBeVisible();
+  });
+
+  it("asks Replace anyway with no check or note when only a message is given", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <DecisionCard
+        {...base()}
+        kind="pickup"
+        verb="replace"
+        waveform={undefined}
+        prompt={{
+          verb: "replace",
+          message: "This also removes speech from Rosa.",
+          allowNote: false,
+          onConfirm,
+        }}
+      />,
+    );
+    expect(
+      screen.getByText("This also removes speech from Rosa. Replace anyway?"),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Add a note" })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Replace anyway" }),
+    );
+    expect(onConfirm).toHaveBeenCalledWith(undefined);
+  });
 });

@@ -25,6 +25,8 @@ export type ActionBarInlineProps = {
   canEdit?: boolean;
   /** False hides Open in Edit for a host that is already in Edit (the compact card). Permission stays in `canEdit`. */
   showOpenInEdit?: boolean;
+  /** The word on the Keep side when it is not Keep: "Skip" for a pickup. */
+  keepLabel?: string;
   /** The primary is replaced by the prompt while one is open. */
   promptOpen?: boolean;
   onKeep?: () => void;
@@ -59,6 +61,7 @@ export function ActionBarInline({
   canEdit = !readOnly,
   showOpenInEdit = true,
   promptOpen = false,
+  keepLabel,
   onKeep,
   onVerb,
   onLater,
@@ -97,7 +100,9 @@ export function ActionBarInline({
   };
   const placement = { form: dock ? "dock" : "inline" } as const;
   const keeps: readonly { id: BarId }[] =
-    verb === "keep" || !onKeep ? [] : [{ id: "keep" }];
+    verb === "keep" || !onKeep
+      ? []
+      : [{ id: "keep", ...(keepLabel ? { label: keepLabel } : {}) }];
   if (readOnly)
     return (
       <ActionBar
@@ -124,10 +129,12 @@ export function ActionBarInline({
 export type ActionPromptProps = {
   verb: VerbId;
   message?: string;
-  /** "Check 3 words". */
-  checkLabel: string;
+  /** "Check 3 words". Absent when there is nothing to check first. */
+  checkLabel?: string;
+  /** False when the reason is not recorded anywhere, so no note is offered. */
+  allowNote?: boolean;
   onConfirm: (note?: string) => void;
-  onCheck: () => void;
+  onCheck?: () => void;
 };
 
 /** Offers to do it anyway, check first or add a note. It never blocks and shows once per session. */
@@ -135,6 +142,7 @@ export function ActionPrompt({
   verb,
   message = "The transcript isn't checked yet.",
   checkLabel,
+  allowNote = true,
   onConfirm,
   onCheck,
 }: ActionPromptProps) {
@@ -160,20 +168,24 @@ export function ActionPrompt({
           {def.icon ? <SystemIcon name={def.icon} size={16} /> : null}
           {def.label} anyway
         </Button>
-        <Button variant="link" onClick={onCheck}>
-          <SystemIcon name="ear" size={16} />
-          {checkLabel}
-        </Button>
-        <Button
-          variant="link"
-          aria-expanded={adding}
-          aria-controls={noteId}
-          onClick={() => setAdding(!adding)}
-        >
-          Add a note
-        </Button>
+        {onCheck && checkLabel ? (
+          <Button variant="link" onClick={onCheck}>
+            <SystemIcon name="ear" size={16} />
+            {checkLabel}
+          </Button>
+        ) : null}
+        {allowNote ? (
+          <Button
+            variant="link"
+            aria-expanded={adding}
+            aria-controls={noteId}
+            onClick={() => setAdding(!adding)}
+          >
+            Add a note
+          </Button>
+        ) : null}
       </div>
-      {adding ? (
+      {allowNote && adding ? (
         <textarea
           id={noteId}
           className="sys-prompt-note"
