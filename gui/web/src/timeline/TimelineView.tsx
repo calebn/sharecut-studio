@@ -68,7 +68,6 @@ import { WaveformStatusSync } from "../waveform/WaveformStatusSync";
 import { AuditionOverlay } from "./AuditionOverlay";
 import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
-import { CreateMenu, type CreateMenuPlace } from "./CreateMenu";
 import { visibleBox } from "./chooserLayout";
 import { clippingFlags } from "./clippingFlags";
 import { DetentMark } from "./DetentMark";
@@ -96,6 +95,7 @@ import { PrecisionLayer } from "./precision/PrecisionLayer";
 import { precisionHandoff } from "./precision/precisionController";
 import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
 import { TargetChooser } from "./TargetChooser";
+import { TimelineCreateMenu } from "./TimelineCreateMenu";
 import { FollowPlayheadChip, SplitGuide } from "./TimelineLeaves";
 import { TimelineRuler } from "./TimelineRuler";
 import { TrackLane } from "./TrackLane";
@@ -114,6 +114,7 @@ import { attachTimelineZoomGestures } from "./timelineZoomGestures";
 import {
   announceArmed,
   armedDetents,
+  type CreateMenuPlace,
   createPlace,
   keyboardCreateAnchor,
   vibrate,
@@ -1138,7 +1139,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
               />
             ) : null}
             {create && hitRouter ? (
-              <CreateMenu
+              <TimelineCreateMenu
                 view={create.view}
                 place={create.place}
                 router={hitRouter}
@@ -1150,6 +1151,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                       timeViewportPx / 2
                     : null
                 }
+                phone={fixedPlayhead}
               />
             ) : null}
             {detent ? (

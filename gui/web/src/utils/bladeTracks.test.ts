@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bladeCutNote, bladeTrackIds, dialogueTrackIds } from "./bladeTracks";
+import { bladeTrackIds, dialogueTrackIds } from "./bladeTracks";
 
 describe("bladeTrackIds", () => {
   it("uses selection when present", () => {
@@ -20,19 +20,5 @@ const tracks = [
 describe("dialogueTrackIds", () => {
   it("lists the dialogue tracks in order", () => {
     expect(dialogueTrackIds(tracks)).toEqual(["host", "guest"]);
-  });
-});
-
-describe("bladeCutNote", () => {
-  it("names every dialogue track when none is selected", () => {
-    expect(bladeCutNote(tracks, [])).toBe("Cuts all dialogue tracks");
-  });
-
-  it("names the selected tracks by their labels", () => {
-    expect(bladeCutNote(tracks, ["guest", "music"])).toBe("Cuts Blair, Bed");
-  });
-
-  it("falls back to the id of a selected track it does not know", () => {
-    expect(bladeCutNote(tracks, ["gone"])).toBe("Cuts gone");
   });
 });
