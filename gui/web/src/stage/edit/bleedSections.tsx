@@ -148,6 +148,7 @@ export function useBleedSections(
         variant="primary"
         disabledReason={restoreReason}
         onClick={() => {
+          if (selected?.restore.state !== "available") return;
           const generation = active?.generation;
           void executePointerCommand("edit.restoreClipBleed").then((result) => {
             const current = clipBleedSession.getSnapshot();
