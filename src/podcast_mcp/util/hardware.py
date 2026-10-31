@@ -44,6 +44,7 @@ CPU_PROVIDER = "CPUExecutionProvider"
 PROVIDER_PRIORITY = (CUDA_PROVIDER, COREML_PROVIDER, DIRECTML_PROVIDER, CPU_PROVIDER)
 
 _CGROUP_ROOT = Path("/sys/fs/cgroup")
+_MEMINFO = Path("/proc/meminfo")
 _PROBE_TIMEOUT_SEC = 3.0
 
 
@@ -264,11 +265,40 @@ def available_ram_bytes() -> int | None:
                 for m in re.finditer(r"Pages (?:free|inactive|speculative):\s+(\d+)", out)
             )
             return pages * page
-        for line in Path("/proc/meminfo").read_text(encoding="ascii").splitlines():
+        for line in _MEMINFO.read_text(encoding="ascii").splitlines():
             if line.startswith("MemAvailable:"):
-                return int(line.split()[1]) * 1024
+                host = int(line.split()[1]) * 1024
+                room = _cgroup_headroom_bytes()
+                return host if room is None else min(host, room)
     except (OSError, ValueError, AttributeError, subprocess.SubprocessError):
         pass
+    return None
+
+
+_NO_LIMIT_BYTES = 1 << 60  # cgroup v1 reports an unlimited limit as a near-2^63 page-rounded number
+
+
+def _read_cgroup_int(path: Path) -> int | None:
+    """The file's integer, or None when missing, unreadable or "max" (no limit)."""
+    try:
+        text = path.read_text(encoding="ascii").strip()
+        return None if text == "max" else int(text)
+    except (OSError, ValueError):
+        return None
+
+
+def _cgroup_headroom_bytes(root: Path | None = None) -> int | None:
+    """Bytes left under this container's memory limit (cgroup v2, else v1); None when unlimited."""
+    root = _CGROUP_ROOT if root is None else root
+    for limit_file, used_file in (
+        (root / "memory.max", root / "memory.current"),
+        (root / "memory" / "memory.limit_in_bytes", root / "memory" / "memory.usage_in_bytes"),
+    ):
+        limit = _read_cgroup_int(limit_file)
+        used = _read_cgroup_int(used_file)
+        if limit is None or used is None or limit >= _NO_LIMIT_BYTES:
+            continue
+        return max(0, limit - used)
     return None
 
 

@@ -38,8 +38,8 @@ class ElapsedProgressMixin:
 
     Assumes the open tasks on one reporter form a single nested (LIFO) stack, as
     with nested ``with progress_task(...)`` blocks and one reporter per GUI job.
-    Two concurrent sibling tasks on one shared reporter are not supported: only the
-    most recently registered one is heartbeated.
+    Concurrent sibling tasks on one shared reporter need distinct task ids (a repeated
+    id replaces the earlier row), and only the most recently registered one is heartbeated.
 
     ``tests/test_progress_compliance.py`` fails any class that implements the protocol
     without this base.
