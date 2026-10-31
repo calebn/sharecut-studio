@@ -298,6 +298,7 @@ describe("Record stage", () => {
     const ended = {
       session_id: "old",
       number: 1,
+      planned_number: 1,
       name: null,
       state: "ended" as const,
       target_kind: null,
@@ -820,6 +821,46 @@ describe("Record stage", () => {
       await waitFor(() => expect(loadHostRecordSessions).toHaveBeenCalled());
       expect(screen.queryByText(/Session 1/)).not.toBeInTheDocument();
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("open room header", () => {
+    const open = {
+      session_id: "room1",
+      number: null,
+      planned_number: 3,
+      name: null,
+      state: "open" as const,
+      target_kind: null,
+      takes: [],
+      participants: [],
+      landed: false,
+      ended_at: null,
+    };
+
+    it("names the upcoming session by its number", async () => {
+      vi.mocked(loadHostRecordSessions).mockResolvedValue([open]);
+      setRoom();
+      mount();
+      expect(await screen.findByText("Session 3")).toBeVisible();
+    });
+
+    it("shows the host's name for the session instead", async () => {
+      vi.mocked(loadHostRecordSessions).mockResolvedValue([
+        { ...open, name: "Cold open" },
+      ]);
+      setRoom();
+      mount();
+      expect(await screen.findByText("Cold open")).toBeVisible();
+      expect(screen.queryByText("Session 3")).not.toBeInTheDocument();
+    });
+
+    it("shows no name when the fetch fails", async () => {
+      vi.mocked(loadHostRecordSessions).mockRejectedValue(new Error("down"));
+      setRoom();
+      mount();
+      await waitFor(() => expect(record()).toBeVisible());
+      expect(screen.queryByText(/^Session \d+$/)).not.toBeInTheDocument();
     });
   });
 

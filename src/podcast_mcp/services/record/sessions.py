@@ -12,7 +12,11 @@ from typing import Any
 
 from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
 from podcast_mcp.services.collaboration import SHARE_KIND_RECORD, list_shares, share_is_usable
-from podcast_mcp.services.record.landing_math import record_source_prefix, session_landed_before
+from podcast_mcp.services.record.landing_math import (
+    record_session_number,
+    record_source_prefix,
+    session_landed_before,
+)
 from podcast_mcp.services.record.service import RecordSessionService
 from podcast_mcp.services.record.state import TakeState, recording_ms_at
 from podcast_mcp.util.atomic_json import write_json_atomic
@@ -198,6 +202,7 @@ def list_record_sessions(project: EpisodeProject) -> list[dict[str, Any]]:
         item = {
             "session_id": sid,
             "number": stored.number if stored else None,
+            "planned_number": stored.number if stored else record_session_number(project, sid),
             "name": stored.name if stored else None,
             "state": "open" if any(share_is_usable(row) for row in share_rows) else "ended",
             "target_kind": target,

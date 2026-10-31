@@ -111,6 +111,8 @@ export type RecordSessionSummary = {
   session_id: string;
   /** Null until the session has landed on the timeline. */
   number: number | null;
+  /** The stored number, else the one a land would assign now; the open room's header reads it. */
+  planned_number: number;
   /** The host's name for the session; null shows the default heading. */
   name: string | null;
   state: "open" | "ended";

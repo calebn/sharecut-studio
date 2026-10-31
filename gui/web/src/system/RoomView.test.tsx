@@ -72,6 +72,27 @@ describe("RoomView", () => {
     expect(screen.getByText("Starts the episode")).toBeVisible();
   });
 
+  it("prints the session name first in the embedded header only", () => {
+    const props = {
+      seat: "host" as const,
+      title: "Episode 14",
+      sessionName: "Session 3",
+      people: [HOST, JON],
+      phase: LIVE,
+      notes: [],
+      selfName: "Host",
+      onSendNote: vi.fn(),
+      target: <span>Starts the episode</span>,
+    };
+    const { rerender } = render(<RoomView {...props} embedded />);
+    const name = screen.getByText("Session 3");
+    expect(
+      name.compareDocumentPosition(screen.getByText("Starts the episode")),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    rerender(<RoomView {...props} embedded sessionName={undefined} />);
+    expect(screen.queryByText("Session 3")).not.toBeInTheDocument();
+  });
+
   it("prints the title as the one h1 and keeps one main landmark", () => {
     renderRoom();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(

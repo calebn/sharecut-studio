@@ -8,6 +8,7 @@ import { EndedSessionCard } from "./EndedSessionCard";
 const base: RecordSessionSummary = {
   session_id: "s1",
   number: 2,
+  planned_number: 2,
   name: null,
   state: "ended",
   target_kind: null,

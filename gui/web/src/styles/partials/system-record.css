@@ -654,6 +654,15 @@
   min-block-size: 2.5rem;
 }
 
+.sys-room-view-session {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
 .sys-room-view-target {
   flex: 0 1 auto;
   min-inline-size: 0;
