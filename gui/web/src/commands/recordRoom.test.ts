@@ -76,7 +76,7 @@ describe("record room commands", () => {
       session_id: "room1",
       guest: guestRow({}),
       producer: guestRow({ record_role: "producer", token: "p" }),
-      staleSessionIds: [],
+      linksStale: false,
     });
     api.loadState.mockResolvedValue(room);
     expect(await execute("record.createRoom")).toEqual({ status: "ok" });
@@ -95,7 +95,7 @@ describe("record room commands", () => {
       session_id: "room1",
       guest: guestRow({}),
       producer: guestRow({ record_role: "producer", token: "p" }),
-      staleSessionIds: ["old-room"],
+      linksStale: true,
     });
     api.loadState.mockResolvedValue(room);
     expect(await execute("record.createRoom")).toEqual({ status: "ok" });

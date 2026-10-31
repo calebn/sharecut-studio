@@ -259,9 +259,7 @@ export function registerHostCommands(): void {
         ? "Record room created and guest link copied"
         : "Record room created";
       s.announceStatus(
-        room.staleSessionIds.length > 0
-          ? `${base}. ${STALE_ROOM_LINKS_WARNING}`
-          : base,
+        room.linksStale ? `${base}. ${STALE_ROOM_LINKS_WARNING}` : base,
       );
       return { status: "ok" };
     });

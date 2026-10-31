@@ -87,18 +87,10 @@ function staleLinksRoom(error: unknown): MintedRecordRoom | null {
   ) {
     return null;
   }
-  const body = error.body as {
-    detail?: { room?: HostRecordRoom; stale_session_ids?: unknown };
-  } | null;
+  const body = error.body as { detail?: { room?: HostRecordRoom } } | null;
   const room = body?.detail?.room;
   if (!room?.session_id || !room.guest || !room.producer) return null;
-  const stale = body?.detail?.stale_session_ids;
-  return {
-    ...room,
-    staleSessionIds: Array.isArray(stale)
-      ? stale.filter((id): id is string => typeof id === "string")
-      : [],
-  };
+  return { ...room, linksStale: true };
 }
 
 export async function createHostRecordRoom(
@@ -122,7 +114,7 @@ export async function createHostRecordRoom(
       },
     );
     const data = (await res.json()) as { room: HostRecordRoom };
-    return { ...data.room, staleSessionIds: [] };
+    return { ...data.room, linksStale: false };
   } catch (error) {
     const made = staleLinksRoom(error);
     if (made) return made;

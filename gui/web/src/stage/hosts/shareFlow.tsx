@@ -445,7 +445,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           announce("Record links created");
         }
         await load(scope);
-        if (room.staleSessionIds.length > 0 && isCurrent(scope)) {
+        if (room.linksStale && isCurrent(scope)) {
           setError((now) =>
             now
               ? `${now} ${STALE_ROOM_LINKS_WARNING}`

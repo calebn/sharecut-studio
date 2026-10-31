@@ -800,7 +800,7 @@ describe("record rooms", () => {
     session_id: "sess1",
     guest: guestRow,
     producer: producerRow,
-    staleSessionIds: [] as string[],
+    linksStale: false,
   };
 
   it("creates the room, copies the guest link and lists it", async () => {
@@ -822,7 +822,7 @@ describe("record rooms", () => {
     setClipboard({ writeText });
     createHostRecordRoom.mockResolvedValue({
       ...room,
-      staleSessionIds: ["old-room"],
+      linksStale: true,
     });
     listHostShares.mockResolvedValue(listed([guestRow, producerRow]));
     mount();

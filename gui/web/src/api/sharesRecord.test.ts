@@ -111,7 +111,7 @@ describe("createHostRecordRoom", () => {
     );
     await expect(
       createHostRecordRoom("/tmp/episode.sharecut"),
-    ).resolves.toEqual({ ...room, staleSessionIds: [] });
+    ).resolves.toEqual({ ...room, linksStale: false });
   });
 
   it("treats a stale-links 409 as a made room and names the earlier sessions", async () => {
@@ -133,7 +133,7 @@ describe("createHostRecordRoom", () => {
     );
     await expect(
       createHostRecordRoom("/tmp/episode.sharecut"),
-    ).resolves.toEqual({ ...room, staleSessionIds: ["old-1", "old-2"] });
+    ).resolves.toEqual({ ...room, linksStale: true });
   });
 
   it("still rejects any other conflict, and a stale-links body without a room", async () => {
@@ -146,6 +146,26 @@ describe("createHostRecordRoom", () => {
     await expect(
       createHostRecordRoom("/tmp/episode.sharecut"),
     ).rejects.toMatchObject({ code: "record_room_unavailable" });
+
+    hostFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: { room } }), {
+        status: 409,
+        headers: { "X-Sharecut-Error-Code": "record_room_unavailable" },
+      }),
+    );
+    await expect(
+      createHostRecordRoom("/tmp/episode.sharecut"),
+    ).rejects.toMatchObject({ code: "record_room_unavailable" });
+
+    hostFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: { room } }), {
+        status: 500,
+        headers: { "X-Sharecut-Error-Code": "record_stale_links" },
+      }),
+    );
+    await expect(
+      createHostRecordRoom("/tmp/episode.sharecut"),
+    ).rejects.toMatchObject({ status: 500 });
 
     hostFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ detail: { stale_session_ids: ["old"] } }), {
