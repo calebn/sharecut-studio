@@ -35,6 +35,7 @@ export interface TimelineCreateMenuProps {
 function Scrim({ router, phone }: { router: HitRouter; phone: boolean }) {
   return (
     <div
+      role="presentation"
       className="timeline-create-scrim"
       data-phone={phone ? "" : undefined}
       onPointerDown={(e) => {
