@@ -1,7 +1,9 @@
 import {
   ArrowRight,
   ArrowUp,
+  AudioWaveform,
   BetweenHorizontalStart,
+  Blend,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -122,6 +124,8 @@ export const LUCIDE_ICONS = {
   "cloud-download": CloudDownload,
   split: Split,
   spline: Spline,
+  "audio-waveform": AudioWaveform,
+  blend: Blend,
   eye: Eye,
   "eye-off": EyeOff,
   inbox: Inbox,

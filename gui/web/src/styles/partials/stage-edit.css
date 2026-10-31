@@ -500,3 +500,86 @@ html[data-frame-short] .edit-dock {
     outline-offset: calc(-1 * var(--focus-ring-offset));
   }
 }
+
+/* Target chooser (Stages/Edit/TargetChooser, spec-edit POP-CHOOSER): a fan of
+   44 px chips in the positioned box it is mounted in, so there is no portal, no
+   top layer and no fixed position here; the wiring host adds those. The root
+   passes touches through to the host's press surface; the chips take them. */
+.edit-target-chooser {
+  --edit-chooser-ring-width: 0.1875rem;
+
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-menu);
+  outline: none;
+  pointer-events: none;
+}
+
+.edit-target-chooser-chip {
+  position: absolute;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  padding: 0;
+  border: var(--edit-chooser-ring-width) solid var(--edit-chooser-ring);
+  border-radius: 50%;
+  background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
+  box-shadow: var(--shadow-floating);
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  appearance: none;
+}
+
+.edit-target-chooser-chip svg {
+  flex: none;
+}
+
+/* Under the finger: lifted, not recoloured, so the track ring stays readable. */
+.edit-target-chooser-chip.is-over {
+  scale: 1.12;
+  background: var(--color-hover);
+}
+
+/* One caption for the chip under the finger, on the side of the arc away from
+   the press point. */
+.edit-target-chooser-caption {
+  position: absolute;
+  translate: -50% -100%;
+  box-sizing: border-box;
+  max-inline-size: 15rem;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
+  box-shadow: var(--shadow-floating);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.edit-target-chooser[data-placement="below"] .edit-target-chooser-caption {
+  translate: -50% 0;
+}
+
+@media (forced-colors: active) {
+  .edit-target-chooser {
+    --edit-chooser-ink: Highlight;
+  }
+
+  .edit-target-chooser-chip.is-over {
+    outline: var(--focus-ring-width) solid var(--edit-chooser-ink);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
