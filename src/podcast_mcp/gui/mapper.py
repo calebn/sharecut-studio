@@ -940,6 +940,26 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
     return rows
 
 
+def session_suggestions_for_view(project: EpisodeProject) -> list[dict[str, Any]]:
+    """The staged record sessions still waiting for a decision, as a small host-only view."""
+    return [
+        {
+            "id": row.id,
+            "kind": row.kind,
+            "session_id": row.session_id,
+            "session_number": row.session_number,
+            "at_sec": row.at_sec,
+            "from_sec": row.from_sec,
+            "to_sec": row.to_sec,
+            "track_ids": list(row.track_ids),
+            "take_count": len(row.takes),
+            "selected_take": row.selected_take,
+        }
+        for row in project.editorial.session_suggestions
+        if row.status == "pending"
+    ]
+
+
 def social_clips_for_view(project: EpisodeProject) -> list[dict[str, Any]]:
     """Serialize social clip candidates (already on the timeline clock)."""
     rows: list[dict[str, Any]] = []

@@ -31,6 +31,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 
 | Type | Required payload | Optional payload |
 |------|------------------|------------------|
+| `AcceptSessionSuggestion` | `suggestion_id` (string) | `override_audio_checks` (boolean), `take_index` (integer \| null) |
 | `AddAction` | `comment_id` (string), `text` (string) | — |
 | `AddChapter` | `time` (number), `title` (string) | — |
 | `AddComment` | `author` (string), `body` (string), `timeline_start` (number) | `action_texts` (array \| null), `edit_decision_id` (string \| null), `timeline_end` (number \| null), `timeline_spans` (array \| null), `track_ids` (array \| null) |
@@ -77,6 +78,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `RestoreClipBleed` | `target` (object) | — |
 | `RippleDeleteText` | `query` (string) | `override_audio_checks` (boolean), `use_inaudible_opt` (boolean \| null) |
 | `RollClipJoin` | `delta_sec` (number), `expected_token` (string), `left_clip_id` (string), `right_clip_id` (string) | — |
+| `SelectSessionTake` | `suggestion_id` (string), `take_index` (integer) | — |
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
 | `SetBleedAlignmentMode` | `decision_id` (string), `mode` (auto \| manual \| declined) | `end_sec` (number \| null), `override_placement_lock` (boolean), `start_sec` (number \| null), `track_id` (string \| null) |
 | `SetClipFade` | `clip_id` (string), `expected` (object), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
@@ -95,6 +97,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetTranscriptWordTiming` | `end` (number), `expected_token` (string), `start` (number), `target` (object) | — |
 | `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | `expected_text` (string \| null), `source_id` (string \| null) |
 | `ShortenWordGaps` | — | `max_gap_sec` (number), `override_audio_checks` (boolean), `use_inaudible_opt` (boolean \| null) |
+| `SkipSessionSuggestion` | `suggestion_id` (string) | — |
 | `SplitAtTime` | `at_time` (number) | `extra_at_times` (array \| null), `reason` (string \| null), `track_ids` (array \| null) |
 | `StageTextMatchCut` | `query` (string) | `match_all` (boolean), `review_required` (boolean), `speaker` (string \| null), `track_id` (string \| null), `use_inaudible_opt` (boolean \| null) |
 | `StageTimeRangeCut` | `end` (number), `start` (number), `track_id` (string) | `reason` (string \| null), `review_required` (boolean), `use_inaudible_opt` (boolean \| null) |
@@ -112,7 +115,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 80 command types._
+_Generated 83 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

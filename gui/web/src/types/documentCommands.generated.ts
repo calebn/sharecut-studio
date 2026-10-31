@@ -1,6 +1,7 @@
 /** Generated from schemas/document-commands.schema.json — do not edit by hand. Run `make schema-export`. */
 
 export type DocumentCommandType =
+  | "AcceptSessionSuggestion"
   | "AddAction"
   | "AddChapter"
   | "AddComment"
@@ -47,6 +48,7 @@ export type DocumentCommandType =
   | "RestoreClipBleed"
   | "RippleDeleteText"
   | "RollClipJoin"
+  | "SelectSessionTake"
   | "SetActionDone"
   | "SetBleedAlignmentMode"
   | "SetClipFade"
@@ -65,6 +67,7 @@ export type DocumentCommandType =
   | "SetTranscriptWordTiming"
   | "SetTranscriptWordsIgnored"
   | "ShortenWordGaps"
+  | "SkipSessionSuggestion"
   | "SplitAtTime"
   | "StageTextMatchCut"
   | "StageTimeRangeCut"
@@ -84,6 +87,7 @@ export type DocumentCommandType =
 
 /** Wire names, so a call site spells `DocumentCommand.MoveClips`, never a string. */
 export const DocumentCommand = {
+  AcceptSessionSuggestion: "AcceptSessionSuggestion",
   AddAction: "AddAction",
   AddChapter: "AddChapter",
   AddComment: "AddComment",
@@ -130,6 +134,7 @@ export const DocumentCommand = {
   RestoreClipBleed: "RestoreClipBleed",
   RippleDeleteText: "RippleDeleteText",
   RollClipJoin: "RollClipJoin",
+  SelectSessionTake: "SelectSessionTake",
   SetActionDone: "SetActionDone",
   SetBleedAlignmentMode: "SetBleedAlignmentMode",
   SetClipFade: "SetClipFade",
@@ -148,6 +153,7 @@ export const DocumentCommand = {
   SetTranscriptWordTiming: "SetTranscriptWordTiming",
   SetTranscriptWordsIgnored: "SetTranscriptWordsIgnored",
   ShortenWordGaps: "ShortenWordGaps",
+  SkipSessionSuggestion: "SkipSessionSuggestion",
   SplitAtTime: "SplitAtTime",
   StageTextMatchCut: "StageTextMatchCut",
   StageTimeRangeCut: "StageTimeRangeCut",

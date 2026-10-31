@@ -42,6 +42,7 @@ const PROJECT_KEYS: (keyof ProjectView)[] = [
   "clips",
   "chapters",
   "pending_edits",
+  "session_suggestions",
   "edit_boundaries",
   "applied_edits",
   "effects_by_track",

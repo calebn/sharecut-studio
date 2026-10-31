@@ -13,6 +13,7 @@ from podcast_mcp.services.document_sync.handlers import (
     feed,
     history,
     markers,
+    session_suggestion,
     transcript,
 )
 from podcast_mcp.util.coded_error import CodedValueError
@@ -22,6 +23,7 @@ Handler = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
 HANDLERS: dict[str, Handler] = {
     **comments.HANDLERS,
     **feed.HANDLERS,
+    **session_suggestion.HANDLERS,
     "UndoHistory": history.undo_history,
     "RedoHistory": history.redo_history,
     "EditSelectedRange": edits.edit_selected_range,

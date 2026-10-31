@@ -1,5 +1,130 @@
 {
   "$defs": {
+    "AcceptSessionSuggestionCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/AcceptSessionSuggestionPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "AcceptSessionSuggestion",
+          "default": "AcceptSessionSuggestion",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "AcceptSessionSuggestionCommand",
+      "type": "object"
+    },
+    "AcceptSessionSuggestionPayload": {
+      "properties": {
+        "override_audio_checks": {
+          "default": false,
+          "title": "Override Audio Checks",
+          "type": "boolean"
+        },
+        "suggestion_id": {
+          "title": "Suggestion Id",
+          "type": "string"
+        },
+        "take_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Take Index"
+        }
+      },
+      "required": [
+        "suggestion_id"
+      ],
+      "title": "AcceptSessionSuggestionPayload",
+      "type": "object"
+    },
     "AddActionCommand": {
       "properties": {
         "causation_id": {
@@ -6490,6 +6615,119 @@
       "title": "RoomToneFill",
       "type": "object"
     },
+    "SelectSessionTakeCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/SelectSessionTakePayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "SelectSessionTake",
+          "default": "SelectSessionTake",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "SelectSessionTakeCommand",
+      "type": "object"
+    },
+    "SelectSessionTakePayload": {
+      "properties": {
+        "suggestion_id": {
+          "title": "Suggestion Id",
+          "type": "string"
+        },
+        "take_index": {
+          "title": "Take Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "suggestion_id",
+        "take_index"
+      ],
+      "title": "SelectSessionTakePayload",
+      "type": "object"
+    },
     "SetActionDoneCommand": {
       "properties": {
         "causation_id": {
@@ -8833,6 +9071,114 @@
         }
       },
       "title": "ShortenWordGapsPayload",
+      "type": "object"
+    },
+    "SkipSessionSuggestionCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/SkipSessionSuggestionPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "SkipSessionSuggestion",
+          "default": "SkipSessionSuggestion",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "SkipSessionSuggestionCommand",
+      "type": "object"
+    },
+    "SkipSessionSuggestionPayload": {
+      "properties": {
+        "suggestion_id": {
+          "title": "Suggestion Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "suggestion_id"
+      ],
+      "title": "SkipSessionSuggestionPayload",
       "type": "object"
     },
     "SourceSpan": {
@@ -11205,6 +11551,7 @@
   "description": "Discriminated document-plane commands (host/guest HTTP, WS, MCP). Generated from podcast_mcp.services.document_sync.payloads \u2014 run: python scripts/export_document_command_schema.py",
   "discriminator": {
     "mapping": {
+      "AcceptSessionSuggestion": "#/$defs/AcceptSessionSuggestionCommand",
       "AddAction": "#/$defs/AddActionCommand",
       "AddChapter": "#/$defs/AddChapterCommand",
       "AddComment": "#/$defs/AddCommentCommand",
@@ -11251,6 +11598,7 @@
       "RestoreClipBleed": "#/$defs/RestoreClipBleedCommand",
       "RippleDeleteText": "#/$defs/RippleDeleteTextCommand",
       "RollClipJoin": "#/$defs/RollClipJoinCommand",
+      "SelectSessionTake": "#/$defs/SelectSessionTakeCommand",
       "SetActionDone": "#/$defs/SetActionDoneCommand",
       "SetBleedAlignmentMode": "#/$defs/SetBleedAlignmentModeCommand",
       "SetClipFade": "#/$defs/SetClipFadeCommand",
@@ -11269,6 +11617,7 @@
       "SetTranscriptWordTiming": "#/$defs/SetTranscriptWordTimingCommand",
       "SetTranscriptWordsIgnored": "#/$defs/SetTranscriptWordsIgnoredCommand",
       "ShortenWordGaps": "#/$defs/ShortenWordGapsCommand",
+      "SkipSessionSuggestion": "#/$defs/SkipSessionSuggestionCommand",
       "SplitAtTime": "#/$defs/SplitAtTimeCommand",
       "StageTextMatchCut": "#/$defs/StageTextMatchCutCommand",
       "StageTimeRangeCut": "#/$defs/StageTimeRangeCutCommand",
@@ -11507,6 +11856,15 @@
     },
     {
       "$ref": "#/$defs/SetRecordSessionNameCommand"
+    },
+    {
+      "$ref": "#/$defs/AcceptSessionSuggestionCommand"
+    },
+    {
+      "$ref": "#/$defs/SkipSessionSuggestionCommand"
+    },
+    {
+      "$ref": "#/$defs/SelectSessionTakeCommand"
     },
     {
       "$ref": "#/$defs/AddTrackCommand"

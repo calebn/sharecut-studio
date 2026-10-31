@@ -13,6 +13,7 @@ from podcast_mcp.gui.mapper import (
     map_edit_boundaries,
     map_pending_edits_to_timeline,
     map_transcript_utterances_to_timeline,
+    session_suggestions_for_view,
     social_clips_for_view,
 )
 from podcast_mcp.gui.schemas import ProjectView, TrackView
@@ -225,6 +226,7 @@ def build_project_view(
         pending_edits=map_pending_edits_to_timeline(
             project, pending, unsure_words=TranscriptService(ws).unsure_words_for(pending)
         ),
+        session_suggestions=session_suggestions_for_view(project),
         edit_boundaries=map_edit_boundaries(project),
         applied_edits=map_applied_edits_to_timeline(project, applied),
         effects_by_track=effects_by_track,

@@ -19,15 +19,18 @@ import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import { useDawStore } from "../state/dawStore";
 import { ApiError } from "../utils/apiError";
 import {
+  acceptSessionSuggestionCommand,
   applySuggestedActions,
   approveEdits,
   correctTranscriptPhrase,
   correctTranscriptWord,
   loadPendingCutSuggestion,
   moveClips,
+  selectSessionTakeCommand,
   setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
+  skipSessionSuggestionCommand,
   updatePendingEdit,
 } from "./documentEdits";
 import { loadDocumentState } from "./project";
@@ -660,6 +663,50 @@ describe("approveEdits", () => {
       "ApproveEdits",
       { ids: ["e1"], hold_blocked: true },
       { refineRecoveryInline: true },
+    );
+  });
+});
+
+describe("session suggestion commands", () => {
+  it("accepts with no take and no override by default", async () => {
+    await acceptSessionSuggestionCommand("/tmp/ep", "ss-1");
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "AcceptSessionSuggestion",
+      { suggestion_id: "ss-1", override_audio_checks: false },
+      undefined,
+    );
+  });
+
+  it("sends the chosen take and the override when given", async () => {
+    await acceptSessionSuggestionCommand("/tmp/ep", "ss-1", {
+      takeIndex: 0,
+      overrideAudioChecks: true,
+    });
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "AcceptSessionSuggestion",
+      { suggestion_id: "ss-1", take_index: 0, override_audio_checks: true },
+      undefined,
+    );
+  });
+
+  it("skips and selects a take", async () => {
+    await skipSessionSuggestionCommand("/tmp/ep", "ss-1");
+    await selectSessionTakeCommand("/tmp/ep", "ss-1", 2);
+    expect(submitQueuedDocumentCommand).toHaveBeenNthCalledWith(
+      1,
+      "/tmp/ep",
+      "SkipSessionSuggestion",
+      { suggestion_id: "ss-1" },
+      undefined,
+    );
+    expect(submitQueuedDocumentCommand).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/ep",
+      "SelectSessionTake",
+      { suggestion_id: "ss-1", take_index: 2 },
+      undefined,
     );
   });
 });
