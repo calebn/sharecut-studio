@@ -319,6 +319,13 @@ def test_crlf_with_changed_word_is_stale(ws):
     assert [e.current for e in svc.exported()] == [False, False]
 
 
+def test_crlf_inside_a_word_stays_current(ws):
+    ws.project.transcripts[0].words[0].text = "Hel\r\nlo"
+    svc = TranscriptService(ws)
+    svc.export(["txt", "md"])
+    assert [e.current for e in svc.exported()] == [True, True]
+
+
 def test_mime_for_every_format(ws):
     TranscriptService(ws).export(["txt", "md", "srt", "vtt"])
     mimes = {e.format: e.mime for e in TranscriptService(ws).exported()}
