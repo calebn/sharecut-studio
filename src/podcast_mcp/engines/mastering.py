@@ -21,6 +21,7 @@ LIMITER_RELEASE_MS = 50.0
 # ebur128 prints the true peak to one decimal, so the printed value can sit up to
 # half that under the real peak. The trim keeps this much extra headroom.
 TRUE_PEAK_PRINT_ROUNDING_DB = 0.05
+SCREEN_PEAK_SLACK_DB = 0.1
 # ebur128's absolute gate floor and its 400 ms momentary block: a premix at or
 # under the floor, or shorter than a block, has no integrated loudness to plan from.
 LOUDNESS_GATE_FLOOR_LUFS = -70.0

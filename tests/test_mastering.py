@@ -184,6 +184,13 @@ def test_a_round_that_cannot_converge_skips_the_exact_true_peak_measure(
     eng: FFmpegEngine, dense_clicks_wav: Path, tmp_path: Path
 ):
     with (
+        patch.object(eng, "measure_loudness_screen", return_value=None),
+        patch.object(eng, "measure_loudness_full", wraps=eng.measure_loudness_full) as exact_only,
+    ):
+        baseline = eng.master_loudness(
+            dense_clicks_wav, tmp_path / "base.wav", integrated_lufs=-16.0, true_peak_db=-1.5
+        )
+    with (
         patch.object(eng, "measure_loudness_full", wraps=eng.measure_loudness_full) as full,
         patch.object(eng, "measure_loudness_screen", wraps=eng.measure_loudness_screen) as screen,
     ):
@@ -191,11 +198,11 @@ def test_a_round_that_cannot_converge_skips_the_exact_true_peak_measure(
             dense_clicks_wav, tmp_path / "mastered.wav", integrated_lufs=-16.0, true_peak_db=-1.5
         )
 
-    assert result.limiter is not None
-    renders = result.limiter.renders
-    assert renders == 3
-    assert screen.call_count == renders - 1
-    assert full.call_count < renders + 2
+    assert result.limiter is not None and baseline.limiter is not None
+    assert result.limiter.renders == 3
+    assert screen.call_count == 2
+    assert exact_only.call_count - full.call_count == 2
+    assert result.limiter == baseline.limiter
 
 
 def test_an_unusable_screen_falls_back_to_the_exact_measure(
