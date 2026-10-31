@@ -515,6 +515,14 @@ describe("automatic reduction sheet content", () => {
       );
     });
 
+    it("mounts no empty rows when there is nothing to report", async () => {
+      const { container } = render(<SectionsBody withRange={false} />);
+      await ready();
+      const rows = [...container.querySelectorAll(".sys-inspector-row")];
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every((row) => row.textContent !== "")).toBe(true);
+    });
+
     it("has no accessibility violations", async () => {
       const { container } = render(<SectionsBody withRange={false} />);
       await ready();

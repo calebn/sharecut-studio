@@ -11,6 +11,7 @@ import { ScrubField } from "../../system/ScrubField";
 import type { Selection } from "../../types/project";
 import { Button } from "../../ui";
 import { ENVELOPE_VALUE_MAX, sortedVolumePoints } from "../../utils/envelopes";
+import { note } from "./sheetNote";
 
 type Failure = {
   pointId: string;
@@ -18,8 +19,6 @@ type Failure = {
   conflict: boolean;
   collisionId: string | null;
 };
-
-const note = (text: string) => <p className="sys-inspector-note">{text}</p>;
 
 /**
  * The Inspector's content for a volume envelope point: Time and Level as
