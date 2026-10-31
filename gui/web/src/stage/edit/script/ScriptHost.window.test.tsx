@@ -320,6 +320,35 @@ describe("ScriptHost window", () => {
     expect(scrolling.calls.length).toBe(calls);
   });
 
+  async function jumpToLastUnsure() {
+    const view = render(<ScriptHost />);
+    const chip = screen.getByRole("button", { name: /unsure words, go to/ });
+    await userEvent.click(chip);
+    await userEvent.click(chip);
+    expect(hasWord("a350")).toBe(true);
+    expect(drawnTurns()).toBeGreaterThan(1);
+    return view;
+  }
+
+  it("draws a window around the start when the transcript is replaced by a shorter one", async () => {
+    const view = await jumpToLastUnsure();
+    act(() => {
+      seedScript({ utterances: longTranscript(200, []) });
+    });
+    view.rerender(<ScriptHost />);
+    expect(drawnTurns()).toBeGreaterThan(WINDOW_MARGIN);
+    expect(hasWord("a0")).toBe(true);
+  });
+
+  it("keeps the reader's window when the transcript is replaced by one that still covers it", async () => {
+    const view = await jumpToLastUnsure();
+    act(() => {
+      seedScript({ utterances: longTranscript(400, []) });
+    });
+    view.rerender(<ScriptHost />);
+    expect(hasWord("a350")).toBe(true);
+  });
+
   it("binds the body's scroll again when the pane turns from loading to ready", () => {
     const { rerender } = render(<ScriptHost status={{ kind: "loading" }} />);
     rerender(<ScriptHost status={{ kind: "ready" }} />);
