@@ -39,6 +39,9 @@ class ExportedFile:
     current: bool
 
 
+ListedFiles = list[tuple[ExportedFile, str]]
+
+
 @dataclass(frozen=True)
 class ServedFile:
     """A listed file with the host path to stream it from; never serialized."""
@@ -106,10 +109,6 @@ class ExportFilesService:
         wanted.append((feed_path(project).name, "feed", _FEED_MEDIA))
         return [found for item in wanted if (found := served(*item)) is not None]
 
-    def served(self) -> list[ServedFile]:
-        """Every listed file with the host path to stream it from."""
-        return self._found()
-
     def open(self, file_id: str) -> ServedFile:
         """The listed file *file_id*; raises ``CodedFileNotFoundError`` (``export_file_gone``)."""
         for found in self._found():
@@ -118,9 +117,13 @@ class ExportFilesService:
         raise CodedFileNotFoundError("That export file is not listed.", code="export_file_gone")
 
     def list(self) -> list[ExportedFile]:
-        """Every listed file. Audio, chapters and the feed are judged against the project here.
+        """Every listed file; see ``listed``."""
+        return [entry for entry, _ in self.listed()]
 
-        Transcripts reuse ``TranscriptService.exported`` for ``current``. Chapters are current
+    def listed(self) -> ListedFiles:
+        """Every listed file with its version (size and mtime), read in one pass.
+
+        Audio, chapters and the feed are judged against the project here. Transcripts reuse ``TranscriptService.exported`` for ``current``. Chapters are current
         when the file equals a fresh render. The feed is current when the listing's own check
         says so. Audio has no record of the edit state it was rendered from, so it is always
         reported current; the Deliver status row keeps the stale judgement for it.
@@ -129,7 +132,7 @@ class ExportFilesService:
         transcript_current = {t.name: t.current for t in TranscriptService(self.ws).exported()}
         chapters_text = render_chapters_json(project.chapters) if project.chapters else None
         feed_current: bool | None = None
-        out: list[ExportedFile] = []
+        out: ListedFiles = []
         for found in self._found():
             name = found.path.name
             try:
@@ -146,16 +149,15 @@ class ExportFilesService:
                 current = feed_current
             else:
                 current = True
-            out.append(
-                ExportedFile(
-                    id=found.id,
-                    name=name,
-                    kind=found.kind,
-                    label=self._label(found),
-                    bytes=size,
-                    current=current,
-                )
+            entry = ExportedFile(
+                id=found.id,
+                name=name,
+                kind=found.kind,
+                label=self._label(found),
+                bytes=size,
+                current=current,
             )
+            out.append((entry, found.version))
         return out
 
     @staticmethod

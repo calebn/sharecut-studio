@@ -397,13 +397,25 @@ def test_a_ticket_is_refused_on_a_relayed_request(ws, folder, remote) -> None:
     assert res.status_code == 403
 
 
+@pytest.mark.parametrize("ticket", ["x", ".", "..", "1.2.é", "é.2.sig", "9" * 5000 + ".2.sig", ""])
+def test_a_junk_ticket_is_a_403_before_anything_else_is_read(ws, folder, remote, ticket) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    _run_export(remote.app, ws)
+
+    res = remote.get(
+        f"/api/export/files/{stem}.mp3", params={"path": str(ws.path), "ticket": ticket}
+    )
+
+    assert (res.status_code, res.headers[CODE]) == (403, "export_ticket_invalid")
+
+
 def test_a_ticket_belongs_to_one_project(ws, folder, tmp_path) -> None:
     stem = sanitize_export_stem(ws.project.name)
     version = ExportFilesService(ws).open(f"{stem}.mp3").version
     ticket = export_ticket.mint(ws.path, f"{stem}.mp3", version)
 
     with pytest.raises(HTTPException) as refused:
-        export_ticket.check(ticket, tmp_path / "other.json", f"{stem}.mp3", version)
+        export_ticket.verified_version(ticket, str(tmp_path / "other.json"), f"{stem}.mp3")
 
     assert refused.value.status_code == 403
 
