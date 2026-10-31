@@ -123,9 +123,12 @@ test("F03/F13 native ruler clock and modifier wheel anchor reversal bounds and t
       const z = (await width(page)) / 60;
       const rect = (await ruler.boundingBox())!;
       await ruler.click({ position: { x: 3 * z, y: rect.height / 2 } });
+      // A click lands on a whole pixel, so the seek is within a pixel or two of 3 s.
       await expect
-        .poll(async () => Number(await ruler.getAttribute("aria-valuenow")))
-        .toBeCloseTo(3, 3);
+        .poll(async () =>
+          Math.abs(Number(await ruler.getAttribute("aria-valuenow")) - 3),
+        )
+        .toBeLessThanOrEqual(2 / z);
       // The ruler draws a sticky window, so its left edge is not time 0 once the
       // timeline scrolls or zooms; the clip's left edge is the session start.
       const anchor = async () =>

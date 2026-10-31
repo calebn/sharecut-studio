@@ -138,18 +138,6 @@
   paint-order: stroke fill;
 }
 
-/* Phone gutter always shows › even if the timeline pane is ≥30rem wide. */
-.stage-frame--phone .track-header-disclose {
-  display: inline-block;
-}
-
-/* In the narrow rail the initials chip is the tap affordance instead. */
-@container timeline (inline-size < 30rem) {
-  .stage-frame--phone .track-header-disclose {
-    display: none;
-  }
-}
-
 /* The Mix sheet's Solo on chip. */
 .track-mix .solo-chip {
   min-block-size: var(--touch-min);

@@ -5415,6 +5415,15 @@ input.sys-edit-fix {
   outline: 1px dashed var(--color-text-secondary);
 }
 
+.sys-track[data-clipped] .sys-track-avatar {
+  background: var(--color-danger);
+}
+
+.sys-track[data-clipped] .sys-track-badge {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
 :is(.sys-track[data-mute="saved"], .sys-track[data-mute="listen"])
   .sys-person-avatar {
   filter: grayscale(1);

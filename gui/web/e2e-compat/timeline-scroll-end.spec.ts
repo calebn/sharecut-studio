@@ -9,7 +9,7 @@ test("short desktop lanes reach the horizontal end with classic scrollbars", asy
   await page.setViewportSize({ width: 1512, height: 805 });
   await openProject(page, e2eProjectPath);
   await expect(page.locator(".stage-frame--desktop")).toBeVisible();
-  await expect(page.locator(".track-header-row")).toHaveCount(2);
+  await expect(page.locator(".sys-track")).toHaveCount(2);
   await page.addStyleTag({
     content:
       ".timeline-scroll::-webkit-scrollbar { width: 0.75rem; height: 0.75rem; }",

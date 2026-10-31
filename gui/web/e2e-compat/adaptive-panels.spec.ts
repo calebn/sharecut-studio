@@ -109,7 +109,7 @@ for (const { theme, reducedMotion } of withAppearance([0, 1])) {
         await openProject(page, fixture.projectPath);
         await setTheme(page, theme);
         await expect(page.locator(".stage-frame--tablet")).toBeVisible();
-        await expect(page.locator(".track-header-row")).toHaveCount(2);
+        await expect(page.locator(".sys-track")).toHaveCount(2);
         // The stacked tablet gives the lower half to the Script; the timeline
         // takes the whole body once the Script is hidden.
         const folded = await openToolsIfFolded(page);
@@ -192,7 +192,7 @@ for (const { cell: rootPx, theme, reducedMotion } of withAppearance([16, 32])) {
         );
         await openProject(page, fixture.projectPath);
         await setTheme(page, theme);
-        await expect(page.locator(".track-header-row")).toHaveCount(2);
+        await expect(page.locator(".sys-track")).toHaveCount(2);
         await page.evaluate(() => document.fonts.ready);
         await page.locator("html").evaluate((html, size) => {
           html.style.fontSize = `${size}px`;
@@ -280,7 +280,7 @@ for (const { theme, reducedMotion } of withAppearance([0], 3)) {
         });
         await openProject(page, fixture.projectPath);
         await setTheme(page, theme);
-        await expect(page.locator(".track-header-row")).toHaveCount(2);
+        await expect(page.locator(".sys-track")).toHaveCount(2);
         // The stacked tablet gives the lower half to the Script; the timeline
         // takes the whole body once the Script is hidden.
         const folded = await openToolsIfFolded(page);

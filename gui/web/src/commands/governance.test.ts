@@ -101,9 +101,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "stage/edit/WordFix.tsx",
   // The separator pattern: arrows resize the Script pane, Enter resets it.
   "stage/edit/ScriptDivider.tsx",
-  "tracks/TrackHeaderView.tsx",
   "tracks/TrackMuteSoloButtonsView.tsx",
-  "tracks/TrackHeader.tsx",
   // Keep clip clearing on the focused button from toggling global playback.
   "tracks/TrackPlaybackMeter.tsx",
   // Palette search: Enter runs the top match and arrows step through results.

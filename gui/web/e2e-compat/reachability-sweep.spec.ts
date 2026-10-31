@@ -111,9 +111,8 @@ const REACHABILITY_CELLS = [...PHONES, ...TABLETS, ...LANDSCAPES];
 /**
  * Canvas targets reach 44 px through the dense-target pattern
  * (docs/communication-philosophy.md): their hit area grows invisibly and the
- * selected target is editable from 44 px inspector controls. The track grip
- * has an equivalent control, Move track up and down in the track sheet. The
- * tab strip carries the same actions.
+ * selected target is editable from 44 px inspector controls. The tab strip
+ * carries the same actions.
  */
 const DENSE = [
   ".fade-corner",
@@ -121,8 +120,6 @@ const DENSE = [
   ".clip-hit",
   ".sys-ruler-body",
   ".track-headers-well",
-  ".track-header-open",
-  ".track-reorder-handle",
   // Transcript text: inline words in running text, where a taller hit area would take
   // the neighbouring line's taps (docs/communication-philosophy.md, #1602). The speaker
   // button holds the floor.
@@ -229,7 +226,7 @@ async function sweepCell(
     sizeExempt: SIZE_EXEMPT,
   });
 
-  const trigger = page.locator(".track-header-open").first();
+  const trigger = page.locator(".sys-track-main").first();
   await trigger.focus();
   await trigger.press("Enter");
   const surface = sheet ? SHEET : "aside.inspector";
@@ -367,7 +364,7 @@ async function sweepSeededTrack(
     });
     await arrive(page, cell, (p) => openHostShare(p, projectPath));
     await setTheme(page, theme);
-    const trigger = page.locator(".track-header-open").first();
+    const trigger = page.locator(".sys-track-main").first();
     await trigger.focus();
     await trigger.press("Enter");
     const surface = cell.width <= 1194 ? SHEET : "aside.inspector";

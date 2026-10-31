@@ -209,8 +209,8 @@ const SURFACE_GESTURES: Record<string, string> = {
     "hold to hear: a press on A hears the original and letting go after a hold goes back; a quick release latches it, and the A and B buttons do the same by key",
   "tracks/TrackFaderView.tsx":
     "fader: a native range input previews its gain and saves one track volume on release (useCommitRange)",
-  "tracks/TrackHeaderView.tsx":
-    "reorder grip: the draggable handle moves a track by HTML drag, and the Move up and Move down commands do the same by key",
+  "stage/edit/TrackColumn.tsx":
+    "reorder drop: the column takes a track header dragged over a header slot and moves the track on drop; Shift with Up or Down on a header and the Move up and Move down commands do the same by key",
   "inspector/useNudgeRun.ts":
     "a held nudge button steps the selected clip and saves one run edit on release",
   "inspector/NudgeButtons.tsx":

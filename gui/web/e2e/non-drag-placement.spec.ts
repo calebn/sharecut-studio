@@ -13,6 +13,7 @@ import {
 } from "./shareNavigation";
 import { ensureInspected, openProjectDialog } from "./stageNav";
 import { setTheme, withAppearance } from "./theme";
+import { trackHeaderButton } from "./trackHeader";
 
 function placementFixture(prefix: string) {
   const fixture = createRelocatedE2eProject(prefix);
@@ -187,12 +188,7 @@ test("queued Apply retains the exact placement preview until the prior track sav
         const before = snapshot(projectPath).clips;
         await capture("before");
         stage = "prior track save";
-        await page
-          .getByRole("button", {
-            name: "Reorder track reference",
-            exact: true,
-          })
-          .click();
+        await trackHeaderButton(page, "reference").click();
         await openProjectDialog(page, "palette");
         await page
           .getByRole("combobox", { name: "Search commands" })

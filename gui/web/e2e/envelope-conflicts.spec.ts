@@ -16,6 +16,7 @@ import {
 import { test } from "./interactionEvidence";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
+import { trackHeaderButtons } from "./trackHeader";
 
 const documentCommandURL = (url: URL) =>
   url.pathname === "/api/document/command";
@@ -209,13 +210,10 @@ test("accepted envelope save does not reclaim a different inspector while respon
         await expect
           .poll(() => envelopeSnapshot(projectPath, track.id).points)
           .toEqual(command!.payload.points);
-        const otherTrack = page
-          .getByRole("button", { name: /^Open track details,/ })
-          .nth(1);
-        const label = (await otherTrack.getAttribute("aria-label"))!.replace(
-          "Open track details, ",
-          "",
-        );
+        const label = (await trackHeaderButtons(page)
+          .nth(1)
+          .locator(".sys-track-name")
+          .textContent())!;
         await openEnvelopeTrackDetails(page, label, receipts);
         await expect(
           page
