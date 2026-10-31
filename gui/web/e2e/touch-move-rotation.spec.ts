@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { newFinger } from "./finger";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { settledBox } from "./settledBox";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
 import { projectJson, watchCommands } from "./touchTimeline";
@@ -39,7 +40,7 @@ test("a long-press move on the phone saves one MoveClips and the clip moves", as
     const commands = watchCommands(page);
     const hit = page.locator(".clip-hit").first();
     await expect(hit).toBeVisible();
-    const box = (await hit.boundingBox())!;
+    const box = await settledBox(hit);
     const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     const finger = await newFinger(context, page, browserName);
 
@@ -70,7 +71,7 @@ test("rotating the phone mid long-press move saves nothing, and a later move sav
     const moves = () => commands.filter((c) => c.type === "MoveClips");
     const hit = page.locator(".clip-hit").first();
     await expect(hit).toBeVisible();
-    const box = (await hit.boundingBox())!;
+    const box = await settledBox(hit);
     const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     const finger = await newFinger(context, page, browserName);
 
@@ -85,7 +86,7 @@ test("rotating the phone mid long-press move saves nothing, and a later move sav
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(hit).toBeVisible();
-    const again = (await hit.boundingBox())!;
+    const again = await settledBox(hit);
     const from = {
       x: again.x + again.width / 2,
       y: again.y + again.height / 2,
