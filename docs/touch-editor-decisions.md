@@ -999,9 +999,9 @@ On the phone shell (up to 767 px wide, `PHONE_MAX_PX`) the Inspector is the
 Inspector sheet (dock, half, full) whatever the orientation; the tablet and
 desktop shells, which include a wider phone held sideways, get the card beside
 the selection.
-At the dock detent the sheet's header and sections are inert, so a pending
-Approve or Reject in the sheet is reachable one grip tap away; the sheet opens
-at half (full when the box is too short for the dock), not at the dock.
+At the dock detent the sheet's header and sections are inert and one grip tap
+away; the sheet opens at half (full when the box is too short for the dock),
+not at the dock.
 A timeline target on the phone still opens the peek strip until the legacy
 bodies are replaced.
 
