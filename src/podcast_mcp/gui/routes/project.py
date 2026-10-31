@@ -43,7 +43,7 @@ from podcast_mcp.services.app import (
     recent_project_cards,
     record_recent,
 )
-from podcast_mcp.services.document import HistoryService, PlayService, queue_room_tone_pools
+from podcast_mcp.services.document import HistoryService, PlayService
 from podcast_mcp.services.session_sync import is_loopback_host
 
 router = APIRouter()
@@ -287,8 +287,6 @@ def get_project(
     except ValueError as exc:
         raise bad_request_error(exc) from exc
     ws = ProjectWorkspace.open(project_path)
-    # A project opened at a new path has no pool under its key: record it before the warms.
-    queue_room_tone_pools(ws.project)
     return dump_project_projection(ws, projection=projection)
 
 
