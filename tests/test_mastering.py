@@ -194,11 +194,8 @@ def test_a_round_that_cannot_converge_skips_the_exact_true_peak_measure(
     assert result.limiter is not None
     renders = result.limiter.renders
     assert renders == 3
-    # the final round is always measured exactly; earlier rounds are screened first
     assert screen.call_count == renders - 1
-    assert (
-        full.call_count < renders + 2
-    )  # input stats + QC + only the rounds the screen couldn't skip
+    assert full.call_count < renders + 2
 
 
 def test_an_unusable_screen_falls_back_to_the_exact_measure(
