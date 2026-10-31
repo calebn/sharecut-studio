@@ -46,8 +46,32 @@ import { type GrabPointer, useGrab } from "./useGrab";
 
 export type { EnvelopePointData } from "./envelopeMath";
 
-/** What changed on a point: a time nudge or drag carries `timeSeconds`, a level one `db`; a drag carries both. */
+/**
+ * What changed on a point. A time nudge carries `timeSeconds`, a level nudge
+ * `db`. A drag locks to the axis the pointer first moved along (the larger of
+ * |dx| and |dy|, once it is 3 px away from where the drag started) and carries
+ * only that axis, on every move, including back at its start value: a host
+ * may merge (`change.timeSeconds ?? point.time`) or replace. The other axis
+ * is never sent, so a time drag cannot touch the level and the reverse. A
+ * value that is not changed is never rounded: the start value comes back
+ * exactly.
+ */
 export type EnvelopeChange = { timeSeconds?: number; db?: number };
+
+/** Attributes the host may set on the leaf's hit targets: `data-hit-*` strings only, nothing else is spread. */
+export type HitAttrs = Readonly<Record<`data-hit-${string}`, string>>;
+
+export type EnvelopeHitProps = {
+  /** Called in each point's render with its id, time, level and selected state; keep it pure and stable (`useCallback`), as a new function re-renders every point. */
+  point?: (
+    id: string,
+    time: number,
+    db: number,
+    selected: boolean,
+  ) => HitAttrs | undefined;
+  /** On the strip along the line (the band), for the one that adds a point. */
+  line?: HitAttrs;
+};
 
 export type EnvelopeProps = {
   /** Keep the array and its objects stable between renders. */
@@ -59,7 +83,7 @@ export type EnvelopeProps = {
   /** Seconds at the left edge. The ruler, the marker lane and the lane take the same `start`, `pxPerSecond` and `width`. */
   start: number;
   pxPerSecond: number;
-  /** In px. */
+  /** In px: the visible window, not the whole canvas. The line is clipped to it, so every point may be passed. */
   width: number;
   /** In px, held to 72 through 240: the lane's own height. */
   height?: number;
@@ -76,11 +100,22 @@ export type EnvelopeProps = {
   /** 44 px point hit areas and a 24 px band along the line; a coarse pointer does this by itself. */
   touch?: boolean;
   anchorProps?: MarkerAttrs;
+  /** Plain `data-hit-*` attributes for the host's hit routing: on each point and on the line's band. Absent, the DOM is the same as without it. */
+  hitProps?: EnvelopeHitProps;
   onSelect: (id: string) => void;
   /** A click on the line, not on a point. The one callback without an id: the point is new. */
   onAdd?: (timeSeconds: number, db: number) => void;
   onRemove?: (id: string) => void;
-  /** A drag calls it on each move and a nudge on each press; the host keeps the point where it says. */
+  /**
+   * A drag calls it on each move and a nudge on each press; the host keeps the
+   * point where it says. The envelope holds no nudge state: each press steps
+   * from the `points` it has now, so the host must fold every call into the
+   * `points` it passes back (a preview), commit once at `onNudgeEnd`, and drop
+   * the preview if the commit is refused. Without that feedback every press
+   * repeats the first step. While dragging the envelope draws the held point
+   * itself; the host may fold the same calls in, replacing the point's axis
+   * (never adding to it).
+   */
   onMove?: (id: string, change: EnvelopeChange) => void;
   /** First movement of a drag, never a tap. Return `false` to refuse it. */
   onDragStart?: (id: string, pointer: GrabPointer) => boolean | undefined;
@@ -90,11 +125,33 @@ export type EnvelopeProps = {
   onNudgeEnd?: (id: string) => void;
 };
 
+/** A drag locks to an axis once the pointer is this many px from where the drag started. */
+const AXIS_LOCK_PX = 3;
+
 const SCALE_TOP = Math.round(ENVELOPE_TOP_DB * 100) / 100;
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
 
 type Held = { id: string; time: number; db: number; limit: boolean };
-type Limits = { time: number; db: number; bounds: Bounds };
+type Limits = {
+  time: number;
+  db: number;
+  bounds: Bounds;
+  axis: "time" | "db" | null;
+};
+
+const HIT_PREFIX = "data-hit-";
+
+/** Only `data-hit-*` string attributes pass; the types say so and this keeps a cast object to it. */
+function hitAttrs(attrs: HitAttrs | undefined): HitAttrs | undefined {
+  if (!attrs) return undefined;
+  const clean: Record<string, string> = {};
+  for (const [name, value] of Object.entries(attrs)) {
+    if (name.startsWith(HIT_PREFIX) && typeof value === "string") {
+      clean[name] = value;
+    }
+  }
+  return clean as HitAttrs;
+}
 
 const isArrow = (key: string) =>
   key === "ArrowLeft" ||
@@ -129,6 +186,7 @@ type PointProps = Routes & {
   tabStop: boolean;
   dragging: boolean;
   readOnly: boolean;
+  hit: EnvelopeHitProps["point"];
 };
 
 const EnvelopePoint = memo(function EnvelopePoint({
@@ -144,6 +202,7 @@ const EnvelopePoint = memo(function EnvelopePoint({
   tabStop,
   dragging,
   readOnly,
+  hit,
   press,
   click,
   keyDown,
@@ -163,6 +222,7 @@ const EnvelopePoint = memo(function EnvelopePoint({
       aria-valuetext={valueText(db, time)}
       aria-readonly={readOnly || undefined}
       aria-current={selected || undefined}
+      {...hitAttrs(hit?.(id, time, db, selected))}
       data-id={id}
       data-selected={selected || undefined}
       data-dragging={dragging || undefined}
@@ -210,6 +270,7 @@ export const Envelope = memo(function Envelope({
   readOnly = false,
   touch = false,
   anchorProps,
+  hitProps,
   onSelect,
   onAdd,
   onRemove,
@@ -244,6 +305,8 @@ export const Envelope = memo(function Envelope({
     () => linePath(drawn, start, pxPerSecond, width, lane),
     [drawn, start, pxPerSecond, width, lane],
   );
+  const lineHit = useMemo(() => hitAttrs(hitProps?.line), [hitProps?.line]);
+  const pointHit = hitProps?.point;
   const byId = useMemo(
     () => new Map(points.map((point) => [point.id, point])),
     [points],
@@ -265,6 +328,7 @@ export const Envelope = memo(function Envelope({
         time: point.time,
         db: point.db,
         bounds: pointBounds(sorted, index, duration),
+        axis: null,
       };
       if (selected !== id) onSelect(id);
       setHeld({ id, time: point.time, db: point.db, limit: false });
@@ -273,17 +337,33 @@ export const Envelope = memo(function Envelope({
     onMove: ({ id }, move) => {
       const from = limits.current;
       if (!from) return;
-      const dt = boundedDelta(from.bounds, from.time, move.dx / pxPerSecond);
-      const time = round3(from.time + dt);
-      const level = dbAfterDrag(from.db, move.dy, lane);
-      const db = roundDb(level);
-      const limit =
-        dt !== move.dx / pxPerSecond ||
-        level <= ENVELOPE_FLOOR_DB ||
-        level >= ENVELOPE_TOP_DB;
-      last.current = { id, time, db, limit };
-      setHeld(last.current);
-      onMove?.(id, { timeSeconds: time, db });
+      if (!from.axis) {
+        // A finger's moves count from where it passed the slop, so the lock waits for a real distance.
+        if (Math.hypot(move.dx, move.dy) < AXIS_LOCK_PX) return;
+        from.axis = Math.abs(move.dx) >= Math.abs(move.dy) ? "time" : "db";
+      }
+      let held: Held;
+      let change: EnvelopeChange;
+      if (from.axis === "time") {
+        const wanted = move.dx / pxPerSecond;
+        const dt = boundedDelta(from.bounds, from.time, wanted);
+        const time = dt === 0 ? from.time : round3(from.time + dt);
+        held = { id, time, db: from.db, limit: dt !== wanted };
+        change = { timeSeconds: time };
+      } else {
+        const level = dbAfterDrag(from.db, move.dy, lane);
+        const db = move.dy === 0 ? from.db : roundDb(level);
+        held = {
+          id,
+          time: from.time,
+          db,
+          limit: level <= ENVELOPE_FLOOR_DB || level >= ENVELOPE_TOP_DB,
+        };
+        change = { db };
+      }
+      last.current = held;
+      setHeld(held);
+      onMove?.(id, change);
     },
     onEnd: ({ id }, committed) => {
       const now = last.current;
@@ -401,8 +481,10 @@ export const Envelope = memo(function Envelope({
         walk(event.currentTarget, key === "ArrowLeft" ? -1 : 1);
         return;
       }
+      // Product default (Q1): a read-only guest's plain arrows are not the envelope's; they reach the keymap.
+      if (readOnly) return;
       stop(event);
-      if (!readOnly) nudge(id, key, event);
+      nudge(id, key, event);
     },
   );
   const keyUp = useStableCallback(
@@ -507,7 +589,7 @@ export const Envelope = memo(function Envelope({
           focusable="false"
         >
           <path className="sys-env-line" d={path} />
-          <path className="sys-env-band" d={path} onClick={add} />
+          <path className="sys-env-band" d={path} onClick={add} {...lineHit} />
         </svg>
         <span className="sys-env-zero" aria-hidden="true">
           0 dB
@@ -530,6 +612,7 @@ export const Envelope = memo(function Envelope({
               tabStop={tabId === point.id}
               dragging={held?.id === point.id}
               readOnly={readOnly}
+              hit={pointHit}
               {...routes}
             />
           );
