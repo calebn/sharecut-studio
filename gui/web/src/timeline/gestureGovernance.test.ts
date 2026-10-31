@@ -67,16 +67,6 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
     reason: "the chooser's scrim closes it",
   },
   {
-    file: "timeline/CreateMenu.tsx",
-    marker: 'className="create-menu-scrim"',
-    reason: "the create menu's scrim closes it",
-  },
-  {
-    file: "timeline/CreateMenu.tsx",
-    marker: "<MenuItem",
-    reason: "create menu items: router-owned overlay",
-  },
-  {
     file: "timeline/TimelineCreateMenu.tsx",
     marker: 'className="timeline-create-scrim"',
     reason: "the create menu's scrim closes it",
