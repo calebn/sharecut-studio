@@ -1219,6 +1219,61 @@ describe("TimelineView lane fit", () => {
       );
     });
 
+    it.each([
+      ["a mouse", "mouse"],
+      ["a pen", "pen"],
+    ])(
+      "saves the exact 7 s to 27 s destination from %s drag (#1034)",
+      (_n, pointerType) => {
+        const seven = {
+          ...hostClip,
+          timeline_start: 7,
+          timeline_end: 9,
+          source_start: 0,
+          source_end: 2,
+        };
+        const project = twoTrackProject({
+          clips: { tracks: { host: [seven], guest: [] }, clip_count: 1 },
+        });
+        useDawStore.getState().hydrate("/tmp/p.json", project);
+        useDawStore.setState({ zoomPxPerSec: 10, userZoomed: true });
+        const { container } = render(
+          <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+            <TimelineView />
+          </DawProvider>,
+        );
+        const hit = container.querySelector(
+          '.lane-row[data-track-id="host"] .clip-hit',
+        ) as HTMLElement;
+        document.elementFromPoint = () =>
+          container.querySelector('.lane-row[data-track-id="host"]');
+        const at = (clientX: number) => ({
+          pointerId: 1,
+          pointerType,
+          clientX,
+          clientY: 10,
+        });
+        fireEvent.pointerDown(hit, at(100));
+        fireEvent.pointerMove(hit, at(200));
+        fireEvent.pointerMove(hit, at(300));
+        fireEvent.pointerUp(hit, at(300));
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(execute).toHaveBeenCalledWith(
+          "edit.moveClips",
+          {
+            clips: [
+              expect.objectContaining({
+                clip_id: "c1",
+                track_id: "host",
+                timeline_start: 27,
+              }),
+            ],
+          },
+          { skipWhen: true },
+        );
+      },
+    );
+
     it("holds the lane height while the mode changes mid-drag", () => {
       const withClip = twoTrackProject({
         clips: { tracks: { host: [hostClip], guest: [] }, clip_count: 1 },

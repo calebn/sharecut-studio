@@ -1317,6 +1317,49 @@ describe("ClipBlock waveform", () => {
       );
     });
 
+    it("ignores a second pointer on the clip body during a trim drag and still saves the first once (#1034)", async () => {
+      const { container } = render(<ClipBlock {...base} />);
+      const h = container.querySelector(".trim-handle.out") as HTMLElement;
+      const body = container.querySelector(".clip-hit") as HTMLElement;
+      vi.mocked(trimClipEdge).mockClear();
+      fireEvent.pointerDown(h, { clientX: 100, pointerId: 5 });
+      fireEvent.pointerMove(h, { clientX: 150, pointerId: 5 });
+      fireEvent.pointerDown(body, { clientX: 40, pointerId: 6 });
+      fireEvent.pointerMove(h, { clientX: 320, pointerId: 6 });
+      fireEvent.pointerUp(h, { clientX: 320, pointerId: 6 });
+      fireEvent.pointerUp(body, { clientX: 40, pointerId: 6 });
+      await act(async () => {});
+      expect(trimClipEdge).not.toHaveBeenCalled();
+      fireEvent.pointerUp(h, { clientX: 150, pointerId: 5 });
+      await waitFor(() => expect(trimClipEdge).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(trimClipEdge).mock.calls[0][3]).toBeCloseTo(3, 5);
+    });
+
+    it.each(["pointercancel", "Escape", "unmount"])(
+      "saves nothing when a trim drag ends in %s and ignores the lift (#1034)",
+      async (interruption) => {
+        const view = render(<ClipBlock {...base} />);
+        const h = view.container.querySelector(
+          ".trim-handle.out",
+        ) as HTMLElement;
+        vi.mocked(trimClipEdge).mockClear();
+        fireEvent.pointerDown(h, { clientX: 100, pointerId: 5 });
+        fireEvent.pointerMove(h, { clientX: 150, pointerId: 5 });
+        expect(view.container.querySelector(".clip-trim-ghost")).not.toBeNull();
+        if (interruption === "pointercancel")
+          fireEvent.pointerCancel(h, { pointerId: 5 });
+        else if (interruption === "Escape")
+          fireEvent.keyDown(h, { key: "Escape" });
+        else view.unmount();
+        fireEvent.pointerMove(h, { clientX: 170, pointerId: 5 });
+        fireEvent.pointerUp(h, { clientX: 170, pointerId: 5 });
+        await act(async () => {});
+        expect(trimClipEdge).not.toHaveBeenCalled();
+        if (interruption !== "unmount")
+          expect(view.container.querySelector(".clip-trim-ghost")).toBeNull();
+      },
+    );
+
     it("preflights a trim with geometry captured at pointer down", async () => {
       const view = render(<ClipBlock {...base} />);
       const handle = view.container.querySelector(
@@ -1577,6 +1620,35 @@ describe("ClipBlock waveform", () => {
 
       expect(atLimit).toEqual({ bump: "", said: "Clip is at its limit" });
       expect(back).toBeNull();
+    });
+
+    it("saves the exact 7 s to 27 s delta from a touch long press (#1034)", () => {
+      const onMoveCommit = vi.fn();
+      const seven = { ...clip, timeline_start: 7, timeline_end: 9 };
+      const { hit, router } = touchClip(seven, { onMoveCommit });
+      press(hit, "pointerdown", 50, 50);
+      router.longPress();
+      press(hit, "pointermove", 550, 50);
+      press(hit, "pointermove", 1050, 50);
+      press(hit, "pointerup", 1050, 50);
+      router.dispose();
+
+      expect(onMoveCommit).toHaveBeenCalledTimes(1);
+      expect(onMoveCommit.mock.calls[0][1].deltaSec).toBe(20);
+    });
+
+    it("ignores a second finger lifting after the move saved, and keeps one save (#1034)", () => {
+      const onMoveCommit = vi.fn();
+      const { hit, router } = touchClip(later, { onMoveCommit });
+      press(hit, "pointerdown", 50, 50);
+      router.longPress();
+      press(hit, "pointermove", 90, 50);
+      press(hit, "pointerup", 90, 50);
+      press(hit, "pointerdown", 200, 60, 8);
+      press(hit, "pointerup", 200, 60, 8);
+      router.dispose();
+
+      expect(onMoveCommit).toHaveBeenCalledTimes(1);
     });
 
     it("drops the move, saving nothing, when a second finger lands", () => {

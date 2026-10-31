@@ -274,3 +274,81 @@ it("parent capture cancellation ignores foreign and body-owned range events", ()
   fireEvent.pointerCancel(blank, { pointerId: 3 });
   expect(useDawStore.getState().selection).toBeNull();
 });
+
+describe("range select with a second pointer (#1034)", () => {
+  const touch = { pointerType: "touch" as const };
+  it("keeps the first finger's range when a second finger lands, moves and lifts", () => {
+    useDawStore.setState({ rangeArmed: true });
+    const view = setup();
+    const lanes = view.getByTestId("lanes");
+    fireEvent.pointerDown(view.getByTestId("clip"), {
+      ...touch,
+      pointerId: 1,
+      clientX: 120,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(lanes, {
+      ...touch,
+      pointerId: 1,
+      clientX: 180,
+      clientY: 75,
+    });
+    const owned = useDawStore.getState().selection;
+    expect(owned).toMatchObject({
+      kind: "range",
+      target: { intervals: [{ start: 2, end: 8 }] },
+    });
+    fireEvent.pointerDown(view.getByTestId("blank"), {
+      ...touch,
+      pointerId: 2,
+      clientX: 400,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(lanes, {
+      ...touch,
+      pointerId: 2,
+      clientX: 600,
+      clientY: 20,
+    });
+    fireEvent.pointerUp(lanes, {
+      ...touch,
+      pointerId: 2,
+      clientX: 600,
+      clientY: 20,
+    });
+    expect(useDawStore.getState().selection).toBe(owned);
+    expect(useDawStore.getState().rangeArmed).toBe(true);
+    fireEvent.pointerUp(lanes, {
+      ...touch,
+      pointerId: 1,
+      clientX: 180,
+      clientY: 75,
+    });
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "range",
+      target: { intervals: [{ start: 2, end: 8 }] },
+    });
+    expect(useDawStore.getState().rangeArmed).toBe(false);
+  });
+
+  it("does not let a second finger's cancel roll back the first finger's range", () => {
+    useDawStore.setState({ rangeArmed: true });
+    const view = setup();
+    const lanes = view.getByTestId("lanes");
+    fireEvent.pointerDown(view.getByTestId("clip"), {
+      ...touch,
+      pointerId: 1,
+      clientX: 120,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(lanes, {
+      ...touch,
+      pointerId: 1,
+      clientX: 180,
+      clientY: 75,
+    });
+    const owned = useDawStore.getState().selection;
+    fireEvent.pointerCancel(lanes, { ...touch, pointerId: 2 });
+    expect(useDawStore.getState().selection).toBe(owned);
+  });
+});
