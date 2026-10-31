@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from podcast_mcp.models import EpisodeProject
     from podcast_mcp.services.app import ProjectWorkspace
 
 log = logging.getLogger(__name__)
@@ -43,15 +42,21 @@ def warm_pending_checks(ws: ProjectWorkspace) -> int:
     )
 
 
-def queue_room_tone_pools(project: EpisodeProject) -> int:
-    """Queue the missing room-tone pools of a project that only the caller holds.
+def queue_room_tone_pools(project_path: Path) -> int:
+    """Queue the missing room-tone pools of the project at ``project_path``, in the background.
 
-    The host calls this on the project it has just opened for a request: one background
-    thread records the pools of its dialogue tracks, and the idle warms wait for it. Returns
-    how many tracks were queued.
+    The host calls this when it starts serving a project: it opens the project for itself,
+    and one thread records the pools of its dialogue tracks while the idle warms wait for it.
+    Returns how many tracks were queued; 0 for a project that cannot be opened.
     """
     from podcast_mcp.engines.room_tone import schedule_room_tone_pools
+    from podcast_mcp.services.app import ProjectWorkspace
 
+    try:
+        project = ProjectWorkspace.open(project_path).project
+    except Exception:
+        log.debug("room tone pools not queued for %s", project_path, exc_info=True)
+        return 0
     return schedule_room_tone_pools(project, owned=True)
 
 
