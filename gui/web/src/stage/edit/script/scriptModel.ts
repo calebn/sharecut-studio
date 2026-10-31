@@ -64,6 +64,11 @@ export type ScriptModel = {
   isCut: (index: number) => boolean;
 };
 
+/** The speaker palette has eight colours; a track takes one by its position. */
+export function speakerColorIndex(trackPosition: number): number {
+  return Math.max(trackPosition, 0) % 8;
+}
+
 /** Stable name for a word: the key the pane carries on `ScriptWord.key`. */
 export function wordKey(ref: ScriptWordRef): string {
   return `${ref.trackId}:${ref.sourceId ?? ""}:${ref.wordIndex ?? ""}`;
