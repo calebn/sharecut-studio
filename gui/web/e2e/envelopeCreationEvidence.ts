@@ -137,7 +137,10 @@ export async function addEnvelopePoint(
 /**
  * Dismisses the undo toast an envelope edit leaves: it lasts a minute and floats
  * over the Inspect button, the lane and the point controls. With `message` the
- * toast must appear first; without it, one that is already up is dismissed.
+ * toast must appear first; without it, only a toast already rendered is
+ * dismissed, so use it after something that shows the toast in the same step
+ * (a point's selection and its "added" toast commit together) and name the
+ * message when the toast follows a response.
  */
 export async function dismissToast(page: Page, message?: string | RegExp) {
   const card = page
@@ -160,7 +163,7 @@ export async function inspectEnvelopePoint(page: Page) {
     () => true,
     () => false,
   );
-  // The point's own "added" toast would cover the Inspect button and controls.
+  // The point's own "added" toast was committed with its selection, which the probe above waited for.
   await dismissToast(page);
   if (!open) await inspectSelection(page);
   await expect(time).toBeVisible();
