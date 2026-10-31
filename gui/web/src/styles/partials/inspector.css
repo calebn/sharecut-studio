@@ -181,6 +181,10 @@ html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
   border-top: 1px solid var(--color-border);
 }
 
+.modifier-footer > .export-dialog-note {
+  margin-top: var(--space-3);
+}
+
 .modifier-footer-actions {
   display: flex;
   gap: var(--space-4);
