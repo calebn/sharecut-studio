@@ -306,7 +306,7 @@ class TrackRmsCache:
             sample_rate,
             lambda decoded: cls.from_timeline_stem(decoded, sample_rate=sample_rate),
         )
-        keep_mono_full(path.resolve(), cache.samples, sample_rate=sample_rate)
+        keep_mono_full(path, cache.samples, sample_rate=sample_rate)
         return cache
 
     def _index_range(self, t_start: float, t_end: float) -> tuple[int, int] | None:

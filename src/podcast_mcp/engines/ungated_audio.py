@@ -204,7 +204,7 @@ def keep_mono_full(path: Path, samples: np.ndarray, *, sample_rate: int = 8000) 
     """Hand the batch a decode made elsewhere, so :func:`load_mono_full` of the same file reuses it.
 
     A no-op outside a batch. ``samples`` must be what :func:`load_mono_full` returns for
-    these arguments, and the batch keeps the array as given (read-only).
+    these arguments, and the batch keeps the array as given.
     """
     if snapshot()[0] is None:
         return
