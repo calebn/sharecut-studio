@@ -28,7 +28,7 @@ describe("toggleFormat", () => {
 });
 
 describe("transcriptStaleOf", () => {
-  const file = (format: "txt" | "md" | "srt", current: boolean) => ({
+  const file = (format: "txt" | "md" | "srt" | "vtt", current: boolean) => ({
     name: `episode.${format}`,
     bytes: 900,
     format,
@@ -40,8 +40,13 @@ describe("transcriptStaleOf", () => {
     ["outdated file of a ticked format", [file("srt", false)], true],
     ["current file of a ticked format", [file("srt", true)], false],
     ["ticked format with no file", [file("md", true)], false],
+    ["outdated vtt while only md and srt are ticked", [file("vtt", false)], false],
   ] as const)("%s", (_name, files, expected) => {
     expect(transcriptStaleOf(files, ["md", "srt"])).toBe(expected);
+  });
+
+  it("is never stale with nothing ticked", () => {
+    expect(transcriptStaleOf([file("md", false)], [])).toBe(false);
   });
 });
 
