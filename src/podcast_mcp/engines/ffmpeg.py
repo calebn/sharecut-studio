@@ -1826,7 +1826,19 @@ class FFmpegEngine:
         silence = out.with_name(f".{out.stem}_gap.wav")
         try:
             run(
-                self._anullsrc_argv(silence, gap_sec, rate, channels),
+                [
+                    self.ffmpeg,
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    f"anullsrc=r={rate}:cl={'mono' if channels <= 1 else 'stereo'}",
+                    "-t",
+                    f"{gap_sec:.6f}",
+                    "-acodec",
+                    "pcm_s16le",
+                    str(silence),
+                ],
                 check=True,
                 capture_output=True,
             )
@@ -1852,22 +1864,6 @@ class FFmpegEngine:
         finally:
             silence.unlink(missing_ok=True)
         return out
-
-    def _anullsrc_argv(self, silence: Path, gap_sec: float, rate: int, channels: int) -> list[str]:
-        ch_layout = "mono" if channels <= 1 else "stereo"
-        return [
-            self.ffmpeg,
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            f"anullsrc=r={rate}:cl={ch_layout}",
-            "-t",
-            f"{gap_sec:.6f}",
-            "-acodec",
-            "pcm_s16le",
-            str(silence),
-        ]
 
     def pad_end_silence(self, input_path: Path, output_path: Path, duration_sec: float) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
