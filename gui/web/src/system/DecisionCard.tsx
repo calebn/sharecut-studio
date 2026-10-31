@@ -23,6 +23,7 @@ import {
 } from "./SuggestionWaveform";
 import { SystemIcon } from "./SystemIcon";
 import { formatSeconds, type TimeRange } from "./seconds";
+import { TakeSwitcher, type TakeSwitcherProps } from "./TakeSwitcher";
 import { useSwipeDecision } from "./useSwipeDecision";
 import { iconOf } from "./verbDisplay";
 import type { VerbId } from "./verbs";
@@ -70,6 +71,8 @@ export type DecisionCardProps = {
     replies?: number;
   };
   thread?: ReactNode;
+  /** A replace pickup with several takes: which one Accept places. */
+  takes?: TakeSwitcherProps;
   /** Replaces the primary while a gate holds the verb back. */
   prompt?: ActionPromptProps;
   /** A guest sees the change, hears it and comments, and cannot decide it. */
@@ -207,6 +210,7 @@ export function DecisionCard(props: DecisionCardProps) {
     unsure,
     comment,
     thread,
+    takes,
     prompt,
     readOnly = false,
     canEdit,
@@ -380,6 +384,7 @@ export function DecisionCard(props: DecisionCardProps) {
           </>
         ) : null}
         {why ? <p className="sys-decision-why">{why}</p> : null}
+        {takes && !readOnly ? <TakeSwitcher {...takes} /> : null}
         {verbReason && !readOnly ? (
           <p id={verbNoteId} className="sys-decision-why">
             {verbReason}

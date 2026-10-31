@@ -114,11 +114,22 @@ describe("Review queue for a guest", () => {
       useDawStore.setState((s) => ({
         project: s.project && {
           ...s.project,
-          session_suggestions: [sessionSuggestionView()],
+          session_suggestions: [
+            sessionSuggestionView(),
+            sessionSuggestionView({
+              id: "ss-r",
+              kind: "replace",
+              from_sec: 300,
+              to_sec: 360,
+              take_count: 3,
+              take_indexes: [0, 1, 2],
+            }),
+          ],
         },
       }));
       render(<ReviewHost guestShare />);
       expect(screen.queryByText(/Insert Session/)).toBeNull();
+      expect(screen.queryByRole("button", { name: "Next take" })).toBeNull();
       expect(
         [...document.querySelectorAll(".rv-group")].map((g) =>
           g.getAttribute("aria-label"),
