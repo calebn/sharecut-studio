@@ -52,7 +52,6 @@ function guestLabel(
  * through the Script pane. It reads the store, builds the model and writes
  * the store only from handlers. What a person may do is set by which
  * callbacks the pane is given: the pane's `guest` label only names the role.
- * Nothing mounts it yet.
  */
 export function ScriptHost({
   layout: layoutProp,

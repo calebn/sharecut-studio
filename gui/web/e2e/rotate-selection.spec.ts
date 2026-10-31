@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { openHostProject } from "./overlayReachability";
 import { phone } from "./stageNav";
-import { openTranscriptPanel } from "./transcriptEdit";
+import { openScript } from "./transcriptEdit";
 
 /*
  * Rotating a landscape tablet to portrait swaps in the phone shell, which used to open on
@@ -90,7 +90,7 @@ test.describe("rotating with the word editor open (#1870)", () => {
       if (from[0] < 768) {
         await phone.showText(page);
       } else {
-        await openTranscriptPanel(page);
+        await openScript(page);
       }
       await doubleTapFirstWord(page);
       const field = page.getByRole("textbox", { name: "Fix text" });

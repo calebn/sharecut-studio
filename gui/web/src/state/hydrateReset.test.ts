@@ -20,7 +20,6 @@ const KEPT_ON_SAME_PATH: Reset = {
   followDegraded: {},
   transcriptTimingRequest: null,
   transcriptScrollRequest: null,
-  transcriptReviewCursor: null,
   transcriptViewAnchor: null,
   playbackRate: 1,
 };

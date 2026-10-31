@@ -69,13 +69,12 @@ describe("ScriptHost reading", () => {
     useDawStore.setState({ shellBreakpoint: "desktop" });
   });
 
-  it("toggles show cut text through the store, not coupled to Annotate", async () => {
+  it("toggles show cut text through the store", async () => {
     render(<ScriptHost />);
     const toggle = screen.getByRole("button", { name: "Show cut text" });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(toggle);
     expect(useDawStore.getState().showCutAwayUtterances).toBe(true);
-    expect(useDawStore.getState().transcriptAnnotate).toBe(false);
     expect(
       screen.getByRole("button", { name: "Show cut text" }),
     ).toHaveAttribute("aria-pressed", "true");
@@ -256,6 +255,59 @@ describe("ScriptHost following", () => {
     expect(paneRenders).not.toHaveBeenCalled();
     act(() => useDawStore.setState({ playheadSec: 10.6 }));
     expect(paneRenders).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ScriptHost late failure", () => {
+  const failure = (projectPath: string) => ({
+    projectPath,
+    trackId: "host",
+    sourceId: null,
+    wordIndex: 0,
+    originalText: "Welcome",
+    message: "Could not ignore \u201cWelcome\u201d: offline",
+  });
+
+  beforeEach(() => {
+    useDawStore.setState({
+      transcriptInlineEditFailure: null,
+      statusAnnouncement: "",
+      feedbackToast: null,
+    });
+  });
+
+  it("shows a failure that settles while the Script is mounted as an error toast, once", () => {
+    render(<ScriptHost />);
+    act(() =>
+      useDawStore.getState().setTranscriptInlineEditFailure(failure("/tmp/ep")),
+    );
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Could not ignore \u201cWelcome\u201d: offline",
+      tone: "error",
+    });
+    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
+  });
+
+  it("keeps a failure that settles while no Script is mounted until one mounts", () => {
+    act(() =>
+      useDawStore.getState().setTranscriptInlineEditFailure(failure("/tmp/ep")),
+    );
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    render(<ScriptHost />);
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      tone: "error",
+    });
+  });
+
+  it("drops a failure from another project without a toast", () => {
+    render(<ScriptHost />);
+    act(() =>
+      useDawStore
+        .getState()
+        .setTranscriptInlineEditFailure(failure("/tmp/other")),
+    );
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
   });
 });
 

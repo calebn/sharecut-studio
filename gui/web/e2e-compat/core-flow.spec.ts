@@ -29,10 +29,7 @@ import {
   waitForLanding,
 } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
-import {
-  openTranscriptPanel,
-  withDocumentCommandTypes,
-} from "../e2e/transcriptEdit";
+import { openScript, withDocumentCommandTypes } from "../e2e/transcriptEdit";
 import { withBrowserPages } from "../e2e/twoBrowserPages";
 import { wavPeak } from "../e2e/wavPeak";
 import { AUTO_MIX_PREF_KEY } from "../src/hooks/autoMixPref";
@@ -145,7 +142,7 @@ test.describe("core flow", () => {
           await test.step("transcribe: the episode transcript hydrates", async () => {
             // Live ASR is server-side (make e2e-slow); this checks the browser
             // renders the episode transcript.
-            const list = await openTranscriptPanel(host);
+            const list = await openScript(host);
             await expect(
               list.getByRole("button", { name: /^my(?: \(.*\))?$/ }).first(),
             ).toBeVisible();
@@ -165,7 +162,7 @@ test.describe("core flow", () => {
           });
 
           await test.step("edit: correct a transcript word, then undo it", async () => {
-            const list = await openTranscriptPanel(host);
+            const list = await openScript(host);
             await withDocumentCommandTypes(host, async (types) => {
               await list
                 .getByRole("button", { name: /^my(?: \(.*\))?$/ })

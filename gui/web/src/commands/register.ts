@@ -19,7 +19,6 @@ import { registerSpeakerSplitCommands } from "./speakerSplit";
 import { registerTrackMixCommands } from "./trackMix";
 import { registerTranscriptIgnoreCommands } from "./transcriptIgnore";
 import { registerTranscriptRangeCommands } from "./transcriptRange";
-import { registerTranscriptReviewCommands } from "./transcriptReview";
 import { registerTranscriptWordCommands } from "./transcriptWord";
 import {
   registerPaletteCommands,
@@ -50,7 +49,6 @@ export function registerDawCommands(): void {
   registerTrackMixCommands();
   registerTranscriptIgnoreCommands();
   registerTranscriptRangeCommands();
-  registerTranscriptReviewCommands();
   registerTranscriptWordCommands();
   registerChapterCommands();
   registerEnvelopeCommands();

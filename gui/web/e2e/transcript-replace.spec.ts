@@ -3,7 +3,7 @@ import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { openProject } from "./stageNav";
 import {
-  openTranscriptPanel,
+  openScript,
   SCRIPT_WORD,
   withDocumentCommandTypes,
 } from "./transcriptEdit";
@@ -12,7 +12,7 @@ test("replace all is one command and one Undo restores every instance", async ({
   page,
 }) => {
   await openProject(page, e2eProjectPath);
-  const list = await openTranscriptPanel(page);
+  const list = await openScript(page);
   const words = (text: RegExp) =>
     list.locator(SCRIPT_WORD).filter({ hasText: text });
   await expect(words(/^delighted$/i).first()).toBeVisible();

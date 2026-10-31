@@ -6,7 +6,6 @@ import { useDawStore } from "../state/dawStore";
 import { setChrome } from "../test/chrome";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
-import { wordSelection } from "../utils/rangeSelect";
 import { clearRegisteredCommands, execute } from "./execute";
 import {
   rangeActionDescriptors,
@@ -64,24 +63,6 @@ beforeEach(() => {
   });
 });
 describe("shared range action policy and commands", () => {
-  it("disables every range action for a tapped word in Correct and none in Select", () => {
-    useDawStore.setState({
-      selection: wordSelection({ trackId: "a", sourceId: null, wordIndex: 0 }),
-      transcriptCorrecting: true,
-    });
-    const correcting = rangeActionDescriptors(useDawStore.getState(), target);
-    expect(correcting.every((d) => d.reason !== null)).toBe(true);
-    expect(correcting.find((d) => d.action === "cut")?.reason).toBe(
-      "Use Select mode for media cut (Correct is ASR-only)",
-    );
-    useDawStore.setState({ transcriptCorrecting: false });
-    expect(
-      rangeActionDescriptors(useDawStore.getState(), target).find(
-        (d) => d.action === "cut",
-      )?.reason,
-    ).toBeNull();
-  });
-
   it("blocks guest playback of an old mix while retaining host live rendering", async () => {
     useDawStore.setState({
       project: {

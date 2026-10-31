@@ -16,8 +16,6 @@ type Props = {
   badge: string;
   title: string;
   subtitle?: string;
-  className?: string;
-  lead?: ReactNode;
   primaryActions?: ModifierAction[];
   children: ReactNode;
   footer?: ReactNode;
@@ -26,22 +24,12 @@ type Props = {
 
 export const ModifierInspector = forwardRef<HTMLHeadingElement, Props>(
   function ModifierInspector(
-    {
-      badge,
-      title,
-      subtitle,
-      className,
-      lead,
-      primaryActions,
-      children,
-      footer,
-      error,
-    },
+    { badge, title, subtitle, primaryActions, children, footer, error },
     headingRef,
   ) {
     return (
       <aside
-        className={`inspector modifier-inspector${className ? ` ${className}` : ""}`}
+        className="inspector modifier-inspector"
         {...presenceAnchorProps(presenceAnchor("inspector"))}
       >
         <header className="modifier-header">
@@ -53,7 +41,6 @@ export const ModifierInspector = forwardRef<HTMLHeadingElement, Props>(
             {subtitle ? <p className="modifier-subtitle">{subtitle}</p> : null}
           </div>
         </header>
-        {lead ? <div className="modifier-lead">{lead}</div> : null}
         {primaryActions && primaryActions.length > 0 && (
           <div className="modifier-primary-actions">
             {primaryActions.map((action) => (

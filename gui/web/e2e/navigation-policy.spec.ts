@@ -10,7 +10,7 @@ import {
   openHostShare,
 } from "./shareNavigation";
 import { setTheme } from "./theme";
-import { openTranscriptPanel } from "./transcriptEdit";
+import { openScript } from "./transcriptEdit";
 
 type Seed = {
   timeline: { tracks: { id: string }[] };
@@ -151,7 +151,7 @@ test("F03/F13 native ruler clock and modifier wheel anchor reversal bounds and t
       await expect.poll(() => width(page)).toBeCloseTo(w, 1);
       const reversed = await anchor();
       expect(reversed.sec).toBeCloseTo(origin.sec, 1);
-      await openTranscriptPanel(page);
+      await openScript(page);
       await page.getByRole("button", { name: "Find in transcript" }).click();
       const input = page
         .getByRole("search", { name: "Find in transcript" })

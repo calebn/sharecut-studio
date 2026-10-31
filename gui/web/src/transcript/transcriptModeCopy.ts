@@ -34,10 +34,6 @@ export const TRANSCRIPT_GUEST_SELECT_TOUCH_HINT: Record<
     "Select: hold a word and drag across more, then Suggest cut or Suggest mute sends them to the host for review. Nothing changes until the host approves.",
 };
 
-/** Navigate hint on touch: double-tap opens the Correct sheet, not the inline editor. */
-export const TRANSCRIPT_NAVIGATE_TOUCH_HINT =
-  "Double-tap a word to correct its text in the word editor. Text fixes never move or cut audio.";
-
 /** Replaces the toolbar mode hint while an inline word fix saves; another word opens once it settles. */
 export const TRANSCRIPT_INLINE_SAVING_STATUS =
   "Saving the word fix… you can fix another word once it is saved.";

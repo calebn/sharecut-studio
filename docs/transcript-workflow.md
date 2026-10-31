@@ -369,7 +369,7 @@ re-transcribed; transcripts re-timed before scores existed, or scored under an o
 The flag is informational and nothing filters on it. Reconcile, merge, tighten and exports
 treat a flagged word like any other (reconcile's inaudible pass often suppresses it anyway).
 Review flagged words with `transcript_refine_brief_tool` (`suspect_hallucination_open_words`,
-`suspect_hallucination_sample`, limited to the first ten records) or Studio's Annotate view (dotted underline, tooltip "Possible transcription with no matching speech" and screen reader status on unsuppressed flagged words), and suppress real
+`suspect_hallucination_sample`, limited to the first ten records) or Studio's Script (dotted underline, tooltip "Possible transcription with no matching speech" and screen reader status on unsuppressed flagged words), and suppress real
 hallucinations with `set_word_suppressed_tool`. If a track still loops, set
 `transcribe.decode.condition_on_previous_text: false`.
 
@@ -467,7 +467,7 @@ bookkeeping that a `tighten.edit_mode: mute` cut would.
 
 **Low-confidence walkthrough (#634):** it reads the server's `unsure` flag (`transcript/lowConfidence.ts`), which follows
 `analysis.unsure_word_confidence`, as does `low_confidence_words_tool`. ShareCut Studio walks those words Next/Previous
-under Annotate; a corrected word (confidence set to 1.0) leaves the list and
+from the Script's unsure chip; a corrected word (confidence set to 1.0) leaves the list and
 the walk continues with the nearest flagged word after (Next) or before
 (Previous) it in transcript order, even when an agent batch-corrects several.
 

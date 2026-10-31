@@ -69,8 +69,7 @@ export function requestInlineEdit(
     !trackId ||
     !Number.isInteger(wordIndex) ||
     wordIndex < 0 ||
-    s.project.meta.hydration?.transcript_words === false ||
-    s.transcriptInlineCommitPending
+    s.project.meta.hydration?.transcript_words === false
   ) {
     return { status: "disabled", reason: "Word correction unavailable" };
   }

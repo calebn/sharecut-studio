@@ -491,29 +491,6 @@ describe("a tapped word is one kind", () => {
     expect(within(card).queryByRole("button", { name: "Cut" })).toBeNull();
   });
 
-  it("keeps the word editor's validation and draft when Correct changes the sheet order", () => {
-    mount("phone");
-    select(WORD);
-    inspect();
-    fireEvent.change(screen.getByLabelText("Corrected text"), {
-      target: { value: "" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^Apply$/ }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Text cannot be empty");
-
-    for (const transcriptCorrecting of [true, false]) {
-      act(() => useDawStore.setState({ transcriptCorrecting }));
-      expect(screen.getByLabelText("Corrected text")).toHaveValue("");
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Text cannot be empty",
-      );
-      // Correct takes the word handles away; the sheet's order changes, the draft stays.
-      expect(
-        screen.queryAllByRole("region", { name: "Range fields" }),
-      ).toHaveLength(transcriptCorrecting ? 0 : 1);
-    }
-  });
-
   it("keeps the correction out of a longer range", () => {
     mount("tablet");
     select({ ...WORD, endWordIndex: 1 });

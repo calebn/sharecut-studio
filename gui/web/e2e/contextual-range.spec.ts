@@ -11,7 +11,7 @@ import {
   openHostShare,
 } from "./shareNavigation";
 import { armRange, inspectSelectionByKey, openPanel } from "./stageNav";
-import { openTranscriptPanel } from "./transcriptEdit";
+import { openScript } from "./transcriptEdit";
 
 function repeatedProject(prefix: string) {
   const copy = createRelocatedE2eProject(prefix);
@@ -465,7 +465,7 @@ test("a word picked in the Script and inspected on the desktop shows one Range f
   await withShareableProject(async (projectPath) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openHostShare(page, projectPath);
-    const list = await openTranscriptPanel(page);
+    const list = await openScript(page);
     await list.locator(".sys-script-word").first().click();
     await inspectSelectionByKey(page);
     await expect(

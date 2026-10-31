@@ -37,9 +37,7 @@ describe("CommandPalette", () => {
     expect(
       screen.getByRole("option", { name: "Fit session width \\" }),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("option", { name: "Annotate transcript" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Show cut away" })).toBeTruthy();
   });
 
   it("omits argument-only and context-only commands", () => {
@@ -73,10 +71,10 @@ describe("CommandPalette", () => {
     const user = userEvent.setup();
     renderPalette();
     await waitForDialogFocus();
-    await user.keyboard("annotate{Enter}");
+    await user.keyboard("show cut away{Enter}");
     expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
     await waitFor(() =>
-      expect(useDawStore.getState().transcriptAnnotate).toBe(true),
+      expect(useDawStore.getState().showCutAwayUtterances).toBe(true),
     );
   });
 
