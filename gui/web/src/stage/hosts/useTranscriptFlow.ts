@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  exportTranscript,
-  listExportedTranscripts,
-  type TranscriptFormat,
-} from "../../api";
+import { exportTranscript, type TranscriptFormat } from "../../api";
 import {
   TRANSCRIPT_DEFAULTS,
   type TranscriptCopyState,
-  type TranscriptFile,
   type TranscriptPreviewState,
   type TranscriptRun,
 } from "../../stages/deliver/transcriptLogic";
@@ -21,7 +16,8 @@ const REFRESH_DEBOUNCE_MS = 300;
 export type TranscriptFlow = {
   preview: TranscriptPreviewState;
   run: TranscriptRun;
-  files: readonly TranscriptFile[];
+  /** Counts each write, so the file list reads the folder again. */
+  written: number;
   choices: readonly TranscriptFormat[];
   setChoices: (next: readonly TranscriptFormat[]) => void;
   copyState: TranscriptCopyState;
@@ -31,10 +27,9 @@ export type TranscriptFlow = {
 };
 
 /**
- * The Deliver Transcript section's state: a dry-run preview and the files
- * already on disk, refreshed when the transcript changes, plus the synchronous
- * export and Copy. Same `TranscriptService.export` as MCP `export_transcript`
- * and `podcast transcript export`.
+ * The Deliver Transcript section's state: a dry-run preview, refreshed when
+ * the transcript changes, plus the synchronous export and Copy. Same
+ * `TranscriptService.export` as MCP `export_transcript` and `podcast transcript export`.
  *
  * `revision` is any value that changes when the transcript does.
  */
@@ -49,7 +44,7 @@ export function useTranscriptFlow(args: {
     kind: "loading",
   });
   const [run, setRun] = useState<TranscriptRun>({ phase: "idle" });
-  const [files, setFiles] = useState<readonly TranscriptFile[]>([]);
+  const [written, setWritten] = useState(0);
   const [choices, setChoices] =
     useState<readonly TranscriptFormat[]>(TRANSCRIPT_DEFAULTS);
   const [copyState, setCopyState] = useState<TranscriptCopyState>("idle");
@@ -71,7 +66,6 @@ export function useTranscriptFlow(args: {
     setRun({ phase: "idle" });
     setChoices(TRANSCRIPT_DEFAULTS);
     setCopyState("idle");
-    setFiles([]);
     setPreview({ kind: "loading" });
     hadPreview.current = false;
   }, [projectPath]);
@@ -96,26 +90,21 @@ export function useTranscriptFlow(args: {
     if (!enabled || !projectPath) return;
     if (!hasTranscript) {
       setPreview({ kind: "none" });
-      setFiles([]);
       return;
     }
     const controller = new AbortController();
     const timer = setTimeout(
       () => {
         const { signal } = controller;
-        Promise.all([
-          exportTranscript(
-            projectPath,
-            { formats: TRANSCRIPT_DEFAULTS, dry_run: true },
-            { signal },
-          ),
-          listExportedTranscripts(projectPath, { signal }),
-        ])
-          .then(([result, listed]) => {
+        exportTranscript(
+          projectPath,
+          { formats: TRANSCRIPT_DEFAULTS, dry_run: true },
+          { signal },
+        )
+          .then((result) => {
             if (signal.aborted) return;
             hadPreview.current = true;
             setPreview(previewStateOf(result));
-            setFiles(transcriptFilesOf(listed));
           })
           .catch((err) => {
             if (signal.aborted || isAbortError(err)) return;
@@ -146,6 +135,7 @@ export function useTranscriptFlow(args: {
             : { phase: "done", files: transcriptFilesOf(result.files) },
         );
         setReloads((n) => n + 1);
+        setWritten((n) => n + 1);
       })
       .catch((err) => {
         if (pathRef.current !== projectPath) return;
@@ -186,7 +176,7 @@ export function useTranscriptFlow(args: {
   return {
     preview,
     run,
-    files,
+    written,
     choices,
     setChoices,
     copyState,

@@ -96,6 +96,11 @@ class JobManager:
     def status(self, project_path: str | None = None) -> dict[str, Any]:
         return self._catalog.status(project_path)
 
+    def export_running(self, project_path: Path) -> bool:
+        """Whether a deliverables export of *project_path* is queued or writing right now."""
+        jobs = self.status(str(project_path))["jobs"]
+        return any(j["kind"] == "export" and j["status"] in LIVE_JOB_STATUSES for j in jobs)
+
     def recent_snapshots(self, *, limit: int = 10) -> list[dict[str, Any]]:
         return self._catalog.recent_snapshots(limit=limit)
 

@@ -212,8 +212,6 @@ export function readinessSummary(rows: readonly ReadinessRow[]): string {
   return `${thingsLeft(open)}. You can still export.`;
 }
 
-export type ExportFile = { name: string; bytes?: number; format: FormatId };
-
 /** What an export was asked to write; `range` is null for the whole episode. */
 export type ExportRequest = {
   settings: EpisodeSettings;
@@ -238,7 +236,6 @@ export type ExportState =
     }
   | {
       phase: "done" | "stale";
-      files: readonly ExportFile[];
       when: string;
       exported: ExportRequest;
       summary?: string;
@@ -246,25 +243,11 @@ export type ExportState =
     }
   | {
       phase: "cancelled";
-      files: readonly ExportFile[];
       detail: string;
       when?: string;
       exported?: ExportRequest;
     }
   | { phase: "failed"; cause: string };
-
-export type DeliverEnv = "app" | "browser" | "none";
-
-/** Export until a current export exists; then Reveal in the app, Download in a browser. */
-export function primaryAction(
-  state: ExportState,
-  env: DeliverEnv,
-): "export" | "exporting" | "reveal" | "download" {
-  if (state.phase === "running") return "exporting";
-  if (state.phase === "done" && env !== "none")
-    return env === "app" ? "reveal" : "download";
-  return "export";
-}
 
 export type EpisodeSettings = {
   formats: readonly FormatId[];
@@ -381,7 +364,6 @@ export function currentExportState(
       ? state
       : {
           phase: "stale",
-          files: state.files,
           when: state.when,
           exported: state.exported,
         };
@@ -522,28 +504,6 @@ export function restoreClip(
   const next = [...clips];
   next.splice(Math.min(index, next.length), 0, clip);
   return next;
-}
-
-/** Approved clips as files next to the episode: unique names, never empty. */
-export function clipFiles(clips: readonly Clip[]): ExportFile[] {
-  const used = new Set<string>();
-  return clips
-    .filter((c) => c.approved)
-    .map((c) => {
-      const slug =
-        c.title
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "") || "clip";
-      let name = slug;
-      for (let n = 2; used.has(name); n += 1) name = `${slug}-${n}`;
-      used.add(name);
-      return {
-        name: `clips/${name}.wav`,
-        bytes: estimateBytes("wav", clipSeconds(c)),
-        format: "wav" as const,
-      };
-    });
 }
 
 /** Names for assistive technology: a blank title becomes "clip 2", a repeated one gets its place. */

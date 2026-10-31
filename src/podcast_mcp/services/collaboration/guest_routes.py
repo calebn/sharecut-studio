@@ -6,7 +6,8 @@ route that has no row. The HTTP twins are the registry; the guest MCP tools are 
 ``scripts/export_docs_site_contract.py`` and ``tests/test_guest_project_mcp_tools.py`` joins them.
 Only starting work spends host CPU, so only starts need ``needs_guest_render``; status, events and
 cancel work with the flag off. The transcript routes start no job and need no flag; neither does
-moving a speaker lane span. The edit impact and social clip rows only read.
+moving a speaker lane span. The edit impact and social clip rows only read, and so do reading the exported
+files and downloading one.
 """
 
 from __future__ import annotations
@@ -75,6 +76,8 @@ _ROUTES = (
         needs_guest_render=True,
     ),
     GuestRoute("export_status", "GET", "/api/review/{token}/daw/export/status", "read"),
+    GuestRoute("export_files", "GET", "/api/review/{token}/daw/export/files", "read"),
+    GuestRoute("export_file", "GET", "/api/review/{token}/daw/export/files/{file_id:path}", "read"),
     GuestRoute("export_job_status", "GET", "/api/review/{token}/daw/export/jobs/{job_id}", "read"),
     GuestRoute(
         "export_job_events", "GET", "/api/review/{token}/daw/export/jobs/{job_id}/events", "read"

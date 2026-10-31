@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**138** capabilities · **109** ShareCut Studio commands · **59** keyed · **202** MCP tools · **18** skills on rows (+ **19** hub skills).
+**139** capabilities · **109** ShareCut Studio commands · **59** keyed · **202** MCP tools · **18** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -156,6 +156,7 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | Choose staged session take | project | `select_session_take_tool` | `podcast review select-session-take` | `podcast-record-session` | yes |
 | Skip staged session | project | `skip_session_suggestion_tool` | `podcast review skip-session-suggestion` | `podcast-record-session` | yes |
 | Record room state | view | `record_state_tool` | `podcast record state` | `podcast-record-session` | yes |
+| Download exported files | view | — | — | — | — |
 | Episode / track CRUD | project | `episode_create`, `track_set_meta_tool` | `podcast episode` | `podcast-setup` | yes |
 | Transcript layers | project | `transcribe_track`, `get_transcript`, `get_transcript_vocabulary_tool`, `set_transcript_vocabulary_tool`, `precorrect_transcript_tool`, `transcript_refine_status_tool`, +3 | `podcast transcript` | `podcast-transcript-workflow` | yes |
 | Edit decisions / NL cuts | project | `build_edit_context`, `search_transcript_tool`, `cut_time_range_tool`, `cut_text_match_tool`, `cut_utterance_tool`, `cut_words_tool`, +14 | `podcast edit` | `podcast-edit-natural-language` | yes |

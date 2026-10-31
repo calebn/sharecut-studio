@@ -50,6 +50,20 @@ M4A_AAC = ExportFormatSpec(ext="m4a", codec="aac", format="ipod", bitrate_kbps=1
 
 EXPORT_PRESETS: dict[str, ExportFormatSpec] = {M4A_AAC.ext: M4A_AAC}
 
+# The audio extensions an export or a clip may leave in the export folder, with their media types.
+# Listing and serving exported files is closed to this set; compressed formats come before WAV.
+AUDIO_EXPORT_MEDIA: Mapping[str, str] = MappingProxyType(
+    {
+        "mp3": "audio/mpeg",
+        "m4a": "audio/mp4",
+        "aac": "audio/aac",
+        "opus": "audio/ogg",
+        "ogg": "audio/ogg",
+        "flac": "audio/flac",
+        "wav": "audio/wav",
+    }
+)
+
 GUEST_EXPORT_FORMATS: Mapping[str, Mapping[str, Any]] = MappingProxyType(
     {
         "mp3": MappingProxyType({"ext": "mp3", "codec": "libmp3lame", "bitrate_kbps": 128}),

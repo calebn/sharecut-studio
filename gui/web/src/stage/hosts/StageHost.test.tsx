@@ -131,11 +131,28 @@ describe("StageHost gating", () => {
     expect(screen.getByText("This link can't open that")).toBeInTheDocument();
   });
 
-  it("gives an Editor link only the Podcast listing in Deliver", async () => {
+  it("gives an Editor link the exported files and the Podcast listing in Deliver", async () => {
     const { READY } = await import("../../stages/deliver/feedFixture");
     const fetchMock = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ view: READY, itemXml: "<item/>" })),
+      async (url: string) =>
+        new Response(
+          JSON.stringify(
+            url.endsWith("/daw/export/files")
+              ? {
+                  files: [
+                    {
+                      id: "ep.mp3",
+                      name: "ep.mp3",
+                      kind: "audio",
+                      label: "Listening file",
+                      bytes: 1000,
+                      current: true,
+                    },
+                  ],
+                }
+              : { view: READY, itemXml: "<item/>" },
+          ),
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
     asGuest("deliver", "edit");
@@ -144,6 +161,9 @@ describe("StageHost gating", () => {
       await screen.findByRole("button", { name: "Nobody asked the river" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Podcast listing")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /^Download ep\.mp3/ }),
+    ).toHaveAttribute("href", "/api/review/abc/daw/export/files/ep.mp3");
     expect(screen.queryByText("Episode file")).toBeNull();
     expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(

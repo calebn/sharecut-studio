@@ -94,6 +94,12 @@ export {
   updateSocialClip,
   waiveTranscriptRefine,
 } from "./api/documentEdits";
+export type { ExportedFileEntry, ExportedFileKind } from "./api/exportedFiles";
+export {
+  exportedFileHref,
+  listExportedFiles,
+  revealExportedFile,
+} from "./api/exportedFiles";
 export {
   bounceAudio,
   exportDeliverables,
@@ -164,13 +170,12 @@ export {
 export type { SplitSpeakersRequest } from "./api/speakerSplit";
 export { startSplitSpeakersJob } from "./api/speakerSplit";
 export type {
-  ExportedTranscript,
   TranscriptExportFile,
   TranscriptExportResult,
   TranscriptFormat,
   TranscriptPreviewTurn,
 } from "./api/transcript";
-export { exportTranscript, listExportedTranscripts } from "./api/transcript";
+export { exportTranscript } from "./api/transcript";
 export {
   loadTranscriptCheck,
   markTranscriptChecked,

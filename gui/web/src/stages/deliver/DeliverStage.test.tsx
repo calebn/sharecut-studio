@@ -10,7 +10,9 @@ import {
   CLEAR_FACTS,
   CLIPS,
   DONE,
+  exportedFilesOf,
   exportedState,
+  FAILED,
   NEEDS_MODEL,
   NEVER,
   OPEN_FACTS,
@@ -34,15 +36,14 @@ afterEach(() => {
   platform.apple = false;
 });
 
-const REVEAL = "Show in folder";
+const MP3 = /^(Reveal|Download) field-notes\.mp3/;
+const WAV = /^(Reveal|Download) field-notes\.wav/;
 
 function handlers() {
   return {
     onFix: vi.fn(),
     onExport: vi.fn(),
     onCancel: vi.fn(),
-    onReveal: vi.fn(),
-    onDownload: vi.fn(),
     onChangeFolder: vi.fn(),
     onCopyLink: vi.fn(),
     onRefreshMix: vi.fn(),
@@ -266,11 +267,10 @@ describe("Export button", () => {
     expect(screen.getByRole("button", { name: /^Export/ })).toBeDisabled();
   });
 
-  it("becomes Reveal after an export and is the only filled button", () => {
+  it("stays Export after an export and is the only filled button", () => {
     const { container } = setup({ exportState: DONE });
-    expect(screen.queryByRole("button", { name: /^Export/ })).toBeNull();
     expect(container.querySelectorAll(".primary")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: REVEAL })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Export/ })).toBeInTheDocument();
   });
 
   it("puts the one Export button in the phone foot", () => {
@@ -293,7 +293,6 @@ describe("stale after an export", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Streaming/ }));
     expect(screen.getByText("Edited since export")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Export/ })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: REVEAL })).toBeNull();
   });
 
   it("goes stale when a format or the range changes", async () => {
@@ -431,8 +430,11 @@ describe("stale after an export", () => {
   });
 
   it("lists the clips an export did include", () => {
-    setup({ exportState: DONE });
-    expect(screen.getByText("clips/cold-open.wav")).toBeInTheDocument();
+    setup({
+      exportState: DONE,
+      files: exportedFilesOf(REQUEST, "reveal"),
+    });
+    expect(screen.getByText("cold-open.wav")).toBeInTheDocument();
   });
 });
 
@@ -651,33 +653,52 @@ describe("what each part of the page shows", () => {
     expect(shown()).toEqual(titles);
   });
 
-  it("lists exported files only after an export", () => {
-    const never = setup();
-    expect(never.container.querySelector(".dv-files")).toBeNull();
-    never.unmount();
-    const done = setup({ exportState: DONE });
-    expect(done.container.querySelector(".dv-files")).not.toBeNull();
+  it("lists the files the folder holds, whatever the last export did", () => {
+    const none = setup({ files: { files: [], access: "download" } });
+    expect(none.container.querySelector(".dv-files")).toBeNull();
+    none.unmount();
+    for (const exportState of [NEVER, DONE, FAILED]) {
+      const shown = setup({
+        exportState,
+        files: exportedFilesOf(REQUEST, "download"),
+      });
+      expect(shown.container.querySelector(".dv-files")).not.toBeNull();
+      shown.unmount();
+    }
   });
 
   it("offers Reveal in the app and Download in a browser, for the file clicked", async () => {
-    const app = setup({ exportState: DONE });
-    await userEvent.click(
-      screen.getAllByRole("button", { name: "Reveal" })[0] as HTMLElement,
-    );
-    expect(app.all.onReveal).toHaveBeenCalledWith(
+    const onReveal = vi.fn();
+    const onStarted = vi.fn();
+    const app = setup({
+      exportState: DONE,
+      files: { ...exportedFilesOf(REQUEST, "reveal"), onReveal, onStarted },
+    });
+    expect(screen.queryByRole("link", { name: MP3 })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: MP3 }));
+    expect(onReveal).toHaveBeenCalledWith(
       expect.objectContaining({ name: "field-notes.mp3" }),
     );
-    expect(app.all.onDownload).not.toHaveBeenCalled();
+    expect(onStarted).not.toHaveBeenCalled();
     app.unmount();
-    const browser = setup({ exportState: DONE, env: "browser" });
-    expect(screen.queryByRole("button", { name: "Reveal" })).toBeNull();
-    await userEvent.click(
-      screen.getAllByRole("button", { name: "Download" })[0] as HTMLElement,
-    );
-    expect(browser.all.onDownload).toHaveBeenCalledWith(
+    const browserReveal = vi.fn();
+    setup({
+      exportState: DONE,
+      files: {
+        ...exportedFilesOf(REQUEST, "download"),
+        onReveal: browserReveal,
+        onStarted,
+      },
+    });
+    expect(screen.queryByRole("button", { name: MP3 })).toBeNull();
+    const link = screen.getByRole("link", { name: MP3 });
+    expect(link).toHaveAttribute("href", "#field-notes.mp3");
+    link.addEventListener("click", (event) => event.preventDefault());
+    await userEvent.click(link);
+    expect(onStarted).toHaveBeenCalledWith(
       expect.objectContaining({ name: "field-notes.mp3" }),
     );
-    expect(browser.all.onReveal).not.toHaveBeenCalled();
+    expect(browserReveal).not.toHaveBeenCalled();
   });
 
   it("marks the listen link only after an export", () => {
@@ -822,25 +843,35 @@ describe("Export button range", () => {
   });
 });
 
-describe("primary buttons after an export", () => {
-  it("Reveal calls onReveal and Download calls onDownload, with no file", async () => {
-    const app = setup({ exportState: DONE });
-    await userEvent.click(screen.getByRole("button", { name: REVEAL }));
-    expect(app.all.onReveal).toHaveBeenCalledWith();
-    expect(app.all.onDownload).not.toHaveBeenCalled();
-    app.unmount();
-    const browser = setup({ exportState: DONE, env: "browser" });
-    await userEvent.click(screen.getByRole("button", { name: "Download all" }));
-    expect(browser.all.onDownload).toHaveBeenCalledWith();
-    expect(browser.all.onReveal).not.toHaveBeenCalled();
+describe("the primary button after an export", () => {
+  it("is still Export, with no Download all, Reveal in Finder or Show in folder", async () => {
+    for (const apple of [false, true]) {
+      platform.apple = apple;
+      for (const access of ["reveal", "download"] as const) {
+        const { all, unmount } = setup({
+          exportState: { ...DONE, phase: "stale" } as ExportState,
+          files: exportedFilesOf(REQUEST, access),
+        });
+        await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
+        expect(all.onExport).toHaveBeenCalledOnce();
+        for (const gone of [
+          "Download all",
+          "Reveal in Finder",
+          "Show in folder",
+        ]) {
+          expect(screen.queryByText(gone)).toBeNull();
+        }
+        unmount();
+      }
+    }
   });
 
-  it("says Reveal in Finder on Apple platforms", () => {
-    platform.apple = true;
-    setup({ exportState: DONE });
-    expect(
-      screen.getByRole("button", { name: "Reveal in Finder" }),
-    ).toBeInTheDocument();
+  it("is the only filled button once the files are listed", () => {
+    const { container } = setup({
+      exportState: DONE,
+      files: exportedFilesOf(REQUEST, "download"),
+    });
+    expect(container.querySelectorAll("button.primary")).toHaveLength(1);
   });
 });
 
@@ -1021,11 +1052,14 @@ describe("the listen link follows what is shown", () => {
 
 describe("what the status rows say", () => {
   it("shows the file list, folder and times", () => {
-    setup({ exportState: DONE });
+    setup({
+      exportState: DONE,
+      files: exportedFilesOf(REQUEST, "reveal"),
+    });
     expect(screen.getByText("Field Notes/export")).toBeInTheDocument();
     expect(screen.getByText("Last export 2 h ago")).toBeInTheDocument();
     expect(screen.getByText("field-notes.wav")).toBeInTheDocument();
-    expect(screen.getByText("clips/cold-open.wav")).toBeInTheDocument();
+    expect(screen.getByText("cold-open.wav")).toBeInTheDocument();
   });
 
   it("shows why an export failed and what is running", () => {
@@ -1084,24 +1118,22 @@ describe("the right item gets the action", () => {
 });
 
 describe("a stale export still has its files", () => {
-  it("lists them with working Reveal and Download buttons", async () => {
+  it("lists them with working Reveal and Download rows", async () => {
     const stale = { ...DONE, phase: "stale" } as ExportState;
-    const app = setup({ exportState: stale });
+    const onReveal = vi.fn();
+    const app = setup({
+      exportState: stale,
+      files: { ...exportedFilesOf(REQUEST, "reveal"), onReveal },
+    });
     expect(screen.getByText("field-notes.wav")).toBeInTheDocument();
-    await userEvent.click(
-      screen.getAllByRole("button", { name: "Reveal" })[1] as HTMLElement,
-    );
-    expect(app.all.onReveal).toHaveBeenCalledWith(
+    await userEvent.click(screen.getByRole("button", { name: WAV }));
+    expect(onReveal).toHaveBeenCalledWith(
       expect.objectContaining({ name: "field-notes.wav" }),
     );
     app.unmount();
-    const browser = setup({ exportState: stale, env: "browser" });
-    await userEvent.click(
-      screen.getAllByRole("button", { name: "Download" })[0] as HTMLElement,
-    );
-    expect(browser.all.onDownload).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "field-notes.mp3" }),
-    );
+    setup({ exportState: stale, files: exportedFilesOf(REQUEST, "download") });
+    expect(screen.getByRole("link", { name: MP3 })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: WAV })).toBeInTheDocument();
   });
 });
 
@@ -1188,9 +1220,9 @@ describe("export settings reach the stage", () => {
 
   it("brings Export back in the phone foot when the export goes stale", async () => {
     setup({ exportState: DONE, layout: "phone" });
-    expect(screen.queryByRole("button", { name: /^Export/ })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /^Streaming/ }));
     expect(screen.getByRole("button", { name: /^Export/ })).toBeEnabled();
+    expect(screen.getByText("Edited since export")).toBeInTheDocument();
   });
 
   it("shows In and Out only for a Part", () => {
@@ -1233,7 +1265,10 @@ describe("files of an export", () => {
   const stale = { ...DONE, phase: "stale" } as ExportState;
 
   it("each row names its own file and size and acts on that file", async () => {
-    const app = setup({ exportState: stale });
+    const app = setup({
+      exportState: stale,
+      files: exportedFilesOf(REQUEST, "reveal"),
+    });
     expect(screen.getByText("field-notes.mp3")).toBeInTheDocument();
     const files = within(
       app.container.querySelector(".dv-files") as HTMLElement,
@@ -1241,11 +1276,15 @@ describe("files of an export", () => {
     expect(files.getByText("50 MB")).toBeInTheDocument();
     expect(files.getByText("550 MB")).toBeInTheDocument();
     app.unmount();
-    const browser = setup({ exportState: stale, env: "browser" });
-    await userEvent.click(
-      screen.getAllByRole("button", { name: "Download" })[1] as HTMLElement,
-    );
-    expect(browser.all.onDownload).toHaveBeenCalledWith(
+    const onStarted = vi.fn();
+    setup({
+      exportState: stale,
+      files: { ...exportedFilesOf(REQUEST, "download"), onStarted },
+    });
+    const link = screen.getByRole("link", { name: WAV });
+    link.addEventListener("click", (event) => event.preventDefault());
+    await userEvent.click(link);
+    expect(onStarted).toHaveBeenCalledWith(
       expect.objectContaining({ name: "field-notes.wav" }),
     );
   });
@@ -1474,8 +1513,6 @@ describe.each(["desktop", "phone"] as const)(
       await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
       expect(fresh.all.onExport).toHaveBeenCalledOnce();
       expect(fresh.all.onExport).toHaveBeenCalledWith(REQUEST);
-      expect(fresh.all.onReveal).not.toHaveBeenCalled();
-      expect(fresh.all.onDownload).not.toHaveBeenCalled();
       fresh.unmount();
       const stale = setup({
         layout,
@@ -1483,8 +1520,6 @@ describe.each(["desktop", "phone"] as const)(
       });
       await userEvent.click(screen.getByRole("button", { name: /^Export/ }));
       expect(stale.all.onExport).toHaveBeenCalledOnce();
-      expect(stale.all.onReveal).not.toHaveBeenCalled();
-      expect(stale.all.onDownload).not.toHaveBeenCalled();
     });
 
     it("Mod+E exports the same request the button does", () => {
@@ -1493,65 +1528,48 @@ describe.each(["desktop", "phone"] as const)(
       expect(all.onExport).toHaveBeenCalledWith(REQUEST);
     });
 
-    it("Reveal reaches onReveal alone, with no file", async () => {
-      const { all } = setup({ layout, exportState: DONE });
-      await userEvent.click(screen.getByRole("button", { name: REVEAL }));
-      expect(all.onReveal).toHaveBeenCalledOnce();
-      expect(all.onReveal).toHaveBeenCalledWith();
-      expect(all.onDownload).not.toHaveBeenCalled();
-      expect(all.onExport).not.toHaveBeenCalled();
-    });
-
-    it("Download all reaches onDownload alone, with no file", async () => {
-      const { all } = setup({ layout, exportState: DONE, env: "browser" });
-      await userEvent.click(
-        screen.getByRole("button", { name: "Download all" }),
-      );
-      expect(all.onDownload).toHaveBeenCalledOnce();
-      expect(all.onDownload).toHaveBeenCalledWith();
-      expect(all.onReveal).not.toHaveBeenCalled();
-      expect(all.onExport).not.toHaveBeenCalled();
-    });
-
     it("a file row acts on its own file in the app, done or stale", async () => {
       for (const phase of ["done", "stale"] as const) {
+        const onReveal = vi.fn();
         const { all, unmount } = setup({
           layout,
           exportState: { ...DONE, phase } as ExportState,
+          files: { ...exportedFilesOf(REQUEST, "reveal"), onReveal },
         });
-        const rows = screen.getAllByRole("button", { name: "Reveal" });
-        await userEvent.click(rows[1] as HTMLElement);
-        expect(all.onReveal).toHaveBeenCalledOnce();
-        expect(all.onReveal).toHaveBeenCalledWith(
+        await userEvent.click(screen.getByRole("button", { name: WAV }));
+        expect(onReveal).toHaveBeenCalledOnce();
+        expect(onReveal).toHaveBeenCalledWith(
           expect.objectContaining({ name: "field-notes.wav" }),
         );
-        await userEvent.click(rows[0] as HTMLElement);
-        expect(all.onReveal).toHaveBeenLastCalledWith(
+        await userEvent.click(screen.getByRole("button", { name: MP3 }));
+        expect(onReveal).toHaveBeenLastCalledWith(
           expect.objectContaining({ name: "field-notes.mp3" }),
         );
-        expect(all.onDownload).not.toHaveBeenCalled();
+        expect(all.onExport).not.toHaveBeenCalled();
         unmount();
       }
     });
 
     it("a file row acts on its own file in the browser, done or stale", async () => {
       for (const phase of ["done", "stale"] as const) {
+        const onStarted = vi.fn();
         const { all, unmount } = setup({
           layout,
-          env: "browser",
           exportState: { ...DONE, phase } as ExportState,
+          files: { ...exportedFilesOf(REQUEST, "download"), onStarted },
         });
-        const rows = screen.getAllByRole("button", { name: "Download" });
-        await userEvent.click(rows[1] as HTMLElement);
-        expect(all.onDownload).toHaveBeenCalledOnce();
-        expect(all.onDownload).toHaveBeenCalledWith(
-          expect.objectContaining({ name: "field-notes.wav" }),
-        );
-        await userEvent.click(rows[0] as HTMLElement);
-        expect(all.onDownload).toHaveBeenLastCalledWith(
-          expect.objectContaining({ name: "field-notes.mp3" }),
-        );
-        expect(all.onReveal).not.toHaveBeenCalled();
+        for (const [pattern, name] of [
+          [WAV, "field-notes.wav"],
+          [MP3, "field-notes.mp3"],
+        ] as const) {
+          const link = screen.getByRole("link", { name: pattern });
+          link.addEventListener("click", (event) => event.preventDefault());
+          await userEvent.click(link);
+          expect(onStarted).toHaveBeenLastCalledWith(
+            expect.objectContaining({ name }),
+          );
+        }
+        expect(all.onExport).not.toHaveBeenCalled();
         unmount();
       }
     });
@@ -2052,12 +2070,14 @@ describe("round three of the audit: what the page shows", () => {
   it.each([1, 2])(
     "lists %i exported file(s), each with its own action",
     (count) => {
-      const files = exportedState(REQUEST).files.slice(0, count);
+      const source = exportedFilesOf(REQUEST, "reveal");
+      const files = source.files.slice(0, count);
       const { container } = setup({
-        exportState: { ...DONE, files } as ExportState,
+        exportState: DONE,
+        files: { ...source, files },
       });
       const list = within(container.querySelector(".dv-files") as HTMLElement);
-      expect(list.getAllByRole("button", { name: "Reveal" })).toHaveLength(
+      expect(list.getAllByRole("button", { name: /^Reveal/ })).toHaveLength(
         count,
       );
       for (const file of files)
@@ -2459,12 +2479,7 @@ describe("round four of the audit", () => {
       "Export",
     ],
     ["an Edit selection", { selection: { start: 40, end: 90 } }, "Export"],
-    ["a done export in the app", { exportState: DONE }, "Show in folder"],
-    [
-      "a done export in the browser",
-      { exportState: DONE, env: "browser" },
-      "Download all",
-    ],
+    ["a done export", { exportState: DONE }, "Export"],
   ] as const)(
     "labels the primary button exactly for %s",
     (_name, extra, label) => {
@@ -2481,12 +2496,10 @@ describe("round four of the audit", () => {
     },
   );
 
-  it("says Reveal in Finder on Apple, exactly", () => {
+  it("says Export on Apple after an export too, exactly", () => {
     platform.apple = true;
     const { container } = setup({ exportState: DONE });
-    expect(container.querySelector(".dv-export")?.textContent).toBe(
-      "Reveal in Finder",
-    );
+    expect(container.querySelector(".dv-export")?.textContent).toBe("Export");
   });
 
   it.each([
@@ -2568,10 +2581,21 @@ describe("round five of the audit: the whole visible page, state by state", () =
     ["guest", { guest: true }],
     ["stale", { exportState: { ...DONE, phase: "stale" } as ExportState }],
     ["exporting", { exportState: RUNNING }],
-    ["done in the app", { exportState: DONE, link: LINKED }],
+    [
+      "done in the app",
+      {
+        exportState: DONE,
+        files: exportedFilesOf(REQUEST, "reveal"),
+        link: LINKED,
+      },
+    ],
     [
       "done in the browser",
-      { exportState: DONE, env: "browser", link: LINKED },
+      {
+        exportState: DONE,
+        files: exportedFilesOf(REQUEST, "download"),
+        link: LINKED,
+      },
     ],
     ["no mix", { link: { url: null, noMix: true } }],
     ["no mix with a link", { link: { ...LINKED, noMix: true } }],
@@ -2799,10 +2823,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Show in folder",
-            "Reveal",
-            "Reveal",
-            "Reveal",
+            "Export",
+            "Reveal field-notes.mp3, 50 MB",
+            "Reveal field-notes.wav, 550 MB",
+            "Reveal cold-open.wav, 6 MB",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -2848,7 +2872,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoShow in folderfield-notes.mp350 MBRevealfield-notes.wav550 MBRevealclips/cold-open.wav6 MBRevealChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
         },
         "desktop: done in the browser": {
           "buttons": [
@@ -2861,10 +2885,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Download all",
-            "Download",
-            "Download",
-            "Download",
+            "Export",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -2910,7 +2931,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoDownload allfield-notes.mp350 MBDownloadfield-notes.wav550 MBDownloadclips/cold-open.wav6 MBDownloadChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoExportmp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.ChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedListen linkViewerhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRCopy0:00 / 52:001515AB",
         },
         "desktop: error": {
           "buttons": [],
@@ -3193,9 +3214,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Part…",
             "Change",
             "Export",
-            "Reveal",
-            "Reveal",
-            "Reveal",
             "Play from Cold open",
             "Remove Cold open",
             "Play from The old mill",
@@ -3241,7 +3259,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExportfield-notes.mp350 MBRevealfield-notes.wav550 MBRevealclips/cold-open.wav6 MBRevealChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoExportChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedListen linkViewerMade when you copy itPinned to Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: the model missing": {
           "buttons": [
@@ -3604,9 +3622,9 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Reveal",
-            "Reveal",
-            "Reveal",
+            "Reveal field-notes.mp3, 50 MB",
+            "Reveal field-notes.wav, 550 MB",
+            "Reveal cold-open.wav, 6 MB",
             "Share",
             "Play from Cold open",
             "Remove Cold open",
@@ -3626,7 +3644,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "More for The boat was still there",
             "Play Cold open",
             "More for Cold open",
-            "Show in folder",
+            "Export",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3653,7 +3671,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agofield-notes.mp350 MBRevealfield-notes.wav550 MBRevealclips/cold-open.wav6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedShow in folder0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedExport0:00 / 52:001515AB",
         },
         "phone: done in the browser": {
           "buttons": [
@@ -3666,9 +3684,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Download",
-            "Download",
-            "Download",
             "Share",
             "Play from Cold open",
             "Remove Cold open",
@@ -3688,7 +3703,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "More for The boat was still there",
             "Play Cold open",
             "More for Cold open",
-            "Download all",
+            "Export",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
             "Play",
@@ -3715,7 +3730,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agofield-notes.mp350 MBDownloadfield-notes.wav550 MBDownloadclips/cold-open.wav6 MBDownloadListen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedDownload all0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBDownloadwavfield-notes.wavLossless master550 MBDownloadwavcold-open.wavClip6 MBDownloadThe master is large. Use Wi-Fi, or choose the listening file.Listen linkhttps://share.…k9TnP4vLr8Za3wPinned to Rough cutRShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedExport0:00 / 52:001515AB",
         },
         "phone: error": {
           "buttons": [],
@@ -3998,9 +4013,6 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Reveal",
-            "Reveal",
-            "Reveal",
             "Share",
             "Play from Cold open",
             "Remove Cold open",
@@ -4047,7 +4059,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "needs-you",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agofield-notes.mp350 MBRevealfield-notes.wav550 MBRevealclips/cold-open.wav6 MBRevealListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedExport0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBCaptions and transcript are written with every export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeNeeds you: Edited since exportLast export 2 h agoListen linkMade when you copy itPinned to Rough cutShareChaptersTime of Cold openTime of The old millTime of What the river wantedTime of Listener mailAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedExport0:00 / 52:001515AB",
         },
         "phone: the model missing": {
           "buttons": [
@@ -5023,8 +5035,6 @@ describe("the parts a host may leave out", () => {
 });
 
 describe("host export options", () => {
-  const file = (name: string) => ({ name, format: "mp3" });
-
   it("offers the formats the host gives, sized from their own rates", () => {
     setup({
       initialSettings: { ...SETTINGS, formats: ["m4a"] },
@@ -5298,11 +5308,10 @@ describe("host export options", () => {
     expect(all.onExport).not.toHaveBeenCalled();
   });
 
-  it("keeps Export, not Reveal, after an export when the host cannot reveal", () => {
-    setup({ env: "none", exportState: DONE });
-    expect(screen.queryByRole("button", { name: REVEAL })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Reveal" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Download" })).toBeNull();
+  it("shows no file rows after an export when the host gives none", () => {
+    setup({ exportState: DONE });
+    expect(screen.queryByRole("button", { name: /^Reveal/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Download/ })).toBeNull();
     expect(
       screen.getAllByRole("button", { name: "Export" }).length,
     ).toBeGreaterThan(0);
@@ -5346,14 +5355,14 @@ describe("host export options", () => {
       exportState: {
         phase: "cancelled",
         detail: "Cancelled after 1 file was written to export/.",
-        files: [file("episode.mp3")],
       },
+      files: exportedFilesOf(REQUEST, "reveal"),
       exportOptions: { onExportAgain },
     });
     expect(
       screen.getByText("Cancelled after 1 file was written to export/."),
     ).toBeInTheDocument();
-    expect(screen.getByText("episode.mp3")).toBeInTheDocument();
+    expect(screen.getByText("field-notes.mp3")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Export again" }));
     expect(onExportAgain).toHaveBeenCalledOnce();
   });
@@ -5363,7 +5372,7 @@ describe("host export options", () => {
       exportState: {
         phase: "cancelled",
         detail: "Cancel came too late. Exported 1 file to export/",
-        files: [file("episode.mp3")],
+        when: "2 h ago",
       },
       exportOptions: { onExportAgain: vi.fn() },
     });
@@ -5377,14 +5386,12 @@ describe("host export options", () => {
         ...(DONE as Extract<ExportState, { phase: "done" | "stale" }>),
         summary: "Exported 2 files to export/",
         measured: "Measured −16.2 LUFS, true peak −1.8 dBTP.",
-        files: [file("episode.mp3"), file("episode.wav")],
       },
     });
     expect(screen.getByText("Exported 2 files to export/")).toBeInTheDocument();
     expect(
       screen.getByText("Measured −16.2 LUFS, true peak −1.8 dBTP."),
     ).toBeInTheDocument();
-    expect(document.querySelector(".dv-file-size")).toBeNull();
   });
 });
 

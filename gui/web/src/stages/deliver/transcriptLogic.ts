@@ -60,8 +60,6 @@ export type TranscriptCopyState = "idle" | "copied" | "blocked" | "failed";
 export type TranscriptOptions = {
   preview: TranscriptPreviewState;
   run: TranscriptRun;
-  /** Transcript files already next to the audio. */
-  files: readonly TranscriptFile[];
   choices: readonly TranscriptFormat[];
   onChoices: (next: readonly TranscriptFormat[]) => void;
   /** An audio export or bounce is running; the export writes the transcript too. */
@@ -127,12 +125,20 @@ export function exportLabel(count: number, again: boolean): string {
   return `Export${files}${again ? " again" : ""}`;
 }
 
+/** The format a written transcript file carries, from its extension. */
+function formatOfName(name: string): string {
+  return name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+}
+
 /** A chosen format has a file on disk that predates the last transcript edit. */
 export function transcriptStaleOf(
-  files: readonly TranscriptFile[],
+  files: readonly { name: string; current: boolean }[],
   choices: readonly TranscriptFormat[],
 ): boolean {
-  return files.some((file) => !file.current && choices.includes(file.format));
+  const chosen: readonly string[] = choices;
+  return files.some(
+    (file) => !file.current && chosen.includes(formatOfName(file.name)),
+  );
 }
 
 /** Toggle one format, keeping the order the chips show. */

@@ -223,8 +223,100 @@
   white-space: nowrap;
 }
 
-.dv-file-size {
+.dv-exported {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dv-exported .dv-files {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+}
+
+.dv-file-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.dv-file-row + .dv-file-row {
+  border-block-start: 1px solid var(--color-border-subtle);
+}
+
+.dv-file-tile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-sunken);
   color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.dv-file-row[data-kind="audio"] .dv-file-tile {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+}
+
+.dv-file-text {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.dv-file-meta {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.dv-file-bytes,
+.dv-file-stale {
+  white-space: nowrap;
+}
+
+.dv-file-bytes::before {
+  content: "·";
+  margin-inline-end: var(--space-1);
+}
+
+.dv-file-stale {
+  color: var(--color-warning);
+}
+
+.dv-file-action {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: var(--space-1);
+  min-block-size: var(--touch-min);
+}
+
+.dv-file-action svg {
+  margin-inline-end: var(--space-1);
+}
+
+.dv-file-group {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.dv-file-group-title {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .dv-chapter-title {
@@ -488,4 +580,20 @@
 
 .dv-share-actions > .dv-share-danger {
   margin-inline-start: auto;
+}
+
+@container (max-inline-size: 26rem) {
+  .dv-file-action svg {
+    display: none;
+  }
+
+  .dv-file-row {
+    gap: var(--space-3);
+    padding-inline: var(--space-3);
+  }
+
+  .dv-file-tile {
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+  }
 }

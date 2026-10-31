@@ -1,4 +1,5 @@
 import type { Fix } from "../../types/feedView";
+import { type DeliverFiles, filesOfKinds } from "./deliverFiles";
 import { FeedSection } from "./FeedSection";
 import { EMPTY_VIEW, type FeedAccess, type SourceOwner } from "./feedLogic";
 import { useFeed } from "./useFeed";
@@ -12,6 +13,9 @@ type Props = {
   /** A command only the host's app can run, such as exporting. */
   onCommand?: (fix: Fix) => void;
   onOpenSource: (owner: SourceOwner) => void;
+  /** The files the export folder holds; the feed file shows in the listing. */
+  files?: DeliverFiles;
+  filesRunning?: boolean;
 };
 
 /** The Podcast listing on the real service: loads it, sends each edit and the write, and shows what the service answers. */
@@ -21,6 +25,8 @@ function FeedBody({
   refreshKey,
   onCommand,
   onOpenSource,
+  files,
+  filesRunning = false,
 }: Props) {
   const feed = useFeed(projectPath, {
     access,
@@ -41,6 +47,7 @@ function FeedBody({
       onRetry={feed.refresh}
       onDismissProblem={feed.dismissProblem}
       onOpenSource={onOpenSource}
+      files={files && filesOfKinds(files, ["feed"], filesRunning)}
     />
   );
 }

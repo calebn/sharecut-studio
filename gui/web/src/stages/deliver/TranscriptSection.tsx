@@ -5,6 +5,8 @@ import { StatusRow } from "../../system/StatusRow";
 import { Button, InlineError, ToggleButton } from "../../ui";
 import { useDisabledReasonNote } from "../../ui/disabledReason";
 import { DeliverSection } from "./DeliverSection";
+import { type DeliverFiles, filesOfKinds } from "./deliverFiles";
+import { ExportedFiles } from "./ExportedFiles";
 import { TranscriptPreview } from "./TranscriptPreview";
 import {
   exportLabel,
@@ -21,6 +23,9 @@ import {
 
 type Props = {
   options: TranscriptOptions;
+  /** The files the export folder holds; the transcript ones show here. */
+  files?: DeliverFiles;
+  filesRunning?: boolean;
   state?: "ready" | "loading";
   /** The phone layout: fewer turns, full-width buttons. */
   compact?: boolean;
@@ -36,13 +41,14 @@ const GROUPS = [
 /** The edited transcript as text, Markdown and captions, written next to the audio. */
 export function TranscriptSection({
   options,
+  files: folder,
+  filesRunning = false,
   state: pageState = "ready",
   compact = false,
 }: Props) {
   const {
     preview,
     run,
-    files,
     choices,
     onChoices,
     exportRunning = false,
@@ -56,7 +62,9 @@ export function TranscriptSection({
   } = options;
   const button = useRef<HTMLButtonElement>(null);
   const writing = run.phase === "writing";
-  const stale = transcriptStaleOf(files, choices);
+  const written =
+    folder?.files.filter((file) => file.kind === "transcript") ?? [];
+  const stale = transcriptStaleOf(written, choices);
   const blocker = transcriptBlocker(preview, choices);
   const unavailable = writing
     ? TRANSCRIPT_WRITING_REASON
@@ -113,7 +121,6 @@ export function TranscriptSection({
     );
   }
 
-  const shown = run.phase === "done" ? run.files : files;
   const label = exportLabel(choices.length, stale && run.phase !== "done");
 
   return (
@@ -220,20 +227,10 @@ export function TranscriptSection({
         <InlineError message="The browser blocked copying. Export the files and copy from there." />
       ) : null}
 
-      {shown.length > 0 ? (
-        <ul className="dv-files">
-          {shown.map((file) => (
-            <li key={file.name} className="dv-file">
-              <span className="dv-file-name sys-mono">{file.name}</span>
-              <span className="sys-mono dv-file-size">
-                {formatBytes(file.bytes)}
-              </span>
-              {file.current ? null : (
-                <span className="dv-note">Edited since export</span>
-              )}
-            </li>
-          ))}
-        </ul>
+      {folder ? (
+        <ExportedFiles
+          {...filesOfKinds(folder, ["transcript"], filesRunning)}
+        />
       ) : null}
     </DeliverSection>
   );

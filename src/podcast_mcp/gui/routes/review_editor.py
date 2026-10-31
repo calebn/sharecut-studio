@@ -13,10 +13,11 @@ from dataclasses import dataclass
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from podcast_mcp.gui.job_events import GUEST_STREAM_SLOTS
 from podcast_mcp.gui.routes.deps import coded_http_error
+from podcast_mcp.gui.routes.export_files import download_exported_file, list_exported_files
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
 from podcast_mcp.gui.routes.share_common import check_share_token, rate_limit_share
 from podcast_mcp.gui.routes.sse_common import guest_job_events_response
@@ -189,6 +190,8 @@ PipelineCancelScope = Annotated[
 ]
 ExportStartActor = Annotated[GuestActor, Depends(guest_actor_route("export_start"))]
 ExportStatusWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_status"))]
+ExportFilesWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_files"))]
+ExportFileWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_file"))]
 ExportJobScope = Annotated[
     GuestJobScope, Depends(guest_job_route("export_job_status", GUEST_EXPORT_KINDS))
 ]
@@ -336,6 +339,20 @@ def post_daw_export(
 def get_daw_export_status(request: Request, ws: ExportStatusWorkspace) -> dict[str, Any]:
     with guest_boundary(log, "review export status"):
         return guest_job_status_view(request.app.state.jobs, ws, GUEST_EXPORT_KINDS)
+
+
+@router.get("/api/review/{token}/daw/export/files")
+def get_daw_export_files(ws: ExportFilesWorkspace) -> dict[str, Any]:
+    """Names, labels and sizes of the exported files; no host paths. Spends no host CPU."""
+    with guest_boundary(log, "review export files"):
+        return list_exported_files(ws)
+
+
+@router.get("/api/review/{token}/daw/export/files/{file_id:path}")
+def get_daw_export_file(request: Request, file_id: str, ws: ExportFileWorkspace) -> Response:
+    """An attachment for one listed file; the id is checked against the listing, never joined."""
+    with guest_boundary(log, "review export file"):
+        return download_exported_file(request, ws, file_id)
 
 
 @router.get("/api/review/{token}/daw/export/jobs/{job_id}")

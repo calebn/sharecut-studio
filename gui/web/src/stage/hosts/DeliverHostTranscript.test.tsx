@@ -14,7 +14,7 @@ vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   exportTranscript: vi.fn(),
-  listExportedTranscripts: vi.fn(),
+  listExportedFiles: vi.fn(),
 }));
 
 import { clearRegisteredCommands, execute } from "../../commands/execute";
@@ -82,7 +82,7 @@ beforeEach(() => {
   clearRegisteredCommands();
   registerDawCommands();
   vi.mocked(api.exportTranscript).mockReset().mockResolvedValue(dryRun);
-  vi.mocked(api.listExportedTranscripts).mockReset().mockResolvedValue([]);
+  vi.mocked(api.listExportedFiles).mockReset().mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -148,15 +148,11 @@ describe("Transcript on the Deliver stage", () => {
     asHost(true);
     render(<Host />);
     await screen.findByText("Hello there.");
-    await waitFor(() =>
-      expect(api.listExportedTranscripts).toHaveBeenCalledTimes(1),
-    );
+    await waitFor(() => expect(api.listExportedFiles).toHaveBeenCalledTimes(1));
     await userEvent.click(screen.getAllByRole("button", { name: "Export" })[0]);
     await waitFor(() => expect(server.exportRequests).toHaveLength(1));
     await act(async () => server.settle(EXPORT_FINISHED));
-    await waitFor(() =>
-      expect(api.listExportedTranscripts).toHaveBeenCalledTimes(2),
-    );
+    await waitFor(() => expect(api.listExportedFiles).toHaveBeenCalledTimes(2));
   });
 
   it("blocks Transcript Export while an audio export runs", async () => {
@@ -176,9 +172,7 @@ describe("Transcript on the Deliver stage", () => {
     asHost(true);
     render(<Host />);
     await screen.findByText("Hello there.");
-    await waitFor(() =>
-      expect(api.listExportedTranscripts).toHaveBeenCalledTimes(1),
-    );
+    await waitFor(() => expect(api.listExportedFiles).toHaveBeenCalledTimes(1));
     await userEvent.click(screen.getByRole("button", { name: "Bounce" }));
     await waitFor(() => expect(server.bounceRequests).toHaveLength(1));
     expect((await screen.findAllByText(RUNNING)).length).toBeGreaterThan(0);
@@ -190,6 +184,6 @@ describe("Transcript on the Deliver stage", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
     });
-    expect(api.listExportedTranscripts).toHaveBeenCalledTimes(1);
+    expect(api.listExportedFiles).toHaveBeenCalledTimes(1);
   });
 });

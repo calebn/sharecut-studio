@@ -324,7 +324,7 @@ def _guest_routes(app) -> list[tuple[str, str]]:
 
 def _guest_requests(app, token: str):
     for method, template in _guest_routes(app):
-        path = template.format_map(_Fill(token))
+        path = template.replace(":path", "").format_map(_Fill(token))
         yield method, path
 
 

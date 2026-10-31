@@ -147,6 +147,14 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Editor",
         "Read the share project's export jobs (fixed copy, no host paths)",
     ),
+    ("GET", "/api/review/{token}/daw/export/files"): (
+        "Editor",
+        "List the exported files by opaque id, name, kind, label, size and whether they are current (no host paths, works with PODCAST_GUEST_RENDER off)",
+    ),
+    ("GET", "/api/review/{token}/daw/export/files/{file_id}"): (
+        "Editor",
+        "Download one listed exported file as an attachment with Range and ETag; an id that is not listed is 404, and 409 while an export runs",
+    ),
     ("GET", "/api/review/{token}/daw/export/jobs/{job_id}"): (
         "Editor",
         "Read one export job of this project; any other job id is 404",
@@ -322,6 +330,10 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
         "http-only: SSE stream for ShareCut Studio; agents poll guest_export_job"
     ),
     ("POST", "/api/review/{token}/daw/export/jobs/{job_id}/cancel"): "guest_export_job_cancel",
+    ("GET", "/api/review/{token}/daw/export/files"): "http-only: no guest MCP file tool yet",
+    ("GET", "/api/review/{token}/daw/export/files/{file_id}"): (
+        "http-only: a binary download, not a guest MCP tool"
+    ),
     ("GET", "/api/review/{token}/daw/transcript/vocabulary"): "guest_transcript_vocabulary_get",
     ("PUT", "/api/review/{token}/daw/transcript/vocabulary"): "guest_transcript_vocabulary_put",
     ("GET", "/api/review/{token}/daw/transcript/refine/status"): "guest_transcript_refine_status",

@@ -3,9 +3,23 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { TranscriptSection } from "./TranscriptSection";
-import { SAMPLE_FILES, transcriptOptions } from "./transcriptFixtures";
+import {
+  SAMPLE_FILES,
+  transcriptOptions,
+  transcriptRows,
+} from "./transcriptFixtures";
 
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
+
+const staleRows = (name = "episode.md") => {
+  const rows = transcriptRows();
+  return {
+    ...rows,
+    files: rows.files
+      .filter((f) => f.name === name)
+      .map((f) => ({ ...f, current: false })),
+  };
+};
 
 describe("TranscriptSection", () => {
   it("previews turns and exports the chosen formats", async () => {
@@ -135,6 +149,7 @@ describe("TranscriptSection", () => {
         options={transcriptOptions({
           run: { phase: "done", files: SAMPLE_FILES },
         })}
+        files={transcriptRows()}
       />,
     );
     expect(screen.getByText("Exported")).toBeInTheDocument();
@@ -144,12 +159,22 @@ describe("TranscriptSection", () => {
   it("flags files edited since export and offers Export again", () => {
     render(
       <TranscriptSection
-        options={transcriptOptions({
-          files: [{ ...SAMPLE_FILES[0], current: false }],
-        })}
+        options={transcriptOptions()}
+        files={{
+          ...transcriptRows(),
+          files: transcriptRows()
+            .files.slice(0, 1)
+            .map((f) => ({
+              ...f,
+              current: false,
+            })),
+        }}
       />,
     );
     expect(screen.getAllByText("Edited since export")).toHaveLength(2);
+    expect(
+      screen.getByRole("link", { name: "Download episode.md, 18 KB" }),
+    ).toHaveAttribute("href", "#episode.md");
     expect(button("Export 2 files again")).toBeEnabled();
   });
 
@@ -172,11 +197,21 @@ describe("TranscriptSection", () => {
   it("ignores an outdated file of an unticked format", () => {
     render(
       <TranscriptSection
-        options={transcriptOptions({
+        options={transcriptOptions()}
+        files={{
+          ...transcriptRows(),
           files: [
-            { name: "episode.txt", bytes: 900, format: "txt", current: false },
+            {
+              id: "episode.txt",
+              name: "episode.txt",
+              kind: "transcript",
+              label: "Text",
+              bytes: 900,
+              current: false,
+              href: "#episode.txt",
+            },
           ],
-        })}
+        }}
       />,
     );
     expect(screen.getAllByText("Edited since export")).toHaveLength(1);
@@ -188,24 +223,22 @@ describe("TranscriptSection", () => {
       <TranscriptSection
         options={transcriptOptions({
           run: { phase: "done", files: SAMPLE_FILES },
-          files: [{ ...SAMPLE_FILES[0], current: false }],
         })}
+        files={staleRows()}
       />,
     );
     expect(container.querySelector(".sys-status-title")).toHaveTextContent(
       "Exported",
     );
-    expect(screen.queryByText("Edited since export")).toBeNull();
+    expect(screen.getAllByText("Edited since export")).toHaveLength(1);
     expect(button("Export 2 files")).toBeInTheDocument();
   });
 
   it("keeps Export again disabled while writing outdated files", () => {
     const { container } = render(
       <TranscriptSection
-        options={transcriptOptions({
-          run: { phase: "writing" },
-          files: [{ ...SAMPLE_FILES[0], current: false }],
-        })}
+        options={transcriptOptions({ run: { phase: "writing" } })}
+        files={staleRows()}
       />,
     );
     const titles = Array.from(

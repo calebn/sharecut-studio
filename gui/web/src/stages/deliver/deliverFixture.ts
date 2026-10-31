@@ -1,8 +1,8 @@
 import type { ClipWord } from "./clipTrim";
+import type { DeliverFiles } from "./deliverFiles";
 import {
   type Chapter,
   type Clip,
-  clipFiles,
   type EpisodeSettings,
   type ExportRequest,
   type ExportState,
@@ -10,6 +10,7 @@ import {
   partSeconds,
   type ReadinessFacts,
 } from "./deliverLogic";
+import type { FileAccess } from "./exportedFileModel";
 
 export const TOTAL = 3120;
 
@@ -87,21 +88,40 @@ export function exportedState(
   request: ExportRequest,
   phase: "done" | "stale" = "done",
 ): Extract<ExportState, { phase: "done" | "stale" }> {
-  const seconds = partSeconds(request.settings.part, TOTAL);
   return {
     phase,
     when: "2 h ago",
     exported: request,
-    files: [
-      ...request.settings.formats.map((id) => ({
-        name: `field-notes.${id}`,
-        bytes: estimateBytes(id, seconds),
-        format: id,
-      })),
-      ...clipFiles(
-        request.clips.map((c) => ({ ...c, score: 1, approved: true })),
-      ),
-    ],
+  };
+}
+
+export function exportedFilesOf(
+  request: ExportRequest,
+  access: FileAccess = "download",
+): DeliverFiles {
+  const seconds = partSeconds(request.settings.part, TOTAL);
+  const audio = request.settings.formats.map((id) => ({
+    id: `field-notes.${id}`,
+    name: `field-notes.${id}`,
+    kind: "audio" as const,
+    label: id === "wav" ? "Lossless master" : "Listening file",
+    bytes: estimateBytes(id, seconds),
+    current: true,
+  }));
+  const clips = request.clips.map((clip) => ({
+    id: `clips/${clip.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.wav`,
+    name: `${clip.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.wav`,
+    kind: "audio" as const,
+    label: "Clip",
+    bytes: estimateBytes("wav", clip.end - clip.start),
+    current: true,
+  }));
+  return {
+    access,
+    files: [...audio, ...clips].map((file) => ({
+      ...file,
+      href: access === "download" ? `#${file.id}` : undefined,
+    })),
   };
 }
 

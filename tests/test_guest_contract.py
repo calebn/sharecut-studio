@@ -15,7 +15,12 @@ import podcast_mcp.edits.transcript_search as transcript_search
 import podcast_mcp.services.collaboration as collaboration
 import podcast_mcp.services.jobs as service_jobs
 import podcast_mcp.services.record.service as record_service
-from podcast_mcp.gui.routes import record_share, remote_mcp, review_share
+from podcast_mcp.gui.routes import (
+    export_files,
+    record_share,
+    remote_mcp,
+    review_share,
+)
 from podcast_mcp.gui.routes.guest_ws_common import GUEST_MALFORMED_LIMIT
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
@@ -312,6 +317,12 @@ PROBES: dict[tuple[str, str], Probe] = {
     ),
     ("GET", "/api/review/{token}/daw/export/status"): Probe(
         Site(service_jobs.JobManager, "status")
+    ),
+    ("GET", "/api/review/{token}/daw/export/files"): Probe(
+        Site(export_files, "ExportFilesService")
+    ),
+    ("GET", "/api/review/{token}/daw/export/files/{file_id:path}"): Probe(
+        Site(export_files, "ExportFilesService")
     ),
     ("GET", "/api/review/{token}/daw/export/jobs/{job_id}"): Probe(
         Site(service_jobs.JobManager, "get_job")
@@ -663,7 +674,7 @@ def _expand(template: str, world: World) -> str:
     rec = template.startswith(("/api/rec/", "/rec/"))
     token = world.record_token if rec else world.token
     return re.sub(
-        r"\{(\w+)\}",
+        r"\{(\w+)(?::path)?\}",
         lambda m: token if m[1] == "token" else "0" if m[1] == "chunk_idx" else "x1",
         template,
     )

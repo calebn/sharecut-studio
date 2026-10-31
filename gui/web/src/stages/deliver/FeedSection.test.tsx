@@ -703,4 +703,47 @@ describe("FeedSection", () => {
       expect(screen.getByText("Wrote the feed file.")).toBeInTheDocument();
     });
   });
+
+  describe("the feed file row", () => {
+    const feedFile = {
+      id: "ep.feed.xml",
+      name: "ep.feed.xml",
+      kind: "feed",
+      label: "Feed file",
+      bytes: 2048,
+      current: true,
+    } as const;
+
+    it("shows the feed file the folder holds, as a download", () => {
+      render(
+        <FeedSection
+          view={READY}
+          itemXml=""
+          files={{
+            files: [{ ...feedFile, href: "/api/export/files/ep.feed.xml" }],
+            access: "download",
+            running: false,
+          }}
+          onAction={vi.fn()}
+          onOpenSource={vi.fn()}
+        />,
+      );
+      const link = screen.getByRole("link", {
+        name: /^Download ep\.feed\.xml/,
+      });
+      expect(link).toHaveAttribute("href", "/api/export/files/ep.feed.xml");
+    });
+
+    it("shows no row without the host's files", () => {
+      render(
+        <FeedSection
+          view={READY}
+          itemXml=""
+          onAction={vi.fn()}
+          onOpenSource={vi.fn()}
+        />,
+      );
+      expect(screen.queryByText("ep.feed.xml")).toBeNull();
+    });
+  });
 });

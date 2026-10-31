@@ -4,7 +4,11 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import type { TranscriptFormat } from "../../api";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import { TranscriptSection } from "./TranscriptSection";
-import { SAMPLE_FILES, transcriptOptions } from "./transcriptFixtures";
+import {
+  SAMPLE_FILES,
+  transcriptOptions,
+  transcriptRows,
+} from "./transcriptFixtures";
 
 type Args = React.ComponentProps<typeof TranscriptSection>;
 
@@ -110,6 +114,7 @@ export const Done: Story = {
     options: transcriptOptions({
       run: { phase: "done", files: SAMPLE_FILES },
     }),
+    files: transcriptRows(),
   },
 };
 
@@ -122,11 +127,7 @@ export const ExportFailed: Story = {
 };
 
 export const EditedSinceExport: Story = {
-  args: {
-    options: transcriptOptions({
-      files: SAMPLE_FILES.map((f) => ({ ...f, current: false })),
-    }),
-  },
+  args: { options: transcriptOptions(), files: transcriptRows(false) },
 };
 
 export const CopyBlocked: Story = {

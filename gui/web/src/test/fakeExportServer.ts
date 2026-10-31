@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import type { ExportedFileEntry } from "../api/exportedFiles";
 import { READY } from "../stages/deliver/feedFixture";
 import type {
   PipelineConfigResponse,
@@ -107,6 +108,8 @@ export function fakeExportServer() {
     bounceAnswer: null as Answer | null,
     cancelRequests: [] as { job_id: string | null }[],
     shares: [] as HostShareRow[],
+    files: [] as ExportedFileEntry[],
+    fileRequests: [] as string[],
     shareListRequests: 0,
     shareRequests: [] as Record<string, unknown>[],
     shareAnswer: null as Answer | null,
@@ -192,6 +195,12 @@ export function fakeExportServer() {
         );
         await server.holdConfig;
         return json(server.configAnswer, server.config);
+      }
+      if (url.includes("/api/export/files")) {
+        server.fileRequests.push(
+          decodeURIComponent(url.split("path=")[1] ?? "").split("&")[0] ?? "",
+        );
+        return json(null, { files: server.files });
       }
       if (url.includes("/api/export/deliverables")) {
         server.exportRequests.push(body);
