@@ -17,6 +17,7 @@ STAMPED = {
     "podcast_mcp/edits/transcript_reuse.py",
     "podcast_mcp/edits/verdict_cache.py",
     "podcast_mcp/engines/alignment_audit.py",
+    "podcast_mcp/engines/audibility_reuse.py",
     "podcast_mcp/engines/audio_audit.py",
     "podcast_mcp/engines/decode_memo.py",
     "podcast_mcp/engines/decoded_source.py",
