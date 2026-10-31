@@ -218,7 +218,9 @@ test("accepted envelope save does not reclaim a different inspector while respon
         );
         await openEnvelopeTrackDetails(page, label, receipts);
         await expect(
-          pointSheet(page).getByRole("heading", { level: 2 }),
+          page
+            .getByRole("dialog", { name: "Inspector" })
+            .getByRole("heading", { level: 2 }),
         ).toHaveText(label);
         const responseDelivered = page.waitForResponse(
           (response) =>
@@ -229,7 +231,9 @@ test("accepted envelope save does not reclaim a different inspector while respon
         release();
         await responseDelivered;
         await expect(
-          pointSheet(page).getByRole("heading", { level: 2 }),
+          page
+            .getByRole("dialog", { name: "Inspector" })
+            .getByRole("heading", { level: 2 }),
         ).toHaveText(label);
         expect(
           observer.commands.filter((item) => item.type === "SetEnvelope"),

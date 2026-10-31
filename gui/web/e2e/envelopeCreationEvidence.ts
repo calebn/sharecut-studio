@@ -129,6 +129,22 @@ export async function addEnvelopePoint(
     .click();
 }
 
+/**
+ * Dismisses the undo toast an envelope edit leaves: it lasts a minute and floats
+ * over the Inspect button, the lane and the point controls. With `message` the
+ * toast must appear first; without it, one that is already up is dismissed.
+ */
+export async function dismissToast(page: Page, message?: string | RegExp) {
+  const card = page
+    .getByRole("region", { name: "Status messages" })
+    .locator(".ui-toast")
+    .filter(message === undefined ? {} : { hasText: message });
+  if (message !== undefined) await expect(card).toBeVisible();
+  else if (!(await card.isVisible())) return;
+  await card.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await expect(card).toBeHidden();
+}
+
 /** Opens the selected point in the Inspector; the phone shows its peek strip until Inspect. */
 export async function inspectEnvelopePoint(page: Page) {
   const time = pointSheet(page).getByRole("spinbutton", {
@@ -139,6 +155,8 @@ export async function inspectEnvelopePoint(page: Page) {
     () => true,
     () => false,
   );
+  // The point's own "added" toast would cover the Inspect button and controls.
+  await dismissToast(page);
   if (!open) await inspectSelection(page);
   await expect(time).toBeVisible();
 }
