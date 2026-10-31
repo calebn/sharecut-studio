@@ -1932,6 +1932,10 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   touch-action: none;
 }
 
+.timeline-create-layer .edit-create-menu[data-scrolls] {
+  touch-action: pan-y;
+}
+
 .timeline-create-scrim {
   position: absolute;
   inset: 0;

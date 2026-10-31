@@ -936,7 +936,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "canEditEnvelopes",
     paletteRunnable: false,
     notes:
-      "Args: { trackId: string, atTime: number } → visible volume layer required; SetEnvelope with a point at the envelope's current level there; the touch create menu",
+      "Args: { trackId: string, atTime: number } → the volume layer must be showing (the Create menu turns it on first); SetEnvelope with a point at the envelope's current level there; the touch create menu",
   },
   "comment.draftAt": {
     id: "comment.draftAt",
