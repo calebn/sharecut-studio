@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, TypeVar, cast
 
 import anyio
 from mcp import ClientSession
@@ -46,6 +46,18 @@ INITIALIZE_TIMEOUT_SEC = 10.0
 HEARTBEAT_INTERVAL_SEC = 15.0
 HEARTBEAT_TIMEOUT_SEC = 10.0
 HEARTBEAT_MISSES = 3
+
+_T = TypeVar("_T")
+_T_co = TypeVar("_T_co", covariant=True)
+
+
+class _Cloneable(Protocol[_T_co]):
+    def clone(self) -> _T_co: ...
+
+
+def _clone_stream(stream: _T) -> _T:
+    return cast(_Cloneable[_T], stream).clone()
+
 
 #: Tool arguments that name a file or folder on the caller's machine. Studio's working
 #: directory is not the caller's, so a relative one is made absolute before it is sent.
@@ -164,7 +176,9 @@ async def _run_in_studio(
         with anyio.fail_after(INITIALIZE_TIMEOUT_SEC) as initialization:
             async with (
                 streamable_http_client(url, terminate_on_close=False) as (read, write, *_),
-                ClientSession(read, write) as session,
+                _clone_stream(read) as session_read,
+                _clone_stream(write) as session_write,
+                ClientSession(session_read, session_write) as session,
             ):
                 await session.initialize()
                 initialization.deadline = float("inf")
