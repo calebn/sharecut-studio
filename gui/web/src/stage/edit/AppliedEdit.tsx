@@ -17,7 +17,6 @@ import { BUSY_REASON } from "../../ui/disabledReason";
 const HISTORY_NOTE =
   "Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first.";
 
-/** Restore (a mute with source clocks) or Open History, then the record's facts. */
 export function AppliedEdit({ rec }: { rec: AppliedEditRecord }) {
   const { projectPath, guestMode, shareCapabilities, setSelection } = useDaw(
     (s) => ({

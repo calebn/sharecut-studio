@@ -24,62 +24,59 @@ type Props = {
   error?: string | null;
 };
 
-export const ModifierInspector = forwardRef<
-  HTMLHeadingElement,
-  Props & { embedded?: boolean }
->(function ModifierInspector(
-  {
-    badge,
-    title,
-    subtitle,
-    className,
-    lead,
-    primaryActions,
-    children,
-    footer,
-    error,
-    embedded = false,
+export const ModifierInspector = forwardRef<HTMLHeadingElement, Props>(
+  function ModifierInspector(
+    {
+      badge,
+      title,
+      subtitle,
+      className,
+      lead,
+      primaryActions,
+      children,
+      footer,
+      error,
+    },
+    headingRef,
+  ) {
+    return (
+      <aside
+        className={`inspector modifier-inspector${className ? ` ${className}` : ""}`}
+        {...presenceAnchorProps(presenceAnchor("inspector"))}
+      >
+        <header className="modifier-header">
+          <span className="modifier-badge">{badge}</span>
+          <div className="modifier-titles">
+            <h2 ref={headingRef} tabIndex={-1}>
+              {title}
+            </h2>
+            {subtitle ? <p className="modifier-subtitle">{subtitle}</p> : null}
+          </div>
+        </header>
+        {lead ? <div className="modifier-lead">{lead}</div> : null}
+        {primaryActions && primaryActions.length > 0 && (
+          <div className="modifier-primary-actions">
+            {primaryActions.map((action) => (
+              <Button
+                key={action.label}
+                variant={action.variant ?? "default"}
+                disabledReason={action.disabledReason}
+                onClick={action.onClick}
+                title={action.title}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        )}
+        <div className="modifier-body">{children}</div>
+        {error ? (
+          <div className="modifier-error">
+            <InlineError message={error} />
+          </div>
+        ) : null}
+        {footer ? <footer className="modifier-footer">{footer}</footer> : null}
+      </aside>
+    );
   },
-  headingRef,
-) {
-  const Tag = embedded ? "div" : "aside";
-  return (
-    <Tag
-      className={`inspector modifier-inspector${embedded ? " modifier-inspector--embedded" : ""}${className ? ` ${className}` : ""}`}
-      {...(embedded ? {} : presenceAnchorProps(presenceAnchor("inspector")))}
-    >
-      <header className="modifier-header">
-        <span className="modifier-badge">{badge}</span>
-        <div className="modifier-titles">
-          <h2 ref={headingRef} tabIndex={-1}>
-            {title}
-          </h2>
-          {subtitle ? <p className="modifier-subtitle">{subtitle}</p> : null}
-        </div>
-      </header>
-      {lead ? <div className="modifier-lead">{lead}</div> : null}
-      {primaryActions && primaryActions.length > 0 && (
-        <div className="modifier-primary-actions">
-          {primaryActions.map((action) => (
-            <Button
-              key={action.label}
-              variant={action.variant ?? "default"}
-              disabledReason={action.disabledReason}
-              onClick={action.onClick}
-              title={action.title}
-            >
-              {action.label}
-            </Button>
-          ))}
-        </div>
-      )}
-      <div className="modifier-body">{children}</div>
-      {error ? (
-        <div className="modifier-error">
-          <InlineError message={error} />
-        </div>
-      ) : null}
-      {footer ? <footer className="modifier-footer">{footer}</footer> : null}
-    </Tag>
-  );
-});
+);

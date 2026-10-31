@@ -15,8 +15,9 @@ const meta: Meta<typeof InspectorSeekFooterView> = {
   decorators: [
     (Story, context) => (
       <div
-        className="inspector modifier-inspector modifier-inspector--embedded"
+        className="inspector modifier-inspector"
         style={{
+          height: "auto",
           width: context.parameters.footerPhone ? "360px" : "22rem",
           maxWidth: "100%",
         }}

@@ -108,7 +108,9 @@ export const SELECTION_SURFACES: {
     peek: noPeek,
     related: relatedCopyWord,
     more: noMore,
-    body: () => <SectionsBody />,
+    body: (_sel, { placement }) => (
+      <SectionsBody withRange={placement === "sheet"} />
+    ),
   },
   clip: {
     screens: ANYWHERE,
@@ -160,7 +162,7 @@ export const SELECTION_SURFACES: {
   applied: {
     ...plain,
     screens: ANYWHERE,
-    body: () => <SectionsBody />,
+    body: () => <SectionsBody withRange={false} />,
   },
   track: {
     ...plain,
