@@ -685,11 +685,24 @@ and the ungated evidence render stay on `from_timeline_stem`, which keeps nothin
     the three tiers do not coordinate, so parallel spills may overshoot by one entry each. Two 1 h tracks
     at both rates are about 659 MiB.
   - **Exact**: the spill is written outside the memo lock, so a lookup meanwhile is served from RAM and
-    the swap happens only if the entry is still the one copied. An eviction is queued (at most half the cap
-    of bytes) and written by a short background thread, never inside the decode that evicted it.
+    the swap happens only if the entry is still the one copied. One demoter runs at a time, so one spill
+    is in flight. An eviction is queued (at most half the cap of bytes, or less if the spill cap is
+    smaller; more is dropped) and written by a short background thread, never inside the decode that
+    evicted it. The idle release queues every RAM entry at once (no half-cap bound, since they were
+    resident already) and the timer thread writes them.
+  - **Transient RAM**: an entry stays in anonymous memory until its spill is swapped in. Peak anonymous
+    memory is the cap plus up to half the cap of evicted entries waiting for the writer, and up to twice
+    the cap while an idle release is still writing and new decodes are stored meanwhile. `held_bytes()`
+    counts the RAM tier of the cap only.
+  - **Entries**: at most 64 mapped entries are kept (`MAX_SPILLED_ENTRIES`), whatever the bytes, so the
+    descriptors cannot grow with many short recordings; the least recently used go first.
+  - **Timer**: one daemon timer, armed for the earliest deadline of what is held (RAM `IDLE_S`, spilled
+    `SPILL_IDLE_S`; a setting of 0 or less is "never" and is not a deadline), re-armed sooner when a later
+    store needs it, and never with a zero delay. Setting the spill cap to 0 at run time drops the spilled
+    tier at the next lookup.
   - **Fallback**: Windows, tmpfs, too little free space, a spill larger than the cap or any error (a full
     disk, a short write) drops the entry as before; nothing is raised and no temp file is left.
-  - **Descriptors**: each mapped entry holds one until its last view is gone (four for two tracks at two
+  - **Descriptors**: each mapped entry (64 at most) holds one until its last view is gone (four for two tracks at two
     rates), on top of the retained evidence's. A view handed out earlier stays valid after a release or
     `clear`, and its map is freed with it.
 - **Read-only**: with the memo on, the samples a caller receives are read-only on every path (stored,
