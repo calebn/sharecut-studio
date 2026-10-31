@@ -52,7 +52,12 @@ afterEach(() => {
 it("closes on Escape without the keymap also clearing the selection", async () => {
   const user = userEvent.setup();
   const onClose = vi.fn();
-  const { rerender } = render(<KeymapHost open onClose={onClose} />);
+  // Mount the keymap first, then open the menu: the keymap's window listener
+  // is then registered before the menu's own, so the menu cannot swallow
+  // Escape ahead of it; the keymap's own gates (`overlayOpen`, with
+  // `keymapHandoff` behind it) are what hold it.
+  const { rerender } = render(<KeymapHost open={false} onClose={onClose} />);
+  rerender(<KeymapHost open onClose={onClose} />);
   await waitFor(() => expect(screen.getAllByRole("menuitem")[0]).toHaveFocus());
   await user.keyboard("{Escape}");
   expect(onClose).toHaveBeenCalledTimes(1);

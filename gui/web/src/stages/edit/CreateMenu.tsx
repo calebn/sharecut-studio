@@ -32,9 +32,6 @@ import {
  */
 export const CREATE_ITEM_ATTR = "data-create-item";
 
-/** The menu's width (spec-edit MENU-CREATE), in px; the style rule is 13.75rem. */
-export const CREATE_MENU_WIDTH_PX = 220;
-
 export type CreateMenuProps = {
   /** The rows the held point offers; absent rows are simply not in the list. */
   rows: readonly CreateRow[];
@@ -50,7 +47,11 @@ export type CreateMenuProps = {
   viewport?: Bounds;
   /** The fixed playhead's x on a phone, which the menu sits beside. */
   avoidX?: number | null;
-  /** The row index a sliding finger is over, or null. */
+  /**
+   * The row index a sliding finger is over, or null. The popover form only:
+   * the phone Sheet is modal and its rows are plain buttons, so `over` is
+   * ignored there (no row is highlighted under a sliding finger).
+   */
   over?: number | null;
   /** The held lane's top and bottom, for the dashed time mark. */
   mark?: { top: number; bottom: number } | null;
@@ -165,6 +166,10 @@ function Popover({
  * `onPick`; the keyboard belongs to `useMenuKeyboard`. A Tab out of the menu
  * closes it, so the keymap is never held shut behind a menu that has lost its
  * focus.
+ *
+ * The leaf owns no live region: the host announces the menu ("Create at
+ * 12:04.3 on Maya, 4 actions"), as design-system.md MENU-CREATE wiring item 3
+ * records.
  */
 function CreateMenuView({ phone = false, ...props }: CreateMenuProps) {
   const { rows, time, track, onPick, onClose } = props;

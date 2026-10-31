@@ -8,7 +8,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
   CREATE_ITEM_ATTR,
-  CREATE_MENU_WIDTH_PX,
   CreateMenu,
   type CreateMenuProps,
 } from "./CreateMenu";
@@ -192,7 +191,6 @@ describe("CreateMenu rows", () => {
 
 describe("CreateMenu sizes", () => {
   it("is 220 px wide (13.75 rem), with 36 px rows and 44 px rows under a coarse pointer", () => {
-    expect(CREATE_MENU_WIDTH_PX).toBe(220);
     expect(css).toMatch(
       /\.ui-menu-panel\.edit-create-menu \{\s*--menu-item-min-block-size: 2\.25rem;[^}]*inline-size: 13\.75rem;/,
     );
@@ -387,6 +385,27 @@ describe("CreateMenu keyboard and focus", () => {
       relatedTarget: screen.getByRole("button", { name: "Outside" }),
     });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays open when its rows change while focus is inside it", async () => {
+    const onClose = vi.fn();
+    const { rerender } = render(<CreateMenu {...props({ onClose })} />);
+    await waitFor(() =>
+      expect(screen.getAllByRole("menuitem")[0]).toHaveFocus(),
+    );
+    rerender(
+      <CreateMenu
+        {...props({
+          onClose,
+          rows: createMenuRows({ ...LANE, clipboardHasAudio: true }),
+        })}
+      />,
+    );
+    expect(screen.getAllByRole("menuitem")).toHaveLength(
+      createMenuRows({ ...LANE, clipboardHasAudio: true }).length,
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
   it("returns focus to where it was when it closes", async () => {
