@@ -874,3 +874,29 @@ it("draws clip fades read-only, labelled, and leaves the envelope line alone", (
   );
   expect(container.querySelectorAll("circle")).toHaveLength(points.length);
 });
+
+it("keeps two dips that start at the same time apart", () => {
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  renderView({
+    clipDips: [
+      {
+        clipId: "c1",
+        points: [
+          { time: 1, gain: 0 },
+          { time: 2, gain: 1 },
+        ],
+      },
+      {
+        clipId: "c1",
+        points: [
+          { time: 1, gain: 0 },
+          { time: 3, gain: 0 },
+        ],
+      },
+    ],
+  });
+
+  expect(screen.getAllByTestId("clip-gain-dip")).toHaveLength(2);
+  expect(error).not.toHaveBeenCalled();
+  error.mockRestore();
+});
