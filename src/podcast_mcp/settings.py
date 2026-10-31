@@ -169,6 +169,16 @@ VARIABLES: tuple[Variable, ...] = (
             "90",
         ),
         (
+            "PODCAST_EVIDENCE_KEEP_MB",
+            "Megabytes of disk for track evidence kept between batches, so Approve reuses what propose built (least recently used out first; temp files read through the page cache, no resident memory); 0 keeps none.",
+            "3072",
+        ),
+        (
+            "PODCAST_EVIDENCE_KEEP_IDLE_S",
+            "Seconds without a kept-evidence hit or store, and no build running, before it is released and its temp files are freed (capped at 86400); 0 never releases.",
+            "2700",
+        ),
+        (
             "PODCAST_EVIDENCE_VERIFY",
             "On every cache hit, rebuild the track evidence and fail if it differs from the cached copy (tests, lab). Also re-decodes on every decode memo hit.",
         ),
