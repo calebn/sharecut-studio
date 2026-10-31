@@ -255,3 +255,41 @@ describe("useCommitRange", () => {
     expect(onCommit).toHaveBeenCalledWith(25);
   });
 });
+
+describe("useCommitRange with a second pointer (#1034)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("commits the dragged value once when another pointer lands and lifts on the slider mid-drag", () => {
+    const onCommit = vi.fn();
+    render(<Harness saved={10} onCommit={onCommit} />);
+    const input = screen.getByRole("slider", { name: "Len" });
+    fireEvent.pointerDown(input, { pointerId: 1 });
+    fireEvent.input(input, { target: { value: "40" } });
+    fireEvent.pointerDown(input, { pointerId: 2 });
+    fireEvent.pointerUp(input, { pointerId: 2 });
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.pointerUp(input, { pointerId: 1 });
+    fireEvent.change(input, { target: { value: "40" } });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith(40);
+  });
+
+  it("returns the thumb to saved when a second pointer's cancel interrupts the drag and ignores its change", () => {
+    const onCommit = vi.fn();
+    render(<Harness saved={10} onCommit={onCommit} />);
+    const input = screen.getByRole("slider", { name: "Len" });
+    fireEvent.input(input, { target: { value: "40" } });
+    fireEvent.pointerCancel(input, { pointerId: 2 });
+    (input as HTMLInputElement).value = "40";
+    act(() => {
+      input.dispatchEvent(new Event("change"));
+    });
+    expect(screen.getByTestId("value")).toHaveTextContent("10");
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+});
