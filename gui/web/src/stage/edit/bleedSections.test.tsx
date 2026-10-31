@@ -20,6 +20,7 @@ import { bleedAttenuationRegionKey } from "../../edit/bleedAttenuation";
 import { clipBleedSession } from "../../edit/clipBleedSession";
 import { cancelClipPlacement } from "../../edit/clipPlacement";
 import { useDawStore } from "../../state/dawStore";
+import { expectNoA11yViolations } from "../../test/a11y";
 import { deferred } from "../../test/deferred";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import {
@@ -28,7 +29,7 @@ import {
   parseHistoryEntryId,
 } from "../../types/project";
 import { ApiError } from "../../utils/apiError";
-import { ClipBleedHost } from "./ClipBleedHost";
+import { SectionsBody } from "./SectionsBody";
 
 vi.mock("../../api/clipBleed", () => ({
   loadClipBleedInspection: vi.fn(),
@@ -44,11 +45,10 @@ vi.mock("../../commands/trackMix", () => ({
 
 const path = "/tmp/bleed/episode.sharecut";
 const head = parseHistoryEntryId("restore-head")!;
-const occurrence = { trackId: "host", clipId: "clip-1", clipLabel: "Host" };
+const occurrence = { trackId: "host", clipId: "clip-1", clipLabel: "host" };
 const otherOccurrence = {
   ...occurrence,
   clipId: "clip-2",
-  clipLabel: "Other copy",
 };
 const clip: ClipRow = {
   id: occurrence.clipId,
@@ -175,9 +175,9 @@ afterEach(() => {
   resetDocumentAuthority();
 });
 
-describe("ClipBleedHost", () => {
+describe("automatic reduction sheet content", () => {
   it("opens the occurrence, saves the selected region and retains its exact Undo without refreshing", async () => {
-    render(<ClipBleedHost {...occurrence} />);
+    render(<SectionsBody withRange={false} />);
     const region = await ready();
     expect(loadClipBleedInspection).toHaveBeenCalledExactlyOnceWith(
       { ...occurrence, projectPath: path },
@@ -209,7 +209,7 @@ describe("ClipBleedHost", () => {
 
   it("adopts the overlay's local region selection and clears it when the local selection clears", async () => {
     select(occurrence, regionKey);
-    render(<ClipBleedHost {...occurrence} />);
+    render(<SectionsBody withRange={false} />);
     const region = await ready();
     await waitFor(() => expect(region).toHaveAttribute("aria-pressed", "true"));
     expect(
@@ -225,7 +225,7 @@ describe("ClipBleedHost", () => {
   it("shows loading and inspection failures with a working explicit refresh", async () => {
     const read = deferred<ClipBleedInspection>();
     vi.mocked(loadClipBleedInspection).mockReturnValueOnce(read.promise);
-    render(<ClipBleedHost {...occurrence} />);
+    render(<SectionsBody withRange={false} />);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Checking automatic regions…",
     );
@@ -243,7 +243,7 @@ describe("ClipBleedHost", () => {
   });
 
   it("clears a selected region on direct refresh and requires a new selection", async () => {
-    render(<ClipBleedHost {...occurrence} />);
+    render(<SectionsBody withRange={false} />);
     await userEvent.click(await ready());
     const restore = screen.getByRole("button", {
       name: "Restore original audio",
@@ -263,7 +263,7 @@ describe("ClipBleedHost", () => {
   it("keeps a saving action visible, disables duplicate presses and leaves Refresh explicit", async () => {
     const reply = deferred<Awaited<ReturnType<typeof restoreClipBleed>>>();
     vi.mocked(restoreClipBleed).mockReturnValueOnce(reply.promise);
-    render(<ClipBleedHost {...occurrence} />);
+    render(<SectionsBody withRange={false} />);
     await userEvent.click(await ready());
     const restore = screen.getByRole("button", {
       name: "Restore original audio",
@@ -301,7 +301,7 @@ describe("ClipBleedHost", () => {
     vi.mocked(restoreClipBleed).mockRejectedValueOnce(
       new ApiError("Changed", "bleed_restore_changed", 409),
     );
-    render(<ClipBleedHost {...occurrence} />);
+    render(<SectionsBody withRange={false} />);
     await userEvent.click(await ready());
     await userEvent.click(
       screen.getByRole("button", { name: "Restore original audio" }),
@@ -327,22 +327,20 @@ describe("ClipBleedHost", () => {
   it("retires the old occurrence and ignores its late inspection", async () => {
     const first = deferred<ClipBleedInspection>();
     vi.mocked(loadClipBleedInspection).mockReturnValueOnce(first.promise);
-    const view = render(<ClipBleedHost {...occurrence} />);
+    const view = render(<SectionsBody withRange={false} />);
     const signal = vi.mocked(loadClipBleedInspection).mock.calls[0][1];
     act(() => select(otherOccurrence));
-    view.rerender(<ClipBleedHost {...otherOccurrence} />);
+    view.rerender(<SectionsBody withRange={false} />);
     await ready();
     expect(signal.aborted).toBe(true);
-    expect(screen.getByText("Other copy")).toBeVisible();
     await act(async () => first.resolve(inspection()));
     expect(clipBleedSession.getSnapshot()?.occurrence.clipId).toBe(
       otherOccurrence.clipId,
     );
-    expect(screen.queryByText("Host")).not.toBeInTheDocument();
   });
 
   it("starts a fresh inspection after an opening change and does not retain old Undo", async () => {
-    const view = render(<ClipBleedHost {...occurrence} />);
+    const view = render(<SectionsBody withRange={false} />);
     await userEvent.click(await ready());
     await userEvent.click(
       screen.getByRole("button", { name: "Restore original audio" }),
@@ -354,7 +352,7 @@ describe("ClipBleedHost", () => {
       resetDocumentAuthority(path);
       useDawStore.setState({ projectEpoch: 8 });
     });
-    view.rerender(<ClipBleedHost {...occurrence} />);
+    view.rerender(<SectionsBody withRange={false} />);
     await ready();
     expect(
       screen.queryByRole("button", { name: "Undo Restore" }),
@@ -369,9 +367,12 @@ describe("ClipBleedHost", () => {
     "does not inspect or expose restore controls to a guest at $projectPath",
     ({ projectPath, guestMode }) => {
       useDawStore.setState({ projectPath, guestMode });
-      render(<ClipBleedHost {...occurrence} />);
+      render(<SectionsBody withRange={false} />);
       expect(
-        screen.getByRole("heading", { name: "Automatic reduction" }),
+        screen.getByText("Only the project host can inspect this audio."),
+      ).toBeVisible();
+      expect(
+        screen.getByText("Only the project host can restore this audio."),
       ).toBeVisible();
       expect(loadClipBleedInspection).not.toHaveBeenCalled();
       expect(
@@ -386,12 +387,138 @@ describe("ClipBleedHost", () => {
   it("aborts inspection and retires its session when unmounted", async () => {
     const read = deferred<ClipBleedInspection>();
     vi.mocked(loadClipBleedInspection).mockReturnValueOnce(read.promise);
-    const view = render(<ClipBleedHost {...occurrence} />);
+    const view = render(<SectionsBody withRange={false} />);
     const signal = vi.mocked(loadClipBleedInspection).mock.calls[0][1];
     view.unmount();
     expect(signal.aborted).toBe(true);
     expect(clipBleedSession.getSnapshot()).toBeNull();
     await act(async () => read.resolve(inspection()));
     expect(clipBleedSession.getSnapshot()).toBeNull();
+  });
+
+  describe("gates and copy", () => {
+    const second = {
+      ...inspection().regions[0],
+      kind: "bleed_mute:off_speaker" as const,
+      timelineSpan: { start: 5, end: 6 },
+      restore: {
+        state: "available" as const,
+        target: Object.freeze({
+          opaque: "second",
+        }) as unknown as OpaqueBleedRestoreTarget,
+        sourceSpan: { start: 5, end: 6 },
+      },
+    };
+    const load = (patch: Partial<ClipBleedInspection>) =>
+      vi
+        .mocked(loadClipBleedInspection)
+        .mockImplementation(async (request) => ({
+          ...inspection(request),
+          ...patch,
+        }));
+    const restoreButton = () =>
+      screen.getByRole("button", { name: "Restore original audio" });
+
+    it("submits only the selected region's target, with Enter and Space on a region", async () => {
+      load({
+        regions: [...inspection().regions, second],
+        planState: "disabled",
+        planReasons: ["Check the recording and refresh regions."],
+      });
+      render(<SectionsBody withRange={false} />);
+      await ready();
+      expect(
+        screen.getByText("Check the recording and refresh regions."),
+      ).toBeVisible();
+      expect(restoreButton()).toBeDisabled();
+      const mute = screen.getByRole("button", {
+        name: /^Automatic speaker mute Timeline /,
+      });
+      mute.focus();
+      await userEvent.keyboard("{Enter}");
+      await waitFor(() => expect(mute).toHaveAttribute("aria-pressed", "true"));
+      await userEvent.click(restoreButton());
+      expect(restoreClipBleed).toHaveBeenCalledExactlyOnceWith(
+        path,
+        second.restore.target,
+      );
+    });
+
+    it("explains the host permission gate and never submits while blocked", async () => {
+      render(<SectionsBody withRange={false} />);
+      await userEvent.click(await ready());
+      useDawStore.setState({ rangeBusy: true });
+      await waitFor(() =>
+        expect(restoreButton()).toHaveAccessibleDescription(
+          "Wait for the range edit to finish.",
+        ),
+      );
+      await userEvent.click(restoreButton());
+      expect(restoreClipBleed).not.toHaveBeenCalled();
+    });
+
+    it("shows saved coverage and render pending until the artifact is current", async () => {
+      load({
+        restoreState: "current",
+        savedSourceSpans: [{ start: 20, end: 20.5 }],
+      });
+      const view = render(<SectionsBody withRange={false} />);
+      await ready();
+      expect(
+        screen.getByText("Restore choice saved for this recording."),
+      ).toBeVisible();
+      expect(screen.getByText("20.000 to 20.500 s")).toBeVisible();
+      expect(
+        screen.getByText(/Saved choices are pending in the next render/),
+      ).toBeVisible();
+      view.unmount();
+      load({ restoreState: "changed_content", artifactState: "current" });
+      render(<SectionsBody withRange={false} />);
+      await ready();
+      expect(screen.getByText("Rendered audio is current.")).toBeVisible();
+      expect(
+        screen.getByText(/Refresh regions to inspect this recording/),
+      ).toBeVisible();
+    });
+
+    it("says so when the plan has no regions, and why saved or unavailable intervals cannot be restored", async () => {
+      load({ regions: [], artifactState: "missing" });
+      const view = render(<SectionsBody withRange={false} />);
+      await screen.findByText(/No automatic regions in this clip/);
+      expect(screen.getByText(/No rendered audio yet/)).toBeVisible();
+      view.unmount();
+      load({
+        regions: [{ ...inspection().regions[0], restore: { state: "saved" } }],
+      });
+      const saved = render(<SectionsBody withRange={false} />);
+      await userEvent.click(await ready());
+      expect(restoreButton()).toHaveAccessibleDescription(
+        "A Restore choice already covers this interval.",
+      );
+      saved.unmount();
+      load({
+        regions: [
+          {
+            ...inspection().regions[0],
+            restore: {
+              state: "unavailable",
+              reason:
+                "The recording is missing. Restore it and refresh regions.",
+            },
+          },
+        ],
+      });
+      render(<SectionsBody withRange={false} />);
+      await userEvent.click(await ready());
+      expect(restoreButton()).toHaveAccessibleDescription(
+        "The recording is missing. Restore it and refresh regions.",
+      );
+    });
+
+    it("has no accessibility violations", async () => {
+      const { container } = render(<SectionsBody withRange={false} />);
+      await ready();
+      await expectNoA11yViolations(container);
+    });
   });
 });

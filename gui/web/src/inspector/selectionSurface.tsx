@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import type { CommandContext } from "../commands/context";
 import { seekTransport } from "../commands/seek";
-import { rangeClips } from "../edit/rangeSelection";
 import { EnvelopePointBody } from "../stage/edit/EnvelopePointBody";
 import { SectionsBody } from "../stage/edit/SectionsBody";
 import type { RoutedTarget } from "../timeline/hitRouting";
@@ -22,7 +21,6 @@ import {
   relatedCopyWord,
 } from "./relatedRows";
 import { ChapterInspector } from "./views/ChapterInspector";
-import { ClipBleedHost } from "./views/ClipBleedHost";
 import { ClipInspector } from "./views/ClipInspector";
 import { CommentInspector } from "./views/CommentInspector";
 import { PendingEditInspector } from "./views/PendingEditInspector";
@@ -127,24 +125,7 @@ export const SELECTION_SURFACES: {
   bleedAttenuation: {
     ...plain,
     screens: ANYWHERE,
-    body: (sel, { project }) => {
-      const clip = rangeClips(project).find(
-        (row) => row.id === sel.id && row.track_id === sel.trackId,
-      );
-      return clip ? (
-        <ClipBleedHost
-          key={JSON.stringify([sel.trackId, sel.id])}
-          trackId={sel.trackId}
-          clipId={sel.id}
-          clipLabel={
-            project.tracks.find((track) => track.id === sel.trackId)?.label ??
-            sel.trackId
-          }
-        />
-      ) : (
-        notFound("Clip not found")
-      );
-    },
+    body: () => <SectionsBody withRange={false} />,
   },
   pending: {
     ...plain,

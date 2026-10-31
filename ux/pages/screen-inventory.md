@@ -195,6 +195,8 @@ error inline; timeline handles and phone nudges show the same recovery in a toas
 
 A selected word and an applied edit (a cut) open in the Inspector sheet. The word shows its confidence, Suppressed and Ignored state, the Text and End index fix, Suppress, Ignore and Return to automatic, and its timing; the cut shows its facts with Restore or Open History. A share link sees neither the word fix nor its actions.
 
+A selected automatic reduction (from the clip's Inspect automatic audio reduction button or its Timeline overlay) opens in the same sheet: the plan, rendered-audio and saved-choice facts, the regions in the clip, **Restore original audio**, **Refresh regions** and **Undo Restore**. A share link reads that the project host alone can inspect and restore it.
+
 ---
 
 ## Phone — Review (the old Listen)

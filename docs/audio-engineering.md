@@ -1488,8 +1488,9 @@ adopts external changes, checks the opening history, occurrence, selected record
 bytes, file revisions, relevant track state, and current candidate, then saves one
 Undoable choice. The helper does not render audio or reconcile transcripts.
 
-`BleedAttenuationInspector` and `BleedAttenuationOverlay` are controlled React
-leaves. They consume supplied targets, eligibility, receipts, and geometry. Their
+`BleedAttenuationOverlay` is a controlled React leaf and the Inspector sheet
+sections (`stage/edit/bleedSections.tsx`) read the session directly. They consume
+targets, eligibility, receipts, and geometry from it. Their
 timeline and inspector host integration uses the current-occurrence session and
 shared selection registry described below.
 

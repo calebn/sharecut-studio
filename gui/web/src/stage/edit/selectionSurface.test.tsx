@@ -25,6 +25,7 @@ import { wordSelection } from "../../utils/rangeSelect";
 import { StageFrame } from "../frame/StageFrame";
 import { EditWorkspace } from "./EditWorkspace";
 import { EDIT_SHEETS } from "./editSheets";
+import { SectionsBody } from "./SectionsBody";
 
 const viewport = vi.hoisted(() => ({ shell: "tablet" as ShellBreakpoint }));
 
@@ -208,7 +209,7 @@ const REACH: Record<SelectionKind, Reach[]> = {
     { role: "button", name: "Copy" },
     { role: "button", name: "Cut" },
   ],
-  bleedAttenuation: [{ role: "heading", name: "Automatic reduction" }],
+  bleedAttenuation: [{ role: "button", name: "Restore original audio" }],
   pending: [
     { role: "button", name: "Approve" },
     { role: "button", name: "Reject" },
@@ -592,19 +593,14 @@ describe("automatic reduction occurrence lookup", () => {
     { id: "c1", trackId: "host" },
     { id: "deleted", trackId: "guest" },
   ])("rejects a missing occurrence $trackId/$id", ({ id, trackId }) => {
-    render(
-      renderSelectionBody(
-        { kind: "bleedAttenuation", id, trackId, regionKey: null },
-        {
-          project: project(),
-          projectEpoch: 1,
-          placement: "sheet",
-        },
-      ),
-    );
+    useDawStore.getState().hydrate("/tmp/p.json", project(), null);
+    useDawStore
+      .getState()
+      .setSelection({ kind: "bleedAttenuation", id, trackId, regionKey: null });
+    render(<SectionsBody withRange={false} />);
     expect(screen.getByText("Clip not found")).toBeVisible();
     expect(
-      screen.queryByRole("heading", { name: "Automatic reduction" }),
+      screen.queryByRole("button", { name: "Restore original audio" }),
     ).toBeNull();
   });
 });
