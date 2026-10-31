@@ -28,7 +28,7 @@ const COVERED: Record<string, string[]> = {
   "INS-PEEK": ["Templates/Editor · Inspector · Peek"],
   "INS-RANGE": ["Templates/Editor · Inspector · Range", "System/ScrubField"],
   "INS-WORD": ["System/InspectorSheet", "System/ScrubField"],
-  "INS-COMMENT": ["Templates/Editor · Inspector · Comment"],
+  "INS-COMMENT": ["System/InspectorSheet"],
   "INS-SOCIAL": [
     "Templates/Editor · Inspector · Social clip",
     "System/ScrubField",
