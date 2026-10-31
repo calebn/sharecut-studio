@@ -61,7 +61,7 @@ export function rulerStep(
 
 /**
  * Each tick is `index * step`, never an accumulated sum, so a deep zoom does not drift.
- * A label that has no room, or would touch its neighbour's, is left off and its line stays; the episode's end label wins over the one before it.
+ * A label that has no room, or would touch its neighbour's, is left off and its line stays; where a tick on the episode's end would have its label touch the one before it, the end label is kept and that one label is dropped.
  */
 export function rulerTicks(
   start: number,

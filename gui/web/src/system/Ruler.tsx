@@ -153,20 +153,23 @@ export const Ruler = memo(function Ruler({
 
   const remProbe = useRef<HTMLElement | null>(null);
   const remChanged = useRef<(() => void) | null>(null);
+  const remRead = useRef<number | null>(null);
   // A window resize (page zoom) or a text-size change after mount re-reads the root font size.
   const subscribeRem = useCallback((notify: () => void) => {
-    remChanged.current = notify;
-    window.addEventListener("resize", notify);
+    const changed = () => {
+      remRead.current = null;
+      notify();
+    };
+    remRead.current = null;
+    remChanged.current = changed;
+    window.addEventListener("resize", changed);
     return () => {
       remChanged.current = null;
-      window.removeEventListener("resize", notify);
+      window.removeEventListener("resize", changed);
     };
   }, []);
-  const rem = useSyncExternalStore(
-    subscribeRem,
-    rootFontPx,
-    () => DEFAULT_REM_PX,
-  );
+  const readRem = useCallback(() => (remRead.current ??= rootFontPx()), []);
+  const rem = useSyncExternalStore(subscribeRem, readRem, () => DEFAULT_REM_PX);
   useLayoutEffect(() => {
     const el = makeRemProbe();
     remProbe.current = el;
