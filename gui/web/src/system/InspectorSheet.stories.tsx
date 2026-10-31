@@ -12,6 +12,7 @@ import {
   COMMENT_SECTIONS,
   ENVELOPE_POINT_SECTIONS,
   LONG_SECTIONS,
+  PENDING_SECTIONS,
   RANGE_SECTIONS,
   SEAM_SECTIONS,
   TRACK_SECTIONS,
@@ -268,6 +269,22 @@ export const Comment: Story = {
       canvas.getByRole("textbox", { name: "Reply to comment" }),
     ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Resolve" })).toBeVisible();
+  },
+};
+
+export const Suggestion: Story = {
+  render: () => (
+    <CardDemo
+      icon="scissors"
+      name="Suggestion"
+      sections={PENDING_SECTIONS}
+      anchorAt={nearTop}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Approve" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Reject" })).toBeVisible();
   },
 };
 

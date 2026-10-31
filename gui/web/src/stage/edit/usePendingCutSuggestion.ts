@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { loadPendingCutSuggestion } from "../api";
+import { loadPendingCutSuggestion } from "../../api";
 import {
   type PendingCutProposal,
   type PendingEditBaseline,
   pendingEditBaseline,
-} from "../api/documentEdits";
-import { useDawStore } from "../state/dawStore";
-import { pickDaw, useDaw } from "../state/useDaw";
-import type { PendingEditView, Selection } from "../types/project";
-import { errorMessage } from "../utils/apiError";
+} from "../../api/documentEdits";
+import { useDawStore } from "../../state/dawStore";
+import { pickDaw, useDaw } from "../../state/useDaw";
+import type { PendingEditView, Selection } from "../../types/project";
+import { errorMessage } from "../../utils/apiError";
 
 type SuggestionCapture = Readonly<{
   projectPath: string;

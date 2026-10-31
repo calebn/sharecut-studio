@@ -5,13 +5,13 @@ import {
   playPendingPreview,
   releasePendingPreview,
   warmPendingPreview,
-} from "../audio/pendingPreview";
-import { seekTransport } from "../commands/seek";
-import { useDawStore } from "../state/dawStore";
-import { useDaw } from "../state/useDaw";
-import type { PendingEditView } from "../types/project";
-import { InspectorSeekFooterView } from "../ui/InspectorSeekFooterView";
-import type { PreviewMode } from "../utils/playRange";
+} from "../../audio/pendingPreview";
+import { seekTransport } from "../../commands/seek";
+import { useDawStore } from "../../state/dawStore";
+import { useDaw } from "../../state/useDaw";
+import type { PendingEditView } from "../../types/project";
+import { InspectorSeekFooterView } from "../../ui/InspectorSeekFooterView";
+import type { PreviewMode } from "../../utils/playRange";
 
 /** A click that returns sooner never shows the busy label (docs/communication-philosophy.md). */
 const BUSY_LABEL_AFTER_SEC = 2;
@@ -36,7 +36,7 @@ function useElapsedSec(active: boolean): number | null {
 }
 
 /** Seek plus the server-rendered Current / Suggested / A/B listen for one pending edit. */
-export function PendingPreviewFooter({
+export function PendingPreview({
   edit,
   projectPath,
   seekSec,

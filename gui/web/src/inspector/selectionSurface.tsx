@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { CommandContext } from "../commands/context";
 import { seekTransport } from "../commands/seek";
 import { EnvelopePointBody } from "../stage/edit/EnvelopePointBody";
+import { PendingEditBody } from "../stage/edit/PendingEditBody";
 import { SectionsBody } from "../stage/edit/SectionsBody";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import { RangeFields } from "../timeline/RangeFields";
@@ -22,7 +23,6 @@ import {
 } from "./relatedRows";
 import { ChapterInspector } from "./views/ChapterInspector";
 import { ClipInspector } from "./views/ClipInspector";
-import { PendingEditInspector } from "./views/PendingEditInspector";
 import { SocialClipInspector } from "./views/SocialClipInspector";
 import { TrackInspector } from "./views/TrackInspector";
 
@@ -133,7 +133,7 @@ export const SELECTION_SURFACES: {
     body: (sel, { project }) => {
       const edit = project.pending_edits.find((e) => e.id === sel.id);
       return edit ? (
-        <PendingEditInspector edit={edit} />
+        <PendingEditBody edit={edit} />
       ) : (
         notFound("Edit not found")
       );
@@ -181,7 +181,7 @@ export const SELECTION_SURFACES: {
         ? project.pending_edits.find((e) => e.id === comment.edit_decision_id)
         : undefined;
       return linked ? (
-        <PendingEditInspector edit={linked} />
+        <PendingEditBody edit={linked} />
       ) : (
         <SectionsBody withRange={false} />
       );

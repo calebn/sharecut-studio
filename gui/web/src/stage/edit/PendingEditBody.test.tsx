@@ -15,6 +15,7 @@ import {
 } from "../../api/documentEdits";
 import { hostFetch } from "../../api/documentTransport";
 import { registerDawCommands } from "../../commands/register";
+import { UNAPPLIED_VALUE_REASON } from "../../inspector/NudgeButtons";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -32,8 +33,7 @@ import {
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../../utils/apiError";
 import { pendingEditTimingFieldId } from "../../utils/pendingEditTimingField";
-import { UNAPPLIED_VALUE_REASON } from "../NudgeButtons";
-import { PendingEditInspector } from "./PendingEditInspector";
+import { PendingEditBody } from "./PendingEditBody";
 
 const createComment = vi.fn();
 const patchComment = vi.fn();
@@ -106,7 +106,7 @@ function expectedBaseline(edit = sessionCut) {
   return pendingEditBaseline(edit);
 }
 
-describe("PendingEditInspector", () => {
+describe("PendingEditBody", () => {
   beforeEach(() => {
     localStorage.clear();
     registerDawCommands();
@@ -169,7 +169,7 @@ describe("PendingEditInspector", () => {
           guestMode,
           capabilities ? [...capabilities] : null,
         );
-      render(<PendingEditInspector edit={exact} />);
+      render(<PendingEditBody edit={exact} />);
       expect(
         screen.getByText("0:11.000 – 0:12.000 · 0:13.000 – 0:14.000"),
       ).toBeVisible();
@@ -207,7 +207,7 @@ describe("PendingEditInspector", () => {
     const user = userEvent.setup();
     vi.mocked(hostFetch).mockResolvedValueOnce(wavResponse(1.5));
     URL.createObjectURL = vi.fn(() => "blob:suggested");
-    const { container } = render(<PendingEditInspector edit={sessionCut} />);
+    const { container } = render(<PendingEditBody edit={sessionCut} />);
     expect(screen.getByRole("button", { name: "Suggested" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -244,7 +244,7 @@ describe("PendingEditInspector", () => {
       pending_edits: [sessionCut],
     });
     useDawStore.getState().hydrate("/tmp/p.json", project);
-    render(<PendingEditInspector edit={sessionCut} />);
+    render(<PendingEditBody edit={sessionCut} />);
     const start = screen.getByRole("textbox", { name: "Source start" });
     const group = screen.getByRole("group", { name: "Nudge source start" });
     const later = within(group).getByRole("button", { name: "10 ms later" });
@@ -283,7 +283,7 @@ describe("PendingEditInspector", () => {
         pending_edits: [sessionCut],
       }),
     );
-    render(<PendingEditInspector edit={sessionCut} />);
+    render(<PendingEditBody edit={sessionCut} />);
     const button = within(
       screen.getByRole("group", { name: "Nudge source start" }),
     ).getByRole("button", { name: "10 ms later" });
@@ -302,7 +302,7 @@ describe("PendingEditInspector", () => {
   });
 
   it("defaults a mute to Suggested", () => {
-    render(<PendingEditInspector edit={{ ...sessionCut, type: "mute" }} />);
+    render(<PendingEditBody edit={{ ...sessionCut, type: "mute" }} />);
     expect(screen.getByRole("button", { name: "Suggested" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -319,7 +319,7 @@ describe("PendingEditInspector", () => {
       timeline_end: 10,
       suggest_reason: reason,
     };
-    const { container } = render(<PendingEditInspector edit={split} />);
+    const { container } = render(<PendingEditBody edit={split} />);
     expect(screen.getByRole("button", { name: "Current" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -337,7 +337,7 @@ describe("PendingEditInspector", () => {
     createComment.mockResolvedValue(
       sampleComment({ edit_decision_id: "ed1", body: "Why this cut?" }),
     );
-    render(<PendingEditInspector edit={sessionCut} />);
+    render(<PendingEditBody edit={sessionCut} />);
     await user.type(
       screen.getByPlaceholderText("Ask for more context before deciding…"),
       "Why this cut?",
@@ -361,7 +361,7 @@ describe("PendingEditInspector", () => {
     createComment.mockResolvedValue(
       sampleComment({ edit_decision_id: "ed1", body: "Why this cut?" }),
     );
-    render(<PendingEditInspector edit={sessionCut} />);
+    render(<PendingEditBody edit={sessionCut} />);
     await user.type(
       screen.getByPlaceholderText("Ask for more context before deciding…"),
       "Why this cut?",
@@ -386,7 +386,7 @@ describe("PendingEditInspector", () => {
         "/tmp/p.json",
         minimalProject({ pending_edits: [sessionCut], comments: [comment] }),
       );
-    render(<PendingEditInspector edit={sessionCut} />);
+    render(<PendingEditBody edit={sessionCut} />);
 
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await waitFor(() =>
@@ -423,7 +423,7 @@ describe("PendingEditInspector", () => {
         comments: [sampleComment({ edit_decision_id: "ed1" })],
       }),
     );
-    render(<PendingEditInspector edit={sessionCut} />);
+    render(<PendingEditBody edit={sessionCut} />);
 
     await user.clear(screen.getByRole("textbox", { name: "Your name" }));
     await user.click(screen.getByRole("button", { name: "Resolve" }));
@@ -448,7 +448,7 @@ describe("PendingEditInspector", () => {
         ["play", "view", "comment", "reply"],
       );
     createComment.mockResolvedValue(sampleComment({ edit_decision_id: "ed1" }));
-    render(<PendingEditInspector edit={sessionCut} />);
+    render(<PendingEditBody edit={sessionCut} />);
 
     await user.clear(screen.getByRole("textbox", { name: "Your name" }));
     await user.type(
@@ -472,7 +472,7 @@ describe("PendingEditInspector", () => {
         "view",
         ["play", "view"],
       );
-    render(<PendingEditInspector edit={sessionCut} />);
+    render(<PendingEditBody edit={sessionCut} />);
     expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Ask" })).toBeTruthy();
   });
@@ -485,7 +485,7 @@ describe("PendingEditInspector", () => {
         TRANSCRIPT_REFINE_REQUIRED_CODE,
       ),
     );
-    const { container } = render(<PendingEditInspector edit={sessionCut} />);
+    const { container } = render(<PendingEditBody edit={sessionCut} />);
     await user.click(screen.getByRole("button", { name: "Approve" }));
     const error = await screen.findByRole("alert");
     expect(error).toHaveTextContent(/Review the transcript or waive/);
@@ -503,7 +503,7 @@ describe("PendingEditInspector", () => {
   it("keeps an approval error when the same edit is refreshed", async () => {
     const user = userEvent.setup();
     approveEdits.mockRejectedValue(new Error("Approval failed"));
-    const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+    const { rerender } = render(<PendingEditBody edit={sessionCut} />);
 
     await user.click(screen.getByRole("button", { name: "Approve" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -511,7 +511,7 @@ describe("PendingEditInspector", () => {
     );
 
     rerender(
-      <PendingEditInspector
+      <PendingEditBody
         edit={{
           ...sessionCut,
           source_start: 10.5,
@@ -527,7 +527,7 @@ describe("PendingEditInspector", () => {
   it("clears an approval error when the selected edit changes", async () => {
     const user = userEvent.setup();
     approveEdits.mockRejectedValue(new Error("Approval failed"));
-    const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+    const { rerender } = render(<PendingEditBody edit={sessionCut} />);
 
     await user.click(screen.getByRole("button", { name: "Approve" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -535,7 +535,7 @@ describe("PendingEditInspector", () => {
     );
 
     rerender(
-      <PendingEditInspector edit={{ ...sessionCut, id: "different-edit" }} />,
+      <PendingEditBody edit={{ ...sessionCut, id: "different-edit" }} />,
     );
 
     expect(screen.queryByRole("alert")).toBeNull();
@@ -549,7 +549,7 @@ describe("PendingEditInspector", () => {
         TRANSCRIPT_REFINE_REQUIRED_CODE,
       ),
     );
-    render(<PendingEditInspector edit={sessionCut} />);
+    render(<PendingEditBody edit={sessionCut} />);
     await user.click(screen.getByRole("button", { name: "Approve" }));
     await user.type(
       screen.getByLabelText("Waiver reason"),
@@ -572,7 +572,7 @@ describe("PendingEditInspector", () => {
     approveEdits.mockRejectedValue(
       new ApiError("Refinement blocked", TRANSCRIPT_REFINE_REQUIRED_CODE),
     );
-    const { container } = render(<PendingEditInspector edit={sessionCut} />);
+    const { container } = render(<PendingEditBody edit={sessionCut} />);
     await user.click(screen.getByRole("button", { name: "Approve" }));
     await user.click(screen.getByRole("button", { name: "Waive with reason" }));
     const reason = screen.getByRole("textbox", { name: "Waiver reason" });
@@ -636,7 +636,7 @@ describe("PendingEditInspector", () => {
         const preview = proposal(edit);
         loadPendingCutSuggestion.mockResolvedValue(preview);
         const user = userEvent.setup();
-        const { container } = render(<PendingEditInspector edit={edit} />);
+        const { container } = render(<PendingEditBody edit={edit} />);
         const group = within(
           screen.getByRole("region", { name: "Suggested bounds" }),
         );
@@ -663,7 +663,7 @@ describe("PendingEditInspector", () => {
 
     it("writes nothing on mount or uncheck and re-snaps stored bounds once on recheck", async () => {
       const user = userEvent.setup();
-      render(<PendingEditInspector edit={sessionCut} />);
+      render(<PendingEditBody edit={sessionCut} />);
       const snap = screen.getByRole("checkbox", { name: "Snap to silence" });
       expect(snap).toBeChecked();
       expect(updatePendingEdit).not.toHaveBeenCalled();
@@ -688,7 +688,7 @@ describe("PendingEditInspector", () => {
 
     it("retains unchecked Snap after applying timing and receiving saved bounds", async () => {
       const user = userEvent.setup();
-      const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+      const { rerender } = render(<PendingEditBody edit={sessionCut} />);
       await user.click(
         screen.getByRole("checkbox", { name: "Snap to silence" }),
       );
@@ -706,7 +706,7 @@ describe("PendingEditInspector", () => {
       );
       const saved = { ...sessionCut, source_end: 12.5 };
       act(() => replaceStored(saved));
-      rerender(<PendingEditInspector edit={saved} />);
+      rerender(<PendingEditBody edit={saved} />);
       expect(
         screen.getByRole("checkbox", { name: "Snap to silence" }),
       ).not.toBeChecked();
@@ -722,7 +722,7 @@ describe("PendingEditInspector", () => {
           }),
       );
       const user = userEvent.setup();
-      const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+      const { rerender } = render(<PendingEditBody edit={sessionCut} />);
       await waitFor(() =>
         expect(screen.getByLabelText("Source end")).toBeEnabled(),
       );
@@ -730,7 +730,7 @@ describe("PendingEditInspector", () => {
       await user.type(screen.getByLabelText("Source end"), "12.5");
       await user.click(screen.getByRole("button", { name: "Apply timing" }));
       rerender(
-        <PendingEditInspector edit={{ ...sessionCut, track_ids: ["host"] }} />,
+        <PendingEditBody edit={{ ...sessionCut, track_ids: ["host"] }} />,
       );
       expect(screen.getByLabelText("Source end")).toHaveValue("12.5");
       expect(
@@ -739,7 +739,7 @@ describe("PendingEditInspector", () => {
       await act(async () => finish({ queued: false }));
       const saved = { ...sessionCut, source_end: 12.5, track_ids: ["host"] };
       act(() => replaceStored(saved));
-      rerender(<PendingEditInspector edit={saved} />);
+      rerender(<PendingEditBody edit={saved} />);
       expect(screen.getByLabelText("Source end")).toHaveValue("0:12.500");
     });
 
@@ -751,7 +751,7 @@ describe("PendingEditInspector", () => {
       async ({ snap, start: startText, end: endText }) => {
         loadPendingCutSuggestion.mockResolvedValue(proposal());
         const user = userEvent.setup();
-        render(<PendingEditInspector edit={sessionCut} />);
+        render(<PendingEditBody edit={sessionCut} />);
         await waitFor(() =>
           expect(screen.getByLabelText("Source start")).toBeEnabled(),
         );
@@ -797,7 +797,7 @@ describe("PendingEditInspector", () => {
           }),
         );
         const user = userEvent.setup();
-        const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+        const { rerender } = render(<PendingEditBody edit={sessionCut} />);
         fireEvent.change(screen.getByLabelText("Source start"), {
           target: { value: "10" },
         });
@@ -812,7 +812,7 @@ describe("PendingEditInspector", () => {
             });
           if (change === "edit") replaceStored(next);
         });
-        rerender(<PendingEditInspector edit={next} />);
+        rerender(<PendingEditBody edit={next} />);
         // A buffered input event must not be replaced by the earlier submission.
         fireEvent.change(screen.getByLabelText("Source start"), {
           target: { value: "9.75" },
@@ -827,7 +827,7 @@ describe("PendingEditInspector", () => {
       const pending = deferredProposal();
       loadPendingCutSuggestion.mockReturnValueOnce(pending.promise);
       const user = userEvent.setup();
-      render(<PendingEditInspector edit={sessionCut} />);
+      render(<PendingEditBody edit={sessionCut} />);
       const end = screen.getByLabelText("Source end");
       await waitFor(() => expect(end).toBeEnabled());
       await user.clear(end);
@@ -860,7 +860,7 @@ describe("PendingEditInspector", () => {
         .mockReturnValueOnce(first.promise)
         .mockReturnValueOnce(second.promise);
       const user = userEvent.setup();
-      const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+      const { rerender } = render(<PendingEditBody edit={sessionCut} />);
       await waitFor(() =>
         expect(screen.getByLabelText("Source start")).toBeEnabled(),
       );
@@ -868,7 +868,7 @@ describe("PendingEditInspector", () => {
       await user.type(screen.getByLabelText("Source start"), "9.5");
       const updated = { ...sessionCut, source_end: 14 };
       act(() => replaceStored(updated));
-      rerender(<PendingEditInspector edit={updated} />);
+      rerender(<PendingEditBody edit={updated} />);
       expect(screen.getByLabelText("Source start")).toHaveValue("9.5");
       expect(screen.getByLabelText("Source end")).toHaveValue("0:14.000");
       await act(async () => second.resolve(proposal(updated)));
@@ -898,7 +898,7 @@ describe("PendingEditInspector", () => {
         loadPendingCutSuggestion
           .mockReturnValueOnce(first.promise)
           .mockReturnValueOnce(second.promise);
-        const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+        const { rerender } = render(<PendingEditBody edit={sessionCut} />);
         await waitFor(() =>
           expect(loadPendingCutSuggestion).toHaveBeenCalledTimes(1),
         );
@@ -924,7 +924,7 @@ describe("PendingEditInspector", () => {
             });
           else replaceStored(nextEdit);
         });
-        rerender(<PendingEditInspector edit={nextEdit} />);
+        rerender(<PendingEditBody edit={nextEdit} />);
         await act(async () => first.resolve(proposal()));
         expect(
           screen.getByRole("button", { name: "Use suggestion" }),
@@ -963,7 +963,7 @@ describe("PendingEditInspector", () => {
             author,
           );
         return edits.map((edit) => {
-          const { unmount } = render(<PendingEditInspector edit={edit} />);
+          const { unmount } = render(<PendingEditBody edit={edit} />);
           const shown = screen.queryByLabelText("Source start") !== null;
           unmount();
           return shown;
@@ -996,7 +996,7 @@ describe("PendingEditInspector", () => {
           COMMENTER_CAPABILITIES,
           guestCut.author,
         );
-      render(<PendingEditInspector edit={guestCut} />);
+      render(<PendingEditBody edit={guestCut} />);
       expect(await screen.findByText("0:09.97525 to 0:12.03525")).toBeVisible();
       act(() => useDawStore.setState({ shareCapabilities: ["view"] }));
       expect(
@@ -1012,7 +1012,7 @@ describe("PendingEditInspector", () => {
         .mockRejectedValueOnce(new Error("Temporarily unavailable"))
         .mockResolvedValueOnce(proposal());
       const user = userEvent.setup();
-      render(<PendingEditInspector edit={sessionCut} />);
+      render(<PendingEditBody edit={sessionCut} />);
       await screen.findByRole("button", { name: "Retry suggestion" });
       await user.clear(screen.getByLabelText("Source end"));
       await user.type(screen.getByLabelText("Source end"), "12.5");
@@ -1035,7 +1035,7 @@ describe("PendingEditInspector", () => {
         updatePendingEdit.mockResolvedValueOnce({ queued: true });
         loadPendingCutSuggestion.mockResolvedValue(proposal());
         const user = userEvent.setup();
-        render(<PendingEditInspector edit={sessionCut} />);
+        render(<PendingEditBody edit={sessionCut} />);
         await screen.findByText("0:09.97525 to 0:12.03525");
         const snap = screen.getByRole("checkbox", { name: "Snap to silence" });
         if (action === "Snap to silence") {
@@ -1100,7 +1100,7 @@ describe("PendingEditInspector", () => {
     });
 
     it("shows Join fade, rounded times and the reason once in words", () => {
-      render(<PendingEditInspector edit={guestCut} />);
+      render(<PendingEditBody edit={guestCut} />);
       expect(screen.getByText("Join fade")).toBeInTheDocument();
       expect(screen.queryByText("Crossfade")).toBeNull();
       expect(screen.getByLabelText("Source start")).toHaveValue("0:00.000");
@@ -1116,7 +1116,7 @@ describe("PendingEditInspector", () => {
       useDawStore
         .getState()
         .hydrate("/tmp/p.json", minimalProject({ pending_edits: [precise] }));
-      render(<PendingEditInspector edit={precise} />);
+      render(<PendingEditBody edit={precise} />);
       await user.click(screen.getByRole("button", { name: /Apply timing/ }));
       let args = updatePendingEdit.mock.calls[0] as unknown[];
       expect(args[2]).toBe(0.1234);
@@ -1135,7 +1135,7 @@ describe("PendingEditInspector", () => {
     });
 
     it("describes the time format on every nudge field", async () => {
-      const { container } = render(<PendingEditInspector edit={guestCut} />);
+      const { container } = render(<PendingEditBody edit={guestCut} />);
       expect(screen.getByLabelText("Source start")).toHaveAccessibleDescription(
         "m:ss.mmm or seconds",
       );
@@ -1145,7 +1145,7 @@ describe("PendingEditInspector", () => {
       await expectNoA11yViolations(container);
       cleanup();
       render(
-        <PendingEditInspector
+        <PendingEditBody
           edit={{
             ...sessionCut,
             id: "sp1",
@@ -1163,7 +1163,7 @@ describe("PendingEditInspector", () => {
 
     it("accepts m:ss.mmm in the nudge fields", async () => {
       const user = userEvent.setup();
-      render(<PendingEditInspector edit={guestCut} />);
+      render(<PendingEditBody edit={guestCut} />);
       const end = screen.getByLabelText("Source end");
       await waitFor(() => expect(end).toBeEnabled());
       await user.clear(end);
@@ -1180,7 +1180,7 @@ describe("PendingEditInspector", () => {
 
     it("keeps Snap to silence separate from review and sends the chosen value", async () => {
       const user = userEvent.setup();
-      render(<PendingEditInspector edit={guestCut} />);
+      render(<PendingEditBody edit={guestCut} />);
       const snap = screen.getByRole("checkbox", { name: "Snap to silence" });
       expect(snap).toBeChecked();
       expect(screen.getByRole("button", { name: "Approve" })).toBeVisible();
@@ -1199,7 +1199,7 @@ describe("PendingEditInspector", () => {
 
     it("rejects a malformed time", async () => {
       const user = userEvent.setup();
-      render(<PendingEditInspector edit={guestCut} />);
+      render(<PendingEditBody edit={guestCut} />);
       const end = screen.getByLabelText("Source end");
       await waitFor(() => expect(end).toBeEnabled());
       await user.clear(end);

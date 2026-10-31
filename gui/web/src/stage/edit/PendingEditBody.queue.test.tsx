@@ -14,7 +14,7 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, pendingEditView } from "../../test/fixtures";
-import { PendingEditInspector } from "./PendingEditInspector";
+import { PendingEditBody } from "./PendingEditBody";
 
 const mocks = vi.hoisted(() => ({
   approveEdits: vi.fn(),
@@ -86,7 +86,7 @@ describe("pending timing queue settlement", () => {
 
   it("says an approval that is still sending is not done yet", async () => {
     const user = userEvent.setup();
-    const { container } = render(<PendingEditInspector edit={edit} />);
+    const { container } = render(<PendingEditBody edit={edit} />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
     );
@@ -103,7 +103,7 @@ describe("pending timing queue settlement", () => {
 
   it("clears Still sending once the queued approval leaves the queue", async () => {
     const user = userEvent.setup();
-    render(<PendingEditInspector edit={edit} />);
+    render(<PendingEditBody edit={edit} />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
     );
@@ -129,7 +129,7 @@ describe("pending timing queue settlement", () => {
     "settles unchanged bounds with $snap Snap and $rejected rejection",
     async ({ snap, rejected }) => {
       const user = userEvent.setup();
-      render(<PendingEditInspector edit={edit} />);
+      render(<PendingEditBody edit={edit} />);
       await screen.findByText("0:09.97525 to 0:12.03525");
       if (!snap)
         await user.click(
@@ -170,7 +170,7 @@ describe("pending timing queue settlement", () => {
 
   it("preserves later typing when a queued no-op is acknowledged", async () => {
     const user = userEvent.setup();
-    render(<PendingEditInspector edit={edit} />);
+    render(<PendingEditBody edit={edit} />);
     await screen.findByText("0:09.97525 to 0:12.03525");
     fireEvent.change(screen.getByLabelText("Source start"), {
       target: { value: "10.01" },
@@ -192,11 +192,11 @@ describe("pending timing queue settlement", () => {
 
   it("blocks approval after remount until this edit's durable timing command drains", async () => {
     mocks.loadHostCommandQueue.mockResolvedValue([command]);
-    const first = render(<PendingEditInspector edit={edit} />);
+    const first = render(<PendingEditBody edit={edit} />);
     await act(async () => {});
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
     first.unmount();
-    render(<PendingEditInspector edit={edit} />);
+    render(<PendingEditBody edit={edit} />);
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
     await act(async () => {});
     expect(screen.getByRole("button", { name: "Apply timing" })).toBeDisabled();
