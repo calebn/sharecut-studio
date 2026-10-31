@@ -41,6 +41,7 @@ test("a pin-selected comment opens a usable Inspector card at 1440", async ({
   await stageTab(page, "edit").click();
   await inspectSelection(page);
   const card = page.locator("section.sys-inspector--card");
+  await expect(card.getByRole("heading", { name: "Comment" })).toBeVisible();
   await expect(card.getByText("Tighten this open")).toBeVisible();
   const box = await card.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThan(100);
