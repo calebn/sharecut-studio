@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { INVENTORY_IDS } from "./storyInventory";
 
 /**
  * Every non-interaction surface in the UI inventory and the story titles that
@@ -240,6 +241,28 @@ const storyModules = import.meta.glob(
 ) as Record<string, { title?: string }>;
 const titles = new Set(Object.values(storyModules).map((meta) => meta.title));
 
+/**
+ * The non-interaction surface IDs in docs/design/stages/inventory.md: the
+ * first cell of each table row in sections 1 to 11, minus rows whose Surface
+ * cell starts "Retired" (kept in the doc as a record, not a surface).
+ */
+function inventoryIds(): string[] {
+  const doc = readFileSync(
+    resolve(process.cwd(), "../../docs/design/stages/inventory.md"),
+    "utf8",
+  );
+  const surfaces = doc.slice(0, doc.indexOf("\n## 12."));
+  const ids = new Set<string>();
+  for (const row of surfaces.matchAll(
+    /^\| ([A-Z]+-[A-Z0-9-]+) \| (?!Retired)/gm,
+  )) {
+    ids.add(row[1]);
+  }
+  return [...ids].sort();
+}
+
+const INVENTORY_IDS = inventoryIds();
+
 describe("story coverage manifest", () => {
   const ids = [
     ...Object.keys(COVERED),
@@ -252,7 +275,7 @@ describe("story coverage manifest", () => {
   });
 
   it("lists exactly the surfaces in the inventory", () => {
-    expect(INVENTORY_IDS).toHaveLength(129);
+    expect(INVENTORY_IDS).not.toHaveLength(0);
     expect(ids.filter((id) => !INVENTORY_IDS.includes(id))).toEqual([]);
     expect(INVENTORY_IDS.filter((id) => !ids.includes(id))).toEqual([]);
   });
