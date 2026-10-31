@@ -371,7 +371,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Fate:** keep, restyle.
 - **Spec:** on long-press over overlapping targets, a fan of 44 px round chips appears 56 px above the finger, each with the object-kind icon (clip, seam, comment, suggestion, envelope point, word) and its track color ring. Slide to a chip and lift to select; lift elsewhere cancels. Never shown when one target is unambiguous.
 - **Shared elements used:** Icon language.
-- **Story to build:** `Edit/TargetChooser` stories `TwoTargets`, `FourTargets`, `NearEdge`.
+- **Story to build:** `Stages/Edit/TargetChooser` stories `TwoTargets`, `FourTargets`, `NearEdge`.
 
 ### CMP-RANGE-ACTIONS · Range actions bar
 
@@ -475,9 +475,9 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** MENU-CREATE--desktop-light.png. Language: disabled "Add envelope point · Show the volume envelope before adding a point". Consistency: verbs here (Blade cut, Add comment) use different names than the toolbar. Built (W1b): the long-press menu opens with Split here, then Add chapter and Add comment, then the lane's Add envelope point.
 - **Fate:** restyle as the playhead/point variant of the verbs.
-- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya"): Split here (S, Mod+K) first, Comment here (C), Add chapter here (Shift+C), Add volume point, Paste (when the clipboard has audio). Same icons as the action bar. Rows that can't apply are absent.
-- **Shared elements used:** Icon language, Action bar verbs.
-- **Story to build:** `Edit/CreateMenu` stories `Lane`, `WithPaste`, `Phone`.
+- **Spec:** right-click, Shift+F10 or long-press on an empty point opens a 220 px menu headed by the time and track ("12:04.3 · Maya", a 32 px row): Split here (S, Mod+K) first, Comment here (C), Add chapter here (Shift+C), Add volume point (the `spline` icon; on a lane while its envelope shows), Paste (when the clipboard has audio). Rows are 36 px, 44 on touch. Same icons as the action bar. Rows that can't apply are absent, so there are no disabled rows and no reasons. Escape closes the menu without clearing the selection, and Tab out closes it. Phone: the same rows in a content-height Sheet.
+- **Shared elements used:** Icon language, Action bar verbs, Menu (220 px instance).
+- **Built (S7b-2a, #2294):** `Stages/Edit/CreateMenu` stories `Lane`, `WithPaste`, `NearEdge`, `Phone` (design-system Edit-local list). Not wired: the host maps `onPick(id)` to commands at the held time (Split here is `edit.bladeCut` with `atTime`), announces the menu, and adds the portal and top layer; Add volume point is absent while the envelope is hidden.
 
 ### Tracks
 
