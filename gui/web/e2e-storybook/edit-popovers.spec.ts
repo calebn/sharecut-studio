@@ -103,6 +103,38 @@ test("Stages/Edit/CreateMenu keeps 36 px rows and a 220 px width with Paste, and
   expect(inside).toBe(true);
 });
 
+test("Stages/Edit/CreateMenu keeps the icon-to-label gap in a row with a shortcut hint, as in one without", async ({
+  page,
+}) => {
+  await open(page, LANE, 1280);
+  await expect(menu(page)).toBeVisible();
+  const gaps = await page.getByRole("menuitem").evaluateAll((rows) =>
+    rows.map((row) => {
+      const icon = row.querySelector("svg");
+      const label = row.querySelector(".ui-menu-item-label") ?? row;
+      const range = document.createRange();
+      const text = [...label.childNodes].find(
+        (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
+      );
+      if (!icon || !text) throw new Error("Row has no icon or label text");
+      range.selectNodeContents(text);
+      return {
+        hint: row.querySelector(".ui-menu-item-label") !== null,
+        gap:
+          range.getBoundingClientRect().left -
+          icon.getBoundingClientRect().right,
+      };
+    }),
+  );
+  const hinted = gaps.filter((row) => row.hint);
+  const plain = gaps.filter((row) => !row.hint);
+  expect(hinted.length).toBeGreaterThan(0);
+  expect(plain.length).toBeGreaterThan(0);
+  for (const row of gaps) expect(row.gap).toBeGreaterThanOrEqual(8);
+  for (const row of hinted)
+    expect(Math.abs(row.gap - plain[0].gap)).toBeLessThanOrEqual(1);
+});
+
 test("Stages/Edit/CreateMenu has 44 px rows that take a touch at every corner under a coarse pointer", async ({
   browser,
 }) => {
