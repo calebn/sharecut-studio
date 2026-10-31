@@ -105,7 +105,7 @@ describe("buildScriptModel", () => {
     expect(new Set(anchors).size).toBe(6);
   });
 
-  it("gives a word with no project index and a cut word no anchor", () => {
+  it("gives a word with no project index no anchor", () => {
     const loose = utterance("host", "Maya", [
       word("Hi", 0, 1, { word_index: undefined }),
     ]);
@@ -225,6 +225,13 @@ describe("buildScriptModel", () => {
     expect(
       model.indexOf({ trackId: "host", sourceId: null, wordIndex: 3 }),
     ).toBe(3);
+    // A cut word is shown, never addressed: no cursor can land on it.
+    expect(words.map((w) => w.anchor !== undefined)).toEqual([
+      true,
+      false,
+      false,
+      true,
+    ]);
   });
 
   it("ignores a boundary with no cutaway", () => {
