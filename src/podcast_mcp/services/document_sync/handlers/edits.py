@@ -21,6 +21,12 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     hold_blocked = p.get("hold_blocked") is True
     skip_unsure = p.get("skip_unsure") is True
     report = hold_blocked or skip_unsure
+    known = {e.id for e in ws.project.edit_decisions}
+    unknown_ids = [i for i in dict.fromkeys(ids) if i not in known]
+    if report and ids and len(unknown_ids) == len(set(ids)):
+        raise CodedValueError(
+            f"no edit matches {', '.join(unknown_ids)}", code="approve_unknown_ids"
+        )
     held: list[HeldEdit] = []
     unsure_held: list[HeldEdit] = []
     asked: list[AskedEdits] = []
@@ -41,6 +47,7 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {
         "count": outcome,
         "held": [{"id": h.edit_id, "label": h.label, "reason": h.reason} for h in held],
+        "unknown_ids": unknown_ids,
     }
     if asked:
         result["needs_confirmation"] = asked[0].confirmation.model_dump(mode="json")

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from podcast_mcp.edits import cut_application
 from podcast_mcp.edits.cut_speech import UnconfirmedCutSpeech
 from podcast_mcp.mcp.tools import edits as edits_tools
@@ -12,6 +14,7 @@ from podcast_mcp.models import EditDecision, EditDecisionType, load_project, sav
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document import edit as edit_service
+from podcast_mcp.util.coded_error import CodedValueError
 from test_edit_modes import CUT_REVIEW, GUEST_WORDS, _geometry, _quiet_guest
 from test_edit_modes import episode as _episode_fixture
 
@@ -167,15 +170,35 @@ def test_duplicate_requested_ids_are_replied_once(episode):
     _assert_ids_match(episode, reply)
 
 
-def test_unknown_requested_id_is_not_in_the_replied_ids(episode):
+def test_unknown_requested_id_is_reported_beside_the_approved_ones(episode):
     _set_decisions(episode, _remove("a", 2.0, 2.5, scope="track"))
 
-    reply = json.loads(approve_edits_tool(str(episode), ["a", "nope"]))
+    reply = json.loads(approve_edits_tool(str(episode), ["a", "nope", "nope"]))
 
     assert reply["ids"] == ["a"]
+    assert reply["unknown_ids"] == ["nope"]
     assert reply["approved_count"] == 1
     assert _pending_ids(episode) == []
     _assert_ids_match(episode, reply)
+
+
+def test_every_requested_id_unknown_is_an_error_and_changes_nothing(episode):
+    _set_decisions(episode, _remove("a", 2.0, 2.5, scope="track"))
+
+    with pytest.raises(CodedValueError) as raised:
+        approve_edits_tool(str(episode), ["nope", "gone"])
+
+    assert raised.value.code == "approve_unknown_ids"
+    assert "nope" in str(raised.value) and "gone" in str(raised.value)
+    assert _pending_ids(episode) == ["a"]
+
+
+def test_reply_without_unknown_requested_ids_lists_none(episode):
+    _set_decisions(episode, _remove("a", 2.0, 2.5, scope="track"))
+
+    reply = json.loads(approve_edits_tool(str(episode), ["a"]))
+
+    assert reply["unknown_ids"] == []
 
 
 def test_approve_all_with_nothing_pending_replies_no_ids(episode):
