@@ -89,6 +89,14 @@ describe("ScriptHost seams", () => {
     expect(seam()).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("closes the join when its seam is clicked again", async () => {
+    render(<ScriptHost />);
+    await userEvent.click(seam() as HTMLElement);
+    expect(useDawStore.getState().openJoinId).toBe("c2");
+    await userEvent.click(seam() as HTMLElement);
+    expect(useDawStore.getState().openJoinId).toBeNull();
+  });
+
   it("leaves the join alone while a join edit is in flight", async () => {
     useDawStore.setState({ joinMutationInFlight: true });
     render(<ScriptHost />);
