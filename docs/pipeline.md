@@ -688,13 +688,16 @@ a window are unchanged.
   pages under pressure. Peak anonymous memory is main's. Mapped pages count as file-backed RSS while touched.
 - **Key**: the tree, the curve and the full stamp (device, inode, size, mtime, ctime) of every source. The
   decode spool is keyed the same way plus the ffmpeg build. Entries are dropped when a build resolves a
-  different ffmpeg; a hit resolves nothing.
+  different ffmpeg; a hit resolves nothing, so a binary swapped
+  since the build is noticed at the next miss. A build during which the binary changed is not kept.
 - **No stale keep**: stored only if every source still has the stamp of the key after the build and none
   changed in the last 2 seconds.
 - **Cap**: `PODCAST_EVIDENCE_KEEP_MB`, default 3072 of disk, least recently used out first. The cap is soft
   while a reader holds arrays: eviction and release drop the store's references and a map is freed with
   the last array over it. With the decode spool's 6 GiB the worst case in the temp directory is 9 GiB.
-  `0` keeps nothing.
+  `0` keeps nothing. At most 32 entries are kept (each holds two descriptors for its maps). The cap is
+  read live but a lowered value only takes effect at the next store. The free-space check is made per
+  build, so parallel builds may together use more than the headroom; a full disk falls back as below.
 - **Exact fallbacks**: no retention on Windows, on a RAM-backed temp directory (tmpfs) or with less than
   2 GiB free beyond the entry; a failed spill hands the caller the RAM arrays and keeps nothing. A dropped
   entry is evaluated again.

@@ -12,9 +12,9 @@ A track whose render adds a step after its tree (a volume envelope, bleed restor
 tree the evaluator cannot take, still uses the render. The module logs the reason.
 
 A batch ends and its store goes with it, yet the evidence propose built is the evidence the
-check pass and Approve ask for. :class:`RetainedEvidence` keeps it for the life of the process
-(#2359, see its docstring), as read-only maps of unlinked temp files, so what stays between
-batches is disk that the kernel's page cache holds, not anonymous memory.
+check pass and Approve ask for. :class:`RetainedEvidence` keeps it as read-only maps of
+unlinked temp files, so what stays between batches is disk that the kernel's page cache holds,
+not anonymous memory.
 """
 
 from __future__ import annotations
@@ -71,6 +71,7 @@ IDLE_ENV = "PODCAST_EVIDENCE_KEEP_IDLE_S"
 DEFAULT_IDLE_S = 2700.0
 MAX_IDLE_S = 86400.0
 MAX_DECLINED = 256
+MAX_ENTRIES = 32
 RENDER_PREFIX = "sharecut-evidence-render-"
 _STORE_KEY = "track_evidence_store"
 JUMP_SAMPLE_RATE = 8000
@@ -477,9 +478,10 @@ def keep_bytes() -> int:
 
 
 def idle_seconds() -> float:
-    """The idle time after which retained evidence is released; read live. ``0`` or less never releases.
+    """The idle time before retained evidence is released; read live. ``0`` or less never releases.
 
-    A value that is not finite is the default; one above ``MAX_IDLE_S`` is ``MAX_IDLE_S``, since a longer wait would overflow the timer.
+    A value that is not finite is the default; one above ``MAX_IDLE_S`` is ``MAX_IDLE_S``, since
+    a longer wait would overflow the timer.
     """
     seconds = settings.number(IDLE_ENV, DEFAULT_IDLE_S)
     return min(seconds, MAX_IDLE_S) if math.isfinite(seconds) else DEFAULT_IDLE_S
@@ -493,42 +495,30 @@ def _monotonic() -> float:
     return time.monotonic()
 
 
+def _build_id() -> tuple[object, ...] | None:
+    try:
+        return ffmpeg_build_id()
+    except Exception:
+        return None
+
+
+def _superseded(old: EvidenceKey, new: EvidenceKey) -> bool:
+    """Whether ``old`` is the same tree and curve as ``new`` over other revisions of the sources."""
+    return old.tree == new.tree and old.curve == new.curve and old.revisions != new.revisions
+
+
 def _produce(key: EvidenceKey, tree: Audio) -> Evidence | Declined | _Entry:
-    """What a batch store builds a missing key from: the retained evidence, or a fresh evaluation."""
+    """What a batch store builds a missing key from: retained evidence, else a fresh evaluation."""
     return _RETAINED.get_or_build(key, tree, lambda: _evaluate(tree, key.curve))
 
 
 class RetainedEvidence:
-    """Evidence kept between batches, as read-only maps of unlinked temp files (#2359).
+    """Whole-track evidence kept between batches as read-only maps of unlinked temp files.
 
-    Propose builds the whole-track evidence that the check pass and Approve ask for again
-    minutes later, in batches of their own. A batch store is the front of every read, as it
-    always was; on a miss it asks this one before evaluating. So what a batch holds, and which
-    reads take a window, are what they were without retention.
-
-    * **Spill, not RAM**: a built entry is written to the spool directory
-      (:func:`~podcast_mcp.engines.decoded_source.spill`) and served as read-only arrays over a
-      map of it. Nothing anonymous stays resident while idle; the kernel reclaims the mapped
-      pages under pressure and reads them back. The bits are the evaluator's float32, verbatim.
-    * **Key**: the tree, the curve and the full stamp of every source (``ctime`` included),
-      plus a guard on the ffmpeg build: the entries are dropped when a build resolves a
-      different binary. A hit resolves nothing.
-    * **No stale keep**: an entry is kept only if every source still has the stamp the key
-      names after the build, and none was modified within ``RACY_SECONDS``. Otherwise the
-      caller gets the build and the store keeps nothing.
-    * **Cap**: ``PODCAST_EVIDENCE_KEEP_MB`` (default 3072) of disk, least recently used out
-      first; ``0`` keeps nothing and every read is the batch store's alone. The cap is soft
-      while views are held: eviction and release drop the store's references, and a map is
-      freed with the last array over it, so a reader that still holds one stays valid.
-    * **Fallbacks**: no retention on Windows, on a RAM-backed temp directory or with less than
-      2 GiB to spare; a failed spill (a full disk) hands the caller the RAM arrays and keeps
-      nothing. A dropped entry is evaluated again, to the same bits.
-    * **Idle release**: ``PODCAST_EVIDENCE_KEEP_IDLE_S`` (default 2700) seconds with no
-      hit or store and no build in flight, and the store drops everything, as
-      ``DecodeMemo`` does. A daemon timer, armed only while the store holds an entry or a decline.
-    * **Declined** trees are remembered too, up to ``MAX_DECLINED``, first in first out.
-    * **Verify**: with ``PODCAST_EVIDENCE_VERIFY=1`` each hit evaluates the tree again and
-      fails unless it equals the mapped arrays bit for bit.
+    A batch store asks this one on a miss. An entry is kept only when every source still has the
+    stamp the key names after the build and none is recent enough to share it with a rewrite.
+    The disk cap, the entry bound and the idle release are the settings above; a failed spill
+    or an unsuitable temp directory hands the caller the RAM arrays and keeps nothing.
     """
 
     def __init__(self) -> None:
@@ -566,7 +556,8 @@ class RetainedEvidence:
                 return self._keep(key, tree, build, cap)
             finally:
                 with self._lock:
-                    self._building.pop(key, None)
+                    if self._building.get(key) is builder:
+                        del self._building[key]
 
     def _hit(
         self, known: _Entry | Declined, build: Callable[[], Evidence | Declined]
@@ -578,16 +569,14 @@ class RetainedEvidence:
     def _keep(
         self, key: EvidenceKey, tree: Audio, build: Callable[[], Evidence | Declined], cap: int
     ) -> Evidence | Declined | _Entry:
-        try:
-            build_id: tuple[object, ...] | None = ffmpeg_build_id()
-        except Exception:
-            build_id = None
+        build_id = _build_id()
         with self._lock:
             if build_id is not None and self._ffmpeg not in (None, build_id):
                 self._drop_all()
             self._ffmpeg = build_id or self._ffmpeg
+        started = _now_ns()
         built = build()
-        if build_id is None or not self._unchanged(key, tree):
+        if build_id is None or _build_id() != build_id or not self._unchanged(key, tree, started):
             return built
         if isinstance(built, Declined):
             with self._lock:
@@ -604,24 +593,33 @@ class RetainedEvidence:
             _LOG.info("evidence not retained: the spill failed (%s)", exc)
             return built
         with self._lock:
+            for old in [k for k in self._entries if _superseded(k, key)]:
+                self._bytes -= self._entries.pop(old).nbytes
+            for old in [k for k in self._declined if _superseded(k, key)]:
+                del self._declined[old]
             self._entries[key] = entry
             self._bytes += entry.nbytes
-            while self._bytes > cap and len(self._entries) > 1:
+            while len(self._entries) > 1 and (
+                self._bytes > cap or len(self._entries) > MAX_ENTRIES
+            ):
                 _, oldest = self._entries.popitem(last=False)
                 self._bytes -= oldest.nbytes
             self._touch()
         return entry
 
     @staticmethod
-    def _unchanged(key: EvidenceKey, tree: Audio) -> bool:
-        """Whether every source has the stamp the key names and none is recent enough to share it with a rewrite."""
+    def _unchanged(key: EvidenceKey, tree: Audio, started: int) -> bool:
+        """Whether the sources still have the key's stamps and, at ``started``, were not racy.
+
+        ``started`` is the clock before the build read them: a rewrite after a read that shares
+        its stamp is only ruled out by a source that was already old then.
+        """
         try:
-            now = _now_ns()
             stamps = _stamps(tree)
         except OSError:
             return False
         return stamps == key.revisions and all(
-            now - max(stamp.mtime_ns, stamp.ctime_ns) >= RACY_SECONDS * 1e9 for stamp in stamps
+            started - max(stamp.mtime_ns, stamp.ctime_ns) >= RACY_SECONDS * 1e9 for stamp in stamps
         )
 
     def _find(self, key: EvidenceKey) -> _Entry | Declined | None:
@@ -661,7 +659,10 @@ class RetainedEvidence:
             self._release_locked()
 
     def _release_locked(self) -> None:
-        """Drop everything if idle long enough and nothing is building, else look again; the lock is held."""
+        """Drop everything if idle long enough and nothing is building, else look again.
+
+        The lock is held.
+        """
         self._timer = None
         idle = idle_seconds()
         if not (self._entries or self._declined) or idle <= 0:

@@ -1,4 +1,4 @@
-"""Track evidence kept between batches as read-only maps of unlinked temp files, exact and bounded (#2359)."""
+"""Track evidence kept between batches as read-only maps of unlinked temp files, exact and bounded."""
 
 from __future__ import annotations
 
@@ -68,7 +68,9 @@ class Calls:
     def __init__(self) -> None:
         self.trees: list[Audio] = []
 
-    def get(self, tree: Audio, *, before: Callable[[], None] | None = None):  # type: ignore[no-untyped-def]
+    def get(
+        self, tree: Audio, *, before: Callable[[], None] | None = None
+    ) -> Evidence | Declined | _Entry:
         key = EvidenceKey(tree, "tri", track_evidence._stamps(tree))
 
         def build() -> Evidence | Declined:
@@ -117,12 +119,32 @@ def test_a_later_read_gets_the_kept_evidence_as_plain_read_only_arrays_of_the_sa
     assert _spool_files() == []
 
 
-def test_a_cap_of_zero_keeps_nothing_and_every_read_evaluates(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _cap_of_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(track_evidence.KEEP_ENV, "0")
-    tree = _tree(_tone(tmp_path / "a.wav"))
+
+
+def _ram_backed_directory(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(decoded_source, "_in_memory_filesystem", lambda directory: True)
+
+
+def _little_free_disk(monkeypatch: pytest.MonkeyPatch) -> None:
+    low = types.SimpleNamespace(free=decoded_source.SPILL_HEADROOM_BYTES)
+    monkeypatch.setattr(decoded_source.shutil, "disk_usage", lambda directory: low)
+
+
+def _windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(track_evidence, "os", types.SimpleNamespace(name="nt"))
+
+
+@pytest.mark.parametrize(
+    "unsuitable", [_cap_of_zero, _ram_backed_directory, _little_free_disk, _windows]
+)
+def test_where_nothing_may_be_kept_every_read_evaluates_and_nothing_is_held(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unsuitable: Callable[..., None]
+) -> None:
+    unsuitable(monkeypatch)
     calls = Calls()
+    tree = _tree(_tone(tmp_path / "a.wav"))
 
     first = calls.get(tree)
     calls.get(tree)
@@ -247,10 +269,11 @@ def test_a_full_disk_inside_a_batch_still_dedupes_in_the_batch_store(
         "_evaluate",
         lambda tree, curve: evaluated.append(tree) or real_evaluate(tree, curve),
     )
-    monkeypatch.setattr(
-        decoded_source, "spill", lambda array: (_ for _ in ()).throw(OSError("full"))
-    )
-    monkeypatch.setattr(track_evidence, "spill", decoded_source.spill)
+
+    def full(array: np.ndarray) -> np.ndarray:
+        raise OSError("full")
+
+    monkeypatch.setattr(track_evidence, "spill", full)
 
     with batch_scope():
         first = track_evidence.rms(project, "caleb", defaults)
@@ -258,44 +281,6 @@ def test_a_full_disk_inside_a_batch_still_dedupes_in_the_batch_store(
 
     assert len(evaluated) == 1 and len(RETAINED) == 0
     np.testing.assert_array_equal(_bits(first.samples), _bits(again.samples))
-
-
-@posix_only
-def test_a_ram_backed_temp_directory_keeps_nothing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(decoded_source, "_in_memory_filesystem", lambda directory: True)
-    calls = Calls()
-    tree = _tree(_tone(tmp_path / "a.wav"))
-
-    calls.get(tree)
-    calls.get(tree)
-
-    assert len(calls.trees) == 2 and len(RETAINED) == 0
-
-
-@posix_only
-def test_little_free_disk_keeps_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    low = types.SimpleNamespace(free=decoded_source.SPILL_HEADROOM_BYTES)
-    monkeypatch.setattr(decoded_source.shutil, "disk_usage", lambda directory: low)
-    calls = Calls()
-    tree = _tree(_tone(tmp_path / "a.wav"))
-
-    calls.get(tree)
-    calls.get(tree)
-
-    assert len(calls.trees) == 2 and len(RETAINED) == 0
-
-
-def test_windows_keeps_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(track_evidence, "os", types.SimpleNamespace(name="nt"))
-    calls = Calls()
-    tree = _tree(_tone(tmp_path / "a.wav"))
-
-    calls.get(tree)
-    calls.get(tree)
-
-    assert len(calls.trees) == 2 and len(RETAINED) == 0
 
 
 @posix_only
@@ -361,7 +346,8 @@ def test_idle_release_drops_entries_and_declines_and_the_next_read_builds_again(
     tree = _tree(_tone(tmp_path / "a.wav"))
     calls = Calls()
     first = {rate: a.copy() for rate, a in calls.get(tree).samples.items()}
-    RETAINED._declined[calls_key := EvidenceKey(tree, "other", ())] = Declined.EVALUATOR
+    declined_key = EvidenceKey(tree, "other", ())
+    RETAINED._declined[declined_key] = Declined.EVALUATOR
     assert RETAINED._timer is not None
 
     clock.now += 2000
@@ -369,7 +355,7 @@ def test_idle_release_drops_entries_and_declines_and_the_next_read_builds_again(
     assert len(RETAINED) == 1
     clock.now += 700
     RETAINED._release_if_idle()
-    assert len(RETAINED) == 0 and calls_key not in RETAINED._declined
+    assert len(RETAINED) == 0 and declined_key not in RETAINED._declined
     assert RETAINED.held_bytes() == 0 and RETAINED._timer is None
 
     again = calls.get(tree)
@@ -484,12 +470,12 @@ def test_a_changed_ffmpeg_build_drops_what_was_kept_and_a_hit_resolves_nothing(
     calls = Calls()
     calls.get(one)
     calls.get(one)
-    assert len(resolved) == 1
+    assert len(resolved) == 2  # before and after the one build; the hit added none
 
     ids[0] = ("ffmpeg", "7")
     calls.get(two)
 
-    assert len(RETAINED) == 1 and len(resolved) == 2
+    assert len(RETAINED) == 1 and len(resolved) == 4
     calls.get(one)
     assert len(calls.trees) == 3
 
@@ -597,9 +583,6 @@ def test_the_batch_store_stays_in_front_and_holds_what_a_batch_read(
     assert again.jump.recording_profile == first.jump.recording_profile
 
 
-# ---- Approve across the batches propose, the check pass and Approve each run (#2359) ----
-
-
 def _check_then_approve(root: Path) -> tuple[dict, dict]:
     """What ``propose_tighten`` does: check on a scratch copy, then the real approval."""
     import copy
@@ -667,3 +650,91 @@ def test_check_and_approve_are_clean_under_evidence_verify(
     verified = _check_then_approve(tmp_path / "verified")
 
     assert _digest(verified[1]) == _digest(expected[1])
+
+
+def _key(tree: Audio) -> EvidenceKey:
+    return EvidenceKey(tree, "tri", track_evidence._stamps(tree))
+
+
+@posix_only
+def test_the_racy_rule_is_read_at_the_clock_before_the_build_not_after_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _tone(tmp_path / "a.wav")
+    tree = _tree(path)
+    modified = max(path.stat().st_mtime_ns, path.stat().st_ctime_ns)
+    building: list[bool] = []
+    monkeypatch.setattr(
+        track_evidence,
+        "_now_ns",
+        lambda: modified + 3600 * 10**9 if building else modified + 10**6,
+    )
+
+    built = Calls().get(tree, before=lambda: building.append(True))
+
+    assert isinstance(built, dict) and len(RETAINED) == 0
+
+
+@posix_only
+def test_entries_are_bounded_in_number_and_so_in_descriptors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(track_evidence, "MAX_ENTRIES", 2)
+    path = _tone(tmp_path / "a.wav")  # one source, so the decode spool adds no descriptors
+    trees = [_tree(path, start=n / 10) for n in range(4)]
+    calls = Calls()
+    calls.get(trees[0])
+    calls.get(trees[1])
+    two_held = _fds()
+
+    for tree in trees[2:]:
+        calls.get(tree)
+
+    assert len(RETAINED) == 2 and _fds() <= two_held
+    calls.trees.clear()
+    calls.get(trees[3])
+    assert calls.trees == []
+    calls.get(trees[0])
+    assert calls.trees == [trees[0]]
+
+
+@posix_only
+def test_an_ffmpeg_swapped_during_the_build_is_not_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ids = iter([("ffmpeg", "6"), ("ffmpeg", "7")])
+    monkeypatch.setattr(track_evidence, "ffmpeg_build_id", lambda: next(ids))
+
+    built = Calls().get(_tree(_tone(tmp_path / "a.wav")))
+
+    assert isinstance(built, dict) and len(RETAINED) == 0
+
+
+@posix_only
+def test_a_finished_build_leaves_a_newer_builders_lock_in_place(tmp_path: Path) -> None:
+    tree = _tree(_tone(tmp_path / "a.wav"))
+    newer = threading.Lock()
+
+    def another_builder_arrives() -> None:
+        RETAINED._building[_key(tree)] = newer
+
+    Calls().get(tree, before=another_builder_arrives)
+
+    assert RETAINED._building[_key(tree)] is newer
+
+
+@posix_only
+def test_a_kept_entry_drops_the_entry_of_the_same_tree_over_older_revisions(
+    tmp_path: Path,
+) -> None:
+    path = _tone(tmp_path / "a.wav")
+    tree = _tree(path)
+    calls = Calls()
+    first = calls.get(tree)
+    os.utime(path, ns=(1, 2))
+
+    second = calls.get(tree)
+
+    assert len(calls.trees) == 2 and second is not first
+    assert list(RETAINED._entries) == [_key(tree)]
+    assert RETAINED.held_bytes() == second.nbytes

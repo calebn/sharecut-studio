@@ -54,7 +54,7 @@ ISOLATED: dict[str, str] = {
     ),
     "podcast_mcp.engines.track_evidence:_RETAINED": (
         "Keyed by the track's tree and the stat stamp of its sources; tests patch the evaluator and "
-        "rewrite fixtures at the same path inside one clock tick, so each test starts empty (#2359)."
+        "rewrite fixtures at the same path inside one clock tick, so each test starts empty."
     ),
     "podcast_mcp.edits.verdict_cache:_STORE": (
         "Entries are keyed by the project's clips, words, media revisions and settings; a test "

@@ -29,6 +29,12 @@ REAL_EVALUATE = track_evidence._evaluate
 
 
 @pytest.fixture(autouse=True)
+def _no_retention(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Retention across batches is not under test here; counts must not depend on file ages."""
+    monkeypatch.setenv(track_evidence.KEEP_ENV, "0")
+
+
+@pytest.fixture(autouse=True)
 def _enough_cores() -> Iterator[None]:
     with use_hardware_profile(cpu_only_profile(8)):
         yield

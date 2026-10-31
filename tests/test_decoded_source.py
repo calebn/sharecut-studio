@@ -173,6 +173,12 @@ def test_a_spill_reads_back_the_array_bit_for_bit_and_leaves_no_file() -> None:
     assert _spool_files(decoded_source._spool_directory()) == []
 
 
+def test_an_empty_array_is_spilled_as_an_empty_read_only_array() -> None:
+    spilled = decoded_source.spill(np.empty((0,), dtype=np.float32))
+
+    assert spilled.shape == (0,) and spilled.dtype == np.float32 and not spilled.flags.writeable
+
+
 @posix_only
 def test_a_spill_that_hits_a_full_disk_raises_and_leaves_no_file_or_descriptor(
     monkeypatch: pytest.MonkeyPatch,
@@ -217,7 +223,9 @@ def test_a_temp_directory_on_tmpfs_is_a_memory_filesystem(
         "22 1 8:1 / / rw - ext4 /dev/vda rw\n"
         "30 22 0:25 / /tmp rw - tmpfs tmpfs rw\n"
         "31 22 0:26 / /tmpfoo rw - ext4 /dev/vdb rw\n"
-        "32 30 0:27 / /tmp/with\\040space rw - ext4 /dev/vdc rw\n",
+        "32 30 0:27 / /tmp/with\\040space rw - ext4 /dev/vdc rw\n"
+        "33 22 0:28 / /scratch rw - tmpfs tmpfs rw\n"
+        "34 22 0:29 / /scratch rw - ext4 /dev/vdd rw\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(decoded_source, "_MOUNTINFO", mountinfo)
@@ -226,6 +234,7 @@ def test_a_temp_directory_on_tmpfs_is_a_memory_filesystem(
     assert not decoded_source._in_memory_filesystem(Path("/tmpfoo/spool"))
     assert not decoded_source._in_memory_filesystem(Path("/tmp/with space/spool"))
     assert not decoded_source._in_memory_filesystem(Path("/home/spool"))
+    assert not decoded_source._in_memory_filesystem(Path("/scratch/spool"))
     monkeypatch.setattr(decoded_source, "_MOUNTINFO", tmp_path / "missing")
     assert not decoded_source._in_memory_filesystem(Path("/tmp/spool"))
 
@@ -242,11 +251,8 @@ def test_a_spill_wants_disk_headroom_and_a_disk_backed_directory(
     assert not decoded_source.spill_allowed(1001)
     monkeypatch.setattr(decoded_source, "_in_memory_filesystem", lambda directory: True)
     assert not decoded_source.spill_allowed(1)
-
-
-def test_no_spill_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(decoded_source, "_in_memory_filesystem", lambda directory: False)
     monkeypatch.setattr(decoded_source.os, "name", "nt")
-
     assert not decoded_source.spill_allowed(1)
 
 
