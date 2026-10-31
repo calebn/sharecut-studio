@@ -849,6 +849,7 @@ def test_score_all_samples_matches_scoring_each_sample(dtype):
     tone = np.sin(np.arange(300) * 0.21) * 0.3
     for samples in (
         rng.normal(0.0, 0.1, 200),
+        rng.normal(0.0, 0.1, 1500),
         np.round(rng.normal(0.0, 0.1, 120) * 10) / 10,
         tone + rng.normal(0.0, 0.01, 300),
         rng.normal(0.0, 0.1, 20),
