@@ -85,7 +85,8 @@ export function useScriptWindow(
   const start = anchor.current;
   const range = useMemo<Range>(() => {
     if (!windowed) return { lo: 0, hi: Math.max(total - 1, 0) };
-    const base = view ?? around(turnOf(start), total);
+    // A view past the end belongs to a replaced transcript; one that still fits is kept.
+    const base = view && view.hi < total ? view : around(turnOf(start), total);
     return clamp(base, total);
   }, [windowed, total, view, turnOf, start]);
   const rangeRef = useRef(range);
