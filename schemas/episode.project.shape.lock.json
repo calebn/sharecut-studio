@@ -289,6 +289,17 @@
             "timeline_start": {
               "type": "number"
             },
+            "timing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ClipTiming"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "track_id": {
               "type": "string"
             }
@@ -401,6 +412,41 @@
           "required": [
             "start_s",
             "end_s"
+          ],
+          "type": "object"
+        },
+        "ClipTiming": {
+          "properties": {
+            "evidence": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "kind": {
+              "const": "step",
+              "default": "step",
+              "type": "string"
+            },
+            "method": {
+              "default": "bleed_lag",
+              "type": "string"
+            },
+            "steps": {
+              "items": {
+                "$ref": "#/$defs/TimingStep"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "steps"
           ],
           "type": "object"
         },
@@ -1767,6 +1813,21 @@
           ],
           "type": "object"
         },
+        "QuietSpan": {
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
         "RangeInterval": {
           "additionalProperties": false,
           "properties": {
@@ -3019,6 +3080,32 @@
               "type": "array"
             }
           },
+          "type": "object"
+        },
+        "TimingStep": {
+          "properties": {
+            "at": {
+              "type": "number"
+            },
+            "delta_sec": {
+              "type": "number"
+            },
+            "quiet": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/QuietSpan"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "at",
+            "delta_sec"
+          ],
           "type": "object"
         },
         "Track": {
@@ -3830,6 +3917,17 @@
             "timeline_start": {
               "type": "number"
             },
+            "timing": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ClipTiming"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "track_id": {
               "type": "string"
             }
@@ -3942,6 +4040,41 @@
           "required": [
             "start_s",
             "end_s"
+          ],
+          "type": "object"
+        },
+        "ClipTiming": {
+          "properties": {
+            "evidence": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "kind": {
+              "const": "step",
+              "default": "step",
+              "type": "string"
+            },
+            "method": {
+              "default": "bleed_lag",
+              "type": "string"
+            },
+            "steps": {
+              "items": {
+                "$ref": "#/$defs/TimingStep"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "steps"
           ],
           "type": "object"
         },
@@ -5308,6 +5441,21 @@
           ],
           "type": "object"
         },
+        "QuietSpan": {
+          "properties": {
+            "end_s": {
+              "type": "number"
+            },
+            "start_s": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "start_s",
+            "end_s"
+          ],
+          "type": "object"
+        },
         "RangeInterval": {
           "additionalProperties": false,
           "properties": {
@@ -6562,6 +6710,32 @@
           },
           "type": "object"
         },
+        "TimingStep": {
+          "properties": {
+            "at": {
+              "type": "number"
+            },
+            "delta_sec": {
+              "type": "number"
+            },
+            "quiet": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/QuietSpan"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "at",
+            "delta_sec"
+          ],
+          "type": "object"
+        },
         "Track": {
           "properties": {
             "balance_basis": {
@@ -7095,6 +7269,7 @@
     "ClipBleedRestore": "ignore",
     "ClipMuteRegion": "ignore",
     "ClipOffSpeakerMuteRegion": "forbid",
+    "ClipTiming": "ignore",
     "CombinedTranscript": "ignore",
     "CombinedUtterance": "ignore",
     "CommentActionItem": "ignore",
@@ -7127,6 +7302,7 @@
     "ProxyOccurrenceBinding": "ignore",
     "ProxyProjectBasis": "ignore",
     "ProxyPublishedArtifact": "ignore",
+    "QuietSpan": "ignore",
     "RangeInterval": "forbid",
     "RecordSessionRecord": "ignore",
     "RenderArtifacts": "ignore",
@@ -7153,6 +7329,7 @@
     "StagedTake": "ignore",
     "TimelineComment": "ignore",
     "TimelineSection": "ignore",
+    "TimingStep": "ignore",
     "Track": "ignore",
     "TrackProxy": "ignore",
     "Transcript": "ignore",
