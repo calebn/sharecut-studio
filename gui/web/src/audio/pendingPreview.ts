@@ -232,3 +232,121 @@ export async function playPendingPreview(
     return { status: "disabled", reason: errorMessage(error) };
   }
 }
+
+export const SESSION_PREVIEW_STALE_REASON =
+  "This pickup changed while its preview rendered. Play it again.";
+
+const sessionOwnerId = (suggestionId: string) => `session:${suggestionId}`;
+
+const sessionStillPending = (suggestionId: string): boolean =>
+  !!useDawStore
+    .getState()
+    .project?.session_suggestions?.some((s) => s.id === suggestionId);
+
+/** Stop and free a pickup's preview if it is the one playing or rendering. */
+export function releaseSessionPreview(suggestionId: string): void {
+  if (active?.ownerId === sessionOwnerId(suggestionId)) stopActive();
+}
+
+const warmedSessions = new Map<string, string>();
+
+/** Render a pending session's Current and Suggested windows before the first Play. Host only; best effort. */
+export async function warmSessionPreview(
+  projectPath: string,
+  suggestionId: string,
+): Promise<boolean> {
+  const state = useDawStore.getState();
+  if (isShareProjectKey(projectPath) || state.guestMode !== null) return true;
+  if (state.projectPath !== projectPath || !state.project) return true;
+  const key = `${projectPath}|${suggestionId}`;
+  const mix = mixKey(state.project);
+  if (warmedSessions.get(key) === mix) return true;
+  warmedSessions.set(key, mix);
+  const query = new URLSearchParams({
+    path: projectPath,
+    suggestion_id: suggestionId,
+  });
+  try {
+    const response = await hostFetch(`/api/session-suggestion/warm?${query}`, {
+      method: "POST",
+    });
+    const failed =
+      !response.ok ||
+      Object.values(
+        ((await response.json()) as { sides?: Record<string, string> }).sides ??
+          {},
+      ).includes("failed");
+    if (failed && warmedSessions.get(key) === mix) warmedSessions.delete(key);
+    return !failed;
+  } catch {
+    if (warmedSessions.get(key) === mix) warmedSessions.delete(key);
+    return false;
+  }
+}
+
+/**
+ * Play what a pending record session sounds like before ("current") or after
+ * ("suggested") Accept, as one source preview. `takeIndex` is the take Accept
+ * would place for a replace.
+ */
+export async function playSessionPreview(
+  projectPath: string,
+  suggestionId: string,
+  mode: Exclude<PreviewMode, "ab">,
+  opts: { padSec?: number; takeIndex?: number } = {},
+): Promise<PendingPreviewOutcome> {
+  const captured = useDawStore.getState();
+  if (
+    captured.projectPath !== projectPath ||
+    !captured.project ||
+    !sessionStillPending(suggestionId)
+  )
+    return { status: "disabled", reason: SESSION_PREVIEW_STALE_REASON };
+  if (isShareProjectKey(projectPath) || captured.guestMode !== null)
+    return { status: "disabled", reason: "Only the host can hear a pickup." };
+  stopActive();
+  const request: ActivePreview = {
+    ownerId: sessionOwnerId(suggestionId),
+    controller: new AbortController(),
+    url: null,
+  };
+  active = request;
+  try {
+    const query = new URLSearchParams({
+      path: projectPath,
+      suggestion_id: suggestionId,
+      mode,
+    });
+    if (opts.padSec !== undefined) query.set("pad_sec", String(opts.padSec));
+    if (opts.takeIndex !== undefined)
+      query.set("take_index", String(opts.takeIndex));
+    const response = await hostFetch(
+      `/api/session-suggestion/hear-wav?${query}`,
+      { signal: request.controller.signal },
+    );
+    if (!response.ok) throw await readApiFailure(response);
+    const blob = await response.blob();
+    const durationSec = wavDurationSec(
+      parseWavHeader(await blob.arrayBuffer()),
+    );
+    if (request.controller.signal.aborted) return { status: "superseded" };
+    const live = useDawStore.getState();
+    if (
+      live.projectEpoch !== captured.projectEpoch ||
+      live.guestMode !== captured.guestMode ||
+      !sessionStillPending(suggestionId)
+    )
+      return { status: "disabled", reason: SESSION_PREVIEW_STALE_REASON };
+    request.url = URL.createObjectURL(blob);
+    live.beginSourcePreview({
+      ownerId: request.ownerId,
+      media: { kind: "rendered", url: request.url },
+      startSec: 0,
+      endSec: durationSec,
+    });
+    return { status: "ok" };
+  } catch (error) {
+    if (request.controller.signal.aborted) return { status: "superseded" };
+    return { status: "disabled", reason: errorMessage(error) };
+  }
+}

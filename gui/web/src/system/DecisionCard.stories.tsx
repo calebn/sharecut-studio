@@ -137,6 +137,29 @@ export const Sound: Story = {
   },
 };
 
+export const Pickup: Story = {
+  args: {
+    kind: "pickup",
+    verb: "replace",
+    title: "Replace 26:00–26:25 with Session 3",
+    time: "26:00",
+    speaker: undefined,
+    excerpt: undefined,
+    why: "Take 2 of 3 · Jon",
+    savedSeconds: undefined,
+    waveform: undefined,
+    change: { start: 1560, end: 1585 },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Pickup")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Replace" }));
+    await expect(args.onVerb).toHaveBeenCalledOnce();
+    await userEvent.click(canvas.getByRole("button", { name: "Skip" }));
+    await expect(args.onKeep).toHaveBeenCalledOnce();
+  },
+};
+
 export const Adjusting: Story = {
   render: (args) => <Adjustable {...args} />,
   play: async ({ canvasElement }) => {

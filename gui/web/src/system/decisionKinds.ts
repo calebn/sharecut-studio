@@ -5,6 +5,7 @@ export type DecisionKind =
   | "check"
   | "unsure-word"
   | "comment"
+  | "pickup"
   | "filler"
   | "pause"
   | "repeat"
@@ -19,6 +20,8 @@ export type DecisionKindMeta = {
   /** The word on the primary button when it differs from the verb label. */
   readonly verbLabel?: string;
   readonly wave: boolean;
+  /** The word on the Keep side when it is not Keep: a pickup is skipped. */
+  readonly keepLabel?: string;
 };
 
 export const KIND_META: Readonly<Record<DecisionKind, DecisionKindMeta>> = {
@@ -39,6 +42,13 @@ export const KIND_META: Readonly<Record<DecisionKind, DecisionKindMeta>> = {
     label: "Comment",
     icon: "message-square",
     verb: "resolve",
+    wave: false,
+  },
+  pickup: {
+    label: "Pickup",
+    icon: "replace",
+    verb: "replace",
+    keepLabel: "Skip",
     wave: false,
   },
   filler: { label: "Filler", icon: "scissors", verb: "cut", wave: true },

@@ -83,6 +83,30 @@ export const EXTRA_KIND_ITEMS: readonly ReviewItem[] = [
   },
 ];
 
+export const PICKUP_ITEMS: readonly ReviewItem[] = [
+  {
+    id: "pk1",
+    kind: "pickup",
+    at: 724,
+    savedSeconds: 0,
+    pickup: { kind: "insert", number: 2 },
+  },
+  {
+    id: "pk2",
+    kind: "pickup",
+    at: 1560,
+    savedSeconds: 0,
+    pickup: { kind: "replace", number: 3 },
+  },
+  {
+    id: "pk3",
+    kind: "pickup",
+    at: 2100,
+    savedSeconds: 0,
+    pickup: { kind: "replace", number: 4 },
+  },
+];
+
 export const QUEUE_CHECKED = QUEUE_ITEMS.map((item) =>
   item.kind === "check" ? { ...item, result: "applied" as const } : item,
 );

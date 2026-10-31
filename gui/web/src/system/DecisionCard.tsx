@@ -405,6 +405,7 @@ export function DecisionCard(props: DecisionCardProps) {
         canEdit={canEdit}
         showOpenInEdit={!compact}
         promptOpen={prompt !== undefined}
+        keepLabel={meta.keepLabel}
         center={abInBar ? ab : undefined}
         onKeep={onKeep}
         onVerb={onVerb}

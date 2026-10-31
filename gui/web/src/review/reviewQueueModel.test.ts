@@ -30,6 +30,7 @@ describe("queue order", () => {
       "repeat",
       "pause",
       "filler",
+      "pickup",
       "comment",
       "unsure-word",
       "check",
@@ -42,6 +43,7 @@ describe("queue order", () => {
       "check",
       "unsure-word",
       "comment",
+      "pickup",
       "filler",
       "pause",
       "repeat",
@@ -49,6 +51,59 @@ describe("queue order", () => {
       "sound",
       "suggestion",
     ]);
+  });
+});
+
+describe("pickups", () => {
+  const pickup = (over: Partial<ReviewItem> = {}): ReviewItem => ({
+    id: "session:a",
+    kind: "pickup",
+    at: 724,
+    savedSeconds: 0,
+    pickup: { kind: "replace", number: 2 },
+    ...over,
+  });
+
+  it("groups them as Pickups, never bulk, and never counts them as seconds saved", () => {
+    const [group] = groupQueue([pickup(), pickup({ id: "session:b" })]);
+    expect(group).toMatchObject({
+      kind: "pickup",
+      label: "Pickups",
+      bulk: null,
+      held: 0,
+    });
+    expect(
+      progressLine([pickup({ result: "applied" }), pickup({ id: "b" })]),
+    ).toBe("1 of 2 decided · saves 0.0 s");
+  });
+
+  it("filters them with the suggestions and counts them there", () => {
+    const items = [
+      pickup(),
+      item({ id: "f" }),
+      item({ id: "m", kind: "comment" }),
+    ];
+    expect(filterItems(items, "suggestions").map((i) => i.id)).toEqual([
+      "session:a",
+      "f",
+    ]);
+    expect(filterCounts(items)).toMatchObject({
+      all: 3,
+      suggestions: 2,
+      comments: 1,
+    });
+  });
+
+  it("takes Replace or Insert as its verb and words the result with the session", () => {
+    expect(verbOf(pickup())).toBe("replace");
+    expect(verbOf(pickup({ pickup: { kind: "insert", number: 2 } }))).toBe(
+      "insert",
+    );
+    expect(resultText(pickup({ result: "applied" }))).toBe("Added Session 2");
+    expect(resultText(pickup({ result: "kept" }))).toBe("Skipped Session 2");
+    expect(decisionMessage([pickup()], ["session:a"], "applied")).toBe(
+      "Added Session 2",
+    );
   });
 });
 

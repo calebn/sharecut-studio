@@ -5,7 +5,9 @@ import type {
   CombinedUtterance,
   PendingEditView,
   PendingKind,
+  SessionSuggestionView,
   TimelineComment,
+  TrackView,
   TranscriptCheckStatus,
 } from "../types/project";
 import { formatTimeShort } from "../utils/time";
@@ -48,6 +50,112 @@ export const commentIdOf = (reviewId: string): string | null =>
   reviewId.startsWith(COMMENT_PREFIX)
     ? reviewId.slice(COMMENT_PREFIX.length)
     : null;
+
+const SESSION_PREFIX = "session:";
+
+export const sessionItemId = (suggestionId: string) =>
+  `${SESSION_PREFIX}${suggestionId}`;
+
+export const sessionIdOf = (reviewId: string): string | null =>
+  reviewId.startsWith(SESSION_PREFIX)
+    ? reviewId.slice(SESSION_PREFIX.length)
+    : null;
+
+/** The take Accept places for a replace: the picked one, else the server's default (the last). */
+export const takeToPlace = (s: SessionSuggestionView): number | undefined =>
+  s.kind !== "replace"
+    ? undefined
+    : (s.selected_take ?? s.take_indexes[s.take_indexes.length - 1]);
+
+/** Where the session sits on the timeline: its insert point, or the start of its replace range. */
+export const sessionStartSec = (s: SessionSuggestionView): number | null => {
+  const at = s.kind === "insert" ? s.at_sec : s.from_sec;
+  return at !== null && Number.isFinite(at) ? at : null;
+};
+
+const plural = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`;
+
+const joinNames = (names: readonly string[]) =>
+  names.length < 3
+    ? names.join(" and ")
+    : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+/** One item per staged record session still waiting for a decision. Host payload only. */
+export function sessionEntriesOf(
+  suggestions: readonly SessionSuggestionView[],
+  tracks: readonly Pick<TrackView, "id" | "label">[],
+): ReviewEntry[] {
+  return suggestions.map((s): ReviewEntry => {
+    const start = sessionStartSec(s);
+    const at = start ?? Number.POSITIVE_INFINITY;
+    const end =
+      s.kind === "replace" && s.to_sec !== null && Number.isFinite(s.to_sec)
+        ? s.to_sec
+        : null;
+    const time = start === null ? "Unplaced" : formatTimeShort(start);
+    const title =
+      s.kind === "insert"
+        ? `Insert Session ${s.session_number} at ${time}`
+        : start !== null && end !== null
+          ? `Replace ${time}–${formatTimeShort(end)} with Session ${s.session_number}`
+          : `Replace with Session ${s.session_number}`;
+    const names = s.track_ids.map(
+      (id) => tracks.find((t) => t.id === id)?.label ?? id,
+    );
+    const take = takeToPlace(s);
+    const at1 = take === undefined ? -1 : s.take_indexes.indexOf(take);
+    const takeLine =
+      s.kind === "replace" && s.take_count > 1 && at1 >= 0
+        ? `Take ${at1 + 1} of ${s.take_count}`
+        : plural(s.take_count, "take", "takes");
+    const why = names.length ? `${takeLine} · ${joinNames(names)}` : takeLine;
+    return {
+      item: {
+        id: sessionItemId(s.id),
+        kind: "pickup",
+        at,
+        savedSeconds: 0,
+        pickup: { kind: s.kind, number: s.session_number },
+      },
+      content: {
+        row: { snippet: title, time, value: takeLine },
+        card: {
+          title,
+          time,
+          why,
+          ...(start !== null ? { change: { start, end: end ?? start } } : {}),
+        },
+      },
+    };
+  });
+}
+
+/** "This also removes speech from Host and Guest." from a held replace's reply, or null when it was not held. */
+export function pickupConfirmation(
+  reply: Record<string, unknown>,
+  tracks: readonly Pick<TrackView, "id" | "label">[],
+): string | null {
+  const ask = reply.needs_confirmation;
+  if (typeof ask !== "object" || ask === null) return null;
+  const speech = (ask as { speech?: { tracks?: unknown } }).speech;
+  const rows = Array.isArray(speech?.tracks) ? speech.tracks : [];
+  const names = rows.flatMap((row: unknown): string[] => {
+    if (typeof row !== "object" || row === null) return [];
+    const { track_id: id, speaker } = row as {
+      track_id?: unknown;
+      speaker?: unknown;
+    };
+    const name =
+      typeof speaker === "string" && speaker
+        ? speaker
+        : tracks.find((t) => t.id === id)?.label;
+    return name ? [name] : [];
+  });
+  return names.length
+    ? `This also removes speech from ${joinNames([...new Set(names)])}.`
+    : "This also removes speech from another track.";
+}
 
 export type WordTarget = {
   trackId: string;

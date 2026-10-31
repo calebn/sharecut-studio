@@ -7,6 +7,7 @@ import {
   minimalProject,
   pendingEditView,
   sampleComment,
+  sessionSuggestionView,
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import { ReviewHost } from "./ReviewHost";
@@ -103,6 +104,26 @@ describe("Review queue for a guest", () => {
       expect(screen.getByText(/of 1 resolved/)).toBeVisible();
       expect(screen.queryByText(/saves/)).toBeNull();
       expect(screen.queryByRole("button", { name: /^Suggestions/ })).toBeNull();
+    },
+  );
+
+  it.each(["view", "comment", "edit"] as const)(
+    "never lists a staged record session for a %s guest, even if the payload carried one",
+    (mode) => {
+      join(mode);
+      useDawStore.setState((s) => ({
+        project: s.project && {
+          ...s.project,
+          session_suggestions: [sessionSuggestionView()],
+        },
+      }));
+      render(<ReviewHost guestShare />);
+      expect(screen.queryByText(/Insert Session/)).toBeNull();
+      expect(
+        [...document.querySelectorAll(".rv-group")].map((g) =>
+          g.getAttribute("aria-label"),
+        ),
+      ).not.toContain("Pickups");
     },
   );
 
