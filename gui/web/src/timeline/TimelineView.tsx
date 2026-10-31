@@ -89,7 +89,6 @@ import {
 } from "./laneOverlaySlices";
 import { MarkerLane } from "./MarkerLane";
 import { Playhead } from "./Playhead";
-import { PresenceOverlay } from "./PresenceOverlay";
 import { ProsodyStatusAnnouncer } from "./ProsodyStatusAnnouncer";
 import { PrecisionLayer } from "./precision/PrecisionLayer";
 import { precisionHandoff } from "./precision/precisionController";
@@ -97,6 +96,7 @@ import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
 import { TargetChooser } from "./TargetChooser";
 import { TimelineCreateMenu } from "./TimelineCreateMenu";
 import { FollowPlayheadChip, SplitGuide } from "./TimelineLeaves";
+import { TimelinePresence } from "./TimelinePresence";
 import { TimelineRuler } from "./TimelineRuler";
 import { TrackLane } from "./TrackLane";
 import {
@@ -1033,13 +1033,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                           height={laneStackHeight - markerLaneHeightPx}
                         />
                       ) : null}
-                      <PresenceOverlay
-                        zoomPxPerSec={zoomPxPerSec}
-                        height={laneStackHeight - markerLaneHeightPx}
-                        tracks={project.tracks}
-                        clipsByTrack={project.clips.tracks}
-                        hidePlayheadForClientId={followingClientId}
-                      />
                       <CommentPlaybackBubble
                         comments={comments}
                         zoomPxPerSec={zoomPxPerSec}
@@ -1122,6 +1115,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                       })}
                     </div>
                   </div>
+                  <TimelinePresence
+                    canvasWidthPx={width}
+                    viewportPx={timeViewportPx}
+                    zoomPxPerSec={zoomPxPerSec}
+                    laneHeight={laneHeight}
+                    markerLaneHeightPx={markerLaneHeightPx}
+                    followingClientId={followingClientId}
+                  />
                 </div>
                 <RecordingScrollExtent
                   zoomPxPerSec={zoomPxPerSec}

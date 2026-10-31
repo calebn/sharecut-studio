@@ -4,8 +4,8 @@ import { jsonEqual } from "../utils/jsonEqual";
 /**
  * The presence roster keyed by `client_id`. A delta (`applyPresenceDelta`) replaces only
  * its own entry and keeps every other entry's identity, so per-client consumers
- * (`PresenceGhostLayer`'s `GhostRow`, `PresenceOverlayView`'s row) re-render only the
- * client that changed. See `docs/session-sync.md`'s client apply model.
+ * (`PresenceGhostLayer`'s `GhostRow`, `TimelinePresence`'s people list) re-render only for
+ * the client that changed. See `docs/session-sync.md`'s client apply model.
  */
 export type SessionRoster = Record<string, SessionClient>;
 
