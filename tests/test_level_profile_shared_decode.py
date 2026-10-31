@@ -17,6 +17,7 @@ from podcast_mcp.engines.level_profile import (
 )
 from podcast_mcp.models import MediaAsset, Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.tracks import track_audio_path
 
 RATE = 8000
@@ -64,3 +65,26 @@ def test_the_rms_cache_after_a_track_profile_decodes_nothing_new(
     )
     assert profile == expected
     assert cache.profile == expected
+
+
+def test_a_batch_reads_the_memos_decode_instead_of_decoding_again(
+    minimal_project, raw_decodes: list[int]
+) -> None:
+    project = ProjectWorkspace.open(minimal_project).project
+    project.tracks = [
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=1.0),
+        )
+    ]
+    path = track_audio_path(project, "host")
+    then = time.time_ns() - 3600 * 10**9
+    os.utime(path, ns=(then, then))
+
+    audio_cache.track_level_profile(project, "host", sample_rate=RATE)
+    with batch_scope():
+        cache = TrackRmsCache.from_recording(path, sample_rate=RATE)
+        assert load_mono_full(path.resolve(), sample_rate=RATE) is cache.samples
+    assert raw_decodes == [RATE]
