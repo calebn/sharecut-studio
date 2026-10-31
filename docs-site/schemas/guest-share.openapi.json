@@ -2138,6 +2138,16 @@
             "title": "Timeline Start",
             "type": "number"
           },
+          "timing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClipTiming"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "track_id": {
             "title": "Track Id",
             "type": "string"
@@ -2353,6 +2363,45 @@
           "end_s"
         ],
         "title": "ClipOffSpeakerMuteRegion",
+        "type": "object"
+      },
+      "ClipTiming": {
+        "properties": {
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "kind": {
+            "const": "step",
+            "default": "step",
+            "title": "Kind",
+            "type": "string"
+          },
+          "method": {
+            "default": "bleed_lag",
+            "title": "Method",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/TimingStep"
+            },
+            "minItems": 1,
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "steps"
+        ],
+        "title": "ClipTiming",
         "type": "object"
       },
       "CorrectTranscriptPhraseCommand": {
@@ -5336,6 +5385,25 @@
           }
         },
         "title": "ProposeTightenPayload",
+        "type": "object"
+      },
+      "QuietSpan": {
+        "description": "``[start_s, end_s)`` in source seconds that the solver certified quiet.",
+        "properties": {
+          "end_s": {
+            "title": "End S",
+            "type": "number"
+          },
+          "start_s": {
+            "title": "Start S",
+            "type": "number"
+          }
+        },
+        "required": [
+          "start_s",
+          "end_s"
+        ],
+        "title": "QuietSpan",
         "type": "object"
       },
       "RangeAudioInput": {
@@ -10815,6 +10883,34 @@
           }
         },
         "title": "SuppressLowAudibilityPayload",
+        "type": "object"
+      },
+      "TimingStep": {
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "number"
+          },
+          "delta_sec": {
+            "title": "Delta Sec",
+            "type": "number"
+          },
+          "quiet": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuietSpan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "at",
+          "delta_sec"
+        ],
+        "title": "TimingStep",
         "type": "object"
       },
       "TranscriptRefineStatusView": {
