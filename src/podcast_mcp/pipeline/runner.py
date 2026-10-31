@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.engines.audibility_reuse import audibility_run_scope
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
 from podcast_mcp.models import (
     EpisodeProject,
@@ -291,6 +292,7 @@ class PipelineRunner:
         with (
             bind_progress(reporter),
             render_cancel_scope(cancel_check),
+            audibility_run_scope(),
             progress_task(
                 "pipeline",
                 "Pipeline",
