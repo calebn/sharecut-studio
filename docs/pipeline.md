@@ -569,7 +569,7 @@ which decodes it when it can). The rate lookup runs only when some input is dela
 render is a Restore render; then it covers every input. A render with neither, such as a single
 clip at 0 s, never consults it, so an undecodable WAV there still fails at the final run. A WAV with an
 empty data chunk renders at its header format, but a Restore render whose clock observers decode
-every input fails on it with `bleed_restore_clock_invalid`. A render fails with
+every input fails on it with `bleed_restore_clock_invalid`. A render, cancellable encode or source-proxy audio pass fails with
 `render_command_too_long` when the operating system refuses the command line.
 
 It then runs the track FX chain **once** over the fully assembled audio. Besides

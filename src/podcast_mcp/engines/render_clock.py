@@ -92,7 +92,7 @@ def spawn_or_too_long(spawn: Callable[..., _T], cmd: list[str], **kwargs: Any) -
     except OSError as error:
         if getattr(error, "winerror", None) == 206 or error.errno == errno.E2BIG:
             raise CodedValueError(
-                "This mix has too many inputs for one render command",
+                "This ffmpeg command line is too long for the operating system",
                 code="render_command_too_long",
             ) from error
         raise
