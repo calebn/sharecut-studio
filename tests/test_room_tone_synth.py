@@ -356,3 +356,20 @@ def test_a_track_id_with_path_characters_stays_inside_the_synth_directory(
 
     if isinstance(picked, SynthSample):
         assert picked.path.parent == (tmp_path / "raw" / "room-tone-synth").resolve()
+
+
+def test_a_cut_copy_registers_a_synthesised_source_on_the_copy_only(tmp_path: Path) -> None:
+    from podcast_mcp.edits.cut_application import _cut_copy
+
+    project = _project_with_bed(tmp_path, _bed(3.0))
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=4.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=4.5, source_end=10.0, timeline_start=4.0),
+    ]
+    sources_before = [s.id for s in project.sources]
+    candidate = _cut_copy(project)
+
+    insert_room_tone_pad(candidate, 4.0, 20.0, defaults=load_defaults())
+
+    assert any(s.id.startswith(SYNTH_ID_PREFIX) for s in candidate.sources)
+    assert [s.id for s in project.sources] == sources_before

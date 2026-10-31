@@ -106,6 +106,7 @@ from podcast_mcp.models import (
     EditDecisionType,
     EditMode,
     EpisodeProject,
+    SourceRecording,
 )
 from podcast_mcp.models.episode import (
     EditorialSection,
@@ -442,6 +443,10 @@ def _shared(section: Any) -> Any:
     return section
 
 
+def _sources_copy(sources: list[SourceRecording]) -> list[SourceRecording]:
+    return list(sources)
+
+
 def _meta_copy(meta: ProjectMeta) -> ProjectMeta:
     alignment = meta.ingest_alignment
     return _replaced(meta, ingest_alignment=None if alignment is None else dict(alignment))
@@ -485,7 +490,7 @@ def _review_copy(review: ReviewSection) -> ReviewSection:
 _SECTION_COPIES: Mapping[str, Callable[[Any], Any]] = {
     "version": _shared,
     "meta": _meta_copy,  # a manual clip's split adds ingest_alignment entries
-    "sources": _shared,
+    "sources": _sources_copy,  # a long room-tone fill registers its synthesised source
     "timeline": _timeline_copy,  # clips and tracks are edited in place
     "editorial": _editorial_copy,  # edit_log appends, chapters are replaced
     "transcript_data": _transcripts_copy,  # words are replaced, archived words appended

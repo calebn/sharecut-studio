@@ -92,7 +92,7 @@ def populated() -> EpisodeProject:
 TOP: dict[str, str] = {
     "version": "scalar",
     "meta": "shell",
-    "sources": "shared",
+    "sources": "list",  # a long room-tone fill registers its synthesised source
     "timeline": "shell",
     "editorial": "shell",
     "transcript_data": "shell",
@@ -161,7 +161,7 @@ def test_every_project_section_has_a_copy_verdict():
             f"{model.__name__} gained or lost a field: decide in NESTED (and _cut_copy) "
             "whether a cut may write it"
         )
-    assert set(TOP.values()) <= {"scalar", "shared", "shell"}
+    assert set(TOP.values()) <= {"scalar", "shared", "shell", "list"}
     assert set(TOP) >= set(NESTED)
     assert {name for name, v in TOP.items() if v == "shell"} == set(NESTED)
 
@@ -251,7 +251,7 @@ def shared_field_names() -> set[str]:
     """
     roots: list[type[BaseModel]] = []
     for name, verdict in TOP.items():
-        if verdict == "shared":
+        if verdict in {"shared", "list"}:
             roots += _models_in(EpisodeProject.model_fields[name].annotation)
     sections = {
         "meta": type(EpisodeProject.create("t", "/tmp/t").meta),
