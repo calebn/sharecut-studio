@@ -180,7 +180,10 @@ export function useClipEdgeHandles(context: Context) {
       publish(null);
     }
   };
-  useInterruptCancel(cancel, draft?.phase === "preview");
+  useInterruptCancel(
+    cancel,
+    draft?.phase === "preview" && draft.input.kind === "pointer",
+  );
   const fresh = (capture: Capture) => {
     const s = useDawStore.getState();
     const c = latest.current;

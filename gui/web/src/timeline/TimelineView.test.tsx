@@ -1070,6 +1070,37 @@ describe("TimelineView lane fit", () => {
       expect(useDawStore.getState().selection).toBeNull();
     });
 
+    it("drops a lane range when the lane surface loses pointer capture", () => {
+      const project = twoTrackProject({
+        clips: { tracks: { host: [hostClip], guest: [] }, clip_count: 1 },
+      });
+      useDawStore.getState().hydrate("/tmp/p.json", project);
+      useDawStore.setState({ zoomPxPerSec: 10, userZoomed: true });
+      const { container } = render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+          <TimelineView />
+        </DawProvider>,
+      );
+      const lane = container.querySelector(
+        '.lane-row[data-track-id="host"]',
+      ) as HTMLElement;
+      const lanes = lane.parentElement!;
+      vi.spyOn(lanes, "getBoundingClientRect").mockReturnValue({
+        left: 100,
+      } as DOMRect);
+      vi.spyOn(lane, "getBoundingClientRect").mockReturnValue({
+        top: 0,
+        bottom: 100,
+      } as DOMRect);
+      document.elementFromPoint = () => lane;
+      const blank = lane.querySelector(".lane-seek")!;
+      fireEvent.pointerDown(blank, { pointerId: 1, clientX: 110, clientY: 10 });
+      fireEvent.pointerMove(blank, { pointerId: 1, clientX: 150, clientY: 20 });
+      expect(useDawStore.getState().selection).toMatchObject({ kind: "range" });
+      fireEvent.lostPointerCapture(lanes, { pointerId: 1 });
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
     it("keeps a second clip from replacing or canceling the body owner's preview", () => {
       const other = {
         ...hostClip,
