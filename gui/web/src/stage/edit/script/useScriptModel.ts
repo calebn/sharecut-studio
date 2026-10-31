@@ -12,13 +12,13 @@ import {
   buildScriptModel,
   type ScriptModel,
   type ScriptWordRef,
+  speakerColorIndex,
 } from "./scriptModel";
 
 const NO_UTTERANCES: readonly CombinedUtterance[] = [];
 const NO_BOUNDARIES: readonly EditBoundaryView[] = [];
 const NO_PENDING: readonly PendingEditView[] = [];
 const NO_TRACKS: readonly TrackView[] = [];
-const COLORS = 8;
 
 export type ScriptHostModel = {
   model: ScriptModel;
@@ -49,7 +49,7 @@ export function useScriptModel(): ScriptHostModel {
       const at = tracks.findIndex((track) => track.id === trackId);
       return {
         name: speaker || tracks[at]?.speaker || trackId,
-        colorIndex: Math.max(at, 0) % COLORS,
+        colorIndex: speakerColorIndex(at),
       };
     },
     [tracks],
