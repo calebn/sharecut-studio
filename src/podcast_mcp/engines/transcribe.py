@@ -133,6 +133,10 @@ class TranscribeJob:
         return f"transcribe_audio:{self.cache_id}"
 
     @property
+    def align_progress_task_id(self) -> str:
+        return f"forced_alignment:{self.cache_id}"
+
+    @property
     def label(self) -> str:
         if self.source_id is None:
             return f"Track {self.track_id}"
@@ -679,10 +683,9 @@ class TranscriptionEngine:
     def fork_worker(self, default_cpu_threads: int) -> TranscriptionEngine:
         """A copy for one concurrent decode lane.
 
-        It loads its own Whisper model and keeps its own run state. A set ``cpu_threads`` is
-        kept as is, so decode does not depend on how many lanes run; an unset one becomes
-        ``default_cpu_threads``. The word aligner and the speech levels stay shared with
-        this engine: built once under its lock, only read afterwards.
+        A set ``cpu_threads`` is kept as is, so decode does not depend on how many lanes run;
+        an unset one becomes ``default_cpu_threads``. The word aligner and the speech levels
+        stay shared with this engine: built once under its lock, only read afterwards.
         """
         clone = copy.copy(self)
         clone._model = None
@@ -795,7 +798,9 @@ class TranscriptionEngine:
             status = "aligned"
             raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
             try:
-                with resolve_progress_task("forced_alignment", f"Aligning words {job.label}"):
+                with resolve_progress_task(
+                    job.align_progress_task_id, f"Aligning words {job.label}"
+                ):
                     result = aligner.align(job.audio, transcript.words)
             except Exception as exc:  # decode / inference failure
                 keep_whisper("failed", str(exc))

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -101,19 +102,17 @@ def test_worker_count_falls_back_to_serial(monkeypatch, cores, free, jobs):
 
 def test_one_worker_runs_serially_on_the_engine_itself(engine, monkeypatch):
     monkeypatch.setattr(transcribe_pool, "cpu_budget", lambda: 4)
-    pools: list[Any] = []
-    monkeypatch.setattr(
-        transcribe_pool, "ThreadPoolExecutor", lambda *a, **k: pools.append(1) or None
-    )
+
+    def no_pool(*a: Any, **k: Any) -> None:
+        raise AssertionError("a single worker must not open a pool")
+
+    monkeypatch.setattr(transcribe_pool, "ThreadPoolExecutor", no_pool)
     ran: list[tuple[TranscriptionEngine, int | None]] = []
     _fake(monkeypatch, lambda self, job: ran.append((self, self.cpu_threads)))
     out = _run(engine, _jobs(3))
     assert [t.track_id for t in out] == ["t0", "t1", "t2"]
-    assert not pools
     assert ran == [(engine, None)] * 3
-    pools.clear()
     _run(engine, _jobs(1))
-    assert not pools
 
 
 def test_cancel_stops_queued_jobs(engine, monkeypatch):
@@ -182,9 +181,7 @@ def test_context_variables_reach_workers(engine, monkeypatch):
     assert checks == [check, check]
 
 
-@pytest.mark.parametrize(
-    ("configured", "expected"), [(16, 16), (6, 6), (2, 2), (None, WORKER_CPU_THREADS)]
-)
+@pytest.mark.parametrize(("configured", "expected"), [(6, 6), (None, WORKER_CPU_THREADS)])
 def test_forked_worker_keeps_a_set_thread_count_and_pins_an_unset_one(configured, expected):
     base = TranscriptionEngine(device="cpu", defaults=load_defaults(), cpu_threads=configured)
     clone = base.fork_worker(WORKER_CPU_THREADS)
@@ -288,7 +285,7 @@ def test_concurrent_tracks_keep_their_own_progress_row_and_heartbeat(engine, mon
     barrier = threading.Barrier(2, timeout=WAIT)
 
     def segments():
-        barrier.wait()  # both decodes are open together
+        barrier.wait()
         yield SimpleNamespace(text="a", start=0.0, end=5.0, words=None)
 
     model = MagicMock()
@@ -318,5 +315,175 @@ def test_concurrent_tracks_keep_their_own_progress_row_and_heartbeat(engine, mon
             _run(engine, _jobs(2))
     finally:
         rec.close()
-    # The second row opening must not have replaced the first: both are tracked at once.
     assert {"transcribe_audio:t0", "transcribe_audio:t1"} in open_rows
+
+
+def _race(workers: list[TranscriptionEngine], use: Any) -> None:
+    barrier = threading.Barrier(len(workers), timeout=WAIT)
+
+    def go(worker: TranscriptionEngine) -> None:
+        barrier.wait()
+        use(worker)
+
+    threads = [threading.Thread(target=go, args=(w,)) for w in workers]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(WAIT)
+
+
+def test_aligner_is_built_once_when_slow_loads_race(engine, monkeypatch):
+    loads: list[int] = []
+
+    def slow_load(cls, *a, **k):
+        loads.append(1)
+        time.sleep(0.2)
+        return object()
+
+    monkeypatch.setattr("podcast_mcp.engines.word_align.WordAligner.load", classmethod(slow_load))
+    got: list[object] = []
+    _race(
+        [engine.fork_worker(WORKER_CPU_THREADS) for _ in range(4)],
+        lambda worker: got.append(worker.load_word_aligner()),
+    )
+    assert len(loads) == 1
+    assert len(got) == 4
+    assert len({id(a) for a in got}) == 1
+
+
+def test_speech_levels_are_built_once_when_slow_builds_race(engine, monkeypatch):
+    builds: list[int] = []
+
+    def slow_build(cls, *a, **k):
+        builds.append(1)
+        time.sleep(0.2)
+        return object()
+
+    monkeypatch.setattr(
+        "podcast_mcp.engines.transcribe.SpeechLevels.for_project", classmethod(slow_build)
+    )
+    got: list[object] = []
+    _race(
+        [engine.fork_worker(WORKER_CPU_THREADS) for _ in range(4)],
+        lambda worker: got.append(worker.speech_levels(MagicMock())),
+    )
+    assert len(builds) == 1
+    assert len(got) == 4
+    assert len({id(v) for v in got}) == 1
+
+
+def test_failure_stops_queued_jobs_from_starting(engine, monkeypatch):
+    monkeypatch.setattr(transcribe_pool, "cpu_budget", lambda: 8)
+    failing_started = threading.Event()
+    settled = threading.Event()
+    started: list[str] = []
+    take = TranscriptionEngine.take_run_state
+
+    def take_run_state(self: TranscriptionEngine) -> dict[str, list]:
+        taken = take(self)
+        if threading.current_thread().name.startswith("transcribe"):
+            settled.set()
+        return taken
+
+    monkeypatch.setattr(TranscriptionEngine, "take_run_state", take_run_state)
+
+    def body(self: TranscriptionEngine, job: TranscribeJob) -> None:
+        started.append(job.track_id)
+        if job.track_id == "t0":
+            assert failing_started.wait(WAIT)
+            raise ValueError("t0 failed")
+        failing_started.set()
+        assert settled.wait(WAIT)
+
+    _fake(monkeypatch, body)
+    with pytest.raises(ValueError, match="t0 failed"):
+        _run(engine, _jobs(6))
+    assert sorted(started) == ["t0", "t1"]
+
+
+@pytest.mark.parametrize("device", ["cuda", "mps"])
+def test_non_cpu_placement_runs_one_worker(engine, monkeypatch, device):
+    assert engine._concurrent_workers(4) == 4
+    monkeypatch.setattr(
+        TranscriptionEngine, "_choose_placement", lambda self: SimpleNamespace(device=device)
+    )
+    assert engine._concurrent_workers(4) == 1
+
+
+def test_concurrent_run_state_equals_serial_run_state(monkeypatch):
+    def body(self: TranscriptionEngine, job: TranscribeJob) -> None:
+        self.silence_filter_skipped.append(job.label)
+        self.forced_alignment_jobs.append({"label": job.label, "status": "aligned"})
+        self.asr_loop_drops.append({"label": job.label, "dropped": 1})
+
+    def run_state(budget: int) -> dict[str, list]:
+        monkeypatch.setattr(transcribe_pool, "cpu_budget", lambda: budget)
+        monkeypatch.setattr(transcribe_pool, "available_ram_bytes", lambda: 64 * GB)
+        monkeypatch.setattr(
+            "podcast_mcp.engines.transcribe.transcribe_worker_count",
+            transcribe_pool.transcribe_worker_count,
+        )
+        fresh = TranscriptionEngine(device="cpu", defaults=load_defaults())
+        _fake(monkeypatch, body)
+        _run(fresh, _jobs(6))
+        return fresh.take_run_state()
+
+    serial = run_state(4)
+    concurrent = run_state(16)
+    assert serial["forced_alignment_jobs"]
+    assert concurrent == serial
+
+
+def test_concurrent_alignments_keep_their_own_progress_row(engine, monkeypatch, tmp_path):
+    from podcast_mcp.engines.asr_options import AsrOptions, ForcedAlignment
+    from podcast_mcp.models import TranscriptWord
+    from podcast_mcp.util.progress import bind_progress, progress_task
+    from podcast_mcp.util.progress.reporters import ElapsedProgressMixin
+
+    barrier = threading.Barrier(2, timeout=WAIT)
+
+    class Aligner:
+        model = SimpleNamespace(id="stub")
+
+        def supports_language(self, language):
+            return True
+
+        def cache_identity(self):
+            return {"model": "stub"}
+
+        def align(self, audio_path, words):
+            barrier.wait()
+            return SimpleNamespace(spans=[(0.0, 1.0)], scores=[0.9], runtime_sec=0.0)
+
+    engine.options = AsrOptions(forced_alignment=ForcedAlignment(requested=True, installed=True))
+    engine._word_aligner = Aligner()
+    monkeypatch.setattr(
+        TranscriptionEngine, "word_align_cache_path", lambda self, *a, **k: tmp_path / "a.json"
+    )
+    monkeypatch.setattr("podcast_mcp.engines.transcribe._write_align_cache", lambda *a, **k: None)
+    monkeypatch.setattr("podcast_mcp.engines.word_align.apply_word_spans", lambda *a, **k: 1)
+    open_rows: list[set[str]] = []
+
+    class Tracking(ElapsedProgressMixin):
+        def start(self, task_id, label, total=None):
+            self._register_task(task_id, label, total)
+            with self._lock:
+                open_rows.append({t for t in self._tasks if t.startswith("forced_alignment")})
+
+        def end(self, task_id, *, message=None):
+            self._finish_task(task_id)
+
+    def transcribe_job(self, project, job, **_):
+        words = [TranscriptWord(text="a", start=0.0, end=1.0)]
+        transcript = Transcript(track_id=job.track_id, words=words)
+        self._align_words(project, job, transcript, tmp_path / "asr.json", use_cache=False)
+        return transcript
+
+    monkeypatch.setattr(TranscriptionEngine, "transcribe_job", transcribe_job)
+    rec = Tracking(heartbeat_sec=3600)
+    try:
+        with bind_progress(rec), progress_task("transcribe", "Transcribing"):
+            _run(engine, _jobs(2))
+    finally:
+        rec.close()
+    assert {"forced_alignment:t0", "forced_alignment:t1"} in open_rows

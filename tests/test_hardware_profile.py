@@ -315,7 +315,7 @@ def test_a_gpu_that_onnx_runtime_cannot_use_is_named_in_the_summary() -> None:
     assert "Apple Silicon found, but ONNX Runtime has no Core ML support" in apple.summary()
 
 
-MEMINFO = "MemTotal:       16000000 kB\nMemAvailable:    8000000 kB\n"
+MEMINFO = "MemAvailable:    8000000 kB\n"
 HOST_AVAILABLE = 8_000_000 * 1024
 
 
