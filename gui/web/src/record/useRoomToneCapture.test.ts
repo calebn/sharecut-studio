@@ -2,7 +2,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KEEPER_BYTES_PER_SECOND } from "./keeper/pcm";
 import { MemorySink } from "./keeper/store";
-import { ROOM_TONE_DURATION_SEC, ROOM_TONE_MIN_SEC } from "./types";
+import {
+  ROOM_TONE_DURATION_SEC,
+  ROOM_TONE_LAND_FAILED_COPY,
+  ROOM_TONE_MIN_SEC,
+} from "./types";
 import { memoryUploadTransport } from "./upload/transport";
 import { useRoomToneCapture } from "./useRoomToneCapture";
 
@@ -80,6 +84,35 @@ describe("useRoomToneCapture", () => {
     ).toEqual(new Uint8Array(44 + 8));
     expect(transport.puts).toBe(1);
     expect(result.current.delivery).toBe("host");
+  });
+
+  it("reports an error and offers a retake when the host received the bed but could not save it", async () => {
+    const sink = new MemorySink();
+    const base = memoryUploadTransport();
+    const transport = {
+      ...base,
+      put: async (...a: Parameters<typeof base.put>) => ({
+        ...(await base.put(...a)),
+        landed: false,
+        land_failed: true,
+      }),
+    };
+    const { result } = renderHook(() =>
+      useRoomToneCapture(hookArgs({ sink, transport })),
+    );
+    act(() => {
+      result.current.record();
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
+    expect(result.current.error).toBe(ROOM_TONE_LAND_FAILED_COPY);
+    expect(result.current.delivery).toBe("device");
+    expect(result.current.ready).toBe(false);
+    act(() => {
+      result.current.retry();
+    });
+    expect(result.current.status).toBe("idle");
   });
 
   it("keeps saying the bed is on this device until the host acknowledges the file", async () => {
