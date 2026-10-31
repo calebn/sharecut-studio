@@ -55,6 +55,11 @@ def test_planned_number_follows_landed_sessions_and_matches_the_land(
     assert rows[first["session_id"]]["planned_number"] == rows[first["session_id"]]["number"] == 1
     assert rows[second["session_id"]]["number"] is None
     assert rows[second["session_id"]]["planned_number"] == 2
+    ShareService(ws).revoke_room(second["session_id"])
+    third, _ = _land_session(ws, take_ms=3_000)
+    landed = {row["session_id"]: row for row in list_record_sessions(ws.project)}
+    assert landed[third["session_id"]]["number"] == 2
+    assert all(r["planned_number"] == r["number"] for r in landed.values() if r["number"])
 
 
 def test_no_rooms_and_no_landing_lists_nothing(minimal_project, sample_wav, tmp_workspace):

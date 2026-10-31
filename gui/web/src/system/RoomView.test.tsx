@@ -91,6 +91,8 @@ describe("RoomView", () => {
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     rerender(<RoomView {...props} embedded sessionName={undefined} />);
     expect(screen.queryByText("Session 3")).not.toBeInTheDocument();
+    rerender(<RoomView {...props} />);
+    expect(screen.queryByText("Session 3")).not.toBeInTheDocument();
   });
 
   it("prints the title as the one h1 and keeps one main landmark", () => {

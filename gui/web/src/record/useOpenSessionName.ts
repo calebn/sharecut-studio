@@ -11,10 +11,11 @@ export function sessionLabel(
 
 type Loaded = { projectPath: string; sessionId: string; label: string };
 
-/** The open session's header label, fetched once per room; null until known or when the fetch fails. */
+/** The open session's header label, fetched per room and again when `refreshKey` changes; null until known or when the fetch fails. */
 export function useOpenSessionName(
   projectPath: string | null,
   sessionId: string | null,
+  refreshKey?: string,
 ): string | null {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   useEffect(() => {
@@ -34,7 +35,7 @@ export function useOpenSessionName(
     return () => {
       stale = true;
     };
-  }, [projectPath, sessionId]);
+  }, [projectPath, sessionId, refreshKey]);
   return loaded?.projectPath === projectPath && loaded?.sessionId === sessionId
     ? loaded.label
     : null;
