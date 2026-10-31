@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { transcriptWordPresenceAnchor } from "../../../presence/anchors";
 import type {
   CombinedUtterance,
   EditBoundaryView,
@@ -93,6 +94,24 @@ describe("buildScriptModel", () => {
       wordIndex: 0,
     });
     expect(model.turns[0]?.words[0]?.key).toBe("host::0");
+  });
+
+  it("gives each project word the presence anchor other people's cursors look for", () => {
+    const model = buildScriptModel(input([HOST, GUEST]));
+    expect(model.turns[1]?.words[2]?.anchor).toBe(
+      transcriptWordPresenceAnchor("guest", null, 2),
+    );
+    const anchors = model.turns.flatMap((t) => t.words.map((w) => w.anchor));
+    expect(new Set(anchors).size).toBe(6);
+  });
+
+  it("gives a word with no project index and a cut word no anchor", () => {
+    const loose = utterance("host", "Maya", [
+      word("Hi", 0, 1, { word_index: undefined }),
+    ]);
+    expect(
+      buildScriptModel(input([loose])).turns[0]?.words[0]?.anchor,
+    ).toBeUndefined();
   });
 
   it("merges consecutive utterances of one speaker into one turn", () => {

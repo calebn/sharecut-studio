@@ -698,4 +698,19 @@ describe("ScriptPane text selection and copy", () => {
       "t1",
     );
   });
+
+  it("carries the host's presence anchor on a word, and none where the host gave none", () => {
+    setup({
+      turns: patchWords(SCRIPT_TURNS, {
+        12: { anchor: "transcript:word:abc" },
+      }),
+    });
+    expect(word("small")).toHaveAttribute(
+      "data-presence-anchor",
+      "transcript:word:abc",
+    );
+    expect(
+      screen.getAllByRole("button", { name: /^\w/ })[0],
+    ).not.toHaveAttribute("data-presence-anchor");
+  });
 });

@@ -26,6 +26,8 @@ export type ScriptWord = {
   lowConfidence?: boolean;
   /** Just brought back: a static highlight that clears on the next action. */
   restored?: boolean;
+  /** Where another person's cursor or selection finds this word (a `data-presence-anchor` id). */
+  anchor?: string;
 };
 
 export type ScriptTurn = {
