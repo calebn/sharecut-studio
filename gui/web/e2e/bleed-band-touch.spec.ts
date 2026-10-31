@@ -62,7 +62,9 @@ test.afterEach(async ({ page }) => {
 const picks = (page: Page) =>
   page.locator('[data-hit-kind="bleed-attenuation"]');
 const chooserItems = (page: Page) => page.getByRole("menuitemradio");
-const createMenu = (page: Page) => page.getByRole("menu");
+// The create menu is a menu, or on the phone shell a bottom Sheet.
+const createMenu = (page: Page) =>
+  page.getByRole("menu").or(page.getByRole("dialog", { name: /^Create at / }));
 const pin = (page: Page) => page.locator('[data-hit-kind="comment"]');
 const handle = (page: Page, kind: string) =>
   page.locator(`[data-hit-kind="${kind}"][data-hit-id="bleed-right"]`);
