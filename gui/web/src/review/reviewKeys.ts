@@ -1,4 +1,5 @@
 import { isTypingTarget } from "../keymap/typing";
+import { OWN_ARROWS } from "../system/TakeSwitcher";
 import { type KeySpec, VERBS, type VerbId } from "../system/verbs";
 
 type StageAction =
@@ -88,6 +89,12 @@ export function stageActionFor(
   context: { primary?: VerbId; root?: Element | null } = {},
 ): StageAction | null {
   if (isTypingTarget(event.target ?? null)) return null;
+  if (
+    event.key.startsWith("Arrow") &&
+    event.target instanceof Element &&
+    event.target.closest(OWN_ARROWS)
+  )
+    return null;
   const action =
     context.primary === "cut" && CUT_KEYS.some((s) => matches(s, event))
       ? "verb"

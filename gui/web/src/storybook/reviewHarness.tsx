@@ -44,9 +44,21 @@ export function ReviewStageHarness({
   onDecide,
   ...stage
 }: ReviewStageHarnessProps) {
+  const [picked, setPicked] = useState<Readonly<Record<string, number>>>({});
   const open = useMemo<ReviewEntry[]>(
-    () => initialItems.map((item) => ({ item, content: content(item) })),
-    [initialItems, content],
+    () =>
+      initialItems.map((item) => {
+        const shown = content(item);
+        const take = picked[item.id];
+        return {
+          item,
+          content:
+            shown.takes && take !== undefined
+              ? { ...shown, takes: { ...shown.takes, selected: take } }
+              : shown,
+        };
+      }),
+    [initialItems, content, picked],
   );
   const session = useReviewSession(open, {
     selectedId: initialSelectedId,
@@ -79,6 +91,10 @@ export function ReviewStageHarness({
         {...session.props}
         ref={stageRef}
         onDecide={decide}
+        onSelectTake={(id, takeIndex) => {
+          void stage.onSelectTake?.(id, takeIndex);
+          setPicked((prev) => ({ ...prev, [id]: takeIndex }));
+        }}
       />
       <Toast
         className="sys-toast-dock"

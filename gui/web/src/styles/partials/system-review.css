@@ -426,6 +426,34 @@ button.sys-queue-row--decided {
   font-size: var(--font-size-body);
 }
 
+.sys-take-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sys-take-switcher-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sys-take-switcher p {
+  margin: 0;
+}
+
+.sys-take-switcher-facts,
+.sys-take-switcher-snippet {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
+.sys-take-switcher-refusal {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
 .sys-decision-unsure {
   display: flex;
   flex-direction: column;
