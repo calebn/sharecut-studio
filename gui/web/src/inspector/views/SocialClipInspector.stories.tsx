@@ -25,6 +25,11 @@ export const Host: Story = {
         name: "A loaf tells you when it is ready",
       }),
     ).toBeVisible();
+    await expect(
+      canvas.getByRole("spinbutton", { name: "Social clip start" }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Apply" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Delete" })).toBeVisible();
   },
 };
 
@@ -37,5 +42,10 @@ export const Viewer: Story = {
         name: "A loaf tells you when it is ready",
       }),
     ).toBeVisible();
+    await expect(
+      canvas.queryByRole("spinbutton", { name: "Social clip start" }),
+    ).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Apply" })).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Delete" })).toBeNull();
   },
 };

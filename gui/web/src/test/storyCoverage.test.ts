@@ -126,7 +126,10 @@ const COVERED: Record<string, string[]> = {
   ],
   "SHEET-PHONE-INSPECTOR": ["Stages/Edit/Frame", "Stages/Edit/Workspace"],
   "SCR-GUEST-LINK-INVALID": ["Organisms/ErrorScreen", "Stages/Review/Guest"],
-  "SCR-GUEST-OFFLINE": ["Stages/Edit/Frame", "Templates/GuestAttentionBanner"],
+  "SCR-GUEST-OFFLINE": [
+    "Stages/Review/Guest",
+    "Templates/GuestAttentionBanner",
+  ],
   "BAN-GUEST-ATTENTION": ["Templates/GuestAttentionBanner"],
   "BAN-FOLLOW": ["Templates/FollowBanner"],
   "SCR-REC-LOADING": ["Organisms/LoadingScreen"],

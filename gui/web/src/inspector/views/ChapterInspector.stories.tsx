@@ -23,6 +23,13 @@ export const Host: Story = {
     await expect(
       await canvas.findByRole("heading", { name: "The harbor depot" }),
     ).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Chapter title" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("spinbutton", { name: "Chapter time" }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Delete" })).toBeVisible();
   },
 };
 
@@ -33,5 +40,12 @@ export const Viewer: Story = {
     await expect(
       await canvas.findByRole("heading", { name: "The harbor depot" }),
     ).toBeVisible();
+    await expect(
+      canvas.queryByRole("textbox", { name: "Chapter title" }),
+    ).toBeNull();
+    await expect(
+      canvas.queryByRole("spinbutton", { name: "Chapter time" }),
+    ).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Delete" })).toBeNull();
   },
 };
