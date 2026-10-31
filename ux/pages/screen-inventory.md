@@ -267,7 +267,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 | | |
 |--|--|
 | **Purpose** | Read/fix transcript; seek by word; suggest cut-away |
-| **Primary actions** | Follow playhead · double-click word or focus word + F2 → inline fix (one at a time; a pending save finishes first and the mode hint says it is saving; a late failure shows under the hint with Dismiss) · tap word → sheet · suppress / correct / ignore (Ignore strikes through and mutes at render, no cut; Restore brings it back — always visible under touch, no hover needed) · Script unsure chip → next low-confidence word (wraps) |
+| **Primary actions** | Follow playhead · double-click word or focus word + F2 → inline fix (one at a time; a pending save finishes first and the mode hint says it is saving; a late failure shows under the hint with Dismiss and, whichever stage is open, once as an error toast; the open field and its typing survive a layout change; a fix says "Text fixed" with Undo) · tap word → sheet · suppress / correct / ignore (Ignore strikes through and mutes at render, no cut; Restore brings it back — always visible under touch, no hover needed) · Script unsure chip → next low-confidence word (wraps) · Alt+Down / Alt+Up on a word → next / previous unsure word · a selection across tracks is drawn from its first to its last word; click a cut seam → its join, click a suggestion → its pending edit; other people's carets show before their word |
 | **Data shown** | Speaker labels · `transcripts` words (text, confidence, suppressed, ignored, suspect_hallucination) · selection range |
 | **Empty / loading** | No transcript yet · low-confidence chips when present |
 | **Out of scope** | The Review queue and Prepare (their own stages) |
