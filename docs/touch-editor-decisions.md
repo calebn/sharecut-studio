@@ -568,16 +568,18 @@ pointer events; Playwright's WebKit has no touch-move API). The page rendered in
 
 ### What is used today
 
-A search of the source finds one gesture package, `@react-aria/interactions`
-3.28.1 (Apache-2.0), in two files:
+No gesture package is in use. Since #1312 the two places that used React Aria's
+press hooks are native Pointer Events:
 
-- `timeline/useTouchPress.ts`: `usePress` and `useLongPress` own a deferred
-  touch until `HitRouter` decides what it was. `useLongPress` calls
-  `HitRouter.longPress` after `LONG_PRESS_MS`; `usePress` ends the press on
-  `pointercancel` and keeps the browser's click from reaching targets.
-  `TimelineView` and `JoinEditor` use it.
-- `timeline/TargetChooser.tsx`: `usePress` on the chooser's chip buttons, for
-  the picked `pointerType`.
+- `timeline/useTouchPress.ts`: native pointer code owns a deferred touch until
+  `HitRouter` decides what it was. It calls `HitRouter.longPress` after
+  `LONG_PRESS_MS`, ends the press on `pointerup` or `pointercancel`, turns
+  text selection off while pressed, blocks the long-press context menu, and
+  keeps the browser's click from reaching targets for a second after a
+  release. `TimelineView` and `JoinEditor` use it.
+- `timeline/TargetChooser.tsx`: the chooser's chip buttons pick on click, with
+  the `pointerType` taken from the pointerdown (`virtual` for a click with
+  no pointer).
 
 Everything else is native Pointer Events: `hitRouting.ts` (slop, second-finger
 cancel, chip settle, tap on release), `chipGesture.ts`,
@@ -661,7 +663,7 @@ evidence:
 - #1078 platform check (2026-10-12): the constants sit at iOS's 0.5 s and 10 pt, 100 ms above Android's 400 ms long press and 2 px above its 8 dp touch slop (sources in the results notes)
 - Decided under the operator's autonomous grant for #1078; the owner can still override
 enforced-by:
-- gui/web/src/timeline/gestureGovernance.test.ts::adopts no gesture package beyond the React Aria press layer (#1078)
+- gui/web/src/timeline/gestureGovernance.test.ts::adopts no gesture package (#1078, #1312)
 - gui/web/src/hooks/gestureConstants.test.ts::holds between Android's 400 ms default and iOS's 500 ms
 - gui/web/src/hooks/gestureConstants.test.ts::is at least Android's 8 dp touch slop and at most iOS's 10 pt
 - gui/web/src/hooks/gestureConstants.test.ts::holds for iOS's 0.5 s, a little above Android's 400 ms default
@@ -672,14 +674,12 @@ constants in `hooks/gestureConstants.ts`. No gesture package is added:
 `@use-gesture/react`, `@dnd-kit`, Hammer.js and Motion are not used for
 gestures. The governance guard is a denylist of known gesture and pointer
 libraries (`@use-gesture/*`, `react-use-gesture`, `@dnd-kit/*`, Hammer.js,
-`react-swipeable`, `interactjs`, Motion, React Aria's other packages). It scans
+`react-swipeable`, `interactjs`, Motion, React Aria). It scans
 every dependency field of `gui/web/package.json` and every import in non-test
 source. A library not on the list passes, so add its name when a new one
-appears. The one existing package, React Aria's press hooks in
-`useTouchPress.ts` and the chooser chips, stays for now. It is 1.6% of the
-bundle, and the approved phone behavior (#1051 rounds 4b to 6) was tuned with
-it. Whether the router can own the press layer itself is a follow-up, because
-moving it needs a phone check, which stays in #960. A library may still suit
+appears. React Aria's press hooks, the one package that was in use, were replaced by
+native code in #1312 (the approved phone behavior of #1051 rounds 4b to 6 was
+tuned with them, so the real-phone check stays in #960). A library may still suit
 ordinary buttons and controls outside the timeline.
 
 ## Responsive inspector follow-up #961
@@ -735,8 +735,8 @@ flag; the owner made the grammar the rule on 2026-10-07, so it is on for every
 browser and the lab, its View › Labs entry and its `?lab=` link are gone.
 
 Every touch on a timeline target or surface, selected or not, goes to a press
-layer (`timeline/useTouchPress.ts`, React
-Aria's `usePress` and `useLongPress`), and no target sees it until the layer
+layer (`timeline/useTouchPress.ts`, native pointer
+code), and no target sees it until the layer
 decides. Timing comes from `hooks/gestureConstants.ts`: a 500 ms long press
 and a 10 px slop, after the iOS and Android long-press defaults it cites.
 
@@ -773,7 +773,7 @@ and a 10 px slop, after the iOS and Android long-press defaults it cites.
   within the slop, still grabs as a fallback. A grab replays the press on the
   target and forwards the rest of the drag offset by the chip-to-target
   distance, so the target moves without jumping to the finger. Chips take taps
-  through `usePress`, so touch, mouse, keyboard and assistive-technology
+  on click, so touch, mouse, keyboard and assistive-technology
   presses pick.
 - **Cancel.** Lifting anywhere but a chip leaves the chips open to tap. A tap
   on the dimmed timeline, Escape, a second finger before the hold ends, or

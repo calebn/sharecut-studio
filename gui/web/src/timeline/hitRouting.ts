@@ -9,13 +9,12 @@
  *
  * Every touch on a target or surface follows
  * the touch input grammar (`inputContract.ts`). It is handed to the press
- * layer (`useTouchPress`, React Aria) and reaches no target while it decides:
+ * layer (`useTouchPress`) and reaches no target while it decides:
  * - One finger moving scrolls: the browser takes it, it ends in
  *   pointercancel, and nothing is edited, selected target or not.
  * - A release within the slop is a tap. On a target it is replayed on the
- *   winner at once: React Aria reports a press only from the click that
- *   follows, when the pointer is no longer live and an owner that captures it
- *   would refuse it. From a bare surface to a nearby mark it opens the mark
+ *   winner at once: the browser's own click comes after the pointer is no
+ *   longer live, and an owner that captures it would refuse it. From a bare surface to a nearby mark it opens the mark
  *   from the browser's own click.
  * - A long press (the layer calls `longPress`) over 2+ targets opens the
  *   chooser. Over one target it arms it, if the contract lets it drag, or
@@ -922,7 +921,7 @@ export function attachHitRouting(
   };
 
   const onCancel = (event: PointerEvent) => {
-    // React Aria's long press cancels its own press with an untyped event.
+    // Cancels without a pointer type are not the browser's.
     if (isReplayed(event) || !event.pointerType) return;
     cancelClicks(event.pointerId);
     if (phase.kind === "grabbed" && phase.pointerId === event.pointerId) {

@@ -106,17 +106,11 @@ const ARROW_ALLOWLIST: Record<string, string> = {
 };
 
 /**
- * The one gesture package in use (#1078): React Aria's press hooks, confined to
- * the touch press layer and the chooser's chip buttons. Pointer Events plus
- * `hooks/gestureConstants.ts` do everything else. The guard is a denylist of
+ * No gesture package is in use (#1078, #1312): Pointer Events plus
+ * `hooks/gestureConstants.ts` do everything. The guard is a denylist of
  * known gesture and pointer libraries, not a proof that no other one exists:
  * add a name here when a new library of that kind appears.
  */
-const PRESS_LIBRARY = "@react-aria/interactions";
-const PRESS_LIBRARY_USERS = new Set([
-  "timeline/useTouchPress.ts",
-  "timeline/TargetChooser.tsx",
-]);
 const DENIED_GESTURE_PACKAGES = [
   /^@use-gesture\//,
   /^react-use-gesture$/,
@@ -130,7 +124,7 @@ const DENIED_GESTURE_PACKAGES = [
   /^motion$/,
   /^react-aria$/,
   /^react-aria-components$/,
-  /^@react-aria\/(dnd|gridlist|selection)$/,
+  /^@react-aria\//,
 ];
 
 function isDeniedGesturePackage(name: string): boolean {
@@ -154,7 +148,7 @@ describe("gesture package governance", () => {
         "react",
         "@react-aria/interactions",
       ].map(isDeniedGesturePackage),
-    ).toEqual([true, true, true, true, false, false]);
+    ).toEqual([true, true, true, true, false, true]);
     expect(
       importedModules(
         'import a from "x";\nconst b = await import("y");\nconst c = require("z");\nexport { d } from "w";',
@@ -164,7 +158,7 @@ describe("gesture package governance", () => {
 
   // Reads every non-test source file under gui/web/src (about 670), which
   // took 4 to 9 s cold on a loaded machine, over Vitest's 5 s default.
-  it("adopts no gesture package beyond the React Aria press layer (#1078)", () => {
+  it("adopts no gesture package (#1078, #1312)", () => {
     const manifest = JSON.parse(
       readFileSync(join(SRC_ROOT, "..", "package.json"), "utf8"),
     ) as Record<string, Record<string, string> | undefined>;
@@ -177,17 +171,14 @@ describe("gesture package governance", () => {
     expect(declared.filter(isDeniedGesturePackage)).toEqual([]);
 
     const denied: string[] = [];
-    const pressUsers = new Set<string>();
     for (const file of walkTsFiles(SRC_ROOT)) {
       const rel = srcRelative(file);
       if (/\.(test|stories)\./.test(rel)) continue;
       for (const name of importedModules(readFileSync(file, "utf8"))) {
         if (isDeniedGesturePackage(name)) denied.push(`${rel} imports ${name}`);
-        if (name === PRESS_LIBRARY) pressUsers.add(rel);
       }
     }
     expect(denied).toEqual([]);
-    expect(pressUsers).toEqual(PRESS_LIBRARY_USERS);
   }, 30_000);
 });
 

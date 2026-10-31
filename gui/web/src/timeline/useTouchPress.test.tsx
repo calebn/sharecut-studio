@@ -106,4 +106,50 @@ describe("useTouchPress", () => {
 
     expect(owner).toHaveBeenCalledOnce();
   });
+
+  it("blocks the context menu a long press raises, and only then", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
+    expect(fireEvent.contextMenu(target)).toBe(true);
+    fireEvent.pointerDown(target, touch);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(fireEvent.contextMenu(target)).toBe(false);
+  });
+
+  it("stops suppressing the browser's click once its window has passed", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
+    fireEvent.pointerDown(target, touch);
+    fireEvent.pointerUp(target, touch);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    fireEvent.click(target, { detail: 1 });
+
+    expect(owner.mock.calls.map(([e]) => (e as Event).type)).toEqual(["click"]);
+  });
+
+  it("does not suppress a click after a cancelled touch", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
+    fireEvent.pointerDown(target, touch);
+    fireEvent.pointerCancel(target, touch);
+    fireEvent.click(target, { detail: 1 });
+
+    expect(owner.mock.calls.map(([e]) => (e as Event).type)).toEqual(["click"]);
+  });
+
+  it("turns text selection off for the press and back on after", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
+    fireEvent.pointerDown(target, touch);
+    expect(document.documentElement.style.userSelect).toBe("none");
+    fireEvent.pointerUp(target, touch);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(document.documentElement.style.userSelect).toBe("");
+  });
 });
