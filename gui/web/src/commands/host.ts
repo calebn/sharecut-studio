@@ -21,6 +21,7 @@ import {
   liveTakeOpen,
   MARKER_BODY,
   postLiveComment,
+  STALE_ROOM_LINKS_WARNING,
   sendRecordHostCommand,
   submitHostRecordTransport,
   useRecordHostStore,
@@ -247,16 +248,23 @@ export function registerHostCommands(): void {
     }
     const s = useDawStore.getState();
     return runRecordCommand(async () => {
-      const { copied } = await createRecordRoomAndCopyGuestLink(s.projectPath);
+      const { copied, room } = await createRecordRoomAndCopyGuestLink(
+        s.projectPath,
+      );
       const snap = await loadHostRecordState(s.projectPath);
       if (snap) {
         useRecordHostStore.getState().setSnapshot(snap);
       }
-      s.announceStatus(
-        copied
-          ? "Record room created and guest link copied"
-          : "Record room created",
-      );
+      const base = copied
+        ? "Record room created and guest link copied"
+        : "Record room created";
+      if (room.linksStale) {
+        s.announceStatus(`${base}. ${STALE_ROOM_LINKS_WARNING}`, {
+          tone: "error",
+        });
+      } else {
+        s.announceStatus(base);
+      }
       return { status: "ok" };
     });
   });

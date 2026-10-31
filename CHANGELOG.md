@@ -22,6 +22,7 @@
 ### Fixes
 
 * Notes, waive reasons and vocabulary terms sent by a share guest (HTTP or MCP) are now refused with a 422 when they hold a control character or a bidi override (null, escape, U+202E and the like), and a vocabulary term is trimmed and must be one line; line breaks and tabs stay fine in notes and reasons, and so do joiners (#2827)
+* A new record room is no longer lost when the server could not revoke an earlier room's links (`record_stale_links`, HTTP 409). The host UI now keeps the room, lists it, copies its guest link and says that links to an earlier room may still work, where it used to show a failure and make a third room on retry (#2329).
 
 * Error and progress text for a share guest that holds any backslash, or a percent-encoded one (`%5c`), such as `Podcasts\ep 12\raw.wav` or `..\host\raw.wav`, is now withheld like other host paths instead of reaching the guest (#2827).
 
