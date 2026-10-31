@@ -1759,7 +1759,7 @@ def test_ranking_reads_only_the_nearest_few_windows_a_peer_is_loud_over(
     assert picked.sample.start == asked[-1][0]
 
 
-def test_windows_a_peer_file_does_not_cover_do_not_use_up_the_ranking(
+def test_a_measured_window_among_the_nearest_few_beats_uncovered_ones_and_reads_stop_at_four(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     track = room_tone_module.TrackFloor(
@@ -1774,14 +1774,17 @@ def test_windows_a_peer_file_does_not_cover_do_not_use_up_the_ranking(
         lambda _t, span: room_tone_module.Sample(span[0], span[1], -70.0, None),
     )
     monkeypatch.setattr(room_tone_module, "rejection", lambda *_a: None)
+    asked: list[float] = []
 
     def clear(span: tuple[float, float]) -> float:
-        return 12.0 if span[0] >= 80.0 else math.inf
+        asked.append(span[0])
+        return 12.0 if span[0] >= 30.0 else math.inf
 
     picked = room_tone_module._pick_sample(track, near_sec=0.0, duration_sec=1.0, clear=clear)
 
     assert isinstance(picked, room_tone_module.OwnQuietSample)
-    assert picked.sample.start >= 80.0
+    assert picked.sample.start == 30.0
+    assert len(asked) == room_tone_module.MAX_RANKED
 
 
 def test_a_peer_recording_that_ends_early_does_not_reject_later_room_tone(tmp_path: Path) -> None:

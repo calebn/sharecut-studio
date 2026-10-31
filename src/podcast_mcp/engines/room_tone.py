@@ -24,7 +24,8 @@ level for the same credibility rule (``engines/gate_fill.py``).
 
 A request ranks the quiet runs by distance from the cut (all of them sit at the floor,
 so the nearest matches the room at the cut best), takes the window of its length nearest
-the cut from each, and returns the first window that passes every row of ``CHECKS``.
+the cut from each, and returns the first window that passes every row of ``CHECKS`` and leaves every other speaker at their floor;
+with no such window among the first few that pass, the one under the quietest other speaker.
 Picking is done once per recording: :func:`record_room_tone_pool` runs that pick at evenly
 spaced points along the track, keeps the samples that passed, and records them under the
 project's ``artifacts``, keyed on the recording's identity. A request on a track with a pool
@@ -794,7 +795,7 @@ def _pick_sample(
             if excess <= PEER_QUIET_DB:
                 return OwnQuietSample(sample)
             passed.append((excess, order, sample))
-            if sum(1 for p in passed if p[0] != math.inf) >= MAX_RANKED:
+            if len(passed) >= MAX_RANKED:
                 break
         elif failed not in rejected:
             rejected.append(failed)
