@@ -253,6 +253,10 @@ const SURFACE_GESTURES: Record<string, string> = {
     "the time ruler view: a press on its body is captured and reported as scrub start, scrub and scrub end intents with the pointer and its keys, a tap seeks, and a press on a selection handle reports drag start, drag and drag end intents for the host to turn into one range edit; a finger scrubs by a horizontal swipe because the body leaves vertical panning to the browser; it edits nothing and owns no timeline target, because the host that mounts it turns the intents into one seek or edit",
   "system/MarkerLane.tsx":
     "the marker lane view: a press on a chapter, a bracket or a bracket's edge is captured and reported as drag start, drag and drag end intents with the pointer, its keys and seconds from the press, and a finger only grabs a selected marker; a double-click on an empty part asks the host to add a chapter; it edits nothing and owns no timeline target, because the host that mounts it turns the intents into one edit",
+  "system/Envelope.tsx":
+    "the volume envelope view: a press on a point is captured (useGrab) and reported as drag start, move and drag end intents with the level and time, a click on the line asks the host to add a point, and a finger only grabs through the points' own 44 px areas; it edits nothing and owns no timeline target, because the host that mounts it turns the intents into one edit",
+  "stages/edit/timelineDemo.tsx":
+    "the Storybook host of the Edit timeline parts: it passes the envelope's drag start and drag end intents to local state, so a cancelled drag puts the point back; it is a story fixture, not a surface",
   "system/useGrab.ts":
     "the pointer lifecycle the ruler and the marker lane share for a dragged mark: one pointer has hold, the drag starts after the slop, and Escape, a blur, a cancel, a lost capture or the owner leaving end it as not committed; it reports intents and owns no timeline target",
   "system/TrackHeader.tsx":
@@ -298,6 +302,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
     "a focused ruler moves the playhead one tick with the arrows, ten with Shift, and a focused selection handle reports a nudge of its edge, 10 ms and 100 ms with Shift, like a slider; Alt with the arrows walks focus to the handles; the host applies the seek or the nudge",
   "system/MarkerLane.tsx":
     "a focused selected chapter or bracket, and a bracket's edge, report a nudge with the arrows, 0.1 s and 1 s with Shift, like a slider, and Alt with the arrows walks focus along a bracket's edges; the host applies the nudge",
+  "system/Envelope.tsx":
+    "a focused envelope point nudges its time (10 ms, 100 ms with Shift) and level (0.5 dB, 5 with Shift) with the arrows, like a slider, and Alt with Left or Right walks focus along the points; a guest's arrows are kept from the keymap and do nothing; the host applies the nudge",
   "system/useGrab.ts":
     "the list of keys a part ignores while its drag is moving, so a nudge cannot land mid-drag; it moves nothing itself",
   "system/InspectorSheet.tsx":

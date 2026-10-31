@@ -3199,7 +3199,8 @@ test("Stages/Edit/Timeline WithEnvelope: Escape puts a dragged point back, and B
   await page.mouse.up();
   await expect(four).toHaveAttribute("aria-valuetext", before ?? "");
   const three = page.getByRole("slider", { name: "Envelope point 3" });
-  await three.focus();
+  await three.click();
+  await expect(three).toHaveAttribute("aria-current", "true");
   await page.keyboard.press("Backspace");
   await expect(page.locator(".sys-env-point")).toHaveCount(4);
 });
