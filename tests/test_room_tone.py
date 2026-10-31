@@ -1153,7 +1153,9 @@ def test_ensure_pools_records_once_and_skips_unreadable_tracks(
     assert room_tone.read_room_tone_pool(project, "host") == pool
 
 
-def test_scheduling_a_pool_records_it_in_the_background_once(tmp_path: Path) -> None:
+def test_scheduling_a_pool_records_it_in_the_background_once(
+    tmp_path: Path, real_room_tone_scheduling: None
+) -> None:
     import threading
 
     from podcast_mcp.engines import room_tone

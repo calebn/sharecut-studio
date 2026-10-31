@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+import threading
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -144,6 +145,38 @@ def _speaker_mock_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     tests that score with made-up embeddings ask for the mock the way a developer would.
     """
     monkeypatch.setenv("PODCAST_SPEAKER_BACKEND", "mock")
+
+
+@pytest.fixture
+def real_room_tone_scheduling() -> None:
+    """Ask for the real background room-tone pool recording (see ``_room_tone_pool_threads``)."""
+
+
+@pytest.fixture(autouse=True)
+def _room_tone_pool_threads(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    """Keep background room-tone pool recording out of tests that do not ask for it.
+
+    The scheduler is a no-op unless the test requests ``real_room_tone_scheduling``, so no
+    thread decodes a test's media or writes ``room_tone_pools`` after the test ends. Every
+    ``room-tone-pool-*`` thread is joined at teardown and one that stays alive fails the test.
+    """
+    from podcast_mcp.engines import room_tone
+
+    if "real_room_tone_scheduling" not in request.fixturenames:
+        monkeypatch.setattr(room_tone, "schedule_room_tone_pools", lambda *_a, **_k: 0)
+    yield
+    alive = []
+    for thread in threading.enumerate():
+        if thread.name.startswith("room-tone-pool-"):
+            thread.join(30)
+            if thread.is_alive():
+                alive.append(thread.name)
+    with room_tone._POOLS_LOCK:
+        room_tone._PENDING_POOLS.clear()
+        room_tone._UNRECORDED.clear()
+    assert not alive, f"room-tone pool threads outlived the test: {alive}"
 
 
 @pytest.fixture(autouse=True)

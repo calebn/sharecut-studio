@@ -43,6 +43,7 @@ import json
 import logging
 import math
 import threading
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
@@ -62,9 +63,10 @@ from podcast_mcp.engines.session_timeline import clip_source_to_timeline_shift
 from podcast_mcp.engines.ungated_audio import held_mono_full
 from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
 from podcast_mcp.util.atomic_json import write_text_atomic
+from podcast_mcp.util.batch_scope import scoped, unscoped
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db_stream, rms_db
 from podcast_mcp.util.intervals import subtract_intervals
-from podcast_mcp.util.project_state import FileRevision, file_revision
+from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 from podcast_mcp.util.tracks import track_audio_path
 
 log = logging.getLogger(__name__)
@@ -409,18 +411,8 @@ def _pool_record_path(project: EpisodeProject, key: PoolKey) -> Path:
     return project.artifacts_dir() / "room_tone_pools" / f"{short_digest(json.dumps(parts))}.json"
 
 
-def read_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample, ...] | None:
-    """The track's pooled samples; ``()`` when none passed, None when it was never picked.
-
-    Read from the process's memory, else from the record an earlier process made. Never
-    writes, never decodes: a planning or preview request costs a file read.
-    """
-    track = project.track_by_id(track_id)
-    if track is None or track.media is None:
-        return None
-    key = _pool_key(project, track_id)
-    if key is None:
-        return None
+def _stored_pool(project: EpisodeProject, key: PoolKey) -> tuple[Sample, ...] | None:
+    """The pool recorded under ``key``: this process's memory, else the record on disk."""
     with _POOLS_LOCK:
         known = _POOLS.get(key)
     if known is not None:
@@ -439,28 +431,54 @@ def read_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample,
     return pool
 
 
-def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample, ...] | None:
-    """Pick the track's room tone once and record it with the project.
+def read_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample, ...] | None:
+    """The track's pooled samples; ``()`` when none passed, None when it was never picked.
 
-    A no-op returning the recorded pool when there is one. Runs the pick at ``POOL_ANCHORS``
-    points along the track (a pass over its quiet runs each, measuring audio), so it belongs
-    in ingest or a background warm, never in a request. None when the recording cannot be
-    read; ``()`` (also recorded) when it is gated or no sample passes, so it is not picked again.
+    Read from the process's memory, else from the record an earlier process made. Never
+    writes, never decodes: a planning or preview request costs a file read. Inside a batch
+    scope the answer, None included, is the batch's first: a pool recorded while the batch
+    runs is first read by the next batch, so one batch picks all its cuts the same way.
     """
-    known = read_room_tone_pool(project, track_id)
-    if known is not None:
-        return known
     track = project.track_by_id(track_id)
     if track is None or track.media is None:
         return None
+    key = _pool_key(project, track_id)
+    if key is None:
+        return None
+    return scoped(("room_tone_pool", key), lambda: _stored_pool(project, key))
+
+
+def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample, ...] | None:
+    """Pick the track's room tone once and record it with the project.
+
+    A no-op returning the recorded pool when there is one; while a background recording of
+    the same pool runs it waits for that and returns its pool. Runs the pick at
+    ``POOL_ANCHORS`` points along the track (a pass over its quiet runs each, measuring
+    audio), so it belongs in ingest or a background warm, never in a request. None when the
+    recording cannot be read; ``()`` (also recorded) when it is gated or no sample passes,
+    so it is not picked again.
+    """
+    key = _pool_key(project, track_id)
+    if key is not None:
+        with _POOLS_LOCK:
+            _POOLS_DONE.wait_for(lambda: key not in _PENDING_POOLS, timeout=POOL_WAIT_SEC)
+    return _record_room_tone_pool(project, track_id)
+
+
+def _record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample, ...] | None:
+    track = project.track_by_id(track_id)
+    key = _pool_key(project, track_id)
+    if track is None or track.media is None or key is None:
+        return None
+    known = _stored_pool(project, key)
+    if known is not None:
+        return known
     if _voice_detector_missing():
         # A pool picked now would skip the ``voiced`` check for good: leave it for a run
         # that has the detector, and do not decode the recording to find that out.
         return None
-    path = track_audio_path(project, track_id)
-    key = _pool_key(project, track_id)
-    read = track_floor(path)
-    if key is None or isinstance(read, Unmeasured):
+    read = track_floor(track_audio_path(project, track_id))
+    if isinstance(read, Unmeasured):
         return None
     pool: list[Sample] = []
     if isinstance(read, LiveFloor) and not read.gated and read.floor.runs:
@@ -506,23 +524,130 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
 
 
 _PENDING_POOLS: set[PoolKey] = set()
+_POOLS_DONE = threading.Condition(_POOLS_LOCK)
+# Pools that could not be recorded (no voice detector, unreadable recording), with when:
+# a request does not start a thread for one of them again until this many seconds passed.
+_UNRECORDED: dict[PoolKey, float] = {}
+UNRECORDED_RETRY_SEC = 300.0
+_UNRECORDED_KEPT = 256
+# Scheduling waits this long for the project's state lock to copy it, else tries again later.
+POOL_SNAPSHOT_LOCK_SEC = 2.0
+# A caller that needs a pool being recorded in the background waits at most this long.
+POOL_WAIT_SEC = 900.0
 
 
 def ensure_room_tone_pools(project: EpisodeProject, track_ids: Sequence[str]) -> None:
     """Record the pool of each track that has none, now, on the caller's thread.
 
     Ingest and background warming record pools. Cut requests only read existing pools
-    or select live room tone without recording it. Unreadable tracks are skipped.
+    or select live room tone without recording it. Unreadable tracks are skipped. A pool
+    being recorded in the background is waited for, not recorded twice.
     """
     for track_id in dict.fromkeys(track_ids):
         try:
-            key = _pool_key(project, track_id)
-            with _POOLS_LOCK:
-                if key is not None and key in _PENDING_POOLS:
-                    continue  # the ingest thread is picking it
             record_room_tone_pool(project, track_id)
         except Exception:
             log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
+
+
+def _release_pool(key: PoolKey) -> None:
+    with _POOLS_DONE:
+        _PENDING_POOLS.discard(key)
+        _POOLS_DONE.notify_all()
+
+
+def _note_unrecorded(key: PoolKey) -> None:
+    with _POOLS_LOCK:
+        _UNRECORDED.pop(key, None)
+        _UNRECORDED[key] = time.monotonic()
+        while len(_UNRECORDED) > _UNRECORDED_KEPT:
+            del _UNRECORDED[next(iter(_UNRECORDED))]
+
+
+def _claim_pool(project: EpisodeProject, key: PoolKey) -> bool:
+    """Mark ``key`` as being recorded, unless it is known, pending or failed a moment ago."""
+    if _stored_pool(project, key) is not None:
+        return False
+    with _POOLS_LOCK:
+        failed = _UNRECORDED.get(key)
+        if key in _PENDING_POOLS or (
+            failed is not None and time.monotonic() - failed < UNRECORDED_RETRY_SEC
+        ):
+            return False
+        _PENDING_POOLS.add(key)
+    return True
+
+
+def schedule_room_tone_pools(
+    project: EpisodeProject, track_ids: Sequence[str] | None = None, *, owned: bool = False
+) -> int:
+    """Record the missing pools of these tracks (None: every dialogue track) in the background.
+
+    One low-priority thread records the tracks that have media and no pool, one after the
+    other, from its own copy of the project taken under ``project_state_lock``: the live
+    project is never read by that thread. ``owned`` says no other thread can reach
+    ``project`` (a freshly opened one), so the lock is not taken. Once per recording: a pool
+    that is known, being recorded or recently unrecordable is skipped. Returns at once with
+    how many tracks were queued; 0 when the project's state lock stays busy past
+    ``POOL_SNAPSHOT_LOCK_SEC`` or the thread cannot start, and the next call tries again.
+    Nothing is queued for a project whose workspace directory is not absolute.
+    """
+    claimed: list[tuple[str, PoolKey]] = []
+    own: EpisodeProject | None = None
+    lock = None if owned else project_state_lock(project)
+    if lock is not None and not lock.acquire(timeout=POOL_SNAPSHOT_LOCK_SEC):
+        return 0
+    try:
+        wanted = (
+            [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE]
+            if track_ids is None
+            else list(dict.fromkeys(track_ids))
+        )
+        if not Path(project.meta.workspace_dir).is_absolute():
+            wanted = []  # a save in progress shows its portable "." and would resolve to the cwd
+        for track_id in wanted:
+            track = project.track_by_id(track_id)
+            key = _pool_key(project, track_id) if track and track.media else None
+            if key is not None and _claim_pool(project, key):
+                claimed.append((track_id, key))
+        own = project.model_copy(deep=True) if claimed else None
+    except Exception:
+        log.debug("room tone pools not scheduled", exc_info=True)
+    finally:
+        if lock is not None:
+            lock.release()
+    if own is None:
+        for _, key in claimed:
+            _release_pool(key)
+        return 0
+
+    def run() -> None:
+        from podcast_mcp.util.process import low_priority
+
+        try:
+            with unscoped(), low_priority():
+                for track_id, key in claimed:
+                    try:
+                        if _record_room_tone_pool(own, track_id) is None:
+                            _note_unrecorded(key)
+                    except Exception:
+                        log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
+                        _note_unrecorded(key)
+                    finally:
+                        _release_pool(key)
+        finally:
+            for _, key in claimed:
+                _release_pool(key)
+
+    name = "+".join(track_id for track_id, _ in claimed)
+    try:
+        threading.Thread(target=run, name=f"room-tone-pool-{name}", daemon=True).start()
+    except Exception:
+        log.debug("room tone pool thread did not start", exc_info=True)
+        for _, key in claimed:
+            _release_pool(key)
+        return 0
+    return len(claimed)
 
 
 def schedule_room_tone_pool(project: EpisodeProject, track_id: str) -> bool:
@@ -531,31 +656,7 @@ def schedule_room_tone_pool(project: EpisodeProject, track_id: str) -> bool:
     For ingest (a track just added or its media replaced): the pick happens while the user
     is still reviewing, not at their first Approve or Play around. True when queued.
     """
-    track = project.track_by_id(track_id)
-    if track is None or track.media is None:
-        return False
-    key = _pool_key(project, track_id)
-    if key is None:
-        return False
-    with _POOLS_LOCK:
-        if key in _POOLS or key in _PENDING_POOLS:
-            return False
-        _PENDING_POOLS.add(key)
-
-    def run() -> None:
-        from podcast_mcp.util.process import low_priority
-
-        try:
-            with low_priority():
-                record_room_tone_pool(project, track_id)
-        except Exception:
-            log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
-        finally:
-            with _POOLS_LOCK:
-                _PENDING_POOLS.discard(key)
-
-    threading.Thread(target=run, name=f"room-tone-pool-{track_id}", daemon=True).start()
-    return True
+    return schedule_room_tone_pools(project, [track_id]) == 1
 
 
 def room_tone_pool_digest(project: EpisodeProject) -> str:
