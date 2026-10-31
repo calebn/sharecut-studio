@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from podcast_mcp.gui.job_events import GUEST_STREAM_SLOTS
@@ -21,11 +21,13 @@ from podcast_mcp.gui.routes.guest_errors import guest_boundary
 from podcast_mcp.gui.routes.share_common import check_share_token, rate_limit_share
 from podcast_mcp.gui.routes.sse_common import guest_job_events_response
 from podcast_mcp.gui.schemas import (
+    GuestEditImpactRequest,
     GuestExportRequest,
     GuestPipelineRunRequest,
     GuestRefineDoneRequest,
     GuestRefineWaiveRequest,
     GuestReplacementPreviewRequest,
+    GuestSocialClipsRequest,
     GuestSpeakerMoveLaneSpanRequest,
     GuestSpeakerSplitRequest,
     GuestTranscriptExportRequest,
@@ -40,6 +42,7 @@ from podcast_mcp.services.collaboration import (
     GuestRoute,
     ShareSource,
     guest_cancel_job,
+    guest_edit_impact_view,
     guest_export_transcript,
     guest_exports,
     guest_job_status_view,
@@ -51,6 +54,7 @@ from podcast_mcp.services.collaboration import (
     guest_refine_waive,
     guest_replacement_preview,
     guest_save_vocabulary,
+    guest_social_clip_view,
     guest_start_export,
     guest_start_pipeline_run,
     guest_start_speaker_split,
@@ -222,6 +226,8 @@ SpeakerEventsScope = Annotated[
 SpeakerCancelScope = Annotated[
     GuestJobScope, Depends(guest_job_route("speaker_job_cancel", GUEST_SPEAKER_KINDS))
 ]
+EditImpactWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("edit_impact"))]
+SocialClipsWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("social_clips"))]
 SpeakerMoveLaneSpanActor = Annotated[
     GuestActor, Depends(guest_actor_route("speaker_move_lane_span"))
 ]
@@ -495,6 +501,26 @@ def post_daw_speaker_move_lane_span(
             to_lane=req.to_lane,
             timeline_start=req.timeline_start,
             timeline_end=req.timeline_end,
+        )
+
+
+@router.get("/api/review/{token}/daw/edit-impact")
+def get_daw_edit_impact(
+    req: Annotated[GuestEditImpactRequest, Query()], ws: EditImpactWorkspace
+) -> dict[str, Any]:
+    """The host's edit impact report, without a field that can name a host path."""
+    with guest_boundary(log, "review edit impact"):
+        return guest_edit_impact_view(ws, markdown=req.markdown)
+
+
+@router.get("/api/review/{token}/daw/social-clips")
+def get_daw_social_clips(
+    req: Annotated[GuestSocialClipsRequest, Query()], ws: SocialClipsWorkspace
+) -> dict[str, Any]:
+    """The project's social clip candidates; an exported clip says so and never where."""
+    with guest_boundary(log, "review social clips"):
+        return guest_social_clip_view(
+            ws, approved=req.approved, review_required=req.review_required
         )
 
 

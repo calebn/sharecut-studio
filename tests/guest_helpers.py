@@ -16,6 +16,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import lookup_share
+from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 
 
 def seed_transcript_project(minimal_project, sample_wav, *, with_take: bool) -> ProjectWorkspace:
@@ -75,6 +76,19 @@ def share_id(world, link: str = "editor") -> str:
 
 def sidecar(world) -> dict:
     return json.loads(REFINE_GATE.path(load_project(world.ws.path)).read_text())
+
+
+def call_tool(world, name: str, arguments: dict | None = None, link: str = "editor") -> dict:
+    """``tools/call`` of *name* on the *link* share of ``world.tokens``."""
+    return handle_mcp_jsonrpc(
+        world.tokens[link],
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": arguments or {}},
+        },
+    )
 
 
 def mcp_ok(res: dict):

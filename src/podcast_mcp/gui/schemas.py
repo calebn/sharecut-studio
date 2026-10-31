@@ -231,6 +231,19 @@ class GuestJobRequest(GuestRequest):
     job_id: str = Field(min_length=1, max_length=GUEST_ID_MAX_CHARS)
 
 
+class GuestEditImpactRequest(GuestRequest):
+    """Whether an Editor share's edit impact read answers as Markdown text instead of fields."""
+
+    markdown: bool = False
+
+
+class GuestSocialClipsRequest(GuestRequest):
+    """Which of the project's social clip candidates an Editor share lists."""
+
+    approved: bool | None = None
+    review_required: bool | None = None
+
+
 class GuestVocabularyPutRequest(GuestRequest):
     """Save the project's vocabulary from an Editor share; the share names the project."""
 

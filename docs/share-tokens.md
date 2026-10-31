@@ -627,6 +627,30 @@ downloaded), an attended project `pipeline_attended`. Export and speaker starts 
 record the share as `share:<id>` in the host log, as the HTTP rows do (the export start no longer
 logs a token prefix); the pipeline start logs nothing about who started it.
 
+An Editor also reads the project's edit state, as the host does. `GET …/daw/edit-impact` is the
+host's edit impact report (CLI `edit impact`, `edit_impact_report`): seconds cut in total and per
+track, edits applied and pending review, clip and gap counts, the timeline length, and the
+segments behind the numbers (`id`, `track_id`, `start`, `end`, `duration_sec`, `reason`,
+`applied`, `review_required`), at most 500 with `segments_total` saying how many there are;
+`?markdown=true` answers `{"markdown": …}` instead: the host's Markdown report format over the same
+filtered numbers, listing at most 50 segments as the host's does, with `(withheld)` where a value
+is withheld. `GET …/daw/social-clips` is the
+host's list of social clip candidates (`list_social_clips`), at most 500 with `total`, filtered by
+`?approved=` and `?review_required=`; each clip carries its score, reasons, title, caption,
+excerpt, speaker and review state, and `exported` says whether the host exported it, never
+where. Free text, track ids and clip ids that name a host path are sent as null (a withheld track in
+the per-track seconds is keyed `(withheld)`); the answers carry no path. Both read the live
+project, as the host does, not the share's pinned review version. Both are reads (read rate bucket, no
+`PODCAST_GUEST_RENDER`, nothing recorded) and their MCP twins are `guest_edit_impact` and
+`guest_social_clips`, offered by the same Editor gate; a Viewer or a Commenter gets 403
+`share_capability_required` (`-32003` over MCP). The query takes only those fields (an unknown
+one is a 422, `-32602` over MCP). The `edit_impact` and `social_clips` fields of the Studio
+project view stay placeholders (zero and empty) for every role: that view is pushed to all guests
+through one shared event stream, so showing an Editor the real values there needs a per-role
+stream; until then the Editor takes them from these two reads. Approving, rejecting, proposing and
+exporting social clips stay with the host; an Editor adds, changes and deletes a candidate by
+document command as before.
+
 An Editor also gets twins of the transcript tab's tools, under `…/daw/transcript/`, as the
 project's workspace. The rule is the same as for the rest of the Editor's powers: an Editor does
 what the host does, and the exceptions are the written list below. None of these starts a job,

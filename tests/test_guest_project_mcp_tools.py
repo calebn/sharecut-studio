@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from guest_helpers import mcp_ok, mcp_refusal
+from guest_helpers import call_tool, mcp_ok, mcp_refusal
 from podcast_mcp.engines.models.word_aligner import WordAlignerMissingError
 from podcast_mcp.engines.speaker_id import _speaker_model_missing
 from podcast_mcp.engines.speaker_split import RATE, SpeakerAttribution, SpeakerTurn
@@ -32,6 +32,7 @@ from podcast_mcp.services.pipeline import config_store
 from podcast_mcp.services.remote_mcp.allowlist import (
     DOCUMENT_COMMAND_TOOLS,
     EDIT_TOOLS,
+    EDITOR_INSIGHT_TOOLS,
     EDITOR_PROJECT_TOOLS,
     EXPORT_TOOLS,
     PIPELINE_TOOLS,
@@ -145,18 +146,6 @@ def world(minimal_project, tmp_workspace, monkeypatch):
     gate.set()
 
 
-def _call(world, name: str, arguments: dict | None = None, link: str = "editor") -> dict:
-    return handle_mcp_jsonrpc(
-        world.tokens[link],
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {"name": name, "arguments": arguments or {}},
-        },
-    )
-
-
 def _settle(world, job_id: str) -> None:
     world.app.state.jobs.wait(world.app.state.jobs.get_job(job_id), timeout=5)
 
@@ -168,7 +157,7 @@ def _job(world, kind: str) -> Job:
 
 
 def _started(world, tool: str) -> str:
-    return mcp_ok(_call(world, tool, STARTS[tool]))["job"]["id"]
+    return mcp_ok(call_tool(world, tool, STARTS[tool]))["job"]["id"]
 
 
 READS = {
@@ -201,7 +190,7 @@ def test_only_an_editor_is_offered_the_project_tools(world, role, offered) -> No
 @pytest.mark.parametrize("role", ["viewer", "commenter"])
 @pytest.mark.parametrize("tool", sorted(CALLS))
 def test_a_lesser_role_is_refused_with_the_fixed_copy(world, tool, role) -> None:
-    res = _call(world, tool, CALLS[tool], link=role)
+    res = call_tool(world, tool, CALLS[tool], link=role)
 
     assert res["error"]["code"] == -32003
     assert res["error"]["message"] == guest_message_for_code("share_capability_required")
@@ -215,7 +204,7 @@ def test_a_revoked_or_expired_link_is_refused(world, link) -> None:
     else:
         world.tokens["editor"] = world.tokens["expired"]
 
-    res = _call(world, "guest_pipeline_run")
+    res = call_tool(world, "guest_pipeline_run")
 
     assert res["error"] == {"code": -32004, "message": "share not found"}
     assert not world.app.state.jobs.status()["running"]
@@ -225,7 +214,7 @@ def test_a_revoked_or_expired_link_is_refused(world, link) -> None:
 def test_a_start_needs_the_host_opt_in(world, monkeypatch, tool) -> None:
     monkeypatch.delenv("PODCAST_GUEST_RENDER")
 
-    res = _call(world, tool, STARTS[tool])
+    res = call_tool(world, tool, STARTS[tool])
 
     assert res["error"]["code"] == -32003
     assert not world.app.state.jobs.status()["running"]
@@ -235,7 +224,7 @@ def test_a_start_needs_the_host_opt_in(world, monkeypatch, tool) -> None:
 def test_everything_but_a_start_works_with_the_opt_in_off(world, monkeypatch, tool) -> None:
     monkeypatch.delenv("PODCAST_GUEST_RENDER")
 
-    res = _call(world, tool, CALLS[tool])
+    res = call_tool(world, tool, CALLS[tool])
 
     assert "error" not in res, res
     if tool.endswith("_status"):
@@ -248,7 +237,7 @@ def test_everything_but_a_start_works_with_the_opt_in_off(world, monkeypatch, to
 
 @pytest.mark.parametrize("tool", sorted(STARTS))
 def test_the_editor_starts_a_job_and_gets_only_the_projection(world, tool) -> None:
-    result = mcp_ok(_call(world, tool, STARTS[tool]))
+    result = mcp_ok(call_tool(world, tool, STARTS[tool]))
 
     assert set(result) == {"job"}
     assert set(result["job"]) == PROJECTION
@@ -270,9 +259,9 @@ def test_a_started_job_is_followed_and_stopped_with_its_own_tools(world, family)
     job_id = _started(world, start)
     assert world.started.wait(5)
 
-    status = mcp_ok(_call(world, f"guest_{family}_status"))
-    job = mcp_ok(_call(world, f"guest_{family}_job", {"job_id": job_id}))
-    cancelled = mcp_ok(_call(world, f"guest_{family}_job_cancel", {"job_id": job_id}))
+    status = mcp_ok(call_tool(world, f"guest_{family}_status"))
+    job = mcp_ok(call_tool(world, f"guest_{family}_job", {"job_id": job_id}))
+    cancelled = mcp_ok(call_tool(world, f"guest_{family}_job_cancel", {"job_id": job_id}))
 
     assert job["job"]["id"] == job_id
     assert set(job["job"]) == PROJECTION
@@ -290,7 +279,7 @@ def test_a_job_of_another_kind_or_project_is_not_found(world, family) -> None:
     for kind in others:
         job = _job(world, kind)
         for op in ("job", "job_cancel"):
-            code, text = mcp_refusal(_call(world, f"guest_{family}_{op}", {"job_id": job.id}))
+            code, text = mcp_refusal(call_tool(world, f"guest_{family}_{op}", {"job_id": job.id}))
             assert (code, text) == ("job_not_found", GENERIC_GUEST_MESSAGE)
     elsewhere = Job(
         id="elsewhere-1",
@@ -299,7 +288,7 @@ def test_a_job_of_another_kind_or_project_is_not_found(world, family) -> None:
         project_path="/not/this/project",
     )
     world.slot(elsewhere)
-    code, text = mcp_refusal(_call(world, f"guest_{family}_job", {"job_id": elsewhere.id}))
+    code, text = mcp_refusal(call_tool(world, f"guest_{family}_job", {"job_id": elsewhere.id}))
     assert code == "job_not_found"
     assert "/not/this" not in text
 
@@ -325,7 +314,7 @@ def test_a_job_of_another_kind_or_project_is_not_found(world, family) -> None:
     ],
 )
 def test_arguments_are_bounded_like_the_http_bodies(world, tool, bad) -> None:
-    res = _call(world, tool, bad)
+    res = call_tool(world, tool, bad)
 
     assert res["error"]["code"] == -32602
     assert res["error"]["data"] == {"error_code": "invalid_arguments"}
@@ -354,7 +343,7 @@ def test_a_second_start_while_a_job_runs_is_job_running(world) -> None:
     assert world.started.wait(5)
 
     for tool in STARTS:
-        code, text = mcp_refusal(_call(world, tool, STARTS[tool]))
+        code, text = mcp_refusal(call_tool(world, tool, STARTS[tool]))
         assert (code, text) == ("job_running", GENERIC_GUEST_MESSAGE)
     world.gate.set()
 
@@ -362,7 +351,7 @@ def test_a_second_start_while_a_job_runs_is_job_running(world) -> None:
 def test_a_host_job_holding_the_slot_is_job_running(world) -> None:
     job = _job(world, "render_preview")
 
-    code, text = mcp_refusal(_call(world, "guest_speaker_split", SPLIT))
+    code, text = mcp_refusal(call_tool(world, "guest_speaker_split", SPLIT))
 
     assert (code, text) == ("job_running", GENERIC_GUEST_MESSAGE)
     assert job.id not in text
@@ -376,7 +365,7 @@ def test_a_missing_speaker_model_is_the_fixed_copy_with_no_download(world, monke
 
     monkeypatch.setattr("podcast_mcp.services.media.speaker.resolve_speaker_backend", refuse)
 
-    res = _call(world, "guest_speaker_split", SPLIT)
+    res = call_tool(world, "guest_speaker_split", SPLIT)
 
     code, text = mcp_refusal(res)
     assert (code, text) == ("model_needed", guest_message_for_code("model_needed"))
@@ -388,7 +377,7 @@ def test_a_missing_speaker_model_is_the_fixed_copy_with_no_download(world, monke
 def test_a_sample_past_the_end_is_the_fixed_copy(world) -> None:
     body = {**SPLIT, "enrollment": {"Ana": [[12.0, 14.0]]}}
 
-    code, text = mcp_refusal(_call(world, "guest_speaker_split", body))
+    code, text = mcp_refusal(call_tool(world, "guest_speaker_split", body))
 
     assert (code, text) == ("enrollment_past_end", guest_message_for_code("enrollment_past_end"))
     assert not world.app.state.jobs.status()["running"]
@@ -397,14 +386,14 @@ def test_a_sample_past_the_end_is_the_fixed_copy(world) -> None:
 def test_an_attended_project_is_refused_with_the_fixed_copy(world) -> None:
     config_store().put(world.ws.path, unattended=False)
 
-    code, text = mcp_refusal(_call(world, "guest_pipeline_run"))
+    code, text = mcp_refusal(call_tool(world, "guest_pipeline_run"))
 
     assert (code, text) == ("pipeline_attended", guest_message_for_code("pipeline_attended"))
 
 
 @pytest.mark.parametrize("field", ["from_step", "only_step"])
 def test_the_export_step_is_not_shared_over_mcp_either(world, field) -> None:
-    code, text = mcp_refusal(_call(world, "guest_pipeline_run", {field: "export_deliverables"}))
+    code, text = mcp_refusal(call_tool(world, "guest_pipeline_run", {field: "export_deliverables"}))
 
     assert (code, text) == (
         "pipeline_step_not_shared",
@@ -422,7 +411,7 @@ def test_the_export_step_is_not_shared_over_mcp_either(world, field) -> None:
 )
 def test_a_bad_step_name_is_the_owner_code_with_fixed_copy(world, field, bad, code) -> None:
 
-    got = mcp_refusal(_call(world, "guest_pipeline_run", {field: bad}))
+    got = mcp_refusal(call_tool(world, "guest_pipeline_run", {field: bad}))
 
     assert got == (code, guest_message_for_code(code))
     assert "nope-step" not in got[1]
@@ -432,7 +421,7 @@ def test_the_move_answers_the_same_allowlist_as_the_http_twin(world) -> None:
     job_id = _started(world, "guest_speaker_split")
     _settle(world, job_id)
 
-    moved = mcp_ok(_call(world, "guest_speaker_move_lane_span", MOVE))
+    moved = mcp_ok(call_tool(world, "guest_speaker_move_lane_span", MOVE))
 
     assert set(moved) == set(GUEST_MOVE_LANE_SPAN_KEYS)
     assert PLANTED not in json.dumps(moved)
@@ -443,7 +432,7 @@ def test_the_move_domain_refusal_keeps_the_http_code(world) -> None:
         f"/api/review/{world.tokens['editor']}/daw/speaker/move-lane-span", json=MOVE
     )
 
-    code, text = mcp_refusal(_call(world, "guest_speaker_move_lane_span", MOVE))
+    code, text = mcp_refusal(call_tool(world, "guest_speaker_move_lane_span", MOVE))
 
     assert code == http.headers[CODE]
     assert text == http.json()["detail"]
@@ -460,7 +449,7 @@ def test_a_start_answers_what_its_http_twin_answers(world) -> None:
         world.gate.set()
         _settle(world, want.json()["job"]["id"])
         world.gate.clear()
-        got = mcp_ok(_call(world, tool, STARTS[tool]))["job"]
+        got = mcp_ok(call_tool(world, tool, STARTS[tool]))["job"]
         world.gate.set()
         _settle(world, got["id"])
         assert set(got) == set(want.json()["job"])
@@ -473,7 +462,7 @@ def test_a_domain_refusal_keeps_the_http_code_and_copy(world) -> None:
     _settle(world, world.client.post(prefix, json=SPLIT).json()["job"]["id"])
     again = world.client.post(prefix, json=SPLIT)
 
-    code, text = mcp_refusal(_call(world, "guest_speaker_split", SPLIT))
+    code, text = mcp_refusal(call_tool(world, "guest_speaker_split", SPLIT))
 
     assert (code, text) == (again.headers[CODE], again.json()["detail"])
     assert code == "speaker_split_already_split"
@@ -485,11 +474,12 @@ def test_the_job_tools_answer_what_the_http_twins_answer(world) -> None:
     _settle(world, job_id)
 
     assert (
-        mcp_ok(_call(world, "guest_speaker_job", {"job_id": job_id}))
+        mcp_ok(call_tool(world, "guest_speaker_job", {"job_id": job_id}))
         == world.client.get(f"{prefix}/jobs/{job_id}").json()
     )
     assert (
-        mcp_ok(_call(world, "guest_speaker_status")) == world.client.get(f"{prefix}/status").json()
+        mcp_ok(call_tool(world, "guest_speaker_status"))
+        == world.client.get(f"{prefix}/status").json()
     )
 
 
@@ -502,7 +492,7 @@ def test_a_bare_error_is_the_fixed_internal_error(world, monkeypatch, caplog, to
         monkeypatch.setattr(f"podcast_mcp.services.jobs.manager.JobManager.{name}", refuse)
 
     with caplog.at_level(logging.ERROR):
-        res = _call(world, tool, STARTS[tool])
+        res = call_tool(world, tool, STARTS[tool])
 
     result = res["result"]
     assert result["isError"] is True
@@ -523,7 +513,7 @@ def test_the_split_is_logged_as_the_share(world, caplog) -> None:
 
 def test_every_registry_row_joins_its_tool_on_rate_kind_and_flag() -> None:
     agent = load_script("export_docs_site_contract")._ROUTE_AGENT
-    owned = EDIT_TOOLS | DOCUMENT_COMMAND_TOOLS | EDITOR_PROJECT_TOOLS
+    owned = EDIT_TOOLS | DOCUMENT_COMMAND_TOOLS | EDITOR_PROJECT_TOOLS | EDITOR_INSIGHT_TOOLS
     claimed: set[str] = set()
     flagged: set[str] = set()
     for row in GUEST_OWNER_ROUTES.values():
@@ -542,7 +532,7 @@ def test_every_registry_row_joins_its_tool_on_rate_kind_and_flag() -> None:
         if row.needs_guest_render:
             flagged.add(note)
 
-    assert claimed >= EDITOR_PROJECT_TOOLS
+    assert claimed >= EDITOR_PROJECT_TOOLS | EDITOR_INSIGHT_TOOLS
     assert flagged == set(STARTS) | {"guest_render_preview"}
 
 
@@ -555,7 +545,7 @@ def test_the_new_copy_is_fixed_and_the_job_codes_stay_generic() -> None:
 
 def test_force_with_retime_words_is_the_owner_code_with_fixed_copy(world) -> None:
     got = mcp_refusal(
-        _call(world, "guest_pipeline_run", {"force_transcribe": True, "retime_words": True})
+        call_tool(world, "guest_pipeline_run", {"force_transcribe": True, "retime_words": True})
     )
 
     assert got == (
@@ -583,7 +573,7 @@ def test_a_missing_model_on_a_run_is_the_fixed_copy_and_nothing_starts(
 
         monkeypatch.setattr(f"{ops}.ensure_word_aligner_for_run", refuse)
 
-    res = _call(world, "guest_pipeline_run")
+    res = call_tool(world, "guest_pipeline_run")
 
     assert mcp_refusal(res) == ("model_needed", guest_message_for_code("model_needed"))
     assert set(res["result"]["structuredContent"]) == {"ok", "error", "error_code"}

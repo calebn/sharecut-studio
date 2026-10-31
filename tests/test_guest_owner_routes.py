@@ -181,6 +181,8 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
         "speaker_job_events",
         "speaker_job_cancel",
         "speaker_move_lane_span",
+        "edit_impact",
+        "social_clips",
     }
     for name, row in GUEST_OWNER_ROUTES.items():
         assert row.name == name

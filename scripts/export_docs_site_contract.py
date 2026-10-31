@@ -219,6 +219,14 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Editor",
         "Move a timeline range from one speaker lane to a sibling lane of the same split (one undo step)",
     ),
+    ("GET", "/api/review/{token}/daw/edit-impact"): (
+        "Editor",
+        "Seconds cut, edits applied and pending, per track, with their segments; `markdown=true` for the Markdown report",
+    ),
+    ("GET", "/api/review/{token}/daw/social-clips"): (
+        "Editor",
+        "The project's social clip candidates; `approved` and `review_required` filter; an exported clip says so, never where",
+    ),
     ("POST", "/api/review/{token}/daw/document/command"): (
         "role's command set",
         "Typed body — see Document commands",
@@ -337,6 +345,8 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ),
     ("POST", "/api/review/{token}/daw/speaker/jobs/{job_id}/cancel"): "guest_speaker_job_cancel",
     ("POST", "/api/review/{token}/daw/speaker/move-lane-span"): "guest_speaker_move_lane_span",
+    ("GET", "/api/review/{token}/daw/edit-impact"): "guest_edit_impact",
+    ("GET", "/api/review/{token}/daw/social-clips"): "guest_social_clips",
     ("POST", "/api/review/{token}/feed/edit"): (
         "http-only: the host's feed_set tool; not a guest MCP tool"
     ),
@@ -547,6 +557,7 @@ def _render_remote_tools() -> str:
         COMMENT_TOOLS,
         DOCUMENT_COMMAND_TOOLS,
         EDIT_TOOLS,
+        EDITOR_INSIGHT_TOOLS,
         EDITOR_PROJECT_TOOLS,
         PLAY_AND_VIEW_TOOLS,
         PLAY_TOOLS,
@@ -573,6 +584,7 @@ def _render_remote_tools() -> str:
         f"| Commenter or Editor role | {fmt(DOCUMENT_COMMAND_TOOLS)} |",
         f"| Editor role | {fmt(EDIT_TOOLS)} |",
         f"| Editor role, project work | {fmt(EDITOR_PROJECT_TOOLS)} |",
+        f"| Editor role, edit state | {fmt(EDITOR_INSIGHT_TOOLS)} |",
         "",
         REMOTE_END,
         "",
