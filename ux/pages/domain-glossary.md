@@ -76,7 +76,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Combined transcript** | Utterance stream for search/NL | `transcripts.combined` | Search / agent; export captions |
 | **Transcription vocabulary** | Names and terms used for Whisper; Re-transcribe (forces ASR; normal runs reuse transcripts) when any transcript was produced with a different saved revision | `transcript_context.yaml` revision + `transcripts.per_track[].vocabulary_revision` | Pipeline vocabulary editor |
 | **FX chain** | Per-track cleanup/EQ/etc. | `mix.processing_chains` | Track FX, audition FX vs Raw |
-| **Envelope** | Volume automation over time | `mix.automation_envelopes` | Volume envelope overlay, track volume workspace |
+| **Envelope** | Volume automation over time | `mix.automation_envelopes` | Volume envelope overlay, Inspector point fields |
 | **Volume (fader)** | A track's saved level, on top of the staging gain Balance sets | `timeline.tracks[].fader_db` (+ `gain_db`) | Track inspector / sheet fader; header's **Out** readout shows the sum |
 | **Balance status** | Whether the last dialogue loudness measurement still matches the media revision, ordered FX chain, and kept speech spans; status is not measured before the first successful balance run, current while those inputs match, and stale when they change. The displayed LUFS is the measured level, and “ungated” indicates the measurement fell back from speech gating | `timeline.tracks[].balance_basis` + derived render status | Track inspector below the Volume fader |
 | **Mute / solo** | M removes a track from the saved mix (host and Editors); S, and a guest's M, change only what you hear. Tracks your solo silences go grey like a muted track (row, lane, clips and waveform), dashed rather than solid. While any track is soloed, a **Solo on · Clear solo** button shows and clears every solo in one press | `timeline.tracks[].muted`; solo and listen-only mute are per-listener | Track headers, lanes, inspector, Mix sheet (solid = saved, dashed = only you); Solo on above the track headers, in the phone status row and in the Mix sheet |
@@ -226,7 +226,7 @@ it settles, and History Undo restores the saved edit.
 
 Show the volume envelope and select a point (from the lane or the create menu's
 **Add envelope point**), then **Inspect** opens its **Time** and **Level** fields
-(a time past the end of the timeline is refused with a message under the field).
+(a time past the end of the timeline, or a level above 1.50, is refused: the field keeps what was typed and shows its range).
 Each change and **Remove point** is one undo step; removing the last point
 restores unity automation.
 Volume envelopes start hidden and use one shared visibility setting across all
@@ -234,9 +234,9 @@ tracks. Show the layer before adding or editing points. A first point starts at
 the empty curve's unity level and adds endpoint anchors at the curve's prior
 value; lowering that point later leaves the anchors unchanged and creates a dip.
 If the point is at either endpoint, its own ID serves as that anchor.
-Points keep their IDs when time sorting changes. If the envelope changes while
-a draft is open, saving is refused and **Discard draft and reload points**
-loads the current list. The host and Editor review links can edit envelopes;
+Points keep their IDs when time sorting changes. If the envelope changes under an
+open point, saving is refused, the sheet shows an alert and **Reload points**
+dismisses it once the current list has loaded. The host and Editor review links can edit envelopes;
 Commenter and Viewer links can view them but cannot edit.
 
 If the words a transcript correction, Suppress, or Ignore targets change (another tab, a
