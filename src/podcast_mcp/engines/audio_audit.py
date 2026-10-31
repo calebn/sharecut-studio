@@ -297,10 +297,13 @@ class TrackRmsCache:
         """:meth:`from_timeline_stem` for a raw workspace recording, decoded once per process.
 
         A repeat call while the file is unchanged gets a fresh cache over the first decode
-        (``engines/decode_memo.py``). Never use it for a temp render or a processed stem.
+        (``engines/decode_memo.py``). A symlinked recording is decoded through its resolved path.
+        Never use it for a temp render or a processed stem.
         """
         return decode_once(
-            path, sample_rate, lambda: cls.from_timeline_stem(path, sample_rate=sample_rate)
+            path,
+            sample_rate,
+            lambda decoded: cls.from_timeline_stem(decoded, sample_rate=sample_rate),
         )
 
     def _index_range(self, t_start: float, t_end: float) -> tuple[int, int] | None:
