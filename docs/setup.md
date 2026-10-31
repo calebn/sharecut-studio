@@ -693,6 +693,8 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_VERDICT_VERIFY` |  | On every verdict cache hit, run the full check too and fail if it differs (tests, lab). Also re-decodes on every decode memo hit and fails if the bits differ. |
 | `PODCAST_DECODE_MEMO_MB` | `768` | Megabytes of decoded raw recordings kept for the life of the process (least recently used out first); 0 keeps none. |
 | `PODCAST_DECODE_MEMO_IDLE_S` | `90` | Seconds without a decode memo hit or store, and no decode running, before the memo releases its recordings (about twice that if a decode overlaps the deadline; capped at 86400); 0 never releases. |
+| `PODCAST_EVIDENCE_KEEP_MB` | `3072` | Megabytes of disk for track evidence kept between batches, so Approve reuses what propose built (least recently used out first; temp files read through the page cache, no resident memory); 0 keeps none. |
+| `PODCAST_EVIDENCE_KEEP_IDLE_S` | `2700` | Seconds without a kept-evidence hit or store, and no build running, before it is released and its temp files are freed (capped at 86400); 0 never releases. |
 | `PODCAST_EVIDENCE_VERIFY` |  | On every cache hit, rebuild the track evidence and fail if it differs from the cached copy (tests, lab). Also re-decodes on every decode memo hit. |
 
 **Studio server**
