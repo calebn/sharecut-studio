@@ -7,10 +7,10 @@ import {
   loadTranscriptCheck,
   markTranscriptChecked,
   rejectEdits,
+  replyHistoryHead,
   skipSessionSuggestionCommand,
   waiveTranscriptRefine,
 } from "../../api";
-import { replyHistoryHead } from "../../api/documentEdits";
 import {
   playPendingPreview,
   playSessionPreview,
