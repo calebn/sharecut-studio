@@ -630,7 +630,7 @@ registers the typed name; both type the name through `fillDisplayNameField`),
 (and `landedTrackPeakOrPending` for polling) in `recordRoom.ts` and
 `bouncedWavs` in `gui/web/e2e/exportFiles.ts`),
 `gui/web/e2e/playback.ts` (`expectPlaybackAdvancesThenHolds`) and
-`gui/web/e2e/transcriptEdit.ts` (`openTranscriptPanel`,
+`gui/web/e2e/transcriptEdit.ts` (`openScript`,
 `withDocumentCommandTypes`) and `gui/web/e2e/launchOptions.ts`
 (`withLaunchArgs`, and `CHROMIUM_FAKE_MEDIA_ARGS`, which the main suite's
 record specs share); guest review

@@ -10,7 +10,7 @@ import {
 } from "./lifecycleAudit";
 import { hostOfflineQueueCount } from "./offlineQueue";
 import { inspectSelectionByKey } from "./stageNav";
-import { openTranscriptPanel } from "./transcriptEdit";
+import { openScript } from "./transcriptEdit";
 
 test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
 for (const terminal of ["escape", "cancel-draft", "synthetic-cancel"] as const)
@@ -18,7 +18,7 @@ for (const terminal of ["escape", "cancel-draft", "synthetic-cancel"] as const)
     page,
   }, info) => {
     await runAudit(page, info, false, async (p, c) => {
-      const list = await openTranscriptPanel(page);
+      const list = await openScript(page);
       await list.locator(".sys-script-word").first().click();
       await inspectSelectionByKey(page);
       await page

@@ -35,7 +35,7 @@ for (const width of [1440, 360]) {
         await expect(mark).toBeVisible();
         await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
         await page.evaluate(() => document.fonts.ready);
-        const paragraph = page.locator(".utterance-seg");
+        const paragraph = page.locator(".sys-script-body p");
         const originalParagraph = await paragraphGeometry(paragraph);
         if (width === 360) {
           expect(

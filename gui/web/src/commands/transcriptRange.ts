@@ -1,7 +1,6 @@
 import { useDawStore } from "../state/dawStore";
 import {
   isRangeStep,
-  oneWordOf,
   selectedWordsMessage,
   stepWordSpan,
 } from "../utils/rangeSelect";
@@ -20,12 +19,6 @@ export function registerTranscriptRangeCommands(): void {
     const selection = s.selection;
     if (!s.project || selection?.kind !== "transcriptRange") {
       return { status: "disabled", reason: "Select transcript words first" };
-    }
-    if (s.transcriptCorrecting && oneWordOf(selection)) {
-      return {
-        status: "disabled",
-        reason: "Use Select mode to change the range (Correct is ASR-only)",
-      };
     }
     if (!isRangeStep(args)) {
       return { status: "disabled", reason: "Choose which edge to move" };

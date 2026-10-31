@@ -7,7 +7,6 @@ import {
 } from "../edit/clipboard";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
-import { wordSelection } from "../utils/rangeSelect";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
@@ -124,45 +123,6 @@ describe("edit.copy/cut/paste", () => {
       reason: "atTime must be a number",
     });
     expect(api.pasteSegment).not.toHaveBeenCalled();
-  });
-
-  it("refuses a media cut of a tapped word in Correct mode", async () => {
-    useDawStore.setState({
-      selection: wordSelection({
-        trackId: "host",
-        sourceId: null,
-        wordIndex: 0,
-      }),
-      transcriptCorrecting: true,
-    });
-    expect(await execute("edit.cut")).toMatchObject({
-      status: "disabled",
-      reason: "Use Select mode for media cut (Correct is ASR-only)",
-    });
-    expect(api.rippleDeleteClips).not.toHaveBeenCalled();
-  });
-
-  it("refuses every range action on a tapped word in Correct mode, each for the Correct reason", async () => {
-    useDawStore.setState({
-      selection: wordSelection({
-        trackId: "host",
-        sourceId: null,
-        wordIndex: 0,
-      }),
-      transcriptCorrecting: true,
-    });
-    const cut = "Use Select mode for media cut (Correct is ASR-only)";
-    const other = "Use Select mode for range actions (Correct is ASR-only)";
-    for (const [id, reason] of [
-      ["range.cut", cut],
-      ["range.mute", other],
-      ["range.play", other],
-      ["range.comment", other],
-      ["range.bounce", other],
-    ] as const) {
-      expect(await execute(id)).toEqual({ status: "disabled", reason });
-    }
-    expect(api.rippleDeleteClips).not.toHaveBeenCalled();
   });
 
   it("does not cut a different clip after a selection-sheet action goes stale", async () => {

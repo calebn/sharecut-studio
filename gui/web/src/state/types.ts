@@ -270,17 +270,10 @@ export interface DawState {
   commentDraft: CommentDraft | null;
   wordDraft: WordDraftEntry | null;
   transcriptFollowPlayhead: boolean;
-  transcriptAnnotate: boolean;
-  /** Vestigial: the Script has no Correct intent; a word edits only through Fix text. */
-  transcriptCorrecting: boolean;
   transcriptTimingRequest: TranscriptInlineEditRequest | null;
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
-  /** An inline transcript word fix is saving; outlives a Script remount (tab switch). */
-  transcriptInlineCommitPending: boolean;
   /** Late failure of an inline word fix; outlives a Script remount. */
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
-  /** Current low-confidence walkthrough stop; outlives a Script remount, reset by a project switch (hydrate). */
-  transcriptReviewCursor: TranscriptReviewCursor | null;
   /** `edit.addChapter` (plus menu, touch create menu) is in flight for the current project; outlives a menu remount, reset by a project switch (hydrate). */
   chapterAddPending: boolean;
   showCutAwayUtterances: boolean;
@@ -433,15 +426,10 @@ export interface DawState {
   setTranscriptInlineEditRequest: (
     request: TranscriptInlineEditRequest | null,
   ) => void;
-  setTranscriptInlineCommitPending: (pending: boolean) => void;
   setTranscriptInlineEditFailure: (
     failure: TranscriptInlineEditFailure | null,
   ) => void;
-  setTranscriptReviewCursor: (cursor: TranscriptReviewCursor | null) => void;
   setChapterAddPending: (pending: boolean) => void;
-  setTranscriptAnnotate: (on: boolean) => void;
-  setTranscriptCorrecting: (on: boolean) => void;
-  toggleTranscriptAnnotate: () => void;
   setShowCutAwayUtterances: (on: boolean) => void;
   toggleShowCutAwayUtterances: () => void;
   setPipelineJob: (job: PipelineJobSnapshot | null) => void;

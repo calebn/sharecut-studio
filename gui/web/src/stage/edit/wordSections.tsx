@@ -16,15 +16,12 @@ const keyOf = ({ trackId, sourceId, wordIndex }: WordRef) =>
 export function useWordSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {
-  const { project, projectPath, hydrated, correcting, rangeArmed } = useDaw(
-    (s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      hydrated: s.project?.meta.hydration?.transcript_words !== false,
-      correcting: s.transcriptCorrecting,
-      rangeArmed: s.rangeArmed,
-    }),
-  );
+  const { project, projectPath, hydrated, rangeArmed } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    hydrated: s.project?.meta.hydration?.transcript_words !== false,
+    rangeArmed: s.rangeArmed,
+  }));
   if (selection?.kind !== "transcriptRange") return null;
   const word = oneWordOf(selection);
   const related: InspectorSection[] =
@@ -81,7 +78,5 @@ export function useWordSections(
       { id: "timing", control: <WordTiming key={key} {...ref} /> },
     ],
   };
-  return correcting
-    ? [fix, rangeSection, facts, rest, ...related]
-    : [rangeSection, facts, fix, rest, ...related];
+  return [rangeSection, facts, fix, rest, ...related];
 }

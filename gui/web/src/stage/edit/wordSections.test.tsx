@@ -1357,7 +1357,6 @@ describe("which sections a transcript range gets", () => {
     useDawStore.setState({
       project: project(),
       projectPath: "/tmp/ep",
-      transcriptCorrecting: false,
       rangeArmed: false,
     });
   });
@@ -1370,11 +1369,6 @@ describe("which sections a transcript range gets", () => {
       "actions",
       "related",
     ]);
-  });
-
-  it("puts the fix first when correcting from the Script", () => {
-    useDawStore.setState({ transcriptCorrecting: true });
-    expect(ids(word)?.[0]?.id).toBe("fix");
   });
 
   it("gives a guest on a share link the range only", () => {

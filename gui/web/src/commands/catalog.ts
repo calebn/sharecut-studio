@@ -777,12 +777,6 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "canIngestMedia",
     notes: "Mod+I: Menu or drop on arrange; selected lane or new tracks",
   },
-  "view.transcriptAnnotate": {
-    id: "view.transcriptAnnotate",
-    category: "view",
-    label: "Annotate transcript",
-    when: "always",
-  },
   "transcript.adjustTiming": {
     id: "transcript.adjustTiming",
     category: "edit",
@@ -797,7 +791,8 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Edit focused transcript word",
     when: "hostProjectLoaded",
     paletteRunnable: false,
-    notes: "F2: focused timed word in Navigate mode; hydrated host only",
+    notes:
+      "F2 or a double-tap: Fix text on the selected timed word; hydrated host only",
   },
   "transcript.findReplace": {
     id: "transcript.findReplace",
@@ -807,21 +802,6 @@ export const COMMANDS: Record<string, CommandDef> = {
     keywords: ["search", "spelling"],
     when: "hostProjectLoaded",
     breaksFollow: true,
-  },
-  "transcript.correctIntent": {
-    id: "transcript.correctIntent",
-    category: "edit",
-    label: "Correct transcript",
-    keywords: ["fix", "typo", "spelling"],
-    when: "hasProject",
-    paletteRunnable: false,
-  },
-  "transcript.selectIntent": {
-    id: "transcript.selectIntent",
-    category: "edit",
-    label: "Select transcript range",
-    when: "hasProject",
-    paletteRunnable: false,
   },
   "transcript.extendRange": {
     id: "transcript.extendRange",
@@ -843,26 +823,6 @@ export const COMMANDS: Record<string, CommandDef> = {
     paletteRunnable: false,
     notes:
       "Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only",
-  },
-  "transcript.nextLowConfidence": {
-    id: "transcript.nextLowConfidence",
-    category: "navigation",
-    label: "Next low-confidence word",
-    shortLabel: "Next",
-    when: "hasProject",
-    notes:
-      "Seek + scroll to the next word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634)",
-    breaksFollow: true,
-  },
-  "transcript.prevLowConfidence": {
-    id: "transcript.prevLowConfidence",
-    category: "navigation",
-    label: "Previous low-confidence word",
-    shortLabel: "Previous",
-    when: "hasProject",
-    notes:
-      "Seek + scroll to the previous word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634)",
-    breaksFollow: true,
   },
   "view.showCutAway": {
     id: "view.showCutAway",

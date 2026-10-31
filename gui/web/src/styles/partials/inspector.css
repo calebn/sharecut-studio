@@ -73,16 +73,6 @@
   gap: var(--space-3);
 }
 
-.modifier-lead {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.modifier-lead > * {
-  margin-block: 0;
-}
-
 .modifier-action {
   font-size: var(--font-size-small);
   padding: var(--space-1) var(--space-4);

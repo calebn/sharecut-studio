@@ -11,9 +11,8 @@ import type { ScriptModel } from "./scriptModel";
 
 /**
  * The jump to the next word the transcript is unsure of. The count and the
- * walk are over the whole episode and leave bleed-only rows out, as the old
- * review did. The walk goes from the last word it visited and wraps. It is
- * not `transcript.nextLowConfidence`, which also turns Annotate on.
+ * walk are over the whole episode and leave bleed-only rows out. The walk goes
+ * from the last word it visited and wraps.
  */
 export function useScriptUnsure(
   model: ScriptModel,

@@ -223,7 +223,6 @@ describe("dawStore listen-first transport", () => {
       followDegraded: { tab: "pipeline" },
       transcriptScrollRequest: "transcript:turn:0",
       transcriptViewAnchor: "transcript:turn:3",
-      transcriptReviewCursor: { trackId: "t", wordIndex: 1, order: 0 },
     });
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
     const s = useDawStore.getState();
@@ -233,7 +232,6 @@ describe("dawStore listen-first transport", () => {
     expect(s.followDegraded).toEqual({});
     expect(s.transcriptScrollRequest).toBeNull();
     expect(s.transcriptViewAnchor).toBeNull();
-    expect(s.transcriptReviewCursor).toBeNull();
   });
 
   it("hydrate keeps the clock offset when the project path is unchanged", () => {
@@ -246,19 +244,6 @@ describe("dawStore listen-first transport", () => {
     useDawStore.setState({ localClientId: "guest-tok-viewer-ab" });
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
     expect(useDawStore.getState().localClientId).toBe("guest-tok-viewer-ab");
-  });
-
-  it("keeps the review cursor when hydrating the same project path", () => {
-    useDawStore.setState({
-      projectPath: "/tmp/ep.project.json",
-      transcriptReviewCursor: { trackId: "t", wordIndex: 1, order: 0 },
-    });
-    useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
-    expect(useDawStore.getState().transcriptReviewCursor).toEqual({
-      trackId: "t",
-      wordIndex: 1,
-      order: 0,
-    });
   });
 
   it("hydrate resets per-project transport status (#78)", () => {
@@ -764,21 +749,16 @@ describe("lane height preference", () => {
 describe("dawStore transcript inline edit", () => {
   afterEach(() =>
     useDawStore.setState({
-      transcriptInlineCommitPending: false,
       transcriptInlineEditFailure: null,
     }),
   );
 
-  it("starts with no pending commit and no failure", () => {
+  it("starts with no failure", () => {
     const initial = useDawStore.getInitialState();
-    expect(initial.transcriptInlineCommitPending).toBe(false);
     expect(initial.transcriptInlineEditFailure).toBeNull();
   });
 
   it("reflects setter calls in getState()", () => {
-    useDawStore.getState().setTranscriptInlineCommitPending(true);
-    expect(useDawStore.getState().transcriptInlineCommitPending).toBe(true);
-
     const failure = {
       projectPath: "/tmp/ep",
       trackId: "host",

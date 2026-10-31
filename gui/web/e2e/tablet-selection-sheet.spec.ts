@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { openHostProject } from "./overlayReachability";
 import { inspectSelection, inspectSelectionByKey } from "./stageNav";
-import { openTranscriptPanel } from "./transcriptEdit";
+import { openScript } from "./transcriptEdit";
 
 test.use({ hasTouch: true });
 
@@ -30,7 +30,7 @@ for (const tablet of TABLETS) {
   }) => {
     await page.setViewportSize(tablet);
     await openHostProject(page);
-    const list = await openTranscriptPanel(page);
+    const list = await openScript(page);
     const word = list.locator(".sys-script-word").nth(3);
     await word.click();
     await expect(list.locator(".sys-script-word[data-selected]")).toHaveCount(

@@ -31,8 +31,7 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
   {
     gesture: "Long-press",
     label: "Open inspector",
-    description:
-      "Open the selection sheet for clips, comments, and tracks; on a transcript word, open correction (hosts). In Select mode, hold a word and drag to select a range.",
+    description: "Open the selection sheet for clips, comments, and tracks.",
   },
   {
     gesture: "Pinch",
@@ -45,14 +44,14 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
     touch: "long-press-arm-drag",
     commandIds: ["transcript.extendRange"],
     description:
-      "In Select mode, hold a word to start a range, then drag over more words. Lift to select them. The range actions also add or drop a word at either end.",
+      "Hold a word in the Script to start a range, then drag over more words. Lift to select them. The range actions also add or drop a word at either end.",
   },
   {
     gesture: "Double-tap word",
     touch: "double-tap",
-    commandIds: ["transcript.correctIntent"],
+    commandIds: ["transcript.editWordInline"],
     description:
-      "Open the word correction sheet (hosts). Tap seeks immediately; closing restores the previous mode.",
+      "Open Fix text on the word (hosts). A single tap selects the word and moves the playhead to it.",
   },
 ];
 

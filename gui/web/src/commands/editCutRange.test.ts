@@ -18,7 +18,6 @@ beforeEach(() => {
   useDawStore.setState({
     project: minimalProject(),
     selection: wordSelection({ trackId: "host", sourceId: null, wordIndex: 0 }),
-    transcriptCorrecting: false,
   });
 });
 
