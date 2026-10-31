@@ -236,7 +236,10 @@ export interface SessionSuggestionView {
   from_sec: number | null;
   to_sec: number | null;
   track_ids: string[];
+  /** Distinct takes recorded (not segments or tracks). */
   take_count: number;
+  /** The take_index values Accept and SelectSessionTake accept, ascending. */
+  take_indexes: number[];
   /** The take Accept places (a replace); null when none is picked. */
   selected_take: number | null;
 }
