@@ -22,10 +22,12 @@ from filelock import Timeout
 
 from podcast_mcp import settings
 from podcast_mcp.segments.model import (
+    MAX_SEGMENT_JSON_BYTES,
     SEGMENT_JSON,
     SegmentFile,
     is_segment_id,
     parse_segment,
+    read_capped,
     segment_id_for,
     segment_json,
 )
@@ -38,6 +40,22 @@ _VERSION_DIR = re.compile(r"^v([1-9][0-9]*)$")
 _CHUNK = 1 << 20
 
 AddStatus = Literal["added", "unchanged", "new_version"]
+
+
+@dataclass(frozen=True)
+class DamagedSegment:
+    """A stored segment that ``list`` could not read, and why."""
+
+    id: str
+    version: int
+    problem: str
+    code: str
+
+
+@dataclass(frozen=True)
+class Listing:
+    segments: Sequence[SegmentFile]
+    damaged: Sequence[DamagedSegment]
 
 
 @dataclass(frozen=True)
@@ -57,9 +75,14 @@ def default_directory() -> Path:
 
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        while block := handle.read(_CHUNK):
-            digest.update(block)
+    try:
+        with path.open("rb") as handle:
+            while block := handle.read(_CHUNK):
+                digest.update(block)
+    except OSError as exc:
+        raise CodedValueError(
+            f"{path.name} cannot be read: {exc.strerror or exc}.", code="segment_unreadable"
+        ) from exc
     return digest.hexdigest()
 
 
@@ -96,6 +119,12 @@ class SegmentStore:
                 raise CodedValueError(
                     "The segment library is being changed by another program. Try again in a moment.",
                     code="segment_busy",
+                ) from exc
+            except OSError as exc:
+                raise CodedValueError(
+                    f"The segment library at {self.directory} cannot be opened: "
+                    f"{exc.strerror or exc}.",
+                    code="segment_write_failed",
                 ) from exc
             yield
 
@@ -143,14 +172,13 @@ class SegmentStore:
         return CodedValueError(f"There is no segment called {segment_id}.", code="segment_unknown")
 
     def _read(self, folder: Path, *, verify: bool = True) -> SegmentFile:
-        try:
-            raw = (folder / SEGMENT_JSON).read_bytes()
-        except OSError as exc:
-            raise CodedValueError(
-                f"The segment folder {folder.parent.name}/{folder.name} cannot be read. "
-                "Remove it and import the segment again.",
-                code="segment_unreadable",
-            ) from exc
+        raw = read_capped(
+            folder / SEGMENT_JSON,
+            MAX_SEGMENT_JSON_BYTES,
+            what=f"The segment folder {folder.parent.name}/{folder.name} "
+            "(remove it and import the segment again)",
+            code="segment_unreadable",
+        )
         segment = parse_segment(raw)
         expected_version = int(folder.name[1:])
         if segment.id != folder.parent.name or segment.version != expected_version:
@@ -166,31 +194,38 @@ class SegmentStore:
     def get(self, segment_id: str, version: int | None = None) -> SegmentFile:
         return self._read(self.path(segment_id, version))
 
-    def list(self) -> Sequence[SegmentFile]:
-        """The newest version of every segment that can be read. Unreadable ones are skipped."""
+    def scan(self) -> Listing:
+        """The newest version of every segment, and the ones that could not be read."""
         found: list[SegmentFile] = []
+        damaged: list[DamagedSegment] = []
         for segment_id in self._ids():
             versions = self._versions(segment_id)
             if not versions:
                 continue
             try:
                 found.append(self._read(self.directory / segment_id / f"v{versions[-1]}"))
-            except CodedValueError:
-                continue
-        return found
+            except CodedValueError as exc:
+                damaged.append(DamagedSegment(segment_id, versions[-1], str(exc), exc.code))
+        return Listing(found, damaged)
+
+    def list(self) -> Sequence[SegmentFile]:
+        """The newest readable version of every segment. Use :meth:`scan` to see damaged ones."""
+        return self.scan().segments
 
     def add(self, segment_dir: Path) -> AddResult:
         """Copy the segment in ``segment_dir`` into the library.
 
-        The same content as any stored version is ``unchanged``. The same name with other
+        The same content as an intact stored version is ``unchanged``. A stored version whose
+        audio no longer matches its hashes does not count, so importing the segment again
+        lands as the next version and repairs the library. The same name with other
         content is stored as the next version and never replaces an earlier one.
         """
-        try:
-            raw = (segment_dir / SEGMENT_JSON).read_bytes()
-        except OSError as exc:
-            raise CodedValueError(
-                f"{segment_dir} has no readable {SEGMENT_JSON}.", code="segment_invalid"
-            ) from exc
+        raw = read_capped(
+            segment_dir / SEGMENT_JSON,
+            MAX_SEGMENT_JSON_BYTES,
+            what=f"{segment_dir / SEGMENT_JSON}",
+            code="segment_invalid",
+        )
         incoming = parse_segment(raw)
         expected_id = segment_id_for(incoming.name)
         if incoming.id != expected_id:
@@ -216,22 +251,34 @@ class SegmentStore:
                     stored = self._read(self.directory / segment_id / f"v{version}", verify=False)
                 except CodedValueError:
                     continue
-                if stored.content_sha256 == content_sha256:
-                    return stored
+                if stored.content_sha256 != content_sha256:
+                    continue
+                try:
+                    verify_media(stored, self.directory / segment_id / f"v{version}")
+                except CodedValueError:
+                    continue
+                return stored
         return None
 
     def _install(self, segment: SegmentFile, source: Path) -> None:
         folder = self.directory / segment.id
-        folder.mkdir(parents=True, exist_ok=True)
-        staging = Path(tempfile.mkdtemp(prefix=".staging-", dir=folder))
+        staging: Path | None = None
         try:
+            folder.mkdir(parents=True, exist_ok=True)
+            staging = Path(tempfile.mkdtemp(prefix=".staging-", dir=folder))
             for name in segment.media:
                 shutil.copyfile(source / name, staging / name)
             write_text_atomic(staging / SEGMENT_JSON, segment_json(segment))
             verify_media(segment, staging)
             staging.rename(folder / f"v{segment.version}")
-        except BaseException:
-            shutil.rmtree(staging, ignore_errors=True)
+        except BaseException as exc:
+            if staging is not None:
+                shutil.rmtree(staging, ignore_errors=True)
+            if isinstance(exc, OSError):
+                raise CodedValueError(
+                    f"The segment could not be written to {self.directory}: {exc.strerror or exc}.",
+                    code="segment_write_failed",
+                ) from exc
             raise
 
     def remove(self, segment_id: str) -> None:
@@ -242,4 +289,10 @@ class SegmentStore:
             folder = self.directory / segment_id
             if not folder.is_dir():
                 raise self._unknown(segment_id)
-            shutil.rmtree(folder)
+            try:
+                shutil.rmtree(folder)
+            except OSError as exc:
+                raise CodedValueError(
+                    f"The segment {segment_id} could not be removed: {exc.strerror or exc}.",
+                    code="segment_write_failed",
+                ) from exc

@@ -225,3 +225,63 @@ def test_export_of_an_unknown_segment_is_refused(
         export_segments(source_store, ["nope"], tmp_path / "x.sharecutseg")
     assert raised.value.code == "segment_unknown"
     assert not os.path.exists(tmp_path / "x.sharecutseg")
+
+
+def test_entry_names_that_differ_only_in_case_are_refused(
+    bundle_path: Path, target: SegmentStore, tmp_path: Path
+) -> None:
+    path = _zip_with(tmp_path / "case.sharecutseg", bundle_path, {"CLIP-01.flac": b"x"})
+    _expect("segment_bundle_invalid", target, path)
+
+
+def test_an_oversize_segment_json_or_manifest_is_refused(
+    bundle_path: Path, target: SegmentStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bundle, "MAX_MANIFEST_BYTES", 8)
+    _expect("segment_bundle_invalid", target, bundle_path)
+
+
+def test_a_highly_compressed_entry_is_refused(
+    bundle_path: Path, target: SegmentStore, tmp_path: Path
+) -> None:
+    path = tmp_path / "bomb.sharecutseg"
+    with (
+        zipfile.ZipFile(bundle_path) as src,
+        zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as out,
+    ):
+        for info in src.infolist():
+            out.writestr(info.filename, src.read(info))
+        out.writestr("zeros.flac", b"\0" * (8 * 1024 * 1024))
+    _expect("segment_bundle_invalid", target, path)
+
+
+def test_a_full_disk_while_unpacking_is_a_coded_error(
+    bundle_path: Path, target: SegmentStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def full(*_args: object, **_kwargs: object) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", full)
+    _expect("segment_write_failed", target, bundle_path)
+
+
+def test_an_unwritable_temp_dir_is_a_coded_error(
+    bundle_path: Path, target: SegmentStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refused(*_args: object, **_kwargs: object) -> None:
+        raise OSError(13, "Permission denied")
+
+    monkeypatch.setattr(bundle.tempfile, "TemporaryDirectory", refused)
+    _expect("segment_write_failed", target, bundle_path)
+
+
+def test_a_write_error_while_exporting_is_a_coded_error(
+    source_store: SegmentStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*_args: object, **_kwargs: object) -> Path:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(bundle, "atomic_write", broken)
+    with pytest.raises(CodedValueError) as raised:
+        export_segments(source_store, [source_store.list()[0].id], tmp_path / "x.sharecutseg")
+    assert raised.value.code == "segment_write_failed"

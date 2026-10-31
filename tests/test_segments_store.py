@@ -163,3 +163,64 @@ def test_an_id_that_is_not_an_id_is_unknown(store: SegmentStore, bad: str) -> No
     with pytest.raises(CodedValueError) as raised:
         store.remove(bad)
     assert raised.value.code == "segment_unknown"
+
+
+def test_a_damaged_stored_version_is_repaired_by_importing_again(
+    store: SegmentStore, tmp_path: Path
+) -> None:
+    first = store.add(make_segment_dir(tmp_path))
+    (store.directory / first.id / "v1" / "clip-01.flac").write_bytes(b"bit rot")
+
+    again = store.add(make_segment_dir(tmp_path / "again"))
+
+    assert (again.status, again.version) == ("new_version", 2)
+    assert store.get(first.id).version == 2
+    assert store.add(make_segment_dir(tmp_path / "third")).status == "unchanged"
+
+
+def test_scan_reports_a_damaged_segment_that_list_leaves_out(
+    store: SegmentStore, tmp_path: Path
+) -> None:
+    first = store.add(make_segment_dir(tmp_path))
+    store.add(make_segment_dir(tmp_path / "b", name="Other", audio=b"fLaC-two"))
+    (store.directory / first.id / "v1" / "clip-01.flac").unlink()
+
+    listing = store.scan()
+
+    assert [d.id for d in listing.damaged] == [first.id]
+    assert listing.damaged[0].code == "segment_hash_mismatch"
+    assert len(listing.segments) == 1 == len(store.list())
+
+
+def test_an_oversize_segment_json_is_refused(store: SegmentStore, tmp_path: Path) -> None:
+    source = make_segment_dir(tmp_path)
+    (source / "segment.json").write_bytes(b" " * (1024 * 1024 + 1))
+    with pytest.raises(CodedValueError) as raised:
+        store.add(source)
+    assert raised.value.code == "segment_invalid"
+
+    added = store.add(make_segment_dir(tmp_path / "ok"))
+    (store.directory / added.id / "v1" / "segment.json").write_bytes(b" " * (1024 * 1024 + 1))
+    with pytest.raises(CodedValueError) as stored:
+        store.get(added.id)
+    assert stored.value.code == "segment_unreadable"
+
+
+def test_a_write_failure_is_a_coded_error_and_leaves_no_staging(
+    store: SegmentStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def full(*_args: object, **_kwargs: object) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr("podcast_mcp.segments.store.shutil.copyfile", full)
+    with pytest.raises(CodedValueError) as raised:
+        store.add(make_segment_dir(tmp_path))
+    assert raised.value.code == "segment_write_failed"
+    assert not list(store.directory.rglob(".staging-*"))
+
+
+def test_media_names_that_differ_only_in_case_are_refused() -> None:
+    from podcast_mcp.segments.model import is_safe_media_name
+
+    assert not is_safe_media_name("manifest.sha256")
+    assert not is_safe_media_name("Segment.JSON")

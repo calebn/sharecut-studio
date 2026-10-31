@@ -9,9 +9,13 @@ from pathlib import Path
 
 from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.mute_regions import mute_spans_for_source_window
+from podcast_mcp.engines.mute_regions import (
+    IgnoredWordRegions,
+    mute_spans_for_source_window,
+    room_tone_fills_for_source_window,
+)
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
-from podcast_mcp.models.episode import Clip, EpisodeProject, TrackRole
+from podcast_mcp.models.episode import Clip, ClipJoinMode, EpisodeProject, TrackRole
 from podcast_mcp.segments.model import (
     SEGMENT_JSON,
     MediaEntry,
@@ -27,6 +31,10 @@ from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 
 EDGE_SEC = 120.0
+# ``FFmpegEngine.extract_segment`` never cuts less than this, so a shorter clip would not
+# match the duration the segment records.
+MIN_CLIP_SEC = 0.01
+_EPS = 1e-6
 _CLOCK = re.compile(r"^(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$|^(\d+(?:\.\d+)?)$")
 
 
@@ -86,12 +94,51 @@ def _selected(
             raise CodedValueError(
                 "The range must end after it starts.", code="segment_range_invalid"
             )
-        chosen = extract_clips_in_timeline_range(project.clips, start, end)
-        shift = start
-        chosen = [c.model_copy(update={"timeline_start": c.timeline_start + shift}) for c in chosen]
+        chosen = []
+        for original in project.clips:
+            for piece in extract_clips_in_timeline_range([original], start, end):
+                # The extraction copies fades and the join mode of the whole clip. A cut
+                # made by the range is not a clip edge, so it gets neither.
+                cut_in = original.timeline_start < start - _EPS
+                cut_out = original.timeline_end > end + _EPS
+                update: dict[str, object] = {"timeline_start": piece.timeline_start + start}
+                if cut_in:
+                    update.update(fade_in_ms=0, join_in_mode=ClipJoinMode.FADE)
+                if cut_out:
+                    update.update(fade_out_ms=0)
+                chosen.append(piece.model_copy(update=update))
     if not chosen:
         raise CodedValueError("No clips are in that selection.", code="segment_selection_empty")
     return sorted(chosen, key=lambda clip: clip.timeline_start)
+
+
+def _refuse_unrenderable(clip: Clip) -> None:
+    """Raise for clip processing the capture cannot bake in, instead of capturing other audio."""
+    reason: str | None = None
+    if clip.off_speaker_mute_regions:
+        reason = "off-speaker mutes"
+    elif clip.bleed_restore and clip.bleed_restore.regions:
+        reason = "bleed restore"
+    elif room_tone_fills_for_source_window(clip, clip.source_start, clip.source_end):
+        reason = "room-tone fills under mutes"
+    if reason is not None:
+        raise CodedValueError(
+            f"Clip {clip.id} uses {reason}, which a saved segment cannot carry yet, so it would "
+            "sound different from the episode. Pick clips without it.",
+            code="segment_render_unsupported",
+        )
+
+
+def _lane_for(
+    clip: Clip, ends: dict[tuple[str, int], float], lanes: dict[tuple[str, int], int]
+) -> int:
+    """One lane per track, plus another for each clip that overlaps an earlier one on it."""
+    sub = 0
+    while (clip.track_id, sub) in ends and clip.timeline_start < ends[(clip.track_id, sub)] - _EPS:
+        sub += 1
+    key = (clip.track_id, sub)
+    ends[key] = clip.timeline_end
+    return lanes.setdefault(key, len(lanes))
 
 
 def capture_segment(
@@ -107,10 +154,27 @@ def capture_segment(
     """Write a segment folder (``segment.json`` and FLAC audio) into ``directory``.
 
     Layout offsets count from the earliest selected clip. The role and fader come from
-    the first clip's track unless ``role`` overrides the role.
+    the first clip's track unless ``role`` overrides the role. A range cut through the
+    middle of a clip carries no fade at the cut. Clips that overlap on one track get
+    separate lanes.
+
+    The audio is the clip's source window with its mute regions and ignored words baked in,
+    as the episode renders them. Track gain, the processing chain, the transcript gate,
+    fades and joins are not baked in. Clips with room-tone fills, off-speaker mutes or bleed
+    restore are refused (``segment_render_unsupported``), since the episode would sound
+    different.
     """
+    segment_id = segment_id_for(name)
     project = workspace.project
     clips = _selected(project, clip_ids, time_range)
+    for clip in clips:
+        _refuse_unrenderable(clip)
+        if round(clip.source_end - clip.source_start, 6) < MIN_CLIP_SEC:
+            raise CodedValueError(
+                f"Clip {clip.id} is shorter than {MIN_CLIP_SEC} s in this selection. "
+                "Move the range edge or pick whole clips.",
+                code="segment_clip_too_short",
+            )
     first = clips[0]
     first_track = project.track_by_id(first.track_id)
     if first_track is None:
@@ -120,7 +184,9 @@ def capture_segment(
     timeline_end = max((clip.timeline_end for clip in project.clips), default=end)
     chosen_kind = kind or guess_kind(origin, end, timeline_end)
 
-    lanes: dict[str, int] = {}
+    lane_ends: dict[tuple[str, int], float] = {}
+    lanes: dict[tuple[str, int], int] = {}
+    ignored_words = IgnoredWordRegions(project)
     engine = FFmpegEngine()
     directory.mkdir(parents=True, exist_ok=True)
     segment_clips: list[SegmentClip] = []
@@ -139,7 +205,9 @@ def capture_segment(
                 cut,
                 clip.source_start,
                 clip.source_end,
-                mute_spans=mute_spans_for_source_window(clip, clip.source_start, clip.source_end),
+                mute_spans=mute_spans_for_source_window(
+                    clip, clip.source_start, clip.source_end, extra=ignored_words.for_clip(clip)
+                ),
             )
             audio = f"clip-{index:02d}.flac"
             rate, channels, chunks = engine.stream_pcm_f32(cut)
@@ -154,11 +222,11 @@ def capture_segment(
                     fade_in_ms=clip.fade_in_ms,
                     fade_out_ms=clip.fade_out_ms,
                     join_in_mode=clip.join_in_mode,
-                    lane=lanes.setdefault(clip.track_id, len(lanes)),
+                    lane=_lane_for(clip, lane_ends, lanes),
                 )
             )
     segment = SegmentFile(
-        id=segment_id_for(name),
+        id=segment_id,
         name=name.strip(),
         kind=chosen_kind,
         role=role or first_track.role,

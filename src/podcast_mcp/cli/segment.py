@@ -79,14 +79,30 @@ def segment_save_cmd(
 def segment_list_cmd(as_json: bool = typer.Option(False, "--json")) -> None:
     """List the segments in the library, newest version of each."""
     store = SegmentStore()
-    segments = store.list()
+    listing = store.scan()
     if as_json:
-        typer.echo(_json([_detail(s, list(store.versions(s.id))) for s in segments]))
+        rows = [_detail(s, list(store.versions(s.id))) for s in listing.segments]
+        rows += [
+            {
+                "id": d.id,
+                "damaged": True,
+                "version": d.version,
+                "problem": d.problem,
+                "code": d.code,
+            }
+            for d in listing.damaged
+        ]
+        typer.echo(_json(rows))
         return
-    if not segments:
+    if not listing.segments and not listing.damaged:
         typer.echo("No segments yet. Save one with `podcast segment save`.")
-    for segment in segments:
+    for segment in listing.segments:
         typer.echo(_row(segment))
+    for damaged in listing.damaged:
+        typer.echo(
+            f"{damaged.id}  DAMAGED  v{damaged.version}  {damaged.problem} "
+            f"Import it again, or remove it with `podcast segment remove {damaged.id}`."
+        )
 
 
 @segment_app.command("show")
@@ -113,6 +129,13 @@ def segment_show_cmd(
         typer.echo(
             f"  lane {clip.lane}  +{clip.offset_sec:.2f}s  {clip.duration_sec:.2f}s  {clip.audio}"
         )
+
+
+@segment_app.command("remove")
+def segment_remove_cmd(segment_id: str = typer.Argument(..., metavar="ID")) -> None:
+    """Delete a segment and all its versions from the library (also a damaged one)."""
+    SegmentStore().remove(segment_id)
+    typer.echo(f"Removed {segment_id}")
 
 
 @segment_app.command("export")

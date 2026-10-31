@@ -151,3 +151,96 @@ def test_bad_ranges_are_refused(text: str) -> None:
     with pytest.raises(CodedValueError) as raised:
         parse_range(text)
     assert raised.value.code == "segment_range_invalid"
+
+
+def test_a_range_cut_mid_clip_carries_no_fade_at_the_cut(
+    workspace: ProjectWorkspace, tmp_path: Path
+) -> None:
+    segment = capture_segment(
+        workspace, name="Opening", directory=tmp_path / "cut", time_range=(10.5, 13.25)
+    )
+    first, second = segment.clips
+    assert (first.fade_in_ms, first.join_in_mode) == (0, ClipJoinMode.FADE)
+    assert first.fade_out_ms == 30  # the clip's own end is inside the range
+    assert second.fade_in_ms == 0 and second.fade_out_ms == 0  # cut at its end
+
+
+def test_a_range_covering_whole_clips_keeps_their_fades(
+    workspace: ProjectWorkspace, tmp_path: Path
+) -> None:
+    segment = capture_segment(
+        workspace, name="Opening", directory=tmp_path / "cut", time_range=(9.0, 14.0)
+    )
+    assert (segment.clips[0].fade_in_ms, segment.clips[0].fade_out_ms) == (20, 30)
+    assert segment.clips[0].join_in_mode is ClipJoinMode.CROSSFADE
+
+
+def test_a_clip_too_short_to_cut_is_refused(workspace: ProjectWorkspace, tmp_path: Path) -> None:
+    with pytest.raises(CodedValueError) as raised:
+        capture_segment(
+            workspace, name="Sliver", directory=tmp_path / "cut", time_range=(10.0, 10.000001)
+        )
+    assert raised.value.code == "segment_clip_too_short"
+
+
+def test_a_bad_name_is_refused_before_any_audio_is_cut(
+    workspace: ProjectWorkspace, tmp_path: Path
+) -> None:
+    out = tmp_path / "cut"
+    with pytest.raises(CodedValueError) as raised:
+        capture_segment(workspace, name="!!!", directory=out, clip_ids=["c1"])
+    assert raised.value.code == "segment_name_invalid"
+    assert not out.exists()
+
+
+def test_overlapping_clips_on_one_track_get_separate_lanes(
+    workspace: ProjectWorkspace, tmp_path: Path
+) -> None:
+    workspace.project.clips.append(
+        Clip(id="over", track_id="host", source_start=0.0, source_end=1.0, timeline_start=10.5)
+    )
+    segment = capture_segment(
+        workspace, name="Overlap", directory=tmp_path / "cut", clip_ids=["c1", "over", "c2"]
+    )
+    lanes = {c.audio: c.lane for c in segment.clips}
+    assert len(set(lanes.values())) == 2
+    assert segment.clips[0].lane != segment.clips[1].lane
+    assert segment.clips[2].lane == segment.clips[0].lane
+
+
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"off_speaker_mute_regions": [{"start_s": 0.1, "end_s": 0.2}]},
+        {"mute_regions": [{"start_s": 0.1, "end_s": 0.2, "fill": {"start_s": 5.0, "end_s": 6.0}}]},
+    ],
+)
+def test_clips_the_capture_cannot_render_faithfully_are_refused(
+    workspace: ProjectWorkspace, tmp_path: Path, update: dict[str, object]
+) -> None:
+    clip = workspace.project.clips[0]
+    workspace.project.clips[0] = Clip.model_validate({**clip.model_dump(mode="json"), **update})
+    with pytest.raises(CodedValueError) as raised:
+        capture_segment(workspace, name="Nope", directory=tmp_path / "cut", clip_ids=["c1"])
+    assert raised.value.code == "segment_render_unsupported"
+
+
+def test_ignored_words_are_muted_in_the_captured_audio(
+    workspace: ProjectWorkspace, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.models.episode import ClipMuteRegion
+
+    seen: list[object] = []
+    real = FFmpegEngine.extract_segment
+
+    def spy(self: FFmpegEngine, *args: object, **kwargs: object) -> object:
+        seen.append(kwargs.get("mute_spans"))
+        return real(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(FFmpegEngine, "extract_segment", spy)
+    monkeypatch.setattr(
+        "podcast_mcp.engines.mute_regions.IgnoredWordRegions.for_clip",
+        lambda self, clip: [ClipMuteRegion(start_s=0.2, end_s=0.3)],
+    )
+    capture_segment(workspace, name="Ignored", directory=tmp_path / "cut", clip_ids=["c1"])
+    assert seen and seen[0]

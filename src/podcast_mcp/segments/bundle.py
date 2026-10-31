@@ -12,18 +12,31 @@ import stat
 import tempfile
 import zipfile
 import zlib
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import IO
 
-from podcast_mcp.segments.model import SEGMENT_JSON, SegmentFile, parse_segment
+from podcast_mcp.segments.model import (
+    MANIFEST_NAME,
+    MAX_SEGMENT_JSON_BYTES,
+    SEGMENT_JSON,
+    SegmentFile,
+    parse_segment,
+    read_capped,
+)
 from podcast_mcp.segments.store import AddResult, SegmentStore, sha256_file
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.coded_error import CodedValueError
 
-MANIFEST = "MANIFEST.sha256"
+MANIFEST = MANIFEST_NAME
 MAX_ENTRIES = 64
 MAX_TOTAL_BYTES = 2 * 1024**3
+MAX_ENTRY_BYTES = 1024**3
+MAX_MANIFEST_BYTES = 64 * 1024
+# FLAC barely compresses. A big entry that deflates far beyond this is a zip bomb.
+MAX_RATIO = 100
+_RATIO_FLOOR = 1024 * 1024
 _ENTRY_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _MANIFEST_LINE = re.compile(r"^([0-9a-f]{64})  (\S+)$")
 _CHUNK = 1 << 20
@@ -51,7 +64,12 @@ def export_segments(store: SegmentStore, ids: Sequence[str], out_path: Path) -> 
                 archive.write(folder / name, name)
             archive.writestr(MANIFEST, manifest)
 
-    return atomic_write(out_path, fill, creation_mode=0o644)
+    try:
+        return atomic_write(out_path, fill, creation_mode=0o644)
+    except OSError as exc:
+        raise _invalid(
+            f"{out_path} could not be written: {exc.strerror or exc}.", "segment_write_failed"
+        ) from exc
 
 
 def _checked_entries(archive: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
@@ -59,16 +77,28 @@ def _checked_entries(archive: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
     if len(infos) > MAX_ENTRIES:
         raise _invalid(f"The bundle has more than {MAX_ENTRIES} files.")
     entries: dict[str, zipfile.ZipInfo] = {}
+    folded: set[str] = set()
     total = 0
     for info in infos:
         name = info.filename
         if not _ENTRY_NAME.fullmatch(name) or ".." in name:
             raise _invalid(f"The bundle holds an unsafe file name: {name!r}.")
-        if name in entries:
-            raise _invalid(f"The bundle lists {name} twice.")
+        if name.casefold() in folded:
+            raise _invalid(f"The bundle lists {name} twice (names are compared ignoring case).")
+        folded.add(name.casefold())
         kind = stat.S_IFMT(info.external_attr >> 16)
         if kind not in (0, stat.S_IFREG):
             raise _invalid(f"The bundle entry {name} is not a plain file.")
+        limit = {SEGMENT_JSON: MAX_SEGMENT_JSON_BYTES, MANIFEST: MAX_MANIFEST_BYTES}.get(
+            name, MAX_ENTRY_BYTES
+        )
+        if info.file_size > limit:
+            raise _invalid(f"The bundle entry {name} is larger than {limit} bytes.")
+        if (
+            info.file_size > _RATIO_FLOOR
+            and info.file_size > max(info.compress_size, 1) * MAX_RATIO
+        ):
+            raise _invalid(f"The bundle entry {name} is compressed far more than audio can be.")
         total += info.file_size
         if total > MAX_TOTAL_BYTES:
             raise _invalid("The bundle is larger than 2 GiB when unpacked.")
@@ -89,13 +119,30 @@ def _manifest_hashes(text: str) -> dict[str, str]:
 def _unpack(archive: zipfile.ZipFile, info: zipfile.ZipInfo, dest: Path, budget: int) -> int:
     """Copy one entry, stopping if it holds more than its header said. Returns bytes written."""
     written = 0
-    with archive.open(info) as source, dest.open("wb") as target:
-        while block := source.read(_CHUNK):
-            written += len(block)
-            if written > info.file_size or written > budget:
-                raise _invalid(f"The bundle entry {info.filename} is larger than it says.")
-            target.write(block)
+    try:
+        with archive.open(info) as source, dest.open("wb") as target:
+            while block := source.read(_CHUNK):
+                written += len(block)
+                if written > info.file_size or written > budget:
+                    raise _invalid(f"The bundle entry {info.filename} is larger than it says.")
+                target.write(block)
+    except OSError as exc:
+        raise _invalid(
+            f"{info.filename} could not be unpacked: {exc.strerror or exc}.", "segment_write_failed"
+        ) from exc
     return written
+
+
+@contextmanager
+def _staging_dir() -> Iterator[str]:
+    try:
+        directory = tempfile.TemporaryDirectory(prefix="sharecutseg-")
+    except OSError as exc:
+        raise _invalid(
+            f"There is no room to unpack the bundle: {exc.strerror or exc}.", "segment_write_failed"
+        ) from exc
+    with directory as name:
+        yield name
 
 
 def import_bundle(store: SegmentStore, path: Path) -> AddResult:
@@ -104,7 +151,7 @@ def import_bundle(store: SegmentStore, path: Path) -> AddResult:
         archive = zipfile.ZipFile(path)
     except (OSError, zipfile.BadZipFile) as exc:
         raise _invalid(f"{path.name} is not a segment bundle.") from exc
-    with archive, tempfile.TemporaryDirectory(prefix="sharecutseg-") as staging:
+    with archive, _staging_dir() as staging:
         entries = _checked_entries(archive)
         if SEGMENT_JSON not in entries or MANIFEST not in entries:
             raise _invalid(f"The bundle needs {SEGMENT_JSON} and {MANIFEST}.")
@@ -115,7 +162,10 @@ def import_bundle(store: SegmentStore, path: Path) -> AddResult:
                 budget -= _unpack(archive, info, root / name, budget)
         except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as exc:
             raise _invalid(f"{path.name} cannot be unpacked.") from exc
-        hashes = _manifest_hashes((root / MANIFEST).read_text(encoding="utf-8", errors="replace"))
+        manifest = read_capped(
+            root / MANIFEST, MAX_MANIFEST_BYTES, what=MANIFEST, code="segment_bundle_invalid"
+        )
+        hashes = _manifest_hashes(manifest.decode("utf-8", errors="replace"))
         if set(hashes) != set(entries) - {MANIFEST}:
             raise _invalid(f"The files in the bundle do not match {MANIFEST}.")
         segment = _parse(root / SEGMENT_JSON)
@@ -131,7 +181,11 @@ def import_bundle(store: SegmentStore, path: Path) -> AddResult:
 
 def _parse(path: Path) -> SegmentFile:
     try:
-        return parse_segment(path.read_bytes())
+        return parse_segment(
+            read_capped(
+                path, MAX_SEGMENT_JSON_BYTES, what=SEGMENT_JSON, code="segment_bundle_invalid"
+            )
+        )
     except CodedValueError as exc:
         if exc.code == "segment_invalid":
             raise _invalid(str(exc)) from exc
