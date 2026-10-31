@@ -331,6 +331,7 @@ describe("stable callback source governance", () => {
       "stage/hosts/useReviewQueue.ts:onFilter",
       "stage/hosts/useReviewQueue.ts:onHear",
       "stage/hosts/useReviewQueue.ts:onOpenInEdit",
+      "stage/hosts/useReviewQueue.ts:onSelectTake",
       "stage/hosts/useReviewQueue.ts:refreshStatus",
       "stage/hosts/useReviewQueue.ts:select",
       "stage/hosts/useReviewQueue.ts:selected",

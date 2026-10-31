@@ -124,6 +124,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/Palette.tsx",
   // The scrub field is a spinbutton: arrows, Home, End, Enter and F2 edit its own value and stop there.
   "system/ScrubField.tsx",
+  // The take switcher is a radiogroup-like control: Left, Right, Up and Down step the take and stop there.
+  "system/TakeSwitcher.tsx",
   // The script pane's words, cut pills and suggested runs are one tab stop: Left and Right, Home and End move among them, Up and Down move by line, Shift extends the selection, Alt+Shift+Left and Right move its start, Enter selects a word or, on a selected word, starts Fix text, F2 starts Fix text, and Esc clears the selection. The margin controls (speaker name, time) take Enter and Space like buttons. Space is left alone for Play/Pause.
   "system/ScriptPane.tsx",
   // The seam's button hands its keys and a roving tab index to the host that moves focus among marks; the script pane does so for its cut pills, which join the pane's one tab stop.

@@ -296,6 +296,8 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
     "a focused scrub field steps its number with the arrows, ten times as far with Shift and a tenth with Alt, like a spinbutton",
   "system/scriptSelection.ts":
     "the pure helper behind the script pane's arrows: it turns a key and a position into a caret move or a word selection, and moves nothing itself",
+  "system/TakeSwitcher.tsx":
+    "the take switcher steps to the previous or next take with the arrows and stops there, like a radio group; the host selects the take",
   "ui/Tabs.tsx": "the ARIA tablist pattern: arrows move among the tabs",
   "ui/useMenuKeyboard.ts": "arrows step through the items of an open menu",
 };
