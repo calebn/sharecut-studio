@@ -39,7 +39,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Ripple** | A trim that moves every later clip on every speaker's track to close the change. A wave mark and the word "Ripple" show it while you drag, with arrows on each track to where its later clips go; a grab at a join rolls the join instead |
 | **Armed (touch)** | A long press picks up one timeline target, such as a fade, an envelope point or a whole clip; only it drags, along its own axes, until you lift. A second finger cancels it |
 | **Jog pad (touch)** | After a long press arms a fade, trim, pending edge or envelope point on a phone, Auto may open a trackpad in the drawer's place so the finger does not cover the target; slide up while dragging to slow the move, then **Done** or tap outside to finish |
-| **Create menu (touch)** | A long press on empty timeline space: add an envelope point, a blade cut (on the selected tracks, or every dialogue track), a chapter, a comment or, on the host, a Record here take at that time |
+| **Create menu** | A long press on empty timeline space on touch, or a right click or Shift+F10 with a mouse or keyboard: split (on the selected tracks, or every dialogue track), comment, add a chapter, record here (host), add a volume point on the lane, or paste, at that time. On a phone the rows show in a sheet |
 | **Bleed / suppress** | Wrong-mic words hidden so cuts don’t follow bleed |
 | **Bleed gate** | Reduce verified wrong-mic audio while retaining speech and uncertain audio. Suppressing a word alone does not mute it. A selected gate region follows its original audio through later edits. |
 

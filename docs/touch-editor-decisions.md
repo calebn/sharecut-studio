@@ -104,10 +104,10 @@ enforced-by:
 - gui/web/src/timeline/hitRouting.grammar.test.ts::picks nothing when the finger lifts without moving onto an item, whatever is under it
 - gui/web/src/timeline/hitRouting.fingers.test.ts::cancels the armed target and puts the selection back, so the chip's lift saves nothing
 - gui/web/src/timeline/hitRouting.fingers.test.ts::rolls an armed grip back when a second finger lands on the lanes
-- gui/web/src/timeline/CreateMenu.test.tsx::says Split here cuts the selected tracks, not the held lane, and sets it apart from the lane's entry
-- gui/web/src/timeline/chooserLayout.test.ts::falls back to the viewport when the timeline box is shorter than the menu, below the finger rather than over it
-- gui/web/src/timeline/chooserLayout.test.ts::never covers the finger, in any geometry that has a free side
-- gui/web/src/timeline/CreateMenu.test.tsx::measures the menu's natural height, not the height its own cap leaves, so a menu the cap clips scrolls
+- gui/web/src/timeline/createMenuMapping.test.ts::cuts at the held time with edit.bladeCut, never at the playhead with edit.split
+- gui/web/src/stages/edit/createMenuLayout.test.ts::falls back to the viewport when the box is shorter than the menu, below the point rather than over it
+- gui/web/src/stages/edit/createMenuLayout.test.ts::never covers the point, in any geometry that has a free side
+- gui/web/src/stages/edit/createMenuLayout.test.ts::reads the content height plus the border, not a capped height
 - gui/web/src/timeline/hitRouting.fingers.test.ts::counts as a first finger: a second finger's long press arms nothing and its lift saves nothing
 - gui/web/e2e-compat/touch-grammar.spec.ts::the create menu reaches every item and stays off the finger at every text size and screen height
 - gui/web/e2e-compat/touch-grammar.spec.ts::a create menu taller than 90% of the screen, with room beside the finger, is not cut to 90%
@@ -1189,18 +1189,23 @@ chooser lab until the owner made it the default (2026-10-07).
   for its width (large text), above or below the finger, whichever has more
   room, capped to that room. Either way a 24 px gap stays between the menu
   and the finger. Its title is the time and lane
-  ("00:30.000 · Avery"). Entries: **Split here** first, then **Add
-  chapter** and **Add comment**, then **Record here** (host only; opens Record with an Insert target at the held time, the `record.here` command), then, below a divider, **Add envelope point**
-  (with the level it adds at, on the held lane) (#2294 W1b: the menu is how a
-  touch user splits on a lane, and Split heads it). Split here cuts the
-  selected tracks, else every dialogue track, so it carries a line saying
-  which ("Cuts all dialogue tracks", "Cuts Avery, Blair") and does not sit
-  with the held lane's entry.
+  ("00:30.000 · Avery"). The rows are the Create here menu's
+  (`stages/edit/CreateMenu`, hosted by `timeline/TimelineCreateMenu`): **Split
+  here** first, then **Comment here** and **Add chapter here**, then **Record here** (host
+  only; opens Record with an Insert target at the held time), then, below a
+  divider, **Add volume point** (on a lane; picking it turns the volume layer
+  on if it is hidden), then **Paste** while the clipboard holds something
+  (#2294 W1b: the menu is how a touch user splits on a lane, and Split heads
+  it). Split here cuts the selected tracks, else every dialogue track, as it
+  always did; the menu no longer says which. Paste lands at the held time on
+  the copied track, not on the held lane.
   Each runs a catalog command at the held
-  time (`envelope.addPoint`, `edit.bladeCut`, `edit.addChapter` with
-  `atTime`, `comment.draftAt`, `record.here`); an entry the link cannot run stays, disabled,
-  with the command's reason beside it. Slide onto an item and lift to pick
-  it, or lift anywhere and tap one. A lift that never moved past
+  time (`edit.bladeCut`, `comment.draftAt`, `edit.addChapter`,
+  `envelope.addPoint`, `edit.paste`, `record.here`, each with `atTime`); a row the link
+  cannot run is not in the menu, and a command that refuses says why in the
+  live region. Slide onto an item and lift to pick it, or lift anywhere and
+  tap one; on a phone the rows are a bottom Sheet, which shows no highlight
+  under a sliding finger but still picks on that lift. A lift that never moved past
   `TOUCH_SLOP_PX` picks nothing, whatever lies under the finger: round 8's
   live proof found that at 844x390 the menu opened under the finger and a
   lift saved Add chapter. The scrim, Escape and a second finger close it.
