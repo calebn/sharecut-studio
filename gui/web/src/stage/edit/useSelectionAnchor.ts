@@ -63,6 +63,12 @@ function findSelectionAnchor(
           `[data-pending-id="${esc(selection.id)}"]`,
         ) ?? laneOf(root, selection.trackId)
       );
+    case "comment":
+      return (
+        root.querySelector<HTMLElement>(
+          `[data-hit-kind="comment"][data-hit-id="${esc(selection.id)}"]`,
+        ) ?? timeline()
+      );
     case "applied":
     case "bleedAttenuation":
     case "track":
