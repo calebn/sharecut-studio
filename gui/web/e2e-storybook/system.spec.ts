@@ -2927,10 +2927,13 @@ test("System/Envelope a drag shows the level and time in a chip, holds the point
   const from = await centreOf(dot);
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
+  // A press focuses the point, so its arrows work straight away.
+  await expect(dot).toBeFocused();
   await page.mouse.move(from.x + 12, from.y + 5, { steps: 4 });
   await page.mouse.move(from.x + 24, from.y + 10, { steps: 4 });
   const chip = page.locator(".sys-readout");
-  await expect(chip).toHaveText("\u221215.9 dB \u00b7 0:05.0");
+  // The drag locked to time (24 px across, 10 down): the level stays -6.0 dB.
+  await expect(chip).toHaveText("\u22126.0 dB \u00b7 0:05.0");
   const box = await chip.boundingBox();
   const now = await centreOf(dot);
   expect(Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - now.x)).toBeLessThan(
@@ -2941,19 +2944,63 @@ test("System/Envelope a drag shows the level and time in a chip, holds the point
   await expect(chip).toHaveCount(0);
   await expect(
     page.getByRole("slider", { name: "Envelope point 2" }),
-  ).toHaveAttribute("aria-valuetext", "\u221215.9 dB at 0:05.00");
+  ).toHaveAttribute("aria-valuetext", "\u22126.0 dB at 0:05.00");
   // The next point is at 7.2 s, 172.8 px from the lane's edge.
   await page.mouse.move(now.x, now.y);
   await page.mouse.down();
   await page.mouse.move(now.x + 400, now.y, { steps: 6 });
-  await expect(chip).toHaveText("\u221215.9 dB \u00b7 0:07.2limit");
+  await expect(chip).toHaveText("\u22126.0 dB \u00b7 0:07.2limit");
   await page.mouse.up();
   await expect(
     page.getByRole("slider", { name: "Envelope point 2" }),
-  ).toHaveAttribute("aria-valuetext", "\u221215.9 dB at 0:07.20");
+  ).toHaveAttribute("aria-valuetext", "\u22126.0 dB at 0:07.20");
   const lane = await boxOf(page, ".sys-lane", 0);
   const stopped = await centreOf(envPoint(page, "env-2"));
   expect(Math.abs(stopped.x - (lane.x + 7.199 * 24))).toBeLessThanOrEqual(0.5);
+});
+
+test("System/Envelope a mostly vertical drag changes the level only, and dragging back leaves the point where it began", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--points", 1280);
+  const dot = envPoint(page, "env-2");
+  const from = await centreOf(dot);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 4, from.y + 16, { steps: 4 });
+  await expect(page.locator(".sys-readout")).toHaveText(
+    "\u221221.9 dB \u00b7 0:04.0",
+  );
+  await page.mouse.move(from.x + 40, from.y, { steps: 4 });
+  await expect(page.locator(".sys-readout")).toHaveText(
+    "\u22126.0 dB \u00b7 0:04.0",
+  );
+  await page.mouse.up();
+  await expect(dot).toHaveAttribute(
+    "aria-valuetext",
+    "\u22126.0 dB at 0:04.00",
+  );
+});
+
+test("System/Envelope Fade draws the line in gain: halfway through a 0 dB to -60 dB fade is -6 dB, not -30", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--fade", 1280);
+  const y = await page.evaluate(() => {
+    const d = document.querySelector(".sys-env-line")?.getAttribute("d") ?? "";
+    const verts = d
+      .split(/(?=[ML])/)
+      .map((piece) => piece.slice(1).split(" ").map(Number));
+    for (let i = 1; i < verts.length; i += 1) {
+      const [x0 = 0, y0 = 0] = verts[i - 1] ?? [];
+      const [x1 = 0, y1 = 0] = verts[i] ?? [];
+      if (120 >= x0 && 120 <= x1 && x1 > x0) {
+        return y0 + ((y1 - y0) * (120 - x0)) / (x1 - x0);
+      }
+    }
+    return Number.NaN;
+  });
+  expect(Math.abs(y - dbToY(-6.02, 72))).toBeLessThan(1);
 });
 
 test("System/Envelope Escape ends a drag without committing, and the keymap never hears it", async ({
@@ -2983,6 +3030,27 @@ test("System/Envelope Escape ends a drag without committing, and the keymap neve
   expect(
     await page.evaluate(() => (window as never as { heard: string[] }).heard),
   ).toEqual([]);
+});
+
+test("System/Envelope Wired: each Shift+Right adds 100 ms when the host feeds the nudge back, and the hit attributes are on the dot and the strip", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--wired", 1280);
+  const dot = envPoint(page, "env-2");
+  await expect(dot).toHaveAttribute("data-hit-kind", "envelope-point");
+  await expect(page.locator(".sys-env-band")).toHaveAttribute(
+    "data-hit-surface",
+    "envelope",
+  );
+  await dot.focus();
+  for (let press = 1; press <= 10; press += 1) {
+    await page.keyboard.press("Shift+ArrowRight");
+  }
+  await expect(dot).toHaveAttribute(
+    "aria-valuetext",
+    "\u22126.0 dB at 0:05.00",
+  );
+  await expect(dot).toHaveAttribute("data-hit-detail", "5.00 s -6.00 dB");
 });
 
 test("System/Envelope the add strip along the line is 12 px, a click on it adds a point, and a clip away from the line is not covered", async ({
@@ -3063,6 +3131,58 @@ test("System/Envelope under a coarse pointer a point is hit over 44 px, the add 
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(393);
+  await context.close();
+});
+
+test("System/Envelope under a coarse pointer a swipe that starts on the line scrolls the page, one that starts on a point does not, and a tap on the line adds a point", async ({
+  browser,
+}) => {
+  const { context, page } = await coarsePage(browser, "system-envelope--phone");
+  await expect(page.locator(".sys-env-svg")).toHaveCSS(
+    "touch-action",
+    "pan-x pan-y",
+  );
+  const dot = envPoint(page, "env-4");
+  await expect(dot).toHaveCSS("touch-action", "none");
+  // Something to scroll to: the story itself fits the phone.
+  await page.evaluate(() => {
+    const wide = document.createElement("div");
+    wide.style.cssText =
+      "position:absolute;inset-block-start:0;inset-inline-start:0;inline-size:1600px;block-size:1px";
+    document.body.append(wide);
+  });
+  const lane = await boxOf(page, ".sys-lane", 0);
+  const stripX = lane.x + 13 * 24 + 60;
+  const stripY = lane.y + dbToY(0, 104);
+  const cdp = await context.newCDPSession(page);
+  const swipe = async (x: number, y: number, dx: number) => {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y }],
+    });
+    for (let step = 1; step <= 10; step += 1) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: x + (dx * step) / 10, y }],
+      });
+    }
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+  };
+  const centre = await centreOf(dot);
+  await swipe(centre.x, centre.y, -150);
+  await expect
+    .poll(() => page.evaluate(() => window.scrollX), { timeout: 1500 })
+    .toBe(0);
+  await swipe(stripX, stripY, -150);
+  await expect
+    .poll(() => page.evaluate(() => window.scrollX))
+    .toBeGreaterThan(50);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.touchscreen.tap(stripX, stripY);
+  await expect(page.locator(".sys-env-point")).toHaveCount(6);
   await context.close();
 });
 
@@ -3154,9 +3274,25 @@ test("System/Envelope read-only: a point is selected but not dragged, nudged or 
   await page.mouse.move(from.x + 40, from.y + 10, { steps: 4 });
   await expect(page.locator(".sys-readout")).toHaveCount(0);
   await page.mouse.up();
+  await page.evaluate(() => {
+    const heard: string[] = [];
+    Object.assign(window, { heard });
+    window.addEventListener("keydown", (event) => {
+      if (!["Shift", "Alt", "Control", "Meta"].includes(event.key)) {
+        heard.push(event.key);
+      }
+    });
+  });
   await two.focus();
   await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Alt+ArrowRight");
+  await two.focus();
   await page.keyboard.press("Backspace");
+  // A guest's plain arrows reach the keymap; Alt with an arrow and Backspace do not.
+  expect(
+    await page.evaluate(() => (window as never as { heard: string[] }).heard),
+  ).toEqual(["ArrowRight", "ArrowUp"]);
   await expect(page.locator(".sys-env-point")).toHaveCount(5);
   await expect(two).toHaveAttribute(
     "aria-valuetext",
