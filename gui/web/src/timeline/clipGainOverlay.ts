@@ -19,7 +19,6 @@ export interface ClipGainPoint {
   readonly gain: number;
 }
 
-/** One stretch where a clip's fade or mute pulls the track's level off its envelope. */
 export interface ClipGainDip {
   readonly clipId: string;
   readonly points: readonly ClipGainPoint[];
@@ -43,12 +42,7 @@ function dipOver(
   };
 }
 
-/**
- * The stretches of a lane where clip edge fades and mute regions move the level away from the
- * volume envelope, as the render applies them (`effectiveGainAt`). Computed from the clips on
- * every call and never saved. A crossfade join is left out: the render replaces both edge fades
- * there with the overlap's blend.
- */
+// A crossfade join is skipped: the render replaces both edge fades there with the overlap's blend.
 export function clipGainDips(
   clips: readonly ClipRow[],
   volume: readonly VolumePoint[],
