@@ -87,10 +87,11 @@ export function useHostKeeperCapture(enabled = true): {
 
   const [deviceId, setDeviceId] = useState(() => readLocal(HOST_MIC_KEY) || "");
   const mic = useMicStream(micLive, deviceId, resetKey);
+  const micOpen = micLive && mic.stream !== null;
   useEffect(() => {
-    setMicLive(micLive);
+    setMicLive(micOpen);
     return () => setMicLive(false);
-  }, [micLive, setMicLive]);
+  }, [micOpen, setMicLive]);
   const staleMic = mic.staleDeviceId !== null;
   useEffect(() => {
     // A dead id is forgotten in storage without re-opening the stream.

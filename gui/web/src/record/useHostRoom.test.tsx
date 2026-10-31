@@ -63,6 +63,14 @@ describe("useHostRoom", () => {
     expect(loadHostRecordState).toHaveBeenCalledWith("/p");
   });
 
+  it("exposes the store's micLive", () => {
+    const { result } = renderHook(() => useHostRoom());
+    expect(result.current.micLive).toBe(false);
+    act(() => useRecordHostStore.getState().setMicLive(true));
+    expect(result.current.micLive).toBe(true);
+    act(() => useRecordHostStore.getState().setMicLive(false));
+  });
+
   it("forgets the room lookup when the project changes", async () => {
     vi.mocked(loadHostRecordState).mockResolvedValueOnce(
       recordSnapshot({ state: "lobby", participants: [host] }),
