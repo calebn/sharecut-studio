@@ -18,6 +18,11 @@ import { ClipBlockView } from "./ClipBlockView";
 import { clipBlockGeometry } from "./clipBlockGeometry";
 import { HitRouterProvider } from "./hitRouterContext";
 import { attachHitRouting, type HitRouter } from "./hitRouting";
+import {
+  precisionHandoff,
+  precisionView,
+} from "./precision/precisionController";
+import { precisionDriver } from "./precision/precisionDrivers";
 
 type LayerProps = {
   mediaRef: string;
@@ -1045,6 +1050,153 @@ describe("ClipBlock waveform", () => {
       />,
     );
     expect(container.querySelector(".clip-fade-line")).not.toBeNull();
+  });
+
+  describe("edge draft ownership", () => {
+    beforeEach(() => {
+      vi.mocked(trimClipEdge).mockClear();
+      vi.mocked(setClipFade).mockClear();
+      loadBoundaryContext.mockClear();
+    });
+
+    it("rolls back the real precision driver's preview on router-owned native cancellation", async () => {
+      const { container } = renderWithKeymap(clip);
+      container.classList.add("stage-frame--phone");
+      useDawStore.setState({ zoomPxPerSec: 1000 });
+      const handle = container.querySelector(".trim-handle.out") as HTMLElement;
+      place(handle, { left: 100, top: 0, right: 144, bottom: 44 });
+      const router = attachHitRouting(container, {
+        precision: precisionHandoff,
+      });
+      container.addEventListener(
+        "pointerdown",
+        (event) => {
+          if (router.defers(event)) event.stopPropagation();
+        },
+        true,
+      );
+      try {
+        act(() => {
+          press(handle, "pointerdown", 120, 20);
+          router.longPress();
+        });
+        expect(precisionView()?.variant).toBe("direct");
+        act(() => {
+          press(handle, "pointermove", 140, 20);
+        });
+        expect(precisionView()?.value).not.toBe(2);
+        expect(container.querySelector(".clip-trim-ghost")).not.toBeNull();
+        act(() => {
+          press(handle, "pointercancel", 140, 20);
+        });
+        expect(precisionView()).toBeNull();
+        expect(container.querySelector(".clip-trim-ghost")).toBeNull();
+        act(() => {
+          press(handle, "pointerup", 140, 20);
+        });
+        await act(async () => {});
+        expect(trimClipEdge).not.toHaveBeenCalled();
+      } finally {
+        act(() => router.dispose());
+      }
+    });
+
+    it.each(["trim", "fade"] as const)(
+      "keeps the registered %s precision draft through native capture loss and saves once",
+      async (kind) => {
+        const { container } = renderWithKeymap(clip);
+        const handle = container.querySelector(
+          kind === "trim" ? ".trim-handle.out" : ".fade-corner.out",
+        ) as HTMLElement;
+        const driver = precisionDriver(
+          `${kind}-out`,
+          clip.id,
+          { kind, trackId: "host", clipId: clip.id, edge: "out" },
+          "Clip edge",
+        );
+        if (!driver) throw new Error("Clip edge driver was not registered");
+        act(() => expect(driver.begin()).toBe(true));
+        fireEvent.lostPointerCapture(handle, { pointerId: 3 });
+        act(() => driver.show(kind === "trim" ? 1.99 : 10));
+        await act(async () => {
+          await driver.commit();
+          await driver.commit();
+        });
+        if (kind === "trim") {
+          expect(trimClipEdge).toHaveBeenCalledExactlyOnceWith(
+            "/tmp/clip-handle.project.json",
+            "c1",
+            "out",
+            1.99,
+            "ripple",
+            "boundary-token",
+          );
+          expect(loadBoundaryContext).toHaveBeenCalledOnce();
+          expect(setClipFade).not.toHaveBeenCalled();
+        } else {
+          expect(setClipFade).toHaveBeenCalledExactlyOnceWith(
+            "/tmp/clip-handle.project.json",
+            "c1",
+            0,
+            10,
+            { fade_in_ms: 0, fade_out_ms: 0 },
+          );
+          expect(trimClipEdge).not.toHaveBeenCalled();
+        }
+        act(() => {
+          expect(driver.begin()).toBe(true);
+          driver.show(kind === "trim" ? 1.98 : 20);
+          driver.cancel();
+        });
+        await act(async () => driver.commit());
+        expect(
+          kind === "trim" ? trimClipEdge : setClipFade,
+        ).toHaveBeenCalledOnce();
+        expect(
+          container.querySelector(".trim-dragging, .fade-dragging"),
+        ).toBeNull();
+      },
+    );
+
+    it.each(["pointercancel", "lostpointercapture"])(
+      "ignores foreign and stale %s while matching pointer ownership still cancels",
+      async (type) => {
+        const { container } = renderWithKeymap(clip);
+        const handle = container.querySelector(
+          ".trim-handle.out",
+        ) as HTMLElement;
+        fireEvent.pointerDown(handle, { clientX: 100, pointerId: 5 });
+        fireEvent.pointerMove(handle, { clientX: 150, pointerId: 5 });
+        fireEvent(
+          handle,
+          new PointerEvent(type, { bubbles: true, pointerId: 6 }),
+        );
+        expect(container.querySelector(".clip-trim-ghost")).not.toBeNull();
+        fireEvent(
+          handle,
+          new PointerEvent(type, { bubbles: true, pointerId: 5 }),
+        );
+        expect(container.querySelector(".clip-trim-ghost")).toBeNull();
+        fireEvent.pointerUp(handle, { clientX: 150, pointerId: 5 });
+        fireEvent.pointerDown(handle, { clientX: 100, pointerId: 9 });
+        fireEvent.pointerMove(handle, { clientX: 125, pointerId: 9 });
+        fireEvent(
+          handle,
+          new PointerEvent(type, { bubbles: true, pointerId: 5 }),
+        );
+        fireEvent.pointerUp(handle, { clientX: 125, pointerId: 9 });
+        await waitFor(() =>
+          expect(trimClipEdge).toHaveBeenCalledExactlyOnceWith(
+            "/tmp/clip-handle.project.json",
+            "c1",
+            "out",
+            2.5,
+            "ripple",
+            "boundary-token",
+          ),
+        );
+      },
+    );
   });
 
   describe("fade handle drags", () => {
