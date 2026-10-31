@@ -175,6 +175,11 @@ class _TrackIndex:
     timeline_end_reach: tuple[float, ...] = ()
 
 
+def _clip_keys(clips: Iterable[Clip]) -> tuple[_ClipKey, ...]:
+    """Index keys: one per virtual piece (a clip without ``timing`` is one piece)."""
+    return tuple((tl_a, src_a, src_b) for c in clips for src_a, src_b, tl_a in c.virtual_pieces())
+
+
 def _is_monotonic(spans: tuple[_Span, ...], *, axis: str) -> bool:
     for prev, cur in itertools.pairwise(spans):
         prev_end = prev.source_end if axis == "source" else prev.timeline_end
@@ -256,7 +261,7 @@ def map_timeline_spans_over_clips(
     they were *before* the cut; :class:`SessionTimeline` always reflects the
     project's current clips.
     """
-    keys = tuple((c.timeline_start, c.source_start, c.source_end) for c in clips)
+    keys = _clip_keys(clips)
     if not keys:
         return [(SourceSec(float(s)), SourceSec(float(e))) for s, e in timeline_spans if e > s]
     idx = _build_index(keys)
@@ -317,8 +322,29 @@ def clip_source_to_timeline_shift(clip: SourcePlacement) -> float:
 
     ``timeline = source + shift``; its negation is the file time of timeline 0 for
     the clip's placement (negative when the clip starts after timeline 0).
+
+    Raises for a clip with a timing map, whose shift depends on the source point: use
+    :func:`shift_at` (R1 of the #1089 design).
     """
+    if getattr(clip, "timing", None) is not None:
+        raise CodedValueError(
+            f"clip {getattr(clip, 'id', '?')!r} has a timing map, so it has no single shift. "
+            "Ask for the shift at a source second (shift_at).",
+            code="timing_map_needs_source_point",
+        )
     return clip.timeline_start - clip.source_start
+
+
+def shift_at(clip: SourcePlacement, source_s: float) -> float:
+    """Shift (timeline - source) in force at ``source_s``; steps at or before it count.
+
+    Defined for any ``source_s`` (inside a skipped span it is the shift after the step).
+    """
+    timing = getattr(clip, "timing", None)
+    base = clip.timeline_start - clip.source_start
+    if timing is None:
+        return base
+    return base + timing.delta_before(source_s) - timing.delta_before(clip.source_start)
 
 
 def clip_source_at_timeline(clip: SourcePlacement, timeline_sec: float) -> float:
@@ -535,11 +561,7 @@ class SessionTimeline:
 
     def _index(self, track_id: str) -> _TrackIndex | None:
         origin = origin_resolver(self._project)
-        keys = tuple(
-            (c.timeline_start, c.source_start, c.source_end)
-            for c in self._project.clips
-            if origin(c) == track_id
-        )
+        keys = _clip_keys(c for c in self._project.clips if origin(c) == track_id)
         track = self._project.track_by_id(track_id)
         if not keys and track is not None and track.timeline_empty:
             return _build_index(())
@@ -608,10 +630,7 @@ class SessionTimeline:
         return frozenset(lanes)
 
     def _exact_index(self, track_id: str) -> _TrackIndex | None:
-        keys = tuple(
-            (clip.timeline_start, clip.source_start, clip.source_end)
-            for clip in self._recording_clips(track_id)
-        )
+        keys = _clip_keys(clip for clip in self._recording_clips(track_id))
         track = self._project.track_by_id(track_id)
         if not keys and track is not None and track.timeline_empty:
             return _build_index(())
@@ -826,8 +845,8 @@ class SessionTimeline:
         return [self._map_source_span(index, start, end) for start, end in spans]
 
     def _selected_index(self, track_id: str, source_id: str | None) -> _TrackIndex | None:
-        keys = tuple(
-            (clip.timeline_start, clip.source_start, clip.source_end)
+        keys = _clip_keys(
+            clip
             for clip in self._project.clips
             if clip.track_id == track_id and clip.source_id == source_id
         )
@@ -840,8 +859,8 @@ class SessionTimeline:
 
         A clip moved to another lane keeps playing its origin lane's recording.
         """
-        keys = tuple(
-            (clip.timeline_start, clip.source_start, clip.source_end)
+        keys = _clip_keys(
+            clip
             for clip in self._project.clips
             if clip.source_id in source_ids and clip_plays_lane(self._project, clip, track_id)
         )
@@ -980,14 +999,15 @@ class SessionTimeline:
         """Clip placements on the current lane, retaining selected media identity."""
         return [
             TimelineClipSpan(
-                timeline_start=TimelineSec(clip.timeline_start),
-                timeline_end=TimelineSec(clip.timeline_end),
-                source_start=SourceSec(clip.source_start),
-                source_end=SourceSec(clip.source_end),
+                timeline_start=TimelineSec(tl_a),
+                timeline_end=TimelineSec(tl_a + (src_b - src_a)),
+                source_start=SourceSec(src_a),
+                source_end=SourceSec(src_b),
                 clip=clip,
             )
             for clip in self._project.clips
             if clip.track_id == track_id
+            for src_a, src_b, tl_a in clip.virtual_pieces()
         ]
 
     def origin_placement_lanes(

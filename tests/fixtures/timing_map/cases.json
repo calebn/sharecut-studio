@@ -1,0 +1,54 @@
+{
+  "comment": "Hand-computed oracle for Clip.timing (#2857). Steps are in source seconds; delta>0 is a hole, delta<0 skips source [at, at+|delta|). source_to_timeline / timeline_to_source: null = no audio there. The TS port (stage 6) reads this file too.",
+  "cases": [
+    {
+      "name": "no_timing",
+      "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 100},
+      "timeline_end": 130,
+      "pieces": [[10, 40, 100]],
+      "source_to_timeline": [[10, 100], [25, 115], [40, 130], [9, null], [41, null]],
+      "timeline_to_source": [[100, 10], [115, 25], [130, null], [99, null]],
+      "shift_at": [[10, 90], [40, 90]]
+    },
+    {
+      "name": "hole",
+      "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 100,
+               "timing": {"steps": [{"at": 20, "delta_sec": 2, "quiet": {"start_s": 19, "end_s": 21}}]}},
+      "timeline_end": 132,
+      "pieces": [[10, 20, 100], [20, 40, 112]],
+      "source_to_timeline": [[15, 105], [19.5, 109.5], [20, 112], [40, 132]],
+      "timeline_to_source": [[105, 15], [110, null], [111, null], [112, 20], [132, null]],
+      "shift_at": [[15, 90], [20, 92], [40, 92]]
+    },
+    {
+      "name": "skip",
+      "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 100,
+               "timing": {"steps": [{"at": 20, "delta_sec": -3, "quiet": {"start_s": 19, "end_s": 24}}]}},
+      "timeline_end": 127,
+      "pieces": [[10, 20, 100], [23, 40, 110]],
+      "source_to_timeline": [[19, 109], [20, null], [21, null], [22.5, null], [23, 110], [40, 127]],
+      "timeline_to_source": [[109, 19], [110, 23], [127, null]],
+      "shift_at": [[19, 90], [21, 87], [30, 87]]
+    },
+    {
+      "name": "multiple_steps",
+      "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 100,
+               "timing": {"steps": [{"at": 15, "delta_sec": 1}, {"at": 25, "delta_sec": 2}, {"at": 35, "delta_sec": -2, "quiet": {"start_s": 34, "end_s": 38}}]}},
+      "timeline_end": 131,
+      "pieces": [[10, 15, 100], [15, 25, 106], [25, 35, 118], [37, 40, 128]],
+      "source_to_timeline": [[14, 104], [15, 106], [25, 118], [36, null], [37, 128], [40, 131]],
+      "timeline_to_source": [[105, null], [106, 15], [116, null], [118, 25], [128, 37]],
+      "shift_at": [[12, 90], [15, 91], [25, 93], [36, 91]]
+    },
+    {
+      "name": "negative_then_positive",
+      "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 0,
+               "timing": {"steps": [{"at": 15, "delta_sec": -1, "quiet": {"start_s": 14, "end_s": 17}}, {"at": 25, "delta_sec": 2}]}},
+      "timeline_end": 31,
+      "pieces": [[10, 15, 0], [16, 25, 5], [25, 40, 16]],
+      "source_to_timeline": [[15, null], [15.5, null], [16, 5], [24, 13], [25, 16], [40, 31]],
+      "timeline_to_source": [[4, 14], [5, 16], [14, null], [15, null], [16, 25]],
+      "shift_at": [[12, -10], [20, -11], [30, -9]]
+    }
+  ]
+}
