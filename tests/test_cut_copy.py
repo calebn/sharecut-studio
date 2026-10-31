@@ -92,8 +92,7 @@ def populated() -> EpisodeProject:
 # "list": a new list or dict of the original items. "items": a new container of new shallow
 # copies. "deep": a new container of deep copies. "clip_shell": a new container of clips copied by
 # shell_copy_clip, equal to a deep copy and sharing no mutable part. "scalar": a value. "shell": a new model
-# whose own fields are in the nested table. A new field fails the key checks below until a
-# row says what the cut may write.
+# whose own fields are in the nested table.
 TOP: dict[str, str] = {
     "version": "scalar",
     "meta": "shell",
