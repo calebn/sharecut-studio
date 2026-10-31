@@ -488,7 +488,10 @@ def test_the_tunnel_allowlist_admits_the_export_twins_and_not_the_owner_routes()
     assert not is_allowed_local_gui_path("/api/export/bounce", "tok")
     for row in GUEST_OWNER_ROUTES.values():
         if row.name.startswith("export_"):
-            assert is_allowed_local_gui_path(row.path.format(token="tok", job_id="j"), "tok")
+            assert is_allowed_local_gui_path(
+                row.path.replace(":path", "").format(token="tok", job_id="j", file_id="a.mp3"),
+                "tok",
+            )
 
 
 def test_a_start_logs_the_share_that_started_it_and_no_token(world, caplog) -> None:

@@ -15,6 +15,7 @@ import {
   CLEAR_FACTS,
   CLIPS,
   DONE,
+  exportedFilesOf,
   exportedState,
   FAILED,
   LINK,
@@ -23,6 +24,7 @@ import {
   NEVER,
   OPEN_FACTS,
   OPENED_BY,
+  REQUEST,
   RUNNING,
   SETTINGS,
   STALE,
@@ -31,21 +33,23 @@ import {
 import { SHARE_DEFAULTS } from "./shareLogic";
 
 const MOD_E = isApplePlatform() ? "{Meta>}e{/Meta}" : "{Control>}e{/Control}";
-const REVEAL = isApplePlatform() ? "Reveal in Finder" : "Show in folder";
 
 /** Exports and copies in place, as the app will once it is wired. */
 function Live(props: DeliverStageProps) {
   const [exportState, setExportState] = useState(props.exportState);
+  const [files, setFiles] = useState(props.files);
   const [copy, setCopy] = useState<LinkCopyState>("idle");
   const [url, setUrl] = useState(props.link?.url ?? null);
   return (
     <DeliverStage
       {...props}
       exportState={exportState}
+      files={files}
       link={{ ...props.link, url, copyState: copy }}
       onExport={(request) => {
         props.onExport(request);
         setExportState(exportedState(request));
+        setFiles(exportedFilesOf(request, props.files?.access ?? "reveal"));
       }}
       onCopyLink={() => {
         props.onCopyLink?.();
@@ -76,7 +80,7 @@ const meta: Meta<typeof DeliverStage> = {
     initialClips: CLIPS,
     saveTo: "Field Notes/export",
     exportState: NEVER,
-    env: "app",
+    files: { files: [], access: "reveal", onReveal: fn(), onStarted: fn() },
     clock: { time: "12:04", total: "52:00" },
     getPlayheadSec: () => 724,
     link: { url: null },
@@ -85,8 +89,6 @@ const meta: Meta<typeof DeliverStage> = {
     onFix: fn(),
     onExport: fn(),
     onCancel: fn(),
-    onReveal: fn(),
-    onDownload: fn(),
     onChangeFolder: fn(),
     onCopyLink: fn(),
     onRefreshMix: fn(),
@@ -103,7 +105,7 @@ const meta: Meta<typeof DeliverStage> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Deliver: Readiness first, then the episode file, the listen link, chapters and clips. Export is the only filled button; after it, Reveal in Finder (app) or Download all (browser) takes its place and Copy link is the follow-up. Nothing in Readiness blocks Export. Mod+E exports. Presentational: the export job, the link and the data come in as props, and the buttons call back.\n\n**Motion.** Animations come later: the export progress and the Reveal swap use `--motion-panel`, the copied label holds for 2 s.",
+          "Deliver: Readiness first, then the episode file, the listen link, chapters and clips. Export is the only filled button; after it each file is a row with its own quiet Reveal (app) or Download (browser) action, and Copy link is the follow-up. Nothing in Readiness blocks Export. Mod+E exports. Presentational: the export job, the link and the data come in as props, and the buttons call back.\n\n**Motion.** Animations come later: the export progress uses `--motion-panel`, the copied label holds for 2 s.",
       },
     },
   },
@@ -122,9 +124,9 @@ export const Ready: Story = {
     await userEvent.keyboard(MOD_E);
     await expect(args.onExport).toHaveBeenCalledOnce();
     await expect(
-      await view.findByRole("button", { name: REVEAL }),
+      await view.findByRole("button", { name: /^Reveal field-notes\.mp3/ }),
     ).toBeInTheDocument();
-    await expect(view.queryByRole("button", { name: /^Export/ })).toBeNull();
+    await expect(view.getByRole("button", { name: /^Export/ })).toBeEnabled();
   }),
 };
 
@@ -154,13 +156,16 @@ export const Exporting: Story = {
 export const Exported: Story = {
   args: {
     exportState: DONE,
+    files: { ...exportedFilesOf(REQUEST, "reveal"), onReveal: fn() },
     facts: MEASURED_FACTS,
     link: { url: null },
   },
   play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
-    await userEvent.click(view.getByRole("button", { name: REVEAL }));
-    await expect(args.onReveal).toHaveBeenCalledOnce();
+    await userEvent.click(
+      view.getByRole("button", { name: /^Reveal field-notes\.mp3/ }),
+    );
+    await expect(args.files?.onReveal).toHaveBeenCalledOnce();
     await userEvent.click(view.getByRole("button", { name: "Copy" }));
     await expect(
       await view.findByRole("button", { name: "Copied" }),
@@ -170,11 +175,17 @@ export const Exported: Story = {
 };
 
 export const ExportedInBrowser: Story = {
-  args: { exportState: DONE, env: "browser", facts: MEASURED_FACTS },
+  args: {
+    exportState: DONE,
+    files: exportedFilesOf(REQUEST, "download"),
+    facts: MEASURED_FACTS,
+  },
   play: playInCanvas(async ({ canvasElement }) => {
+    const view = within(canvasElement);
     await expect(
-      within(canvasElement).getByRole("button", { name: "Download all" }),
+      view.getByRole("link", { name: /^Download field-notes\.mp3/ }),
     ).toBeInTheDocument();
+    await expect(view.queryByText("Download all")).toBeNull();
   }),
 };
 
@@ -199,14 +210,20 @@ export const Failed: Story = {
 };
 
 export const EditedAfterExport: Story = {
-  args: { exportState: DONE, facts: MEASURED_FACTS },
+  args: {
+    exportState: DONE,
+    files: exportedFilesOf(REQUEST, "reveal"),
+    facts: MEASURED_FACTS,
+  },
   play: playInCanvas(async ({ canvasElement }) => {
     const view = within(canvasElement);
-    await expect(view.queryByRole("button", { name: /^Export/ })).toBeNull();
+    await expect(view.getByRole("button", { name: /^Export/ })).toBeEnabled();
     await userEvent.click(view.getByRole("button", { name: /^Streaming/ }));
     await expect(view.getByText("Edited since export")).toBeInTheDocument();
     await expect(view.getByRole("button", { name: /^Export/ })).toBeEnabled();
-    await expect(view.queryByRole("button", { name: REVEAL })).toBeNull();
+    await expect(
+      view.getByRole("button", { name: /^Reveal field-notes\.mp3/ }),
+    ).toBeEnabled();
   }),
 };
 
@@ -319,7 +336,7 @@ export const PhoneExported: Story = {
   args: {
     layout: "phone",
     exportState: DONE,
-    env: "browser",
+    files: exportedFilesOf(REQUEST, "download"),
     facts: MEASURED_FACTS,
     link: { url: LINK, openedBy: OPENED_BY },
   },

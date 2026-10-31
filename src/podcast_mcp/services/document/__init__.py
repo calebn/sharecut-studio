@@ -24,6 +24,11 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.edit import EditService, with_audio_check
     from podcast_mcp.services.document.episode import EpisodeService
+    from podcast_mcp.services.document.export_files import (
+        ExportedFile,
+        ExportFilesService,
+        ServedFile,
+    )
     from podcast_mcp.services.document.feed import (
         SHOW_KEY,
         FeedService,
@@ -79,6 +84,8 @@ __all__ = [
     "EmptyHistoryDiffResult",
     "EpisodeService",
     "ExportBusyError",
+    "ExportFilesService",
+    "ExportedFile",
     "FeedService",
     "FeedViewKind",
     "HistoryDiffResult",
@@ -89,6 +96,7 @@ __all__ = [
     "PlayService",
     "PopulatedHistoryDiffResult",
     "RollBoundaryTarget",
+    "ServedFile",
     "SessionSuggestionService",
     "TimelineService",
     "TranscriptEmptyError",
@@ -124,6 +132,9 @@ _MODULE_BY_NAME = {
     "EditService": "edit",
     "with_audio_check": "edit",
     "EpisodeService": "episode",
+    "ExportFilesService": "export_files",
+    "ExportedFile": "export_files",
+    "ServedFile": "export_files",
     "FeedService": "feed",
     "FeedViewKind": "feed",
     "SHOW_KEY": "feed",

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { exportTranscript, listExportedTranscripts } from "./transcript";
+import { exportTranscript } from "./transcript";
 
 const apiFetch = vi.fn();
 vi.mock("./http", async (importOriginal) => ({
@@ -26,13 +26,6 @@ describe("transcript api", () => {
       formats: ["md"],
       dry_run: true,
       with_text: true,
-    });
-  });
-
-  it("lists the exported files for an encoded path", async () => {
-    await listExportedTranscripts("/p q/episode.sharecut");
-    expect(apiFetch.mock.calls[0][1]).toEqual({
-      host: "/api/transcript/exports?path=%2Fp%20q%2Fepisode.sharecut",
     });
   });
 });

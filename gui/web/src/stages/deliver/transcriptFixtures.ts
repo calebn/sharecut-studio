@@ -1,3 +1,4 @@
+import type { DeliverFiles } from "./deliverFiles";
 import type {
   TranscriptFile,
   TranscriptOptions,
@@ -43,12 +44,26 @@ export function transcriptOptions(
   return {
     preview: { kind: "ready", preview: SAMPLE_PREVIEW },
     run: { phase: "idle" },
-    files: [],
     choices: TRANSCRIPT_DEFAULTS,
     onChoices: () => {},
     onExport: () => {},
     onCopy: () => {},
     onPrepare: () => {},
     ...over,
+  };
+}
+
+export function transcriptRows(current = true): DeliverFiles {
+  return {
+    access: "download",
+    files: SAMPLE_FILES.map((file) => ({
+      id: file.name,
+      name: file.name,
+      kind: "transcript" as const,
+      label: file.format === "md" ? "Markdown" : "Captions",
+      bytes: file.bytes,
+      current,
+      href: `#${file.name}`,
+    })),
   };
 }

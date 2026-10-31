@@ -102,7 +102,9 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch, skip_run_pref
 
 
 def _url(row: GuestRoute, token: str, job_id: str) -> str:
-    return row.path.format(token=token, job_id=job_id)
+    return row.path.replace(":path", "").format(
+        token=token, job_id=job_id, file_id="test_episode.mp3"
+    )
 
 
 BODIES = {
@@ -146,7 +148,19 @@ def _editor_job_id(world, name: str) -> str:
         )
         world.app.state.jobs._catalog._job = job
         return job.id
-    if name in {"pipeline_run", "export_start", "export_status", "speaker_split", "speaker_status"}:
+    if name == "export_file":
+        export = world.ws.project.export_dir()
+        export.mkdir(parents=True, exist_ok=True)
+        (export / "test_episode.mp3").write_bytes(b"mp3")
+        return "j1"
+    if name in {
+        "pipeline_run",
+        "export_start",
+        "export_status",
+        "export_files",
+        "speaker_split",
+        "speaker_status",
+    }:
         return "j1"
     start = GUEST_OWNER_ROUTES["render_preview"]
     return _call(world, start, world.tokens["editor"]).json()["job"]["id"]
@@ -163,6 +177,8 @@ def test_the_registry_rows_are_editor_twins_under_the_daw_prefix() -> None:
         "pipeline_job_cancel",
         "export_start",
         "export_status",
+        "export_files",
+        "export_file",
         "export_job_status",
         "export_job_events",
         "export_job_cancel",
@@ -459,7 +475,7 @@ def test_the_tunnel_allowlist_admits_the_twins_and_still_rejects_owner_routes() 
     assert not is_allowed_local_gui_path("/api/pipeline/events", "tok")
     assert not is_allowed_local_gui_path("/api/pipeline/status", "tok")
     for row in GUEST_OWNER_ROUTES.values():
-        assert is_allowed_local_gui_path(row.path.format(token="tok", job_id="j"), "tok")
+        assert is_allowed_local_gui_path(_url(row, "tok", "j"), "tok")
 
 
 def test_guest_request_models_refuse_unknown_fields() -> None:

@@ -240,10 +240,6 @@ describe("exportStateOf", () => {
       ),
     ).toEqual({
       phase: "done",
-      files: [
-        { name: "ep.wav", format: "wav" },
-        { name: "ep.MP3", format: "mp3" },
-      ],
       when: expect.stringMatching(/^at \d{1,2}:\d{2}[\s\u202f](AM|PM)$/),
       exported: REQUEST,
       summary: "Exported 2 files to export/",
@@ -257,7 +253,7 @@ describe("exportStateOf", () => {
     ).toEqual({ phase: "failed", cause: "no disk" });
   });
 
-  it("says a cancel wrote nothing, or came too late and lists the files", () => {
+  it("says a cancel wrote nothing, or came too late", () => {
     expect(
       exportStateOf(
         flowOf({ run: { kind: "cancelled", paths: [], finishedAt: 0 } }),
@@ -265,7 +261,6 @@ describe("exportStateOf", () => {
       ),
     ).toEqual({
       phase: "cancelled",
-      files: [],
       detail: "Export cancelled. Files from an earlier export are unchanged.",
     });
     expect(
@@ -281,7 +276,6 @@ describe("exportStateOf", () => {
       ),
     ).toEqual({
       phase: "cancelled",
-      files: [{ name: "ep.mp3", format: "mp3" }],
       detail: "Cancel came too late. Exported 1 file to export/",
       when: expect.stringMatching(/^at /),
       exported: REQUEST,

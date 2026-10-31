@@ -203,7 +203,25 @@ describe("Export on the Deliver stage", () => {
     expect(exportButton()).toBeDisabled();
   });
 
-  it("shows what the finished export wrote and measured, with no Reveal or Download", async () => {
+  it("lists the files the folder holds after an export, as downloads in a browser", async () => {
+    server.files = [
+      {
+        id: "ep.mp3",
+        name: "ep.mp3",
+        kind: "audio",
+        label: "Listening file",
+        bytes: 5_000_000,
+        current: true,
+      },
+      {
+        id: "ep.wav",
+        name: "ep.wav",
+        kind: "audio",
+        label: "Lossless master",
+        bytes: 50_000_000,
+        current: true,
+      },
+    ];
     render(<Host />);
     await pressExport();
     await act(async () => server.settle(EXPORT_FINISHED));
@@ -212,12 +230,17 @@ describe("Export on the Deliver stage", () => {
     expect(
       screen.getByText("Measured −16.1 LUFS, true peak −1.6 dBTP."),
     ).toBeInTheDocument();
-    expect(screen.getByText("ep.wav")).toBeInTheDocument();
-    expect(screen.getByText("ep.mp3")).toBeInTheDocument();
+    const wav = await screen.findByRole("link", { name: /^Download ep\.wav/ });
+    expect(wav.getAttribute("href")).toContain("/api/export/files/ep.wav");
+    expect(wav.getAttribute("href")).toContain(encodeURIComponent(PATH));
+    expect(
+      screen.getByRole("link", { name: /^Download ep\.mp3/ }),
+    ).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: /Reveal|Show in folder/ }),
     ).toBeNull();
-    expect(screen.queryByRole("button", { name: /Download/ })).toBeNull();
+    expect(screen.queryByText("Download all")).toBeNull();
+    expect(server.fileRequests).toContain(PATH);
   });
 
   it("asks again with the target the page has now, not the failed attempt's", async () => {

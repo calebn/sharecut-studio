@@ -12,7 +12,6 @@ import {
   addChapterAt,
   approveClip,
   clampPart,
-  clipFiles,
   clipStrength,
   coversRequest,
   currentExportState,
@@ -24,7 +23,6 @@ import {
   parseClock,
   partSeconds,
   planRange,
-  primaryAction,
   readinessRows,
   readinessSummary,
   removeChapter,
@@ -148,17 +146,6 @@ describe("export settings", () => {
         part: { mode: "whole" },
       }),
     ).toBe("Choose a format first.");
-  });
-
-  it("swaps Export for Reveal or Download only after a current export", () => {
-    expect(primaryAction({ phase: "never" }, "app")).toBe("export");
-    expect(
-      primaryAction({ phase: "running", progress: 0.2, detail: "" }, "app"),
-    ).toBe("exporting");
-    expect(primaryAction(DONE, "app")).toBe("reveal");
-    expect(primaryAction(DONE, "browser")).toBe("download");
-    expect(primaryAction({ ...DONE, phase: "stale" }, "app")).toBe("export");
-    expect(primaryAction({ phase: "failed", cause: "" }, "app")).toBe("export");
   });
 });
 
@@ -311,27 +298,6 @@ describe("clips", () => {
     ]);
   });
 
-  it("lists approved clips as files next to the episode", () => {
-    expect(clipFiles(CLIPS).map((f) => f.name)).toEqual([
-      "clips/cold-open.wav",
-    ]);
-    expect(clipFiles(approveClip(CLIPS, "k1"))).toHaveLength(2);
-  });
-
-  it("gives clips with the same or an empty title their own names", () => {
-    const same = CLIPS.map((c) => ({ ...c, approved: true, title: "Hook!" }));
-    const named = clipFiles(same).map((f) => f.name);
-    expect(new Set(named).size).toBe(3);
-    expect(named).toEqual([
-      "clips/hook.wav",
-      "clips/hook-2.wav",
-      "clips/hook-3.wav",
-    ]);
-    expect(clipFiles([{ ...same[0]!, title: "" }]).map((f) => f.name)).toEqual([
-      "clips/clip.wav",
-    ]);
-  });
-
   it("trims inside the episode and keeps a second between In and Out", () => {
     expect(trimClip(CLIPS, "k1", "end", 600, 3120)[0]?.end).toBe(613);
     expect(trimClip(CLIPS, "k1", "start", 9999, 3120)[0]?.start).toBe(652);
@@ -449,24 +415,6 @@ describe("part mode in the stale check", () => {
   });
 });
 
-describe("clip file names", () => {
-  const named = (title: string) =>
-    clipFiles([{ ...CLIPS[0]!, title, approved: true }]).map((f) => f.name);
-
-  it("trim and collapse punctuation", () => {
-    expect(named("!Hook")).toEqual(["clips/hook.wav"]);
-    expect(named("A: B")).toEqual(["clips/a-b.wav"]);
-    expect(named("  --Hook!!  ")).toEqual(["clips/hook.wav"]);
-  });
-
-  it("size each file from the clip's length", () => {
-    const [file] = clipFiles([
-      { ...CLIPS[0]!, start: 10, end: 20, approved: true },
-    ]);
-    expect(file?.bytes).toBe(estimateBytes("wav", 10));
-  });
-});
-
 describe("readiness fixes", () => {
   it("one open suggestion is still needs-you and the summary says so", () => {
     const rows = readinessRows({
@@ -574,13 +522,6 @@ describe("comparing what an export wrote", () => {
         chapters: [{ ...first, id: "other" }, ...CHAPTERS.slice(1)],
       }),
     ).toBe(false);
-  });
-
-  it("sizes each approved clip file from its own length", () => {
-    const all = CLIPS.map((c) => ({ ...c, approved: true }));
-    expect(clipFiles(all).map((f) => f.bytes)).toEqual(
-      all.map((c) => estimateBytes("wav", c.end - c.start)),
-    );
   });
 });
 
@@ -717,12 +658,6 @@ describe("round three of the audit", () => {
         loading: true,
       }),
     ).toBe("No project loaded");
-  });
-
-  it("offers Reveal or Download only where the host has them", () => {
-    expect(primaryAction(DONE, "none")).toBe("export");
-    expect(primaryAction(DONE, "app")).toBe("reveal");
-    expect(primaryAction(DONE, "browser")).toBe("download");
   });
 
   it("keeps Out inside the episode when In is the episode end", () => {

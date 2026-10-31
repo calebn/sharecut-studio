@@ -6,7 +6,6 @@ import { useTranscriptFlow } from "./useTranscriptFlow";
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   exportTranscript: vi.fn(),
-  listExportedTranscripts: vi.fn(),
 }));
 
 const written = {
@@ -40,9 +39,7 @@ function mount(props: { projectPath: string; revision: number }) {
 describe("useTranscriptFlow", () => {
   beforeEach(() => {
     vi.mocked(api.exportTranscript).mockReset();
-    vi.mocked(api.listExportedTranscripts).mockReset();
     vi.mocked(api.exportTranscript).mockResolvedValue(written);
-    vi.mocked(api.listExportedTranscripts).mockResolvedValue([]);
   });
 
   it("drops a finished export once the transcript is edited", async () => {
@@ -81,9 +78,7 @@ describe("useTranscriptFlow", () => {
     expect(api.exportTranscript).toHaveBeenLastCalledWith("/a", {
       formats: ["txt"],
     });
-    await waitFor(() =>
-      expect(api.listExportedTranscripts).toHaveBeenCalledTimes(2),
-    );
+    expect(result.current.written).toBe(1);
   });
 
   it("reports a failed export", async () => {
@@ -143,21 +138,9 @@ describe("useTranscriptFlow", () => {
     expect(result.current.run.phase).toBe("idle");
   });
 
-  it("resets choices, files and copy state on a project switch", async () => {
-    vi.mocked(api.listExportedTranscripts).mockResolvedValue([
-      {
-        format: "txt",
-        path: "/a/episode.txt",
-        name: "episode.txt",
-        mime: "text/plain",
-        language: "en",
-        bytes: 5,
-        modified: "2026-10-31T08:00:00Z",
-        current: true,
-      },
-    ]);
+  it("resets choices and copy state on a project switch", async () => {
     const { result, rerender } = mount({ projectPath: "/a", revision: 1 });
-    await waitFor(() => expect(result.current.files).toHaveLength(1));
+    await waitFor(() => expect(result.current.preview.kind).toBe("ready"));
     act(() => result.current.setChoices(["txt"]));
     expect(result.current.choices).toEqual(["txt"]);
     Object.defineProperty(navigator, "clipboard", {
@@ -170,11 +153,9 @@ describe("useTranscriptFlow", () => {
     });
     act(() => result.current.copyText());
     await waitFor(() => expect(result.current.copyState).toBe("copied"));
-    vi.mocked(api.listExportedTranscripts).mockReturnValue(
-      new Promise(() => {}),
-    );
+    vi.mocked(api.exportTranscript).mockReturnValue(new Promise(() => {}));
     rerender({ projectPath: "/b", revision: 1 });
-    await waitFor(() => expect(result.current.files).toEqual([]));
+    await waitFor(() => expect(result.current.preview.kind).toBe("loading"));
     expect(result.current.choices).toEqual(["md", "srt"]);
     expect(result.current.copyState).toBe("idle");
     expect(result.current.preview.kind).toBe("loading");

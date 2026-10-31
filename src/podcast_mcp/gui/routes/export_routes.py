@@ -6,11 +6,18 @@ from dataclasses import asdict
 from typing import Any
 
 from fastapi import APIRouter, Header, Query, Request
+from starlette.responses import Response
 
 from podcast_mcp.gui.routes.deps import coded_exception_error, require_host, resolve_project
+from podcast_mcp.gui.routes.export_files import (
+    download_exported_file,
+    list_exported_files,
+    reveal_exported_file,
+)
 from podcast_mcp.gui.schemas import (
     BounceRequestBody,
     ExportDeliverablesRequest,
+    ExportRevealRequest,
     TranscriptExportRequest,
 )
 from podcast_mcp.services.app import ProjectWorkspace
@@ -110,3 +117,42 @@ def list_exported_transcripts(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     return [asdict(f) for f in TranscriptService(ws).exported()]
+
+
+@router.get("/api/export/files")
+def list_export_files(
+    request: Request,
+    path: str = Query(...),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    """Every file the export folder holds that an export wrote, by id; no host paths."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    return list_exported_files(ProjectWorkspace.open(resolve_project(path, request)))
+
+
+@router.get("/api/export/files/{file_id:path}")
+def download_export_file(
+    file_id: str,
+    request: Request,
+    path: str = Query(...),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> Response:
+    """Download one listed file as an attachment. The id is checked against the listing."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(path, request))
+    return download_exported_file(request, ws, file_id)
+
+
+@router.post("/api/export/files/reveal")
+def reveal_export_file(
+    body: ExportRevealRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, bool]:
+    """Show one listed file in this computer's file manager (the desktop app's Reveal)."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(body.path, request))
+    return reveal_exported_file(request, ws, body.id)

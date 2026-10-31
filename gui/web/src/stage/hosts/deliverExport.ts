@@ -1,6 +1,5 @@
 import {
   COMPRESSED_BYTES_PER_SECOND,
-  type ExportFile,
   type ExportOptions,
   type ExportState,
   type FormatOption,
@@ -16,7 +15,6 @@ import { formatTimeShort } from "../../utils/time";
 import type { ExportFlow } from "./exportFlowContext";
 import {
   type ExportSettings,
-  exportFileName,
   exportResultCopy,
   isLossless,
   loudnessTargetCopy,
@@ -55,13 +53,6 @@ export function exportOptionsOf(flow: ExportFlow): ExportOptions {
         ? flow.again
         : undefined,
   };
-}
-
-function filesOf(paths: readonly string[]): ExportFile[] {
-  return paths.map((path) => ({
-    name: exportFileName(path),
-    format: path.split(".").pop()?.toLowerCase() ?? "",
-  }));
 }
 
 function exportWhen(finishedAt: number): string {
@@ -126,7 +117,6 @@ export function exportStateOf(flow: ExportFlow, nowSec: number): ExportState {
       return flow.request
         ? {
             phase: "done",
-            files: filesOf(run.paths),
             when: exportWhen(run.finishedAt),
             exported: flow.request,
             summary: exportResultCopy(run.paths),
@@ -138,7 +128,6 @@ export function exportStateOf(flow: ExportFlow, nowSec: number): ExportState {
     case "cancelled":
       return {
         phase: "cancelled",
-        files: filesOf(run.paths),
         detail: run.paths.length
           ? lateCancelCopy(exportResultCopy(run.paths))
           : CANCELLED_NOTHING,

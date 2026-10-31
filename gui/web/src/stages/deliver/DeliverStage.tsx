@@ -12,21 +12,19 @@ import type { BounceOptions } from "./bounceLogic";
 import { ChaptersList } from "./ChaptersList";
 import { ClipsRow } from "./ClipsRow";
 import type { ClipWord } from "./clipTrim";
+import type { DeliverFiles } from "./deliverFiles";
 import {
   addChapterAt,
   approveClip,
   type Chapter,
   type Clip,
   currentExportState,
-  type DeliverEnv,
   type EpisodeSettings,
-  type ExportFile,
   type ExportOptions,
   type ExportRequest,
   type ExportState,
   exportBlocker,
   exportRequest,
-  primaryAction,
   type ReadinessFacts,
   readinessRows,
   removeChapter,
@@ -60,7 +58,8 @@ export type DeliverStageProps = {
   initialClips: readonly Clip[];
   saveTo?: string;
   exportState: ExportState;
-  env?: DeliverEnv;
+  /** The files the export folder holds, shown as rows in the section that owns each. */
+  files?: DeliverFiles;
   clock?: { time: string; total: string };
   /** Playhead in seconds, where Add at playhead puts a chapter. */
   getPlayheadSec: () => number;
@@ -108,8 +107,6 @@ export type DeliverStageProps = {
   onFix: (stage: StageId, target?: string) => void;
   onExport: (request: ExportRequest) => void;
   onCancel?: () => void;
-  onReveal?: (file?: ExportFile) => void;
-  onDownload?: (file?: ExportFile) => void;
   /** Without it the Saves to line is not shown. */
   onChangeFolder?: () => void;
   onCopyLink?: () => void;
@@ -139,7 +136,7 @@ export function DeliverStage({
   initialClips,
   saveTo,
   exportState,
-  env = "app",
+  files,
   clock = NO_CLOCK,
   getPlayheadSec,
   selection = null,
@@ -165,8 +162,6 @@ export function DeliverStage({
   onFix,
   onExport,
   onCancel,
-  onReveal,
-  onDownload,
   onChangeFolder,
   onCopyLink,
   onRefreshMix,
@@ -231,7 +226,7 @@ export function DeliverStage({
     target,
   );
   const shownState = currentExportState(exportState, request, keyRequest);
-  const action = primaryAction(shownState, env);
+  const exporting = shownState.phase === "running";
 
   const release = useRef<number | null>(null);
   const clearInFlight = () => {
@@ -244,7 +239,7 @@ export function DeliverStage({
   }, [exportState]);
   useEffect(() => clearInFlight, []);
   const startExport = (viaKey = false) => {
-    if (guest || blocker || action === "exporting" || inFlight.current) return;
+    if (guest || blocker || exporting || inFlight.current) return;
     inFlight.current = true;
     release.current = window.setTimeout(clearInFlight, IN_FLIGHT_MS);
     onExport(viaKey ? keyRequest : request);
@@ -408,7 +403,7 @@ export function DeliverStage({
               total={total}
               saveTo={saveTo}
               exportState={shownState}
-              env={env}
+              files={files}
               state={sharedState}
               dock={phone}
               transcriptKind={transcript?.preview.kind}
@@ -423,12 +418,12 @@ export function DeliverStage({
               onExport={() => startExport()}
               onGetModel={onGetModel}
               onCancel={onCancel}
-              onReveal={onReveal}
-              onDownload={onDownload}
             />
             {transcript ? (
               <TranscriptSection
                 options={transcript}
+                files={files}
+                filesRunning={exporting}
                 state={sharedState}
                 compact={phone}
               />
@@ -477,11 +472,9 @@ export function DeliverStage({
       <div className="dv-foot">
         {phone ? (
           <ExportButton
-            action={action}
+            exporting={exporting}
             blocker={blocker}
             onExport={() => startExport()}
-            onReveal={() => onReveal?.()}
-            onDownload={() => onDownload?.()}
           />
         ) : null}
         <Toast

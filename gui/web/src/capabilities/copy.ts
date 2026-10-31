@@ -317,6 +317,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Export deliverables…",
     tooltip: "Export deliverables…",
   },
+  "daw.export.files": {
+    label: "Download exported files",
+    tooltip:
+      "Download or reveal a file an export wrote: audio, transcript, chapters or the feed file",
+  },
   "daw.export.transcript": {
     label: "Export transcript…",
     tooltip: "Export transcript…",

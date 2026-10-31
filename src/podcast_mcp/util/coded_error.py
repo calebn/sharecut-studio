@@ -37,6 +37,8 @@ _GUEST_MESSAGES = {
     "empty_text": "Enter some text and try again.",
     "enrollment_past_end": "A voice sample is past the end of this recording. Choose a sample inside the audio.",
     "export_busy": "This project is busy with an export or render. Try again when it finishes.",
+    "export_file_gone": "That file is no longer there. Refresh to see what is available.",
+    "export_running": "Exporting now. Download when it finishes.",
     "export_target_not_file": "An export file can't be written because something else is in its place. Ask the host to check the export folder.",
     "feed_write_failed": "The feed file could not be written on the host's computer. Ask the host to check that its disk has space and is not read-only, then try again.",
     "gate_text_too_long": "That note is too long. Shorten it and try again.",

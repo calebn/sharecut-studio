@@ -171,6 +171,12 @@ class ExportDeliverablesRequest(BaseModel):
     formats: list[dict] | None = None
 
 
+class ExportRevealRequest(BaseModel):
+    path: str
+    id: str
+    """A listed export file's id; the server looks it up and never reads a path from here."""
+
+
 class FeedEditRequest(BaseModel):
     """One edit to the episode's podcast listing; the empty string unsets."""
 

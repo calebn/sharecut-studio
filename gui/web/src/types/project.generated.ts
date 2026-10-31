@@ -114,6 +114,11 @@ export interface ExportDeliverablesRequest {
   formats?: Array<Record<string, unknown>> | null;
 }
 
+export interface ExportRevealRequest {
+  path: string;
+  id: string;
+}
+
 /** One edit to the episode's podcast listing; the empty string unsets. */
 export interface FeedEditRequest {
   path: string;

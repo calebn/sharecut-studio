@@ -1971,6 +1971,25 @@
       }
     },
     {
+      "id": "daw.export.files",
+      "label": "Download exported files",
+      "effect": "view",
+      "service": "ExportFilesService; GET /api/export/files; Editor share: GET /api/review/{token}/daw/export/files",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {},
+      "omit": {
+        "keyboard_reason": "A row action on Deliver (Reveal in the app, Download in a browser); the HTTP routes serve host and Editor share links"
+      },
+      "tooltip": "Download or reveal a file an export wrote: audio, transcript, chapters or the feed file",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.export.transcript",
       "label": "Export transcript\u2026",
       "effect": "project",

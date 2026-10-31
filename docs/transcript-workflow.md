@@ -603,6 +603,8 @@ with_text)`, and host HTTP `POST /api/transcript/export` all return the same res
   `bounces/` or `clips/`) with `mime`, `language`, `modified` and `current` (false once the
   transcript was edited since the file was written). Listing takes no lock and omits a
   file if it disappears before its bytes or modification timestamp can be read.
+  `GET /api/export/files` lists the same files with the audio, chapters and feed file by id, and
+  downloads them (see [gui-viewer.md](gui-viewer.md)).
 - The pipeline's Export step and audio Export write `md` and `srt` through the same renderers
   (`export/transcript.py: render_transcript_formats`).
 

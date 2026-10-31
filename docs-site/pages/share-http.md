@@ -45,6 +45,8 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `GET` | `…/daw/document/state` | `view` | Atomic sanitized document state with sequence and opaque basis token |
 | `GET` | `…/daw/edit-impact` | `Editor` | Seconds cut, edits applied and pending, per track, with their segments; `markdown=true` for the Markdown report |
 | `POST` | `…/daw/export` | `Editor` | Start the mastered-deliverables export into the project's export folder from a closed set of format names (opt-in PODCAST_GUEST_RENDER) |
+| `GET` | `…/daw/export/files` | `Editor` | List the exported files by opaque id, name, kind, label, size and whether they are current (no host paths, works with PODCAST_GUEST_RENDER off) |
+| `GET` | `…/daw/export/files/{file_id}` | `Editor` | Download one listed exported file as an attachment with Range and ETag; an id that is not listed is 404, and 409 while an export runs |
 | `GET` | `…/daw/export/jobs/{job_id}` | `Editor` | Read one export job of this project; any other job id is 404 |
 | `POST` | `…/daw/export/jobs/{job_id}/cancel` | `Editor` | Cancel one export job of this project (works with PODCAST_GUEST_RENDER off) |
 | `GET` | `…/daw/export/jobs/{job_id}/events` | `Editor` | SSE status frames of one export job; closes when the job ends or the link is revoked |

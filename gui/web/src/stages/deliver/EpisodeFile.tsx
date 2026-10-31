@@ -5,11 +5,10 @@ import { StatusRow } from "../../system/StatusRow";
 import { TimeField } from "../../system/TimeField";
 import { Button, InlineError, SegmentedControl, ToggleButton } from "../../ui";
 import { DeliverSection } from "./DeliverSection";
+import { type DeliverFiles, filesOfKinds } from "./deliverFiles";
 import {
   clampPart,
-  type DeliverEnv,
   type EpisodeSettings,
-  type ExportFile,
   type ExportOptions,
   type ExportState,
   estimateBytes,
@@ -20,9 +19,9 @@ import {
   LOUDNESS,
   parseClock,
   partSeconds,
-  primaryAction,
 } from "./deliverLogic";
 import { ExportButton } from "./ExportButton";
+import { ExportedFiles } from "./ExportedFiles";
 import type { TranscriptPreviewState } from "./transcriptLogic";
 
 function transcriptNote(
@@ -41,7 +40,8 @@ type Props = {
   /** Where files go, as a folder name. */
   saveTo?: string;
   exportState: ExportState;
-  env: DeliverEnv;
+  /** The audio and chapters files the export folder holds. */
+  files?: DeliverFiles;
   state?: "ready" | "loading";
   /** The Export button lives in the phone dock instead of here. */
   dock?: boolean;
@@ -53,8 +53,6 @@ type Props = {
   onExport: () => void;
   onGetModel?: () => void;
   onCancel?: () => void;
-  onReveal?: (file?: ExportFile) => void;
-  onDownload?: (file?: ExportFile) => void;
 };
 
 export function EpisodeFile({
@@ -62,7 +60,7 @@ export function EpisodeFile({
   total,
   saveTo = "",
   exportState,
-  env,
+  files,
   state = "ready",
   dock = false,
   options = {},
@@ -72,8 +70,6 @@ export function EpisodeFile({
   onExport,
   onGetModel,
   onCancel,
-  onReveal,
-  onDownload,
 }: Props) {
   const note = transcriptNote(transcriptKind);
   const wavNote = useId();
@@ -104,7 +100,6 @@ export function EpisodeFile({
   const seconds = partSeconds(settings.part, total);
   const formats = options.formats ?? FORMATS;
   const blocker = exportBlocker(settings, exportState, options);
-  const action = primaryAction(exportState, env);
   const toggleFormat = (id: FormatId) =>
     onSettings({
       ...settings,
@@ -112,13 +107,6 @@ export function EpisodeFile({
         ? settings.formats.filter((f) => f !== id)
         : [...settings.formats, id],
     });
-  const files =
-    exportState.phase === "done" ||
-    exportState.phase === "stale" ||
-    exportState.phase === "cancelled"
-      ? exportState.files
-      : [];
-
   return (
     <DeliverSection title="Episode file">
       {options.loading ? (
@@ -338,8 +326,8 @@ export function EpisodeFile({
       ) : null}
       {exportState.phase === "cancelled" ? (
         <StatusRow
-          state={files.length > 0 ? "done" : "needs-you"}
-          title={files.length > 0 ? "Exported" : "Export cancelled"}
+          state={exportState.when ? "done" : "needs-you"}
+          title={exportState.when ? "Exported" : "Export cancelled"}
           detail={exportState.detail}
           action={
             options.onExportAgain
@@ -368,37 +356,16 @@ export function EpisodeFile({
 
       {dock ? null : (
         <ExportButton
-          action={action}
+          exporting={running}
           blocker={blocker}
           onExport={onExport}
-          onReveal={() => onReveal?.()}
-          onDownload={() => onDownload?.()}
         />
       )}
 
-      {files.length > 0 ? (
-        <ul className="dv-files">
-          {files.map((file) => (
-            <li key={file.name} className="dv-file">
-              <span className="dv-file-name sys-mono">{file.name}</span>
-              {file.bytes === undefined ? null : (
-                <span className="sys-mono dv-file-size">
-                  {formatBytes(file.bytes)}
-                </span>
-              )}
-              {env === "none" ? null : (
-                <Button
-                  variant="link"
-                  onClick={() =>
-                    env === "app" ? onReveal?.(file) : onDownload?.(file)
-                  }
-                >
-                  {env === "app" ? "Reveal" : "Download"}
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
+      {files ? (
+        <ExportedFiles
+          {...filesOfKinds(files, ["audio", "chapters"], running)}
+        />
       ) : null}
     </DeliverSection>
   );

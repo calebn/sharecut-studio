@@ -68,6 +68,7 @@ import { openFeedSource } from "./feedSource";
 import { HostBody } from "./HostBody";
 import { hostStateOf } from "./hostModels";
 import { useShareFlow } from "./shareFlowContext";
+import { hostFileAccess, useDeliverFiles } from "./useDeliverFiles";
 import { useTranscriptFlow } from "./useTranscriptFlow";
 import { useTunnelStatus } from "./useTunnelStatus";
 
@@ -169,7 +170,11 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     exportFlow.run.kind === "running" || bounceFlow.run.kind === "running",
   );
   const exportDoneAt =
-    exportFlow.run.kind === "done" ? exportFlow.run.finishedAt : 0;
+    exportFlow.run.kind === "done" || exportFlow.run.kind === "cancelled"
+      ? exportFlow.run.finishedAt
+      : exportFlow.run.kind === "failed"
+        ? "failed"
+        : 0;
   const exportCmd = useCommand("export.deliverables");
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body", ".dv-page");
@@ -232,6 +237,12 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     revision: project?.history.head_id,
   });
   const reloadTranscript = transcriptFlow.reload;
+  const files = useDeliverFiles(
+    projectPath,
+    hostFileAccess(),
+    `${project?.history.head_id}|${exportDoneAt}|${transcriptFlow.written}`,
+  );
+  const exportRunning = exportFlow.run.kind === "running";
   const exportDone = exportFlow.run.kind === "done";
   useEffect(() => {
     if (exportDone) reloadTranscript();
@@ -465,6 +476,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
                 projectPath={projectPath}
                 access="host"
                 refreshKey={`${project.history.head_id}|${exportDoneAt}`}
+                files={files}
+                filesRunning={exportRunning}
                 onCommand={(fix) => {
                   if (
                     fix.kind === "command" &&
@@ -489,7 +502,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           transcript={{
             preview: transcriptFlow.preview,
             run: transcriptFlow.run,
-            files: transcriptFlow.files,
             choices: transcriptFlow.choices,
             onChoices: transcriptFlow.setChoices,
             exportRunning:
@@ -514,7 +526,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
                 })
               : undefined
           }
-          env="none"
+          files={files}
           getPlayheadSec={() => useDawStore.getState().playheadSec}
           layout={shell === "phone" ? "phone" : "desktop"}
           showLink={false}

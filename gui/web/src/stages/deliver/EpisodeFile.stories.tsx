@@ -4,7 +4,15 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import type { ModelGate } from "../../models";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import { registryModels } from "../../test/modelsStory";
-import { DONE, NEEDS_MODEL, NEVER, SETTINGS, TOTAL } from "./deliverFixture";
+import {
+  DONE,
+  exportedFilesOf,
+  NEEDS_MODEL,
+  NEVER,
+  REQUEST,
+  SETTINGS,
+  TOTAL,
+} from "./deliverFixture";
 import type { EpisodeSettings } from "./deliverLogic";
 import { EpisodeFile } from "./EpisodeFile";
 
@@ -25,13 +33,10 @@ const meta: Meta<typeof EpisodeFile> = {
     total: TOTAL,
     saveTo: "Field Notes/export",
     exportState: NEVER,
-    env: "app",
     onSettings: fn(),
     onChangeFolder: fn(),
     onExport: fn(),
     onCancel: fn(),
-    onReveal: fn(),
-    onDownload: fn(),
   },
   decorators: [
     (Story) => (
@@ -46,7 +51,7 @@ const meta: Meta<typeof EpisodeFile> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Format chips with a size estimate, loudness (set only here), Whole episode or Part with In and Out, the save folder, and the one filled button. Captions and the transcript are written with every export, so there is no switch for them.\n\n**Motion.** Animations come later: the progress bar and the swap from Export to Reveal use `--motion-panel`.",
+          "Format chips with a size estimate, loudness (set only here), Whole episode or Part with In and Out, the save folder, and the one filled button. Captions and the transcript are written with every export, so there is no switch for them.\n\n**Motion.** Animations come later: the progress bar uses `--motion-panel`.",
       },
     },
   },
@@ -85,10 +90,29 @@ export const PartOfEpisode: Story = {
   },
 };
 
-export const Exported: Story = { args: { exportState: DONE } };
+export const Exported: Story = {
+  args: {
+    exportState: DONE,
+    files: { ...exportedFilesOf(REQUEST, "reveal"), onReveal: fn() },
+  },
+};
 
 export const ExportedInBrowser: Story = {
-  args: { exportState: DONE, env: "browser" },
+  args: {
+    exportState: DONE,
+    files: { ...exportedFilesOf(REQUEST, "download"), onStarted: fn() },
+  },
+};
+
+export const ExportingWithFiles: Story = {
+  args: {
+    exportState: {
+      phase: "running",
+      progress: 0.4,
+      detail: "Mastering · 40%",
+    },
+    files: exportedFilesOf(REQUEST, "download"),
+  },
 };
 
 export const NeedsModel: Story = {
@@ -126,7 +150,7 @@ const HOST_OPTIONS = {
 } as const;
 
 export const WithProjectFormats: Story = {
-  args: { options: HOST_OPTIONS, env: "none" },
+  args: { options: HOST_OPTIONS },
   play: async ({ canvasElement }) => {
     const view = within(canvasElement);
     await expect(view.getByRole("button", { name: "WAV" })).toBeDisabled();
@@ -180,10 +204,9 @@ export const Cancelled: Story = {
     exportState: {
       phase: "cancelled",
       detail: "Cancelled after 1 file was written to export/.",
-      files: [{ name: "episode.mp3", format: "mp3" }],
+      when: "at 2:14 PM",
     },
     options: { onExportAgain: fn() },
-    env: "none",
   },
 };
 

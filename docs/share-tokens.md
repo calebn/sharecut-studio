@@ -590,6 +590,16 @@ file suffix), so none of those can be offered; the host maps each name to a fixe
 pinned M4A preset). Files always go to the project's own export folder under the project's
 name.
 
+An Editor can list and download what that export wrote (`GET …/daw/export/files` and
+`…/daw/export/files/{id}`; the second takes the folder-relative id, so `clips/a.wav` works).
+Both are Editor twins in `GUEST_OWNER_ROUTES` on the `read` rate bucket and need no
+`PODCAST_GUEST_RENDER`, since reading a file the host already made spends no CPU; a Viewer or
+Commenter link is refused with `share_capability_required` by the registry's one capability
+check. The listing carries names, kinds, labels, sizes and a `current` flag, never a host
+path. A download looks its id up in a fresh listing (a client never supplies a path), serves
+only a regular file inside the export folder, and answers 404 `export_file_gone` for anything
+else and 409 `export_running` while an export of the project runs.
+
 An Editor's export is the host's export (an Editor can do what the host can on the episode),
 and nothing is suppressed. It masters the project if the master is stale, then writes the
 master WAV, the transcript sidecars (SRT and Markdown, and a VTT or TXT already there), the
@@ -605,8 +615,8 @@ listing. Starting spends host CPU, so it needs `PODCAST_GUEST_RENDER`; the twins
 cancel works with the flag off. The start never waits: a busy slot, including a mix rebuild of
 the same project, answers 409 `job_running` with the fixed copy at once (the owner route
 still waits for a rebuild). The job view says only running, done or failed ("Export failed", whatever the cause);
-the Editor is not handed the exported files or their paths, and downloading them is a later
-decision. Bounce (it names track ids, the raw stems exception) stays host-only here.
+the job view carries no paths, and the files come from the listing and download twins above.
+Bounce (it names track ids, the raw stems exception) stays host-only here.
 
 An Editor on a guest MCP session (the share's remote MCP URL, a link with `mcp`) gets the pipeline,
 export and speaker twins as tools, offered by the same gate as the other Editor tools

@@ -28,17 +28,6 @@ export type TranscriptExportResult = {
   text: string | null;
 };
 
-export type ExportedTranscript = {
-  format: TranscriptFormat;
-  path: string;
-  name: string;
-  mime: string;
-  language: string;
-  bytes: number;
-  modified: string;
-  current: boolean;
-};
-
 /** Writes the edited transcript, or with `dry_run` only previews it. Synchronous, not a job. */
 export async function exportTranscript(
   projectPath: string,
@@ -60,19 +49,4 @@ export async function exportTranscript(
     },
   );
   return (await res.json()) as TranscriptExportResult;
-}
-
-/** The transcript files already next to the audio, each with whether it matches the edit. */
-export async function listExportedTranscripts(
-  projectPath: string,
-  opts?: { signal?: AbortSignal },
-): Promise<ExportedTranscript[]> {
-  const res = await apiFetch(
-    HOST_KEY,
-    {
-      host: `/api/transcript/exports?path=${encodeURIComponent(projectPath)}`,
-    },
-    { signal: opts?.signal },
-  );
-  return (await res.json()) as ExportedTranscript[];
 }

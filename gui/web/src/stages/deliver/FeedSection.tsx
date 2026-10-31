@@ -20,6 +20,8 @@ import {
 } from "../../ui";
 import { useDisabledReasonNote } from "../../ui/disabledReason";
 import { DeliverSection } from "./DeliverSection";
+import type { FileListProps } from "./deliverFiles";
+import { ExportedFiles } from "./ExportedFiles";
 import { FeedAsk } from "./FeedAsk";
 import { FeedChecks } from "./FeedChecks";
 import { FeedListing } from "./FeedListing";
@@ -60,6 +62,8 @@ type Props = {
   onAction: (fix: Fix) => void;
   /** Opens the stage that owns a fact the listing reads but never edits. */
   onOpenSource: (owner: SourceOwner) => void;
+  /** The feed file's row, when the export folder holds one. */
+  files?: FileListProps;
 };
 
 type Pane = "listing" | "xml";
@@ -81,6 +85,7 @@ export function FeedSection({
   request,
   onAction,
   onOpenSource,
+  files,
 }: Props) {
   const [pane, setPane] = useState<Pane>("listing");
   const [editing, setEditing] = useState<FieldKey | null>(null);
@@ -366,6 +371,7 @@ export function FeedSection({
           </div>
           {reason.note}
         </div>
+        {files ? <ExportedFiles {...files} /> : null}
         <Toast
           className="sys-toast-dock"
           toast={toast}
