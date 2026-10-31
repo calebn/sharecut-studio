@@ -16,17 +16,12 @@ const section = (
   rows: controls.map((control, i) => ({ id: `${id}${i}`, control })),
 });
 
-/**
- * A bare comment (one with no linked pending edit) as Inspector sheet
- * sections. A comment on a pending edit stays with the pending body.
- */
 export function useCommentSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {
   const isComment = selection?.kind === "comment";
   const { project, guestMode, shareCapabilities, projectPath } = useDaw(
     (s) => ({
-      // Only a comment selection subscribes to the project.
       project: isComment ? s.project : null,
       guestMode: s.guestMode,
       shareCapabilities: s.shareCapabilities,
@@ -44,8 +39,6 @@ export function useCommentSections(
     return [
       section("gone", <p className="ui-field-hint">Comment not found</p>),
     ];
-  // A comment on a still-pending edit stays with the pending body; a dangling
-  // link (the decision is no longer pending) is a plain comment.
   if (
     comment.edit_decision_id &&
     project?.pending_edits.some((e) => e.id === comment.edit_decision_id)
