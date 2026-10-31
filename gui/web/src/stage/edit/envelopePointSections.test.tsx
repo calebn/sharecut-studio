@@ -43,6 +43,15 @@ const press = (name: string, key: string) =>
     fireEvent.keyDown(screen.getByRole("spinbutton", { name }), { key });
   });
 
+const type = async (name: string, text: string) => {
+  await press(name, "Enter");
+  const input = screen.getByRole("textbox", { name });
+  fireEvent.change(input, { target: { value: text } });
+  await act(async () => {
+    fireEvent.keyDown(input, { key: "Enter" });
+  });
+};
+
 describe("envelope point content", () => {
   beforeEach(() => {
     vi.mocked(api.setEnvelope).mockReset().mockResolvedValue(null);
@@ -138,5 +147,96 @@ describe("envelope point content", () => {
   it("says so when the point has gone", () => {
     open(POINTS, "zzz");
     expect(screen.getByText(/no longer available/)).toBeVisible();
+  });
+
+  it("refuses a typed time past the timeline end and keeps what was typed", async () => {
+    open();
+    await type("Time", "11");
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Time" })).toHaveValue("11");
+  });
+
+  it("refuses a typed level above the maximum without clamping it", async () => {
+    open();
+    await type("Level", "1.6");
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Level" })).toHaveValue("1.6");
+  });
+
+  it("saves a typed time and gives focus back to the field", async () => {
+    open();
+    await type("Time", "5");
+    expect(api.setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [POINTS[0], { id: "b", time: 5, value: 0.5 }],
+      POINTS,
+    );
+    expect(screen.getByRole("spinbutton", { name: "Time" })).toHaveFocus();
+  });
+
+  it("holds the fields read-only while a save is in flight and takes no second one", async () => {
+    let release: (undo: null) => void = () => {};
+    vi.mocked(api.setEnvelope).mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    open();
+    await press("Level", "ArrowUp");
+    expect(screen.getByRole("spinbutton", { name: "Level" })).toHaveAttribute(
+      "aria-readonly",
+      "true",
+    );
+    await press("Level", "ArrowUp");
+    expect(api.setEnvelope).toHaveBeenCalledTimes(1);
+    await act(async () => release(null));
+    expect(
+      screen.getByRole("spinbutton", { name: "Level" }),
+    ).not.toHaveAttribute("aria-readonly");
+  });
+
+  it("edits for an editor link", async () => {
+    open();
+    useDawStore.setState({
+      projectPath: "share:tok",
+      shareCapabilities: ["edit"],
+    });
+    await press("Level", "ArrowUp");
+    expect(api.setEnvelope).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Remove point" })).toBeEnabled();
+  });
+
+  it("offers Reload only for a conflict, and edits again after it", async () => {
+    vi.mocked(api.setEnvelope).mockRejectedValueOnce(new Error("Disk full"));
+    open();
+    await press("Level", "ArrowUp");
+    expect(screen.getByRole("alert")).toHaveTextContent("Disk full");
+    expect(screen.queryByRole("button", { name: "Reload points" })).toBeNull();
+    vi.mocked(api.setEnvelope).mockRejectedValueOnce(
+      new ApiError("The envelope changed", "conflict", 409),
+    );
+    await press("Level", "ArrowUp");
+    fireEvent.click(screen.getByRole("button", { name: "Reload points" }));
+    await press("Level", "ArrowUp");
+    expect(api.setEnvelope).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("selects the envelope after a point is removed", async () => {
+    open();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Remove point" }));
+    });
+    expect(api.setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [POINTS[0]],
+      POINTS,
+    );
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "envelope",
+      trackId: "host",
+    });
   });
 });

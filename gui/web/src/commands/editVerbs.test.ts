@@ -238,6 +238,26 @@ describe("Cut, and the Backspace order", () => {
     });
   });
 
+  it("keeps an envelope point while the volume envelope is hidden", async () => {
+    const project = minimalProject({
+      tracks: editFixtureProject().tracks,
+      envelopes: [
+        {
+          track_id: MIRA,
+          parameter: "volume",
+          points: [{ id: "p1", time: 1, value: 1 }],
+        },
+      ],
+    });
+    host({ kind: "envelopePoint", trackId: MIRA, pointId: "p1" }, { project });
+    useDawStore.getState().setLayerVisible("showLevels", false);
+    expect(await execute("edit.delete", {}, { skipWhen: true })).toEqual({
+      status: "disabled",
+      reason: "Show the volume envelope before changing points",
+    });
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+  });
+
   it("names what it cannot cut", async () => {
     host({ kind: "track", trackId: MIRA });
     expect(await execute("edit.delete")).toEqual({
