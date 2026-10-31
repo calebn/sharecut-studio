@@ -19,6 +19,7 @@ from podcast_mcp.cli import (
     record,
     relay,
     review,
+    segment,
     session_cmd,
     speaker,
     transcript_cmd,
@@ -81,6 +82,7 @@ app.add_typer(clips.clips_app, name="clips")
 app.add_typer(comment.comment_app, name="comment")
 app.add_typer(feed.feed_app, name="feed")
 app.add_typer(review.review_app, name="review")
+app.add_typer(segment.segment_app, name="segment")
 app.add_typer(ingest.ingest_app, name="ingest")
 app.add_typer(align_cmd.align_app, name="align")
 app.add_typer(play.play_app, name="play")
