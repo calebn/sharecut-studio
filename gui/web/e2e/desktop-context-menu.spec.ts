@@ -13,7 +13,7 @@ const menu = (page: Page) => page.getByRole("menu", { name: /^Create at / });
 
 async function playheadSec(page: Page): Promise<number> {
   const now = await page
-    .locator(".time-ruler")
+    .getByRole("slider", { name: "Timeline position" })
     .first()
     .getAttribute("aria-valuenow");
   return Number(now);

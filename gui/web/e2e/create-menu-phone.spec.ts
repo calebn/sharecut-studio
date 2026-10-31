@@ -21,7 +21,7 @@ const lane = '.lane-row[data-track-id="reference"]';
 
 async function playheadSec(page: Page): Promise<number> {
   const now = await page
-    .locator(".time-ruler")
+    .getByRole("slider", { name: "Timeline position" })
     .first()
     .getAttribute("aria-valuenow");
   return Number(now);
@@ -140,4 +140,7 @@ test("a finger that slides from the held point onto a Sheet row and lifts picks 
   await touch(cdp, "touchEnd");
   await expect(sheet(page)).toHaveCount(0);
   await expect(page.locator(".chapter-marker")).toHaveCount(1);
+  // Leave the shared project as found: later specs measure its markers.
+  await page.keyboard.press("Control+z");
+  await expect(page.locator(".chapter-marker")).toHaveCount(0);
 });
