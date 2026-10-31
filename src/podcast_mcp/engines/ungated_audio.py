@@ -243,7 +243,9 @@ def raw_samples_on_timeline(
     preserve_channels: bool = False,
 ) -> np.ndarray:
     """Raw clips placed on the timeline: mono, or ``(frames, channels)`` with
-    ``preserve_channels``, where a mono clip on a multichannel lane fills every channel."""
+    ``preserve_channels``, where a mono clip on a multichannel lane fills every channel.
+
+    A span is one virtual piece of its clip, so a hole at a positive timing step stays zero."""
     load = load_channels_full if preserve_channels else load_mono_full
     for path in paths:
         if path not in sources:
@@ -350,10 +352,14 @@ def raw_timeline_window(
         return np.zeros_like(window) if track.timeline_empty else window
     samples: np.ndarray | None = None
     for span in spans:
-        mapped = clip_timeline_overlap_to_source(span.clip, start, end)
+        lo, hi = max(start, float(span.timeline_start)), min(end, float(span.timeline_end))
+        if span.clip.timing is None:
+            mapped = clip_timeline_overlap_to_source(span.clip, start, end)
+        else:
+            first = float(span.source_start) + lo - float(span.timeline_start)
+            mapped = (first, first + hi - lo) if hi - lo > 1e-9 else None
         if mapped is None:
             continue
-        lo, hi = max(start, float(span.timeline_start)), min(end, float(span.timeline_end))
         loader = load_wav_channels_window if preserve_channels else load_mono_window
         window = loader(
             resolve_clip_audio_path(project, track, span.clip),
