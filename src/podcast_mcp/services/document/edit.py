@@ -50,9 +50,7 @@ from podcast_mcp.edits.edit_reasons import (
     GUEST_SUGGEST_REASON,
     NL_RANGE_REASON,
 )
-from podcast_mcp.edits.join_continuity import (
-    assess_existing_join,
-)
+from podcast_mcp.edits.join_continuity import assess_existing_join
 from podcast_mcp.edits.range_edits import RangeAction, RangeEditResult
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.tighten.propose import with_audio_check as with_audio_check
@@ -389,6 +387,7 @@ class EditService(CutMutatingService):
         unsure transcript word is not applied, stays pending and is listed there with
         reason ``unsure_word``; the rest apply as one history step.
         """
+        self._queue_room_tone_pools()
         line = unsure_word_confidence(self.ws.effective_config())
         if unsure_out is not None:
             with self.ws.transaction():  # the saved words decide, not the caller's view
@@ -633,6 +632,7 @@ class EditService(CutMutatingService):
         self, edit_mode: str | None = None, intensity: str | None = None
     ) -> TightenProposal:
         self._require_refine_clear()
+        self._queue_room_tone_pools()
 
         def mutate(p) -> TightenProposal:
             return propose_tighten_edits(

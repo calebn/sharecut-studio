@@ -352,7 +352,7 @@ disposition, current source-placement validation, and original-recording pad eli
 The detector modules supply measurements. Held application measures fixed edges without
 another optimizer. The current checked-geometry implementation is transitional. It does
 not yet assess complete final effects across every cut path. Automatic join fades now run
-on the working copy before adoption. Approval reads existing room-tone pools or measures
+on the working copy before adoption. Approval reads existing room-tone pools (a track with none is queued for one in the background first) or measures
 a live sample without recording a pool. The active-processing-chain evidence cache may use its existing scoped temporary
 measurement render. Such measurement must leave no durable files on rejection.
 The complete working-state owner and full two-stage proof remain pending
