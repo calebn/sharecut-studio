@@ -179,24 +179,6 @@ export const More: Story = {
   },
 };
 
-export const CreateHere: Story = {
-  render: () => (
-    <Demo label="Create here" trigger="Create here">
-      {(close) => (
-        <>
-          <MenuSection label="12:04.3 · Maya">
-            <VerbRow verb="comment" onSelect={close} />
-            <VerbRow verb="addChapter" onSelect={close} />
-            <VerbRow verb="record" onSelect={close} />
-            <VerbRow verb="import" onSelect={close} />
-          </MenuSection>
-        </>
-      )}
-    </Demo>
-  ),
-  play: ({ canvasElement }) => openMenu(canvasElement, "Create here"),
-};
-
 export const Phone: Story = {
   decorators: [],
   render: () => (

@@ -31,7 +31,11 @@ export type SheetProps = {
   onClose: () => void;
   /** Dialog and BottomSheet forms only. */
   open?: boolean;
-  detent?: DrawerDetent;
+  /**
+   * Bottom form: a drawer detent, or `fit`, as tall as its rows (capped at the
+   * slot) with no grabber, for a short list such as the Create here menu.
+   */
+  detent?: DrawerDetent | "fit";
   onDetentChange?: (detent: DrawerDetent) => void;
   /** Extra class on the Dialog or BottomSheet panel, for a sheet with its own width. */
   panelClassName?: string;
@@ -160,12 +164,16 @@ export function Sheet({
         title={heading}
         className={panelClassName}
         size={detent}
-        drawer={{
-          detents: ["peek", "half", "full"],
-          detent,
-          onDetentChange: (next) => onDetentChange?.(next),
-          label: "Sheet height",
-        }}
+        drawer={
+          detent === "fit"
+            ? undefined
+            : {
+                detents: ["peek", "half", "full"],
+                detent,
+                onDetentChange: (next) => onDetentChange?.(next),
+                label: "Sheet height",
+              }
+        }
       >
         <div className="sys-sheet-bottom">
           <div className="sys-sheet-scroll">{body}</div>

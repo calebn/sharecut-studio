@@ -219,7 +219,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Instances: the Project menu (first row is the title as a rename field, then Recent 5, All projects, Settings, Connect agent, Help), More (⋯), Create here or long-press, the Session target chip menu, Person tile menu, row menus.
 - Used: MENU-MAIN, MENU-CREATE, the Home "more" and Help buttons, the record ⋯.
 - Replaces: Project menu (edit); Home more and Help buttons, the Stage-bar "more" (rdp); the room overflow (record).
-- Story: `System/Menu`: Project, More, CreateHere, Phone.
+- Story: `System/Menu`: Project, More, Phone.
 
 **11. Scrub field**
 - A numeric value with its unit in Plex Mono. Drag to change (Shift ×10, Alt ×0.1), click to type, ↑/↓ to step, Enter commits, Esc reverts, a reset dot shows when the value isn't the default, and one gesture is one undo step.
