@@ -100,6 +100,7 @@ export function useTouchPress(router: HitRouter | null): TouchPressProps {
 
   return {
     onPointerDownCapture(event) {
+      clickUntil.current = 0;
       if (!router?.defers(event.nativeEvent)) return;
       // The touch is the router's: its target never sees the pointerdown.
       event.stopPropagation();
@@ -136,7 +137,6 @@ export function useTouchPress(router: HitRouter | null): TouchPressProps {
         },
       };
       press.current = started;
-      clickUntil.current = 0;
     },
     onClickCapture(event) {
       // The browser's click after a press must not reach a target; any other
