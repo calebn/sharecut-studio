@@ -1774,13 +1774,40 @@ def test_a_replace_target_in_an_episode_without_tracks_says_so(
     )
 
 
-def test_set_target_without_an_object_target_is_refused_naming_the_field():
+def test_set_target_without_a_target_is_refused_naming_the_field():
     from podcast_mcp.services.record.commands import validate_record_payload
 
-    for payload in ({}, {"target": None}, {"target": "end"}):
+    for payload in ({}, {"target": None}, {"target": 3}, {"target": ["end"]}):
         with pytest.raises(CodedValueError, match=r"^target:") as raised:
             validate_record_payload("SetTarget", payload)
         assert raised.value.code == "invalid_record_request"
+
+
+def test_set_target_accepts_a_bare_kind_string_like_the_cli():
+    from podcast_mcp.services.record.commands import validate_record_payload
+
+    for kind in ("end", "start"):
+        assert validate_record_payload("SetTarget", {"target": kind}) == {"target": {"kind": kind}}
+    assert validate_record_payload("SetTarget", {"target": " end "}) == {"target": {"kind": "end"}}
+
+
+def test_set_target_refuses_a_bare_string_that_needs_more_or_is_unknown():
+    from podcast_mcp.services.record.commands import validate_record_payload
+
+    for bare, needle in (
+        ("insert", "at_sec"),
+        ("replace", "track_ids"),
+        ("middle", "use end, start, insert or replace"),
+        ("", "use end, start, insert or replace"),
+    ):
+        with pytest.raises(CodedValueError, match=needle) as raised:
+            validate_record_payload("SetTarget", {"target": bare})
+        assert raised.value.code == "invalid_record_request"
+
+
+def test_set_target_with_each_object_kind_validates():
+    from podcast_mcp.services.record.commands import validate_record_payload
+
     for kind in ("end", "insert", "replace"):
         target = {
             "end": {"kind": "end"},
@@ -1788,6 +1815,21 @@ def test_set_target_without_an_object_target_is_refused_naming_the_field():
             "replace": {"kind": "replace", "from_sec": 1.0, "to_sec": 2.0, "track_ids": ["a"]},
         }[kind]
         assert validate_record_payload("SetTarget", {"target": target})["target"]["kind"] == kind
+
+
+def test_set_target_stays_locked_after_a_discarded_only_take(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.services.record.control import RecordControlService
+    from podcast_mcp.services.record.reducer import RecordStateError
+
+    ws = _seed(minimal_project, sample_wav)
+    _stage(ws, INSERT)
+    RecordLandingService(ws).delete_take(0)
+    ws.reload()
+    assert ws.project.editorial.session_suggestions == []
+    with pytest.raises(RecordStateError, match="locked once a take has been recorded"):
+        RecordControlService(ws).set_target({"kind": "end"})
 
 
 def test_a_replace_target_with_a_reversed_range_is_refused_by_field(
