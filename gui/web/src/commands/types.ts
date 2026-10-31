@@ -1,5 +1,6 @@
-import type { CommandContext } from "./context";
 /** Frontend UX command ids — not SyncCommand / DocumentCommand wire types. */
+
+import type { CommandContext } from "./context";
 
 export type CommandCategory =
   | "transport"
