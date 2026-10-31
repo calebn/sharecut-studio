@@ -18,15 +18,19 @@ export function attachDragWatch(
   onChange: (dragging: boolean) => void,
 ): () => void {
   const doc = root.ownerDocument;
-  const downs = new Map<number, { x: number; y: number; replayed: boolean }>();
+  const downs = new Map<
+    number,
+    { x: number; y: number; replayed: boolean; owner: Element }
+  >();
   let dragging: number | null = null;
 
   const onDown = (event: PointerEvent) => {
-    if (event.target instanceof Node && root.contains(event.target)) {
+    if (event.target instanceof Element && root.contains(event.target)) {
       downs.set(event.pointerId, {
         x: event.clientX,
         y: event.clientY,
         replayed: isReplayed(event),
+        owner: event.target,
       });
     }
   };
@@ -49,6 +53,15 @@ export function attachDragWatch(
     onChange(true);
   };
   const onEnd = (event: PointerEvent) => {
+    const down = downs.get(event.pointerId);
+    if (
+      !down ||
+      (event.type === "lostpointercapture" &&
+        down.replayed &&
+        down.owner.isConnected &&
+        event.target !== down.owner)
+    )
+      return;
     downs.delete(event.pointerId);
     if (dragging !== event.pointerId) return;
     dragging = null;
