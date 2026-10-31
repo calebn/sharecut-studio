@@ -467,6 +467,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Add comment",
     tooltip: "Start a comment at the held time",
   },
+  "daw.record.here": {
+    label: "Record here",
+    tooltip: "Open Record to insert a take at the held time",
+  },
   "daw.edit.restoreClipBleed": {
     label: "Restore original audio",
     tooltip: "Restore one selected automatic reduction in this clip occurrence",
@@ -578,7 +582,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "presence.avatarStack": "daw.presence.follow",
   "presence.followBanner": "daw.presence.unfollow",
   timeline: "daw.edit.bladeCut",
-  "timeline.createMenu": "daw.comment.draftAt",
+  "timeline.createMenu": "daw.record.here",
   clipInspector: "daw.edit.moveClips",
   actionBar: "daw.edit.mute",
   trackInspector: "daw.track.setVolume",

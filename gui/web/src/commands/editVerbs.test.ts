@@ -18,6 +18,7 @@ import {
   WIRED_VERBS,
 } from "./editVerbs";
 import { clearRegisteredCommands, execute, registerCommand } from "./execute";
+import { executePointerCommand } from "./pointer";
 import { registerDawCommands } from "./register";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -361,6 +362,30 @@ describe("verbs that call other commands", () => {
       at_sec: 6,
     });
     expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it("parks an Insert target at the held time on record.here from the create menu", async () => {
+    const open = vi.fn(() => ({ status: "ok" as const }));
+    registerCommand("stage.record", open);
+    host(null, { playheadSec: 6 });
+    await executePointerCommand("record.here", { atTime: 3.5 });
+    expect(useDawStore.getState().pendingRecordTarget).toEqual({
+      kind: "insert",
+      at_sec: 3.5,
+    });
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses record.here with a time that is not a number and parks nothing", async () => {
+    const open = vi.fn(() => ({ status: "ok" as const }));
+    registerCommand("stage.record", open);
+    host(null);
+    const result = await executePointerCommand("record.here", {
+      atTime: "soon",
+    });
+    expect(result.status).toBe("disabled");
+    expect(useDawStore.getState().pendingRecordTarget).toBeNull();
+    expect(open).not.toHaveBeenCalled();
   });
 
   it("opens Record without a target on Record here over an empty timeline", async () => {

@@ -81,10 +81,11 @@ describe("CreateMenu", () => {
       "Split hereCuts all dialogue tracks",
       "Add chapter",
       "Add comment",
+      "Record here",
       "Add envelope point0.80×",
     ]);
     expect(useDawStore.getState().statusAnnouncement).toMatch(
-      /^Create at .+ on Avery, 4 actions$/,
+      /^Create at .+ on Avery, 5 actions$/,
     );
     // The menu is the visible control: a toast would sit over its last items.
     expect(useDawStore.getState().feedbackToast).toBeNull();
@@ -119,6 +120,7 @@ describe("CreateMenu", () => {
       "Split hereCuts Blair, host",
       "Add chapter",
       "Add comment",
+      "Record here",
       "separator",
       "Add envelope point0.80×",
     ]);

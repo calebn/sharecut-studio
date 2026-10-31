@@ -360,17 +360,17 @@ async function record(facts: EditFacts): Promise<ExecuteResult> {
 }
 
 /**
- * Record here: open Record with an Insert-at-playhead target. Host only. On an
- * empty timeline there is nothing to insert into, so Record opens with its
- * default target.
+ * Record here: open Record with an Insert target, at `atSec` (the held time of
+ * the create menu) or else the playhead. Host only. On an empty timeline there
+ * is nothing to insert into, so Record opens with its default target.
  */
-export async function recordHere(): Promise<ExecuteResult> {
+export async function recordHere(atSec?: number): Promise<ExecuteResult> {
   const s = useDawStore.getState();
   if (!canManageProjects(s.projectPath))
     return disabled("Only the host can record");
   if (lastClipEndSec(s.project) === undefined)
     return executePointerCommand("stage.record");
-  return openRecordWith({ kind: "insert", at_sec: s.playheadSec });
+  return openRecordWith({ kind: "insert", at_sec: atSec ?? s.playheadSec });
 }
 
 function singleClipTarget(project: ProjectView, selection: Selection) {
@@ -546,6 +546,14 @@ export function registerEditVerbCommands(): void {
   registerCommand("edit.keep", () => withFacts((facts) => keep(facts)));
   registerCommand("edit.split", () => withFacts((facts) => split(facts)));
   registerCommand("edit.mute", () => runMute());
+  registerCommand("record.here", (args) => {
+    const raw = args.atTime;
+    if (raw === undefined || raw === null) return recordHere();
+    const at = Number(raw);
+    if (!Number.isFinite(at) || at < 0)
+      return disabled("atTime must be a time");
+    return recordHere(at);
+  });
   registerCommand("edit.inspect", (args) => {
     const s = useDawStore.getState();
     if (!s.selection) return disabled("Select something to inspect");

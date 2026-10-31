@@ -1180,7 +1180,7 @@ chooser lab until the owner made it the default (2026-10-07).
   room, capped to that room. Either way a 24 px gap stays between the menu
   and the finger. Its title is the time and lane
   ("00:30.000 · Avery"). Entries: **Split here** first, then **Add
-  chapter** and **Add comment**, then, below a divider, **Add envelope point**
+  chapter** and **Add comment**, then **Record here** (host only; opens Record with an Insert target at the held time, the `record.here` command), then, below a divider, **Add envelope point**
   (with the level it adds at, on the held lane) (#2294 W1b: the menu is how a
   touch user splits on a lane, and Split heads it). Split here cuts the
   selected tracks, else every dialogue track, so it carries a line saying
@@ -1188,7 +1188,7 @@ chooser lab until the owner made it the default (2026-10-07).
   with the held lane's entry.
   Each runs a catalog command at the held
   time (`envelope.addPoint`, `edit.bladeCut`, `edit.addChapter` with
-  `atTime`, `comment.draftAt`); an entry the link cannot run stays, disabled,
+  `atTime`, `comment.draftAt`, `record.here`); an entry the link cannot run stays, disabled,
   with the command's reason beside it. Slide onto an item and lift to pick
   it, or lift anywhere and tap one. A lift that never moved past
   `TOUCH_SLOP_PX` picks nothing, whatever lies under the finger: round 8's
