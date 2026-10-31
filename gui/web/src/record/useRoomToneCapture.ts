@@ -11,7 +11,11 @@ import {
   roomToneReady,
   roomToneTooLoud,
 } from "./roomTone";
-import { ROOM_TONE_MIN_SEC, ROOM_TONE_NOT_READY_COPY } from "./types";
+import {
+  ROOM_TONE_LAND_FAILED_COPY,
+  ROOM_TONE_MIN_SEC,
+  ROOM_TONE_NOT_READY_COPY,
+} from "./types";
 import { uploadRoomToneWav } from "./upload/roomTone";
 import type { RecordUploadTransport } from "./upload/transport";
 
@@ -134,6 +138,10 @@ export function useRoomToneCapture(args: {
         signal: controller.signal,
       });
       controller.signal.throwIfAborted();
+      // A bed the host received but could not register is not sent: say so and offer a retake.
+      if (ack.landFailed) {
+        throw new Error(ROOM_TONE_LAND_FAILED_COPY);
+      }
       // "Sent" waits for the host's file ack.
       if (ack.fileAck) {
         setDelivery("host");
