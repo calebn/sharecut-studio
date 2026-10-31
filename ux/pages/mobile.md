@@ -85,6 +85,13 @@ The overlay toggles in the Edit stage's eye sheet (Pending edits, Markers, Comme
 An inspector stays open while the timeline remains interactive behind it. Fine pointers can drag pending-cut edges. On touch, a direct long press on a fade or trim handle may open the Auto jog
 pad; envelope, pending edges, and chooser chip grabs keep the grammar drag. Auto then either opens a **jog pad** in the drawer's place (slide up while dragging to slow the move) or drags directly on the timeline with finer steps when the finger moves slowly. Done or a tap outside the pad finishes a jog; a second finger cancels. When the target is too narrow to hit reliably, choose **Edit timing** in the selected action card to focus Source start in the inspector instead. In compact mode, the peek strip's Start and End rows hold timing. The review card docks in the pinned header, and **Expand**, **Collapse**, and **Close** remain available there. When the compact inspector is open, its header keeps Undo and Redo visible at peek, half and full height, and the strip covers the tool rail so the lanes keep their room. Tapping an unavailable history button briefly shows "No undo" or "No redo" inside that button. The hint clears when that action becomes available. If the action becomes unavailable again, the hint stays clear until another tap. The full reason is announced for screen readers, and the feedback leaves the inspector content clear. Collapsing the inspector to the strip shows the top of its content again. On a phone held sideways at large text the strip fills the screen above the mode bar, with Undo, Redo, Expand and Close on one row, and the nudges are one scroll of the strip away. The Review Queue lists the pending edits that need review. Tap the ruler to seek; a blank ruler tap also clears the current selection. Confirmation sheets keep their outside-dismiss scrim, and Close or Escape dismisses either sheet type.
 
+A jog keeps its trim or fade preview after the arming finger lifts, so the pad
+can continue the edit before Done saves it. During a chooser-routed timeline
+drag, the inspector stays stowed until that drag finishes or cancels, including
+when the browser transfers pointer capture from the previous target. Releasing
+the finger or cancelling the drag restores the inspector, including after the
+drag owner disarms.
+
 While the compact inspector is open, keyboard navigation skips the covered tool
 row and reaches Undo and Redo in the visible header. Closing the inspector or
 dragging a timeline target restores the tool row. While the inspector is

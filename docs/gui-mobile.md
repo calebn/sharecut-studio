@@ -344,7 +344,13 @@ which ends at the Stage bar. The strip leaves the timeline undimmed;
 half and full dim it. The drawer's scroll keeps a focused control clear of its
 pinned header in Chromium and WebKit. The
 timeline scrolls the selection above the strip or sheet, and any timeline drag
-stows it until release. A touch screen held sideways under 40rem wide (568×320)
+stows it until release. A chooser-routed drag ignores capture loss from the
+previous element while its routed owner remains connected. A release or cancel,
+including a native terminal after the owner disarms, ends the drag. Native
+capture loss from the routed owner also ends it, as does document-retargeted
+capture loss after that owner disconnects. Direct drags still end on native
+capture loss. A touch screen held sideways
+under 40rem wide (568×320)
 gets the same compact inspector in place of the bottom tabs; at 40rem wide and
 up the Inspector is a [column](#browser-chrome-safe-areas-and-home-screen-1077)
 instead, and a mouse window of that size keeps the strip. Its name,
@@ -364,6 +370,11 @@ timeline when a step is already at least 4 px wide (slower finger motion moves
 finer steps). Slide up on the pad to slow the move; **Done** or a tap outside
 finishes. A second finger cancels. Detail: [touch-editor-decisions.md § Auto
 precision jog pad](touch-editor-decisions.md#decision-auto-precision-jog-pad-on-touch).
+
+The precision controller owns the trim or fade draft until it finishes or
+cancels. Losing the arming handle's native pointer capture leaves that draft
+available for the jog pad to preview and save. Direct handle cancellation
+affects only the pointer that started its draft.
 
 The compact header uses the strip's vertical spacing at every detent. At
 667×360 with 32px root text, the full sheet keeps room below its wrapped

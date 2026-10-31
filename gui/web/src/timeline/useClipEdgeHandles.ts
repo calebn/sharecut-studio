@@ -627,7 +627,14 @@ export function useClipEdgeHandles(context: Context) {
       update(d, pointerCandidate(d, d.input.originX, event.clientX));
       void finish();
     },
-    onPointerCancel: () => {
+    onPointerCancel: (event: PointerEvent<HTMLButtonElement>) => {
+      const d = draftRef.current;
+      if (
+        !d ||
+        d.input.kind !== "pointer" ||
+        d.input.pointerId !== event.pointerId
+      )
+        return;
       cancel();
     },
   };
