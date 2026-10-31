@@ -406,7 +406,6 @@ function rangeSelectionOf(
   selection: Extract<Selection, { kind: "range" }>,
 ): ScriptSelection | null {
   const { intervals, track_ids: tracks } = selection.target;
-  if (intervals.length === 0) return null;
   const lo = Math.min(...intervals.map((r) => r.start)) - RANGE_EDGE_SEC;
   const hi = Math.max(...intervals.map((r) => r.end)) + RANGE_EDGE_SEC;
   let first: number | undefined;
