@@ -396,6 +396,27 @@ describe("automatic reduction sheet content", () => {
     expect(clipBleedSession.getSnapshot()).toBeNull();
   });
 
+  it("shows no Undo Restore to a guest even when a session holds an undo receipt", async () => {
+    render(<SectionsBody withRange={false} />);
+    await userEvent.click(await ready());
+    await userEvent.click(
+      screen.getByRole("button", { name: "Restore original audio" }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Undo Restore" }),
+    ).toBeVisible();
+    expect(clipBleedSession.getSnapshot()?.undo).not.toBeNull();
+    act(() => {
+      useDawStore.setState({ guestMode: "view" });
+    });
+    expect(
+      screen.queryByRole("button", { name: "Undo Restore" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Restore original audio" }),
+    ).not.toBeInTheDocument();
+  });
+
   describe("gates and copy", () => {
     const second = {
       ...inspection().regions[0],
@@ -442,6 +463,31 @@ describe("automatic reduction sheet content", () => {
         path,
         second.restore.target,
       );
+    });
+
+    it("shows the selected and restorable source intervals and submits the selected target by identity", async () => {
+      const base = inspection().regions[0];
+      load({
+        regions: [
+          {
+            ...base,
+            sourceSpan: { start: 20, end: 21 },
+            restore: {
+              state: "available",
+              target,
+              sourceSpan: { start: 20.5, end: 21 },
+            },
+          },
+        ],
+      });
+      render(<SectionsBody withRange={false} />);
+      await userEvent.click(await ready());
+      expect(screen.getByText("Selected source interval")).toBeVisible();
+      expect(screen.getByText("Restore source interval")).toBeVisible();
+      expect(screen.getByText("20.500 to 21.000 s")).toBeVisible();
+      await userEvent.click(restoreButton());
+      expect(restoreClipBleed).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(restoreClipBleed).mock.calls[0][1]).toBe(target);
     });
 
     it("explains the host permission gate and never submits while blocked", async () => {
