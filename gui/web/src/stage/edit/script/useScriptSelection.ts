@@ -106,7 +106,7 @@ export function useScriptSelection(
     )?.right_clip_id;
     if (!clipId || state.joinMutationInFlight) return;
     state.setSelection(null);
-    state.setOpenJoinId(clipId);
+    state.setOpenJoinId(state.openJoinId === clipId ? null : clipId);
   });
   const onSuggestionSelect = useStableCallback((id: string) => {
     const { project, setSelection, setOpenJoinId } = useDawStore.getState();
