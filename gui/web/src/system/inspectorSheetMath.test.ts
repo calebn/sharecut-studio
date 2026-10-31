@@ -115,6 +115,18 @@ describe("inspectorSheetMath card placement", () => {
     });
   });
 
+  it("opens below a pin-sized anchor in the top marker lane with real height", () => {
+    const placed = placeCard(
+      { x: 360, y: 30, width: 44, height: 24 },
+      {
+        width: 1100,
+        height: 700,
+      },
+    );
+    expect(placed.side).toBe("below");
+    expect(placed.maxBlock).toBeGreaterThan(100);
+  });
+
   it("keeps a card wider than 320 px, as at a larger text size, inside the box", () => {
     const tablet = { width: 820, height: 1180 };
     expect(
