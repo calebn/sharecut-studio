@@ -19,6 +19,7 @@ type RecordBadgeRoom = Pick<
   | "hydrateError"
   | "takeClipping"
   | "hostSegments"
+  | "micLive"
 >;
 
 type RecordBadgeSource = {
@@ -54,7 +55,9 @@ function waitingCount(room: RecordBadgeRoom): number {
 /**
  * What the Record item says without being opened. A take outranks saving,
  * saving outranks people waiting; any active alert adds a dot to those, and
- * stands alone when nothing else is going on.
+ * stands alone when nothing else is going on. When none of that applies and
+ * the host mic is live in an open room, the badge away from Record says
+ * "Mic on": the mic follows the room, not the stage (#2478).
  */
 export function recordBadge(
   room: RecordBadgeRoom,
@@ -110,5 +113,8 @@ export function recordBadge(
     return { kind: "alert" };
   }
   const count = waitingCount(room);
-  return count > 0 ? { kind: "waiting", count } : IDLE;
+  if (count > 0) {
+    return { kind: "waiting", count };
+  }
+  return source.away && room.micLive ? { kind: "mic" } : IDLE;
 }

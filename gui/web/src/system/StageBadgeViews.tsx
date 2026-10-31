@@ -5,7 +5,10 @@ import { STATUS_TEXT, type StatusState } from "./statusText";
 
 export type StageBadge = { kind: StatusState; count?: number };
 
-/** `alert`: something in the room needs the host; on the others it adds a dot. */
+/**
+ * `alert`: something in the room needs the host; on the others it adds a dot.
+ * `mic`: the host mic is live in an open room and nothing outranks it.
+ */
 export type RecordBadge =
   | { kind: "idle" }
   | { kind: "waiting"; count: number }
@@ -20,6 +23,7 @@ export type RecordBadge =
   | { kind: "paused"; alert?: boolean }
   | { kind: "reconnecting"; alert?: boolean }
   | { kind: "saving"; progress?: number; alert?: boolean }
+  | { kind: "mic" }
   | { kind: "alert" };
 
 export function Badge({ badge }: { badge: StageBadge }) {
@@ -75,6 +79,8 @@ function recordName(badge: RecordBadge): string {
       return `Reconnecting${alert}`;
     case "saving":
       return `Saving${alert}`;
+    case "mic":
+      return "Mic on";
     case "alert":
       return "Needs attention";
   }
@@ -108,6 +114,9 @@ export function RecordBadgeView({ badge }: { badge: RecordBadge }) {
           size={12}
           text={false}
         />
+      ) : null}
+      {badge.kind === "mic" ? (
+        <StatusGlyph state="not-yet" size={12} text={false} />
       ) : null}
       {badge.kind === "waiting" ? (
         <span aria-hidden="true" className="sys-stage-count">

@@ -21,6 +21,9 @@ type RecordHostState = {
   keeperSink: ByteSink | null;
   keeperStorageError: string | null;
   captureHealth: CaptureHealth;
+  /** The host mic is open: set by `useHostKeeperCapture` from the same `micLive` it opens the stream with. */
+  micLive: boolean;
+  setMicLive: (live: boolean) => void;
   takeClipping: TakeClipping | null;
   setTakeClipping: (clipping: TakeClipping | null) => void;
   setCaptureHealth: (health: CaptureHealth) => void;
@@ -44,6 +47,8 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
   keeperSink: null,
   keeperStorageError: null,
   captureHealth: null,
+  micLive: false,
+  setMicLive: (micLive) => set({ micLive }),
   takeClipping: null,
   setTakeClipping: (takeClipping) => set({ takeClipping }),
   setCaptureHealth: (captureHealth) => set({ captureHealth }),

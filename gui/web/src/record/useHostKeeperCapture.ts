@@ -44,6 +44,7 @@ export function useHostKeeperCapture(enabled = true): {
   const connected = useRecordHostStore((s) => s.connected);
   const sink = useRecordHostStore((s) => s.keeperSink);
   const setCaptureHealth = useRecordHostStore((s) => s.setCaptureHealth);
+  const setMicLive = useRecordHostStore((s) => s.setMicLive);
   const pathRef = useRef(projectPath);
 
   useEffect(() => {
@@ -86,6 +87,10 @@ export function useHostKeeperCapture(enabled = true): {
 
   const [deviceId, setDeviceId] = useState(() => readLocal(HOST_MIC_KEY) || "");
   const mic = useMicStream(micLive, deviceId, resetKey);
+  useEffect(() => {
+    setMicLive(micLive);
+    return () => setMicLive(false);
+  }, [micLive, setMicLive]);
   const staleMic = mic.staleDeviceId !== null;
   useEffect(() => {
     // A dead id is forgotten in storage without re-opening the stream.

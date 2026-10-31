@@ -175,4 +175,53 @@ describe("recordBadge", () => {
       alert: false,
     });
   });
+
+  describe("mic on", () => {
+    const micRoom = (
+      snapshot: Partial<RecordSnapshot> = {},
+      overrides: Record<string, unknown> = {},
+    ) => roomOf(snapshot, { micLive: true, ...overrides });
+
+    it("shows off-stage when the room is open and nothing else is going on", () => {
+      expect(recordBadge(micRoom(), source)).toEqual({ kind: "mic" });
+    });
+
+    it("stays quiet on the Record stage", () => {
+      expect(recordBadge(micRoom(), { ...source, away: false })).toEqual({
+        kind: "idle",
+      });
+    });
+
+    it("stays quiet with no open room", () => {
+      expect(recordBadge(roomOf(null, { micLive: true }), source)).toEqual({
+        kind: "idle",
+      });
+    });
+
+    it("is outranked by people waiting, a take and saving", () => {
+      const waiting = micRoom({ participants: [guest("a")] });
+      expect(recordBadge(waiting, source)).toEqual({
+        kind: "waiting",
+        count: 1,
+      });
+      expect(recordBadge(micRoom({ state: "recording" }), source).kind).toBe(
+        "live",
+      );
+      expect(recordBadge(micRoom({ state: "paused" }), source).kind).toBe(
+        "paused",
+      );
+    });
+
+    it("is outranked by an alert", () => {
+      const room = micRoom({}, { sinkError: "disk full" });
+      expect(recordBadge(room, source)).toEqual({ kind: "alert" });
+    });
+
+    it("is outranked by reconnecting", () => {
+      const room = micRoom({ state: "recording" });
+      expect(recordBadge(room, { ...source, dropped: true }).kind).toBe(
+        "reconnecting",
+      );
+    });
+  });
 });

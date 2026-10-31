@@ -24,7 +24,8 @@ type StageBadgeInput = {
 /**
  * What each stage tab says without being opened: Prepare while a job runs or
  * after one failed, Review while anything waits on a decision. Record shows
- * its room badge (`useRecordBadge`) and, when the mic or the recording
+ * its room badge (`useRecordBadge`, which also says "Mic on" off-stage in an
+ * open room) and, when the mic or the recording
  * needs the host from another stage, a failed dot; Deliver has no badge yet.
  */
 function stageBadges(
@@ -80,7 +81,10 @@ export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
   return stageBadges(input);
 }
 
-/** The Record item's room badge: the take, saving, people waiting or an alert. */
+/**
+ * The Record item's room badge: the take, saving, people waiting or an alert,
+ * else "Mic on" while the host mic is live and the stage is elsewhere.
+ */
 export function useRecordBadge(): RecordBadge {
   const away = useDawStore((s) => s.stage !== "record");
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
