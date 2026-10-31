@@ -789,6 +789,7 @@ class SpeakerIngestAlignment(BaseModel):
 
 
 PROJECT_NAME_MAX_CHARS = 120
+RECORD_SESSION_NAME_MAX_CHARS = 80
 
 
 class ProjectMeta(BaseModel):
@@ -923,6 +924,7 @@ class RecordSessionRecord(BaseModel):
     session_id: str
     number: int = Field(ge=1)
     target_kind: Literal["start", "end", "insert", "replace"] = "end"
+    name: str | None = Field(default=None, max_length=RECORD_SESSION_NAME_MAX_CHARS)
 
 
 class StagedComment(BaseModel):

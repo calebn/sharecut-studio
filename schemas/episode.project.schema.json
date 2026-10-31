@@ -609,7 +609,8 @@
       "properties": {
         "session_id": { "type": "string" },
         "number": { "type": "integer", "minimum": 1 },
-        "target_kind": { "enum": ["start", "end", "insert", "replace"], "default": "end" }
+        "target_kind": { "enum": ["start", "end", "insert", "replace"], "default": "end" },
+        "name": { "type": ["string", "null"], "maxLength": 80, "default": null, "description": "The host's name for the session; null shows the default heading." }
       }
     },
     "SpeakerSplit": {

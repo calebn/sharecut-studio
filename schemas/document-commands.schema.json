@@ -7551,6 +7551,119 @@
       "title": "SetJoinModePayload",
       "type": "object"
     },
+    "SetRecordSessionNameCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/SetRecordSessionNamePayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "SetRecordSessionName",
+          "default": "SetRecordSessionName",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "SetRecordSessionNameCommand",
+      "type": "object"
+    },
+    "SetRecordSessionNamePayload": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "name"
+      ],
+      "title": "SetRecordSessionNamePayload",
+      "type": "object"
+    },
     "SetTrackFaderCommand": {
       "properties": {
         "causation_id": {
@@ -11146,6 +11259,7 @@
       "SetEnvelope": "#/$defs/SetEnvelopeCommand",
       "SetFeedField": "#/$defs/SetFeedFieldCommand",
       "SetJoinMode": "#/$defs/SetJoinModeCommand",
+      "SetRecordSessionName": "#/$defs/SetRecordSessionNameCommand",
       "SetTrackFader": "#/$defs/SetTrackFaderCommand",
       "SetTrackMedia": "#/$defs/SetTrackMediaCommand",
       "SetTrackMeta": "#/$defs/SetTrackMetaCommand",
@@ -11390,6 +11504,9 @@
     },
     {
       "$ref": "#/$defs/RenameProjectCommand"
+    },
+    {
+      "$ref": "#/$defs/SetRecordSessionNameCommand"
     },
     {
       "$ref": "#/$defs/AddTrackCommand"

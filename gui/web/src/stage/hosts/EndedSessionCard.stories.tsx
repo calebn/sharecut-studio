@@ -11,6 +11,7 @@ import { EndedSessionCard } from "./EndedSessionCard";
 const session: RecordSessionSummary = {
   session_id: "s1",
   number: 2,
+  name: null,
   state: "ended",
   target_kind: null,
   takes: [
@@ -50,7 +51,7 @@ const meta: Meta<typeof EndedSessionCard> = {
     docs: {
       description: {
         component:
-          "The previous session on the Record stage. Once a session has landed, each person's track is a menu of the project's tracks, ending in New track; picking a track moves all of that person's clips of the session there, keeping their start times, as one undo step. New track first adds a track named for the person. A landed session with clips on the timeline has the primary Edit Session N, which opens Edit at the session start with its clips selected. A person whose clips sit on several tracks reads Several tracks. Without a landing, with one track or with no clips found, the row is plain text.\n\n**Motion.** None beyond the shared Menu drop-in.",
+          "The previous session on the Record stage. Once a session has landed, each person's track is a menu of the project's tracks, ending in New track; picking a track moves all of that person's clips of the session there, keeping their start times, as one undo step. New track first adds a track named for the person. A landed session with clips on the timeline has the primary Edit Session N, which opens Edit at the session start with its clips selected. A person whose clips sit on several tracks reads Several tracks. A landed, numbered session has a Rename button beside the heading: it opens a text field (Enter or leaving saves, Escape cancels, 80 characters at most), the name replaces the Session N · date heading, and an emptied field clears it. Without a landing, with one track or with no clips found, the row is plain text.\n\n**Motion.** None beyond the shared Menu drop-in.",
       },
     },
   },
@@ -62,6 +63,7 @@ const meta: Meta<typeof EndedSessionCard> = {
     onRemap: fn(),
     onNewTrack: fn(),
     onEdit: fn(),
+    onRename: fn(),
     hasClips: true,
   },
 };
@@ -85,6 +87,25 @@ export const MenuOpen: Story = {
     ).toHaveAttribute("aria-checked", "true");
     await userEvent.click(menu.getByRole("menuitemradio", { name: "Host" }));
     await expect(args.onRemap).toHaveBeenCalledWith("p_ava", "t_host");
+  },
+};
+
+export const Renamed: Story = {
+  args: { session: { ...session, name: "Cold open" } },
+};
+
+export const Renaming: Story = {
+  args: { session: { ...session, name: "Cold open" } },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Rename session" }),
+    );
+    const field = canvas.getByRole("textbox", { name: "Session name" });
+    await expect(field).toHaveFocus();
+    await userEvent.clear(field);
+    await userEvent.type(field, "Interview{Enter}");
+    await expect(args.onRename).toHaveBeenCalledWith("Interview");
   },
 };
 

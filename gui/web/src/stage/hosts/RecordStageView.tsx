@@ -35,6 +35,7 @@ export type RecordStageViewProps = {
   onRemap?: EndedSessionCardProps["onRemap"];
   onNewTrack?: EndedSessionCardProps["onNewTrack"];
   onEdit?: EndedSessionCardProps["onEdit"];
+  onRename?: EndedSessionCardProps["onRename"];
   hasClips?: boolean;
   notices: readonly RecordNotice[];
   storage?: ReactNode;
@@ -62,6 +63,7 @@ function EmptyRoom({
   onRemap,
   onNewTrack,
   onEdit,
+  onRename,
   hasClips,
   busy,
   hydrateError,
@@ -79,6 +81,7 @@ function EmptyRoom({
   | "onRemap"
   | "onNewTrack"
   | "onEdit"
+  | "onRename"
   | "hasClips"
   | "busy"
   | "hydrateError"
@@ -104,6 +107,7 @@ function EmptyRoom({
             onRemap={onRemap}
             onNewTrack={onNewTrack}
             onEdit={onEdit}
+            onRename={onRename}
             hasClips={hasClips}
           />
         ) : null}
@@ -181,6 +185,7 @@ export function RecordStageView({
   onRemap,
   onNewTrack,
   onEdit,
+  onRename,
   hasClips,
   notices,
   storage,
@@ -224,6 +229,7 @@ export function RecordStageView({
           onRemap={onRemap}
           onNewTrack={onNewTrack}
           onEdit={onEdit}
+          onRename={onRename}
           hasClips={hasClips}
           busy={busy}
           hydrateError={hydrateError}

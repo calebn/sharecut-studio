@@ -55,6 +55,7 @@ export type DocumentCommandType =
   | "SetEnvelope"
   | "SetFeedField"
   | "SetJoinMode"
+  | "SetRecordSessionName"
   | "SetTrackFader"
   | "SetTrackMedia"
   | "SetTrackMeta"
@@ -137,6 +138,7 @@ export const DocumentCommand = {
   SetEnvelope: "SetEnvelope",
   SetFeedField: "SetFeedField",
   SetJoinMode: "SetJoinMode",
+  SetRecordSessionName: "SetRecordSessionName",
   SetTrackFader: "SetTrackFader",
   SetTrackMedia: "SetTrackMedia",
   SetTrackMeta: "SetTrackMeta",

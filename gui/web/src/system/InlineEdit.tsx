@@ -18,6 +18,8 @@ type Props = {
   /** The id of text that says how to finish, such as a key hint. */
   describedBy?: string;
   placeholder?: string;
+  /** The longest text the field takes. */
+  maxLength?: number;
   className?: string;
 };
 
@@ -36,6 +38,7 @@ export function InlineEdit({
   commitOnUnmount = false,
   describedBy,
   placeholder,
+  maxLength,
   className,
 }: Props) {
   const [text, setText] = useState(value);
@@ -89,6 +92,7 @@ export function InlineEdit({
     "aria-describedby": describedBy,
     value: text,
     placeholder,
+    maxLength,
     ref: (el: HTMLInputElement | HTMLTextAreaElement | null) => {
       field.current = el;
     },

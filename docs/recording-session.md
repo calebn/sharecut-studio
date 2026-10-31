@@ -888,8 +888,15 @@ Host-only `SetTarget` (payload `{"target": {"kind": "end"}}`) changes it. It rea
 
 ### Session numbers and the history step
 
+`name` is the host's optional name for the session (null by default, at most 80 characters). The host sets it
+from the previous-session card with the document command `SetRecordSessionName` (`{session_id, name}`): the
+name is trimmed, an empty one clears it, an unknown or not-yet-landed session is refused
+(`record_session_unknown`), and it is one undo step. The command is host-only; no review-link role holds it
+(`HOST_ONLY_DOCUMENT_COMMANDS`). `list_record_sessions` returns `name` on each item, and the card shows it in
+place of `Session N · date`.
+
 A session's number is assigned at its first land that registers a keeper clip and stored in
-`editorial.record_sessions[]` (`{session_id, number, target_kind}`) in the same `record_land` mutation, so
+`editorial.record_sessions[]` (`{session_id, number, target_kind, name}`) in the same `record_land` mutation, so
 undoing that land removes the entry and frees the number. A room that never lands a keeper (a minted room, a
 room-tone-only land) takes no number. An ingested or imported episode is not a session, so the first recording is Session 1. A session whose takes are all discarded keeps its number only once it has had a first land. The number
 is one past the highest stored number and one past the count of other sessions on the timeline, counting

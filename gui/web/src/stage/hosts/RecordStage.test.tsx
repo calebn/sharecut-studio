@@ -6,6 +6,7 @@ import {
   addTrackCommand,
   loadHostRecordSessions,
   loadHostRecordState,
+  setRecordSessionNameCommand,
 } from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
@@ -107,6 +108,7 @@ const revokeHostRoom = vi.fn(async () => undefined);
 vi.mock("../../api", () => ({
   loadHostRecordState: vi.fn(async () => null),
   addTrackCommand: vi.fn(),
+  setRecordSessionNameCommand: vi.fn(),
   loadHostRecordSessions: vi.fn(async () => []),
   revokeHostRoom: (...args: unknown[]) => revokeHostRoom(...(args as [])),
   hostRecordUploadTransport: () => ({
@@ -190,6 +192,7 @@ beforeEach(() => {
   vi.mocked(loadHostRecordSessions).mockReset();
   vi.mocked(loadHostRecordSessions).mockResolvedValue([]);
   vi.mocked(addTrackCommand).mockReset();
+  vi.mocked(setRecordSessionNameCommand).mockReset();
   vi.mocked(loadHostRecordState).mockReset();
   vi.mocked(loadHostRecordState).mockImplementation(
     async () => useRecordHostStore.getState().snapshot,
@@ -295,6 +298,7 @@ describe("Record stage", () => {
     const ended = {
       session_id: "old",
       number: 1,
+      name: null,
       state: "ended" as const,
       target_kind: null,
       takes: [{ take_index: 0, recording_ms: 61_000 }],
@@ -703,6 +707,58 @@ describe("Record stage", () => {
         expect.anything(),
         expect.anything(),
       );
+    });
+
+    it("renames the session: sends its id and the name, then reads the sessions again", async () => {
+      withAva();
+      vi.mocked(setRecordSessionNameCommand).mockResolvedValue({});
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Rename session" }),
+      );
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Session name" }),
+        "Cold open{Enter}",
+      );
+      await waitFor(() =>
+        expect(setRecordSessionNameCommand).toHaveBeenCalledWith(
+          "/tmp/p.json",
+          "old",
+          "Cold open",
+        ),
+      );
+      await waitFor(() =>
+        expect(loadHostRecordSessions).toHaveBeenCalledTimes(2),
+      );
+    });
+
+    it("shows the saved name as the heading", async () => {
+      withAva({ name: "Cold open" });
+      mount();
+      expect(
+        await screen.findByRole("region", { name: "Cold open" }),
+      ).toBeInTheDocument();
+    });
+
+    it("announces a failed rename and does not read the sessions again", async () => {
+      withAva();
+      vi.mocked(setRecordSessionNameCommand).mockRejectedValue(
+        new Error("no landed record session: old"),
+      );
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Rename session" }),
+      );
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Session name" }),
+        "Cold open{Enter}",
+      );
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Could not rename the session: no landed record session: old",
+        ),
+      );
+      expect(loadHostRecordSessions).toHaveBeenCalledTimes(1);
     });
 
     it("keeps Create record room when the last session has no number", async () => {

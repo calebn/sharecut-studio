@@ -82,6 +82,7 @@ DocumentCommandType = Literal[
     "CutRange",
     "RippleDeleteText",
     "RenameProject",
+    "SetRecordSessionName",
     "AddTrack",
     "SetTrackMedia",
     "SetTrackMeta",

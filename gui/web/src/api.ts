@@ -74,6 +74,7 @@ export {
   setClipJoin,
   setEffectBypass,
   setEnvelope,
+  setRecordSessionNameCommand,
   setTrackFaderCommand,
   setTrackMediaCommand,
   setTrackMetaCommand,
