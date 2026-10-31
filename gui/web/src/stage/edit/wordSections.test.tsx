@@ -1420,3 +1420,15 @@ describe("focus when a word opens", () => {
     expect(screen.getByTestId("anchor")).toHaveFocus();
   });
 });
+
+describe("related commands in the sheet host path", () => {
+  it("shows the Selection actions zone once for a word", () => {
+    useDawStore.setState({
+      project: project(),
+      projectPath: "/tmp/ep",
+      rangeArmed: false,
+    });
+    render(<Word trackId="host" wordIndex={0} />);
+    expect(screen.getAllByLabelText("Selection actions")).toHaveLength(1);
+  });
+});

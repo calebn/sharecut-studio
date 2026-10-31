@@ -255,6 +255,23 @@ describe("SelectionSheetBody", () => {
     );
   });
 
+  it("shows the related commands once for a single selected word", () => {
+    useDawStore.setState({
+      rangeArmed: false,
+      selection: wordSelection({
+        trackId: "host",
+        sourceId: null,
+        wordIndex: 0,
+      }),
+    });
+    render(
+      <div className="bottom-sheet-body">
+        <SelectionSheetBody rangeActionsInSheet peek={null} />
+      </div>,
+    );
+    expect(screen.getAllByLabelText("Selection actions")).toHaveLength(1);
+  });
+
   it("shows range actions without empty inspector while range is armed with no selection", () => {
     useDawStore.setState({ selection: null, rangeArmed: true });
     render(
