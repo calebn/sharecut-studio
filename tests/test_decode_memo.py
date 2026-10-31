@@ -1213,3 +1213,173 @@ def test_the_spill_settings_are_read_live_and_clamped(monkeypatch: pytest.Monkey
     assert decode_memo.spill_idle_seconds() == decode_memo.MAX_IDLE_S
     monkeypatch.setenv(decode_memo.SPILL_IDLE_ENV, "nan")
     assert decode_memo.spill_idle_seconds() == decode_memo.DEFAULT_SPILL_IDLE_S
+
+
+# Post-fix round: timer arithmetic, the worker flag, the entry bound and the remaining gaps.
+
+
+class Arms:
+    """Records every delay the memo arms its timer with, and still arms it."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.delays: list[float] = []
+        real = decode_memo._MEMO._arm
+
+        def record(delay: float) -> None:
+            self.delays.append(delay)
+            real(delay)
+
+        monkeypatch.setattr(decode_memo._MEMO, "_arm", record)
+
+
+@posix_only
+@pytest.mark.parametrize(("idle", "spill_idle"), [("1", "0"), ("0", "1"), ("-1", "5")])
+def test_a_never_setting_cannot_make_the_timer_spin_during_a_decode(
+    tmp_path: Path,
+    decoder: Decoder,
+    spilling: Clock,
+    monkeypatch: pytest.MonkeyPatch,
+    idle: str,
+    spill_idle: str,
+) -> None:
+    monkeypatch.setenv(decode_memo.IDLE_ENV, "1")
+    monkeypatch.setenv(decode_memo.SPILL_IDLE_ENV, "1")
+    TrackRmsCache.from_recording(_recording(tmp_path, "a.wav"), sample_rate=RATE)
+    _release(spilling)  # a is spilled
+    TrackRmsCache.from_recording(_recording(tmp_path, "b.wav"), sample_rate=RATE)  # b in RAM
+    monkeypatch.setenv(decode_memo.IDLE_ENV, idle)
+    monkeypatch.setenv(decode_memo.SPILL_IDLE_ENV, spill_idle)
+    arms = Arms(monkeypatch)
+    memo = decode_memo._MEMO
+    memo._building[("x", None, RATE, ())] = decode_memo._Flight()  # type: ignore[index]
+    spilling.now += 10_000  # everything is past its deadline, and a decode is running
+    memo._release_if_idle()
+    memo._release_if_idle()
+    assert arms.delays and all(delay >= 1.0 for delay in arms.delays)
+    memo._building.clear()
+
+
+@posix_only
+def test_a_later_store_is_released_at_the_ram_idle_not_the_spilled_idle(
+    tmp_path: Path, decoder: Decoder, spilling: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(decode_memo.IDLE_ENV, "1")
+    monkeypatch.setenv(decode_memo.SPILL_IDLE_ENV, "30")
+    TrackRmsCache.from_recording(_recording(tmp_path, "a.wav"), sample_rate=RATE)
+    spilling.now += 1
+    decode_memo._MEMO._release_if_idle()  # a is spilled; the timer waits for its 30 s
+    arms = Arms(monkeypatch)
+    spilling.now += 2
+    TrackRmsCache.from_recording(_recording(tmp_path, "b.wav"), sample_rate=RATE)
+    assert arms.delays and arms.delays[-1] <= 1.0  # re-armed for b's 1 s, not left at 30 s
+    spilling.now += 1
+    decode_memo._MEMO._release_if_idle()
+    assert len(decode_memo._MEMO) == 0 and decode_memo._MEMO.spilled_count() == 2
+
+
+@posix_only
+def test_a_dying_worker_does_not_leave_the_flag_or_the_claim_stuck(
+    tmp_path: Path, decoder: Decoder, spilling: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    TrackRmsCache.from_recording(_recording(tmp_path), sample_rate=RATE)
+    memo = decode_memo._MEMO
+
+    def die(key: object, entry: object) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(memo, "_spill_entry", die)
+    spilling.now += decode_memo.DEFAULT_IDLE_S
+    with pytest.raises(RuntimeError):
+        memo._release_if_idle()
+    assert not memo._worker_running and not memo._spilling
+    del memo._spill_entry  # the instance patch only
+    memo._demote_pending()  # the next demoter is not locked out
+    assert memo.spilled_count() == 1
+
+
+@posix_only
+def test_only_one_demoter_runs_at_a_time(tmp_path: Path, decoder: Decoder, spilling: Clock) -> None:
+    TrackRmsCache.from_recording(_recording(tmp_path), sample_rate=RATE)
+    memo = decode_memo._MEMO
+    memo._worker_running = True  # another demoter is at work
+    _release(spilling)
+    assert memo.spilled_count() == 0 and len(memo._pending) == 1  # left to it
+    memo._worker_running = False
+    memo._demote_pending()
+    assert memo.spilled_count() == 1 and not memo._worker_running
+
+
+@posix_only
+def test_a_failing_spill_cap_read_does_not_fail_a_decode(
+    tmp_path: Path, decoder: Decoder, spilling: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken() -> int:
+        raise RuntimeError("settings unreadable")
+
+    monkeypatch.setattr(decode_memo, "spill_cap_bytes", broken)
+    got = TrackRmsCache.from_recording(_recording(tmp_path), sample_rate=RATE)
+    assert got.samples.size == RATE and len(decode_memo._MEMO) == 1
+
+
+@posix_only
+def test_the_spilled_tier_is_bounded_by_entry_count_too(
+    tmp_path: Path, decoder: Decoder, spilling: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    baseline = _fds()
+    monkeypatch.setattr(decode_memo, "MAX_SPILLED_ENTRIES", 2)
+    paths = [_recording(tmp_path, f"{n}.wav") for n in "abcd"]
+    for p in paths:
+        TrackRmsCache.from_recording(p, sample_rate=RATE)
+    _release(spilling)
+    assert decode_memo._MEMO.spilled_count() == 2 and _fds() == baseline + 2
+    TrackRmsCache.from_recording(paths[3], sample_rate=RATE)  # the most recent two stayed
+    assert len(decoder.calls) == 4
+    decode_memo._MEMO.clear()
+    _no_spill_file_or_fd_left(baseline)
+
+
+@posix_only
+def test_a_build_that_changed_during_the_wait_is_not_spilled(
+    tmp_path: Path, decoder: Decoder, spilling: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    TrackRmsCache.from_recording(_recording(tmp_path), sample_rate=RATE)
+    monkeypatch.setattr(decode_memo, "ffmpeg_build_id", lambda: ("ffmpeg", (2,), (0, 0)))
+    _release(spilling)
+    assert decode_memo._MEMO.spilled_count() == 0 and _spool_files() == []
+
+
+@posix_only
+def test_a_thread_that_cannot_start_drops_the_queued_evictions(
+    tmp_path: Path, decoder: Decoder, spilling: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(decode_memo, "cap_bytes", lambda: 70_000)
+
+    real_start = threading.Thread.start
+
+    def start(self: threading.Thread) -> None:
+        if self.name == "decode-memo-spill":
+            raise RuntimeError("can't start new thread")
+        real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", start)
+    for n in "abc":  # c evicts a
+        TrackRmsCache.from_recording(_recording(tmp_path, f"{n}.wav"), sample_rate=RATE)
+    memo = decode_memo._MEMO
+    assert not memo._pending and memo._pending_bytes == 0 and not memo._worker_running
+    assert memo.held_bytes() == 64_000
+
+
+@posix_only
+def test_a_spill_cap_of_zero_at_runtime_drops_the_tier_at_the_next_lookup(
+    tmp_path: Path, decoder: Decoder, spilling: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    baseline = _fds()
+    path = _recording(tmp_path)
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    _release(spilling)
+    assert decode_memo._MEMO.spilled_count() == 1
+    monkeypatch.setenv(decode_memo.SPILL_ENV, "0")
+    TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert len(decoder.calls) == 2 and decode_memo._MEMO.spilled_count() == 0
+    decode_memo._MEMO.clear()
+    _no_spill_file_or_fd_left(baseline)

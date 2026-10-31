@@ -17,6 +17,7 @@ nothing is resident that the kernel cannot take back.
 from __future__ import annotations
 
 import atexit
+import contextlib
 import mmap
 import os
 import re
@@ -245,7 +246,12 @@ def spill(array: np.ndarray) -> np.ndarray:
         directory = _spool_directory()
     fd, name = tempfile.mkstemp(dir=directory, suffix=".f32")
     try:
-        os.unlink(name)
+        try:
+            os.unlink(name)
+        except OSError:
+            with contextlib.suppress(OSError):  # one more try; a named file would never be swept
+                os.unlink(name)
+            raise
         view = memoryview(data).cast("B")
         for start in range(0, len(view), _SPILL_CHUNK_BYTES):
             chunk = view[start : start + _SPILL_CHUNK_BYTES]
