@@ -166,6 +166,9 @@ export function sameLevelDb(a: number, b: number): boolean {
 /** The line is sampled every this many px of height, so a curve is within a small fraction of a px of the true gain curve. */
 export const LINE_STEP_PX = 1;
 
+/** A segment always gets room for this many pieces, so a short steep one stays within 0.1 px of the curve; only a long, shallow one is held to a piece every quarter px of its width. */
+const MIN_STEP_CAP = 64;
+
 type Spot = { x: number; db: number; gain: number };
 
 /**
@@ -247,7 +250,7 @@ export function linePath(
     if (dLo !== dHi) {
       const steps = Math.min(
         Math.ceil((Math.abs(dHi - dLo) * scale) / LINE_STEP_PX),
-        Math.max(8, Math.ceil(2 * (hi - lo))),
+        Math.max(MIN_STEP_CAP, Math.ceil(4 * (hi - lo))),
       );
       // k = 0 and k = steps are on the curve too: where an end is the floor, the curve reaches gain 0.001 (-60 dB) a hair before the point.
       for (let k = 0; k <= steps; k += 1) {

@@ -142,7 +142,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/Ruler.tsx",
   // A marker's button and a bracket's edge sliders: Left and Right on a selected chapter or bracket, or on an edge, nudge it 0.1 s (Shift 1 s), and Alt with Left or Right walks focus along a bracket's edges. Every other key goes to the keymap.
   "system/MarkerLane.tsx",
-  // A focused envelope point is a slider of its level: Left and Right nudge its time 10 ms (Shift 100 ms), Up and Down its level 0.5 dB (Shift 5, Alt 0.05), Alt with Left or Right walks focus among the points, Enter and Space select it, and Backspace and Delete remove it when selected. It stops those keys so a clip is never cut or the playhead moved; every other key goes to the keymap.
+  // A focused envelope point is a slider of its level: Left and Right nudge its time 10 ms (Shift 100 ms), Up and Down its level 0.5 dB (Shift 5, Alt 0.05), Alt with Left or Right walks focus among the points, Enter and Space select it, and Backspace and Delete remove it when selected. It stops those keys for an editor so a clip is never cut or the playhead moved (a read-only guest's plain arrows are not stopped and reach the keymap); every other key goes to the keymap.
   "system/Envelope.tsx",
   // The Inspector sheet closes on Escape unless a field inside took it, and its grip is a vertical slider: Up and Down step the detents, Home and End go to the ends, Enter and Space toggle half and dock. The inline name field commits on Enter and puts the name back on Escape.
   "system/InspectorSheet.tsx",
