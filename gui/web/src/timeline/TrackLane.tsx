@@ -57,6 +57,7 @@ import { ProsodyOverlay } from "./ProsodyOverlay";
 import { RippleArrow } from "./RippleArrow";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
 import { timelineTestIds } from "./selectors";
+import type { RangeGesture } from "./useRangeGesture";
 
 const NOOP = () => undefined;
 
@@ -67,7 +68,7 @@ const NOOP = () => undefined;
 const RIPPLE_SETTLE_MS = 1000;
 
 interface TrackLaneProps {
-  onRangeGesture?: import("./useRangeGesture").RangeGesture;
+  onRangeGesture?: RangeGesture;
   track: TrackView;
   trackIndex: number;
   /**

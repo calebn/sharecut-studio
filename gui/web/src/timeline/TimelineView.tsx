@@ -39,7 +39,7 @@ import { selectedClipIdsOf, selectedTrackIdsOf } from "../state/selection";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { DawState } from "../state/types";
 import { pickDaw, useDaw } from "../state/useDaw";
-import type { ClipRow } from "../types/project";
+import type { ClipRow, ProjectView } from "../types/project";
 import type { ProsodyOverlayTrack } from "../types/prosody";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { bladeTrackIds, dialogueTrackIds } from "../utils/bladeTracks";
@@ -233,9 +233,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       ),
     [prosody],
   );
-  const staleBreakdown = useStaleRenderBreakdown(
-    project as import("../types/project").ProjectView | null,
-  );
+  const staleBreakdown = useStaleRenderBreakdown(project as ProjectView | null);
   const showStaleInv = highlightStaleRender;
   // Fallback whole-lane edge when stem stale but no journal (or whole-track cause).
   const fallbackWhole = new Set(
