@@ -450,10 +450,15 @@ html[data-frame-short] .edit-dock {
 }
 
 .edit-create-menu-title {
-  display: flex;
-  align-items: center;
+  display: block;
+  box-sizing: border-box;
+  min-inline-size: 0;
   block-size: var(--control-height);
   margin: 0;
+  overflow: hidden;
+  line-height: var(--control-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding-inline: var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
@@ -464,6 +469,18 @@ html[data-frame-short] .edit-dock {
 .edit-create-menu [role="menuitem"] {
   user-select: none;
   -webkit-touch-callout: none;
+}
+
+.edit-create-menu [role="menuitem"] svg {
+  flex: none;
+}
+
+/* ui/Menu wraps a row that has a shortcut in a block label, which would drop
+   the row's gap between the icon and the text. */
+.edit-create-menu [role="menuitem"] .ui-menu-item-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
 }
 
 .edit-create-menu-separator {
