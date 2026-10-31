@@ -327,3 +327,21 @@ def test_a_spill_that_comes_up_a_sample_short_raises_and_leaves_no_file_or_descr
 
     assert _fd_count() == before
     assert _spool_files(decoded_source._spool_directory()) == []
+
+
+def test_a_failed_unlink_does_not_leave_a_named_spool_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = decoded_source.os.unlink
+    calls: list[str] = []
+
+    def flaky(name: str) -> None:
+        calls.append(name)
+        if len(calls) == 1:
+            raise PermissionError("busy")
+        real(name)
+
+    monkeypatch.setattr(decoded_source.os, "unlink", flaky)
+    with pytest.raises(OSError):
+        decoded_source.spill(np.arange(8, dtype=np.float32))
+    assert len(calls) == 2 and _spool_files(decoded_source._spool_directory()) == []

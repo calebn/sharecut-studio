@@ -41,7 +41,9 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
   for it stay under half the cap. Where ``spill_allowed`` says no (Windows, tmpfs, less than the entry
   plus 2 GiB free) or the write fails, the entry is dropped, as without the tier. Each mapped entry
   holds one descriptor until its last view is gone; a view handed out earlier stays valid after a
-  release or ``clear``. A different ffmpeg build drops the whole tier.
+  release or ``clear``, and at most ``MAX_SPILLED_ENTRIES`` are kept. A different ffmpeg build
+  drops the whole tier. Evicted entries wait in RAM for the writer, so the peak is up to 1.5 times the cap
+  (twice while a release is still writing).
 * **Read-only**: with the memo on, every call returns samples that are read-only, whether the
   decode was stored, served, too big, racy or changed under the decode. Only the cap-0 path
   returns the build untouched.
@@ -80,6 +82,7 @@ SPILL_ENV = "PODCAST_DECODE_MEMO_SPILL_MB"
 DEFAULT_SPILL_MB = 1536
 SPILL_IDLE_ENV = "PODCAST_DECODE_MEMO_SPILL_IDLE_S"
 DEFAULT_SPILL_IDLE_S = 2700.0
+MAX_SPILLED_ENTRIES = 64  # one descriptor each; bounds the fds the tier can hold
 RACY_SECONDS = 2.0
 
 _LOG = logging.getLogger(__name__)
@@ -169,6 +172,7 @@ class DecodeMemo:
         self._spilled: OrderedDict[_Key, _Decoded] = OrderedDict()
         self._spilled_bytes = 0
         self._worker_running = False
+        self._timer_due = 0.0
         self._lock = threading.Lock()
         self._building: dict[_Key, _Flight] = {}
         self._timer: threading.Timer | None = None
@@ -194,8 +198,15 @@ class DecodeMemo:
         if _now_ns() - max(stamp.mtime_ns, stamp.ctime_ns) < RACY_SECONDS * 1e9:
             self._forget(key, keep=None)
             return _frozen(build())
+        try:
+            spill_cap = spill_cap_bytes()
+        except Exception:
+            spill_cap = 0
         with self._lock:
             self._drop_other_builds(key[3])
+            if spill_cap == 0 and self._spilled:  # the tier was switched off while running
+                for old in list(self._spilled):
+                    self._remove(self._spilled, old)
             held = self._find(key)
             flight = None
             if held is None:
@@ -235,7 +246,10 @@ class DecodeMemo:
             self._forget(key, keep=None)
             return _frozen(built)
         entry = _frozen(built)
-        spill_cap = spill_cap_bytes()
+        try:
+            spill_cap = spill_cap_bytes()
+        except Exception:
+            spill_cap = 0
         queued = False
         with self._lock:
             self._drop_older(key, keep=key)
@@ -245,7 +259,6 @@ class DecodeMemo:
                 queued |= self._evict(next(iter(self._entries)), cap, spill_cap)
             self._touch()
             start = queued and not self._worker_running
-            self._worker_running |= start
         if start:
             self._start_worker()
         return dataclasses.replace(cast(Any, entry))
@@ -313,15 +326,27 @@ class DecodeMemo:
             due.append(spill_idle - elapsed)
         return due
 
+    def _period(self) -> float:
+        """The shortest idle that is set at all, which is a positive delay to look again after."""
+        return min((s for s in (idle_seconds(), spill_idle_seconds()) if s > 0), default=1.0)
+
     def _arm_for_remaining(self) -> None:
+        """Make the timer fire at the earliest deadline; a later one is replaced, an earlier kept."""
         due = self._deadlines()
-        if self._timer is None and due:
-            self._arm(max(min(due), 0.0) or min(idle_seconds(), spill_idle_seconds()))
+        if not due:
+            return
+        delay = max(min(due), 0.0) or self._period()
+        if self._timer is not None:
+            if _monotonic() + delay >= self._timer_due:
+                return
+            self._timer.cancel()
+        self._arm(delay)
 
     def _arm(self, delay: float) -> None:
         timer = threading.Timer(delay, self._fire)
         timer.daemon = True
         self._timer = timer
+        self._timer_due = _monotonic() + delay
         try:
             timer.start()
         except RuntimeError:
@@ -353,7 +378,7 @@ class DecodeMemo:
             return False
         remaining = min(due)
         if self._building or remaining > 0:
-            self._arm(max(remaining, 0.0) or min(idle_seconds(), spill_idle_seconds()))
+            self._arm(max(remaining, 0.0) or self._period())
             return False
         elapsed = _monotonic() - self._active
         spill_idle = spill_idle_seconds()
@@ -386,31 +411,53 @@ class DecodeMemo:
                     self._remove(self._pending, key)
 
     def _demote_pending(self) -> None:
-        """Spill each queued entry outside the lock and swap it in if nothing dropped it meanwhile."""
-        while True:
-            with self._lock:
-                item = next(
-                    ((k, e) for k, e in self._pending.items() if k not in self._spilling), None
-                )
-                if item is None:
+        """Spill each queued entry outside the lock and swap it in if nothing dropped it meanwhile.
+
+        One demoter at a time, so one spill is in flight and the free-space check is not raced; a
+        caller that finds one running leaves its entries to it, which looks again before it stops.
+        """
+        with self._lock:
+            if self._worker_running:
+                return
+            self._worker_running = True
+        finished = False
+        claimed: _Key | None = None
+        try:
+            while True:
+                with self._lock:
+                    item = next(
+                        ((k, e) for k, e in self._pending.items() if k not in self._spilling), None
+                    )
+                    if item is None:
+                        self._worker_running = False
+                        finished = True
+                        self._arm_for_remaining()
+                        return
+                    claimed = item[0]
+                    self._spilling.add(claimed)
+                key, entry = item
+                mapped = self._spill_entry(key, entry)
+                with self._lock:
+                    self._spilling.discard(key)
+                    claimed = None
+                    if self._pending.get(key) is not entry:
+                        continue  # dropped or replaced while it was written: the copy is discarded
+                    self._remove(self._pending, key)
+                    if mapped is not None:
+                        self._spilled[key] = mapped
+                        self._spilled_bytes += int(mapped.samples.nbytes)
+                        cap = spill_cap_bytes()
+                        while self._spilled and (
+                            self._spilled_bytes > cap or len(self._spilled) > MAX_SPILLED_ENTRIES
+                        ):
+                            self._remove(self._spilled, next(iter(self._spilled)))
+                        self._arm_for_remaining()  # the demotion is not a use: the clock stays
+        finally:
+            if not finished:
+                with self._lock:
                     self._worker_running = False
-                    self._arm_for_remaining()
-                    return
-                self._spilling.add(item[0])
-            key, entry = item
-            mapped = self._spill_entry(key, entry)
-            with self._lock:
-                self._spilling.discard(key)
-                if self._pending.get(key) is not entry:
-                    continue  # dropped or replaced while it was written: the copy is discarded
-                self._remove(self._pending, key)
-                if mapped is not None:
-                    self._spilled[key] = mapped
-                    self._spilled_bytes += int(mapped.samples.nbytes)
-                    cap = spill_cap_bytes()
-                    while self._spilled_bytes > cap and self._spilled:
-                        self._remove(self._spilled, next(iter(self._spilled)))
-                    self._arm_for_remaining()  # the demotion is not a use: the clock stays
+                    if claimed is not None:
+                        self._spilling.discard(claimed)
 
     def _spill_entry(self, key: _Key, entry: _Decoded) -> _Decoded | None:
         """``entry`` with its samples mapped from the spool, or None to drop it. Never raises."""
