@@ -92,7 +92,7 @@ export function ReviewStageHarness({
         ref={stageRef}
         onDecide={decide}
         onSelectTake={(id, takeIndex) => {
-          stage.onSelectTake?.(id, takeIndex);
+          void stage.onSelectTake?.(id, takeIndex);
           setPicked((prev) => ({ ...prev, [id]: takeIndex }));
         }}
       />

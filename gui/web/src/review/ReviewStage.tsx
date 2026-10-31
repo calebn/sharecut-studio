@@ -71,7 +71,10 @@ export type ReviewStageProps = {
   onOpenInEdit?: (id: string) => void;
   onHear?: (id: string, side: AuditionSide) => void;
   /** Pick the take Accept places for a replace pickup. */
-  onSelectTake?: (id: string, takeIndex: number) => void;
+  onSelectTake?: (
+    id: string,
+    takeIndex: number,
+  ) => void | Promise<boolean | void>;
   onComment?: (id: string) => void;
   thread?: (item: ReviewItem) => ReactNode;
   /** The inline comment field, above the card. */
@@ -163,12 +166,21 @@ export function ReviewStage({
   const step = (direction: "forward" | "backward") =>
     onSelect(stepUndecided(items, selectedId, direction, filter));
 
+  /** Why Accept would refuse the take a pickup has chosen, if it would. */
+  const takeRefusal = (item: ReviewItem) => {
+    const chosen = content(item).takes;
+    const refusal = chosen?.takes.find(
+      (t) => t.takeIndex === chosen.selected,
+    )?.refusal;
+    return refusal ? `This take cannot be placed: ${refusal}` : undefined;
+  };
   const cuttable = (id: string) => {
     const item = items.find((i) => i.id === id);
     return (
       item !== undefined &&
       !item.result &&
       !item.blocked &&
+      !(item.kind === "pickup" && takeRefusal(item)) &&
       !(item.unsure && !looksRight.has(id))
     );
   };
@@ -418,7 +430,9 @@ export function ReviewStage({
                     : "Open it in Edit to resolve."
                   : selected?.kind === "comment" && selected.result
                     ? "Already resolved."
-                    : undefined
+                    : selected?.kind === "pickup" && !selected.result
+                      ? takeRefusal(selected)
+                      : undefined
             }
             thread={selected && thread?.(selected)}
             why={selected?.blocked ? (card.why ?? BLOCKED_WHY) : card.why}

@@ -1,4 +1,5 @@
 import { isTypingTarget } from "../keymap/typing";
+import { OWN_ARROWS } from "../system/TakeSwitcher";
 import { type KeySpec, VERBS, type VerbId } from "../system/verbs";
 
 type StageAction =
@@ -91,7 +92,7 @@ export function stageActionFor(
   if (
     event.key.startsWith("Arrow") &&
     event.target instanceof Element &&
-    event.target.closest("[data-own-arrows]")
+    event.target.closest(OWN_ARROWS)
   )
     return null;
   const action =

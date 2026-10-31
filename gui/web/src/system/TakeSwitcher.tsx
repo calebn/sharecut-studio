@@ -17,11 +17,12 @@ export type TakeSwitcherProps = {
   takes: readonly TakeOption[];
   /** The `takeIndex` Accept places. */
   selected: number;
-  onSelect: (takeIndex: number) => void;
+  /** A promise that resolves to false says the choice was refused. */
+  onSelect: (takeIndex: number) => void | Promise<boolean | void>;
 };
 
-/** Marks a group that keeps the arrow keys, so the stage does not step on to the next item. */
-export const OWN_ARROWS = "data-own-arrows";
+/** Selector of a group that keeps the arrow keys, so the stage does not step on to the next item. */
+export const OWN_ARROWS = "[data-own-arrows]";
 
 const PREVIOUS_REASON = "This is the first take.";
 const NEXT_REASON = "This is the last take.";
@@ -69,7 +70,12 @@ export function TakeSwitcher({ takes, selected, onSelect }: TakeSwitcherProps) {
     const target = side === "previous" ? before : after;
     if (!target || target.refusal) return;
     had.current = side;
-    onSelect(target.takeIndex);
+    void Promise.resolve(onSelect(target.takeIndex))
+      .catch(() => false)
+      .then((ok) => {
+        // Refused: nothing changes, so a later change must not take focus.
+        if (ok === false && had.current === side) had.current = null;
+      });
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const back = event.key === "ArrowLeft" || event.key === "ArrowUp";
@@ -89,7 +95,7 @@ export function TakeSwitcher({ takes, selected, onSelect }: TakeSwitcherProps) {
       role="group"
       aria-labelledby={labelId}
       onKeyDown={onKeyDown}
-      {...{ [OWN_ARROWS]: "" }}
+      data-own-arrows=""
     >
       <div className="sys-take-switcher-row">
         <Button

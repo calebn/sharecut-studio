@@ -93,6 +93,16 @@ describe("TakeSwitcher", () => {
     expect(next()).toHaveFocus();
   });
 
+  it("does not take focus when the choice is refused and a later change arrives", async () => {
+    const onSelect = vi.fn(async () => false);
+    const { rerender } = render(<TakeSwitcher {...props({ onSelect })} />);
+    previous().focus();
+    await userEvent.keyboard("{Enter}");
+    await Promise.resolve();
+    rerender(<TakeSwitcher {...props({ onSelect, selected: 0 })} />);
+    expect(next()).not.toHaveFocus();
+  });
+
   it("has no accessibility violations", async () => {
     const { container } = render(<TakeSwitcher {...props()} />);
     await expectNoA11yViolations(container);
