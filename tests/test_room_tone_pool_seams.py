@@ -15,7 +15,7 @@ from test_approve_guard_blocked_ripple import _blocked_filler
 from test_pause_policy_integration_contract import _acoustic_project
 from test_room_tone_pool_on_open import _Block, _join_pools, _two_speakers
 
-pytestmark = pytest.mark.usefixtures("real_room_tone_scheduling")  # these tests record pools
+pytestmark = pytest.mark.usefixtures("real_room_tone_scheduling")
 
 
 def test_the_verdict_warm_and_the_preview_warm_wait_for_the_pool(
@@ -59,8 +59,8 @@ def test_the_verdict_warm_and_the_preview_warm_wait_for_the_pool(
     _join_pools()
 
     assert all(event.is_set() for event in done.values())
-    assert seen and seen[0]  # the verdict warm read the recorded pool, not None
-    assert block.recordings == 2  # the two tracks, each once
+    assert seen and seen[0]
+    assert block.recordings == 2
 
 
 def _approvable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -121,17 +121,17 @@ def test_the_host_queues_the_pools_once_when_it_starts_serving_a_project(
         room_tone, "schedule_room_tone_pools", lambda p, *_a, **k: seen.append(k["owned"]) or 0
     )
 
-    started = TestClient(create_app(served_project=minimal_project))  # `--project` at startup
+    started = TestClient(create_app(served_project=minimal_project))
     assert seen == [True]
     started.get("/api/document/state", params={"path": str(minimal_project)})
-    assert seen == [True]  # the project is already served
+    assert seen == [True]
 
-    opened = TestClient(create_app(), client=("127.0.0.1", 50000))  # opened from Home or by a path
+    opened = TestClient(create_app(), client=("127.0.0.1", 50000))
     assert seen == [True]
     for _ in range(2):
         response = opened.get("/api/document/state", params={"path": str(minimal_project)})
         assert response.status_code == 200
-    assert seen == [True, True]  # queued by the first load that pinned it, not by the second
+    assert seen == [True, True]
 
 
 def test_a_project_that_cannot_be_opened_queues_nothing_and_does_not_raise(

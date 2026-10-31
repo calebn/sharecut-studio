@@ -28,7 +28,6 @@ def warm_pending_checks(ws: ProjectWorkspace) -> int:
     from podcast_mcp.engines.room_tone import ensure_room_tone_pools
     from podcast_mcp.models import CutIntent, TrackRole
 
-    # The pools first: the verdicts must come from the room tone Approve will pick.
     ensure_room_tone_pools(
         ws.project, [t.id for t in ws.project.tracks if t.role == TrackRole.DIALOGUE]
     )
