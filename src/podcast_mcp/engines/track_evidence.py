@@ -335,7 +335,7 @@ def _build_or_error(store: _Store, key: EvidenceKey, tree: Audio) -> _Entry | De
 def _stored(
     store: _Store, key: EvidenceKey, tree: Audio, rates: tuple[int, ...] | None = None
 ) -> _Entry | Declined:
-    """The store's evidence of ``key`` at ``rates`` (the tree's own set when none), built on a miss."""
+    """The store's evidence of ``key`` at ``rates`` (the tree's own when none), built on a miss."""
     rates = _rates(tree) if rates is None else rates
     return store.get_or_build(key, partial(_produce, key, tree, rates), rates)
 
@@ -364,12 +364,7 @@ def _plan(
 
 
 def _rates(tree: Audio) -> tuple[int, ...]:
-    """The rates the tree's evidence is built at: both when any source carries a mute span, else 8 kHz.
-
-    Only :func:`heard` reads the waveform rate, and only for a cut that overlaps a mute span of
-    its tree. The spans are part of the key, so the set is a function of the key: one key is
-    always built at one set, in one pass, and never merged from two.
-    """
+    """The rates a tree's evidence is built at: both when a source carries a mute span, else 8 kHz."""
     return _RATES if any(leaf.mute_spans for leaf in sources(tree)) else (JUMP_SAMPLE_RATE,)
 
 
@@ -442,11 +437,6 @@ class _Store:
         build: Callable[[], Evidence | Declined | _Entry],
         rates: tuple[int, ...] = _RATES,
     ) -> _Entry | Declined:
-        """The evidence of ``key`` at ``rates``; ``build()`` makes exactly those on a miss.
-
-        An entry that lacks one of ``rates`` is a miss: ``build()`` replaces it with an entry that
-        holds all of them, from one pass over the sources.
-        """
         with self._lock:
             known = self._find(key, rates)
             builder = (
@@ -558,10 +548,7 @@ def _superseded(old: EvidenceKey, new: EvidenceKey) -> bool:
 def _produce(
     key: EvidenceKey, tree: Audio, rates: tuple[int, ...] = _RATES
 ) -> Evidence | Declined | _Entry:
-    """What a batch store builds a missing key from: retained evidence, else a fresh evaluation.
-
-    The answer holds at least ``rates``; the store uses it as it is.
-    """
+    """What a batch store builds a missing key from: retained evidence, else a fresh evaluation."""
     return _RETAINED.get_or_build(key, tree, lambda: _evaluate(tree, key.curve, rates), rates)
 
 
@@ -591,10 +578,7 @@ class RetainedEvidence:
         build: Callable[[], Evidence | Declined],
         rates: tuple[int, ...] = _RATES,
     ) -> Evidence | Declined | _Entry:
-        """The kept evidence of ``key`` at ``rates``, else ``build()`` of those, kept when that is exact and fits.
-
-        Kept evidence that lacks one of ``rates`` is replaced by the new build, never merged with it.
-        """
+        """The kept evidence of ``key`` at ``rates``, else ``build()`` of those, kept when that is exact and fits."""
         cap = keep_bytes()
         if cap == 0 or os.name == "nt":
             self.clear()

@@ -69,9 +69,7 @@ class _Probe:
         self._real = REAL_EVALUATE
         monkeypatch.setattr(track_evidence, "_evaluate", self)
 
-    def __call__(
-        self, tree: Audio, curve: str, rates: tuple[int, ...] = track_evidence._RATES
-    ) -> Evidence | Declined:
+    def __call__(self, tree: Audio, curve: str, *rates: tuple[int, ...]) -> Evidence | Declined:
         with self._lock:
             self.trees.append(tree)
             self.threads.append(threading.get_ident())
@@ -83,7 +81,7 @@ class _Probe:
         try:
             if self._barrier is not None and meets:
                 self._barrier.wait()
-            return self._real(tree, curve, rates)
+            return self._real(tree, curve, *rates)
         finally:
             with self._lock:
                 self._running -= 1
@@ -183,12 +181,10 @@ def test_one_failing_track_falls_back_alone(
     assert not isinstance(planned, Declined)
     audra_tree = planned[1]
 
-    def failing(
-        tree: Audio, curve: str, rates: tuple[int, ...] = track_evidence._RATES
-    ) -> Evidence | Declined:
+    def failing(tree: Audio, curve: str, *rates: tuple[int, ...]) -> Evidence | Declined:
         if tree == audra_tree:
             raise CalledProcessError(1, ["ffmpeg"])
-        return REAL_EVALUATE(tree, curve, rates)
+        return REAL_EVALUATE(tree, curve, *rates)
 
     monkeypatch.setattr(track_evidence, "_evaluate", failing)
 
@@ -350,14 +346,12 @@ def test_an_unexpected_worker_error_surfaces_after_the_others_finish(
     started: list[Audio] = []
     workers: list[threading.Thread] = []
 
-    def evaluate(
-        tree: Audio, curve: str, rates: tuple[int, ...] = track_evidence._RATES
-    ) -> Evidence | Declined:
+    def evaluate(tree: Audio, curve: str, *rates: tuple[int, ...]) -> Evidence | Declined:
         started.append(tree)
         workers.append(threading.current_thread())
         if tree == planned[1]:
             raise RuntimeError("boom")
-        return REAL_EVALUATE(tree, curve, rates)
+        return REAL_EVALUATE(tree, curve, *rates)
 
     monkeypatch.setattr(track_evidence, "_evaluate", evaluate)
 

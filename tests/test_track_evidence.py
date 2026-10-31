@@ -375,9 +375,9 @@ def _count_evaluations(monkeypatch: pytest.MonkeyPatch) -> list[Audio]:
     calls: list[Audio] = []
     real = track_evidence._evaluate
 
-    def counting(tree, curve, rates=track_evidence._RATES):  # type: ignore[no-untyped-def]
+    def counting(tree, curve, *rates):  # type: ignore[no-untyped-def]
         calls.append(tree)
-        return real(tree, curve, rates)
+        return real(tree, curve, *rates)
 
     monkeypatch.setattr(track_evidence, "_evaluate", counting)
     return calls
