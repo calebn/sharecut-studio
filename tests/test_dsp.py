@@ -28,6 +28,7 @@ from podcast_mcp.util.dsp import (
     rms_db,
     valley_basins,
     valley_depth_db,
+    valley_depths_db,
     voicing_pitch_probes,
     voicing_probes,
 )
@@ -478,3 +479,14 @@ def test_voicing_pitch_probes_report_each_frames_f0_and_peak() -> None:
     assert peak[-1] == 0.0
     assert f0[-1] == 0.0
     assert voicing_pitch_probes(np.zeros(0), sr, **kwargs)[0].size == 0
+
+
+@pytest.mark.parametrize("quantized", [False, True])
+def test_valley_depths_db_matches_the_per_frame_walk(quantized):
+    rng = np.random.default_rng(11)
+    for size in (0, 1, 2, 3, 7, 40, 90):
+        levels = rng.normal(-40.0, 10.0, size)
+        if quantized:
+            levels = np.round(levels / 4.0) * 4.0
+        expected = [valley_depth_db(levels, k) for k in range(size)]
+        assert valley_depths_db(levels).tolist() == expected
