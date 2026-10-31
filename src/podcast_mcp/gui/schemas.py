@@ -244,8 +244,16 @@ def _plain_text(text: str) -> str:
     return text
 
 
+def _plain_term(term: str) -> str:
+    """A vocabulary term or guest name is one line: no break, tab or control character."""
+    _plain_text(term)
+    if any(c in "\n\r\t\u2028\u2029" for c in term):
+        raise ValueError("a term must be a single line")
+    return term
+
+
 VocabularyEntry = Annotated[
-    str, Field(max_length=VOCABULARY_MAX_ENTRY_CHARS), AfterValidator(_plain_text)
+    str, Field(max_length=VOCABULARY_MAX_ENTRY_CHARS), AfterValidator(_plain_term)
 ]
 GuestNote = Annotated[str, Field(max_length=GUEST_NOTE_MAX_CHARS), AfterValidator(_plain_text)]
 TranscriptFormat = Literal["txt", "md", "srt", "vtt"]
