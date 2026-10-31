@@ -397,6 +397,44 @@ def test_a_ticket_is_refused_on_a_relayed_request(ws, folder, remote) -> None:
     assert res.status_code == 403
 
 
+def test_the_session_token_in_the_query_still_downloads_without_a_ticket(
+    ws, folder, remote
+) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    url = f"/api/export/files/{stem}.mp3"
+
+    res = remote.get(url, params={"path": str(ws.path), "token": "s3cret"})
+
+    assert (res.status_code, res.content) == (200, MP3)
+
+
+def test_a_ticket_lives_thirty_minutes(ws, folder, remote, monkeypatch) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    ticket = _tickets(remote, ws)[f"{stem}.mp3"]
+    params = {"path": str(ws.path), "ticket": ticket}
+    url = f"/api/export/files/{stem}.mp3"
+    issued = int(ticket.partition(".")[0]) - export_ticket.TICKET_TTL_SEC
+
+    monkeypatch.setattr(export_ticket, "_now", lambda: issued + 30 * 60 - 1)
+    inside = remote.get(url, params=params)
+    monkeypatch.setattr(export_ticket, "_now", lambda: issued + 30 * 60 + 1)
+    outside = remote.get(url, params=params)
+
+    assert (inside.status_code, outside.status_code) == (200, 410)
+
+
+def test_an_unresolvable_path_with_a_ticket_is_a_403(ws, folder, remote) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    version = ExportFilesService(ws).open(f"{stem}.mp3").version
+    minted = export_ticket.mint(ws.path, f"{stem}.mp3", version)
+
+    res = remote.get(
+        f"/api/export/files/{stem}.mp3", params={"path": "~nosuchuser/x", "ticket": minted}
+    )
+
+    assert (res.status_code, res.headers[CODE]) == (403, "export_ticket_invalid")
+
+
 @pytest.mark.parametrize("ticket", ["x", ".", "..", "1.2.é", "é.2.sig", "9" * 5000 + ".2.sig", ""])
 def test_a_junk_ticket_is_a_403_before_anything_else_is_read(ws, folder, remote, ticket) -> None:
     stem = sanitize_export_stem(ws.project.name)
@@ -474,6 +512,7 @@ def test_an_editor_lists_and_downloads_without_the_render_opt_in(world, monkeypa
     clip = world.client.get(f"{base}/clips/cold-open_c1.wav")
 
     assert listed.status_code == 200 and f"{stem}.mp3" in _ids(listed.json()["files"])
+    assert all("ticket" not in f for f in listed.json()["files"])
     assert str(world.ws.path.parent) not in listed.text
     assert (file.status_code, file.content) == (206, MP3[:10])
     assert file.headers["content-disposition"].startswith("attachment;")
