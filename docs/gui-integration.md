@@ -373,8 +373,8 @@ bounds are shown separately. Inspection is scoped to one active occurrence,
 project opening and dependency snapshot. It is not an all-visible-clip cache.
 
 `clipBleedSession` owns read generations, selected region, action state and exact
-acknowledged Undo. The shared selection registry mounts `ClipBleedHost` on desktop
-and phone. Local `bleedAttenuation` selections carry occurrence and region keys,
+acknowledged Undo. The Edit stage Inspector sheet (`stage/edit/bleedSections.tsx`) opens and retires
+the session with the selection, on desktop and phone. Local `bleedAttenuation` selections carry occurrence and region keys,
 never the target, and are omitted from session wire state. Refresh, reopening or
 changed occurrence inputs retire old targets. Restore uses the existing command
 bus and track mutation queue, rechecks admission inside that queue, and sends the

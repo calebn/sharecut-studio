@@ -103,7 +103,7 @@ const COVERED: Record<string, string[]> = {
     "System/ScrubField",
     "System/ReadoutChip",
   ],
-  "INS-BLEED": ["Templates/BleedAttenuationInspector"],
+  "INS-BLEED": ["System/InspectorSheet"],
   "SHEET-INSPECTOR": [
     "Organisms/BottomSheet",
     "Stages/Edit/Frame",

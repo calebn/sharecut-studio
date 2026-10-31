@@ -739,3 +739,31 @@ html[data-shell="phone"]
     min-width: 2.75rem;
   }
 }
+
+/* Automatic reduction regions in the Inspector sheet (#2294 W3b1b). */
+.edit-bleed-regions,
+.edit-bleed-actions {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.edit-bleed-regions > .ui-control,
+.edit-bleed-actions > .ui-control {
+  min-block-size: 2.75rem;
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.edit-bleed-regions > .ui-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: start;
+}
+
+.edit-bleed-regions > .ui-control[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
+}
