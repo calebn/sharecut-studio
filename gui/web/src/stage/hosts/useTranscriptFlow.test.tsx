@@ -142,4 +142,68 @@ describe("useTranscriptFlow", () => {
     await act(async () => finish(written));
     expect(result.current.run.phase).toBe("idle");
   });
+
+  it("resets choices, files and copy state on a project switch", async () => {
+    vi.mocked(api.listExportedTranscripts).mockResolvedValue([
+      {
+        format: "txt",
+        path: "/a/episode.txt",
+        name: "episode.txt",
+        mime: "text/plain",
+        language: "en",
+        bytes: 5,
+        modified: "2026-10-31T08:00:00Z",
+        current: true,
+      },
+    ]);
+    const { result, rerender } = mount({ projectPath: "/a", revision: 1 });
+    await waitFor(() => expect(result.current.files).toHaveLength(1));
+    act(() => result.current.setChoices(["txt"]));
+    expect(result.current.choices).toEqual(["txt"]);
+    vi.mocked(api.listExportedTranscripts).mockReturnValue(
+      new Promise(() => {}),
+    );
+    rerender({ projectPath: "/b", revision: 1 });
+    await waitFor(() => expect(result.current.files).toEqual([]));
+    expect(result.current.choices).toEqual(["md", "srt"]);
+    expect(result.current.copyState).toBe("idle");
+    expect(result.current.preview.kind).toBe("loading");
+  });
+
+  it("aborts the in-flight preview when the transcript changes", async () => {
+    let finish: (v: typeof written) => void = () => {};
+    vi.mocked(api.exportTranscript).mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve)),
+    );
+    const { result, rerender } = mount({ projectPath: "/a", revision: 1 });
+    await waitFor(() => expect(api.exportTranscript).toHaveBeenCalledTimes(1));
+    const first = vi.mocked(api.exportTranscript).mock.calls[0][2]?.signal;
+    expect(first?.aborted).toBe(false);
+    rerender({ projectPath: "/a", revision: 2 });
+    expect(first?.aborted).toBe(true);
+    await waitFor(() => expect(result.current.preview.kind).toBe("ready"));
+    await act(async () =>
+      finish({
+        ...written,
+        preview: [{ speaker: "Maya", start_sec: 0, text: "Late." }],
+      }),
+    );
+    const preview = result.current.preview;
+    expect(preview.kind === "ready" && preview.preview.shown[0].text).toBe(
+      "Hi.",
+    );
+  });
+
+  it("recovers from a failed preview when reloaded", async () => {
+    vi.mocked(api.exportTranscript).mockRejectedValueOnce(new Error("offline"));
+    const { result } = mount({ projectPath: "/a", revision: 1 });
+    await waitFor(() =>
+      expect(result.current.preview).toEqual({
+        kind: "failed",
+        cause: "offline",
+      }),
+    );
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.preview.kind).toBe("ready"));
+  });
 });

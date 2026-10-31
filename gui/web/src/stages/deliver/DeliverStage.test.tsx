@@ -23,6 +23,7 @@ import {
 import type { ExportState } from "./deliverLogic";
 import { formatClock } from "./deliverLogic";
 import { SHARE_DEFAULTS, type ShareOptions } from "./shareLogic";
+import { SAMPLE_PREVIEW, transcriptOptions } from "./transcriptFixtures";
 
 const platform = vi.hoisted(() => ({ apple: false }));
 vi.mock("../../utils/platform", () => ({
@@ -2514,6 +2515,35 @@ describe("round four of the audit", () => {
   ] as const)("shows the exact copy %j", (copy, extra) => {
     setup(extra as Partial<DeliverStageProps>);
     expect(screen.getByText(copy)).toBeInTheDocument();
+  });
+});
+
+describe("Episode file transcript note", () => {
+  it.each([
+    [
+      { kind: "ready", preview: SAMPLE_PREVIEW },
+      "The transcript is written with every export. Choose more files in Transcript below.",
+    ],
+    [
+      { kind: "loading" },
+      "Captions and transcript are written with every export.",
+    ],
+    [
+      { kind: "failed", cause: "x" },
+      "Captions and transcript are written with every export.",
+    ],
+    [
+      { kind: "allCut" },
+      "Captions and transcript are written with every export.",
+    ],
+  ] as const)("a %j transcript says %j", (preview, copy) => {
+    setup({ transcript: transcriptOptions({ preview }) });
+    expect(screen.getByText(copy)).toBeInTheDocument();
+  });
+
+  it("shows no sentence when nothing is transcribed", () => {
+    setup({ transcript: transcriptOptions({ preview: { kind: "none" } }) });
+    expect(screen.queryByText(/written with every export/)).toBeNull();
   });
 });
 

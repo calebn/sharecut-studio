@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../api";
 
@@ -20,7 +21,11 @@ import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { FeaturesContext } from "../../extensions/FeaturesContext";
 import { useDawStore } from "../../state/dawStore";
-import { fakeExportServer } from "../../test/fakeExportServer";
+import {
+  BOUNCE_FINISHED,
+  EXPORT_FINISHED,
+  fakeExportServer,
+} from "../../test/fakeExportServer";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import { BounceFlowProvider } from "./bounceFlow";
@@ -67,8 +72,12 @@ function asHost(withTranscript: boolean) {
   useDawStore.setState({ stage: "deliver", guestMode: null });
 }
 
+let server: ReturnType<typeof fakeExportServer>;
+
+const RUNNING = "An export is running. It writes the transcript too.";
+
 beforeEach(() => {
-  fakeExportServer();
+  server = fakeExportServer();
   stubViewportShell("desktop");
   clearRegisteredCommands();
   registerDawCommands();
@@ -108,5 +117,71 @@ describe("Transcript on the Deliver stage", () => {
     await waitFor(() =>
       expect(useDawStore.getState().chrome.transcriptRequested).toBe(false),
     );
+  });
+
+  it("points the Episode file note at the Transcript chips once they show", async () => {
+    asHost(true);
+    render(<Host />);
+    await screen.findByText("Hello there.");
+    expect(
+      screen.getByText(
+        "The transcript is written with every export. Choose more files in Transcript below.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("drops the Episode file note when nothing is transcribed", async () => {
+    asHost(false);
+    render(<Host />);
+    await screen.findByText("Transcribe first");
+    expect(
+      screen.queryByText(/Choose more files in Transcript below/),
+    ).toBeNull();
+    expect(screen.queryByText(/written with every export/)).toBeNull();
+  });
+
+  it("lists the exported transcript files again when an audio export finishes", async () => {
+    asHost(true);
+    render(<Host />);
+    await screen.findByText("Hello there.");
+    await waitFor(() =>
+      expect(api.listExportedTranscripts).toHaveBeenCalledTimes(1),
+    );
+    await userEvent.click(screen.getAllByRole("button", { name: "Export" })[0]);
+    await waitFor(() => expect(server.exportRequests).toHaveLength(1));
+    await act(async () => server.settle(EXPORT_FINISHED));
+    await waitFor(() =>
+      expect(api.listExportedTranscripts).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("blocks Transcript Export while an audio export runs", async () => {
+    asHost(true);
+    render(<Host />);
+    await screen.findByText("Hello there.");
+    await userEvent.click(screen.getAllByRole("button", { name: "Export" })[0]);
+    await waitFor(() => expect(server.exportRequests).toHaveLength(1));
+    expect((await screen.findAllByText(RUNNING)).length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Export 2 files" }),
+    ).toBeDisabled();
+  });
+
+  it("blocks Transcript Export while a bounce runs and leaves its files alone when it finishes", async () => {
+    asHost(true);
+    render(<Host />);
+    await screen.findByText("Hello there.");
+    await waitFor(() =>
+      expect(api.listExportedTranscripts).toHaveBeenCalledTimes(1),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Bounce" }));
+    await waitFor(() => expect(server.bounceRequests).toHaveLength(1));
+    expect((await screen.findAllByText(RUNNING)).length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Export 2 files" }),
+    ).toBeDisabled();
+    await act(async () => server.settle(BOUNCE_FINISHED));
+    await screen.findByText("Bounced 1 file(s) to export/bounces/");
+    expect(api.listExportedTranscripts).toHaveBeenCalledTimes(1);
   });
 });
