@@ -649,8 +649,9 @@ and the ungated evidence render stay on `from_timeline_stem`, which keeps nothin
   any part is a miss; `ctime` catches a copy that restores size and mtime.
 - **No stale store**: the file is stat'd before and after a decode and stored only if the stamps match;
   a file whose mtime or ctime is in the last 2 seconds is neither stored nor served (`cp -p` keeps an
-  old mtime but not the ctime). The decode opens the resolved path the key names, so a symlink flipped
-  during a decode cannot store another file's audio under this key (#2710).
+  old mtime but not the ctime). The decode opens the resolved path the key names, so a file symlink flipped
+  during a decode cannot store another file's audio under this key (#2710); a parent directory swapped
+  and restored mid-decode still can.
 - **Single flight**: one lock per key, so two callers of one file decode once while the 8 kHz and 16 kHz
   decodes of a track still overlap. An error is never stored; callers queued behind a failed decode retry
   one at a time, never in parallel.
