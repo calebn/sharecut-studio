@@ -171,7 +171,10 @@ def test_context_variables_reach_workers(engine, monkeypatch):
         barrier.wait()
 
     _fake(monkeypatch, body)
-    check = lambda: False  # noqa: E731
+
+    def check() -> bool:
+        return False
+
     with render_cancel_scope(check):
         _run(engine, _jobs(2))
     assert checks == [check, check]

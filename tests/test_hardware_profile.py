@@ -404,7 +404,7 @@ Pages wired down:                         3000.
 def test_macos_available_ram_sums_free_inactive_and_speculative_pages(monkeypatch) -> None:
     monkeypatch.setattr(hardware.sys, "platform", "darwin")
     monkeypatch.setattr(
-        hardware.subprocess,
+        hardware.process,
         "run",
         lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=VM_STAT),
     )
@@ -419,14 +419,14 @@ def test_macos_available_ram_is_none_when_vm_stat_fails(monkeypatch, failure) ->
         raise failure
 
     monkeypatch.setattr(hardware.sys, "platform", "darwin")
-    monkeypatch.setattr(hardware.subprocess, "run", boom)
+    monkeypatch.setattr(hardware.process, "run", boom)
     assert hardware.available_ram_bytes() is None
 
 
 def test_macos_available_ram_is_none_for_unparseable_output(monkeypatch) -> None:
     monkeypatch.setattr(hardware.sys, "platform", "darwin")
     monkeypatch.setattr(
-        hardware.subprocess,
+        hardware.process,
         "run",
         lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="nonsense"),
     )
