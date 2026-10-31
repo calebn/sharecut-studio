@@ -280,11 +280,10 @@ def file_level_profile(
     key = (str(resolved), file_revision(resolved), int(sample_rate))
     known = _FILE_PROFILES.get(key)
     if known is not None:
+        if write_record and record_dir:
+            _write_record(_record_path(resolved, key, record_dir), known)
         return known
-    name_parts = [_RECORD_REV, *map(str, key)]
-    if record_dir and has_several_audio_streams(resolved):
-        name_parts.append("a0")
-    record = record_dir / f"{short_digest(json.dumps(name_parts))}.json" if record_dir else None
+    record = _record_path(resolved, key, record_dir) if record_dir else None
     profile = _read_record(record) if record else None
     if profile is None:
         if levels is None:
@@ -296,6 +295,13 @@ def file_level_profile(
         _write_record(record, profile)
     _FILE_PROFILES.put(key, profile)
     return profile
+
+
+def _record_path(resolved: Path, key: tuple[str, FileRevision, int], record_dir: Path) -> Path:
+    name_parts = [_RECORD_REV, *map(str, key)]
+    if has_several_audio_streams(resolved):
+        name_parts.append("a0")
+    return record_dir / f"{short_digest(json.dumps(name_parts))}.json"
 
 
 # Bump when ``profile_from_levels`` or its whole-track framing changes what it returns.
