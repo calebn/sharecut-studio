@@ -137,7 +137,7 @@ const DENSE = [
 const SHEET = ".bottom-sheet, .sys-inspector";
 const SHEET_BODY = ".bottom-sheet-body, .sys-inspector-scroll";
 
-const SIZE_EXEMPT = [".comment-marker.pin"];
+const SIZE_EXEMPT = [".sys-marker-hit"];
 
 /** The Script pane, which the Edit stage's own scan leaves to its own sweep. */
 const PANELS = [".edit-script", ".phone-edit-script"];

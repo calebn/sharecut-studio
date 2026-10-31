@@ -2,13 +2,13 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   LANE_HEIGHT,
-  MARKER_LANE_HEIGHT,
   MARKER_ROW_HEIGHT,
   MAX_FIT_LANE_HEIGHT,
 } from "../utils/layout";
 import {
   fitLaneHeight,
   markerLaneHeight,
+  markerLaneRow,
   markerRows,
   resolveLaneHeight,
   shortTouchFloorPx,
@@ -190,11 +190,12 @@ describe("marker rows", () => {
     );
   });
 
-  it("adds a row per layer with content, honoring layer toggles", () => {
+  it("draws chapters and comments on one lane, honoring layer toggles", () => {
     const chapters = [{ time: 1, title: "Intro" }] as never[];
     const comments = [{ id: "c1" }] as never[];
+    // The chapters, social clips and comments share the one system lane.
     expect(markerLaneHeight(markerRows({ ...base, chapters, comments }))).toBe(
-      2 * MARKER_ROW_HEIGHT,
+      MARKER_ROW_HEIGHT,
     );
     expect(
       markerRows({ ...base, chapters, comments, showComments: false }),
@@ -206,7 +207,7 @@ describe("marker rows", () => {
     });
   });
 
-  it("fills the full marker lane with the three content rows", () => {
+  it("draws the three content kinds on one lane", () => {
     expect(
       markerLaneHeight({
         chapters: true,
@@ -214,7 +215,7 @@ describe("marker rows", () => {
         comments: true,
         clipping: false,
       }),
-    ).toBe(MARKER_LANE_HEIGHT);
+    ).toBe(MARKER_ROW_HEIGHT);
   });
 
   it("adds a clipping row when recording flags exist and Markers is on", () => {
@@ -231,6 +232,29 @@ describe("marker rows", () => {
         comments: true,
         clipping: true,
       }),
-    ).toBe(4 * MARKER_ROW_HEIGHT);
+    ).toBe(2 * MARKER_ROW_HEIGHT);
+  });
+
+  it("keeps the marker lane's own row under the clipping row when only flags exist", () => {
+    const rows = {
+      chapters: false,
+      social: false,
+      comments: false,
+      clipping: true,
+    };
+    expect(markerLaneRow(rows)).toBe(true);
+    expect(markerLaneHeight(rows)).toBe(2 * MARKER_ROW_HEIGHT);
+  });
+
+  it("drops the empty marker lane on a short touch screen but keeps the clipping row", () => {
+    const short = { kind: "touchShort", floorPx: 72 } as const;
+    const rows = {
+      chapters: false,
+      social: false,
+      comments: false,
+      clipping: true,
+    };
+    expect(markerLaneRow(rows, short)).toBe(false);
+    expect(markerLaneHeight(rows, short)).toBe(MARKER_ROW_HEIGHT);
   });
 });
