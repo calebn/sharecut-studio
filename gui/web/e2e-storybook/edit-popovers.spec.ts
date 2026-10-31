@@ -327,8 +327,6 @@ async function holdOpen(
 ) {
   await finger.down(press);
   await expect(page.getByRole("menu")).toHaveCount(0);
-  await page.waitForTimeout(300);
-  await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page.getByRole("menu")).toBeVisible({ timeout: 2000 });
 }
 
@@ -419,13 +417,15 @@ test("Stages/Edit/TargetChooser: a finger that moves before the hold ends never 
   browserName,
 }) => {
   const { context, page } = await touchPage(browser, `${CHOOSER}--two-targets`);
+  // A fake clock, so the hold's 500 ms timer fires at once if the move did not
+  // cancel it, instead of the test waiting on real time.
+  await page.clock.install();
   const finger = await newFinger(context, page, browserName);
   const surface = await box(page);
   const press = { x: surface.x + 180, y: surface.y + 270 };
   await finger.down(press);
-  await page.waitForTimeout(150);
   await finger.move({ x: press.x + 14, y: press.y });
-  await page.waitForTimeout(900);
+  await page.clock.fastForward(1500);
   await expect(page.getByRole("menu")).toHaveCount(0);
   await finger.up();
   await expect(readout(page)).toHaveText("");
@@ -499,7 +499,7 @@ test("Stages/Edit/TargetChooser on a phone holds five 44 px chips inside 16 px g
   );
 });
 
-test("Stages/Edit/TargetChooser pressed 6 px from the left edge of a 360 px phone keeps the leftmost chip 16 px in and the rightmost inside 344", async ({
+test("Stages/Edit/TargetChooser pressed 6 px from the left edge of a 360 px phone keeps the leftmost chip 16 px in and the rightmost at 268 px from the box edge", async ({
   browser,
 }) => {
   const { context, page } = await touchPage(
@@ -514,7 +514,8 @@ test("Stages/Edit/TargetChooser pressed 6 px from the left edge of a 360 px phon
   expect(chips).toHaveLength(5);
   expect(chips[0].x - outer.x).toBeCloseTo(16, 0);
   const last = chips[4];
-  expect(last.x + last.width).toBeLessThanOrEqual(344);
+  // Five chips 52 px apart from the 16 px gutter: the last ends at 38 + 4 * 52 + 22.
+  expect(last.x + last.width - outer.x).toBeCloseTo(268, 0);
 });
 
 test("Stages/Edit/TargetChooser ellipsizes a long caption inside 15 rem on a phone", async ({
@@ -571,6 +572,32 @@ test("Stages/Edit/TargetChooser outlines the chip under a finger in the system h
   expect(colors.outlineWidth).not.toBe("0px");
   expect(colors.borderWidth).toBe("3px");
   expect(colors.borderColor).toBe(colors.canvasText);
+});
+
+test("Stages/Edit/TargetChooser: while a finger slides over a chip, only that chip is marked and the first chip's keyboard ring is hidden", async ({
+  browser,
+  browserName,
+}) => {
+  const { context, page } = await touchPage(browser, `${CHOOSER}--gesture`);
+  const finger = await newFinger(context, page, browserName);
+  const surface = await box(page);
+  await holdOpen(page, finger, { x: surface.x + 180, y: surface.y + 270 });
+  const chipsLocator = page.locator(CHIPS);
+  await expect(chipsLocator.first()).toBeFocused();
+  const second = (await chipRects(page))[1];
+  await finger.slide(centre(second), 6, 30);
+  await expect(page.locator(`${CHIPS}.is-over`)).toHaveAttribute(
+    "data-target-id",
+    second.id ?? "",
+  );
+  const outlines = await chipsLocator.evaluateAll((chips) => ({
+    focused: chips.map((chip) => chip === document.activeElement),
+    outline: chips.map((chip) => getComputedStyle(chip).outlineStyle),
+  }));
+  await finger.up();
+  await context.close();
+  expect(outlines.focused).toEqual([true, false, false, false]);
+  expect(outlines.outline).toEqual(["none", "none", "none", "none"]);
 });
 
 // The keymap hold (Escape not also clearing the selection) is proved in

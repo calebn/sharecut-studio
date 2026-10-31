@@ -67,7 +67,9 @@ function Fan({ targets, anchor, bounds, over, onPick, onCancel }: FanProps) {
     targets.length > CHOOSER_MAX_CHIPS
       ? `Targets here, showing ${CHOOSER_MAX_CHIPS} of ${targets.length}`
       : `Targets here, ${shown.length}`;
-  const caption = shown.find((target) => target.id === over)?.label ?? null;
+  // A blank label draws no caption pill and names its chip by its kind alone.
+  const overLabel = shown.find((target) => target.id === over)?.label.trim();
+  const caption = overLabel ? overLabel : null;
   return (
     <div
       ref={rootRef}
@@ -91,7 +93,11 @@ function Fan({ targets, anchor, bounds, over, onPick, onCancel }: FanProps) {
             type="button"
             role="menuitem"
             tabIndex={-1}
-            aria-label={`${KIND_NAMES[target.kind]}, ${target.label}`}
+            aria-label={
+              target.label.trim()
+                ? `${KIND_NAMES[target.kind]}, ${target.label}`
+                : KIND_NAMES[target.kind]
+            }
             className={
               target.id === over
                 ? "edit-target-chooser-chip is-over"
