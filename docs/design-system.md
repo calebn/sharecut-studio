@@ -258,6 +258,8 @@ and displays trimmed successful replies, as the public review page does.
 `System/ScriptPane` is the pure Script pane; `stage/edit/script/ScriptHost`
 reads the store, builds its turns with `scriptModel`, and owns seeking,
 selection, Fix text, Find, the speaker popover and the word window.
+Each word the host gives an `anchor` carries it as `data-presence-anchor`, so
+another person's cursor and selection land on it.
 `Stages/Edit/ScriptHost` stories run the host over fictional store data.
 `Templates/EditBoundaryMark` renders the production `EditBoundaryMarkView`
 inline in a transcript row: a roll join, a live roll drag previewing

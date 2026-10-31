@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import { useUserScrollIntent } from "../hooks/useUserScrollIntent";
+import { presenceAnchorProps } from "../presence/anchors";
 import { presenceColorVar } from "../presence/colors";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { Cover } from "./Cover";
@@ -1538,6 +1539,7 @@ const WordView = memo(function WordView({
       className="sys-script-word"
       data-stop={index}
       data-word-key={word.key}
+      {...(word.anchor ? presenceAnchorProps(word.anchor) : {})}
       data-state={word.mark?.kind === "suggested" ? undefined : word.mark?.kind}
       data-playing={playing ? "" : undefined}
       data-selected={selected ? "" : undefined}

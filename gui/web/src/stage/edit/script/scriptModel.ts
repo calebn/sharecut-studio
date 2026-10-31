@@ -1,3 +1,4 @@
+import { transcriptWordPresenceAnchor } from "../../../presence/anchors";
 import type { PersonData } from "../../../system/Person";
 import type {
   ScriptMark,
@@ -277,6 +278,15 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
         index,
         key: repeat === 0 ? base : `${base}~${repeat + 1}`,
         text: word.text,
+        ...(word.ref.wordIndex != null && !word.cut
+          ? {
+              anchor: transcriptWordPresenceAnchor(
+                word.ref.trackId,
+                word.ref.sourceId,
+                word.ref.wordIndex,
+              ),
+            }
+          : {}),
         ...(word.mark ? { mark: word.mark } : {}),
         ...(word.lowConfidence ? { lowConfidence: true } : {}),
       });
