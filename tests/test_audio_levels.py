@@ -223,8 +223,7 @@ def test_the_profile_of_a_track_is_decoded_once_per_audio_file(tmp_path, monkeyp
     real = level_profile_module.load_mono_full
 
     def counting(*args, **kwargs):
-        if kwargs.get("sample_rate") == RATE:
-            reads.append(args)
+        reads.append(kwargs.get("sample_rate"))
         return real(*args, **kwargs)
 
     monkeypatch.setattr(level_profile_module, "load_mono_full", counting)
@@ -235,7 +234,8 @@ def test_the_profile_of_a_track_is_decoded_once_per_audio_file(tmp_path, monkeyp
     caches = build_track_audio_caches(project, ["host"])
 
     assert first == second == caches["host"].profile
-    assert len(reads) == 1
+    assert len(reads) == len(set(reads))
+    assert reads.count(RATE) == 1
 
 
 def test_a_track_with_no_live_audio_has_every_frame_quiet(tmp_path) -> None:
