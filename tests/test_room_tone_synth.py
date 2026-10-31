@@ -13,7 +13,7 @@ from podcast_mcp.edits.timeline_ops import (
 )
 from podcast_mcp.engines import room_tone_synth
 from podcast_mcp.engines.gate_fill import LOOP_SEC, synthesise_noise
-from podcast_mcp.engines.room_tone import RecordedBedSample, room_tone_span
+from podcast_mcp.engines.room_tone import RecordedBedSample, room_tone_bed, room_tone_span
 from podcast_mcp.engines.room_tone_synth import (
     SYNTH_ID_PREFIX,
     SynthSample,
@@ -80,6 +80,17 @@ def test_a_gap_well_over_the_bed_is_a_registered_synthesised_source(tmp_path: Pa
     assert registered is not None
     assert resolve_under_workspace(project, registered.path) == picked.path
     assert picked.path.is_file()
+
+
+def test_a_synthesised_sample_carries_the_revision_of_the_file_it_analysed(tmp_path: Path) -> None:
+    project = _project_with_bed(tmp_path, _bed(8.0))
+
+    picked = _pick(project, 20.0)
+
+    assert isinstance(picked, SynthSample)
+    bed = room_tone_bed(project, "host")
+    assert isinstance(bed, RecordedBedSample)
+    assert picked.revision == bed.revision != (0, 0, 0, 0)
 
 
 def test_synthesised_tone_matches_the_beds_level_and_does_not_repeat(tmp_path: Path) -> None:
