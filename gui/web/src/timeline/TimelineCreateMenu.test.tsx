@@ -402,6 +402,19 @@ describe("TimelineCreateMenu phone form", () => {
     expect(executePointerCommand).toHaveBeenCalledOnce();
   });
 
+  it("hands focus to the ruler's position slider when it goes after a touch open, which focused nothing", async () => {
+    const slider = document.createElement("div");
+    slider.setAttribute("role", "slider");
+    slider.setAttribute("aria-label", "Timeline position");
+    slider.tabIndex = 0;
+    document.body.append(slider);
+    const { unmount } = mount(true);
+    await screen.findByRole("dialog");
+    unmount();
+    expect(slider).toHaveFocus();
+    slider.remove();
+  });
+
   it("closes on a press outside the Sheet, through a clear scrim of its own", async () => {
     mount(true);
     await screen.findByRole("dialog");

@@ -101,11 +101,12 @@ test("the keymap is held while the Sheet is open, and Escape closes it", async (
   await expect(sheet(page)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(sheet(page)).toHaveCount(0);
-  // Focus left with the Sheet and went back to a live element, not a detached one.
+  // Focus left with the Sheet and went to a live element, not the page.
   expect(
     await page.evaluate(
       () =>
         document.activeElement !== null &&
+        document.activeElement !== document.body &&
         document.body.contains(document.activeElement),
     ),
   ).toBe(true);

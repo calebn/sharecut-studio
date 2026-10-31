@@ -63,6 +63,22 @@ function useSheetKeyboard(close: () => void) {
 }
 
 /**
+ * A touch open never focuses anything, so when the menu goes the focus has
+ * nowhere to return to and falls to the page. Give it the press's own
+ * focusable (a clip or a level), else the ruler's position slider.
+ */
+function focusAfterClose(surface: Element): void {
+  const active = document.activeElement;
+  if (active && active !== document.body && active.isConnected) return;
+  const target =
+    surface.closest<HTMLElement>("[tabindex]") ??
+    document.querySelector<HTMLElement>(
+      '[role="slider"][aria-label="Timeline position"]',
+    );
+  target?.focus({ preventScroll: true });
+}
+
+/**
  * The host of the Create here menu in the timeline (#2294 S7b W1): the leaf
  * (`stages/edit/CreateMenu`) draws and positions the rows; this puts it in the
  * top layer over a scrim, announces it, picks the rows the session may run and
@@ -92,6 +108,14 @@ export function TimelineCreateMenu({
     [topLayerRef],
   );
   const time = formatTime(place.atTime);
+  const surfaceRef = useRef(view.surface);
+  surfaceRef.current = view.surface;
+  useEffect(
+    () => () => {
+      focusAfterClose(surfaceRef.current);
+    },
+    [],
+  );
   const empty = rows.length === 0;
   useEffect(() => {
     if (empty) return;
