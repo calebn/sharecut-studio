@@ -80,7 +80,6 @@ describe("attachDragWatch", () => {
       clientY: 40,
     });
     replayPointer("pointerdown", handle, finger, { x: 100, y: 50 });
-    // The finger itself, 200 px away from the target, is not a move of it.
     fire(handle, "pointermove", 300, 5);
     expect(changes).toEqual([]);
     replayPointer("pointermove", handle, finger, { x: 104, y: 50 });
