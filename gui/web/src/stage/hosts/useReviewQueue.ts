@@ -14,6 +14,7 @@ import { replyHistoryHead } from "../../api/documentEdits";
 import {
   playPendingPreview,
   playSessionPreview,
+  releaseSessionPreview,
   warmSessionPreview,
 } from "../../audio/pendingPreview";
 import { runPointerCommand } from "../../commands/pointer";
@@ -80,6 +81,8 @@ const changedMessage = (error: unknown) =>
 const CLOSER_LOOK = "Needs a closer look in Edit";
 const UNSURE_REASON = "unsure_word";
 const HEAR_PAD_SEC = 2;
+const PICKUP_HANDLED = "This suggestion was already handled.";
+const PICKUP_UNEXPECTED = "The host sent an unexpected reply. Nothing changed.";
 const OPEN_CHECK =
   "The transcript check stays open until every word has loaded.";
 const LEFT_AS_IS = "Left as it is. Nobody is talking over it.";
@@ -242,6 +245,12 @@ export function useReviewQueue(guestShare = false) {
     if (selectedSession && !guest)
       void warmSessionPreview(projectPath, selectedSession);
   }, [selectedSession, guest, projectPath]);
+  useEffect(
+    () => () => {
+      if (selectedSession) releaseSessionPreview(selectedSession);
+    },
+    [selectedSession],
+  );
   const head = project?.history.head_id;
   useEffect(() => {
     const listed = new Set(open.map((e) => e.item.id));
@@ -394,6 +403,13 @@ export function useReviewQueue(guestShare = false) {
     const row = useDawStore
       .getState()
       .project?.session_suggestions?.find((s) => s.id === suggestionId);
+    if (!row && intent.result !== "kept") {
+      // Another client handled it: the take the user saw is unknown, so send nothing.
+      session.revert(plan.decidedIds, plan.selectedId);
+      say(PICKUP_HANDLED, { tone: "error" });
+      void refreshDocumentProject(path).catch(() => null);
+      return false;
+    }
     try {
       const takeIndex = row ? takeToPlace(row) : undefined;
       const reply =
@@ -408,8 +424,12 @@ export function useReviewQueue(guestShare = false) {
         reply,
         useDawStore.getState().project?.tracks ?? [],
       );
-      if (reply.needs_confirmation !== undefined && ask) {
+      if (reply.needs_confirmation != null) {
         session.revert(plan.decidedIds, plan.selectedId);
+        if (!ask) {
+          say(PICKUP_UNEXPECTED, { tone: "error" });
+          return false;
+        }
         setAskedPickups((prev) => new Map(prev).set(itemId, ask));
         return false;
       }
