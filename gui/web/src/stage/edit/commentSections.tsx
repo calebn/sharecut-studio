@@ -23,9 +23,11 @@ const section = (
 export function useCommentSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {
+  const isComment = selection?.kind === "comment";
   const { project, guestMode, shareCapabilities, projectPath } = useDaw(
     (s) => ({
-      project: s.project,
+      // Only a comment selection subscribes to the project.
+      project: isComment ? s.project : null,
       guestMode: s.guestMode,
       shareCapabilities: s.shareCapabilities,
       projectPath: s.projectPath,
@@ -42,7 +44,13 @@ export function useCommentSections(
     return [
       section("gone", <p className="ui-field-hint">Comment not found</p>),
     ];
-  if (comment.edit_decision_id) return null;
+  // A comment on a still-pending edit stays with the pending body; a dangling
+  // link (the decision is no longer pending) is a plain comment.
+  if (
+    comment.edit_decision_id &&
+    project?.pending_edits.some((e) => e.id === comment.edit_decision_id)
+  )
+    return null;
 
   const timeLabel = commentTimeLabel(comment);
   const busyReason = busy ? BUSY_REASON : undefined;
