@@ -21,6 +21,8 @@
 
 ### Fixes
 
+* Error and progress text for a share guest that holds a backslash path with no drive or leading folder, such as `Podcasts\ep 12\raw.wav` or `..\host\raw.wav`, is now withheld like other host paths instead of reaching the guest (#2827).
+
 * An over-long ffmpeg command line from a cancellable render or a source-proxy audio pass now fails with `render_command_too_long` instead of a raw OS error, as the other render commands already do (#2104).
 
 * A transcript export saved with CRLF line endings, as Studio writes on Windows, now reads as current when its words are unchanged (#2736). Edited words still read as stale.
