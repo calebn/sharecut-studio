@@ -501,10 +501,15 @@ export const DeepZoom: Story = {
       .map((tick) => tick.textContent ?? "")
       .filter(Boolean);
     await expect(labels.length).toBeGreaterThan(0);
-    const drawnWidth =
-      canvasElement.querySelector(".sys-ruler")?.getBoundingClientRect()
-        .width ?? 0;
-    await expect(labels.length).toBeLessThanOrEqual(Math.ceil(drawnWidth / 64));
+    const rem = Number.parseFloat(
+      getComputedStyle(document.documentElement).fontSize,
+    );
+    const lefts = [...canvasElement.querySelectorAll(".sys-ruler-tick")]
+      .filter((tick) => tick.textContent)
+      .map((tick) => tick.getBoundingClientRect().left)
+      .sort((a, b) => a - b);
+    for (let i = 1; i < lefts.length; i += 1)
+      await expect(lefts[i] - lefts[i - 1]).toBeGreaterThanOrEqual(4 * rem - 1);
     for (const label of labels)
       await expect(label).toMatch(/^\d+:\d{2}\.\d{3}$/);
     await expect(body(canvas)).toHaveAttribute("aria-valuetext", "29:59.950");
