@@ -322,6 +322,24 @@ describe("EndedSessionCard", () => {
       ).toBeInTheDocument();
     });
 
+    it("returns focus to Rename after Enter and after Escape", async () => {
+      await open();
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Session name" }),
+        "A{Enter}",
+      );
+      expect(
+        screen.getByRole("button", { name: "Rename session" }),
+      ).toHaveFocus();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Rename session" }),
+      );
+      await userEvent.keyboard("{Escape}");
+      expect(
+        screen.getByRole("button", { name: "Rename session" }),
+      ).toHaveFocus();
+    });
+
     it("Escape cancels without saving", async () => {
       const { onRename } = await open();
       await userEvent.type(

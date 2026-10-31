@@ -740,6 +740,35 @@ describe("Record stage", () => {
       ).toBeInTheDocument();
     });
 
+    it("re-reads the card when the history head moves (undo or redo of a rename), not for other state", async () => {
+      handoffProject();
+      withAva({ name: "Cold open" });
+      mount();
+      await screen.findByRole("region", { name: "Cold open" });
+      expect(loadHostRecordSessions).toHaveBeenCalledTimes(1);
+      const project = useDawStore.getState().project!;
+      act(() =>
+        useDawStore.getState().hydrate("/tmp/p.json", {
+          ...project,
+          meta: { ...project.meta, name: "Other" },
+        }),
+      );
+      expect(loadHostRecordSessions).toHaveBeenCalledTimes(1);
+      withAva({ name: null });
+      act(() =>
+        useDawStore.getState().hydrate("/tmp/p.json", {
+          ...project,
+          history: { ...project.history, head_id: "h-undo" } as never,
+        }),
+      );
+      await waitFor(() =>
+        expect(loadHostRecordSessions).toHaveBeenCalledTimes(2),
+      );
+      expect(
+        await screen.findByRole("region", { name: "Session 1 · Sun 25 Oct" }),
+      ).toBeInTheDocument();
+    });
+
     it("announces a failed rename and does not read the sessions again", async () => {
       withAva();
       vi.mocked(setRecordSessionNameCommand).mockRejectedValue(

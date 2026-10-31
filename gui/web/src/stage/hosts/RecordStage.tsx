@@ -119,7 +119,12 @@ function RecordStageBody({
   // Any move of the session's clips (the card's own, Undo, Redo, another editor)
   // re-reads the card; the first signature seen for a session is only recorded.
   const shownId = lastSession?.session_id ?? null;
-  const signature = shownId ? sessionClipSignature(clipTracks, shownId) : null;
+  // The history head moves with every undo, redo and edit, so a rename that is
+  // undone or redone (the name is not in the client project) re-reads the card too.
+  const historyHead = project?.history?.head_id ?? null;
+  const signature = shownId
+    ? `${sessionClipSignature(clipTracks, shownId)}|${historyHead}`
+    : null;
   const seen = useRef<{ id: string | null; signature: string | null }>({
     id: null,
     signature: null,

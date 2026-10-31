@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { RecordSessionSummary } from "../../record";
 import { InlineEdit } from "../../system/InlineEdit";
 import {
@@ -157,6 +157,7 @@ export function EndedSessionCard({
   onRename,
 }: EndedSessionCardProps) {
   const [renaming, setRenaming] = useState(false);
+  const renameButton = useRef<HTMLButtonElement>(null);
   const canRename = session.landed && session.number !== null && !!onRename;
   return (
     <section
@@ -169,6 +170,7 @@ export function EndedSessionCard({
         </h2>
         {canRename && !renaming ? (
           <Button
+            ref={renameButton}
             aria-label="Rename session"
             disabledReason={busy ? BUSY_REASON : undefined}
             onClick={() => setRenaming(true)}
@@ -186,7 +188,13 @@ export function EndedSessionCard({
           placeholder="Session name"
           value={session.name ?? ""}
           onCommit={(name) => onRename?.(name)}
-          onEnd={() => setRenaming(false)}
+          onEnd={(how) => {
+            setRenaming(false);
+            if (how !== "blur") {
+              // The button mounts after this update; focus it then.
+              queueMicrotask(() => renameButton.current?.focus());
+            }
+          }}
         />
       ) : null}
       <p className="stage-host-note">{takesLine(session)}</p>
