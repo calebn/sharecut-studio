@@ -2203,6 +2203,17 @@
           "title": "Timeline Start",
           "type": "number"
         },
+        "timing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClipTiming"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "track_id": {
           "title": "Track Id",
           "type": "string"
@@ -2380,6 +2391,46 @@
         "end_s"
       ],
       "title": "ClipOffSpeakerMuteRegion",
+      "type": "object"
+    },
+    "ClipTiming": {
+      "properties": {
+        "evidence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence"
+        },
+        "kind": {
+          "const": "step",
+          "default": "step",
+          "title": "Kind",
+          "type": "string"
+        },
+        "method": {
+          "default": "bleed_lag",
+          "title": "Method",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/TimingStep"
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "steps"
+      ],
+      "title": "ClipTiming",
       "type": "object"
     },
     "CorrectTranscriptPhraseCommand": {
@@ -4822,7 +4873,6 @@
       "type": "object"
     },
     "PendingEditBaseline": {
-      "additionalProperties": false,
       "description": "The saved identity and bounds a pending-edit update was based on.",
       "properties": {
         "end": {
@@ -5009,6 +5059,25 @@
         }
       },
       "title": "ProposeTightenPayload",
+      "type": "object"
+    },
+    "QuietSpan": {
+      "description": "``[start_s, end_s)`` in source seconds that the solver certified quiet.",
+      "properties": {
+        "end_s": {
+          "title": "End S",
+          "type": "number"
+        },
+        "start_s": {
+          "title": "Start S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start_s",
+        "end_s"
+      ],
+      "title": "QuietSpan",
       "type": "object"
     },
     "RangeInterval": {
@@ -10532,6 +10601,35 @@
         }
       },
       "title": "SuppressLowAudibilityPayload",
+      "type": "object"
+    },
+    "TimingStep": {
+      "properties": {
+        "at": {
+          "title": "At",
+          "type": "number"
+        },
+        "delta_sec": {
+          "title": "Delta Sec",
+          "type": "number"
+        },
+        "quiet": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuietSpan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "at",
+        "delta_sec"
+      ],
+      "title": "TimingStep",
       "type": "object"
     },
     "TrimClipEdgeCommand": {
