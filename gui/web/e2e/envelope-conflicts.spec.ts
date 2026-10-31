@@ -220,7 +220,8 @@ test("accepted envelope save does not reclaim a different inspector while respon
         await expect(
           page
             .getByRole("dialog", { name: "Inspector" })
-            .getByRole("heading", { level: 2 }),
+            .getByRole("heading", { level: 2 })
+            .first(),
         ).toHaveText(label);
         const responseDelivered = page.waitForResponse(
           (response) =>
@@ -233,7 +234,8 @@ test("accepted envelope save does not reclaim a different inspector while respon
         await expect(
           page
             .getByRole("dialog", { name: "Inspector" })
-            .getByRole("heading", { level: 2 }),
+            .getByRole("heading", { level: 2 })
+            .first(),
         ).toHaveText(label);
         expect(
           observer.commands.filter((item) => item.type === "SetEnvelope"),

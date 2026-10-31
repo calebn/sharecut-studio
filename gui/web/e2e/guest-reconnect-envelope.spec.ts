@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
   addEnvelopePoint,
+  dismissToast,
   inspectEnvelopePoint,
   pointSheet,
   setPointField,
@@ -160,6 +161,7 @@ test("a guest keeps its envelope editor and baseline resources across socket rec
         sockets: baseline.sockets + CYCLES,
       });
 
+      await dismissToast(guest);
       await pointSheet(guest).getByRole("button", { name: "Close" }).click();
       await phone.showListen(guest);
       await expect(
