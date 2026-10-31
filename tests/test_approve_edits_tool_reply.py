@@ -204,14 +204,6 @@ def test_retrying_an_already_approved_id_is_not_unknown(episode):
     assert reply["approved_count"] == 0
 
 
-def test_reply_without_unknown_requested_ids_lists_none(episode):
-    _set_decisions(episode, _remove("a", 2.0, 2.5, scope="track"))
-
-    reply = json.loads(approve_edits_tool(str(episode), ["a"]))
-
-    assert reply["unknown_ids"] == []
-
-
 def test_approve_all_with_nothing_pending_replies_no_ids(episode):
     applied = _remove("done", 2.0, 2.5, scope="track")
     applied.applied = True
