@@ -375,9 +375,9 @@ def _count_evaluations(monkeypatch: pytest.MonkeyPatch) -> list[Audio]:
     calls: list[Audio] = []
     real = track_evidence._evaluate
 
-    def counting(tree, curve):  # type: ignore[no-untyped-def]
+    def counting(tree, curve, rates=track_evidence._RATES):  # type: ignore[no-untyped-def]
         calls.append(tree)
-        return real(tree, curve)
+        return real(tree, curve, rates)
 
     monkeypatch.setattr(track_evidence, "_evaluate", counting)
     return calls
@@ -451,7 +451,7 @@ def test_the_store_holds_to_its_byte_cap(tmp_path: Path, monkeypatch: pytest.Mon
     defaults = load_defaults()
     one = _project(tmp_path / "one", "fade joins")
     two = _project(tmp_path / "two", "crossfade joins")
-    size = 3 * track_evidence.rms(one, "caleb", defaults).samples.nbytes
+    size = track_evidence.rms(one, "caleb", defaults).samples.nbytes
     calls = _count_evaluations(monkeypatch)
 
     monkeypatch.setattr(track_evidence, "EVIDENCE_CACHE_BYTES", int(size * 1.5))
@@ -603,6 +603,7 @@ def test_rms_then_heard_evaluates_the_tree_once_and_keeps_one_8khz_array(
 ) -> None:
     _ffmpeg_or_skip()
     project = _project(tmp_path, "mixed joins and pads")
+    _with_mutes(project, tmp_path / "project")
     defaults = load_defaults()
     calls = _count_evaluations(monkeypatch)
 

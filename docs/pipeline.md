@@ -677,8 +677,9 @@ and the ungated evidence render stay on `from_timeline_stem`, which keeps nothin
 
 ### Keeping propose's track evidence until Approve (#2359)
 
-Propose builds each chained track's whole-track evidence (`engines/track_evidence.py`, 8 kHz and 16 kHz
-float32, 329 MiB per track-hour) and its batch store died with it, so the check pass and Approve each
+Propose builds each chained track's whole-track evidence (`engines/track_evidence.py`, 8 kHz float32,
+110 MiB per track-hour; 329 MiB with the 16 kHz waveform that only a tree with mute or ignored-word spans
+reads, built in the same pass) and its batch store died with it, so the check pass and Approve each
 resampled the same tracks again. `RetainedEvidence` keeps the finished arrays between batches. A batch
 store is still the front of every read and asks it on a miss, so what a batch holds and which reads take
 a window are unchanged.
