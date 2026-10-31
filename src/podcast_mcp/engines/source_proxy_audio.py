@@ -51,6 +51,7 @@ from podcast_mcp.engines.render_clock import (
     configure_observers,
     format_filter,
     native_format,
+    spawn_or_too_long,
 )
 from podcast_mcp.engines.session_timeline import origin_track_id_for_clip
 from podcast_mcp.engines.timeline_render import (
@@ -292,7 +293,8 @@ def _execute(
 ) -> dict[str, ProxyObservation]:
     graph, stderr = directory / f"{name}.json", directory / f"{name}.stderr"
     with stderr.open("wb") as errors:
-        run(
+        spawn_or_too_long(
+            run,
             [
                 engine.ffmpeg,
                 "-print_graphs_file",
