@@ -16,7 +16,7 @@ import socket
 import sys
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass, field
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -26,6 +26,7 @@ from typing import Any
 import anyio
 import pytest
 import uvicorn
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp.types import CallToolResult
 
 from podcast_mcp.gui.bind import exclusive_listen_socket
@@ -109,6 +110,15 @@ def _wrapped() -> _Direct:
     return server
 
 
+@contextlib.asynccontextmanager
+async def _memory_streams() -> AsyncIterator[
+    tuple[MemoryObjectReceiveStream[object], MemoryObjectSendStream[object]]
+]:
+    write, read = anyio.create_memory_object_stream[object]()
+    async with read, write:
+        yield read, write
+
+
 @dataclass
 class _ShutdownPing:
     pending: threading.Event = field(default_factory=threading.Event)
@@ -129,17 +139,20 @@ def _deadline_peer(
     ping_error: bool = False,
     wedge_call: bool = False,
     shutdown_ping: _ShutdownPing | None = None,
+    strict_cleanup: bool = False,
 ) -> Iterator[tuple[list[str], threading.Event, threading.Event]]:
     methods: list[str] = []
     initialized = threading.Event()
     stop = threading.Event()
+    strict_cleanup = strict_cleanup or shutdown_ping is not None
+    errors = shutdown_ping.errors if shutdown_ping is not None else []
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
         def setup(self) -> None:
             super().setup()
-            if shutdown_ping is not None:
+            if strict_cleanup:
                 self.connection.settimeout(5)
 
         def log_message(self, *_args: Any) -> None:
@@ -260,14 +273,14 @@ def _deadline_peer(
 
     class Server(ThreadingHTTPServer):
         def handle_error(self, request: Any, client_address: Any) -> None:
-            if shutdown_ping is None:
-                super().handle_error(request, client_address)
+            if strict_cleanup:
+                errors.append(repr(sys.exception()))
             else:
-                shutdown_ping.errors.append(repr(sys.exception()))
+                super().handle_error(request, client_address)
 
     peer = Server(("127.0.0.1", 0), Handler)
-    peer.daemon_threads = shutdown_ping is None
-    thread = threading.Thread(target=peer.serve_forever, daemon=shutdown_ping is None)
+    peer.daemon_threads = not strict_cleanup
+    thread = threading.Thread(target=peer.serve_forever, daemon=not strict_cleanup)
     thread.start()
     announce_studio_host(
         project,
@@ -282,9 +295,9 @@ def _deadline_peer(
         peer.shutdown()
         peer.server_close()
         thread.join(3)
-        if shutdown_ping is not None:
+        if strict_cleanup:
             assert not thread.is_alive()
-            assert shutdown_ping.errors == []
+            assert errors == []
 
 
 def test_deadline_peer_accepts_notifications_before_an_ordinary_request(
@@ -385,6 +398,31 @@ def test_initialization_caller_cancellation_propagates_without_replay(
     assert direct.calls == []
 
 
+def test_caller_cancellation_after_the_send_propagates_without_replay(
+    minimal_project: Path,
+) -> None:
+    direct = _wrapped()
+    with _deadline_peer(minimal_project, stalled=False, wedge_call=True, strict_cleanup=True) as (
+        methods,
+        call_started,
+        _,
+    ):
+
+        async def cancel() -> None:
+            call = asyncio.create_task(
+                direct.call_tool("list_clips_tool", {"project_path": str(minimal_project)})
+            )
+            assert await asyncio.to_thread(call_started.wait, 2)
+            call.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(call, 2)
+
+        asyncio.run(cancel())
+    assert methods.count("tools/call") == 1
+    assert "DELETE" not in methods
+    assert direct.calls == []
+
+
 def _heartbeat_every(monkeypatch: pytest.MonkeyPatch, interval: float) -> None:
     import podcast_mcp.mcp.studio_handoff as handoff
 
@@ -445,7 +483,6 @@ def test_a_long_tool_on_a_studio_that_answers_pings_is_not_cut_short(
 def test_a_late_ping_reply_preserves_the_completed_tool_result(
     minimal_project: Path, monkeypatch: pytest.MonkeyPatch, ping_error: bool
 ) -> None:
-    from anyio.streams.memory import MemoryObjectSendStream
     from mcp.shared.message import SessionMessage
     from mcp_types.jsonrpc import JSONRPCError, JSONRPCResponse
 
@@ -484,7 +521,6 @@ def test_a_late_ping_reply_preserves_the_completed_tool_result(
                 closed_readers.append(self.observed_read._inner._closed)
                 order.append("session_closed")
                 shutdown_ping.release.set()
-                # Hold transport exit to exercise a reply after the SDK session closes.
                 with anyio.fail_after(5):
                     await delivered.wait()
                 return result
@@ -536,6 +572,49 @@ def test_a_late_ping_reply_preserves_the_completed_tool_result(
     )
     assert result is completed[0]
     assert result.content[0].text == "finished"
+
+
+def test_transport_exit_failure_after_a_completed_call_reports_a_possible_change(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.mcp.studio_handoff as handoff
+
+    original_transport = handoff.streamable_http_client
+    original_session = handoff.ClientSession
+    completed: list[CallToolResult] = []
+    transport_exited: list[bool] = []
+
+    class ObservedSession(original_session):
+        async def call_tool(self, *args: Any, **kwargs: Any) -> CallToolResult:
+            result = await super().call_tool(*args, **kwargs)
+            completed.append(result)
+            return result
+
+    @contextlib.asynccontextmanager
+    async def failing_transport(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
+        async with original_transport(*args, **kwargs) as streams:
+            yield streams
+        transport_exited.append(True)
+        raise ConnectionError("transport exit failed")
+
+    monkeypatch.setattr(handoff, "ClientSession", ObservedSession)
+    monkeypatch.setattr(handoff, "streamable_http_client", failing_transport)
+    direct = _wrapped()
+    with _deadline_peer(minimal_project, stalled=False, strict_cleanup=True) as (methods, _, _):
+        result = asyncio.run(
+            direct.call_tool("list_clips_tool", {"project_path": str(minimal_project)})
+        )
+
+    assert len(completed) == 1
+    assert not completed[0].is_error
+    assert _text(completed[0]) == "finished"
+    assert transport_exited == [True]
+    assert result.is_error
+    assert "may have changed the project" in _text(result)
+    assert "(ConnectionError)" in _text(result)
+    assert methods.count("tools/call") == 1
+    assert "DELETE" not in methods
+    assert direct.calls == []
 
 
 @pytest.mark.parametrize("progress", [False, True])
@@ -785,6 +864,8 @@ def test_studio_that_stops_answering_after_the_send_reports_a_possible_change(
 ) -> None:
     import podcast_mcp.mcp.studio_handoff as handoff
 
+    calls: list[str] = []
+
     class _Session:
         def __init__(self, *_a: Any) -> None: ...
 
@@ -798,23 +879,18 @@ def test_studio_that_stops_answering_after_the_send_reports_a_possible_change(
             return None
 
         async def call_tool(self, *_a: Any) -> Any:
+            calls.append("tools/call")
             raise ConnectionError("Studio went away")
 
-    class _Streams:
-        async def __aenter__(self) -> tuple[None, None]:
-            return None, None
-
-        async def __aexit__(self, *_a: Any) -> None:
-            return None
-
     monkeypatch.setattr(handoff, "ClientSession", _Session)
-    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _Streams())
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _memory_streams())
     server = _wrapped()
     result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
     assert isinstance(result, CallToolResult)
     assert result.is_error
     assert "may have changed the project" in result.content[0].text  # type: ignore[union-attr]
     assert "(ConnectionError)" in result.content[0].text  # type: ignore[union-attr]
+    assert calls == ["tools/call"]
     assert server.calls == []
 
 
@@ -848,6 +924,8 @@ def test_studio_whose_initialize_fails_after_a_good_ping_stops_the_call(
 ) -> None:
     import podcast_mcp.mcp.studio_handoff as handoff
 
+    initialized: list[bool] = []
+
     class _Session:
         def __init__(self, *_a: Any) -> None: ...
 
@@ -858,17 +936,11 @@ def test_studio_whose_initialize_fails_after_a_good_ping_stops_the_call(
             return None
 
         async def initialize(self) -> None:
+            initialized.append(True)
             raise ConnectionError("initialize failed")
 
-    class _Streams:
-        async def __aenter__(self) -> tuple[None, None]:
-            return None, None
-
-        async def __aexit__(self, *_a: Any) -> None:
-            return None
-
     monkeypatch.setattr(handoff, "ClientSession", _Session)
-    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _Streams())
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _memory_streams())
     server = _wrapped()
     result = asyncio.run(server.call_tool("list_clips_tool", {"project_path": str(studio)}))
     assert isinstance(result, CallToolResult)
@@ -877,6 +949,7 @@ def test_studio_whose_initialize_fails_after_a_good_ping_stops_the_call(
     assert "did not take list_clips_tool" in text
     assert "Nothing was run" in text
     assert "may have changed the project" not in text
+    assert initialized == [True]
     assert server.calls == []
 
 
@@ -938,15 +1011,8 @@ def test_relative_file_arguments_are_made_absolute_before_the_send(
             seen.update(arguments)
             return CallToolResult(content=[])
 
-    class _Streams:
-        async def __aenter__(self) -> tuple[None, None]:
-            return None, None
-
-        async def __aexit__(self, *_a: Any) -> None:
-            return None
-
     monkeypatch.setattr(handoff, "ClientSession", _Session)
-    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _Streams())
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _memory_streams())
     monkeypatch.chdir(tmp_path)
     server = _wrapped()
     asyncio.run(
@@ -1018,15 +1084,8 @@ def _fake_studio_session(monkeypatch: pytest.MonkeyPatch, seen: dict[str, Any], 
                     await callback(float(step), float(ticks), f"step {step}")
             return CallToolResult(content=[])
 
-    class _Streams:
-        async def __aenter__(self) -> tuple[None, None]:
-            return None, None
-
-        async def __aexit__(self, *_a: Any) -> None:
-            return None
-
     monkeypatch.setattr(handoff, "ClientSession", _Session)
-    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _Streams())
+    monkeypatch.setattr(handoff, "streamable_http_client", lambda _url, **_kw: _memory_streams())
 
 
 def test_progress_is_relayed_in_order_with_total_and_message(
