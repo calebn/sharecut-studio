@@ -15,6 +15,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.feed import FeedService
 from podcast_mcp.services.document.transcript import TranscriptService
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.fingerprint import file_stamp
 
 ExportedFileKind = Literal["audio", "transcript", "chapters", "feed"]
 
@@ -87,9 +88,12 @@ class ExportFilesService:
                 return None
             if not resolved.is_file() or not resolved.is_relative_to(root):
                 return None
-            stat = resolved.stat()
+            try:
+                stamp = file_stamp(resolved)
+            except OSError:
+                return None
             return ServedFile(
-                relative, kind, resolved, media_type, f"{stat.st_size}-{stat.st_mtime_ns}"
+                relative, kind, resolved, media_type, f"{stamp.size}-{stamp.mtime_ns}"
             )
 
         wanted: list[tuple[str, ExportedFileKind, str]] = [
