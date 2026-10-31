@@ -51,6 +51,7 @@ from podcast_mcp.engines.level_profile import (
 from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
 from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.engines.ungated_audio import (
+    keep_mono_full,
     load_mono_full,
     raw_samples_on_timeline,
 )
@@ -300,11 +301,13 @@ class TrackRmsCache:
         (``engines/decode_memo.py``). A symlinked recording is decoded through its resolved path.
         Never use it for a temp render or a processed stem.
         """
-        return decode_once(
+        cache = decode_once(
             path,
             sample_rate,
             lambda decoded: cls.from_timeline_stem(decoded, sample_rate=sample_rate),
         )
+        keep_mono_full(path.resolve(), cache.samples, sample_rate=sample_rate)
+        return cache
 
     def _index_range(self, t_start: float, t_end: float) -> tuple[int, int] | None:
         lo = max(0.0, t_start - self.timeline_offset_sec)

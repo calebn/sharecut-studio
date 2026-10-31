@@ -200,6 +200,19 @@ def held_mono_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray | None:
     )
 
 
+def keep_mono_full(path: Path, samples: np.ndarray, *, sample_rate: int = 8000) -> None:
+    """Hand the batch a decode made elsewhere, so :func:`load_mono_full` of the same file reuses it.
+
+    A no-op outside a batch. ``samples`` must be what :func:`load_mono_full` returns for
+    these arguments, and the batch keeps the array as given (read-only).
+    """
+    if snapshot()[0] is None:
+        return
+    scoped_by_file(
+        "decode", path, (sample_rate, None, tuple(ffmpeg_mono_mean_layout(path))), lambda: samples
+    )
+
+
 def load_channels_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray:
     """Every channel of the first audio stream, one column each."""
     probe = probe_media(path)
