@@ -42,7 +42,7 @@ Unknown fields are refused. `content_sha256` is a hash of the sorted media hashe
 | Command | What it does |
 |---|---|
 | `podcast segment save -p PROJECT --name NAME [--kind K] (--clips c1,c2 \| --range 0:00-0:22) [--role R] [--json]` | Cut the clips, or every clip overlapping the timeline range (trimmed to it), into the library as FLAC. Offsets count from the earliest selected clip, so a range that starts in silence loses its lead-in. The role and fader come from the first clip's track. A range that cuts a clip in the middle drops the fade and crossfade at the cut. Clips that overlap on one track get separate lanes. Without `--kind`: a selection starting in the first 120 s is an `intro`, one ending in the last 120 s of the timeline an `outro`, else `other`. The audio is each clip's source window with its mute regions and ignored words baked in, as the episode renders them. It is not the full episode render: track gain, the processing chain and the transcript gate are not applied, and clip fades and joins are stored in the layout, not in the audio (an insert applies them). Clips with room-tone fills, off-speaker mutes or bleed restore are refused with `segment_render_unsupported`, because the episode would sound different. Clips under 10 ms are refused with `segment_clip_too_short`. |
-| `podcast segment list [--json]` | The newest version of each segment. A segment whose newest version is damaged is listed as `DAMAGED` (in `--json`, as `{"id", "damaged": true, "problem", "code"}`), never hidden. |
+| `podcast segment list [--json]` | The newest version of each segment. List reports damage for the newest version of each segment; an older damaged version is not shown. A segment whose newest version is damaged is listed as `DAMAGED` (in `--json`, as `{"id", "version", "damaged": true, "problem", "code"}`), never hidden. |
 | `podcast segment show ID [--json]` | Layout, level and versions of one segment. |
 | `podcast segment remove ID` | Delete a segment and all its versions, damaged or not. |
 | `podcast segment export ID -o FILE` | Write the newest version to a `.sharecutseg` file. |
@@ -53,6 +53,7 @@ Unknown fields are refused. `content_sha256` is a hash of the sorted media hashe
 ## Conflict rules
 
 - The same content as an intact stored version (same `content_sha256`, audio matching its hashes) is `unchanged`: nothing is written and the existing id and version are returned, even when the incoming file has another name. A stored version whose audio is damaged does not count: importing or saving the segment again lands as the next version and repairs the library (`segment remove` clears it for good).
+- Re-importing older content after a newer version exists is `unchanged` too: any intact stored version with the same content counts, and the newer version stays the newest. The same content under a new name returns the existing id, not a new segment.
 - The same name with different content is the next version. The id stays, and an earlier version is never overwritten.
 - A different name with different content is a new segment at version 1.
 
@@ -65,7 +66,7 @@ A zip of `segment.json`, the audio files and `MANIFEST.sha256` (`<sha256>  <name
 - the manifest lists exactly the files in the zip, and `segment.json` names exactly the audio files;
 - every hash matches, and the schema version is known.
 
-Errors: `segment_bundle_invalid`, `segment_hash_mismatch`, `segment_schema_unsupported`, `segment_write_failed` (disk or permission errors). The manifest detects corruption, not forgery: anyone can repack a zip and recompute it, so an import is an integrity check, not a trust decision, and nothing is signed. Reading a stored segment (`get`, `show`, `export`) checks the audio hashes again and raises `segment_hash_mismatch` for a file that was changed or removed; `list` reports such a segment as damaged.
+Errors: `segment_bundle_invalid` (bad zip, names, sizes or manifest), `segment_bundle_unsupported`, `segment_hash_mismatch`, `segment_schema_unsupported`, `segment_invalid` (`segment.json` is not valid or not a segment), `segment_busy` (the library lock is held), `segment_unreadable` (a file in the library cannot be read), `segment_unknown` (no such segment or version) and `segment_write_failed` (disk or permission errors). The manifest detects corruption, not forgery: anyone can repack a zip and recompute it, so an import is an integrity check, not a trust decision, and nothing is signed. Reading a stored segment (`get`, `show`, `export`) checks the audio hashes again and raises `segment_hash_mismatch` for a file that was changed or removed; `list` reports such a segment as damaged.
 
 ## Not built yet
 

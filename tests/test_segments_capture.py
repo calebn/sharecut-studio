@@ -244,3 +244,27 @@ def test_ignored_words_are_muted_in_the_captured_audio(
     )
     capture_segment(workspace, name="Ignored", directory=tmp_path / "cut", clip_ids=["c1"])
     assert seen and seen[0]
+
+
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"off_speaker_mute_regions": [{"start_s": 0.8, "end_s": 0.9}]},
+        {"bleed_restore": {"source_sha256": "a" * 64, "regions": [{"start_s": 0.8, "end_s": 0.9}]}},
+    ],
+)
+def test_a_range_ignores_unrenderable_regions_outside_it(
+    workspace: ProjectWorkspace, tmp_path: Path, update: dict[str, object]
+) -> None:
+    clip = workspace.project.clips[0]
+    workspace.project.clips[0] = Clip.model_validate({**clip.model_dump(mode="json"), **update})
+    # The region sits at source 0.8-0.9 (timeline 10.8-10.9); the range ends at 10.5.
+    segment = capture_segment(
+        workspace, name="Early", directory=tmp_path / "cut", time_range=(10.0, 10.5)
+    )
+    assert segment.duration_sec == pytest.approx(0.5)
+    with pytest.raises(CodedValueError) as raised:
+        capture_segment(
+            workspace, name="Late", directory=tmp_path / "cut2", time_range=(10.0, 10.85)
+        )
+    assert raised.value.code == "segment_render_unsupported"

@@ -60,6 +60,15 @@ def test_unknown_fields_are_refused() -> None:
     assert raised.value.code == "segment_invalid"
 
 
+@pytest.mark.parametrize("version", [True, 1.0, "1", None, 2])
+def test_only_the_integer_one_is_a_known_schema_version(version: object) -> None:
+    with pytest.raises(CodedValueError) as raised:
+        parse_segment(json.dumps(_data(schema_version=version)))
+    assert raised.value.code == "segment_schema_unsupported"
+    with pytest.raises(ValidationError):
+        SegmentFile.model_validate(_data(schema_version=version))
+
+
 def test_another_schema_version_is_unsupported() -> None:
     with pytest.raises(CodedValueError) as raised:
         parse_segment(json.dumps(_data(schema_version=2)))

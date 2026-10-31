@@ -200,10 +200,11 @@
     },
     {
       "id": "durable-stores",
-      "when": "Durable stores (project JSON, session sync sqlite, share registry, cache `prefs.yaml`, show files)",
-      "update": "`docs/persistence.md` — extend an existing store; do not scatter new sidecars. Episode `artifacts/transcript_context.yaml.lock` only coordinates writers; the vocabulary revision lives in context YAML and each transcript's `vocabulary_revision` in project JSON. Show files (`PODCAST_CONFIG_DIR/shows/<id>.yaml`) change only through the show store, under its lock.",
+      "when": "Durable stores (project JSON, session sync sqlite, share registry, cache `prefs.yaml`, show files, segment library)",
+      "update": "`docs/persistence.md`, `docs/segments.md` — extend an existing store; do not scatter new sidecars. Episode `artifacts/transcript_context.yaml.lock` only coordinates writers; the vocabulary revision lives in context YAML and each transcript's `vocabulary_revision` in project JSON. Show files (`PODCAST_CONFIG_DIR/shows/<id>.yaml`) change only through the show store, under its lock. The segment library (`PODCAST_CONFIG_DIR/segments/`) changes only through `segments.store.SegmentStore`, under its lock.",
       "docs": [
-        "docs/persistence.md"
+        "docs/persistence.md",
+        "docs/segments.md"
       ],
       "advisory": {
         "include": [
@@ -222,7 +223,8 @@
           "src/podcast_mcp/services/session_sync/log.py",
           "src/podcast_mcp/services/share_auth/store.py",
           "src/podcast_mcp/services/media/media_store.py",
-          "src/podcast_mcp/services/collaboration/share_registry.py"
+          "src/podcast_mcp/services/collaboration/share_registry.py",
+          "src/podcast_mcp/segments/store.py"
         ]
       }
     },

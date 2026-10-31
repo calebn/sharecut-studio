@@ -113,11 +113,17 @@ def _selected(
 
 
 def _refuse_unrenderable(clip: Clip) -> None:
-    """Raise for clip processing the capture cannot bake in, instead of capturing other audio."""
+    """Raise for clip processing the capture cannot bake in, instead of capturing other audio.
+
+    Only regions inside the saved source window count; a range capture drops the rest.
+    """
     reason: str | None = None
-    if clip.off_speaker_mute_regions:
+    start, end = clip.source_start, clip.source_end
+    if any(r.start_s < end and r.end_s > start for r in clip.off_speaker_mute_regions):
         reason = "off-speaker mutes"
-    elif clip.bleed_restore and clip.bleed_restore.regions:
+    elif clip.bleed_restore and any(
+        r.start_s < end and r.end_s > start for r in clip.bleed_restore.regions
+    ):
         reason = "bleed restore"
     elif room_tone_fills_for_source_window(clip, clip.source_start, clip.source_end):
         reason = "room-tone fills under mutes"
