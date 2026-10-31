@@ -29,23 +29,11 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
   the last use. ``0`` (or a negative number) never releases; a value that is not a finite number
   falls back to the default; one above a day counts as a day. A daemon timer, armed only while the
   memo holds an entry, does the check; if it cannot start, the memo simply keeps its entries.
-* **Spill**: the release (and an eviction past the cap) demotes an entry instead of dropping it: its
-  samples are copied to an unlinked file of the decode spool and read back through a read-only map
-  (``decoded_source.spill``), so the next call after a review pause maps the bytes instead of
-  decoding the recording again, and no anonymous memory stays resident. ``PODCAST_DECODE_MEMO_SPILL_MB``
-  (default 1536; ``0`` or less keeps nothing, which is the memo without this tier) caps the disk it
-  uses, least recently used out first, and ``PODCAST_DECODE_MEMO_SPILL_IDLE_S`` (default 2700, as the
-  retained evidence) drops the tier after that long without a hit. The key, the stat and racy checks
-  and the verify check are the same for a mapped entry, which a hit never promotes back to RAM. The
-  write is never made under the memo lock: a lookup that arrives meanwhile is served from RAM, and the
-  swap happens only if the entry is still the one that was copied. An eviction is demoted by a short
-  background thread, never inside the decode that evicted it, and only while the evicted bytes waiting
-  for it stay under half the cap. Where ``spill_allowed`` says no (Windows, tmpfs, less than the entry
-  plus 2 GiB free) or the write fails, the entry is dropped, as without the tier. Each mapped entry
-  holds one descriptor until its last view is gone; a view handed out earlier stays valid after a
-  release or ``clear``, and at most ``MAX_SPILLED_ENTRIES`` are kept. A different ffmpeg build
-  drops the whole tier. Evicted entries wait in RAM for the writer, so the peak is up to 1.5 times the cap
-  (twice while a release is still writing).
+* **Spill**: the release and an eviction past the cap copy an entry to an unlinked file of the decode
+  spool and serve it from a read-only map (``decoded_source.spill``), under the same key and checks and
+  never promoted back to RAM. ``PODCAST_DECODE_MEMO_SPILL_MB`` (default 1536; ``0`` is the memo without
+  the tier) caps it, least recently used out first, and ``PODCAST_DECODE_MEMO_SPILL_IDLE_S`` (default
+  2700) drops it after that long without a hit. Where the spill is not allowed or fails, the entry is dropped.
 * **Read-only**: with the memo on, every call returns samples that are read-only, whether the
   decode was stored, served, too big, racy or changed under the decode. Only the cap-0 path
   returns the build untouched.
@@ -193,6 +181,10 @@ class DecodeMemo:
         if cap == 0:
             return build(path)
         try:
+            spill_cap = spill_cap_bytes()
+        except Exception:
+            spill_cap = 0
+        try:
             resolved = path.resolve()
             stamp = file_stamp(resolved)
             key: _Key = (str(resolved), stamp, sample_rate, ffmpeg_build_id())
@@ -201,13 +193,9 @@ class DecodeMemo:
         if _now_ns() - max(stamp.mtime_ns, stamp.ctime_ns) < RACY_SECONDS * 1e9:
             self._forget(key, keep=None)
             return _frozen(build(resolved))
-        try:
-            spill_cap = spill_cap_bytes()
-        except Exception:
-            spill_cap = 0
         with self._lock:
             self._drop_other_builds(key[3])
-            if spill_cap == 0 and self._spilled:  # the tier was switched off while running
+            if spill_cap == 0 and self._spilled:
                 for old in list(self._spilled):
                     self._remove(self._spilled, old)
             held = self._find(key)
@@ -224,7 +212,7 @@ class DecodeMemo:
                     held = self._find(key)
                 if held is not None:
                     return self._hit(held, resolved, build)
-                return self._store(key, resolved, build(resolved), cap)
+                return self._store(key, path, resolved, build(resolved), cap, spill_cap)
         finally:
             with self._lock:
                 flight.users -= 1
@@ -239,7 +227,9 @@ class DecodeMemo:
                 raise AssertionError("decode memo hit differs from a fresh decode of the file")
         return dataclasses.replace(held)
 
-    def _store(self, key: _Key, resolved: Path, built: T, cap: int) -> T:
+    def _store(
+        self, key: _Key, path: Path, resolved: Path, built: T, cap: int, spill_cap: int
+    ) -> T:
         try:
             unchanged = file_stamp(resolved) == key[1]
         except OSError:
@@ -249,10 +239,6 @@ class DecodeMemo:
             self._forget(key, keep=None)
             return _frozen(built)
         entry = _frozen(built)
-        try:
-            spill_cap = spill_cap_bytes()
-        except Exception:
-            spill_cap = 0
         queued = False
         with self._lock:
             self._drop_older(key, keep=key)
@@ -444,7 +430,7 @@ class DecodeMemo:
                     self._spilling.discard(key)
                     claimed = None
                     if self._pending.get(key) is not entry:
-                        continue  # dropped or replaced while it was written: the copy is discarded
+                        continue  # dropped or replaced meanwhile
                     self._remove(self._pending, key)
                     if mapped is not None:
                         self._spilled[key] = mapped
