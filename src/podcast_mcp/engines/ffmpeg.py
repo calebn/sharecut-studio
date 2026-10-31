@@ -1819,10 +1819,6 @@ class FFmpegEngine:
         rate: int,
         channels: int,
     ) -> Path:
-        """Write A + ``gap_sec`` of silence + B into ``out`` (pcm_s16le)."""
-        if gap_sec <= 1e-9:
-            return self.join_audio_parts([wav_a, wav_b], out)
-
         silence = out.with_name(f".{out.stem}_gap.wav")
         try:
             run(
