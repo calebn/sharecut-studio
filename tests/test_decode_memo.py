@@ -734,7 +734,7 @@ def test_a_timer_that_cannot_start_leaves_hits_and_stores_working(
 def _content_decode(
     monkeypatch: pytest.MonkeyPatch, link: Path, to: Path, back: Path, *, flip: bool
 ) -> None:
-    def decode(path: Path, *, sample_rate: int = RATE, ffmpeg: str | None = None):  # type: ignore[no-untyped-def]
+    def decode(path: Path, *, sample_rate: int = RATE, ffmpeg: str | None = None) -> np.ndarray:
         if flip:
             link.unlink()
             link.symlink_to(to)
@@ -786,7 +786,9 @@ def test_a_symlink_retargeted_during_the_decode_stores_the_file_it_decoded(
     link.symlink_to(first)
     seen: list[Path] = []
 
-    def retargeting(path: Path, *, sample_rate: int = RATE, ffmpeg: str | None = None):  # type: ignore[no-untyped-def]
+    def retargeting(
+        path: Path, *, sample_rate: int = RATE, ffmpeg: str | None = None
+    ) -> np.ndarray:
         seen.append(path)
         out = np.full(sample_rate, path.read_bytes()[0], dtype=np.float32)
         link.unlink()
