@@ -151,7 +151,7 @@
           "src/podcast_mcp/services/document_sync/handlers/comments.py",
           "gui/web/src/comments/",
           "gui/web/src/api/comments.ts",
-          "gui/web/src/inspector/views/CommentInspector.tsx"
+          "gui/web/src/stage/edit/commentSections.tsx"
         ]
       }
     },

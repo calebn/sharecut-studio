@@ -689,6 +689,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Fate:** replace with a comment popover in place (thread UI owned by spec-review; same component).
 - **Spec:** clicking a comment pin opens a 320 px popover anchored to it: author avatar + name + relative time, body, replies, reply field (Enter sends), resolve check icon in the header. Edit shows it in place; Review shows it in the queue. Same component.
 - **Story to build:** `Edit/CommentPopover` stories `Open`, `WithReplies`, `Resolved`, `Phone`.
+- **Built (#2294 W3b2a):** a bare comment opens as Inspector sheet sections (`stage/edit/commentSections.tsx`, story `System/InspectorSheet` `Comment`): Time (seek), author, status, tracks, body, action items, replies, Reply and Resolve or Reopen. The 320 px popover form with the header resolve check and Enter-to-send is not built; a comment with a linked pending edit still opens the pending body until W3b2b.
 
 ### INS-WORD · Words
 

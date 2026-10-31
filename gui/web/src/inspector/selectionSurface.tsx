@@ -22,7 +22,6 @@ import {
 } from "./relatedRows";
 import { ChapterInspector } from "./views/ChapterInspector";
 import { ClipInspector } from "./views/ClipInspector";
-import { CommentInspector } from "./views/CommentInspector";
 import { PendingEditInspector } from "./views/PendingEditInspector";
 import { SocialClipInspector } from "./views/SocialClipInspector";
 import { TrackInspector } from "./views/TrackInspector";
@@ -184,10 +183,7 @@ export const SELECTION_SURFACES: {
       return linked ? (
         <PendingEditInspector edit={linked} />
       ) : (
-        <CommentInspector
-          comment={comment}
-          onSeek={(sec) => void seekTransport(sec)}
-        />
+        <SectionsBody withRange={false} />
       );
     },
   },
