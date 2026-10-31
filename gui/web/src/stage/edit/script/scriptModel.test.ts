@@ -4,6 +4,7 @@ import type {
   CombinedUtterance,
   EditBoundaryView,
   PendingEditView,
+  Selection,
   TranscriptWordView,
 } from "../../../types/project";
 import {
@@ -372,6 +373,39 @@ describe("scriptSelectionOf", () => {
         endWordIndex: 9,
       }),
     ).toBeNull();
+  });
+});
+
+describe("scriptSelectionOf across tracks", () => {
+  const model = buildScriptModel(input([HOST, GUEST]));
+  const range = (start: number, end: number, track_ids: string[]) =>
+    ({
+      kind: "range",
+      target: {
+        kind: "exact_range",
+        intervals: [{ start, end }],
+        track_ids,
+        clips: [],
+        media_seals: {},
+      },
+    }) as unknown as Selection;
+
+  it("draws the range a cross-track selection made, from its first to its last word", () => {
+    const target = wordsTargetOf(model, { kind: "words", anchor: 1, head: 4 });
+    if (target?.kind !== "time") throw new Error("expected a time target");
+    expect(
+      scriptSelectionOf(
+        model,
+        range(target.start, target.end, [...target.trackIds]),
+      ),
+    ).toEqual({ kind: "words", anchor: 1, head: 4 });
+  });
+
+  it("ignores words on tracks the range does not cover, and a range with no word", () => {
+    expect(scriptSelectionOf(model, range(0, 1000, ["guest"]))).toMatchObject({
+      anchor: 3,
+    });
+    expect(scriptSelectionOf(model, range(500, 600, ["host"]))).toBeNull();
   });
 });
 

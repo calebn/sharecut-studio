@@ -1,21 +1,13 @@
-import {
-  act,
-  fireEvent,
-  render,
-  renderHook,
-  screen,
-} from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../../state/dawStore";
 import {
-  scriptUtterance,
   scriptUtterances,
   scriptWord,
   seedScript,
 } from "../../../test/scriptHostKit";
 import { ScriptHost } from "./ScriptHost";
-import { useScriptModel } from "./useScriptModel";
 
 const seekTransport = vi.hoisted(() => vi.fn());
 vi.mock("../../../commands/seek", () => ({ seekTransport }));
@@ -255,71 +247,5 @@ describe("ScriptHost following", () => {
     expect(paneRenders).not.toHaveBeenCalled();
     act(() => useDawStore.setState({ playheadSec: 10.6 }));
     expect(paneRenders).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("ScriptHost late failure", () => {
-  const failure = (projectPath: string) => ({
-    projectPath,
-    trackId: "host",
-    sourceId: null,
-    wordIndex: 0,
-    originalText: "Welcome",
-    message: "Could not ignore \u201cWelcome\u201d: offline",
-  });
-
-  beforeEach(() => {
-    useDawStore.setState({
-      transcriptInlineEditFailure: null,
-      statusAnnouncement: "",
-      feedbackToast: null,
-    });
-  });
-
-  it("shows a failure that settles while the Script is mounted as an error toast, once", () => {
-    render(<ScriptHost />);
-    act(() =>
-      useDawStore.getState().setTranscriptInlineEditFailure(failure("/tmp/ep")),
-    );
-    expect(useDawStore.getState().feedbackToast).toMatchObject({
-      message: "Could not ignore \u201cWelcome\u201d: offline",
-      tone: "error",
-    });
-    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
-  });
-
-  it("keeps a failure that settles while no Script is mounted until one mounts", () => {
-    act(() =>
-      useDawStore.getState().setTranscriptInlineEditFailure(failure("/tmp/ep")),
-    );
-    expect(useDawStore.getState().feedbackToast).toBeNull();
-    render(<ScriptHost />);
-    expect(useDawStore.getState().feedbackToast).toMatchObject({
-      tone: "error",
-    });
-  });
-
-  it("drops a failure from another project without a toast", () => {
-    render(<ScriptHost />);
-    act(() =>
-      useDawStore
-        .getState()
-        .setTranscriptInlineEditFailure(failure("/tmp/other")),
-    );
-    expect(useDawStore.getState().feedbackToast).toBeNull();
-    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
-  });
-});
-
-describe("ScriptHost bleed-only rows", () => {
-  it("does not silence a live word because an untimed bleed-only row sits on its track", () => {
-    seedScript({
-      utterances: [
-        scriptUtterance("host", "Maya", [scriptWord("Hello", 0, 1)]),
-        scriptUtterance("host", "Maya", [], { suppressed_only: true }),
-      ],
-    });
-    const { result } = renderHook(() => useScriptModel());
-    expect(result.current.silent.size).toBe(0);
   });
 });

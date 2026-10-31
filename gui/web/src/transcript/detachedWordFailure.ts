@@ -51,7 +51,7 @@ export function detachedWordFailure({
 }
 
 /**
- * Store a detached failure for the Script to say (useScriptLateFailure). It
+ * Store a detached failure for the frame to say (useLateWordFailure). It
  * lives in the DAW store, so it outlives the editor and the Inspector.
  */
 export function reportDetachedWordFailure(
