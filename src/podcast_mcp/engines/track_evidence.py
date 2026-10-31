@@ -119,6 +119,9 @@ class _Entry:
     def nbytes(self) -> int:
         return sum(array.nbytes for array in self.samples.values())
 
+    def has(self, rates: Collection[int]) -> bool:
+        return all(rate in self.samples for rate in rates)
+
     def cache(self, rate: int) -> TrackRmsCache:
         with self._profiles_lock:
             if rate not in self._profiles:
@@ -139,7 +142,7 @@ class HeardAudio:
 
 def heard(project: EpisodeProject, track_id: str, defaults: EffectiveConfig) -> HeardAudio:
     """Return the track as heard, with the transcript gate off and the effects chain left out, at both evidence resolutions."""
-    entry = _entry(project, track_id, defaults, locked=False)
+    entry = _entry(project, track_id, defaults, locked=False, rates=_RATES)
     if isinstance(entry, Declined):
         with _rendered(project, track_id, defaults, entry, locked=False) as path, unscoped():
             return HeardAudio(
@@ -188,7 +191,11 @@ def rms_readers(
             planned[track_id] = exc
     missing: dict[EvidenceKey, Audio] = {}
     for plan in planned.values():
-        if isinstance(plan, tuple) and plan[0] not in missing and not store.holds(plan[0]):
+        if (
+            isinstance(plan, tuple)
+            and plan[0] not in missing
+            and not store.holds(plan[0], _rates(plan[1]))
+        ):
             missing[plan[0]] = plan[1]
     evaluated: dict[EvidenceKey, _Entry | Declined | Exception] = {}
     if len(missing) > 1:
@@ -210,7 +217,7 @@ def rms_readers(
         elif plan[0] in evaluated:
             entry = evaluated[plan[0]]
         else:
-            entry = store.get_or_build(plan[0], partial(_produce, plan[0], plan[1]))
+            entry = _stored(store, plan[0], plan[1])
         if isinstance(entry, Exception):
             raise entry
         if isinstance(entry, Declined):
@@ -263,7 +270,7 @@ def plan_window(
     if isinstance(planned, Declined):
         return None
     key, tree = planned
-    if _store().holds(key) or not single_layout(tree):
+    if _store().holds(key, _rates(tree)) or not single_layout(tree):
         return None
     rate = common_rate(tree)
     if rate is None:
@@ -320,9 +327,17 @@ def _verify_window(window: WindowedTrackRmsCache, whole: _Entry | Declined) -> N
 
 def _build_or_error(store: _Store, key: EvidenceKey, tree: Audio) -> _Entry | Declined | Exception:
     try:
-        return store.get_or_build(key, partial(_produce, key, tree))
+        return _stored(store, key, tree)
     except Exception as exc:
         return exc
+
+
+def _stored(
+    store: _Store, key: EvidenceKey, tree: Audio, rates: tuple[int, ...] | None = None
+) -> _Entry | Declined:
+    """The store's evidence of ``key`` at ``rates`` (the tree's own set when none), built on a miss."""
+    rates = _rates(tree) if rates is None else rates
+    return store.get_or_build(key, partial(_produce, key, tree, rates), rates)
 
 
 def _plan(
@@ -348,6 +363,16 @@ def _plan(
     return EvidenceKey(tree, curve, revisions), tree
 
 
+def _rates(tree: Audio) -> tuple[int, ...]:
+    """The rates the tree's evidence is built at: both when any source carries a mute span, else 8 kHz.
+
+    Only :func:`heard` reads the waveform rate, and only for a cut that overlaps a mute span of
+    its tree. The spans are part of the key, so the set is a function of the key: one key is
+    always built at one set, in one pass, and never merged from two.
+    """
+    return _RATES if any(leaf.mute_spans for leaf in sources(tree)) else (JUMP_SAMPLE_RATE,)
+
+
 def _stamps(tree: Audio) -> tuple[FileStamp, ...]:
     """The stamp of every file the tree reads, in path order: the key's ``revisions``."""
     paths = {
@@ -356,8 +381,10 @@ def _stamps(tree: Audio) -> tuple[FileStamp, ...]:
     return tuple(file_stamp(path) for path in sorted(paths))
 
 
-def _evaluate(tree: Audio, curve: str) -> Evidence | Declined:
-    """Evaluate ``tree`` in one pass and return its samples at both evidence rates, or the reason the evaluator cannot take it.
+def _evaluate(tree: Audio, curve: str, rates: tuple[int, ...] = _RATES) -> Evidence | Declined:
+    """Evaluate ``tree`` in one pass and return its samples at ``rates``, or the reason the evaluator cannot take it.
+
+    A decline does not depend on ``rates``.
 
     The evaluator works in chunks at the sources' own rate and converts once per rate, as
     decoding the render's wav does. Slices start between samples, so slicing a decode at the
@@ -368,13 +395,14 @@ def _evaluate(tree: Audio, curve: str) -> Evidence | Declined:
     rate = common_rate(tree)
     if rate is None:
         return Declined.MIXED_RATE
+    _LOG.info("evidence build rates=%s", rates)
     with decoded_sources(rate) as reader:
         samples = evaluate_resampled(
             tree,
             crossfade_curve=curve,
             reader=reader,
             sample_rate=rate,
-            target_rates=_RATES,
+            target_rates=rates,
             resample=FFmpegEngine.resample_streams,
         )
     if samples is None or not all(array.size for array in samples.values()):
@@ -383,14 +411,19 @@ def _evaluate(tree: Audio, curve: str) -> Evidence | Declined:
 
 
 def _entry(
-    project: EpisodeProject, track_id: str, defaults: EffectiveConfig, *, locked: bool
+    project: EpisodeProject,
+    track_id: str,
+    defaults: EffectiveConfig,
+    *,
+    locked: bool,
+    rates: tuple[int, ...] | None = None,
 ) -> _Entry | Declined:
     with project_state_lock(project) if locked else nullcontext():
         planned = _plan(project, track_id, defaults)
     if isinstance(planned, Declined):
         return planned
     key, tree = planned
-    return _store().get_or_build(key, partial(_produce, key, tree))
+    return _stored(_store(), key, tree, rates)
 
 
 class _Store:
@@ -404,10 +437,18 @@ class _Store:
         self._building: dict[EvidenceKey, threading.Lock] = {}
 
     def get_or_build(
-        self, key: EvidenceKey, build: Callable[[], Evidence | Declined | _Entry]
+        self,
+        key: EvidenceKey,
+        build: Callable[[], Evidence | Declined | _Entry],
+        rates: tuple[int, ...] = _RATES,
     ) -> _Entry | Declined:
+        """The evidence of ``key`` at ``rates``; ``build()`` makes exactly those on a miss.
+
+        An entry that lacks one of ``rates`` is a miss: ``build()`` replaces it with an entry that
+        holds all of them, from one pass over the sources.
+        """
         with self._lock:
-            known = self._find(key)
+            known = self._find(key, rates)
             builder = (
                 None if known is not None else self._building.setdefault(key, threading.Lock())
             )
@@ -419,9 +460,12 @@ class _Store:
         with builder:
             try:
                 with self._lock:
-                    known = self._find(key)
+                    known = self._find(key, rates)
+                    narrower = key in self._entries
                 if known is not None:
                     return known
+                if narrower:
+                    _LOG.warning("evidence held at narrower rates than %s: rebuilding it", rates)
                 built = build()
                 if isinstance(built, Declined):
                     with self._lock:
@@ -437,15 +481,17 @@ class _Store:
                 return entry
             finally:
                 with self._lock:
-                    self._building.pop(key, None)
+                    if self._building.get(key) is builder:
+                        del self._building[key]
 
-    def holds(self, key: EvidenceKey) -> bool:
+    def holds(self, key: EvidenceKey, rates: Collection[int]) -> bool:
         with self._lock:
-            return key in self._entries or key in self._declined
+            entry = self._entries.get(key)
+            return key in self._declined or (entry is not None and entry.has(rates))
 
-    def _find(self, key: EvidenceKey) -> _Entry | Declined | None:
+    def _find(self, key: EvidenceKey, rates: Collection[int]) -> _Entry | Declined | None:
         entry = self._entries.get(key)
-        if entry is not None:
+        if entry is not None and entry.has(rates):
             self._entries.move_to_end(key)
             return entry
         return self._declined.get(key)
@@ -454,6 +500,8 @@ class _Store:
         with self._lock:
             if entry.nbytes > EVIDENCE_CACHE_BYTES:
                 return
+            if (replaced := self._entries.pop(key, None)) is not None:
+                self._bytes -= replaced.nbytes
             self._entries[key] = entry
             self._bytes += entry.nbytes
             while self._bytes > EVIDENCE_CACHE_BYTES:
@@ -507,9 +555,14 @@ def _superseded(old: EvidenceKey, new: EvidenceKey) -> bool:
     return old.tree == new.tree and old.curve == new.curve and old.revisions != new.revisions
 
 
-def _produce(key: EvidenceKey, tree: Audio) -> Evidence | Declined | _Entry:
-    """What a batch store builds a missing key from: retained evidence, else a fresh evaluation."""
-    return _RETAINED.get_or_build(key, tree, lambda: _evaluate(tree, key.curve))
+def _produce(
+    key: EvidenceKey, tree: Audio, rates: tuple[int, ...] = _RATES
+) -> Evidence | Declined | _Entry:
+    """What a batch store builds a missing key from: retained evidence, else a fresh evaluation.
+
+    The answer holds at least ``rates``; the store uses it as it is.
+    """
+    return _RETAINED.get_or_build(key, tree, lambda: _evaluate(tree, key.curve, rates), rates)
 
 
 class RetainedEvidence:
@@ -532,15 +585,22 @@ class RetainedEvidence:
         self._ffmpeg: tuple[object, ...] | None = None
 
     def get_or_build(
-        self, key: EvidenceKey, tree: Audio, build: Callable[[], Evidence | Declined]
+        self,
+        key: EvidenceKey,
+        tree: Audio,
+        build: Callable[[], Evidence | Declined],
+        rates: tuple[int, ...] = _RATES,
     ) -> Evidence | Declined | _Entry:
-        """The kept evidence of ``key``, else ``build()``, kept when that is exact and fits."""
+        """The kept evidence of ``key`` at ``rates``, else ``build()`` of those, kept when that is exact and fits.
+
+        Kept evidence that lacks one of ``rates`` is replaced by the new build, never merged with it.
+        """
         cap = keep_bytes()
         if cap == 0 or os.name == "nt":
             self.clear()
             return build()
         with self._lock:
-            known = self._find(key)
+            known = self._find(key, rates)
             builder = (
                 None if known is not None else self._building.setdefault(key, threading.Lock())
             )
@@ -550,7 +610,7 @@ class RetainedEvidence:
         with builder:
             try:
                 with self._lock:
-                    known = self._find(key)
+                    known = self._find(key, rates)
                 if known is not None:
                     return self._hit(known, build)
                 return self._keep(key, tree, build, cap)
@@ -624,10 +684,12 @@ class RetainedEvidence:
             started - max(stamp.mtime_ns, stamp.ctime_ns) >= RACY_SECONDS * 1e9 for stamp in stamps
         )
 
-    def _find(self, key: EvidenceKey) -> _Entry | Declined | None:
-        found: _Entry | Declined | None = self._entries.get(key)
-        if found is not None:
+    def _find(self, key: EvidenceKey, rates: Collection[int]) -> _Entry | Declined | None:
+        entry = self._entries.get(key)
+        found: _Entry | Declined | None
+        if entry is not None and entry.has(rates):
             self._entries.move_to_end(key)
+            found = entry
         else:
             found = self._declined.get(key)
         if found is not None:
@@ -707,7 +769,8 @@ def _verify(stored: _Entry, rebuilt: Evidence | Declined | _Entry) -> None:
     if isinstance(rebuilt, _Entry):
         rebuilt = rebuilt.samples
     if isinstance(rebuilt, Declined) or any(
-        stored.samples[rate].shape != array.shape
+        rate not in stored.samples
+        or stored.samples[rate].shape != array.shape
         or not np.array_equal(stored.samples[rate].view(np.uint32), array.view(np.uint32))
         for rate, array in rebuilt.items()
     ):

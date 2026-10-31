@@ -146,9 +146,9 @@ class _Counts:
         real_plan, real_build = track_evidence.plan_window, track_evidence.build_window
         real_whole = cut_proof.CarriedTimelineRms.whole
 
-        def evaluate(tree, curve):  # type: ignore[no-untyped-def]
+        def evaluate(tree, curve, rates=track_evidence._RATES):  # type: ignore[no-untyped-def]
             self.whole.append(curve)
-            return real_eval(tree, curve)
+            return real_eval(tree, curve, rates)
 
         def plan(*args, **kwargs):  # type: ignore[no-untyped-def]
             found = real_plan(*args, **kwargs)

@@ -639,7 +639,7 @@ def test_the_window_is_not_kept_with_the_tracks_whole_evidence(tmp_path: Path) -
         store = track_evidence._store()
         planned = track_evidence._plan(project, "caleb", load_defaults())
         assert not isinstance(planned, Declined)
-        assert not store.holds(planned[0])
+        assert not store.holds(planned[0], (RATE,))
 
 
 def test_a_window_holds_the_slack_either_side_of_the_seconds_asked(tmp_path: Path) -> None:
