@@ -262,6 +262,9 @@ export const Comment: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
+      canvas.getByRole("heading", { name: "Comment" }),
+    ).toBeVisible();
+    await expect(
       canvas.getByRole("textbox", { name: "Reply to comment" }),
     ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Resolve" })).toBeVisible();
