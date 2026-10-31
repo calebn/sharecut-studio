@@ -2942,7 +2942,7 @@ test("System/Envelope a drag shows the level and time in a chip, holds the point
   await expect(chip).toHaveCount(0);
   await expect(
     page.getByRole("slider", { name: "Envelope point 2" }),
-  ).toHaveAttribute("aria-valuetext", "\u221215.9 dB at 0:05.0");
+  ).toHaveAttribute("aria-valuetext", "\u221215.9 dB at 0:05.00");
   // The next point is at 7.2 s, 172.8 px from the lane's edge.
   await page.mouse.move(now.x, now.y);
   await page.mouse.down();
@@ -2951,7 +2951,7 @@ test("System/Envelope a drag shows the level and time in a chip, holds the point
   await page.mouse.up();
   await expect(
     page.getByRole("slider", { name: "Envelope point 2" }),
-  ).toHaveAttribute("aria-valuetext", "\u221215.9 dB at 0:07.2");
+  ).toHaveAttribute("aria-valuetext", "\u221215.9 dB at 0:07.20");
   const lane = await boxOf(page, ".sys-lane", 0);
   const stopped = await centreOf(envPoint(page, "env-2"));
   expect(Math.abs(stopped.x - (lane.x + 7.199 * 24))).toBeLessThanOrEqual(0.5);
@@ -2980,7 +2980,7 @@ test("System/Envelope Escape ends a drag without committing, and the keymap neve
   await expect(page.locator(".sys-readout")).toHaveCount(0);
   await expect(
     page.getByRole("slider", { name: "Envelope point 4" }),
-  ).toHaveAttribute("aria-valuetext", "\u221212.0 dB at 0:10.0");
+  ).toHaveAttribute("aria-valuetext", "\u221212.0 dB at 0:10.00");
   expect(
     await page.evaluate(() => (window as never as { heard: string[] }).heard),
   ).toEqual([]);
@@ -3120,7 +3120,7 @@ test("System/Envelope the keymap never hears the keys a focused point handles, a
   await page.keyboard.press("ArrowRight");
   await expect(three).toHaveAttribute(
     "aria-valuetext",
-    "\u22127.5 dB at 0:07.2",
+    "\u22127.5 dB at 0:07.21",
   );
   await page.keyboard.press("Alt+ArrowRight");
   await expect(
@@ -3159,7 +3159,10 @@ test("System/Envelope read-only: a point is selected but not dragged, nudged or 
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Backspace");
   await expect(page.locator(".sys-env-point")).toHaveCount(5);
-  await expect(two).toHaveAttribute("aria-valuetext", "\u22126.0 dB at 0:04.0");
+  await expect(two).toHaveAttribute(
+    "aria-valuetext",
+    "\u22126.0 dB at 0:04.00",
+  );
   const lane = await boxOf(page, ".sys-lane", 0);
   await page.mouse.click(lane.x + 13 * 24 + 40, lane.y + dbToY(0, 72));
   await expect(page.locator(".sys-env-point")).toHaveCount(5);
