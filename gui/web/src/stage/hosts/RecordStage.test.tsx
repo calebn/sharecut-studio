@@ -2,7 +2,11 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadHostRecordSessions, loadHostRecordState } from "../../api";
+import {
+  addTrackCommand,
+  loadHostRecordSessions,
+  loadHostRecordState,
+} from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { HostRoomProvider } from "../../record/hostRoomContext";
@@ -102,6 +106,7 @@ const revokeHostRoom = vi.fn(async () => undefined);
 
 vi.mock("../../api", () => ({
   loadHostRecordState: vi.fn(async () => null),
+  addTrackCommand: vi.fn(),
   loadHostRecordSessions: vi.fn(async () => []),
   revokeHostRoom: (...args: unknown[]) => revokeHostRoom(...(args as [])),
   hostRecordUploadTransport: () => ({
@@ -184,6 +189,7 @@ beforeEach(() => {
   uploadStatus.mockResolvedValue({ segments: [] });
   vi.mocked(loadHostRecordSessions).mockReset();
   vi.mocked(loadHostRecordSessions).mockResolvedValue([]);
+  vi.mocked(addTrackCommand).mockReset();
   vi.mocked(loadHostRecordState).mockReset();
   vi.mocked(loadHostRecordState).mockImplementation(
     async () => useRecordHostStore.getState().snapshot,
@@ -489,6 +495,158 @@ describe("Record stage", () => {
         ),
       );
       expect(loadHostRecordSessions).toHaveBeenCalledTimes(1);
+    });
+
+    const handoffProject = () => {
+      const row = (id: string, track: string, source: string, start: number) =>
+        ({
+          id,
+          track_id: track,
+          source_id: source,
+          timeline_start: start,
+        }) as never;
+      useDawStore.getState().hydrate("/tmp/p.json", {
+        ...minimalProject(),
+        tracks: [{ id: "t_ava", label: "Ava" }] as never,
+        clips: {
+          clip_count: 4,
+          tracks: {
+            t_ava: [
+              row("c1", "t_ava", "rec-old-1-p_g-x", 42.5),
+              row("c2", "t_ava", "rec-old-0-p_g-x", 12.25),
+              row("c3", "t_ava", "rec-older-0-p_g-x", 1),
+            ],
+          },
+        },
+      });
+    };
+    const withAva = (over: object = {}) =>
+      vi.mocked(loadHostRecordSessions).mockResolvedValue([
+        {
+          ...ended,
+          participants: [{ ...ended.participants[0], track_id: "t_ava" }],
+          ...over,
+        },
+      ]);
+
+    it("Edit Session 1 opens Edit, seeks to the session start and selects its clips", async () => {
+      handoffProject();
+      withAva();
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Edit Session 1" }),
+      );
+      await waitFor(() =>
+        expect(useDawStore.getState().selection).toEqual({
+          kind: "clip",
+          id: "c2",
+          trackId: "t_ava",
+          ids: ["c2", "c1"],
+        }),
+      );
+      const ids = (exec.mock.calls as unknown[][]).map((c) => c[0]);
+      expect(ids).toEqual(["stage.edit", "transport.seek"]);
+      expect(exec).toHaveBeenNthCalledWith(
+        2,
+        "transport.seek",
+        { sec: 12.25 },
+        { skipWhen: true },
+      );
+    });
+
+    it("offers no Edit button without clips or before landing", async () => {
+      useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+      withAva();
+      const { unmount } = mount();
+      await screen.findByRole("region", { name: /^Session 1/ });
+      expect(
+        screen.queryByRole("button", { name: /^Edit session/i }),
+      ).not.toBeInTheDocument();
+      unmount();
+      handoffProject();
+      withAva({ landed: false });
+      mount();
+      await screen.findByRole("region", { name: /^Session 1/ });
+      expect(
+        screen.queryByRole("button", { name: /^Edit session/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("New track makes a track named for the person, then moves their clips there keeping starts", async () => {
+      handoffProject();
+      withAva();
+      vi.mocked(addTrackCommand).mockResolvedValue({ track_id: "ava_2" });
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Track for Ava: Ava" }),
+      );
+      const items = screen.getAllByRole("menuitemradio");
+      expect(items.map((i) => i.textContent)).toEqual(["Ava"]);
+      await userEvent.click(
+        screen.getByRole("menuitem", { name: "New track" }),
+      );
+      await waitFor(() =>
+        expect(exec).toHaveBeenCalledWith(
+          "edit.moveClips",
+          {
+            clips: [
+              { clip_id: "c1", timeline_start: 42.5, track_id: "ava_2" },
+              { clip_id: "c2", timeline_start: 12.25, track_id: "ava_2" },
+            ],
+          },
+          { skipWhen: true },
+        ),
+      );
+      expect(addTrackCommand).toHaveBeenCalledWith("/tmp/p.json", {
+        label: "Ava",
+        speaker: "Ava",
+      });
+    });
+
+    it("announces a failed move after New track and leaves the empty track", async () => {
+      handoffProject();
+      withAva();
+      vi.mocked(addTrackCommand).mockResolvedValue({ track_id: "ava_2" });
+      exec.mockResolvedValue({
+        status: "disabled",
+        reason: "Unknown clip or track",
+      } as never);
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Track for Ava: Ava" }),
+      );
+      await userEvent.click(
+        screen.getByRole("menuitem", { name: "New track" }),
+      );
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Could not change the track: Unknown clip or track",
+        ),
+      );
+      expect(addTrackCommand).toHaveBeenCalledTimes(1);
+    });
+
+    it("announces when the track itself cannot be made and moves nothing", async () => {
+      handoffProject();
+      withAva();
+      vi.mocked(addTrackCommand).mockRejectedValue(new Error("Server down"));
+      mount();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Track for Ava: Ava" }),
+      );
+      await userEvent.click(
+        screen.getByRole("menuitem", { name: "New track" }),
+      );
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Could not change the track: Server down",
+        ),
+      );
+      expect(exec).not.toHaveBeenCalledWith(
+        "edit.moveClips",
+        expect.anything(),
+        expect.anything(),
+      );
     });
 
     it("keeps Create record room when the last session has no number", async () => {

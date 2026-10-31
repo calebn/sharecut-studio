@@ -6,6 +6,7 @@ import {
   recordSourcePrefix,
   remapMoves,
   sessionClipSignature,
+  sessionHandoff,
 } from "./recordRemapModel";
 
 const clip = (id: string, source: string | null, start: number, track = "t1") =>
@@ -76,5 +77,38 @@ describe("recordRemapModel", () => {
     const before = sessionClipSignature(tracks, "s1");
     expect(before).toBe("c1:t1|c2:t1|c3:t1|c7:t2");
     expect(sessionClipSignature(undefined, "s1")).toBe("");
+  });
+
+  describe("sessionHandoff", () => {
+    it("starts at the earliest clip of the session, every participant, never another session", () => {
+      const handoff = sessionHandoff(tracks, "s1");
+      expect(handoff).toEqual({
+        startSec: 1.5,
+        primary: { id: "c1", trackId: "t1" },
+        clipIds: ["c1", "c3", "c7", "c2"],
+      });
+      expect(sessionHandoff(tracks, "s2")?.startSec).toBe(5);
+    });
+
+    it("does not mistake rec-s1- for rec-s10-", () => {
+      expect(sessionHandoff({ t2: [tracks.t2[0]] }, "s1")).toBeNull();
+      expect(sessionHandoff({ t2: [tracks.t2[0]] }, "s10")?.clipIds).toEqual([
+        "c5",
+      ]);
+    });
+
+    it("is null without clips or tracks", () => {
+      expect(sessionHandoff(tracks, "gone")).toBeNull();
+      expect(sessionHandoff({}, "s1")).toBeNull();
+      expect(sessionHandoff(undefined, "s1")).toBeNull();
+    });
+
+    it("falls back to the lane key when a row has no track id", () => {
+      const row = { ...clip("c9", "rec-s3-0-pa-x", 7), track_id: "" };
+      expect(sessionHandoff({ lane: [row] }, "s3")?.primary).toEqual({
+        id: "c9",
+        trackId: "lane",
+      });
+    });
   });
 });

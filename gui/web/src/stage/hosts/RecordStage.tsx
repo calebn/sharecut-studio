@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { addTrackCommand } from "../../api";
 import {
   executePointerCommand,
   runPointerCommand,
@@ -50,6 +51,7 @@ import {
   movableParticipants,
   remapMoves,
   sessionClipSignature,
+  sessionHandoff,
 } from "./recordRemapModel";
 import {
   firstClipped,
@@ -128,8 +130,17 @@ function RecordStageBody({
       refreshLastSession();
     }
   }, [shownId, signature, refreshLastSession]);
-  const remap = async (participantId: string, trackId: string) => {
-    if (!lastSession || remapBusy) {
+  const handoff = useMemo(
+    () =>
+      lastSession?.landed
+        ? sessionHandoff(clipTracks, lastSession.session_id)
+        : null,
+    [clipTracks, lastSession],
+  );
+  const failRemap = (why: string) =>
+    announceStatus(`Could not change the track: ${why}`, { tone: "error" });
+  const moveTo = async (participantId: string, trackId: string) => {
+    if (!lastSession) {
       return;
     }
     const clips = remapMoves(
@@ -141,18 +152,67 @@ function RecordStageBody({
     if (clips.length === 0) {
       return;
     }
+    const result = await executePointerCommand("edit.moveClips", { clips });
+    if (result.status !== "ok") {
+      failRemap(result.status === "disabled" ? result.reason : "try again");
+    }
+  };
+  const remap = async (participantId: string, trackId: string) => {
+    if (remapBusy) {
+      return;
+    }
     setRemapBusy(true);
     try {
-      const result = await executePointerCommand("edit.moveClips", { clips });
-      if (result.status !== "ok") {
-        const why = result.status === "disabled" ? result.reason : "try again";
-        announceStatus(`Could not change the track: ${why}`, {
-          tone: "error",
-        });
-      }
+      await moveTo(participantId, trackId);
     } finally {
       setRemapBusy(false);
     }
+  };
+  // The track is made first and stays, empty, if the move then fails.
+  const newTrack = async (participantId: string) => {
+    const person = lastSession?.participants.find(
+      (p) => p.participant_id === participantId,
+    );
+    if (!lastSession || !person || remapBusy) {
+      return;
+    }
+    if (
+      remapMoves(clipTracks, lastSession.session_id, participantId, "")
+        .length === 0
+    ) {
+      return;
+    }
+    setRemapBusy(true);
+    try {
+      const name = person.display_name.trim() || "Guest";
+      const reply = await addTrackCommand(projectPath, {
+        label: name,
+        speaker: name,
+      });
+      const trackId = reply.track_id;
+      if (typeof trackId !== "string") {
+        failRemap("try again");
+        return;
+      }
+      await moveTo(participantId, trackId);
+    } catch (e) {
+      failRemap(e instanceof Error ? e.message : "try again");
+    } finally {
+      setRemapBusy(false);
+    }
+  };
+  const editSession = async () => {
+    if (!handoff) {
+      return;
+    }
+    await executePointerCommand("stage.edit");
+    await executePointerCommand("transport.seek", { sec: handoff.startSec });
+    useDawStore.getState().setSelection({
+      kind: "clip",
+      id: handoff.primary.id,
+      trackId: handoff.primary.trackId,
+      ids: handoff.clipIds,
+    });
   };
   const trackNames = useMemo(
     () => new Map((project?.tracks ?? []).map((t) => [t.id, t.label])),
@@ -434,6 +494,9 @@ function RecordStageBody({
       movable={movable}
       remapBusy={remapBusy}
       onRemap={(participantId, trackId) => void remap(participantId, trackId)}
+      onNewTrack={(participantId) => void newTrack(participantId)}
+      onEdit={() => void editSession()}
+      hasClips={handoff !== null}
       storage={
         <StorageHeadroomWarning
           visible={state === "lobby" || state === "stopped"}
