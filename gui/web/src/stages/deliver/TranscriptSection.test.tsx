@@ -192,7 +192,6 @@ describe("TranscriptSection", () => {
         })}
       />,
     );
-    expect(screen.getByText("Exported")).toBeInTheDocument();
     expect(container.querySelector(".sys-status-title")).toHaveTextContent(
       "Exported",
     );
@@ -209,7 +208,6 @@ describe("TranscriptSection", () => {
         })}
       />,
     );
-    expect(screen.getByText("Writing")).toBeInTheDocument();
     expect(container.querySelector(".sys-status-title")).toHaveTextContent(
       "Writing",
     );
@@ -222,7 +220,7 @@ describe("TranscriptSection", () => {
         options={transcriptOptions({ choices: [], exportRunning: true })}
       />,
     );
-    expect(screen.getAllByText("Choose at least one format.").length).toBe(1);
+    expect(screen.getAllByText("Choose at least one format.")).toHaveLength(1);
     expect(
       screen.queryByText("An export is running. It writes the transcript too."),
     ).toBeNull();
@@ -234,7 +232,7 @@ describe("TranscriptSection", () => {
         })}
       />,
     );
-    expect(screen.getAllByText("Writing the transcript now.").length).toBe(1);
+    expect(screen.getAllByText("Writing the transcript now.")).toHaveLength(1);
     rerender(
       <TranscriptSection
         options={transcriptOptions({
@@ -244,8 +242,8 @@ describe("TranscriptSection", () => {
       />,
     );
     expect(
-      screen.getAllByText("Every word is cut. Nothing to export.").length,
-    ).toBe(1);
+      screen.getAllByText("Every word is cut. Nothing to export."),
+    ).toHaveLength(1);
     expect(screen.queryByRole("button", { name: /^Export/ })).toBeNull();
   });
 
