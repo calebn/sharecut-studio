@@ -389,9 +389,14 @@ for (const profile of profiles) {
               exact: true,
             });
             await expect(refused).toHaveAttribute("aria-invalid", "true");
-            await expect(refused).toHaveAttribute("aria-describedby", /\S/);
+            const described = await refused.getAttribute("aria-describedby");
+            expect(described).toBeTruthy();
+            await expect(page.locator(`[id="${described}"]`)).toContainText(
+              /Enter a number from 0 to 1\.5/,
+            );
             await page.keyboard.press("Escape");
             // A refused value saves nothing: no command, the same file.
+            await expect(refused).toBeHidden();
             await settle(page);
             expect(observer.commands).toHaveLength(commandsBefore);
             expect(envelopeSnapshot(projectPath, track.id)).toEqual(
