@@ -447,6 +447,7 @@ def analyze_fillers_pauses(project: EpisodeProject, defaults: dict[str, Any]) ->
     ) as prog:
         prog.set_phase("propose", "Proposing tighten edits…")
         proposed = propose_tighten_edits(project, defaults, replace_existing=True)
+        _record_level_profiles(project)
     return proposed.summary()
 
 
@@ -465,6 +466,13 @@ def tighten_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -
         prog.set_phase("apply", "Applying tighten cuts…")
         applied = apply_tighten_decisions(project, defaults)
     return f"{applied} tighten cuts applied"
+
+
+def _record_level_profiles(project: EpisodeProject) -> None:
+    """Keep the profiles the analysis just measured, so a later process reads them (#2359)."""
+    from podcast_mcp.edits.audio_cache import record_track_level_profiles
+
+    record_track_level_profiles(project)
 
 
 def _defaults_without_word_probe(defaults: dict[str, Any]) -> dict[str, Any]:
@@ -527,6 +535,7 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
                 proposal = propose_tighten_edits(
                     scratch, _defaults_without_word_probe(defaults), replace_existing=True
                 )
+            _record_level_profiles(project)
             found = [d for d in proposal.decisions if is_non_speech_sound(d.reason)]
             project.edit_decisions = [
                 e for e in project.edit_decisions if e.applied or not is_non_speech_sound(e.reason)

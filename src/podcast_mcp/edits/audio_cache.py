@@ -27,7 +27,7 @@ from podcast_mcp.util.dsp import (
     frame_band_filtered_db,
 )
 from podcast_mcp.util.parallel import run_parallel
-from podcast_mcp.util.tracks import track_audio_path
+from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
 log = logging.getLogger(__name__)
 
@@ -170,7 +170,8 @@ def track_level_profile(
     rate of the frames it is compared with): ``JUMP_SAMPLE_RATE`` for window RMS reads.
     Callers with no decode of the track (a cut re-optimized at approval, a natural-language
     edit) read the same levels the proposals did. ``record=True`` also records the measurement
-    under the project's ``artifacts`` for a later process; planning paths never write.
+    under the project's ``artifacts`` for a later process; planning paths never write (the
+    pipeline does, via :func:`record_track_level_profiles`).
     """
     if audio_cache is not None:
         return audio_cache.jump.profile if sample_rate == JUMP_SAMPLE_RATE else audio_cache.profile
@@ -180,6 +181,22 @@ def track_level_profile(
         record_dir=project.artifacts_dir() / "level_profiles",
         write_record=record,
     )
+
+
+def record_track_level_profiles(project: EpisodeProject) -> None:
+    """Record every dialogue track's profile at the rates the edit paths read, for a later process.
+
+    A profile measured earlier in this process is recorded without a decode; one not yet
+    measured is decoded here.
+    """
+    for track_id in dialogue_track_ids(project):
+        if (track := project.track_by_id(track_id)) is None or track.media is None:
+            continue
+        for rate in (WAVEFORM_SAMPLE_RATE, JUMP_SAMPLE_RATE):
+            try:
+                track_level_profile(project, track_id, sample_rate=rate, record=True)
+            except (OSError, ValueError, KeyError):
+                log.debug("level profile not recorded for %s", track_id, exc_info=True)
 
 
 def decode_track(path: Path) -> TrackAudioCache:
