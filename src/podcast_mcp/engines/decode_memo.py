@@ -33,8 +33,8 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
   decode was stored, served, too big, racy or changed under the decode. Only the cap-0 path
   returns the build untouched.
 * **Hits** return a fresh wrapper around a read-only view of the stored samples.
-  ``PODCAST_VERDICT_VERIFY`` or ``PODCAST_EVIDENCE_VERIFY`` re-decodes the resolved path on every hit, outside
-  any batch scope, and raises ``AssertionError`` unless the bits are equal.
+  ``PODCAST_VERDICT_VERIFY`` or ``PODCAST_EVIDENCE_VERIFY`` re-decodes the resolved path on every
+  hit, outside any batch scope, and raises ``AssertionError`` unless the bits are equal.
 """
 
 from __future__ import annotations
