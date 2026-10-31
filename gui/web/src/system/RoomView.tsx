@@ -264,7 +264,7 @@ export function RoomView({
       {embedded ? (
         <div className="sys-room-view-header sys-room-view-header--embedded">
           {sessionName ? (
-            <span className="sys-room-view-session">{sessionName}</span>
+            <span className="sys-room-view-session" title={sessionName}>{sessionName}</span>
           ) : null}
           {target ? <div className="sys-room-view-target">{target}</div> : null}
           <RoomStatusPill phase={phase} />

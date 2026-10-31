@@ -148,7 +148,8 @@ server found no unsaved audio it can see (see Known gaps below).
 
 `GET /api/record/sessions` (host only) lists every record session, open or ended, oldest first:
 `session_id`, `number` (the stored landing number, `null` until it lands; a read never assigns one),
-`planned_number` (the stored number, else the one a land would assign now: one past every other session; the room header shows it as "Session N" before the session lands),
+`name` (the host's name for the session, `null` when unset; the room header shows it in place of "Session N"),
+`planned_number` (the stored number, else the one a land would assign now: one past the larger of the other sessions counted and the highest stored number; the room header shows it as "Session N" before the session lands),
 `state` (`open` while any of its links is usable, else `ended`), `target_kind`, `takes`
 (`take_index`, `recording_ms`), `participants` (`participant_id`, `display_name`, `role`, `track_id`
 from where the participant's landed clips are now, so a track change made after landing shows; only a
