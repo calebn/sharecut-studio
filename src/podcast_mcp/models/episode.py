@@ -17,6 +17,7 @@ from pydantic import (
     model_validator,
 )
 
+from podcast_mcp.models.clip_timing import ClipTiming, VirtualPiece
 from podcast_mcp.models.feed import FeedSection
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, require_v2_document
@@ -316,6 +317,8 @@ class Clip(BaseModel):
     mute_regions: list[ClipMuteRegion] = Field(default_factory=list)
     off_speaker_mute_regions: list[ClipOffSpeakerMuteRegion] = Field(default_factory=list)
     bleed_restore: ClipBleedRestore | None = None
+    # Piecewise-constant shift over source time; None = one linear shift (the default).
+    timing: ClipTiming | None = None
 
     @field_validator("off_speaker_mute_regions")
     @classmethod
@@ -335,11 +338,43 @@ class Clip(BaseModel):
             data.pop("off_speaker_mute_regions", None)
         if "bleed_restore" not in self.model_fields_set and self.bleed_restore is None:
             data.pop("bleed_restore", None)
+        if self.timing is None:
+            data.pop("timing", None)
         return data
+
+    @model_validator(mode="after")
+    def _timing_within_source(self) -> Clip:
+        if self.timing is not None:
+            self.timing.validate_within(self.source_start, self.source_end)
+        return self
 
     @property
     def timeline_end(self) -> float:
-        return self.timeline_start + (self.source_end - self.source_start)
+        end = self.timeline_start + (self.source_end - self.source_start)
+        return end if self.timing is None else end + self.timing.total_delta()
+
+    def virtual_pieces(self) -> list[VirtualPiece]:
+        """``[(src_a, src_b, tl_a)]``: the constant-shift pieces this clip plays as."""
+        if self.timing is None:
+            return [(self.source_start, self.source_end, self.timeline_start)]
+        return self.timing.pieces(self.source_start, self.source_end, self.timeline_start)
+
+    def source_to_timeline(self, source_s: float) -> float | None:
+        """Timeline second of a source second; None inside a skipped span or outside the clip.
+
+        A step exactly at ``source_s`` belongs to the later piece; ``source_end`` maps to the end.
+        """
+        for src_a, src_b, tl_a in self.virtual_pieces():
+            if src_a <= source_s < src_b:
+                return tl_a + (source_s - src_a)
+        return self.timeline_end if source_s == self.source_end else None
+
+    def timeline_to_source(self, timeline_s: float) -> float | None:
+        """Source second at a timeline second; None inside an inserted hole or outside the clip."""
+        for src_a, src_b, tl_a in self.virtual_pieces():
+            if tl_a <= timeline_s < tl_a + (src_b - src_a):
+                return src_a + (timeline_s - tl_a)
+        return None
 
 
 class ChapterMarker(BaseModel):

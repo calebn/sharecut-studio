@@ -33,6 +33,7 @@ export interface Clip {
   mute_regions?: Array<ClipMuteRegion>;
   off_speaker_mute_regions?: Array<ClipOffSpeakerMuteRegion>;
   bleed_restore?: ClipBleedRestore | null;
+  timing?: ClipTiming | null;
 }
 
 /** Occurrence-owned automatic attenuation choices bound to exact recording bytes. */
@@ -60,6 +61,13 @@ export interface ClipOffSpeakerMuteRegion {
   end_s: number;
   fade_out_ms?: number;
   fade_in_ms?: number;
+}
+
+export interface ClipTiming {
+  kind?: "step";
+  steps: Array<TimingStep>;
+  method?: string;
+  evidence?: string | null;
 }
 
 export interface CommentActionDoneRequest {
@@ -281,6 +289,12 @@ export interface ProjectView {
   transcript?: Record<string, unknown> | null;
 }
 
+/** ``[start_s, end_s)`` in source seconds that the solver certified quiet. */
+export interface QuietSpan {
+  start_s: number;
+  end_s: number;
+}
+
 export interface RangeInterval {
   start: number;
   end: number;
@@ -371,6 +385,12 @@ export interface SpeakerSplitRequest {
   speaker_count: number;
   names?: Array<string> | null;
   enrollment?: Record<string, Array<[number, number]>> | null;
+}
+
+export interface TimingStep {
+  at: number;
+  delta_sec: number;
+  quiet?: QuietSpan | null;
 }
 
 export interface TrackView {
