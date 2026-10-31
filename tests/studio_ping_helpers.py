@@ -9,11 +9,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 @contextlib.contextmanager
-def ping_answering(status: int, body: bytes) -> Iterator[int]:
-    """A listener on loopback whose handoff ping answers ``status`` with ``body``."""
+def ping_answering(status: int, body: bytes, seen: list[str] | None = None) -> Iterator[int]:
+    """A listener on loopback whose handoff ping answers ``status`` with ``body``.
+
+    Each request target is appended to ``seen`` when a list is given.
+    """
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
+            if seen is not None:
+                seen.append(self.path)
             self.send_response(status)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()

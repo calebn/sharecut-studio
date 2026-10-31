@@ -18,11 +18,13 @@ import time
 from collections.abc import Callable, Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
 from podcast_mcp.cli import context as cli_context
-from podcast_mcp.models import EpisodeProject, save_project
+from podcast_mcp.models import EPISODE_PROJECT_FILENAME, EpisodeProject, save_project
+from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME
 from podcast_mcp.services.app import (
     DIRECT_ENV_VAR,
     StudioBadReply,
@@ -881,6 +883,24 @@ def test_ping_rejects_success_after_deadline(monkeypatch: pytest.MonkeyPatch) ->
     with pytest.raises(TimeoutError):
         studio_host_module._ping(_host(), "/project")
     assert response.closed
+
+
+def test_locate_studio_pings_the_adopted_name_for_a_retired_path_without_renaming(
+    project: Path,
+) -> None:
+    legacy = project.rename(project.with_name(RETIRED_PROJECT_FILENAME))
+    body = json.dumps({"instance": "a1", "protocol": HANDOFF_PROTOCOL, "serves": True}).encode()
+    seen: list[str] = []
+    with ping_answering(200, body, seen=seen) as port:
+        announce_studio_host(legacy, _host(port=port))
+        found = locate_studio(legacy)
+    assert found is not None
+    assert [parse_qs(urlparse(target).query)["project"] for target in seen] == [
+        [str(project.resolve().with_name(EPISODE_PROJECT_FILENAME))]
+    ]
+    assert sorted(c.name for c in legacy.parent.iterdir() if c.is_file()) == [
+        RETIRED_PROJECT_FILENAME
+    ]
 
 
 @pytest.mark.parametrize("body", [b"", b"[]", b"not json", b"null"])
