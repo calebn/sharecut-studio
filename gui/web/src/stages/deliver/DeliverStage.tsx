@@ -411,7 +411,7 @@ export function DeliverStage({
               env={env}
               state={sharedState}
               dock={phone}
-              transcriptBelow={transcript !== undefined}
+              transcriptKind={transcript?.preview.kind}
               options={
                 exportOptions && {
                   ...exportOptions,

@@ -84,6 +84,11 @@
   gap: var(--space-3);
 }
 
+.dv-chips .ui-control[aria-pressed="true"]::before {
+  /* Empty alt text: aria-pressed already carries the state. */
+  content: "\2713" / "";
+}
+
 .dv-chip-size {
   margin-inline-start: var(--space-3);
   color: var(--color-text-secondary);

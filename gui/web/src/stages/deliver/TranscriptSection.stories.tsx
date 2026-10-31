@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import type { TranscriptFormat } from "../../api";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import { TranscriptSection } from "./TranscriptSection";
 import { SAMPLE_FILES, transcriptOptions } from "./transcriptFixtures";
-import type { TranscriptFormatId } from "./transcriptLogic";
 
 type Args = React.ComponentProps<typeof TranscriptSection>;
 
 function Controlled(args: Args) {
-  const [choices, setChoices] = useState<readonly TranscriptFormatId[]>(
+  const [choices, setChoices] = useState<readonly TranscriptFormat[]>(
     args.options.choices,
   );
   return (
