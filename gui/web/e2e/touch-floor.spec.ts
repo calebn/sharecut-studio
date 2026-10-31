@@ -29,7 +29,7 @@ const DOCUMENTED_EXCEPTIONS = [
   ".sys-script-word",
   ".sys-script-time",
   ".track-reorder-handle",
-  ".comment-marker.pin",
+  ".sys-marker-hit",
   ".pending-hit",
   ".pending-handle",
 ];

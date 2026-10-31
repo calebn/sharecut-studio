@@ -109,9 +109,8 @@ for (const kind of ["chapter", "social"] as const)
         const target = page.getByRole("button", {
           name:
             kind === "chapter"
-              ? "Chapter Lifecycle chapter"
-              : "Lifecycle social",
-          exact: true,
+              ? /^Chapter Lifecycle chapter,/
+              : /^Clip idea Lifecycle social,/,
         });
         const before = snapshot(p),
           origin = await draw(target),
@@ -124,7 +123,16 @@ for (const kind of ["chapter", "social"] as const)
           await page.mouse.move(point.x + 32, point.y);
           await page.mouse.up();
           await layer(page, "Markers", true);
-        } else await interrupt(page, target, terminal, point, false);
+        }
+        // The lane's track owns the pointer capture, not the marker button.
+        else
+          await interrupt(
+            page,
+            page.locator(".sys-markers-track"),
+            terminal,
+            point,
+            false,
+          );
         await expect.poll(() => draw(target)).toEqual(origin);
         await page.mouse.up();
         expect(snapshot(p)).toEqual(before);
@@ -143,8 +151,7 @@ for (const edge of ["start", "end"] as const)
   }, info) => {
     await runAudit(page, info, false, async (p, c) => {
       const target = page.getByRole("button", {
-          name: "Lifecycle social",
-          exact: true,
+          name: /^Clip idea Lifecycle social,/,
         }),
         before = snapshot(p);
       await begin(page, target, edge === "start" ? 14 : -14, edge);

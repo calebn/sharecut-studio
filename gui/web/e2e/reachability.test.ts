@@ -30,8 +30,8 @@ describe("reachFailures size exemptions", () => {
 
   beforeEach(() => {
     document.body.innerHTML =
-      '<section class="canvas"><button class="comment-marker pin">Comment</button></section>';
-    pin = document.querySelector<HTMLButtonElement>(".comment-marker.pin")!;
+      '<section class="canvas"><button class="sys-marker-hit">Comment</button></section>';
+    pin = document.querySelector<HTMLButtonElement>(".sys-marker-hit")!;
     geometry(pin);
     elementFromPoint.mockReturnValue(pin);
     Object.defineProperty(document, "elementFromPoint", {
@@ -49,14 +49,14 @@ describe("reachFailures size exemptions", () => {
   it("reports a 24 px ordinary control below the floor", async () => {
     pin.className = "ordinary";
     expect(
-      await reachFailures(page, { sizeExempt: [".comment-marker.pin"] }),
+      await reachFailures(page, { sizeExempt: [".sys-marker-hit"] }),
     ).toMatchObject([{ failure: "small", layout: { width: 24, height: 24 } }]);
   });
 
   it("waives only the matching pin's size", async () => {
     expect(await reachFailures(page)).toMatchObject([{ failure: "small" }]);
     expect(
-      await reachFailures(page, { sizeExempt: [".comment-marker.pin"] }),
+      await reachFailures(page, { sizeExempt: [".sys-marker-hit"] }),
     ).toEqual([]);
   });
 
@@ -65,14 +65,14 @@ describe("reachFailures size exemptions", () => {
     document.body.append(cover);
     elementFromPoint.mockReturnValue(cover);
     expect(
-      await reachFailures(page, { sizeExempt: [".comment-marker.pin"] }),
+      await reachFailures(page, { sizeExempt: [".sys-marker-hit"] }),
     ).toMatchObject([{ failure: "covered" }]);
   });
 
   it("still reports a pin outside the viewport", async () => {
     geometry(pin, 24, 24, -10);
     expect(
-      await reachFailures(page, { sizeExempt: [".comment-marker.pin"] }),
+      await reachFailures(page, { sizeExempt: [".sys-marker-hit"] }),
     ).toMatchObject([{ failure: "outside-viewport" }]);
   });
 
@@ -81,7 +81,7 @@ describe("reachFailures size exemptions", () => {
     expect(
       await reachFailures(page, {
         scope: ".canvas",
-        sizeExempt: [".comment-marker.pin"],
+        sizeExempt: [".sys-marker-hit"],
       }),
     ).toMatchObject([{ failure: "overflows-container" }]);
   });
@@ -93,7 +93,7 @@ describe("reachFailures size exemptions", () => {
     pin.append(child);
     geometry(child);
     expect(
-      await reachFailures(page, { sizeExempt: [".comment-marker.pin"] }),
+      await reachFailures(page, { sizeExempt: [".sys-marker-hit"] }),
     ).toMatchObject([{ failure: "small", control: 'a "Edit"' }]);
   });
 
