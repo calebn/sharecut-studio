@@ -655,7 +655,7 @@
 }
 
 .sys-room-view-session {
-  flex: 0 1 auto;
+  flex: 0 100 auto;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
