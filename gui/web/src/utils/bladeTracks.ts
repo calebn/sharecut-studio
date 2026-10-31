@@ -17,19 +17,3 @@ export function bladeTrackIds(
   }
   return dialogueTrackIds;
 }
-
-/**
- * What a blade cut will cut, in words: the selected tracks by name, else every
- * dialogue track. The create menu shows it under Split here, which sits under a
- * held lane but cuts these tracks.
- */
-export function bladeCutNote(
-  tracks: readonly CutTrack[],
-  selectedTrackIds: readonly string[],
-): string {
-  if (selectedTrackIds.length === 0) return "Cuts all dialogue tracks";
-  const names = selectedTrackIds.map(
-    (id) => tracks.find((t) => t.id === id)?.label ?? id,
-  );
-  return `Cuts ${names.join(", ")}`;
-}

@@ -1850,8 +1850,7 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
     animation: fade-in var(--motion-press) var(--motion-ease-out);
   }
 
-  .create-menu-scrim,
-  .create-menu-mark,
+  .timeline-create-scrim,
   .detent-mark {
     animation: fade-in var(--motion-press) var(--motion-ease-out);
   }
@@ -1917,21 +1916,44 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   white-space: nowrap;
 }
 
-/* The create menu (#1051 round 4b): what to make at a held spot on the
-   timeline. A dashed accent mark (never the solid playhead) shows the held
-   time on its lane; the menu sits above the finger (below it near the top,
-   beside it on a short screen) and never over it, beside the fixed playhead
-   when there is room. */
-.create-menu-layer,
+/* The create menu's layer and the target chooser's: a full-viewport sheet of
+   geometry the popover or chips are placed in. */
+.timeline-create-layer,
 .target-chooser {
   position: fixed;
   inset: 0;
   z-index: var(--z-menu);
 }
 
+/* The create menu's host (timeline/TimelineCreateMenu): a full-viewport layer
+   the leaf menu is placed in, over a scrim that takes an outside press. The
+   dashed mark and the menu are the leaf's (stage-edit.css). */
+.timeline-create-layer .edit-create-menu:not([data-scrolls]) {
+  touch-action: none;
+}
+
+.timeline-create-layer .edit-create-menu[data-scrolls] {
+  touch-action: pan-y;
+}
+
+.timeline-create-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--color-scrim);
+  touch-action: none;
+}
+
+/* The phone's Sheet is non-modal and portals to the body on its own, so its
+   scrim lets presses through; this one sits just under it and is clear. */
+.timeline-create-scrim[data-phone] {
+  position: fixed;
+  z-index: var(--z-timeline-popover);
+  background: transparent;
+}
+
 /* In the top layer these are popovers: undo the UA's centered, bordered,
    scrolling box so the layer stays a full-viewport sheet of geometry. */
-:is(.create-menu-layer, .target-chooser)[popover] {
+:is(.timeline-create-layer, .target-chooser)[popover] {
   inline-size: 100%;
   block-size: 100%;
   margin: 0;
@@ -1940,85 +1962,6 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   overflow: visible;
   background: transparent;
   color: inherit;
-}
-
-.create-menu-scrim {
-  position: absolute;
-  inset: 0;
-  background: var(--color-scrim);
-  touch-action: none;
-}
-
-.create-menu-mark {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.create-menu-mark line {
-  stroke: var(--color-accent);
-  stroke-width: 2;
-  stroke-dasharray: 4 4;
-}
-
-.create-menu-mark circle {
-  fill: none;
-  stroke: var(--color-accent);
-  stroke-width: 2;
-}
-
-.create-menu {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  min-inline-size: 15rem;
-  max-inline-size: min(20rem, 100vw - 2rem);
-  padding: var(--space-1);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-overlay);
-  box-shadow: var(--shadow-floating);
-  touch-action: none;
-}
-
-/* `.ui-menu-panel` caps a drop-down at 90dvh from the trigger. This menu's cap
-   is the layout's own (an inline max-block-size, set only when the menu is
-   taller than the room), so the shared cap must not clip it first. */
-.ui-menu-panel.create-menu {
-  max-block-size: none;
-}
-
-/* Taller than the screen has room for (a phone held sideways at large text):
-   the layout caps its height, and it scrolls. */
-.create-menu[data-scrolls] {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-}
-
-.create-menu-title {
-  margin: 0;
-  padding: var(--space-1) var(--space-3);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.create-menu [role="menuitem"] {
-  min-block-size: var(--touch-min);
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-
-.create-menu-separator {
-  border: 0;
-  block-size: 1px;
-  margin-block: var(--space-1);
-  background: var(--color-border-subtle);
 }
 
 .lane-inner > .join-blend-waves,

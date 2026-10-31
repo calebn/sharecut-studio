@@ -206,7 +206,7 @@ const COVERED: Record<string, string[]> = {
   ],
   "OVL-PROSODY": ["Templates/ProsodyOverlay"],
   "OVL-RECORDING": ["Templates/RecordingOverlay"],
-  "MENU-CREATE": ["Templates/CreateMenu", "Stages/Edit/CreateMenu"],
+  "MENU-CREATE": ["Stages/Edit/CreateMenu"],
   "POP-CHOOSER": ["Templates/TargetChooser", "Stages/Edit/TargetChooser"],
   "CMP-SOLO-CHIP": ["Templates/SoloChip"],
   "BAN-HOME-SCREEN-HINT": ["Templates/HomeScreenHint", "Stages/Home/Home"],

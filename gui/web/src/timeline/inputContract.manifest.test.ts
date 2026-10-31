@@ -9,8 +9,8 @@ import { describe, expect, it } from "vitest";
 import { COMMANDS } from "../commands/catalog";
 import { MOBILE_GESTURES } from "../commands/gestures";
 import { SRC_ROOT } from "../test/sourceFiles";
+import { CREATE_MENU_COMMANDS } from "./createMenuMapping";
 import {
-  CREATE_ENTRIES,
   HIT_KINDS,
   TOUCH_GESTURES,
   type TouchGestureId,
@@ -31,7 +31,9 @@ function derived(): Map<string, Set<TouchGestureId>> {
     set.add(gesture);
     out.set(command, set);
   };
-  for (const entry of CREATE_ENTRIES) add(entry.command, "long-press-empty");
+  for (const command of Object.values(CREATE_MENU_COMMANDS)) {
+    add(command, "long-press-empty");
+  }
   for (const contract of Object.values(HIT_KINDS)) {
     if (!contract.command) continue;
     add(contract.command, "long-press-arm-drag");
@@ -64,12 +66,9 @@ describe("capabilities manifest touch column", () => {
     ).toEqual(Object.keys(TOUCH_GESTURES));
   });
 
-  it("routes every create menu entry through a catalog command", () => {
-    for (const entry of CREATE_ENTRIES) {
-      expect(COMMANDS[entry.command]?.id).toBe(entry.command);
-      expect(entry.args({ atTime: 12.5, trackId: "host" })).toMatchObject({
-        atTime: 12.5,
-      });
+  it("routes every create menu row through a catalog command", () => {
+    for (const command of Object.values(CREATE_MENU_COMMANDS)) {
+      expect(COMMANDS[command]?.id).toBe(command);
     }
   });
 });
