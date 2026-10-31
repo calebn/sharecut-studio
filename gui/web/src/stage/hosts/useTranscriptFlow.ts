@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { exportTranscript, listExportedTranscripts } from "../../api";
+import {
+  exportTranscript,
+  listExportedTranscripts,
+  type TranscriptFormat,
+} from "../../api";
 import {
   TRANSCRIPT_DEFAULTS,
   type TranscriptCopyState,
   type TranscriptFile,
-  type TranscriptFormatId,
   type TranscriptPreviewState,
   type TranscriptRun,
 } from "../../stages/deliver/transcriptLogic";
@@ -19,8 +22,8 @@ export type TranscriptFlow = {
   preview: TranscriptPreviewState;
   run: TranscriptRun;
   files: readonly TranscriptFile[];
-  choices: readonly TranscriptFormatId[];
-  setChoices: (next: readonly TranscriptFormatId[]) => void;
+  choices: readonly TranscriptFormat[];
+  setChoices: (next: readonly TranscriptFormat[]) => void;
   copyState: TranscriptCopyState;
   exportNow: () => void;
   copyText: () => void;
@@ -48,7 +51,7 @@ export function useTranscriptFlow(args: {
   const [run, setRun] = useState<TranscriptRun>({ phase: "idle" });
   const [files, setFiles] = useState<readonly TranscriptFile[]>([]);
   const [choices, setChoices] =
-    useState<readonly TranscriptFormatId[]>(TRANSCRIPT_DEFAULTS);
+    useState<readonly TranscriptFormat[]>(TRANSCRIPT_DEFAULTS);
   const [copyState, setCopyState] = useState<TranscriptCopyState>("idle");
   const [reloads, setReloads] = useState(0);
   const choicesRef = useRef(choices);

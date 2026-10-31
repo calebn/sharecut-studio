@@ -1,7 +1,7 @@
-export type TranscriptFormatId = "txt" | "md" | "srt" | "vtt";
+import type { TranscriptFormat } from "../../api";
 
 export const TRANSCRIPT_FORMATS: readonly {
-  id: TranscriptFormatId;
+  id: TranscriptFormat;
   label: string;
   group: "read" | "captions";
 }[] = [
@@ -12,7 +12,7 @@ export const TRANSCRIPT_FORMATS: readonly {
 ];
 
 /** What every audio export writes by default, so nothing changes unless more is chosen. */
-export const TRANSCRIPT_DEFAULTS: readonly TranscriptFormatId[] = ["md", "srt"];
+export const TRANSCRIPT_DEFAULTS: readonly TranscriptFormat[] = ["md", "srt"];
 
 export type TranscriptTurn = {
   speaker: string;
@@ -43,7 +43,7 @@ export type TranscriptPreviewState =
 export type TranscriptFile = {
   name: string;
   bytes: number;
-  format: TranscriptFormatId;
+  format: TranscriptFormat;
   /** The file matches the edited transcript. */
   current: boolean;
 };
@@ -62,8 +62,8 @@ export type TranscriptOptions = {
   run: TranscriptRun;
   /** Transcript files already next to the audio. */
   files: readonly TranscriptFile[];
-  choices: readonly TranscriptFormatId[];
-  onChoices: (next: readonly TranscriptFormatId[]) => void;
+  choices: readonly TranscriptFormat[];
+  onChoices: (next: readonly TranscriptFormat[]) => void;
   /** An audio export or bounce is running; the export writes the transcript too. */
   exportRunning?: boolean;
   copyState?: TranscriptCopyState;
@@ -114,7 +114,7 @@ export function previewFooter(preview: TranscriptPreview): string {
 /** Why Export or Copy cannot run now; null when they can. */
 export function transcriptBlocker(
   preview: TranscriptPreviewState,
-  choices: readonly TranscriptFormatId[],
+  choices: readonly TranscriptFormat[],
 ): string | null {
   if (preview.kind === "allCut") return TRANSCRIPT_ALL_CUT;
   if (preview.kind !== "ready") return "The transcript is not ready yet.";
@@ -127,11 +127,19 @@ export function exportLabel(count: number, again: boolean): string {
   return `Export${files}${again ? " again" : ""}`;
 }
 
+/** A chosen format has a file on disk that predates the last transcript edit. */
+export function transcriptStaleOf(
+  files: readonly TranscriptFile[],
+  choices: readonly TranscriptFormat[],
+): boolean {
+  return files.some((file) => !file.current && choices.includes(file.format));
+}
+
 /** Toggle one format, keeping the order the chips show. */
 export function toggleFormat(
-  choices: readonly TranscriptFormatId[],
-  id: TranscriptFormatId,
-): readonly TranscriptFormatId[] {
+  choices: readonly TranscriptFormat[],
+  id: TranscriptFormat,
+): readonly TranscriptFormat[] {
   return TRANSCRIPT_FORMATS.map((f) => f.id).filter((f) =>
     f === id ? !choices.includes(f) : choices.includes(f),
   );

@@ -16,6 +16,7 @@ import {
   type TranscriptOptions,
   toggleFormat,
   transcriptBlocker,
+  transcriptStaleOf,
 } from "./transcriptLogic";
 
 type Props = {
@@ -55,7 +56,7 @@ export function TranscriptSection({
   } = options;
   const button = useRef<HTMLButtonElement>(null);
   const writing = run.phase === "writing";
-  const stale = files.some((file) => !file.current);
+  const stale = transcriptStaleOf(files, choices);
   const blocker = transcriptBlocker(preview, choices);
   const unavailable = writing
     ? TRANSCRIPT_WRITING_REASON
@@ -175,12 +176,7 @@ export function TranscriptSection({
         <StatusRow state="running" title="Writing" />
       ) : null}
       {run.phase === "failed" ? (
-        <StatusRow
-          state="failed"
-          title="Export failed"
-          detail={run.cause}
-          action={{ label: "Try again", onAction: onExport }}
-        />
+        <StatusRow state="failed" title="Export failed" detail={run.cause} />
       ) : null}
       {run.phase === "done" ? (
         <StatusRow
