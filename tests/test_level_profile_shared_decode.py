@@ -1,0 +1,66 @@
+"""A track's level profile and its RMS cache share one decode of the file (#2359)."""
+
+from __future__ import annotations
+
+import os
+import time
+
+import pytest
+
+from podcast_mcp.edits import audio_cache
+from podcast_mcp.engines import audio_audit, decode_memo, level_profile
+from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.engines.level_profile import (
+    frame_levels_db,
+    load_mono_full,
+    profile_from_levels,
+)
+from podcast_mcp.models import MediaAsset, Track, TrackRole
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.tracks import track_audio_path
+
+RATE = 8000
+
+
+@pytest.fixture
+def raw_decodes(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    calls: list[int] = []
+
+    def counted(path, *, sample_rate=8000, ffmpeg=None):  # type: ignore[no-untyped-def]
+        calls.append(sample_rate)
+        return load_mono_full(path, sample_rate=sample_rate, ffmpeg=ffmpeg)
+
+    monkeypatch.setattr(level_profile, "load_mono_full", counted)
+    monkeypatch.setattr(audio_audit, "load_mono_full", counted)
+    monkeypatch.setattr(decode_memo, "_now_ns", lambda: time.time_ns() + 3600 * 10**9)
+    decode_memo._MEMO.clear()
+    level_profile._FILE_PROFILES.clear()
+    return calls
+
+
+def test_the_rms_cache_after_a_track_profile_decodes_nothing_new(
+    minimal_project, raw_decodes: list[int]
+) -> None:
+    project = ProjectWorkspace.open(minimal_project).project
+    project.tracks = [
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=1.0),
+        )
+    ]
+    path = track_audio_path(project, "host")
+    then = time.time_ns() - 3600 * 10**9
+    os.utime(path, ns=(then, then))
+
+    profile = audio_cache.track_level_profile(project, "host", sample_rate=RATE)
+    assert raw_decodes == [RATE]
+    cache = TrackRmsCache.from_recording(path, sample_rate=RATE)
+    assert raw_decodes == [RATE]
+
+    expected = profile_from_levels(
+        frame_levels_db(load_mono_full(path, sample_rate=RATE), RATE), whole_track=True
+    )
+    assert profile == expected
+    assert cache.profile == expected
