@@ -78,6 +78,17 @@ describe("createMenuRowsFor", () => {
     expect(ids(lane)).toEqual(["comment"]);
   });
 
+  it("offers nothing to a view-only link off a lane with nothing copied", () => {
+    session(["view", "play"]);
+    expect(ids(offLane)).toEqual([]);
+  });
+
+  it("gives Split no key caps, since its chord cuts at the playhead and is held while the menu is open", () => {
+    const rows = createMenuRowsFor(lane);
+    expect(rows.find((row) => row.id === "split")?.keys).toEqual([]);
+    expect(rows.find((row) => row.id === "addChapter")?.keys.length).toBe(1);
+  });
+
   it("keeps the envelope row for an editor link", () => {
     session(["view", "play", "comment", "reply", "suggest", "edit"]);
     expect(ids(lane)).toContain("addVolumePoint");
@@ -151,6 +162,24 @@ describe("runCreatePick", () => {
     expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
   });
 
+  it("says a refusal once when the command already told it, and leaves the layer on", async () => {
+    executePointerCommand.mockImplementation(async () => {
+      useDawStore
+        .getState()
+        .announceStatus("Point not added: Server unreachable", {
+          tone: "error",
+        });
+      return { status: "disabled", reason: "Server unreachable" };
+    });
+    const seq = useDawStore.getState().statusAnnouncementSeq;
+    await runCreatePick("addVolumePoint", lane);
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(seq + 1);
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Point not added: Server unreachable",
+    );
+    expect(useDawStore.getState().layers.showLevels).toBe(true);
+  });
+
   it("tells a command that threw, and says nothing when it ran", async () => {
     await runCreatePick("split", lane);
     expect(useDawStore.getState().statusAnnouncement).toBe("");
@@ -169,6 +198,9 @@ describe("createAnnouncement", () => {
     );
     expect(createAnnouncement("00:12.500", null, 3)).toBe(
       "Create at 00:12.500, 3 actions",
+    );
+    expect(createAnnouncement("00:12.500", null, 1)).toBe(
+      "Create at 00:12.500, 1 action",
     );
   });
 });

@@ -52,12 +52,21 @@ export function createMenuRowsFor(
 ): CreateRow[] {
   const onLane = place.trackId != null;
   const ctx = buildCommandContext();
-  return createMenuRows({
-    lane: onLane,
-    envelopeShown: onLane,
-    clipboardHasAudio: getClipboard() != null,
-  }).filter(
-    (row) => evaluateWhen(COMMANDS[CREATE_MENU_COMMANDS[row.id]].when, ctx).ok,
+  return (
+    createMenuRows({
+      lane: onLane,
+      envelopeShown: onLane,
+      clipboardHasAudio: getClipboard() != null,
+    })
+      .filter(
+        (row) =>
+          evaluateWhen(COMMANDS[CREATE_MENU_COMMANDS[row.id]].when, ctx).ok,
+      )
+      // The leaf takes Split's chord from the verb table, but the chord runs
+      // edit.split at the playhead while the row cuts at the held time, and the
+      // keymap is held while the menu is open: the cap would name a key that
+      // does something else.
+      .map((row) => (row.id === "split" ? { ...row, keys: [] } : row))
   );
 }
 
@@ -67,7 +76,9 @@ export function createAnnouncement(
   track: string | null,
   actions: number,
 ): string {
-  return `Create at ${time}${track ? ` on ${track}` : ""}, ${actions} actions`;
+  return `Create at ${time}${track ? ` on ${track}` : ""}, ${actions} ${
+    actions === 1 ? "action" : "actions"
+  }`;
 }
 
 /**
@@ -80,6 +91,7 @@ export async function runCreatePick(
   place: Pick<CreateMenuPlace, "atTime" | "trackId">,
 ): Promise<void> {
   const store = useDawStore.getState();
+  const toldBefore = store.statusAnnouncementSeq;
   if (id === "addVolumePoint" && !store.layers.showLevels) {
     store.setLayerVisible("showLevels", true);
   }
@@ -88,8 +100,14 @@ export async function runCreatePick(
       CREATE_MENU_COMMANDS[id],
       createPickArgs(id, place),
     );
-    if (result.status === "disabled") {
-      useDawStore.getState().announceStatus(result.reason, { tone: "error" });
+    // A command that told its own refusal (a failed envelope save does) has
+    // already toasted; a second toast with other words would double it.
+    const live = useDawStore.getState();
+    if (
+      result.status === "disabled" &&
+      live.statusAnnouncementSeq === toldBefore
+    ) {
+      live.announceStatus(result.reason, { tone: "error" });
     }
   } catch (error) {
     useDawStore

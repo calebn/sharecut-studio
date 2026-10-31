@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CreateMenu, type CreateMenuProps } from "../stages/edit/CreateMenu";
 import type { CreateRowId } from "../stages/edit/createMenuRows";
@@ -77,7 +77,9 @@ export function TimelineCreateMenu({
   avoidX,
   phone,
 }: TimelineCreateMenuProps) {
-  const [rows] = useState(() => createMenuRowsFor(place));
+  // One set per held point: a second open elsewhere is a new place, and its
+  // rows follow it, while a repaint of the same open keeps the rows it had.
+  const rows = useMemo(() => createMenuRowsFor(place), [place]);
   const { ref: topLayerRef, popover } = useTopLayerPanel();
   // The leaf measures itself as it mounts, and a popover that is not showing
   // has no size, so it mounts once the layer is in the top layer.
@@ -90,13 +92,20 @@ export function TimelineCreateMenu({
     [topLayerRef],
   );
   const time = formatTime(place.atTime);
+  const empty = rows.length === 0;
   useEffect(() => {
+    if (empty) return;
     useDawStore
       .getState()
       .announceStatus(createAnnouncement(time, place.trackLabel, rows.length), {
         toast: false,
       });
-  }, [rows.length, place.trackLabel, time]);
+  }, [empty, rows.length, place.trackLabel, time]);
+  // A session that may run nothing here (a view-only link, off a lane, with
+  // nothing copied) gets no menu: an empty one would be a title over nothing.
+  useEffect(() => {
+    if (empty) router.close();
+  }, [empty, router]);
   const onPick = useCallback(
     (id: CreateRowId) => {
       router.close();
@@ -105,6 +114,8 @@ export function TimelineCreateMenu({
     [router, place],
   );
   const onClose = router.close;
+
+  if (empty) return null;
 
   const menu = {
     rows,

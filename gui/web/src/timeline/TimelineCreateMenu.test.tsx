@@ -254,6 +254,88 @@ describe("TimelineCreateMenu popover form", () => {
     ).toEqual([expect.stringMatching(/^Comment here/)]);
   });
 
+  it("opens nothing, and closes at once, when the session may run no row here", () => {
+    useDawStore.setState({
+      projectPath: "share:tok",
+      shareCapabilities: ["view", "play"],
+      guestMode: "view",
+    });
+    render(
+      <TimelineCreateMenu
+        view={view}
+        place={{ ...place, trackId: null, trackLabel: null, lane: null }}
+        router={router}
+        bounds={bounds}
+        avoidX={null}
+        phone={false}
+      />,
+    );
+    expect(
+      document.querySelector(".timeline-create-layer .edit-create-menu"),
+    ).toBeNull();
+    expect(router.close).toHaveBeenCalledOnce();
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
+  });
+
+  it("takes its rows afresh for a second open on another lane", () => {
+    useDawStore.getState().setLayerVisible("showLevels", true);
+    const at = (p: CreateMenuPlace) => (
+      <TimelineCreateMenu
+        view={view}
+        place={p}
+        router={router}
+        bounds={bounds}
+        avoidX={null}
+        phone={false}
+      />
+    );
+    const { rerender } = render(at(place));
+    expect(
+      screen.getByRole("menuitem", { name: "Add volume point" }),
+    ).toBeVisible();
+    rerender(at({ ...place, trackId: null, trackLabel: null, lane: null }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Add volume point" }),
+    ).toBeNull();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Create at 00:12.500, 3 actions",
+    );
+  });
+
+  it("names no key on Split, whose chord is held while the menu is open", () => {
+    mount();
+    const split = screen.getByRole("menuitem", { name: /^Split here/ });
+    expect(split).not.toHaveAttribute("aria-keyshortcuts");
+  });
+
+  it("keeps Paste, and the focus on it, when the clipboard is cleared while it is open", async () => {
+    setClipboard({
+      timelineStart: 0,
+      timelineEnd: 5,
+      mode: "copy",
+      extracts: [],
+    });
+    const { rerender } = mount();
+    const paste = screen.getByRole("menuitem", { name: "Paste" });
+    paste.focus();
+    clearClipboard();
+    rerender(tree(false, { over: 1 }));
+    expect(screen.getByRole("menuitem", { name: "Paste" })).toBe(paste);
+    expect(paste).toHaveFocus();
+  });
+
+  it("hands focus back to where the press began after a mouse pick", async () => {
+    const user = userEvent.setup();
+    const trigger = document.createElement("button");
+    document.body.append(trigger);
+    trigger.focus();
+    const { rerender } = mount();
+    await user.click(screen.getByRole("menuitem", { name: /^Comment here/ }));
+    rerender(tree(false, {}, false));
+    expect(trigger).toHaveFocus();
+    trigger.remove();
+  });
+
   it("closes on Escape without the keymap also clearing the selection", async () => {
     useDawStore.setState({ selection: { kind: "chapter", id: "c1", time: 1 } });
     const user = userEvent.setup();
@@ -305,6 +387,19 @@ describe("TimelineCreateMenu phone form", () => {
     expect(executePointerCommand).toHaveBeenCalledWith("edit.addChapter", {
       atTime: 12.5,
     });
+  });
+
+  it("marks each Sheet row for the router, which picks the row a finger lifts over", async () => {
+    mount(true);
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      [...dialog.querySelectorAll(".sys-row-btn")].map((el) =>
+        el.getAttribute("data-create-item"),
+      ),
+    ).toEqual(["0", "1", "2", "3"]);
+    // The router replays that lift as one click: one pick, one command.
+    fireEvent.click(dialog.querySelector('[data-create-item="1"]') as Element);
+    expect(executePointerCommand).toHaveBeenCalledOnce();
   });
 
   it("closes on a press outside the Sheet, through a clear scrim of its own", async () => {
