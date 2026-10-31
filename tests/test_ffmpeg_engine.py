@@ -1583,6 +1583,26 @@ def test_concat_with_gap_removes_the_silence_file_when_the_join_fails(tmp_path: 
     assert not silence.exists()
 
 
+def test_concat_with_gap_leaves_no_silence_file_when_the_silence_render_fails(tmp_path: Path):
+    eng = FFmpegEngine()
+    silence = tmp_path / ".ab_gap.wav"
+
+    def fake(cmd, **kwargs):
+        silence.write_bytes(b"partial")
+        raise subprocess.CalledProcessError(1, cmd)
+
+    with (
+        patch("podcast_mcp.engines.ffmpeg.run", side_effect=fake) as run,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        eng.concat_with_gap(
+            tmp_path / "a.wav", tmp_path / "b.wav", tmp_path / "ab.wav",
+            gap_sec=0.5, rate=8000, channels=1,
+        )  # fmt: skip
+    assert run.call_count == 1
+    assert list(tmp_path.glob(".*_gap.wav")) == []
+
+
 def test_concat_with_gap_without_a_gap_joins_the_parts_directly(tmp_path: Path):
     eng = FFmpegEngine()
     a, b, out = tmp_path / "a.wav", tmp_path / "b.wav", tmp_path / "ab.wav"
