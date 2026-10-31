@@ -369,9 +369,9 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** not reached (no shot, no story). Interaction cost: needed only when a finger covers several targets.
 - **Fate:** keep, restyle.
-- **Spec:** on long-press over overlapping targets, a fan of 44 px round chips appears 56 px above the finger, each with the object-kind icon (clip, seam, comment, suggestion, envelope point, word) and its track color ring. Slide to a chip and lift to select; lift elsewhere cancels. Never shown when one target is unambiguous.
+- **Spec:** on long-press over overlapping targets, a fan of 44 px round chips appears 56 px above the finger (to the chip's centre; the outer chips bend back so their lower edge stays 28 px above it), each with the object-kind icon (clip, seam, comment, suggestion, envelope point, word) and its track color ring. A caption under the fan names the chip the finger is over. Slide to a chip and lift to select; lift elsewhere cancels, and the gesture is owned by the hit router, not by the chooser. At most five chips are drawn; a longer list is paged by the host. Never shown when one target is unambiguous. Keyboard fallback: a menu of the same chips, Left and Right to move, Enter to pick, Escape to cancel.
 - **Shared elements used:** Icon language.
-- **Story to build:** `Stages/Edit/TargetChooser` stories `TwoTargets`, `FourTargets`, `NearEdge`.
+- **Story to build:** `Stages/Edit/TargetChooser` stories `TwoTargets`, `FourTargets`, `NearEdge`, `NearTop`, `Phone`.
 
 ### CMP-RANGE-ACTIONS · Range actions bar
 
