@@ -153,7 +153,7 @@ describe("TranscriptSection", () => {
     expect(button("Export 2 files again")).toBeEnabled();
   });
 
-  it("reports a failed export with try again", async () => {
+  it("reports a failed export and retries through Export", async () => {
     const onExport = vi.fn();
     render(
       <TranscriptSection
@@ -164,8 +164,89 @@ describe("TranscriptSection", () => {
       />,
     );
     expect(screen.getByText("Disk full")).toBeInTheDocument();
-    await userEvent.click(button("Try again"));
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    await userEvent.click(button("Export 2 files"));
     expect(onExport).toHaveBeenCalledOnce();
+  });
+
+  it("ignores an outdated file of an unticked format", () => {
+    render(
+      <TranscriptSection
+        options={transcriptOptions({
+          files: [
+            { name: "episode.txt", bytes: 900, format: "txt", current: false },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getAllByText("Edited since export")).toHaveLength(1);
+    expect(button("Export 2 files")).toBeEnabled();
+  });
+
+  it("does not offer Export again once the run is done", () => {
+    const { container } = render(
+      <TranscriptSection
+        options={transcriptOptions({
+          run: { phase: "done", files: SAMPLE_FILES },
+          files: [{ ...SAMPLE_FILES[0], current: false }],
+        })}
+      />,
+    );
+    expect(screen.getByText("Exported")).toBeInTheDocument();
+    expect(container.querySelector(".sys-status-title")).toHaveTextContent(
+      "Exported",
+    );
+    expect(screen.queryByText("Edited since export")).toBeNull();
+    expect(button("Export 2 files")).toBeInTheDocument();
+  });
+
+  it("keeps Export again disabled while writing outdated files", () => {
+    const { container } = render(
+      <TranscriptSection
+        options={transcriptOptions({
+          run: { phase: "writing" },
+          files: [{ ...SAMPLE_FILES[0], current: false }],
+        })}
+      />,
+    );
+    expect(screen.getByText("Writing")).toBeInTheDocument();
+    expect(container.querySelector(".sys-status-title")).toHaveTextContent(
+      "Writing",
+    );
+    expect(button("Export 2 files again")).toBeDisabled();
+  });
+
+  it("names the blocker ahead of a running export", () => {
+    const { rerender } = render(
+      <TranscriptSection
+        options={transcriptOptions({ choices: [], exportRunning: true })}
+      />,
+    );
+    expect(screen.getAllByText("Choose at least one format.").length).toBe(1);
+    expect(
+      screen.queryByText("An export is running. It writes the transcript too."),
+    ).toBeNull();
+    rerender(
+      <TranscriptSection
+        options={transcriptOptions({
+          run: { phase: "writing" },
+          exportRunning: true,
+        })}
+      />,
+    );
+    expect(screen.getAllByText("Writing the transcript now.").length).toBe(1);
+    rerender(
+      <TranscriptSection
+        options={transcriptOptions({
+          preview: { kind: "allCut" },
+          exportRunning: true,
+        })}
+      />,
+    );
+    expect(
+      screen.getAllByText("Every word is cut. Nothing to export.").length,
+    ).toBe(1);
+    expect(screen.queryByRole("button", { name: /^Export/ })).toBeNull();
   });
 
   it("copies and reports the blocked clipboard", async () => {

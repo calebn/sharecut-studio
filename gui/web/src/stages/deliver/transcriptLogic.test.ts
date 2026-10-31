@@ -7,6 +7,7 @@ import {
   toggleFormat,
   transcriptBlocker,
   transcriptClock,
+  transcriptStaleOf,
 } from "./transcriptLogic";
 
 describe("transcriptClock", () => {
@@ -23,6 +24,24 @@ describe("toggleFormat", () => {
   it("keeps chip order", () => {
     expect(toggleFormat(["srt"], "txt")).toEqual(["txt", "srt"]);
     expect(toggleFormat(["md", "srt"], "md")).toEqual(["srt"]);
+  });
+});
+
+describe("transcriptStaleOf", () => {
+  const file = (format: "txt" | "md" | "srt", current: boolean) => ({
+    name: `episode.${format}`,
+    bytes: 900,
+    format,
+    current,
+  });
+  it.each([
+    ["no files", [], false],
+    ["outdated file of an unticked format", [file("txt", false)], false],
+    ["outdated file of a ticked format", [file("srt", false)], true],
+    ["current file of a ticked format", [file("srt", true)], false],
+    ["ticked format with no file", [file("md", true)], false],
+  ] as const)("%s", (_name, files, expected) => {
+    expect(transcriptStaleOf(files, ["md", "srt"])).toBe(expected);
   });
 });
 
