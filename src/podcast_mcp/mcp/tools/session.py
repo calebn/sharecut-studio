@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import json
-
 from mcp.server import MCPServer
 
 from podcast_mcp.mcp.args import JsonObject
+from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import SessionControlService
 
@@ -14,14 +13,13 @@ def get_session_state_tool(project_path: str) -> str:
     ws = ProjectWorkspace.open(project_path)
     state = SessionControlService(ws).get_state()
     if state is None:
-        return json.dumps(
+        return to_json(
             {
                 "available": False,
                 "hint": "Call open_gui_tool (or podcast gui --background) or play/seek to create session state",
             },
-            indent=2,
         )
-    return json.dumps({"available": True, **state}, indent=2)
+    return to_json({"available": True, **state})
 
 
 def get_session_presence_tool(project_path: str) -> str:
@@ -34,15 +32,14 @@ def get_session_presence_tool(project_path: str) -> str:
     ws = ProjectWorkspace.open(project_path)
     roster = SessionControlService(ws).presence()
     if not roster:
-        return json.dumps(
+        return to_json(
             {
                 "available": True,
                 "clients": [],
                 "hint": "No live clients. Open ShareCut Studio or wait for a guest to join.",
             },
-            indent=2,
         )
-    return json.dumps({"available": True, "clients": roster}, indent=2)
+    return to_json({"available": True, "clients": roster})
 
 
 def seek_session_tool(
@@ -53,7 +50,7 @@ def seek_session_tool(
     """Seek the open DAW playhead (no OS audio). Optional selection highlights a modifier."""
     ws = ProjectWorkspace.open(project_path)
     state = SessionControlService(ws).seek(playhead_sec, selection=selection)
-    return json.dumps(state, indent=2)
+    return to_json(state)
 
 
 def set_session_selection_tool(
@@ -63,28 +60,28 @@ def set_session_selection_tool(
     """Highlight a DAW modifier: selection {kind, id?, track_id?, time?}; null or omit to clear."""
     ws = ProjectWorkspace.open(project_path)
     state = SessionControlService(ws).set_selection(selection)
-    return json.dumps(state, indent=2)
+    return to_json(state)
 
 
 def set_session_playing_tool(project_path: str, playing: bool) -> str:
     """Start or pause DAW browser transport (no OS audio)."""
     ws = ProjectWorkspace.open(project_path)
     state = SessionControlService(ws).set_playing(playing)
-    return json.dumps(state, indent=2)
+    return to_json(state)
 
 
 def stop_session_tool(project_path: str) -> str:
     """Pause DAW transport in place and clear the highlight region (GUI Stop / K also returns to the play start; this tool does not)."""
     ws = ProjectWorkspace.open(project_path)
     state = SessionControlService(ws).stop()
-    return json.dumps(state, indent=2)
+    return to_json(state)
 
 
 def set_session_mode_tool(project_path: str, mode: str) -> str:
     """Set DAW audition mode: mix | fx | raw."""
     ws = ProjectWorkspace.open(project_path)
     state = SessionControlService(ws).set_mode(mode)
-    return json.dumps(state, indent=2)
+    return to_json(state)
 
 
 def set_session_region_tool(
@@ -104,7 +101,7 @@ def set_session_region_tool(
         query=query,
         selection=selection,
     )
-    return json.dumps(state, indent=2)
+    return to_json(state)
 
 
 def register(mcp: MCPServer) -> None:

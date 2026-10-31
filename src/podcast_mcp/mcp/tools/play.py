@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
-
 from mcp.server import MCPServer
 
+from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, PlayRequest, PlayService
 
@@ -50,7 +49,7 @@ def play_audio_tool(
     }
     if result.compare_segments:
         payload["compare_segments"] = result.compare_segments
-    return json.dumps(payload, indent=2)
+    return to_json(payload)
 
 
 def play_transcript_query_tool(
@@ -67,29 +66,26 @@ def play_transcript_query_tool(
     ws = ProjectWorkspace.open(project_path)
     matches = EditService(ws).search(query)
     if not matches:
-        return json.dumps(
+        return to_json(
             {"ok": False, "query": query, "error": "no transcript matches"},
-            indent=2,
         )
     if match_index < 0 or match_index >= len(matches):
-        return json.dumps(
+        return to_json(
             {
                 "ok": False,
                 "query": query,
                 "error": "match_index out of range",
                 "match_count": len(matches),
             },
-            indent=2,
         )
     m = matches[match_index]
     if m.timeline_start is None or m.timeline_end is None:
-        return json.dumps(
+        return to_json(
             {
                 "ok": False,
                 "query": query,
                 "error": "match falls in removed timeline material",
             },
-            indent=2,
         )
     source = f"processed:{m.track_id}" if processed else f"track:{m.track_id}"
     result = PlayService(ws).play(
@@ -102,7 +98,7 @@ def play_transcript_query_tool(
         ),
         dry_run=dry_run,
     )
-    return json.dumps(
+    return to_json(
         {
             "ok": True,
             "query": query,
@@ -127,7 +123,6 @@ def play_transcript_query_tool(
                 "player": result.player_cmd,
             },
         },
-        indent=2,
     )
 
 
@@ -154,7 +149,7 @@ def play_compose_tool(
         dry_run=dry_run,
         rerender=rerender,
     )
-    return json.dumps(
+    return to_json(
         {
             "wav": str(result.wav_path),
             "source": result.source_label,
@@ -164,7 +159,6 @@ def play_compose_tool(
             "track_ids": list(track_ids),
             "player": result.player_cmd,
         },
-        indent=2,
     )
 
 
@@ -189,14 +183,13 @@ def audition_context_tool(
     8 one-line summaries. Times are timeline (session) seconds. Does not play audio.
     """
     ws = ProjectWorkspace.open(project_path)
-    return json.dumps(
+    return to_json(
         PlayService(ws).audition_context(
             start_sec,
             end_sec,
             skew_warn_sec=skew_warn_sec,
             detail=detail,
         ),
-        indent=2,
     )
 
 
@@ -242,7 +235,7 @@ def play_ab_tool(
     }
     if result.compare_segments:
         payload["compare_segments"] = result.compare_segments
-    return json.dumps(payload, indent=2)
+    return to_json(payload)
 
 
 def play_ab_wavs_tool(
@@ -269,7 +262,7 @@ def play_ab_wavs_tool(
     }
     if result.compare_segments:
         payload["compare_segments"] = result.compare_segments
-    return json.dumps(payload, indent=2)
+    return to_json(payload)
 
 
 def play_pending_preview_tool(
@@ -310,7 +303,7 @@ def play_pending_preview_tool(
     }
     if result.compare_segments:
         payload["compare_segments"] = result.compare_segments
-    return json.dumps(payload, indent=2)
+    return to_json(payload)
 
 
 def register(mcp: MCPServer) -> None:
