@@ -42,10 +42,21 @@ interface Press {
   stop: () => void;
 }
 
-function setSelectable(selectable: boolean): void {
+let selectionHolds = 0;
+
+function holdSelectionOff(): void {
+  selectionHolds += 1;
   const style = document.documentElement.style;
-  style.userSelect = selectable ? "" : "none";
-  style.setProperty("-webkit-user-select", selectable ? "" : "none");
+  style.userSelect = "none";
+  style.setProperty("-webkit-user-select", "none");
+}
+
+function releaseSelection(): void {
+  selectionHolds = Math.max(0, selectionHolds - 1);
+  if (selectionHolds > 0) return;
+  const style = document.documentElement.style;
+  style.userSelect = "";
+  style.setProperty("-webkit-user-select", "");
 }
 
 export function useTouchPress(router: HitRouter | null): TouchPressProps {
@@ -57,6 +68,14 @@ export function useTouchPress(router: HitRouter | null): TouchPressProps {
   const restoreTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
+  const selectionHeld = useRef(false);
+
+  const restoreSelection = () => {
+    clearTimeout(restoreTimer.current);
+    if (!selectionHeld.current) return;
+    selectionHeld.current = false;
+    releaseSelection();
+  };
 
   const end = (landed: boolean) => {
     const current = press.current;
@@ -69,29 +88,25 @@ export function useTouchPress(router: HitRouter | null): TouchPressProps {
       contextMenuUntil.current = Date.now() + CLICK_AFTER_RELEASE_MS;
     }
     clearTimeout(restoreTimer.current);
-    restoreTimer.current = setTimeout(
-      () => setSelectable(true),
-      SELECTION_RESTORE_MS,
-    );
+    restoreTimer.current = setTimeout(restoreSelection, SELECTION_RESTORE_MS);
   };
-  const endRef = useRef(end);
-  endRef.current = end;
 
-  useEffect(
-    () => () => {
-      endRef.current(false);
-      clearTimeout(restoreTimer.current);
-      setSelectable(true);
-    },
-    [],
-  );
+  const unmount = useRef(() => {});
+  unmount.current = () => {
+    end(false);
+    restoreSelection();
+  };
+  useEffect(() => () => unmount.current(), []);
 
   return {
     onPointerDownCapture(event) {
       if (!router?.defers(event.nativeEvent)) return;
       // The touch is the router's: its target never sees the pointerdown.
       event.stopPropagation();
-      if (event.button !== 0 || press.current) return;
+      if (event.button !== 0) return;
+      // A press whose release never arrived: its own pointer is down again.
+      if (press.current?.pointerId === event.pointerId) end(false);
+      if (press.current) return;
       const { pointerId } = event;
       const onUp = (up: PointerEvent) => {
         if (up.pointerId === pointerId) end(true);
@@ -99,10 +114,15 @@ export function useTouchPress(router: HitRouter | null): TouchPressProps {
       const onCancel = (cancel: PointerEvent) => {
         if (cancel.pointerId === pointerId) end(false);
       };
-      document.addEventListener("pointerup", onUp, true);
-      document.addEventListener("pointercancel", onCancel, true);
+      // On the window, ahead of the router's document listeners, which stop a
+      // finger's release once a second finger has taken the gesture.
+      window.addEventListener("pointerup", onUp, true);
+      window.addEventListener("pointercancel", onCancel, true);
       clearTimeout(restoreTimer.current);
-      setSelectable(false);
+      if (!selectionHeld.current) {
+        selectionHeld.current = true;
+        holdSelectionOff();
+      }
       const started: Press = {
         pointerId,
         longPressed: false,
@@ -111,8 +131,8 @@ export function useTouchPress(router: HitRouter | null): TouchPressProps {
           routerRef.current?.longPress();
         }, LONG_PRESS_MS),
         stop() {
-          document.removeEventListener("pointerup", onUp, true);
-          document.removeEventListener("pointercancel", onCancel, true);
+          window.removeEventListener("pointerup", onUp, true);
+          window.removeEventListener("pointercancel", onCancel, true);
         },
       };
       press.current = started;
@@ -122,18 +142,17 @@ export function useTouchPress(router: HitRouter | null): TouchPressProps {
       // The browser's click after a press must not reach a target; any other
       // click (a replayed tap, a mouse click) is its target's.
       if (isReplayed(event.nativeEvent)) return;
+      const { pointerType } = event.nativeEvent as PointerEvent;
+      if (pointerType === "mouse" || pointerType === "pen") return;
+      if (event.detail === 0) return;
       if (!press.current && Date.now() >= clickUntil.current) return;
       clickUntil.current = 0;
       event.preventDefault();
       event.stopPropagation();
     },
     onContextMenuCapture(event) {
-      if (
-        !press.current?.longPressed &&
-        Date.now() >= contextMenuUntil.current
-      ) {
-        return;
-      }
+      if ((event.nativeEvent as PointerEvent).pointerType !== "touch") return;
+      if (!press.current && Date.now() >= contextMenuUntil.current) return;
       event.preventDefault();
     },
   };
