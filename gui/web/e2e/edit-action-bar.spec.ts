@@ -14,6 +14,7 @@ import {
   phone,
 } from "./stageNav";
 import { projectJson, touch, watchCommands } from "./touchTimeline";
+import { trackHeaderButton } from "./trackHeader";
 
 const selectionBar = (page: Page) =>
   page.getByRole("group", { name: "Selection actions" });
@@ -479,20 +480,18 @@ test.describe("Keys and focus", () => {
     ).toBeFocused();
   });
 
-  test("a track header says it is expanded only while its Inspector is open", async ({
+  test("a track header says it is selected while its Inspector is open", async ({
     page,
   }) => {
+    // System/TrackHeader's select button reports aria-pressed (selected), not
+    // aria-expanded; the Inspector it opens is announced by its own region.
     await openEdit(page);
-    const header = page.getByRole("button", {
-      name: "Open track details, reference",
-    });
+    const header = trackHeaderButton(page, "reference");
+    await expect(header).toHaveAttribute("aria-pressed", "false");
     await header.focus();
     await page.keyboard.press("Enter");
     await expect(inspector(page)).toBeVisible();
-    await expect(header).toHaveAttribute("aria-expanded", "true");
-    await page.keyboard.press("Escape");
-    await expect(inspector(page)).toHaveCount(0);
-    await expect(header).toHaveAttribute("aria-expanded", "false");
+    await expect(header).toHaveAttribute("aria-pressed", "true");
   });
 });
 

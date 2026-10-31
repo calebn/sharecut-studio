@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, within } from "storybook/test";
+import { TrackColumn } from "../stage/edit/TrackColumn";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { selections } from "../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
-import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import { TimelineView } from "./TimelineView";
 
 const meta: Meta<typeof TimelineView> = {
@@ -35,15 +35,7 @@ const meta: Meta<typeof TimelineView> = {
   ],
   parameters: { ...viewportStoryParameters, episode: {} },
   args: {
-    headerSlot: (
-      <TrackHeadersColumn
-        showAddTrack
-        showSoloChip
-        addDropOver={false}
-        addFileCount={1}
-        onAddDropOverChange={fn()}
-      />
-    ),
+    headerSlot: <TrackColumn showSoloChip />,
   },
 };
 
@@ -54,7 +46,7 @@ export const Arranged: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       await within(canvasElement).findByRole("button", {
-        name: "Open track details, Mira",
+        name: "Mira",
       }),
     ).toBeVisible();
   },
@@ -65,7 +57,7 @@ export const ClipSelected: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       await within(canvasElement).findByRole("button", {
-        name: "Open track details, Mira",
+        name: "Mira",
       }),
     ).toBeVisible();
   },

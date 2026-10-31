@@ -17,6 +17,7 @@ import {
   projectMenuButton,
 } from "./stageNav";
 import { parseTimecodeSec } from "./timecode";
+import { TRACK_HEADER_SELECT } from "./trackHeader";
 
 async function expectInspectorFooterTouchTargets(page: Page) {
   const controls = page.locator(".modifier-footer-actions button");
@@ -132,24 +133,22 @@ test.describe("ShareCut Studio mobile smoke", () => {
   });
 
   test("phone lanes show who each track is", async ({ page }) => {
-    // Identity first (#20 review): a lane-colored initials chip per lane, the
-    // lane color on the rail edge, and the full name on the lane's clips.
+    // Identity first (#20 review): a track-colored initials avatar per lane
+    // in a 44 px select button, and the full name on the lane's clips.
     await openProject(page, e2eProjectPath);
     await openPhoneTimeline(page);
     const lanes = await page.evaluate(() =>
-      [...document.querySelectorAll(".track-header-row")].map((row) => {
-        const chip = row.querySelector(".track-chip");
-        const box = chip?.getBoundingClientRect();
-        const name =
-          row
-            .querySelector(".track-header-open")
-            ?.getAttribute("aria-label")
-            ?.replace("Open track details, ", "") ?? "";
+      [...document.querySelectorAll<HTMLElement>(".sys-track")].map((row) => {
+        const chip = row.querySelector(".sys-track-avatar");
+        const box = row
+          .querySelector(".sys-track-main")
+          ?.getBoundingClientRect();
         return {
-          name,
+          name:
+            row.querySelector(".sys-track-main .sr-only")?.textContent ?? "",
           chip: chip?.textContent ?? "",
           size: box ? [Math.round(box.width), Math.round(box.height)] : [0, 0],
-          edge: getComputedStyle(row).borderInlineStartColor,
+          edge: row.style.getPropertyValue("--sys-track-color"),
         };
       }),
     );
@@ -185,7 +184,7 @@ test.describe("ShareCut Studio mobile smoke", () => {
 
     await drawer.getByRole("button", { name: "Close" }).click();
     const sheet = page.getByRole("dialog", { name: "Inspector" });
-    await page.locator(".track-header-open").first().click();
+    await page.locator(TRACK_HEADER_SELECT).first().click();
     await expect(sheet).toBeVisible();
     await expect(
       sheet.getByRole("button", { name: "Move track down" }),
@@ -557,7 +556,7 @@ test.describe("Inspector footer with a desktop coarse pointer", () => {
     expect(
       await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
     ).toBe(true);
-    await page.locator(".track-header-open").first().press("Enter");
+    await page.locator(TRACK_HEADER_SELECT).first().press("Enter");
     await expectInspectorFooterTouchTargets(page);
     await openSuggestedPendingEdit(page, e2eProjectPath);
     const inspector = page

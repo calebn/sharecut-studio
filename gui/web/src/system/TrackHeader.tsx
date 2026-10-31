@@ -43,6 +43,10 @@ export type TrackHeaderProps = {
   playing?: number;
   /** The track's stem is being rebuilt: a hollow ring on the avatar. */
   rebuilding?: boolean;
+  /** The track clipped in playback and its light is still lit: a danger ring and a badge on the avatar. */
+  clipped?: boolean;
+  /** Why the track reads as it does, such as the reasons a stem is out of date: spoken with the other facts and shown as the select button's tip. */
+  status?: string;
   selected?: boolean;
   reorder?: TrackReorder;
   /** Attributes for the header, and for its Mute and Solo buttons, such as presence anchors. */
@@ -89,6 +93,8 @@ export const TrackHeader = memo(function TrackHeader({
   level,
   playing = 0,
   rebuilding = false,
+  clipped = false,
+  status,
   selected = false,
   reorder,
   anchorProps,
@@ -109,6 +115,8 @@ export const TrackHeader = memo(function TrackHeader({
     mute === "implied" ? "Silent while another track is soloed" : null,
     solo ? "Soloed" : null,
     rebuilding ? "Rebuilding" : null,
+    clipped ? "Clipped in playback" : null,
+    status ?? null,
   ].filter((fact) => fact !== null);
   const isSet = mute !== "off" || solo || level !== 0;
   const phone = form === "phone";
@@ -149,6 +157,7 @@ export const TrackHeader = memo(function TrackHeader({
       data-solo={solo || undefined}
       data-set={isSet || undefined}
       data-rebuilding={rebuilding || undefined}
+      data-clipped={clipped || undefined}
       data-reorder={reorder}
       style={
         {
@@ -162,6 +171,7 @@ export const TrackHeader = memo(function TrackHeader({
         className="sys-track-main"
         aria-pressed={selected}
         aria-describedby={facts.length > 0 ? statusId : undefined}
+        title={status}
         onClick={(event) =>
           onSelect(id, event.shiftKey || event.ctrlKey || event.metaKey)
         }
@@ -169,9 +179,14 @@ export const TrackHeader = memo(function TrackHeader({
       >
         <span className="sys-track-avatar">
           <PersonAvatar person={{ name, colorIndex }} size={28} />
-          {phone && (muted || solo) ? (
+          {clipped || (phone && (muted || solo)) ? (
             <span className="sys-track-badge">
-              <SystemIcon name={muted ? "volume-x" : "headphones"} size={12} />
+              <SystemIcon
+                name={
+                  clipped ? "triangle-alert" : muted ? "volume-x" : "headphones"
+                }
+                size={12}
+              />
             </span>
           ) : null}
         </span>

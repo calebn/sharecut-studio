@@ -14,7 +14,6 @@ import { Cover } from "../../system/Cover";
 import { Skeleton } from "../../system/Skeleton";
 import { RangeFields } from "../../timeline/RangeFields";
 import { TimelineView } from "../../timeline/TimelineView";
-import { TrackHeadersColumn } from "../../tracks/TrackHeadersColumn";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 import { EditActionBar } from "./EditActionBar";
@@ -26,8 +25,10 @@ import { PhoneEditSurfaceView } from "./PhoneEditSurfaceView";
 import { PlusMenu } from "./PlusMenu";
 import { ScriptDivider } from "./ScriptDivider";
 import { ScriptHost } from "./script/ScriptHost";
+import { TrackColumn } from "./TrackColumn";
 import { useAudioDrop } from "./useAudioDrop";
 import { useInspectorOpen } from "./useInspectorOpen";
+import { useRevealEditedLane } from "./useRevealEditedLane";
 import { useScriptSize } from "./useScriptSize";
 
 const SIDE_BY_SIDE_MQ = "(min-width: 62.5rem)";
@@ -57,6 +58,7 @@ function EditWorkspaceAdapter({
     projectPath,
     guestMode,
     shareCapabilities,
+    editedTrackId,
   } = useDawStore(
     useShallow((s) => ({
       project: s.project,
@@ -68,6 +70,7 @@ function EditWorkspaceAdapter({
       projectPath: s.projectPath,
       guestMode: s.guestMode,
       shareCapabilities: s.shareCapabilities,
+      editedTrackId: s.selection?.kind === "track" ? s.selection.trackId : null,
     })),
   );
   const shell = useViewportClass();
@@ -118,11 +121,19 @@ function EditWorkspaceAdapter({
         : "timeline",
   );
 
+  // The Inspector column covers no lane, but a header select no longer
+  // scrolls its lane whole (the old header button did, by being focused), so
+  // the lane being edited is brought into view here, as the tablet needs it.
+  useRevealEditedLane(
+    shell !== "phone" && inspector.open ? editedTrackId : null,
+  );
+
   const phone = arrangement === "phone";
   // Memoized: a new element would re-render the timeline it is slotted into.
   const headers = useMemo(
     () => (
-      <TrackHeadersColumn
+      <TrackColumn
+        form={phone ? "phone" : "default"}
         showSoloChip={!phone}
         addRow={
           mayIngest ? (

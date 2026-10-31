@@ -190,7 +190,7 @@ test("a tablet track sheet owns the agent range controls", async ({ page }) => {
   const clientId = fixtureClientId(page, "track");
   await clearAgentRange(page, clientId, 1);
   await publishAgentRange(page, clientId, 2);
-  const trackName = page.locator(".track-title-text").first();
+  const trackName = page.locator(".sys-track-name").first();
   const trackNameBox = await trackName.boundingBox();
   if (!trackNameBox) throw new Error("track name has no visible bounds");
   await page.touchscreen.tap(

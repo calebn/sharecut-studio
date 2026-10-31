@@ -16,7 +16,7 @@ test("a finger drags the phone Inspector sheet through its detents and off the s
 }) => {
   await openProject(page, e2eProjectPath);
   await phone.showTimeline(page);
-  const header = page.locator(".track-header-open").first();
+  const header = page.locator(".sys-track-main").first();
   await header.tap();
 
   const sheet = page.getByRole("dialog", { name: "Inspector", exact: true });
@@ -71,7 +71,7 @@ test("a finger drags the phone Inspector sheet through its detents and off the s
 
   await drag(200);
   await expect(sheet).toHaveCount(0);
-  await expect(page.locator(".track-header-row.selected")).toHaveCount(0);
+  await expect(page.locator(".sys-track[data-selected]")).toHaveCount(0);
   await expect(header).toBeFocused();
 });
 
@@ -83,7 +83,7 @@ test.describe("a phone held sideways", () => {
   }) => {
     await openProject(page, e2eProjectPath);
     await phone.showTimeline(page);
-    const header = page.locator(".track-header-open").first();
+    const header = page.locator(".sys-track-main").first();
     await header.focus();
     await header.press("Enter");
     await expect(page.locator(".stage-frame--phone")).toBeVisible();

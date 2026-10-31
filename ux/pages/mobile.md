@@ -60,7 +60,7 @@ stays inside its source clip. Audition manually adjusted cuts before approval.
 
 ## Selecting things
 
-In Timeline, tap a clip or track header to open its inspector in a bottom sheet.
+In Timeline, tap a clip or track header to open its inspector in a bottom sheet. The track header is the 56px avatar rail (no name, no drag to reorder; Move up / Move down are in the track sheet).
 Held sideways on a phone wide enough for it (at least 40rem, such as 667, 844 or
 932 points wide), the inspector is a column on the right instead: the timeline
 keeps its full height beside it, the player and tab bar step aside while it

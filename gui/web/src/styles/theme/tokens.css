@@ -137,7 +137,7 @@
   /* WCAG 2.5.8 24 px target for the join marks' hit areas (.edit-mark::before, .edit-chip::before):
      two --clip-inset-top gutters, so it stays canvas px at any root font size. */
   --join-hit-min: calc(2 * var(--clip-inset-top));
-  --header-width: 11.25rem;
+  --header-width: 10.5rem;
   --inspector-width: 17.5rem;
   /* Edit stage, side by side: the timeline never gets narrower than the lane
      floor, and the Script pane gives way first, down to its own floor. */
