@@ -33,6 +33,8 @@ export type ReviewContent = {
     "snippet" | "time" | "value" | "author" | "unread" | "offline"
   >;
   check?: { title: string; detail?: string; actionLabel: string };
+  /** A held pickup: the line that asks before it goes ahead anyway. */
+  confirm?: { message: string };
   card: Pick<
     DecisionCardProps,
     | "title"

@@ -41,6 +41,8 @@ export type ReviewIntent = {
   text?: string;
   /** Sent by a group verb, which never cuts through unsure words. */
   group?: true;
+  /** Replace anyway: a held pickup goes ahead over the speech it removes. */
+  override?: true;
 };
 
 export type ReviewStageProps = {
@@ -314,6 +316,7 @@ export function ReviewStage({
         )
       : 0;
   const card = body?.card ?? EMPTY_CARD;
+  const held = selected && !selected.result ? body?.confirm : undefined;
   const unsure =
     body?.card.unsure && selected && !guest
       ? {
@@ -424,7 +427,19 @@ export function ReviewStage({
                     onConfirm: confirmAnyway,
                     onCheck: checkWords,
                   }
-                : undefined
+                : held && selected && canDecide
+                  ? {
+                      verb: verbOf(selected),
+                      message: held.message,
+                      allowNote: false,
+                      onConfirm: () =>
+                        void onDecide({
+                          ids: [selected.id],
+                          result: "applied",
+                          override: true,
+                        }),
+                    }
+                  : undefined
             }
             readOnly={!canDecide}
             canEdit={!guest}

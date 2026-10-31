@@ -23,6 +23,8 @@ type Spec = {
   unsure?: string;
   comment?: { by: string; body: string; replies?: number; unread?: boolean };
   detail?: string;
+  /** A staged record session: the range it replaces, and the line a held replace asks. */
+  pickup?: { range: readonly [number, number]; confirm?: string };
 };
 
 const around = (
@@ -146,6 +148,30 @@ const SPECS: readonly Spec[] = [
     segments: [{ text: "A guest marked this stretch to cut." }],
     why: "Suggested by a guest.",
   },
+  {
+    id: "pk1",
+    time: "12:04",
+    title: "Insert Session 2 at 12:04",
+    why: "2 takes · Jon and Rosa",
+    pickup: { range: [724, 724] },
+  },
+  {
+    id: "pk2",
+    time: "26:00",
+    title: "Replace 26:00–26:25 with Session 3",
+    why: "Take 2 of 3 · Jon",
+    pickup: { range: [1560, 1585] },
+  },
+  {
+    id: "pk3",
+    time: "35:00",
+    title: "Replace 35:00–35:20 with Session 4",
+    why: "Take 1 of 1 · Jon",
+    pickup: {
+      range: [2100, 2120],
+      confirm: "This also removes speech from Rosa.",
+    },
+  },
   { id: "g2", time: "Unplaced", title: "Remove an unplaced suggestion" },
   {
     id: "f0",
@@ -175,6 +201,7 @@ export function reviewContent(item: ReviewItem): ReviewContent {
     unsure,
     comment,
     detail,
+    pickup,
   } = found;
   const drawing = pause ? (
     <Suggestion kind="pause" length={pause.length} to={pause.to} />
@@ -210,7 +237,9 @@ export function reviewContent(item: ReviewItem): ReviewContent {
       unread: comment?.unread,
     },
     check: detail ? { title, detail, actionLabel: "Check" } : undefined,
+    confirm: pickup?.confirm ? { message: pickup.confirm } : undefined,
     card: {
+      change: pickup && { start: pickup.range[0], end: pickup.range[1] },
       title,
       time,
       speaker: speaker

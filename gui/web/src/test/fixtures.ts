@@ -14,6 +14,7 @@ import {
   HISTORY_ROOT_ID,
   type PendingEditView,
   type ProjectView,
+  type SessionSuggestionView,
   type TimelineComment,
   type TrackView,
 } from "../types/project";
@@ -346,6 +347,26 @@ export function hostShareRow(
     review_version_label: "Share mix",
     follow_latest: true,
     last_used_at: null,
+    ...overrides,
+  };
+}
+
+/** Fictional staged record session (an insert unless `kind` says replace). */
+export function sessionSuggestionView(
+  overrides: Partial<SessionSuggestionView> = {},
+): SessionSuggestionView {
+  return {
+    id: "ss-1",
+    kind: "insert",
+    session_id: "sess-2",
+    session_number: 2,
+    at_sec: 724,
+    from_sec: null,
+    to_sec: null,
+    track_ids: ["host"],
+    take_count: 1,
+    take_indexes: [0],
+    selected_take: null,
     ...overrides,
   };
 }
