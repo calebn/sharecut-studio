@@ -173,7 +173,9 @@ def test_a_changed_recording_is_measured_again(
     assert measures == [WAVEFORM_SAMPLE_RATE]
 
 
-@pytest.mark.parametrize("damage", ["garbage", "partial", "not_finite"])
+@pytest.mark.parametrize(
+    "damage", ["garbage", "partial", "not_finite", "null", "list", "text", "huge", "deep"]
+)
 def test_a_damaged_record_is_measured_again(
     tmp_path: Path, measures: list[int], damage: str
 ) -> None:
@@ -187,6 +189,11 @@ def test_a_damaged_record_is_measured_again(
                 "garbage": "{not json",
                 "partial": '{"room_db": -60.0}',
                 "not_finite": '{"room_db": -Infinity, "speech_db": 1, "loud_db": 2}',
+                "null": "null",
+                "list": "[1, 2, 3]",
+                "text": '"x"',
+                "huge": '{"room_db": 1e999999, "speech_db": 1, "loud_db": 2}',
+                "deep": "[" * 100_000,
             }[damage],
             encoding="utf-8",
         )
@@ -224,3 +231,19 @@ def test_a_pipeline_step_that_decodes_the_tracks_records_their_profiles(
         for rate in RATES:
             track_level_profile(project, tid, sample_rate=rate)
     assert len(measures) == measured
+
+
+def test_a_new_record_revision_measures_again(
+    tmp_path: Path, measures: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path)
+    record_track_level_profiles(project)
+    before = set(_records(project))
+    level_profile._FILE_PROFILES.clear()
+    measures.clear()
+
+    monkeypatch.setattr(level_profile, "_RECORD_REV", level_profile._RECORD_REV + 1)
+    track_level_profile(project, "host", sample_rate=WAVEFORM_SAMPLE_RATE, record=True)
+
+    assert measures == [WAVEFORM_SAMPLE_RATE]
+    assert set(_records(project)) - before
