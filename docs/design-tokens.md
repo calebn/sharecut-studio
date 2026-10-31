@@ -196,7 +196,8 @@ Three roles sit beside the ladder:
   state for toggles, grouped segments, and selected rows: a neutral chip with
   full-strength text. Selection never uses the accent. `.ui-control`'s base
   pressed rule paints it (with a `--color-text-secondary` border), so
-  components never restate it; checked menu radios add a check mark.
+  components never restate it; checked menu radios add a check mark, and
+  pressed chips in the Deliver `.dv-chips` groups lead with one.
   Quiet standalone toggles and tabs use full-strength text and a neutral
   underline instead; grouped `.ui-segmented` controls retain the chip.
   Another exception: the phone Stage tab bar marks the current
