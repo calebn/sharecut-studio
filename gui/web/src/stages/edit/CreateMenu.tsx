@@ -2,6 +2,7 @@ import {
   type FocusEvent,
   Fragment,
   memo,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -174,25 +175,36 @@ function Popover({
  */
 function CreateMenuView({ phone = false, ...props }: CreateMenuProps) {
   const { rows, time, track, onPick, onClose } = props;
+  const sheetId = useId();
   const title = track ? `${time} · ${track}` : time;
   if (phone) {
     return (
       <Sheet form="bottom" detent="fit" title={title} onClose={onClose}>
         {rows.map((row, index) => (
-          <button
-            key={row.id}
-            type="button"
-            className="sys-row-btn"
-            {...{ [CREATE_ITEM_ATTR]: String(index) }}
-            title={row.note}
-            aria-description={row.note}
-            onClick={() => onPick(row.id)}
-          >
-            <span className="sys-row-label">
-              <SystemIcon name={row.icon} size={16} />
-              {row.label}
-            </span>
-          </button>
+          <Fragment key={row.id}>
+            <button
+              type="button"
+              className="sys-row-btn"
+              {...{ [CREATE_ITEM_ATTR]: String(index) }}
+              title={row.note}
+              aria-describedby={row.note ? `${sheetId}-${row.id}` : undefined}
+              onClick={() => onPick(row.id)}
+            >
+              <span className="sys-row-label">
+                <SystemIcon name={row.icon} size={16} />
+                {row.label}
+              </span>
+            </button>
+            {row.note ? (
+              <span
+                id={`${sheetId}-${row.id}`}
+                className="sr-only"
+                aria-hidden="true"
+              >
+                {row.note}
+              </span>
+            ) : null}
+          </Fragment>
         ))}
       </Sheet>
     );

@@ -99,13 +99,21 @@ export function focusIsFree(): boolean {
 }
 
 /**
- * Moves focus to a track's lane. The lane row is not a tab stop, so it takes
- * a script-only one (`tabindex="-1"`) the first time it is asked for focus.
+ * Moves focus to a track's lane. The lane row is neither a tab stop nor a
+ * named region, so the first time it is asked for focus it takes a script-only
+ * stop (`tabindex="-1"`) and its track's name.
  */
 export function focusLane(trackId: string): boolean {
   const row = laneRow(trackId);
   if (!row) return false;
-  if (!row.hasAttribute("tabindex")) row.tabIndex = -1;
+  if (!row.hasAttribute("tabindex")) {
+    const track = useDawStore
+      .getState()
+      .project?.tracks.find((t) => t.id === trackId);
+    row.tabIndex = -1;
+    row.setAttribute("role", "group");
+    row.setAttribute("aria-label", track?.label || trackId);
+  }
   row.focus({ preventScroll: true });
   return true;
 }

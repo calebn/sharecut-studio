@@ -167,6 +167,9 @@ describe("runCreatePick", () => {
     });
     await runCreatePick("paste", lane);
     expect(row).toHaveFocus();
+    expect(row).toHaveAccessibleName(
+      useDawStore.getState().project?.tracks[0]?.label || "host",
+    );
     row.remove();
   });
 
