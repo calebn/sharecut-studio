@@ -197,6 +197,8 @@ A selected word and an applied edit (a cut) open in the Inspector sheet. The wor
 
 A selected automatic reduction (from the clip's Inspect automatic audio reduction button or its Timeline overlay) opens in the same sheet: the plan, rendered-audio and saved-choice facts, the regions in the clip, **Restore original audio**, **Refresh regions** and **Undo Restore**. A share link reads that the project host alone can inspect and restore it.
 
+A selected comment with no pending edit behind it opens the same sheet: a Time button that seeks, the author, status and tracks, the comment text, action items, replies, a **Reply** field and **Resolve** (or **Reopen**). A share link without reply permission has no Reply field, and a share link never sees Resolve.
+
 ---
 
 ## Phone — Review (the old Listen)
