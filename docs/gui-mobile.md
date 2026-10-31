@@ -585,7 +585,7 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 | Two-finger tap | Optional ShareCut Undo shortcut | Available when project Undo is available |
 | Long-press | Select a comment or track and open its sheet; correct a transcript word (hosts) | Available |
 | Pinch | Zoom in/out on timeline | Available |
-| Swipe right on a comment card (Review queue, phone) | Resolve (Undo toast follows); left does nothing | Available |
+| Swipe on a comment card (Review queue, phone) | Nothing; use the card's Resolve button (Undo toast follows) | Not available |
 | Double-tap word | Correct word (hosts); first tap seeks | Available |
 
 ## Wireframes (ASCII)
