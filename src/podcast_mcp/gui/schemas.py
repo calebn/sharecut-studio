@@ -239,9 +239,10 @@ def _plain_text(text: str) -> str:
 
 
 def _plain_term(term: str) -> str:
-    """A vocabulary term or guest name is one line: no break, tab or control character."""
+    """A vocabulary term or guest name is one line; the ends are trimmed, as the service does."""
+    term = term.strip()
     _plain_text(term)
-    if any(c in "\n\r\t\u2028\u2029" for c in term):
+    if any(c in "\n\r\u2028\u2029" for c in term):
         raise ValueError("a term must be a single line")
     return term
 
