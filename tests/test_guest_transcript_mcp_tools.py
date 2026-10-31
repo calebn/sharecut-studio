@@ -216,8 +216,14 @@ def test_an_unknown_argument_is_invalid_params_and_changes_nothing(world, tool) 
         ("guest_transcript_refine_waive", {}),
         ("guest_transcript_refine_waive", {"reason": "bad\x1b[31mreason"}),
         ("guest_transcript_refine_done", {"notes": "bad\x00note"}),
-        ("guest_transcript_vocabulary_put", {"terms": ["a\x07b"], "guest_names": []}),
-        ("guest_transcript_vocabulary_put", {"terms": [], "guest_names": ["a\nb"]}),
+        (
+            "guest_transcript_vocabulary_put",
+            {"terms": ["a\x07b"], "guest_names": [], "base_revision": None},
+        ),
+        (
+            "guest_transcript_vocabulary_put",
+            {"terms": [], "guest_names": ["a\nb"], "base_revision": None},
+        ),
         ("guest_transcript_replacement_preview", {"search": "", "replacement": "x"}),
         (
             "guest_transcript_replacement_preview",
