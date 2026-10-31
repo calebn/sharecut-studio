@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from podcast_mcp.models import EpisodeProject
     from podcast_mcp.services.app import ProjectWorkspace
 
 log = logging.getLogger(__name__)
@@ -18,13 +19,20 @@ _warming_lock = threading.Lock()
 def warm_pending_checks(ws: ProjectWorkspace) -> int:
     """Check the pending cuts now, as the host's Approve all will, so that approval reuses them.
 
-    Nothing is saved. Uses the interactive intent the host approves with, which is part of
-    the check; returns how many cuts were checked, 0 while the verdict cache is off (#1958).
+    Nothing is saved, except the room-tone pool of a track that has none, which is recorded
+    (or waited for) first so the checks read the pool Approve reads. Uses the interactive
+    intent the host approves with, which is part of the check; returns how many cuts were
+    checked, 0 while the verdict cache is off (#1958).
     """
     from podcast_mcp.edits.cut_application import precompute_verdicts
     from podcast_mcp.edits.decisions import list_edit_decisions
-    from podcast_mcp.models import CutIntent
+    from podcast_mcp.engines.room_tone import ensure_room_tone_pools
+    from podcast_mcp.models import CutIntent, TrackRole
 
+    # The pools first: the verdicts must come from the room tone Approve will pick.
+    ensure_room_tone_pools(
+        ws.project, [t.id for t in ws.project.tracks if t.role == TrackRole.DIALOGUE]
+    )
     ids = [e.id for e in list_edit_decisions(ws.project, applied=False, review_required=True)]
     return precompute_verdicts(
         ws.project,
@@ -33,6 +41,18 @@ def warm_pending_checks(ws: ProjectWorkspace) -> int:
         application_intent=CutIntent.HUMAN_BOUNDARIES,
         yield_to_approval=True,
     )
+
+
+def queue_room_tone_pools(project: EpisodeProject) -> int:
+    """Queue the missing room-tone pools of a project that only the caller holds.
+
+    The host calls this on the project it has just opened for a request: one background
+    thread records the pools of its dialogue tracks, and the idle warms wait for it. Returns
+    how many tracks were queued.
+    """
+    from podcast_mcp.engines.room_tone import schedule_room_tone_pools
+
+    return schedule_room_tone_pools(project, owned=True)
 
 
 def warm_in_background(project_path: Path) -> None:

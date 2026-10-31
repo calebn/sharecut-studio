@@ -353,7 +353,9 @@ The detector modules supply measurements. Held application measures fixed edges 
 another optimizer. The current checked-geometry implementation is transitional. It does
 not yet assess complete final effects across every cut path. Automatic join fades now run
 on the working copy before adoption. Approval reads existing room-tone pools or measures
-a live sample without recording a pool. The active-processing-chain evidence cache may use its existing scoped temporary
+a live sample without recording a pool, and a pool that appears while a batch runs is first read by the next batch.
+The pool record is a media-derived artifact outside that rule: the host's project load and a successful
+approval queue it for recording, and a rejected approval queues nothing and leaves none. The active-processing-chain evidence cache may use its existing scoped temporary
 measurement render. Such measurement must leave no durable files on rejection.
 The complete working-state owner and full two-stage proof remain pending
 in [Manual cut intent](filler-cut-quality.md#decision-manual-cut-intent-bypasses-acoustic-vetoes).
