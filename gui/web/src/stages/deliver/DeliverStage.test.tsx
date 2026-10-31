@@ -2541,18 +2541,6 @@ describe("Episode file transcript note", () => {
     expect(screen.getByText(copy)).toBeInTheDocument();
   });
 
-  it("does not point at a Transcript section that is still loading", () => {
-    setup({
-      state: "loading",
-      transcript: transcriptOptions({
-        preview: { kind: "ready", preview: SAMPLE_PREVIEW },
-      }),
-    });
-    expect(
-      screen.queryByText(/Choose more files in Transcript below/),
-    ).toBeNull();
-  });
-
   it("shows no sentence when nothing is transcribed", () => {
     setup({ transcript: transcriptOptions({ preview: { kind: "none" } }) });
     expect(screen.queryByText(/written with every export/)).toBeNull();
