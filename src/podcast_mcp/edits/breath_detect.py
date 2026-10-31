@@ -121,7 +121,14 @@ def _frame_rms(samples: np.ndarray, frame: int, frame_size: int) -> float:
 
 
 def _frame_levels(samples: np.ndarray, frame_size: int, count: int) -> np.ndarray:
-    return np.asarray([_frame_rms(samples, f, frame_size) for f in range(count)])
+    levels = np.zeros(count, dtype=np.float64)
+    whole = min(count, samples.size // frame_size) if frame_size > 0 else 0
+    if whole:
+        block = samples[: whole * frame_size].reshape(whole, frame_size)
+        levels[:whole] = np.sqrt(np.mean(block**2, axis=1))
+    for frame in range(whole, count):
+        levels[frame] = _frame_rms(samples, frame, frame_size)
+    return levels
 
 
 def _is_unvoiced(samples: np.ndarray, sample_rate: int, *, min_rms: float = 0.0) -> bool:
