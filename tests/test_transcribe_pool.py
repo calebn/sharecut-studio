@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -181,15 +183,79 @@ def test_context_variables_reach_workers(engine, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("configured", "workers", "expected"),
-    [(16, 2, WORKER_CPU_THREADS), (6, 3, 2), (3, 4, 1), (2, 2, 1), (None, 3, WORKER_CPU_THREADS)],
+    ("configured", "expected"), [(16, 16), (6, 6), (2, 2), (None, WORKER_CPU_THREADS)]
 )
-def test_user_set_cpu_threads_are_shared_out_across_workers(configured, workers, expected):
-    base = TranscriptionEngine(device="cpu", defaults=load_defaults())
-    base.cpu_threads = configured
-    clone = transcribe_pool._worker_engine(base, workers)
+def test_forked_worker_keeps_a_set_thread_count_and_pins_an_unset_one(configured, expected):
+    base = TranscriptionEngine(device="cpu", defaults=load_defaults(), cpu_threads=configured)
+    clone = base.fork_worker(WORKER_CPU_THREADS)
     assert clone.cpu_threads == expected
     assert base.cpu_threads == configured
+
+
+@pytest.mark.parametrize("configured", [None, 6])
+def test_worker_threads_do_not_depend_on_the_worker_count(engine, monkeypatch, configured):
+    engine.cpu_threads = configured
+    seen: dict[int, set[int | None]] = {}
+    for budget, workers in ((8, 2), (12, 3)):
+        monkeypatch.setattr(transcribe_pool, "cpu_budget", lambda budget=budget: budget)
+        threads: set[int | None] = set()
+        barrier = threading.Barrier(workers, timeout=WAIT)
+
+        def body(self: TranscriptionEngine, job: TranscribeJob, threads=threads, barrier=barrier):
+            threads.add(self.cpu_threads)
+            barrier.wait()
+
+        _fake(monkeypatch, body)
+        _run(engine, _jobs(workers))
+        seen[workers] = threads
+    assert seen[2] == seen[3] == {WORKER_CPU_THREADS if configured is None else configured}
+
+
+def test_forked_workers_share_one_aligner_and_one_set_of_levels(engine, monkeypatch):
+    loads: list[object] = []
+    builds: list[object] = []
+    aligner = object()
+    levels = object()
+    monkeypatch.setattr(
+        "podcast_mcp.engines.word_align.WordAligner.load",
+        classmethod(lambda cls, *a, **k: loads.append(1) or aligner),
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.engines.transcribe.SpeechLevels.for_project",
+        classmethod(lambda cls, *a, **k: builds.append(1) or levels),
+    )
+    workers = [engine.fork_worker(WORKER_CPU_THREADS) for _ in range(3)]
+    got: list[tuple[object, object]] = []
+    barrier = threading.Barrier(len(workers), timeout=WAIT)
+
+    def use(worker: TranscriptionEngine) -> None:
+        barrier.wait()
+        got.append((worker.load_word_aligner(), worker.speech_levels(MagicMock())))
+
+    threads = [threading.Thread(target=use, args=(w,)) for w in workers]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(WAIT)
+    assert got == [(aligner, levels)] * 3
+    assert len(loads) == len(builds) == 1
+    assert engine.load_word_aligner() is aligner
+    assert engine.speech_levels(MagicMock()) is levels
+    assert len(loads) == len(builds) == 1
+
+
+def test_forked_workers_share_a_failed_aligner_load(engine, monkeypatch):
+    loads: list[object] = []
+
+    def fail(cls, *a, **k):
+        loads.append(1)
+        raise RuntimeError("no model")
+
+    monkeypatch.setattr("podcast_mcp.engines.word_align.WordAligner.load", classmethod(fail))
+    for worker in (engine.fork_worker(WORKER_CPU_THREADS) for _ in range(2)):
+        with pytest.raises(RuntimeError, match="no model"):
+            worker.load_word_aligner()
+    assert len(loads) == 1
 
 
 def test_interrupt_cancels_queued_jobs(engine, monkeypatch):
@@ -216,9 +282,6 @@ def test_interrupt_cancels_queued_jobs(engine, monkeypatch):
 
 
 def test_concurrent_tracks_keep_their_own_progress_row_and_heartbeat(engine, monkeypatch):
-    from types import SimpleNamespace
-    from unittest.mock import MagicMock
-
     from podcast_mcp.util.progress import bind_progress, progress_task
     from podcast_mcp.util.progress.reporters import ElapsedProgressMixin
 

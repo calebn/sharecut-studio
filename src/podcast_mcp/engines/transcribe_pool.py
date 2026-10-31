@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextvars
-import copy
 import queue
 import threading
 from collections.abc import Callable, Sequence
@@ -20,12 +19,9 @@ T = TypeVar("T")
 J = TypeVar("J")
 
 WORKER_CPU_THREADS = 4
-# Estimate (not measured here): about 1 GB per extra loaded model plus its working set; validate on the Mac.
 DEFAULT_WORKER_RAM_BYTES = 2_400_000_000
 WORKER_OVERHEAD_BYTES = 800_000_000
 AVAILABLE_RAM_FRACTION = 0.7
-
-_STATE_LISTS = ("silence_filter_skipped", "forced_alignment_jobs", "asr_loop_drops")
 
 
 def worker_ram_bytes(model_size: str) -> int:
@@ -44,19 +40,6 @@ def transcribe_worker_count(model_size: str, job_count: int) -> int:
     return max(1, min(job_count, cpu_budget() // WORKER_CPU_THREADS, by_memory))
 
 
-def _worker_engine(engine: TranscriptionEngine, workers: int) -> TranscriptionEngine:
-    clone = copy.copy(engine)
-    clone._model = None
-    clone._loop_drop = None
-    if clone.cpu_threads is None:
-        clone.cpu_threads = WORKER_CPU_THREADS
-    elif workers > 1:
-        clone.cpu_threads = min(WORKER_CPU_THREADS, max(1, clone.cpu_threads // workers))
-    for name in _STATE_LISTS:
-        setattr(clone, name, [])
-    return clone
-
-
 def run_jobs_concurrently(
     engine: TranscriptionEngine,
     jobs: Sequence[J],
@@ -66,7 +49,7 @@ def run_jobs_concurrently(
     """Results in job order; the earliest failing job's exception propagates once all stop."""
     slots: queue.SimpleQueue[TranscriptionEngine] = queue.SimpleQueue()
     for _ in range(workers):
-        slots.put(_worker_engine(engine, workers))
+        slots.put(engine.fork_worker(WORKER_CPU_THREADS))
     stop = threading.Event()
     state: list[dict[str, list] | None] = [None] * len(jobs)
 
@@ -80,9 +63,7 @@ def run_jobs_concurrently(
             stop.set()
             raise
         finally:
-            state[index] = {name: getattr(worker, name) for name in _STATE_LISTS}
-            for name in _STATE_LISTS:
-                setattr(worker, name, [])
+            state[index] = worker.take_run_state()
             slots.put(worker)
 
     futures: list[Future[T | None]] = []
@@ -96,10 +77,9 @@ def run_jobs_concurrently(
         stop.set()
         pool.shutdown(wait=True, cancel_futures=True)
         raise
-    for name in _STATE_LISTS:
-        for entry in state:
-            if entry is not None:
-                getattr(engine, name).extend(entry[name])
+    for entry in state:
+        if entry is not None:
+            engine.absorb_run_state(entry)
     results: list[T] = []
     for future in futures:
         value = future.result()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import math
@@ -495,6 +496,9 @@ def collect_punctuation_outlier_flags(project: EpisodeProject) -> list[dict[str,
     return flags
 
 
+_RUN_STATE = ("silence_filter_skipped", "forced_alignment_jobs", "asr_loop_drops")
+
+
 class TranscriptionEngine:
     def __init__(
         self,
@@ -532,6 +536,9 @@ class TranscriptionEngine:
         self._loop_drop: LoopReport | None = None
         self._word_aligner: WordAligner | None = None
         self._word_aligner_error: Exception | None = None
+        # Forked workers build the aligner and speech levels through this engine, under its lock.
+        self._owner = self
+        self._build_lock = threading.Lock()
         # Dialogue-track levels for the aligner evidence gate (#780), decoded once per engine
         # the first time a scored transcript needs them.
         self._speech_levels: SpeechLevels | None = None
@@ -653,19 +660,48 @@ class TranscriptionEngine:
         # The load, or its failure, is kept for this engine's lifetime (one pipeline run or
         # one TranscriptService request): a corrupt snapshot is hashed once per run, not
         # once per track, and a bootstrap in a long-lived process (Studio) still takes
-        # effect on the next run. Not locked: an engine runs its jobs one at a time. Add a
-        # lock if jobs ever run in parallel over one engine.
-        if self._word_aligner_error is not None:
-            raise self._word_aligner_error
-        if self._word_aligner is None:
-            from podcast_mcp.engines.word_align import WordAligner
+        # effect on the next run. Workers forked from this engine share one aligner,
+        # loaded under the owner's lock on first use.
+        owner = self._owner
+        with owner._build_lock:
+            if owner._word_aligner_error is not None:
+                raise owner._word_aligner_error
+            if owner._word_aligner is None:
+                from podcast_mcp.engines.word_align import WordAligner
 
-            try:
-                self._word_aligner = WordAligner.load()
-            except Exception as exc:
-                self._word_aligner_error = exc
-                raise
-        return self._word_aligner
+                try:
+                    owner._word_aligner = WordAligner.load()
+                except Exception as exc:
+                    owner._word_aligner_error = exc
+                    raise
+            return owner._word_aligner
+
+    def fork_worker(self, default_cpu_threads: int) -> TranscriptionEngine:
+        """A copy for one concurrent decode lane.
+
+        It loads its own Whisper model and keeps its own run state. A set ``cpu_threads`` is
+        kept as is, so decode does not depend on how many lanes run; an unset one becomes
+        ``default_cpu_threads``. The word aligner and the speech levels stay shared with
+        this engine: built once under its lock, only read afterwards.
+        """
+        clone = copy.copy(self)
+        clone._model = None
+        clone._loop_drop = None
+        if clone.cpu_threads is None:
+            clone.cpu_threads = default_cpu_threads
+        clone.take_run_state()
+        return clone
+
+    def take_run_state(self) -> dict[str, list]:
+        """The per-job reports gathered so far; this engine starts again from empty lists."""
+        taken = {name: getattr(self, name) for name in _RUN_STATE}
+        for name in _RUN_STATE:
+            setattr(self, name, [])
+        return taken
+
+    def absorb_run_state(self, state: Mapping[str, list]) -> None:
+        for name in _RUN_STATE:
+            getattr(self, name).extend(state[name])
 
     def word_align_cache_path(
         self,
@@ -696,9 +732,13 @@ class TranscriptionEngine:
         Transcription runs before ``align_tracks``, so only the own-track half of the gate
         applies here; ``reconcile_transcript`` re-flags with the full gate.
         """
-        if self._speech_levels is None:
-            self._speech_levels = SpeechLevels.for_project(project, self.options, bleed_check=False)
-        return self._speech_levels
+        owner = self._owner
+        with owner._build_lock:
+            if owner._speech_levels is None:
+                owner._speech_levels = SpeechLevels.for_project(
+                    project, self.options, bleed_check=False
+                )
+            return owner._speech_levels
 
     def _align_words(
         self,
