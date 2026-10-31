@@ -381,3 +381,105 @@ html[data-frame-short] .edit-dock {
   font-variant-numeric: tabular-nums;
   color: var(--color-text-secondary);
 }
+
+/* Create here menu (Stages/Edit/CreateMenu, spec-edit MENU-CREATE): a 220 px
+   menu in the positioned box it is mounted in, so there is no portal, no top
+   layer and no fixed position here; the wiring host adds those. */
+.edit-create-layer {
+  --edit-create-ink: var(--color-accent);
+
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-menu);
+  pointer-events: none;
+}
+
+.edit-create-mark {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.edit-create-mark line {
+  stroke: var(--edit-create-ink);
+  stroke-width: var(--focus-ring-width);
+  stroke-dasharray: 4 4;
+}
+
+.edit-create-mark circle {
+  fill: none;
+  stroke: var(--edit-create-ink);
+  stroke-width: var(--focus-ring-width);
+}
+
+/* `.ui-menu-panel` caps a drop-down at 90dvh from a trigger. This menu's cap is
+   the layout's own (an inline max-block-size, set only when the menu is taller
+   than the room), so the shared cap must not clip it first. */
+.ui-menu-panel.edit-create-menu {
+  --menu-item-min-block-size: 2.25rem;
+
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  inline-size: 13.75rem;
+  max-block-size: none;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
+  box-shadow: var(--shadow-floating);
+  outline: none;
+  pointer-events: auto;
+}
+
+@media (pointer: coarse) {
+  .ui-menu-panel.edit-create-menu {
+    --menu-item-min-block-size: var(--touch-min);
+  }
+}
+
+.edit-create-menu[data-scrolls] {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.edit-create-menu-title {
+  display: flex;
+  align-items: center;
+  block-size: var(--control-height);
+  margin: 0;
+  padding-inline: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.edit-create-menu [role="menuitem"] {
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.edit-create-menu-separator {
+  border: 0;
+  block-size: 1px;
+  margin-block: var(--space-1);
+  background: var(--color-border-subtle);
+}
+
+@media (forced-colors: active) {
+  .edit-create-layer {
+    --edit-create-ink: Highlight;
+  }
+
+  .edit-create-menu [role="menuitem"].is-over {
+    outline: var(--focus-ring-width) solid var(--edit-create-ink);
+    outline-offset: calc(-1 * var(--focus-ring-offset));
+  }
+}
