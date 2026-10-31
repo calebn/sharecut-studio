@@ -137,7 +137,7 @@ all timeline editing. Portrait phone is the primary target.
   envelope point moves in time and level, an edge moves in time, and a clip
   body moves its clip in time.
 - A long press on empty space opens a create menu: envelope point, split,
-  marker, comment.
+  marker, comment, and (host) Record here.
 - This grammar is for touch. A mouse acts on press: it selects and drags at
   once with no arming, and a right click on a lane or target opens the same
   create menu, so desktop editing does not change by accident (#1793). The

@@ -380,10 +380,10 @@ describe("verbs that call other commands", () => {
     const open = vi.fn(() => ({ status: "ok" as const }));
     registerCommand("stage.record", open);
     host(null);
-    const result = await executePointerCommand("record.here", {
-      atTime: "soon",
-    });
-    expect(result.status).toBe("disabled");
+    for (const atTime of ["soon", "", true, -1, Number.NaN]) {
+      const result = await executePointerCommand("record.here", { atTime });
+      expect(result.status).toBe("disabled");
+    }
     expect(useDawStore.getState().pendingRecordTarget).toBeNull();
     expect(open).not.toHaveBeenCalled();
   });
