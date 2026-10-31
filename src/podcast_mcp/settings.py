@@ -170,7 +170,7 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         (
             "PODCAST_DECODE_MEMO_SPILL_MB",
-            "Megabytes of disk where a decode memo entry that is released or evicted is kept as a read-only map of a temp file, so Approve after a pause does not decode the recording again (least recently used out first; no resident memory; not on tmpfs, Windows or with less than the entry plus 2 GiB free; at most 64 entries, one descriptor each; evicted entries wait in RAM for the writer, so peak anonymous memory can reach 1.5 times `PODCAST_DECODE_MEMO_MB`, and 2 times while an idle release is still writing); 0 keeps none.",
+            "Megabytes of disk where a released or evicted decode memo entry is kept as a read-only map of a temp file, so Approve after a pause does not decode again (least recently used out first; at most 64 entries; not on tmpfs or Windows); 0 keeps none.",
             "1536",
         ),
         (

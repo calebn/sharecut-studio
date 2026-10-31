@@ -843,8 +843,6 @@ def _fixed(decoder: Decoder, path: Path, *, sample_rate: int = 8000, ffmpeg: str
     return np.linspace(-0.5, 0.5, sample_rate, dtype=np.float32)
 
 
-# Demoting the memo's entries to a read-only map of the decode spool (#2359).
-
 posix_only = pytest.mark.skipif(os.name == "nt", reason="the spill is POSIX only")
 
 
@@ -948,7 +946,7 @@ def _refuse_with_enospc(array: np.ndarray) -> np.ndarray:
 
 @posix_only
 @pytest.mark.parametrize("why", ["enospc", "refused", "tmpfs", "low_space"])
-def test_a_spill_that_cannot_happen_drops_the_entry_like_main(
+def test_a_spill_that_cannot_happen_drops_the_entry_as_without_the_tier(
     tmp_path: Path,
     decoder: Decoder,
     spilling: Clock,
@@ -972,7 +970,7 @@ def test_a_spill_that_cannot_happen_drops_the_entry_like_main(
     _release(spilling)
     assert len(decode_memo._MEMO) == 0 and decode_memo._MEMO.spilled_count() == 0
     TrackRmsCache.from_recording(path, sample_rate=RATE)
-    assert len(decoder.calls) == 2  # main: decoded again
+    assert len(decoder.calls) == 2  # decoded again
     _no_spill_file_or_fd_left(baseline)
 
 
@@ -983,7 +981,7 @@ def test_windows_never_spills(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @posix_only
 @pytest.mark.parametrize("off", ["memo", "spill"])
-def test_a_zero_cap_or_a_zero_spill_cap_is_main(
+def test_a_zero_cap_or_a_zero_spill_cap_is_the_memo_without_the_tier(
     tmp_path: Path, decoder: Decoder, spilling: Clock, monkeypatch: pytest.MonkeyPatch, off: str
 ) -> None:
     monkeypatch.setenv("PODCAST_DECODE_MEMO_MB" if off == "memo" else decode_memo.SPILL_ENV, "0")
@@ -1213,9 +1211,6 @@ def test_the_spill_settings_are_read_live_and_clamped(monkeypatch: pytest.Monkey
     assert decode_memo.spill_idle_seconds() == decode_memo.MAX_IDLE_S
     monkeypatch.setenv(decode_memo.SPILL_IDLE_ENV, "nan")
     assert decode_memo.spill_idle_seconds() == decode_memo.DEFAULT_SPILL_IDLE_S
-
-
-# Post-fix round: timer arithmetic, the worker flag, the entry bound and the remaining gaps.
 
 
 class Arms:
