@@ -174,9 +174,11 @@ def track_level_profile(
     """
     if audio_cache is not None:
         return audio_cache.jump.profile if sample_rate == JUMP_SAMPLE_RATE else audio_cache.profile
+    path = track_audio_path(project, track_id)
     return file_level_profile(
-        track_audio_path(project, track_id),
+        path,
         sample_rate=sample_rate,
+        decode=lambda: TrackRmsCache.from_recording(path, sample_rate=sample_rate).samples,
         record_dir=project.artifacts_dir() / "level_profiles",
         write_record=record,
     )

@@ -3,6 +3,8 @@ and the band levels of ``edits/audio_cache.py``."""
 
 from __future__ import annotations
 
+import os
+import time
 import wave
 from pathlib import Path
 
@@ -10,6 +12,8 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.audio_cache import BandLevels, build_track_audio_caches, track_level_profile
+from podcast_mcp.engines import audio_audit as audio_audit_module
+from podcast_mcp.engines import decode_memo
 from podcast_mcp.engines import level_profile as level_profile_module
 from podcast_mcp.engines.level_profile import (
     SILENT,
@@ -211,14 +215,20 @@ def test_a_caller_with_no_decode_reads_the_floor_the_cached_proposals_did(tmp_pa
 
 def test_the_profile_of_a_track_is_decoded_once_per_audio_file(tmp_path, monkeypatch) -> None:
     project = _decoded_project(tmp_path, "memo", _speech_over_room())
+    then = time.time_ns() - 3600 * 10**9
+    os.utime(tmp_path / "raw" / "memo.wav", ns=(then, then))
+    monkeypatch.setattr(decode_memo, "_now_ns", lambda: time.time_ns() + 3600 * 10**9)
+    decode_memo._MEMO.clear()
     reads = []
     real = level_profile_module.load_mono_full
 
     def counting(*args, **kwargs):
-        reads.append(args)
+        if kwargs.get("sample_rate") == RATE:
+            reads.append(args)
         return real(*args, **kwargs)
 
     monkeypatch.setattr(level_profile_module, "load_mono_full", counting)
+    monkeypatch.setattr(audio_audit_module, "load_mono_full", counting)
 
     first = track_level_profile(project, "host")
     second = track_level_profile(project, "host")
