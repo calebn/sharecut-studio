@@ -668,7 +668,30 @@ and the ungated evidence render stay on `from_timeline_stem`, which keeps nothin
   the deadline can push the release to about two idle periods after the last use. `0` (or a negative
   number) never releases; a value that is not a finite number is the default; one above a day (86400)
   counts as a day. If the timer thread cannot start, the memo keeps its entries. The next call after a
-  release decodes again.
+  release maps the spilled entry (below), or decodes again if there is none.
+- **Spill** (the release of the memo's RAM is a demotion, not a drop): the idle release, and an eviction past
+  the cap, copy each entry's samples to an unlinked temp file in the decode spool's directory
+  (`decoded_source.spill`) and serve them from a read-only map, so Approve after a review pause does zero raw
+  decodes for files unchanged since propose and no anonymous memory stays resident. The entry keeps its
+  key (path, full stamp including ctime, ffmpeg build, rate) and the same stat and racy checks at lookup;
+  the bytes are a raw copy, so a mapped hit is bit-identical (`PODCAST_VERDICT_VERIFY` and
+  `PODCAST_EVIDENCE_VERIFY` compare it with a fresh decode). A hit is never promoted back to RAM. A racy,
+  rewritten or over-cap decode is never stored, so never spilled; a stamp that differs drops the spilled
+  entry of that path and rate; a different ffmpeg build drops the whole tier.
+  - **Cap and idle**: `PODCAST_DECODE_MEMO_SPILL_MB` (default 1536, least recently used out first; `0`
+    keeps nothing and is the memo without this tier) and `PODCAST_DECODE_MEMO_SPILL_IDLE_S` (default 2700,
+    capped at 86400; `0` never drops). Together with the decode spool's 6 GiB and the retained evidence's
+    3 GiB the worst case in the temp directory is 10.5 GiB; each spill needs its size plus 2 GiB free and
+    the three tiers do not coordinate, so parallel spills may overshoot by one entry each. Two 1 h tracks
+    at both rates are about 659 MiB.
+  - **Exact**: the spill is written outside the memo lock, so a lookup meanwhile is served from RAM and
+    the swap happens only if the entry is still the one copied. An eviction is queued (at most half the cap
+    of bytes) and written by a short background thread, never inside the decode that evicted it.
+  - **Fallback**: Windows, tmpfs, too little free space, a spill larger than the cap or any error (a full
+    disk, a short write) drops the entry as before; nothing is raised and no temp file is left.
+  - **Descriptors**: each mapped entry holds one until its last view is gone (four for two tracks at two
+    rates), on top of the retained evidence's. A view handed out earlier stays valid after a release or
+    `clear`, and its map is freed with it.
 - **Read-only**: with the memo on, the samples a caller receives are read-only on every path (stored,
   served, over the cap, racy, changed during the decode, or a stat failure), so the first caller sees
   what later callers see. Only the memo-off path returns the decoder's writable array.
