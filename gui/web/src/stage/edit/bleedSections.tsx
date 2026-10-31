@@ -1,9 +1,4 @@
-import {
-  type ReactNode,
-  useEffect,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import type { ReactNode } from "react";
 import {
   clipBleedDisabledReason,
   undoClipBleed,
@@ -11,6 +6,7 @@ import {
 import { executePointerCommand } from "../../commands/pointer";
 import {
   BLEED_ATTENUATION_LABELS,
+  type BleedAttenuationInspection,
   bleedAttenuationRegionKey,
   bleedAttenuationSpanLabel,
 } from "../../edit/bleedAttenuation";
@@ -18,14 +14,13 @@ import {
   type ClipBleedRead,
   clipBleedSession,
 } from "../../edit/clipBleedSession";
-import { useClipPlacement } from "../../edit/clipPlacement";
-import { rangeClips } from "../../edit/rangeSelection";
-import { isGuestSession } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
-import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import type { Selection } from "../../types/project";
 import { Button, DefItem, DefinitionList, InlineError } from "../../ui";
+import { bleedRestoreReason, CHECKING } from "./bleedRestoreReason";
+import { note } from "./sheetNote";
+import { useBleedSession } from "./useBleedSession";
 
 const PLAN_LABELS = {
   disabled:
@@ -49,187 +44,21 @@ const RESTORE_LABELS = {
   unverified:
     "The saved Restore choice could not be checked. Refresh regions to check the recording.",
 };
-const CHECKING = "Checking automatic regions…";
-const REFRESH_FIRST = "Refresh regions before restoring audio.";
 
-const note = (text: string, role?: "status") => (
-  <p className="sys-inspector-note" role={role}>
-    {text}
-  </p>
-);
 const section = (id: string, ...controls: ReactNode[]): InspectorSection => ({
   id,
-  rows: controls
-    .filter((control) => control != null)
-    .map((control, i) => ({ id: `${id}${i}`, control })),
+  rows: controls.map((control, i) => ({ id: `${id}${i}`, control })),
 });
 
-/**
- * The Inspector's content for the automatic reduction in one clip, over the
- * live clipBleedSession (#2294 W3b1b). The hook opens and retires the session
- * with the selection, as the host component it replaced did, so the Timeline
- * overlay and this sheet read the same inspection. The Restore choice still
- * goes through edit.restoreClipBleed; there is no Hear control yet.
- */
-export function useBleedSections(
-  selection: Selection,
-): readonly InspectorSection[] | null {
-  const state = useDaw((s) => ({
-    projectPath: s.projectPath,
-    projectEpoch: s.projectEpoch,
-    project: s.project,
-    guestMode: s.guestMode,
-    selection: s.selection,
-    heldTrim: s.heldTrim,
-    joinMutationInFlight: s.joinMutationInFlight,
-    rangeBusy: s.rangeBusy,
-    timelineDragging: s.timelineDragging,
-  }));
-  useClipPlacement();
-  const snapshot = useSyncExternalStore(
-    clipBleedSession.subscribe,
-    clipBleedSession.getSnapshot,
-  );
-  const bleed = selection?.kind === "bleedAttenuation" ? selection : null;
-  const trackId = bleed?.trackId ?? "";
-  const clipId = bleed?.id ?? "";
-  const found =
-    bleed != null &&
-    state.project != null &&
-    rangeClips(state.project).some(
-      (row) => row.id === clipId && row.track_id === trackId,
-    );
-  const clipLabel =
-    state.project?.tracks.find((track) => track.id === trackId)?.label ??
-    trackId;
-  const host = !isGuestSession(state.projectPath, state.guestMode);
-  const active =
-    found &&
-    snapshot?.occurrence.trackId === trackId &&
-    snapshot.occurrence.clipId === clipId
-      ? snapshot
-      : null;
-  const action = active?.action;
-  const [elapsed, setElapsed] = useState<{
-    action: typeof action;
-    seconds: number;
-  }>({ action: undefined, seconds: 0 });
+type Inspection = BleedAttenuationInspection<unknown>;
 
-  useEffect(() => {
-    if (action?.state !== "saving" && action?.state !== "undoing") return;
-    const started = Date.now();
-    const timer = window.setInterval(() => {
-      setElapsed({
-        action,
-        seconds: Math.floor((Date.now() - started) / 1000),
-      });
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [action]);
+const spanRow = (
+  label: string,
+  span: Parameters<typeof bleedAttenuationSpanLabel>[0],
+) => <DefItem label={label}>{bleedAttenuationSpanLabel(span)}</DefItem>;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new project or epoch reopens the same occurrence
-  useEffect(() => {
-    if (!found) return;
-    if (host) void clipBleedSession.open({ trackId, clipId, clipLabel });
-    else clipBleedSession.retire();
-    return () => clipBleedSession.retire();
-  }, [
-    found,
-    host,
-    state.projectPath,
-    state.projectEpoch,
-    trackId,
-    clipId,
-    clipLabel,
-  ]);
-
-  useEffect(() => {
-    const current = state.selection;
-    if (
-      !active ||
-      active.action.state === "saving" ||
-      active.action.state === "undoing" ||
-      current?.kind !== "bleedAttenuation" ||
-      current.id !== clipId ||
-      current.trackId !== trackId
-    )
-      return;
-    if (active.read.state === "ready") {
-      if (
-        active.selectedKey !== current.regionKey &&
-        !clipBleedSession.select(current.regionKey) &&
-        current.regionKey !== null
-      )
-        useDawStore.getState().setSelection({ ...current, regionKey: null });
-    } else if (active.read.state === "error" && current.regionKey !== null) {
-      useDawStore.getState().setSelection({ ...current, regionKey: null });
-    }
-  }, [active, state.selection, clipId, trackId]);
-
-  if (!bleed) return null;
-  if (!found)
-    return [section("gone", <p className="ui-field-hint">Clip not found</p>)];
-
-  const read: ClipBleedRead = host
-    ? (active?.read ?? {
-        state: "error",
-        message: "Refresh regions to inspect this clip.",
-      })
-    : {
-        state: "error",
-        message: "Only the project host can inspect this audio.",
-      };
-  const selectedKey = active?.selectedKey ?? null;
-  const inspection = read.state === "ready" ? read.inspection : undefined;
-  const selected = inspection?.regions.find(
-    (region) => bleedAttenuationRegionKey(region) === selectedKey,
-  );
-  const busy = action?.state === "saving" || action?.state === "undoing";
-  const stale = action?.state === "error" && action.code === "STALE_TARGET";
-  const busyLabel =
-    action?.state === "saving"
-      ? "Saving Restore choice…"
-      : "Undoing Restore choice…";
-  const permissionReason = clipBleedDisabledReason();
-  const restoreReason = busy
-    ? busyLabel
-    : read.state === "loading"
-      ? CHECKING
-      : read.state === "error"
-        ? REFRESH_FIRST
-        : inspection?.regions.length === 0
-          ? "There are no automatic regions to restore. Refresh regions to check again."
-          : stale
-            ? "This region changed. Refresh regions and select it again."
-            : permissionReason !== undefined
-              ? permissionReason
-              : !selected
-                ? "Select one automatic region below."
-                : selected.restore.state === "unavailable"
-                  ? selected.restore.reason
-                  : selected.restore.state === "saved"
-                    ? "A Restore choice already covers this interval."
-                    : undefined;
-  const seconds = elapsed.action === action ? elapsed.seconds : 0;
-
-  const status = section(
-    "status",
-    ...(read.state === "loading" ? [note(CHECKING, "status")] : []),
-    <InlineError
-      message={read.state === "error" ? read.message : null}
-      origin="state"
-    />,
-    <InlineError message={action?.state === "error" ? action.message : null} />,
-    ...(busy
-      ? [
-          note(
-            `${busyLabel}${seconds >= 2 ? ` ${seconds} s elapsed.` : ""}`,
-            "status",
-          ),
-        ]
-      : []),
-  );
-  const facts = inspection ? (
+const facts = (inspection: Inspection) => {
+  return (
     <div className="inspector edit-sheet-part">
       <DefinitionList>
         <DefItem label="Clip">{inspection.clipLabel}</DefItem>
@@ -254,61 +83,64 @@ export function useBleedSections(
         ) : null}
       </DefinitionList>
     </div>
-  ) : null;
-  const regions = inspection ? (
-    inspection.regions.length ? (
-      <div
-        className="edit-bleed-regions"
-        role="group"
-        aria-label="Automatic regions in this clip"
-      >
-        {inspection.regions.map((region) => {
-          const key = bleedAttenuationRegionKey(region);
-          return (
-            <Button
-              key={key}
-              aria-pressed={selectedKey === key}
-              disabledReason={busy ? busyLabel : undefined}
-              onClick={() => {
-                const now = useDawStore.getState().selection;
-                if (
-                  now?.kind === "bleedAttenuation" &&
-                  now.id === clipId &&
-                  now.trackId === trackId &&
-                  clipBleedSession.select(key)
-                )
-                  useDawStore
-                    .getState()
-                    .setSelection({ ...now, regionKey: key });
-              }}
-            >
-              {BLEED_ATTENUATION_LABELS[region.kind]}{" "}
-              <span>
-                Timeline {bleedAttenuationSpanLabel(region.timelineSpan)}
-              </span>{" "}
-              <span>Source {bleedAttenuationSpanLabel(region.sourceSpan)}</span>
-            </Button>
-          );
-        })}
-      </div>
-    ) : (
-      note("No automatic regions in this clip. Refresh regions to check again.")
-    )
-  ) : null;
-  const detail = selected ? (
-    <div className="inspector edit-sheet-part">
-      <DefinitionList>
-        <DefItem label="Selected source interval">
-          {bleedAttenuationSpanLabel(selected.sourceSpan)}
-        </DefItem>
-        {selected.restore.state === "available" ? (
-          <DefItem label="Restore source interval">
-            {bleedAttenuationSpanLabel(selected.restore.sourceSpan)}
-          </DefItem>
-        ) : null}
-      </DefinitionList>
-    </div>
-  ) : null;
+  );
+};
+
+export function useBleedSections(
+  selection: Selection,
+): readonly InspectorSection[] | null {
+  const bleed = selection?.kind === "bleedAttenuation" ? selection : null;
+  const session = useBleedSession(bleed);
+  if (!bleed) return null;
+  const { found, host, active, clipLabel, trackId, clipId, isThisClip } =
+    session;
+  if (!found)
+    return [section("gone", <p className="ui-field-hint">Clip not found</p>)];
+
+  const action = active?.action;
+  const read: ClipBleedRead = host
+    ? (active?.read ?? {
+        state: "error",
+        message: "Refresh regions to inspect this clip.",
+      })
+    : {
+        state: "error",
+        message: "Only the project host can inspect this audio.",
+      };
+  const selectedKey = active?.selectedKey ?? null;
+  const inspection = read.state === "ready" ? read.inspection : undefined;
+  const selected = inspection?.regions.find(
+    (region) => bleedAttenuationRegionKey(region) === selectedKey,
+  );
+  const busy = action?.state === "saving" || action?.state === "undoing";
+  const busyLabel = busy
+    ? action.state === "saving"
+      ? "Saving Restore choice…"
+      : "Undoing Restore choice…"
+    : null;
+  const restoreReason = bleedRestoreReason({
+    busyLabel,
+    read,
+    stale: action?.state === "error" && action.code === "STALE_TARGET",
+    permissionReason: clipBleedDisabledReason(),
+    selected,
+  });
+  const seconds = session.elapsedSeconds;
+  const undo = active?.undo;
+
+  const statusRows: ReactNode[] = [];
+  if (read.state === "loading") statusRows.push(note(CHECKING, "status"));
+  if (read.state === "error")
+    statusRows.push(<InlineError message={read.message} origin="state" />);
+  if (action?.state === "error")
+    statusRows.push(<InlineError message={action.message} />);
+  if (busyLabel)
+    statusRows.push(
+      note(
+        `${busyLabel}${seconds >= 2 ? ` ${seconds} s elapsed.` : ""}`,
+        "status",
+      ),
+    );
 
   const actions = host ? (
     <>
@@ -337,15 +169,11 @@ export function useBleedSections(
       {restoreReason ? note(restoreReason) : null}
       <Button
         disabledReason={
-          busy ? busyLabel : read.state === "loading" ? CHECKING : undefined
+          busyLabel ?? (read.state === "loading" ? CHECKING : undefined)
         }
         onClick={() => {
           const now = useDawStore.getState().selection;
-          if (
-            now?.kind === "bleedAttenuation" &&
-            now.id === clipId &&
-            now.trackId === trackId
-          )
+          if (isThisClip(now))
             useDawStore.getState().setSelection({ ...now, regionKey: null });
           if (active) void clipBleedSession.refresh();
           else void clipBleedSession.open({ trackId, clipId, clipLabel });
@@ -353,10 +181,10 @@ export function useBleedSections(
       >
         Refresh regions
       </Button>
-      {active?.undo ? (
+      {undo ? (
         <Button
-          disabledReason={busy ? busyLabel : undefined}
-          onClick={() => void undoClipBleed(active.undo!)}
+          disabledReason={busyLabel ?? undefined}
+          onClick={() => void undoClipBleed(undo)}
         >
           Undo Restore
         </Button>
@@ -366,20 +194,76 @@ export function useBleedSections(
     note("Only the project host can restore this audio.")
   );
 
-  return [
-    ...(status.rows.length > 0 ? [status] : []),
-    ...(inspection
-      ? [
-          section("facts", facts),
-          section("regions", regions, detail),
-          section(
-            "help",
-            note(
-              "Restore applies only to the selected source interval in this clip. Other copies keep their automatic reduction. Listen after the rendered audio is current.",
-            ),
-          ),
-        ]
-      : []),
+  const sections: InspectorSection[] = [];
+  if (statusRows.length) sections.push(section("status", ...statusRows));
+  if (inspection) {
+    sections.push(
+      section("facts", facts(inspection)),
+      section(
+        "regions",
+        inspection.regions.length ? (
+          <div
+            className="edit-bleed-regions"
+            role="group"
+            aria-label="Automatic regions in this clip"
+          >
+            {inspection.regions.map((region) => {
+              const key = bleedAttenuationRegionKey(region);
+              return (
+                <Button
+                  key={key}
+                  aria-pressed={selectedKey === key}
+                  disabledReason={busyLabel ?? undefined}
+                  onClick={() => {
+                    const now = useDawStore.getState().selection;
+                    if (isThisClip(now) && clipBleedSession.select(key))
+                      useDawStore
+                        .getState()
+                        .setSelection({ ...now, regionKey: key });
+                  }}
+                >
+                  {BLEED_ATTENUATION_LABELS[region.kind]}{" "}
+                  <span>
+                    Timeline {bleedAttenuationSpanLabel(region.timelineSpan)}
+                  </span>{" "}
+                  <span>
+                    Source {bleedAttenuationSpanLabel(region.sourceSpan)}
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+        ) : (
+          note(
+            "No automatic regions in this clip. Refresh regions to check again.",
+          )
+        ),
+        ...(selected
+          ? [
+              <div key="detail" className="inspector edit-sheet-part">
+                <DefinitionList>
+                  {spanRow("Selected source interval", selected.sourceSpan)}
+                  {selected.restore.state === "available"
+                    ? spanRow(
+                        "Restore source interval",
+                        selected.restore.sourceSpan,
+                      )
+                    : null}
+                </DefinitionList>
+              </div>,
+            ]
+          : []),
+      ),
+      section(
+        "help",
+        note(
+          "Restore applies only to the selected source interval in this clip. Other copies keep their automatic reduction. Listen after the rendered audio is current.",
+        ),
+      ),
+    );
+  }
+  sections.push(
     section("actions", <div className="edit-bleed-actions">{actions}</div>),
-  ];
+  );
+  return sections;
 }

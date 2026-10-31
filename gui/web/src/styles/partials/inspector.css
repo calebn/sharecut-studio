@@ -740,7 +740,6 @@ html[data-shell="phone"]
   }
 }
 
-/* Automatic reduction regions in the Inspector sheet (#2294 W3b1b). */
 .edit-bleed-regions,
 .edit-bleed-actions {
   display: grid;

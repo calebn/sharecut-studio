@@ -47,8 +47,9 @@ const subscribe = (listener: () => void) => {
     listeners.delete(listener);
   };
 };
-export const useClipPlacement = () =>
-  useSyncExternalStore(subscribe, () => current);
+const noSubscription = () => () => {};
+export const useClipPlacement = (enabled = true) =>
+  useSyncExternalStore(enabled ? subscribe : noSubscription, () => current);
 export const getClipPlacement = () => current;
 
 function selectionKey(s: DawState): string {
