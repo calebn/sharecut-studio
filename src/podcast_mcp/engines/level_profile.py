@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -261,6 +262,7 @@ def file_level_profile(
     *,
     sample_rate: int = PROFILE_SAMPLE_RATE,
     levels: np.ndarray | None = None,
+    decode: Callable[[], np.ndarray] | None = None,
     record_dir: Path | None = None,
     write_record: bool = False,
 ) -> LevelProfile:
@@ -274,7 +276,8 @@ def file_level_profile(
     frames it is compared with, since band-limiting a track lowers its room tone (white
     room tone reads about 3.5 dB lower at 8 kHz than at 16 kHz) more than its voice.
     ``samples`` are that audio, or ``levels`` its :func:`frame_levels_db`, when the caller
-    has already decoded it.
+    has already decoded it. ``decode`` supplies the samples when none are given, so a caller
+    that keeps its decode (``TrackRmsCache.from_recording``) does not have it done twice.
     """
     resolved = path.resolve()
     key = (str(resolved), file_revision(resolved), int(sample_rate))
@@ -285,6 +288,9 @@ def file_level_profile(
         return known
     record = _record_path(resolved, key, record_dir) if record_dir else None
     profile = _read_record(record) if record else None
+    if profile is None and decode is not None and samples is None and levels is None:
+        samples = decode()
+        profile = _FILE_PROFILES.get(key)
     if profile is None:
         if levels is None:
             if samples is None:
