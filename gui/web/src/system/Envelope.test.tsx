@@ -443,7 +443,7 @@ describe("Envelope keys", () => {
     ]);
   });
 
-  it("leaves the arrows to the keymap for a guest", () => {
+  it("keeps the arrows from the keymap for a guest, and moves nothing", () => {
     const { onMove } = setup({ readOnly: true });
     const seen: string[] = [];
     const listen = (event: KeyboardEvent) => seen.push(event.key);
@@ -451,7 +451,7 @@ describe("Envelope keys", () => {
     fireEvent.keyDown(point(2), { key: "ArrowRight" });
     fireEvent.keyDown(point(2), { key: "ArrowUp" });
     window.removeEventListener("keydown", listen);
-    expect(seen).toEqual(["ArrowRight", "ArrowUp"]);
+    expect(seen).toEqual([]);
     expect(onMove).not.toHaveBeenCalled();
   });
 });

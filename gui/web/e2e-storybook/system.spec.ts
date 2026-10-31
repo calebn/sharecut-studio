@@ -3169,6 +3169,41 @@ test("System/Envelope read-only: a point is selected but not dragged, nudged or 
   ).toHaveAttribute("aria-current", "true");
 });
 
+test("System/Envelope a 240 px lane stretches the scale: 0 dB, the ends and a dot sit where the height says", async ({
+  page,
+}) => {
+  await open(page, "system-envelope--tall", 1280);
+  const lane = await boxOf(page, ".sys-lane", 0);
+  expect(lane.height).toBe(240);
+  const guide = await boxOf(page, ".sys-env-zero");
+  expect(Math.abs(guide.y - (lane.y + dbToY(0, 240)))).toBeLessThanOrEqual(1);
+  // "env-2" is at -6 dB.
+  const dot = await centreOf(envPoint(page, "env-2"));
+  expect(Math.abs(dot.y - (lane.y + dbToY(-6, 240)))).toBeLessThanOrEqual(1);
+  expect(dbToY(ENVELOPE_TOP_DB, 240)).toBeCloseTo(4, 6);
+  expect(dbToY(-60, 240)).toBeCloseTo(236, 6);
+});
+
+test("Stages/Edit/Timeline WithEnvelope: Escape puts a dragged point back, and Backspace removes the selected one", async ({
+  page,
+}) => {
+  await open(page, "stages-edit-timeline--with-envelope", 1280);
+  const four = page.getByRole("slider", { name: "Envelope point 4" });
+  const before = await four.getAttribute("aria-valuetext");
+  const from = await centreOf(envPoint(page, "env-4"));
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 30, from.y - 6, { steps: 4 });
+  await expect(page.locator(".sys-readout")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await expect(four).toHaveAttribute("aria-valuetext", before ?? "");
+  const three = page.getByRole("slider", { name: "Envelope point 3" });
+  await three.focus();
+  await page.keyboard.press("Backspace");
+  await expect(page.locator(".sys-env-point")).toHaveCount(4);
+});
+
 test("Stages/Edit/Timeline an envelope point stands at the x its time gives in the time column, in Maya's 72 px lane, with 0 dB on its guide", async ({
   page,
 }) => {

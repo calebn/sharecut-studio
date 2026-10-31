@@ -6139,7 +6139,7 @@ input.sys-edit-fix {
   position: absolute;
   inset-block-start: var(--sys-env-zero-y);
   inset-inline: 0;
-  border-block-start: 1px dashed var(--color-border-strong);
+  border-block-start: 0.0625rem dashed var(--color-border-strong);
   padding-inline-start: var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-micro);
