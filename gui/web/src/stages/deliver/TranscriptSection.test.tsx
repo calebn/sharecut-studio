@@ -208,9 +208,11 @@ describe("TranscriptSection", () => {
         })}
       />,
     );
-    expect(container.querySelector(".sys-status-title")).toHaveTextContent(
-      "Writing",
+    const titles = Array.from(
+      container.querySelectorAll(".sys-status-title"),
+      (el) => el.textContent,
     );
+    expect(titles).toEqual(["Writing"]);
     expect(button("Export 2 files again")).toBeDisabled();
   });
 

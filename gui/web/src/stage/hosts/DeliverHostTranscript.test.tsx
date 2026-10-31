@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../api";
 
 vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
@@ -83,6 +83,10 @@ beforeEach(() => {
   registerDawCommands();
   vi.mocked(api.exportTranscript).mockReset().mockResolvedValue(dryRun);
   vi.mocked(api.listExportedTranscripts).mockReset().mockResolvedValue([]);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("Transcript on the Deliver stage", () => {
@@ -168,6 +172,7 @@ describe("Transcript on the Deliver stage", () => {
   });
 
   it("blocks Transcript Export while a bounce runs and leaves its files alone when it finishes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     asHost(true);
     render(<Host />);
     await screen.findByText("Hello there.");
@@ -182,6 +187,9 @@ describe("Transcript on the Deliver stage", () => {
     ).toBeDisabled();
     await act(async () => server.settle(BOUNCE_FINISHED));
     await screen.findByText("Bounced 1 file(s) to export/bounces/");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
     expect(api.listExportedTranscripts).toHaveBeenCalledTimes(1);
   });
 });

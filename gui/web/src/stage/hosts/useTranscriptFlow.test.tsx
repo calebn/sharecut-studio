@@ -160,6 +160,16 @@ describe("useTranscriptFlow", () => {
     await waitFor(() => expect(result.current.files).toHaveLength(1));
     act(() => result.current.setChoices(["txt"]));
     expect(result.current.choices).toEqual(["txt"]);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    vi.mocked(api.exportTranscript).mockResolvedValueOnce({
+      ...written,
+      text: "Maya: Hi.",
+    });
+    act(() => result.current.copyText());
+    await waitFor(() => expect(result.current.copyState).toBe("copied"));
     vi.mocked(api.listExportedTranscripts).mockReturnValue(
       new Promise(() => {}),
     );
