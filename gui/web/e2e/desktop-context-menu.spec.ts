@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { STUDIO_AXE_DISABLED_RULES } from "./axe";
 import { layer } from "./lifecycleAudit";
 import { openHostProject } from "./overlayReachability";
@@ -9,8 +9,26 @@ import { openHostProject } from "./overlayReachability";
  * on empty space opens on touch, and the Menu key or Shift+F10 on the focused target does too.
  */
 
-const menu = (page: import("@playwright/test").Page) =>
-  page.getByRole("menu", { name: /^Create at / });
+const menu = (page: Page) => page.getByRole("menu", { name: /^Create at / });
+
+async function playheadSec(page: Page): Promise<number> {
+  const now = await page
+    .getByRole("slider", { name: "Timeline position" })
+    .first()
+    .getAttribute("aria-valuenow");
+  return Number(now);
+}
+
+async function volumeLayerOn(page: Page): Promise<boolean> {
+  await page.getByRole("button", { name: "View options" }).click();
+  const sheet = page.getByRole("dialog", { name: "View" });
+  const on = await sheet
+    .getByRole("checkbox", { name: "Volume envelope", exact: true })
+    .isChecked();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+  return on;
+}
 
 test("right click on a lane opens the create menu at that time, with no a11y violations", async ({
   page,
@@ -25,9 +43,10 @@ test("right click on a lane opens the create menu at that time, with no a11y vio
   });
   await expect(menu(page)).toBeVisible();
   await expect(menu(page).getByRole("menuitem").first()).toBeVisible();
+  await expect(page.locator(".edit-create-menu")).toHaveCount(1);
   const axe = await new AxeBuilder({ page })
     .disableRules([...STUDIO_AXE_DISABLED_RULES])
-    .include(".create-menu")
+    .include(".edit-create-menu")
     .analyze();
   expect(axe.violations).toEqual([]);
   await page.keyboard.press("Escape");
@@ -48,7 +67,7 @@ test("a menu item runs its command and closes the menu", async ({ page }) => {
   const items = menu(page).getByRole("menuitem");
   await expect(items.first()).toBeVisible();
   await menu(page)
-    .getByRole("menuitem", { name: /Add chapter/ })
+    .getByRole("menuitem", { name: /Add chapter here/ })
     .click();
   await expect(menu(page)).toHaveCount(0);
   await expect(page.locator(".chapter-marker")).toHaveCount(1);
@@ -88,4 +107,69 @@ test("Shift+F10 with no target focused opens the create menu at the playhead on 
   await expect(menu(page)).toHaveCount(0);
   await page.keyboard.press("F10");
   await expect(menu(page)).toHaveCount(0);
+});
+
+test("Escape returns focus to the clip the menu was opened on, and Tab out closes the menu", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openHostProject(page);
+  const clip = page.locator(".clip-block").first();
+  const hit = clip.locator(".clip-hit");
+  await clip.click({ button: "right" });
+  await expect(menu(page)).toBeVisible();
+  await expect(menu(page).getByRole("menuitem").first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu(page)).toHaveCount(0);
+  await expect(hit).toBeFocused();
+
+  await clip.click({ button: "right" });
+  await expect(menu(page)).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(menu(page)).toHaveCount(0);
+});
+
+test("a mouse press outside the menu closes it and does not move the playhead", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openHostProject(page);
+  const lane = page.locator(".lane-row").first();
+  const box = await lane.boundingBox();
+  if (!box) throw new Error("no lane");
+  await page.mouse.click(box.x + box.width * 0.6, box.y + box.height / 2, {
+    button: "right",
+  });
+  await expect(menu(page)).toBeVisible();
+  const before = await playheadSec(page);
+  await page.mouse.click(box.x + box.width * 0.2, box.y + box.height - 6);
+  await expect(menu(page)).toHaveCount(0);
+  expect(await playheadSec(page)).toBe(before);
+});
+
+test("Add volume point shows a hidden envelope, and one undo removes the point and leaves the envelope showing", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openHostProject(page);
+  const points = page.locator('[data-hit-kind="envelope-point"]');
+  await layer(page, "Volume envelope", true);
+  const before = await points.count();
+  await layer(page, "Volume envelope", false);
+  await expect(points).toHaveCount(0);
+  expect(await volumeLayerOn(page)).toBe(false);
+
+  const lane = page.locator(".lane-row").first();
+  const box = await lane.boundingBox();
+  if (!box) throw new Error("no lane");
+  await page.mouse.click(box.x + box.width * 0.6, box.y + box.height / 2, {
+    button: "right",
+  });
+  await menu(page).getByRole("menuitem", { name: "Add volume point" }).click();
+  await expect(menu(page)).toHaveCount(0);
+  await expect.poll(() => points.count()).toBeGreaterThan(before);
+
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => points.count()).toBe(before);
+  expect(await volumeLayerOn(page)).toBe(true);
 });

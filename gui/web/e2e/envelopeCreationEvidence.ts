@@ -128,10 +128,22 @@ export async function addEnvelopePoint(
       .focus();
     await page.keyboard.press("Shift+F10");
   }
-  await page
+  await createMenuRow(page, "Add volume point").click();
+}
+
+/** The Create menu: a popover menu from 768 px, a bottom Sheet dialog at 767 px and under. */
+export function createMenu(page: Page) {
+  return page
     .getByRole("menu", { name: /^Create at / })
-    .getByRole("menuitem", { name: /Add envelope point/ })
-    .click();
+    .or(page.getByRole("dialog", { name: /^Create at / }));
+}
+
+/** A row of that menu: a menu item in the popover, a button in the Sheet. */
+export function createMenuRow(page: Page, name: string) {
+  const menu = createMenu(page);
+  return menu
+    .getByRole("menuitem", { name, exact: true })
+    .or(menu.getByRole("button", { name, exact: true }));
 }
 
 /**

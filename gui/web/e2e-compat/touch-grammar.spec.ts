@@ -53,6 +53,12 @@ import { TOUCH_HIT_RADIUS_PX } from "../src/timeline/hitCandidates";
 
 const CLIENT_ID = "e2e-touch-grammar";
 const IPHONE = { width: 430, height: 932 };
+
+/** The create menu: a menu, or on the phone shell a bottom Sheet. */
+const createMenu = (page: Page) =>
+  page
+    .getByRole("menu", { name: /^Create at / })
+    .or(page.getByRole("dialog", { name: /^Create at / }));
 /** Past the 500 ms long-press, with room for the press layer's timer. */
 const HOLD_MS = 750;
 
@@ -377,7 +383,7 @@ test("a long-press arms a clip, which moves in time only, holds at its neighbour
     "data-hit-armed",
     "",
   );
-  await expect(page.getByRole("menu", { name: /^Create at / })).toHaveCount(0);
+  await expect(createMenu(page)).toHaveCount(0);
   await frame(page, info, `clip-move-armed-${browserName}`);
   // Left until the clip's start passes the neighbour's end (20 s) by less
   // than the detent, the finger drifting down: the clip stays in its lane.
@@ -452,7 +458,7 @@ test("a second finger cancels an armed clip move", async ({
   expect(start).toBe(30);
 });
 
-test("a long-press on empty space opens the create menu; Add envelope point adds one there", async ({
+test("a long-press on empty space opens the create menu; Add volume point adds one there", async ({
   page,
   context,
   browserName,
@@ -466,28 +472,32 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   await expectEmptyAt(page, at);
   await hold(page, finger, at);
   await finger.up();
-  const menu = page.getByRole("menu", { name: /^Create at / });
+  // The phone shell shows the create menu as a bottom Sheet of buttons.
+  const menu = page.getByRole("dialog", { name: /^Create at / });
   await expect(menu).toBeVisible();
   await frame(page, info, `grammar-create-menu-${browserName}`);
   const axe = ownsStudioAxe({ suite: "compat", engine: browserName })
     ? await new AxeBuilder({ page })
         .disableRules([...STUDIO_AXE_DISABLED_RULES])
-        .include(".create-menu")
+        .include(".bottom-sheet")
         .analyze()
     : undefined;
   const items = await menu
-    .getByRole("menuitem")
+    .locator(".sys-row-btn")
     .evaluateAll((els) => els.map((el) => el.textContent?.trim()));
   await tap(
     page,
     finger,
     await centerOfLocator(
-      menu.getByRole("menuitem", { name: /Add envelope point/ }),
+      menu.getByRole("button", { name: "Add volume point" }),
     ),
   );
   await expect
     .poll(() => commands.filter((c) => c.type === "SetEnvelope").length)
     .toBe(1);
+  // The toast rests above the row that was pressed, which is where the
+  // selection bar's grip is.
+  await page.getByRole("button", { name: "Dismiss" }).click();
   await inspectSelection(page);
   await expect(page.locator(".nudge-row", { hasText: "Level" })).toBeVisible();
   await frame(page, info, `grammar-create-added-${browserName}`);
@@ -499,13 +509,13 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
     expect(axe?.violations).toEqual([]);
   }
-  expect(items.slice(0, 3)).toEqual([
-    "Split hereCuts all dialogue tracks",
-    "Add chapter",
-    "Add comment",
+  expect(items).toEqual([
+    "Split here",
+    "Comment here",
+    "Add chapter here",
+    "Record here",
+    "Add volume point",
   ]);
-  expect(items[3]).toMatch(/^Record here/);
-  expect(items[4]).toMatch(/^Add envelope point/);
   const added = commands.find((c) => c.type === "SetEnvelope")?.payload as
     | { track_id: string; points: unknown[] }
     | undefined;
@@ -562,7 +572,7 @@ test("a long-press past the last clip opens the create menu and selects no text"
   await finger.up();
   // The lane's create menu, at the session's end (the fixture is 60 s).
   await expect(
-    page.getByRole("menu", { name: "Create at 01:00.000 · reference" }),
+    page.getByRole("dialog", { name: "Create at 01:00.000 · reference" }),
   ).toBeVisible();
   const selected = await page.evaluate(
     () => window.getSelection()?.toString() ?? "",
@@ -605,7 +615,7 @@ test("in a short viewport the create menu stays in view off the finger, and lift
   if (!box) throw new Error("the create menu has no box");
   const underFinger = await page.evaluate(
     ({ x, y }) =>
-      document.elementFromPoint(x, y)?.closest(".create-menu") != null,
+      document.elementFromPoint(x, y)?.closest(".edit-create-menu") != null,
     at,
   );
   await frame(page, info, `grammar-create-short-held-${browserName}`);
@@ -706,7 +716,7 @@ async function measureCreateMenu(
   await expectEmptyAt(page, at);
   await hold(page, finger, at);
   const measured = await page.evaluate(({ x, y: fy }) => {
-    const menu = document.querySelector<HTMLElement>(".create-menu");
+    const menu = document.querySelector<HTMLElement>(".edit-create-menu");
     if (!menu) return null;
     const items = [...menu.querySelectorAll<HTMLElement>("[role=menuitem]")];
     const box = menu.getBoundingClientRect();
@@ -1003,13 +1013,11 @@ test("a second finger cancels an armed drag and the create menu", async ({
   await expectEmptyAt(page, body);
   await fingers.down(body);
   await page.waitForTimeout(HOLD_MS);
-  await expect(page.getByRole("menu", { name: /^Create at / })).toBeVisible();
+  await expect(createMenu(page)).toBeVisible();
   await fingers.join(body, { x: body.x - 80, y: body.y + 30 });
   await fingers.up();
   await page.waitForTimeout(600);
-  const menuAfter = await page
-    .getByRole("menu", { name: /^Create at / })
-    .count();
+  const menuAfter = await createMenu(page).count();
   json(info, `grammar-second-finger-${browserName}`, {
     commands: commands.map((c) => c.type),
     armedAfter,
