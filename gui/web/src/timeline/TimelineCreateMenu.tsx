@@ -74,7 +74,17 @@ export function TimelineCreateMenu({
   phone,
 }: TimelineCreateMenuProps) {
   const [rows] = useState(() => createMenuRowsFor(place));
-  const topLayer = useTopLayerPanel();
+  const { ref: topLayerRef, popover } = useTopLayerPanel();
+  // The leaf measures itself as it mounts, and a popover that is not showing
+  // has no size, so it mounts once the layer is in the top layer.
+  const [layer, setLayer] = useState<HTMLElement | null>(null);
+  const attachLayer = useCallback(
+    (el: HTMLDivElement | null) => {
+      setLayer(el);
+      return topLayerRef(el);
+    },
+    [topLayerRef],
+  );
   const time = formatTime(place.atTime);
   useEffect(() => {
     useDawStore
@@ -109,25 +119,23 @@ export function TimelineCreateMenu({
     );
   }
   return createPortal(
-    <div
-      ref={topLayer.ref}
-      popover={topLayer.popover}
-      className="timeline-create-layer"
-    >
+    <div ref={attachLayer} popover={popover} className="timeline-create-layer">
       <Scrim router={router} phone={false} />
-      <CreateMenu
-        {...menu}
-        time={time}
-        viewport={{
-          left: 0,
-          top: 0,
-          right: window.innerWidth,
-          bottom: window.innerHeight,
-        }}
-        avoidX={avoidX}
-        over={view.over}
-        mark={place.lane}
-      />
+      {layer ? (
+        <CreateMenu
+          {...menu}
+          time={time}
+          viewport={{
+            left: 0,
+            top: 0,
+            right: window.innerWidth,
+            bottom: window.innerHeight,
+          }}
+          avoidX={avoidX}
+          over={view.over}
+          mark={place.lane}
+        />
+      ) : null}
     </div>,
     document.body,
   );

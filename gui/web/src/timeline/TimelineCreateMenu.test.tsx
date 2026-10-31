@@ -155,6 +155,22 @@ describe("TimelineCreateMenu popover form", () => {
     hide.mockRestore();
   });
 
+  it("mounts the menu only once its layer is showing, since the menu measures itself as it mounts and a closed popover has no size", () => {
+    const menuAtShow: (Element | null)[] = [];
+    const show = vi
+      .spyOn(HTMLElement.prototype, "showPopover")
+      .mockImplementation(() => {
+        menuAtShow.push(document.querySelector(".edit-create-menu"));
+      });
+    try {
+      mount();
+      expect(menuAtShow).toEqual([null]);
+      expect(document.querySelector(".edit-create-menu")).not.toBeNull();
+    } finally {
+      show.mockRestore();
+    }
+  });
+
   it("puts the held point where the finger is, with no conversion, and the mark on its lane", () => {
     mount();
     const layer = document.body.querySelector(".timeline-create-layer");
