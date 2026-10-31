@@ -386,7 +386,10 @@ test.describe("coarse pointer", () => {
     const cdp = await page.context().newCDPSession(page);
     const at = { x: box.x - 30, y: box.y + box.height / 2 };
     await touch(cdp, "touchStart", [at]);
-    await expect(page.getByRole("menu", { name: /^Create at / })).toBeVisible();
+    // The phone shell shows the create menu as a bottom Sheet.
+    await expect(
+      page.getByRole("dialog", { name: /^Create at / }),
+    ).toBeVisible();
     await touch(cdp, "touchEnd");
     await expect(joinDialog(page)).toHaveCount(0);
   });
