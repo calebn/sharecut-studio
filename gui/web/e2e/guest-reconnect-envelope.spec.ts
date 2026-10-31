@@ -153,7 +153,7 @@ test("a guest keeps its envelope editor and baseline resources across socket rec
         await expect(guest.getByText("Edit not found")).toHaveCount(0);
       }
 
-      await dismissToast(guest);
+      await dismissToast(guest, "Envelope point changed");
       const after = await resources(guest);
       expect(after).toEqual({
         intervals: baseline.intervals,
