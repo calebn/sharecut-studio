@@ -3010,6 +3010,33 @@
       }
     },
     {
+      "id": "daw.record.here",
+      "label": "Record here",
+      "effect": "view",
+      "tooltip": "Open Record to insert a take at the held time",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "record.here",
+        "gui": [
+          "timeline.createMenu"
+        ],
+        "touch": [
+          "long-press-empty"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; the Create menu and the Action bar verb"
+      },
+      "presence": {
+        "cursor": "time",
+        "follow": "look"
+      }
+    },
+    {
       "id": "daw.edit.restoreClipBleed",
       "label": "Restore original audio",
       "effect": "project",

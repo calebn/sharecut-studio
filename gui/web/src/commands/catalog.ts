@@ -937,6 +937,16 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Args: { trackId: string, atTime: number } → visible volume layer required; SetEnvelope with a point at the envelope's current level there; the touch create menu",
   },
+  "record.here": {
+    id: "record.here",
+    category: "navigation",
+    label: "Record here",
+    keywords: ["room", "take", "mic", "insert"],
+    when: "hostProjectLoaded",
+    breaksFollow: true,
+    notes:
+      "Args: { atTime?: number } → open Record with an Insert target at that time (the create menu), else at the playhead; an empty timeline opens Record with its default target; host only",
+  },
   "comment.draftAt": {
     id: "comment.draftAt",
     category: "edit",

@@ -431,7 +431,7 @@ export interface CreatePlace {
 
 /** One entry of the create menu, routed through an existing command. */
 export interface CreateEntry {
-  id: "envelope-point" | "split" | "chapter" | "comment";
+  id: "envelope-point" | "split" | "chapter" | "comment" | "record-here";
   label: string;
   /**
    * `track` entries act on the held lane. `episode` entries act at the held
@@ -443,7 +443,8 @@ export interface CreateEntry {
     | "envelope.addPoint"
     | "edit.bladeCut"
     | "edit.addChapter"
-    | "comment.draftAt";
+    | "comment.draftAt"
+    | "record.here";
   /** The command's arguments for `place`; null when it cannot act there. */
   args: (place: CreatePlace) => Record<string, unknown> | null;
 }
@@ -480,5 +481,12 @@ export const CREATE_ENTRIES: readonly CreateEntry[] = [
       atTime,
       ...(trackId ? { trackId } : {}),
     }),
+  },
+  {
+    id: "record-here",
+    label: "Record here",
+    scope: "episode",
+    command: "record.here",
+    args: ({ atTime }) => ({ atTime }),
   },
 ];
