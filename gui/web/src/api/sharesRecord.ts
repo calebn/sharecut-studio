@@ -10,9 +10,10 @@ import type {
   HostRecordRoom,
   HostShareRow,
   HostSharesResponse,
+  MintedRecordRoom,
   ShareRole,
 } from "../types/shares";
-import { readApiFailure } from "../utils/apiError";
+import { ApiError, readApiFailure } from "../utils/apiError";
 import { apiFetch, HOST_KEY } from "./http";
 
 export async function listHostShares(
@@ -71,27 +72,62 @@ export async function revokeHostShare(
   );
 }
 
+const RECORD_STALE_LINKS_CODE = "record_stale_links";
+
+/**
+ * The new room a refused mint still made. The server answers 409 `record_stale_links` when the
+ * room exists but an earlier room's links could not all be revoked; the room and the old
+ * session ids ride in the body. Null for any other failure.
+ */
+function staleLinksRoom(error: unknown): MintedRecordRoom | null {
+  if (
+    !(error instanceof ApiError) ||
+    error.status !== 409 ||
+    error.code !== RECORD_STALE_LINKS_CODE
+  ) {
+    return null;
+  }
+  const body = error.body as {
+    detail?: { room?: HostRecordRoom; stale_session_ids?: unknown };
+  } | null;
+  const room = body?.detail?.room;
+  if (!room?.session_id || !room.guest || !room.producer) return null;
+  const stale = body?.detail?.stale_session_ids;
+  return {
+    ...room,
+    staleSessionIds: Array.isArray(stale)
+      ? stale.filter((id): id is string => typeof id === "string")
+      : [],
+  };
+}
+
 export async function createHostRecordRoom(
   projectPath: string,
   expiresAt?: string | null,
-): Promise<HostRecordRoom> {
+): Promise<MintedRecordRoom> {
   if (isShareProjectKey(projectPath)) {
     throw new Error("Share management is not available for shared guests");
   }
-  const res = await apiFetch(
-    HOST_KEY,
-    { host: "/api/shares/record" },
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        path: projectPath,
-        expires_at: expiresAt ?? null,
-      }),
-    },
-  );
-  const data = (await res.json()) as { room: HostRecordRoom };
-  return data.room;
+  try {
+    const res = await apiFetch(
+      HOST_KEY,
+      { host: "/api/shares/record" },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          path: projectPath,
+          expires_at: expiresAt ?? null,
+        }),
+      },
+    );
+    const data = (await res.json()) as { room: HostRecordRoom };
+    return { ...data.room, staleSessionIds: [] };
+  } catch (error) {
+    const made = staleLinksRoom(error);
+    if (made) return made;
+    throw error;
+  }
 }
 
 export async function replaceHostRecordInvite(

@@ -796,7 +796,12 @@ describe("stopping a link", () => {
 });
 
 describe("record rooms", () => {
-  const room = { session_id: "sess1", guest: guestRow, producer: producerRow };
+  const room = {
+    session_id: "sess1",
+    guest: guestRow,
+    producer: producerRow,
+    staleSessionIds: [] as string[],
+  };
 
   it("creates the room, copies the guest link and lists it", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -810,6 +815,26 @@ describe("record rooms", () => {
     expect(writeText).toHaveBeenCalledWith(guestRow.url);
     expect(announcement()).toBe("Record links created and guest link copied");
     await waitFor(() => expect(flow.rows).toHaveLength(2));
+  });
+
+  it("keeps and lists a room whose earlier links could not all be revoked, and says so", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    setClipboard({ writeText });
+    createHostRecordRoom.mockResolvedValue({
+      ...room,
+      staleSessionIds: ["old-room"],
+    });
+    listHostShares.mockResolvedValue(listed([guestRow, producerRow]));
+    mount();
+    act(() => flow.createRecord());
+    await waitFor(() => expect(flow.copiedKey).toBe(`link:${guestRow.token}`));
+    await waitFor(() => expect(flow.rows).toHaveLength(2));
+    expect(writeText).toHaveBeenCalledWith(guestRow.url);
+    await waitFor(() =>
+      expect(flow.error).toBe(
+        "Your new room is ready. Links to an earlier room may still work. End the earlier room in Share to turn them off.",
+      ),
+    );
   });
 
   it("says the room exists when the guest link could not be copied", async () => {

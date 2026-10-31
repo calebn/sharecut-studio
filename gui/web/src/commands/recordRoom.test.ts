@@ -76,6 +76,7 @@ describe("record room commands", () => {
       session_id: "room1",
       guest: guestRow({}),
       producer: guestRow({ record_role: "producer", token: "p" }),
+      staleSessionIds: [],
     });
     api.loadState.mockResolvedValue(room);
     expect(await execute("record.createRoom")).toEqual({ status: "ok" });
@@ -86,6 +87,21 @@ describe("record room commands", () => {
     expect(useRecordHostStore.getState().snapshot?.session_id).toBe("room1");
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Record room created and guest link copied",
+    );
+  });
+
+  it("shows the room and warns when earlier rooms' links could not all be revoked", async () => {
+    api.createRoom.mockResolvedValue({
+      session_id: "room1",
+      guest: guestRow({}),
+      producer: guestRow({ record_role: "producer", token: "p" }),
+      staleSessionIds: ["old-room"],
+    });
+    api.loadState.mockResolvedValue(room);
+    expect(await execute("record.createRoom")).toEqual({ status: "ok" });
+    expect(useRecordHostStore.getState().snapshot?.session_id).toBe("room1");
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Record room created and guest link copied. Your new room is ready. Links to an earlier room may still work. End the earlier room in Share to turn them off.",
     );
   });
 

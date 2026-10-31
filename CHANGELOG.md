@@ -21,6 +21,8 @@
 
 ### Fixes
 
+* A new record room is no longer lost when the server could not revoke an earlier room's links (`record_stale_links`, HTTP 409). The host UI now keeps the room, lists it, copies its guest link and says that links to an earlier room may still work, where it used to show a failure and make a third room on retry (#2329).
+
 * Error and progress text for a share guest that holds any backslash, or a percent-encoded one (`%5c`), such as `Podcasts\ep 12\raw.wav` or `..\host\raw.wav`, is now withheld like other host paths instead of reaching the guest (#2827).
 
 * An over-long ffmpeg command line from a cancellable render or a source-proxy audio pass now fails with `render_command_too_long` instead of a raw OS error, as the other render commands already do (#2104).

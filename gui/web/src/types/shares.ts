@@ -65,3 +65,9 @@ export type HostRecordRoom = {
   guest: HostShareRow;
   producer: HostShareRow;
 };
+
+/** A room the server made, with the earlier rooms whose links it could not revoke. */
+export type MintedRecordRoom = HostRecordRoom & {
+  /** Session ids of earlier rooms whose invite links may still work; empty when all were revoked. */
+  staleSessionIds: readonly string[];
+};

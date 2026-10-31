@@ -17,7 +17,7 @@ import {
 } from "../../api";
 import { execute } from "../../commands/execute";
 import type { ExecuteResult } from "../../commands/types";
-import { copyText } from "../../record";
+import { copyText, STALE_ROOM_LINKS_WARNING } from "../../record";
 import {
   corsWarning,
   createRecoveryOf,
@@ -445,6 +445,13 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           announce("Record links created");
         }
         await load(scope);
+        if (room.staleSessionIds.length > 0 && isCurrent(scope)) {
+          setError((now) =>
+            now
+              ? `${now} ${STALE_ROOM_LINKS_WARNING}`
+              : STALE_ROOM_LINKS_WARNING,
+          );
+        }
       } catch (err) {
         if (isCurrent(scope)) setError(errorMessage(err));
       } finally {
