@@ -175,3 +175,82 @@ def test_context_variables_reach_workers(engine, monkeypatch):
     with render_cancel_scope(check):
         _run(engine, _jobs(2))
     assert checks == [check, check]
+
+
+@pytest.mark.parametrize(
+    ("configured", "workers", "expected"),
+    [(16, 2, WORKER_CPU_THREADS), (6, 3, 2), (3, 4, 1), (2, 2, 1), (None, 3, WORKER_CPU_THREADS)],
+)
+def test_user_set_cpu_threads_are_shared_out_across_workers(configured, workers, expected):
+    base = TranscriptionEngine(device="cpu", defaults=load_defaults())
+    base.cpu_threads = configured
+    clone = transcribe_pool._worker_engine(base, workers)
+    assert clone.cpu_threads == expected
+    assert base.cpu_threads == configured
+
+
+def test_interrupt_cancels_queued_jobs(engine, monkeypatch):
+    monkeypatch.setattr(transcribe_pool, "cpu_budget", lambda: 8)
+    started: list[str] = []
+    release = threading.Event()
+
+    def body(self: TranscriptionEngine, job: TranscribeJob) -> None:
+        started.append(job.track_id)
+        assert release.wait(WAIT)
+
+    class Interrupting(transcribe_pool.ThreadPoolExecutor):
+        def shutdown(self, wait=True, *, cancel_futures=False):
+            if not cancel_futures:
+                raise KeyboardInterrupt
+            release.set()
+            super().shutdown(wait=wait, cancel_futures=cancel_futures)
+
+    monkeypatch.setattr(transcribe_pool, "ThreadPoolExecutor", Interrupting)
+    _fake(monkeypatch, body)
+    with pytest.raises(KeyboardInterrupt):
+        _run(engine, _jobs(8))
+    assert len(started) <= 2
+
+
+def test_concurrent_tracks_keep_their_own_progress_row_and_heartbeat(engine, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.util.progress import bind_progress, progress_task
+    from podcast_mcp.util.progress.reporters import ElapsedProgressMixin
+
+    barrier = threading.Barrier(2, timeout=WAIT)
+
+    def segments():
+        barrier.wait()  # both decodes are open together
+        yield SimpleNamespace(text="a", start=0.0, end=5.0, words=None)
+
+    model = MagicMock()
+    model.transcribe.side_effect = lambda *a, **k: (segments(), SimpleNamespace(duration=10.0))
+    monkeypatch.setattr(TranscriptionEngine, "_get_model", lambda self: model)
+    open_rows: list[set[str]] = []
+
+    class Tracking(ElapsedProgressMixin):
+        def start(self, task_id, label, total=None):
+            self._register_task(task_id, label, total)
+            with self._lock:
+                open_rows.append({t for t in self._tasks if t.startswith("transcribe_audio")})
+
+        def end(self, task_id, *, message=None):
+            self._finish_task(task_id)
+
+    rec = Tracking(heartbeat_sec=3600)
+
+    def transcribe_job(self, project, job, **_):
+        return self.transcribe_file(
+            job.audio, progress_label=job.label, progress_task_id=job.progress_task_id
+        )
+
+    monkeypatch.setattr(TranscriptionEngine, "transcribe_job", transcribe_job)
+    try:
+        with bind_progress(rec), progress_task("transcribe", "Transcribing"):
+            _run(engine, _jobs(2))
+    finally:
+        rec.close()
+    # The second row opening must not have replaced the first: both are tracked at once.
+    assert {"transcribe_audio:t0", "transcribe_audio:t1"} in open_rows

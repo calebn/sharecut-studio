@@ -313,3 +313,145 @@ def test_a_gpu_that_onnx_runtime_cannot_use_is_named_in_the_summary() -> None:
     assert "NVIDIA GPU found, but ONNX Runtime has no CUDA support" in nvidia.summary()
     apple = _profile(system="Darwin", machine="arm64", apple_silicon=True)
     assert "Apple Silicon found, but ONNX Runtime has no Core ML support" in apple.summary()
+
+
+MEMINFO = "MemTotal:       16000000 kB\nMemAvailable:    8000000 kB\n"
+HOST_AVAILABLE = 8_000_000 * 1024
+
+
+def _linux_ram(monkeypatch, tmp_path: Path, cgroup: dict[str, str] | None = None) -> None:
+    meminfo = tmp_path / "meminfo"
+    meminfo.write_text(MEMINFO)
+    root = tmp_path / "cgroup"
+    for name, text in (cgroup or {}).items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(text)
+    monkeypatch.setattr(hardware.sys, "platform", "linux")
+    monkeypatch.setattr(hardware, "_MEMINFO", meminfo)
+    monkeypatch.setattr(hardware, "_CGROUP_ROOT", root)
+
+
+def test_linux_available_ram_reads_memavailable_without_a_cgroup(monkeypatch, tmp_path) -> None:
+    _linux_ram(monkeypatch, tmp_path)
+    assert hardware.available_ram_bytes() == HOST_AVAILABLE
+
+
+def test_linux_available_ram_is_capped_by_the_cgroup_v2_limit(monkeypatch, tmp_path) -> None:
+    _linux_ram(
+        monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
+    )
+    assert hardware.available_ram_bytes() == 3_000_000_000
+
+
+def test_linux_available_ram_is_capped_by_the_cgroup_v1_limit(monkeypatch, tmp_path) -> None:
+    _linux_ram(
+        monkeypatch,
+        tmp_path,
+        {
+            "memory/memory.limit_in_bytes": "2000000000\n",
+            "memory/memory.usage_in_bytes": "500000000\n",
+        },
+    )
+    assert hardware.available_ram_bytes() == 1_500_000_000
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"memory.max": "max\n", "memory.current": "1000\n"},
+        {
+            "memory/memory.limit_in_bytes": "9223372036854771712\n",
+            "memory/memory.usage_in_bytes": "1\n",
+        },
+        {"memory.max": "junk\n", "memory.current": "1000\n"},
+        {"memory.max": "4000000000\n"},
+    ],
+)
+def test_linux_available_ram_ignores_an_unlimited_or_unreadable_cgroup(
+    monkeypatch, tmp_path, files
+) -> None:
+    _linux_ram(monkeypatch, tmp_path, files)
+    assert hardware.available_ram_bytes() == HOST_AVAILABLE
+
+
+def test_linux_available_ram_keeps_the_host_figure_when_it_is_smaller(
+    monkeypatch, tmp_path
+) -> None:
+    _linux_ram(monkeypatch, tmp_path, {"memory.max": "99000000000\n", "memory.current": "0\n"})
+    assert hardware.available_ram_bytes() == HOST_AVAILABLE
+
+
+def test_linux_available_ram_clamps_a_cgroup_over_its_limit_to_zero(monkeypatch, tmp_path) -> None:
+    _linux_ram(monkeypatch, tmp_path, {"memory.max": "1000\n", "memory.current": "2000\n"})
+    assert hardware.available_ram_bytes() == 0
+
+
+def test_linux_available_ram_is_none_without_meminfo(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(hardware.sys, "platform", "linux")
+    monkeypatch.setattr(hardware, "_MEMINFO", tmp_path / "missing")
+    assert hardware.available_ram_bytes() is None
+
+
+VM_STAT = """Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                               1000.
+Pages active:                             5000.
+Pages inactive:                           2000.
+Pages speculative:                         500.
+Pages wired down:                         3000.
+"""
+
+
+def test_macos_available_ram_sums_free_inactive_and_speculative_pages(monkeypatch) -> None:
+    monkeypatch.setattr(hardware.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        hardware.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=VM_STAT),
+    )
+    assert hardware.available_ram_bytes() == 3500 * 16384
+
+
+@pytest.mark.parametrize(
+    "failure", [FileNotFoundError("vm_stat"), subprocess.TimeoutExpired("vm_stat", 1)]
+)
+def test_macos_available_ram_is_none_when_vm_stat_fails(monkeypatch, failure) -> None:
+    def boom(*a, **k):
+        raise failure
+
+    monkeypatch.setattr(hardware.sys, "platform", "darwin")
+    monkeypatch.setattr(hardware.subprocess, "run", boom)
+    assert hardware.available_ram_bytes() is None
+
+
+def test_macos_available_ram_is_none_for_unparseable_output(monkeypatch) -> None:
+    monkeypatch.setattr(hardware.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        hardware.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="nonsense"),
+    )
+    assert hardware.available_ram_bytes() is None
+
+
+def test_windows_available_ram_reads_available_physical_memory(monkeypatch) -> None:
+    asked: list[str] = []
+    monkeypatch.setattr(hardware.sys, "platform", "win32")
+    monkeypatch.setattr(hardware, "_ram_bytes_win32", lambda field: asked.append(field) or 123)
+    assert hardware.available_ram_bytes() == 123
+    assert asked == ["ullAvailPhys"]
+
+
+def test_ram_bytes_win32_reads_the_named_field_of_the_memory_status(monkeypatch) -> None:
+    def fill(ref) -> int:
+        ref._obj.ullAvailPhys = 4096
+        ref._obj.ullTotalPhys = 8192
+        return 1
+
+    kernel32 = type("K", (), {"GlobalMemoryStatusEx": staticmethod(fill)})
+    monkeypatch.setattr(
+        hardware.ctypes, "windll", type("W", (), {"kernel32": kernel32}), raising=False
+    )
+    assert hardware._ram_bytes_win32("ullAvailPhys") == 4096
+    assert hardware._ram_bytes_win32("ullTotalPhys") == 8192
+    monkeypatch.setattr(kernel32, "GlobalMemoryStatusEx", staticmethod(lambda ref: 0))
+    assert hardware._ram_bytes_win32("ullAvailPhys") is None

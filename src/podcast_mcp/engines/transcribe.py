@@ -127,6 +127,11 @@ class TranscribeJob:
         return f"{self.track_id}__{self.source_id}"
 
     @property
+    def progress_task_id(self) -> str:
+        """Distinct per job: tracks transcribed side by side must not share a progress row."""
+        return f"transcribe_audio:{self.cache_id}"
+
+    @property
     def label(self) -> str:
         if self.source_id is None:
             return f"Track {self.track_id}"
@@ -823,6 +828,7 @@ class TranscriptionEngine:
         initial_prompt: str | None = None,
         max_word_sec: float = DEFAULT_MAX_WORD_DURATION_SEC,
         progress_label: str | None = None,
+        progress_task_id: str = "transcribe_audio",
     ) -> Transcript:
         return self._with_cpu_fallback(
             lambda: self._transcribe_file(
@@ -831,6 +837,7 @@ class TranscriptionEngine:
                 initial_prompt=initial_prompt,
                 max_word_sec=max_word_sec,
                 progress_label=progress_label,
+                progress_task_id=progress_task_id,
             )
         )
 
@@ -842,6 +849,7 @@ class TranscriptionEngine:
         initial_prompt: str | None,
         max_word_sec: float,
         progress_label: str | None,
+        progress_task_id: str,
     ) -> Transcript:
         model = self._get_model()
         kwargs: dict = {
@@ -855,9 +863,7 @@ class TranscriptionEngine:
         label = progress_label or audio_path.name
         words: list[TranscriptWord] = []
         window_ratios: list[object] = []
-        with resolve_progress_task(
-            "transcribe_audio", f"Transcribing {label}", total=total
-        ) as task:
+        with resolve_progress_task(progress_task_id, f"Transcribing {label}", total=total) as task:
             for segment in segments:
                 before = len(words)
                 if segment.words:
@@ -930,6 +936,7 @@ class TranscriptionEngine:
                 initial_prompt=initial_prompt,
                 max_word_sec=max_word_sec,
                 progress_label=job.label,
+                progress_task_id=job.progress_task_id,
             )
         transcript.track_id = job.track_id
         transcript.source_id = job.source_id

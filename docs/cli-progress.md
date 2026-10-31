@@ -82,7 +82,7 @@ For `pipeline run`, each step emits `Running {step}` / `Completed {step}: {summa
 | `speaker-enroll` | Profile enrollment | child under precorrect; leaf under CLI enroll |
 | `speaker-attribute` | Bleed window scoring | child |
 | `transcribe` | Per-track transcription | wrap / leaf |
-| `transcribe_audio` | Whisper decode of one track | child; audio seconds, `segment.end / duration` |
+| `transcribe_audio` (`transcribe_audio:<cache id>` per track) | Whisper decode of one track; concurrent tracks each keep their own row | child; audio seconds, `segment.end / duration` |
 | `audibility` / `low-audibility` / `gate-overreach` | Word-scale audit | child (not the wrap’s unit scale) |
 | `master_loudnorm` | Loudness measure + normalize or limit | child; media seconds over measure + first render, total = 2 × duration (a limiter re-drive or trim holds it full) |
 | `master_qc_measure` | Post-master loudness re-measure | child; media seconds |

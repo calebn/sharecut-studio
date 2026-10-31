@@ -44,12 +44,14 @@ def transcribe_worker_count(model_size: str, job_count: int) -> int:
     return max(1, min(job_count, cpu_budget() // WORKER_CPU_THREADS, by_memory))
 
 
-def _worker_engine(engine: TranscriptionEngine) -> TranscriptionEngine:
+def _worker_engine(engine: TranscriptionEngine, workers: int) -> TranscriptionEngine:
     clone = copy.copy(engine)
     clone._model = None
     clone._loop_drop = None
     if clone.cpu_threads is None:
         clone.cpu_threads = WORKER_CPU_THREADS
+    elif workers > 1:
+        clone.cpu_threads = min(WORKER_CPU_THREADS, max(1, clone.cpu_threads // workers))
     for name in _STATE_LISTS:
         setattr(clone, name, [])
     return clone
@@ -64,7 +66,7 @@ def run_jobs_concurrently(
     """Results in job order; the earliest failing job's exception propagates once all stop."""
     slots: queue.SimpleQueue[TranscriptionEngine] = queue.SimpleQueue()
     for _ in range(workers):
-        slots.put(_worker_engine(engine))
+        slots.put(_worker_engine(engine, workers))
     stop = threading.Event()
     state: list[dict[str, list] | None] = [None] * len(jobs)
 
@@ -88,8 +90,12 @@ def run_jobs_concurrently(
     try:
         for index, job in enumerate(jobs):
             futures.append(pool.submit(contextvars.copy_context().run, work, index, job))
-    finally:
         pool.shutdown(wait=True)
+    except BaseException:
+        # KeyboardInterrupt lands in the wait above: drop the queued jobs, let running ones end.
+        stop.set()
+        pool.shutdown(wait=True, cancel_futures=True)
+        raise
     for name in _STATE_LISTS:
         for entry in state:
             if entry is not None:
