@@ -574,7 +574,10 @@ def room_tone_pool_digest(project: EpisodeProject) -> str:
 
 
 def room_tone_bed_digest(project: EpisodeProject) -> str:
-    """Which registered beds render, and why not: part of a preview's cache key."""
+    """Which registered beds render, and why not: part of a preview's cache key.
+
+    A usable bed is keyed with its file revision, so replacing the file under the same
+    source id and span cannot leave a stale preview."""
     parts: list[list[object]] = []
     for track in project.tracks:
         if track.room_tone is None:
@@ -583,7 +586,9 @@ def room_tone_bed_digest(project: EpisodeProject) -> str:
         if isinstance(bed, BedUnavailable):
             parts.append([track.id, bed.cause, list(bed.rejected_checks)])
         else:
-            parts.append([track.id, bed.source_id, bed.start, bed.end])
+            parts.append(
+                [track.id, bed.source_id, bed.start, bed.end, list(file_revision(bed.path))]
+            )
     return json.dumps(parts) if parts else ""
 
 

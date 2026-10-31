@@ -468,6 +468,16 @@ def test_contaminated_bed_changes_the_pending_preview_key(tmp_path: Path) -> Non
     assert room_tone_bed_digest(project) != clean
 
 
+def test_replacing_a_usable_bed_file_changes_the_pending_preview_key(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 2 * SR])
+    before = room_tone_bed_digest(project)
+
+    _add_bed(project, tmp_path, _noise(-62.0, seed=8)[: 2 * SR], register=False)
+
+    assert room_tone_bed_digest(project) != before
+
+
 def test_clean_bed_passes_without_a_voice_detector(tmp_path: Path, no_voice_detector: None) -> None:
     project = _project(tmp_path, host=_host_audio())
     _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 2 * SR])
