@@ -547,10 +547,9 @@ export function registerEditVerbCommands(): void {
   registerCommand("edit.split", () => withFacts((facts) => split(facts)));
   registerCommand("edit.mute", () => runMute());
   registerCommand("record.here", (args) => {
-    const raw = args.atTime;
-    if (raw === undefined || raw === null) return recordHere();
-    const at = Number(raw);
-    if (!Number.isFinite(at) || at < 0)
+    const at = args.atTime;
+    if (at === undefined || at === null) return recordHere();
+    if (typeof at !== "number" || !Number.isFinite(at) || at < 0)
       return disabled("atTime must be a time");
     return recordHere(at);
   });
