@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import asdict
 
 from mcp.server import MCPServer
@@ -71,7 +70,7 @@ def list_exported_transcripts(project_path: str) -> str:
     when the transcript was edited since the file was written). Read-only.
     """
     ws = ProjectWorkspace.open(project_path)
-    return json.dumps([asdict(f) for f in TranscriptService(ws).exported()], indent=2)
+    return to_json([asdict(f) for f in TranscriptService(ws).exported()])
 
 
 def get_transcript_vocabulary_tool(project_path: str) -> str:

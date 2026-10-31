@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from mcp.server import MCPServer
 
 from podcast_mcp.ingest.manifest import IngestManifest
+from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import PlayRequest, PlayService
 from podcast_mcp.services.media import (
@@ -30,7 +30,7 @@ def ingest_import_folder_tool(
         speakers_override=speakers_override,
         dry_run=dry_run,
     )
-    return json.dumps(import_folder_report_to_dict(result), indent=2)
+    return to_json(import_folder_report_to_dict(result))
 
 
 def ingest_suggest_alignment_tool(
@@ -57,7 +57,7 @@ def ingest_suggest_alignment_tool(
         waveform_top_n=waveform_top_n,
         diag_dir=Path(diag_dir) if diag_dir else None,
     )
-    return json.dumps(suggest_result_to_dict(result), indent=2)
+    return to_json(suggest_result_to_dict(result))
 
 
 def ingest_verify_alignment_tool(
@@ -75,7 +75,7 @@ def ingest_verify_alignment_tool(
         write_waveforms=write_waveforms,
         diag_dir=Path(diag_dir) if diag_dir else None,
     )
-    return json.dumps(verify_result_to_dict(result), indent=2)
+    return to_json(verify_result_to_dict(result))
 
 
 def play_compare_tool(
@@ -104,7 +104,7 @@ def play_compare_tool(
         "tier": result.tier,
         "compare_segments": result.compare_segments or [],
     }
-    return json.dumps(payload, indent=2)
+    return to_json(payload)
 
 
 def register(mcp: MCPServer) -> None:
