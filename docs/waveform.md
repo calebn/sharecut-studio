@@ -664,37 +664,36 @@ workspace path checks apply to these recordings.
 
 ## Create and edit a track volume envelope
 
-Select a track, then choose **Add volume envelope** in its inspector (the inspector
-sheet on a phone). For a track with points, the entry is **Edit volume envelope**.
-Opening the workspace does not change the shared Volume envelope layer or saved
-audio. Use **Show volume envelope** to reveal it across all tracks. **Done**
-returns to the track inspector. Shared-project Editors can edit the envelope;
-Commenters and Viewers can view it but cannot edit it.
+Show the volume envelope (**Show volume envelope** in the track inspector, or
+the Volume envelope layer in the eye popover), then add a point from the lane's
+create menu (long press, right click, or Shift+F10): **Add envelope point**. The
+new point is selected and **Inspect** opens its **Time** and **Level** in the
+Inspector (the inspector sheet on a phone, where the peek drawer also shows
+them). The layer is shared by all tracks and hiding it does not change saved
+audio. Shared-project Editors can edit the envelope; Commenters and Viewers can
+select points and read their values but cannot edit them.
 
-On a short phone screen, choose **Expand** in the inspector sheet to reach the envelope controls. Opening the workspace does not expand the sheet automatically.
+On a short phone screen, choose **Expand** in the inspector sheet to reach the
+envelope controls. Opening a point does not expand the sheet automatically.
 
-Choose **Add point**, enter **Time (seconds on timeline)** and **Level (×)**, then
-**Save point**. The first draft starts at 0 seconds with the empty curve’s current
-level. Later additions start at the playhead, bounded to the timeline, with the
-existing curve’s current level.
-The default is only a proposal: opening a form or leaving a field does not save it.
-**Cancel** or Escape discards the draft. Level accepts 0 through 1.50: zero is
-silent and 1.00 leaves the track’s volume unchanged. A saved curve with exactly
-one point applies that level across the track. The GUI’s first-point operation
-adds endpoint anchors at the prior level; before the first and after the last
-point, the endpoint level holds.
-This automation is separate from the track volume fader and effects.
+**Time** is in seconds from 0 to the end of the timeline and **Level** runs from
+0 to 1.50: zero is silent and 1.00 leaves the track’s volume unchanged. Each
+gesture on a field (a drag, an arrow step, a typed value confirmed with Enter)
+is one save and one Undo step; a value outside the range is refused and stays
+as typed, never clamped. A saved curve with exactly one point applies that level
+across the track. The GUI’s first-point operation adds endpoint anchors at the
+prior level; before the first and after the last point, the endpoint level
+holds. This automation is separate from the track volume fader and effects.
 
-Use the **Envelope point** selector to reach tightly spaced or coincident points
-without dragging. Select **Edit point** for exact values, or move a point directly
-on the timeline. Creating a new coincident timestamp is rejected with a way to
-select the existing point. Existing coincident points keep their distinct IDs and
-remain independently editable and removable. Ordinary seeking, panning and clip
-selection do not create points.
+Moving a point onto a time another point already holds is refused with a way to
+**Select the point there**. Existing coincident points keep their distinct IDs
+and remain independently editable and removable. Ordinary seeking, panning and
+clip selection do not create points.
 
-**Delete point** removes the selected point. The final point instead offers
-**Remove volume envelope**, returning automation to unity while leaving track
-volume and effects intact. Each confirmed change is one Undo step; unchanged or
-canceled edits create no step. If another editor changes the envelope, the draft
-stays visible with an error and an explicit discard/reload action. A submitted
-save is allowed to finish; closing a view does not pretend to cancel that command.
+**Remove point**, or Delete/Backspace on the selected point, removes it. The
+last point instead offers **Remove volume envelope**, returning automation to
+unity while leaving track volume and effects intact. Each confirmed change is one
+Undo step; unchanged values create no step. If another editor changes the
+envelope, the sheet shows an alert and **Reload points** dismisses it once the
+host’s points are loaded. A submitted save is allowed to finish; closing a view
+does not pretend to cancel that command.

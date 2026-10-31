@@ -224,10 +224,11 @@ retains point focus without opening the inspector. Only the owning pointer can
 complete the drag. A click selects on release; a changed save selects on success. A completed save remains in flight until
 it settles, and History Undo restores the saved edit.
 
-Select a track and choose **Add volume envelope** or **Edit volume envelope**
-to open its point list without creating automation. **Add point** and
-**Edit point** open numeric drafts (on touch, focus lands on the form heading, so a phone's keyboard stays down until you tap a field; a time past the end of the timeline is refused with a message under the field); Cancel or form Escape discards them.
-Save and Delete are undoable; removing the last point restores unity automation.
+Show the volume envelope and select a point (from the lane or the create menu's
+**Add envelope point**), then **Inspect** opens its **Time** and **Level** fields
+(a time past the end of the timeline is refused with a message under the field).
+Each change and **Remove point** is one undo step; removing the last point
+restores unity automation.
 Volume envelopes start hidden and use one shared visibility setting across all
 tracks. Show the layer before adding or editing points. A first point starts at
 the empty curve's unity level and adds endpoint anchors at the curve's prior
