@@ -215,7 +215,7 @@ def test_the_candidate_owns_the_sections_a_cut_writes_and_shares_the_rest(tmp_pa
         project, make(), defaults=ws.effective_config(), batch=(), record_log=False
     )
 
-    for name in ("sources", "mix", "render", "social", "history", "document_sync"):
+    for name in ("mix", "render", "social", "history", "document_sync"):
         assert getattr(candidate, name) is getattr(project, name), name
     for name in (
         "retained_bleed_alignments",
@@ -226,6 +226,8 @@ def test_the_candidate_owns_the_sections_a_cut_writes_and_shares_the_rest(tmp_pa
     ):
         assert getattr(candidate.editorial, name) is getattr(project.editorial, name), name
     assert candidate.review.versions is project.review.versions
+    assert candidate.sources is not project.sources
+    assert candidate.sources == project.sources
     assert candidate.transcript_data.combined is not project.transcript_data.combined
     assert candidate.timeline is not project.timeline
     assert candidate.timeline.clips is not project.timeline.clips

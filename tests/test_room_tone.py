@@ -1488,6 +1488,7 @@ def test_nearby_mute_fills_on_a_later_recording_without_a_pool_take_the_same_sam
     assert (second.start_s, second.end_s) == (pytest.approx(0.0), pytest.approx(0.4))
 
 
+@pytest.mark.usefixtures("tiling_only")
 def test_gaps_filled_in_one_call_take_different_samples(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

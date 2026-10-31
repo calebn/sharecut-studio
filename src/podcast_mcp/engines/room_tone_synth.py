@@ -170,15 +170,21 @@ def room_tone_for_gap(
     basis = _basis(project, track_id, selection)
     if basis is None:
         return selection
-    if basis.end - basis.start < MIN_ROOM_SEC and isinstance(selection, OwnQuietSample):
+    swapped = basis.end - basis.start < MIN_ROOM_SEC and isinstance(selection, OwnQuietSample)
+    pooled = selection
+    if swapped:
         pooled = span(POOL_SAMPLE_SEC)
+        if isinstance(pooled, SampleAbsent):
+            return selection
         if gap_sec <= _replayed_sec(pooled) + SYNTH_MAX_REPLAY_SEC:
             return pooled
         basis = _basis(project, track_id, pooled)
         if basis is None:
             return selection
     synthesised = _synthesise(project, track_id, basis, gap_sec + slack_sec, seed_sec)
-    return selection if synthesised is None else synthesised
+    if synthesised is not None:
+        return synthesised
+    return pooled if swapped else selection
 
 
 def _replayed_sec(selection: RoomToneSelection) -> float:
@@ -217,6 +223,7 @@ def _params() -> str:
             TONAL_TO_BAND_DB,
             LEVEL_TOLERANCE_DB,
             PROBE_SEC,
+            POOL_SAMPLE_SEC,
         )
     )
 
@@ -342,11 +349,13 @@ def _tonal(samples: np.ndarray, rate: int) -> bool:
     if samples.size < nfft:
         return False
     window = np.hanning(nfft)
-    frames = [
-        (samples[i : i + nfft] - samples[i : i + nfft].mean()) * window
-        for i in range(0, samples.size - nfft + 1, nfft // 2)
-    ]
-    psd = np.mean(np.abs(np.fft.rfft(frames, axis=1)) ** 2, axis=0)
+    total = np.zeros(nfft // 2 + 1)
+    count = 0
+    for start in range(0, samples.size - nfft + 1, nfft // 2):
+        frame = samples[start : start + nfft]
+        total += np.abs(np.fft.rfft((frame - frame.mean()) * window)) ** 2
+        count += 1
+    psd = total / count
     width = rate / nfft
     ratio = 10 ** (TONAL_TO_BAND_DB / 10)
     for index in range(int(np.ceil(TONAL_MIN_HZ / width)), psd.size - 1):
