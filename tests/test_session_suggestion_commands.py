@@ -240,3 +240,42 @@ def test_selecting_the_selected_take_writes_no_history_step(ws) -> None:
     apply_command(ws, "SelectSessionTake", {"suggestion_id": sid, "take_index": 1})
     assert _titles(ws) == steps
     assert _everything(ws) == before
+
+
+def test_skip_after_accept_is_refused_and_changes_nothing(ws) -> None:
+    sid = _stage_replace(ws, 2.0, 4.0, TAKE)
+    apply_command(ws, "AcceptSessionSuggestion", {"suggestion_id": sid})
+    done = _everything(ws)
+    with pytest.raises(CodedValueError) as err:
+        apply_command(ws, "SkipSessionSuggestion", {"suggestion_id": sid})
+    assert err.value.code == "session_suggestion_not_pending"
+    assert _everything(ws) == done
+
+
+def test_a_held_accept_writes_no_history_step_and_leaves_the_suggestion_pending(ws) -> None:
+    _words(ws, "guest", ("so", 2.5, 2.8), ("plan", 3.0, 3.4))
+    sid = _stage_replace(ws, 2.0, 4.0, TAKE)
+    before = _everything(ws)
+    head = HistoryService(ws).list_entries().head_id
+    titles = _titles(ws)
+    held = apply_command(ws, "AcceptSessionSuggestion", {"suggestion_id": sid})
+    assert "needs_confirmation" in held
+    assert HistoryService(ws).list_entries().head_id == head
+    assert _titles(ws) == titles
+    assert _everything(ws) == before
+    assert [s["id"] for s in _view(ws)["session_suggestions"]] == [sid]
+
+
+def test_take_index_true_is_taken_as_it_is_today(ws) -> None:
+    # Pin: pydantic lax mode coerces True to 1 in the payload model, so the service
+    # sees the int 1 (its own bool refusal is not reached through the command).
+    body = DOCUMENT_COMMAND_ADAPTER.validate_python(
+        {
+            "type": "AcceptSessionSuggestion",
+            "payload": {"suggestion_id": "ss-1", "take_index": True},
+            "client_id": "c1",
+            "client_seq": 1,
+        }
+    )
+    assert body.payload.take_index == 1
+    assert type(body.payload.take_index) is int
