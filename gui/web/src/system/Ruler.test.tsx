@@ -162,6 +162,29 @@ describe("Ruler drawing", () => {
     }
   });
 
+  it("re-thins the labels when the window resizes after the root font size changes", () => {
+    stubResizeObserver();
+    const root = document.documentElement;
+    const was = root.style.fontSize;
+    try {
+      const { container } = setup({
+        start: 0,
+        pxPerSecond: 256 / 60,
+        width: 256,
+        duration: 60,
+      });
+      expect(labels(container).filter(Boolean)).toHaveLength(4);
+      root.style.fontSize = "32px";
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+      expect(labels(container).filter(Boolean)).toEqual(["0:00", "1:00"]);
+    } finally {
+      root.style.fontSize = was;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("places the playhead, the selection band and the sessions in pixels of the window", () => {
     const { container } = setup({
       selection,
