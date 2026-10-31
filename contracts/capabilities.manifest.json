@@ -2630,7 +2630,7 @@
       "presence": {
         "cursor": "anchor",
         "follow": "look",
-        "anchor": "transcript:word:<track>:<i>"
+        "anchor": "transcript:word:<hash>"
       },
       "omit": {
         "keyboard_reason": "toolbar toggle; inline correction uses F2"
@@ -2659,7 +2659,7 @@
       "presence": {
         "cursor": "anchor",
         "follow": "none",
-        "anchor": "transcript:word:<track>:<i>"
+        "anchor": "transcript:word:<hash>"
       },
       "omit": {
         "keyboard_reason": "Native range controls and numeric fields in the word inspector"
@@ -2686,7 +2686,7 @@
       "presence": {
         "cursor": "anchor",
         "follow": "none",
-        "anchor": "transcript:word:<track>:<i>"
+        "anchor": "transcript:word:<hash>"
       },
       "omit": {}
     },
@@ -2714,7 +2714,7 @@
       "presence": {
         "cursor": "anchor",
         "follow": "look",
-        "anchor": "transcript:word:<track>:<i>"
+        "anchor": "transcript:word:<hash>"
       }
     },
     {
@@ -2742,7 +2742,7 @@
       "presence": {
         "cursor": "anchor",
         "follow": "look",
-        "anchor": "transcript:word:<track>:<i>"
+        "anchor": "transcript:word:<hash>"
       }
     },
     {
@@ -2774,7 +2774,7 @@
       "presence": {
         "cursor": "anchor",
         "follow": "look",
-        "anchor": "transcript:word:<track>:<i>"
+        "anchor": "transcript:word:<hash>"
       }
     },
     {
@@ -2800,7 +2800,7 @@
       "presence": {
         "cursor": "anchor",
         "follow": "look",
-        "anchor": "transcript:word:<track>:<i>"
+        "anchor": "transcript:word:<hash>"
       }
     },
     {
@@ -2826,7 +2826,7 @@
       "presence": {
         "cursor": "anchor",
         "follow": "look",
-        "anchor": "transcript:word:<track>:<i>"
+        "anchor": "transcript:word:<hash>"
       }
     },
     {
