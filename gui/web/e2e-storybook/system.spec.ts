@@ -1,5 +1,10 @@
 import { devices, expect, test } from "@playwright/test";
-import { dbToY, ENVELOPE_TOP_DB } from "../src/system/envelopeMath";
+import {
+  dbToGain,
+  dbToY,
+  ENVELOPE_TOP_DB,
+  gainToDb,
+} from "../src/system/envelopeMath";
 import { storyUrl } from "./storyUrl";
 
 /**
@@ -2986,6 +2991,7 @@ test("System/Envelope Fade draws the line in gain: halfway through a 0 dB to -60
   page,
 }) => {
   await open(page, "system-envelope--fade", 1280);
+  await expect(page.locator(".sys-env-point")).toHaveCount(4);
   const y = await page.evaluate(() => {
     const d = document.querySelector(".sys-env-line")?.getAttribute("d") ?? "";
     const verts = d
@@ -3042,15 +3048,20 @@ test("System/Envelope Wired: each Shift+Right adds 100 ms when the host feeds th
     "data-hit-surface",
     "envelope",
   );
+  // The story's play function has already pressed it three times (4.30 s).
+  await expect(dot).toHaveAttribute(
+    "aria-valuetext",
+    "\u22126.0 dB at 0:04.30",
+  );
   await dot.focus();
   for (let press = 1; press <= 10; press += 1) {
     await page.keyboard.press("Shift+ArrowRight");
   }
   await expect(dot).toHaveAttribute(
     "aria-valuetext",
-    "\u22126.0 dB at 0:05.00",
+    "\u22126.0 dB at 0:05.30",
   );
-  await expect(dot).toHaveAttribute("data-hit-detail", "5.00 s -6.00 dB");
+  await expect(dot).toHaveAttribute("data-hit-detail", "5.30 s -6.00 dB");
 });
 
 test("System/Envelope the add strip along the line is 12 px, a click on it adds a point, and a clip away from the line is not covered", async ({
@@ -3144,16 +3155,26 @@ test("System/Envelope under a coarse pointer a swipe that starts on the line scr
   );
   const dot = envPoint(page, "env-4");
   await expect(dot).toHaveCSS("touch-action", "none");
-  // Something to scroll to: the story itself fits the phone.
+  // Something to scroll: the story fits the phone, so the body becomes a scroller 1600 px wide.
   await page.evaluate(() => {
     const wide = document.createElement("div");
     wide.style.cssText =
       "position:absolute;inset-block-start:0;inset-inline-start:0;inline-size:1600px;block-size:1px";
     document.body.append(wide);
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.cssText +=
+      ";position:relative;inline-size:393px;block-size:100vh;overflow-x:auto;overflow-y:hidden";
   });
   const lane = await boxOf(page, ".sys-lane", 0);
-  const stripX = lane.x + 13 * 24 + 60;
-  const stripY = lane.y + dbToY(0, 104);
+  // A tap on the line, halfway between points 4 (10 s, -12 dB) and 5 (13 s, 0 dB), adds a point: the line is there at the gain's mean.
+  await page.touchscreen.tap(
+    lane.x + 11.5 * 24,
+    lane.y + dbToY(gainToDb((dbToGain(-12) + 1) / 2), 104),
+  );
+  await expect(page.locator(".sys-env-point")).toHaveCount(6);
+  // Halfway between points 1 (1 s, 0 dB) and 2 (4 s, -6 dB), clear of both hit areas.
+  const stripX = lane.x + 2.5 * 24;
+  const stripY = lane.y + dbToY(gainToDb((dbToGain(-6) + 1) / 2), 104);
   const cdp = await context.newCDPSession(page);
   const swipe = async (x: number, y: number, dx: number) => {
     await cdp.send("Input.dispatchTouchEvent", {
@@ -3173,16 +3194,21 @@ test("System/Envelope under a coarse pointer a swipe that starts on the line scr
   };
   const centre = await centreOf(dot);
   await swipe(centre.x, centre.y, -150);
-  await expect
-    .poll(() => page.evaluate(() => window.scrollX), { timeout: 1500 })
-    .toBe(0);
+  // A scroll the swipe started would have landed within a few frames.
+  await page.evaluate(
+    () =>
+      new Promise<void>((done) => {
+        let frames = 0;
+        const tick = () =>
+          ++frames < 12 ? requestAnimationFrame(tick) : done();
+        requestAnimationFrame(tick);
+      }),
+  );
+  expect(await page.evaluate(() => document.body.scrollLeft)).toBe(0);
   await swipe(stripX, stripY, -150);
   await expect
-    .poll(() => page.evaluate(() => window.scrollX))
+    .poll(() => page.evaluate(() => document.body.scrollLeft))
     .toBeGreaterThan(50);
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.touchscreen.tap(stripX, stripY);
-  await expect(page.locator(".sys-env-point")).toHaveCount(6);
   await context.close();
 });
 
