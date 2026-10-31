@@ -60,79 +60,38 @@ export type CreateMenuProps = {
   onClose: () => void;
 };
 
-function sameSize(a: MenuSize | null, b: MenuSize): boolean {
-  return a != null && a.width === b.width && a.height === b.height;
-}
+type PopoverProps = Omit<CreateMenuProps, "phone"> & { title: string };
 
 /**
- * The Create here menu (spec-edit MENU-CREATE): a 220 px menu headed by the
- * held time and track ("12:04.3 · Maya") over the rows its point offers. A
- * leaf view on plain data: it reads no store and runs no command, so the host
- * maps `onPick(id)` to commands with the held time and closes the menu.
- *
- * It is positioned inside the box it is mounted in (`position: absolute`, no
- * portal, no top layer): the wiring host adds those. The gesture belongs to the
- * hit router, which reports the row under the finger as `over` and calls
- * `onPick`; the keyboard belongs to `useMenuKeyboard`. A Tab out of the menu
- * closes it, so the keymap is never held shut behind a menu that has lost its
- * focus.
+ * The menu in its box. Its size is read once, when it mounts: `CreateMenu`
+ * keys it by its rows and title, so a change of either measures it again.
  */
-function CreateMenuView({
+function Popover({
   rows,
-  time,
-  track,
+  title,
   anchor,
   bounds,
   viewport,
   avoidX = null,
   over = null,
   mark = null,
-  phone = false,
   onPick,
   onClose,
-}: CreateMenuProps) {
-  const title = track ? `${time} · ${track}` : time;
+}: PopoverProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<MenuSize | null>(null);
   const close = useStableCallback(() => onClose());
-  useMenuKeyboard({ open: !phone, panelRef: boxRef, close });
-
-  // Measured after every render (a size that did not change sets nothing), so
-  // a change of rows or title is placed at once.
+  useMenuKeyboard({ open: true, panelRef: boxRef, close });
   useLayoutEffect(() => {
     const box = boxRef.current;
-    if (!box) return;
-    const next = naturalSize(box);
-    setSize((now) => (sameSize(now, next) ? now : next));
-  });
+    if (box) setSize(naturalSize(box));
+  }, []);
 
   const leave = (event: FocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget;
     if (next instanceof Node && event.currentTarget.contains(next)) return;
     close();
   };
-
-  if (phone) {
-    return (
-      <Sheet form="bottom" detent="fit" title={title} onClose={onClose}>
-        {rows.map((row, index) => (
-          <button
-            key={row.id}
-            type="button"
-            className="sys-row-btn"
-            {...{ [CREATE_ITEM_ATTR]: String(index) }}
-            onClick={() => onPick(row.id)}
-          >
-            <span className="sys-row-label">
-              <SystemIcon name={row.icon} size={16} />
-              {row.label}
-            </span>
-          </button>
-        ))}
-      </Sheet>
-    );
-  }
-
   const layout = size
     ? layoutMenu(anchor, bounds, size, avoidX, viewport ?? bounds)
     : {
@@ -192,6 +151,46 @@ function CreateMenuView({
       </div>
     </div>
   );
+}
+
+/**
+ * The Create here menu (spec-edit MENU-CREATE): a 220 px menu headed by the
+ * held time and track ("12:04.3 · Maya") over the rows its point offers. A
+ * leaf view on plain data: it reads no store and runs no command, so the host
+ * maps `onPick(id)` to commands with the held time and closes the menu.
+ *
+ * It is positioned inside the box it is mounted in (`position: absolute`, no
+ * portal, no top layer): the wiring host adds those. The gesture belongs to the
+ * hit router, which reports the row under the finger as `over` and calls
+ * `onPick`; the keyboard belongs to `useMenuKeyboard`. A Tab out of the menu
+ * closes it, so the keymap is never held shut behind a menu that has lost its
+ * focus.
+ */
+function CreateMenuView({ phone = false, ...props }: CreateMenuProps) {
+  const { rows, time, track, onPick, onClose } = props;
+  const title = track ? `${time} · ${track}` : time;
+  if (phone) {
+    return (
+      <Sheet form="bottom" detent="fit" title={title} onClose={onClose}>
+        {rows.map((row, index) => (
+          <button
+            key={row.id}
+            type="button"
+            className="sys-row-btn"
+            {...{ [CREATE_ITEM_ATTR]: String(index) }}
+            onClick={() => onPick(row.id)}
+          >
+            <span className="sys-row-label">
+              <SystemIcon name={row.icon} size={16} />
+              {row.label}
+            </span>
+          </button>
+        ))}
+      </Sheet>
+    );
+  }
+  const shape = `${title}|${rows.map((row) => row.id).join()}`;
+  return <Popover key={shape} {...props} title={title} />;
 }
 
 export const CreateMenu = memo(CreateMenuView);
