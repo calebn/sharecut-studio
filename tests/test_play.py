@@ -20,6 +20,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import PlayRequest, PlayService
+from podcast_mcp.services.document.play_cache import _PlayCache
 from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE, CodedFileNotFoundError
 from podcast_mcp.util.time_parse import parse_time_sec
 
@@ -667,6 +668,24 @@ def test_play_ab_wavs_reuses_cache_and_plays(minimal_project, sample_wav, tmp_wo
         )
     assert played.player_cmd == ["true", str(first.wav_path)]
     run_mock.assert_called()
+
+
+def test_zero_gap_ab_concat_joins_without_reading_wav_header(tmp_path: Path) -> None:
+    wav_a = tmp_path / "a.wav"
+    wav_b = tmp_path / "b.wav"
+    out = tmp_path / "out.wav"
+    wav_a.write_bytes(b"not a riff file")
+    wav_b.write_bytes(b"not a riff file")
+    cache = object.__new__(_PlayCache)
+    with (
+        patch("podcast_mcp.services.document.play_cache.FFmpegEngine") as engine_cls,
+        patch("podcast_mcp.services.document.play_cache.open_wav") as open_wav_mock,
+    ):
+        result = cache._write_ab_concat(wav_a, wav_b, out, gap_sec=0.0)
+    open_wav_mock.assert_not_called()
+    engine_cls.return_value.join_audio_parts.assert_called_once_with([wav_a, wav_b], out)
+    engine_cls.return_value.concat_with_gap.assert_not_called()
+    assert result is engine_cls.return_value.join_audio_parts.return_value
 
 
 def test_play_ab_cli_dry_run(minimal_project, sample_wav, tmp_workspace) -> None:

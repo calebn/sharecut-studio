@@ -152,6 +152,9 @@ class _PlayCache:
     def _write_ab_concat(self, wav_a: Path, wav_b: Path, out: Path, *, gap_sec: float) -> Path:
         """Write A + optional silence + B into ``out`` (pcm_s16le)."""
         eng = FFmpegEngine()
+        if gap_sec <= 1e-9:
+            return eng.join_audio_parts([wav_a, wav_b], out)
+
         with open_wav(wav_a) as w:
             rate = w.getframerate() or 48000
             channels = w.getnchannels() or 1
