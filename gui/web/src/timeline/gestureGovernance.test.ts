@@ -77,6 +77,11 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
     reason: "create menu items: router-owned overlay",
   },
   {
+    file: "timeline/TimelineCreateMenu.tsx",
+    marker: 'className="timeline-create-scrim"',
+    reason: "the create menu's scrim closes it",
+  },
+  {
     file: "timeline/TimeRulerView.tsx",
     marker: "data-testid={timelineTestIds.ruler}",
     reason: "the ruler sits above the routed lanes: seek and comment anchors",

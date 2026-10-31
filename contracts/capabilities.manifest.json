@@ -595,6 +595,7 @@
       "id": "daw.edit.paste",
       "label": "Paste",
       "effect": "project",
+      "tooltip": "Paste the copied range at the playhead, or at the held time from the Create menu",
       "service": "ShareCut Studio command bus \u2192 PasteSegment document command (mode ripple or gap)",
       "industry_standard_key": true,
       "gates": [
@@ -603,12 +604,22 @@
       "surfaces": {
         "command": "edit.paste",
         "keyboard": "Mod+V",
+        "gui": [
+          "timeline.createMenu"
+        ],
         "mcp": [
           "paste_segment_tool"
         ],
-        "cli": "podcast edit paste-segment"
+        "cli": "podcast edit paste-segment",
+        "touch": [
+          "long-press-empty"
+        ]
       },
-      "omit": {}
+      "omit": {},
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
     },
     {
       "id": "daw.track.selectAll",
