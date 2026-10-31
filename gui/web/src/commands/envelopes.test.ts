@@ -3,6 +3,7 @@ import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
+import { envelopeTimeRangeMessage } from "../utils/envelopes";
 import { removeEnvelopePoint, setEnvelopePoint } from "./envelopes";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
@@ -195,5 +196,76 @@ describe("envelope point writes", () => {
       kind: "envelope",
       trackId: "host",
     });
+  });
+
+  it("takes the end of the timeline as a time but nothing past it", async () => {
+    expect(await setEnvelopePoint("host", "b", { time: 10 })).toEqual({
+      status: "ok",
+    });
+    expect(await setEnvelopePoint("host", "b", { value: 1.5 })).toEqual({
+      status: "ok",
+    });
+    expect(await setEnvelopePoint("host", "b", { time: 10.5 })).toEqual({
+      status: "disabled",
+      reason: envelopeTimeRangeMessage(10),
+    });
+    expect(api.setEnvelope).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets a point left past a shortened timeline change level or go, but not move out (#1336)", async () => {
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        tracks: [sampleTrack({ id: "host" })],
+        timeline_duration_sec: 3,
+        envelopes: [
+          {
+            track_id: "host",
+            parameter: "volume",
+            points: structuredClone(points),
+          },
+        ],
+      }),
+    );
+    useDawStore.getState().setLayerVisible("showLevels", true);
+    expect(await setEnvelopePoint("host", "b", { time: 5 })).toMatchObject({
+      status: "disabled",
+      reason: envelopeTimeRangeMessage(3),
+    });
+    expect(await setEnvelopePoint("host", "b", { value: 0.9 })).toEqual({
+      status: "ok",
+    });
+    expect(await setEnvelopePoint("host", "b", { time: 2 })).toEqual({
+      status: "ok",
+    });
+    expect(await removeEnvelopePoint("host", "b")).toEqual({ status: "ok" });
+    expect(api.setEnvelope).toHaveBeenCalledTimes(3);
+  });
+
+  it("saves for an editor link and refuses a view link", async () => {
+    useDawStore.setState({
+      projectPath: "share:tok",
+      shareCapabilities: ["edit"],
+    });
+    expect(await setEnvelopePoint("host", "b", { value: 0.2 })).toEqual({
+      status: "ok",
+    });
+    useDawStore.setState({ shareCapabilities: ["view"] });
+    expect(await setEnvelopePoint("host", "b", { value: 0.3 })).toMatchObject({
+      status: "disabled",
+    });
+    expect(api.setEnvelope).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers a point that has gone with a refusal, not a save", async () => {
+    expect(await setEnvelopePoint("host", "zzz", { value: 0.2 })).toEqual({
+      status: "disabled",
+      reason: "That point is gone",
+    });
+    expect(await removeEnvelopePoint("host", "zzz")).toEqual({
+      status: "disabled",
+      reason: "That point is gone",
+    });
+    expect(api.setEnvelope).not.toHaveBeenCalled();
   });
 });
