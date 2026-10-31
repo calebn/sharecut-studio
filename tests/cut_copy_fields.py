@@ -53,7 +53,7 @@ SHARED_FIELDS: dict[str, str] = {
         "hash input_hash object_store_prefix object_store_uploaded_at overlap_ms"
     ),
     "RangeInterval": ("end start"),
-    "RecordSessionRecord": ("number session_id target_kind"),
+    "RecordSessionRecord": ("name number session_id target_kind"),
     "RenderArtifacts": ("mastered premix"),
     "RenderInvalidation": ("at id reason timeline_end timeline_start track_ids"),
     "RenderSection": (
