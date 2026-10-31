@@ -69,10 +69,14 @@ export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
     pendingReviewCount:
-      isShareProjectKey(s.projectPath) &&
+      (isShareProjectKey(s.projectPath) &&
       canReviewPendingEdit(s.projectPath, s.shareCapabilities)
         ? reviewCountOf(s.project?.pending_edits ?? [], true)
-        : (s.project?.edit_impact.pending_review_count ?? 0),
+        : (s.project?.edit_impact.pending_review_count ?? 0)) +
+      // Staged record sessions are Pickups in the host's queue only.
+      (!isShareProjectKey(s.projectPath) && s.guestMode === null
+        ? (s.project?.session_suggestions?.length ?? 0)
+        : 0),
     openCommentCount:
       s.project?.comments?.filter((c) => !c.resolved).length ?? 0,
     recordAttention,

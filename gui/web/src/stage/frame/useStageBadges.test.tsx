@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HostRoom } from "../../record";
 import { HostRoomProvider } from "../../record/hostRoomContext";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject, pendingEditView } from "../../test/fixtures";
+import {
+  minimalProject,
+  pendingEditView,
+  sessionSuggestionView,
+} from "../../test/fixtures";
 import { useRecordBadge, useStageBadges } from "./useStageBadges";
 
 const room = (micLossNeedsAttention: boolean) =>
@@ -172,6 +176,42 @@ describe("useStageBadges pending cuts for a guest", () => {
 
   it("leaves a Commenter without the count", () => {
     join(["view", "comment"]);
+    const { result } = renderHook(() => useStageBadges(), {
+      wrapper: wrap(room(false)),
+    });
+    expect(result.current.review).toBeUndefined();
+  });
+});
+
+describe("useStageBadges pickups", () => {
+  const suggestions = [
+    sessionSuggestionView(),
+    sessionSuggestionView({ id: "ss-2" }),
+  ];
+
+  it("adds the host's staged record sessions to the Review badge", () => {
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/badge/episode.sharecut",
+        minimalProject({ session_suggestions: suggestions }),
+      );
+    useDawStore.setState({ guestMode: null });
+    const { result } = renderHook(() => useStageBadges(), {
+      wrapper: wrap(room(false)),
+    });
+    expect(result.current.review).toEqual({ kind: "needs-you", count: 2 });
+  });
+
+  it("never counts them for a share session", () => {
+    useDawStore
+      .getState()
+      .hydrate(
+        "share:tok",
+        minimalProject({ session_suggestions: suggestions }),
+        "edit",
+        ["view", "comment", "edit"],
+      );
     const { result } = renderHook(() => useStageBadges(), {
       wrapper: wrap(room(false)),
     });
