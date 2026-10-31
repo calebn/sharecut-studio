@@ -7,6 +7,8 @@ import {
 import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import {
   acceptedEnvelopeCommand,
+  createMenu,
+  createMenuRow,
   emptyEnvelopeProject,
   envelopeSnapshot,
   envelopeTrack,
@@ -44,10 +46,8 @@ async function openFlatEnvelope(
 async function createMenuCancels(page: Page, level: Locator) {
   await level.focus();
   await page.keyboard.press("Shift+F10");
-  const menu = page.getByRole("menu", { name: /^Create at / });
-  await expect(
-    menu.getByRole("menuitem", { name: /Add envelope point/ }),
-  ).toBeVisible();
+  const menu = createMenu(page);
+  await expect(createMenuRow(page, "Add volume point")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
 }
