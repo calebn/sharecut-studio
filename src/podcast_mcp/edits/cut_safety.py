@@ -409,7 +409,7 @@ def assess_proposed_cut(
     )
     cfg = cfg.at_levels(
         join_continuity.track_level_profile(project, track_id, (audio_caches or {}).get(track_id))
-    )
+    ).at_gate(project, track_id, samples)
     st = SessionTimeline(project)
     if timebase == "timeline":
         mapped0 = st.timeline_to_source(track_id, TimelineSec(cut_start))

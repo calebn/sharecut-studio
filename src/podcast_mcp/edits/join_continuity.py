@@ -37,7 +37,7 @@ from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
 from podcast_mcp.edits.join_speech import find_speech_crossings
 from podcast_mcp.engines.align import read_open_wav_mono_window
 from podcast_mcp.engines.clips_ops import clips_for_track, splice_joins
-from podcast_mcp.engines.level_profile import LevelProfile
+from podcast_mcp.engines.level_profile import LevelProfile, file_gate_close_db
 from podcast_mcp.engines.media_probe import audio_start_sec
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -45,6 +45,7 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import (
+    DIGITAL_SILENCE_DB,
     DIGITAL_SILENCE_RMS,
     autocorr_peak,
     clamp01,
@@ -117,6 +118,12 @@ class JoinContinuityConfig:
     inaudible_under_voice_floor_db: float = 18.0
     voice_floor_db: float = -math.inf
     voice_db: float = -math.inf
+    # A kept side that decays into the source's own noise gate (``gate_close_db``, the level
+    # this track's gate closes at, set by :meth:`at_gate`) meets digital zero as the source
+    # does: no level jump while the kept side's last 10 ms is within this many dB of that
+    # level. A truncated word tail is louder than the gate closes at and still scores.
+    gate_close_db: float = -math.inf
+    gate_close_margin_db: float = 6.0
     # Spectral-shape detectors compare level-normalised spectra, which read as a
     # mismatch between any two windows of quiet air. Their weight ramps from 0 at
     # inaudible_floor_db to full this many dB above it (louder side); 0 disables.
@@ -129,6 +136,15 @@ class JoinContinuityConfig:
     def at_levels(self, profile: LevelProfile) -> JoinContinuityConfig:
         """This config for a track whose level profile is ``profile``."""
         return replace(self, voice_floor_db=profile.voice_floor_db, voice_db=profile.voice_db)
+
+    def at_gate(
+        self, project: EpisodeProject, track_id: str, samples: np.ndarray
+    ) -> JoinContinuityConfig:
+        """This config for a track whose source audio is ``samples`` at ``self.sample_rate``."""
+        if project.track_by_id(track_id) is None:
+            return self
+        close = file_gate_close_db(track_audio_path(project, track_id), samples, self.sample_rate)
+        return self if close is None else replace(self, gate_close_db=close)
 
     @classmethod
     def from_defaults(cls, defaults: EffectiveConfig) -> JoinContinuityConfig:
@@ -157,6 +173,7 @@ class JoinContinuityConfig:
             weight_bicoherence=float(cfg.get("weight_bicoherence", 0.6)),
             weight_late_energy=float(cfg.get("weight_late_energy", 0.55)),
             inaudible_under_voice_floor_db=float(cfg.get("inaudible_under_voice_floor_db", 18.0)),
+            gate_close_margin_db=float(cfg.get("gate_close_margin_db", 6.0)),
             spectral_audibility_db=float(cfg.get("spectral_audibility_db", 30.0)),
         )
 
@@ -469,6 +486,31 @@ def _inaudible_splice(
     )
 
 
+def _natural_gate_close(
+    left: np.ndarray, right: np.ndarray, sr: int, cfg: JoinContinuityConfig
+) -> DetectorHit | None:
+    """The one hit for a kept side that decays to the level the track's gate closes at, met by
+    digital zero: the source makes this transition itself. ``None`` for any other splice."""
+    if not math.isfinite(cfg.gate_close_db):
+        return None
+    hop = max(1, round(sr * 0.01))
+    if left.size < hop or right.size < 2 * hop:
+        return None
+    frames = right[: right.size // hop * hop].reshape(-1, hop)
+    silent = [rms_db(frame) <= DIGITAL_SILENCE_DB for frame in frames]
+    if not silent[0] or sum(silent) < 0.8 * len(silent):
+        return None
+    tail_db = rms_db(left[-hop:])
+    if tail_db > cfg.gate_close_db + cfg.gate_close_margin_db:
+        return None
+    return DetectorHit(
+        "natural_gate_close",
+        0.0,
+        1.0,
+        {"tail_db": round(tail_db, 1), "gate_close_db": round(cfg.gate_close_db, 1)},
+    )
+
+
 def _verdict(
     risk: float, cfg: JoinContinuityConfig, hits: list[DetectorHit]
 ) -> tuple[Verdict, list[str], float]:
@@ -590,7 +632,11 @@ def _worst_placement(
     for dl in shifts:
         for dr in shifts:
             left, right = _sides(samples, left_i + dl, right_i + dr, side)
-            risk, hits = score_splice_samples(left, right, sample_rate=sr, config=cfg)
+            gate = _natural_gate_close(left, right, sr, cfg)
+            if gate is not None:
+                risk, hits = 0.0, [gate]
+            else:
+                risk, hits = score_splice_samples(left, right, sample_rate=sr, config=cfg)
             if worst is None or risk > worst.risk:
                 worst = _Placement(risk, hits, False, dl, dr)
     assert worst is not None
@@ -886,7 +932,9 @@ def _assess_existing_join(
     cfg = config or JoinContinuityConfig.from_defaults(defaults)
     if samples is None:
         samples = _resolve_source_samples(project, track_id, cfg.sample_rate)
-        cfg = cfg.at_levels(track_level_profile(project, track_id))
+        cfg = cfg.at_levels(track_level_profile(project, track_id)).at_gate(
+            project, track_id, samples
+        )
     if points is None:
         points = _splice_points(project, track_id, join_sec, timebase=timebase, timeline=timeline)
     left_i, right_i = _splice_indices(points, cfg.sample_rate)
@@ -957,7 +1005,7 @@ def assess_project_joins(
         if not joins:
             continue
         samples = _resolve_source_samples(project, tid, cfg.sample_rate)
-        track_cfg = cfg.at_levels(track_level_profile(project, tid))
+        track_cfg = cfg.at_levels(track_level_profile(project, tid)).at_gate(project, tid, samples)
         natural_p95 = (
             _natural_baseline_p95(samples, cfg.sample_rate, track_cfg) if cfg.calibrate else None
         )

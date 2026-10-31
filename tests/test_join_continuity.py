@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import wave
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -851,3 +852,50 @@ def test_spectral_shape_detectors_lose_weight_on_quiet_air() -> None:
     loud_ramped, hits_loud = score_splice_samples(*sides(-25.0), sample_rate=sr, config=ramped)
     assert loud_ramped == loud_full
     assert by_name(hits_loud, "mfcc_join_cost").weight == 1.25
+
+
+def _gated_track(sr: int = 16000) -> tuple[np.ndarray, int, int]:
+    """Ten 0.4 s words, each decaying 40 dB over 0.2 s into a gate that closes at -55 dBFS,
+    then 0.4 s of exact digital zero. Returns the samples and, for the first word, the sample
+    index where the decay has reached the gate level and where it is still 25 dB louder."""
+    t = np.arange(int(0.4 * sr)) / sr
+    decay_db = -15.0 - np.clip((t - 0.2) / 0.2, 0.0, 1.0) * 40.0  # -15 dB, then down to -55
+    word = 10 ** (decay_db / 20) * np.sqrt(2) * np.sin(2 * np.pi * 200 * t)
+    gap = np.zeros(int(0.4 * sr))
+    samples = np.tile(np.concatenate([word, gap]), 10).astype(np.float64)
+    return samples, int(0.4 * sr), int(0.3 * sr)
+
+
+def test_decay_into_the_tracks_own_gate_is_a_natural_close() -> None:
+    from podcast_mcp.edits.join_continuity import _worst_placement
+    from podcast_mcp.engines.level_profile import frame_levels_db, gate_close_level_db
+
+    sr = 16000
+    samples, word_end, mid_decay = _gated_track(sr)
+    close = gate_close_level_db(frame_levels_db(samples, sr))
+    assert close is not None and close == pytest.approx(-55.0, abs=3.0)
+    cfg = _cfg(edge_tolerance_ms=0.0).at_levels(LAB_LEVELS)
+    cfg = replace(cfg, gate_close_db=close)
+    cut_end = word_end + int(0.1 * sr)  # inside the gate's digital zero
+
+    ends_in_decay = _worst_placement(samples, sr, word_end - 20, cut_end, cfg)
+    assert ends_in_decay.risk == 0.0
+    assert [h.name for h in ends_in_decay.hits] == ["natural_gate_close"]
+
+    truncated = _worst_placement(samples, sr, mid_decay, cut_end, cfg)
+    assert truncated.risk > 0.4
+    assert "natural_gate_close" not in [h.name for h in truncated.hits]
+
+
+def test_a_track_without_a_gate_scores_every_splice_as_before() -> None:
+    from podcast_mcp.edits.join_continuity import _worst_placement
+    from podcast_mcp.engines.level_profile import frame_levels_db, gate_close_level_db
+
+    sr = 16000
+    rng = np.random.default_rng(1)
+    air = rng.normal(0, 10 ** (-60 / 20), 8 * sr)
+    assert gate_close_level_db(frame_levels_db(air, sr)) is None
+    cfg = _cfg(edge_tolerance_ms=0.0).at_levels(LAB_LEVELS)
+    samples, word_end, _ = _gated_track(sr)
+    ungated = _worst_placement(samples, sr, word_end - 20, word_end + 1600, cfg)
+    assert "natural_gate_close" not in [h.name for h in ungated.hits]

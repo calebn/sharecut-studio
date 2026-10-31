@@ -106,6 +106,32 @@ def frame_levels_db(samples: np.ndarray, sample_rate: int) -> np.ndarray:
     )
 
 
+# A noise gate closes after a word: its last live frames, then digital zero for at least
+# this many frames. A track needs this many closes before their level means anything.
+GATE_RUN_FRAMES = 3
+GATE_MIN_CLOSES = 8
+
+
+def gate_close_level_db(levels: np.ndarray) -> float | None:
+    """The level (dBFS) a track's own noise gate closes at, or ``None`` if it has none.
+
+    The median level of the last live 10 ms frame before each run of ``GATE_RUN_FRAMES``
+    digital-silence frames, so it is measured on the track's own decays into its gate and
+    moves with its gain. ``None`` unless the track has ``GATE_MIN_CLOSES`` such closes: an
+    ungated track holds no digital zero between words.
+    """
+    silent = levels <= DIGITAL_SILENCE_DB
+    n = GATE_RUN_FRAMES
+    if silent.size <= n:
+        return None
+    total = np.concatenate(([0], np.cumsum(silent)))
+    ahead = total[n + 1 :] - total[1:-n]  # silent frames among i+1 .. i+n
+    closes = np.flatnonzero(~silent[: ahead.size] & (ahead == n))
+    if closes.size < GATE_MIN_CLOSES:
+        return None
+    return float(np.median(levels[closes]))
+
+
 @dataclass(frozen=True)
 class LevelProfile:
     """A track's room, speech and loud levels (dBFS), and the floors read from them.
@@ -249,6 +275,24 @@ def speech_level_profile(samples: np.ndarray, sample_rate: int) -> LevelProfile:
 def track_profile(samples: np.ndarray, sample_rate: int) -> LevelProfile:
     """The whole-track profile of ``samples``; :data:`SILENT` when none of it is live."""
     return level_profile(samples, sample_rate, whole_track=True) or SILENT
+
+
+_FILE_GATE_CLOSES: BoundedCache[tuple[str, FileRevision, int], float] = BoundedCache(256)
+
+
+def file_gate_close_db(path: Path, samples: np.ndarray, sample_rate: int) -> float | None:
+    """:func:`gate_close_level_db` of the file at ``path``, measured once per revision and rate.
+
+    ``samples`` are the file's mono audio at ``sample_rate`` (the caller has decoded them).
+    """
+    resolved = path.resolve()
+    key = (str(resolved), file_revision(resolved), int(sample_rate))
+    known = _FILE_GATE_CLOSES.get(key)  # NaN: measured, and the track has no gate
+    if known is None:
+        close = gate_close_level_db(frame_levels_db(samples, sample_rate))
+        known = math.nan if close is None else close
+        _FILE_GATE_CLOSES.put(key, known)
+    return None if math.isnan(known) else known
 
 
 # Bounded: a long-lived server measures every revision of every file it ever opens.

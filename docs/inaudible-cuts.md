@@ -224,7 +224,17 @@ passed a cut that resumed inside a phrase. A splice whose two sides are both bel
 (`LevelProfile.voice_floor_db`; -60 dBFS at the lab host's -42 dBFS floor; RMS over the 45 ms side windows,
 e.g. room tone against Zoom's gated digital silence) is an **inaudible splice**: risk 0,
 verdict `pass`, one `inaudible_splice` detector carrying both levels, instead of a
-level-jump `fail` nobody can hear. On the lab tape that turned 7 of 8 sweep fails
+level-jump `fail` nobody can hear. A kept side that **decays into the track's own noise
+gate** is a **natural gate close** (#1185): when the far side is mostly exact digital zero
+(first 10 ms frame and 80% of the window) and the kept side's last 10 ms is no more than
+`join_continuity.gate_close_margin_db` (6 dB) over `gate_close_db`, the splice is risk 0 with
+one `natural_gate_close` detector, because the source makes that transition itself.
+`gate_close_db` is the median level of the last live 10 ms frame before each run of 3 or more
+digital-silence frames in the track (`level_profile.gate_close_level_db`; at least 8 closes,
+else unset and the rule is off, so an ungated track scores as before). It is measured on the
+track, so it moves with gain and with the gate's own threshold. A word tail cut off while
+louder than the gate closes at still scores as a level jump. The rule runs at every edge
+placement within `edge_tolerance_ms`, not only the nominal one. On the lab tape that turned 7 of 8 sweep fails
 into passes and left the one real clipped onset. That floor is the only level rule:
 a "masked by a louder stem" pass was tried and removed, because the sweep reads raw
 source levels and what the mix plays depends on staging gain, fader, mute and the
