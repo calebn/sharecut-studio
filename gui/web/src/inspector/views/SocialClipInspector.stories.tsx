@@ -25,6 +25,11 @@ export const Host: Story = {
         name: "A loaf tells you when it is ready",
       }),
     ).toBeVisible();
+    await expect(
+      canvas.getByRole("spinbutton", { name: "Social clip start" }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Apply" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Delete" })).toBeVisible();
   },
 };
 

@@ -58,7 +58,13 @@ export const Arranged: Story = {
       }),
     ).toBeVisible();
     await expect(
-      canvasElement.querySelector(".clip-block.selected"),
+      canvasElement.querySelectorAll(".clip-block").length,
+    ).toBeGreaterThan(0);
+    await expect(
+      within(canvasElement).queryByRole("button", {
+        name: /^Select .* clip/,
+        pressed: true,
+      }),
     ).toBeNull();
   },
 };
@@ -71,12 +77,13 @@ export const ClipSelected: Story = {
         name: "Open track details, Mira",
       }),
     ).toBeVisible();
-    // The selected clip block is drawn pressed.
+    // The selected clip is drawn pressed.
     await expect(
-      canvasElement.querySelector(
-        ".clip-block.selected .clip-hit[aria-pressed='true']",
-      ),
-    ).not.toBeNull();
+      within(canvasElement).getByRole("button", {
+        name: /^Select Mira clip/,
+        pressed: true,
+      }),
+    ).toBeVisible();
   },
 };
 

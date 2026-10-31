@@ -40,7 +40,12 @@ export const Resolved: Story = {
 };
 
 export const Commenter: Story = {
-  parameters: { episode: { role: "commenter" } },
+  parameters: {
+    episode: {
+      role: "commenter",
+      selection: { kind: "comment", id: "comment-3" },
+    },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
