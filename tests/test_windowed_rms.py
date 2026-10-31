@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 import shutil
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -36,7 +38,8 @@ from podcast_mcp.engines.windowed_rms import (
     WindowMiss,
     resampled_window,
 )
-from podcast_mcp.models import Clip
+from podcast_mcp.models import Clip, EpisodeProject
+from podcast_mcp.util import project_state
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.project_state import project_state_lock
 from test_audio_eval import (
@@ -892,17 +895,79 @@ def test_windows_are_built_while_the_caller_holds_the_project_lock(
     ids = _alias_two_ids_by_patching_plan_window(monkeypatch)
     monkeypatch.setattr(audio_audit, "cpu_budget", lambda: 2)
     result: dict = {}
+    failures: list[Exception] = []
+    real = project_state.project_state_lock
+
+    # A pool worker that blocked on the lock its caller holds would never return, and the pool's
+    # non-daemon workers would keep pytest from exiting. The owner re-enters the RLock without
+    # waiting; any other thread gets an error instead of a wait.
+    @contextmanager
+    def lock_or_fail(project: EpisodeProject) -> Iterator[None]:
+        lock = real(project)
+        if not lock.acquire(blocking=False):
+            raise AssertionError("a window build waited for the lock its caller held")
+        try:
+            yield
+        finally:
+            lock.release()
+
+    monkeypatch.setattr(project_state, "project_state_lock", lock_or_fail)
+    monkeypatch.setattr(track_evidence, "project_state_lock", lock_or_fail)
 
     def approve() -> None:
-        with project_state_lock(project):
-            result.update(_windowed(project, ids, private=False))
+        try:
+            with real(project):
+                result.update(_windowed(project, ids, private=False))
+        except Exception as exc:  # handed to the test thread
+            failures.append(exc)
 
     caller = threading.Thread(target=approve, daemon=True)
     caller.start()
-    caller.join(timeout=120)
+    caller.join(timeout=60)
 
-    assert not caller.is_alive(), "a window build waited for the lock its caller held"
+    assert not caller.is_alive(), "the window builds did not finish"
+    assert not failures, failures
     assert list(result) == ids
+
+
+@pytest.mark.parametrize("budget", [1, 2])
+def test_window_builds_run_exactly_as_wide_as_the_cpu_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, budget: int
+) -> None:
+    project = _project(tmp_path, "mixed joins and pads")
+    monkeypatch.setattr(track_evidence, "plan_window", lambda *args, **kwargs: object())
+    monkeypatch.setattr(audio_audit, "cpu_budget", lambda: budget)
+    gate = threading.Lock()
+    saturated, overflow = threading.Event(), threading.Event()
+    in_flight = peak = 0
+
+    def build(
+        plan: object, start: float, end: float, *, profile: LevelProfile
+    ) -> WindowedTrackRmsCache | None:
+        nonlocal in_flight, peak
+        with gate:
+            in_flight += 1
+            peak = max(peak, in_flight)
+            if in_flight >= budget:
+                saturated.set()
+            if in_flight > budget:
+                overflow.set()
+        try:
+            # The pool must fill up to the budget (only a failure waits out this timeout)...
+            assert saturated.wait(timeout=5), "the pool never reached the cpu budget"
+            # ...and an extra build, if the cap is gone, starts within this grace and ends it.
+            overflow.wait(timeout=0.1)
+        finally:
+            with gate:
+                in_flight -= 1
+        return None
+
+    monkeypatch.setattr(track_evidence, "build_window", build)
+
+    found = _windowed(project, ["a", "b", "c"])
+
+    assert found == {}
+    assert peak == budget
 
 
 def test_the_verify_check_runs_on_the_calling_thread_that_holds_the_project_lock(
