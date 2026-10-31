@@ -267,9 +267,7 @@ def test_a_full_disk_inside_a_batch_still_dedupes_in_the_batch_store(
     monkeypatch.setattr(
         track_evidence,
         "_evaluate",
-        lambda tree, curve, rates=track_evidence._RATES: (
-            evaluated.append(tree) or real_evaluate(tree, curve, rates)
-        ),
+        lambda tree, curve, *rates: evaluated.append(tree) or real_evaluate(tree, curve, *rates),
     )
 
     def full(array: np.ndarray) -> np.ndarray:
@@ -601,9 +599,7 @@ def test_the_batch_store_stays_in_front_and_holds_what_a_batch_read(
     monkeypatch.setattr(
         track_evidence,
         "_evaluate",
-        lambda tree, curve, rates=track_evidence._RATES: (
-            evaluated.append(tree) or real_evaluate(tree, curve, rates)
-        ),
+        lambda tree, curve, *rates: evaluated.append(tree) or real_evaluate(tree, curve, *rates),
     )
 
     with batch_scope():

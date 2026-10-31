@@ -1,12 +1,14 @@
-"""Whole-track evidence is built at the 16 kHz waveform rate only for a tree that carries mute spans (#2359)."""
+"""Whole-track evidence is built at the 16 kHz waveform rate only for a tree that carries mute spans."""
 
 from __future__ import annotations
 
 import dataclasses
+import errno
 import logging
 import os
 import threading
 import time
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -99,7 +101,7 @@ def test_a_rate_set_builds_exactly_those_rates_with_the_two_rate_samples(
         np.testing.assert_array_equal(_bits(got[rate]), _bits(both[rate]))
 
 
-def test_a_ripple_project_builds_one_8khz_entry_and_no_16khz_process(
+def test_a_project_with_no_mute_spans_builds_one_8khz_entry_and_no_16khz_process(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _project(tmp_path, "mixed joins and pads")
@@ -400,3 +402,85 @@ def test_a_changed_ffmpeg_build_between_keeps_leaves_no_mixed_entry(
 
     assert isinstance(wide, _Entry) and sorted(wide.samples) == [JUMP, WAVEFORM]
     assert len(retained) == 1 and retained.held_bytes() == wide.nbytes
+
+
+def test_an_ignored_word_span_alone_widens_the_rate_set(tmp_path: Path) -> None:
+    project = _project(tmp_path, "mixed joins and pads")
+    defaults = load_defaults()
+    clip = next(c for c in project.clips if c.track_id == "caleb")
+    transcript = project.transcript_for_source("caleb", clip.source_id)
+    assert transcript is not None
+    word = next(w for w in transcript.words if clip.source_start <= w.start < clip.source_end)
+    word.ignored = True
+
+    planned = track_evidence._plan(project, "caleb", defaults)
+
+    assert not isinstance(planned, Declined)
+    assert track_evidence._rates(planned[1]) == BOTH
+
+
+def test_a_failed_spill_of_a_wider_build_serves_it_and_keeps_the_narrow_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tree = _tree(_tone(tmp_path / "a.wav"))
+    key = EvidenceKey(tree, "tri", track_evidence._stamps(tree))
+    retained = track_evidence._RETAINED
+    narrow = retained.get_or_build(key, tree, lambda: real_evaluate(tree, "tri", (JUMP,)), (JUMP,))
+    assert isinstance(narrow, _Entry)
+
+    def full_disk(array):  # type: ignore[no-untyped-def]
+        raise OSError(errno.ENOSPC, "no space")
+
+    monkeypatch.setattr(track_evidence, "spill", full_disk)
+    wide = retained.get_or_build(key, tree, lambda: real_evaluate(tree, "tri", BOTH), BOTH)
+
+    assert not isinstance(wide, (_Entry, Declined)) and sorted(wide) == list(BOTH)
+    assert retained.get_or_build(key, tree, lambda: pytest.fail("rebuilt"), (JUMP,)) is narrow
+    assert retained.held_bytes() == narrow.nbytes
+
+
+def test_with_retention_off_a_wider_build_replaces_the_narrow_batch_entry_in_one_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(track_evidence.KEEP_ENV, "0")
+    tree = _tree(_tone(tmp_path / "a.wav"))
+    key = EvidenceKey(tree, "tri", track_evidence._stamps(tree))
+    calls = _resample_rates(monkeypatch)
+    store = _Store()
+
+    store.get_or_build(key, partial(track_evidence._produce, key, tree, (JUMP,)), (JUMP,))
+    wide = store.get_or_build(key, partial(track_evidence._produce, key, tree, BOTH), BOTH)
+
+    assert calls == [[JUMP], [JUMP, WAVEFORM]]
+    assert isinstance(wide, _Entry) and sorted(wide.samples) == list(BOTH)
+    assert store._entries == {key: wide} and store._bytes == wide.nbytes
+    assert track_evidence._RETAINED.held_bytes() == 0
+
+
+def test_a_decline_from_a_wider_build_is_served_and_leaves_the_narrow_entry(
+    tmp_path: Path,
+) -> None:
+    tree = _tree(_tone(tmp_path / "a.wav"))
+    key = EvidenceKey(tree, "tri", track_evidence._stamps(tree))
+    store = _Store()
+    narrow = store.get_or_build(key, lambda: real_evaluate(tree, "tri", (JUMP,)), (JUMP,))
+
+    got = store.get_or_build(key, lambda: Declined.EVALUATOR, BOTH)
+
+    assert got is Declined.EVALUATOR and store._entries == {key: narrow}
+
+
+def test_an_ffmpeg_change_during_the_build_keeps_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tree = _tree(_tone(tmp_path / "a.wav"))
+    key = EvidenceKey(tree, "tri", track_evidence._stamps(tree))
+    ids = iter([("old",), ("new",)])
+    monkeypatch.setattr(track_evidence, "_build_id", lambda: next(ids))
+
+    got = track_evidence._RETAINED.get_or_build(
+        key, tree, lambda: real_evaluate(tree, "tri", BOTH), BOTH
+    )
+
+    assert not isinstance(got, (_Entry, Declined)) and sorted(got) == list(BOTH)
+    assert len(track_evidence._RETAINED) == 0
