@@ -243,7 +243,9 @@ describe("a range draft interrupted by the window", () => {
     });
     useDawStore.setState({ rangeArmed: true });
     draw(view);
-    act(() => interrupt(view));
+    act(() => {
+      interrupt(view);
+    });
     expect(useDawStore.getState().selection).toEqual(previous);
     expect(hasActive()).toBe(false);
     fireEvent.pointerUp(view.getByTestId("lanes"), {

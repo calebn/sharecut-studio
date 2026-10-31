@@ -985,6 +985,9 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                       onPointerMoveCapture={rangeGesture.captureMove}
                       onPointerUpCapture={rangeGesture.captureUp}
                       onPointerCancelCapture={rangeGesture.captureCancel}
+                      onLostPointerCaptureCapture={
+                        rangeGesture.captureLostCapture
+                      }
                       onClickCapture={(e) => {
                         if (!split.onClickCapture(e))
                           rangeGesture.captureClick(e);
