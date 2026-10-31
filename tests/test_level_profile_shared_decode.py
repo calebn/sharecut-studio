@@ -165,3 +165,49 @@ def test_the_batch_decode_is_seeded_at_the_rate_it_was_made(
         cache = TrackRmsCache.from_recording(path, sample_rate=16000)
         assert load_mono_full(path, sample_rate=16000) is cache.samples
         assert load_mono_full(path, sample_rate=RATE).size != cache.samples.size
+
+
+def test_a_same_size_rewrite_with_a_new_mtime_is_not_seeded_into_the_batch(
+    minimal_project, raw_decodes: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, path = _host_project(minimal_project)
+    real_once = audio_audit.decode_once
+    old: list = []
+
+    def rewrite_after(*args, **kwargs):  # type: ignore[no-untyped-def]
+        result = real_once(*args, **kwargs)
+        old.append(result.samples)
+        data = bytearray(path.read_bytes())
+        data[-400:] = bytes(255 - b for b in data[-400:])
+        path.write_bytes(bytes(data))
+        return result
+
+    monkeypatch.setattr(audio_audit, "decode_once", rewrite_after)
+    with batch_scope():
+        TrackRmsCache.from_recording(path, sample_rate=RATE)
+        assert not (load_mono_full(path, sample_rate=RATE) == old[0]).all()
+
+
+def test_an_atomic_replacement_with_the_same_size_and_mtime_is_not_seeded_into_the_batch(
+    minimal_project, raw_decodes: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, path = _host_project(minimal_project)
+    aged = path.stat().st_mtime_ns
+    real_once = audio_audit.decode_once
+    old: list = []
+
+    def replace_after(*args, **kwargs):  # type: ignore[no-untyped-def]
+        result = real_once(*args, **kwargs)
+        old.append(result.samples)
+        data = bytearray(path.read_bytes())
+        data[-400:] = bytes(255 - b for b in data[-400:])
+        staged = path.with_name("staged.wav")
+        staged.write_bytes(bytes(data))
+        os.utime(staged, ns=(aged, aged))
+        os.replace(staged, path)
+        return result
+
+    monkeypatch.setattr(audio_audit, "decode_once", replace_after)
+    with batch_scope():
+        TrackRmsCache.from_recording(path, sample_rate=RATE)
+        assert not (load_mono_full(path, sample_rate=RATE) == old[0]).all()
