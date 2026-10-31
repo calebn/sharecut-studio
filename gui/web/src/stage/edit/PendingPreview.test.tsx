@@ -6,25 +6,25 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { hostFetch } from "../api/documentTransport";
-import { warmPendingPreview } from "../audio/pendingPreview";
-import { makeRangeTarget } from "../edit/rangeSelection";
-import { shareProjectKey } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
+import { hostFetch } from "../../api/documentTransport";
+import { warmPendingPreview } from "../../audio/pendingPreview";
+import { makeRangeTarget } from "../../edit/rangeSelection";
+import { shareProjectKey } from "../../shareMode";
+import { useDawStore } from "../../state/dawStore";
 import {
   clipRow,
   minimalProject,
   pendingEditView,
   sampleTrack,
   wavResponse,
-} from "../test/fixtures";
-import type { PendingEditView, ProjectView } from "../types/project";
-import type { PreviewMode } from "../utils/playRange";
-import { PendingPreviewFooter } from "./PendingPreviewFooter";
+} from "../../test/fixtures";
+import type { PendingEditView, ProjectView } from "../../types/project";
+import type { PreviewMode } from "../../utils/playRange";
+import { PendingPreview } from "./PendingPreview";
 
-vi.mock("../api/documentTransport", () => ({ hostFetch: vi.fn() }));
-vi.mock("../audio/pendingPreview", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../audio/pendingPreview")>()),
+vi.mock("../../api/documentTransport", () => ({ hostFetch: vi.fn() }));
+vi.mock("../../audio/pendingPreview", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../audio/pendingPreview")>()),
   warmPendingPreview: vi.fn(),
 }));
 
@@ -134,7 +134,7 @@ function setup({
   });
   const onError = vi.fn();
   const rendered = render(
-    <PendingPreviewFooter
+    <PendingPreview
       edit={edit}
       projectPath={path}
       seekSec={edit.timeline_start!}
