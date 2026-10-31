@@ -99,6 +99,8 @@ def _keymap_chords() -> dict[str, str]:
             chord = f"Mod+Shift+{primary}"
         elif req_mod:
             chord = f"Mod+{primary}"
+        elif req_shift:
+            chord = f"Shift+{primary}"
         else:
             chord = primary
         out[cid] = chord

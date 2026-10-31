@@ -694,7 +694,7 @@
           "trackHeader",
           "trackInspector"
         ],
-        "keyboard": "S"
+        "keyboard": "Shift+S"
       },
       "omit": {},
       "tooltip": "Toggle track solo",
@@ -1034,7 +1034,7 @@
           "timeline.waveform",
           "viewSheet"
         ],
-        "keyboard": "ArrowUp"
+        "keyboard": "Shift+ArrowUp"
       },
       "omit": {},
       "tooltip": "Waveform amplitude zoom in",
@@ -1058,7 +1058,7 @@
           "timeline.waveform",
           "viewSheet"
         ],
-        "keyboard": "ArrowDown"
+        "keyboard": "Shift+ArrowDown"
       },
       "omit": {},
       "tooltip": "Waveform amplitude zoom out",
@@ -2942,7 +2942,7 @@
         "touch": [
           "long-press-empty"
         ],
-        "keyboard": "C"
+        "keyboard": "Shift+C"
       },
       "omit": {
         "guest": true

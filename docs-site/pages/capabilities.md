@@ -56,7 +56,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Select all tracks | session | `track.selectAll` | `Mod+A` | — | — | — | — | — | — | — |
 | Deselect all tracks | session | `track.deselectAll` | `Mod+Shift+A` | — | `trackHeadersWell` | — | — | — | — | none · none |
 | Toggle track mute | project | `track.muteToggle` | — (M is edit.mute, which mutes the targeted track when nothing else is selected) | — | `trackHeader`, `trackInspector` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
-| Toggle track solo | session | `track.soloToggle` | `S` | — | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
+| Toggle track solo | session | `track.soloToggle` | `Shift+S` | — | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
 | Clear solo | session | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | — | `trackHeaders.soloChip`, `trackMix` | — | — | — | — | none · hear |
 | Set track volume | project | `track.setVolume` | — (slider: arrow keys step the focused fader) | — | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
 | Zoom in | view | `view.zoomIn` | `=` | `pinch` | `editCorner`, `viewSheet` | — | — | — | — | none · look |
@@ -70,8 +70,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Open history | view | `edit.history` | — (Reached from the palette and by right-click or long-press on Undo or Redo) | — | `historyPanel` | — | — | — | — | none · none |
 | Show or hide Script | view | `view.toggleScript` | `T` | — | `editCorner` | — | — | — | — | none · none |
 | Script focus | view | `view.scriptFocus` | `Shift+T` | — | — | — | — | — | — | none · none |
-| Waveform amplitude zoom in | view | `view.waveformZoomIn` | `ArrowUp` | — | `timeline.waveform`, `viewSheet` | — | — | — | — | time · look |
-| Waveform amplitude zoom out | view | `view.waveformZoomOut` | `ArrowDown` | — | `timeline.waveform`, `viewSheet` | — | — | — | — | time · look |
+| Waveform amplitude zoom in | view | `view.waveformZoomIn` | `Shift+ArrowUp` | — | `timeline.waveform`, `viewSheet` | — | — | — | — | time · look |
+| Waveform amplitude zoom out | view | `view.waveformZoomOut` | `Shift+ArrowDown` | — | `timeline.waveform`, `viewSheet` | — | — | — | — | time · look |
 | Fit tracks to window height | view | `view.fitTracksHeight` | — (toggle; View menu checkbox and transport icon) | — | `transport.fitTracksHeight` | — | — | — | — | none · none |
 | Increase track height | view | `view.trackHeightIncrease` | `Alt+=` | — | `viewSheet` | — | — | — | — | none · none |
 | Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | — | `viewSheet` | — | — | — | — | none · none |
@@ -113,7 +113,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Show cut away | view | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | — | `transcript.showCutAway` | — | — | — | — | none · none |
 | Trim clip edge | project | `edit.trimClipEdge` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
 | Move clips | project | `edit.moveClips` | — (Move clip inspector controls or pointer clip-body drag; arrow keys stay playhead nudge) | `long-press-arm-drag` | `timeline.clip.body`, `clipInspector` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
-| Add chapter at playhead | project | `edit.addChapter` | `C` | `long-press-empty` | `timeline.createMenu`, `editPlusMenu`, `actionBar` | `add_chapter_tool` | `podcast edit add-chapter` | — | yes | none · none |
+| Add chapter at playhead | project | `edit.addChapter` | `Shift+C` | `long-press-empty` | `timeline.createMenu`, `editPlusMenu`, `actionBar` | `add_chapter_tool` | `podcast edit add-chapter` | — | yes | none · none |
 | Add envelope point | project | `envelope.addPoint` | — (create menu; Shift+F10 or the Menu key on a lane opens it from the keyboard) | `long-press-empty` | `timeline.createMenu` | `set_envelope` | — | — | — | time · none |
 | Record here | view | `record.here` | — (not industry-standard; the Create menu and the Action bar verb) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · look |
 | Add comment | view | `comment.draftAt` | `C` | `long-press-empty` | `timeline.createMenu`, `actionBar` | — | — | — | — | time · none |
