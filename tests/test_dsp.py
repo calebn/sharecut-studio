@@ -481,11 +481,12 @@ def test_voicing_pitch_probes_report_each_frames_f0_and_peak() -> None:
     assert voicing_pitch_probes(np.zeros(0), sr, **kwargs)[0].size == 0
 
 
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
 @pytest.mark.parametrize("quantized", [False, True])
-def test_valley_depths_db_matches_the_per_frame_walk(quantized):
+def test_valley_depths_db_matches_the_per_frame_walk(quantized, dtype):
     rng = np.random.default_rng(11)
     for size in (0, 1, 2, 3, 7, 40, 90):
-        levels = rng.normal(-40.0, 10.0, size)
+        levels = rng.normal(-40.0, 10.0, size).astype(dtype)
         if quantized:
             levels = np.round(levels / 4.0) * 4.0
         expected = [valley_depth_db(levels, k) for k in range(size)]
