@@ -155,10 +155,30 @@ export function pointVisible(
 
 export const round2 = (value: number) => Math.round(value * 100) / 100;
 
+/** The stored level resolution, in dB: the finest nudge step is 0.05, and a nudge lands on 0.01. A host stores `dbToGain` of a CHANGED level only. */
+export const ENVELOPE_DB_STEP = 0.01;
+
+/** True when two levels are the same at the stored resolution (closer than half of `ENVELOPE_DB_STEP`). */
+export function sameLevelDb(a: number, b: number): boolean {
+  return Math.abs(a - b) < ENVELOPE_DB_STEP / 2;
+}
+
+/** The line is sampled every this many px of height, so a curve is within a small fraction of a px of the true gain curve. */
+export const LINE_STEP_PX = 1;
+
+type Spot = { x: number; db: number; gain: number };
+
 /**
- * The line's path in px from the lane's top left. It runs through every point
- * and, as the level holds before the first and after the last, flat to both
- * edges of the window. With no points it is the unity line at 0 dB.
+ * The line's path in px from the lane's top left. Between two points the
+ * level is linear in GAIN, as the audio (`envelopeGainAt`) plays it, so on
+ * the dB scale a sloped segment is a curve: it is sampled at equal steps of
+ * level, `t = (10^(d/20) - g0) / (g1 - g0)`, which puts every vertex exactly
+ * on the curve. Equal levels are one straight piece and equal times a
+ * vertical step. The level holds before the first point and after the last, so
+ * the line runs flat to both edges of the window. With no points it is the
+ * unity line at 0 dB. The path is clipped to the window: every coordinate is
+ * in [0, width], whatever the zoom, so a host may pass every point. A point
+ * with a time or level that is not finite is left out.
  */
 export function linePath(
   sorted: readonly EnvelopePointData[],
@@ -167,24 +187,79 @@ export function linePath(
   width: number,
   height: number,
 ): string {
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
+  const spots: Spot[] = [];
+  for (const point of sorted) {
+    const x = xAtTime(point.time, start, pxPerSecond);
+    if (!Number.isFinite(x) || !Number.isFinite(point.db)) continue;
+    const db = clampDb(point.db);
+    spots.push({ x, db, gain: dbToGain(db) });
+  }
+  const first = spots[0];
+  const last = spots[spots.length - 1];
   if (!first || !last) {
     const y = round2(dbToY(0, height));
     return `M0 ${y}L${width} ${y}`;
   }
-  const spots: [number, number][] = sorted.map((point) => [
-    xAtTime(point.time, start, pxPerSecond),
-    dbToY(point.db, height),
-  ]);
-  if (spots[0] && spots[0][0] > 0) spots.unshift([0, dbToY(first.db, height)]);
-  const end = spots[spots.length - 1];
-  if (end && end[0] < width) spots.push([width, dbToY(last.db, height)]);
-  return spots
-    .map(
-      ([x, y], index) => `${index === 0 ? "M" : "L"}${round2(x)} ${round2(y)}`,
-    )
-    .join("");
+  const scale = pxPerDb(height);
+  const out: string[] = [];
+  let tail = "";
+  const put = (x: number, db: number) => {
+    const rx = round2(clamp(x, 0, width));
+    const here = `${rx} ${round2(dbToY(db, height))}`;
+    if (here === tail) return;
+    tail = here;
+    out.push(`${out.length === 0 ? "M" : "L"}${here}`);
+  };
+  const flat = (from: number, to: number, db: number) => {
+    const lo = Math.max(0, from);
+    const hi = Math.min(width, to);
+    if (lo > hi) return;
+    put(lo, db);
+    put(hi, db);
+  };
+  flat(Number.NEGATIVE_INFINITY, first.x, first.db);
+  for (let index = 1; index < spots.length; index += 1) {
+    const a = spots[index - 1];
+    const b = spots[index];
+    if (!a || !b) continue;
+    if (b.x <= a.x) {
+      if (a.x >= 0 && a.x <= width) {
+        put(a.x, a.db);
+        put(a.x, b.db);
+      }
+      continue;
+    }
+    const lo = Math.max(0, a.x);
+    const hi = Math.min(width, b.x);
+    if (lo > hi) continue;
+    if (a.db === b.db) {
+      put(lo, a.db);
+      put(hi, a.db);
+      continue;
+    }
+    const span = b.x - a.x;
+    const dg = b.gain - a.gain;
+    const tLo = (lo - a.x) / span;
+    const tHi = (hi - a.x) / span;
+    const dLo = lo === a.x ? a.db : gainToDb(a.gain + dg * tLo);
+    const dHi = hi === b.x ? b.db : gainToDb(a.gain + dg * tHi);
+    put(lo, dLo);
+    if (dLo !== dHi) {
+      const steps = Math.min(
+        Math.ceil((Math.abs(dHi - dLo) * scale) / LINE_STEP_PX),
+        Math.max(8, Math.ceil(2 * (hi - lo))),
+      );
+      // k = 0 and k = steps are on the curve too: where an end is the floor, the curve reaches gain 0.001 (-60 dB) a hair before the point.
+      for (let k = 0; k <= steps; k += 1) {
+        const db = dLo + ((dHi - dLo) * k) / steps;
+        const t = clamp((10 ** (db / 20) - a.gain) / dg, tLo, tHi);
+        put(a.x + t * span, db);
+      }
+    }
+    put(hi, dHi);
+  }
+  flat(last.x, Number.POSITIVE_INFINITY, last.db);
+  return out.join("");
 }
 
 /** "−3.0 dB", with the minus sign the readout chip uses; a level that rounds to zero has no sign. */

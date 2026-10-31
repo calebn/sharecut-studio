@@ -5,6 +5,7 @@ import {
   dbAfterDrag,
   dbToGain,
   dbToY,
+  ENVELOPE_DB_STEP,
   ENVELOPE_FLOOR_DB,
   ENVELOPE_TOP_DB,
   formatDb,
@@ -18,6 +19,7 @@ import {
   pointY,
   readoutText,
   roundDb,
+  sameLevelDb,
   sortPoints,
   timeStep,
   valueText,
@@ -197,23 +199,207 @@ describe("pointVisible", () => {
   });
 });
 
+/** The vertices of a path made of M and L only. */
+function vertices(path: string): [number, number][] {
+  return path
+    .split(/(?=[ML])/)
+    .map((piece) => piece.slice(1).split(" ").map(Number) as [number, number]);
+}
+
+/** The y of the polyline at x. */
+function yAtX(verts: [number, number][], x: number): number {
+  for (let i = 1; i < verts.length; i += 1) {
+    const a = verts[i - 1];
+    const b = verts[i];
+    if (!a || !b || x < a[0] || x > b[0]) continue;
+    return b[0] === a[0]
+      ? b[1]
+      : a[1] + ((b[1] - a[1]) * (x - a[0])) / (b[0] - a[0]);
+  }
+  throw new Error(`no piece at ${x}`);
+}
+
+const dbOf = (y: number, height: number) => yToDb(y, height);
+
 describe("linePath", () => {
   it("is the unity line with no points", () => {
     expect(linePath([], 0, 24, 360, 72)).toBe("M0 7.55L360 7.55");
   });
 
-  it("runs flat to both edges of the window through the points", () => {
+  it("holds to both edges and runs through every point", () => {
     const sorted = sortPoints(points);
-    expect(linePath(sorted, 0, 24, 600, 72)).toBe(
-      "M0 13.59L120 13.59L300 10.57L480 7.55L600 7.55",
+    const path = linePath(sorted, 0, 24, 600, 72);
+    expect(path.startsWith("M0 13.59L120 13.59L")).toBe(true);
+    expect(path.endsWith("L480 7.55L600 7.55")).toBe(true);
+    const verts = vertices(path);
+    for (const [x, y] of [
+      [120, 13.59],
+      [300, 10.57],
+      [480, 7.55],
+    ] as const) {
+      expect(verts).toContainEqual([x, y]);
+    }
+  });
+
+  it("draws the same strings as a straight join for a flat run and for a single level", () => {
+    const flat = [
+      { id: "a", time: 5, db: -6 },
+      { id: "b", time: 12.5, db: -6 },
+    ];
+    expect(linePath(flat, 0, 24, 600, 72)).toBe(
+      "M0 13.59L120 13.59L300 13.59L600 13.59",
+    );
+    expect(linePath([{ id: "a", time: 5, db: 0 }], 0, 24, 360, 72)).toBe(
+      "M0 7.55L120 7.55L360 7.55",
+    );
+    expect(linePath([{ id: "a", time: 0, db: 0 }], 0, 24, 360, 72)).toBe(
+      "M0 7.55L360 7.55",
     );
   });
 
-  it("starts at an off-window first point and stops at the edge", () => {
-    const sorted = sortPoints(points);
-    expect(linePath(sorted, 10, 24, 120, 72)).toBe(
-      "M-120 13.59L60 10.57L240 7.55",
+  it("interpolates in gain: 0 to -20 dB is -5.2 dB at the middle, not -10", () => {
+    const sorted = [
+      { id: "a", time: 0, db: 0 },
+      { id: "b", time: 10, db: -20 },
+    ];
+    const verts = vertices(linePath(sorted, 0, 24, 240, 72));
+    expect(dbOf(yAtX(verts, 120), 72)).toBeCloseTo(-5.19, 1);
+  });
+
+  it("goes from unity to the floor through -6.0 dB at the middle", () => {
+    const sorted = [
+      { id: "a", time: 0, db: 0 },
+      { id: "b", time: 10, db: ENVELOPE_FLOOR_DB },
+    ];
+    for (const height of [72, 240]) {
+      const path = linePath(sorted, 0, 24, 240, height);
+      const verts = vertices(path);
+      expect(dbOf(yAtX(verts, 120), height)).toBeCloseTo(-6.02, 1);
+      expect(path.length).toBeLessThan(height === 72 ? 1000 : 3500);
+      // The drawn polyline stays within 0.1 px of the true curve, up to the last pixel before the floor,
+      // where the curve falls 60 px in under 0.3 px of x and the path's 0.01 px grid shows.
+      let worst = 0;
+      for (let x = 0; x <= 239; x += 0.05) {
+        const gain = Math.max(0, 1 - x / 240);
+        worst = Math.max(
+          worst,
+          Math.abs(yAtX(verts, x) - dbToY(gainToDb(gain), height)),
+        );
+      }
+      expect(worst).toBeLessThan(0.1);
+    }
+  });
+
+  it("goes from the top of the scale to the floor and from the floor up", () => {
+    const down = [
+      { id: "a", time: 0, db: ENVELOPE_TOP_DB },
+      { id: "b", time: 10, db: ENVELOPE_FLOOR_DB },
+    ];
+    const verts = vertices(linePath(down, 0, 24, 240, 72));
+    expect(dbOf(yAtX(verts, 120), 72)).toBeCloseTo(gainToDb(0.75), 1);
+    const up = [
+      { id: "a", time: 0, db: ENVELOPE_FLOOR_DB },
+      { id: "b", time: 10, db: -6 },
+    ];
+    const rise = vertices(linePath(up, 0, 24, 240, 72));
+    expect(dbOf(yAtX(rise, 120), 72)).toBeCloseTo(
+      gainToDb(dbToGain(-6) / 2),
+      1,
     );
+  });
+
+  it("draws a vertical step for two points at the same time", () => {
+    const sorted = [
+      { id: "a", time: 5, db: 0 },
+      { id: "b", time: 5, db: -20 },
+    ];
+    expect(linePath(sorted, 0, 24, 360, 72)).toBe(
+      "M0 7.55L120 7.55L120 27.7L360 27.7",
+    );
+  });
+
+  it("clips to the window: an off-window first point starts at x 0 on the curve", () => {
+    const sorted = sortPoints(points);
+    const path = linePath(sorted, 10, 24, 120, 72);
+    const verts = vertices(path);
+    expect(verts[0]?.[0]).toBe(0);
+    expect(verts[verts.length - 1]?.[0]).toBe(120);
+    for (const [x] of verts) expect(x).toBeGreaterThanOrEqual(0);
+    // a at -120 px (-6 dB), b at 60 px (-3 dB), c at 240 px (0 dB): x 0 is 2/3 of the way to b in gain.
+    const g0 = dbToGain(-6);
+    const g = g0 + (dbToGain(-3) - g0) * (120 / 180);
+    expect(dbOf(verts[0]?.[1] ?? 0, 72)).toBeCloseTo(gainToDb(g), 1);
+  });
+
+  it("draws one clipped piece when the window lies between two far points", () => {
+    const sorted = [
+      { id: "a", time: -1e6, db: 0 },
+      { id: "b", time: 1e6, db: -20 },
+    ];
+    const path = linePath(sorted, 0, 24, 360, 72);
+    const verts = vertices(path);
+    expect(verts[0]?.[0]).toBe(0);
+    expect(verts[verts.length - 1]?.[0]).toBe(360);
+    expect(verts.length).toBeLessThan(5);
+  });
+
+  it("holds the last level when the window is wholly past the last point or before the first", () => {
+    const sorted = sortPoints(points);
+    const after = linePath(sorted, 100, 24, 120, 72);
+    expect(after).toBe("M0 7.55L120 7.55");
+    const before = linePath(sorted, -100, 24, 120, 72);
+    expect(before).toBe("M0 13.59L120 13.59");
+  });
+
+  it("keeps every coordinate in the window at a deep zoom with 500 points, within a time bound", () => {
+    const many = Array.from({ length: 500 }, (_, n) => ({
+      id: `p${n}`,
+      time: 1e6 + n * 2.5,
+      db: n % 2 === 0 ? 0 : -40,
+    }));
+    const started = performance.now();
+    const paths = [
+      linePath(many, 1e6, 3600, 1280, 72),
+      linePath(many, 1e6 + 600, 3600, 1280, 240),
+      linePath(many, 0, 24, 1280, 72),
+      linePath(many, 1e6 - 3, 15_000_000 / 3600, 1280, 240),
+    ];
+    expect(performance.now() - started).toBeLessThan(500);
+    for (const path of paths) {
+      for (const [x, y] of vertices(path)) {
+        expect(x).toBeGreaterThanOrEqual(0);
+        expect(x).toBeLessThanOrEqual(1280);
+        expect(Number.isFinite(y)).toBe(true);
+      }
+      expect(path.length).toBeLessThan(120_000);
+    }
+    expect(paths[2]).toBe("M0 7.55L1280 7.55");
+  });
+
+  it("tolerates points that are not finite", () => {
+    const sorted = [
+      { id: "a", time: Number.NaN, db: 0 },
+      { id: "b", time: 5, db: Number.NaN },
+      { id: "c", time: 10, db: -6 },
+      { id: "d", time: Number.POSITIVE_INFINITY, db: -6 },
+    ];
+    expect(linePath(sorted, 0, 24, 360, 72)).toBe(
+      "M0 13.59L240 13.59L360 13.59",
+    );
+    expect(linePath(sorted.slice(0, 2), 0, 24, 360, 72)).toBe(
+      "M0 7.55L360 7.55",
+    );
+  });
+});
+
+describe("level resolution", () => {
+  it("stores 0.01 dB and calls two levels the same inside half of it", () => {
+    expect(ENVELOPE_DB_STEP).toBe(0.01);
+    expect(sameLevelDb(-1.938, -1.938)).toBe(true);
+    expect(sameLevelDb(-1.938, -1.9421)).toBe(true);
+    expect(sameLevelDb(-1.938, -1.89)).toBe(false);
+    expect(sameLevelDb(-1.938, -1.9)).toBe(false);
+    expect(sameLevelDb(-6, gainToDb(dbToGain(-6)))).toBe(true);
   });
 });
 
