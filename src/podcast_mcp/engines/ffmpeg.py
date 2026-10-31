@@ -1824,8 +1824,12 @@ class FFmpegEngine:
             return self.join_audio_parts([wav_a, wav_b], out)
 
         silence = out.with_name(f".{out.stem}_gap.wav")
-        run(self._anullsrc_argv(silence, gap_sec, rate, channels), check=True, capture_output=True)
         try:
+            run(
+                self._anullsrc_argv(silence, gap_sec, rate, channels),
+                check=True,
+                capture_output=True,
+            )
             # Filter concat so mismatched layouts still join cleanly.
             cmd = [
                 self.ffmpeg,
