@@ -490,6 +490,30 @@ TOOLS: dict[str, tuple[Site | None, dict[str, object]]] = {
         Site(SpeakerService, "move_lane_span"),
         {"from_lane": "a", "to_lane": "b", "timeline_start": 0, "timeline_end": 1},
     ),
+    "guest_transcript_vocabulary_get": (Site(TranscriptPrecorrectService, "vocabulary_status"), {}),
+    "guest_transcript_vocabulary_put": (
+        Site(TranscriptPrecorrectService, "set_vocabulary"),
+        {"terms": [], "guest_names": [], "base_revision": None},
+    ),
+    "guest_transcript_refine_status": (Site(TranscriptRefineService, "gate_status"), {}),
+    "guest_transcript_refine_done": (Site(TranscriptRefineService, "mark_checked"), {}),
+    "guest_transcript_refine_waive": (
+        Site(TranscriptRefineService, "waive"),
+        {"reason": "r"},
+    ),
+    "guest_transcript_replacement_preview": (
+        Site(TranscriptService, "preview_transcript_replacement"),
+        {"search": "a", "replacement": "b"},
+    ),
+    "guest_transcript_word_timing_context": (
+        Site(TranscriptService, "word_timing_context", not_found=WORD_NOT_FOUND),
+        {
+            "target": {"track_id": "t", "source_id": None, "word_index": 0},
+            "expected_word": {"text": "a", "start": 0, "end": 1},
+        },
+    ),
+    "guest_transcript_export": (Site(TranscriptService, "export"), {}),
+    "guest_transcript_exports": (Site(TranscriptService, "exported"), {}),
     **{
         f"guest_{family}_{op}": (Site(service_jobs.JobManager, site), arguments)
         for family in ("pipeline", "export", "speaker")
@@ -574,7 +598,11 @@ class Fault:
             return [4403, GENERIC_GUEST_MESSAGE]
         return [1011, "internal error"]
 
-    def tool_result(self, tool: str) -> dict[str, object]:
+    def tool_result(self, tool: str, site: Site) -> dict[str, object]:
+        if not self.coded and self.is_key_error and site.not_found == WORD_NOT_FOUND:
+            text = [{"type": "text", "text": WORD_NOT_FOUND}]
+            refusal = {"ok": False, "error": WORD_NOT_FOUND, "error_code": "word_not_found"}
+            return {"content": text, "structuredContent": refusal, "isError": True}
         if self.coded:
             text = [{"type": "text", "text": GENERIC_GUEST_MESSAGE}]
             refusal = {"ok": False, "error": GENERIC_GUEST_MESSAGE, "error_code": "file_gone"}
@@ -720,8 +748,8 @@ def test_a_fault_in_any_guest_handler_reads_the_fixed_answer(
 
         assert hits, f"{label} never reached {site.name}"
         _assert_private(world, label, json.dumps(out))
-        assert out == {"jsonrpc": "2.0", "id": 1, "result": fault.tool_result(tool)}, label
-        assert _logged_secret(caplog, since) is not fault.coded, label
+        assert out == {"jsonrpc": "2.0", "id": 1, "result": fault.tool_result(tool, site)}, label
+        assert _logged_secret(caplog, since) is fault.http(site)[2], label
 
 
 def test_mcp_bridge_maps_a_post_preflight_handler_crash_to_the_guest_error(

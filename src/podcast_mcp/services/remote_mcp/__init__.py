@@ -12,6 +12,7 @@ if TYPE_CHECKING:
         EDITOR_PROJECT_TOOLS,
         PLAY_AND_VIEW_TOOLS,
         PLAY_TOOLS,
+        TRANSCRIPT_TOOLS,
         VIEW_TOOLS,
         tools_for_capabilities,
     )
@@ -49,6 +50,7 @@ __all__ = [
     "PLAY_AND_VIEW_TOOLS",
     "PLAY_TOOLS",
     "TOOL_HANDLERS",
+    "TRANSCRIPT_TOOLS",
     "VIEW_TOOLS",
     "RemoteMcpContext",
     "call_tool",
@@ -75,6 +77,7 @@ _MODULE_BY_NAME = {
     "EDIT_TOOLS": "allowlist",
     "PLAY_AND_VIEW_TOOLS": "allowlist",
     "PLAY_TOOLS": "allowlist",
+    "TRANSCRIPT_TOOLS": "allowlist",
     "RemoteMcpContext": "context",
     "DOCUMENT_COMMAND_TOOLS": "allowlist",
     "TOOL_HANDLERS": "tools",

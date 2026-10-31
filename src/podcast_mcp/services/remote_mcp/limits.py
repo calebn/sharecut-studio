@@ -34,6 +34,10 @@ _MUTATE_TOOLS: frozenset[str] = frozenset(
         "guest_speaker_split",
         "guest_speaker_job_cancel",
         "guest_speaker_move_lane_span",
+        "guest_transcript_vocabulary_put",
+        "guest_transcript_refine_done",
+        "guest_transcript_refine_waive",
+        "guest_transcript_export",
     }
 )
 
