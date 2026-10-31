@@ -229,6 +229,9 @@ describe("automatic reduction sheet content", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Checking automatic regions…",
     );
+    expect(
+      screen.getByRole("button", { name: "Refresh regions" }),
+    ).toBeDisabled();
     await act(async () =>
       read.reject(new Error("Could not inspect. Refresh regions.")),
     );
@@ -286,6 +289,12 @@ describe("automatic reduction sheet content", () => {
     expect(
       screen.getByRole("button", { name: "Refresh regions" }),
     ).toBeDisabled();
+    expect(
+      screen
+        .getAllByRole("button")
+        .filter((button) => button.closest(".sys-inspector-rows"))
+        .every((button) => button.hasAttribute("disabled")),
+    ).toBe(true);
     await userEvent.click(restore);
     expect(restoreClipBleed).toHaveBeenCalledTimes(1);
     await act(async () => {
@@ -440,7 +449,7 @@ describe("automatic reduction sheet content", () => {
     const restoreButton = () =>
       screen.getByRole("button", { name: "Restore original audio" });
 
-    it("submits only the selected region's target, with Enter on a region", async () => {
+    it("submits only the selected region's target, with Enter and Space on a region", async () => {
       load({
         regions: [...inspection().regions, second],
         planState: "disabled",
@@ -458,6 +467,9 @@ describe("automatic reduction sheet content", () => {
       mute.focus();
       await userEvent.keyboard("{Enter}");
       await waitFor(() => expect(mute).toHaveAttribute("aria-pressed", "true"));
+      await userEvent.keyboard(" ");
+      expect(mute).toHaveAttribute("aria-pressed", "true");
+      expect(restoreClipBleed).not.toHaveBeenCalled();
       await userEvent.click(restoreButton());
       expect(restoreClipBleed).toHaveBeenCalledExactlyOnceWith(
         path,
@@ -517,15 +529,56 @@ describe("automatic reduction sheet content", () => {
       expect(
         screen.getByText(/Saved choices are pending in the next render/),
       ).toBeVisible();
-      view.unmount();
-      load({ restoreState: "changed_content", artifactState: "current" });
-      render(<SectionsBody withRange={false} />);
-      await ready();
-      expect(screen.getByText("Rendered audio is current.")).toBeVisible();
+      load({
+        restoreState: "current",
+        savedSourceSpans: [{ start: 20, end: 20.5 }],
+        artifactState: "current",
+      });
+      await userEvent.click(
+        screen.getByRole("button", { name: "Refresh regions" }),
+      );
+      await screen.findByText("Rendered audio is current.");
       expect(
-        screen.getByText(/Refresh regions to inspect this recording/),
-      ).toBeVisible();
+        screen.queryByText(/Saved choices are pending/),
+      ).not.toBeInTheDocument();
+      view.unmount();
     });
+
+    it.each(["changed_content", "unverified"] as const)(
+      "keeps %s saved choices distinct from current rendered audio",
+      async (restoreState) => {
+        load({ restoreState, artifactState: "current" });
+        render(<SectionsBody withRange={false} />);
+        await ready();
+        expect(screen.getByText("Rendered audio is current.")).toBeVisible();
+        expect(screen.getByText(/Refresh regions to/)).toBeVisible();
+      },
+    );
+
+    it.each(["disabled", "unavailable_evidence"] as const)(
+      "keeps authored mutes actionable when the late plan is %s",
+      async (planState) => {
+        load({
+          regions: [...inspection().regions, second],
+          planState,
+          planReasons: ["Check the recording and refresh regions."],
+        });
+        render(<SectionsBody withRange={false} />);
+        await ready();
+        expect(
+          screen.getByText("Check the recording and refresh regions."),
+        ).toBeVisible();
+        await userEvent.click(
+          screen.getByRole("button", {
+            name: /^Automatic speaker mute Timeline /,
+          }),
+        );
+        await userEvent.click(restoreButton());
+        expect(vi.mocked(restoreClipBleed).mock.calls[0][1]).toBe(
+          second.restore.target,
+        );
+      },
+    );
 
     it("says so when the plan has no regions, and why saved or unavailable intervals cannot be restored", async () => {
       load({ regions: [], artifactState: "missing" });
