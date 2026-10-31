@@ -41,6 +41,7 @@ from podcast_mcp.engines.effect_filters import format_effect, graph_rate
 from podcast_mcp.engines.mastering import (
     LIMITER_MARGIN_DB,
     LIMITER_MAX_RENDERS,
+    SCREEN_PEAK_SLACK_DB,
     TRUE_PEAK_PRINT_ROUNDING_DB,
     LimiterPlan,
     LimiterReport,
@@ -2135,7 +2136,8 @@ class FFmpegEngine:
         """Integrated LUFS and sample peak from ebur128, without its oversampled true peak.
 
         The integrated figure is the one ``measure_loudness_full`` reports; the sample
-        peak never exceeds the true peak, so it bounds true-peak headroom from above.
+        peak does not exceed the true peak on any signal tried (the limiter loop adds
+        ``SCREEN_PEAK_SLACK_DB`` of slack), so it bounds true-peak headroom from above.
         About a sixth of the cost of ``measure_loudness_full``.
         """
         r = run(
@@ -2299,7 +2301,7 @@ class FFmpegEngine:
                             true_peak_db - screen["sample_peak_db"] - TRUE_PEAK_PRINT_ROUNDING_DB,
                             2,
                         )
-                        if screen_shortfall > screen_headroom:
+                        if screen_shortfall > screen_headroom + SCREEN_PEAK_SLACK_DB:
                             drive_db = round(drive_db + screen_shortfall, 2)
                             continue
                 level = self.measure_loudness_full(limited) or {}
