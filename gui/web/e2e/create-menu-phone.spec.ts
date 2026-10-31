@@ -101,7 +101,43 @@ test("the keymap is held while the Sheet is open, and Escape closes it", async (
   await expect(sheet(page)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(sheet(page)).toHaveCount(0);
+  // Focus left with the Sheet and went back to a live element, not a detached one.
+  expect(
+    await page.evaluate(
+      () =>
+        document.activeElement !== null &&
+        document.body.contains(document.activeElement),
+    ),
+  ).toBe(true);
   expect(await playheadSec(page)).toBe(before);
   await page.keyboard.press("Home");
   await expect.poll(() => playheadSec(page)).toBeLessThan(before);
+});
+
+test("a finger that slides from the held point onto a Sheet row and lifts picks that row once", async ({
+  page,
+}) => {
+  await openProject(page, e2eProjectPath);
+  await openPhoneTimeline(page);
+  const at = await trailingPad(page);
+  const cdp = await page.context().newCDPSession(page);
+  await touch(cdp, "touchStart", [at]);
+  await expect(sheet(page)).toBeVisible();
+  const box = await sheet(page)
+    .getByRole("button", { name: "Add chapter here" })
+    .boundingBox();
+  if (!box) throw new Error("no row");
+  const to = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const steps = 10;
+  for (let k = 1; k <= steps; k += 1) {
+    await touch(cdp, "touchMove", [
+      {
+        x: at.x + ((to.x - at.x) * k) / steps,
+        y: at.y + ((to.y - at.y) * k) / steps,
+      },
+    ]);
+  }
+  await touch(cdp, "touchEnd");
+  await expect(sheet(page)).toHaveCount(0);
+  await expect(page.locator(".chapter-marker")).toHaveCount(1);
 });
