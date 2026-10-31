@@ -1,4 +1,5 @@
 import { devices, expect, test } from "@playwright/test";
+import { newFinger } from "../e2e/finger";
 import { storyUrl } from "./storyUrl";
 
 /**
@@ -262,4 +263,334 @@ test("Stages/Edit/CreateMenu: Escape closes it and no window listener hears the 
   await page.getByRole("menuitem").last().focus();
   await page.keyboard.press("Tab");
   await expect(menu(page)).toHaveCount(0);
+});
+
+/*
+ * Stages/Edit/TargetChooser. The story host is a fixture with a stub grammar
+ * (hold, slide, lift), so these prove the leaf's geometry and its over, pick
+ * and cancel contract under a real touch, not the app's hit router. Chromium
+ * only: other engines may send a click after a lift to a different element.
+ */
+
+const CHOOSER = "stages-edit-targetchooser";
+const CHIPS = "[data-target-id]";
+
+type Page = import("@playwright/test").Page;
+type Rect = { x: number; y: number; width: number; height: number };
+
+async function touchPage(
+  browser: import("@playwright/test").Browser,
+  id: string,
+  width = 393,
+) {
+  const context = await browser.newContext({
+    ...devices["Pixel 5"],
+    viewport: { width, height: 851 },
+    baseURL: "http://127.0.0.1:6010",
+  });
+  const page = await context.newPage();
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto(storyUrl(id, { theme: "light" }));
+  return { context, page };
+}
+
+async function box(page: Page): Promise<Rect> {
+  const rect = await page.locator("[data-chooser-surface]").boundingBox();
+  if (!rect) throw new Error("No press surface");
+  return rect;
+}
+
+function chipRects(page: Page): Promise<(Rect & { id: string | null })[]> {
+  return page.locator(CHIPS).evaluateAll((chips) =>
+    chips.map((chip) => {
+      const r = chip.getBoundingClientRect();
+      return {
+        id: chip.getAttribute("data-target-id"),
+        x: r.left,
+        y: r.top,
+        width: r.width,
+        height: r.height,
+      };
+    }),
+  );
+}
+
+const centre = (r: Rect) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+
+const readout = (page: Page) => page.locator("p[aria-live=polite]");
+
+/** Presses `press` (in the surface) and holds until the fan is open there. */
+async function holdOpen(
+  page: Page,
+  finger: Awaited<ReturnType<typeof newFinger>>,
+  press: { x: number; y: number },
+) {
+  await finger.down(press);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(page.getByRole("menu")).toBeVisible({ timeout: 2000 });
+}
+
+test("Stages/Edit/TargetChooser opens after a 500 ms hold with 44 px chips fanned 56 px above the finger, the outer ones 28 px clear of it", async ({
+  browser,
+  browserName,
+}) => {
+  const { context, page } = await touchPage(
+    browser,
+    `${CHOOSER}--four-targets`,
+  );
+  const finger = await newFinger(context, page, browserName);
+  const surface = await box(page);
+  const press = { x: surface.x + 180, y: surface.y + 270 };
+  await holdOpen(page, finger, press);
+  const chips = await chipRects(page);
+  await finger.up();
+  await context.close();
+  expect(chips).toHaveLength(4);
+  for (const chip of chips) {
+    expect(chip.width).toBeCloseTo(44, 0);
+    expect(chip.height).toBeCloseTo(44, 0);
+  }
+  // 52 px apart, centred on the press point.
+  expect(chips.map((chip) => Math.round(centre(chip).x - press.x))).toEqual([
+    -78, -26, 26, 78,
+  ]);
+  const [outer, inner] = [chips[0], chips[1]];
+  expect(press.y - centre(outer).y).toBeCloseTo(50, 0);
+  expect(press.y - centre(inner).y).toBeCloseTo(55.33, 0);
+  for (const chip of chips) {
+    expect(press.y - (chip.y + chip.height)).toBeGreaterThanOrEqual(27.5);
+  }
+  expect(press.y - (outer.y + outer.height)).toBeCloseTo(28, 0);
+});
+
+test("Stages/Edit/TargetChooser: sliding onto a chip marks it with its caption and lifting there picks it once", async ({
+  browser,
+  browserName,
+}) => {
+  const { context, page } = await touchPage(
+    browser,
+    `${CHOOSER}--four-targets`,
+  );
+  const finger = await newFinger(context, page, browserName);
+  const surface = await box(page);
+  await holdOpen(page, finger, { x: surface.x + 180, y: surface.y + 270 });
+  const second = (await chipRects(page))[1];
+  await finger.slide(centre(second), 6, 30);
+  await expect(page.locator(`${CHIPS}.is-over`)).toHaveAttribute(
+    "data-target-id",
+    second.id ?? "",
+  );
+  await expect(page.locator(".edit-target-chooser-caption")).toHaveText(
+    "Cut at 12:04.3",
+  );
+  await finger.up();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(readout(page)).toHaveText("Picked: Cut at 12:04.3");
+  await expect(readout(page)).toHaveAttribute("data-picks", "1");
+  await expect(readout(page)).toHaveAttribute("data-cancels", "0");
+  await context.close();
+});
+
+test("Stages/Edit/TargetChooser: lifting anywhere but on a chip cancels and picks nothing", async ({
+  browser,
+  browserName,
+}) => {
+  const { context, page } = await touchPage(
+    browser,
+    `${CHOOSER}--four-targets`,
+  );
+  const finger = await newFinger(context, page, browserName);
+  const surface = await box(page);
+  const press = { x: surface.x + 180, y: surface.y + 270 };
+  await holdOpen(page, finger, press);
+  await finger.slide({ x: press.x, y: press.y + 30 }, 4, 30);
+  await expect(page.locator(`${CHIPS}.is-over`)).toHaveCount(0);
+  await finger.up();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(readout(page)).toHaveText("Cancelled");
+  await expect(readout(page)).toHaveAttribute("data-picks", "0");
+  await expect(readout(page)).toHaveAttribute("data-cancels", "1");
+  await context.close();
+});
+
+test("Stages/Edit/TargetChooser: a finger that moves before the hold ends never opens it", async ({
+  browser,
+  browserName,
+}) => {
+  const { context, page } = await touchPage(browser, `${CHOOSER}--two-targets`);
+  const finger = await newFinger(context, page, browserName);
+  const surface = await box(page);
+  const press = { x: surface.x + 180, y: surface.y + 270 };
+  await finger.down(press);
+  await page.waitForTimeout(150);
+  await finger.move({ x: press.x + 14, y: press.y });
+  await page.waitForTimeout(900);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await finger.up();
+  await expect(readout(page)).toHaveText("");
+  await context.close();
+});
+
+test("Stages/Edit/TargetChooser keeps its chips 16 px inside the box at a side edge without flipping", async ({
+  browser,
+}) => {
+  const { context, page } = await touchPage(browser, `${CHOOSER}--near-edge`);
+  await expect(page.getByRole("menu")).toBeVisible();
+  const outer = await box(page);
+  const chips = await chipRects(page);
+  const placement = await page.getByRole("menu").getAttribute("data-placement");
+  await context.close();
+  expect(placement).toBe("above");
+  expect(chips).toHaveLength(4);
+  expect(chips[0].x - outer.x).toBeCloseTo(16, 0);
+  for (const chip of chips) expect(chip.y).toBeGreaterThanOrEqual(outer.y);
+});
+
+test("Stages/Edit/TargetChooser flips below a point near the top, 28 px clear of it at the outer chips", async ({
+  browser,
+}) => {
+  const { context, page } = await touchPage(browser, `${CHOOSER}--near-top`);
+  await expect(page.getByRole("menu")).toBeVisible();
+  const outer = await box(page);
+  const chips = await chipRects(page);
+  const placement = await page.getByRole("menu").getAttribute("data-placement");
+  await context.close();
+  expect(placement).toBe("below");
+  const pressY = outer.y + 40;
+  for (const chip of chips) {
+    expect(chip.y - pressY).toBeGreaterThanOrEqual(27.5);
+  }
+});
+
+test("Stages/Edit/TargetChooser on a phone holds five 44 px chips inside 16 px gutters, each taking a touch at every corner", async ({
+  browser,
+}) => {
+  const { context, page } = await touchPage(browser, `${CHOOSER}--phone`, 360);
+  await expect(page.getByRole("menu")).toBeVisible();
+  const outer = await box(page);
+  const reach = await page.locator(CHIPS).evaluateAll((chips) =>
+    chips.map((chip) => {
+      const r = chip.getBoundingClientRect();
+      const at = (x: number, y: number) =>
+        document.elementFromPoint(x, y)?.closest("[data-target-id]") === chip;
+      const inset = 4;
+      return {
+        size: [
+          (chip as HTMLElement).offsetWidth,
+          (chip as HTMLElement).offsetHeight,
+        ],
+        hit:
+          at(r.left + r.width / 2, r.top + r.height / 2) &&
+          at(r.left + inset, r.top + r.height / 2) &&
+          at(r.right - inset, r.top + r.height / 2) &&
+          at(r.left + r.width / 2, r.top + inset) &&
+          at(r.left + r.width / 2, r.bottom - inset),
+      };
+    }),
+  );
+  const chips = await chipRects(page);
+  await context.close();
+  expect(reach.map((chip) => chip.size)).toEqual(Array(5).fill([44, 44]));
+  expect(reach.every((chip) => chip.hit)).toBe(true);
+  expect(chips[0].x - outer.x).toBeGreaterThanOrEqual(16);
+  const last = chips[4];
+  expect(outer.x + outer.width - (last.x + last.width)).toBeGreaterThanOrEqual(
+    16,
+  );
+});
+
+test("Stages/Edit/TargetChooser ellipsizes a long caption inside 15 rem on a phone", async ({
+  browser,
+}) => {
+  const { context, page } = await touchPage(browser, `${CHOOSER}--phone`, 360);
+  const caption = page.locator(".edit-target-chooser-caption");
+  await expect(caption).toBeVisible();
+  const measured = await caption.evaluate((el) => ({
+    clipped: el.scrollWidth > el.clientWidth,
+    width: el.getBoundingClientRect().width,
+    overflow: getComputedStyle(el).textOverflow,
+    left: el.getBoundingClientRect().left,
+    right: el.getBoundingClientRect().right,
+  }));
+  await context.close();
+  expect(measured.clipped).toBe(true);
+  expect(measured.overflow).toBe("ellipsis");
+  expect(measured.width).toBeLessThanOrEqual(240);
+  expect(measured.left).toBeGreaterThanOrEqual(0);
+  expect(measured.right).toBeLessThanOrEqual(360);
+});
+
+test("Stages/Edit/TargetChooser outlines the chip under a finger in the system highlight colour under forced colors, and keeps the ring", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(storyUrl(`${CHOOSER}--four-targets`, { theme: "light" }));
+  await expect(page.locator(`${CHIPS}.is-over`)).toBeVisible();
+  const colors = await page.evaluate(() => {
+    const probe = (property: "backgroundColor") => {
+      const el = document.createElement("div");
+      el.style.forcedColorAdjust = "none";
+      el.style.backgroundColor = "Highlight";
+      document.body.append(el);
+      const value = getComputedStyle(el)[property];
+      el.remove();
+      return value;
+    };
+    const over = document.querySelector(".edit-target-chooser-chip.is-over");
+    if (!over) throw new Error("no chip is over");
+    const style = getComputedStyle(over);
+    return {
+      highlight: probe("backgroundColor"),
+      outline: style.outlineColor,
+      outlineWidth: style.outlineWidth,
+      ring: style.borderTopColor,
+      well: style.backgroundColor,
+    };
+  });
+  expect(colors.outline).toBe(colors.highlight);
+  expect(colors.outlineWidth).not.toBe("0px");
+  expect(colors.ring).not.toBe(colors.well);
+});
+
+test("Stages/Edit/TargetChooser: Left, Right, Home and End move between chips, Escape cancels and no later window listener hears it, and Tab out cancels", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto(storyUrl(`${CHOOSER}--four-targets`, { theme: "light" }));
+  const chips = page.getByRole("menuitem");
+  await expect(chips.first()).toBeFocused();
+  await page.evaluate(() => {
+    const heard: string[] = [];
+    Object.assign(window, { heard });
+    window.addEventListener("keydown", (event) => {
+      heard.push(event.key);
+    });
+  });
+  await page.keyboard.press("ArrowRight");
+  await expect(chips.nth(1)).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(chips.nth(3)).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(chips.first()).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(chips.nth(3)).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(readout(page)).toHaveText("Cancelled");
+  const heard = await page.evaluate(
+    () => (window as unknown as { heard: string[] }).heard,
+  );
+  expect(heard).not.toContain("Escape");
+  expect(heard).toContain("End");
+
+  await page.getByRole("button", { name: "Open the chooser again" }).click();
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.getByRole("menuitem").last().focus();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(readout(page)).toHaveAttribute("data-cancels", "2");
 });

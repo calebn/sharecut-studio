@@ -42,7 +42,8 @@ const WORD: ChooserTarget = {
   id: "word-1",
   kind: "word",
   trackColorIndex: 2,
-  label: "“welcome”",
+  label:
+    "“welcome to the show, and thank you for joining us on this long and winding episode”",
 };
 
 const meta: Meta<typeof ChooserDemo> = {
@@ -118,7 +119,7 @@ export const Phone: Story = {
   args: {
     targets: [CLIP, SEAM, COMMENT, POINT, WORD],
     at: { x: 160, y: 256 },
-    over: "point-1",
+    over: "word-1",
   },
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
