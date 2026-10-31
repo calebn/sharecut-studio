@@ -78,10 +78,15 @@ export async function openEnvelopeTrackDetails(
   await button.click({ position: geometry.position });
 }
 
-/** Where the open point's fields are: the Inspector card or sheet, or the phone's peek drawer. */
+/**
+ * Where the open point's fields are: the Inspector card or sheet, or the phone's
+ * peek drawer. Editing Time swaps its spinbutton for a textbox, so either marks it.
+ */
 export const pointSheet = (page: Page) =>
   page.getByRole("dialog").filter({
-    has: page.getByRole("spinbutton", { name: "Time", exact: true }),
+    has: page
+      .getByRole("spinbutton", { name: "Time", exact: true })
+      .or(page.getByRole("textbox", { name: "Time", exact: true })),
   });
 
 export async function showEnvelope(page: Page) {
