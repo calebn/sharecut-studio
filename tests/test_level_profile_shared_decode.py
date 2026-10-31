@@ -212,3 +212,28 @@ def test_an_atomic_replacement_with_the_same_size_and_mtime_is_not_seeded_into_t
     with batch_scope():
         TrackRmsCache.from_recording(path, sample_rate=RATE)
         assert not (load_mono_full(path, sample_rate=RATE) == old[0]).all()
+
+
+def test_an_in_place_rewrite_with_the_old_mtime_is_not_seeded_into_the_batch(
+    minimal_project, raw_decodes: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project, path = _host_project(minimal_project)
+    audio_cache.track_level_profile(project, "host", sample_rate=RATE)
+    aged = path.stat().st_mtime_ns
+    real_once = audio_audit.decode_once
+    old: list = []
+
+    def rewrite_after(*args, **kwargs):  # type: ignore[no-untyped-def]
+        result = real_once(*args, **kwargs)
+        old.append(result.samples)
+        data = bytearray(path.read_bytes())
+        data[-400:] = bytes(255 - b for b in data[-400:])
+        with path.open("r+b") as out:
+            out.write(bytes(data))
+        os.utime(path, ns=(aged, aged))
+        return result
+
+    monkeypatch.setattr(audio_audit, "decode_once", rewrite_after)
+    with batch_scope():
+        TrackRmsCache.from_recording(path, sample_rate=RATE)
+        assert not (load_mono_full(path, sample_rate=RATE) == old[0]).all()
