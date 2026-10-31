@@ -463,13 +463,13 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip:
       "Add a volume envelope point at the held time, at the level already there",
   },
-  "daw.comment.draftAt": {
-    label: "Add comment",
-    tooltip: "Start a comment at the held time",
-  },
   "daw.record.here": {
     label: "Record here",
     tooltip: "Open Record to insert a take at the held time",
+  },
+  "daw.comment.draftAt": {
+    label: "Add comment",
+    tooltip: "Start a comment at the held time",
   },
   "daw.edit.restoreClipBleed": {
     label: "Restore original audio",
@@ -582,7 +582,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "presence.avatarStack": "daw.presence.follow",
   "presence.followBanner": "daw.presence.unfollow",
   timeline: "daw.edit.bladeCut",
-  "timeline.createMenu": "daw.record.here",
+  "timeline.createMenu": "daw.comment.draftAt",
   clipInspector: "daw.edit.moveClips",
   actionBar: "daw.edit.mute",
   trackInspector: "daw.track.setVolume",

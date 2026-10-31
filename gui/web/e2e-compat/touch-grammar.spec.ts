@@ -504,7 +504,8 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
     "Add chapter",
     "Add comment",
   ]);
-  expect(items[3]).toMatch(/^Add envelope point/);
+  expect(items[3]).toMatch(/^Record here/);
+  expect(items[4]).toMatch(/^Add envelope point/);
   const added = commands.find((c) => c.type === "SetEnvelope")?.payload as
     | { track_id: string; points: unknown[] }
     | undefined;
