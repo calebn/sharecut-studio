@@ -1520,3 +1520,89 @@ def test_loudnorm_json_reads_the_report_when_the_input_path_has_braces():
     report = _loudnorm_json(banner + _LOUDNORM_JSON_STDERR)
     assert report is not None
     assert report["input_i"] == "-23.71"
+
+
+def test_concat_with_gap_pins_both_argv_lists_and_removes_the_silence_file(tmp_path: Path):
+    eng = FFmpegEngine()
+    a, b, out = tmp_path / "a.wav", tmp_path / "b.wav", tmp_path / "ab.wav"
+    silence = tmp_path / ".ab_gap.wav"
+
+    def make_silence(cmd, **kwargs):
+        if cmd[-1] == str(silence):
+            silence.write_bytes(b"x")
+        return MagicMock(returncode=0)
+
+    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=make_silence) as run:
+        assert eng.concat_with_gap(a, b, out, gap_sec=0.25, rate=44100, channels=2) == out
+
+    assert [c.args[0] for c in run.call_args_list] == [
+        [
+            eng.ffmpeg, "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+            "-t", "0.250000", "-acodec", "pcm_s16le", str(silence),
+        ],
+        [
+            eng.ffmpeg, "-y", "-i", str(a), "-i", str(silence), "-i", str(b),
+            "-filter_complex", "[0:a][1:a][2:a]concat=n=3:v=0:a=1[out]",
+            "-map", "[out]", "-acodec", "pcm_s16le", str(out),
+        ],
+    ]  # fmt: skip
+    assert all(c.kwargs == {"check": True, "capture_output": True} for c in run.call_args_list)
+    assert not silence.exists()
+
+
+def test_concat_with_gap_uses_a_mono_layout_for_one_channel(tmp_path: Path):
+    eng = FFmpegEngine()
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        eng.concat_with_gap(
+            tmp_path / "a.wav", tmp_path / "b.wav", tmp_path / "o.wav",
+            gap_sec=1.0, rate=48000, channels=1,
+        )  # fmt: skip
+    assert run.call_args_list[0].args[0][5] == "anullsrc=r=48000:cl=mono"
+
+
+def test_concat_with_gap_removes_the_silence_file_when_the_join_fails(tmp_path: Path):
+    eng = FFmpegEngine()
+    out = tmp_path / "ab.wav"
+    silence = tmp_path / ".ab_gap.wav"
+    calls = []
+
+    def fake(cmd, **kwargs):
+        calls.append(cmd)
+        if len(calls) == 1:
+            silence.write_bytes(b"x")
+            return MagicMock(returncode=0)
+        raise subprocess.CalledProcessError(1, cmd)
+
+    with (
+        patch("podcast_mcp.engines.ffmpeg.run", side_effect=fake),
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        eng.concat_with_gap(
+            tmp_path / "a.wav", tmp_path / "b.wav", out, gap_sec=0.5, rate=8000, channels=1
+        )
+    assert not silence.exists()
+
+
+def test_concat_with_gap_without_a_gap_joins_the_parts_directly(tmp_path: Path):
+    eng = FFmpegEngine()
+    a, b, out = tmp_path / "a.wav", tmp_path / "b.wav", tmp_path / "ab.wav"
+    with patch.object(FFmpegEngine, "join_audio_parts", return_value=out) as join:
+        assert eng.concat_with_gap(a, b, out, gap_sec=0.0, rate=48000, channels=1) == out
+    join.assert_called_once_with([a, b], out)
+
+
+def test_concat_with_gap_real_round_trip_length_is_the_sum(tmp_path: Path):
+    def tone(path: Path, seconds: float) -> None:
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(16000)
+            w.writeframes(b"\x10\x00" * int(16000 * seconds))
+
+    a, b, out = tmp_path / "a.wav", tmp_path / "b.wav", tmp_path / "ab.wav"
+    tone(a, 1.0)
+    tone(b, 0.5)
+    FFmpegEngine().concat_with_gap(a, b, out, gap_sec=0.25, rate=16000, channels=1)
+    with wave.open(str(out), "rb") as w:
+        assert w.getframerate() == 16000
+        assert w.getnframes() / 16000 == pytest.approx(1.75, abs=0.02)
