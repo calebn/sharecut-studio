@@ -11,6 +11,7 @@ from podcast_mcp.edits.breath_detect import (
     PauseAirSkip,
     _find_breath_in_window,
     _find_breath_in_window_silero,
+    _frame_levels,
     _frame_rms,
     breath_level_band,
     pause_air_span,
@@ -1992,3 +1993,18 @@ def test_audio_that_cannot_be_read_is_no_room_on_any_track_the_ripple_cuts(unrea
         got = pause_air_span(project, "host", 4.4, 5.3, defaults=load_defaults())
 
     assert got == PauseAirSkip.NO_ROOM
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+def test_frame_levels_match_framewise_rms_including_partial_and_missing_frames(dtype):
+    rng = np.random.default_rng(5)
+    for size, frame_size, count in (
+        (0, 10, 3),
+        (95, 10, 12),
+        (100, 10, 10),
+        (37, 400, 2),
+        (50, 1, 50),
+    ):
+        x = rng.normal(0.0, 0.1, size).astype(dtype)
+        expected = [_frame_rms(x, f, frame_size) for f in range(count)]
+        assert _frame_levels(x, frame_size, count).tolist() == expected

@@ -378,6 +378,43 @@ def _score_samples(samples: np.ndarray, idx: int, config: InaudibleCutConfig) ->
     )
 
 
+_SCORE_HALF_WINDOW = 16
+
+
+def _score_all_samples(samples: np.ndarray, config: InaudibleCutConfig) -> np.ndarray:
+    """:func:`_score_samples` of every index; interior indices in bulk, the edges one by one."""
+    size = samples.size
+    scores = np.empty(size, dtype=np.float64)
+    lo, hi = _SCORE_HALF_WINDOW, size - _SCORE_HALF_WINDOW
+    if hi > lo:
+        idx = slice(lo, hi)
+        windows = np.lib.stride_tricks.sliding_window_view(samples**2, 2 * _SCORE_HALF_WINDOW)
+        local_rms = np.sqrt(np.mean(windows[: hi - lo], axis=1)).astype(np.float64)
+        cur = samples[idx]
+        prev, nxt = samples[lo - 1 : hi - 1], samples[lo + 1 : hi + 1]
+        crossed = (
+            ((prev <= 0) & (cur >= 0))
+            | ((cur <= 0) & (nxt >= 0))
+            | (prev.astype(np.float64) * cur.astype(np.float64) < 0)
+        )
+        zero_cross = np.where(
+            crossed,
+            0.0,
+            np.minimum(np.minimum(np.abs(prev), np.abs(cur)), np.abs(nxt)).astype(np.float64),
+        )
+        continuity = np.abs(nxt - prev).astype(np.float64)
+        scores[idx] = (
+            config.weight_energy * (np.abs(cur).astype(np.float64) + local_rms)
+            + config.weight_zero_cross * zero_cross
+            + config.weight_continuity * continuity
+        )
+    else:
+        lo = hi = 0
+    for i in (*range(min(lo, size)), *range(max(hi, lo), size)):
+        scores[i] = _score_samples(samples, i, config)
+    return scores
+
+
 def _snap_boundary_to_waveform(
     path: Path,
     center_time: float,
@@ -398,13 +435,8 @@ def _snap_boundary_to_waveform(
         )
     if samples.size < 8:
         return center_time
-    best = 0
-    best_score = math.inf
-    for i in range(samples.size):
-        s = _score_samples(samples, i, config)
-        if s < best_score:
-            best = i
-            best_score = s
+    scores = _score_all_samples(samples, config)
+    best = int(np.argmin(np.where(np.isnan(scores), np.inf, scores)))
     return start + (best / sample_rate)
 
 

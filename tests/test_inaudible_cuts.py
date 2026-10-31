@@ -14,6 +14,8 @@ from podcast_mcp.edits.inaudible_cuts import (
     _nearest_word_boundary,
     _next_word_start_at_or_after,
     _retained_word_boundaries,
+    _score_all_samples,
+    _score_samples,
     detect_track_cut_mode,
     optimize_source_cut_range,
     optimize_timeline_cut_range,
@@ -838,3 +840,21 @@ def test_cut_word_index_is_kept_until_a_word_changes(tmp_path: Path) -> None:
         (1.0, 1.2),
         (3.0, 3.2),
     ]
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+def test_score_all_samples_matches_scoring_each_sample(dtype):
+    cfg = InaudibleCutConfig()
+    rng = np.random.default_rng(3)
+    tone = np.sin(np.arange(300) * 0.21) * 0.3
+    for samples in (
+        rng.normal(0.0, 0.1, 200),
+        rng.normal(0.0, 0.1, 1500),
+        np.round(rng.normal(0.0, 0.1, 120) * 10) / 10,
+        tone + rng.normal(0.0, 0.01, 300),
+        rng.normal(0.0, 0.1, 20),
+        rng.normal(0.0, 0.1, 8),
+    ):
+        x = samples.astype(dtype)
+        expected = [_score_samples(x, i, cfg) for i in range(x.size)]
+        assert _score_all_samples(x, cfg).tolist() == expected

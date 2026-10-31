@@ -472,6 +472,35 @@ def valley_depth_db(levels: np.ndarray, k: int) -> float:
     return depth
 
 
+def _shallower_side_climb(values: list) -> list:
+    """Per frame, the climb over the frame on its left side, in one pass.
+
+    That is the highest level strictly between the frame and the nearest earlier frame
+    under it (or the start), less the frame's own level; ``0.0`` when no frame sits between.
+    Levels keep their own dtype, so a float32 track subtracts in float32 as the walk did.
+    """
+    stack: list[tuple] = []
+    climb: list = []
+    for value in values:
+        peak = None
+        while stack and stack[-1][0] >= value:
+            top, between = stack.pop()
+            for level in (top, between):
+                if level is not None and (peak is None or level > peak):
+                    peak = level
+        climb.append(0.0 if peak is None else peak - value)
+        stack.append((value, peak))
+    return climb
+
+
+def valley_depths_db(levels: np.ndarray) -> np.ndarray:
+    """:func:`valley_depth_db` of every frame, in one linear pass per side."""
+    values = list(levels)
+    left = _shallower_side_climb(values)
+    right = _shallower_side_climb(values[::-1])[::-1]
+    return np.array([min(a, b) for a, b in zip(left, right, strict=True)], dtype=np.float64)
+
+
 def is_valley(levels: np.ndarray, k: int, depth_db: float) -> bool:
     """Whether frame ``k`` is the bottom of a dip ``depth_db`` deep on both sides."""
     return valley_depth_db(levels, k) >= depth_db
@@ -486,10 +515,9 @@ def valley_basins(levels: np.ndarray, depth_db: float) -> np.ndarray:
     from the dip itself, so the basin is the same at every recording level.
     """
     basin = np.zeros(levels.size, dtype=bool)
-    for k in range(levels.size):
-        depth = valley_depth_db(levels, k)
-        if depth < depth_db:
-            continue
+    depths = valley_depths_db(levels)
+    for k in np.flatnonzero(depths >= depth_db).tolist():
+        depth = float(depths[k])
         midline = levels[k] + depth / 2
         lo = hi = k
         while lo > 0 and levels[lo - 1] <= midline:
