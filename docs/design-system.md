@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ToolModeToggle, EditToolStrip, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ToolModeToggle, EditToolStrip, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -209,30 +209,25 @@ mode), metric hold and commits, and passes `clipBlockGeometry` plus
 post-fader `WaveformLayer` slots; the catalog omits the store-bound waveform
 and passes fixed geometry.
 
-`Templates/EnvelopeOverlay`, `Templates/PresenceOverlay`, and
-`Templates/CommentPlaybackBubble` (#615) render the shipped live-timeline
-overlays as props-only views. Each adapter (`EnvelopeOverlay.tsx`,
-`PresenceOverlay.tsx`, `CommentPlaybackBubble.tsx`) keeps every store, API and
-context read — `useDaw`/`useDawStore` selectors, `setEnvelope`, the session
-roster and the module-level server clock (`presence/clock.ts`), the join/leave
-announcer, and
+`Templates/EnvelopeOverlay` and `Templates/CommentPlaybackBubble` (#615) render
+the shipped live-timeline overlays as props-only views. Each adapter
+(`EnvelopeOverlay.tsx`, `CommentPlaybackBubble.tsx`) keeps every store, API and
+context read — `useDaw`/`useDawStore` selectors, `setEnvelope`, and
 `useTimelineMetrics`/`useTimelineGestureHold` — while its view takes plain
-props (`points`/`clients`/`comment`, geometry, callbacks) and keeps only local
-UI state: the envelope drag draft, the focused point id, and the presence
-cursor's rAF easing. `EnvelopeOverlayView` takes the gesture hold as
+props (`points`/`comment`, geometry, callbacks) and keeps only local UI state:
+the envelope drag draft and the focused point id. Remote presence is no longer
+a template: `timeline/TimelinePresence.tsx` reads the session roster and the
+module-level server clock (`presence/clock.ts`), owns the join/leave announcer
+and the motion of a playing remote playhead, and feeds the `System/Presence`
+leaf (#2294 S7b W2). `EnvelopeOverlayView` takes the gesture hold as
 `holdGeometry` and calls it inside `pointerdown`, so the lane height is frozen
 before the first `pointermove`; it releases the hold when the drag commits,
 cancels or unmounts. A drag records its pointer and circle. Focus departure or
 local Escape discards only an active preview. Preview highlight is local; cancellation
 preserves the pregesture inspector selection. A no-op release selects the point,
 and a changed save selects it only after success. A pending save keeps the draft and
-hold until settlement. `PresenceOverlayView` takes a fixed `nowMs` instead of
-reading the server clock itself, so its stories and tests never depend on the
-wall clock. All three views ship a 360px story (`PhoneEmpty`,
-`PhoneStaleClient`) alongside their desktop ones. All three stories share
-`timelineLaneStoryDecorator`; `Templates/PresenceOverlay` passes
-`laneTrackIds` for its second lane; the remote playhead's avatar chip sits
-inside the first lane, right of its needle. A guard test
+hold until settlement. Both views ship a 360px story alongside their desktop
+ones and share `timelineLaneStoryDecorator`. A guard test
 (`timeline/liveOverlayViews.test.ts`) parses each view's import specifiers
 (`importSpecifiers` from `test/storyGovernance.ts`, so a `../state` barrel is
 caught and comments are ignored) and checks they never reach the store, the
@@ -622,6 +617,10 @@ jsdom visibility checks.
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog
+
+- 2026-10-31 — #2294 S7b W2: the legacy `PresenceOverlay` and
+  `PresenceOverlayView` (and `Templates/PresenceOverlay`) are replaced by the
+  store-bound `timeline/TimelinePresence.tsx` host over `System/Presence`.
 
 - 2026-10-28 — The post-take clipping summary returns on the Takes tray
   (#2554): a take row names who clipped and how many times, the expanded line
