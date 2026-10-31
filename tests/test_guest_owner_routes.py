@@ -41,7 +41,7 @@ RELAYED = {"x-sharecut-relayed": "1"}
 
 
 @pytest.fixture
-def world(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+def world(minimal_project, sample_wav, tmp_workspace, monkeypatch, skip_run_preflight):
     monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.render_preview",
@@ -97,8 +97,6 @@ def world(minimal_project, sample_wav, tmp_workspace, monkeypatch):
             )
         ),
     )
-    for check in ("ensure_whisper_cached_for_run", "ensure_word_aligner_for_run"):
-        monkeypatch.setattr(f"podcast_mcp.gui.routes.pipeline_jobs.{check}", lambda *_a, **_k: None)
     app = create_app()
     return SimpleNamespace(client=TestClient(app), app=app, ws=ws, tokens=tokens)
 

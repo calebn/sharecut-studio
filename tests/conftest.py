@@ -588,3 +588,11 @@ def render_calls(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     monkeypatch.setattr(timeline_render, "render_track_from_timeline", counting)
     return calls
+
+
+@pytest.fixture
+def skip_run_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No model check before a pipeline run starts: the owner route's and the guest core's."""
+    for check in ("ensure_whisper_cached_for_run", "ensure_word_aligner_for_run"):
+        for module in ("gui.routes.pipeline_jobs", "services.collaboration.guest_project_ops"):
+            monkeypatch.setattr(f"podcast_mcp.{module}.{check}", lambda *_a, **_k: None)

@@ -8,23 +8,17 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from podcast_mcp.export.audio import GUEST_EXPORT_FORMATS
 from podcast_mcp.gui.job_events import GUEST_STREAM_SLOTS
 from podcast_mcp.gui.routes.deps import coded_http_error
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
-from podcast_mcp.gui.routes.pipeline_jobs import (
-    cancel_job,
-    check_steps,
-    resolve_skip_steps,
-    start_pipeline_job,
-)
 from podcast_mcp.gui.routes.share_common import check_share_token, rate_limit_share
 from podcast_mcp.gui.routes.sse_common import guest_job_events_response
 from podcast_mcp.gui.schemas import (
@@ -44,9 +38,19 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     GUEST_OWNER_ROUTES,
     SHARE_ACTOR_PREFIX,
+    GuestRefusal,
     GuestRoute,
     ShareSource,
+    guest_cancel_job,
+    guest_job_status_view,
+    guest_move_lane_span,
+    guest_only_keys,
     guest_owner_route,
+    guest_projected_job,
+    guest_start_export,
+    guest_start_pipeline_run,
+    guest_start_speaker_split,
+    lookup_guest_job,
     require_share_edit,
     share_review_source,
 )
@@ -63,22 +67,16 @@ from podcast_mcp.services.jobs import (
     GUEST_RENDER_KINDS,
     GUEST_SPEAKER_KINDS,
     Job,
-    guest_job_projection,
     guest_job_view,
-    guest_status_view,
-    guest_visible_job,
 )
 from podcast_mcp.services.media import (
-    SpeakerService,
     TranscriptChangedSinceReviewError,
     TranscriptPrecorrectService,
     TranscriptRefineService,
     VocabularyConflictError,
 )
-from podcast_mcp.services.pipeline import WordAlignerMissingError, config_store
-from podcast_mcp.util.coded_error import CodedError, CodedValueError, guest_message_for_code
+from podcast_mcp.util.coded_error import CodedError, guest_message_for_code
 from podcast_mcp.util.guest_render import require_guest_render
-from podcast_mcp.util.model_missing import ModelMissing
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -134,11 +132,7 @@ def guest_actor_route(name: str) -> Callable[[str], GuestActor]:
     return _named(dependency, name)
 
 
-JOB_NOT_FOUND = "Job not found"
 STREAMS_FULL = "Too many open streams on this link"
-STEP_NOT_SHARED = "That step is not available on a share link."
-RUN_ATTENDED = "The host set this project to attended runs; ask the host to start it."
-GUEST_BLOCKED_STEPS = frozenset({"export_deliverables"})
 GUEST_NOTE_PREFIX = "From an Editor link: "
 GUEST_VOCABULARY_KEYS = (
     "terms",
@@ -149,17 +143,7 @@ GUEST_VOCABULARY_KEYS = (
 )
 GUEST_EXPORT_FILE_KEYS = ("format", "name", "bytes", "language", "written", "current")
 GUEST_EXPORTED_KEYS = ("format", "name", "mime", "language", "bytes", "modified", "current")
-GUEST_MOVE_LANE_SPAN_KEYS = (
-    "from_lane",
-    "to_lane",
-    "source_start",
-    "source_end",
-    "mute_region",
-    "words_moved",
-    "history_head_id",
-)
 EXPORT_SLOTS = threading.BoundedSemaphore(2)
-SPLIT_REFUSAL_STATUS = {"speaker_backend_unavailable": 409}
 
 
 @dataclass(frozen=True)
@@ -167,6 +151,21 @@ class GuestJobScope:
     ws: ProjectWorkspace
     job: Job
     kinds: frozenset[str]
+
+
+@contextmanager
+def _http_refusals() -> Iterator[None]:
+    """A twin core refuses with ``GuestRefusal``; this route answers with its status and text."""
+    try:
+        yield
+    except GuestRefusal as exc:
+        raise coded_http_error(exc.status, str(exc), code=exc.code) from exc
+
+
+@contextmanager
+def _guest_call(operation: str) -> Iterator[None]:
+    with guest_boundary(log, operation), _http_refusals():
+        yield
 
 
 def guest_job_route(
@@ -181,10 +180,8 @@ def guest_job_route(
 
     def dependency(token: str, job_id: str, request: Request) -> GuestJobScope:
         ws = workspace(token)
-        with guest_boundary(log, "review job lookup"):
-            job = guest_visible_job(request.app.state.jobs.get_job(job_id), ws.path, kinds)
-        if job is None:
-            raise coded_http_error(404, JOB_NOT_FOUND, code="job_not_found")
+        with _guest_call("review job lookup"):
+            job = lookup_guest_job(request.app.state.jobs, ws, job_id, kinds)
         return GuestJobScope(ws, job, kinds)
 
     return _named(dependency, name)
@@ -205,7 +202,7 @@ PipelineEventsScope = Annotated[
 PipelineCancelScope = Annotated[
     GuestJobScope, Depends(guest_job_route("pipeline_job_cancel", GUEST_PIPELINE_KINDS))
 ]
-ExportStartWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_start"))]
+ExportStartActor = Annotated[GuestActor, Depends(guest_actor_route("export_start"))]
 ExportStatusWorkspace = Annotated[ProjectWorkspace, Depends(guest_route("export_status"))]
 ExportJobScope = Annotated[
     GuestJobScope, Depends(guest_job_route("export_job_status", GUEST_EXPORT_KINDS))
@@ -252,10 +249,8 @@ SpeakerMoveLaneSpanActor = Annotated[
 
 
 def _projected(job: Job, scope: GuestJobScope) -> dict[str, Any]:
-    projected = guest_job_view(job, scope.ws.path, scope.kinds)
-    if projected is None:
-        raise coded_http_error(404, JOB_NOT_FOUND, code="job_not_found")
-    return {"job": projected}
+    with _http_refusals():
+        return guest_projected_job(job, scope.ws, scope.kinds)
 
 
 @router.post("/api/review/{token}/daw/render-preview", status_code=202)
@@ -282,42 +277,22 @@ def post_daw_pipeline_run(
     request: Request, req: GuestPipelineRunRequest, ws: PipelineRunWorkspace
 ) -> dict[str, Any]:
     """Runs the host's working-set config for this project and never writes it."""
-    with guest_boundary(log, "review pipeline run"):
-        check_steps(req.from_step, req.only_step, req.skip_steps)
-        if {req.from_step, req.only_step} & GUEST_BLOCKED_STEPS:
-            raise coded_http_error(400, STEP_NOT_SHARED, code="pipeline_step_not_shared")
-        working = config_store().get(ws.path, stage=False)
-        if not working.unattended:
-            raise coded_http_error(409, RUN_ATTENDED, code="pipeline_attended")
-        skip_steps = resolve_skip_steps(req.skip_steps, working.enabled_steps)
-        skip_steps = [*(skip_steps or []), *sorted(GUEST_BLOCKED_STEPS - set(skip_steps or []))]
-        try:
-            job = start_pipeline_job(
-                request.app.state.jobs,
-                ws.path,
-                config=working.config,
-                from_step=req.from_step,
-                only_step=req.only_step,
-                skip_steps=skip_steps,
-                unattended=True,
-                force_transcribe=req.force_transcribe,
-                overwrite_edited=False,
-                retime_words=req.retime_words,
-            )
-        except WordAlignerMissingError as exc:
-            log.info("guest pipeline run refused: word aligner unusable", exc_info=exc)
-            raise _refused(409, "model_needed") from exc
-
-    projected = guest_job_view(job, ws.path, GUEST_PIPELINE_KINDS)
-    if projected is None:
-        raise coded_http_error(500, "Pipeline job unavailable", code="pipeline_job_unavailable")
-    return {"job": projected}
+    with _guest_call("review pipeline run"):
+        return guest_start_pipeline_run(
+            request.app.state.jobs,
+            ws,
+            from_step=req.from_step,
+            only_step=req.only_step,
+            skip_steps=req.skip_steps,
+            force_transcribe=req.force_transcribe,
+            retime_words=req.retime_words,
+        )
 
 
 @router.get("/api/review/{token}/daw/pipeline/status")
 def get_daw_pipeline_status(request: Request, ws: PipelineStatusWorkspace) -> dict[str, Any]:
     with guest_boundary(log, "review pipeline status"):
-        return guest_status_view(request.app.state.jobs.status(), ws.path, GUEST_PIPELINE_KINDS)
+        return guest_job_status_view(request.app.state.jobs, ws, GUEST_PIPELINE_KINDS)
 
 
 @router.get("/api/review/{token}/daw/pipeline/jobs/{job_id}")
@@ -348,9 +323,8 @@ def _job_events(token: str, scope: GuestJobScope) -> StreamingResponse:
 
 
 def _cancelled(request: Request, scope: GuestJobScope, operation: str) -> dict[str, Any]:
-    with guest_boundary(log, operation):
-        job = cancel_job(request.app.state.jobs, scope.job.id, detail=JOB_NOT_FOUND)
-    return _projected(job, scope)
+    with _guest_call(operation):
+        return guest_cancel_job(request.app.state.jobs, scope.ws, scope.job, scope.kinds)
 
 
 @router.get("/api/review/{token}/daw/pipeline/jobs/{job_id}/events")
@@ -366,22 +340,17 @@ def post_daw_pipeline_job_cancel(request: Request, scope: PipelineCancelScope) -
 
 @router.post("/api/review/{token}/daw/export", status_code=202)
 def post_daw_export(
-    token: str, request: Request, req: GuestExportRequest, ws: ExportStartWorkspace
+    request: Request, req: GuestExportRequest, who: ExportStartActor
 ) -> dict[str, Any]:
     """Exports into the project's own export folder; the client names formats, never a path."""
-    with guest_boundary(log, "review export"):
-        formats = (
-            None if req.formats is None else [dict(GUEST_EXPORT_FORMATS[f]) for f in req.formats]
-        )
-        job = request.app.state.jobs.start_export(ws.path, formats=formats, wait_for_rebuild=False)
-    log.info("guest export started token=%s job=%s", token[:8], job.id)
-    return {"job": guest_job_projection(job)}
+    with _guest_call("review export"):
+        return guest_start_export(request.app.state.jobs, who.ws, who.source, req.formats)
 
 
 @router.get("/api/review/{token}/daw/export/status")
 def get_daw_export_status(request: Request, ws: ExportStatusWorkspace) -> dict[str, Any]:
     with guest_boundary(log, "review export status"):
-        return guest_status_view(request.app.state.jobs.status(), ws.path, GUEST_EXPORT_KINDS)
+        return guest_job_status_view(request.app.state.jobs, ws, GUEST_EXPORT_KINDS)
 
 
 @router.get("/api/review/{token}/daw/export/jobs/{job_id}")
@@ -413,14 +382,12 @@ def _refine_view(report: dict[str, Any]) -> dict[str, Any]:
     return {**report, "notes": "", "source": "guest" if guest else source}
 
 
-def _only(row: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
-    return {key: row[key] for key in keys}
-
-
 @router.get("/api/review/{token}/daw/transcript/vocabulary")
 def get_daw_transcript_vocabulary(ws: VocabularyGetWorkspace) -> dict[str, Any]:
     with guest_boundary(log, "review vocabulary"):
-        return _only(TranscriptPrecorrectService.vocabulary_status(ws.path), GUEST_VOCABULARY_KEYS)
+        return guest_only_keys(
+            TranscriptPrecorrectService.vocabulary_status(ws.path), GUEST_VOCABULARY_KEYS
+        )
 
 
 @router.put("/api/review/{token}/daw/transcript/vocabulary")
@@ -435,7 +402,7 @@ def put_daw_transcript_vocabulary(
         except VocabularyConflictError as exc:
             raise _refused(409, "vocabulary_conflict") from exc
     log.info("guest vocabulary saved token=%s", token[:8])
-    return _only(saved, GUEST_VOCABULARY_KEYS)
+    return guest_only_keys(saved, GUEST_VOCABULARY_KEYS)
 
 
 @router.get(
@@ -532,21 +499,17 @@ def post_daw_transcript_export(
     if not req.dry_run:
         log.info("guest transcript export token=%s formats=%s", token[:8], ",".join(req.formats))
     view = asdict(result)
-    view["files"] = [_only(row, GUEST_EXPORT_FILE_KEYS) for row in view["files"]]
+    view["files"] = [guest_only_keys(row, GUEST_EXPORT_FILE_KEYS) for row in view["files"]]
     return view
 
 
 @router.get("/api/review/{token}/daw/transcript/exports")
 def get_daw_transcript_exports(ws: TranscriptExportsWorkspace) -> list[dict[str, Any]]:
     with guest_boundary(log, "review transcript exports"):
-        return [_only(asdict(row), GUEST_EXPORTED_KEYS) for row in TranscriptService(ws).exported()]
-
-
-def _past_the_end(ws: ProjectWorkspace, req: GuestSpeakerSplitRequest) -> bool:
-    track = ws.project.track_by_id(req.track_id)
-    duration = track.media.duration_sec if track is not None and track.media else None
-    spans = (span for spans in (req.enrollment or {}).values() for span in spans)
-    return duration is not None and any(start >= duration for start, _end in spans)
+        return [
+            guest_only_keys(asdict(row), GUEST_EXPORTED_KEYS)
+            for row in TranscriptService(ws).exported()
+        ]
 
 
 @router.post("/api/review/{token}/daw/speaker/split", status_code=202)
@@ -554,29 +517,22 @@ def post_daw_speaker_split(
     request: Request, req: GuestSpeakerSplitRequest, who: SpeakerSplitActor
 ) -> dict[str, Any]:
     """Splits one of the project's tracks; a missing model is the fixed 409, never a download."""
-    with guest_boundary(log, "review speaker split"):
-        if _past_the_end(who.ws, req):
-            raise _refused(400, "enrollment_past_end")
-        try:
-            job = request.app.state.jobs.start_split_speakers(
-                who.ws.path,
-                track_id=req.track_id,
-                speaker_count=req.speaker_count,
-                names=req.names,
-                enrollment=req.enrollment,
-            )
-        except ModelMissing:
-            raise
-        except CodedValueError as exc:
-            raise _refused(SPLIT_REFUSAL_STATUS.get(exc.code, 400), exc.code) from exc
-    log.info("guest speaker split started by=%s job=%s", who.source, job.id)
-    return {"job": guest_job_projection(job)}
+    with _guest_call("review speaker split"):
+        return guest_start_speaker_split(
+            request.app.state.jobs,
+            who.ws,
+            who.source,
+            track_id=req.track_id,
+            speaker_count=req.speaker_count,
+            names=req.names,
+            enrollment=req.enrollment,
+        )
 
 
 @router.get("/api/review/{token}/daw/speaker/status")
 def get_daw_speaker_status(request: Request, ws: SpeakerStatusWorkspace) -> dict[str, Any]:
     with guest_boundary(log, "review speaker status"):
-        return guest_status_view(request.app.state.jobs.status(), ws.path, GUEST_SPEAKER_KINDS)
+        return guest_job_status_view(request.app.state.jobs, ws, GUEST_SPEAKER_KINDS)
 
 
 @router.get("/api/review/{token}/daw/speaker/jobs/{job_id}")
@@ -598,19 +554,15 @@ def post_daw_speaker_job_cancel(request: Request, scope: SpeakerCancelScope) -> 
 def post_daw_speaker_move_lane_span(
     req: GuestSpeakerMoveLaneSpanRequest, who: SpeakerMoveLaneSpanActor
 ) -> dict[str, Any]:
-    with guest_boundary(log, "review speaker move"):
-        try:
-            moved = SpeakerService(who.ws).move_lane_span(
-                req.from_lane,
-                req.to_lane,
-                timeline_start=req.timeline_start,
-                timeline_end=req.timeline_end,
-            )
-        except CodedValueError as exc:
-            raise _refused(400, exc.code) from exc
-        view = _only(moved, GUEST_MOVE_LANE_SPAN_KEYS)
-    log.info("guest speaker move by=%s", who.source)
-    return view
+    with _guest_call("review speaker move"):
+        return guest_move_lane_span(
+            who.ws,
+            who.source,
+            from_lane=req.from_lane,
+            to_lane=req.to_lane,
+            timeline_start=req.timeline_start,
+            timeline_end=req.timeline_end,
+        )
 
 
 def check_guest_router(router: APIRouter, registry: Mapping[str, GuestRoute]) -> None:

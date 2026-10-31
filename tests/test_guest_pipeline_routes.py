@@ -620,7 +620,7 @@ def test_only_the_pipeline_start_needs_the_render_flag() -> None:
 
 
 @pytest.fixture
-def runner(world, monkeypatch):
+def runner(world, monkeypatch, skip_run_preflight):
     monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
     gate, started, finished = threading.Event(), threading.Event(), threading.Event()
     calls: list[dict] = []
@@ -635,8 +635,6 @@ def runner(world, monkeypatch):
         return SimpleNamespace(last_step=None, job_result=dict)
 
     monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.run", fake_run)
-    for name in ("ensure_whisper_cached_for_run", "ensure_word_aligner_for_run"):
-        monkeypatch.setattr(f"podcast_mcp.gui.routes.pipeline_jobs.{name}", lambda *_a, **_k: None)
     world.gate, world.started, world.calls = gate, started, calls
     yield world
     gate.set()
@@ -960,7 +958,8 @@ def test_retime_words_without_the_aligner_is_the_coded_409(world, monkeypatch, t
     monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
     reached = _no_download(monkeypatch, tmp_path)
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.pipeline_jobs.ensure_whisper_cached_for_run", lambda **_k: None
+        "podcast_mcp.services.collaboration.guest_project_ops.ensure_whisper_cached_for_run",
+        lambda **_k: None,
     )
 
     res = _run(world, only_step="transcribe_tracks", retime_words=True)
@@ -978,7 +977,8 @@ def test_an_unusable_aligner_override_is_the_same_409(world, monkeypatch, tmp_pa
     reached = _no_download(monkeypatch, tmp_path)
     monkeypatch.setenv(WORD_ALIGNER_ENV, str(tmp_path / "no-aligner-here"))
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.pipeline_jobs.ensure_whisper_cached_for_run", lambda **_k: None
+        "podcast_mcp.services.collaboration.guest_project_ops.ensure_whisper_cached_for_run",
+        lambda **_k: None,
     )
 
     res = _run(world, only_step="transcribe_tracks", retime_words=True)

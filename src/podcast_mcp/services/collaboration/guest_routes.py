@@ -1,8 +1,9 @@
 """Share-scoped twins of owner routes: the one registry an Editor link may reach.
 
 A route with no row here is denied: ``gui/routes/review_editor.py`` refuses to import with a
-route that has no row. The HTTP twins are the registry; the guest MCP render tools are gated
-separately in ``remote_mcp/allowlist.py`` and ``tools.py`` until they join it.
+route that has no row. The HTTP twins are the registry; the guest MCP tools are gated in
+``remote_mcp/allowlist.py`` and ``tools.py``. A row's MCP tool is named in ``_ROUTE_AGENT`` of
+``scripts/export_docs_site_contract.py`` and ``tests/test_guest_project_mcp_tools.py`` joins them.
 Only starting work spends host CPU, so only starts need ``needs_guest_render``; status, events and
 cancel work with the flag off. The transcript routes start no job and need no flag; neither does
 moving a speaker lane span.

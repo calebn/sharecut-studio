@@ -14,7 +14,6 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.engines.speaker_id import MockSpeakerBackend, _speaker_model_missing
 from podcast_mcp.engines.speaker_split import RATE, SpeakerAttribution, SpeakerTurn
-from podcast_mcp.gui.routes.review_editor import GUEST_MOVE_LANE_SPAN_KEYS
 from podcast_mcp.gui.schemas import (
     GuestRequest,
     GuestSpeakerMoveLaneSpanRequest,
@@ -23,6 +22,7 @@ from podcast_mcp.gui.schemas import (
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.guest_project_ops import GUEST_MOVE_LANE_SPAN_KEYS
 from podcast_mcp.services.collaboration.guest_routes import GUEST_OWNER_ROUTES
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService, lookup_share
@@ -41,6 +41,7 @@ from podcast_mcp.services.jobs.job import GUEST_JOB_VIEW
 from podcast_mcp.util.coded_error import guest_message_for_code
 from podcast_mcp.util.proxy_paths import is_allowed_local_gui_path
 
+OPS_LOGGER = "podcast_mcp.services.collaboration.guest_project_ops"
 CODE = "x-sharecut-error-code"
 RELAYED = {"x-sharecut-relayed": "1"}
 NOT_FOUND = {"detail": "Job not found"}
@@ -298,7 +299,7 @@ def test_the_split_needs_the_host_opt_in_and_the_move_does_not(world, monkeypatc
 
 
 def test_the_editor_splits_the_track_and_gets_only_the_projection(world, caplog) -> None:
-    with caplog.at_level(logging.INFO, logger="podcast_mcp.gui.routes.review_editor"):
+    with caplog.at_level(logging.INFO, logger=OPS_LOGGER):
         res = _split(world)
 
     assert res.status_code == 202
@@ -875,7 +876,7 @@ def test_the_guest_mcp_job_tool_does_not_read_a_speaker_job(world, monkeypatch) 
 def test_the_move_moves_the_range_and_answers_the_allowlist(world, caplog) -> None:
     _finished_split(world)
 
-    with caplog.at_level(logging.INFO, logger="podcast_mcp.gui.routes.review_editor"):
+    with caplog.at_level(logging.INFO, logger=OPS_LOGGER):
         res = _move(world)
 
     assert res.status_code == 200

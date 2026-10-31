@@ -32,6 +32,7 @@ _ADAPTER_EXCEPTIONS = {
         "podcast_mcp.gui.static_assets",
     },
     "podcast_mcp.services.document_sync.service": {"podcast_mcp.gui.assembler"},
+    "podcast_mcp.services.remote_mcp.tools": {"podcast_mcp.gui.schemas"},
     "podcast_mcp.services.collaboration.share": {
         "podcast_mcp.gui.mapper",
         "podcast_mcp.gui.audio",

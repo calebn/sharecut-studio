@@ -27,6 +27,13 @@ _MUTATE_TOOLS: frozenset[str] = frozenset(
         "guest_pending_preview",
         "guest_audition_context",
         "guest_upload_media",
+        "guest_pipeline_run",
+        "guest_pipeline_job_cancel",
+        "guest_export_start",
+        "guest_export_job_cancel",
+        "guest_speaker_split",
+        "guest_speaker_job_cancel",
+        "guest_speaker_move_lane_span",
     }
 )
 

@@ -300,31 +300,20 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ),
     ("POST", "/api/review/{token}/daw/render-preview"): "guest_render_preview",
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): "guest_render_preview_job",
-    ("POST", "/api/review/{token}/daw/pipeline/run"): "http-only: no guest MCP run tool yet",
-    (
-        "GET",
-        "/api/review/{token}/daw/pipeline/status",
-    ): "http-only: no guest MCP job tool yet",
-    ("GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}"): (
-        "http-only: no guest MCP job tool yet"
-    ),
+    ("POST", "/api/review/{token}/daw/pipeline/run"): "guest_pipeline_run",
+    ("GET", "/api/review/{token}/daw/pipeline/status"): "guest_pipeline_status",
+    ("GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}"): "guest_pipeline_job",
     ("GET", "/api/review/{token}/daw/pipeline/jobs/{job_id}/events"): (
-        "http-only: SSE stream for ShareCut Studio"
+        "http-only: SSE stream for ShareCut Studio; agents poll guest_pipeline_job"
     ),
-    ("POST", "/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel"): (
-        "http-only: no guest MCP job tool yet"
-    ),
-    ("POST", "/api/review/{token}/daw/export"): "http-only: no guest MCP export tool yet",
-    ("GET", "/api/review/{token}/daw/export/status"): ("http-only: no guest MCP job tool yet"),
-    ("GET", "/api/review/{token}/daw/export/jobs/{job_id}"): (
-        "http-only: no guest MCP job tool yet"
-    ),
+    ("POST", "/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel"): "guest_pipeline_job_cancel",
+    ("POST", "/api/review/{token}/daw/export"): "guest_export_start",
+    ("GET", "/api/review/{token}/daw/export/status"): "guest_export_status",
+    ("GET", "/api/review/{token}/daw/export/jobs/{job_id}"): "guest_export_job",
     ("GET", "/api/review/{token}/daw/export/jobs/{job_id}/events"): (
-        "http-only: SSE stream for ShareCut Studio"
+        "http-only: SSE stream for ShareCut Studio; agents poll guest_export_job"
     ),
-    ("POST", "/api/review/{token}/daw/export/jobs/{job_id}/cancel"): (
-        "http-only: no guest MCP job tool yet"
-    ),
+    ("POST", "/api/review/{token}/daw/export/jobs/{job_id}/cancel"): "guest_export_job_cancel",
     (
         "GET",
         "/api/review/{token}/daw/transcript/vocabulary",
@@ -361,20 +350,14 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
         "GET",
         "/api/review/{token}/daw/transcript/exports",
     ): "http-only: no guest MCP transcript tool yet",
-    ("POST", "/api/review/{token}/daw/speaker/split"): "http-only: no guest MCP speaker tool yet",
-    ("GET", "/api/review/{token}/daw/speaker/status"): "http-only: no guest MCP speaker tool yet",
-    ("GET", "/api/review/{token}/daw/speaker/jobs/{job_id}"): (
-        "http-only: no guest MCP speaker tool yet"
-    ),
+    ("POST", "/api/review/{token}/daw/speaker/split"): "guest_speaker_split",
+    ("GET", "/api/review/{token}/daw/speaker/status"): "guest_speaker_status",
+    ("GET", "/api/review/{token}/daw/speaker/jobs/{job_id}"): "guest_speaker_job",
     ("GET", "/api/review/{token}/daw/speaker/jobs/{job_id}/events"): (
-        "http-only: no guest MCP speaker tool yet"
+        "http-only: SSE stream for ShareCut Studio; agents poll guest_speaker_job"
     ),
-    ("POST", "/api/review/{token}/daw/speaker/jobs/{job_id}/cancel"): (
-        "http-only: no guest MCP speaker tool yet"
-    ),
-    ("POST", "/api/review/{token}/daw/speaker/move-lane-span"): (
-        "http-only: no guest MCP speaker tool yet"
-    ),
+    ("POST", "/api/review/{token}/daw/speaker/jobs/{job_id}/cancel"): "guest_speaker_job_cancel",
+    ("POST", "/api/review/{token}/daw/speaker/move-lane-span"): "guest_speaker_move_lane_span",
     ("POST", "/api/review/{token}/feed/edit"): (
         "http-only: the host's feed_set tool; not a guest MCP tool"
     ),
@@ -585,6 +568,7 @@ def _render_remote_tools() -> str:
         COMMENT_TOOLS,
         DOCUMENT_COMMAND_TOOLS,
         EDIT_TOOLS,
+        EDITOR_PROJECT_TOOLS,
         PLAY_AND_VIEW_TOOLS,
         PLAY_TOOLS,
         VIEW_TOOLS,
@@ -609,6 +593,7 @@ def _render_remote_tools() -> str:
         f"| `+action` | {fmt(ACTION_TOOLS)} |",
         f"| Commenter or Editor role | {fmt(DOCUMENT_COMMAND_TOOLS)} |",
         f"| Editor role | {fmt(EDIT_TOOLS)} |",
+        f"| Editor role, project work | {fmt(EDITOR_PROJECT_TOOLS)} |",
         "",
         REMOTE_END,
         "",
