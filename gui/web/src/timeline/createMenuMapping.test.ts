@@ -180,6 +180,39 @@ describe("runCreatePick", () => {
     expect(useDawStore.getState().layers.showLevels).toBe(true);
   });
 
+  it("keeps one wording when a command that tells its own refusal fails twice in a row", async () => {
+    vi.useFakeTimers();
+    try {
+      executePointerCommand.mockImplementation(async () => {
+        useDawStore
+          .getState()
+          .announceStatus("Paste failed: Server unreachable", {
+            tone: "error",
+          });
+        return { status: "disabled", reason: "Server unreachable" };
+      });
+      await runCreatePick("paste", lane);
+      const first = useDawStore.getState().feedbackToast;
+      await runCreatePick("paste", lane);
+      expect(useDawStore.getState().feedbackToast).toBe(first);
+      expect(useDawStore.getState().feedbackToast?.message).toBe(
+        "Paste failed: Server unreachable",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("checks the gate again at the pick, tells its reason once and runs nothing", async () => {
+    session(["view", "play", "comment", "reply"]);
+    const seq = useDawStore.getState().statusAnnouncementSeq;
+    await runCreatePick("addVolumePoint", lane);
+    expect(executePointerCommand).not.toHaveBeenCalled();
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(seq + 1);
+    expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
+    expect(useDawStore.getState().layers.showLevels).toBe(false);
+  });
+
   it("tells a command that threw, and says nothing when it ran", async () => {
     await runCreatePick("split", lane);
     expect(useDawStore.getState().statusAnnouncement).toBe("");

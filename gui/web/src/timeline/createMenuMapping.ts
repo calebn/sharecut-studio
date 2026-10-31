@@ -82,31 +82,44 @@ export function createAnnouncement(
 }
 
 /**
- * Runs the picked row's command at the held place. The volume layer is turned
- * on first when it is hidden, and stays on if the command then refuses. A
- * refusal is told, since the menu is gone by then.
+ * Runs the picked row's command at the held place. The gate is checked again
+ * here, since the session can change while the menu is open (a share link
+ * loses edit rights); a shut gate tells its reason and runs nothing. The volume
+ * layer is turned on first when it is hidden, and stays on if the command then
+ * refuses. A refusal is told, since the menu is gone by then.
  */
 export async function runCreatePick(
   id: CreateRowId,
   place: Pick<CreateMenuPlace, "atTime" | "trackId">,
 ): Promise<void> {
   const store = useDawStore.getState();
+  const command = CREATE_MENU_COMMANDS[id];
+  const gate = evaluateWhen(COMMANDS[command].when, buildCommandContext());
+  if (!gate.ok) {
+    store.announceStatus(gate.reason, { tone: "error" });
+    return;
+  }
   const toldBefore = store.statusAnnouncementSeq;
   if (id === "addVolumePoint" && !store.layers.showLevels) {
     store.setLayerVisible("showLevels", true);
   }
   try {
     const result = await executePointerCommand(
-      CREATE_MENU_COMMANDS[id],
+      command,
       createPickArgs(id, place),
     );
-    // A command that told its own refusal (a failed envelope save does) has
-    // already toasted; a second toast with other words would double it.
+    // A command that told its own refusal (a failed paste or envelope save
+    // does) has already toasted, in words that carry the reason. The same
+    // words told twice in a row are absorbed by the toast, which leaves the
+    // sequence where it was, so the standing text is checked as well; a second
+    // toast with other words would flip it.
     const live = useDawStore.getState();
-    if (
-      result.status === "disabled" &&
-      live.statusAnnouncementSeq === toldBefore
-    ) {
+    const told =
+      live.statusAnnouncementSeq !== toldBefore ||
+      live.statusAnnouncement.includes(
+        result.status === "disabled" ? result.reason : "",
+      );
+    if (result.status === "disabled" && !told) {
       live.announceStatus(result.reason, { tone: "error" });
     }
   } catch (error) {
