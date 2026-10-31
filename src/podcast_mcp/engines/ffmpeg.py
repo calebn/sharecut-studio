@@ -581,7 +581,10 @@ def _run_cancellable(cmd: list[str], cancel_check: Callable[[], bool]) -> None:
     A nonzero exit after a cancel was requested is the cancel too, not a failure: the
     child may have been stopped by the same interrupt (#1164).
     """
-    with tempfile.TemporaryFile() as err, popen(cmd, stdout=DEVNULL, stderr=err) as proc:
+    with (
+        tempfile.TemporaryFile() as err,
+        spawn_or_too_long(popen, cmd, stdout=DEVNULL, stderr=err) as proc,
+    ):
         try:
             while True:
                 try:

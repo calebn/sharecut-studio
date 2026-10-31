@@ -10,8 +10,8 @@ from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
-from subprocess import CalledProcessError, CompletedProcess
-from typing import Any, BinaryIO
+from subprocess import CalledProcessError
+from typing import Any, BinaryIO, TypeVar
 
 from podcast_mcp.engines.audio import (
     Audio,
@@ -78,9 +78,10 @@ def clock_error() -> CodedValueError:
     )
 
 
-def spawn_or_too_long(
-    spawn: Callable[..., CompletedProcess[Any]], cmd: list[str], **kwargs: Any
-) -> CompletedProcess[Any]:
+_T = TypeVar("_T")
+
+
+def spawn_or_too_long(spawn: Callable[..., _T], cmd: list[str], **kwargs: Any) -> _T:
     """Run ``cmd`` through ``spawn``; an argument list the OS refuses is ``render_command_too_long``.
 
     Windows reports ``ERROR_FILENAME_EXCED_RANGE`` (206) as ``FileNotFoundError``, so the code
