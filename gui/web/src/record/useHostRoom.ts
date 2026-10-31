@@ -108,6 +108,7 @@ export function useHostRoom(
   const takeClipping = useRecordHostStore((s) => s.takeClipping);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
+  const micLive = useRecordHostStore((s) => s.micLive);
   const connected = useRecordHostStore((s) => s.connected);
   const dropped = useRecordHostStore((s) => s.dropped);
   const transportError = useRecordHostStore((s) => s.transportError);
@@ -386,6 +387,7 @@ export function useHostRoom(
     resumeUpload,
     liveComments,
     captureAttention: capture,
+    micLive,
     captureUnavailable,
     micLossNeedsAttention,
     noAudioNeedsAttention,

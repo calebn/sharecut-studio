@@ -15,7 +15,7 @@ const meta: Meta<typeof StageBar> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Five stages in one tab list. Below a 1100 px container the inactive segments show the icon only (a container query, so the same story fits 360 and 1280). The phone form is a tab bar: a 24 px icon over an 11 px label. Record says nothing when idle, then a count while people wait, the red take clock while live, Paused, a ring while saving, the offline glyph while reconnecting and an amber dot for any alert.\n\n**Motion.** The active segment moves with `--motion-panel` once the animation pass lands; nothing animates in this slice.",
+          "Five stages in one tab list. Below a 1100 px container the inactive segments show the icon only (a container query, so the same story fits 360 and 1280). The phone form is a tab bar: a 24 px icon over an 11 px label. Record says nothing when idle (or a quiet Mic on circle while the host mic is live in an open room and you are on another stage), then a count while people wait, the red take clock while live, Paused, a ring while saving, the offline glyph while reconnecting and an amber dot for any alert.\n\n**Motion.** The active segment moves with `--motion-panel` once the animation pass lands; nothing animates in this slice.",
       },
     },
   },
@@ -138,6 +138,15 @@ export const RecordIdle: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByRole("tab", { name: "Record" }),
+    ).toBeVisible();
+  },
+};
+
+export const RecordMicOn: Story = {
+  render: () => <Bar active="edit" record={{ kind: "mic" }} />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("tab", { name: "Record Mic on" }),
     ).toBeVisible();
   },
 };

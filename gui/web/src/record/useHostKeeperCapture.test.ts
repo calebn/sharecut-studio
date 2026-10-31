@@ -82,6 +82,20 @@ describe("useHostKeeperCapture", () => {
     bindRecordHostSend(null);
   });
 
+  it("keeps the mic live when the stage changes", () => {
+    useDawStore.setState({ stage: "record" });
+    const { rerender } = renderHook(() => useHostKeeperCapture());
+    expect(mic).toHaveBeenLastCalledWith(true, "", expect.anything());
+    expect(useRecordHostStore.getState().micLive).toBe(true);
+    for (const stage of ["edit", "review", "prepare", "deliver"] as const) {
+      act(() => useDawStore.setState({ stage }));
+      rerender();
+      expect(mic).toHaveBeenLastCalledWith(true, "", expect.anything());
+      expect(useRecordHostStore.getState().micLive).toBe(true);
+    }
+    expect(mic.mock.calls.every(([enabled]) => enabled === true)).toBe(true);
+  });
+
   it("syncs live clipping into the host store and clears it on unmount", () => {
     const live = {
       takeIndex: recording.take_index,

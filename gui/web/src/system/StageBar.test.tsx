@@ -49,6 +49,7 @@ describe("the Record badge", () => {
       { kind: "live", clockMs: 0, receivedAtMs: null, alert: true } as const,
       "Record Live, needs attention",
     ],
+    [{ kind: "mic" } as const, "Record Mic on"],
     [{ kind: "paused" } as const, "Record Paused"],
     [{ kind: "saving", progress: 0.5 } as const, "Record Saving"],
     [{ kind: "alert" } as const, "Record Needs attention"],
