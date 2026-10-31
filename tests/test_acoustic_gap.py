@@ -18,6 +18,11 @@ from podcast_mcp.edits.acoustic_gap import (
     find_voiced_gap_runs,
 )
 from podcast_mcp.edits.acoustic_laugh import burst_count, has_laugh_bursts
+from podcast_mcp.edits.acoustic_phrase import (
+    MIN_WORD_STEPS,
+    phrase_hit_indexes,
+    word_silence_ceiling,
+)
 from podcast_mcp.edits.acoustic_word import (
     flag_possible_words,
     heard_a_word,
@@ -1059,7 +1064,7 @@ def test_pending_acoustic_edit_is_review_hypothesis_with_its_own_span() -> None:
 
 
 def _cadence_words(
-    *, count: int = 40, duration: float = 0.14, silence: float = 0.08
+    *, count: int = 40, duration: float = 0.14, silence: float = 0.15
 ) -> list[TranscriptWord]:
     words: list[TranscriptWord] = []
     at = 0.0
@@ -1149,10 +1154,10 @@ def test_a_pair_of_close_hits_is_two_fillers_not_a_phrase(gain: float) -> None:
 
 def test_hits_are_close_by_the_speakers_own_cadence_not_by_a_fixed_time() -> None:
     fast, fast_gap = _phrase_transcript()
-    slow, slow_gap = _phrase_transcript(duration=0.5, silence=0.2)
+    slow, slow_gap = _phrase_transcript(duration=0.3, silence=0.3)
 
     def string(transcript: Transcript, gap_start: float) -> np.ndarray:
-        return _hits(transcript.words[-1].end + 1.0, gap_start + 1.0, 3, silence=0.5)
+        return _hits(transcript.words[-1].end + 1.0, gap_start + 1.0, 3, silence=0.25)
 
     assert len(_propose_in_gap(fast, string(fast, fast_gap))) == 3
     assert _propose_in_gap(slow, string(slow, slow_gap)) == []
@@ -1184,6 +1189,37 @@ def test_a_flanking_words_voice_running_out_of_the_gap_is_not_part_of_a_string()
     found = _propose_in_gap(transcript, samples)
 
     assert len(found) == 3
+
+
+def test_the_ceiling_is_the_silence_between_words_not_the_onset_step() -> None:
+    # Onset steps are 0.7 s (a 0.6 s word and a 0.1 s silence); silences are 0.1 s.
+    words = _cadence_words(duration=0.6, silence=0.1)
+
+    ceiling = word_silence_ceiling(words, 0.35)
+
+    assert ceiling is not None
+    assert ceiling == pytest.approx(0.1, abs=1e-6)
+
+
+def test_the_ceiling_ignores_pauses_and_needs_enough_silences() -> None:
+    words = _cadence_words(count=MIN_WORD_STEPS, silence=0.1)  # one fewer silence than steps
+    assert word_silence_ceiling(words, 0.35) is None
+    assert word_silence_ceiling(_cadence_words(count=MIN_WORD_STEPS + 1, silence=0.1), 0.35)
+    # Silences at or over the pause threshold are not counted.
+    assert word_silence_ceiling(_cadence_words(count=40, silence=0.4), 0.35) is None
+
+
+def test_hits_half_a_second_apart_are_not_a_phrase_at_ordinary_word_silence() -> None:
+    ceiling = word_silence_ceiling(_cadence_words(duration=0.6, silence=0.1), 0.35)
+
+    def runs(spacing: float) -> list[AcousticGapRun]:
+        return [
+            AcousticGapRun(start=i * (0.2 + spacing), end=i * (0.2 + spacing) + 0.2, confidence=1.0)
+            for i in range(3)
+        ]
+
+    assert phrase_hit_indexes(runs(0.5), ceiling) == set()
+    assert phrase_hit_indexes(runs(0.1), ceiling) == {0, 1, 2}
 
 
 # --- laughs (#1365) -------------------------------------------------------------

@@ -1,8 +1,8 @@
 """Short voiced hits strung together in one word gap are an untranscribed phrase.
 
 A hit alone in a gap can be a filler. Several hits one after another, each separated
-from the next by no more than this speaker's longest ordinary step from one word onset to
-the next, have the cadence of speech the transcript dropped, such as a hummed or sung
+from the next by no more than this speaker's longest ordinary silence between one word
+and the next, have the cadence of speech the transcript dropped, such as a hummed or sung
 phrase. Muting them one by one would mute that phrase, so none is proposed.
 """
 
@@ -21,21 +21,23 @@ MIN_WORD_STEPS = 30
 _STEP_PERCENTILE = 95.0
 
 
-def word_step_ceiling(words: Sequence[TranscriptWord], pause_sec: float) -> float | None:
-    """This speaker's longest ordinary onset-to-onset step between words of one phrase.
+def word_silence_ceiling(words: Sequence[TranscriptWord], pause_sec: float) -> float | None:
+    """This speaker's longest ordinary silence between words of one phrase.
 
-    Steps across a pause (silence of ``pause_sec`` or more) are not part of a phrase.
-    ``None`` when the track has too few steps to read a cadence from.
+    It is the same quantity ``phrase_hit_indexes`` compares it with: the silence from the
+    end of one word to the start of the next. Silences of ``pause_sec`` or more are a
+    pause, not part of a phrase. ``None`` when the track has too few silences to read a
+    cadence from.
     """
     live = [w for w in words if not w.suppressed and w.end > w.start]
-    steps = [
-        nxt.start - word.start
+    silences = [
+        nxt.start - word.end
         for word, nxt in pairwise(live)
         if 0.0 <= nxt.start - word.end < pause_sec
     ]
-    if len(steps) < MIN_WORD_STEPS:
+    if len(silences) < MIN_WORD_STEPS:
         return None
-    return float(np.percentile(steps, _STEP_PERCENTILE))
+    return float(np.percentile(silences, _STEP_PERCENTILE))
 
 
 def phrase_hit_indexes(runs: Sequence[AcousticGapRun], ceiling: float | None) -> set[int]:
