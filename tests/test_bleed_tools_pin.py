@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.main import app
 from podcast_mcp.edits.off_speaker_mute import OffSpeakerPlan
 from podcast_mcp.mcp import server as mcp_server
-from podcast_mcp.mcp.tools import timeline
+from podcast_mcp.mcp.tools import timeline, transcript
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync import DocumentSyncService
@@ -29,6 +29,12 @@ from test_bleed_alignment_surfaces import _workspace
 
 BUSY = "another render of this project is in progress; try again when it finishes"
 WINDOW = {"track_id": "uncertain", "start_sec": 0.8, "end_sec": 3.5}
+
+
+def _tool_function(name):
+    return getattr(transcript if hasattr(transcript, name) else timeline, name)
+
+
 CALLS = {
     "apply_transcript_gate_tool": WINDOW,
     "align_retained_bleed_tool": WINDOW,
@@ -327,9 +333,9 @@ async def test_tool_functions_called_directly_journal_once_for_apply_only(
     tmp_path, name, preview_args
 ):
     ws = _workspace(tmp_path)
-    getattr(timeline, name)(str(ws.path), **{**CALLS[name], **preview_args})
+    _tool_function(name)(str(ws.path), **{**CALLS[name], **preview_args})
     assert _types(ws.path) == []
-    getattr(timeline, name)(str(ws.path), **CALLS[name])
+    _tool_function(name)(str(ws.path), **CALLS[name])
     assert _types(ws.path) == ["ExternalMutate"]
 
 
@@ -422,6 +428,7 @@ async def test_render_lock_held_elsewhere_refuses_with_project_busy_and_changes_
     with (
         _render_lock_held_elsewhere(ws),
         patch.object(timeline, "REQUEST_RENDER_LOCK_TIMEOUT_SEC", 0.2),
+        patch.object(transcript, "REQUEST_RENDER_LOCK_TIMEOUT_SEC", 0.2),
     ):
         result = await _call(name, ws.path, **CALLS[name])
     assert result.is_error is True
@@ -438,6 +445,7 @@ async def test_previews_do_not_wait_for_the_render_lock(tmp_path, name):
     with (
         _render_lock_held_elsewhere(ws),
         patch.object(timeline, "REQUEST_RENDER_LOCK_TIMEOUT_SEC", 0.2),
+        patch.object(transcript, "REQUEST_RENDER_LOCK_TIMEOUT_SEC", 0.2),
     ):
         result = await _call(name, ws.path, **PREVIEW_ARGS[name])
     assert result.is_error is False
@@ -452,7 +460,7 @@ def test_cancel_while_waiting_for_the_render_lock_raises_cancelled_progress(tmp_
             with pytest.raises(
                 CancelledProgress, match="cancelled while waiting for another render"
             ):
-                getattr(timeline, name)(str(ws.path), **CALLS[name])
+                _tool_function(name)(str(ws.path), **CALLS[name])
     assert _state(ws.path) == before
 
 

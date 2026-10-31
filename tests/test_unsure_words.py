@@ -417,7 +417,7 @@ def test_mcp_approve_all_pending_holds_unsure_cuts_without_the_override_hint(tmp
 
 def test_the_tool_descriptions_cite_the_config_key_not_a_number():
     from podcast_mcp.mcp.tools.edits import approve_edits_tool
-    from podcast_mcp.mcp.tools.timeline import low_confidence_words_tool
+    from podcast_mcp.mcp.tools.transcript import low_confidence_words_tool
 
     assert "analysis.unsure_word_confidence" in (low_confidence_words_tool.__doc__ or "")
     assert "analysis.unsure_word_confidence" in (approve_edits_tool.__doc__ or "")
