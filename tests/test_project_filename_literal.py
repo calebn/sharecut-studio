@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
+
+from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME
+from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME
 
 REPO = Path(__file__).resolve().parents[1]
 RETIRED = "episode.project" + ".json"
@@ -71,3 +75,21 @@ def test_an_untracked_file_is_not_scanned(tmp_path):
 
 def test_the_repository_never_names_the_retired_entry_file_outside_the_allowlist():
     assert files_naming_the_retired_entry_file(REPO) == []
+
+
+def _ts_constant(text: str, name: str) -> str | None:
+    found = re.search(rf'export const {name} = "([^"]+)";', text)
+    return found.group(1) if found else None
+
+
+def test_the_web_constants_mirror_the_python_ones():
+    text = (REPO / "gui/web/src/utils/projectFile.ts").read_text(encoding="utf-8")
+    assert _ts_constant(text, "EPISODE_PROJECT_FILENAME") == EPISODE_PROJECT_FILENAME
+    assert _ts_constant(text, "RETIRED_PROJECT_FILENAME") == RETIRED_PROJECT_FILENAME
+
+
+def test_a_drifted_web_constant_is_detected():
+    drifted = f'export const EPISODE_PROJECT_FILENAME = "{EPISODE_PROJECT_FILENAME}2";'
+    assert _ts_constant(drifted, "EPISODE_PROJECT_FILENAME") != EPISODE_PROJECT_FILENAME
+    assert _ts_constant("", "EPISODE_PROJECT_FILENAME") is None
+    assert _ts_constant(drifted.rstrip(";"), "EPISODE_PROJECT_FILENAME") is None

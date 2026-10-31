@@ -6,6 +6,7 @@ before its first read.
 
 from __future__ import annotations
 
+import errno
 import json
 import logging
 from pathlib import Path
@@ -20,6 +21,7 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.gui import gui_app
 from podcast_mcp.cli.main import app as cli_app
 from podcast_mcp.cli.setup_cmd import setup_app
+from podcast_mcp.gui import serve
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME, adopt_retired_entry_file
 from podcast_mcp.services.app import (
@@ -36,6 +38,7 @@ from podcast_mcp.services.app.recent_projects import (
     record_recent,
 )
 from podcast_mcp.services.app.studio_host import HANDOFF_TOKEN_HEADER
+from podcast_mcp.services.collaboration import share as share_module
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import (
     ShareService,
@@ -106,6 +109,30 @@ def test_cli_gui_refuses_with_the_coded_message_when_the_rename_fails(legacy: Pa
     assert result.exit_code == 1
     assert "Rename it to episode.sharecut by hand and open it again." in result.output
     assert _files(legacy.parent) == [RETIRED_PROJECT_FILENAME]
+
+
+def test_serve_main_refuses_with_the_coded_message_when_the_rename_fails(legacy: Path, monkeypatch):
+    def refuse(src, dst):
+        raise PermissionError("read-only")
+
+    monkeypatch.setattr("podcast_mcp.project.io.os.rename", refuse)
+    with patch("podcast_mcp.gui.bind.run_gui_server") as run, pytest.raises(SystemExit) as exc:
+        serve.main(["--project", str(legacy)])
+    assert str(exc.value.code).startswith("Error: ")
+    assert "Rename it to episode.sharecut by hand and open it again." in str(exc.value.code)
+    run.assert_not_called()
+    assert _files(legacy.parent) == [RETIRED_PROJECT_FILENAME]
+
+
+def test_serve_main_serves_the_resolved_path_for_the_retired_file(legacy: Path):
+    with (
+        patch("podcast_mcp.gui.bind.run_gui_server") as run,
+        patch("podcast_mcp.gui.server.create_app") as make,
+    ):
+        serve.main(["--project", str(legacy)])
+    assert make.call_args.kwargs["served_project"] == legacy.with_name("episode.sharecut").resolve()
+    run.assert_called_once()
+    assert _files(legacy.parent) == ["episode.sharecut"]
 
 
 def test_create_app_pins_the_resolved_path_for_the_retired_file(legacy: Path):
@@ -404,6 +431,24 @@ def test_a_refused_share_adoption_is_logged_once_per_workspace(
     row = {"project_workspace": str(legacy.parent)}
     with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.collaboration.share"):
         for _ in range(3):
+            with pytest.raises(FileNotFoundError):
+                workspace_from_share_row(row)
+    assert [r.getMessage() for r in caplog.records] == [
+        f"Cannot adopt the entry file in {str(legacy.parent)!r}"
+    ]
+
+
+def test_a_share_adoption_oserror_reads_as_missing_and_is_logged_once(
+    legacy: Path, monkeypatch, caplog: pytest.LogCaptureFixture
+):
+    def too_long(workspace):
+        raise OSError(errno.ENAMETOOLONG, "File name too long")
+
+    monkeypatch.setattr(share_module, "_REFUSED_ADOPTIONS", set())
+    monkeypatch.setattr(share_module, "adopt_retired_entry_file", too_long)
+    row = {"project_workspace": str(legacy.parent)}
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.collaboration.share"):
+        for _ in range(2):
             with pytest.raises(FileNotFoundError):
                 workspace_from_share_row(row)
     assert [r.getMessage() for r in caplog.records] == [

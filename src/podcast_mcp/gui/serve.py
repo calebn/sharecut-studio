@@ -25,13 +25,14 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit("GUI dependencies missing. Install with: uv sync --extra gui")
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.project.io import ensure_utf8_path
+    from podcast_mcp.project.io import adopt_retired_entry_file, ensure_utf8_path
     from podcast_mcp.services.session_sync import ensure_non_loopback_session_auth
 
     ensure_non_loopback_session_auth(args.host)
     served = args.project.resolve() if args.project is not None else None
     if served is not None:
         try:
+            served = adopt_retired_entry_file(served)
             ensure_utf8_path(served)
         except ValueError as exc:
             raise SystemExit(f"Error: {exc}") from exc
