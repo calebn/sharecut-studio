@@ -103,6 +103,7 @@ function RecordStageBody({
   const sessionName = useOpenSessionName(
     projectPath,
     snapshot?.session_id ?? null,
+    snapshot?.state,
   );
   const [remapBusy, setRemapBusy] = useState(false);
   const clipTracks = project?.clips.tracks;
