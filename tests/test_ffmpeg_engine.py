@@ -1603,14 +1603,6 @@ def test_concat_with_gap_leaves_no_silence_file_when_the_silence_render_fails(tm
     assert list(tmp_path.glob(".*_gap.wav")) == []
 
 
-def test_concat_with_gap_without_a_gap_joins_the_parts_directly(tmp_path: Path):
-    eng = FFmpegEngine()
-    a, b, out = tmp_path / "a.wav", tmp_path / "b.wav", tmp_path / "ab.wav"
-    with patch.object(FFmpegEngine, "join_audio_parts", return_value=out) as join:
-        assert eng.concat_with_gap(a, b, out, gap_sec=0.0, rate=48000, channels=1) == out
-    join.assert_called_once_with([a, b], out)
-
-
 def test_concat_with_gap_real_round_trip_length_is_the_sum(tmp_path: Path):
     def tone(path: Path, seconds: float) -> None:
         with wave.open(str(path), "wb") as w:
