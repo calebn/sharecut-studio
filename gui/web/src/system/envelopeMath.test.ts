@@ -11,7 +11,6 @@ import {
   gainToDb,
   hitRadius,
   levelStep,
-  lineBand,
   linePath,
   nearestGapPx,
   pointBounds,
@@ -160,11 +159,6 @@ describe("hit areas", () => {
     expect(hitRadius(true, 30)).toBe(15);
     expect(hitRadius(false, 12)).toBe(6);
     expect(hitRadius(true, 4)).toBe(DOT_RADIUS_PX);
-  });
-
-  it("makes the add band 6 px each way, and 12 on a coarse pointer, not 22", () => {
-    expect(lineBand(false)).toBe(6);
-    expect(lineBand(true)).toBe(12);
   });
 
   it("finds the nearest neighbour in px", () => {

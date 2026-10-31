@@ -19,8 +19,6 @@ export const ENVELOPE_POINT_GAP_SEC = 0.001;
 export const DOT_RADIUS_PX = 5;
 const HIT_RADIUS_PX = 8;
 const HIT_RADIUS_COARSE_PX = 22;
-const LINE_BAND_PX = 6;
-const LINE_BAND_COARSE_PX = 12;
 
 const NUDGE_SEC = 0.01;
 const NUDGE_SEC_BIG = 0.1;
@@ -115,17 +113,12 @@ export function pointBounds(
 /**
  * Half the width of a point's hit area, in px: 8 on a fine pointer and 22
  * (a 44 px circle) on a coarse one, never more than half the gap to the
- * nearest neighbour so two hit areas do not overlap, and never less than the
- * dot itself.
+ * nearest neighbour, and never less than the dot itself, so under a 10 px gap
+ * the hit areas may overlap.
  */
 export function hitRadius(coarse: boolean, gapPx: number): number {
   const base = coarse ? HIT_RADIUS_COARSE_PX : HIT_RADIUS_PX;
   return Math.max(DOT_RADIUS_PX, Math.min(base, gapPx / 2));
-}
-
-/** Half the height of the strip along the line that adds a point, in px. */
-export function lineBand(coarse: boolean): number {
-  return coarse ? LINE_BAND_COARSE_PX : LINE_BAND_PX;
 }
 
 /** The px between a point and the nearest of its neighbours. */
@@ -155,7 +148,7 @@ export function pointVisible(
   return itemVisible(itemBox(time, 0, start, pxPerSecond), width);
 }
 
-const round2 = (value: number) => Math.round(value * 100) / 100;
+export const round2 = (value: number) => Math.round(value * 100) / 100;
 
 /**
  * The line's path in px from the lane's top left. It runs through every point

@@ -150,7 +150,7 @@ const meta: Meta<typeof Stack> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The volume envelope over one track's lane (design-system element 15b, spec-edit OVL-ENVELOPE). A 2 px line in the track's colour runs through the points on a dB scale from -60 dB to +3.52 dB, the stored gain's ceiling of 1.5, so 0 dB sits about 7.5 px from the top of a 72 px lane, and a dashed guide marks it. The level holds flat before the first point and after the last; with no points it is the unity line.\n\nA click on the line, not on a point, calls `onAdd(timeSeconds, db)`, the one callback without an id because the point is new. A point is dragged, with a readout chip (\"−3.0 dB · 12:04.3\") above it, between its neighbours and the episode and never closer than a millisecond to either; Escape, a blur or a lost pointer ends the drag uncommitted and the host puts the point back. A selected point has a ring; `onSelect(id)`, `onRemove(id)` and `onMove(id, { timeSeconds?, db? })` carry the id first. The envelope speaks dB only: `envelopeMath` converts to the store's gain.\n\nKeys are one tab stop (the selected point, else the first). On a focused point: Left and Right nudge 10 ms (Shift 100 ms), Up and Down 0.5 dB (Shift 5, Alt 0.05), Alt with Left or Right walks to the next point, Enter and Space select, Backspace and Delete remove a selected point. The point stops those keys, so the keymap never hears them. Each point is a slider of its level whose value text includes the time. A read-only envelope (a guest) lets points be selected and read, and does nothing else.\n\nOnly the strip along the line and the points take a pointer. Points have 16 px hit areas, 44 px on a coarse pointer (never more than half the gap to a neighbour); the line's strip is 12 px, 24 px coarse, so a clip under the overlay still takes its taps. A host that wires this must treat Backspace as the envelope's while a point has focus: see the wiring prerequisite in element 15b.\n\n**Dragging** is a held drag set up by the story's play function; the real drag is tested in the browser. **Motion.** None.",
+          "The volume envelope over one track's lane (design-system element 15b, spec-edit OVL-ENVELOPE). A 2 px line in the track's colour runs through the points on a dB scale from -60 dB to +3.52 dB, the stored gain's ceiling of 1.5, so 0 dB sits about 7.5 px from the top of a 72 px lane, and a dashed guide marks it. The level holds flat before the first point and after the last; with no points it is the unity line.\n\nA click on the line, not on a point, calls `onAdd(timeSeconds, db)`, the one callback without an id because the point is new. A point is dragged, with a readout chip (\"−3.0 dB · 12:04.3\") above it, between its neighbours and the episode and never closer than a millisecond to either; Escape, a blur or a lost pointer ends the drag uncommitted and the host puts the point back. A selected point has a ring; `onSelect(id)`, `onRemove(id)` and `onMove(id, { timeSeconds?, db? })` carry the id first. The envelope speaks dB only: `envelopeMath` converts to the store's gain.\n\nKeys are one tab stop (the selected point, else the first). On a focused point: Left and Right nudge 10 ms (Shift 100 ms), Up and Down 0.5 dB (Shift 5, Alt 0.05), Alt with Left or Right walks to the next point, Enter and Space select, Backspace and Delete remove a selected point. The point stops those keys, so the keymap never hears them. Each point is a slider of its level whose value text includes the time. A read-only envelope (a guest) lets points be selected and read, and does nothing else; its arrow keys are still kept from the keymap.\n\nOnly the strip along the line and the points take a pointer. Points have 16 px hit areas, 44 px on a coarse pointer (never more than half the gap to a neighbour); the line's strip is 12 px, 24 px coarse, so a clip under the overlay still takes its taps. A host that wires this must treat Backspace as the envelope's while a point has focus: see the wiring prerequisite in element 15b.\n\n**Dragging** is a held drag set up by the story's play function; the real drag is tested in the browser. **Motion.** None.",
       },
     },
   },
@@ -181,6 +181,16 @@ export const Points: Story = {
     await expect(
       canvas.getByRole("slider", { name: "Envelope point 2" }),
     ).toHaveAttribute("aria-valuetext", "−6.0 dB at 0:04.0");
+  },
+};
+
+export const Tall: Story = {
+  args: { height: 240, selected: "env-3" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getAllByRole("slider", { name: /^Envelope point/ }),
+    ).toHaveLength(5);
   },
 };
 

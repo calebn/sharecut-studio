@@ -434,7 +434,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Fate:** restyle; points created directly.
 - **Spec:** shown from track or clip More > Volume, or when points exist. Line in the track color, 2 px, values in dB on a scale from -60 dB to +3.52 dB (the stored gain's ceiling), with a labelled 0 dB guide (design-system element 15b). Click the line adds a point; drag moves it (readout chip "−3.0 dB · 12:04.3"); select shows action bar (Hear, Remove, Inspect: Time and Level Scrub fields); Backspace removes. Hide envelope from the eye popover.
 - **Shared elements used:** Action bar, NEW: Scrub field, NEW: Readout chip.
-- **Story to build:** `System/Envelope` stories `Empty`, `Points`, `PointSelected`, `Dragging`, `ReadOnly`, `Phone` (built, S7b-1b); `WithEnvelope` in `Stages/Edit/Timeline`.
+- **Story to build:** `System/Envelope` stories `Empty`, `Points`, `PointSelected`, `Dragging`, `Tall`, `ReadOnly`, `Phone` (built, S7b-1b); `WithEnvelope` in `Stages/Edit/Timeline`.
 
 ### OVL-BLEED · Automatic reduction regions
 

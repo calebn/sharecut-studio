@@ -1,4 +1,4 @@
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useRef, useState } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../../presence/anchors";
 import { Clip } from "../../system/Clip";
 import { Envelope, type EnvelopePointData } from "../../system/Envelope";
@@ -81,6 +81,7 @@ export function Timeline({
   const [clip, setClip] = useState(selectedClip);
   const [points, setPoints] = useState(envelope);
   const [picked, setPicked] = useState(envelopeSelected);
+  const before = useRef<readonly EnvelopePointData[] | null>(null);
   const headerPx = HEADER_PX[form];
   return (
     <div style={stage}>
@@ -182,6 +183,21 @@ export function Timeline({
                         duration={EPISODE_SECONDS}
                         selected={picked}
                         onSelect={setPicked}
+                        onRemove={(id) => {
+                          setPoints((now) =>
+                            now?.filter((point) => point.id !== id),
+                          );
+                          setPicked(null);
+                        }}
+                        onDragStart={() => {
+                          before.current = points ?? null;
+                          return true;
+                        }}
+                        onDragEnd={(_id, committed) => {
+                          const held = before.current;
+                          before.current = null;
+                          if (!committed && held) setPoints(held);
+                        }}
                         onMove={(id, change) =>
                           setPoints((now) =>
                             now?.map((point) =>

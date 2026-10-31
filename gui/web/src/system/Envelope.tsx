@@ -30,6 +30,7 @@ import {
   pointVisible,
   pointY,
   readoutText,
+  round2,
   roundDb,
   sortPoints,
   timeStep,
@@ -90,7 +91,6 @@ export type EnvelopeProps = {
 
 const SCALE_TOP = Math.round(ENVELOPE_TOP_DB * 100) / 100;
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
-const round2 = (value: number) => Math.round(value * 100) / 100;
 
 type Held = { id: string; time: number; db: number; limit: boolean };
 type Limits = { time: number; db: number; bounds: Bounds };
@@ -296,9 +296,10 @@ export const Envelope = memo(function Envelope({
     },
   });
 
+  const abortGrab = grab.abort;
   useEffect(() => {
-    if (readOnly && grab.active()) grab.abort();
-  });
+    if (readOnly) abortGrab();
+  }, [readOnly, abortGrab]);
 
   const walk = (from: HTMLElement, direction: -1 | 1) => {
     const dots = root.current?.querySelectorAll<HTMLElement>(".sys-env-point");
@@ -398,9 +399,8 @@ export const Envelope = memo(function Envelope({
         walk(event.currentTarget, key === "ArrowLeft" ? -1 : 1);
         return;
       }
-      if (readOnly) return;
       stop(event);
-      nudge(id, key, event);
+      if (!readOnly) nudge(id, key, event);
     },
   );
   const keyUp = useStableCallback(
