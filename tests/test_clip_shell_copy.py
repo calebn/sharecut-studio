@@ -171,6 +171,20 @@ def test_clear_of_range_is_the_ripple_predicate_at_the_tolerance_edges():
         assert clip_clear_of_range(clip, start, end) is clear, (start, end)
 
 
+@pytest.mark.parametrize("offset", [0.0, -0.9e-9, 0.9e-9])
+def test_ripple_shifts_a_clip_that_starts_at_the_cut_end(offset: float):
+    clip = Clip(id="c", track_id="t", source_start=0, source_end=2, timeline_start=5.0 + offset)
+    out = remove_timeline_range_from_clips([clip], 3.0, 5.0, defaults=load_defaults())
+    assert [c.timeline_start for c in out] == pytest.approx([3.0 + offset], abs=1e-12)
+
+
+def test_ripple_leaves_a_clip_that_ends_at_the_cut_start_in_place():
+    clip = Clip(id="c", track_id="t", source_start=0, source_end=2, timeline_start=1.0)
+    out = remove_timeline_range_from_clips([clip], 3.0, 5.0, defaults=load_defaults())
+    assert out == [clip]
+    assert out[0] is clip
+
+
 def _peer_project(clips: list[Clip]) -> EpisodeProject:
     project = EpisodeProject.create("t", "/tmp/t")
     project.tracks = [
