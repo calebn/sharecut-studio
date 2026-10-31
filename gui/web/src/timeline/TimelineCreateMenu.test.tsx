@@ -200,6 +200,7 @@ describe("TimelineCreateMenu popover form", () => {
     expect(router.close).toHaveBeenCalledOnce();
     expect(fireEvent.contextMenu(scrim as Element)).toBe(false);
     expect(router.close).toHaveBeenCalledOnce();
+    expect(fireEvent.mouseDown(scrim as Element)).toBe(false);
     expect(executePointerCommand).not.toHaveBeenCalled();
   });
 

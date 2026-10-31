@@ -41,6 +41,9 @@ function Scrim({ router, phone }: { router: HitRouter; phone: boolean }) {
         e.preventDefault();
         router.close();
       }}
+      // The compat mousedown of the lift that opened the menu lands here, and
+      // would pull focus off the menu, which closes when it loses focus.
+      onMouseDown={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
     />
   );
