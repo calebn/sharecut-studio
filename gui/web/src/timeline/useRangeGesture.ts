@@ -1,5 +1,6 @@
 import { type PointerEvent, type RefObject, useCallback, useRef } from "react";
 import { makeRangeTarget } from "../edit/rangeSelection";
+import { useInterruptCancel } from "../hooks/useInterruptCancel";
 import { useDawStore } from "../state/dawStore";
 import type { ProjectView, Selection } from "../types/project";
 import { isSplitModifier } from "./useSplitAtPointer";
@@ -39,6 +40,7 @@ export function useRangeGesture(
     )
       state.setSelection(active.previous);
   }, []);
+  useInterruptCancel(cancel);
   const gesture = useCallback<RangeGesture>(
     (stage, point, owner) => {
       const state = useDawStore.getState();
@@ -169,6 +171,14 @@ export function useRangeGesture(
     },
     captureCancel(event: PointerEvent<HTMLDivElement>) {
       if (
+        draft.current?.owner === undefined &&
+        draft.current?.pointerId === event.pointerId
+      )
+        cancel();
+    },
+    captureLostCapture(event: PointerEvent<HTMLDivElement>) {
+      if (
+        event.target === event.currentTarget &&
         draft.current?.owner === undefined &&
         draft.current?.pointerId === event.pointerId
       )

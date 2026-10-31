@@ -23,6 +23,8 @@
 
 * An over-long ffmpeg command line from a cancellable render or a source-proxy audio pass now fails with `render_command_too_long` instead of a raw OS error, as the other render commands already do (#2104).
 
+* A trim-handle drag or a timeline range selection in progress is now discarded, with nothing saved and the previous selection restored, when the window loses focus, the tab is hidden, the page is hidden or the range's pointer capture is lost, as a clip body move already was (#2809).
+
 * Opening a project whose folder name is not valid UTF-8 (Linux) no longer fails with a 500 and leaves Studio unable to serve its home page; `POST /api/project/open`, `create` and the project routes now refuse it with 400 `project_path_invalid` before pinning anything, and `podcast gui --project` stops with an error.
 
 * A looped final transcription window no longer adds hundreds of repeated words crammed into a fraction of a second to a transcript (#2424). A project that already holds such a window keeps it until Re-transcribe runs ASR on the track again.
