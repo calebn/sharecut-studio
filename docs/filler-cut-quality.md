@@ -1276,6 +1276,9 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   string. A track with fewer than 30 such silences has no cadence and
   nothing is grouped. A single hit, a pair, and hits further apart than that silence
   are each still proposed.
+  A speaker whose words abut (synthetic speech, very fast talkers) has a ceiling near
+  zero, so only hits that nearly touch chain into a phrase; a hummed string spaced
+  wider than that is proposed hit by hit, review-only (#1378).
 - **A likely laugh is flagged, not dropped** (#1365, `edits/acoustic_laugh.py`). Inside one
   voiced run the frame level rises and falls: a held "uh" is one burst, "ha ha ha" is
   several. A burst ends when the level falls 6 dB under its peak and the next begins
