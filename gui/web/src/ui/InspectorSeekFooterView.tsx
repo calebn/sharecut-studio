@@ -17,6 +17,8 @@ export interface InspectorSeekFooterViewProps {
   playDisabledReason?: string;
   /** Seconds the play action has been preparing; null or undefined when it is not. */
   playBusySec?: number | null;
+  /** The play action is preparing (before the seconds show): it refuses a second press and shows no note. */
+  playPreparing?: boolean;
   /** Seek action; the live adapter moves the DAW playhead. */
   onSeek: () => void;
   /** Play action; the live adapter auditions the range in the chosen preview mode. */
@@ -43,10 +45,11 @@ export function InspectorSeekFooterView({
   suggestDisabledReason,
   playDisabledReason,
   playBusySec,
+  playPreparing = false,
   onSeek,
   onPlay,
 }: InspectorSeekFooterViewProps) {
-  const busy = playBusySec != null;
+  const busy = playBusySec != null || playPreparing;
   const playReason = unavailableReason(playDisabledReason);
   const { note: playNote, describedBy: playDescribedBy } =
     useDisabledReasonNote(busy ? undefined : playReason);
@@ -59,9 +62,11 @@ export function InspectorSeekFooterView({
         </Button>
         {showPlay ? (
           <Button
-            onClick={playReason ? (event) => event.preventDefault() : onPlay}
+            onClick={
+              playReason || busy ? (event) => event.preventDefault() : onPlay
+            }
             aria-busy={busy || undefined}
-            {...(playReason
+            {...(playReason || busy
               ? { "aria-disabled": true, ...playDescribedBy }
               : {})}
           >

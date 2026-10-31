@@ -121,6 +121,23 @@ describe("InspectorSeekFooterView", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("refuses a second press and shows no note before the seconds appear", () => {
+    const onPlay = vi.fn();
+    render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={onPlay}
+        playPreparing
+      />,
+    );
+    const play = screen.getByRole("button", { name: "Play around" });
+    expect(play).toHaveAttribute("aria-busy", "true");
+    expect(play).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(play);
+    expect(onPlay).not.toHaveBeenCalled();
+    expect(document.querySelector(".export-dialog-note")).toBeNull();
+  });
+
   it("shows no note while play is only preparing", () => {
     render(
       <InspectorSeekFooterView

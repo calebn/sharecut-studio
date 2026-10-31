@@ -153,10 +153,7 @@ const playButton = () =>
 
 async function settle() {
   await waitFor(() =>
-    expect(playButton()).not.toHaveAttribute(
-      "title",
-      "Preparing full mix preview",
-    ),
+    expect(playButton()).not.toHaveAttribute("aria-busy", "true"),
   );
 }
 
@@ -239,7 +236,9 @@ describe("pending preview footer", () => {
       await act(async () => {
         finish(wavResponse(1.25));
       });
-      await waitFor(() => expect(playButton()).toBeEnabled());
+      await waitFor(() =>
+        expect(playButton()).not.toHaveAttribute("aria-disabled"),
+      );
     } finally {
       vi.useRealTimers();
     }
