@@ -107,10 +107,11 @@ class AudioExportResult:
         if measured.get("integrated_lufs") is None:
             return f"Mastered to target {target} (loudness unmeasured)"
         peak = measured.get("true_peak_db")
-        # None (unread, incl. ffmpeg's -inf for digital silence) and non-finite are not a level.
+        # None (unread, or digital silence, which the parser stores as None) and non-finite
+        # values are not a level; neither are bools or strings.
         peak_text = (
             f"{peak} dBTP"
-            if isinstance(peak, int | float) and math.isfinite(peak)
+            if isinstance(peak, int | float) and not isinstance(peak, bool) and math.isfinite(peak)
             else "no true-peak reading"
         )
         return (

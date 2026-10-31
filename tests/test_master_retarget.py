@@ -155,8 +155,8 @@ def test_each_audio_setting_of_the_master_re_masters_a_cached_master(
     assert eng.master_loudness.call_args.kwargs[key] == value
 
 
-@pytest.mark.parametrize("peak", [None, float("-inf"), float("nan")])
-def test_master_summary_says_no_true_peak_reading_not_none(peak: float | None) -> None:
+@pytest.mark.parametrize("peak", [None, float("-inf"), float("nan"), True, "-1.5"])
+def test_master_summary_says_no_true_peak_reading_not_none(peak: object) -> None:
     from podcast_mcp.services.pipeline.service import AudioExportResult
 
     master = {
@@ -167,15 +167,15 @@ def test_master_summary_says_no_true_peak_reading_not_none(peak: float | None) -
     summary = AudioExportResult([], master).master_summary()
     assert summary.endswith("measured -16.1 LUFS / no true-peak reading")
     assert "None" not in summary and "inf" not in summary and "nan" not in summary
-    assert master["measured"]["true_peak_db"] is peak or peak != peak
 
 
-def test_master_summary_still_prints_a_measured_true_peak() -> None:
+@pytest.mark.parametrize("peak", [-1.7, -0.0])
+def test_master_summary_still_prints_a_measured_true_peak(peak: float) -> None:
     from podcast_mcp.services.pipeline.service import AudioExportResult
 
     master = {
         "target_integrated_lufs": -16.0,
         "target_true_peak_db": -1.5,
-        "measured": {"integrated_lufs": -16.1, "true_peak_db": -1.7},
+        "measured": {"integrated_lufs": -16.1, "true_peak_db": peak},
     }
-    assert AudioExportResult([], master).master_summary().endswith("/ -1.7 dBTP")
+    assert AudioExportResult([], master).master_summary().endswith(f"/ {peak} dBTP")
