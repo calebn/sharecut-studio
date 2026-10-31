@@ -172,6 +172,22 @@ describe("useTouchPress", () => {
     expect(owner.mock.calls.map(([e]) => (e as Event).type)).toEqual(["click"]);
   });
 
+  it("lets a tap on a target the router did not defer through right after a release", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
+    fireEvent.pointerDown(target, touch);
+    fireEvent.pointerUp(target, touch);
+    router.defers = () => false;
+    fireEvent.pointerDown(target, { ...touch, pointerId: 4 });
+    fireEvent.pointerUp(target, { ...touch, pointerId: 4 });
+    fireEvent.click(target, { detail: 1 });
+
+    expect(owner.mock.calls.map(([e]) => (e as Event).type)).toEqual([
+      "pointerdown",
+      "click",
+    ]);
+  });
+
   it("does not suppress a click after a cancelled touch", () => {
     const { getByTestId } = render(<Lanes deferred />);
     const target = getByTestId("target");

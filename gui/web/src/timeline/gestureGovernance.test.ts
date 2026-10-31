@@ -100,7 +100,7 @@ const ARROW_ALLOWLIST: Record<string, string> = {
 };
 
 /**
- * No gesture package is in use (#1078, #1312): Pointer Events plus
+ * No gesture package is in use: Pointer Events plus
  * `hooks/gestureConstants.ts` do everything. The guard is a denylist of
  * known gesture and pointer libraries, not a proof that no other one exists:
  * add a name here when a new library of that kind appears.
