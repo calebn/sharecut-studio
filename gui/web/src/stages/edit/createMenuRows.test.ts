@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { SYSTEM_ICON_NAMES } from "../../system/icons";
 import { verbOf } from "../../system/verbDisplay";
 import {
   type CreateFacts,
+  type CreateRowId,
   createMenuRows,
   rowKeyShortcuts,
   rowShortcut,
@@ -101,5 +102,23 @@ describe("createMenuRows", () => {
     for (const row of createMenuRows({ ...here, clipboardHasAudio: true })) {
       expect(Object.keys(row).sort()).not.toContain("commandId");
     }
+  });
+});
+
+describe("CreateRowId", () => {
+  it("names every row a host may hand back, Record here included", () => {
+    expectTypeOf<CreateRowId>().toEqualTypeOf<
+      | "split"
+      | "comment"
+      | "addChapter"
+      | "addVolumePoint"
+      | "paste"
+      | "recordHere"
+    >();
+  });
+
+  it("carries an optional note, absent on every default row", () => {
+    const rows = createMenuRows({ ...here, clipboardHasAudio: true });
+    expect(rows.every((row) => row.note === undefined)).toBe(true);
   });
 });

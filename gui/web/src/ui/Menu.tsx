@@ -227,6 +227,8 @@ type MenuItemProps = DisabledReasonProps & {
   keyShortcuts?: string;
   /** A line under the label that says what the choice will act on. */
   description?: string;
+  /** Extra description for assistive tech and the tooltip; draws nothing. */
+  ariaDescription?: string;
   /** Trailing value, decorative: the label already carries it. */
   detail?: string;
   /** Marks the item a sliding finger is over (lift to pick it). */
@@ -254,6 +256,7 @@ export function MenuItem({
   shortcut,
   keyShortcuts,
   description,
+  ariaDescription,
   detail,
   over,
   onPointerDown,
@@ -289,7 +292,8 @@ export function MenuItem({
       role="menuitem"
       tabIndex={-1}
       className={classes}
-      title={reason ?? title}
+      title={reason ?? title ?? ariaDescription}
+      aria-description={ariaDescription}
       aria-keyshortcuts={keyShortcuts}
       aria-disabled={reason ? true : undefined}
       aria-describedby={caption ? reasonId : undefined}

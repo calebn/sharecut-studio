@@ -225,7 +225,7 @@ complete the drag. A click selects on release; a changed save selects on success
 it settles, and History Undo restores the saved edit.
 
 Show the volume envelope and select a point (from the lane or the create menu's
-**Add envelope point**), then **Inspect** opens its **Time** and **Level** fields
+**Add volume point**), then **Inspect** opens its **Time** and **Level** fields
 (a time past the end of the timeline, or a level above 1.50, is refused: the field keeps what was typed and shows its range).
 Each change and **Remove point** is one undo step; removing the last point
 restores unity automation.

@@ -10,20 +10,27 @@ import { isApplePlatform } from "../../utils/platform";
  * table; Add volume point and Paste are not verbs, so they are local entries
  * (Paste borrows the clipboard-paste icon of the Action bar's More menu).
  * Rows carry no command id: the host maps `onPick(id)` to commands, with the
- * held time.
+ * held time. `recordHere` is the host's own row: `createMenuRows` never emits
+ * it, and the host splices it in and takes the picked id back.
  */
 export type CreateRowId =
   | "split"
   | "comment"
   | "addChapter"
   | "addVolumePoint"
-  | "paste";
+  | "paste"
+  | "recordHere";
 
 export type CreateRow = {
   id: CreateRowId;
   label: string;
   icon: SystemIconName;
   keys: readonly KeySpec[];
+  /**
+   * What the row will act on, said once as plain text. Shown as the row's
+   * description and tooltip; never part of its name and never a key cap.
+   */
+  note?: string;
   /** The row opens its own group: a separator is drawn above it. */
   startsGroup?: true;
 };

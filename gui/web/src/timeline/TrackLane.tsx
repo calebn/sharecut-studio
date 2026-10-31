@@ -274,6 +274,8 @@ export function TrackLaneView({
       style={{ width }}
       data-testid={timelineTestIds.lane}
       data-track-id={track.id}
+      role="group"
+      aria-label={track.label || track.id}
       data-waveform-status={waveformStatus}
       onPointerEnter={(e) => {
         if (e.pointerType === "touch") {
