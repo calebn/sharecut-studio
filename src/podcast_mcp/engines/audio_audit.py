@@ -6,7 +6,7 @@ import logging
 import math
 import tempfile
 from collections import Counter
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Hashable
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.engines import audibility_reuse
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
@@ -373,6 +374,7 @@ class CopyPath:
 @dataclass
 class TrackRmsCacheSet:
     caches: dict[str, TrackRmsCache] = field(default_factory=dict)
+    audio_identity: Hashable | None = field(default=None, compare=False, repr=False)
     _echo_pairs: list[EchoPairProfile] | None = field(
         default=None, init=False, repr=False, compare=False
     )
@@ -667,7 +669,12 @@ def build_track_rms_caches(
                     sources.pop(path, None)
         if samples.size:
             caches[tid] = TrackRmsCache(samples=samples)
-    return TrackRmsCacheSet(caches=caches)
+    identity = (
+        audibility_reuse.audio_identity(project, unprocessed=unprocessed, defaults=defaults)
+        if track_ids is None and window is None
+        else None
+    )
+    return TrackRmsCacheSet(caches=caches, audio_identity=identity)
 
 
 # A track whose window cannot be read is skipped (the whole-track path serves it), so it must not
@@ -1196,6 +1203,25 @@ def compute_word_audibility_map(
         return []
 
     caches = caches if caches is not None else build_track_rms_caches(project, defaults=defaults)
+    if track_id is not None:
+        return _measure_word_audibility(project, track_id, pol, progress, caches, defaults)
+    return audibility_reuse.shared_rows(
+        project,
+        lanes_transcripts(project, dialogue_track_ids(project)),
+        identity=caches.audio_identity,
+        policy=pol,
+        build=lambda: _measure_word_audibility(project, None, pol, progress, caches, defaults),
+    )
+
+
+def _measure_word_audibility(
+    project: EpisodeProject,
+    track_id: str | None,
+    pol: AnalysisPolicy,
+    progress: ProgressReporter | None,
+    caches: TrackRmsCacheSet,
+    defaults: EffectiveConfig,
+) -> list[dict[str, Any]]:
     st = SessionTimeline(project)
     out: list[dict[str, Any]] = []
     all_tracks = dialogue_track_ids(project)
