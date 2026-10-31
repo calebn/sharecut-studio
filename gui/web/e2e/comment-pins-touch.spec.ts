@@ -17,14 +17,13 @@ import {
 } from "./touchTimeline";
 
 /*
- * Timeline comment pins on touch (#1742): a pin is --touch-min wide around its
- * dot while its row stays one marker row tall, pins on one spot fan out through
- * the touch chooser, and a finger beside a pin picks it without taking the
- * ruler's or a clip's taps.
+ * Timeline comment pins on touch (#1742): a pin has a --touch-min hit area around its
+ * dot while the lane stays one marker row tall, pins on one spot fold into a
+ * "+N" chip whose list picks each of them, and a finger beside a pin picks it
+ * without taking the ruler's or a clip's taps.
  */
 
 const CLIENT_ID = "e2e-comment-pins-touch";
-const TOUCH_MIN = 44;
 const MARKER_ROW = 24;
 const STACKED = ["Ada", "Ben", "Cy"] as const;
 
@@ -56,7 +55,7 @@ async function addComments(page: Page): Promise<void> {
       projectPath,
     );
   for (const author of STACKED) await add(author, 5);
-  await add("Dee", 12);
+  await add("Dee", 20);
   await add("Eli", 30);
 }
 
@@ -65,11 +64,13 @@ async function openTimeline(page: Page, viewport: ViewportName): Promise<void> {
   await openProject(page, projectPath);
   await expect(page.locator(".stage-frame")).toBeVisible();
   if (viewport === "phone") await openPhoneTimeline(page);
-  await expect(page.locator(".comment-marker.pin")).toHaveCount(5);
+  await expect(pinHits(page)).toHaveCount(3);
 }
 
+const pinHits = (page: Page) =>
+  page.locator('.sys-marker[data-kind="comment"] .sys-marker-hit');
 const pin = (page: Page, author: string) =>
-  page.locator(`.comment-marker.pin[aria-label="Comment by ${author}"]`);
+  page.getByRole("button", { name: new RegExp(`^Comment by ${author},`) });
 
 async function centre(page: Page, author: string): Promise<Point> {
   const box = await pin(page, author).boundingBox();
@@ -98,9 +99,14 @@ const selectedPins = async (page: Page) => {
   // poll reading it simply tries again.
   const edit = stageTab(page, "edit");
   if ((await edit.getAttribute("aria-selected")) !== "true") await edit.click();
-  return page
-    .locator(".comment-marker.selected")
-    .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
+  return pinHits(page).evaluateAll((els) =>
+    els
+      .filter((el) => el.getAttribute("aria-pressed") === "true")
+      .map(
+        (el) =>
+          /^Comment by (\w+),/.exec(el.getAttribute("aria-label") ?? "")?.[1],
+      ),
+  );
 };
 
 async function tap(
@@ -112,16 +118,17 @@ async function tap(
 }
 
 for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
-  test(`${viewport}: a pin is ${TOUCH_MIN} px wide and the row keeps its height`, async ({
+  test(`${viewport}: the lane keeps its height and a pin's hit area spans it`, async ({
     page,
   }) => {
     await page.goto("/");
     await addComments(page);
     await openTimeline(page, viewport);
+    expect((await page.locator(".sys-markers").boundingBox())?.height).toBe(
+      MARKER_ROW,
+    );
     for (const author of ["Dee", "Eli"]) {
-      const box = await pin(page, author).boundingBox();
-      expect(box?.width).toBeGreaterThanOrEqual(TOUCH_MIN - 0.5);
-      expect(box?.height).toBe(MARKER_ROW);
+      expect((await pin(page, author).boundingBox())?.height).toBe(MARKER_ROW);
     }
   });
 }
@@ -136,7 +143,7 @@ test("a tap beside a pin picks it, and a tap on a clip under the lane never does
   await openTimeline(p, "phone");
   const dee = await settledCentre(p, "Dee");
   await tap(cdp, { x: dee.x + 18, y: dee.y });
-  await expect.poll(() => selectedPins(p)).toEqual(["Comment by Dee"]);
+  await expect.poll(() => selectedPins(p)).toEqual(["Dee"]);
   const settled = await settledCentre(p, "Dee");
 
   const lane = (await p.locator(".marker-lane").boundingBox())!;
@@ -153,7 +160,7 @@ test("a tap beside a pin picks it, and a tap on a clip under the lane never does
   await p.close();
 });
 
-test("pins on one spot count themselves and the chooser picks each comment", async ({
+test("pins on one spot fold into a +2 chip and its list picks each comment", async ({
   page,
   context,
 }) => {
@@ -161,35 +168,39 @@ test("pins on one spot count themselves and the chooser picks each comment", asy
   await addComments(page);
   const { page: p, cdp } = await newTouchPage(context);
   await openTimeline(p, "phone");
-  await expect(pin(p, "Ada")).toHaveAttribute("data-stack-count", "3");
-  await expect(pin(p, "Dee")).not.toHaveAttribute("data-stack-count", /.+/);
+  const chip = p.getByRole("button", { name: "2 more markers" });
+  await expect(chip).toBeVisible();
 
-  // Against the stack's order, so a pick that cycled would land on the wrong pin.
-  for (const author of [...STACKED].reverse()) {
-    const at = await settledCentre(p, "Ada");
-    await touch(cdp, "touchStart", [at]);
-    const chip = p.getByRole("menuitemradio", {
-      name: `Comment by ${author} at 00:05.000`,
+  // The lane keeps one of the three on show; the chip's list holds the rest.
+  const shown = await pinHits(p).evaluateAll((els) =>
+    els.map(
+      (el) =>
+        /^Comment by (\w+),/.exec(el.getAttribute("aria-label") ?? "")?.[1],
+    ),
+  );
+  const hidden = STACKED.filter((author) => !shown.includes(author));
+  expect(hidden).toHaveLength(2);
+  for (const author of hidden) {
+    const box = (await chip.boundingBox())!;
+    await tap(cdp, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+    const item = p.getByRole("menuitem", {
+      name: new RegExp(`^Comment by ${author},`),
     });
-    await expect(chip).toBeVisible();
-    await touch(cdp, "touchEnd");
-    // The chips fly out from the finger; take the box once it holds still.
+    await expect(item).toBeVisible();
+    // The list opens under the chip; take the box once it holds still.
     let last = "";
     await expect
       .poll(async () => {
-        const now = JSON.stringify(await chip.boundingBox());
+        const now = JSON.stringify(await item.boundingBox());
         const still = now === last;
         last = now;
         return still;
       })
       .toBe(true);
-    const box = (await chip.boundingBox())!;
-    await touch(cdp, "touchStart", [
-      { x: box.x + box.width / 2, y: box.y + box.height / 2 },
-    ]);
-    await touch(cdp, "touchEnd");
-    await expect(p.locator(".target-chooser:not(.is-closing)")).toHaveCount(0);
-    await expect.poll(() => selectedPins(p)).toEqual([`Comment by ${author}`]);
+    const at = (await item.boundingBox())!;
+    await tap(cdp, { x: at.x + at.width / 2, y: at.y + at.height / 2 });
+    await expect.poll(() => selectedPins(p)).toEqual([]);
+    await expect(p.getByRole("menuitem")).toHaveCount(0);
   }
   await p.close();
 });
@@ -197,23 +208,19 @@ test("pins on one spot count themselves and the chooser picks each comment", asy
 test.describe("with a mouse", () => {
   test.use({ hasTouch: false, isMobile: false });
 
-  test("a click on a stack steps through its pins and Tab with Enter opens exactly one", async ({
+  test("a click selects one pin and Tab with Enter opens exactly one", async ({
     page,
   }) => {
     await page.goto("/");
     await addComments(page);
     await page.setViewportSize({ width: 1280, height: 800 });
     await openProject(page, projectPath);
-    await expect(page.locator(".comment-marker.pin")).toHaveCount(5);
-    for (const author of [...STACKED, STACKED[0]]) {
-      const box = (await pin(page, "Ada").boundingBox())!;
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-      await expect
-        .poll(() => selectedPins(page))
-        .toEqual([`Comment by ${author}`]);
-    }
-    await pin(page, "Ben").focus();
+    await expect(pinHits(page)).toHaveCount(3);
+    const box = (await pin(page, "Dee").boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect.poll(() => selectedPins(page)).toEqual(["Dee"]);
+    await pin(page, "Eli").focus();
     await page.keyboard.press("Enter");
-    await expect.poll(() => selectedPins(page)).toEqual(["Comment by Ben"]);
+    await expect.poll(() => selectedPins(page)).toEqual(["Eli"]);
   });
 });

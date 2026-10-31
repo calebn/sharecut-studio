@@ -22,14 +22,9 @@ describe("timeline styles", () => {
     const row = rule(css, ".marker-row");
     expect(row).toMatch(/flex:\s*0 0 var\(--marker-row-height\)/);
     expect(row).toMatch(/height:\s*var\(--marker-row-height\)/);
-    for (const marker of [
-      ".chapter-marker",
-      ".social-marker",
-      ".comment-marker",
-    ]) {
-      expect(rule(css, marker)).toMatch(/height:\s*var\(--marker-row-height\)/);
-      expect(rule(css, marker)).not.toMatch(/1\.5rem/);
-    }
+    expect(rule(css, ".clipping-marker")).toMatch(
+      /height:\s*var\(--marker-row-height\)/,
+    );
   });
 
   it("pins the ruler and marker row above lanes but below the playhead", () => {
@@ -94,12 +89,6 @@ describe("timeline styles", () => {
     const chip = rule(partial("presence.css"), ".presence-playhead-chip");
     expect(chip).toMatch(/inset-inline-start:\s*100%/);
     expect(chip).not.toMatch(/-110%/);
-  });
-
-  it("truncates a chapter label to the room before the next chapter", () => {
-    const label = rule(partial("timeline.css"), ".chapter-marker-label");
-    expect(label).toMatch(/text-overflow:\s*ellipsis/);
-    expect(label).toMatch(/var\(--chapter-label-room\)/);
   });
 
   it("keeps desktop scrollbar width steady without an empty stable gutter", () => {

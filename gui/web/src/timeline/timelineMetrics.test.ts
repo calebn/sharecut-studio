@@ -2,7 +2,6 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   LANE_HEIGHT,
-  MARKER_LANE_HEIGHT,
   MARKER_ROW_HEIGHT,
   MAX_FIT_LANE_HEIGHT,
 } from "../utils/layout";
@@ -190,11 +189,12 @@ describe("marker rows", () => {
     );
   });
 
-  it("adds a row per layer with content, honoring layer toggles", () => {
+  it("draws chapters and comments on one lane, honoring layer toggles", () => {
     const chapters = [{ time: 1, title: "Intro" }] as never[];
     const comments = [{ id: "c1" }] as never[];
+    // The chapters, social clips and comments share the one system lane.
     expect(markerLaneHeight(markerRows({ ...base, chapters, comments }))).toBe(
-      2 * MARKER_ROW_HEIGHT,
+      MARKER_ROW_HEIGHT,
     );
     expect(
       markerRows({ ...base, chapters, comments, showComments: false }),
@@ -206,7 +206,7 @@ describe("marker rows", () => {
     });
   });
 
-  it("fills the full marker lane with the three content rows", () => {
+  it("draws the three content kinds on one lane", () => {
     expect(
       markerLaneHeight({
         chapters: true,
@@ -214,7 +214,7 @@ describe("marker rows", () => {
         comments: true,
         clipping: false,
       }),
-    ).toBe(MARKER_LANE_HEIGHT);
+    ).toBe(MARKER_ROW_HEIGHT);
   });
 
   it("adds a clipping row when recording flags exist and Markers is on", () => {
@@ -231,6 +231,6 @@ describe("marker rows", () => {
         comments: true,
         clipping: true,
       }),
-    ).toBe(4 * MARKER_ROW_HEIGHT);
+    ).toBe(2 * MARKER_ROW_HEIGHT);
   });
 });

@@ -88,15 +88,6 @@ export function isReplayed(event: Event): boolean {
   return replayed.has(event);
 }
 
-/**
- * True for a click a touch made. The router replays a target's click for every
- * pointer (a mouse press among overlapping targets, a tap, a chooser pick), all
- * with detail 1, so only the pointer type tells a mouse click from a touch pick.
- */
-export function isTouchClick(event: Event): boolean {
-  return (event as PointerEvent).pointerType === "touch";
-}
-
 function pointOf(event: PointerEvent): HitPoint {
   return { x: event.clientX, y: event.clientY };
 }

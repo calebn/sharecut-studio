@@ -88,7 +88,7 @@ import {
   envelopeTrackIds,
   useByTrack,
 } from "./laneOverlaySlices";
-import { MarkerLane } from "./MarkerLane";
+import { LiveMarkerLane } from "./MarkerLaneHost";
 import { Playhead } from "./Playhead";
 import { PresenceOverlay } from "./PresenceOverlay";
 import { ProsodyStatusAnnouncer } from "./ProsodyStatusAnnouncer";
@@ -465,6 +465,16 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       project ? clippingFlags(project.clips.tracks, project.tracks) : EMPTY_ARR,
     [project],
   );
+  const selectedMarkerId =
+    selection?.kind === "chapter"
+      ? `${selection.time}-${selection.id}`
+      : selection?.kind === "social" || selection?.kind === "comment"
+        ? selection.id
+        : null;
+  const selectedMarkerIds = useMemo(
+    () => (selectedMarkerId ? [selectedMarkerId] : EMPTY_ARR),
+    [selectedMarkerId],
+  );
   const liveRows = useMemo(
     () =>
       markerRows({
@@ -565,7 +575,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     [fittedLaneHeight, liveMarkerLaneHeightPx, liveRows],
   );
   const { value: layout, hold: holdLayout } = useGestureStable(liveLayout);
-  const { laneHeight, markerLaneHeightPx, rows } = layout;
+  const { laneHeight, markerLaneHeightPx } = layout;
   const moving = movePlacements != null;
   useEffect(() => (moving ? holdLayout() : undefined), [moving, holdLayout]);
 
@@ -943,14 +953,16 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                     style={{ position: "relative", width }}
                     {...touchPress}
                   >
-                    <MarkerLane
+                    <LiveMarkerLane
                       chapters={chapters}
                       socialClips={socialClips}
                       comments={comments}
-                      rows={rows}
-                      selectedCommentId={selectedCommentId}
+                      showMarkers={layers.showMarkers}
+                      showComments={layers.showComments}
+                      selected={selectedMarkerIds}
                       zoomPxPerSec={zoomPxPerSec}
                       width={width}
+                      duration={sessionSec}
                       onSelectChapter={(ch) => {
                         setSelection({
                           kind: "chapter",

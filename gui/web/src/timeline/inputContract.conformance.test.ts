@@ -178,23 +178,38 @@ function lone(kind: HitKind): HTMLButtonElement {
   return el;
 }
 
+/**
+ * The system marker lane owns the press on a marker (a grab with the pointer
+ * slop); `MarkerLaneHost` marks each marker through the lane's `hitProps`.
+ */
+const SYSTEM_LANE_OWNERS = [
+  {
+    at: "system/MarkerLane.tsx",
+    kinds: ["chapter", "social-clip"],
+    surface: false,
+  },
+];
+
 /** Timeline elements that own a pointer press, and what they mark themselves as. */
-const PRESS_OWNERS = [...sourceFiles(join(SRC_ROOT, "timeline"))]
-  .filter(
-    ({ rel }) =>
-      rel.endsWith(".tsx") &&
-      !rel.includes(".test.") &&
-      !rel.includes(".stories."),
-  )
-  .flatMap(({ rel, text }) =>
-    jsxElements(text)
-      .filter(ownsPointerDown)
-      .map((element) => ({
-        at: `${rel}:${element.line}`,
-        kinds: markedKinds(element),
-        surface: marksSurface(element),
-      })),
-  );
+const PRESS_OWNERS = [
+  ...SYSTEM_LANE_OWNERS,
+  ...[...sourceFiles(join(SRC_ROOT, "timeline"))]
+    .filter(
+      ({ rel }) =>
+        rel.endsWith(".tsx") &&
+        !rel.includes(".test.") &&
+        !rel.includes(".stories."),
+    )
+    .flatMap(({ rel, text }) =>
+      jsxElements(text)
+        .filter(ownsPointerDown)
+        .map((element) => ({
+          at: `${rel}:${element.line}`,
+          kinds: markedKinds(element),
+          surface: marksSurface(element),
+        })),
+    ),
+];
 
 describe("touch paths", () => {
   it("lets a point win its line after the line gained focus from editing", () => {

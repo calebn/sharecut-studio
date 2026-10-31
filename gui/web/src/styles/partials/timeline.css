@@ -1052,40 +1052,18 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   background: var(--color-timeline-well);
 }
 
-/* Rows stack in flow; only rows with content render (timelineMetrics).
-   --marker-row-height is px from utils/layout.ts, set by TimelineView, so rows
-   match the lane height the code computes at any root font size. */
+/* The system marker lane is one row; the clipping row sits under it when
+   there are flags (timelineMetrics). --marker-row-height is px from
+   utils/layout.ts, set by TimelineView, so rows match the lane height the code
+   computes at any root font size. */
+.marker-lane > .sys-markers {
+  flex: none;
+}
+
 .marker-row {
   position: relative;
   flex: 0 0 var(--marker-row-height);
   height: var(--marker-row-height);
-}
-
-.comment-marker {
-  position: absolute;
-  top: 0;
-  z-index: var(--z-clip);
-  height: var(--marker-row-height);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  min-width: var(--marker-row-height);
-  box-sizing: border-box;
-}
-
-.comment-marker::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0.4375rem;
-  height: 0.625rem;
-  background: var(--color-comment-marker);
-  border-radius: var(--radius-xs);
-  pointer-events: none;
 }
 
 .clipping-marker {
@@ -1115,90 +1093,6 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   pointer-events: none;
 }
 
-.comment-marker.pin {
-  width: var(--marker-row-height);
-  min-width: var(--marker-row-height);
-}
-
-.comment-marker.pin::before {
-  left: 50%;
-  right: auto;
-  top: 50%;
-  width: 0.625rem;
-  height: 0.625rem;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-}
-
-/* On touch a pin is --touch-min wide around its 10px dot, centred on its time:
-   the row stays one marker row tall, so the lane keeps its height and the
-   ruler and clips keep their taps (#1742). */
-@media (pointer: coarse) {
-  .comment-marker.pin {
-    width: var(--touch-min);
-    min-width: var(--touch-min);
-    margin-inline-start: calc(
-      (var(--marker-row-height) - var(--touch-min)) /
-      2
-    );
-  }
-
-  .comment-marker.pin.selected:not(:focus-visible) {
-    outline: none;
-  }
-
-  .comment-marker.pin.selected::before {
-    outline: var(--focus-ring-width) solid var(--color-selection);
-    outline-offset: 1px;
-  }
-}
-
-.timeline-area[data-pointer-kind="coarse"] .comment-marker.pin,
-html[data-shell="phone"] .comment-marker.pin {
-  width: var(--touch-min);
-  min-width: var(--touch-min);
-  margin-inline-start: calc((var(--marker-row-height) - var(--touch-min)) / 2);
-}
-
-.timeline-area[data-pointer-kind="coarse"]
-  .comment-marker.pin.selected:not(:focus-visible),
-html[data-shell="phone"] .comment-marker.pin.selected:not(:focus-visible) {
-  outline: none;
-}
-
-.timeline-area[data-pointer-kind="coarse"] .comment-marker.pin.selected::before,
-html[data-shell="phone"] .comment-marker.pin.selected::before {
-  outline: var(--focus-ring-width) solid var(--color-selection);
-  outline-offset: 1px;
-}
-
-/* Pins on one spot draw one dot with the stack's size; a click cycles them. */
-.comment-marker.pin[data-stack-count]::after {
-  content: attr(data-stack-count);
-  position: absolute;
-  left: calc(50% + 0.25rem);
-  top: 0;
-  min-width: 0.875rem;
-  padding: 0 var(--space-0);
-  border-radius: var(--radius-xs);
-  background: var(--color-timeline-lane);
-  color: var(--color-timeline-text);
-  font-size: var(--font-size-micro);
-  line-height: 0.875rem;
-  text-align: center;
-  pointer-events: none;
-}
-
-.comment-marker.resolved::before {
-  opacity: 0.35;
-}
-
-.comment-marker.selected {
-  outline: var(--focus-ring-width) solid var(--color-selection);
-  outline-offset: 1px;
-  z-index: var(--z-edit-overlay);
-}
-
 .comment-selection-overlay {
   position: absolute;
   top: 0;
@@ -1212,79 +1106,6 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 .comment-selection-overlay.pin {
   border-radius: 1px;
   background: var(--color-selection-muted);
-}
-
-.chapter-marker {
-  position: absolute;
-  top: 0;
-  z-index: var(--z-clip);
-  width: var(--marker-row-height);
-  height: var(--marker-row-height);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  box-sizing: border-box;
-}
-
-.chapter-marker::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 0.75rem;
-  height: 0.75rem;
-  background: var(--color-marker);
-  transform: translate(-50%, -50%) rotate(45deg);
-  pointer-events: none;
-}
-
-/* Title beside the diamond; MarkerLaneView sets --chapter-label-room (px) to the
-   space before the next chapter, and the label is omitted when that is too small. */
-.chapter-marker-label {
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline-start: 100%;
-  max-inline-size: min(var(--chapter-label-room), 12rem);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--font-size-micro);
-  line-height: var(--marker-row-height);
-  color: var(--color-timeline-text);
-  text-align: start;
-}
-
-.social-marker {
-  position: absolute;
-  top: 0;
-  z-index: var(--z-clip);
-  height: var(--marker-row-height);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  min-width: var(--marker-row-height);
-  box-sizing: border-box;
-}
-
-.social-marker::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0.4375rem;
-  height: 0.625rem;
-  background: var(--color-social-marker);
-  border-radius: var(--radius-xs);
-  pointer-events: none;
-}
-
-.social-marker.approved::before {
-  background: var(--color-success-strong);
 }
 
 /* Needle: Playhead.tsx moves it with translateX, so the glow that
