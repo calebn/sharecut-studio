@@ -40,29 +40,29 @@ def list_exported_files(ws: ProjectWorkspace, *, ticketed: bool = False) -> dict
 
     With *ticketed* each entry also carries a ``ticket`` that downloads that file as listed.
     """
-    service = ExportFilesService(ws)
-    files = [asdict(f) for f in service.list()]
-    if ticketed:
-        versions = {served.id: served.version for served in service.served()}
-        for entry in files:
-            entry["ticket"] = export_ticket.mint(ws.path, entry["id"], versions[entry["id"]])
+    files = []
+    for entry, version in ExportFilesService(ws).listed():
+        row = asdict(entry)
+        if ticketed:
+            row["ticket"] = export_ticket.mint(ws.path, entry.id, version)
+        files.append(row)
     return {"files": files}
 
 
 def download_exported_file(
-    request: Request, ws: ProjectWorkspace, file_id: str, *, ticket: str | None = None
+    request: Request, ws: ProjectWorkspace, file_id: str, *, ticket_version: str | None = None
 ) -> Response:
     """Stream the listed file *file_id* as an attachment, with Range and ETag.
 
     The id is looked up in the listing and never joined to a path. It is refused with 409
-    while an export of this project is writing, and with 404 when it is not listed. A *ticket*
+    while an export of this project is writing, and with 404 when it is not listed. A *ticket_version*
     must match the file as it is now.
     """
     if request.app.state.jobs.export_running(ws.path):
         raise coded_http_error(409, EXPORT_RUNNING, code="export_running")
     found = _open_listed(ws, file_id)
-    if ticket is not None:
-        export_ticket.check(ticket, ws.path, file_id, found.version)
+    if ticket_version is not None:
+        export_ticket.require_unchanged(ticket_version, found.version)
     try:
         return pinned_audio_response(
             found.path,
