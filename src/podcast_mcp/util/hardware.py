@@ -291,12 +291,14 @@ def _read_cgroup_int(path: Path) -> int | None:
         return None
 
 
-def _cgroup_headroom_bytes(root: Path | None = None) -> int | None:
+def _cgroup_headroom_bytes() -> int | None:
     """Bytes left under this container's memory limit (cgroup v2, else v1); None when unlimited."""
-    root = _CGROUP_ROOT if root is None else root
     for limit_file, used_file in (
-        (root / "memory.max", root / "memory.current"),
-        (root / "memory" / "memory.limit_in_bytes", root / "memory" / "memory.usage_in_bytes"),
+        (_CGROUP_ROOT / "memory.max", _CGROUP_ROOT / "memory.current"),
+        (
+            _CGROUP_ROOT / "memory" / "memory.limit_in_bytes",
+            _CGROUP_ROOT / "memory" / "memory.usage_in_bytes",
+        ),
     ):
         limit = _read_cgroup_int(limit_file)
         used = _read_cgroup_int(used_file)
