@@ -102,6 +102,33 @@ describe("useRecordBadge", () => {
   });
 });
 
+describe("useRecordBadge mic", () => {
+  const open = {
+    snapshot: {
+      session_id: "s1",
+      state: "lobby",
+      take_index: -1,
+      participants: [],
+    },
+    state: "lobby",
+    capture: {},
+    upload: { error: null, recoverable: false },
+    hostSegments: [],
+    micLive: true,
+  } as unknown as HostRoom;
+
+  it("says Mic on away from Record and nothing on it", () => {
+    useDawStore.setState({ stage: "edit" });
+    const away = renderHook(() => useRecordBadge(), { wrapper: wrap(open) });
+    expect(away.result.current).toEqual({ kind: "mic" });
+    useDawStore.setState({ stage: "record" });
+    const onRecord = renderHook(() => useRecordBadge(), {
+      wrapper: wrap(open),
+    });
+    expect(onRecord.result.current).toEqual({ kind: "idle" });
+  });
+});
+
 describe("useStageBadges pending cuts for a guest", () => {
   const join = (caps: string[]) => {
     useDawStore

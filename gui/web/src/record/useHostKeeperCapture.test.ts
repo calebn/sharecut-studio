@@ -73,6 +73,8 @@ describe("useHostKeeperCapture", () => {
 
   beforeEach(() => {
     mic.mockClear();
+    withStream(null);
+    useRecordHostStore.getState().setMicLive(false);
     keeper.mockClear();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useRecordHostStore.getState().setSnapshot(recording);
@@ -82,7 +84,24 @@ describe("useHostKeeperCapture", () => {
     bindRecordHostSend(null);
   });
 
+  const openStream = () => ({ id: "open" }) as unknown as MediaStream;
+  const withStream = (
+    stream: MediaStream | null,
+    error: string | null = null,
+  ) =>
+    mic.mockImplementation((_enabled: boolean) => ({
+      stream,
+      devices: [],
+      error,
+      errorName: null,
+      settingsWarning: null,
+      pending: false,
+      lost: false,
+      retry: vi.fn(),
+    }));
+
   it("keeps the mic live when the stage changes", () => {
+    withStream(openStream());
     useDawStore.setState({ stage: "record" });
     const { rerender } = renderHook(() => useHostKeeperCapture());
     expect(mic).toHaveBeenLastCalledWith(true, "", expect.anything());
@@ -94,6 +113,30 @@ describe("useHostKeeperCapture", () => {
       expect(useRecordHostStore.getState().micLive).toBe(true);
     }
     expect(mic.mock.calls.every(([enabled]) => enabled === true)).toBe(true);
+  });
+
+  it("does not publish a live mic when the open was denied or failed", () => {
+    withStream(null, "Permission denied");
+    renderHook(() => useHostKeeperCapture());
+    expect(useRecordHostStore.getState().micLive).toBe(false);
+  });
+
+  it("resets the flag on unmount", () => {
+    withStream(openStream());
+    const { unmount } = renderHook(() => useHostKeeperCapture());
+    expect(useRecordHostStore.getState().micLive).toBe(true);
+    unmount();
+    expect(useRecordHostStore.getState().micLive).toBe(false);
+  });
+
+  it("resets the flag when disabled", () => {
+    withStream(openStream());
+    const { rerender } = renderHook(({ on }) => useHostKeeperCapture(on), {
+      initialProps: { on: true },
+    });
+    expect(useRecordHostStore.getState().micLive).toBe(true);
+    rerender({ on: false });
+    expect(useRecordHostStore.getState().micLive).toBe(false);
   });
 
   it("syncs live clipping into the host store and clears it on unmount", () => {
