@@ -502,6 +502,43 @@ describe("Review host pickups", () => {
       expect(fetched("hear-wav").at(-1)).toContain("take_index=2");
     });
 
+    it("releases the pickup's preview when the chosen take changes from elsewhere, such as Undo", async () => {
+      mount([REPLACE]);
+      wire.release.mockClear();
+      server.suggestions = [{ ...REPLACE, selected_take: 0 }];
+      act(() => {
+        applyDocumentSnapshot({
+          server_seq: ++server.seq,
+          project: projectOf(),
+        });
+      });
+      await waitFor(() => expect(wire.release).toHaveBeenCalledWith("ss-r"));
+      wire.release.mockClear();
+      act(() => {
+        applyDocumentSnapshot({
+          server_seq: ++server.seq,
+          project: projectOf(),
+        });
+      });
+      expect(wire.release).not.toHaveBeenCalledWith("ss-r");
+    });
+
+    it("cannot Accept a chosen take that Accept would refuse, and says why", async () => {
+      server.refusals = { 1: "It is shorter than the range." };
+      mount([REPLACE]);
+      const card = within(screen.getByRole("article"));
+      const accept = card.getByRole("button", { name: "Replace" });
+      await waitFor(() =>
+        expect(accept).toHaveAttribute(
+          "title",
+          "This take cannot be placed: It is shorter than the range.",
+        ),
+      );
+      expect(accept).toBeDisabled();
+      press("Enter");
+      expect(sent("AcceptSessionSuggestion")).toHaveLength(0);
+    });
+
     it("disables a take Accept would refuse, with the reason", async () => {
       server.refusals = { 2: "It is shorter than the range." };
       mount([REPLACE]);
