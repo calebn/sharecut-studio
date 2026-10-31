@@ -17,6 +17,7 @@ from importlib import import_module
 from typing import Any
 
 from podcast_mcp.engines.decode_memo import DecodeMemo
+from podcast_mcp.engines.track_evidence import RetainedEvidence
 from podcast_mcp.util.bounded_cache import BoundedCache
 
 ISOLATED: dict[str, str] = {
@@ -50,6 +51,10 @@ ISOLATED: dict[str, str] = {
     "podcast_mcp.engines.decode_memo:_MEMO": (
         "Keyed by path and a stat stamp; tests patch the decoder and rewrite fixtures at the same "
         "path inside one clock tick, so each test starts empty (#2359)."
+    ),
+    "podcast_mcp.engines.track_evidence:_RETAINED": (
+        "Keyed by the track's tree and the stat stamp of its sources; tests patch the evaluator and "
+        "rewrite fixtures at the same path inside one clock tick, so each test starts empty (#2359)."
     ),
     "podcast_mcp.edits.verdict_cache:_STORE": (
         "Entries are keyed by the project's clips, words, media revisions and settings; a test "
@@ -111,7 +116,7 @@ def _resolve(ref: str) -> Any:
 def reset_isolated_caches() -> None:
     for ref in ISOLATED:
         cached: Any = _resolve(ref)
-        if isinstance(cached, BoundedCache | DecodeMemo):
+        if isinstance(cached, BoundedCache | DecodeMemo | RetainedEvidence):
             cached.clear()
         else:
             cached.cache_clear()
