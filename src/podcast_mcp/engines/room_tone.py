@@ -44,7 +44,7 @@ import logging
 import math
 import threading
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -152,6 +152,7 @@ class RecordedBedSample:
     end: float
     source_id: str
     path: Path
+    revision: FileRevision = field(default=(0, 0, 0, 0), compare=False, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -249,9 +250,7 @@ def room_tone_span(
         return SampleAbsent("no_fill_requested")
     bed = room_tone_bed(project, track_id)
     if isinstance(bed, RecordedBedSample):
-        return RecordedBedSample(
-            bed.start, min(bed.end, bed.start + duration_sec), bed.source_id, bed.path
-        )
+        return replace(bed, end=min(bed.end, bed.start + duration_sec))
     track = project.track_by_id(track_id)
     if track is None:
         return _after_bed(bed, SampleAbsent("missing_track"))
@@ -574,10 +573,7 @@ def room_tone_pool_digest(project: EpisodeProject) -> str:
 
 
 def room_tone_bed_digest(project: EpisodeProject) -> str:
-    """Which registered beds render, and why not: part of a preview's cache key.
-
-    A usable bed is keyed with its file revision, so replacing the file under the same
-    source id and span cannot leave a stale preview."""
+    """Which registered beds render, and why not: part of a preview's cache key."""
     parts: list[list[object]] = []
     for track in project.tracks:
         if track.room_tone is None:
@@ -586,9 +582,7 @@ def room_tone_bed_digest(project: EpisodeProject) -> str:
         if isinstance(bed, BedUnavailable):
             parts.append([track.id, bed.cause, list(bed.rejected_checks)])
         else:
-            parts.append(
-                [track.id, bed.source_id, bed.start, bed.end, list(file_revision(bed.path))]
-            )
+            parts.append([track.id, bed.source_id, bed.start, bed.end, list(bed.revision)])
     return json.dumps(parts) if parts else ""
 
 
@@ -898,7 +892,10 @@ def room_tone_bed(project: EpisodeProject, track_id: str) -> RecordedBedSample |
 
     try:
         path = resolve_under_workspace(project, source.path)
+        revision = file_revision(path)
         audio = load_mono_window(path, start_sec=0.0, duration_sec=bed_sec, sample_rate=SAMPLE_RATE)
+        if file_revision(path) != revision:
+            return BedUnavailable("unreadable_file")
     except FileNotFoundError:
         return BedUnavailable("missing_file")
     except Exception as exc:
@@ -909,12 +906,12 @@ def room_tone_bed(project: EpisodeProject, track_id: str) -> RecordedBedSample |
     if rms_db(audio, floor_db=DIGITAL_SILENCE_DB) <= DIGITAL_SILENCE_DB:
         return BedUnavailable("digital_silence")
     try:
-        verdict = _bed_verdict(path, file_revision(path), audio)
+        verdict = _bed_verdict(path, revision, audio)
     except Exception as exc:
         log.warning("room tone bed %s could not be measured: %s", source_id, exc)
         return BedUnavailable("unreadable_file")
     if isinstance(verdict, BedUsable):
-        return RecordedBedSample(verdict.start, verdict.end, source_id, path)
+        return RecordedBedSample(verdict.start, verdict.end, source_id, path, revision=revision)
     return BedUnavailable("contaminated_bed", verdict)
 
 

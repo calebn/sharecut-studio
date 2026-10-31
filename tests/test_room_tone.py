@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import wave
 from collections.abc import Callable
 from itertools import pairwise
@@ -20,6 +21,7 @@ from podcast_mcp.edits.timeline_ops import (
     insert_room_tone_pad,
     mute_room_tone_fill,
 )
+from podcast_mcp.engines import room_tone as room_tone_module
 from podcast_mcp.engines import room_tone_synth
 from podcast_mcp.engines.audio import SourceAudio
 from podcast_mcp.engines.clips_ops import (
@@ -474,8 +476,31 @@ def test_replacing_a_usable_bed_file_changes_the_pending_preview_key(tmp_path: P
     before = room_tone_bed_digest(project)
 
     _add_bed(project, tmp_path, _noise(-62.0, seed=8)[: 2 * SR], register=False)
+    bed_path = tmp_path / "raw" / "room-tone" / "host.wav"
+    stat = bed_path.stat()
+    os.utime(bed_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
 
     assert room_tone_bed_digest(project) != before
+
+
+def test_a_bed_replaced_while_it_is_read_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    _add_bed(project, tmp_path, _noise(-62.0, seed=7)[: 2 * SR])
+    bed_path = tmp_path / "raw" / "room-tone" / "host.wav"
+    real_load = room_tone_module.load_mono_window
+
+    def replace_then_load(*args: object, **kwargs: object) -> np.ndarray:
+        audio = real_load(*args, **kwargs)
+        _write_wav(bed_path, _noise(-62.0, seed=9)[: 2 * SR])
+        stat = bed_path.stat()
+        os.utime(bed_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+        return audio
+
+    monkeypatch.setattr(room_tone_module, "load_mono_window", replace_then_load)
+
+    assert room_tone_bed(project, "host") == BedUnavailable("unreadable_file")
 
 
 def test_clean_bed_passes_without_a_voice_detector(tmp_path: Path, no_voice_detector: None) -> None:
