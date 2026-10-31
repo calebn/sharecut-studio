@@ -17,6 +17,7 @@ import {
   setZoom,
   watchCommands,
 } from "../e2e/touchTimeline";
+import { trackHeaderButton } from "../e2e/trackHeader";
 
 const label =
   "Guest recording of the community workshop, including the opening questions, the discussion of shared equipment and access, the final participant reflections, the planning conversation for the next event, and the closing announcements for volunteers and visitors";
@@ -46,10 +47,7 @@ test.describe("feedback host Close", () => {
       );
       await setTheme(page, theme);
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
-      const details = page.getByRole("button", {
-        name: `Open track details, ${label}`,
-        exact: true,
-      });
+      const details = trackHeaderButton(page, label);
       await details.focus();
       await details.press("Enter");
       await page

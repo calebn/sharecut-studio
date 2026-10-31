@@ -28,6 +28,7 @@ import {
   setAudition,
 } from "./stageNav";
 import { zoomTimelineIn } from "./timelineZoom";
+import { trackHeaderButton } from "./trackHeader";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
 const AUDITION_NAMES: Record<Audition, string> = {
@@ -316,12 +317,15 @@ test.describe("presence follow desktop", () => {
       // Both tabs are the host, so M saves the mute for everyone (#386).
       const muteA = pageA.locator('[data-presence-anchor="track:guest:mute"]');
       const muteB = pageB.locator('[data-presence-anchor="track:guest:mute"]');
+      // The track controls show on hover (touch-less pointer), so reach the header first.
+      await trackHeaderButton(pageB, "guest").hover();
       await muteB.click();
       await expect(muteA).toHaveAttribute("data-mute-state", "saved", {
         timeout: 8_000,
       });
       // Checked after the server has applied it, when an unfollow would show.
       await expect(pageB.locator(".follow-banner")).toBeVisible();
+      await trackHeaderButton(pageB, "guest").hover();
       await muteB.click();
       await expect(muteA).toHaveAttribute("data-mute-state", "off", {
         timeout: 8_000,

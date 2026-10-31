@@ -494,7 +494,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
   - Phone: 56 px column, avatar only with level ring; tap selects the track (action bar: Mute, Solo, Hear, Inspect); mix controls in SHEET-PHONE-MIX.
 - **Keyboard:** M mute, Shift+S solo on the focused or targeted track; Shift+↑/↓ reorder.
 - **Shared elements used:** Person tile (avatar + live level), NEW: Scrub field (level bar), Icon language.
-- **Story to build:** `Edit/TrackHeader` stories `Default`, `Hover`, `Muted`, `Soloed`, `ImpliedMute`, `Rebuilding`, `Wide`, `Phone`, `Reordering`.
+- **Story to build:** `System/TrackHeader` stories `Default`, `Hover`, `Muted`, `Soloed`, `ImpliedMute`, `Rebuilding`, `Wide`, `Phone`, `Reordering`.
 
 ### CMP-TRACK-FADER · Track fader
 
@@ -899,7 +899,7 @@ Each interaction uses the object selection model above. Every edit is one undo s
 ### INT-MUTE-SOLO, INT-FADER, INT-REORDER · Track controls
 
 - **Fate:** per CMP-TRACK-HEADERS. Reorder by dragging the header (Shift+↑/↓ keyboard). Phone: drag the avatar in the Mix sheet.
-- **Story to build:** `Edit/TrackHeader` stories.
+- **Story to build:** `System/TrackHeader` stories.
 
 ### INT-ZOOM, INT-PINCH, INT-PAN · Zoom and pan
 

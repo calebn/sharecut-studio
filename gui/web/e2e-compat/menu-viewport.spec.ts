@@ -63,7 +63,7 @@ for (const mode of ["native", "fallback"] as const) {
       await withShareableProject(async (projectPath) => {
         await openProject(page, projectPath);
         await openPhoneTimeline(page);
-        await page.locator(".track-header-open").first().tap();
+        await page.locator(".sys-track-main").first().tap();
         const sheet = page.getByRole("dialog", { name: "Inspector" });
         await expect(sheet).toBeVisible();
         if (detent === "full") {
@@ -154,7 +154,7 @@ for (const mode of ["native", "fallback"] as const) {
       await rememberInspectorDetent(page, detent);
       await openProject(page, projectPath);
       await openPhoneTimeline(page);
-      await page.locator(".track-header-open").first().tap();
+      await page.locator(".sys-track-main").first().tap();
       const sheet = page.getByRole("dialog", { name: "Inspector" });
       await sheet.getByRole("button", { name: "Move track down" }).tap();
     }

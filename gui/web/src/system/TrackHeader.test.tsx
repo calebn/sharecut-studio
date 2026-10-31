@@ -88,6 +88,33 @@ describe("TrackHeader controls", () => {
     );
   });
 
+  it("speaks a clipped light and the reason a stem is out of date, and shows the reason as a tip", () => {
+    render(
+      <TrackHeader
+        {...base}
+        rebuilding
+        clipped
+        status="Stem out of date: trim changed"
+      />,
+    );
+    expect(select()).toHaveAccessibleDescription(
+      "Rebuilding. Clipped in playback. Stem out of date: trim changed",
+    );
+    expect(select()).toHaveAttribute("title", "Stem out of date: trim changed");
+    expect(document.querySelector(".sys-track")).toHaveAttribute(
+      "data-clipped",
+      "true",
+    );
+    expect(document.querySelector(".sys-track-badge")).not.toBeNull();
+  });
+
+  it("badges a clipped track in the default form, where a mute or solo gets no badge", () => {
+    const { rerender } = render(<TrackHeader {...base} mute="saved" solo />);
+    expect(document.querySelector(".sys-track-badge")).toBeNull();
+    rerender(<TrackHeader {...base} mute="saved" solo clipped />);
+    expect(document.querySelector(".sys-track-badge")).not.toBeNull();
+  });
+
   it("commits a level typed in the field", async () => {
     const user = userEvent.setup();
     const { onLevel } = setup();
@@ -279,6 +306,7 @@ describe("TrackHeader accessibility", () => {
       { form: "wide", playing: 0.5, solo: true },
       { form: "phone", mute: "saved" },
       { mute: "implied", rebuilding: true, selected: true },
+      { clipped: true, status: "Stem out of date" },
       { readOnly: true, mute: "saved" },
     ] satisfies Partial<TrackHeaderProps>[]) {
       const { container, unmount } = setup(over);

@@ -82,7 +82,7 @@ export const FROZEN: readonly (readonly [string, readonly string[]])[] = [
   ["--clip-inset-top", ["12px"]],
   ["--clip-inset-bottom", ["8px"]],
   ["--join-hit-min", ["calc(2 * var(--clip-inset-top))"]],
-  ["--header-width", ["11.25rem"]],
+  ["--header-width", ["10.5rem"]],
   ["--inspector-width", ["17.5rem"]],
   ["--stage-lane-min", ["22rem"]],
   ["--stage-script-floor", ["12rem"]],

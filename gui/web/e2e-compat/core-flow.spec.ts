@@ -29,6 +29,7 @@ import {
   waitForLanding,
 } from "../e2e/stageNav";
 import { ownsStudioAxe } from "../e2e/studioAxeOwnership";
+import { trackHeaderButton } from "../e2e/trackHeader";
 import {
   openTranscriptPanel,
   withDocumentCommandTypes,
@@ -137,9 +138,7 @@ test.describe("core flow", () => {
 
             // The landed track lives on the Edit stage; Record shows the take.
             await goToStage(host, "edit");
-            await expect(
-              host.getByRole("button", { name: "Open track details, Ava" }),
-            ).toBeVisible();
+            await expect(trackHeaderButton(host, "Ava")).toBeVisible();
           });
 
           await test.step("transcribe: the episode transcript hydrates", async () => {

@@ -1230,7 +1230,7 @@ test("the half drawer keeps a readable title at 390x844 with a 32 px root font",
 }, info) => halfTitleAtRootFont(32, { page, context, browserName }, info));
 
 async function openTrackSheet(page: Page, finger: Finger): Promise<void> {
-  await tapBox(page, finger, page.locator(".track-header-open").first());
+  await tapBox(page, finger, page.locator(".sys-track-main").first());
   await expect(sheet(page)).toBeVisible();
   expect((await sheetState(page)).compact).toBe(false);
 }

@@ -33,7 +33,7 @@ The domain composition inventory covered 42 story families. This is a snapshot f
 | Transcript (3) | EditBoundaryMark, GhostWordChips, TranscriptTurn |
 | Comments (2) | CommentCard, CommentCompose |
 | Recording (7) | ConsentGate, Declined, DeviceCheck, FullRoom, LiveComments, Lobby, RecIndicator |
-| Tracks (1) | TrackHeader |
+| Tracks (1) | System/TrackHeader |
 
 Domain coverage was a source/composition review, with deeper inspection of forms,
 dialogs, recording screens, and control consumers. Representative browser checks

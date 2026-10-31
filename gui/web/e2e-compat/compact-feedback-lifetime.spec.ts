@@ -19,6 +19,7 @@ import {
 import type { InteractionReceipt } from "../e2e/interactionEvidence";
 import { inspectSelection } from "../e2e/stageNav";
 import { centerOf, lane, watchCommands } from "../e2e/touchTimeline";
+import { trackHeaderButton } from "../e2e/trackHeader";
 
 test.use({ hasTouch: true });
 test.describe.configure({ timeout: 240_000 });
@@ -133,12 +134,7 @@ for (const width of [600, 636]) {
     }, info) => {
       test.setTimeout(60_000);
       await openAt(page, { width, height: 360 });
-      await page
-        .getByRole("button", {
-          name: "Reorder track reference",
-          exact: true,
-        })
-        .click();
+      await trackHeaderButton(page, "reference").click();
       await expect(page.locator(".modifier-inspector")).toBeVisible();
       const savedOrder = async () => {
         const response = await page.request.get(

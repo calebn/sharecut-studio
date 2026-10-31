@@ -17,6 +17,7 @@ import {
 } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openProject } from "../e2e/stageNav";
+import { trackHeaderButton } from "../e2e/trackHeader";
 
 /*
  * #1694 a phone held sideways (the short tablet shell) editing a volume
@@ -333,15 +334,12 @@ test("914x331 idle: a touch tap on the guest track header opens its details and 
   await withDemoProject(async (projectPath) => {
     await openProject(page, projectPath);
     await expect(page.locator(".stage-frame--tablet")).toBeVisible();
-    const header = page.getByRole("button", {
-      name: `Open track details, ${DEMO_TRACK}`,
-      exact: true,
-    });
+    const header = trackHeaderButton(page, DEMO_TRACK);
     await header.scrollIntoViewIfNeeded();
     const point = await header.evaluate((el) => {
       const title = el
-        .closest(".track-header-row")!
-        .querySelector(".track-title, .track-chip")!
+        .closest(".sys-track")!
+        .querySelector(".sys-track-name, .sys-track-avatar")!
         .getBoundingClientRect();
       const x = title.left + title.width / 2;
       const y = title.top + title.height / 2;

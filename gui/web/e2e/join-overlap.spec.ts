@@ -217,7 +217,15 @@ for (const { cell: vp, theme } of withAppearance(VIEWPORTS)) {
       for (let i = 0; i < 20 && (await blendWidth(blend)) < 40; i++)
         await page.keyboard.press("+");
       await centreOn(page, blend);
-      await expect(tiles).toHaveCount(2);
+      // Render tiles are source-anchored 512 px cells, so a cell edge can fall inside a
+      // 40 px blend and give each of the two waveforms two tiles. The count is a pair
+      // per waveform, never a lone or odd tile.
+      await expect
+        .poll(async () => {
+          const count = await tiles.count();
+          return count >= 2 && count % 2 === 0;
+        })
+        .toBe(true);
     } finally {
       await page.keyboard.press("Escape");
       await page.evaluate(() =>

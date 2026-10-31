@@ -20,7 +20,6 @@ import {
  *   where a taller hit area would take the neighbouring line's taps; the transport seeks at
  *   44px, while the ruler is 24px by design and is in the `DENSE` exemption of
  *   `e2e-compat/reachability-sweep.spec.ts`;
- * - `.track-reorder-handle`: a drag shortcut whose equivalent is the 44px Move up/down buttons;
  */
 const DOCUMENTED_EXCEPTIONS = [
   ".fade-corner",
@@ -28,7 +27,6 @@ const DOCUMENTED_EXCEPTIONS = [
   ".track-headers-well",
   ".sys-script-word",
   ".sys-script-time",
-  ".track-reorder-handle",
   ".comment-marker.pin",
   ".pending-hit",
   ".pending-handle",

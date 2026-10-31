@@ -7,6 +7,7 @@ import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
+import { trackHeaderButton, trackHeaderOf } from "./trackHeader";
 
 function object(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
@@ -105,6 +106,15 @@ function clearClip(page: Page): Locator {
   return page.getByRole("button", { name: "Clear clip light for reference" });
 }
 
+/** The header's avatar ring, drawn from the track's live level at about 8 Hz. */
+async function ringLevel(header: Locator): Promise<number> {
+  return Number(
+    await header.evaluate((node) =>
+      (node as HTMLElement).style.getPropertyValue("--sys-track-level"),
+    ),
+  );
+}
+
 async function play(page: Page) {
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(
@@ -120,20 +130,30 @@ async function pause(page: Page) {
   );
 }
 
-async function expectContained(meterLocator: Locator) {
-  const contained = await meterLocator.evaluate((element) => {
-    const row = element.closest(".track-header-row");
-    if (!row) return false;
-    const outer = row.getBoundingClientRect();
-    const inner = element.getBoundingClientRect();
+/** A header holds its avatar and fits the lane-high slot it stands in, even in the shortest lane. */
+async function expectHeaderContained(header: Locator) {
+  const contained = await header.evaluate((element) => {
+    const slot = element.closest(".track-column-row");
+    const avatar = element.querySelector(".sys-track-avatar");
+    if (!slot || !avatar) return false;
+    const within = (inner: DOMRect, outer: DOMRect) =>
+      inner.left >= outer.left - 0.5 &&
+      inner.right <= outer.right + 0.5 &&
+      inner.top >= outer.top - 0.5 &&
+      inner.bottom <= outer.bottom + 0.5;
     return (
-      inner.left >= outer.left &&
-      inner.right <= outer.right &&
-      inner.top >= outer.top &&
-      inner.bottom <= outer.bottom
+      within(element.getBoundingClientRect(), slot.getBoundingClientRect()) &&
+      within(avatar.getBoundingClientRect(), element.getBoundingClientRect())
     );
   });
   expect(contained).toBe(true);
+}
+
+/** The track's details hold its meter and clip light: the header shows the ring and a clipped badge. */
+async function openReferenceDetails(page: Page) {
+  if (await clearClip(page).isVisible()) return;
+  await trackHeaderButton(page, "reference").click();
+  await expect(clearClip(page)).toBeVisible();
 }
 
 test("real premix exposes per-track peaks, clipping, and responsive controls", async ({
@@ -149,29 +169,36 @@ test("real premix exposes per-track peaks, clipping, and responsive controls", a
       async (projectPath) => {
         await renderPreview(host, projectPath);
         await openHostShare(host, projectPath);
+        const reference = trackHeaderButton(host, "reference");
+        const referenceHeader = trackHeaderOf(reference);
+        const guestHeader = trackHeaderOf(trackHeaderButton(host, "guest"));
+        await expect(referenceHeader).not.toHaveAttribute("data-clipped");
+        await openReferenceDetails(host);
         await expect(clearClip(host)).toBeDisabled();
         await play(host);
         await expect(clearClip(host)).toBeEnabled();
-        await expect
-          .poll(async () =>
-            Number(await meter(host, "guest").getAttribute("aria-valuenow")),
-          )
-          .toBeGreaterThan(-20);
+        // The header ring follows each track's own peak while it plays.
+        await expect.poll(() => ringLevel(guestHeader)).toBeGreaterThan(0.5);
         await expect(meter(host, "reference")).toHaveAttribute(
           "aria-valuetext",
           /Clipping/,
         );
+        await expect(referenceHeader).toHaveAttribute("data-clipped", "true");
+        await expect(reference).toHaveAccessibleDescription(
+          /Clipped in playback/,
+        );
         await pause(host);
         await expect(clearClip(host)).toBeEnabled();
+        expect(await ringLevel(guestHeader)).toBe(0);
+        await expect(referenceHeader).toHaveAttribute("data-clipped", "true");
         await clearClip(host).click({ timeout: 10000 });
         await expect(clearClip(host)).toBeDisabled();
+        await expect(referenceHeader).not.toHaveAttribute("data-clipped");
         await expect(host.locator(".pill.audio-error")).toHaveCount(0);
 
         // A shared link has no timeline in the stage frame, so the guest-proxy
         // meters have no surface; the host's own track headers carry the rest.
-        await host
-          .getByRole("button", { name: "Open track details, reference" })
-          .focus();
+        await reference.focus();
         await host.keyboard.press("Alt+-");
         await expect(host.locator(".timeline-area")).toHaveAttribute(
           "data-lane-density",
@@ -185,20 +212,11 @@ test("real premix exposes per-track peaks, clipping, and responsive controls", a
         ]) {
           await host.setViewportSize(viewport);
           if (viewport.name === "phone") await openPhoneTimeline(host);
+          await expect(referenceHeader).toBeVisible();
+          await expectHeaderContained(referenceHeader);
+          await expectHeaderContained(guestHeader);
+          await openReferenceDetails(host);
           await expect(meter(host, "reference")).toBeVisible();
-          await expectContained(meter(host, "reference"));
-          if (viewport.name === "phone") {
-            const row = host
-              .locator(".track-header-row")
-              .filter({ has: meter(host, "reference") });
-            await expect(row.locator(".track-clip-status")).toBeVisible();
-            await expect(
-              row.getByRole("button", { name: /^Clear clip light/ }),
-            ).toHaveCount(0);
-            await host
-              .getByRole("button", { name: "Open track details, reference" })
-              .click();
-          }
           const target = await clearClip(host).boundingBox();
           expect(target).not.toBeNull();
           const minimum = viewport.name === "phone" ? 44 : 24;
@@ -231,11 +249,14 @@ test("reduced motion freezes meter bars while real playback clipping remains det
       async (projectPath) => {
         await renderPreview(page, projectPath);
         await openHostShare(page, projectPath);
+        await openReferenceDetails(page);
+        const header = trackHeaderOf(trackHeaderButton(page, "reference"));
         const fill = meter(page, "reference").locator(".ui-meter-fill");
         const before = await fill.getAttribute("style");
         await play(page);
         await expect(clearClip(page)).toBeEnabled();
         await expect(fill).toHaveAttribute("style", before ?? "");
+        expect(await ringLevel(header)).toBe(0);
         await expect(meter(page, "reference")).toHaveAttribute(
           "aria-valuenow",
           "-60",
