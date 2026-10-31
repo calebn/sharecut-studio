@@ -28,6 +28,7 @@ Host product surfaces (GUI / keys / host MCP / skills): [Capabilities](#/capabil
 | `+action` | `guest_set_action_done` |
 | Commenter or Editor role | `guest_submit_document_command` |
 | Editor role | `guest_render_preview`, `guest_render_preview_job`, `guest_upload_media` |
+| Editor role, project work | `guest_export_job`, `guest_export_job_cancel`, `guest_export_start`, `guest_export_status`, `guest_pipeline_job`, `guest_pipeline_job_cancel`, `guest_pipeline_run`, `guest_pipeline_status`, `guest_speaker_job`, `guest_speaker_job_cancel`, `guest_speaker_move_lane_span`, `guest_speaker_split`, `guest_speaker_status` |
 
 <!-- /remote-mcp-tools:generated -->
 
@@ -43,7 +44,7 @@ Invalid arguments return JSON-RPC **`-32602`**.
 
 ## Not available on guest MCP
 
-Even with `mcp` set: pipeline run, full ingest consolidate, episode create,
+Even with `mcp` set: full ingest consolidate, episode create,
 host-speaker `play`, and other host-only mutations. Agents stream audio via HTTP
 URLs from `guest_audio_info` and `guest_pending_preview` — remote MCP does not
 play on the host laptop.

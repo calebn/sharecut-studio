@@ -225,6 +225,12 @@ DEFAULT_TRANSCRIPT_EXPORT_FORMATS: tuple[TranscriptFormat, ...] = ("md", "srt")
 VocabularyEntry = Annotated[str, Field(max_length=VOCABULARY_MAX_ENTRY_CHARS)]
 
 
+class GuestJobRequest(GuestRequest):
+    """Which of the share's jobs a guest MCP job tool reads or cancels."""
+
+    job_id: str = Field(min_length=1, max_length=GUEST_ID_MAX_CHARS)
+
+
 class GuestVocabularyPutRequest(GuestRequest):
     """Save the project's vocabulary from an Editor share; the share names the project."""
 

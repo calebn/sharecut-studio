@@ -77,6 +77,36 @@ EDIT_TOOLS: frozenset[str] = frozenset(
     }
 )
 
+# Project work an Editor can start and follow over MCP: the twins of the ``/daw/pipeline``,
+# ``/daw/export`` and ``/daw/speaker`` routes. Same gate as ``EDIT_TOOLS``. The ``/events``
+# streams stay HTTP-only; the ``*_job`` tools poll.
+PIPELINE_TOOLS: frozenset[str] = frozenset(
+    {
+        "guest_pipeline_run",
+        "guest_pipeline_status",
+        "guest_pipeline_job",
+        "guest_pipeline_job_cancel",
+    }
+)
+EXPORT_TOOLS: frozenset[str] = frozenset(
+    {
+        "guest_export_start",
+        "guest_export_status",
+        "guest_export_job",
+        "guest_export_job_cancel",
+    }
+)
+SPEAKER_TOOLS: frozenset[str] = frozenset(
+    {
+        "guest_speaker_split",
+        "guest_speaker_status",
+        "guest_speaker_job",
+        "guest_speaker_job_cancel",
+        "guest_speaker_move_lane_span",
+    }
+)
+EDITOR_PROJECT_TOOLS: frozenset[str] = PIPELINE_TOOLS | EXPORT_TOOLS | SPEAKER_TOOLS
+
 ALL_GUEST_TOOLS: frozenset[str] = (
     PLAY_TOOLS
     | VIEW_TOOLS
@@ -85,6 +115,7 @@ ALL_GUEST_TOOLS: frozenset[str] = (
     | ACTION_TOOLS
     | DOCUMENT_COMMAND_TOOLS
     | EDIT_TOOLS
+    | EDITOR_PROJECT_TOOLS
 )
 
 
@@ -104,7 +135,7 @@ def tools_for_capabilities(caps: list[str] | None) -> frozenset[str]:
     if document_command_types_for_caps(caps):
         out |= DOCUMENT_COMMAND_TOOLS
     if edit_commands_allowed(caps):
-        out |= EDIT_TOOLS
+        out |= EDIT_TOOLS | EDITOR_PROJECT_TOOLS
     return frozenset(out)
 
 

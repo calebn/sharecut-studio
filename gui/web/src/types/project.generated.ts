@@ -142,6 +142,11 @@ export interface GuestExportRequest {
   formats?: Array<"mp3" | "flac" | "m4a"> | null;
 }
 
+/** Which of the share's jobs a guest MCP job tool reads or cancels. */
+export interface GuestJobRequest {
+  job_id: string;
+}
+
 /** Which steps an Editor share starts; the host's working-set config decides the rest. */
 export interface GuestPipelineRunRequest {
   from_step?: string | null;

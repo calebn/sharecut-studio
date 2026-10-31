@@ -537,8 +537,8 @@ through `GUEST_JOB_VIEW` (`services/jobs/job.py`), only when it belongs to the
 share's project: another project's job answers 404. An Editor may poll a render
 of the same project that the host started, because host and guests share one
 render lock; the view is only id, status, current, total and fixed copy. The
-registry covers the HTTP twins only; the guest MCP tools are gated separately in
-`remote_mcp`.
+registry covers the HTTP twins; the guest MCP tools are gated in `remote_mcp`, and the
+pipeline, export and speaker twins have MCP tools (below).
 
 An Editor can watch and stop host work the way the host can: the project's job
 status (`…/daw/pipeline/status`), one job's status, its event stream
@@ -596,7 +596,7 @@ master WAV, the transcript sidecars (SRT and Markdown, and a VTT or TXT already 
 chapters file and the feed file per the host's settings, saves the project (the feed guid and
 number, the master hash and QC), and replaces same-named deliverables already in the export
 folder; there is no undo and the job does not record which link started it, so the host log
-carries an INFO line with the first characters of the token. Choosing `formats` replaces the
+carries an INFO line naming the share (`share:<id>`). Choosing `formats` replaces the
 host's list for that run (a host `mp3` at 192 kbps or an `m4a` the host configured is not
 rewritten and is left as it was); omitting `formats` runs the host's whole export config,
 including its bitrates, sample rate, channels and extra FFmpeg arguments. Any Editor can
@@ -607,6 +607,25 @@ the same project, answers 409 `job_running` with the fixed copy at once (the own
 still waits for a rebuild). The job view says only running, done or failed ("Export failed", whatever the cause);
 the Editor is not handed the exported files or their paths, and downloading them is a later
 decision. Bounce (it names track ids, the raw stems exception) stays host-only here.
+
+An Editor on a guest MCP session (the share's remote MCP URL, a link with `mcp`) gets the pipeline,
+export and speaker twins as tools, offered by the same gate as the other Editor tools
+(`edit_commands_allowed`), so a Viewer or Commenter is not offered them and is refused with the
+fixed `share_capability_required` copy (JSON-RPC `-32003`) if it calls one anyway. Each tool runs
+the same core as its HTTP row (not an HTTP call), with the same bounds (the `Guest*Request` model
+is the tool's argument schema and an unknown argument is `-32602`), the same job views and the same
+codes. A start (`guest_pipeline_run`, `guest_export_start`, `guest_speaker_split`) needs
+`PODCAST_GUEST_RENDER` like its row and spends the mutate rate bucket, as do the cancel tools and
+`guest_speaker_move_lane_span`; the status and job tools spend the read bucket and, like the HTTP
+twins, work with the flag off. Per family there is a status tool (`guest_pipeline_status`,
+`guest_export_status`, `guest_speaker_status`: the project's jobs), a job tool (`…_job`, by
+`job_id`) and a cancel tool (`…_job_cancel`); a job of another kind or project is a
+`job_not_found` refusal. The `/events` streams stay HTTP-only: an agent polls the job tool. A
+refusal reaches the agent as an `isError` result with its `error_code` and fixed copy, never the
+host's text: a busy slot is `job_running`, a missing speaker model `model_needed` (nothing is
+downloaded), an attended project `pipeline_attended`. Export and speaker starts and the lane move
+record the share as `share:<id>` in the host log, as the HTTP rows do (the export start no longer
+logs a token prefix); the pipeline start logs nothing about who started it. The transcript twins have no MCP tool yet.
 
 An Editor also gets twins of the transcript tab's tools, under `…/daw/transcript/`, as the
 project's workspace. The rule is the same as for the rest of the Editor's powers: an Editor does

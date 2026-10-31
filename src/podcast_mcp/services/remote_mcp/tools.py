@@ -15,7 +15,15 @@ from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC
 from podcast_mcp.services.collaboration import (
     CAP_PLAY,
     CAP_VIEW,
+    guest_cancel_job,
+    guest_job_status_view,
+    guest_move_lane_span,
+    guest_projected_job,
+    guest_start_export,
+    guest_start_pipeline_run,
+    guest_start_speaker_split,
     has_capability,
+    lookup_guest_job,
     share_add_comment,
     share_add_reply,
     share_audition_context_info,
@@ -33,9 +41,24 @@ from podcast_mcp.services.document_sync import (
 )
 from podcast_mcp.services.remote_mcp.allowlist import tool_allowed
 from podcast_mcp.services.remote_mcp.context import get_remote_mcp_context
-from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedPermissionError
+from podcast_mcp.util.coded_error import (
+    CodedError,
+    CodedKeyError,
+    CodedPermissionError,
+)
+from podcast_mcp.util.guest_render import require_guest_render
 from podcast_mcp.util.progress import install_guest_tool_progress
 from podcast_mcp.util.tool_refusal import guest_failure_detail
+
+if typing.TYPE_CHECKING:
+    from podcast_mcp.gui.schemas import (
+        GuestExportRequest,
+        GuestJobRequest,
+        GuestPipelineRunRequest,
+        GuestSpeakerMoveLaneSpanRequest,
+        GuestSpeakerSplitRequest,
+    )
+    from podcast_mcp.services.jobs import JobManager
 
 
 class UnknownToolError(LookupError):
@@ -318,12 +341,12 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
 def guest_render_preview() -> dict[str, Any]:
     """Rebuild stems/premix (requires ``edit`` + ``PODCAST_GUEST_RENDER=1``)."""
     _require_tool("guest_render_preview")
-    from podcast_mcp.services.jobs import GUEST_RENDER_KINDS, guest_job_view, shared_job_manager
+    from podcast_mcp.services.jobs import GUEST_RENDER_KINDS, guest_job_view
     from podcast_mcp.util.guest_render import require_guest_render
 
     require_guest_render()
     ctx = get_remote_mcp_context()
-    jobs = shared_job_manager()
+    jobs = _shared_jobs()
     # A busy job slot (``JobSlotBusyError``) is a refusal the guest sees, not a caps deny (-32003).
     job = jobs.start_render_preview(ctx.workspace.path)
     projected = guest_job_view(job, ctx.workspace.path, GUEST_RENDER_KINDS)
@@ -335,15 +358,113 @@ def guest_render_preview() -> dict[str, Any]:
 def guest_render_preview_job(job_id: str) -> dict[str, Any]:
     """Read a guest render job scoped to the current edit share."""
     _require_tool("guest_render_preview_job")
-    from podcast_mcp.services.jobs import GUEST_RENDER_KINDS, guest_job_view, shared_job_manager
+    from podcast_mcp.services.jobs import GUEST_RENDER_KINDS, guest_job_view
 
     ctx = get_remote_mcp_context()
-    job = guest_job_view(
-        shared_job_manager().get_job(job_id), ctx.workspace.path, GUEST_RENDER_KINDS
-    )
+    job = guest_job_view(_shared_jobs().get_job(job_id), ctx.workspace.path, GUEST_RENDER_KINDS)
     if job is None:
         raise CodedKeyError("Render preview job not found", code="job_not_found")
     return {"job": job}
+
+
+def _shared_jobs() -> JobManager:
+    from podcast_mcp.services.jobs import shared_job_manager
+
+    return shared_job_manager()
+
+
+def _jobs_and_kinds(family: str) -> tuple[JobManager, frozenset[str]]:
+    from podcast_mcp.services.jobs import (
+        GUEST_EXPORT_KINDS,
+        GUEST_PIPELINE_KINDS,
+        GUEST_SPEAKER_KINDS,
+    )
+
+    kinds = {
+        "pipeline": GUEST_PIPELINE_KINDS,
+        "export": GUEST_EXPORT_KINDS,
+        "speaker": GUEST_SPEAKER_KINDS,
+    }[family]
+    return _shared_jobs(), kinds
+
+
+def guest_pipeline_run(req: GuestPipelineRunRequest) -> dict[str, Any]:
+    """Start a pipeline run on the host's working-set config (requires ``edit`` + the opt-in)."""
+    _require_tool("guest_pipeline_run")
+    require_guest_render()
+    return guest_start_pipeline_run(
+        _shared_jobs(), get_remote_mcp_context().workspace, **req.model_dump()
+    )
+
+
+def guest_export_start(req: GuestExportRequest) -> dict[str, Any]:
+    """Start the deliverables export into the project's export folder (``edit`` + the opt-in)."""
+    _require_tool("guest_export_start")
+    require_guest_render()
+    ctx = get_remote_mcp_context()
+    return guest_start_export(_shared_jobs(), ctx.workspace, ctx.author, req.formats)
+
+
+def guest_speaker_split(req: GuestSpeakerSplitRequest) -> dict[str, Any]:
+    """Start a speaker split of one track (requires ``edit`` + the opt-in)."""
+    _require_tool("guest_speaker_split")
+    require_guest_render()
+    ctx = get_remote_mcp_context()
+    return guest_start_speaker_split(_shared_jobs(), ctx.workspace, ctx.author, **req.model_dump())
+
+
+def guest_speaker_move_lane_span(req: GuestSpeakerMoveLaneSpanRequest) -> dict[str, Any]:
+    """Move a timeline range between two lanes of one speaker split (requires ``edit``)."""
+    _require_tool("guest_speaker_move_lane_span")
+    ctx = get_remote_mcp_context()
+    return guest_move_lane_span(ctx.workspace, ctx.author, **req.model_dump())
+
+
+def _job_tools(
+    family: str,
+) -> tuple[
+    Callable[[], dict[str, Any]],
+    Callable[[GuestJobRequest], dict[str, Any]],
+    Callable[[GuestJobRequest], dict[str, Any]],
+]:
+    """The status, job and cancel handlers of one job family, each the twin of its HTTP row.
+
+    Cancel runs with ``PODCAST_GUEST_RENDER`` off, like the HTTP rows, so the host can stop a
+    job after turning the opt-in off.
+    """
+    status_name, job_name, cancel_name = (
+        f"guest_{family}_status",
+        f"guest_{family}_job",
+        f"guest_{family}_job_cancel",
+    )
+
+    def status() -> dict[str, Any]:
+        _require_tool(status_name)
+        jobs, kinds = _jobs_and_kinds(family)
+        return guest_job_status_view(jobs, get_remote_mcp_context().workspace, kinds)
+
+    def job(req: GuestJobRequest) -> dict[str, Any]:
+        _require_tool(job_name)
+        jobs, kinds = _jobs_and_kinds(family)
+        ws = get_remote_mcp_context().workspace
+        return guest_projected_job(lookup_guest_job(jobs, ws, req.job_id, kinds), ws, kinds)
+
+    def cancel(req: GuestJobRequest) -> dict[str, Any]:
+        _require_tool(cancel_name)
+        jobs, kinds = _jobs_and_kinds(family)
+        ws = get_remote_mcp_context().workspace
+        return guest_cancel_job(jobs, ws, lookup_guest_job(jobs, ws, req.job_id, kinds), kinds)
+
+    return status, job, cancel
+
+
+(
+    guest_pipeline_status,
+    guest_pipeline_job,
+    guest_pipeline_job_cancel,
+) = _job_tools("pipeline")
+guest_export_status, guest_export_job, guest_export_job_cancel = _job_tools("export")
+guest_speaker_status, guest_speaker_job, guest_speaker_job_cancel = _job_tools("speaker")
 
 
 TOOL_HANDLERS: dict[str, Any] = {
@@ -366,7 +487,22 @@ TOOL_HANDLERS: dict[str, Any] = {
     "guest_render_preview": guest_render_preview,
     "guest_render_preview_job": guest_render_preview_job,
     "guest_upload_media": guest_upload_media,
+    "guest_pipeline_run": guest_pipeline_run,
+    "guest_pipeline_status": guest_pipeline_status,
+    "guest_pipeline_job": guest_pipeline_job,
+    "guest_pipeline_job_cancel": guest_pipeline_job_cancel,
+    "guest_export_start": guest_export_start,
+    "guest_export_status": guest_export_status,
+    "guest_export_job": guest_export_job,
+    "guest_export_job_cancel": guest_export_job_cancel,
+    "guest_speaker_split": guest_speaker_split,
+    "guest_speaker_status": guest_speaker_status,
+    "guest_speaker_job": guest_speaker_job,
+    "guest_speaker_job_cancel": guest_speaker_job_cancel,
+    "guest_speaker_move_lane_span": guest_speaker_move_lane_span,
 }
+
+# Tools whose one argument, ``req``, is a guest request model shared with their HTTP twin.
 
 
 TOOL_DESCRIPTIONS: dict[str, str] = {
@@ -401,6 +537,30 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
     "guest_render_preview_job": "Get status of a render job for this edit share's project.",
     "guest_upload_media": (
         "Chunked audio upload into host raw/ (requires edit). Same as POST …/daw/media/upload."
+    ),
+    "guest_pipeline_run": (
+        "Start a pipeline run with the host's saved settings and return its job "
+        "(requires edit; host opt-in PODCAST_GUEST_RENDER)."
+    ),
+    "guest_pipeline_status": "Pipeline jobs for this project: the running one and recent ones.",
+    "guest_pipeline_job": "Status of one pipeline job of this project, by job_id.",
+    "guest_pipeline_job_cancel": "Cancel one pipeline job of this project, by job_id.",
+    "guest_export_start": (
+        "Export mastered deliverables (mp3, flac, m4a) into the project's export folder "
+        "(requires edit; host opt-in PODCAST_GUEST_RENDER)."
+    ),
+    "guest_export_status": "Export jobs for this project: the running one and recent ones.",
+    "guest_export_job": "Status of one export job of this project, by job_id.",
+    "guest_export_job_cancel": "Cancel one export job of this project, by job_id.",
+    "guest_speaker_split": (
+        "Split one track into a lane per speaker (requires edit; host opt-in "
+        "PODCAST_GUEST_RENDER; the host must already have the speaker model)."
+    ),
+    "guest_speaker_status": "Speaker-split jobs for this project: the running one and recent ones.",
+    "guest_speaker_job": "Status of one speaker-split job of this project, by job_id.",
+    "guest_speaker_job_cancel": "Cancel one speaker-split job of this project, by job_id.",
+    "guest_speaker_move_lane_span": (
+        "Move a timeline range between two lanes of one speaker split (requires edit)."
     ),
 }
 
@@ -493,6 +653,9 @@ def tool_input_schema(name: str) -> dict[str, Any]:
             "required": ["filename", "data_base64"],
         },
     }
+    model = _request_model(name)
+    if model is not None:
+        return model.model_json_schema()
     return schemas.get(name, {"type": "object", "properties": {}})
 
 
@@ -512,12 +675,42 @@ def list_tool_defs(caps: list[str] | None) -> list[dict[str, Any]]:
 
 
 @functools.cache
+def _request_models() -> dict[str, type[BaseModel]]:
+    """The HTTP twins' request model of each tool whose one argument, ``req``, is that model."""
+    from podcast_mcp.gui.schemas import (
+        GuestExportRequest,
+        GuestJobRequest,
+        GuestPipelineRunRequest,
+        GuestSpeakerMoveLaneSpanRequest,
+        GuestSpeakerSplitRequest,
+    )
+
+    return {
+        "guest_pipeline_run": GuestPipelineRunRequest,
+        "guest_export_start": GuestExportRequest,
+        "guest_speaker_split": GuestSpeakerSplitRequest,
+        "guest_speaker_move_lane_span": GuestSpeakerMoveLaneSpanRequest,
+        **{
+            f"guest_{family}_{op}": GuestJobRequest
+            for family in ("pipeline", "export", "speaker")
+            for op in ("job", "job_cancel")
+        },
+    }
+
+
+def _request_model(name: str) -> type[BaseModel] | None:
+    """The request model of a tool shared with an HTTP twin, else ``None``."""
+    return _request_models().get(name)
+
+
+@functools.cache
 def _arguments_model(handler: Callable[..., Any]) -> type[BaseModel] | None:
     """A model of ``handler``'s keyword arguments, or ``None`` when it validates its own."""
     params = inspect.signature(handler).parameters.values()
     if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
         return None
-    hints = typing.get_type_hints(handler)
+    models = {model.__name__: model for model in _request_models().values()}
+    hints = typing.get_type_hints(handler, localns=models)
     fields: dict[str, Any] = {
         p.name: (hints.get(p.name, Any), ... if p.default is inspect.Parameter.empty else p.default)
         for p in params
@@ -529,12 +722,20 @@ def _arguments_model(handler: Callable[..., Any]) -> type[BaseModel] | None:
     )
 
 
-def _validated_arguments(handler: Callable[..., Any], arguments: dict[str, Any]) -> dict[str, Any]:
+def _validated_arguments(
+    name: str, handler: Callable[..., Any], arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Check the guest's arguments against ``handler`` before it runs.
 
     A bad argument is the guest's mistake, reported as ``InvalidToolArgumentsError``; a
     ``TypeError`` or ``ValidationError`` raised later, inside the tool, is a crash.
     """
+    request_model = _request_model(name)
+    if request_model is not None:
+        try:
+            return {"req": request_model.model_validate(arguments)}
+        except ValidationError as exc:
+            raise InvalidToolArgumentsError(_argument_problems(exc)) from exc
     model = _arguments_model(handler)
     if model is None:
         return arguments
@@ -552,7 +753,7 @@ def _call_tool_impl(name: str, arguments: dict[str, Any] | None = None) -> Any:
     # Capability gate before checking arguments so a denial is not masked by a missing
     # required argument on a disallowed tool.
     _require_tool(name)
-    result = handler(**_validated_arguments(handler, arguments or {}))
+    result = handler(**_validated_arguments(name, handler, arguments or {}))
     if isinstance(result, (dict, list)):
         return result
     return json.loads(json.dumps(result, default=str))

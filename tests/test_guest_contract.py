@@ -15,7 +15,7 @@ import podcast_mcp.edits.transcript_search as transcript_search
 import podcast_mcp.services.collaboration as collaboration
 import podcast_mcp.services.jobs as service_jobs
 import podcast_mcp.services.record.service as record_service
-from podcast_mcp.gui.routes import record_share, remote_mcp, review_editor, review_share
+from podcast_mcp.gui.routes import record_share, remote_mcp, review_share
 from podcast_mcp.gui.routes.guest_ws_common import GUEST_MALFORMED_LIMIT
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
@@ -27,6 +27,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration import guest_project_ops
 from podcast_mcp.services.collaboration.guest_progress import guest_ws_progress_sink
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.review_versions import get_version, version_audio_path
@@ -292,7 +293,7 @@ PROBES: dict[tuple[str, str], Probe] = {
         Site(service_jobs.JobManager, "get_job")
     ),
     ("POST", "/api/review/{token}/daw/pipeline/run"): Probe(
-        Site(review_editor, "start_pipeline_job"), {"json": {}}
+        Site(guest_project_ops, "ensure_whisper_cached_for_run"), {"json": {}}
     ),
     ("GET", "/api/review/{token}/daw/pipeline/status"): Probe(
         Site(service_jobs.JobManager, "status")
@@ -479,6 +480,25 @@ TOOLS: dict[str, tuple[Site | None, dict[str, object]]] = {
         Site(remote_tools, "share_upload_media"),
         {"filename": "x.wav", "data_base64": "UklGRg=="},
     ),
+    "guest_pipeline_run": (Site(guest_project_ops, "ensure_whisper_cached_for_run"), {}),
+    "guest_export_start": (Site(service_jobs.JobManager, "start_export"), {}),
+    "guest_speaker_split": (
+        Site(service_jobs.JobManager, "start_split_speakers"),
+        {"track_id": "t", "speaker_count": 2},
+    ),
+    "guest_speaker_move_lane_span": (
+        Site(SpeakerService, "move_lane_span"),
+        {"from_lane": "a", "to_lane": "b", "timeline_start": 0, "timeline_end": 1},
+    ),
+    **{
+        f"guest_{family}_{op}": (Site(service_jobs.JobManager, site), arguments)
+        for family in ("pipeline", "export", "speaker")
+        for op, site, arguments in (
+            ("status", "status", {}),
+            ("job", "get_job", {"job_id": "x1"}),
+            ("job_cancel", "get_job", {"job_id": "x1"}),
+        )
+    },
 }
 """``guest_audio_info`` only formats share URLs: it calls nothing a fault could be planted in."""
 

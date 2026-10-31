@@ -20,12 +20,16 @@ from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.guest_routes import GUEST_OWNER_ROUTES
 from podcast_mcp.services.collaboration.review import ReviewService
-from podcast_mcp.services.collaboration.share import ShareService
-from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+from podcast_mcp.services.collaboration.share import ShareService, lookup_share
+from podcast_mcp.services.collaboration.share_capabilities import (
+    capabilities_for_role,
+    share_review_source,
+)
 from podcast_mcp.services.jobs import GUEST_EXPORT_KINDS, GUEST_PIPELINE_KINDS, Job
 from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE
 from podcast_mcp.util.proxy_paths import is_allowed_local_gui_path
 
+OPS_LOGGER = "podcast_mcp.services.collaboration.guest_project_ops"
 CODE = "x-sharecut-error-code"
 RELAYED = {"x-sharecut-relayed": "1"}
 NOT_FOUND = {"detail": "Job not found"}
@@ -487,13 +491,13 @@ def test_the_tunnel_allowlist_admits_the_export_twins_and_not_the_owner_routes()
             assert is_allowed_local_gui_path(row.path.format(token="tok", job_id="j"), "tok")
 
 
-def test_a_start_logs_who_started_it_without_the_whole_token(world, caplog) -> None:
-    with caplog.at_level(logging.INFO, logger="podcast_mcp.gui.routes.review_editor"):
+def test_a_start_logs_the_share_that_started_it_and_no_token(world, caplog) -> None:
+    with caplog.at_level(logging.INFO, logger=OPS_LOGGER):
         job_id = _start(world).json()["job"]["id"]
 
     line = next(r.getMessage() for r in caplog.records if "guest export started" in r.getMessage())
-    assert world.tokens["editor"][:8] in line
-    assert world.tokens["editor"] not in line
+    assert str(share_review_source(lookup_share(world.tokens["editor"]))) in line
+    assert world.tokens["editor"][:8] not in line
     assert job_id in line
 
 
@@ -526,9 +530,9 @@ def test_each_guest_format_builds_exactly_the_expected_ffmpeg_command(
     ]
 
 
-def test_an_export_holding_the_slot_refuses_an_editor_pipeline_run(world, monkeypatch) -> None:
-    for check in ("ensure_whisper_cached_for_run", "ensure_word_aligner_for_run"):
-        monkeypatch.setattr(f"podcast_mcp.gui.routes.pipeline_jobs.{check}", lambda *_a, **_k: None)
+def test_an_export_holding_the_slot_refuses_an_editor_pipeline_run(
+    world, skip_run_preflight
+) -> None:
     assert _start(world).status_code == 202
 
     res = world.client.post(f"/api/review/{world.tokens['editor']}/daw/pipeline/run", json={})
