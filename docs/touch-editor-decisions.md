@@ -136,8 +136,9 @@ all timeline editing. Portrait phone is the primary target.
   crowded. Only an armed target drags, and only along its own axes: an
   envelope point moves in time and level, an edge moves in time, and a clip
   body moves its clip in time.
-- A long press on empty space opens a create menu: envelope point, split,
-  marker, comment, and (host) Record here.
+- A long press on empty space opens a create menu: Split here, Comment here,
+  Add chapter here, (host) Record here, Add volume point on a lane, and Paste
+  when the clipboard has audio.
 - This grammar is for touch. A mouse acts on press: it selects and drags at
   once with no arming, and a right click on a lane or target opens the same
   create menu, so desktop editing does not change by accident (#1793). The

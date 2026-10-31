@@ -120,7 +120,7 @@ enough half height for a scrollable body. On the Prepare stage, resizing the win
 keeps the focused control in view.
 
 To adjust a track's volume envelope, open track details and choose **Show
-volume envelope**. Long-press the lane to add a point with **Add envelope
+volume envelope**. Long-press the lane to add a point with **Add volume
 point**, or select an existing point, then choose **Inspect**. The sheet shows
 the point's **Time** and **Level**; each change saves at once and Undo takes it
 back. **Remove point** deletes it. A failed save stays in the sheet with
