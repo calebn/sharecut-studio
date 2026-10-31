@@ -859,13 +859,21 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
   for (const rootFont of [16, 32]) {
     for (const size of ["portrait-390", "landscape-636"] as const) {
       await open(page, size);
+      const pendingId = await page
+        .locator(`${lane} [data-pending-id]`)
+        .first()
+        .getAttribute("data-pending-id");
+      const pendingTarget = `${lane} [data-pending-id="${pendingId}"]`;
       const at = await clearOfScrollbars(
         page,
-        await centerOf(page, `${lane} [data-pending-id] >> nth=0`),
+        await centerOf(page, pendingTarget),
       );
       await finger.down(at);
       await page.waitForTimeout(60);
       await finger.up();
+      await expect(
+        page.locator(`${pendingTarget} .pending-hit`),
+      ).toHaveAttribute("aria-pressed", "true");
       await ensureInspected(page);
       await page.evaluate((font) => {
         document.documentElement.style.fontSize = `${font}px`;
