@@ -11,7 +11,7 @@ import pytest
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.mcp import server as mcp_server
-from podcast_mcp.mcp.tools import timeline as mcp_timeline
+from podcast_mcp.mcp.tools import transcript as mcp_transcript
 from podcast_mcp.mcp.tools.transcript import transcript_refine_waive_tool
 from podcast_mcp.models import (
     Clip,
@@ -92,7 +92,7 @@ def test_apply_suppresses_the_bleed_word_and_replies(tmp_path):
     path = _two_track_path(tmp_path)
     with patch("podcast_mcp.engines.audio_audit._rms_for_track_at_timeline", side_effect=_fake_rms):
         reply = json.loads(
-            mcp_timeline.reconcile_transcript_tool(path, track_id="host", dry_run=False)
+            mcp_transcript.reconcile_transcript_tool(path, track_id="host", dry_run=False)
         )
     assert reply.keys() >= _REPLY_KEYS
     assert len(reply["suppress"]) == 1
@@ -104,7 +104,7 @@ def test_dry_run_reports_the_same_rows_and_changes_no_word(tmp_path):
     path = _two_track_path(tmp_path)
     with patch("podcast_mcp.engines.audio_audit._rms_for_track_at_timeline", side_effect=_fake_rms):
         reply = json.loads(
-            mcp_timeline.reconcile_transcript_tool(path, track_id="host", dry_run=True)
+            mcp_transcript.reconcile_transcript_tool(path, track_id="host", dry_run=True)
         )
     assert reply.keys() >= _REPLY_KEYS
     assert len(reply["suppress"]) == 1
@@ -116,7 +116,7 @@ def test_time_range_limits_the_apply(tmp_path):
     path = _two_track_path(tmp_path)
     with patch("podcast_mcp.engines.audio_audit._rms_for_track_at_timeline", side_effect=_fake_rms):
         reply = json.loads(
-            mcp_timeline.reconcile_transcript_tool(
+            mcp_transcript.reconcile_transcript_tool(
                 path, track_id="host", dry_run=False, start_sec=5.0, end_sec=6.0
             )
         )
@@ -127,7 +127,7 @@ def test_time_range_limits_the_apply(tmp_path):
 def test_unknown_track_keeps_its_code(tmp_path):
     path = _two_track_path(tmp_path)
     with pytest.raises(ValueError) as caught:
-        mcp_timeline.reconcile_transcript_tool(path, track_id="nope", dry_run=False)
+        mcp_transcript.reconcile_transcript_tool(path, track_id="nope", dry_run=False)
     assert caught.value.code == "track_not_found"
 
 
@@ -144,7 +144,7 @@ def test_an_applying_run_journals_through_the_document_plane(tmp_path, dry_run):
 
     path = _two_track_path(tmp_path)
     with patch("podcast_mcp.engines.audio_audit._rms_for_track_at_timeline", side_effect=_fake_rms):
-        mcp_timeline.reconcile_transcript_tool(path, track_id="host", dry_run=dry_run)
+        mcp_transcript.reconcile_transcript_tool(path, track_id="host", dry_run=dry_run)
     types = [r["type"] for r in DocumentSyncService.open(path).store.commands_after(0)]
     assert types == ["ReconcileTranscript"]
 
@@ -156,7 +156,7 @@ def test_a_dry_run_is_read_only_and_never_journals(tmp_path):
     path = _two_track_path(tmp_path)
     before = _history_total(path)
     with patch("podcast_mcp.engines.audio_audit._rms_for_track_at_timeline", side_effect=_fake_rms):
-        mcp_timeline.reconcile_transcript_tool(path, track_id="host", dry_run=True)
+        mcp_transcript.reconcile_transcript_tool(path, track_id="host", dry_run=True)
     assert DocumentSyncService.open(path).store.commands_after(0) == []
     assert _history_total(path) == before
 
@@ -173,5 +173,5 @@ def test_unknown_track_journals_nothing(tmp_path):
 
     path = _two_track_path(tmp_path)
     with pytest.raises(ValueError):
-        mcp_timeline.reconcile_transcript_tool(path, track_id="nope", dry_run=False)
+        mcp_transcript.reconcile_transcript_tool(path, track_id="nope", dry_run=False)
     assert DocumentSyncService.open(path).store.commands_after(0) == []
