@@ -76,16 +76,6 @@
   margin-block: 0;
 }
 
-.modifier-inspector--correct-sheet .modifier-titles {
-  inline-size: 100%;
-}
-
-.modifier-inspector--correct-sheet .modifier-titles h2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .modifier-action {
   font-size: var(--font-size-small);
   padding: var(--space-1) var(--space-4);
