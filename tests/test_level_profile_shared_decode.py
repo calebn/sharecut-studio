@@ -136,6 +136,7 @@ def test_a_file_rewritten_after_the_memo_decode_is_not_seeded_into_the_batch(
     minimal_project, raw_decodes: list[int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _, path = _host_project(minimal_project)
+    aged = path.stat().st_mtime_ns
     real_once = audio_audit.decode_once
 
     def rewrite_after(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -145,6 +146,7 @@ def test_a_file_rewritten_after_the_memo_decode_is_not_seeded_into_the_batch(
             out.setsampwidth(2)
             out.setframerate(RATE)
             out.writeframes(b"\x01\x00" * (3 * RATE))
+        os.utime(path, ns=(aged, aged))
         return result
 
     monkeypatch.setattr(audio_audit, "decode_once", rewrite_after)
