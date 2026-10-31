@@ -114,7 +114,7 @@ describe("createHostRecordRoom", () => {
     ).resolves.toEqual({ ...room, linksStale: false });
   });
 
-  it("treats a stale-links 409 as a made room and names the earlier sessions", async () => {
+  it("treats a stale-links 409 as a made room", async () => {
     hostFetch.mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -130,6 +130,18 @@ describe("createHostRecordRoom", () => {
           headers: { "X-Sharecut-Error-Code": "record_stale_links" },
         },
       ),
+    );
+    await expect(
+      createHostRecordRoom("/tmp/episode.sharecut"),
+    ).resolves.toEqual({ ...room, linksStale: true });
+  });
+
+  it("treats a stale-links 409 with no session ids as a made room too", async () => {
+    hostFetch.mockResolvedValue(
+      new Response(JSON.stringify({ detail: { room } }), {
+        status: 409,
+        headers: { "X-Sharecut-Error-Code": "record_stale_links" },
+      }),
     );
     await expect(
       createHostRecordRoom("/tmp/episode.sharecut"),

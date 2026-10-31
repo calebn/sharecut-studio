@@ -258,9 +258,13 @@ export function registerHostCommands(): void {
       const base = copied
         ? "Record room created and guest link copied"
         : "Record room created";
-      s.announceStatus(
-        room.linksStale ? `${base}. ${STALE_ROOM_LINKS_WARNING}` : base,
-      );
+      if (room.linksStale) {
+        s.announceStatus(`${base}. ${STALE_ROOM_LINKS_WARNING}`, {
+          tone: "error",
+        });
+      } else {
+        s.announceStatus(base);
+      }
       return { status: "ok" };
     });
   });
