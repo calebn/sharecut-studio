@@ -246,7 +246,7 @@ export const ROOM_TONE_TOO_LOUD_COPY = "Too loud: is something playing?";
 export const ROOM_TONE_DEVICE_COPY = "Room tone saved on this device";
 export const ROOM_TONE_HOST_COPY = "Room tone sent to the host";
 export const ROOM_TONE_LAND_FAILED_COPY =
-  "The host got your room tone but could not save it. Record it again.";
+  "Your room tone could not be saved. Record it again.";
 export const ROOM_TONE_CAPTURING_COPY = "Recording room tone…";
 export const ROOM_TONE_SAVING_COPY = "Saving room tone…";
 export const ROOM_TONE_NOT_READY_COPY =

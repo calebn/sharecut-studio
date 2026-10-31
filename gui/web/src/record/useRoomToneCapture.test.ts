@@ -115,6 +115,40 @@ describe("useRoomToneCapture", () => {
     expect(result.current.status).toBe("idle");
   });
 
+  it("revokes the bed the host could not save when the guest records again from the error", async () => {
+    const sink = new MemorySink();
+    const base = memoryUploadTransport();
+    const revoke = vi.spyOn(base, "revokeRoomTone");
+    let fail = true;
+    const transport = {
+      ...base,
+      put: async (...a: Parameters<typeof base.put>) => ({
+        ...(await base.put(...a)),
+        landed: !fail,
+        land_failed: fail,
+      }),
+    };
+    const { result } = renderHook(() =>
+      useRoomToneCapture(hookArgs({ sink, transport })),
+    );
+    act(() => {
+      result.current.record();
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
+    fail = false;
+    act(() => {
+      result.current.record();
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe("recorded");
+    });
+    expect(revoke).toHaveBeenCalledTimes(1);
+    expect(result.current.delivery).toBe("host");
+    expect(result.current.error).toBeNull();
+  });
+
   it("keeps saying the bed is on this device until the host acknowledges the file", async () => {
     const sink = new MemorySink();
     const base = memoryUploadTransport();
