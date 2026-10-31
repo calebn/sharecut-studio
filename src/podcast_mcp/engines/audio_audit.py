@@ -64,6 +64,7 @@ from podcast_mcp.util.dsp import (
     frame_rms_db,
     rms_db,
 )
+from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hardware import cpu_budget
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
@@ -301,12 +302,13 @@ class TrackRmsCache:
         (``engines/decode_memo.py``). A symlinked recording is decoded through its resolved path.
         Never use it for a temp render or a processed stem.
         """
+        before = file_stamp(path) if path.is_file() else None
         cache = decode_once(
             path,
             sample_rate,
             lambda decoded: cls.from_timeline_stem(decoded, sample_rate=sample_rate),
         )
-        keep_mono_full(path, cache.samples, sample_rate=sample_rate)
+        keep_mono_full(path, cache.samples, sample_rate=sample_rate, unchanged_since=before)
         return cache
 
     def _index_range(self, t_start: float, t_end: float) -> tuple[int, int] | None:
