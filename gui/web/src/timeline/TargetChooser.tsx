@@ -5,7 +5,6 @@
  * where it really is. `hitRouting` owns the gesture; this view only draws the
  * `ChooserView` it publishes and hands chip picks back to the router.
  */
-import { usePress } from "@react-aria/interactions";
 import {
   type ComponentPropsWithoutRef,
   type CSSProperties,
@@ -216,24 +215,32 @@ function AxisCue({ axis }: { axis: DragAxis }) {
   );
 }
 
-/** A chip button: a press by any input (touch, mouse, keys, AT) picks it. */
+/** A chip button: a click by any input (touch, mouse, keys, AT) picks it. */
 function Chip({
   onPick,
   ...props
 }: Omit<ComponentPropsWithoutRef<"button">, "onClick" | "type"> & {
   onPick: (pointerType: string) => void;
 }) {
-  const { pressProps } = usePress({ onPress: (e) => onPick(e.pointerType) });
+  const pointerType = useRef("");
   return (
     <button
       type="button"
       {...props}
-      {...pressProps}
       onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>) => {
         // No compatibility mousedown: it would land on the timeline once the
         // chooser unmounts and pull focus off the picked target.
         e.preventDefault();
-        pressProps.onPointerDown?.(e);
+        pointerType.current = e.pointerType;
+        props.onPointerDown?.(e);
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const type =
+          e.detail === 0 ? "virtual" : pointerType.current || "mouse";
+        pointerType.current = "";
+        onPick(type);
       }}
     />
   );
