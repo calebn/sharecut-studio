@@ -4,7 +4,6 @@ import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import {
   opensSheet,
-  renderSelectionBody,
   SELECTION_SURFACES,
   type SelectionKind,
   type SheetScreen,
