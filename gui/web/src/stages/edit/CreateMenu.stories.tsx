@@ -150,8 +150,10 @@ export const NearEdge: Story = {
   args: { at: { x: -10, y: 40 } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const menu = await canvas.findByRole("menu");
-    await expect(menu).toHaveAttribute("data-placement", "below");
+    // The jsdom run has no layout; the flip below the point and the 16 px
+    // gutter at the side edge are measured in e2e-storybook/edit-popovers.spec.ts.
+    await expect(await canvas.findByRole("menu")).toBeVisible();
+    await expect(canvas.getAllByRole("menuitem")).toHaveLength(4);
   },
 };
 
