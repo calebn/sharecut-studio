@@ -89,7 +89,21 @@ async function openClip(page: Page, receipts: InteractionReceipt[]) {
       right = Math.min(rect.right, scroll.right, innerWidth);
     const top = Math.max(rect.top, scroll.top),
       bottom = Math.min(rect.bottom, scroll.bottom, innerHeight);
-    const point = { x: left + (right - left) / 2, y: top + (bottom - top) / 2 };
+    // The selected point and the level line sit at the clip's centre.
+    const candidates = [
+      [0.25, 0.25],
+      [0.75, 0.25],
+      [0.25, 0.75],
+      [0.5, 0.5],
+    ].map(([x, y]) => ({
+      x: left + (right - left) * x!,
+      y: top + (bottom - top) * y!,
+    }));
+    const point =
+      candidates.find(
+        (candidate) =>
+          document.elementFromPoint(candidate.x, candidate.y) === element,
+      ) ?? candidates[0]!;
     return {
       point,
       visibleCanvas: { left, right, top, bottom },
