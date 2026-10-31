@@ -7,6 +7,7 @@ import type { SystemIconName } from "./icons";
 import { AnchorMark, DemoDock, Framed } from "./inspectorSheetFixtures";
 import type { InspectorDetent, InspectorRect } from "./inspectorSheetMath";
 import {
+  AUTO_REDUCTION_SECTIONS,
   CLIP_SECTIONS,
   ENVELOPE_POINT_SECTIONS,
   LONG_SECTIONS,
@@ -225,6 +226,26 @@ export const EnvelopePoint: Story = {
     await expect(
       canvas.getByRole("spinbutton", { name: "Level" }),
     ).toHaveAttribute("aria-valuetext", "0.50 ×");
+  },
+};
+
+export const AutoReduction: Story = {
+  render: () => (
+    <CardDemo
+      icon="shield-check"
+      name="Auto reduction"
+      sections={AUTO_REDUCTION_SECTIONS}
+      anchorAt={nearTop}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: /^Automatic reduction Timeline/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      canvas.getByRole("button", { name: "Restore original audio" }),
+    ).toBeVisible();
   },
 };
 

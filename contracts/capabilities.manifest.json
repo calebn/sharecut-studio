@@ -3029,7 +3029,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "Select a region in the Bleed reductions inspector; no default shortcut",
+        "keyboard_reason": "Select a region in the Auto reduction inspector; no default shortcut",
         "guest": true
       },
       "presence": {

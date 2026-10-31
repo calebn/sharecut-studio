@@ -220,8 +220,8 @@ index, metadata, timing, and Play remain below the form. The Action bar keeps
 its Correct-mode refusal reasons below the word inspector. **Select** keeps
 the Range fields (In and Out, the occurrence chooser, word handles) first; the
 range's verbs are on the Action bar. Correction errors appear beside the form; other word-action
-errors stay with the inspector's secondary controls. The rail and docked editor
-keep their existing presentation.
+errors stay with the inspector's secondary controls. The word sheet is a list of Inspector sheet sections (`stage/edit/wordSections.tsx`), so the
+desktop card and the phone sheet show the same fields.
 
 In **Select** mode, Shift-click extends from the original word on the same track, including backward selections. Shift-click on another track selects only that word and starts a new range there. A mouse drag stays on its starting track, ignores words on other tracks, and resumes extending when the pointer returns.
 

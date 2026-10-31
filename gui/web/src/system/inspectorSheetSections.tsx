@@ -258,3 +258,34 @@ export const LONG_SECTIONS: readonly InspectorSection[] = [
   ...RANGE_SECTIONS,
   ...TRACK_SECTIONS,
 ];
+
+export const AUTO_REDUCTION_SECTIONS: readonly InspectorSection[] = [
+  {
+    id: "regions",
+    rows: [
+      {
+        id: "regions",
+        control: (
+          <div role="group" aria-label="Automatic regions in this clip">
+            <Button aria-pressed>
+              Automatic reduction Timeline 5.000 to 6.000 s
+            </Button>
+          </div>
+        ),
+      },
+    ],
+  },
+  {
+    id: "actions",
+    rows: [
+      {
+        id: "restore",
+        control: <Button variant="primary">Restore original audio</Button>,
+      },
+      {
+        id: "refresh",
+        control: <Button>Refresh regions</Button>,
+      },
+    ],
+  },
+];
