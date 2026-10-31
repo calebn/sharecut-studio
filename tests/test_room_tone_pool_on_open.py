@@ -16,7 +16,7 @@ from podcast_mcp.util.project_state import project_state_lock
 from test_room_tone import _host_audio, _noise
 from test_room_tone import _project as _room_project
 
-pytestmark = pytest.mark.usefixtures("real_room_tone_scheduling")  # these tests record pools
+pytestmark = pytest.mark.usefixtures("real_room_tone_scheduling")
 
 
 def _join_pools() -> None:
@@ -120,13 +120,13 @@ def test_the_pool_thread_records_from_its_own_copy_of_the_project(
     assert expected
     block = _Block(monkeypatch)
 
-    if entry == "track":  # the ingest call sites of episode.py
+    if entry == "track":
         assert room_tone.schedule_room_tone_pool(live, "host") is True
     else:
         assert room_tone.schedule_room_tone_pools(live) == 2
     assert block.started.wait(30)
     assert block.projects[0] is not live
-    live.tracks[:] = []  # the live project is edited while the thread runs
+    live.tracks[:] = []
     live.clips[:] = []
     block.release.set()
     _join_pools()

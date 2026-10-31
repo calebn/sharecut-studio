@@ -530,9 +530,7 @@ _POOLS_DONE = threading.Condition(_POOLS_LOCK)
 _UNRECORDED: dict[PoolKey, float] = {}
 UNRECORDED_RETRY_SEC = 300.0
 _UNRECORDED_KEPT = 256
-# Scheduling waits this long for the project's state lock to copy it, else tries again later.
 POOL_SNAPSHOT_LOCK_SEC = 2.0
-# A caller that needs a pool being recorded in the background waits at most this long.
 POOL_WAIT_SEC = 900.0
 
 
@@ -624,6 +622,7 @@ def schedule_room_tone_pools(
     def run() -> None:
         from podcast_mcp.util.process import low_priority
 
+        released: set[PoolKey] = set()
         try:
             with unscoped(), low_priority():
                 for track_id, key in claimed:
@@ -635,9 +634,11 @@ def schedule_room_tone_pools(
                         _note_unrecorded(key)
                     finally:
                         _release_pool(key)
+                        released.add(key)
         finally:
             for _, key in claimed:
-                _release_pool(key)
+                if key not in released:
+                    _release_pool(key)
 
     name = "+".join(track_id for track_id, _ in claimed)
     try:
