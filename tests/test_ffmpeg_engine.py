@@ -1502,3 +1502,21 @@ def test_loudnorm_json_ignores_braces_in_forged_tag_text():
     report = _loudnorm_json(forged + _LOUDNORM_JSON_STDERR)
     assert report is not None
     assert report["input_i"] == "-23.71"
+
+
+def test_loudnorm_json_survives_a_loudnorm_log_line_after_the_report():
+    from podcast_mcp.engines.ffmpeg import _loudnorm_json
+
+    trailing = "[Parsed_loudnorm_0 @ 0x1] Warning: something\n"
+    report = _loudnorm_json(_LOUDNORM_JSON_STDERR + trailing)
+    assert report is not None
+    assert report["input_i"] == "-23.71"
+
+
+def test_loudnorm_json_reads_the_report_when_the_input_path_has_braces():
+    from podcast_mcp.engines.ffmpeg import _loudnorm_json
+
+    banner = "Input #0, wav, from 'ep{1}[x].wav':\n"
+    report = _loudnorm_json(banner + _LOUDNORM_JSON_STDERR)
+    assert report is not None
+    assert report["input_i"] == "-23.71"

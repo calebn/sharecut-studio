@@ -236,10 +236,8 @@ def _progress_seconds(line: str) -> float | None:
 _LOUDNORM_HEADER_RE = re.compile(r"^\[Parsed_loudnorm_\d+ @ [^\]\n]*\]", re.MULTILINE)
 
 
-def _loudnorm_json(text: str) -> dict[str, Any] | None:
-    # The report follows loudnorm's own log header; braces in a forged tag dumped earlier don't count.
-    headers = list(_LOUDNORM_HEADER_RE.finditer(text))
-    m = re.search(r"\{.*\}", text[headers[-1].end() :] if headers else text, re.DOTALL)
+def _json_object_in(text: str) -> dict[str, Any] | None:
+    m = re.search(r"\{.*\}", text, re.DOTALL)
     if not m:
         return None
     try:
@@ -247,6 +245,15 @@ def _loudnorm_json(text: str) -> dict[str, Any] | None:
     except json.JSONDecodeError:
         return None
     return data if isinstance(data, dict) else None
+
+
+def _loudnorm_json(text: str) -> dict[str, Any] | None:
+    # The report follows loudnorm's own log header; braces in a forged tag dumped earlier don't count.
+    for header in reversed(list(_LOUDNORM_HEADER_RE.finditer(text))):
+        report = _json_object_in(text[header.end() :])
+        if report is not None:
+            return report
+    return _json_object_in(text)
 
 
 _SUMMARY_TRUE_PEAK_RE = re.compile(r"Peak:\s*(-inf|-?\d+(?:\.\d+)?)\s*dBFS")
