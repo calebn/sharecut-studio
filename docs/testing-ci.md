@@ -77,9 +77,16 @@ a race between signed releases.
 Connections have a five-second bound. Transfers below 16 KiB/s for five seconds
 are stopped. Apt update errors fail setup even when cached indexes exist.
 Diagnostics report the source, bytes, elapsed time, budget, HTTP status and remote
-address without printing apt configuration or credentials. An address can identify
-a proxy rather than the serving backend. The method supports the current Ubuntu
-resolute runner archive layout and fails setup for an unsupported layout.
+address without dumping apt configuration or credentials. An address can identify
+a proxy rather than the serving backend. For an unsupported mirror entry, setup
+fails with one bounded JSON diagnostic containing the one-based line number,
+character length excluding LF or CRLF, and entry. The entry appears exactly only
+when it matches a bounded ASCII HTTP or HTTPS DNS hostname with `/ubuntu` or
+`/ubuntu/`, optional numeric `priority:` metadata of up to six digits, and bounded
+spaces or tabs. Every other rejected entry is fully replaced with `<redacted>`.
+This diagnostic does not admit additional mirrors or fix an unsupported layout.
+The method supports the current Ubuntu resolute runner archive layout and fails
+setup for an unsupported layout.
 
 This provides bounded origin fallback for the remaining apt acquisition failure
 class in [#2117](https://github.com/calebn/sharecut-studio/issues/2117).

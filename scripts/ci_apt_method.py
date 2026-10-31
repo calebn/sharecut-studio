@@ -195,7 +195,7 @@ def rewrite_mirrors(source: str) -> str:
     if not re.search(rf"^(?:https|{METHOD})://archive\.ubuntu\.com/ubuntu/(?:\s|$)", source, re.M):
         raise ValueError("runner lacks the canonical HTTPS Ubuntu archive")
     result = []
-    for line in source.splitlines(keepends=True):
+    for line_number, line in enumerate(source.splitlines(keepends=True), start=1):
         if re.match(r"https?://azure\.archive\.ubuntu\.com/ubuntu/(?:\s|$)", line):
             continue
         if not line.strip() or line.lstrip().startswith("#"):
@@ -205,7 +205,28 @@ def rewrite_mirrors(source: str) -> str:
             re.match(rf"(?:https|{METHOD})://{re.escape(host)}/ubuntu/(?:\s|$)", line)
             for host in CANONICAL
         ):
-            raise ValueError("unsupported runner Ubuntu mirror entry")
+            entry = line.removesuffix("\r\n").removesuffix("\n")
+            public_entry = None
+            if len(entry) <= 512:
+                public_entry = re.fullmatch(
+                    r"[ \t]{0,16}https?://"
+                    r"(?P<host>[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+                    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)"
+                    r"/ubuntu/?(?:[ \t]{1,16}priority:[0-9]{1,6})?[ \t]{0,16}",
+                    entry,
+                )
+            raise ValueError(
+                "unsupported runner Ubuntu mirror entry "
+                + json.dumps(
+                    {
+                        "line": line_number,
+                        "length": len(entry),
+                        "entry": entry
+                        if public_entry and len(public_entry["host"]) <= 253
+                        else "<redacted>",
+                    }
+                )
+            )
         result.append(
             f"{METHOD}://" + line.removeprefix("https://") if line.startswith("https://") else line
         )
