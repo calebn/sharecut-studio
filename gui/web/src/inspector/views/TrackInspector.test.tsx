@@ -133,8 +133,8 @@ describe("TrackInspector", () => {
     const playFx = screen.getByRole("button", {
       name: "Preview effects at track start",
     });
-    expect(playFx).toBeDisabled();
-    expect(playFx).toHaveAttribute("title", GUESTS_HEAR_FULL_MIX);
+    expect(playFx).toHaveAttribute("aria-disabled", "true");
+    expect(playFx).toHaveAccessibleDescription(GUESTS_HEAR_FULL_MIX);
     expect(await execute("transport.audition", { mode: "fx" })).toEqual({
       status: "disabled",
       reason: GUESTS_HEAR_FULL_MIX,

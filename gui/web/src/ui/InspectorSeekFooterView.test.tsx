@@ -95,6 +95,88 @@ describe("InspectorSeekFooterView", () => {
     expect(screen.getByRole("button", { name: "Current" })).toBeEnabled();
   });
 
+  it("keeps an unavailable play focusable and says why, on touch and by key", async () => {
+    const reason = "Guests hear the full mix. Ask the host for editor access.";
+    const onPlay = vi.fn();
+    const { container } = render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={onPlay}
+        playLabel="Preview effects at track start"
+        playDisabledReason={reason}
+      />,
+    );
+    const play = screen.getByRole("button", {
+      name: "Preview effects at track start",
+    });
+    expect(play).toBeEnabled();
+    expect(play).toHaveAttribute("aria-disabled", "true");
+    expect(play).not.toHaveAttribute("title");
+    expect(play).toHaveAccessibleDescription(reason);
+    expect(screen.getByText(reason)).toBeVisible();
+    play.focus();
+    expect(play).toHaveFocus();
+    fireEvent.click(play);
+    expect(onPlay).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
+  });
+
+  it("refuses a second press and shows no note before the seconds appear", () => {
+    const onPlay = vi.fn();
+    render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={onPlay}
+        playPreparing
+      />,
+    );
+    const play = screen.getByRole("button", { name: "Play around" });
+    expect(play).toHaveAttribute("aria-busy", "true");
+    expect(play).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(play);
+    expect(onPlay).not.toHaveBeenCalled();
+    expect(document.querySelector(".export-dialog-note")).toBeNull();
+  });
+
+  it("shows no note while play is preparing, even with a reason, and refuses a press", () => {
+    const onPlay = vi.fn();
+    render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={onPlay}
+        playBusySec={3}
+        playDisabledReason="Guests hear the full mix."
+      />,
+    );
+    const play = screen.getByRole("button", {
+      name: "Preparing this preview… 3s",
+    });
+    expect(play).toHaveAttribute("aria-disabled", "true");
+    expect(play).not.toHaveAttribute("aria-describedby");
+    fireEvent.click(play);
+    expect(onPlay).not.toHaveBeenCalled();
+    expect(screen.queryByText("Guests hear the full mix.")).toBeNull();
+  });
+
+  it("plays again once the reason is removed", () => {
+    const onPlay = vi.fn();
+    const { rerender } = render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={onPlay}
+        playDisabledReason="Guests hear the full mix."
+      />,
+    );
+    const play = screen.getByRole("button", { name: "Play around" });
+    fireEvent.click(play);
+    expect(onPlay).not.toHaveBeenCalled();
+    rerender(<InspectorSeekFooterView onSeek={vi.fn()} onPlay={onPlay} />);
+    expect(play).not.toHaveAttribute("aria-disabled");
+    expect(screen.queryByText("Guests hear the full mix.")).toBeNull();
+    fireEvent.click(play);
+    expect(onPlay).toHaveBeenCalledOnce();
+  });
+
   it("gives each disabled preview mode its reason", async () => {
     const reason = "A split does not change the mix until you delete a side.";
     const props: InspectorSeekFooterViewProps = {
@@ -148,7 +230,7 @@ describe("InspectorSeekFooterView", () => {
     }
   });
 
-  it("disables Play with a tooltip reason but leaves Seek enabled", () => {
+  it("makes Play unavailable with a described reason but leaves Seek enabled", () => {
     render(
       <InspectorSeekFooterView
         onSeek={vi.fn()}
@@ -157,8 +239,8 @@ describe("InspectorSeekFooterView", () => {
       />,
     );
     const play = screen.getByRole("button", { name: "Play around" });
-    expect(play).toBeDisabled();
-    expect(play).toHaveAttribute("title", "Guests listen in Mix");
+    expect(play).toHaveAttribute("aria-disabled", "true");
+    expect(play).toHaveAccessibleDescription("Guests listen in Mix");
     expect(screen.getByRole("button", { name: "Seek" })).not.toBeDisabled();
   });
 });

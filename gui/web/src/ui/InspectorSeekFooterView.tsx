@@ -1,5 +1,6 @@
 import type { PreviewMode } from "../utils/playRange";
 import { Button } from "./Button";
+import { unavailableReason, useDisabledReasonNote } from "./disabledReason";
 import { Icon } from "./Icon";
 import { SegmentedControl } from "./SegmentedControl";
 import { ToggleButton } from "./ToggleButton";
@@ -16,6 +17,8 @@ export interface InspectorSeekFooterViewProps {
   playDisabledReason?: string;
   /** Seconds the play action has been preparing; null or undefined when it is not. */
   playBusySec?: number | null;
+  /** The play action is preparing (before the seconds show): it refuses a second press and shows no note. */
+  playPreparing?: boolean;
   /** Seek action; the live adapter moves the DAW playhead. */
   onSeek: () => void;
   /** Play action; the live adapter auditions the range in the chosen preview mode. */
@@ -42,51 +45,63 @@ export function InspectorSeekFooterView({
   suggestDisabledReason,
   playDisabledReason,
   playBusySec,
+  playPreparing = false,
   onSeek,
   onPlay,
 }: InspectorSeekFooterViewProps) {
+  const busy = playBusySec != null || playPreparing;
+  const playReason = unavailableReason(playDisabledReason);
+  const { note: playNote, describedBy: playDescribedBy } =
+    useDisabledReasonNote(busy ? undefined : playReason);
   return (
-    <div className="modifier-footer-actions">
-      <Button onClick={onSeek}>
-        <Icon name="seek" />
-        {seekLabel}
-      </Button>
-      {showPlay ? (
-        <Button
-          onClick={onPlay}
-          disabledReason={playDisabledReason}
-          aria-busy={playBusySec != null || undefined}
-        >
-          {playBusySec != null ? (
-            <span className="pipeline-pulse" aria-hidden="true" />
-          ) : (
-            <Icon name="play" />
-          )}
-          {playBusySec != null
-            ? `Preparing this preview… ${playBusySec}s`
-            : playLabel}
+    <>
+      <div className="modifier-footer-actions">
+        <Button onClick={onSeek}>
+          <Icon name="seek" />
+          {seekLabel}
         </Button>
-      ) : null}
-      {onPreviewModeChange ? (
-        <SegmentedControl label="Preview mode" className="preview-modes">
-          {PREVIEW_MODES.map((m) => {
-            const blocked = m.id !== "current" && !!suggestDisabledReason;
-            return (
-              <ToggleButton
-                key={m.id}
-                quiet
-                pressed={previewMode === m.id}
-                disabledReason={
-                  blocked ? (suggestDisabledReason ?? undefined) : undefined
-                }
-                onClick={() => onPreviewModeChange(m.id)}
-              >
-                {m.label}
-              </ToggleButton>
-            );
-          })}
-        </SegmentedControl>
-      ) : null}
-    </div>
+        {showPlay ? (
+          <Button
+            onClick={
+              playReason || busy ? (event) => event.preventDefault() : onPlay
+            }
+            aria-busy={busy || undefined}
+            {...(playReason || busy
+              ? { "aria-disabled": true, ...playDescribedBy }
+              : {})}
+          >
+            {playBusySec != null ? (
+              <span className="pipeline-pulse" aria-hidden="true" />
+            ) : (
+              <Icon name="play" />
+            )}
+            {playBusySec != null
+              ? `Preparing this preview… ${playBusySec}s`
+              : playLabel}
+          </Button>
+        ) : null}
+        {onPreviewModeChange ? (
+          <SegmentedControl label="Preview mode" className="preview-modes">
+            {PREVIEW_MODES.map((m) => {
+              const blocked = m.id !== "current" && !!suggestDisabledReason;
+              return (
+                <ToggleButton
+                  key={m.id}
+                  quiet
+                  pressed={previewMode === m.id}
+                  disabledReason={
+                    blocked ? (suggestDisabledReason ?? undefined) : undefined
+                  }
+                  onClick={() => onPreviewModeChange(m.id)}
+                >
+                  {m.label}
+                </ToggleButton>
+              );
+            })}
+          </SegmentedControl>
+        ) : null}
+      </div>
+      {playNote}
+    </>
   );
 }

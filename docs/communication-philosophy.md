@@ -184,10 +184,15 @@ is the fix, enforced in copy review.
   or clear the typed value first.", "Fades do not apply at a cut.", the fade limit still
   loading; a nudge waiting on a save stays aria-disabled with no note, so the rows below do not jump), Find's Replace and All ("No matches to replace. Change the search
   first.", "Enter text to find first.", "Enter replacement text with a letter or a number to replace."),
-  the track inspector's Clear clip light ("No clipping to clear.") and a
+  the track inspector's Clear clip light ("No clipping to clear."), the
+  inspector footer's play action ("Preview effects at track start" for a guest
+  who hears the full mix only, or a share that cannot play audio; the note shows below the footer actions, and not while
+  the preview is only preparing) and a
   boundary mark a viewer cannot edit (its reason shows on focus and on tap).
   Native `disabled` stays for a short wait the control itself caused, such as
-  a boundary edit saving. (Surface 1.)
+  a boundary edit saving; the footer's play action is the exception, which
+  stays `aria-disabled` while its preview prepares (no note then, the busy
+  label is the status). (Surface 1.)
 - **Mutually exclusive states get one contextual control.** Pause and
   Resume are one button that flips; never two buttons with one
   permanently disabled. (Surface 1.)
