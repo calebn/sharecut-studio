@@ -157,6 +157,18 @@ def test_a_pool_is_recorded_in_the_workspace_even_while_a_save_shows_the_portabl
     assert room_tone.schedule_room_tone_pools(live) == 0
 
 
+def test_a_project_showing_the_portable_directory_queues_nothing_even_with_pools_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _two_speakers(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    live.meta.workspace_dir = "."
+
+    assert room_tone.schedule_room_tone_pools(live) == 0
+    assert not room_tone._PENDING_POOLS
+    assert not [t for t in threading.enumerate() if t.name.startswith("room-tone-pool-")]
+
+
 def test_scheduling_waits_for_no_one_when_the_project_is_locked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
