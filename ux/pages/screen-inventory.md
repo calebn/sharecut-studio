@@ -193,6 +193,8 @@ The current project shows "This clip changed. Nothing was saved. Adjust the fade
 again." Repeat the gesture against the restored values. The inspector shows the
 error inline; timeline handles and phone nudges show the same recovery in a toast.
 
+A selected word and an applied edit (a cut) open in the Inspector sheet. The word shows its confidence, Suppressed and Ignored state, the Text and End index fix, Suppress, Ignore and Return to automatic, and its timing; the cut shows its facts with Restore or Open History. A share link sees neither the word fix nor its actions.
+
 ---
 
 ## Phone — Review (the old Listen)
