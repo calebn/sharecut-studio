@@ -53,20 +53,18 @@ describe("layoutChips", () => {
   it("puts two chips 52 px apart, centred on the point", () => {
     const { centers } = layoutChips(2, finger, bounds);
     expect(centers.map((c) => c.x)).toEqual([134, 186]);
-    expect(centers[0].y).toBeCloseTo(300 - 56 + 1.5, 10);
-    expect(centers[1].y).toBeCloseTo(300 - 56 + 1.5, 10);
+    expect(centers[0].y).toBe(250);
+    expect(centers[1].y).toBe(250);
   });
 
-  it("keeps every chip's lower edge at least 28 px above the point, exactly 28 for the outermost of 3 to 5", () => {
+  it("keeps every chip's lower edge at least 28 px above the point, exactly 28 for the outermost of 2 to 5", () => {
     for (const count of [2, 3, 4, 5]) {
       const { centers } = layoutChips(count, finger, bounds);
       for (const c of centers) {
         expect(finger.y - (c.y + HALF_CHIP)).toBeGreaterThanOrEqual(28);
       }
-      if (count >= 3) {
-        const lowest = Math.max(...centers.map((c) => c.y));
-        expect(finger.y - (lowest + HALF_CHIP)).toBeCloseTo(28, 10);
-      }
+      const lowest = Math.max(...centers.map((c) => c.y));
+      expect(finger.y - (lowest + HALF_CHIP)).toBeCloseTo(28, 10);
     }
     const middle = layoutChips(3, finger, bounds).centers[1];
     expect(finger.y - (middle.y + HALF_CHIP)).toBe(34);

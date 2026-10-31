@@ -507,6 +507,11 @@ html[data-frame-short] .edit-dock {
    passes touches through to the host's press surface; the chips take them. */
 .edit-target-chooser {
   --edit-chooser-ring-width: 0.1875rem;
+  --edit-chooser-over-well: color-mix(
+    in srgb,
+    var(--color-bg-overlay),
+    var(--color-text-primary) 12%
+  );
 
   position: absolute;
   inset: 0;
@@ -541,10 +546,12 @@ html[data-frame-short] .edit-dock {
   flex: none;
 }
 
-/* Under the finger: lifted, not recoloured, so the track ring stays readable. */
+/* Under the finger: lifted, and the overlay surface tinted toward the text
+   colour (a plain hover wash is nearly the dark surface itself), so the track
+   ring stays readable. */
 .edit-target-chooser-chip.is-over {
   scale: 1.12;
-  background: var(--color-hover);
+  background: var(--edit-chooser-over-well);
 }
 
 /* One caption for the chip under the finger, on the side of the arc away from

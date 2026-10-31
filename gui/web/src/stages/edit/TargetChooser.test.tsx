@@ -81,7 +81,7 @@ afterEach(() => {
 describe("TargetChooser chips", () => {
   it("is a menu of one menuitem button per target, in the order given", () => {
     render(<TargetChooser {...props()} />);
-    expect(screen.getByRole("menu", { name: "Targets here" })).toBeVisible();
+    expect(screen.getByRole("menu", { name: "Targets here, 3" })).toBeVisible();
     expect(ids()).toEqual(["clip-1", "comment-1", "point-1"]);
     for (const chip of chips()) {
       expect(chip.tagName).toBe("BUTTON");
@@ -122,6 +122,9 @@ describe("TargetChooser chips", () => {
     }));
     render(<TargetChooser {...props({ targets: six })} />);
     expect(ids()).toEqual(["t0", "t1", "t2", "t3", "t4"]);
+    expect(
+      screen.getByRole("menu", { name: "Targets here, showing 5 of 6" }),
+    ).toBeVisible();
   });
 
   it("uses the data-target-id attribute, and never the legacy router's chooser or create attributes", () => {
@@ -223,11 +226,17 @@ describe("TargetChooser caption", () => {
       false,
       true,
     ]);
+    expect(chips().map((chip) => chip.hasAttribute("data-over"))).toEqual([
+      false,
+      false,
+      true,
+    ]);
+    expect(chips()[2].getAttribute("data-over")).toBe("");
     rerender(<TargetChooser {...props({ over: null })} />);
     expect(screen.getByRole("menu").querySelector(".is-over")).toBeNull();
   });
 
-  it("sits beside the fan's far edge: above the arc, or below it when the fan opens below", () => {
+  it("sits above the arc's middle (below it when the fan opens below)", () => {
     const { container, rerender } = render(<TargetChooser {...props()} />);
     const caption = () =>
       container.querySelector<HTMLElement>(".edit-target-chooser-caption");
@@ -273,14 +282,22 @@ describe("TargetChooser keyboard and focus", () => {
     expect(chips()[0]).toHaveFocus();
   });
 
-  it("picks the focused chip with Enter and Space", async () => {
+  it("picks the focused chip with Enter, and a Space after it is ignored", async () => {
     const user = userEvent.setup();
     const onPick = vi.fn();
     render(<TargetChooser {...props({ onPick })} />);
     await waitFor(() => expect(chips()[0]).toHaveFocus());
     await user.keyboard("{ArrowRight}{Enter}");
     await user.keyboard(" ");
-    expect(onPick.mock.calls).toEqual([["comment-1"], ["comment-1"]]);
+    expect(onPick.mock.calls).toEqual([["comment-1"]]);
+  });
+
+  it("picks once per open: a second activation after the first does nothing", async () => {
+    const onPick = vi.fn();
+    render(<TargetChooser {...props({ onPick })} />);
+    await userEvent.click(chips()[0]);
+    await userEvent.click(chips()[1]);
+    expect(onPick.mock.calls).toEqual([["clip-1"]]);
   });
 
   it("cancels on Escape", async () => {
@@ -393,10 +410,12 @@ describe("TargetChooser sizes", () => {
     const { container } = render(<TargetChooser {...props()} />);
     expect(container.querySelector(".edit-target-chooser")).not.toBeNull();
     expect(screen.getByRole("menu").closest("[popover]")).toBeNull();
-    const block = css.slice(css.indexOf("/* Target chooser"));
+    const block = css
+      .slice(css.indexOf("/* Target chooser"))
+      .replace(/\/\*[\s\S]*?\*\//g, "");
     expect(block).not.toMatch(/position:\s*fixed/);
     expect(block).not.toMatch(/transition|animation/);
-    expect(block).not.toMatch(/\dpx/);
+    expect(block).not.toMatch(/\d\s*px\b/);
   });
 
   it("outlines the chip under a finger in the system highlight under forced colours", () => {

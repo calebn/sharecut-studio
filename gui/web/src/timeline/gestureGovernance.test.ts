@@ -258,7 +258,7 @@ const SURFACE_GESTURES: Record<string, string> = {
   "system/Envelope.tsx":
     "the volume envelope view: a press on a point is captured (useGrab) and reported as drag start, move and drag end intents with the level and time, a click on the line asks the host to add a point, and a finger only grabs through the points' own 44 px areas; it edits nothing and owns no timeline target, because the host that mounts it turns the intents into one edit",
   "stages/edit/chooserStoryHost.tsx":
-    "the Storybook host of the Edit target chooser: a press held on its surface opens the fan, a slide reports the chip under the finger as over, and a lift picks or cancels, with pointer capture on the surface; it is a story fixture with a stub grammar, not a surface, because the app's hit router owns the real gesture",
+    "the Storybook host of the Edit target chooser: a press held on its surface opens the fan, a slide reports the chip under the finger as over, and a lift picks or cancels, with pointer capture on the surface; it is a story fixture that owns a stub press surface, and the app's hit router owns the real gesture",
   "stages/edit/timelineDemo.tsx":
     "the Storybook host of the Edit timeline parts: it passes the envelope's drag start and drag end intents to local state, so a cancelled drag puts the point back; it is a story fixture, not a surface",
   "system/useGrab.ts":
