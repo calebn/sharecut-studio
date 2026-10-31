@@ -85,7 +85,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Copy guest link | session | `record.copyGuestLink` | — (Palette command; Share also has a Copy guest link button) | — | — | — | — | — | yes | none · none |
 | Start recording | project | `record.start` | — (chords in a later PR) | — | `RecordStage` | `record_start_tool` | `podcast record start` | `podcast-record-session` | yes | none · none |
 | Capture room tone | project | `record.roomTone` | — (chords in a later PR) | — | `RecordStage` | `record_room_tone_tool` | `podcast record room-tone` | `podcast-record-session` | yes | none · none |
-| Set session target | project | `record.setTarget` | — (host CLI/MCP only) | — | — | `record_target_tool` | `podcast record target` | `podcast-record-session` | yes | none · none |
+| Set session target | project | `record.setTarget` | — (Reached from the command palette and the session target chip in the Record room) | — | — | `record_target_tool` | `podcast record target` | `podcast-record-session` | yes | none · none |
 | Pause recording | project | `record.pause` | — (chords in a later PR) | — | `RecordStage` | `record_pause_tool` | `podcast record pause` | `podcast-record-session` | yes | none · none |
 | Resume recording | project | `record.resume` | — (chords in a later PR) | — | `RecordStage` | `record_resume_tool` | `podcast record resume` | `podcast-record-session` | yes | none · none |
 | Stop recording | project | `record.stop` | — (chords in a later PR) | — | `RecordStage` | `record_stop_tool` | `podcast record stop` | `podcast-record-session` | yes | none · none |
