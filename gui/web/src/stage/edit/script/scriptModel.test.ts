@@ -10,6 +10,7 @@ import {
   buildScriptModel,
   type ScriptModelInput,
   scriptSelectionOf,
+  speakerColorIndex,
   wordKey,
   wordsTargetOf,
 } from "./scriptModel";
@@ -568,5 +569,11 @@ describe("wordKey", () => {
     expect(wordKey({ trackId: "t", sourceId: null, wordIndex: 4 })).toBe(
       "t::4",
     );
+  });
+});
+
+describe("speakerColorIndex", () => {
+  it("wraps after the eighth colour and keeps a missing track on the first", () => {
+    expect([0, 7, 8, 9, -1].map(speakerColorIndex)).toEqual([0, 7, 0, 1, 0]);
   });
 });

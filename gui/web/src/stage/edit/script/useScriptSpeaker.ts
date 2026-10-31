@@ -9,9 +9,7 @@ import type { PickerPerson } from "../../../system/PersonPicker";
 import { errorMessage } from "../../../utils/apiError";
 import { siblingSplitLanes } from "../../../utils/speakerSplit";
 import { useStableCallback } from "../../../utils/useStableCallback";
-import type { ScriptModel } from "./scriptModel";
-
-const COLORS = 8;
+import { type ScriptModel, speakerColorIndex } from "./scriptModel";
 
 /** Rename one track's speaker as one undo step, showing it at once and putting it back if the host refuses. */
 async function renameSpeaker(trackId: string, name: string) {
@@ -88,7 +86,7 @@ export function useScriptSpeaker(
       people: lanes.map((track) => ({
         id: track.id,
         name: track.speaker || track.id,
-        colorIndex: Math.max(tracks.indexOf(track), 0) % COLORS,
+        colorIndex: speakerColorIndex(tracks.indexOf(track)),
       })),
       anchor,
     };
