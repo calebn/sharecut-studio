@@ -79,12 +79,16 @@ test("rotating the phone mid long-press move saves nothing, and a later move sav
     await expect(page.locator("[data-hit-armed]")).toHaveCount(1);
     await finger.slide({ x: at.x + 40, y: at.y }, 4, 16);
     await page.setViewportSize({ width: 844, height: 390 });
+    await expect(
+      page.locator('[data-arrangement]:not([data-arrangement="phone"])'),
+    ).toBeVisible();
     await expect(page.locator("[data-hit-armed]")).toHaveCount(0);
     await finger.slide({ x: at.x + 80, y: at.y }, 4, 16);
     await finger.up();
     const afterRotation = await starts(page, projectPath);
 
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('[data-arrangement="phone"]')).toBeVisible();
     await expect(hit).toBeVisible();
     const again = await settledBox(hit);
     const from = {
