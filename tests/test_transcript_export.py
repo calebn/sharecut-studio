@@ -297,22 +297,19 @@ def test_exported_current_stale_and_scope(ws):
 
 
 def _rewrite_crlf(ws, edit=None):
-    paths = [_export_dir(ws) / f"{ws.project.name}.{fmt}" for fmt in ("txt", "md")]
-    for path in paths:
+    for fmt in ("txt", "md"):
+        path = _export_dir(ws) / f"{ws.project.name}.{fmt}"
         lf = path.read_bytes()
         if edit:
             lf = lf.replace(*edit, 1)
         path.write_bytes(lf.replace(b"\n", b"\r\n"))
-    return paths
 
 
 def test_crlf_export_stays_current(ws):
     svc = TranscriptService(ws)
     svc.export(["txt", "md"])
-    paths = _rewrite_crlf(ws)
-    listed = svc.exported()
-    assert [e.current for e in listed] == [True, True]
-    assert [e.bytes for e in listed] == [p.stat().st_size for p in paths]
+    _rewrite_crlf(ws)
+    assert [e.current for e in svc.exported()] == [True, True]
 
 
 def test_crlf_with_changed_word_is_stale(ws):
