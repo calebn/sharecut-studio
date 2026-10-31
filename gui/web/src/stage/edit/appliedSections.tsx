@@ -3,7 +3,6 @@ import type { InspectorSection } from "../../system/InspectorSheet";
 import type { Selection } from "../../types/project";
 import { AppliedEdit } from "./AppliedEdit";
 
-/** The Inspector's content for an applied edit (the cut seam on the lanes). */
 export function useAppliedSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {

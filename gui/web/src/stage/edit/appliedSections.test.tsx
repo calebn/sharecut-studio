@@ -168,11 +168,11 @@ describe("applied edit sheet content", () => {
     ];
     useDawStore.getState().hydrate("/tmp/p.json", project);
     useDawStore.getState().setSelection({ kind: "applied", id: "edit-1" });
-    const { unmount } = render(<SectionsBody />);
+    const { unmount } = render(<SectionsBody withRange={false} />);
     expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument();
     unmount();
     useDawStore.getState().setSelection({ kind: "applied", id: "gone" });
-    render(<SectionsBody />);
+    render(<SectionsBody withRange={false} />);
     expect(screen.getByText("Record not found")).toBeInTheDocument();
   });
 });
