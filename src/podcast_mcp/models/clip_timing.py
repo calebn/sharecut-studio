@@ -33,12 +33,17 @@ class TimingStep(BaseModel):
 
     @model_validator(mode="after")
     def _delta_and_quiet(self) -> TimingStep:
-        if self.delta_sec == 0:
-            raise ValueError("delta_sec must be non-zero")
+        if abs(self.delta_sec) < MIN_STEP_GAP_SEC:
+            raise ValueError("delta_sec must be at least 1e-6 s in magnitude")
+        if self.delta_sec < 0 and self.quiet is None:
+            raise ValueError("a step that skips source needs the quiet span it skips inside")
         if self.quiet is not None:
             skip_end = self.at + max(0.0, -self.delta_sec)
-            if not self.quiet.start_s <= self.at or skip_end > self.quiet.end_s:
-                raise ValueError("a step and the span it skips must lie inside its quiet span")
+            # `at` is half-open in the quiet span; the skipped span may end exactly at its end.
+            if not self.quiet.start_s <= self.at < self.quiet.end_s:
+                raise ValueError("a step must start inside its quiet span [start_s, end_s)")
+            if skip_end > self.quiet.end_s + MIN_STEP_GAP_SEC:
+                raise ValueError("a skipped span must end inside its quiet span")
         return self
 
 
@@ -53,7 +58,7 @@ class ClipTiming(BaseModel):
         for prev, cur in zip(self.steps, self.steps[1:], strict=False):
             if cur.at - prev.at < MIN_STEP_GAP_SEC:
                 raise ValueError("steps must be sorted by `at` and more than 1e-6 s apart")
-            if prev.at + max(0.0, -prev.delta_sec) > cur.at:
+            if prev.at + max(0.0, -prev.delta_sec) > cur.at + MIN_STEP_GAP_SEC:
                 raise ValueError("a skipped span must end before the next step")
         return self
 
@@ -62,7 +67,7 @@ class ClipTiming(BaseModel):
         for step in self.steps:
             if not source_start < step.at < source_end:
                 raise ValueError(f"step at {step.at} is outside ({source_start}, {source_end})")
-            if step.at + max(0.0, -step.delta_sec) > source_end:
+            if step.at + max(0.0, -step.delta_sec) > source_end + MIN_STEP_GAP_SEC:
                 raise ValueError(f"step at {step.at} skips past source_end {source_end}")
 
     def total_delta(self) -> float:

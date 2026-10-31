@@ -18,10 +18,11 @@ SHARED_FIELDS: dict[str, str] = {
     "ChapterMarker": ("image_url time title"),
     "Clip": (
         "bleed_restore fade_in_ms fade_out_ms id join_in_mode mute_regions "
-        "off_speaker_mute_regions source_end source_id source_start timeline_start track_id"
+        "off_speaker_mute_regions source_end source_id source_start timeline_start timing track_id"
     ),
     "ClipBleedRestore": ("regions source_sha256"),
     "ClipMuteRegion": ("end_s fade_in_ms fade_out_ms fill gain_db start_s"),
+    "ClipTiming": ("evidence kind method steps"),
     "ClipOffSpeakerMuteRegion": ("end_s fade_in_ms fade_out_ms start_s"),
     "CombinedTranscript": ("utterances"),
     "CombinedUtterance": ("end source_id speaker start text track_id"),
@@ -52,6 +53,7 @@ SHARED_FIELDS: dict[str, str] = {
         "bitrate_kbps chunk_count chunk_sec chunk_sha256 codec context_track_id duration_sec "
         "hash input_hash object_store_prefix object_store_uploaded_at overlap_ms"
     ),
+    "QuietSpan": ("end_s start_s"),
     "RangeInterval": ("end start"),
     "RecordSessionRecord": ("name number session_id target_kind"),
     "RenderArtifacts": ("mastered premix"),
@@ -72,6 +74,7 @@ SHARED_FIELDS: dict[str, str] = {
     "SavedDocumentCommand": (
         "base_server_seq causation_id client_id client_seq command_id payload role type"
     ),
+    "TimingStep": ("at delta_sec quiet"),
     "SessionSuggestion": (
         "anchor at_sec end_anchor from_sec id kind room_tone selected_take session_id session_number "
         "status takes to_sec track_follows track_ids"

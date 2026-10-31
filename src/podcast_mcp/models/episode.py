@@ -318,6 +318,8 @@ class Clip(BaseModel):
     off_speaker_mute_regions: list[ClipOffSpeakerMuteRegion] = Field(default_factory=list)
     bleed_restore: ClipBleedRestore | None = None
     # Piecewise-constant shift over source time; None = one linear shift (the default).
+    # Validated against source_start/source_end when the Clip is built only: code that assigns
+    # those fields afterwards must re-run timing.validate_within(source_start, source_end).
     timing: ClipTiming | None = None
 
     @field_validator("off_speaker_mute_regions")
