@@ -95,6 +95,9 @@ MAX_CANDIDATES = 16
 # nearest such candidate is taken at once. Otherwise the candidates are ranked by how far the
 # loudest peer rises above its floor, quietest first.
 PEER_QUIET_DB = 3.0
+# Ranking stops once this many samples pass: each one costs a read of every peer's file, and
+# the nearest few already hold the quietest peer a nearby window offers.
+MAX_RANKED = 4
 # A bed is checked in windows this long, hopping by half: a burst of speech in a long
 # bed must not be averaged away by the steady room around it. A usable run shorter than
 # ``BED_MIN_USABLE_SEC`` would be tiled into a stutter.
@@ -791,6 +794,8 @@ def _pick_sample(
             if excess <= PEER_QUIET_DB:
                 return OwnQuietSample(sample)
             passed.append((excess, order, sample))
+            if len(passed) >= MAX_RANKED:
+                break
         elif failed not in rejected:
             rejected.append(failed)
     if passed:
