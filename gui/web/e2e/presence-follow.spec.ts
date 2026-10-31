@@ -240,7 +240,7 @@ test.describe("presence follow desktop", () => {
       await expect(
         pageB.locator(".timeline-area[data-following]"),
       ).toBeVisible();
-      await expect(pageB.locator(".presence-overlay")).toBeAttached();
+      await expect(pageB.locator(".sys-presence")).toBeAttached();
       await expectPageAxeClean(pageB);
 
       await scrollTimelineBy(pageB, 80);
@@ -283,26 +283,45 @@ test.describe("presence follow desktop", () => {
     });
   });
 
-  test("timeline ghost hides below the last lane", async ({ browser }) => {
+  test("a remote playhead draws a flag on the ruler and a line down into the lanes", async ({
+    browser,
+  }) => {
     await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
       await expect(peopleButton(pageB)).toBeVisible({ timeout: 15_000 });
-      await pageA.bringToFront();
-      const lastLane = pageA.locator(".lane-row[data-track-id]").last();
-      await expect(lastLane).toBeVisible();
-      const box = await lastLane.boundingBox();
-      expect(box).toBeTruthy();
-      const laneH = box!.height;
-      await movePointer(pageA, lastLane, {
-        x: Math.max(48, box!.width / 2),
-        y: laneH - 4,
+      await seekLeaderPlayhead(pageA);
+      const flag = pageB.locator(".sys-presence-flag").first();
+      const line = pageB.locator(".sys-presence-line").first();
+      await expect(flag).toBeVisible({ timeout: 8_000 });
+      const ruler = await pageB.locator(".timeline-ruler").boundingBox();
+      const lane = await pageB
+        .locator(".lane-row[data-track-id]")
+        .first()
+        .boundingBox();
+      const flagBox = await flag.boundingBox();
+      const lineBox = await line.boundingBox();
+      expect(ruler && lane && flagBox && lineBox).toBeTruthy();
+      // The flag sits on the ruler, above the sticky ruler's paint.
+      expect(flagBox!.y).toBeGreaterThanOrEqual(ruler!.y - 1);
+      expect(flagBox!.y + flagBox!.height).toBeLessThanOrEqual(
+        ruler!.y + ruler!.height + 1,
+      );
+      // The layer paints above the sticky ruler (it takes no pointer, so
+      // elementFromPoint cannot see it; compare the stacking order).
+      const zIndex = await pageB.evaluate(() => {
+        const z = (sel: string) =>
+          Number(getComputedStyle(document.querySelector(sel)!).zIndex);
+        return {
+          layer: z(".timeline-presence-window"),
+          ruler: z(".timeline-ruler"),
+          marker: z(".marker-lane"),
+        };
       });
-      await expect(
-        pageB.locator(".presence-overlay .presence-cursor").first(),
-      ).toBeVisible({ timeout: 8_000 });
-      await pageA.mouse.move(box!.x + 40, box!.y + laneH + 8);
-      await expect(
-        pageB.locator(".presence-overlay .presence-cursor"),
-      ).toHaveCount(0, { timeout: 4_000 });
+      expect(zIndex.layer).toBeGreaterThan(zIndex.ruler);
+      expect(zIndex.layer).toBeGreaterThan(zIndex.marker);
+      // The line runs from the ruler's top into the lanes.
+      expect(lineBox!.y).toBeLessThanOrEqual(ruler!.y + 1);
+      expect(lineBox!.y + lineBox!.height).toBeGreaterThan(lane!.y + 8);
+      await expectPageAxeClean(pageB);
     });
   });
 
@@ -338,7 +357,7 @@ test.describe("presence follow tablet", () => {
       await expect(pageB.locator(".stage-frame--tablet")).toBeVisible();
       await followUntilBannerVisible(pageB);
       await expect(pageB.locator(".follow-banner")).toBeVisible();
-      await expect(pageB.locator(".presence-overlay")).toBeAttached();
+      await expect(pageB.locator(".sys-presence")).toBeAttached();
 
       await clickHTMLElement(
         pageB.getByRole("button", { name: "Stop following", exact: true }),
