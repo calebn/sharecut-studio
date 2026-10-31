@@ -396,7 +396,8 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Paste",
     when: "editStagePass12",
-    notes: "Mod+V: duplicate clipboard at playhead (same-track)",
+    notes:
+      "Mod+V: duplicate clipboard at playhead (same-track). Args: { atTime?: number } → paste at that time instead (the Create menu's Paste row)",
   },
   "track.selectAll": {
     id: "track.selectAll",
