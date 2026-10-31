@@ -42,6 +42,7 @@ describe("loadHostRecordSessions", () => {
       {
         session_id: "aaaaaaaaaaaa",
         number: 1,
+        name: null,
         state: "ended",
         target_kind: "end",
         takes: [{ take_index: 0, recording_ms: 3000 }],

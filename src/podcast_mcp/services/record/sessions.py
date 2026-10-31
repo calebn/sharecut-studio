@@ -198,6 +198,7 @@ def list_record_sessions(project: EpisodeProject) -> list[dict[str, Any]]:
         item = {
             "session_id": sid,
             "number": stored.number if stored else None,
+            "name": stored.name if stored else None,
             "state": "open" if any(share_is_usable(row) for row in share_rows) else "ended",
             "target_kind": target,
             "takes": takes,

@@ -113,7 +113,8 @@ COMMENT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
-HOST_ONLY_DOCUMENT_COMMANDS: frozenset[str] = frozenset()
+# Naming a record session is the host's: a share link never edits who the host recorded with.
+HOST_ONLY_DOCUMENT_COMMANDS: frozenset[str] = frozenset({"SetRecordSessionName"})
 
 # Commenter suggest set: structural commands and selected ranges propose.
 SUGGEST_COMMANDS: frozenset[str] = frozenset(

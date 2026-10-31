@@ -85,6 +85,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetEnvelope` | `expected_points` (array[object]), `track_id` (string) | `points` (array[object]) |
 | `SetFeedField` | `key` (string), `value` (string \| integer \| number \| boolean \| array) | `by` (person \| agent \| guest) |
 | `SetJoinMode` | `clip_id` (string), `join_in_mode` (fade \| crossfade \| cut) | — |
+| `SetRecordSessionName` | `name` (string), `session_id` (string) | — |
 | `SetTrackFader` | `fader_db` (number), `track_id` (string) | — |
 | `SetTrackMedia` | `rel_path` (string), `track_id` (string) | — |
 | `SetTrackMeta` | `track_id` (string) | `label` (string \| null), `role` (string \| null), `speaker` (string \| null) |
@@ -111,7 +112,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 79 command types._
+_Generated 80 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

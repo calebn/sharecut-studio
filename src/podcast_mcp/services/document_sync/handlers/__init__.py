@@ -77,6 +77,7 @@ HANDLERS: dict[str, Handler] = {
     "CutRange": edits.cut_range,
     "RippleDeleteText": edits.ripple_delete_text,
     "RenameProject": episode.rename_project,
+    "SetRecordSessionName": episode.set_record_session_name,
     "AddTrack": episode.add_track,
     "SetTrackMedia": episode.set_track_media,
     "SetTrackMeta": episode.set_track_meta,

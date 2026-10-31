@@ -8,6 +8,7 @@ import { EndedSessionCard } from "./EndedSessionCard";
 const base: RecordSessionSummary = {
   session_id: "s1",
   number: 2,
+  name: null,
   state: "ended",
   target_kind: null,
   takes: [
@@ -258,6 +259,117 @@ describe("EndedSessionCard", () => {
       expect(
         screen.getByRole("button", { name: "Track for Ava: Ava" }),
       ).toBeDisabled();
+    });
+  });
+
+  describe("renaming", () => {
+    const open = async (over: Partial<RecordSessionSummary> = {}) => {
+      const onRename = vi.fn();
+      const view = render(
+        <EndedSessionCard
+          session={{ ...base, ...over }}
+          trackNames={names}
+          onRename={onRename}
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Rename session" }),
+      );
+      return { onRename, ...view };
+    };
+
+    it("heads the card with the name when one is set", () => {
+      mount({ name: "Cold open" });
+      expect(
+        screen.getByRole("heading", { name: "Cold open" }),
+      ).toBeInTheDocument();
+    });
+
+    it("offers Rename only for a numbered, landed session with a handler", () => {
+      mount();
+      expect(
+        screen.queryByRole("button", { name: "Rename session" }),
+      ).not.toBeInTheDocument();
+      for (const over of [{ landed: false }, { number: null }]) {
+        const { unmount } = render(
+          <EndedSessionCard
+            session={{ ...base, ...over }}
+            trackNames={names}
+            onRename={vi.fn()}
+          />,
+        );
+        expect(
+          screen.queryByRole("button", { name: "Rename session" }),
+        ).not.toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it("opens a focused field with the name, Enter saves it and closes", async () => {
+      const { onRename } = await open({ name: "Cold open" });
+      const field = screen.getByRole("textbox", { name: "Session name" });
+      expect(field).toHaveFocus();
+      expect(field).toHaveValue("Cold open");
+      expect(field).toHaveAttribute("maxlength", "80");
+      await userEvent.clear(field);
+      await userEvent.type(field, "Interview{Enter}");
+      expect(onRename).toHaveBeenCalledExactlyOnceWith("Interview");
+      expect(
+        screen.queryByRole("textbox", { name: "Session name" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Rename session" }),
+      ).toBeInTheDocument();
+    });
+
+    it("Escape cancels without saving", async () => {
+      const { onRename } = await open();
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Session name" }),
+        "Draft{Escape}",
+      );
+      expect(onRename).not.toHaveBeenCalled();
+      expect(
+        screen.queryByRole("textbox", { name: "Session name" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("saves on blur", async () => {
+      const { onRename } = await open();
+      await userEvent.type(
+        screen.getByRole("textbox", { name: "Session name" }),
+        "Wrap-up",
+      );
+      await userEvent.tab();
+      expect(onRename).toHaveBeenCalledExactlyOnceWith("Wrap-up");
+    });
+
+    it("an emptied field saves an empty name, which clears it", async () => {
+      const { onRename } = await open({ name: "Cold open" });
+      await userEvent.clear(
+        screen.getByRole("textbox", { name: "Session name" }),
+      );
+      await userEvent.keyboard("{Enter}");
+      expect(onRename).toHaveBeenCalledExactlyOnceWith("");
+    });
+
+    it("leaves Rename shut while a change is in flight", () => {
+      render(
+        <EndedSessionCard
+          session={base}
+          trackNames={names}
+          onRename={vi.fn()}
+          busy
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Rename session" }),
+      ).toBeDisabled();
+    });
+
+    it("has no axe violations while editing", async () => {
+      const { container } = await open({ name: "Cold open" });
+      await expectNoA11yViolations(container);
     });
   });
 });

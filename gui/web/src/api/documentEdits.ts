@@ -900,6 +900,19 @@ export async function renameProjectCommand(
   });
 }
 
+/** Name a landed record session; an empty name clears it back to the default heading. */
+export async function setRecordSessionNameCommand(
+  projectPath: string,
+  sessionId: string,
+  name: string,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(
+    projectPath,
+    DocumentCommand.SetRecordSessionName,
+    { session_id: sessionId, name },
+  );
+}
+
 export async function setTrackMetaCommand(
   projectPath: string,
   trackId: string,

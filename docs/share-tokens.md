@@ -495,7 +495,7 @@ does not hold in `EDIT_COMMANDS` are the comment commands (`AddComment`,
 `UpdateComment`, `ResolveComment`, `DeleteComment`, `AddReply`, `SetActionDone`,
 `AddAction`), which follow the comment capabilities, and any command named in
 `HOST_ONLY_DOCUMENT_COMMANDS` in `services/document_sync/capabilities.py`. That
-set is empty. A test fails when a new command type is in none of the Editor,
+set holds `SetRecordSessionName` (naming a record session is the host's). A test fails when a new command type is in none of the Editor,
 Commenter, comment or host-only sets, so a new command cannot ship unclassified.
 Commenter and Viewer commands are unchanged.
 

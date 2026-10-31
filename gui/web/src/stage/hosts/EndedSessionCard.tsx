@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { RecordSessionSummary } from "../../record";
+import { InlineEdit } from "../../system/InlineEdit";
 import {
   Button,
   Menu,
@@ -24,7 +25,17 @@ function clock(ms: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
 }
 
-function heading({ number, ended_at }: RecordSessionSummary): string {
+/** The longest session name the server keeps. */
+const SESSION_NAME_MAX = 80;
+
+function heading({
+  number,
+  name: given,
+  ended_at,
+}: RecordSessionSummary): string {
+  if (given) {
+    return given;
+  }
   const name = number === null ? "Last session" : `Session ${number}`;
   const when = ended_at ? new Date(ended_at) : null;
   return when && !Number.isNaN(when.getTime())
@@ -55,6 +66,8 @@ export type EndedSessionCardProps = {
   /** Edit hand-off; the primary button shows only for a landed session with clips on the timeline. */
   onEdit?: () => void;
   hasClips?: boolean;
+  /** Saves the session's name; an empty name clears it. Offered for a landed, numbered session only. */
+  onRename?: (name: string) => void;
 };
 
 const NO_TRACKS: readonly { id: string; label: string }[] = [];
@@ -141,15 +154,41 @@ export function EndedSessionCard({
   onNewTrack,
   onEdit,
   hasClips = false,
+  onRename,
 }: EndedSessionCardProps) {
+  const [renaming, setRenaming] = useState(false);
+  const canRename = session.landed && session.number !== null && !!onRename;
   return (
     <section
       className="stage-host-section stage-host-record-empty"
       aria-labelledby="record-last-session"
     >
-      <h2 id="record-last-session" className="stage-host-title">
-        {heading(session)}
-      </h2>
+      <div className="stage-host-title-row">
+        <h2 id="record-last-session" className="stage-host-title">
+          {heading(session)}
+        </h2>
+        {canRename && !renaming ? (
+          <Button
+            aria-label="Rename session"
+            disabledReason={busy ? BUSY_REASON : undefined}
+            onClick={() => setRenaming(true)}
+          >
+            Rename
+          </Button>
+        ) : null}
+      </div>
+      {canRename && renaming ? (
+        <InlineEdit
+          focusOnMount
+          className="stage-host-rename"
+          label="Session name"
+          maxLength={SESSION_NAME_MAX}
+          placeholder="Session name"
+          value={session.name ?? ""}
+          onCommit={(name) => onRename?.(name)}
+          onEnd={() => setRenaming(false)}
+        />
+      ) : null}
       <p className="stage-host-note">{takesLine(session)}</p>
       <ul className="stage-host-list">
         {session.participants.map((p) => {

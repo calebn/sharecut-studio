@@ -1787,6 +1787,18 @@
         },
         "RecordSessionRecord": {
           "properties": {
+            "name": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "number": {
               "minimum": 1,
               "type": "integer"
@@ -5316,6 +5328,18 @@
         },
         "RecordSessionRecord": {
           "properties": {
+            "name": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "number": {
               "minimum": 1,
               "type": "integer"

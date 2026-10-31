@@ -868,6 +868,11 @@ class RenameProjectPayload(BaseModel):
     name: str
 
 
+class SetRecordSessionNamePayload(BaseModel):
+    session_id: str
+    name: str
+
+
 class AddTrackPayload(BaseModel):
     track_id: str | None = None
     label: str | None = None
@@ -1283,6 +1288,11 @@ class RenameProjectCommand(DocumentCommandEnvelope):
     payload: RenameProjectPayload
 
 
+class SetRecordSessionNameCommand(DocumentCommandEnvelope):
+    type: Literal["SetRecordSessionName"] = "SetRecordSessionName"
+    payload: SetRecordSessionNamePayload
+
+
 class AddTrackCommand(DocumentCommandEnvelope):
     type: Literal["AddTrack"] = "AddTrack"
     payload: AddTrackPayload = Field(default_factory=AddTrackPayload)
@@ -1391,6 +1401,7 @@ DocumentCommandBody = Annotated[
     | CutRangeCommand
     | RippleDeleteTextCommand
     | RenameProjectCommand
+    | SetRecordSessionNameCommand
     | AddTrackCommand
     | SetTrackMediaCommand
     | SetTrackMetaCommand
@@ -1528,6 +1539,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "CutRange": CutRangePayload,
     "RippleDeleteText": RippleDeleteTextPayload,
     "RenameProject": RenameProjectPayload,
+    "SetRecordSessionName": SetRecordSessionNamePayload,
     "AddTrack": AddTrackPayload,
     "SetTrackMedia": SetTrackMediaPayload,
     "SetTrackMeta": SetTrackMetaPayload,

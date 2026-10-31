@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { addTrackCommand } from "../../api";
+import { addTrackCommand, setRecordSessionNameCommand } from "../../api";
 import {
   executePointerCommand,
   runPointerCommand,
@@ -198,6 +198,27 @@ function RecordStageBody({
       await moveTo(participantId, trackId);
     } catch (e) {
       failRemap(e instanceof Error ? e.message : "try again");
+    } finally {
+      setRemapBusy(false);
+    }
+  };
+  const rename = async (name: string) => {
+    if (!lastSession || remapBusy) {
+      return;
+    }
+    setRemapBusy(true);
+    try {
+      await setRecordSessionNameCommand(
+        projectPath,
+        lastSession.session_id,
+        name,
+      );
+      refreshLastSession();
+    } catch (e) {
+      announceStatus(
+        `Could not rename the session: ${e instanceof Error ? e.message : "try again"}`,
+        { tone: "error" },
+      );
     } finally {
       setRemapBusy(false);
     }
@@ -500,6 +521,7 @@ function RecordStageBody({
       onRemap={(participantId, trackId) => void remap(participantId, trackId)}
       onNewTrack={(participantId) => void newTrack(participantId)}
       onEdit={() => void editSession()}
+      onRename={(name) => void rename(name)}
       hasClips={handoff !== null}
       storage={
         <StorageHeadroomWarning

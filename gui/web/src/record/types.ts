@@ -111,6 +111,8 @@ export type RecordSessionSummary = {
   session_id: string;
   /** Null until the session has landed on the timeline. */
   number: number | null;
+  /** The host's name for the session; null shows the default heading. */
+  name: string | null;
   state: "open" | "ended";
   target_kind: SessionTarget["kind"] | null;
   takes: { take_index: number; recording_ms: number }[];

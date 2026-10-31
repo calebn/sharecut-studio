@@ -18,6 +18,7 @@ from podcast_mcp.models import (
     FADER_MAX_DB,
     FADER_MIN_DB,
     PROJECT_NAME_MAX_CHARS,
+    RECORD_SESSION_NAME_MAX_CHARS,
     Track,
     TrackRole,
 )
@@ -51,6 +52,22 @@ def _clean_project_name(name: str) -> str:
     return cleaned
 
 
+def _clean_session_name(name: str) -> str | None:
+    """The trimmed session name; None (back to the default heading) when nothing is left."""
+    cleaned = re.sub(r"^[\s\u200d]+|[\s\u200d]+$", "", name)
+    if len(cleaned) > RECORD_SESSION_NAME_MAX_CHARS:
+        raise CodedValueError(
+            f"session name must be at most {RECORD_SESSION_NAME_MAX_CHARS} characters",
+            code="invalid_session_name",
+        )
+    if any(_is_hidden_char(char) for char in cleaned):
+        raise CodedValueError(
+            "session name must not contain control or invisible formatting characters",
+            code="invalid_session_name",
+        )
+    return cleaned or None
+
+
 class EpisodeService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
@@ -70,6 +87,30 @@ class EpisodeService:
             params={"name": cleaned},
         )
         return {"name": self.ws.project.meta.name}
+
+    def set_record_session_name(self, session_id: str, name: str) -> dict:
+        """Name a landed record session, or clear its name with an empty one."""
+        cleaned = _clean_session_name(name)
+        if not any(
+            row.session_id == session_id for row in self.ws.project.editorial.record_sessions
+        ):
+            raise CodedValueError(
+                f"no landed record session: {session_id}", code="record_session_unknown"
+            )
+
+        def mutate(p) -> None:
+            for row in p.editorial.record_sessions:
+                if row.session_id == session_id:
+                    row.name = cleaned
+
+        self.ws.mutate(
+            "before rename session",
+            "after rename session",
+            mutate,
+            operation="rename_session",
+            params={"session_id": session_id, "name": cleaned},
+        )
+        return {"session_id": session_id, "name": cleaned}
 
     def add_track(
         self,
