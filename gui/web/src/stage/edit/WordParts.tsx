@@ -21,9 +21,8 @@ import {
 } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { wordSeekSec } from "../../utils/transcript";
-import { useWordTarget, type WordRef } from "./wordTarget";
+import { useTranscriptWord, useWordTarget, type WordRef } from "./wordTarget";
 
-/** Suppress, Ignore and Return to automatic: each answers with a toast and Undo. */
 export function WordActions(ref: WordRef) {
   const t = useWordTarget(ref);
   const { word, wordSpanText, projectPath, busy, error, runForWord } = t;
@@ -125,7 +124,7 @@ export function WordActions(ref: WordRef) {
 }
 
 export function WordFacts(ref: WordRef) {
-  const { word } = useWordTarget(ref);
+  const { word } = useTranscriptWord(ref);
   if (!word) return null;
   return (
     <div className="inspector edit-sheet-part">
@@ -147,7 +146,7 @@ export function WordFacts(ref: WordRef) {
 }
 
 export function WordTiming(ref: WordRef) {
-  const { word } = useWordTarget(ref);
+  const { word } = useTranscriptWord(ref);
   if (!word) return null;
   return (
     <div className="inspector edit-sheet-part">

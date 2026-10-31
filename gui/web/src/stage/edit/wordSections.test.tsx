@@ -5,9 +5,9 @@ import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject } from "../../test/fixtures";
 import { ApiError } from "../../utils/apiError";
 import { wordSelection } from "../../utils/rangeSelect";
+import { focusFirstControl } from "./inspectorFocus";
 import { useSelectionSections } from "./selectionSections";
 
-/** The sheet's rows for one word, as InspectorSheet lays them out. */
 function Word({
   trackId,
   sourceId = null,
@@ -1403,5 +1403,20 @@ describe("which sections a transcript range gets", () => {
 
   it("leaves other kinds to their own bodies", () => {
     expect(ids({ kind: "chapter", id: "c", time: 1 })).toBeNull();
+  });
+});
+
+describe("focus when a word opens", () => {
+  it("lands on the sheet anchor, because the first control is the Text field", () => {
+    useDawStore.setState({ project: project(), projectPath: "/tmp/ep" });
+    const { container } = render(
+      <div className="sys-inspector">
+        <div className="sys-inspector-scroll">
+          <Word trackId="host" wordIndex={0} />
+        </div>
+      </div>,
+    );
+    focusFirstControl(container as HTMLElement);
+    expect(screen.getByTestId("anchor")).toHaveFocus();
   });
 });

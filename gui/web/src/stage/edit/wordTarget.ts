@@ -21,16 +21,14 @@ export type WordRef = {
   wordIndex: number;
 };
 
-/** Empty `TrackWordTexts` while transcript words are not hydrated yet. */
 const NO_WORD_TEXTS: TrackWordTexts = new Map();
 
 /**
- * One word in the project and the busy/error state of the actions on it. Each
- * part of the word's sheet content is keyed by the word, so a failure that
- * settles after the selection moved goes to the transcript's late-failure
+ * Each part of the word's sheet content is keyed by the word, so a failure
+ * that settles after the selection moved goes to the transcript's late-failure
  * banner instead of being lost or shown under the next word.
  */
-export function useWordTarget({ trackId, sourceId, wordIndex }: WordRef) {
+export function useTranscriptWord({ trackId, sourceId, wordIndex }: WordRef) {
   const { project, projectPath } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -43,6 +41,12 @@ export function useWordTarget({ trackId, sourceId, wordIndex }: WordRef) {
         : null,
     [project, trackId, sourceId, wordIndex, hydrated],
   );
+  return { project, projectPath, hydrated, word };
+}
+
+export function useWordTarget(ref: WordRef) {
+  const { trackId, sourceId, wordIndex } = ref;
+  const { project, projectPath, hydrated, word } = useTranscriptWord(ref);
   // Word texts under the shared duplicate-index rule (#650): a disagreeing
   // duplicate maps to null. Built once per snapshot so End index is O(span).
   const wordTexts = useMemo(

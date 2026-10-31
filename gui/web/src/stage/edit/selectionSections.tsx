@@ -1,10 +1,9 @@
 import type { InspectorSection } from "../../system/InspectorSheet";
-import { RangeFields } from "../../timeline/RangeFields";
 import type { Selection } from "../../types/project";
 import { useAppliedSections } from "./appliedSections";
+import { rangeSection } from "./rangeSection";
 import { useWordSections } from "./wordSections";
 
-/** The sheet content a selection kind has been rebuilt for, or null for a legacy body. */
 export function useSelectionSections(
   selection: Selection,
   rangeActionsInSheet = false,
@@ -13,13 +12,5 @@ export function useSelectionSections(
   const applied = useAppliedSections(selection);
   if (word) return word;
   if (!applied) return null;
-  return rangeActionsInSheet
-    ? [
-        {
-          id: "range",
-          rows: [{ id: "range", control: <RangeFields sheet /> }],
-        },
-        ...applied,
-      ]
-    : applied;
+  return rangeActionsInSheet ? [rangeSection, ...applied] : applied;
 }

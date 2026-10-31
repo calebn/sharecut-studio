@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useDawStore } from "../../state/dawStore";
+import type { WordDraftEntry } from "../../state/types";
 import { useDaw } from "../../state/useDaw";
 import {
   TRANSCRIPT_CORRECT_CONFLICT_NOTE,
@@ -25,14 +26,22 @@ import { ApiError } from "../../utils/apiError";
 import { spanTextFromIndex, transcriptSpanText } from "../../utils/transcript";
 import { useWordTarget, type WordRef } from "./wordTarget";
 
-/** Successful Applies the form remembers for following its own Undo/Redo (#746). */
+const isDraftOf = (
+  entry: WordDraftEntry | null,
+  key: Omit<WordDraftEntry, "text" | "endIndexStr" | "expectedText">,
+): entry is WordDraftEntry =>
+  entry != null &&
+  entry.projectPath === key.projectPath &&
+  entry.projectEpoch === key.projectEpoch &&
+  entry.trackId === key.trackId &&
+  entry.sourceId === key.sourceId &&
+  entry.wordIndex === key.wordIndex;
+
+// Applies kept to follow this form's own Undo/Redo (#746).
 const APPLIED_CORRECTIONS_KEPT = 20;
 
-/**
- * The editable Text and End index of one word. Typed but unsaved fields
- * outlive this component: a rotation swaps the shell and remounts it (#1885),
- * so they are mirrored into the store's `wordDraft`.
- */
+// A rotation swaps the shell and remounts this form (#1885), so unsaved fields
+// are mirrored into the store's `wordDraft`.
 export function WordFix({ trackId, sourceId, wordIndex }: WordRef) {
   const target = useWordTarget({ trackId, sourceId, wordIndex });
   const { word, wordTexts, wordSpanText, projectPath, busy, error } = target;
@@ -40,12 +49,13 @@ export function WordFix({ trackId, sourceId, wordIndex }: WordRef) {
   const hintId = useId();
   const [restored] = useState(() => {
     const entry = useDawStore.getState().wordDraft;
-    return entry &&
-      entry.projectPath === projectPath &&
-      entry.projectEpoch === projectEpoch &&
-      entry.trackId === trackId &&
-      entry.sourceId === sourceId &&
-      entry.wordIndex === wordIndex
+    return isDraftOf(entry, {
+      projectPath,
+      projectEpoch,
+      trackId,
+      sourceId,
+      wordIndex,
+    })
       ? entry
       : null;
   });
@@ -86,14 +96,13 @@ export function WordFix({ trackId, sourceId, wordIndex }: WordRef) {
   useEffect(() => {
     if (!touched.current) return;
     const store = useDawStore.getState();
-    const mine = store.wordDraft;
-    const isMine =
-      mine != null &&
-      mine.projectPath === projectPath &&
-      mine.projectEpoch === projectEpoch &&
-      mine.trackId === trackId &&
-      mine.sourceId === sourceId &&
-      mine.wordIndex === wordIndex;
+    const isMine = isDraftOf(store.wordDraft, {
+      projectPath,
+      projectEpoch,
+      trackId,
+      sourceId,
+      wordIndex,
+    });
     if (dirty) {
       store.setWordDraft({
         projectPath,
