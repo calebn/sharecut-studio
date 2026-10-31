@@ -9,7 +9,7 @@ import unicodedata
 from pathlib import Path
 from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from podcast_mcp.models.episode import ClipJoinMode, TrackRole
 from podcast_mcp.util.coded_error import CodedValueError
@@ -126,6 +126,14 @@ class SegmentFile(BaseModel):
     transcript_words: list[SegmentWord] | None = None
     media: dict[str, MediaEntry]
 
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def _integer_one(cls, value: object) -> object:
+        # ``True`` and ``1.0`` compare equal to 1; only the integer itself is the version.
+        if type(value) is not int:
+            raise ValueError("schema_version must be the integer 1")
+        return value
+
     @model_validator(mode="after")
     def _consistent(self) -> SegmentFile:
         if not is_segment_id(self.id):
@@ -167,10 +175,10 @@ def parse_segment(raw: bytes | str) -> SegmentFile:
         raise CodedValueError("segment.json is not valid JSON.", code="segment_invalid") from exc
     if not isinstance(data, dict):
         raise CodedValueError("segment.json must hold one object.", code="segment_invalid")
-    if data.get("schema_version") != 1:
+    version = data.get("schema_version")
+    if type(version) is not int or version != 1:
         raise CodedValueError(
-            f"This segment uses schema version {data.get('schema_version')!r}, "
-            "which this app does not read.",
+            f"This segment uses schema version {version!r}, which this app does not read.",
             code="segment_schema_unsupported",
         )
     try:
