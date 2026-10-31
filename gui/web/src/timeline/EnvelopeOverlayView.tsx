@@ -335,7 +335,12 @@ export function EnvelopeOverlayView({
             aria-hidden="true"
           />
           {dipLines.map((dip, index) => (
-            <g key={dip.key} pointerEvents="none" data-testid="clip-gain-dip">
+            <g
+              key={dip.key}
+              pointerEvents="none"
+              aria-hidden="true"
+              data-testid="clip-gain-dip"
+            >
               <polyline
                 fill="none"
                 stroke="var(--color-envelope-line)"

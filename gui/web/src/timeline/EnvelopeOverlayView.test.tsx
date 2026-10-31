@@ -867,6 +867,7 @@ it("draws clip fades read-only, labelled, and leaves the envelope line alone", (
 
   const dip = screen.getByTestId("clip-gain-dip");
   expect(dip).toHaveAttribute("pointer-events", "none");
+  expect(dip).toHaveAttribute("aria-hidden", "true");
   expect(dip).toHaveTextContent("clip fade");
   expect(dip.querySelector("polyline")).toHaveAttribute(
     "points",
