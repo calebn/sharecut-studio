@@ -107,15 +107,56 @@ describe("useTouchPress", () => {
     expect(owner).toHaveBeenCalledOnce();
   });
 
-  it("blocks the context menu a long press raises, and only then", () => {
+  it("blocks a touch context menu during and just after a press, and no other", () => {
     const { getByTestId } = render(<Lanes deferred />);
     const target = getByTestId("target");
-    expect(fireEvent.contextMenu(target)).toBe(true);
+    const menu = (pointerType: string) =>
+      target.dispatchEvent(
+        new PointerEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          pointerType,
+        }),
+      );
+    expect(menu("touch")).toBe(true);
+    fireEvent.pointerDown(target, touch);
+    expect(menu("touch")).toBe(false);
+    expect(menu("mouse")).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    fireEvent.pointerUp(target, touch);
+    expect(menu("touch")).toBe(false);
+    expect(menu("")).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(menu("touch")).toBe(true);
+  });
+
+  it("leaves a keyboard click inside the click window to its target", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
+    fireEvent.pointerDown(target, touch);
+    fireEvent.pointerUp(target, touch);
+    fireEvent.click(target, { detail: 0 });
+
+    expect(owner.mock.calls.map(([e]) => (e as Event).type)).toEqual(["click"]);
+  });
+
+  it("starts a fresh press when the same pointer goes down without a release", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
     fireEvent.pointerDown(target, touch);
     act(() => {
       vi.advanceTimersByTime(LONG_PRESS_MS);
     });
-    expect(fireEvent.contextMenu(target)).toBe(false);
+    fireEvent.pointerDown(target, touch);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+
+    expect(router.longPress).toHaveBeenCalledTimes(2);
   });
 
   it("stops suppressing the browser's click once its window has passed", () => {
@@ -147,6 +188,61 @@ describe("useTouchPress", () => {
     fireEvent.pointerDown(target, touch);
     expect(document.documentElement.style.userSelect).toBe("none");
     fireEvent.pointerUp(target, touch);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(document.documentElement.style.userSelect).toBe("");
+  });
+
+  it("ends the press when a router listener stops the release before the document", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
+    const stopRelease = (e: Event) => e.stopImmediatePropagation();
+    document.addEventListener("pointerup", stopRelease, true);
+    fireEvent.pointerDown(target, touch);
+    fireEvent.pointerUp(target, touch);
+    document.removeEventListener("pointerup", stopRelease, true);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(document.documentElement.style.userSelect).toBe("");
+    fireEvent.pointerDown(target, touch);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(router.longPress).toHaveBeenCalledOnce();
+  });
+
+  it("leaves a mouse click inside the click window to its target", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
+    fireEvent.pointerDown(target, touch);
+    fireEvent.pointerUp(target, touch);
+    target.dispatchEvent(
+      new PointerEvent("click", { bubbles: true, pointerType: "mouse" }),
+    );
+
+    expect(owner.mock.calls.map(([e]) => (e as Event).type)).toEqual(["click"]);
+  });
+
+  it("keeps text selection off until every instance has released it", () => {
+    const first = render(<Lanes deferred />);
+    const second = render(<Lanes deferred />);
+    fireEvent.pointerDown(first.getAllByTestId("target")[0], touch);
+    fireEvent.pointerDown(second.getAllByTestId("target")[1], {
+      ...touch,
+      pointerId: 4,
+    });
+    fireEvent.pointerUp(first.getAllByTestId("target")[0], touch);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(document.documentElement.style.userSelect).toBe("none");
+    fireEvent.pointerUp(second.getAllByTestId("target")[1], {
+      ...touch,
+      pointerId: 4,
+    });
     act(() => {
       vi.advanceTimersByTime(1000);
     });

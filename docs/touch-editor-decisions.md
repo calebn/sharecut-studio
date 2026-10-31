@@ -581,6 +581,16 @@ press hooks are native Pointer Events:
   the `pointerType` taken from the pointerdown (`virtual` for a click with
   no pointer).
 
+What the native layer does not do that React Aria's hooks did (#1312, to check
+on a phone in #960): it does not focus the target on a long press, ignore
+virtual (VoiceOver, TalkBack) pointer events, release implicit touch capture,
+cancel a press on `dragstart`, or fire a synthetic click 80 ms after a release
+that has none. Its context-menu block covers touch contextmenu events inside
+the root from touch start to 1 s after a long press, not the pressed element
+alone. Its pointerup and pointercancel listeners sit on `window`, ahead of the
+router's document listeners, which stop a finger's release once a second finger
+has taken the gesture.
+
 Everything else is native Pointer Events: `hitRouting.ts` (slop, second-finger
 cancel, chip settle, tap on release), `chipGesture.ts`,
 `timelineZoomGestures.ts` (pinch and pan), `useRangeGesture.ts`,

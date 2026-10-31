@@ -14,8 +14,8 @@
  *   pointercancel, and nothing is edited, selected target or not.
  * - A release within the slop is a tap. On a target it is replayed on the
  *   winner at once: the browser's own click comes after the pointer is no
- *   longer live, and an owner that captures it would refuse it. From a bare surface to a nearby mark it opens the mark
- *   from the browser's own click.
+ *   longer live, and an owner that captures it would refuse it. From a bare
+ *   surface to a nearby mark it opens the mark from the browser's own click.
  * - A long press (the layer calls `longPress`) over 2+ targets opens the
  *   chooser. Over one target it arms it, if the contract lets it drag, or
  *   selects it. A clip body under the finger is that one target when no
