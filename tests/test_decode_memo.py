@@ -731,25 +731,105 @@ def test_a_timer_that_cannot_start_leaves_hits_and_stores_working(
     assert len(decoder.calls) == 1 and decode_memo._MEMO._timer is None
 
 
-def test_a_symlink_retargeted_during_the_decode_is_not_stored(
+def _content_decode(
+    monkeypatch: pytest.MonkeyPatch, link: Path, to: Path, back: Path, *, flip: bool
+) -> None:
+    def decode(path: Path, *, sample_rate: int = RATE, ffmpeg: str | None = None):  # type: ignore[no-untyped-def]
+        if flip:
+            link.unlink()
+            link.symlink_to(to)
+        out = np.full(sample_rate, path.read_bytes()[0], dtype=np.float32)
+        if flip:
+            link.unlink()
+            link.symlink_to(back)
+        return out
+
+    monkeypatch.setattr(audio_audit, "load_mono_full", decode)
+
+
+def test_a_link_flipped_to_b_and_back_inside_the_build_stores_a(
     tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    first = _recording(tmp_path, "one.wav")
+    first = _recording(tmp_path, "a.wav", b"A" * 100)
+    second = _recording(tmp_path, "b.wav", b"B" * 100)
+    link = tmp_path / "link.wav"
+    link.symlink_to(first)
+    _content_decode(monkeypatch, link, second, first, flip=True)
+    cache = TrackRmsCache.from_recording(link, sample_rate=RATE)
+    assert cache.samples[0] == ord("A")
+    again = TrackRmsCache.from_recording(link, sample_rate=RATE)
+    assert again.samples[0] == ord("A")
+    assert len(decode_memo._MEMO) == 1
+
+
+def test_verify_on_a_hit_decodes_the_resolved_file(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _recording(tmp_path, "a.wav", b"A" * 100)
+    second = _recording(tmp_path, "b.wav", b"B" * 100)
+    link = tmp_path / "link.wav"
+    link.symlink_to(first)
+    _content_decode(monkeypatch, link, second, first, flip=False)
+    TrackRmsCache.from_recording(link, sample_rate=RATE)
+    monkeypatch.setenv("PODCAST_VERDICT_VERIFY", "1")
+    _content_decode(monkeypatch, link, second, first, flip=True)
+    hit = TrackRmsCache.from_recording(link, sample_rate=RATE)
+    assert hit.samples[0] == ord("A")
+
+
+def test_a_symlink_retargeted_during_the_decode_stores_the_file_it_decoded(
+    tmp_path: Path, decoder: Decoder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _recording(tmp_path, "one.wav", b"x" * 100)
     second = _recording(tmp_path, "two.wav", b"y" * 100)
     link = tmp_path / "link.wav"
     link.symlink_to(first)
-    inner = audio_audit.load_mono_full
+    seen: list[Path] = []
 
-    def retargeting(*args, **kwargs):  # type: ignore[no-untyped-def]
-        out = inner(*args, **kwargs)
+    def retargeting(path: Path, *, sample_rate: int = RATE, ffmpeg: str | None = None):  # type: ignore[no-untyped-def]
+        seen.append(path)
+        out = np.full(sample_rate, path.read_bytes()[0], dtype=np.float32)
         link.unlink()
         link.symlink_to(second)
         return out
 
     monkeypatch.setattr(audio_audit, "load_mono_full", retargeting)
     cache = TrackRmsCache.from_recording(link, sample_rate=RATE)
+    assert cache.samples[0] == ord("x")
     assert _read_only(cache)
-    assert len(decode_memo._MEMO) == 0 and decode_memo._MEMO.held_bytes() == 0
+    assert len(decode_memo._MEMO) == 1
+    assert seen == [first.resolve()]
+
+
+def _boom() -> tuple[object, ...]:
+    raise OSError("no ffmpeg")
+
+
+@pytest.mark.parametrize(
+    ("branch", "expect_resolved", "writable"),
+    [("cap0", False, True), ("racy", True, False), ("exception", False, False)],
+)
+def test_uncached_branches_decode_the_given_path_and_racy_decodes_the_resolved_one(
+    tmp_path: Path,
+    decoder: Decoder,
+    monkeypatch: pytest.MonkeyPatch,
+    branch: str,
+    expect_resolved: bool,
+    writable: bool,
+) -> None:
+    target = _recording(tmp_path, "a.wav")
+    link = tmp_path / "link.wav"
+    link.symlink_to(target)
+    if branch == "cap0":
+        monkeypatch.setenv(decode_memo.CAP_ENV, "0")
+    elif branch == "racy":
+        monkeypatch.setattr(decode_memo, "_now_ns", time.time_ns)
+    else:
+        monkeypatch.setattr(decode_memo, "ffmpeg_build_id", _boom)
+    cache = TrackRmsCache.from_recording(link, sample_rate=RATE)
+    assert decoder.calls[0][0] == (link.resolve() if expect_resolved else link)
+    assert cache.samples.flags.writeable is writable
+    assert len(decode_memo._MEMO) == 0
 
 
 def _fixed(decoder: Decoder, path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None):  # type: ignore[no-untyped-def]

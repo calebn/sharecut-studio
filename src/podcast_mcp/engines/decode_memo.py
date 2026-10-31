@@ -15,6 +15,8 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
   stored or served (a coarse clock can give a rewrite the same stamp, and ``cp -p`` keeps an old
   mtime but not the ctime). Whenever a file is read and its stamp is not the stored one, the
   earlier decode of that path and rate is dropped, even if the new decode is not stored.
+  The build decodes the resolved path the key names, so a link retargeted during the decode
+  cannot supply another file's samples.
 * **Single flight**: one lock per key, held across the decode, never one lock across keys, so
   the 8 kHz and 16 kHz decodes of a track still run side by side. The lock lives while any
   caller is queued on it, so after a failed decode the waiters retry one at a time.
@@ -31,7 +33,7 @@ caller is about to delete stays on ``from_timeline_stem``, which keeps nothing.
   decode was stored, served, too big, racy or changed under the decode. Only the cap-0 path
   returns the build untouched.
 * **Hits** return a fresh wrapper around a read-only view of the stored samples.
-  ``PODCAST_VERDICT_VERIFY`` or ``PODCAST_EVIDENCE_VERIFY`` re-decodes on every hit, outside
+  ``PODCAST_VERDICT_VERIFY`` or ``PODCAST_EVIDENCE_VERIFY`` re-decodes the resolved path on every hit, outside
   any batch scope, and raises ``AssertionError`` unless the bits are equal.
 """
 
@@ -127,26 +129,27 @@ class DecodeMemo:
         self._timer: threading.Timer | None = None
         self._active = 0.0
 
-    def get_or_decode(self, path: Path, sample_rate: int, build: Callable[[], T]) -> T:
-        """``build()``, or a wrapper of the stored result for this file stamp and rate.
+    def get_or_decode(self, path: Path, sample_rate: int, build: Callable[[Path], T]) -> T:
+        """``build(path)``, or a wrapper of the stored result for this file stamp and rate.
 
-        Except with the memo off, the samples returned are read-only on every path.
+        On a memo path ``build`` receives the resolved path the key names. Except with the memo
+        off, the samples returned are read-only on every path.
         """
         try:
             cap = cap_bytes()
         except Exception:
             cap = DEFAULT_CAP_MB << 20
         if cap == 0:
-            return build()
+            return build(path)
         try:
             resolved = path.resolve()
             stamp = file_stamp(resolved)
             key: _Key = (str(resolved), stamp, sample_rate, ffmpeg_build_id())
         except Exception:
-            return _frozen(build())
+            return _frozen(build(path))
         if _now_ns() - max(stamp.mtime_ns, stamp.ctime_ns) < RACY_SECONDS * 1e9:
             self._forget(key, keep=None)
-            return _frozen(build())
+            return _frozen(build(resolved))
         with self._lock:
             held = self._find(key)
             flight = None
@@ -154,32 +157,32 @@ class DecodeMemo:
                 flight = self._building.setdefault(key, _Flight())
                 flight.users += 1
         if held is not None:
-            return self._hit(held, build)
+            return self._hit(held, resolved, build)
         assert flight is not None
         try:
             with flight.lock:
                 with self._lock:
                     held = self._find(key)
                 if held is not None:
-                    return self._hit(held, build)
-                return self._store(key, path, resolved, build(), cap)
+                    return self._hit(held, resolved, build)
+                return self._store(key, resolved, build(resolved), cap)
         finally:
             with self._lock:
                 flight.users -= 1
                 if flight.users == 0:
                     self._building.pop(key, None)
 
-    def _hit(self, held: Any, build: Callable[[], T]) -> T:
+    def _hit(self, held: Any, resolved: Path, build: Callable[[Path], T]) -> T:
         if any(settings.flag(env) for env in VERIFY_ENVS):
             with unscoped():
-                fresh = build()
+                fresh = build(resolved)
             if not _same_bits(held.samples, fresh.samples):
                 raise AssertionError("decode memo hit differs from a fresh decode of the file")
         return dataclasses.replace(held)
 
-    def _store(self, key: _Key, path: Path, resolved: Path, built: T, cap: int) -> T:
+    def _store(self, key: _Key, resolved: Path, built: T, cap: int) -> T:
         try:
-            unchanged = path.resolve() == resolved and file_stamp(resolved) == key[1]
+            unchanged = file_stamp(resolved) == key[1]
         except OSError:
             unchanged = False
         nbytes = int(built.samples.nbytes)
@@ -280,6 +283,6 @@ def _frozen(built: T) -> T:
 _MEMO = DecodeMemo()
 
 
-def decode_once(path: Path, sample_rate: int, build: Callable[[], T]) -> T:
-    """``build()`` through the process memo; the one entry point for ``from_recording``."""
+def decode_once(path: Path, sample_rate: int, build: Callable[[Path], T]) -> T:
+    """``build(path)`` through the process memo; the one entry point for ``from_recording``."""
     return _MEMO.get_or_decode(path, sample_rate, build)
