@@ -11,9 +11,15 @@ export const POINT_PX = 2;
 /** Width of a remote envelope-point selection (px). */
 export const ENVELOPE_POINT_PX = 5;
 
+/** The parts of the project a selection is drawn from: the host re-derives selections only when one of these changes. */
+export type PresenceProject = Pick<
+  ProjectView,
+  "tracks" | "clips" | "envelopes" | "transcript"
+>;
+
 type Span = { laneId: string; start: number; end: number; minPx: number };
 
-function clipSpan(project: ProjectView, id: string): Span | null {
+function clipSpan(project: PresenceProject, id: string): Span | null {
   for (const [trackId, clips] of Object.entries(project.clips.tracks)) {
     const clip = clips.find((c) => c.id === id);
     if (clip) {
@@ -29,7 +35,7 @@ function clipSpan(project: ProjectView, id: string): Span | null {
 }
 
 function transcriptSpan(
-  project: ProjectView,
+  project: PresenceProject,
   sel: SessionSelection,
 ): Span | null {
   if (
@@ -57,7 +63,7 @@ function transcriptSpan(
   };
 }
 
-function selectionSpan(project: ProjectView, sel: SessionSelection) {
+function selectionSpan(project: PresenceProject, sel: SessionSelection) {
   if (sel.kind === "clip" && sel.id) return clipSpan(project, sel.id);
   if (
     (sel.kind === "pending" || sel.kind === "applied") &&
@@ -95,7 +101,7 @@ function selectionSpan(project: ProjectView, sel: SessionSelection) {
  */
 export function presenceSelections(
   clients: readonly SessionClient[],
-  project: ProjectView | null,
+  project: PresenceProject | null,
   pxPerSecond: number,
 ): PresenceSelection[] {
   if (project === null || !(pxPerSecond > 0)) return [];

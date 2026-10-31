@@ -325,6 +325,40 @@ test.describe("presence follow desktop", () => {
     });
   });
 
+  test("under a vertical scroll the remote flag moves with the lanes while the ruler stays pinned", async ({
+    browser,
+  }) => {
+    await withTwoStudioPages(
+      browser,
+      { width: 1280, height: 380 },
+      async (pageA, pageB) => {
+        await expect(peopleButton(pageB)).toBeVisible({ timeout: 15_000 });
+        await seekLeaderPlayhead(pageA);
+        const flag = pageB.locator(".sys-presence-flag").first();
+        await expect(flag).toBeVisible({ timeout: 8_000 });
+        const ruler = pageB.locator(".timeline-ruler");
+        const scroller = pageB.locator(".timeline-scroll");
+        const room = await scroller.evaluate(
+          (el) => el.scrollHeight - el.clientHeight,
+        );
+        expect(room).toBeGreaterThan(20);
+        const before = {
+          flag: (await flag.boundingBox())!.y,
+          ruler: (await ruler.boundingBox())!.y,
+        };
+        const by = Math.min(room, 40);
+        await scroller.evaluate((el, top) => {
+          el.scrollTop = top;
+        }, by);
+        await expect
+          .poll(async () => (await flag.boundingBox())!.y, { timeout: 5_000 })
+          .toBeCloseTo(before.flag - by, 0);
+        // The ruler is pinned; the flag is not (option A, documented in spec-edit OVL-PRESENCE).
+        expect((await ruler.boundingBox())!.y).toBeCloseTo(before.ruler, 0);
+      },
+    );
+  });
+
   test("mirrors FX audition and mute does not unfollow", async ({
     browser,
   }) => {

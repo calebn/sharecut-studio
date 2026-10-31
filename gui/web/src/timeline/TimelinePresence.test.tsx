@@ -327,10 +327,34 @@ describe("TimelinePresence", () => {
       });
       expect(leafRenders).toHaveBeenCalledTimes(1);
       const after = leafRenders.mock.lastCall![0].people;
-      expect(after.find((p: { id: string }) => p.id === "b")).toEqual(
+      expect(after.find((p: { id: string }) => p.id === "b")).toBe(
         before.find((p: { id: string }) => p.id === "b"),
       );
       expect(after.find((p: { id: string }) => p.id === "a").name).toBe("A2");
+    });
+
+    it("a project edit that no selection reads re-renders nothing", () => {
+      seed([remote("a", { meta: { selection: { kind: "clip", id: "c1" } } })]);
+      render(<Host />);
+      const first = leafRenders.mock.lastCall![0];
+      leafRenders.mockClear();
+      act(() => {
+        const project = useDawStore.getState().project!;
+        useDawStore.setState({ project: { ...project, chapters: [] } });
+      });
+      expect(leafRenders).not.toHaveBeenCalled();
+      expect(first.selections).toHaveLength(1);
+      // A clip edit does rebuild them.
+      act(() => {
+        const project = useDawStore.getState().project!;
+        useDawStore.setState({
+          project: {
+            ...project,
+            clips: { ...project.clips, tracks: { ...project.clips.tracks } },
+          },
+        });
+      });
+      expect(leafRenders).toHaveBeenCalledTimes(1);
     });
 
     it("a zoom change rebuilds the selections but not the rows", () => {
