@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -105,9 +106,16 @@ class AudioExportResult:
         measured = self.master.get("measured") or {}
         if measured.get("integrated_lufs") is None:
             return f"Mastered to target {target} (loudness unmeasured)"
+        peak = measured.get("true_peak_db")
+        # None (unread, incl. ffmpeg's -inf for digital silence) and non-finite are not a level.
+        peak_text = (
+            f"{peak} dBTP"
+            if isinstance(peak, int | float) and math.isfinite(peak)
+            else "no true-peak reading"
+        )
         return (
             f"Mastered to target {target}; measured {measured['integrated_lufs']} LUFS / "
-            f"{measured.get('true_peak_db')} dBTP"
+            f"{peak_text}"
         )
 
     def job_result(self) -> dict[str, Any]:
