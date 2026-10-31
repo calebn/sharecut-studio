@@ -20,6 +20,7 @@ import { nudgeAxis, nudgeStep } from "../edit/nudge";
 import { softBoundaries } from "../edit/nudgeBoundaries";
 import { trimDraft } from "../edit/ripplePreview";
 import { trimNeighborBounds } from "../edit/trimLimits";
+import { useInterruptCancel } from "../hooks/useInterruptCancel";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
@@ -179,6 +180,7 @@ export function useClipEdgeHandles(context: Context) {
       publish(null);
     }
   };
+  useInterruptCancel(cancel, draft?.phase === "preview");
   const fresh = (capture: Capture) => {
     const s = useDawStore.getState();
     const c = latest.current;
