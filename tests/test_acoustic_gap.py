@@ -1204,7 +1204,8 @@ def test_the_ceiling_is_the_silence_between_words_not_the_onset_step() -> None:
 def test_the_ceiling_ignores_pauses_and_needs_enough_silences() -> None:
     words = _cadence_words(count=MIN_WORD_STEPS, silence=0.1)  # one fewer silence than steps
     assert word_silence_ceiling(words, 0.35) is None
-    assert word_silence_ceiling(_cadence_words(count=MIN_WORD_STEPS + 1, silence=0.1), 0.35)
+    enough = word_silence_ceiling(_cadence_words(count=MIN_WORD_STEPS + 1, silence=0.1), 0.35)
+    assert enough == pytest.approx(0.1, abs=1e-6)
     # Silences at or over the pause threshold are not counted.
     assert word_silence_ceiling(_cadence_words(count=40, silence=0.4), 0.35) is None
 

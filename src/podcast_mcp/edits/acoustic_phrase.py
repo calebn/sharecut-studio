@@ -18,16 +18,17 @@ from podcast_mcp.models import TranscriptWord
 
 MIN_STRING_HITS = 3
 MIN_WORD_STEPS = 30
-_STEP_PERCENTILE = 95.0
+_SILENCE_PERCENTILE = 95.0
 
 
 def word_silence_ceiling(words: Sequence[TranscriptWord], pause_sec: float) -> float | None:
     """This speaker's longest ordinary silence between words of one phrase.
 
-    It is the same quantity ``phrase_hit_indexes`` compares it with: the silence from the
-    end of one word to the start of the next. Silences of ``pause_sec`` or more are a
-    pause, not part of a phrase. ``None`` when the track has too few silences to read a
-    cadence from.
+    The 95th percentile of the silence from the end of one word to the start of the next,
+    the same kind of quantity ``phrase_hit_indexes`` compares it with (the silence between
+    voiced runs). Silences of ``pause_sec`` or more are a pause, not part of a phrase.
+    ``None`` when the track has too few silences to read a cadence from. A speaker whose
+    words abut has a ceiling near zero, so only hits that nearly touch chain into a phrase.
     """
     live = [w for w in words if not w.suppressed and w.end > w.start]
     silences = [
@@ -37,7 +38,7 @@ def word_silence_ceiling(words: Sequence[TranscriptWord], pause_sec: float) -> f
     ]
     if len(silences) < MIN_WORD_STEPS:
         return None
-    return float(np.percentile(silences, _STEP_PERCENTILE))
+    return float(np.percentile(silences, _SILENCE_PERCENTILE))
 
 
 def phrase_hit_indexes(runs: Sequence[AcousticGapRun], ceiling: float | None) -> set[int]:
