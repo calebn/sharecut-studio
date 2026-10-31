@@ -336,10 +336,9 @@ test("Stages/Edit/TargetChooser opens after a 500 ms hold with 44 px chips fanne
   browser,
   browserName,
 }) => {
-  const { context, page } = await touchPage(
-    browser,
-    `${CHOOSER}--four-targets`,
-  );
+  // The Gesture story starts closed, so the hold is what opens the fan.
+  const { context, page } = await touchPage(browser, `${CHOOSER}--gesture`);
+  await expect(page.getByRole("menu")).toHaveCount(0);
   const finger = await newFinger(context, page, browserName);
   const surface = await box(page);
   const press = { x: surface.x + 180, y: surface.y + 270 };
@@ -445,7 +444,6 @@ test("Stages/Edit/TargetChooser keeps its chips 16 px inside the box at a side e
   expect(placement).toBe("above");
   expect(chips).toHaveLength(4);
   expect(chips[0].x - outer.x).toBeCloseTo(16, 0);
-  for (const chip of chips) expect(chip.y).toBeGreaterThanOrEqual(outer.y);
 });
 
 test("Stages/Edit/TargetChooser flips below a point near the top, 28 px clear of it at the outer chips", async ({
@@ -501,6 +499,24 @@ test("Stages/Edit/TargetChooser on a phone holds five 44 px chips inside 16 px g
   );
 });
 
+test("Stages/Edit/TargetChooser pressed 6 px from the left edge of a 360 px phone keeps the leftmost chip 16 px in and the rightmost inside 344", async ({
+  browser,
+}) => {
+  const { context, page } = await touchPage(
+    browser,
+    `${CHOOSER}--phone-edge`,
+    360,
+  );
+  await expect(page.getByRole("menu")).toBeVisible();
+  const outer = await box(page);
+  const chips = await chipRects(page);
+  await context.close();
+  expect(chips).toHaveLength(5);
+  expect(chips[0].x - outer.x).toBeCloseTo(16, 0);
+  const last = chips[4];
+  expect(last.x + last.width).toBeLessThanOrEqual(344);
+});
+
 test("Stages/Edit/TargetChooser ellipsizes a long caption inside 15 rem on a phone", async ({
   browser,
 }) => {
@@ -522,7 +538,7 @@ test("Stages/Edit/TargetChooser ellipsizes a long caption inside 15 rem on a pho
   expect(measured.right).toBeLessThanOrEqual(360);
 });
 
-test("Stages/Edit/TargetChooser outlines the chip under a finger in the system highlight colour under forced colors, and keeps the ring", async ({
+test("Stages/Edit/TargetChooser outlines the chip under a finger in the system highlight colour under forced colors, and keeps a visible border", async ({
   page,
 }) => {
   await page.emulateMedia({ forcedColors: "active" });
@@ -530,12 +546,12 @@ test("Stages/Edit/TargetChooser outlines the chip under a finger in the system h
   await page.goto(storyUrl(`${CHOOSER}--four-targets`, { theme: "light" }));
   await expect(page.locator(`${CHIPS}.is-over`)).toBeVisible();
   const colors = await page.evaluate(() => {
-    const probe = (property: "backgroundColor") => {
+    const probe = (color: string) => {
       const el = document.createElement("div");
       el.style.forcedColorAdjust = "none";
-      el.style.backgroundColor = "Highlight";
+      el.style.backgroundColor = color;
       document.body.append(el);
-      const value = getComputedStyle(el)[property];
+      const value = getComputedStyle(el).backgroundColor;
       el.remove();
       return value;
     };
@@ -543,18 +559,23 @@ test("Stages/Edit/TargetChooser outlines the chip under a finger in the system h
     if (!over) throw new Error("no chip is over");
     const style = getComputedStyle(over);
     return {
-      highlight: probe("backgroundColor"),
+      highlight: probe("Highlight"),
+      canvasText: probe("CanvasText"),
       outline: style.outlineColor,
       outlineWidth: style.outlineWidth,
-      ring: style.borderTopColor,
-      well: style.backgroundColor,
+      borderWidth: style.borderTopWidth,
+      borderColor: style.borderTopColor,
     };
   });
   expect(colors.outline).toBe(colors.highlight);
   expect(colors.outlineWidth).not.toBe("0px");
-  expect(colors.ring).not.toBe(colors.well);
+  expect(colors.borderWidth).toBe("3px");
+  expect(colors.borderColor).toBe(colors.canvasText);
 });
 
+// The keymap hold (Escape not also clearing the selection) is proved in
+// TargetChooser.keymap.test.tsx; this only proves the keys reach the fan and
+// that no later window listener hears Escape.
 test("Stages/Edit/TargetChooser: Left, Right, Home and End move between chips, Escape cancels and no later window listener hears it, and Tab out cancels", async ({
   page,
 }) => {

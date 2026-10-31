@@ -41,6 +41,14 @@ type FanProps = Omit<TargetChooserProps, "over"> & { over: string | null };
 function Fan({ targets, anchor, bounds, over, onPick, onCancel }: FanProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const close = useStableCallback(() => onCancel());
+  // One pick per open: a lift that also yields a click, or a double
+  // activation, must not commit twice. The fan is per mount, so no reset.
+  const picked = useRef(false);
+  const pick = (id: string) => {
+    if (picked.current) return;
+    picked.current = true;
+    onPick(id);
+  };
   useMenuKeyboard({
     open: true,
     panelRef: rootRef,
@@ -55,12 +63,16 @@ function Fan({ targets, anchor, bounds, over, onPick, onCancel }: FanProps) {
   };
   const shown = targets.slice(0, CHOOSER_MAX_CHIPS);
   const layout = layoutChips(shown.length, anchor, bounds);
+  const label =
+    targets.length > CHOOSER_MAX_CHIPS
+      ? `Targets here, showing ${CHOOSER_MAX_CHIPS} of ${targets.length}`
+      : `Targets here, ${shown.length}`;
   const caption = shown.find((target) => target.id === over)?.label ?? null;
   return (
     <div
       ref={rootRef}
       role="menu"
-      aria-label="Targets here"
+      aria-label={label}
       tabIndex={-1}
       className="edit-target-chooser"
       data-placement={layout.placement}
@@ -85,9 +97,10 @@ function Fan({ targets, anchor, bounds, over, onPick, onCancel }: FanProps) {
                 ? "edit-target-chooser-chip is-over"
                 : "edit-target-chooser-chip"
             }
+            data-over={target.id === over ? "" : undefined}
             {...{ [TARGET_ID_ATTR]: target.id }}
             style={style}
-            onClick={() => onPick(target.id)}
+            onClick={() => pick(target.id)}
           >
             <SystemIcon name={KIND_ICONS[target.kind]} size={20} />
           </button>

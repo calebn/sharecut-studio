@@ -25,14 +25,17 @@ export const CHOOSER_SAG_PX = 6;
 export const CHOOSER_EDGE_PX = 16;
 /** Room for the caption on the side of the arc away from the press point. */
 export const CHOOSER_ROOM_PX = 48;
-/** Half the caption's widest line (15 rem at 16 px). */
+/**
+ * Half the caption's widest line (15 rem at 16 px). The layout adds the 16 px
+ * edge gutter, so the caption's centre clamps at 136 px from a side.
+ */
 export const CHOOSER_CAPTION_HALF_PX = 120;
 /** The most chips drawn at once; a longer list is paged by the host. */
 export const CHOOSER_MAX_CHIPS = 5;
 
-export type ChipPlacement = "above" | "below";
+type ChipPlacement = "above" | "below";
 
-export type ChipLayout = {
+type ChipLayout = {
   placement: ChipPlacement;
   /** Each chip's centre, left to right. */
   centers: Point[];
@@ -70,7 +73,10 @@ export function layoutChips(
     { length: shown },
     (_, i) => finger.x + (i - half) * pitch + shift,
   );
-  const reach = Math.max(pitch, ...xs.map((x) => Math.abs(x - finger.x)));
+  // The outermost chip is always t = +-1, so its lower edge is exactly
+  // CHOOSER_RISE_PX - CHOOSER_SAG_PX - half a chip = 28 px from the press point
+  // for every count, two included.
+  const reach = Math.max(...xs.map((x) => Math.abs(x - finger.x)));
   const centers = xs.map((x) => {
     const t = (x - finger.x) / reach;
     return {

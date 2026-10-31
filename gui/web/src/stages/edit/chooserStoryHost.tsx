@@ -11,16 +11,18 @@ import { Button } from "../../ui";
 import { TARGET_ID_ATTR } from "./chooserKinds";
 import { type ChooserTarget, TargetChooser } from "./TargetChooser";
 
-export const CHOOSER_BOX_HEIGHT = 320;
+const CHOOSER_BOX_HEIGHT = 320;
 
 const LANE = { top: 216, bottom: 296 };
 
-export type ChooserDemoProps = {
+type ChooserDemoProps = {
   targets: readonly ChooserTarget[];
   /** The press point; a negative x counts from the box's right edge. */
   at: { x: number; y: number };
   /** The chip the finger starts over, for a story that shows the caption. */
   over?: string | null;
+  /** False starts closed, so the first long-press is what opens the fan. */
+  initialOpen?: boolean;
 };
 
 const box: CSSProperties = {
@@ -58,16 +60,17 @@ type Press = { x: number; y: number; timer: number | null };
  * on the surface held for `LONG_PRESS_MS` opens the fan at that point; the
  * finger sliding over a chip reports it as `over`; a lift over a chip picks it
  * and a lift elsewhere, or a cancelled touch, cancels. The fan starts open at
- * `at` so a story can show it without a hold.
+ * `at` so a story can show it without a hold, unless `initialOpen` is false.
  */
 export function ChooserDemo({
   targets,
   at,
   over: startOver,
+  initialOpen = true,
 }: ChooserDemoProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const press = useRef<Press | null>(null);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(initialOpen);
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
   const [over, setOver] = useState<string | null>(startOver ?? null);
   const [result, setResult] = useState({ text: "", picks: 0, cancels: 0 });
