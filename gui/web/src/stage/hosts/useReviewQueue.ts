@@ -281,6 +281,15 @@ export function useReviewQueue(guestShare = false) {
       .catch(() => undefined);
     return () => controller.abort();
   }, [detailKey, wantsDetail, selectedSession, guest, projectPath]);
+  // Whatever changes the chosen take (our pick, Undo, another client), what was playing is the old one.
+  const chosenTakes = useRef(new Map<string, number | undefined>());
+  useEffect(() => {
+    const next = new Map((sessions ?? []).map((s) => [s.id, takeToPlace(s)]));
+    for (const [id, take] of next)
+      if (chosenTakes.current.has(id) && chosenTakes.current.get(id) !== take)
+        releaseSessionPreview(id);
+    chosenTakes.current = next;
+  }, [sessions]);
   useEffect(() => {
     const listed = new Set((sessions ?? []).map((s) => s.id));
     setTakeDetails((prev) => {
@@ -722,12 +731,11 @@ export function useReviewQueue(guestShare = false) {
       const { projectPath: path, projectEpoch: epoch } = useDawStore.getState();
       try {
         await selectSessionTakeCommand(path, suggestionId, takeIndex);
-        // What was playing is the old take.
-        releaseSessionPreview(suggestionId);
       } catch (error) {
         const s = useDawStore.getState();
         if (s.projectPath === path && s.projectEpoch === epoch)
           s.announceStatus(errorMessage(error), { tone: "error" });
+        return false;
       } finally {
         switching.current.delete(suggestionId);
       }
