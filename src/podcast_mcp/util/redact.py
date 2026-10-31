@@ -30,7 +30,7 @@ _HEX_RUN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{32,}(?![0-9A-Fa-f])")
 _B64_RUN = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{32,}={1,2}(?![A-Za-z0-9+/=])")
 _HOST_PATH = re.compile(
     r"[A-Za-z]:[\\/]"
-    r"|\\{2}"
+    r"|\\"
     r"|[\\/](?i:Users|home)"
     r"|~[\w.-]*[\\/]"
     r"|/"
@@ -136,7 +136,7 @@ def mentions_host_path(text: str) -> bool:
     in prose (``Talkin' Shop`` ends at an apostrophe), so replacing the part that matched leaves
     folder-name fragments behind. Text bound for a share guest either has no path or is replaced
     whole (``CodedError.guest_message``, ``scrub_guest_progress_text``).
-    Detection conservatively matches slash-separated prose and URLs. Bare filenames without a
-    path prefix remain allowed.
+    Detection conservatively matches slash- or backslash-separated prose and URLs. Bare
+    filenames without a path prefix remain allowed.
     """
     return _HOST_PATH.search(text) is not None
