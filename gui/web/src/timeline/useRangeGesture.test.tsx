@@ -31,6 +31,7 @@ function Harness({
       onPointerMoveCapture={gesture.captureMove}
       onPointerUpCapture={gesture.captureUp}
       onPointerCancelCapture={gesture.captureCancel}
+      onLostPointerCaptureCapture={gesture.captureLostCapture}
       onClickCapture={gesture.captureClick}
     >
       <div className="lane-row" data-track-id="destination">
@@ -196,6 +197,90 @@ describe("lane range gestures", () => {
       clientY: 75,
     });
     expect(useDawStore.getState().selection).toBeNull();
+  });
+});
+
+describe("a range draft interrupted by the window", () => {
+  const previous = {
+    kind: "clip" as const,
+    id: "kept",
+    trackId: "destination",
+  };
+  const draw = (view: ReturnType<typeof setup>, pointerId = 1) => {
+    fireEvent.pointerDown(view.getByTestId("blank"), {
+      clientX: 120,
+      clientY: 20,
+      pointerId,
+    });
+    fireEvent.pointerMove(view.getByTestId("lanes"), {
+      clientX: 180,
+      clientY: 75,
+      pointerId,
+    });
+    expect(useDawStore.getState().selection?.kind).toBe("range");
+  };
+  const hide = () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    fireEvent(document, new Event("visibilitychange"));
+  };
+
+  it.each([
+    ["window blur", () => fireEvent.blur(window)],
+    ["the document hiding", hide],
+    ["pagehide", () => fireEvent(window, new Event("pagehide"))],
+    [
+      "lost pointer capture",
+      (view: ReturnType<typeof setup>) =>
+        fireEvent.lostPointerCapture(view.getByTestId("lanes"), {
+          pointerId: 1,
+        }),
+    ],
+  ])("restores the previous selection on %s", (_n, interrupt) => {
+    useDawStore.setState({ selection: previous });
+    let hasActive!: () => boolean;
+    const view = setup((g) => {
+      hasActive = g.hasActiveGesture;
+    });
+    useDawStore.setState({ rangeArmed: true });
+    draw(view);
+    act(() => interrupt(view));
+    expect(useDawStore.getState().selection).toEqual(previous);
+    expect(hasActive()).toBe(false);
+    fireEvent.pointerUp(view.getByTestId("lanes"), {
+      clientX: 180,
+      clientY: 75,
+    });
+    expect(useDawStore.getState().selection).toEqual(previous);
+  });
+
+  it("keeps the draft for a child's or a foreign pointer's lost capture", () => {
+    useDawStore.setState({ selection: previous, rangeArmed: true });
+    const view = setup();
+    draw(view);
+    fireEvent.lostPointerCapture(view.getByTestId("blank"), { pointerId: 1 });
+    fireEvent.lostPointerCapture(view.getByTestId("lanes"), { pointerId: 9 });
+    expect(useDawStore.getState().selection?.kind).toBe("range");
+  });
+
+  it("keeps the range when capture is lost after pointerup", () => {
+    useDawStore.setState({ selection: previous, rangeArmed: true });
+    const view = setup();
+    draw(view);
+    fireEvent.pointerUp(view.getByTestId("lanes"), {
+      clientX: 180,
+      clientY: 75,
+    });
+    fireEvent.lostPointerCapture(view.getByTestId("lanes"), { pointerId: 1 });
+    expect(useDawStore.getState().selection?.kind).toBe("range");
+  });
+
+  it("writes nothing when idle", () => {
+    useDawStore.setState({ selection: previous });
+    setup();
+    const set = vi.spyOn(useDawStore.getState(), "setSelection");
+    fireEvent.blur(window);
+    expect(set).not.toHaveBeenCalled();
+    expect(useDawStore.getState().selection).toEqual(previous);
   });
 });
 
