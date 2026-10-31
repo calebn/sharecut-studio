@@ -1438,7 +1438,7 @@
         "skill": "podcast-record-session"
       },
       "omit": {
-        "keyboard_reason": "host CLI/MCP only",
+        "keyboard_reason": "Reached from the command palette and the session target chip in the Record room",
         "guest": true
       },
       "tooltip": "Set where this session lands",
