@@ -10,6 +10,7 @@ from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_correct import build_phrase_replacement, correct_transcript_word
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
+from podcast_mcp.models.words_revision import set_words
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -148,7 +149,7 @@ def apply_transcript_replacement(
                 )
                 cursor = match.start + len(match.words)
             words.extend(transcript.words[cursor:])
-            transcript.words = words
+            set_words(transcript, words)
         transcript.user_edited = True
     if plan.matches:
         rebuild_combined(project, defaults=defaults)

@@ -8,6 +8,7 @@ from podcast_mcp.edits.unsure_words import is_unsure_word
 from podcast_mcp.engines.lane_words import lane_transcript
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
+from podcast_mcp.models.words_revision import set_word, set_words
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.text import collapse_whitespace, has_meaningful_text
 
@@ -128,7 +129,7 @@ def correct_transcript_word(
         # A person's or agent's correction invalidates the score the aligner gave the old text
         # (#195); automated precorrect rewrites (keep_evidence) keep it, since the audio is unchanged.
         update.update(alignment_score=None, suspect_hallucination=False)
-    tr.words[word_index] = w.model_copy(update=update)
+    set_word(tr, word_index, w.model_copy(update=update))
 
 
 def correct_phrase(
@@ -166,7 +167,7 @@ def correct_transcript_phrase(
         new_text,
         keep_evidence=keep_evidence,
     )
-    tr.words = tr.words[:start_word_index] + replacement + tr.words[end_word_index + 1 :]
+    set_words(tr, tr.words[:start_word_index] + replacement + tr.words[end_word_index + 1 :])
 
 
 def build_phrase_replacement(
@@ -246,8 +247,10 @@ def set_word_suppressed(
     tr = _require_transcript(project, track_id, source_id)
     _require_word_index(tr, word_index)
     w = tr.words[word_index]
-    tr.words[word_index] = w.model_copy(
-        update={"suppressed": bool(suppressed), "audibility_locked": True}
+    set_word(
+        tr,
+        word_index,
+        w.model_copy(update={"suppressed": bool(suppressed), "audibility_locked": True}),
     )
     rebuild_combined(project, defaults=defaults)
     return {
@@ -275,7 +278,7 @@ def set_word_automatic(
     tr = _require_transcript(project, track_id, source_id)
     _require_word_index(tr, word_index)
     w = tr.words[word_index]
-    tr.words[word_index] = w.model_copy(update={"audibility_locked": False})
+    set_word(tr, word_index, w.model_copy(update={"audibility_locked": False}))
     return {
         "track_id": track_id,
         "source_id": tr.source_id,
@@ -312,7 +315,7 @@ def set_words_ignored(
     for i in range(start_word_index, end_word_index + 1):
         w = tr.words[i]
         if w.ignored != ignored:
-            tr.words[i] = w.model_copy(update={"ignored": ignored})
+            set_word(tr, i, w.model_copy(update={"ignored": ignored}))
             changed += 1
     return {
         "track_id": track_id,

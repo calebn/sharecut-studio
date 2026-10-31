@@ -19,6 +19,7 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import ArchivedTranscriptWord, Clip, EpisodeProject, TranscriptKey
+from podcast_mcp.models.words_revision import set_words
 from podcast_mcp.util.intervals import merge_intervals
 
 
@@ -49,7 +50,7 @@ def apply_source_transcript_removes(
                 tr.archived_words.append(ArchivedTranscriptWord(ordinal=ordinal, word=word))
             else:
                 kept.append(word)
-        tr.words = kept
+        set_words(tr, kept)
     if rebuild:
         rebuild_combined(project, defaults=defaults)
 
@@ -109,16 +110,19 @@ def restore_archived_words(project: EpisodeProject, track_ids: set[str]) -> None
             else:
                 remaining.append(archived)
         if restored:
-            transcript.words = [
-                word
-                for _, word in sorted(
-                    [
-                        *transcript.active_words_with_ordinals(),
-                        *((entry.ordinal, entry.word) for entry in restored),
-                    ],
-                    key=lambda item: (item[1].start, item[0]),
-                )
-            ]
+            set_words(
+                transcript,
+                [
+                    word
+                    for _, word in sorted(
+                        [
+                            *transcript.active_words_with_ordinals(),
+                            *((entry.ordinal, entry.word) for entry in restored),
+                        ],
+                        key=lambda item: (item[1].start, item[0]),
+                    )
+                ],
+            )
             transcript.archived_words = remaining
 
 

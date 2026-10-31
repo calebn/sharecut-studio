@@ -25,6 +25,7 @@ from podcast_mcp.engines.align import (
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.models import EpisodeProject, TrackRole
+from podcast_mcp.models.words_revision import set_word
 from podcast_mcp.project.transcript_context import SpeakerIdConfig, TranscriptContext
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.model_missing import ModelMissing
@@ -775,23 +776,35 @@ def label_window(
             continue
         if role == "own":
             if not dry_run:
-                tr.words[i] = w.model_copy(
-                    update={
-                        "speaker_match_track": track_id,
-                        "speaker_match_score": round(
-                            ws.scores.get(ws.best_identity or track_id, 0), 4
-                        ),
-                    }
+                set_word(
+                    tr,
+                    i,
+                    w.model_copy(
+                        update={
+                            "speaker_match_track": track_id,
+                            "speaker_match_score": round(
+                                ws.scores.get(ws.best_identity or track_id, 0), 4
+                            ),
+                        }
+                    ),
                 )
             changed += 1
         else:
             if not dry_run:
-                tr.words[i] = w.model_copy(
-                    update={
-                        "speaker_match_track": ws.best_track_id,
-                        "speaker_match_score": round(ws.scores.get(ws.best_identity or "", 0), 4),
-                        "suppressed": w.resolve_auto_suppression(cfg.auto_suppress or w.suppressed),
-                    }
+                set_word(
+                    tr,
+                    i,
+                    w.model_copy(
+                        update={
+                            "speaker_match_track": ws.best_track_id,
+                            "speaker_match_score": round(
+                                ws.scores.get(ws.best_identity or "", 0), 4
+                            ),
+                            "suppressed": w.resolve_auto_suppression(
+                                cfg.auto_suppress or w.suppressed
+                            ),
+                        }
+                    ),
                 )
             changed += 1
 
@@ -1028,14 +1041,18 @@ def label_track_home_speaker(
                 track_would += 1
                 if not dry_run:
                     new_suppressed = w.resolve_auto_suppression(True)
-                    tr.words[i] = w.model_copy(
-                        update={
-                            "speaker_match_track": ws.best_track_id,
-                            "speaker_match_score": round(
-                                ws.scores.get(ws.best_identity or "", 0), 4
-                            ),
-                            "suppressed": new_suppressed,
-                        }
+                    set_word(
+                        tr,
+                        i,
+                        w.model_copy(
+                            update={
+                                "speaker_match_track": ws.best_track_id,
+                                "speaker_match_score": round(
+                                    ws.scores.get(ws.best_identity or "", 0), 4
+                                ),
+                                "suppressed": new_suppressed,
+                            }
+                        ),
                     )
                     # A locked word's suppressed value doesn't move (#781): don't
                     # count it as suppressed just because this pass touched it.
@@ -1145,12 +1162,20 @@ def run_speaker_attribution(
             w = tr.words[word_idx]
             would_change += 1
             if not dry_run:
-                tr.words[word_idx] = w.model_copy(
-                    update={
-                        "speaker_match_track": ws.best_track_id,
-                        "speaker_match_score": round(ws.scores.get(ws.best_identity or "", 0), 4),
-                        "suppressed": w.resolve_auto_suppression(cfg.auto_suppress or w.suppressed),
-                    }
+                set_word(
+                    tr,
+                    word_idx,
+                    w.model_copy(
+                        update={
+                            "speaker_match_track": ws.best_track_id,
+                            "speaker_match_score": round(
+                                ws.scores.get(ws.best_identity or "", 0), 4
+                            ),
+                            "suppressed": w.resolve_auto_suppression(
+                                cfg.auto_suppress or w.suppressed
+                            ),
+                        }
+                    ),
                 )
                 changed += 1
 

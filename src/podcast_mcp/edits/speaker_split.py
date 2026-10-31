@@ -44,6 +44,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.models.words_revision import set_words
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.timebase import SourceSec
@@ -267,8 +268,8 @@ def _transfer_transcript_words(
             moving.append(word)
         else:
             staying.append(word)
-    from_transcript.words = staying
-    to_transcript.words = sorted([*to_transcript.words, *moving], key=lambda w: w.start)
+    set_words(from_transcript, staying)
+    set_words(to_transcript, sorted([*to_transcript.words, *moving], key=lambda w: w.start))
     return len(moving)
 
 
@@ -329,7 +330,7 @@ def _split_transcripts(project: EpisodeProject, split: SpeakerSplit, track_id: s
         mid = (word.start + max(word.end, word.start)) / 2.0
         i = max(0, bisect_right(starts, mid) - 1)
         by_lane[split.turns[i].speakers[0] if split.turns else track_id].append(word)
-    original.words = by_lane[track_id]
+    set_words(original, by_lane[track_id])
     for lane in split.lanes:
         if lane == track_id:
             continue

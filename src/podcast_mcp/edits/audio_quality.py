@@ -24,6 +24,7 @@ from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models.words_revision import set_word
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress
 from podcast_mcp.util.timebase import TimelineSec
@@ -287,10 +288,12 @@ def suppress_low_audibility_words(
             if transcript_word_key(tr, i) not in targets:
                 continue
             if explicit:
-                tr.words[i] = w.model_copy(update={"suppressed": True, "audibility_locked": True})
+                set_word(
+                    tr, i, w.model_copy(update={"suppressed": True, "audibility_locked": True})
+                )
                 count += 1
             elif w.resolve_auto_suppression(True) != w.suppressed:
-                tr.words[i] = w.model_copy(update={"suppressed": True})
+                set_word(tr, i, w.model_copy(update={"suppressed": True}))
                 count += 1
     rebuild_combined(project, defaults=defaults)
     return {"suppressed_count": count}
@@ -438,10 +441,12 @@ def suppress_bleed_words(
             if transcript_word_key(tr, i) not in targets or w.suppressed:
                 continue
             if explicit:
-                tr.words[i] = w.model_copy(update={"suppressed": True, "audibility_locked": True})
+                set_word(
+                    tr, i, w.model_copy(update={"suppressed": True, "audibility_locked": True})
+                )
                 count += 1
             elif w.resolve_auto_suppression(True):
-                tr.words[i] = w.model_copy(update={"suppressed": True})
+                set_word(tr, i, w.model_copy(update={"suppressed": True}))
                 count += 1
     rebuild_combined(project, defaults=defaults)
     mark_reconciliation_fresh(project, defaults=defaults)
