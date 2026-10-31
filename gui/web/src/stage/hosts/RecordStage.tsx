@@ -30,6 +30,7 @@ import {
   useHostRoomContext,
   useInputPeakDb,
   useLastEndedSession,
+  useOpenSessionName,
   useRecordHostStore,
   useRoomToneAnnouncement,
   useSheetMic,
@@ -99,6 +100,10 @@ function RecordStageBody({
   const lookup = lookupOf(room);
   const { session: lastSession, refresh: refreshLastSession } =
     useLastEndedSession(projectPath, lookup === "none");
+  const sessionName = useOpenSessionName(
+    projectPath,
+    snapshot?.session_id ?? null,
+  );
   const [remapBusy, setRemapBusy] = useState(false);
   const clipTracks = project?.clips.tracks;
   const projectTracks = useMemo(
@@ -364,6 +369,7 @@ function RecordStageBody({
     ? {
         seat: "host",
         title: project?.meta.name ?? "",
+        sessionName: sessionName ?? undefined,
         people,
         phase,
         viewerWidth: viewerWidthOf(shell),

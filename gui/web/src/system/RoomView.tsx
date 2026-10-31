@@ -35,6 +35,8 @@ export type RoomViewProps = {
   seat: RoomRole;
   /** The session title, printed in the header and the one h1 of the page. */
   title: string;
+  /** The session's own name, shown first in the embedded header; omitted until known. */
+  sessionName?: string;
   people: RoomPerson[];
   phase: RoomPhase;
   viewerWidth?: ViewerWidth;
@@ -130,6 +132,7 @@ function Dockbar({
 export function RoomView({
   seat,
   title,
+  sessionName,
   people,
   phase,
   viewerWidth = "desktop",
@@ -260,6 +263,9 @@ export function RoomView({
     >
       {embedded ? (
         <div className="sys-room-view-header sys-room-view-header--embedded">
+          {sessionName ? (
+            <span className="sys-room-view-session">{sessionName}</span>
+          ) : null}
           {target ? <div className="sys-room-view-target">{target}</div> : null}
           <RoomStatusPill phase={phase} />
         </div>

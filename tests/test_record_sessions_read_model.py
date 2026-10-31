@@ -33,6 +33,30 @@ def test_open_room_is_listed_unnumbered_and_unlanded(minimal_project, sample_wav
     assert item["takes"] == []
 
 
+def test_open_room_reports_the_number_a_land_would_assign(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _ws(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    [item] = list_record_sessions(ws.project)
+    assert item["session_id"] == room["session_id"]
+    assert item["number"] is None
+    assert item["planned_number"] == 1
+
+
+def test_planned_number_follows_landed_sessions_and_matches_the_land(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _ws(minimal_project, sample_wav)
+    first, _landed = _land_session(ws, take_ms=3_000)
+    ShareService(ws).revoke_room(first["session_id"])
+    second = ShareService(ws).create_record_room()
+    rows = {row["session_id"]: row for row in list_record_sessions(ws.project)}
+    assert rows[first["session_id"]]["planned_number"] == rows[first["session_id"]]["number"] == 1
+    assert rows[second["session_id"]]["number"] is None
+    assert rows[second["session_id"]]["planned_number"] == 2
+
+
 def test_no_rooms_and_no_landing_lists_nothing(minimal_project, sample_wav, tmp_workspace):
     ws = _ws(minimal_project, sample_wav)
     assert list_record_sessions(ws.project) == []

@@ -16,6 +16,7 @@ const session = (
 ): RecordSessionSummary => ({
   session_id: id,
   number: 1,
+  planned_number: 1,
   name: null,
   state: "ended",
   target_kind: null,

@@ -104,6 +104,7 @@ export const HostEndedSessionSummary: Story = {
             {
               session_id: "s1",
               number: 1,
+              planned_number: 1,
               name: null,
               state: "ended",
               target_kind: null,

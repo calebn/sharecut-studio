@@ -42,6 +42,7 @@ describe("loadHostRecordSessions", () => {
       {
         session_id: "aaaaaaaaaaaa",
         number: 1,
+        planned_number: 1,
         name: null,
         state: "ended",
         target_kind: "end",
