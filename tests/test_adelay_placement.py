@@ -6,11 +6,14 @@ import errno
 import math
 import os
 import subprocess
+import sys
 import wave
 from collections.abc import Callable
 from itertools import pairwise
 from pathlib import Path
 from subprocess import CompletedProcess
+from types import SimpleNamespace
+from typing import cast
 from unittest.mock import patch
 
 import numpy as np
@@ -18,7 +21,7 @@ import pytest
 
 import multistream_media as media
 from podcast_mcp.engines import ffmpeg as ff
-from podcast_mcp.engines import render_clock
+from podcast_mcp.engines import render_clock, source_proxy_audio
 from podcast_mcp.engines.audio import (
     At,
     Audio,
@@ -862,3 +865,61 @@ def test_negotiated_inputs_follow_the_render_input_order(
     assert dry_run == [inputs]
     assert len(inputs) == 2
     assert inputs[0] == main.resolve()
+
+
+def _refusals() -> list[tuple[OSError, bool]]:
+    return [
+        (OSError(errno.E2BIG, "Argument list too long"), True),
+        (_WindowsTooLong(errno.ENOENT, "The filename or extension is too long"), True),
+        (FileNotFoundError(errno.ENOENT, "No such file or directory"), False),
+    ]
+
+
+def _assert_refusal(error: OSError, coded: bool, call: Callable[[], object]) -> None:
+    if coded:
+        with pytest.raises(CodedValueError) as raised:
+            call()
+        assert raised.value.code == "render_command_too_long"
+        assert raised.value.__cause__ is error
+    else:
+        with pytest.raises(type(error)) as raised:
+            call()
+        assert raised.value is error
+
+
+@pytest.mark.parametrize("refusal,coded", _refusals(), ids=["e2big", "winerror-206", "missing"])
+def test_run_cancellable_spawn_refusal(
+    monkeypatch: pytest.MonkeyPatch, refusal: OSError, coded: bool
+) -> None:
+    def popen(*args, **kwargs):
+        raise refusal
+
+    monkeypatch.setattr(ff, "popen", popen)
+    _assert_refusal(refusal, coded, lambda: ff._run_cancellable(["ffmpeg"], lambda: False))
+
+
+@pytest.mark.parametrize("refusal,coded", _refusals(), ids=["e2big", "winerror-206", "missing"])
+def test_proxy_execute_spawn_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, refusal: OSError, coded: bool
+) -> None:
+    def run(*args, **kwargs):
+        raise refusal
+
+    monkeypatch.setattr(source_proxy_audio, "run", run)
+    _assert_refusal(
+        refusal,
+        coded,
+        lambda: source_proxy_audio._execute(
+            cast(FFmpegEngine, SimpleNamespace(ffmpeg="ffmpeg")), ["-i", "x"], tmp_path, "proxy", {}
+        ),
+    )
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="E2BIG limit is Linux's")
+def test_run_cancellable_real_oversized_argument_is_render_command_too_long() -> None:
+    cmd = [sys.executable, "-c", "pass", "x" * 200_000]
+    with pytest.raises(CodedValueError) as error:
+        ff._run_cancellable(cmd, lambda: False)
+    assert error.value.code == "render_command_too_long"
+    assert isinstance(error.value.__cause__, OSError)
+    assert error.value.__cause__.errno == errno.E2BIG
