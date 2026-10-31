@@ -1,11 +1,16 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
-import { minimalProject, sampleComment } from "../../test/fixtures";
+import {
+  minimalProject,
+  pendingEditView,
+  sampleComment,
+} from "../../test/fixtures";
+import { useCommentSections } from "./commentSections";
 import { SectionsBody } from "./SectionsBody";
 
 const patchComment = vi.fn();
@@ -138,6 +143,27 @@ describe("comment sheet sections", () => {
     expect(
       screen.queryByRole("button", { name: "Resolve" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders a comment whose linked decision is no longer pending", () => {
+    open(["/tmp/p.json"], sampleComment({ edit_decision_id: "gone-edit" }));
+    expect(screen.getByRole("button", { name: "Resolve" })).toBeVisible();
+    expect(screen.getByText("Needs a tighter open")).toBeVisible();
+  });
+
+  it("leaves a comment on a pending edit to the pending body", () => {
+    const comment = sampleComment({ edit_decision_id: "pe1" });
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        comments: [comment],
+        pending_edits: [pendingEditView({ id: "pe1" })],
+      }),
+    );
+    const { result } = renderHook(() =>
+      useCommentSections({ kind: "comment", id: comment.id }),
+    );
+    expect(result.current).toBeNull();
   });
 
   it("says so when the comment is gone", () => {
