@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.gui.host_reveal import reveal_in_file_manager
+from podcast_mcp.gui.routes import export_ticket
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     ChapterMarker,
@@ -166,7 +169,15 @@ def test_the_host_lists_and_downloads_with_no_host_path(ws, folder, client) -> N
     res = client.get("/api/export/files", params={"path": str(ws.path)})
 
     assert res.status_code == 200
-    assert set(res.json()["files"][0]) == {"id", "name", "kind", "label", "bytes", "current"}
+    assert set(res.json()["files"][0]) == {
+        "id",
+        "name",
+        "kind",
+        "label",
+        "bytes",
+        "current",
+        "ticket",
+    }
     assert str(ws.path.parent) not in res.text
 
 
@@ -273,6 +284,128 @@ def test_the_host_routes_refuse_a_relayed_request(ws, folder, client) -> None:
     file = client.get(f"/api/export/files/{stem}.mp3", params=params, headers=relayed)
 
     assert (listed.status_code, file.status_code) == (403, 403)
+
+
+REMOTE = ("203.0.113.9", 5000)
+SESSION = {"X-Podcast-Token": "s3cret"}
+
+
+@pytest.fixture
+def strict(monkeypatch) -> None:
+    monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
+    monkeypatch.setenv("PODCAST_SESSION_TOKEN", "s3cret")
+
+
+@pytest.fixture
+def remote(strict) -> TestClient:
+    return TestClient(create_app(), client=REMOTE)
+
+
+def _tickets(client: TestClient, ws: ProjectWorkspace) -> dict[str, str]:
+    res = client.get("/api/export/files", params={"path": str(ws.path)}, headers=SESSION)
+    assert res.status_code == 200
+    return {f["id"]: f["ticket"] for f in res.json()["files"]}
+
+
+def test_a_ticket_downloads_a_file_where_no_session_token_is_sent(ws, folder, remote) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    ticket = _tickets(remote, ws)[f"{stem}.mp3"]
+    url = f"/api/export/files/{stem}.mp3"
+
+    res = remote.get(url, params={"path": str(ws.path), "ticket": ticket})
+    bare = remote.get(url, params={"path": str(ws.path)})
+
+    assert (res.status_code, res.content) == (200, MP3)
+    assert res.headers["content-disposition"].startswith("attachment")
+    assert bare.status_code == 403
+
+
+def test_a_ticket_opens_only_its_own_file(ws, folder, remote) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    tickets = _tickets(remote, ws)
+
+    res = remote.get(
+        f"/api/export/files/{stem}.wav",
+        params={"path": str(ws.path), "ticket": tickets[f"{stem}.mp3"]},
+    )
+
+    assert (res.status_code, res.headers[CODE]) == (403, "export_ticket_invalid")
+
+
+def test_a_ticket_does_not_open_the_listing_or_reveal(ws, folder, remote) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    ticket = _tickets(remote, ws)[f"{stem}.mp3"]
+
+    listed = remote.get("/api/export/files", params={"path": str(ws.path), "ticket": ticket})
+    revealed = remote.post(
+        "/api/export/files/reveal",
+        params={"ticket": ticket},
+        json={"path": str(ws.path), "id": f"{stem}.mp3"},
+    )
+
+    assert (listed.status_code, revealed.status_code) == (403, 403)
+
+
+def test_a_changed_signature_is_refused(ws, folder, remote) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    ticket = _tickets(remote, ws)[f"{stem}.mp3"]
+    forged = ticket[:-1] + ("0" if ticket[-1] != "0" else "1")
+
+    res = remote.get(
+        f"/api/export/files/{stem}.mp3", params={"path": str(ws.path), "ticket": forged}
+    )
+
+    assert (res.status_code, res.headers[CODE]) == (403, "export_ticket_invalid")
+
+
+def test_an_expired_ticket_is_a_410(ws, folder, remote, monkeypatch) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    ticket = _tickets(remote, ws)[f"{stem}.mp3"]
+    monkeypatch.setattr(
+        export_ticket, "_now", lambda: time.time() + export_ticket.TICKET_TTL_SEC + 5
+    )
+
+    res = remote.get(
+        f"/api/export/files/{stem}.mp3", params={"path": str(ws.path), "ticket": ticket}
+    )
+
+    assert (res.status_code, res.headers[CODE]) == (410, "export_ticket_expired")
+
+
+def test_a_file_rewritten_after_the_listing_voids_its_ticket(ws, folder, remote) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    ticket = _tickets(remote, ws)[f"{stem}.mp3"]
+    (folder / f"{stem}.mp3").write_bytes(MP3 + b"more")
+
+    res = remote.get(
+        f"/api/export/files/{stem}.mp3", params={"path": str(ws.path), "ticket": ticket}
+    )
+
+    assert (res.status_code, res.headers[CODE]) == (410, "export_file_changed")
+
+
+def test_a_ticket_is_refused_on_a_relayed_request(ws, folder, remote) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    ticket = _tickets(remote, ws)[f"{stem}.mp3"]
+
+    res = remote.get(
+        f"/api/export/files/{stem}.mp3",
+        params={"path": str(ws.path), "ticket": ticket},
+        headers={"x-sharecut-relayed": "1"},
+    )
+
+    assert res.status_code == 403
+
+
+def test_a_ticket_belongs_to_one_project(ws, folder, tmp_path) -> None:
+    stem = sanitize_export_stem(ws.project.name)
+    version = ExportFilesService(ws).open(f"{stem}.mp3").version
+    ticket = export_ticket.mint(ws.path, f"{stem}.mp3", version)
+
+    with pytest.raises(HTTPException) as refused:
+        export_ticket.check(ticket, tmp_path / "other.json", f"{stem}.mp3", version)
+
+    assert refused.value.status_code == 403
 
 
 def _run_export(app, ws: ProjectWorkspace, status: str = "running") -> None:

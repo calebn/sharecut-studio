@@ -10,6 +10,7 @@ from starlette.responses import Response
 
 from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.host_reveal import reveal_in_file_manager
+from podcast_mcp.gui.routes import export_ticket
 from podcast_mcp.gui.routes.deps import coded_http_error, peer_host
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import ExportFilesService, ServedFile
@@ -34,20 +35,34 @@ def _open_listed(ws: ProjectWorkspace, file_id: str) -> ServedFile:
         raise coded_http_error(404, EXPORT_FILE_GONE, code="export_file_gone") from exc
 
 
-def list_exported_files(ws: ProjectWorkspace) -> dict[str, Any]:
-    """``{files: [{id, name, kind, label, bytes, current}]}``; names only, never a host path."""
-    return {"files": [asdict(f) for f in ExportFilesService(ws).list()]}
+def list_exported_files(ws: ProjectWorkspace, *, ticketed: bool = False) -> dict[str, Any]:
+    """``{files: [{id, name, kind, label, bytes, current}]}``; names only, never a host path.
+
+    With *ticketed* each entry also carries a ``ticket`` that downloads that file as listed.
+    """
+    service = ExportFilesService(ws)
+    files = [asdict(f) for f in service.list()]
+    if ticketed:
+        versions = {served.id: served.version for served in service.served()}
+        for entry in files:
+            entry["ticket"] = export_ticket.mint(ws.path, entry["id"], versions[entry["id"]])
+    return {"files": files}
 
 
-def download_exported_file(request: Request, ws: ProjectWorkspace, file_id: str) -> Response:
+def download_exported_file(
+    request: Request, ws: ProjectWorkspace, file_id: str, *, ticket: str | None = None
+) -> Response:
     """Stream the listed file *file_id* as an attachment, with Range and ETag.
 
     The id is looked up in the listing and never joined to a path. It is refused with 409
-    while an export of this project is writing, and with 404 when it is not listed.
+    while an export of this project is writing, and with 404 when it is not listed. A *ticket*
+    must match the file as it is now.
     """
     if request.app.state.jobs.export_running(ws.path):
         raise coded_http_error(409, EXPORT_RUNNING, code="export_running")
     found = _open_listed(ws, file_id)
+    if ticket is not None:
+        export_ticket.check(ticket, ws.path, file_id, found.version)
     try:
         return pinned_audio_response(
             found.path,

@@ -39,15 +39,32 @@ afterEach(() => {
 
 describe("exportedFileHref", () => {
   it("keeps the folder in a host link and encodes each part of the name", () => {
-    const href = exportedFileHref("/tmp/ep/episode.sharecut", "clips/a b.wav");
+    const href = exportedFileHref("/tmp/ep/episode.sharecut", {
+      id: "clips/a b.wav",
+      ticket: "1.2-3.sig",
+    });
     expect(href).toContain("/api/export/files/clips/a%20b.wav?");
     expect(href).toContain(
       `path=${encodeURIComponent("/tmp/ep/episode.sharecut")}`,
     );
   });
 
+  it("puts the listing's ticket in a host link and never the session token", () => {
+    window.history.replaceState(null, "", "/?session_token=host-secret");
+    const href = exportedFileHref("/tmp/ep/episode.sharecut", {
+      id: "ep.mp3",
+      ticket: "1700000000.12-34.abcdef",
+    });
+    window.history.replaceState(null, "", "/");
+    expect(href).toContain("ticket=1700000000.12-34.abcdef");
+    expect(href).not.toContain("host-secret");
+    expect(href).not.toContain("token=host");
+  });
+
   it("sends a guest through the review route with the token in the path", () => {
-    const href = exportedFileHref(shareProjectKey("tok123"), "clips/a.wav");
+    const href = exportedFileHref(shareProjectKey("tok123"), {
+      id: "clips/a.wav",
+    });
     expect(href).toMatch(
       /\/api\/review\/tok123\/daw\/export\/files\/clips\/a\.wav$/,
     );

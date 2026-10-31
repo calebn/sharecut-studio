@@ -21,6 +21,7 @@ from podcast_mcp.services.session_sync import (
     authorize_client,
     authorize_host,
 )
+from podcast_mcp.services.session_sync.authz import HOST_ROLE_RELAYED_REASON
 from podcast_mcp.util.coded_error import (
     AccessDeniedError,
     CodedError,
@@ -211,6 +212,12 @@ def require_host(
     )
     if not decision.allowed:
         raise AccessDeniedError(decision.reason, code="authz_denied")
+
+
+def refuse_relayed(request: Request) -> None:
+    """Deny a relay-tunneled request on an owner route that a ticket, not a token, opens."""
+    if is_relayed_request(request.headers):
+        raise AccessDeniedError(HOST_ROLE_RELAYED_REASON, code="authz_denied")
 
 
 def resolve_project(path: str, request: Request | WebSocket | None = None) -> Path:
