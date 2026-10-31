@@ -1,8 +1,8 @@
 import { renderHook } from "@testing-library/react";
 import { act } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { useDawStore } from "../../../state/dawStore";
-import { useScriptLateFailure } from "./useScriptLateFailure";
+import { useDawStore } from "../../state/dawStore";
+import { useLateWordFailure } from "./useLateWordFailure";
 
 const failure = (projectPath: string) => ({
   projectPath,
@@ -13,7 +13,7 @@ const failure = (projectPath: string) => ({
   message: "Could not ignore “hello”: offline",
 });
 
-describe("useScriptLateFailure", () => {
+describe("useLateWordFailure", () => {
   beforeEach(() => {
     useDawStore.setState({
       projectPath: "/p/a.sharecut",
@@ -23,7 +23,7 @@ describe("useScriptLateFailure", () => {
   });
 
   it("announces a late failure once and clears it", () => {
-    renderHook(() => useScriptLateFailure());
+    renderHook(() => useLateWordFailure());
     act(() => {
       useDawStore
         .getState()
@@ -36,7 +36,7 @@ describe("useScriptLateFailure", () => {
   });
 
   it("drops a failure from another project without saying it", () => {
-    renderHook(() => useScriptLateFailure());
+    renderHook(() => useLateWordFailure());
     act(() => {
       useDawStore
         .getState()

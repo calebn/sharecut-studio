@@ -327,13 +327,14 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
 
 /**
  * What the pane shows for the store's selection. Only a run of words in one
- * track is a Script selection; anything else (a clip, a range across tracks,
+ * track, or a range across tracks, is a Script selection; anything else (a clip,
  * a marker) leaves the pane with nothing selected.
  */
 export function scriptSelectionOf(
   model: ScriptModel,
   selection: Selection | null,
 ): ScriptSelection | null {
+  if (selection?.kind === "range") return rangeSelectionOf(model, selection);
   if (selection?.kind !== "transcriptRange") return null;
   const sourceId = selection.sourceId ?? null;
   const anchor = model.indexOf({
@@ -351,6 +352,77 @@ export function scriptSelectionOf(
   );
   if (anchor === undefined || head === undefined) return null;
   return { kind: "words", anchor, head };
+}
+
+/** Whether any word of the model carries this mark: the Script draws the seam or suggestion. */
+function modelHasMark(
+  model: ScriptModel,
+  kind: "cut" | "suggested",
+  id: string,
+): boolean {
+  return model.turns.some((turn) =>
+    turn.words.some((w) => w.mark?.kind === kind && w.mark.id === id),
+  );
+}
+
+/**
+ * What the pane shows for the store's selection once the seam and suggestion
+ * the Script draws are counted. Words and ranges come first; a selected pending
+ * edit is the suggestion with that id; an open join popover (it opens by the
+ * join's right clip) is the cut seam of that join. Anything the Script does not
+ * draw selects nothing.
+ */
+export function scriptReviewSelectionOf(
+  model: ScriptModel,
+  selection: Selection | null,
+  boundaries: readonly EditBoundaryView[],
+  openJoinId: string | null,
+): ScriptSelection | null {
+  const words = scriptSelectionOf(model, selection);
+  if (words) return words;
+  if (
+    selection?.kind === "pending" &&
+    modelHasMark(model, "suggested", selection.id)
+  ) {
+    return { kind: "suggestion", id: selection.id };
+  }
+  if (selection !== null || openJoinId === null) return null;
+  const seam = boundaries.find((b) => b.right_clip_id === openJoinId);
+  return seam && modelHasMark(model, "cut", seam.id)
+    ? { kind: "cut", id: seam.id }
+    : null;
+}
+
+/** How far a word's time may stray from a stored range edge and still lie inside it. */
+const RANGE_EDGE_SEC = 1e-3;
+
+/**
+ * A stored `range` (what a selection across tracks becomes) as the Script's
+ * words: from the first to the last uncut word, on a track the range covers,
+ * that lies inside its time.
+ */
+function rangeSelectionOf(
+  model: ScriptModel,
+  selection: Extract<Selection, { kind: "range" }>,
+): ScriptSelection | null {
+  const { intervals, track_ids: tracks } = selection.target;
+  if (intervals.length === 0) return null;
+  const lo = Math.min(...intervals.map((r) => r.start)) - RANGE_EDGE_SEC;
+  const hi = Math.max(...intervals.map((r) => r.end)) + RANGE_EDGE_SEC;
+  let first: number | undefined;
+  let last: number | undefined;
+  for (let at = 0; at < model.refs.length; at++) {
+    const ref = model.refs[at];
+    const time = model.timeOf(at);
+    if (!ref || !time || model.isCut(at) || !tracks.includes(ref.trackId))
+      continue;
+    if (time.start < lo || time.end > hi) continue;
+    first ??= at;
+    last = at;
+  }
+  return first === undefined || last === undefined
+    ? null
+    : { kind: "words", anchor: first, head: last };
 }
 
 /** What a settled words selection means for the project. */

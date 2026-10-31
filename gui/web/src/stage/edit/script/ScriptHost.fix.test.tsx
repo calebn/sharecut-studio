@@ -42,6 +42,27 @@ async function openWith(key: string) {
 }
 
 describe("ScriptHost Fix text", () => {
+  it("keeps the open field and its typing across a remount", async () => {
+    const first = render(<ScriptHost />);
+    await userEvent.click(word("friends"));
+    await userEvent.keyboard("{Enter}");
+    await userEvent.clear(field());
+    await userEvent.type(field(), "frien");
+    first.unmount();
+    render(<ScriptHost />);
+    expect(field()).toHaveValue("frien");
+    await userEvent.type(field(), "d{Enter}");
+    expect(submitWordCorrection).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "host",
+      5,
+      5,
+      "friend",
+      "friends",
+      null,
+    );
+  });
+
   it.each([
     ["Enter", "{Enter}"],
     ["F2", "{F2}"],
@@ -125,7 +146,7 @@ describe("ScriptHost Fix text", () => {
   it("returns focus to the word after a saved fix", async () => {
     await openWith("{Enter}");
     await userEvent.type(field(), "!{Enter}");
-    expect(await screen.findByText("Text fixed: friends!")).toBeInTheDocument();
+    await act(async () => {});
     expect(word("friends (selected)")).toHaveFocus();
   });
 
@@ -140,13 +161,17 @@ describe("ScriptHost Fix text", () => {
     });
   });
 
-  it("announces the outcome in its own polite region", async () => {
+  it("announces the fix as a toast with Undo for its history step", async () => {
     await openWith("{Enter}");
     await userEvent.type(field(), "!{Enter}");
-    const regions = screen
-      .getAllByRole("status")
-      .map((region) => region.textContent);
-    expect(regions).toContain("Text fixed: friends!");
+    await act(async () => {});
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Text fixed: friends!",
+    );
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Text fixed: friends!",
+      undo: "h1",
+    });
   });
 
   it("is not offered to a share guest, even an editor", async () => {

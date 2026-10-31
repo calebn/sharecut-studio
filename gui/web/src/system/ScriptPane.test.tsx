@@ -682,6 +682,21 @@ describe("ScriptPane header", () => {
     expect(word("Follow the playhead")).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("steps to the next unsure word on Alt+Down and back on Alt+Up", async () => {
+    const user = userEvent.setup();
+    const onNextUnsure = vi.fn();
+    const onPreviousUnsure = vi.fn();
+    render(
+      <ScriptPane
+        {...props({ turns: SCRIPT_TURNS, onNextUnsure, onPreviousUnsure })}
+      />,
+    );
+    word("back").focus();
+    await user.keyboard("{Alt>}{ArrowDown}{ArrowUp}{/Alt}");
+    expect(onNextUnsure).toHaveBeenCalledOnce();
+    expect(onPreviousUnsure).toHaveBeenCalledOnce();
+  });
+
   it("counts unsure words and jumps to the next, and hides the chip at zero", async () => {
     const user = userEvent.setup();
     const onNextUnsure = vi.fn();
