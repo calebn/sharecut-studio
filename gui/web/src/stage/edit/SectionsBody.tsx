@@ -1,5 +1,4 @@
 import { useDaw } from "../../state/useDaw";
-import { rangeSection } from "./rangeSection";
 import { useSelectionSections } from "./selectionSections";
 
 export function SectionsBody({ withRange }: { withRange: boolean }) {
@@ -7,7 +6,11 @@ export function SectionsBody({ withRange }: { withRange: boolean }) {
   return (
     <div className="sys-inspector-rows">
       {sections
-        ?.filter((section) => withRange || section !== rangeSection)
+        // SelectionSheetBody renders the related commands under this body itself.
+        ?.filter(
+          (section) =>
+            section.id !== "related" && (withRange || section.id !== "range"),
+        )
         .flatMap((section) =>
           section.rows.map((row) => (
             <div
