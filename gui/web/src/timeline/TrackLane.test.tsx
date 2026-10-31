@@ -118,6 +118,16 @@ describe("TrackLane", () => {
     );
     expect(container.querySelector("[data-track-id='host']")).toBeTruthy();
   });
+
+  it("names the lane for the track, so a focused lane is announced", () => {
+    render(
+      <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
+    );
+    const lane = screen.getByRole("group", {
+      name: baseProps.track.label || baseProps.track.id,
+    });
+    expect(lane).toHaveAttribute("data-track-id", "host");
+  });
 });
 
 describe("TrackLane mute dim", () => {

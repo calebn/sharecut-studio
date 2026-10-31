@@ -142,6 +142,7 @@ function Popover({
               dataAttrs={{ [CREATE_ITEM_ATTR]: String(index) }}
               shortcut={rowShortcut(row)}
               keyShortcuts={rowKeyShortcuts(row)}
+              ariaDescription={row.note}
               onSelect={() => onPick(row.id)}
             >
               <SystemIcon name={row.icon} size={16} />
@@ -183,6 +184,8 @@ function CreateMenuView({ phone = false, ...props }: CreateMenuProps) {
             type="button"
             className="sys-row-btn"
             {...{ [CREATE_ITEM_ATTR]: String(index) }}
+            title={row.note}
+            aria-description={row.note}
             onClick={() => onPick(row.id)}
           >
             <span className="sys-row-label">
