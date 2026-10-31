@@ -90,10 +90,12 @@ describe("timeline styles", () => {
     expect(chrome).toMatch(/background:\s*var\(--color-bg-base\)/);
   });
 
-  it("moves the remote playhead chip inside the lanes, clear of the marker rows", () => {
-    const chip = rule(partial("presence.css"), ".presence-playhead-chip");
-    expect(chip).toMatch(/inset-inline-start:\s*100%/);
-    expect(chip).not.toMatch(/-110%/);
+  it("paints the remote presence layer one step above the sticky ruler and marker lane", () => {
+    const layer = rule(partial("presence.css"), ".timeline-presence-window");
+    expect(layer).toMatch(
+      /z-index:\s*calc\(var\(--z-timeline-chrome\)\s*\+\s*1\)/,
+    );
+    expect(layer).toMatch(/pointer-events:\s*none/);
   });
 
   it("truncates a chapter label to the room before the next chapter", () => {
