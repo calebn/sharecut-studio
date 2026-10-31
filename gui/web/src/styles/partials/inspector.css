@@ -405,6 +405,12 @@ html[data-shell="phone"]
   margin: 0;
 }
 
+.inspector .modifier-titles h3 {
+  font-size: var(--font-size-heading);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .inspector dl {
   margin: 0;
 }
