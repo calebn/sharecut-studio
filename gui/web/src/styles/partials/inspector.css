@@ -7,6 +7,18 @@
   box-shadow: var(--shadow-raised);
 }
 
+/* Word and applied-edit content inside the Inspector sheet keeps the field rules scoped to .inspector. */
+.inspector.edit-sheet-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+
 .modifier-inspector {
   display: flex;
   flex-direction: column;

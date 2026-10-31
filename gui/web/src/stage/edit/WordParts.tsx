@@ -34,7 +34,7 @@ export function WordActions(ref: WordRef) {
   const locked = Boolean(word.audibility_locked);
   const reason = busy ? BUSY_REASON : undefined;
   return (
-    <>
+    <div className="inspector edit-sheet-part">
       <div className="modifier-actions">
         <Button
           disabledReason={reason}
@@ -120,7 +120,7 @@ export function WordActions(ref: WordRef) {
         </>
       ) : null}
       <InlineError message={error} />
-    </>
+    </div>
   );
 }
 
@@ -128,17 +128,21 @@ export function WordFacts(ref: WordRef) {
   const { word } = useWordTarget(ref);
   if (!word) return null;
   return (
-    <DefinitionList>
-      <DefItem label="Confidence">
-        {word.confidence != null ? word.confidence.toFixed(2) : "Not available"}
-        {isLowConfidenceWord(word) ? " (low)" : ""}
-      </DefItem>
-      <DefItem label="Suppressed">
-        {word.suppressed ? "yes" : "no"}
-        {word.audibility_locked ? " (locked)" : ""}
-      </DefItem>
-      <DefItem label="Ignored">{word.ignored ? "yes" : "no"}</DefItem>
-    </DefinitionList>
+    <div className="inspector edit-sheet-part">
+      <DefinitionList>
+        <DefItem label="Confidence">
+          {word.confidence != null
+            ? word.confidence.toFixed(2)
+            : "Not available"}
+          {isLowConfidenceWord(word) ? " (low)" : ""}
+        </DefItem>
+        <DefItem label="Suppressed">
+          {word.suppressed ? "yes" : "no"}
+          {word.audibility_locked ? " (locked)" : ""}
+        </DefItem>
+        <DefItem label="Ignored">{word.ignored ? "yes" : "no"}</DefItem>
+      </DefinitionList>
+    </div>
   );
 }
 
@@ -146,19 +150,21 @@ export function WordTiming(ref: WordRef) {
   const { word } = useWordTarget(ref);
   if (!word) return null;
   return (
-    <>
+    <div className="inspector edit-sheet-part">
       <TranscriptWordbar
         word={word}
         trackId={ref.trackId}
         wordIndex={ref.wordIndex}
       />
-      <InspectorSeekFooter
-        seekSec={wordSeekSec(word) ?? word.timeline_start ?? word.start}
-        playStart={word.timeline_start ?? word.start}
-        playEnd={word.timeline_end ?? word.end}
-        padSec={0.15}
-        playLabel="Play word"
-      />
-    </>
+      <footer className="modifier-footer">
+        <InspectorSeekFooter
+          seekSec={wordSeekSec(word) ?? word.timeline_start ?? word.start}
+          playStart={word.timeline_start ?? word.start}
+          playEnd={word.timeline_end ?? word.end}
+          padSec={0.15}
+          playLabel="Play word"
+        />
+      </footer>
+    </div>
   );
 }
