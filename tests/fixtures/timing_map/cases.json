@@ -23,7 +23,7 @@
     {
       "name": "skip",
       "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 100,
-               "timing": {"steps": [{"at": 20, "delta_sec": -3}]}},
+               "timing": {"steps": [{"at": 20, "delta_sec": -3, "quiet": {"start_s": 19, "end_s": 24}}]}},
       "timeline_end": 127,
       "pieces": [[10, 20, 100], [23, 40, 110]],
       "source_to_timeline": [[19, 109], [20, null], [21, null], [22.5, null], [23, 110], [40, 127]],
@@ -33,7 +33,7 @@
     {
       "name": "multiple_steps",
       "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 100,
-               "timing": {"steps": [{"at": 15, "delta_sec": 1}, {"at": 25, "delta_sec": 2}, {"at": 35, "delta_sec": -2}]}},
+               "timing": {"steps": [{"at": 15, "delta_sec": 1}, {"at": 25, "delta_sec": 2}, {"at": 35, "delta_sec": -2, "quiet": {"start_s": 34, "end_s": 38}}]}},
       "timeline_end": 131,
       "pieces": [[10, 15, 100], [15, 25, 106], [25, 35, 118], [37, 40, 128]],
       "source_to_timeline": [[14, 104], [15, 106], [25, 118], [36, null], [37, 128], [40, 131]],
@@ -43,7 +43,7 @@
     {
       "name": "negative_then_positive",
       "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 0,
-               "timing": {"steps": [{"at": 15, "delta_sec": -1}, {"at": 25, "delta_sec": 2}]}},
+               "timing": {"steps": [{"at": 15, "delta_sec": -1, "quiet": {"start_s": 14, "end_s": 17}}, {"at": 25, "delta_sec": 2}]}},
       "timeline_end": 31,
       "pieces": [[10, 15, 0], [16, 25, 5], [25, 40, 16]],
       "source_to_timeline": [[15, null], [15.5, null], [16, 5], [24, 13], [25, 16], [40, 31]],

@@ -58,7 +58,7 @@ def test_step_exactly_at_a_point_belongs_to_the_later_piece() -> None:
 def test_hole_and_skipped_span_have_no_counterpart() -> None:
     hole = _clip([{"at": 20, "delta_sec": 2}])
     assert hole.timeline_to_source(111) is None
-    skip = _clip([{"at": 20, "delta_sec": -3}])
+    skip = _clip([{"at": 20, "delta_sec": -3, "quiet": _q(19, 24)}])
     assert skip.source_to_timeline(21) is None
 
 
@@ -76,29 +76,69 @@ def test_shift_helper_refuses_a_clip_with_timing() -> None:
     assert err.value.code == "timing_map_needs_source_point"
 
 
+def _q(start: float, end: float) -> dict:
+    return {"start_s": start, "end_s": end}
+
+
 @pytest.mark.parametrize(
-    "steps",
+    ("steps", "match"),
     [
-        [{"at": 25, "delta_sec": 1}, {"at": 20, "delta_sec": 1}],  # unsorted
-        [{"at": 20, "delta_sec": 1}, {"at": 20, "delta_sec": 1}],  # duplicate
-        [{"at": 20, "delta_sec": 1}, {"at": 20 + 1e-7, "delta_sec": 1}],  # too close
-        [{"at": 20, "delta_sec": -6}, {"at": 25, "delta_sec": 1}],  # skip runs into next step
-        [{"at": 20, "delta_sec": 0}],
-        [{"at": 5, "delta_sec": 1}],  # before source_start
-        [{"at": 10, "delta_sec": 1}],  # source_start is exclusive: the clip's start is the anchor
-        [{"at": 40, "delta_sec": 1}],  # source_end is exclusive
-        [{"at": 39, "delta_sec": -2}],  # skip runs past source_end
-        [{"at": 20, "delta_sec": 1, "quiet": {"start_s": 21, "end_s": 22}}],
-        [{"at": 20, "delta_sec": -2, "quiet": {"start_s": 19, "end_s": 21}}],
-        [{"at": float("nan"), "delta_sec": 1}],
-        [{"at": 20, "delta_sec": float("nan")}],
-        [{"at": 20, "delta_sec": float("inf")}],
-        [],
+        ([{"at": 25, "delta_sec": 1}, {"at": 20, "delta_sec": 1}], "sorted"),
+        ([{"at": 20, "delta_sec": 1}, {"at": 20, "delta_sec": 1}], "sorted"),
+        ([{"at": 20, "delta_sec": 1}, {"at": 20 + 1e-7, "delta_sec": 1}], "sorted"),
+        (
+            [{"at": 20, "delta_sec": -6, "quiet": _q(19, 27)}, {"at": 25, "delta_sec": 1}],
+            "before the next step",
+        ),
+        ([{"at": 20, "delta_sec": 0}], "magnitude"),
+        ([{"at": 20, "delta_sec": 1e-7}], "magnitude"),
+        ([{"at": 20, "delta_sec": -1e-7, "quiet": _q(19, 21)}], "magnitude"),
+        ([{"at": 5, "delta_sec": 1}], "outside"),
+        ([{"at": 10, "delta_sec": 1}], "outside"),  # the clip's start is the anchor
+        ([{"at": 40, "delta_sec": 1}], "outside"),  # source_end is exclusive
+        ([{"at": 39, "delta_sec": -2, "quiet": _q(38, 42)}], "skips past source_end"),
+        ([{"at": 20, "delta_sec": 1, "quiet": _q(21, 22)}], "start inside"),
+        ([{"at": 20, "delta_sec": 1, "quiet": _q(19, 20)}], "start inside"),  # end is exclusive
+        ([{"at": 20, "delta_sec": -2, "quiet": _q(19, 21)}], "end inside"),
+        ([{"at": 20, "delta_sec": -2}], "needs the quiet span"),
+        ([{"at": float("nan"), "delta_sec": 1}], "finite|nan"),
+        ([{"at": 20, "delta_sec": float("nan")}], "finite|nan"),
+        ([{"at": 20, "delta_sec": float("inf")}], "finite|inf"),
+        ([], "at least 1"),
     ],
 )
-def test_invalid_timing_is_rejected(steps: list[dict]) -> None:
-    with pytest.raises(ValidationError):
+def test_invalid_timing_is_rejected(steps: list[dict], match: str) -> None:
+    with pytest.raises(ValidationError, match=match):
         _clip(steps)
+
+
+def test_float_sums_do_not_break_the_ordering_rules() -> None:
+    # 20.1 + 0.3 is 20.400000000000002, past 20.4 by one ulp: still a skip that ends at the step.
+    _clip(
+        [
+            {"at": 20.1, "delta_sec": -0.3, "quiet": _q(20, 20.4)},
+            {"at": 20.4, "delta_sec": 1},
+        ]
+    )
+
+
+def test_a_positive_step_may_omit_quiet_and_a_skip_may_not() -> None:
+    assert _clip([{"at": 20, "delta_sec": 2}]).timing is not None
+    with pytest.raises(ValidationError, match="needs the quiet span"):
+        _clip([{"at": 20, "delta_sec": -2}])
+
+
+def test_quiet_start_is_inclusive_for_the_step_point() -> None:
+    _clip([{"at": 19, "delta_sec": 1, "quiet": _q(19, 21)}])
+
+
+def test_session_timeline_span_across_a_skip_drops_the_skipped_source() -> None:
+    clip = _clip([{"at": 20, "delta_sec": -3, "quiet": _q(19, 24)}])
+    st = SessionTimeline(_project([clip]))
+    # 15-20 plays at 105-110 and 23-30 at 110-117; the skipped 20-23 leaves no gap behind.
+    assert st.map_source_span("host", S(15), S(30)) == [(105, 117)]
+    assert st.map_source_span("host", S(20.5), S(22.5)) == []
+    assert st.source_to_timeline("host", S(21)) is None
 
 
 def test_a_skip_ending_exactly_at_the_next_step_or_quiet_edge_is_valid() -> None:
@@ -138,7 +178,9 @@ def _project(clips: list[Clip]) -> EpisodeProject:
 
 def test_session_timeline_maps_points_and_spans_through_the_steps() -> None:
     st = SessionTimeline(
-        _project([_clip([{"at": 20, "delta_sec": 2}, {"at": 30, "delta_sec": -1}])])
+        _project(
+            [_clip([{"at": 20, "delta_sec": 2}, {"at": 30, "delta_sec": -1, "quiet": _q(29, 32)}])]
+        )
     )
     assert st.source_to_timeline("host", S(15)) == 105
     assert st.source_to_timeline("host", S(25)) == 117
@@ -149,7 +191,7 @@ def test_session_timeline_maps_points_and_spans_through_the_steps() -> None:
 
 
 def test_lane_clip_spans_emit_one_span_per_virtual_piece() -> None:
-    clip = _clip([{"at": 20, "delta_sec": 2}, {"at": 30, "delta_sec": -1}])
+    clip = _clip([{"at": 20, "delta_sec": 2}, {"at": 30, "delta_sec": -1, "quiet": _q(29, 32)}])
     spans = SessionTimeline(_project([clip])).lane_clip_spans("host")
     assert [(s.source_start, s.source_end, s.timeline_start, s.timeline_end) for s in spans] == [
         (10, 20, 100, 110),
