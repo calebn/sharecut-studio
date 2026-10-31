@@ -88,6 +88,9 @@ SHARED: dict[str, str] = {
     "podcast_mcp.engines.gate_fill:_detect": (
         "Keyed by path and file revision; reads only the decoded audio."
     ),
+    "podcast_mcp.engines.room_tone_synth:_analyse": (
+        "Keyed by path, file revision and the basis; reads only the decoded audio."
+    ),
     "podcast_mcp.engines.bleed_fill:_loop": (
         "Keyed by the fill's spectrum, the sample rate and the seed key; a pure function of all three."
     ),
