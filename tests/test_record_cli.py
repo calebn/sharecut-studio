@@ -328,6 +328,43 @@ def test_record_target_cli_and_mcp_set_end_and_refuse_the_rest(
     assert json.loads(record_state_tool(str(minimal_project)))["target"] == {"kind": "start"}
 
 
+def test_record_target_cli_bare_replace_names_the_fields_it_needs(
+    minimal_project, sample_wav, tmp_workspace
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    _consented_room(ws)
+    refused = CliRunner().invoke(
+        cli_app, ["record", "target", "replace", "--project", str(minimal_project)]
+    )
+    assert refused.exit_code == 1, refused.output
+    for field in ("from_sec", "to_sec", "track_ids"):
+        assert field in refused.output
+    assert json.loads(record_state_tool(str(minimal_project)))["target"] == {"kind": "end"}
+
+
+def test_record_target_tool_refuses_bare_and_unknown_targets(
+    minimal_project, sample_wav, tmp_workspace
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    _consented_room(ws)
+    for bare, needle in (
+        ("insert", "at_sec"),
+        ("replace", "track_ids"),
+        ("middle", "invalid session target"),
+    ):
+        with pytest.raises(CodedValueError, match=needle) as raised:
+            record_target_tool(str(minimal_project), bare)
+        assert raised.value.code == "invalid_record_request"
+    reversed_range = json.dumps(
+        {"kind": "replace", "from_sec": 5, "to_sec": 2, "track_ids": ["ava"]}
+    )
+    with pytest.raises(CodedValueError, match="to_sec"):
+        record_target_tool(str(minimal_project), reversed_range)
+    assert json.loads(record_state_tool(str(minimal_project)))["target"] == {"kind": "end"}
+
+
 def test_record_target_cli_and_mcp_refuse_a_replace_over_an_unknown_track(
     minimal_project, sample_wav, tmp_workspace
 ):
