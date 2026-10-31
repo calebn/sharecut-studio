@@ -5,7 +5,32 @@ import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject } from "../../test/fixtures";
 import { ApiError } from "../../utils/apiError";
 import { wordSelection } from "../../utils/rangeSelect";
-import { TranscriptWordInspector } from "./TranscriptWordInspector";
+import { useSelectionSections } from "./selectionSections";
+
+/** The sheet's rows for one word, as InspectorSheet lays them out. */
+function Word({
+  trackId,
+  sourceId = null,
+  wordIndex,
+}: {
+  trackId: string;
+  sourceId?: string | null;
+  wordIndex: number;
+}) {
+  const sections = useSelectionSections(
+    wordSelection({ trackId, sourceId, wordIndex }),
+  );
+  return (
+    <div>
+      <div tabIndex={-1} data-inspector-anchor data-testid="anchor" />
+      {sections?.flatMap((section) =>
+        section.rows.map((row) => (
+          <div key={`${section.id}:${row.id}`}>{row.control}</div>
+        )),
+      )}
+    </div>
+  );
+}
 
 vi.mock("../../api", async (orig) => ({
   ...(await orig<typeof import("../../api")>()),
@@ -138,7 +163,7 @@ function projectWithLockedWord() {
   return p;
 }
 
-describe("TranscriptWordInspector", () => {
+describe("word sections", () => {
   beforeEach(() => {
     vi.mocked(correctTranscriptWord).mockClear();
     vi.mocked(correctTranscriptPhrase).mockClear();
@@ -166,42 +191,30 @@ describe("TranscriptWordInspector", () => {
       });
     });
 
-    it.each([
-      ["phone portrait to phone landscape", false, false],
-      ["tablet to phone", false, false],
-      ["desktop docked editor to tablet", true, false],
-      ["phone to desktop docked editor", false, true],
-    ])("keeps the typed text and End index through %s", (_label, from, to) => {
-      const first = render(
-        <TranscriptWordInspector
-          trackId="host"
-          wordIndex={0}
-          embedded={from}
-        />,
-      );
-      fireEvent.change(field(), { target: { value: "howdy" } });
-      fireEvent.change(screen.getByLabelText("End word index"), {
-        target: { value: "1" },
-      });
-      first.unmount();
-      render(
-        <TranscriptWordInspector trackId="host" wordIndex={0} embedded={to} />,
-      );
-      expect(field()).toHaveValue("howdy");
-      expect(screen.getByLabelText("End word index")).toHaveValue(1);
-    });
+    it.each(["phone portrait to phone landscape", "tablet to phone"])(
+      "keeps the typed text and End index through %s",
+      () => {
+        const first = render(<Word trackId="host" wordIndex={0} />);
+        fireEvent.change(field(), { target: { value: "howdy" } });
+        fireEvent.change(screen.getByLabelText("End word index"), {
+          target: { value: "1" },
+        });
+        first.unmount();
+        render(<Word trackId="host" wordIndex={0} />);
+        expect(field()).toHaveValue("howdy");
+        expect(screen.getByLabelText("End word index")).toHaveValue(1);
+      },
+    );
 
     it("sends the span text it was checked against, not a fresh read", async () => {
-      const first = render(
-        <TranscriptWordInspector trackId="host" wordIndex={0} />,
-      );
+      const first = render(<Word trackId="host" wordIndex={0} />);
       fireEvent.change(screen.getByLabelText("End word index"), {
         target: { value: "1" },
       });
       fireEvent.change(field(), { target: { value: "hi you" } });
       first.unmount();
       useDawStore.setState({ project: projectWithWords(["hello", "friend"]) });
-      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      render(<Word trackId="host" wordIndex={0} />);
       fireEvent.click(screen.getByRole("button", { name: "Apply" }));
       await act(async () => {});
       expect(correctTranscriptPhrase).toHaveBeenCalledWith(
@@ -215,19 +228,15 @@ describe("TranscriptWordInspector", () => {
     });
 
     it("shows the saved text when nothing was typed", () => {
-      const first = render(
-        <TranscriptWordInspector trackId="host" wordIndex={0} />,
-      );
+      const first = render(<Word trackId="host" wordIndex={0} />);
       first.unmount();
-      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      render(<Word trackId="host" wordIndex={0} />);
       expect(field()).toHaveValue("hello");
       expect(useDawStore.getState().wordDraft).toBeNull();
     });
 
     it("drops the draft when the selection moves to another word", () => {
-      const first = render(
-        <TranscriptWordInspector trackId="host" wordIndex={0} />,
-      );
+      const first = render(<Word trackId="host" wordIndex={0} />);
       fireEvent.change(field(), { target: { value: "howdy" } });
       expect(useDawStore.getState().wordDraft?.text).toBe("howdy");
       first.unmount();
@@ -240,12 +249,12 @@ describe("TranscriptWordInspector", () => {
       act(() => {
         useDawStore.setState({ selection: wordSelection(target) });
       });
-      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      render(<Word trackId="host" wordIndex={0} />);
       expect(field()).toHaveValue("hello");
     });
 
     it("drops the draft when the selection is cleared", () => {
-      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      render(<Word trackId="host" wordIndex={0} />);
       fireEvent.change(field(), { target: { value: "howdy" } });
       act(() => {
         useDawStore.setState({ selection: null });
@@ -254,16 +263,14 @@ describe("TranscriptWordInspector", () => {
     });
 
     it("does not carry a draft into another project", () => {
-      const first = render(
-        <TranscriptWordInspector trackId="host" wordIndex={0} />,
-      );
+      const first = render(<Word trackId="host" wordIndex={0} />);
       fireEvent.change(field(), { target: { value: "howdy" } });
       first.unmount();
       act(() => {
         useDawStore.setState({ projectEpoch: 2 });
       });
       expect(useDawStore.getState().wordDraft).toBeNull();
-      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      render(<Word trackId="host" wordIndex={0} />);
       expect(field()).toHaveValue("hello");
     });
 
@@ -271,7 +278,7 @@ describe("TranscriptWordInspector", () => {
       vi.mocked(correctTranscriptWord).mockImplementationOnce(
         applyingWords(["howdy", "there"]),
       );
-      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      render(<Word trackId="host" wordIndex={0} />);
       fireEvent.change(field(), { target: { value: "howdy" } });
       expect(useDawStore.getState().wordDraft).not.toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Apply" }));
@@ -283,20 +290,18 @@ describe("TranscriptWordInspector", () => {
       // The text layout keeps the side-rail editor mounted but hidden beside
       // the docked one, so an untouched instance sees the other's Apply (or a
       // peer's edit) as a word that moved under it.
-      const first = render(
-        <TranscriptWordInspector trackId="host" wordIndex={0} />,
-      );
+      const first = render(<Word trackId="host" wordIndex={0} />);
       act(() => {
         useDawStore.setState({ project: projectWithWords(["howdy", "there"]) });
       });
       expect(useDawStore.getState().wordDraft).toBeNull();
       first.unmount();
-      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      render(<Word trackId="host" wordIndex={0} />);
       expect(field()).toHaveValue("howdy");
     });
 
     it("an editor that typed and settled does not write a draft when the word later moves", () => {
-      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      render(<Word trackId="host" wordIndex={0} />);
       fireEvent.change(field(), { target: { value: "howdy" } });
       fireEvent.change(field(), { target: { value: "hello" } });
       expect(useDawStore.getState().wordDraft).toBeNull();
@@ -309,12 +314,10 @@ describe("TranscriptWordInspector", () => {
     });
 
     it("a restored editor does not write or clear the slot until the person edits it", () => {
-      const first = render(
-        <TranscriptWordInspector trackId="host" wordIndex={0} />,
-      );
+      const first = render(<Word trackId="host" wordIndex={0} />);
       fireEvent.change(field(), { target: { value: "howdy" } });
       first.unmount();
-      render(<TranscriptWordInspector trackId="host" wordIndex={0} embedded />);
+      render(<Word trackId="host" wordIndex={0} />);
       expect(field()).toHaveValue("howdy");
       // A peer's edit lands on the saved word; the restored, unedited editor
       // must leave the person's slot as it was.
@@ -327,7 +330,7 @@ describe("TranscriptWordInspector", () => {
     });
 
     it("drops a draft typed back to the saved text", () => {
-      render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+      render(<Word trackId="host" wordIndex={0} />);
       fireEvent.change(field(), { target: { value: "howdy" } });
       fireEvent.change(field(), { target: { value: "hello" } });
       expect(useDawStore.getState().wordDraft).toBeNull();
@@ -335,7 +338,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("shows the timing note for a host", () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     expect(
       screen.getByText(/audio and word timing stay as recorded/),
     ).toBeInTheDocument();
@@ -343,7 +346,7 @@ describe("TranscriptWordInspector", () => {
 
   it("hides the timing note for a guest", () => {
     useDawStore.setState({ projectPath: "share:tok" });
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     expect(
       screen.queryByText(/audio and word timing stay as recorded/),
     ).toBeNull();
@@ -351,7 +354,7 @@ describe("TranscriptWordInspector", () => {
 
   it("shows the lock state and its explanation next to Suppressed for a locked word (#813)", () => {
     useDawStore.setState({ project: projectWithLockedWord() });
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     expect(screen.getByText("Suppressed").nextSibling).toHaveTextContent(
       "yes (locked)",
     );
@@ -363,21 +366,19 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("hides the lock explanation for a word that is not locked", () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     expect(screen.getByText("Suppressed").nextSibling).toHaveTextContent("no");
     expect(screen.queryByText(/Suppression locked/)).not.toBeInTheDocument();
   });
 
   it("the locked word inspector state is axe-clean (#813)", async () => {
     useDawStore.setState({ project: projectWithLockedWord() });
-    const { container } = render(
-      <TranscriptWordInspector trackId="host" wordIndex={1} />,
-    );
+    const { container } = render(<Word trackId="host" wordIndex={1} />);
     await expectNoA11yViolations(container);
   });
 
   it("hides Return to automatic for a word that is not locked", () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     expect(
       screen.queryByRole("button", { name: "Return to automatic" }),
     ).not.toBeInTheDocument();
@@ -385,7 +386,7 @@ describe("TranscriptWordInspector", () => {
 
   it("shows Return to automatic for a locked word (#824)", () => {
     useDawStore.setState({ project: projectWithLockedWord() });
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     expect(
       screen.getByRole("button", { name: "Return to automatic" }),
     ).toBeInTheDocument();
@@ -396,7 +397,7 @@ describe("TranscriptWordInspector", () => {
       project: projectWithLockedWord(),
       projectPath: "share:tok",
     });
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     expect(
       screen.queryByRole("button", { name: "Return to automatic" }),
     ).not.toBeInTheDocument();
@@ -404,7 +405,7 @@ describe("TranscriptWordInspector", () => {
 
   it("Return to automatic calls setTranscriptWordAutomatic with the displayed text (#824)", async () => {
     useDawStore.setState({ project: projectWithLockedWord() });
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     fireEvent.click(
       screen.getByRole("button", { name: "Return to automatic" }),
     );
@@ -419,13 +420,13 @@ describe("TranscriptWordInspector", () => {
     });
   });
 
-  it("moves focus to the heading when Return to automatic disappears", async () => {
+  it("moves focus to the sheet anchor when Return to automatic disappears", async () => {
     useDawStore.setState({ project: projectWithLockedWord() });
     vi.mocked(setTranscriptWordAutomatic).mockImplementationOnce(async () => {
       useDawStore.setState({ project: projectWithSuppressedWord() });
       return null;
     });
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     const button = screen.getByRole("button", { name: "Return to automatic" });
     button.focus();
     await act(async () => {
@@ -434,7 +435,7 @@ describe("TranscriptWordInspector", () => {
     expect(
       screen.queryByRole("button", { name: "Return to automatic" }),
     ).toBeNull();
-    expect(screen.getByRole("heading", { name: "there" })).toHaveFocus();
+    expect(screen.getByTestId("anchor")).toHaveFocus();
     expect(screen.getByText("Suppressed").nextSibling).toHaveTextContent("yes");
   });
 
@@ -450,14 +451,12 @@ describe("TranscriptWordInspector", () => {
         }),
     );
     const { rerender } = render(
-      <TranscriptWordInspector key="host:1" trackId="host" wordIndex={1} />,
+      <Word key="host:1" trackId="host" wordIndex={1} />,
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Return to automatic" }),
     );
-    rerender(
-      <TranscriptWordInspector key="host:0" trackId="host" wordIndex={0} />,
-    );
+    rerender(<Word key="host:0" trackId="host" wordIndex={0} />);
     await act(async () => {
       reject(new Error("unlock failed"));
     });
@@ -474,7 +473,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("Apply with end index = start calls correctTranscriptWord", async () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     expect(
       screen.queryByText(/can't check whether someone else changed/),
     ).toBeNull();
@@ -495,7 +494,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("Apply with end index > start calls correctTranscriptPhrase", async () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello there" },
     });
@@ -519,7 +518,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("Apply sends the span text seen before a peer changed an inner word", async () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello there" },
     });
@@ -546,7 +545,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("Apply with an end index past the loaded words sends null expected text", async () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello there" },
     });
@@ -571,7 +570,7 @@ describe("TranscriptWordInspector", () => {
 
   it("phrase Apply with a duplicated index that disagrees sends null expected text", async () => {
     useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello there" },
     });
@@ -596,7 +595,7 @@ describe("TranscriptWordInspector", () => {
 
   it("single-word Apply on a duplicated index that disagrees sends null expected text", async () => {
     useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     expect(
       screen.getByText(/can't check whether someone else changed/),
     ).toBeInTheDocument();
@@ -617,7 +616,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("Ignore calls setTranscriptWordsIgnored(i, i, true) with the displayed text", async () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
     await vi.waitFor(() => {
       expect(setTranscriptWordsIgnored).toHaveBeenCalledWith(
@@ -636,7 +635,7 @@ describe("TranscriptWordInspector", () => {
     const withIgnored = project();
     withIgnored.transcript!.utterances[0].words![0].ignored = true;
     useDawStore.setState({ project: withIgnored, projectPath: "/tmp/ep" });
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore" })).toHaveAttribute(
       "title",
@@ -657,7 +656,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("Suppress calls setTranscriptWordSuppressed with the displayed text", async () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     fireEvent.click(screen.getByRole("button", { name: "Suppress" }));
     await vi.waitFor(() => {
       expect(setTranscriptWordSuppressed).toHaveBeenCalledWith(
@@ -675,7 +674,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(setTranscriptWordSuppressed).mockResolvedValueOnce(
       "h-suppress" as never,
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     fireEvent.click(screen.getByRole("button", { name: "Suppress" }));
     await vi.waitFor(() => {
       expect(useDawStore.getState().feedbackToast).toMatchObject({
@@ -687,7 +686,7 @@ describe("TranscriptWordInspector", () => {
 
   it("Apply answers with a toast and Undo for a word fix", async () => {
     vi.mocked(correctTranscriptWord).mockResolvedValueOnce("h-fix" as never);
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello" },
     });
@@ -702,7 +701,7 @@ describe("TranscriptWordInspector", () => {
 
   it("Suppress sends null expected text for a duplicated index that disagrees", async () => {
     useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     fireEvent.click(screen.getByRole("button", { name: "Suppress" }));
     await vi.waitFor(() => {
       expect(setTranscriptWordSuppressed).toHaveBeenCalledWith(
@@ -718,7 +717,7 @@ describe("TranscriptWordInspector", () => {
 
   it("Unsuppress calls setTranscriptWordSuppressed with the displayed text", async () => {
     useDawStore.setState({ project: projectWithSuppressedWord() });
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     fireEvent.click(screen.getByRole("button", { name: "Unsuppress" }));
     await vi.waitFor(() => {
       expect(setTranscriptWordSuppressed).toHaveBeenCalledWith(
@@ -734,7 +733,7 @@ describe("TranscriptWordInspector", () => {
 
   it("Ignore sends null expected text for a duplicated index that disagrees", async () => {
     useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
     await vi.waitFor(() => {
       expect(setTranscriptWordsIgnored).toHaveBeenCalledWith(
@@ -750,7 +749,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("marks which action changes audio", () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     const suppress = screen.getByRole("button", { name: "Suppress" });
     expect(suppress).toHaveAttribute(
       "title",
@@ -766,7 +765,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("shows an error for empty text", () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "   " },
     });
@@ -775,17 +774,11 @@ describe("TranscriptWordInspector", () => {
     expect(correctTranscriptWord).not.toHaveBeenCalled();
   });
 
-  it("keeps a failed secondary word action after its controls in the correction sheet", async () => {
+  it("shows a failed secondary word action after its controls, apart from the fix form's own error", async () => {
     vi.mocked(setTranscriptWordSuppressed).mockRejectedValueOnce(
       new Error("Could not suppress this word"),
     );
-    render(
-      <TranscriptWordInspector
-        trackId="host"
-        wordIndex={0}
-        presentation="correct-sheet"
-      />,
-    );
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "" },
     });
@@ -794,13 +787,12 @@ describe("TranscriptWordInspector", () => {
     const suppress = screen.getByRole("button", { name: "Suppress" });
     fireEvent.click(suppress);
     await act(async () => {});
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Could not suppress this word");
+    const alert = screen.getByText("Could not suppress this word");
     expect(
       suppress.compareDocumentPosition(alert) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).not.toBe(0);
-    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
   });
 
   it("sends a failure that settles after the selection moved to the late-failure banner, not the next word (#634)", async () => {
@@ -812,12 +804,10 @@ describe("TranscriptWordInspector", () => {
         }),
     );
     const { rerender } = render(
-      <TranscriptWordInspector key="host:0" trackId="host" wordIndex={0} />,
+      <Word key="host:0" trackId="host" wordIndex={0} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Suppress" }));
-    rerender(
-      <TranscriptWordInspector key="host:1" trackId="host" wordIndex={1} />,
-    );
+    rerender(<Word key="host:1" trackId="host" wordIndex={1} />);
     expect(screen.getByRole("button", { name: "Suppress" })).toBeEnabled();
     await act(async () => {
       reject(new Error("boom"));
@@ -843,12 +833,10 @@ describe("TranscriptWordInspector", () => {
         }),
     );
     const { rerender } = render(
-      <TranscriptWordInspector key="host:0" trackId="host" wordIndex={0} />,
+      <Word key="host:0" trackId="host" wordIndex={0} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
-    rerender(
-      <TranscriptWordInspector key="host:1" trackId="host" wordIndex={1} />,
-    );
+    rerender(<Word key="host:1" trackId="host" wordIndex={1} />);
     await act(async () => {
       reject(new Error("boom"));
     });
@@ -873,16 +861,14 @@ describe("TranscriptWordInspector", () => {
         }),
     );
     const { rerender } = render(
-      <TranscriptWordInspector key="host:0" trackId="host" wordIndex={0} />,
+      <Word key="host:0" trackId="host" wordIndex={0} />,
     );
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     await vi.waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
-    rerender(
-      <TranscriptWordInspector key="host:1" trackId="host" wordIndex={1} />,
-    );
+    rerender(<Word key="host:1" trackId="host" wordIndex={1} />);
     await act(async () => {
       reject(new Error("boom"));
     });
@@ -902,7 +888,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(setTranscriptWordSuppressed).mockRejectedValueOnce(
       new Error("boom"),
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Suppress" }));
     });
@@ -911,7 +897,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("a phrase draft and its baseline survive a peer edit of the anchor word (#746)", async () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello there" },
     });
@@ -939,7 +925,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("a single-word draft and its baseline survive a peer edit of the anchor word (#746)", async () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hiya" },
     });
@@ -965,7 +951,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       applyingWords(["Hello", "there"]),
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello" },
     });
@@ -1000,7 +986,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptPhrase).mockImplementationOnce(
       applyingWords(["Hello", "there", "new"]),
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello there new" },
     });
@@ -1037,7 +1023,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("a successful Apply the store does not read back leaves the baseline unverified (#746)", async () => {
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello" },
     });
@@ -1067,7 +1053,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptWord)
       .mockImplementationOnce(applyingWords(["Hello", "there"]))
       .mockImplementationOnce(applyingWords(["World", "there"]));
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     const input = screen.getByLabelText("Corrected text");
     const apply = () =>
       act(async () => {
@@ -1096,7 +1082,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       applyingWords(["Hello", "there"]),
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     const input = screen.getByLabelText("Corrected text");
     fireEvent.change(input, { target: { value: "Hello" } });
     await act(async () => {
@@ -1126,7 +1112,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptPhrase).mockImplementationOnce(
       applyingWords(["Hello", "there", "new"]),
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello there new" },
     });
@@ -1160,7 +1146,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       applyingWords(["hello", "There"]),
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    render(<Word trackId="host" wordIndex={1} />);
     const input = screen.getByLabelText("Corrected text");
     const apply = () =>
       act(async () => {
@@ -1201,7 +1187,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       applyingWords(["Hello", "there"]),
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     const input = screen.getByLabelText("Corrected text");
     fireEvent.change(input, { target: { value: "Hello" } });
     await act(async () => {
@@ -1232,7 +1218,7 @@ describe("TranscriptWordInspector", () => {
           reject = r;
         }),
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello there" },
     });
@@ -1273,7 +1259,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptWord).mockRejectedValueOnce(
       new ApiError("stale: re-read the transcript", null, 409),
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello" },
     });
@@ -1300,7 +1286,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptWord).mockRejectedValueOnce(
       new ApiError("boom", null, 500),
     );
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    render(<Word trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello" },
     });
@@ -1327,8 +1313,8 @@ describe("TranscriptWordInspector", () => {
       hydration: { transcript_words: false },
     };
     useDawStore.setState({ project: notHydrated, projectPath: "/tmp/ep" });
-    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
-    expect(screen.getByText("Loading transcript words…")).toBeInTheDocument();
+    render(<Word trackId="host" wordIndex={0} />);
+    expect(screen.queryByLabelText("Corrected text")).toBeNull();
     act(() => {
       useDawStore.setState({ project: project() });
     });
@@ -1336,9 +1322,7 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("keeps the unverified-span status region mounted, fills it while the hint shows, and describes the End index input only then", async () => {
-    const { container } = render(
-      <TranscriptWordInspector trackId="host" wordIndex={0} />,
-    );
+    const { container } = render(<Word trackId="host" wordIndex={0} />);
     const region = container.querySelector('p[role="status"]');
     expect(region).not.toBeNull();
     expect(region).toBeEmptyDOMElement();
@@ -1355,5 +1339,69 @@ describe("TranscriptWordInspector", () => {
     expect(region).toBeEmptyDOMElement();
     expect(region).toHaveClass("sr-only");
     await expectNoA11yViolations(container);
+  });
+});
+
+describe("which sections a transcript range gets", () => {
+  const ids = (selection: Parameters<typeof useSelectionSections>[0]) => {
+    const seen: { sections: ReturnType<typeof useSelectionSections> }[] = [];
+    function Probe() {
+      seen.push({ sections: useSelectionSections(selection) });
+      return null;
+    }
+    render(<Probe />);
+    return seen.at(-1)?.sections ?? null;
+  };
+  const word = wordSelection({ trackId: "host", sourceId: null, wordIndex: 0 });
+  beforeEach(() => {
+    useDawStore.setState({
+      project: project(),
+      projectPath: "/tmp/ep",
+      transcriptCorrecting: false,
+      rangeArmed: false,
+    });
+  });
+
+  it("gives a host's single word its facts, fix and actions after the range", () => {
+    expect(ids(word)?.map((s) => s.id)).toEqual([
+      "range",
+      "word",
+      "fix",
+      "actions",
+      "related",
+    ]);
+  });
+
+  it("puts the fix first when correcting from the Script", () => {
+    useDawStore.setState({ transcriptCorrecting: true });
+    expect(ids(word)?.[0]?.id).toBe("fix");
+  });
+
+  it("gives a guest on a share link the range only", () => {
+    useDawStore.setState({ projectPath: "share:tok" });
+    expect(ids(word)?.map((s) => s.id)).toEqual(["range", "related"]);
+  });
+
+  it("gives words that are not hydrated the range only", () => {
+    const cold = project();
+    cold.meta = { ...cold.meta, hydration: { transcript_words: false } };
+    useDawStore.setState({ project: cold });
+    expect(ids(word)?.map((s) => s.id)).toEqual(["range", "related"]);
+  });
+
+  it("gives several words no word fields", () => {
+    const several = { ...word, endWordIndex: 1 };
+    expect(ids(several)?.map((s) => s.id)).toEqual(["range"]);
+  });
+
+  it("says when the word is gone", () => {
+    useDawStore.setState({
+      project: minimalProject({ transcript: { utterances: [] } }),
+    });
+    expect(ids(word)?.map((s) => s.id)).toEqual(["range", "gone", "related"]);
+  });
+
+  it("leaves other kinds to their own bodies", () => {
+    expect(ids({ kind: "chapter", id: "c", time: 1 })).toBeNull();
   });
 });

@@ -5,11 +5,20 @@ import { canApplyPass12 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { AppliedEditRecord } from "../../types/project";
-import { DefItem, DefinitionList, InspectorSeekFooter } from "../../ui";
+import {
+  Button,
+  DefItem,
+  DefinitionList,
+  InlineError,
+  InspectorSeekFooter,
+} from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
-import { ModifierInspector } from "../ModifierInspector";
 
-export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
+const HISTORY_NOTE =
+  "Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first.";
+
+/** Restore (a mute with source clocks) or Open History, then the record's facts. */
+export function AppliedEdit({ rec }: { rec: AppliedEditRecord }) {
   const { projectPath, guestMode, shareCapabilities, setSelection } = useDaw(
     (s) => ({
       projectPath: s.projectPath,
@@ -19,7 +28,6 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
     }),
   );
   const { busy, error, run } = useProjectMutation();
-
   const mayRestore = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const hasSourceClocks =
     rec.source_start != null &&
@@ -28,59 +36,32 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
     rec.track_ids.length > 0;
   const mute = rec.params?.mute === true && !("exact_range" in rec.params);
   const canRestore = mayRestore && mute && hasSourceClocks;
-
-  const onRestore = async () => {
-    await run(async () => {
+  const restore = () =>
+    run(async () => {
       await restoreAppliedEdit(projectPath, rec.id);
       const next = useDawStore.getState().project;
-      const stillThere = next?.applied_edits.records.some(
-        (r) => r.id === rec.id,
-      );
-      if (!stillThere) {
+      if (!next?.applied_edits.records.some((r) => r.id === rec.id))
         setSelection(null);
-      }
     });
-  };
-
   const tlStart = rec.timeline_start ?? 0;
-  const tlEnd = rec.timeline_end ?? tlStart;
-
   return (
-    <ModifierInspector
-      badge="Applied"
-      title="Applied edit"
-      subtitle={rec.operation}
-      primaryActions={
-        canRestore
-          ? [
-              {
-                label: "Restore",
-                variant: "primary",
-                disabledReason: busy ? BUSY_REASON : undefined,
-                onClick: () => void onRestore(),
-              },
-            ]
-          : mayRestore
-            ? [
-                {
-                  label: "Open History",
-                  onClick: () =>
-                    runPointerCommand("stage.edit", { sheet: "history" }),
-                },
-              ]
-            : undefined
-      }
-      error={error}
-      footer={
-        rec.timeline_start != null ? (
-          <InspectorSeekFooter
-            seekSec={tlStart}
-            playStart={tlStart}
-            playEnd={tlEnd}
-          />
-        ) : undefined
-      }
-    >
+    <>
+      {canRestore ? (
+        <Button
+          variant="primary"
+          disabledReason={busy ? BUSY_REASON : undefined}
+          onClick={() => void restore()}
+        >
+          Restore
+        </Button>
+      ) : mayRestore ? (
+        <Button
+          onClick={() => runPointerCommand("stage.edit", { sheet: "history" })}
+        >
+          Open History
+        </Button>
+      ) : null}
+      <InlineError message={error} />
       <DefinitionList>
         <DefItem label="Operation">{rec.operation}</DefItem>
         <DefItem label="Reason">{rec.reason ?? "Not provided"}</DefItem>
@@ -99,9 +80,7 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
           <DefItem label="Restore">
             {!mayRestore
               ? "Restore is unavailable with your current access."
-              : mute
-                ? "This mute has no valid source clocks. Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first."
-                : "This edit cannot be restored individually. Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first."}
+              : `${mute ? "This mute has no valid source clocks." : "This edit cannot be restored individually."} ${HISTORY_NOTE}`}
           </DefItem>
         ) : null}
         {rec.boundary_mode ? (
@@ -113,6 +92,13 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
           </DefItem>
         ) : null}
       </DefinitionList>
-    </ModifierInspector>
+      {rec.timeline_start != null ? (
+        <InspectorSeekFooter
+          seekSec={tlStart}
+          playStart={tlStart}
+          playEnd={rec.timeline_end ?? tlStart}
+        />
+      ) : null}
+    </>
   );
 }

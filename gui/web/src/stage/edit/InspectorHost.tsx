@@ -19,7 +19,6 @@ import type {
   InspectorDetent,
   InspectorRect,
 } from "../../system/inspectorSheetMath";
-import { RangeFields } from "../../timeline/RangeFields";
 import { type AnchorRect, unionRect } from "../../ui/anchoredPlacement";
 import { BottomSheet } from "../../ui/BottomSheet";
 import { INSPECTOR_SHEET_CLASS } from "../../ui/compactSheet";
@@ -28,6 +27,8 @@ import { EditActionBar } from "./EditActionBar";
 import { useEnvelopePointSections } from "./envelopePointSections";
 import { focusFirstControl } from "./inspectorFocus";
 import { type InspectorHeading, inspectorHeading } from "./inspectorHeading";
+import { rangeSection } from "./rangeSection";
+import { useSelectionSections } from "./selectionSections";
 import type { InspectorOpen, InspectorShell } from "./useInspectorOpen";
 import { bandLocator, useKeepBandClear } from "./useKeepBandClear";
 import { useSelectionAnchor } from "./useSelectionAnchor";
@@ -71,6 +72,10 @@ function useBodySections(
   rangeActionsInSheet: boolean,
 ): readonly InspectorSection[] {
   const envelope = useEnvelopePointSections(useDaw((s) => s.selection));
+  const rebuilt = useSelectionSections(
+    useDaw((s) => s.selection),
+    rangeActionsInSheet,
+  );
   const legacy = useMemo(
     () => [
       {
@@ -92,16 +97,9 @@ function useBodySections(
     ],
     [rangeActionsInSheet],
   );
+  if (rebuilt) return rebuilt;
   if (!envelope) return legacy;
-  return rangeActionsInSheet
-    ? [
-        ...envelope,
-        {
-          id: "range",
-          rows: [{ id: "range", control: <RangeFields sheet /> }],
-        },
-      ]
-    : envelope;
+  return rangeActionsInSheet ? [...envelope, rangeSection] : envelope;
 }
 
 const rounded = (rect: InspectorRect): InspectorRect => ({
@@ -298,8 +296,8 @@ function PeekStrip({
  * Mounts the Inspector sheet (design system 9a) for the Edit stage: a card
  * beside the selection on the desktop and the tablet, a bottom sheet with the
  * Action bar as its dock on the phone, where a timeline target still opens the
- * peek strip. Each kind's body is the legacy one, as one section of the frame,
- * until it is rebuilt from Scrub fields.
+ * peek strip. Words and applied edits are sections of the frame; each other kind's body is the legacy one,
+ * as one section, until it is rebuilt from Scrub fields.
  */
 export function InspectorHost({
   shell,

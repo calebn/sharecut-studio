@@ -160,9 +160,6 @@ describe("Inspector clip lookup", () => {
         );
     });
 
-    expect(
-      screen.getByRole("heading", { name: "recording word" }),
-    ).toBeInTheDocument();
     expect(screen.getByLabelText("Corrected text")).toHaveValue(
       "recording word",
     );
