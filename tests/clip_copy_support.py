@@ -30,7 +30,7 @@ _VALUES: dict[str, Any] = {
 
 
 def full_clip() -> Clip:
-    """Every field differs from its default, each list holds entries, each region a fill."""
+    """Every field differs from its default, each list holds entries, the first mute region a fill."""
     values = {
         **_VALUES,
         "mute_regions": [
@@ -51,7 +51,7 @@ def full_clip() -> Clip:
 
 
 def reachable(value: Any, seen: dict[int, Any] | None = None) -> dict[int, Any]:
-    """Every non-atomic object under ``value`` (fields sets and private/extra stores included)."""
+    """Every non-atomic object under ``value`` (field sets and private/extra stores included)."""
     seen = {} if seen is None else seen
     if isinstance(value, _ATOMS) or id(value) in seen:
         return seen
