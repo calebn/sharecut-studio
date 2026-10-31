@@ -295,7 +295,7 @@ export function registerClipboardCommands(): void {
     }
   });
 
-  registerCommand("edit.paste", async (_args) => {
+  registerCommand("edit.paste", async (args) => {
     const s = useDawStore.getState();
     if (
       !canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities) ||
@@ -307,13 +307,18 @@ export function registerClipboardCommands(): void {
     if (!clip) {
       return { status: "disabled", reason: "Clipboard empty" };
     }
+    const held = args.atTime !== undefined && args.atTime !== null;
+    const at = held ? Number(args.atTime) : s.playheadSec;
+    if (!Number.isFinite(at)) {
+      return { status: "disabled", reason: "atTime must be a number" };
+    }
     const duration = clip.timelineEnd - clip.timelineStart;
     try {
       const undo =
         clip.mode === "cut" || clip.extracts.length > 0
           ? await pasteSegment(
               s.projectPath,
-              s.playheadSec,
+              at,
               duration,
               clip.extracts as unknown as Array<Record<string, unknown>>,
             )
@@ -321,11 +326,16 @@ export function registerClipboardCommands(): void {
               s.projectPath,
               clip.timelineStart,
               clip.timelineEnd,
-              s.playheadSec,
+              at,
             );
       useDawStore
         .getState()
-        .announceStatus("Pasted at playhead (same track)", { undo });
+        .announceStatus(
+          held
+            ? `Pasted at ${formatTime(at)} (same track)`
+            : "Pasted at playhead (same track)",
+          { undo },
+        );
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);

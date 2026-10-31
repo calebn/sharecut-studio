@@ -643,7 +643,7 @@
           "gui/web/src/inspector/relatedCommandDescriptors.ts",
           "gui/web/src/commands/targets.ts",
           "gui/web/src/timeline/inputContract.ts",
-          "gui/web/src/timeline/CreateMenu.tsx",
+          "gui/web/src/timeline/TimelineCreateMenu.tsx",
           "gui/web/src/timeline/TargetChooser.tsx",
           "gui/web/src/ui/Menu.tsx",
           "gui/web/src/ui/Dialog.tsx",

@@ -103,6 +103,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.edit.paste": {
     label: "Paste",
+    tooltip:
+      "Paste the copied range at the playhead, or at the held time from the Create menu",
   },
   "daw.track.selectAll": {
     label: "Select all tracks",
