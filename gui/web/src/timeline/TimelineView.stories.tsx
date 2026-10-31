@@ -57,6 +57,15 @@ export const Arranged: Story = {
         name: "Open track details, Mira",
       }),
     ).toBeVisible();
+    await expect(
+      canvasElement.querySelectorAll(".clip-block").length,
+    ).toBeGreaterThan(0);
+    await expect(
+      within(canvasElement).queryByRole("button", {
+        name: /^Select .* clip/,
+        pressed: true,
+      }),
+    ).toBeNull();
   },
 };
 
@@ -66,6 +75,13 @@ export const ClipSelected: Story = {
     await expect(
       await within(canvasElement).findByRole("button", {
         name: "Open track details, Mira",
+      }),
+    ).toBeVisible();
+    // The selected clip is drawn pressed.
+    await expect(
+      within(canvasElement).getByRole("button", {
+        name: /^Select Mira clip/,
+        pressed: true,
       }),
     ).toBeVisible();
   },

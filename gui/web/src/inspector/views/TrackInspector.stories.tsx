@@ -33,6 +33,16 @@ export const Viewer: Story = {
     await expect(
       await canvas.findByRole("heading", { name: "Mira" }),
     ).toBeVisible();
+    // Read-only: the role is plain text and every editing control is gone.
+    await expect(
+      canvas.queryByRole("combobox", { name: "Track role" }),
+    ).toBeNull();
+    await expect(
+      canvas.queryByRole("textbox", { name: "Track label" }),
+    ).toBeNull();
+    await expect(
+      canvas.queryByRole("button", { name: "Track actions" }),
+    ).toBeNull();
   },
 };
 
@@ -47,5 +57,9 @@ export const MultipleTracks: Story = {
     await expect(
       await canvas.findByRole("heading", { name: "Mira" }),
     ).toBeVisible();
+    // The rail body edits the primary track of a multi-selection.
+    await expect(
+      canvas.getByRole("textbox", { name: "Track label" }),
+    ).toHaveValue("Mira");
   },
 };
