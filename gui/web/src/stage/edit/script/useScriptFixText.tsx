@@ -87,7 +87,7 @@ export function useScriptFixText(
   pane: RefObject<ScriptPaneHandle | null>,
   enabled: boolean,
   say: (message: string) => void,
-  onTab: (note?: string) => number | undefined,
+  onTab: () => number | undefined,
 ): ScriptFixTextProps {
   const projectPath = useDawStore((st) => st.projectPath);
   const keep = useSyncExternalStore(subscribeHeld, readHeld);
