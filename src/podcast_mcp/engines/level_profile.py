@@ -318,7 +318,7 @@ def _read_record(path: Path) -> LevelProfile | None:
         profile = LevelProfile(
             *(float(values[name]) for name in ("room_db", "speech_db", "loud_db"))
         )
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, RecursionError):
         return None
     return (
         profile if profile.live and all(math.isfinite(v) for v in vars(profile).values()) else None
