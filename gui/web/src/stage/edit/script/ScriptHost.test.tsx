@@ -258,59 +258,6 @@ describe("ScriptHost following", () => {
   });
 });
 
-describe("ScriptHost late failure", () => {
-  const failure = (projectPath: string) => ({
-    projectPath,
-    trackId: "host",
-    sourceId: null,
-    wordIndex: 0,
-    originalText: "Welcome",
-    message: "Could not ignore \u201cWelcome\u201d: offline",
-  });
-
-  beforeEach(() => {
-    useDawStore.setState({
-      transcriptInlineEditFailure: null,
-      statusAnnouncement: "",
-      feedbackToast: null,
-    });
-  });
-
-  it("shows a failure that settles while the Script is mounted as an error toast, once", () => {
-    render(<ScriptHost />);
-    act(() =>
-      useDawStore.getState().setTranscriptInlineEditFailure(failure("/tmp/ep")),
-    );
-    expect(useDawStore.getState().feedbackToast).toMatchObject({
-      message: "Could not ignore \u201cWelcome\u201d: offline",
-      tone: "error",
-    });
-    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
-  });
-
-  it("keeps a failure that settles while no Script is mounted until one mounts", () => {
-    act(() =>
-      useDawStore.getState().setTranscriptInlineEditFailure(failure("/tmp/ep")),
-    );
-    expect(useDawStore.getState().feedbackToast).toBeNull();
-    render(<ScriptHost />);
-    expect(useDawStore.getState().feedbackToast).toMatchObject({
-      tone: "error",
-    });
-  });
-
-  it("drops a failure from another project without a toast", () => {
-    render(<ScriptHost />);
-    act(() =>
-      useDawStore
-        .getState()
-        .setTranscriptInlineEditFailure(failure("/tmp/other")),
-    );
-    expect(useDawStore.getState().feedbackToast).toBeNull();
-    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
-  });
-});
-
 describe("ScriptHost bleed-only rows", () => {
   it("does not silence a live word because an untimed bleed-only row sits on its track", () => {
     seedScript({

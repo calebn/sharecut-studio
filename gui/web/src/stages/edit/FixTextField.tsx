@@ -48,6 +48,10 @@ type FixTextFieldProps = {
    * leaving cancels: a rename inside a popover applies on Enter only.
    */
   commitOnBlur?: boolean;
+  /** Typing to start from instead of `value`, for a field that was remounted. */
+  initialDraft?: string;
+  /** Called with the raw typing on every change, so a host can keep it across a remount. */
+  onDraftChange?: (draft: string) => void;
 };
 
 const squash = (text: string) => text.trim().replace(/\s+/g, " ");
@@ -75,9 +79,11 @@ export function FixTextField({
   onDone,
   validate,
   commitOnBlur = true,
+  initialDraft,
+  onDraftChange,
 }: FixTextFieldProps) {
   const [original] = useState(value);
-  const [draft, setDraft] = useState(value);
+  const [draft, setDraft] = useState(initialDraft ?? value);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -178,6 +184,7 @@ export function FixTextField({
         }
         onChange={(event) => {
           setDraft(event.target.value);
+          onDraftChange?.(event.target.value);
           setError(null);
         }}
         onKeyDown={onKeyDown}

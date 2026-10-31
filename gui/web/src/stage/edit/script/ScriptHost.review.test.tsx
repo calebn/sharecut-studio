@@ -118,9 +118,11 @@ describe("ScriptHost Tab to the next unsure word", () => {
       startWordIndex: 2,
     });
     expect(word("to (unsure, selected)")).toHaveFocus();
-    expect(statuses()).toContain(
-      "Text fixed: friends!. Unsure word 1 of 2: to",
-    );
+    expect(statuses()).toContain("Unsure word 1 of 2: to");
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Text fixed: friends!",
+      undo: "h1",
+    });
   });
 });
 
@@ -199,7 +201,9 @@ describe("ScriptHost while the words are not settled", () => {
     expect(useDawStore.getState().selection).toMatchObject({
       startWordIndex: 5,
     });
-    expect(statuses()).toContain("Text fixed: friends!");
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Text fixed: friends!",
+    );
   });
 });
 

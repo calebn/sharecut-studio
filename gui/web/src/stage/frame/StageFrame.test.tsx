@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
@@ -28,6 +28,56 @@ beforeEach(() => {
   registerDawCommands();
   useDawStore.getState().hydrate(PROJECT_PATH, minimalProject());
   useDawStore.setState({ stage: "edit", guestMode: null });
+});
+
+describe("StageFrame late word failure", () => {
+  const failure = (projectPath: string) => ({
+    projectPath,
+    trackId: "t1",
+    sourceId: null,
+    wordIndex: 0,
+    originalText: "hello",
+    message: "Could not ignore \u201chello\u201d: offline",
+  });
+  const settle = (projectPath: string) =>
+    act(() =>
+      useDawStore
+        .getState()
+        .setTranscriptInlineEditFailure(failure(projectPath)),
+    );
+
+  beforeEach(() => {
+    useDawStore.setState({
+      transcriptInlineEditFailure: null,
+      statusAnnouncement: "",
+      feedbackToast: null,
+    });
+  });
+
+  it("shows a failure that settles with no Script mounted as an error toast, once", () => {
+    mount();
+    settle(PROJECT_PATH);
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Could not ignore \u201chello\u201d: offline",
+      tone: "error",
+    });
+    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
+  });
+
+  it("says a failure that settled before the frame mounted", () => {
+    settle(PROJECT_PATH);
+    mount();
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      tone: "error",
+    });
+  });
+
+  it("drops a failure from another project without a toast", () => {
+    mount();
+    settle("/tmp/other.sharecut");
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
+  });
 });
 
 describe("StageFrame header", () => {

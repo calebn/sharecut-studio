@@ -20,7 +20,7 @@ export function useScriptUnsure(
   unsure: readonly number[],
   scrollTo: (index: number, block?: ScrollLogicalPosition) => boolean,
   say: (message: string) => void,
-): (note?: string) => number | undefined {
+): (note?: string, direction?: "next" | "previous") => number | undefined {
   const stops = useMemo<LowConfidenceStop[]>(
     () =>
       unsure.flatMap((index) => {
@@ -44,11 +44,15 @@ export function useScriptUnsure(
   const cursor = useRef<TranscriptReviewCursor | null>(null);
 
   /**
-   * Go to the next unsure word and return its window index. `note` is said
+   * Go to the next (or previous) unsure word and return its window index. `note` is said
    * first, in the same announcement, so what led here is not talked over.
    */
-  return useStableCallback((note?: string) => {
-    const at = stepLowConfidence(stops, cursor.current, "next");
+  return useStableCallback((note?: string, direction = "next") => {
+    const at = stepLowConfidence(
+      stops,
+      cursor.current,
+      direction === "next" ? "next" : "prev",
+    );
     const stop = stops[at];
     if (!stop) {
       if (note) say(note);

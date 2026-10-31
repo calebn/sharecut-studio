@@ -231,6 +231,8 @@ export type ScriptPaneProps = {
   onFind?: () => void;
   /** Jump to the next word the transcript is unsure of. */
   onNextUnsure?: () => void;
+  /** Jump back to the previous unsure word (Alt+Up on a word; Alt+Down goes to the next). */
+  onPreviousUnsure?: () => void;
   onShowCutTextChange?: (show: boolean) => void;
   onFollowChange?: (follow: boolean) => void;
   onBackToPlayhead?: () => void;
@@ -274,6 +276,8 @@ type Live = {
     | "onSuggestionSelect"
     | "onSeekTurn"
     | "onSpeaker"
+    | "onNextUnsure"
+    | "onPreviousUnsure"
   >;
 };
 
@@ -425,6 +429,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       onSpeaker,
       onFind,
       onNextUnsure,
+      onPreviousUnsure,
       onShowCutTextChange,
       onFollowChange,
       onBackToPlayhead,
@@ -654,6 +659,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           onSuggestionSelect,
           onSeekTurn,
           onSpeaker,
+          onNextUnsure,
+          onPreviousUnsure,
         },
       };
     });
@@ -831,6 +838,17 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           if (event.ctrlKey || event.metaKey) return;
           const now = live.current;
           if (event.altKey) {
+            const jump =
+              !event.shiftKey && event.key === "ArrowDown"
+                ? now.props.onNextUnsure
+                : !event.shiftKey && event.key === "ArrowUp"
+                  ? now.props.onPreviousUnsure
+                  : undefined;
+            if (jump) {
+              handled(event);
+              jump();
+              return;
+            }
             const step = event.shiftKey ? horizontalStep(event.key) : null;
             if (step === null) return;
             handled(event);

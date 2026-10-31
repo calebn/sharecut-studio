@@ -6,14 +6,16 @@ import type {
   ScriptSelection,
   WordsSelection,
 } from "../../../system/scriptPieces";
+import type { EditBoundaryView } from "../../../types/project";
 import { useStableCallback } from "../../../utils/useStableCallback";
 import {
   type ScriptModel,
-  scriptSelectionOf,
+  scriptReviewSelectionOf,
   wordsTargetOf,
 } from "./scriptModel";
 
 const NO_CARETS: readonly ScriptCaret[] = [];
+const NO_BOUNDARIES: readonly EditBoundaryView[] = [];
 
 export type ScriptSelectionProps = {
   selection: ScriptSelection | null;
@@ -22,13 +24,16 @@ export type ScriptSelectionProps = {
   onSelect: ((selection: WordsSelection) => void) | undefined;
   onCaret: (before: number) => void;
   onClearSelection: () => void;
+  /** Left out with `onSelect`: a seam is picked by someone who may select. */
+  onSeamSelect: ((id: string) => void) | undefined;
+  onSuggestionSelect: ((id: string) => void) | undefined;
 };
 
 /**
  * The pane's selection and caret against the store. The store is written only
  * from these handlers, never from an effect. Words on one track become a
  * `transcriptRange`; words across tracks become a `range` over that time on
- * every track they touch (the pane shows nothing selected for that one).
+ * every track they touch, which the pane draws back as its first to last word.
  */
 export function useScriptSelection(
   model: ScriptModel,
@@ -38,9 +43,17 @@ export function useScriptSelection(
 ): ScriptSelectionProps {
   const stored = useDawStore((s) => s.selection);
   const [caret, setCaret] = useState<number | undefined>(undefined);
+  const boundaries = useDawStore((s) => s.project?.edit_boundaries);
+  const openJoinId = useDawStore((s) => s.openJoinId);
   const selection = useMemo(
-    () => scriptSelectionOf(model, stored),
-    [model, stored],
+    () =>
+      scriptReviewSelectionOf(
+        model,
+        stored,
+        boundaries ?? NO_BOUNDARIES,
+        openJoinId,
+      ),
+    [model, stored, boundaries, openJoinId],
   );
   const carets = useMemo(
     () => (caret === undefined || selection ? NO_CARETS : [{ before: caret }]),
@@ -80,7 +93,27 @@ export function useScriptSelection(
     setCaret(before);
   });
   const onClearSelection = useStableCallback(() => {
-    useDawStore.getState().setSelection(null);
+    const { setSelection, setOpenJoinId } = useDawStore.getState();
+    setSelection(null);
+    setOpenJoinId(null);
+  });
+  // A seam is the join the timeline opens by its right clip (the join
+  // popover), and a suggestion is the pending edit the timeline selects.
+  const onSeamSelect = useStableCallback((id: string) => {
+    const state = useDawStore.getState();
+    const clipId = state.project?.edit_boundaries?.find(
+      (b) => b.id === id,
+    )?.right_clip_id;
+    if (!clipId || state.joinMutationInFlight) return;
+    state.setSelection(null);
+    state.setOpenJoinId(state.openJoinId === clipId ? null : clipId);
+  });
+  const onSuggestionSelect = useStableCallback((id: string) => {
+    const { project, setSelection, setOpenJoinId } = useDawStore.getState();
+    const edit = project?.pending_edits.find((e) => e.id === id);
+    if (!edit) return;
+    setOpenJoinId(null);
+    setSelection({ kind: "pending", id, trackId: edit.track_id });
   });
 
   return {
@@ -89,5 +122,7 @@ export function useScriptSelection(
     onSelect: mayRange ? onSelect : undefined,
     onCaret,
     onClearSelection,
+    onSeamSelect: mayRange ? onSeamSelect : undefined,
+    onSuggestionSelect: mayRange ? onSuggestionSelect : undefined,
   };
 }
