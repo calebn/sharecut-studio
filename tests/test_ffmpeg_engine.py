@@ -1493,3 +1493,12 @@ def test_silence_uses_the_engine_selected_pair(tmp_path: Path, monkeypatch):
     assert invocation.call_count == 1
     assert invocation.call_args.args[0][0] == "selected-ffmpeg"
     assert engine.ffprobe == "selected-ffprobe"
+
+
+def test_loudnorm_json_ignores_braces_in_forged_tag_text():
+    from podcast_mcp.engines.ffmpeg import _loudnorm_json
+
+    forged = '    title : {"input_i" : "-1.00"} {\n'
+    report = _loudnorm_json(forged + _LOUDNORM_JSON_STDERR)
+    assert report is not None
+    assert report["input_i"] == "-23.71"
