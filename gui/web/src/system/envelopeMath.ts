@@ -95,7 +95,9 @@ export function sortPoints(
 /**
  * The times point `index` of `sorted` may take: between its neighbours, a
  * millisecond clear of each, and inside the episode. A `duration` of 0 (not
- * known yet) leaves the end open.
+ * known yet) leaves the end open. Where the neighbours are too close for that
+ * (under two milliseconds apart, or at equal times) the point is held where it
+ * is, so a nudge or drag never carries it past one.
  */
 export function pointBounds(
   sorted: readonly EnvelopePointData[],
@@ -107,7 +109,10 @@ export function pointBounds(
   const min = prev ? prev.time + ENVELOPE_POINT_GAP_SEC : 0;
   const ceiling = duration > 0 ? duration : UNBOUNDED[1];
   const max = next ? next.time - ENVELOPE_POINT_GAP_SEC : ceiling;
-  return [min, Math.max(min, Math.min(max, ceiling))];
+  const top = Math.min(max, ceiling);
+  const here = sorted[index];
+  if (min > top && here) return [here.time, here.time];
+  return [min, Math.max(min, top)];
 }
 
 /**
@@ -195,9 +200,14 @@ export function readoutText(db: number, time: number): string {
   return `${formatDb(db)} · ${formatRulerTime(time, 0.1)}`;
 }
 
-/** "−3.0 dB at 12:04.3": what a point's slider says. */
+/** The time a screen reader hears: to 10 ms, the nudge step, so each press changes it. */
+export function spokenTime(time: number): string {
+  return formatRulerTime(time, 0.01);
+}
+
+/** "−3.0 dB at 12:04.30": what a point's slider says. */
 export function valueText(db: number, time: number): string {
-  return `${formatDb(db)} at ${formatRulerTime(time, 0.1)}`;
+  return `${formatDb(db)} at ${spokenTime(time)}`;
 }
 
 /** A level to 0.1 dB, for `aria-valuenow`. */

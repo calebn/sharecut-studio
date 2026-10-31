@@ -199,6 +199,10 @@ export function useGrab<G>(options: GrabOptions<G>) {
     /** True from the first move past the slop; a press that has not moved is not a drag yet. */
     dragging: (): boolean => held.current?.moved === true,
     abort,
+    /** Forget the click an earlier gesture left behind; a new press at the owner's root calls it, since the next click belongs to that press. */
+    clearClick: () => {
+      dragged.current = false;
+    },
     /** True for the click a pointer gesture leaves behind; a key press (`detail` 0) is never swallowed. */
     consumeClick: (event: { detail: number }): boolean => {
       const was = dragged.current;
