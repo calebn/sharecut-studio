@@ -259,7 +259,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 | | |
 |--|--|
 | **Purpose** | Read/fix transcript; seek by word; suggest cut-away |
-| **Primary actions** | Follow playhead · Correct / Select modes (hint states text-only vs audio) · double-click word or focus word + F2 → inline fix (one at a time; a pending save finishes first and the mode hint says it is saving; a late failure shows under the hint with Dismiss) · tap word → sheet · suppress / correct / ignore (Ignore strikes through and mutes at render, no cut; Restore brings it back — always visible under touch, no hover needed) · Annotate → Previous / Next low-confidence word (wraps) |
+| **Primary actions** | Follow playhead · double-click word or focus word + F2 → inline fix (one at a time; a pending save finishes first and the mode hint says it is saving; a late failure shows under the hint with Dismiss) · tap word → sheet · suppress / correct / ignore (Ignore strikes through and mutes at render, no cut; Restore brings it back — always visible under touch, no hover needed) · Script unsure chip → next low-confidence word (wraps) |
 | **Data shown** | Speaker labels · `transcripts` words (text, confidence, suppressed, ignored, suspect_hallucination) · selection range |
 | **Empty / loading** | No transcript yet · low-confidence chips when present |
 | **Out of scope** | The Review queue and Prepare (their own stages) |
@@ -295,11 +295,10 @@ Outer neighbors constrain the drag only when they play the right recording, so
 an unrelated take does not shorten the preview. Releasing saves the previewed
 offset after a fresh check that the join still matches.
 
-Keyboard word actions: in Navigate mode, Enter on a focused timed word seeks
-through its native button action. F2 opens inline correction for a hydrated
-host project. F2 does nothing in Correct or Select mode, on guest shares, or
-while a correction is saving. Enter retains the native Correct/Select word
-action in those modes; Enter in the inline editor saves and Escape cancels.
+Keyboard word actions: Enter on a focused timed word seeks through its native
+button action. F2 opens inline correction for a hydrated host project and does
+nothing on guest shares or while a correction is saving. Enter in the inline
+editor saves and Escape cancels.
 
 ```
 ┌─ header      Follow · Edit ────────┐
@@ -535,7 +534,7 @@ Replacement tokens must each contain a letter or number; attach punctuation to t
 
 ### Selected-word timing
 
-In Correct mode, the host word inspector includes **Adjust timing**. It expands an inline raw-source waveform with start/end handles, source-second fields and bounded preview. The same inspector content is used by the responsive transcript editor. Drag release saves once; keyboard and numeric changes require **Apply timing**. **Undo timing** closes the draft and restores the stored boundaries. See the [Wordbar guide](https://github.com/calebn/sharecut-studio/blob/main/docs/daw-editing.md#wordbar-source-timing) for source identity, warnings and audio consequences.
+The host word inspector includes **Adjust timing**. It expands an inline raw-source waveform with start/end handles, source-second fields and bounded preview. The same inspector content is used by the responsive transcript editor. Drag release saves once; keyboard and numeric changes require **Apply timing**. **Undo timing** closes the draft and restores the stored boundaries. See the [Wordbar guide](https://github.com/calebn/sharecut-studio/blob/main/docs/daw-editing.md#wordbar-source-timing) for source identity, warnings and audio consequences.
 
 ### Realtime connection
 

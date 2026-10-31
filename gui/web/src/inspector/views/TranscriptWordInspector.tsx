@@ -38,7 +38,6 @@ import {
   DefItem,
   DefinitionList,
   FieldRow,
-  InlineError,
   InspectorSeekFooter,
 } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
@@ -64,14 +63,12 @@ export function TranscriptWordInspector({
   sourceId = null,
   wordIndex,
   embedded = false,
-  presentation = "standard",
 }: {
   trackId: string;
   sourceId?: string | null;
   wordIndex: number;
   /** Docked beside the Script (text focus) — not the side rail. */
   embedded?: boolean;
-  presentation?: "standard" | "correct-sheet";
 }) {
   const { project, projectPath } = useDaw((s) => ({
     project: s.project,
@@ -99,7 +96,6 @@ export function TranscriptWordInspector({
   );
   const wordSpanText = spanTextFromIndex(wordTexts, wordIndex, wordIndex);
   const { busy, error, setError, run } = useProjectMutation();
-  const [errorAction, setErrorAction] = useState<DetachedWordAction>("fix");
   const mountedRef = useMountedRef();
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -229,7 +225,6 @@ export function TranscriptWordInspector({
     fn: () => Promise<HistoryEntryId | null>,
     done: string,
   ): Promise<{ failed: boolean; failure: unknown }> => {
-    setErrorAction(action);
     const before = {
       text: word?.text ?? "",
       suppressed,
@@ -263,7 +258,6 @@ export function TranscriptWordInspector({
   };
 
   const applyText = async () => {
-    setErrorAction("fix");
     touchedRef.current = true;
     const endIndex = Number.parseInt(endIndexStr, 10);
     const problem = wordCorrectionError(text, wordIndex, endIndex);
@@ -419,7 +413,6 @@ export function TranscriptWordInspector({
     endIndexNum >= wordIndex &&
     expectedText == null;
 
-  const correctionFirst = presentation === "correct-sheet";
   const correctionFields = editable ? (
     <>
       <DefItem label="Text">
@@ -470,18 +463,7 @@ export function TranscriptWordInspector({
       ref={headingRef}
       badge="Word"
       title={word.text}
-      subtitle={correctionFirst ? undefined : `${trackId} · index ${wordIndex}`}
-      className={
-        correctionFirst ? "modifier-inspector--correct-sheet" : undefined
-      }
-      lead={
-        correctionFirst ? (
-          <>
-            <DefinitionList>{correctionFields}</DefinitionList>
-            <InlineError message={errorAction === "fix" ? error : null} />
-          </>
-        ) : undefined
-      }
+      subtitle={`${trackId} · index ${wordIndex}`}
       embedded={embedded}
       primaryActions={
         editable
@@ -507,7 +489,7 @@ export function TranscriptWordInspector({
             ]
           : undefined
       }
-      error={correctionFirst && errorAction === "fix" ? null : error}
+      error={error}
       footer={
         <InspectorSeekFooter
           seekSec={seekSec}
@@ -518,9 +500,6 @@ export function TranscriptWordInspector({
         />
       }
     >
-      {correctionFirst ? (
-        <p className="modifier-subtitle">{`${trackId} · index ${wordIndex}`}</p>
-      ) : null}
       <DefinitionList>
         <DefItem label="Confidence">
           {word.confidence != null
@@ -533,7 +512,7 @@ export function TranscriptWordInspector({
           {locked ? " (locked)" : ""}
         </DefItem>
         <DefItem label="Ignored">{ignored ? "yes" : "no"}</DefItem>
-        {correctionFirst ? null : correctionFields}
+        {correctionFields}
       </DefinitionList>
       {editable && (
         <TranscriptWordbar

@@ -11,7 +11,7 @@ export const SCRIPT_WORD = ".sys-script-word";
 export const SCRIPT_SELECTED = ".sys-script-word[data-selected]";
 
 /** Open the Script and wait until words hydrate; returns the Script's body. */
-export async function openTranscriptPanel(page: Page): Promise<Locator> {
+export async function openScript(page: Page): Promise<Locator> {
   await openPanel(page, "transcript");
   const body = page.locator(".sys-script-body");
   await expect(body.locator(SCRIPT_WORD).first()).toBeVisible();

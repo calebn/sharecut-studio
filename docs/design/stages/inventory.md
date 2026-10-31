@@ -297,12 +297,12 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-RANGE | Select a time range; act on it (Play, Cut, Mute, Room tone, Move to speaker, Comment, Bounce) | Drag empty lane; Shift-drag clip; Select range tool; phone Select range | CMP-RANGE-ACTIONS, OVL-RANGE | none | NONE for actions |
 | INT-COMMENT-MODE | Removed in #2294: the ruler no longer anchors a comment; compose from the Review queue field (C) or the Player bar | none | PNL-REVIEW-QUEUE | none | n/a |
 | INT-COMMENT-RESOLVE | Resolve/reopen, reply, edit a comment | Comment card actions; swipe right on touch (Review queue) | CMP-COMMENT-CARD, INS-COMMENT | swipe right | yes |
-| INT-WORD-SELECT | Select words by click, Shift-click, drag, hold-then-drag on touch | Transcript Select intent | PNL-TRANSCRIPT, CMP-RANGE-ACTIONS | long-press then drag | partial (Active/Selected turn) |
+| INT-WORD-SELECT | Select words by click, Shift-click, drag, hold-then-drag on touch | Script pane | PNL-TRANSCRIPT, CMP-RANGE-ACTIONS | long-press then drag | partial (Active/Selected turn) |
 | INT-WORD-CUT | Cut or mute selected words/range | Range actions on a text selection | CMP-RANGE-ACTIONS, CMP-WORDRANGE | none (Mod+X is Cut when `canApplyPass12`) | NONE |
-| INT-WORD-CORRECT | Correct a word | Correct intent, F2, double-click or double-tap | POP-WORD-EDIT, INS-WORD | F2 | NONE |
+| INT-WORD-CORRECT | Fix a word | Enter, F2, double-click or double-tap in the Script | POP-WORD-EDIT, INS-WORD | F2 | NONE |
 | INT-WORD-TIMING | Adjust word timing | Wordbar handles or numeric fields | CMP-WORDBAR | none | NONE |
 | INT-WORD-IGNORE | Ignore or restore words | Action bar | PNL-TRANSCRIPT | none | NONE |
-| INT-LOWCONF | Step through low-confidence words | Prev/Next in toolbar | PNL-TRANSCRIPT | none | partial |
+| INT-LOWCONF | Step through low-confidence words | Unsure chip in the Script header | PNL-TRANSCRIPT | none | partial |
 | INT-FINDREPLACE | Find and replace in transcript | Toolbar button | CMP-FINDREPLACE | none | NONE |
 | INT-SPEAKER | Change speaker for a track | Speaker header button | POP-SPEAKER | none | NONE |
 | INT-SPLIT-SPEAKERS | Split one recording into speakers | Track inspector | DLG-SPLIT | none | yes |

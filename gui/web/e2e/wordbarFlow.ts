@@ -3,10 +3,7 @@ import { expect, type Page } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { inspectSelectionByKey, openProject } from "./stageNav";
-import {
-  openTranscriptPanel,
-  withDocumentCommandTypes,
-} from "./transcriptEdit";
+import { openScript, withDocumentCommandTypes } from "./transcriptEdit";
 
 function transcripts(): unknown {
   const stored = JSON.parse(
@@ -22,7 +19,7 @@ function transcripts(): unknown {
 
 export async function checkWordbarOutsideRelease(page: Page): Promise<void> {
   await openProject(page, e2eProjectPath);
-  const list = await openTranscriptPanel(page);
+  const list = await openScript(page);
   await list.locator(".sys-script-word").first().click();
   await inspectSelectionByKey(page);
   await page

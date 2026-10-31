@@ -33,7 +33,7 @@ describe("MOBILE_GESTURES", () => {
       (gesture) => gesture.gesture === "Double-tap word",
     );
     expect(doubleTap && gestureLabel(doubleTap)).toBe(
-      COMMANDS["transcript.correctIntent"].label,
+      COMMANDS["transcript.editWordInline"].label,
     );
   });
 });

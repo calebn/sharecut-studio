@@ -4,7 +4,7 @@ import { e2eProjectPath } from "./env";
 import { expectFeedback } from "./feedback";
 import { openProject } from "./stageNav";
 import {
-  openTranscriptPanel,
+  openScript,
   servePendingEditsCleared,
   withDocumentCommandTypes,
 } from "./transcriptEdit";
@@ -14,7 +14,7 @@ test("rename a transcript speaker updates all its turns and Undo restores them",
 }) => {
   await servePendingEditsCleared(page);
   await openProject(page, e2eProjectPath);
-  const list = await openTranscriptPanel(page);
+  const list = await openScript(page);
   const original = list
     .getByRole("button", { name: /, change speaker$/ })
     .first();
@@ -51,7 +51,7 @@ test("queued speaker save stays visible and reports pending delivery", async ({
   page,
 }) => {
   await openProject(page, e2eProjectPath);
-  const list = await openTranscriptPanel(page);
+  const list = await openScript(page);
   await page.route("**/api/document/command?**", async (route) => {
     if (route.request().postDataJSON()?.type === "SetTrackMeta")
       await route.abort("failed");

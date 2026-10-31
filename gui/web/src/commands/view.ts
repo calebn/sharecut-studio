@@ -143,11 +143,6 @@ export function registerViewCommands(): void {
 }
 
 export function registerTranscriptViewCommands(): void {
-  registerCommand("view.transcriptAnnotate", () => {
-    useDawStore.getState().toggleTranscriptAnnotate();
-    return { status: "ok" };
-  });
-
   registerCommand("transcript.findReplace", () => {
     const state = useDawStore.getState();
     if (!state.project || isShareProjectKey(state.projectPath))
@@ -160,21 +155,8 @@ export function registerTranscriptViewCommands(): void {
     return { status: "ok" };
   });
 
-  registerCommand("transcript.correctIntent", () => {
-    // The Script has no intent; store annotate stays independent.
-    return { status: "ok" };
-  });
-
-  registerCommand("transcript.selectIntent", () => {
-    return { status: "ok" };
-  });
-
   registerCommand("view.showCutAway", () => {
-    const s = useDawStore.getState();
-    if (!s.transcriptAnnotate) {
-      s.setTranscriptAnnotate(true);
-    }
-    s.toggleShowCutAwayUtterances();
+    useDawStore.getState().toggleShowCutAwayUtterances();
     return { status: "ok" };
   });
 }

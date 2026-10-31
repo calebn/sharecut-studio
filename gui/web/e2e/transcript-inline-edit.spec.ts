@@ -3,17 +3,14 @@ import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand, postHistoryMove } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { openProject, phone } from "./stageNav";
-import {
-  openTranscriptPanel,
-  withDocumentCommandTypes,
-} from "./transcriptEdit";
+import { openScript, withDocumentCommandTypes } from "./transcriptEdit";
 
 test.describe("Script Fix text", () => {
   test("F2 on a focused word opens Fix text and Escape gives the word back its focus", async ({
     page,
   }) => {
     await openProject(page, e2eProjectPath);
-    const list = await openTranscriptPanel(page);
+    const list = await openScript(page);
     const word = list.getByRole("button", { name: /^my(?: \(.*\))?$/ }).first();
     await word.focus();
     await page.keyboard.press("F2");
@@ -31,7 +28,7 @@ test.describe("Script Fix text", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    const list = await openTranscriptPanel(page);
+    const list = await openScript(page);
     const original = list
       .getByRole("button", { name: /^my(?: \(.*\))?$/ })
       .first();

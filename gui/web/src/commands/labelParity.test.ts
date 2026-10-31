@@ -70,10 +70,6 @@ describe("one name per command", () => {
       expect(forms, id).not.toContain(def.label);
       expect(new Set(forms).size, id).toBe(forms.length);
     }
-    expect(commandLabel("transcript.nextLowConfidence", "short")).toBe("Next");
-    expect(commandLabel("transcript.nextLowConfidence")).toBe(
-      "Next low-confidence word",
-    );
     expect(commandLabel("range.arm", "short")).toBe("Select range");
     expect(commandLabel("range.arm")).toBe("Select a range");
   });

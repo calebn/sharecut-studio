@@ -1,17 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openProject } from "./stageNav";
-import {
-  openTranscriptPanel,
-  SCRIPT_SELECTED,
-  SCRIPT_WORD,
-} from "./transcriptEdit";
+import { openScript, SCRIPT_SELECTED, SCRIPT_WORD } from "./transcriptEdit";
 
 test("Shift-click on another speaker selects the range on both tracks", async ({
   page,
 }, testInfo) => {
   await openProject(page, e2eProjectPath);
-  const list = await openTranscriptPanel(page);
+  const list = await openScript(page);
   const words = list.locator(SCRIPT_WORD);
   const tracks = await words.evaluateAll((chips) => [
     ...new Set(

@@ -40,9 +40,9 @@ describe("paletteCommands", () => {
       defaultKey: keymapCommandById("edit.bladeCut")?.keys[0],
       note: keymapCommandById("edit.bladeCut")?.collision,
     });
-    const annotate = rowsNow().find((r) => r.id === "view.transcriptAnnotate");
-    expect(annotate?.shortcut).toBeNull();
-    expect(annotate?.defaultKey).toBeUndefined();
+    const showCut = rowsNow().find((r) => r.id === "view.showCutAway");
+    expect(showCut?.shortcut).toBeNull();
+    expect(showCut?.defaultKey).toBeUndefined();
   });
 
   it.each([

@@ -16,8 +16,6 @@ type Props = {
   badge: string;
   title: string;
   subtitle?: string;
-  className?: string;
-  lead?: ReactNode;
   primaryActions?: ModifierAction[];
   children: ReactNode;
   footer?: ReactNode;
@@ -32,8 +30,6 @@ export const ModifierInspector = forwardRef<
     badge,
     title,
     subtitle,
-    className,
-    lead,
     primaryActions,
     children,
     footer,
@@ -45,7 +41,7 @@ export const ModifierInspector = forwardRef<
   const Tag = embedded ? "div" : "aside";
   return (
     <Tag
-      className={`inspector modifier-inspector${embedded ? " modifier-inspector--embedded" : ""}${className ? ` ${className}` : ""}`}
+      className={`inspector modifier-inspector${embedded ? " modifier-inspector--embedded" : ""}`}
       {...(embedded ? {} : presenceAnchorProps(presenceAnchor("inspector")))}
     >
       <header className="modifier-header">
@@ -57,7 +53,6 @@ export const ModifierInspector = forwardRef<
           {subtitle ? <p className="modifier-subtitle">{subtitle}</p> : null}
         </div>
       </header>
-      {lead ? <div className="modifier-lead">{lead}</div> : null}
       {primaryActions && primaryActions.length > 0 && (
         <div className="modifier-primary-actions">
           {primaryActions.map((action) => (

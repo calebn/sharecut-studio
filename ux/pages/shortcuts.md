@@ -51,7 +51,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `F2` | Edit focused transcript word (`transcript.editWordInline`) | Loaded host project | F2: focused word in Navigate mode |
+| `F2` | Edit focused transcript word (`transcript.editWordInline`) | Loaded host project | F2: Fix text on the selected word |
 | `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | Closes the Inspector first, then clears the selection and track targeting |
 | `ArrowLeft` | Set clip fade (`edit.setClipFade`) | focusedFadeHandle | Left/Right 1 ms; Shift 10 ms. Release to save; Escape cancels. |
 | `ArrowLeft` | Trim clip edge (`edit.trimClipEdge`) | focusedTrimHandle | Left/Right 10 ms; Shift 100 ms. Release to save; Escape cancels. |
@@ -153,15 +153,10 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Open project… | `project.open` | Host project management | No key (Mod+O is project.home); OS dialog via local engine; Home's Open other… path field when there is none |
 | Split speakers… | `track.splitSpeakers` | editStageSplitSpeakers | Opens Prepare at the split prompt for the inspector track (args { trackId? }); the split runs as a job and is one undo step |
 | Reorder track | `track.reorder` | editStageIngest | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
-| Annotate transcript | `view.transcriptAnnotate` | Always (when not typing in an input) |  |
 | Adjust word timing | `transcript.adjustTiming` | Loaded host project | Source-clock boundaries for the selected transcript word |
 | Find and replace transcript | `transcript.findReplace` | Loaded host project |  |
-| Correct transcript | `transcript.correctIntent` | Project loaded |  |
-| Select transcript range | `transcript.selectIntent` | Project loaded |  |
 | Extend transcript range | `transcript.extendRange` | Project loaded | Args: { edge: 'start' \| 'end', by: 1 \| -1 }: moves one edge of the selected word range by one word; a selection change only (#1029) |
 | Ignore / restore transcript words | `transcript.ignoreWords` | Project loaded | Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only |
-| Next low-confidence word | `transcript.nextLowConfidence` | Project loaded | Seek + scroll to the next word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634) |
-| Previous low-confidence word | `transcript.prevLowConfidence` | Project loaded | Seek + scroll to the previous word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634) |
 | Show cut away | `view.showCutAway` | Always (when not typing in an input) |  |
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |
 | Set clip join | `edit.setClipJoin` | Host or shared edit mode | Join glyph popover on the timeline; Incoming transition select and Apply transition length in the clip inspector |

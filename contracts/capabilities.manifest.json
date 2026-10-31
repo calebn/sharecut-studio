@@ -2574,58 +2574,21 @@
       }
     },
     {
-      "id": "daw.view.transcriptAnnotate",
-      "label": "Annotate transcript",
-      "effect": "view",
-      "tooltip": "Annotate: show edit boundaries, low-confidence words, unsuppressed words with no matching speech, and cut-away text",
-      "tooltip_pressed": "Hide annotate marks (clean reading view)",
-      "toggle": true,
-      "service": "ShareCut Studio UI",
-      "industry_standard_key": false,
-      "gates": [
-        "always"
-      ],
-      "surfaces": {
-        "command": "view.transcriptAnnotate",
-        "gui": [
-          "transcript.annotate"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "toolbar toggle; no industry-standard key"
-      },
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
       "id": "daw.transcript.correct",
       "label": "Correct transcript",
       "effect": "project",
-      "tooltip": "Correct: click a word to fix ASR text or suppress it (text only; audio and timing unchanged), or ignore it to mute its audio at render (no cut)",
-      "tooltip_pressed": "Exit Correct (restore seek-on-click)",
-      "toggle": true,
+      "tooltip": "Fix a word's ASR text or suppress it (text only; audio and timing unchanged); Ignore mutes its audio at render (no cut)",
       "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
       ],
       "surfaces": {
-        "command": "transcript.correctIntent",
-        "gui": [
-          "transcript.correct",
-          "mobileShell.gesture.doubleTapWord",
-          "transcript.inlineEdit"
-        ],
         "mcp": [
           "correct_transcript_tool",
           "correct_transcript_phrase_tool"
         ],
-        "cli": "podcast transcript correct",
-        "touch": [
-          "double-tap"
-        ]
+        "cli": "podcast transcript correct"
       },
       "presence": {
         "cursor": "anchor",
@@ -2633,7 +2596,7 @@
         "anchor": "transcript:word:<hash>"
       },
       "omit": {
-        "keyboard_reason": "toolbar toggle; inline correction uses F2"
+        "keyboard_reason": "agent-primary workflow; the Script uses F2 for Fix text"
       }
     },
     {
@@ -2669,7 +2632,7 @@
       "id": "daw.transcript.editWordInline",
       "label": "Edit focused transcript word",
       "effect": "project",
-      "tooltip": "F2: edit the focused timed word in Navigate mode; Enter saves, Escape cancels",
+      "tooltip": "F2 or a double-tap: Fix text on the selected timed word; Enter saves, Escape cancels",
       "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
@@ -2681,7 +2644,10 @@
         "mcp": [
           "correct_transcript_tool"
         ],
-        "cli": "podcast transcript correct"
+        "cli": "podcast transcript correct",
+        "touch": [
+          "double-tap"
+        ]
       },
       "presence": {
         "cursor": "anchor",
@@ -2691,37 +2657,10 @@
       "omit": {}
     },
     {
-      "id": "daw.transcript.select",
-      "label": "Select transcript range",
-      "effect": "view",
-      "tooltip": "Select: click/shift/drag words for copy/cut (Mod+C/X/V); cuts remove audio",
-      "tooltip_pressed": "Exit Select (restore seek-on-click)",
-      "toggle": true,
-      "service": "ShareCut Studio UI",
-      "industry_standard_key": false,
-      "gates": [
-        "hasProject"
-      ],
-      "surfaces": {
-        "command": "transcript.selectIntent",
-        "gui": [
-          "transcript.select"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "toolbar toggle; no industry-standard key"
-      },
-      "presence": {
-        "cursor": "anchor",
-        "follow": "look",
-        "anchor": "transcript:word:<hash>"
-      }
-    },
-    {
       "id": "daw.transcript.extendRange",
       "label": "Extend transcript range",
       "effect": "view",
-      "tooltip": "Extend the selected word range by a word at either edge; on touch, long-press a word in Select mode and drag",
+      "tooltip": "Extend the selected word range by a word at either edge; on touch, long-press a word and drag",
       "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
@@ -2770,58 +2709,6 @@
       },
       "omit": {
         "keyboard_reason": "no industry-standard key (#649)"
-      },
-      "presence": {
-        "cursor": "anchor",
-        "follow": "look",
-        "anchor": "transcript:word:<hash>"
-      }
-    },
-    {
-      "id": "daw.transcript.nextLowConfidence",
-      "label": "Next low-confidence word",
-      "effect": "session",
-      "tooltip": "Next low-confidence word: seek and scroll to it, wrapping to the first; in Correct mode it opens in the word editor",
-      "service": "ShareCut Studio command bus",
-      "industry_standard_key": false,
-      "gates": [
-        "hasProject"
-      ],
-      "surfaces": {
-        "command": "transcript.nextLowConfidence",
-        "gui": [
-          "transcript.lowConfidenceNext"
-        ],
-        "skill": "podcast-transcript-correct"
-      },
-      "omit": {
-        "keyboard_reason": "no industry-standard key (#649); command palette"
-      },
-      "presence": {
-        "cursor": "anchor",
-        "follow": "look",
-        "anchor": "transcript:word:<hash>"
-      }
-    },
-    {
-      "id": "daw.transcript.prevLowConfidence",
-      "label": "Previous low-confidence word",
-      "effect": "session",
-      "tooltip": "Previous low-confidence word: seek and scroll to it, wrapping to the last; in Correct mode it opens in the word editor",
-      "service": "ShareCut Studio command bus",
-      "industry_standard_key": false,
-      "gates": [
-        "hasProject"
-      ],
-      "surfaces": {
-        "command": "transcript.prevLowConfidence",
-        "gui": [
-          "transcript.lowConfidencePrev"
-        ],
-        "skill": "podcast-transcript-correct"
-      },
-      "omit": {
-        "keyboard_reason": "no industry-standard key (#649); command palette"
       },
       "presence": {
         "cursor": "anchor",

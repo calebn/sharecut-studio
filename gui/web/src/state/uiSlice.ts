@@ -50,7 +50,6 @@ import type {
   ToastTone,
   TranscriptInlineEditFailure,
   TranscriptInlineEditRequest,
-  TranscriptReviewCursor,
   WordDraftEntry,
 } from "./types";
 
@@ -176,15 +175,10 @@ type UiSlice = Pick<
   | "setTranscriptTimingRequest"
   | "transcriptInlineEditRequest"
   | "setTranscriptInlineEditRequest"
-  | "transcriptInlineCommitPending"
   | "transcriptInlineEditFailure"
-  | "transcriptReviewCursor"
   | "chapterAddPending"
   | "chrome"
   | "setTranscriptFindReplaceOpen"
-  | "transcriptAnnotate"
-  | "transcriptCorrecting"
-  | "setTranscriptCorrecting"
   | "showCutAwayUtterances"
   | "timelineFocused"
   | "shellBreakpoint"
@@ -206,12 +200,8 @@ type UiSlice = Pick<
   | "selectFromInspector"
   | "setTranscriptFollowPlayhead"
   | "toggleTranscriptFollowPlayhead"
-  | "setTranscriptInlineCommitPending"
   | "setTranscriptInlineEditFailure"
-  | "setTranscriptReviewCursor"
   | "setChapterAddPending"
-  | "setTranscriptAnnotate"
-  | "toggleTranscriptAnnotate"
   | "setShowCutAwayUtterances"
   | "toggleShowCutAwayUtterances"
   | "setTimelineFocused"
@@ -272,7 +262,6 @@ export function uiAlwaysInitial() {
 export function uiProjectInitial() {
   return {
     transcriptTimingRequest: null,
-    transcriptReviewCursor: null as TranscriptReviewCursor | null,
     highlightStaleRender: false,
     renderPreviewBusy: false,
     chapterAddPending: false,
@@ -463,10 +452,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     } satisfies LayerVisibility,
     commentDraft: null as CommentDraft | null,
     transcriptFollowPlayhead: true,
-    transcriptInlineCommitPending: false,
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
-    transcriptAnnotate: false,
-    transcriptCorrecting: false,
     showCutAwayUtterances: false,
     timelineFocused: true,
     shellBreakpoint: "desktop" as ShellBreakpoint,
@@ -523,25 +509,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ transcriptTimingRequest }),
     setTranscriptInlineEditRequest: (transcriptInlineEditRequest) =>
       set({ transcriptInlineEditRequest }),
-    setTranscriptInlineCommitPending: (transcriptInlineCommitPending) =>
-      set({ transcriptInlineCommitPending }),
     setTranscriptInlineEditFailure: (transcriptInlineEditFailure) =>
       set({ transcriptInlineEditFailure }),
-    setTranscriptReviewCursor: (transcriptReviewCursor) =>
-      set({ transcriptReviewCursor }),
     setChapterAddPending: (chapterAddPending) => set({ chapterAddPending }),
-    setTranscriptCorrecting: (transcriptCorrecting) =>
-      set({ transcriptCorrecting }),
-    setTranscriptAnnotate: (transcriptAnnotate) => {
-      set({
-        transcriptAnnotate,
-        ...(transcriptAnnotate ? {} : { showCutAwayUtterances: false }),
-      });
-    },
-    toggleTranscriptAnnotate: () => {
-      const next = !get().transcriptAnnotate;
-      get().setTranscriptAnnotate(next);
-    },
     setShowCutAwayUtterances: (showCutAwayUtterances) =>
       set({ showCutAwayUtterances }),
     toggleShowCutAwayUtterances: () =>

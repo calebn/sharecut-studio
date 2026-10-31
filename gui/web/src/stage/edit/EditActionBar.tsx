@@ -58,7 +58,6 @@ function EditActionBarImpl({
       guestMode: s.guestMode,
       rangeBusy: s.rangeBusy,
       joinMutationInFlight: s.joinMutationInFlight,
-      transcriptCorrecting: s.transcriptCorrecting,
       sessionRegion: s.sessionRegion,
     })),
   );

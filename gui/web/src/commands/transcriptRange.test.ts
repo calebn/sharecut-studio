@@ -41,7 +41,6 @@ describe("transcript.extendRange", () => {
     useDawStore.setState({
       project: projectWithWords(6),
       selection: range(2, 3),
-      transcriptCorrecting: false,
       statusAnnouncement: "",
       feedbackToast: null,
     });
@@ -63,25 +62,6 @@ describe("transcript.extendRange", () => {
     expect(useDawStore.getState().selection).toEqual(range(2, 3));
   });
 
-  it("refuses to grow a tapped word while Correct is on, and grows it in Select", async () => {
-    useDawStore.setState({
-      selection: range(2, 2),
-      transcriptCorrecting: true,
-    });
-    expect(
-      await execute("transcript.extendRange", { edge: "end", by: 1 }),
-    ).toEqual({
-      status: "disabled",
-      reason: "Use Select mode to change the range (Correct is ASR-only)",
-    });
-    expect(useDawStore.getState().selection).toEqual(range(2, 2));
-    useDawStore.setState({ transcriptCorrecting: false });
-    expect(
-      await execute("transcript.extendRange", { edge: "end", by: 1 }),
-    ).toEqual({ status: "ok" });
-    expect(useDawStore.getState().selection).toEqual(range(2, 3));
-  });
-
   it("refuses with the reason at the end of the transcript", async () => {
     useDawStore.setState({ selection: range(4, 5) });
     expect(
@@ -99,6 +79,14 @@ describe("transcript.extendRange", () => {
       await execute("transcript.extendRange", { edge: "end", by: -1 }),
     ).toMatchObject({ status: "disabled" });
     expect(useDawStore.getState().selection).toEqual(range(3, 3));
+  });
+
+  it("grows a one-word selection", async () => {
+    useDawStore.setState({ selection: range(3, 3) });
+    expect(
+      await execute("transcript.extendRange", { edge: "end", by: 1 }),
+    ).toEqual({ status: "ok" });
+    expect(useDawStore.getState().selection).toEqual(range(3, 4));
   });
 
   it("needs a word range selected", async () => {

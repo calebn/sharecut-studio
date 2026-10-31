@@ -16,7 +16,6 @@ import type { DawState } from "../state/types";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ExactRangeTarget } from "../types/project";
 import { ApiError, errorMessage, readApiError } from "../utils/apiError";
-import { oneWordOf } from "../utils/rangeSelect";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { openCommentDraft } from "./comments";
 import { registerCommand } from "./execute";
@@ -58,19 +57,7 @@ export type RangeActionContext = Pick<
   | "rangeBusy"
   | "joinMutationInFlight"
   | "selection"
-  | "transcriptCorrecting"
 >;
-
-function correctingWordReason(
-  state: Pick<RangeActionContext, "selection" | "transcriptCorrecting">,
-  action: RangeAction,
-): string | null {
-  if (!state.transcriptCorrecting || oneWordOf(state.selection) === null)
-    return null;
-  return action === "cut"
-    ? "Use Select mode for media cut (Correct is ASR-only)"
-    : "Use Select mode for range actions (Correct is ASR-only)";
-}
 
 export const PLAY_FULL_MIX_LABEL = "Play full mix";
 
@@ -93,7 +80,7 @@ export function rangeActionDescriptors(
             ? "Selected audio changed. Select the range again."
             : null;
   return RANGE_ACTIONS.map((action) => {
-    let reason = correctingWordReason(state, action) ?? base;
+    let reason = base;
     if (!reason && (action === "cut" || action === "mute")) {
       if (mode === "none") reason = "This share cannot suggest edits";
       else if (!target?.clips.length) reason = "No audible media in this range";
@@ -149,8 +136,6 @@ export async function runRangeAction(
   override?: ExactRangeTarget,
 ): Promise<ExecuteResult> {
   const state = useDawStore.getState();
-  const correcting = override ? null : correctingWordReason(state, action);
-  if (correcting) return { status: "disabled", reason: correcting };
   const resolved = override
     ? { targets: [override], reason: null }
     : state.project

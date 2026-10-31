@@ -4,13 +4,7 @@ import { RangeFields } from "../timeline/RangeFields";
 import { oneWordOf, type TranscriptRangeSelection } from "../utils/rangeSelect";
 import { TranscriptWordInspector } from "./views/TranscriptWordInspector";
 
-function OneWordEditor({
-  selection,
-  presentation = "standard",
-}: {
-  selection: TranscriptRangeSelection;
-  presentation?: "standard" | "correct-sheet";
-}) {
+function OneWordEditor({ selection }: { selection: TranscriptRangeSelection }) {
   const { projectPath, hydrated } = useDaw((s) => ({
     projectPath: s.projectPath,
     hydrated: s.project?.meta.hydration?.transcript_words !== false,
@@ -23,7 +17,6 @@ function OneWordEditor({
       trackId={word.trackId}
       sourceId={word.sourceId}
       wordIndex={word.wordIndex}
-      presentation={presentation}
     />
   );
 }
@@ -35,27 +28,10 @@ export function TranscriptRangeBody({
   selection: TranscriptRangeSelection;
   placement: "rail" | "sheet";
 }) {
-  const correcting = useDaw((s) => s.transcriptCorrecting);
-  const correctionFirst =
-    placement === "sheet" && correcting && oneWordOf(selection) != null;
-  const editor = (
-    <OneWordEditor
-      key="word"
-      selection={selection}
-      presentation={correctionFirst ? "correct-sheet" : "standard"}
-    />
-  );
-  const range =
-    placement === "sheet" ? <RangeFields key="range" sheet /> : null;
-  return correctionFirst ? (
+  return (
     <>
-      {editor}
-      {range}
-    </>
-  ) : (
-    <>
-      {range}
-      {editor}
+      {placement === "sheet" ? <RangeFields sheet /> : null}
+      <OneWordEditor selection={selection} />
     </>
   );
 }

@@ -83,7 +83,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     noRepeat: true,
     when: "hostProjectLoaded",
-    notes: "F2: focused word in Navigate mode",
+    notes: "F2: Fix text on the selected word",
   },
   {
     id: "transport.togglePlay",

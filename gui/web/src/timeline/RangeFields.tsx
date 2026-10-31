@@ -5,7 +5,6 @@ import { inspectorOpenFor, selectedTrackIdsOf } from "../state/selection";
 import { useDaw } from "../state/useDaw";
 import { WordRangeControls } from "../transcript/WordRangeControls";
 import { Button } from "../ui";
-import { oneWordOf } from "../utils/rangeSelect";
 
 export function RangeFields({
   sheet = false,
@@ -21,7 +20,6 @@ export function RangeFields({
     selection: s.selection,
     rangeArmed: s.rangeArmed,
     rangeBusy: s.rangeBusy,
-    transcriptCorrecting: s.transcriptCorrecting,
     sessionRegion: s.sessionRegion,
     selectedTrackIds: s.rangeScopeTrackIds ?? selectedTrackIdsOf(s.selection),
     setSelection: s.setSelection,
@@ -76,9 +74,7 @@ export function RangeFields({
     state.setRangeArmed(false);
   }
   const chooser = resolution.targets.length > 1;
-  const wordHandles =
-    selection?.kind === "transcriptRange" &&
-    !(state.transcriptCorrecting && oneWordOf(selection));
+  const wordHandles = selection?.kind === "transcriptRange";
   const numeric =
     showNumeric &&
     (rangeArmed || (always && target) || (sessionRegion && !target));
