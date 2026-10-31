@@ -1,3 +1,4 @@
+import type { CommandContext } from "./context";
 /** Frontend UX command ids — not SyncCommand / DocumentCommand wire types. */
 
 export type CommandCategory =
@@ -52,7 +53,7 @@ export type ExecuteResult =
 
 export type CommandHandler = (
   args: Record<string, unknown>,
-  ctx: import("./context").CommandContext,
+  ctx: CommandContext,
 ) => ExecuteResult | Promise<ExecuteResult>;
 
 export type CommandDef = {
