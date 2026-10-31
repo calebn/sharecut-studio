@@ -24,7 +24,7 @@ WORKER_OVERHEAD_BYTES = 800_000_000
 AVAILABLE_RAM_FRACTION = 0.7
 
 
-def worker_ram_bytes(model_size: str) -> int:
+def _worker_ram_bytes(model_size: str) -> int:
     size = WHISPER_SIZE_BYTES.get(model_size)
     return DEFAULT_WORKER_RAM_BYTES if size is None else WORKER_OVERHEAD_BYTES + size
 
@@ -35,7 +35,7 @@ def transcribe_worker_count(model_size: str, job_count: int) -> int:
         return 1
     free = available_ram_bytes()
     by_memory = (
-        1 if free is None else int(free * AVAILABLE_RAM_FRACTION) // worker_ram_bytes(model_size)
+        1 if free is None else int(free * AVAILABLE_RAM_FRACTION) // _worker_ram_bytes(model_size)
     )
     return max(1, min(job_count, cpu_budget() // WORKER_CPU_THREADS, by_memory))
 
