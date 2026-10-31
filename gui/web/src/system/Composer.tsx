@@ -139,6 +139,7 @@ export function Composer(props: ComposerProps) {
     if (!chord && (event.shiftKey || isCoarsePointer())) return;
     event.preventDefault();
     event.stopPropagation();
+    if (event.repeat) return;
     if (block === undefined) onSubmit();
   };
 
@@ -151,6 +152,7 @@ export function Composer(props: ComposerProps) {
       return;
     event.preventDefault();
     event.stopPropagation();
+    if (event.repeat) return;
     if (event.metaKey || event.ctrlKey) {
       if (block === undefined) onSubmit();
     } else {

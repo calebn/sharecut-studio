@@ -76,6 +76,35 @@ export const GuestFirstPost: Story = {
   },
 };
 
+export const HeldEnterAfterName: Story = {
+  args: {
+    name: { value: "Rosa", onChange: fn() },
+    start: "Cough here",
+  },
+  play: playInCanvas(async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = canvas.getByRole("textbox", { name: "Comment" });
+    await userEvent.click(canvas.getByRole("textbox", { name: "Your name" }));
+    await userEvent.keyboard("{Enter}");
+    await expect(body).toHaveFocus();
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+    body.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        bubbles: true,
+        cancelable: true,
+        repeat: true,
+      }),
+    );
+    await expect(body).toHaveFocus();
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Control>}{Enter}{/Control}");
+    await expect(args.onSubmit).toHaveBeenCalledTimes(1);
+    await expect(body).toHaveValue("");
+  }),
+};
+
 export const Compact: Story = {
   args: { compact: true, anchor: { kind: "pinned", start: 724 } },
 };
