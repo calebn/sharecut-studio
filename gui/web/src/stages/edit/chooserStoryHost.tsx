@@ -8,11 +8,8 @@ import {
 import { LONG_PRESS_MS, TOUCH_SLOP_PX } from "../../hooks/gestureConstants";
 import { Measured } from "../../system/laneStoryHost";
 import { Button } from "../../ui";
-import {
-  type ChooserTarget,
-  TARGET_ID_ATTR,
-  TargetChooser,
-} from "./TargetChooser";
+import { TARGET_ID_ATTR } from "./chooserKinds";
+import { type ChooserTarget, TargetChooser } from "./TargetChooser";
 
 export const CHOOSER_BOX_HEIGHT = 320;
 

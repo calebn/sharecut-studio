@@ -1,20 +1,16 @@
 import { type CSSProperties, type FocusEvent, memo, useRef } from "react";
 import { presenceColorVar } from "../../presence/colors";
-import type { SystemIconName } from "../../system/icons";
 import { SystemIcon } from "../../system/SystemIcon";
 import { useMenuKeyboard } from "../../ui/useMenuKeyboard";
 import { useStableCallback } from "../../utils/useStableCallback";
+import {
+  type ChooserKind,
+  KIND_ICONS,
+  KIND_NAMES,
+  TARGET_ID_ATTR,
+} from "./chooserKinds";
 import { CHOOSER_MAX_CHIPS, layoutChips } from "./chooserMath";
 import type { Bounds, Point } from "./createMenuLayout";
-
-/** The kinds of object a press can land on: Edit's own vocabulary, mapped by the host from its hits. */
-export type ChooserKind =
-  | "clip"
-  | "seam"
-  | "comment"
-  | "suggestion"
-  | "envelope-point"
-  | "word";
 
 export type ChooserTarget = {
   /** Stable across pages; `over` and `onPick` speak in ids, never indices. */
@@ -37,27 +33,6 @@ export type TargetChooserProps = {
   over?: string | null;
   onPick: (id: string) => void;
   onCancel: () => void;
-};
-
-/** The attribute the host reads to find the chip under a sliding finger. */
-export const TARGET_ID_ATTR = "data-target-id";
-
-export const KIND_ICONS: Record<ChooserKind, SystemIconName> = {
-  clip: "audio-waveform",
-  seam: "blend",
-  comment: "message-square",
-  suggestion: "wand-sparkles",
-  "envelope-point": "spline",
-  word: "text-cursor-input",
-};
-
-export const KIND_NAMES: Record<ChooserKind, string> = {
-  clip: "Clip",
-  seam: "Seam",
-  comment: "Comment",
-  suggestion: "Suggestion",
-  "envelope-point": "Envelope point",
-  word: "Word",
 };
 
 type FanProps = Omit<TargetChooserProps, "over"> & { over: string | null };
