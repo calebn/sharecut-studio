@@ -188,6 +188,20 @@ describe("useTouchPress", () => {
     ]);
   });
 
+  it("keeps the click window open across the router's replayed pointerdown", () => {
+    const { getByTestId } = render(<Lanes deferred />);
+    const target = getByTestId("target");
+    fireEvent.pointerDown(target, touch);
+    fireEvent.pointerUp(target, touch);
+    router.defers = () => false;
+    fireEvent.pointerDown(target, { ...touch, detail: 7 });
+    fireEvent.click(target, { detail: 1 });
+
+    expect(owner.mock.calls.map(([e]) => (e as Event).type)).toEqual([
+      "pointerdown",
+    ]);
+  });
+
   it("does not suppress a click after a cancelled touch", () => {
     const { getByTestId } = render(<Lanes deferred />);
     const target = getByTestId("target");
