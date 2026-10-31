@@ -427,6 +427,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "derives follow-mode UI state from the presence roster",
   },
   {
+    file: "stage/edit/script/useScriptCarets.ts",
+    reason:
+      "draws other people's carets in the Script from the presence roster; the pane memoizes on the carets it gets",
+  },
+  {
     file: "hooks/useFollowViewport.ts",
     reason: "derives follow-mode viewport targets from the presence roster",
   },
