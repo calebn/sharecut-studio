@@ -14,6 +14,7 @@ vi.mock("../api", () => ({
 function renderOverlay() {
   return render(
     <EnvelopeOverlay
+      clips={[]}
       envelopes={useDawStore.getState().project?.envelopes ?? []}
       trackId="host"
       zoomPxPerSec={10}
@@ -49,6 +50,7 @@ describe("EnvelopeOverlay", () => {
     const onSelectTrack = vi.fn();
     const { container } = render(
       <EnvelopeOverlay
+        clips={[]}
         envelopes={useDawStore.getState().project?.envelopes ?? []}
         trackId="host"
         zoomPxPerSec={10}
@@ -120,6 +122,7 @@ describe("EnvelopeOverlay", () => {
 
     rerender(
       <EnvelopeOverlay
+        clips={[]}
         envelopes={[
           {
             track_id: "host",
@@ -183,6 +186,7 @@ describe("EnvelopeOverlay", () => {
     const onSelectTrack = vi.fn();
     const { container } = render(
       <EnvelopeOverlay
+        clips={[]}
         envelopes={useDawStore.getState().project?.envelopes ?? []}
         trackId="host"
         zoomPxPerSec={10}
@@ -233,6 +237,7 @@ describe("EnvelopeOverlay", () => {
     const { container } = render(
       <TimelineGestureProvider value={hold}>
         <EnvelopeOverlay
+          clips={[]}
           envelopes={useDawStore.getState().project?.envelopes ?? []}
           trackId="host"
           zoomPxPerSec={10}
@@ -281,6 +286,7 @@ describe("EnvelopeOverlay", () => {
     });
     const { container } = render(
       <EnvelopeOverlay
+        clips={[]}
         envelopes={useDawStore.getState().project?.envelopes ?? []}
         trackId="host"
         zoomPxPerSec={zoom}
@@ -308,6 +314,7 @@ describe("EnvelopeOverlay", () => {
     useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 1000 });
     const { container } = render(
       <EnvelopeOverlay
+        clips={[]}
         envelopes={useDawStore.getState().project?.envelopes ?? []}
         trackId="host"
         zoomPxPerSec={10}
@@ -357,6 +364,7 @@ describe("EnvelopeOverlay", () => {
     };
     const { container, rerender } = render(
       <EnvelopeOverlay
+        clips={[]}
         envelopes={useDawStore.getState().project?.envelopes ?? []}
         {...props}
       />,
@@ -366,6 +374,7 @@ describe("EnvelopeOverlay", () => {
     // A collaborator moves "early" after "late": it is now index 1.
     rerender(
       <EnvelopeOverlay
+        clips={[]}
         envelopes={[
           {
             track_id: "host",

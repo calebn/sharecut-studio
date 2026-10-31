@@ -1,11 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { setEnvelope } from "../api";
 import { canEditEnvelopes } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import type { AutomationEnvelope, Selection } from "../types/project";
+import type { AutomationEnvelope, ClipRow, Selection } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { findVolumeEnvelope, sortedVolumePoints } from "../utils/envelopes";
+import { clipGainDips } from "./clipGainOverlay";
 import { EnvelopeOverlayView } from "./EnvelopeOverlayView";
 import { useTimelineGestureHold, useTimelineMetrics } from "./timelineMetrics";
 import { useVisibleChunks } from "./useVisibleChunks";
@@ -22,6 +23,7 @@ function selectionKey(selection: Selection): string {
 
 interface EnvelopeOverlayProps {
   envelopes: readonly AutomationEnvelope[];
+  clips: readonly ClipRow[];
   trackId: string;
   zoomPxPerSec: number;
   width: number;
@@ -30,6 +32,7 @@ interface EnvelopeOverlayProps {
 
 export function EnvelopeOverlay({
   envelopes,
+  clips,
   trackId,
   zoomPxPerSec,
   width,
@@ -78,6 +81,10 @@ export function EnvelopeOverlay({
   const holdGeometry = useTimelineGestureHold() ?? undefined;
 
   const points = sortedVolumePoints(envelopes, trackId);
+  const dips = useMemo(
+    () => clipGainDips(clips, sortedVolumePoints(envelopes, trackId)),
+    [clips, envelopes, trackId],
+  );
   const editable = canEditEnvelopes(projectPath, guestMode, shareCapabilities);
   const selectedPointId =
     selection?.kind === "envelopePoint" && selection.trackId === trackId
@@ -88,6 +95,7 @@ export function EnvelopeOverlay({
     <EnvelopeOverlayView
       key={`${projectEpoch}:${trackId}`}
       points={points}
+      clipDips={dips}
       timelineEnd={timelineEnd}
       baselinePoints={findVolumeEnvelope(envelopes, trackId)?.points ?? []}
       zoomPxPerSec={zoomPxPerSec}

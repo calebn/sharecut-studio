@@ -507,6 +507,7 @@ export function TrackLaneView({
         {showLevels && (
           <EnvelopeOverlay
             envelopes={envelopes}
+            clips={clips}
             trackId={track.id}
             zoomPxPerSec={zoomPxPerSec}
             width={width}

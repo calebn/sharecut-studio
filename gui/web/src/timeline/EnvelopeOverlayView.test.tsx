@@ -851,3 +851,26 @@ it("releases ownership when the held point disappears while the view remains mou
   unmount();
   expect(release).toHaveBeenCalledTimes(1);
 });
+
+it("draws clip fades read-only, labelled, and leaves the envelope line alone", () => {
+  const { container } = renderView({
+    clipDips: [
+      {
+        clipId: "c1",
+        points: [
+          { time: 1, gain: 0 },
+          { time: 2, gain: 1 },
+        ],
+      },
+    ],
+  });
+
+  const dip = screen.getByTestId("clip-gain-dip");
+  expect(dip).toHaveAttribute("pointer-events", "none");
+  expect(dip).toHaveTextContent("clip fade");
+  expect(dip.querySelector("polyline")).toHaveAttribute(
+    "points",
+    expect.stringContaining("10,"),
+  );
+  expect(container.querySelectorAll("circle")).toHaveLength(points.length);
+});
