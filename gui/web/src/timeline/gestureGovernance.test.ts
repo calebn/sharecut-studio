@@ -287,7 +287,7 @@ const SRC_ARROW_ALLOWLIST: Record<string, string> = {
   "system/MarkerLane.tsx":
     "a focused selected chapter or bracket, and a bracket's edge, report a nudge with the arrows, 0.1 s and 1 s with Shift, like a slider, and Alt with the arrows walks focus along a bracket's edges; the host applies the nudge",
   "system/Envelope.tsx":
-    "a focused envelope point nudges its time (10 ms, 100 ms with Shift) and level (0.5 dB, 5 with Shift) with the arrows, like a slider, and Alt with Left or Right walks focus along the points; a guest's arrows are kept from the keymap and do nothing; the host applies the nudge",
+    "a focused envelope point nudges its time (10 ms, 100 ms with Shift) and level (0.5 dB, 5 with Shift) with the arrows, like a slider, and Alt with Left or Right walks focus along the points; a guest's plain arrows are not the envelope's and reach the keymap, while Alt with an arrow is still kept from it; the host applies the nudge",
   "system/useGrab.ts":
     "the list of keys a part ignores while its drag is moving, so a nudge cannot land mid-drag; it moves nothing itself",
   "system/InspectorSheet.tsx":

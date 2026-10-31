@@ -278,7 +278,17 @@ const levels: readonly EnvelopePointData[] = [0, 1, 2, 3].map((n) => ({
   db: -n * 3,
 }));
 
-function Levels() {
+const hitPoint = (
+  _id: string,
+  _time: number,
+  _db: number,
+  _selected: boolean,
+) => ({
+  "data-hit-kind": "envelope-point",
+});
+const hitLine = { "data-hit-own-tap": "true" } as const;
+
+function Levels({ fresh = false }: { fresh?: boolean }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [points, setPoints] = useState(levels);
   const [, setTick] = useState(0);
@@ -291,6 +301,11 @@ function Levels() {
         Copy
       </button>
       <Envelope
+        hitProps={
+          fresh
+            ? { point: (...args) => hitPoint(...args), line: hitLine }
+            : { point: hitPoint, line: hitLine }
+        }
         points={points}
         trackName="Take"
         colorIndex={0}
@@ -322,5 +337,15 @@ describe("Envelope in a lane", () => {
     render(<Levels />);
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     expect(renders.points).toBe(4);
+  });
+
+  it("draws no point for a new hitProps object that keeps the same functions, and every point for a new function", () => {
+    renders.points = 0;
+    const view = render(<Levels />);
+    expect(renders.points).toBe(4);
+    fireEvent.click(screen.getByRole("button", { name: "Unrelated" }));
+    expect(renders.points).toBe(4);
+    view.rerender(<Levels fresh />);
+    expect(renders.points).toBe(8);
   });
 });

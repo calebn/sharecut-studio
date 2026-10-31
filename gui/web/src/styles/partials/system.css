@@ -6118,13 +6118,13 @@ input.sys-edit-fix {
   pointer-events: none;
 }
 
-/* Only the band along the line and the points take a pointer, so a clip under the rest of the overlay still takes its taps and its pan. */
+/* Only the band along the line and the points take a pointer, so a clip under the rest of the overlay still takes its taps and its pan. A finger that starts on the strip pans the lane (a tap still adds a point); the points are siblings and keep touch-action none. */
 .sys-env-svg {
   position: absolute;
   inset: 0;
   overflow: visible;
   pointer-events: none;
-  touch-action: none;
+  touch-action: pan-x pan-y;
 }
 
 .sys-env-line {

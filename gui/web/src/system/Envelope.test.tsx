@@ -257,15 +257,23 @@ describe("Envelope dragging", () => {
     fireEvent.pointerMove(point(2), mouse(120, 30));
     expect(onDragStart).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith("b");
-    expect(onMove).toHaveBeenLastCalledWith("b", {
-      timeSeconds: 5,
-      db: -15.9,
-    });
+    // dx 24 outweighs dy 10: the drag locks to time and never touches the level.
+    expect(onMove).toHaveBeenLastCalledWith("b", { timeSeconds: 5 });
     expect(container.querySelector(".sys-readout")).toHaveTextContent(
-      "−15.9 dB · 0:05.0",
+      "−6.0 dB · 0:05.0",
     );
     expect(point(2)).toHaveAttribute("data-dragging", "true");
-    expect(point(2)).toHaveAttribute("aria-valuetext", "−15.9 dB at 0:05.00");
+    expect(point(2)).toHaveAttribute("aria-valuetext", "−6.0 dB at 0:05.00");
+  });
+
+  it("reports the level of a drag that went mostly down", () => {
+    const { onMove, container } = setup();
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    fireEvent.pointerMove(point(2), mouse(100, 36));
+    expect(onMove).toHaveBeenLastCalledWith("b", { db: -21.9 });
+    expect(container.querySelector(".sys-readout")).toHaveTextContent(
+      "−21.9 dB · 0:04.0",
+    );
   });
 
   it("commits on release and announces it once", () => {
@@ -283,10 +291,7 @@ describe("Envelope dragging", () => {
     const { onMove, container } = setup();
     fireEvent.pointerDown(point(2), mouse(96, 20));
     fireEvent.pointerMove(point(2), mouse(5000, 20));
-    expect(onMove).toHaveBeenLastCalledWith("b", {
-      timeSeconds: 7.199,
-      db: -6,
-    });
+    expect(onMove).toHaveBeenLastCalledWith("b", { timeSeconds: 7.199 });
     expect(container.querySelector(".sys-readout-limit")).not.toBeNull();
   });
 
@@ -294,9 +299,98 @@ describe("Envelope dragging", () => {
     const { onMove } = setup();
     fireEvent.pointerDown(point(2), mouse(96, 20));
     fireEvent.pointerMove(point(2), mouse(96, 5000));
-    expect(onMove).toHaveBeenLastCalledWith("b", { timeSeconds: 4, db: -60 });
+    expect(onMove).toHaveBeenLastCalledWith("b", { db: -60 });
     fireEvent.pointerMove(point(2), mouse(96, -5000));
-    expect(onMove).toHaveBeenLastCalledWith("b", { timeSeconds: 4, db: 3.5 });
+    expect(onMove).toHaveBeenLastCalledWith("b", { db: 3.5 });
+  });
+
+  it("never sends the level for a time drag, however the pointer wobbles, and the reverse", () => {
+    const { onMove } = setup();
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    fireEvent.pointerMove(point(2), mouse(120, 20));
+    fireEvent.pointerMove(point(2), mouse(130, 23));
+    fireEvent.pointerMove(point(2), mouse(140, 15));
+    fireEvent.pointerUp(point(2), mouse(140, 15));
+    for (const [, change] of onMove.mock.calls) {
+      expect(Object.keys(change)).toEqual(["timeSeconds"]);
+    }
+    onMove.mockClear();
+    fireEvent.pointerDown(point(2), mouse(96, 20, 2));
+    fireEvent.pointerMove(point(2), mouse(96, 36, 2));
+    fireEvent.pointerMove(point(2), mouse(103, 40, 2));
+    for (const [, change] of onMove.mock.calls) {
+      expect(Object.keys(change)).toEqual(["db"]);
+    }
+    expect(onMove).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the locked axis exact: back at the start it sends the start value, unrounded", () => {
+    const { onMove } = setup({
+      points: [
+        { id: "a", time: 12.34567, db: -1.938 },
+        { id: "b", time: 20, db: -3.0123 },
+      ],
+      duration: 60,
+    });
+    fireEvent.pointerDown(point(1), mouse(300, 20));
+    fireEvent.pointerMove(point(1), mouse(330, 20));
+    expect(onMove).toHaveBeenLastCalledWith("a", { timeSeconds: 13.596 });
+    fireEvent.pointerMove(point(1), mouse(300, 20));
+    expect(onMove).toHaveBeenLastCalledWith("a", { timeSeconds: 12.34567 });
+    fireEvent.pointerUp(point(1), mouse(300, 20));
+    fireEvent.pointerDown(point(1), mouse(300, 20, 2));
+    fireEvent.pointerMove(point(1), mouse(300, 50, 2));
+    fireEvent.pointerMove(point(1), mouse(300, 20, 2));
+    expect(onMove).toHaveBeenLastCalledWith("a", { db: -1.938 });
+  });
+
+  it("lets a merging host return to the start: out and back leaves the point where it began", () => {
+    const { onMove } = setup();
+    let held = { time: 4, db: -6 };
+    onMove.mockImplementation((_id, change) => {
+      held = {
+        time: change.timeSeconds ?? held.time,
+        db: change.db ?? held.db,
+      };
+    });
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    fireEvent.pointerMove(point(2), mouse(96, 50));
+    expect(held.db).not.toBe(-6);
+    fireEvent.pointerMove(point(2), mouse(96, 20));
+    expect(held).toEqual({ time: 4, db: -6 });
+  });
+
+  it("waits for a finger to be 3 px past the slop before it picks an axis, then holds it", () => {
+    const { onMove } = setup();
+    const finger = (x: number, y: number) => ({
+      ...mouse(x, y, 5),
+      pointerType: "touch",
+    });
+    fireEvent.pointerDown(point(2), finger(96, 20));
+    fireEvent.pointerMove(point(2), finger(96, 24));
+    expect(onMove).not.toHaveBeenCalled();
+    fireEvent.pointerMove(point(2), finger(96, 25));
+    expect(onMove).not.toHaveBeenCalled();
+    fireEvent.pointerMove(point(2), finger(96, 28));
+    expect(onMove).toHaveBeenLastCalledWith("b", { db: expect.any(Number) });
+    fireEvent.pointerMove(point(2), finger(140, 28));
+    expect(onMove).toHaveBeenLastCalledWith("b", { db: expect.any(Number) });
+  });
+
+  it("says limit only for the axis it moves", () => {
+    const { container } = setup({
+      points: [
+        { id: "a", time: 1, db: -60 },
+        { id: "b", time: 4, db: 3.52 },
+      ],
+    });
+    fireEvent.pointerDown(point(1), mouse(24, 20));
+    fireEvent.pointerMove(point(1), mouse(40, 20));
+    expect(container.querySelector(".sys-readout-limit")).toBeNull();
+    fireEvent.pointerUp(point(1), mouse(40, 20));
+    fireEvent.pointerDown(point(2), mouse(96, 20, 2));
+    fireEvent.pointerMove(point(2), mouse(96, 0, 2));
+    expect(container.querySelector(".sys-readout-limit")).not.toBeNull();
   });
 
   it("ends uncommitted on Escape without the keymap seeing it, and on a blur", () => {
@@ -542,15 +636,155 @@ describe("Envelope keys", () => {
     ]);
   });
 
-  it("keeps the arrows from the keymap for a guest, and moves nothing", () => {
+  it("lets a guest's plain arrows through to the keymap, and moves nothing", () => {
     const { onMove } = setup({ readOnly: true });
     const seen: string[] = [];
     const listen = (event: KeyboardEvent) => seen.push(event.key);
-    window.addEventListener("keydown", listen);
+    document.addEventListener("keydown", listen);
     fireEvent.keyDown(point(2), { key: "ArrowRight" });
-    fireEvent.keyDown(point(2), { key: "ArrowUp" });
-    window.removeEventListener("keydown", listen);
-    expect(seen).toEqual([]);
+    fireEvent.keyDown(point(2), { key: "ArrowUp", shiftKey: true });
+    document.removeEventListener("keydown", listen);
+    expect(seen).toEqual(["ArrowRight", "ArrowUp"]);
     expect(onMove).not.toHaveBeenCalled();
+  });
+
+  it("still keeps a guest's Alt walk, Backspace, Delete, Enter and Space from the keymap", () => {
+    setup({ readOnly: true, selected: "b" });
+    const seen: string[] = [];
+    const listen = (event: KeyboardEvent) => seen.push(event.key);
+    document.addEventListener("keydown", listen);
+    fireEvent.keyDown(point(2), { key: "ArrowRight", altKey: true });
+    for (const key of ["Backspace", "Delete", "Enter", " "]) {
+      fireEvent.keyDown(point(2), { key });
+    }
+    document.removeEventListener("keydown", listen);
+    expect(seen).toEqual([]);
+    expect(point(3)).toHaveFocus();
+  });
+
+  it("nudges 0.05 dB from an off-grid level without rounding to the 0.1 grid", () => {
+    const { onMove } = setup({ points: [{ id: "a", time: 1, db: -1.938 }] });
+    fireEvent.keyDown(point(1), { key: "ArrowUp", altKey: true });
+    fireEvent.keyDown(point(1), { key: "ArrowDown", altKey: true });
+    expect(onMove.mock.calls).toEqual([
+      ["a", { db: -1.89 }],
+      ["a", { db: -1.99 }],
+    ]);
+  });
+
+  it("starts a level nudge from the floor for a silent point", () => {
+    const { onMove } = setup({ points: [{ id: "a", time: 1, db: -60 }] });
+    fireEvent.keyDown(point(1), { key: "ArrowUp" });
+    expect(onMove).toHaveBeenLastCalledWith("a", { db: -59.5 });
+  });
+
+  it("holds no nudge state: ten presses without the host feeding points back repeat the first step", () => {
+    const { onMove } = setup({ points: [{ id: "a", time: 1, db: -6 }] });
+    for (let press = 1; press <= 10; press += 1) {
+      fireEvent.keyDown(point(1), { key: "ArrowRight", shiftKey: true });
+    }
+    expect(onMove.mock.calls.map(([, change]) => change.timeSeconds)).toEqual(
+      Array(10).fill(1.1),
+    );
+  });
+
+  it("adds up when the host folds each nudge into the points: ten Right is 100 ms, ten Up is 5 dB, one end", () => {
+    const { onMove, onNudgeEnd, again } = setup({
+      points: [{ id: "a", time: 1, db: -6 }],
+    });
+    let now = { id: "a", time: 1, db: -6 };
+    const press = (key: string) => {
+      fireEvent.keyDown(point(1), { key });
+      const change = onMove.mock.calls[onMove.mock.calls.length - 1]?.[1] ?? {};
+      now = {
+        ...now,
+        time: change.timeSeconds ?? now.time,
+        db: change.db ?? now.db,
+      };
+      again({ points: [now] });
+    };
+    for (let n = 0; n < 10; n += 1) press("ArrowRight");
+    expect(now.time).toBe(1.1);
+    for (let n = 0; n < 10; n += 1) press("ArrowUp");
+    expect(now.db).toBe(-1);
+    expect(onNudgeEnd).not.toHaveBeenCalled();
+    fireEvent.keyUp(point(1), { key: "ArrowUp" });
+    expect(onNudgeEnd).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Envelope hitProps", () => {
+  const hit = {
+    point: (id: string, time: number, db: number, selected: boolean) => ({
+      "data-hit-kind": "envelope-point",
+      "data-hit-id": id,
+      "data-hit-detail": `${time}:${db}`,
+      "data-hit-selected": String(selected),
+    }),
+    line: { "data-hit-surface": "envelope", "data-hit-own-tap": "true" },
+  } as const;
+
+  it("puts the host's attributes on each point, following the selected state, and on the band", () => {
+    const { container } = setup({ hitProps: hit, selected: "b" });
+    expect(point(2)).toHaveAttribute("data-hit-kind", "envelope-point");
+    expect(point(2)).toHaveAttribute("data-hit-id", "b");
+    expect(point(2)).toHaveAttribute("data-hit-detail", "4:-6");
+    expect(point(2)).toHaveAttribute("data-hit-selected", "true");
+    expect(point(3)).toHaveAttribute("data-hit-selected", "false");
+    expect(band(container)).toHaveAttribute("data-hit-surface", "envelope");
+    expect(band(container)).toHaveAttribute("data-hit-own-tap", "true");
+    expect(container.querySelector(".sys-env-line")).not.toHaveAttribute(
+      "data-hit-surface",
+    );
+  });
+
+  it("spreads only data-hit-* strings: a handler, role, style or class never reaches the DOM", () => {
+    const dirty = {
+      "data-hit-ok": "yes",
+      "data-hit-number": 5,
+      "data-other": "no",
+      role: "button",
+      class: "x",
+      className: "x",
+      style: "color: red",
+      onClick: () => undefined,
+    } as unknown as Record<`data-hit-${string}`, string>;
+    const { container } = setup({
+      hitProps: { point: () => dirty, line: dirty },
+    });
+    for (const el of [point(1), band(container)]) {
+      expect(el).toHaveAttribute("data-hit-ok", "yes");
+      expect(el).not.toHaveAttribute("data-hit-number");
+      expect(el).not.toHaveAttribute("data-other");
+      expect(el).not.toHaveAttribute("style", "color: red");
+      expect(el).not.toHaveAttribute("class", "x");
+    }
+    expect(point(1)).toHaveAttribute("role", "slider");
+    expect(band(container)).not.toHaveAttribute("role");
+    expect(band(container).getAttribute("class")).toBe("sys-env-band");
+  });
+
+  it("renders the same DOM without hitProps, with it undefined, empty, or returning nothing", () => {
+    const fixtures: Partial<EnvelopeProps>[] = [
+      { points: [], visible: true },
+      { selected: "b" },
+      { readOnly: true, selected: "c" },
+      { touch: true, height: 104 },
+      { points: [{ id: "a", time: 2, db: 0 }], start: 10 },
+    ];
+    for (const fixture of fixtures) {
+      const html = (extra: Partial<EnvelopeProps>) => {
+        const { container, unmount } = setup({ ...fixture, ...extra });
+        const out = container.innerHTML;
+        unmount();
+        return out;
+      };
+      const plain = html({});
+      expect(html({ hitProps: undefined })).toBe(plain);
+      expect(html({ hitProps: {} })).toBe(plain);
+      expect(html({ hitProps: { point: () => undefined, line: {} } })).toBe(
+        plain,
+      );
+    }
   });
 });
