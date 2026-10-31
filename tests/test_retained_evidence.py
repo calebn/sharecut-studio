@@ -391,6 +391,26 @@ def test_a_hit_and_a_store_postpone_the_release_and_a_build_in_flight_defers_it(
     assert len(RETAINED) == 0
 
 
+@posix_only
+def test_the_idle_timer_is_armed_with_the_configured_idle_seconds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Clock(monkeypatch)
+    monkeypatch.setenv(track_evidence.IDLE_ENV, "123")
+    assert track_evidence.DEFAULT_IDLE_S != 123
+    tree = _tree(_tone(tmp_path / "a.wav"))
+
+    Calls().get(tree)
+
+    timer = RETAINED._timer
+    try:
+        assert timer is not None and len(RETAINED) == 1
+        assert timer.interval == 123
+    finally:
+        if timer is not None:
+            timer.cancel()
+
+
 @pytest.mark.parametrize("value", ["0", "-5"])
 def test_an_idle_of_zero_or_less_never_arms_a_timer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
@@ -689,6 +709,29 @@ def test_the_racy_rule_is_read_at_the_clock_before_the_build_not_after_it(
     built = Calls().get(tree, before=lambda: building.append(True))
 
     assert isinstance(built, dict) and len(RETAINED) == 0
+
+
+@posix_only
+@pytest.mark.parametrize(
+    ("age_ns", "kept"),
+    [
+        (int(track_evidence.RACY_SECONDS * 1e9), 1),
+        (int(track_evidence.RACY_SECONDS * 1e9) - 1, 0),
+    ],
+    ids=["exactly-racy-seconds-old-is-kept", "a-nanosecond-younger-is-not"],
+)
+def test_the_racy_boundary_keeps_a_source_exactly_racy_seconds_old(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, age_ns: int, kept: int
+) -> None:
+    path = _tone(tmp_path / "a.wav")
+    tree = _tree(path)
+    stat = path.stat()
+    modified = max(stat.st_mtime_ns, stat.st_ctime_ns)
+    monkeypatch.setattr(track_evidence, "_now_ns", lambda: modified + age_ns)
+
+    Calls().get(tree)
+
+    assert len(RETAINED) == kept
 
 
 @posix_only
