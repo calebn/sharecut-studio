@@ -193,6 +193,17 @@ def test_every_requested_id_unknown_is_an_error_and_changes_nothing(episode):
     assert _pending_ids(episode) == ["a"]
 
 
+def test_retrying_an_already_approved_id_is_not_unknown(episode):
+    _set_decisions(episode, _remove("a", 2.0, 2.5, scope="track"))
+    approve_edits_tool(str(episode), ["a"])
+
+    reply = json.loads(approve_edits_tool(str(episode), ["a"]))
+
+    assert reply["ids"] == []
+    assert reply["unknown_ids"] == []
+    assert reply["approved_count"] == 0
+
+
 def test_reply_without_unknown_requested_ids_lists_none(episode):
     _set_decisions(episode, _remove("a", 2.0, 2.5, scope="track"))
 
@@ -232,10 +243,17 @@ def test_unchanged_confirmation_is_replied_verbatim(episode, monkeypatch):
     monkeypatch.setattr(cut_application, "approve_edits", leaning)
     monkeypatch.setattr(edit_service, "approve_edits", leaning)
 
-    reply = json.loads(approve_edits_tool(str(episode), ["a"]))
+    reply = json.loads(approve_edits_tool(str(episode), ["a", "nope"]))
 
-    assert set(reply) == {"operation", "unchanged", "needs_confirmation", "apply_anyway"}
+    assert set(reply) == {
+        "operation",
+        "unchanged",
+        "needs_confirmation",
+        "apply_anyway",
+        "unknown_ids",
+    }
     assert reply["unchanged"] is True
+    assert reply["unknown_ids"] == ["nope"]
     assert reply["needs_confirmation"]["message"] == GUEST_WORDS + CUT_REVIEW
     assert _geometry(episode) == before
     assert _pending_ids(episode) == ["a"]

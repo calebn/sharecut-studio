@@ -367,7 +367,7 @@ def approve_edits_tool(
     ``all_pending=true`` approves every pending proposal; ``ids`` approves those. Either way
     the edits that pass the automatic audio-quality and cut-position checks apply. ``ids`` lists
     the edits this call approved, and ``held`` lists the ones stopped (each with its finding) and
-    left pending. ``unknown_ids`` lists requested ids that match no edit (the rest still
+    left pending. ``unknown_ids`` lists requested ids that match no pending or approved edit (the rest still
     apply); the call fails with ``approve_unknown_ids`` when none of the ids match. When the
     user says to approve a held cut anyway, repeat with
     ``override_audio_checks=true``: it skips those checks for this call and records the
@@ -402,6 +402,11 @@ def approve_edits_tool(
         },
         client_id="mcp:host",
     )
+    unknown_ids = outcome["unknown_ids"]
+    if edit_ids and len(unknown_ids) == len(set(edit_ids)):
+        raise CodedValueError(
+            f"no edit matches {', '.join(unknown_ids)}", code="approve_unknown_ids"
+        )
     if outcome.get("unchanged"):
         return to_json(outcome)
     result: dict[str, Any] = {
@@ -409,7 +414,7 @@ def approve_edits_tool(
         "approved_count": outcome["count"],
         "ids": outcome["approved_ids"],
         "held": outcome.get("held", []),
-        "unknown_ids": outcome["unknown_ids"],
+        "unknown_ids": unknown_ids,
     }
     if "needs_confirmation" in outcome:
         result["needs_confirmation"] = outcome["needs_confirmation"]
