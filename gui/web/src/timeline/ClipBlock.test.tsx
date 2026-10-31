@@ -1328,14 +1328,16 @@ describe("ClipBlock waveform", () => {
       fireEvent.pointerMove(h, { clientX: 320, pointerId: 6 });
       fireEvent.pointerUp(h, { clientX: 320, pointerId: 6 });
       fireEvent.pointerUp(body, { clientX: 40, pointerId: 6 });
-      await act(async () => {});
-      expect(trimClipEdge).not.toHaveBeenCalled();
+      // The save is async, so the first pointer's lift is the positive control:
+      // exactly one call, at its own +1 s, proves the second pointer saved none.
       fireEvent.pointerUp(h, { clientX: 150, pointerId: 5 });
-      await waitFor(() => expect(trimClipEdge).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(trimClipEdge).toHaveBeenCalled());
+      await act(async () => {});
+      expect(trimClipEdge).toHaveBeenCalledTimes(1);
       expect(vi.mocked(trimClipEdge).mock.calls[0][3]).toBeCloseTo(3, 5);
     });
 
-    it.each(["pointercancel", "Escape", "unmount"])(
+    it.each(["pointercancel", "Escape"])(
       "saves nothing when a trim drag ends in %s and ignores the lift (#1034)",
       async (interruption) => {
         const view = render(<ClipBlock {...base} />);
@@ -1348,17 +1350,40 @@ describe("ClipBlock waveform", () => {
         expect(view.container.querySelector(".clip-trim-ghost")).not.toBeNull();
         if (interruption === "pointercancel")
           fireEvent.pointerCancel(h, { pointerId: 5 });
-        else if (interruption === "Escape")
-          fireEvent.keyDown(h, { key: "Escape" });
-        else view.unmount();
+        else fireEvent.keyDown(h, { key: "Escape" });
         fireEvent.pointerMove(h, { clientX: 170, pointerId: 5 });
         fireEvent.pointerUp(h, { clientX: 170, pointerId: 5 });
+        expect(view.container.querySelector(".clip-trim-ghost")).toBeNull();
+        // The save is async, so a leaked one would land after a bare act tick.
+        // A full second drag on the same handle is the control: the calls are
+        // ordered, so exactly one call, at +1 s, means the first saved nothing.
+        fireEvent.pointerDown(h, { clientX: 100, pointerId: 9 });
+        fireEvent.pointerMove(h, { clientX: 150, pointerId: 9 });
+        fireEvent.pointerUp(h, { clientX: 150, pointerId: 9 });
+        await waitFor(() => expect(trimClipEdge).toHaveBeenCalled());
         await act(async () => {});
-        expect(trimClipEdge).not.toHaveBeenCalled();
-        if (interruption !== "unmount")
-          expect(view.container.querySelector(".clip-trim-ghost")).toBeNull();
+        expect(trimClipEdge).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(trimClipEdge).mock.calls[0][3]).toBeCloseTo(3, 5);
       },
     );
+
+    it("saves nothing when a trim drag is unmounted mid-drag (#1034)", async () => {
+      const view = render(<ClipBlock {...base} />);
+      const h = view.container.querySelector(".trim-handle.out") as HTMLElement;
+      vi.mocked(trimClipEdge).mockClear();
+      fireEvent.pointerDown(h, { clientX: 100, pointerId: 5 });
+      fireEvent.pointerMove(h, { clientX: 150, pointerId: 5 });
+      view.unmount();
+      // A fresh clip's full drag is the control for the async save queue.
+      const next = render(<ClipBlock {...base} />);
+      const g = next.container.querySelector(".trim-handle.out") as HTMLElement;
+      fireEvent.pointerDown(g, { clientX: 100, pointerId: 9 });
+      fireEvent.pointerMove(g, { clientX: 150, pointerId: 9 });
+      fireEvent.pointerUp(g, { clientX: 150, pointerId: 9 });
+      await waitFor(() => expect(trimClipEdge).toHaveBeenCalled());
+      await act(async () => {});
+      expect(trimClipEdge).toHaveBeenCalledTimes(1);
+    });
 
     it("preflights a trim with geometry captured at pointer down", async () => {
       const view = render(<ClipBlock {...base} />);
@@ -1622,7 +1647,7 @@ describe("ClipBlock waveform", () => {
       expect(back).toBeNull();
     });
 
-    it("saves the exact 7 s to 27 s delta from a touch long press (#1034)", () => {
+    it("reports a deltaSec of exactly 20 for a 7 s to 27 s touch long press (#1034)", () => {
       const onMoveCommit = vi.fn();
       const seven = { ...clip, timeline_start: 7, timeline_end: 9 };
       const { hit, router } = touchClip(seven, { onMoveCommit });
