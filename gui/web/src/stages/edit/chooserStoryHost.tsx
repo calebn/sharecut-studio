@@ -128,6 +128,7 @@ export function ChooserDemo({
               <div
                 ref={surfaceRef}
                 style={surface}
+                data-chooser-surface=""
                 onContextMenu={(event) => event.preventDefault()}
                 onPointerDown={(event) => {
                   event.currentTarget.setPointerCapture(event.pointerId);
