@@ -360,17 +360,17 @@ with axe before the collected results are asserted.
 | a 360px phone keeps the range toggle, Zoom, Undo and Redo whole and in reach, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an iPad Air 1180 wide in landscape keeps Select range in the corner and the add-track button | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | an iPad Pro 11 1194 wide in landscape keeps Select range in the corner and the add-track button (#1674) | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 932x430: the edited lane stays above the sheet and Add point and Done are in reach | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 932x430: the form, Save and Cancel are visible with the lane, and with the keyboard up | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 932x430: Add point, Save and Cancel run from inside the sheet | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 914x331: the edited lane stays above the sheet and Add point and Done are in reach | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 914x331: the form, Save and Cancel are visible with the lane, and with the keyboard up | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 914x331: Add point, Save and Cancel run from inside the sheet | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a typed envelope draft survives rotating from portrait to landscape | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 932x430: the edited lane stays beside the card and Time and Remove are in reach | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 932x430: Time, Level and Remove are visible with the lane, and with the keyboard up | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 932x430: Level and Remove run from inside the sheet | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 914x331: the edited lane stays beside the card and Time and Remove are in reach | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 914x331: Time, Level and Remove are visible with the lane, and with the keyboard up | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 914x331: Level and Remove run from inside the sheet | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| an open envelope point survives rotating from portrait to landscape | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the Edit corner covers no lane at 844x390, and every guest M and S is hit-testable | `gui/web/e2e-compat/edit-corner-lanes.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 1194x834 iPad landscape keeps the regular envelope form and its visible help | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 932x430 phone landscape keeps the regular stacked form and its help, in the Inspector card | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| 914x331 idle: a touch tap on the guest track header opens its details and reaches Add volume envelope | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 1194x834 iPad landscape keeps Time and Level stacked with their visible help | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 932x430 phone landscape keeps Time and Level stacked with their help, in the Inspector card | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| 914x331 idle: a touch tap on the guest track header opens its details and reaches Show volume envelope | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 667x375 phone shell idle: the marker rows scroll with the lanes | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 667x500 phone shell idle: the marker rows stay pinned under the ruler | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | 914x331 idle: the marker rows scroll with the lanes | `gui/web/e2e-compat/landscape-envelope-sheet.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -464,7 +464,7 @@ with axe before the collected results are asserted.
 | the half drawer keeps a readable title at 390x844 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | the half drawer keeps a readable title at 390x844 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a timeline tap while a track's sheet is open selects, and Inspect opens the strip: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
-| a point saved from a track's envelope form stays in that sheet: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| a point added from a track's sheet shows its fields in the drawer: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | Tab focus never lands a field under the drawer header at 32 px text: a pending cut | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | the strip leaves the timeline undimmed and the half sheet dims it: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 | phone: a boundary load the server never answers says to try again and recovers on Try again | `gui/web/e2e-compat/precision-boundary-timeout.spec.ts` | Core flow | Pass | Pass | Not run |
