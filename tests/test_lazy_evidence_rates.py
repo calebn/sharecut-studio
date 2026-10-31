@@ -84,6 +84,19 @@ def test_the_rate_set_follows_the_tree_not_the_clip_regions(tmp_path: Path) -> N
     assert rates == {"plain": (JUMP,), "muted": BOTH, "off": (JUMP,)}
 
 
+@pytest.mark.parametrize("empty_rate", [JUMP, WAVEFORM])
+def test_a_build_where_any_rate_comes_back_empty_is_declined(
+    empty_rate: int, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tree = _tree(_tone(tmp_path / "a.wav"))
+    both = real_evaluate(tree, "tri", BOTH)
+    assert not isinstance(both, Declined)
+    got = {rate: (both[rate][:0] if rate == empty_rate else both[rate]) for rate in BOTH}
+    monkeypatch.setattr(track_evidence, "evaluate_resampled", lambda *a, **k: got)
+
+    assert real_evaluate(tree, "tri", BOTH) is Declined.EVALUATOR
+
+
 @pytest.mark.parametrize("rates", [(JUMP,), (WAVEFORM,), BOTH])
 def test_a_rate_set_builds_exactly_those_rates_with_the_two_rate_samples(
     rates: tuple[int, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
