@@ -9,6 +9,7 @@ from podcast_mcp.edits.cut_speech import (
     UnconfirmedCutSpeech,
 )
 from podcast_mcp.edits.ripple import RippleRemoval
+from podcast_mcp.engines.room_tone import schedule_missing_room_tone_pools
 from podcast_mcp.models import CutIntent, EditMode, EpisodeProject
 from podcast_mcp.project.history.rollback import RollbackOutcome
 from podcast_mcp.services.app import ProjectWorkspace
@@ -24,6 +25,14 @@ class WorkspaceService:
 
 
 class CutMutatingService(WorkspaceService):
+    def _queue_room_tone_pools(self) -> None:
+        """Queue a background pool for each dialogue track that has none; never waits, never raises.
+
+        Called as a propose or an approve starts, so the cuts that follow read a pool when
+        it has finished and pick live when it has not.
+        """
+        schedule_missing_room_tone_pools(self.ws.project)
+
     def _apply_cut(
         self,
         label: str,

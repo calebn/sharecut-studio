@@ -558,6 +558,26 @@ def schedule_room_tone_pool(project: EpisodeProject, track_id: str) -> bool:
     return True
 
 
+def schedule_missing_room_tone_pools(project: EpisodeProject) -> int:
+    """Queue the pool of every dialogue track with media and no pool, without waiting.
+
+    For the start of a propose or an approve: a project opened at another path than the one
+    that recorded its pools has none under its own key, so every cut would pick live. Each
+    pool is recorded in a background thread at low priority, once per key; a track whose
+    pool is recorded or pending is left alone. Until a pool has finished, requests read none
+    and pick live. Failures are swallowed. Returns how many pools were queued.
+    """
+    queued = 0
+    for track in project.tracks:
+        if track.role != TrackRole.DIALOGUE or track.media is None:
+            continue
+        try:
+            queued += schedule_room_tone_pool(project, track.id)
+        except Exception:
+            log.debug("room tone pool not scheduled for %s", track.id, exc_info=True)
+    return queued
+
+
 def room_tone_pool_digest(project: EpisodeProject) -> str:
     """Identity of every track's pool, so a render that depends on it changes when it does.
 
