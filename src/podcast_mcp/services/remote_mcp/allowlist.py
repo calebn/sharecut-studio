@@ -105,7 +105,24 @@ SPEAKER_TOOLS: frozenset[str] = frozenset(
         "guest_speaker_move_lane_span",
     }
 )
-EDITOR_PROJECT_TOOLS: frozenset[str] = PIPELINE_TOOLS | EXPORT_TOOLS | SPEAKER_TOOLS
+# The twins of the ``/daw/transcript`` routes: vocabulary, the transcript check, replacement and
+# word-timing reads, and the transcript export.
+TRANSCRIPT_TOOLS: frozenset[str] = frozenset(
+    {
+        "guest_transcript_vocabulary_get",
+        "guest_transcript_vocabulary_put",
+        "guest_transcript_refine_status",
+        "guest_transcript_refine_done",
+        "guest_transcript_refine_waive",
+        "guest_transcript_replacement_preview",
+        "guest_transcript_word_timing_context",
+        "guest_transcript_export",
+        "guest_transcript_exports",
+    }
+)
+EDITOR_PROJECT_TOOLS: frozenset[str] = (
+    PIPELINE_TOOLS | EXPORT_TOOLS | SPEAKER_TOOLS | TRANSCRIPT_TOOLS
+)
 
 ALL_GUEST_TOOLS: frozenset[str] = (
     PLAY_TOOLS

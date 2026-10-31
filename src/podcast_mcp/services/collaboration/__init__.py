@@ -26,6 +26,17 @@ if TYPE_CHECKING:
         GuestRoute,
         guest_owner_route,
     )
+    from podcast_mcp.services.collaboration.guest_transcript_ops import (
+        guest_export_transcript,
+        guest_exports,
+        guest_refine_done,
+        guest_refine_status,
+        guest_refine_waive,
+        guest_replacement_preview,
+        guest_save_vocabulary,
+        guest_vocabulary,
+        guest_word_timing_context,
+    )
     from podcast_mcp.services.collaboration.record_share import record_bootstrap
     from podcast_mcp.services.collaboration.review import ReviewService
     from podcast_mcp.services.collaboration.review_shares import (
@@ -163,16 +174,25 @@ __all__ = [
     "get_share_registry",
     "get_version",
     "guest_cancel_job",
+    "guest_export_transcript",
+    "guest_exports",
     "guest_job_status_view",
     "guest_move_lane_span",
     "guest_only_keys",
     "guest_owner_route",
     "guest_progress_hub",
     "guest_projected_job",
+    "guest_refine_done",
+    "guest_refine_status",
+    "guest_refine_waive",
+    "guest_replacement_preview",
+    "guest_save_vocabulary",
     "guest_selects_transcript_words",
     "guest_start_export",
     "guest_start_pipeline_run",
     "guest_start_speaker_split",
+    "guest_vocabulary",
+    "guest_word_timing_context",
     "guest_ws_progress_sink",
     "has_capability",
     "inject_share_document_head",
@@ -232,6 +252,15 @@ __all__ = [
 ]
 
 _MODULE_BY_NAME = {
+    "guest_word_timing_context": "guest_transcript_ops",
+    "guest_vocabulary": "guest_transcript_ops",
+    "guest_save_vocabulary": "guest_transcript_ops",
+    "guest_replacement_preview": "guest_transcript_ops",
+    "guest_refine_waive": "guest_transcript_ops",
+    "guest_refine_status": "guest_transcript_ops",
+    "guest_refine_done": "guest_transcript_ops",
+    "guest_exports": "guest_transcript_ops",
+    "guest_export_transcript": "guest_transcript_ops",
     "GuestRefusal": "guest_project_ops",
     "guest_cancel_job": "guest_project_ops",
     "guest_job_status_view": "guest_project_ops",

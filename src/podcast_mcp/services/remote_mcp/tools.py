@@ -12,16 +12,26 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 
 from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC
+from podcast_mcp.edits.review_gate import ShareSource
 from podcast_mcp.services.collaboration import (
     CAP_PLAY,
     CAP_VIEW,
     guest_cancel_job,
+    guest_export_transcript,
+    guest_exports,
     guest_job_status_view,
     guest_move_lane_span,
     guest_projected_job,
+    guest_refine_done,
+    guest_refine_status,
+    guest_refine_waive,
+    guest_replacement_preview,
+    guest_save_vocabulary,
     guest_start_export,
     guest_start_pipeline_run,
     guest_start_speaker_split,
+    guest_vocabulary,
+    guest_word_timing_context,
     has_capability,
     lookup_guest_job,
     share_add_comment,
@@ -55,8 +65,14 @@ if typing.TYPE_CHECKING:
         GuestExportRequest,
         GuestJobRequest,
         GuestPipelineRunRequest,
+        GuestRefineDoneRequest,
+        GuestRefineWaiveRequest,
+        GuestReplacementPreviewRequest,
         GuestSpeakerMoveLaneSpanRequest,
         GuestSpeakerSplitRequest,
+        GuestTranscriptExportRequest,
+        GuestVocabularyPutRequest,
+        GuestWordTimingContextRequest,
     )
     from podcast_mcp.services.jobs import JobManager
 
@@ -467,6 +483,92 @@ guest_export_status, guest_export_job, guest_export_job_cancel = _job_tools("exp
 guest_speaker_status, guest_speaker_job, guest_speaker_job_cancel = _job_tools("speaker")
 
 
+def guest_transcript_vocabulary_get() -> dict[str, Any]:
+    """The project's transcript vocabulary: terms, guest names and revision."""
+    _require_tool("guest_transcript_vocabulary_get")
+    return guest_vocabulary(get_remote_mcp_context().workspace)
+
+
+def guest_transcript_vocabulary_put(req: GuestVocabularyPutRequest) -> dict[str, Any]:
+    """Save the vocabulary against the revision last read (requires ``edit``)."""
+    _require_tool("guest_transcript_vocabulary_put")
+    ctx = get_remote_mcp_context()
+    return guest_save_vocabulary(
+        ctx.workspace,
+        ctx.author,
+        terms=req.terms,
+        guest_names=req.guest_names,
+        base_revision=req.base_revision,
+    )
+
+
+def guest_transcript_refine_status() -> dict[str, Any]:
+    """The transcript check: pending, done or waived (the host's notes are not shown)."""
+    _require_tool("guest_transcript_refine_status")
+    return guest_refine_status(get_remote_mcp_context().workspace)
+
+
+def guest_transcript_refine_done(req: GuestRefineDoneRequest) -> dict[str, Any]:
+    """Mark the transcript checked as this share (requires ``edit``)."""
+    _require_tool("guest_transcript_refine_done")
+    ctx = get_remote_mcp_context()
+    return guest_refine_done(
+        ctx.workspace,
+        ShareSource(ctx.author),
+        notes=req.notes,
+        expected_fingerprint=req.expected_fingerprint,
+    )
+
+
+def guest_transcript_refine_waive(req: GuestRefineWaiveRequest) -> dict[str, Any]:
+    """Waive the transcript check as this share, with a short reason (requires ``edit``)."""
+    _require_tool("guest_transcript_refine_waive")
+    ctx = get_remote_mcp_context()
+    return guest_refine_waive(ctx.workspace, ShareSource(ctx.author), reason=req.reason)
+
+
+def guest_transcript_replacement_preview(req: GuestReplacementPreviewRequest) -> dict[str, Any]:
+    """Preview a find-and-replace on the transcript; writes nothing."""
+    _require_tool("guest_transcript_replacement_preview")
+    return guest_replacement_preview(
+        get_remote_mcp_context().workspace,
+        search=req.search,
+        replacement=req.replacement,
+        match_case=req.match_case,
+    )
+
+
+def guest_transcript_word_timing_context(req: GuestWordTimingContextRequest) -> dict[str, Any]:
+    """The audio context of one word, checked against the word the guest last saw."""
+    _require_tool("guest_transcript_word_timing_context")
+    return guest_word_timing_context(
+        get_remote_mcp_context().workspace,
+        target=req.target.model_dump(),
+        expected_text=req.expected_word.text,
+        expected_start=req.expected_word.start,
+        expected_end=req.expected_word.end,
+    )
+
+
+def guest_transcript_export(req: GuestTranscriptExportRequest) -> dict[str, Any]:
+    """Write or preview the transcript as txt, md, srt or vtt in the project's export folder."""
+    _require_tool("guest_transcript_export")
+    ctx = get_remote_mcp_context()
+    return guest_export_transcript(
+        ctx.workspace,
+        ctx.author,
+        formats=req.formats,
+        dry_run=req.dry_run,
+        with_text=req.with_text,
+    )
+
+
+def guest_transcript_exports() -> list[dict[str, Any]]:
+    """The transcript files already exported (names and whether current; no paths)."""
+    _require_tool("guest_transcript_exports")
+    return guest_exports(get_remote_mcp_context().workspace)
+
+
 TOOL_HANDLERS: dict[str, Any] = {
     "guest_get_review_summary": guest_get_review_summary,
     "guest_get_project": guest_get_project,
@@ -500,6 +602,15 @@ TOOL_HANDLERS: dict[str, Any] = {
     "guest_speaker_job": guest_speaker_job,
     "guest_speaker_job_cancel": guest_speaker_job_cancel,
     "guest_speaker_move_lane_span": guest_speaker_move_lane_span,
+    "guest_transcript_vocabulary_get": guest_transcript_vocabulary_get,
+    "guest_transcript_vocabulary_put": guest_transcript_vocabulary_put,
+    "guest_transcript_refine_status": guest_transcript_refine_status,
+    "guest_transcript_refine_done": guest_transcript_refine_done,
+    "guest_transcript_refine_waive": guest_transcript_refine_waive,
+    "guest_transcript_replacement_preview": guest_transcript_replacement_preview,
+    "guest_transcript_word_timing_context": guest_transcript_word_timing_context,
+    "guest_transcript_export": guest_transcript_export,
+    "guest_transcript_exports": guest_transcript_exports,
 }
 
 # Tools whose one argument, ``req``, is a guest request model shared with their HTTP twin.
@@ -561,6 +672,33 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
     "guest_speaker_job_cancel": "Cancel one speaker-split job of this project, by job_id.",
     "guest_speaker_move_lane_span": (
         "Move a timeline range between two lanes of one speaker split (requires edit)."
+    ),
+    "guest_transcript_vocabulary_get": (
+        "The project's transcript vocabulary: terms, guest names and revision."
+    ),
+    "guest_transcript_vocabulary_put": (
+        "Save the transcript vocabulary against the revision last read (requires edit)."
+    ),
+    "guest_transcript_refine_status": (
+        "The transcript check (pending, done or waived); the host's notes are not shown."
+    ),
+    "guest_transcript_refine_done": (
+        "Mark the transcript checked as this link; refused if it changed since the fingerprint (requires edit)."
+    ),
+    "guest_transcript_refine_waive": (
+        "Waive the transcript check as this link, with a short reason (requires edit)."
+    ),
+    "guest_transcript_replacement_preview": (
+        "Preview a find-and-replace on the transcript; writes nothing."
+    ),
+    "guest_transcript_word_timing_context": (
+        "The audio context of one transcript word, checked against the word last seen."
+    ),
+    "guest_transcript_export": (
+        "Write or preview the transcript as txt, md, srt or vtt in the project's export folder; no file paths returned (requires edit)."
+    ),
+    "guest_transcript_exports": (
+        "The transcript files already exported (names and whether current; no paths)."
     ),
 }
 
@@ -681,8 +819,14 @@ def _request_models() -> dict[str, type[BaseModel]]:
         GuestExportRequest,
         GuestJobRequest,
         GuestPipelineRunRequest,
+        GuestRefineDoneRequest,
+        GuestRefineWaiveRequest,
+        GuestReplacementPreviewRequest,
         GuestSpeakerMoveLaneSpanRequest,
         GuestSpeakerSplitRequest,
+        GuestTranscriptExportRequest,
+        GuestVocabularyPutRequest,
+        GuestWordTimingContextRequest,
     )
 
     return {
@@ -690,6 +834,12 @@ def _request_models() -> dict[str, type[BaseModel]]:
         "guest_export_start": GuestExportRequest,
         "guest_speaker_split": GuestSpeakerSplitRequest,
         "guest_speaker_move_lane_span": GuestSpeakerMoveLaneSpanRequest,
+        "guest_transcript_vocabulary_put": GuestVocabularyPutRequest,
+        "guest_transcript_refine_done": GuestRefineDoneRequest,
+        "guest_transcript_refine_waive": GuestRefineWaiveRequest,
+        "guest_transcript_replacement_preview": GuestReplacementPreviewRequest,
+        "guest_transcript_word_timing_context": GuestWordTimingContextRequest,
+        "guest_transcript_export": GuestTranscriptExportRequest,
         **{
             f"guest_{family}_{op}": GuestJobRequest
             for family in ("pipeline", "export", "speaker")

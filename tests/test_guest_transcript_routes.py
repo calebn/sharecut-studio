@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
-import wave
 from pathlib import Path
 from types import SimpleNamespace
 from typing import get_args
@@ -14,31 +12,26 @@ import pytest
 from fastapi.testclient import TestClient
 from filelock import Timeout
 
+from guest_helpers import raising, seed_transcript_project, share_id, sidecar
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE, TranscriptRefineRequiredError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.export.transcript import TRANSCRIPT_FORMATS
-from podcast_mcp.gui.routes import review_editor
-from podcast_mcp.gui.routes.review_editor import (
+from podcast_mcp.gui.schemas import GuestTranscriptExportRequest
+from podcast_mcp.gui.server import create_app
+from podcast_mcp.models import (
+    load_project,
+    save_project,
+)
+from podcast_mcp.services.collaboration import guest_transcript_ops
+from podcast_mcp.services.collaboration.guest_routes import GUEST_OWNER_ROUTES
+from podcast_mcp.services.collaboration.guest_transcript_ops import (
     GUEST_EXPORT_FILE_KEYS,
     GUEST_EXPORTED_KEYS,
     GUEST_NOTE_PREFIX,
     GUEST_VOCABULARY_KEYS,
 )
-from podcast_mcp.gui.schemas import GuestTranscriptExportRequest
-from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import (
-    MediaAsset,
-    SourceRecording,
-    Track,
-    Transcript,
-    TranscriptWord,
-    load_project,
-    save_project,
-)
-from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration.guest_routes import GUEST_OWNER_ROUTES
 from podcast_mcp.services.collaboration.review import ReviewService
-from podcast_mcp.services.collaboration.share import ShareService, lookup_share
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.collaboration.share_capabilities import (
     SHARE_ACTOR_PREFIX,
     capabilities_for_role,
@@ -89,40 +82,7 @@ BODIES = {
 
 @pytest.fixture
 def world(minimal_project, sample_wav, tmp_workspace):
-    ws = ProjectWorkspace.open(minimal_project)
-    (ws.project.artifacts_dir()).mkdir(parents=True, exist_ok=True)
-    (ws.project.artifacts_dir() / "premix.wav").write_bytes(sample_wav.read_bytes())
-    for name in ("host", "take"):
-        with wave.open(str(ws.project.raw_dir() / f"{name}.wav"), "wb") as audio:
-            audio.setparams((1, 2, 1000, 0, "NONE", "not compressed"))
-            audio.writeframes(bytes(20000))
-    ws.project.tracks = [
-        Track(
-            id="host",
-            label="Host",
-            role="dialogue",
-            media=MediaAsset(path="raw/host.wav", duration_sec=10, sample_rate=1000),
-        )
-    ]
-    ws.project.sources = [
-        SourceRecording(id="take", path="raw/take.wav", duration_sec=10, sample_rate=1000)
-    ]
-    ws.project.transcripts = [
-        Transcript(
-            track_id="host",
-            user_edited=True,
-            words=[
-                TranscriptWord(text=text, start=i * 0.5, end=i * 0.5 + 0.4)
-                for i, text in enumerate(["Hello", "there", "friends."])
-            ],
-        ),
-        Transcript(
-            track_id="host",
-            source_id="take",
-            words=[TranscriptWord(text="again", start=1.0, end=1.4)],
-        ),
-    ]
-    ws.save()
+    ws = seed_transcript_project(minimal_project, sample_wav, with_take=True)
     TranscriptPrecorrectService(ws).update_context(values={"show_title": SHOW_TITLE})
     version = ReviewService(ws).publish(label="Transcript")["id"]
     tokens = {
@@ -169,14 +129,6 @@ def _exported_names(world) -> list[str]:
     return sorted(p.name for p in _export_dir(world).iterdir())
 
 
-def _share_id(world, link: str = "editor") -> str:
-    return lookup_share(world.tokens[link])["id"]
-
-
-def _sidecar(world) -> dict:
-    return json.loads(REFINE_GATE.path(load_project(world.ws.path)).read_text())
-
-
 def _sidecar_missing(world) -> bool:
     return not REFINE_GATE.path(load_project(world.ws.path)).exists()
 
@@ -196,9 +148,9 @@ def _view(res) -> tuple[str, str | None, str]:
     return res.json()["status"], res.json()["source"], res.json()["notes"]
 
 
-def _assert_logged_without_token(world, caplog) -> None:
-    assert any(world.tokens["editor"][:8] in r.getMessage() for r in caplog.records)
-    assert world.tokens["editor"] not in caplog.text
+def _assert_logged_as_the_share(world, caplog) -> None:
+    assert f"by=share:{share_id(world)}" in caplog.text
+    assert world.tokens["editor"][:8] not in caplog.text
 
 
 def _leaks(world, text: str) -> list[str]:
@@ -336,13 +288,15 @@ def test_the_vocabulary_shows_only_what_an_editor_may_change(world) -> None:
 
 
 def test_the_vocabulary_saves_and_a_stale_save_is_the_owners_409(world, caplog) -> None:
-    with caplog.at_level(logging.INFO, logger="podcast_mcp.gui.routes.review_editor"):
+    with caplog.at_level(
+        logging.INFO, logger="podcast_mcp.services.collaboration.guest_transcript_ops"
+    ):
         saved = _guest(world, "transcript_vocabulary_put")
 
     assert saved.status_code == 200
     assert (saved.json()["terms"], saved.json()["guest_names"]) == (["Sharecut"], ["Ana"])
     assert _guest(world, "transcript_vocabulary_get").json() == saved.json()
-    _assert_logged_without_token(world, caplog)
+    _assert_logged_as_the_share(world, caplog)
 
     stale, owner = _pair(
         world, "transcript_vocabulary_put", {**VOCABULARY, "base_revision": "stale"}
@@ -363,7 +317,7 @@ def test_a_busy_context_lock_is_the_fixed_503(world, monkeypatch) -> None:
 
 def test_a_bare_error_in_a_service_is_the_fixed_500(world, monkeypatch) -> None:
     monkeypatch.setattr(
-        TranscriptPrecorrectService, "set_vocabulary", _planted(RuntimeError(PLANTED))
+        TranscriptPrecorrectService, "set_vocabulary", raising(RuntimeError(PLANTED))
     )
 
     res = _guest(world, "transcript_vocabulary_put")
@@ -376,9 +330,9 @@ def test_a_done_mark_records_the_share_as_the_actor_and_marks_the_note(world) ->
     res = _guest(world, "transcript_refine_done", {"notes": " Looks right "})
 
     assert res.status_code == 200
-    stored = _sidecar(world)
+    stored = sidecar(world)
     assert stored["status"] == "done"
-    assert stored["source"] == f"{SHARE_ACTOR_PREFIX}{_share_id(world)}"
+    assert stored["source"] == f"{SHARE_ACTOR_PREFIX}{share_id(world)}"
     assert stored["notes"] == f"{GUEST_NOTE_PREFIX}Looks right"
     assert _view(res) == ("done", "guest", "")
     assert _guest(world, "transcript_refine_status").json() == res.json()
@@ -387,23 +341,23 @@ def test_a_done_mark_records_the_share_as_the_actor_and_marks_the_note(world) ->
 
 def test_each_share_is_its_own_actor_and_a_repeat_writes_nothing(world) -> None:
     _guest(world, "transcript_refine_done")
-    first = _sidecar(world)
+    first = sidecar(world)
     assert _guest(world, "transcript_refine_done").status_code == 200
-    assert _sidecar(world) == first
+    assert sidecar(world) == first
 
     other = _guest(world, "transcript_refine_waive", link="other")
 
     assert other.status_code == 200
-    assert _sidecar(world) == first
-    assert _share_id(world, "other") != _share_id(world)
+    assert sidecar(world) == first
+    assert share_id(world, "other") != share_id(world)
 
 
 def test_a_waiver_records_the_share_and_a_marked_reason(world) -> None:
     res = _guest(world, "transcript_refine_waive")
 
     assert _view(res) == ("waived", "guest", "")
-    stored = _sidecar(world)
-    assert stored["source"] == f"{SHARE_ACTOR_PREFIX}{_share_id(world)}"
+    stored = sidecar(world)
+    assert stored["source"] == f"{SHARE_ACTOR_PREFIX}{share_id(world)}"
     assert stored["notes"] == f"{GUEST_NOTE_PREFIX}Cut anyway"
 
 
@@ -416,12 +370,12 @@ def test_a_waiver_records_the_share_and_a_marked_reason(world) -> None:
 )
 def test_a_waiver_never_overwrites_a_gate_that_is_already_clear(world, host_action, body) -> None:
     assert _owner(world, host_action, body).status_code == 200
-    before = _sidecar(world)
+    before = sidecar(world)
 
     res = _guest(world, "transcript_refine_waive")
 
     assert res.status_code == 200
-    assert _sidecar(world) == before
+    assert sidecar(world) == before
     assert before["source"] == "user"
     assert _view(res)[1:] == ("user", "")
     assert PLANTED not in res.text
@@ -467,7 +421,7 @@ def test_a_done_mark_checks_the_fingerprint_only_when_given(world, fingerprint, 
         _assert_refused_like_owner(guest, owner, 409, "transcript_changed")
         assert _sidecar_missing(world)
     else:
-        assert _sidecar(world)["status"] == "done"
+        assert sidecar(world)["status"] == "done"
 
 
 @pytest.mark.parametrize(
@@ -500,7 +454,9 @@ def test_a_missing_recording_is_the_owners_404_without_its_path(world) -> None:
 def test_the_export_writes_the_project_files_and_names_no_path(world, caplog) -> None:
     owner_dry = _owner(world, "transcript_export", {"formats": ["md", "srt"], "dry_run": True})
 
-    with caplog.at_level(logging.INFO, logger="podcast_mcp.gui.routes.review_editor"):
+    with caplog.at_level(
+        logging.INFO, logger="podcast_mcp.services.collaboration.guest_transcript_ops"
+    ):
         res = _guest(world, "transcript_export", {"formats": ["md", "srt"], "with_text": True})
 
     view = res.json()
@@ -514,7 +470,7 @@ def test_the_export_writes_the_project_files_and_names_no_path(world, caplog) ->
     assert _exported_names(world) == sorted(f["name"] for f in view["files"])
     assert view["text"]
     assert _leaks(world, res.text) == []
-    _assert_logged_without_token(world, caplog)
+    _assert_logged_as_the_share(world, caplog)
 
 
 def test_the_default_formats_are_md_and_srt(world) -> None:
@@ -590,7 +546,7 @@ def test_a_render_held_past_the_timeout_is_the_busy_503(world, monkeypatch) -> N
 def test_exports_beyond_the_slots_are_the_busy_503_and_a_slot_comes_back(
     world, monkeypatch
 ) -> None:
-    monkeypatch.setattr(review_editor, "EXPORT_SLOTS", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(guest_transcript_ops, "EXPORT_SLOTS", threading.BoundedSemaphore(1))
     started, gate = threading.Event(), threading.Event()
     answer = TranscriptExport("en", 1, 1.0, [], None, [], None)
 
@@ -612,13 +568,6 @@ def test_exports_beyond_the_slots_are_the_busy_503_and_a_slot_comes_back(
 
     assert first[0].status_code == 200
     assert _guest(world, "transcript_export", {}).status_code == 200
-
-
-def _planted(error):
-    def raising(self, *_args, **_kwargs):
-        raise error
-
-    return raising
 
 
 @pytest.mark.parametrize(
@@ -741,7 +690,7 @@ def _planted(error):
 def test_a_domain_refusal_keeps_the_owners_status_and_code_with_fixed_copy(
     world, monkeypatch, name, service, attribute, error, status, code
 ) -> None:
-    monkeypatch.setattr(service, attribute, _planted(error))
+    monkeypatch.setattr(service, attribute, raising(error))
 
     guest, owner = _pair(world, name)
 

@@ -314,42 +314,21 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
         "http-only: SSE stream for ShareCut Studio; agents poll guest_export_job"
     ),
     ("POST", "/api/review/{token}/daw/export/jobs/{job_id}/cancel"): "guest_export_job_cancel",
-    (
-        "GET",
-        "/api/review/{token}/daw/transcript/vocabulary",
-    ): "http-only: no guest MCP transcript tool yet",
-    (
-        "PUT",
-        "/api/review/{token}/daw/transcript/vocabulary",
-    ): "http-only: no guest MCP transcript tool yet",
-    (
-        "GET",
-        "/api/review/{token}/daw/transcript/refine/status",
-    ): "http-only: no guest MCP transcript tool yet",
-    (
-        "POST",
-        "/api/review/{token}/daw/transcript/refine/done",
-    ): "http-only: no guest MCP transcript tool yet",
-    (
-        "POST",
-        "/api/review/{token}/daw/transcript/refine/waive",
-    ): "http-only: no guest MCP transcript tool yet",
+    ("GET", "/api/review/{token}/daw/transcript/vocabulary"): "guest_transcript_vocabulary_get",
+    ("PUT", "/api/review/{token}/daw/transcript/vocabulary"): "guest_transcript_vocabulary_put",
+    ("GET", "/api/review/{token}/daw/transcript/refine/status"): "guest_transcript_refine_status",
+    ("POST", "/api/review/{token}/daw/transcript/refine/done"): "guest_transcript_refine_done",
+    ("POST", "/api/review/{token}/daw/transcript/refine/waive"): "guest_transcript_refine_waive",
     (
         "POST",
         "/api/review/{token}/daw/transcript/replacement-preview",
-    ): "http-only: no guest MCP transcript tool yet",
+    ): "guest_transcript_replacement_preview",
     (
         "POST",
         "/api/review/{token}/daw/transcript/word-timing-context",
-    ): "http-only: no guest MCP transcript tool yet",
-    (
-        "POST",
-        "/api/review/{token}/daw/transcript/export",
-    ): "http-only: no guest MCP transcript tool yet",
-    (
-        "GET",
-        "/api/review/{token}/daw/transcript/exports",
-    ): "http-only: no guest MCP transcript tool yet",
+    ): "guest_transcript_word_timing_context",
+    ("POST", "/api/review/{token}/daw/transcript/export"): "guest_transcript_export",
+    ("GET", "/api/review/{token}/daw/transcript/exports"): "guest_transcript_exports",
     ("POST", "/api/review/{token}/daw/speaker/split"): "guest_speaker_split",
     ("GET", "/api/review/{token}/daw/speaker/status"): "guest_speaker_status",
     ("GET", "/api/review/{token}/daw/speaker/jobs/{job_id}"): "guest_speaker_job",

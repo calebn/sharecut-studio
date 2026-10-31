@@ -28,7 +28,7 @@ Host product surfaces (GUI / keys / host MCP / skills): [Capabilities](#/capabil
 | `+action` | `guest_set_action_done` |
 | Commenter or Editor role | `guest_submit_document_command` |
 | Editor role | `guest_render_preview`, `guest_render_preview_job`, `guest_upload_media` |
-| Editor role, project work | `guest_export_job`, `guest_export_job_cancel`, `guest_export_start`, `guest_export_status`, `guest_pipeline_job`, `guest_pipeline_job_cancel`, `guest_pipeline_run`, `guest_pipeline_status`, `guest_speaker_job`, `guest_speaker_job_cancel`, `guest_speaker_move_lane_span`, `guest_speaker_split`, `guest_speaker_status` |
+| Editor role, project work | `guest_export_job`, `guest_export_job_cancel`, `guest_export_start`, `guest_export_status`, `guest_pipeline_job`, `guest_pipeline_job_cancel`, `guest_pipeline_run`, `guest_pipeline_status`, `guest_speaker_job`, `guest_speaker_job_cancel`, `guest_speaker_move_lane_span`, `guest_speaker_split`, `guest_speaker_status`, `guest_transcript_export`, `guest_transcript_exports`, `guest_transcript_refine_done`, `guest_transcript_refine_status`, `guest_transcript_refine_waive`, `guest_transcript_replacement_preview`, `guest_transcript_vocabulary_get`, `guest_transcript_vocabulary_put`, `guest_transcript_word_timing_context` |
 
 <!-- /remote-mcp-tools:generated -->
 

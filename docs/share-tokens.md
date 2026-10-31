@@ -439,7 +439,7 @@ An Editor is trusted to approve: approving applies an edit. The host can
 undo every change an Editor makes (applied cut or mute, approval,
 rejection, retime) with one History Undo each.
 
-One exception to that trust: an Editor's `ApproveEdits` of more than one edit never cuts a pending edit that covers an unsure transcript word (below `analysis.unsure_word_confidence`); it stays pending and is reported as held with reason `unsure_word`, whatever the payload's `skip_unsure` says. Approving one edit by name still cuts. Likewise every guest `ApplySuggestedActions` (one id or many) leaves a cut or shorten over an unsure word pending and names it in `held` and `held_unsure`, whatever the payload's `skip_unsure` says; the guest approves that one cut by name instead. There is no `apply_edit_plan` guest tool, but an Editor may submit the `ApplyEditPlan` command as the host does; a Commenter or Viewer is refused with `share_capability_required`. Guests see the `unsure` flag on words they receive but the guest MCP tools cannot mark the transcript checked; an Editor does it over HTTP (the check twins below, [gui-integration.md § Unsure words](gui-integration.md#unsure-words)).
+One exception to that trust: an Editor's `ApproveEdits` of more than one edit never cuts a pending edit that covers an unsure transcript word (below `analysis.unsure_word_confidence`); it stays pending and is reported as held with reason `unsure_word`, whatever the payload's `skip_unsure` says. Approving one edit by name still cuts. Likewise every guest `ApplySuggestedActions` (one id or many) leaves a cut or shorten over an unsure word pending and names it in `held` and `held_unsure`, whatever the payload's `skip_unsure` says; the guest approves that one cut by name instead. There is no `apply_edit_plan` guest tool, but an Editor may submit the `ApplyEditPlan` command as the host does; a Commenter or Viewer is refused with `share_capability_required`. Guests see the `unsure` flag on words they receive but an Editor marks the transcript checked with `guest_transcript_refine_done` (or the HTTP check twins below, [gui-integration.md § Unsure words](gui-integration.md#unsure-words)).
 
 The document-command gate (`authorize_document_command` plus
 `policy.resolve_range_mode`, `policy.may_decide_exact_range` and
@@ -538,7 +538,7 @@ share's project: another project's job answers 404. An Editor may poll a render
 of the same project that the host started, because host and guests share one
 render lock; the view is only id, status, current, total and fixed copy. The
 registry covers the HTTP twins; the guest MCP tools are gated in `remote_mcp`, and the
-pipeline, export and speaker twins have MCP tools (below).
+pipeline, export, speaker and transcript twins have MCP tools (below and in the transcript section).
 
 An Editor can watch and stop host work the way the host can: the project's job
 status (`…/daw/pipeline/status`), one job's status, its event stream
@@ -625,7 +625,7 @@ refusal reaches the agent as an `isError` result with its `error_code` and fixed
 host's text: a busy slot is `job_running`, a missing speaker model `model_needed` (nothing is
 downloaded), an attended project `pipeline_attended`. Export and speaker starts and the lane move
 record the share as `share:<id>` in the host log, as the HTTP rows do (the export start no longer
-logs a token prefix); the pipeline start logs nothing about who started it. The transcript twins have no MCP tool yet.
+logs a token prefix); the pipeline start logs nothing about who started it.
 
 An Editor also gets twins of the transcript tab's tools, under `…/daw/transcript/`, as the
 project's workspace. The rule is the same as for the rest of the Editor's powers: an Editor does
@@ -641,8 +641,8 @@ route answers 400.
   saving changes what the next transcription is primed with, as it does for the host. Both
   answers carry only `terms`, `guest_names`, `prompt_limit`, `revision` and
   `needs_retranscription`: the show title and the tracks with hand edits are not sent. The
-  service records no author, so the host log carries an INFO line with the first characters of
-  the token.
+  service stores no author, so only the host log says who saved: an INFO line naming the share
+  (`by=share:<id>`, on the HTTP route and the MCP tool alike; no token prefix is logged).
 - Transcript check: `GET …/refine/status`, `POST …/refine/done` (`notes`,
   `expected_fingerprint`; 409 `transcript_changed` when the transcript no longer matches) and
   `POST …/refine/waive` (`reason`). An Editor's mark clears the host's gate exactly as the
@@ -681,6 +681,21 @@ route answers 400.
   read. The host's answers name each file's absolute `path`; the twins send only an allowlist
   (`format`, `name`, `bytes`, `language`, `written`, `current`; the listing: `name`, `format`,
   `mime`, `language`, `bytes`, `modified`, `current`).
+
+The nine transcript twins are also MCP tools for an Editor on a guest MCP session, offered by the
+same gate (`edit_commands_allowed`): `guest_transcript_vocabulary_get` and `_vocabulary_put`,
+`guest_transcript_refine_status`, `_refine_done` and `_refine_waive`,
+`guest_transcript_replacement_preview`, `guest_transcript_word_timing_context`,
+`guest_transcript_export` and `guest_transcript_exports`. A Viewer or Commenter is not offered
+them and gets the fixed `share_capability_required` refusal (`-32003`). Each runs the same core as
+its row (not an HTTP call): the `Guest*Request` model is the tool's argument schema (an unknown or
+out-of-bound argument is `-32602`), the answers are the same allowlisted views, and a refusal is
+an `isError` result with the row's code and the fixed guest copy (`vocabulary_conflict`,
+`transcript_changed`, `transcript_timing_changed`, `word_not_found`, `transcript_empty`,
+`export_busy`). Only the done mark and the waiver store the share (`share:<id>`, as the HTTP rows do); the
+vocabulary save and the transcript export only log it (`by=share:<id>`). Writes (`_vocabulary_put`, `_refine_done`, `_refine_waive`,
+`_export`, a dry run included) spend the mutate bucket, the rest the read bucket; none needs `PODCAST_GUEST_RENDER`.
+The two-slot limit on transcript writes is shared with the HTTP row.
 
 An Editor also splits a one-track recording into speaker lanes and moves a range between sibling
 lanes, under `…/daw/speaker/`, as the project's workspace; the body names no path.
