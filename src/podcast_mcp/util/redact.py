@@ -34,7 +34,7 @@ _HOST_PATH = re.compile(
     r"|[\\/](?i:Users|home)"
     r"|~[\w.-]*[\\/]"
     r"|/"
-    r"|(?i:%2f)"
+    r"|(?i:%2f|%5c)"
 )
 _LOOPBACK_V4 = re.compile(r"^127\.")
 _LOOPBACK_V6 = frozenset({"::1", "0:0:0:0:0:0:0:1"})

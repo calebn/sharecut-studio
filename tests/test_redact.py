@@ -231,6 +231,8 @@ HOST_PATH_TEXTS = [
     r"missing: Secret\raw.wav",
     r"missing: ..\host\raw.wav",
     r"missing: Podcasts\ep 12\raw.wav",
+    "missing: Secret%5craw.wav",
+    "missing: C%3A%5CUsers%5Chost",
 ]
 CONSERVATIVE_PATH_TEXTS = [
     "mode must be current/suggested/ab",
