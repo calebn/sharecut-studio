@@ -675,6 +675,33 @@ and the ungated evidence render stay on `from_timeline_stem`, which keeps nothin
 - **Verify**: with `PODCAST_VERDICT_VERIFY=1` or `PODCAST_EVIDENCE_VERIFY=1` each hit decodes the file
   again outside any batch scope and fails unless the samples are bit-identical.
 
+### Keeping propose's track evidence until Approve (#2359)
+
+Propose builds each chained track's whole-track evidence (`engines/track_evidence.py`, 8 kHz and 16 kHz
+float32, 329 MiB per track-hour) and its batch store died with it, so the check pass and Approve each
+resampled the same tracks again. `RetainedEvidence` keeps the finished arrays between batches. A batch
+store is still the front of every read and asks it on a miss, so what a batch holds and which reads take
+a window are unchanged.
+
+- **Where**: each array is written to an unlinked temp file in the decode spool's directory and served as
+  a read-only map of it, so nothing anonymous stays resident while idle; the kernel reclaims the mapped
+  pages under pressure. Peak anonymous memory is main's. Mapped pages count as file-backed RSS while touched.
+- **Key**: the tree, the curve and the full stamp (device, inode, size, mtime, ctime) of every source. The
+  decode spool is keyed the same way plus the ffmpeg build. Entries are dropped when a build resolves a
+  different ffmpeg; a hit resolves nothing.
+- **No stale keep**: stored only if every source still has the stamp of the key after the build and none
+  changed in the last 2 seconds.
+- **Cap**: `PODCAST_EVIDENCE_KEEP_MB`, default 3072 of disk, least recently used out first. The cap is soft
+  while a reader holds arrays: eviction and release drop the store's references and a map is freed with
+  the last array over it. With the decode spool's 6 GiB the worst case in the temp directory is 9 GiB.
+  `0` keeps nothing.
+- **Exact fallbacks**: no retention on Windows, on a RAM-backed temp directory (tmpfs) or with less than
+  2 GiB free beyond the entry; a failed spill hands the caller the RAM arrays and keeps nothing. A dropped
+  entry is evaluated again.
+- **Idle release**: `PODCAST_EVIDENCE_KEEP_IDLE_S`, default 2700, as for the decode memo (waits for builds
+  in flight; `0` never releases).
+- **Verify**: `PODCAST_EVIDENCE_VERIFY=1` evaluates again on every hit and compares the bits.
+
 ### Reusing an approval check (`PODCAST_VERDICT_CACHE`, #1958)
 
 Approving a source remove observes the cut's neighbourhood (peer speech, acoustic edges, pauses)
