@@ -48,21 +48,18 @@ def test_to_json_plain_dict():
     assert json.loads(out) == {"ok": True}
 
 
-def test_no_mcp_tool_serializes_with_raw_json_dumps():
+def test_no_mcp_tool_imports_json_to_serialize():
     import ast
     from pathlib import Path
 
     import podcast_mcp.mcp.tools as tools
 
     offenders = []
-    for path in sorted(Path(tools.__file__).parent.glob("*.py")):
+    for path in sorted(Path(tools.__file__).parent.rglob("*.py")):
         for node in ast.walk(ast.parse(path.read_text())):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "dumps"
-                and isinstance(node.func.value, ast.Name)
-                and node.func.value.id == "json"
-            ):
-                offenders.append(f"{path.name}:{node.lineno}")
+            imports_json = (
+                isinstance(node, ast.Import) and any(a.name == "json" for a in node.names)
+            ) or (isinstance(node, ast.ImportFrom) and node.module == "json")
+            if imports_json:
+                offenders.append(f"{path.relative_to(Path(tools.__file__).parent)}:{node.lineno}")
     assert offenders == []
