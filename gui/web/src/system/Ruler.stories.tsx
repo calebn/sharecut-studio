@@ -508,7 +508,9 @@ export const DeepZoom: Story = {
       .filter((tick) => tick.textContent)
       .map((tick) => tick.getBoundingClientRect().left)
       .sort((a, b) => a - b);
-    for (let i = 1; i < lefts.length; i += 1)
+    // jsdom has no layout (every left is 0), so the spacing check runs only in a real browser.
+    const laidOut = lefts.some((left) => left !== 0);
+    for (let i = 1; laidOut && i < lefts.length; i += 1)
       await expect(lefts[i] - lefts[i - 1]).toBeGreaterThanOrEqual(4 * rem - 1);
     for (const label of labels)
       await expect(label).toMatch(/^\d+:\d{2}\.\d{3}$/);
