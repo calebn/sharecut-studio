@@ -70,6 +70,8 @@ export type ReviewStageProps = {
   bulkRunning?: BulkProgress;
   onOpenInEdit?: (id: string) => void;
   onHear?: (id: string, side: AuditionSide) => void;
+  /** Pick the take Accept places for a replace pickup. */
+  onSelectTake?: (id: string, takeIndex: number) => void;
   onComment?: (id: string) => void;
   thread?: (item: ReviewItem) => ReactNode;
   /** The inline comment field, above the card. */
@@ -112,6 +114,7 @@ export function ReviewStage({
   bulkRunning,
   onOpenInEdit,
   onHear,
+  onSelectTake,
   onComment,
   thread,
   composer,
@@ -340,6 +343,14 @@ export function ReviewStage({
           onLooksRight: () => onLooksRight(selected.id),
         }
       : undefined;
+  const takes =
+    body?.takes && selected && !selected.result && canDecide && !guest
+      ? {
+          ...body.takes,
+          onSelect: (takeIndex: number) =>
+            onSelectTake?.(selected.id, takeIndex),
+        }
+      : undefined;
   const unsureWords = openOf(items, "unsure-word").length;
   const position = selected
     ? fullOrder(items).findIndex((i) => i.id === selected.id) + 1
@@ -419,6 +430,7 @@ export function ReviewStage({
                 : undefined
             }
             unsure={unsure}
+            takes={onSelectTake ? takes : undefined}
             prompt={
               armed && pendingItem
                 ? {

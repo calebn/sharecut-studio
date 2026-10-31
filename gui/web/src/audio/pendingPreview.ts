@@ -250,15 +250,19 @@ export function releaseSessionPreview(suggestionId: string): void {
 
 const warmedSessions = new Map<string, string>();
 
-/** Render a pending session's Current and Suggested windows before the first Play. Host only; best effort. */
+/**
+ * Render a pending session's Current and Suggested windows before the first Play. Host only; best effort.
+ * The server warms the take the session has chosen; `takeIndex` only keeps one warm per take.
+ */
 export async function warmSessionPreview(
   projectPath: string,
   suggestionId: string,
+  takeIndex?: number,
 ): Promise<boolean> {
   const state = useDawStore.getState();
   if (isShareProjectKey(projectPath) || state.guestMode !== null) return true;
   if (state.projectPath !== projectPath || !state.project) return true;
-  const key = `${projectPath}|${suggestionId}`;
+  const key = `${projectPath}|${suggestionId}|${takeIndex ?? ""}`;
   const mix = mixKey(state.project);
   if (warmedSessions.get(key) === mix) return true;
   warmedSessions.set(key, mix);

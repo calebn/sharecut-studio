@@ -4,10 +4,13 @@ import {
   applySuggestedActions,
   approveEdits,
   correctTranscriptWord,
+  loadSessionTakes,
   loadTranscriptCheck,
   markTranscriptChecked,
   rejectEdits,
   replyHistoryHead,
+  type SessionTakes,
+  selectSessionTakeCommand,
   skipSessionSuggestionCommand,
   waiveTranscriptRefine,
 } from "../../api";
@@ -28,6 +31,7 @@ import {
   checkEntryOf,
   commentItemId,
   editIdOf,
+  hasTakeSwitcher,
   pickupConfirmation,
   type ReviewEntry,
   reviewEntriesOf,
@@ -128,6 +132,10 @@ export function useReviewQueue(guestShare = false) {
   const [askedPickups, setAskedPickups] = useState<ReadonlyMap<string, string>>(
     new Map(),
   );
+  const [takeDetails, setTakeDetails] = useState<
+    ReadonlyMap<string, SessionTakes>
+  >(new Map());
+  const switching = useRef(new Set<string>());
   const canDecide =
     !guest || canReviewPendingEdit(projectPath, shareCapabilities);
   const pending = canDecide ? project?.pending_edits : undefined;
@@ -201,14 +209,16 @@ export function useReviewQueue(guestShare = false) {
           };
     });
     const check = status && checkEntryOf(status);
-    const pickups = sessionEntriesOf(sessions ?? [], tracks ?? []).map(
-      ({ item, content }) => {
-        const message = askedPickups.get(item.id);
-        return message
-          ? { item, content: { ...content, confirm: { message } } }
-          : { item, content };
-      },
-    );
+    const pickups = sessionEntriesOf(
+      sessions ?? [],
+      tracks ?? [],
+      takeDetails,
+    ).map(({ item, content }) => {
+      const message = askedPickups.get(item.id);
+      return message
+        ? { item, content: { ...content, confirm: { message } } }
+        : { item, content };
+    });
     return [
       ...entries,
       ...pickups,
@@ -226,6 +236,7 @@ export function useReviewQueue(guestShare = false) {
     sessions,
     tracks,
     askedPickups,
+    takeDetails,
   ]);
   const session = useReviewSession(open);
   const { revert } = session;
@@ -241,10 +252,12 @@ export function useReviewQueue(guestShare = false) {
     if (picked) land(commentItemId(picked.id));
   }, [picked, land]);
   const selectedSession = sessionIdOf(session.props.selectedId ?? "");
+  const selectedRow = sessions?.find((s) => s.id === selectedSession);
+  const selectedTake = selectedRow ? takeToPlace(selectedRow) : undefined;
   useEffect(() => {
     if (selectedSession && !guest)
-      void warmSessionPreview(projectPath, selectedSession);
-  }, [selectedSession, guest, projectPath]);
+      void warmSessionPreview(projectPath, selectedSession, selectedTake);
+  }, [selectedSession, selectedTake, guest, projectPath]);
   useEffect(
     () => () => {
       if (selectedSession) releaseSessionPreview(selectedSession);
@@ -252,6 +265,29 @@ export function useReviewQueue(guestShare = false) {
     [selectedSession],
   );
   const head = project?.history.head_id;
+  const detailKey = selectedRow
+    ? `${selectedRow.id}|${selectedRow.selected_take}|${selectedRow.take_indexes.join(",")}|${head}`
+    : null;
+  const wantsDetail = !!selectedRow && hasTakeSwitcher(selectedRow);
+  useEffect(() => {
+    if (!detailKey || !wantsDetail || !selectedSession || guest) return;
+    const controller = new AbortController();
+    loadSessionTakes(projectPath, selectedSession, controller.signal)
+      .then((reply) => {
+        if (controller.signal.aborted) return;
+        setTakeDetails((prev) => new Map(prev).set(reply.suggestion_id, reply));
+      })
+      // The switcher still works without the detail; Accept names any refusal.
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [detailKey, wantsDetail, selectedSession, guest, projectPath]);
+  useEffect(() => {
+    const listed = new Set((sessions ?? []).map((s) => s.id));
+    setTakeDetails((prev) => {
+      const kept = [...prev].filter(([id]) => listed.has(id));
+      return kept.length === prev.size ? prev : new Map(kept);
+    });
+  }, [sessions]);
   useEffect(() => {
     const listed = new Set(open.map((e) => e.item.id));
     const back = [...settled.current].filter(
@@ -674,6 +710,30 @@ export function useReviewQueue(guestShare = false) {
       useDawStore.getState().announceStatus(outcome.reason, { tone: "error" });
   });
 
+  /** Pick the take Accept places; choosing the one already chosen sends nothing. */
+  const onSelectTake = useStableCallback(
+    async (id: string, takeIndex: number) => {
+      const suggestionId = sessionIdOf(id);
+      const row = sessions?.find((s) => s.id === suggestionId);
+      if (!suggestionId || !row || guest || !hasTakeSwitcher(row)) return;
+      if (takeToPlace(row) === takeIndex) return;
+      if (switching.current.has(suggestionId)) return;
+      switching.current.add(suggestionId);
+      const { projectPath: path, projectEpoch: epoch } = useDawStore.getState();
+      try {
+        await selectSessionTakeCommand(path, suggestionId, takeIndex);
+        // What was playing is the old take.
+        releaseSessionPreview(suggestionId);
+      } catch (error) {
+        const s = useDawStore.getState();
+        if (s.projectPath === path && s.projectEpoch === epoch)
+          s.announceStatus(errorMessage(error), { tone: "error" });
+      } finally {
+        switching.current.delete(suggestionId);
+      }
+    },
+  );
+
   const onOpenInEdit = useStableCallback((id: string) => {
     const word = words.targets.get(id);
     if (word) {
@@ -716,6 +776,7 @@ export function useReviewQueue(guestShare = false) {
       ...comments.stageProps,
       onDecide,
       onHear,
+      onSelectTake,
       onOpenInEdit,
       onComment: comments.onComment,
       onResolve: (id: string) =>

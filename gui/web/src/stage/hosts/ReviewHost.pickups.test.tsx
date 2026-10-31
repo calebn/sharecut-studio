@@ -102,6 +102,10 @@ const server = {
   hold: false,
   gate: false,
   fail: false,
+  /** A SelectSessionTake refusal: its code and message. */
+  refuse: null as { code: string; message: string } | null,
+  /** Takes the route reports as refused: take_index to message. */
+  refusals: {} as Record<number, string>,
 };
 
 const projectOf = () =>
@@ -120,6 +124,28 @@ const projectOf = () =>
 
 function answer(body: { type: string; payload: Record<string, unknown> }) {
   const id = body.payload.suggestion_id as string;
+  if (body.type === "SelectSessionTake") {
+    if (server.refuse)
+      return {
+        ok: false,
+        status: 409,
+        failure: new ApiError(server.refuse.message, server.refuse.code, 409),
+      };
+    server.seq += 1;
+    server.head = `h${server.seq}`;
+    server.suggestions = server.suggestions.map((s) =>
+      s.id === id
+        ? { ...s, selected_take: body.payload.take_index as number }
+        : s,
+    );
+    return {
+      ok: true,
+      data: {
+        history_head_id: server.head,
+        snapshot: { server_seq: server.seq, project: projectOf() },
+      },
+    };
+  }
   if (server.gate)
     return {
       ok: false,
@@ -208,15 +234,44 @@ beforeEach(() => {
     hold: false,
     gate: false,
     fail: false,
+    refuse: null,
+    refusals: {},
   });
   wire.rows = [];
   wire.odd = false;
   wire.post.mockImplementation(async (_path: string, body) => answer(body));
-  wire.fetch.mockImplementation(async (url: string) =>
-    String(url).includes("/warm")
-      ? new Response(JSON.stringify({ sides: { current: "ready" } }))
-      : wavResponse(1),
-  );
+  wire.fetch.mockImplementation(async (url: string) => {
+    if (String(url).includes("/warm"))
+      return new Response(JSON.stringify({ sides: { current: "ready" } }));
+    if (String(url).includes("/api/session-suggestion/takes?")) {
+      const row = server.suggestions.find((s) =>
+        String(url).includes(`suggestion_id=${s.id}`),
+      );
+      return new Response(
+        JSON.stringify({
+          suggestion_id: row?.id,
+          kind: row?.kind,
+          selectable: true,
+          selected_take: row?.selected_take ?? null,
+          default_take: row?.take_indexes.at(-1) ?? null,
+          takes: (row?.take_indexes ?? []).map((i) => ({
+            take_index: i,
+            duration_s: 8 + i,
+            word_count: 20 + i,
+            speech_text: `Words of take ${i}`,
+            chosen: row?.selected_take === i,
+            default: row?.take_indexes.at(-1) === i,
+            acceptable: !(i in server.refusals),
+            refusal:
+              i in server.refusals
+                ? { code: "take_unusable", message: server.refusals[i] }
+                : null,
+          })),
+        }),
+      );
+    }
+    return wavResponse(1);
+  });
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => new Response("{}", { status: 404 })),
@@ -244,8 +299,9 @@ describe("Review host pickups", () => {
     expect(screen.getAllByText("Insert Session 2 at 12:04")[0]).toBeVisible();
     expect(screen.getByText("0 of 2 decided · saves 0.0 s")).toBeVisible();
     expect(screen.queryByRole("button", { name: /all \d/ })).toBeNull();
-    expect(screen.getByText(/Take 2 of 3 · Jon/)).toBeVisible();
     const card = within(screen.getByRole("article"));
+    expect(card.getByText("Jon")).toBeVisible();
+    expect(card.getByRole("group", { name: "Take 2 of 3" })).toBeVisible();
     expect(card.getByRole("button", { name: "Replace" })).toBeVisible();
     expect(card.getByRole("button", { name: "Skip" })).toBeVisible();
   });
@@ -368,6 +424,121 @@ describe("Review host pickups", () => {
       ).toHaveLength(2),
     );
     expect(String(wire.fetch.mock.calls.at(-1)?.[0])).toContain("mode=current");
+  });
+
+  describe("take switcher", () => {
+    const switcher = () =>
+      within(screen.getByRole("article")).getByRole("group", {
+        name: /^Take \d of 3$/,
+      });
+    const fetched = (part: string) =>
+      wire.fetch.mock.calls
+        .map(([u]) => String(u))
+        .filter((u) => u.includes(part));
+
+    it("shows the take's length, words and first words from the takes route, and none on an insert", async () => {
+      mount();
+      expect(
+        await within(switcher()).findByText("9.0 s · 21 words"),
+      ).toBeVisible();
+      expect(within(switcher()).getByText("“Words of take 1”")).toBeVisible();
+      expect(fetched("/api/session-suggestion/takes?")[0]).toContain(
+        "suggestion_id=ss-r",
+      );
+      await userEvent.click(
+        screen.getAllByText("Insert Session 2 at 12:04")[0],
+      );
+      expect(screen.queryByRole("button", { name: "Next take" })).toBeNull();
+    });
+
+    it("Next sends SelectSessionTake with that take, the card reads it from the next patch, and Accept places it", async () => {
+      mount([REPLACE]);
+      await userEvent.click(screen.getByRole("button", { name: "Next take" }));
+      await waitFor(() =>
+        expect(within(switcher()).getByText("Take 3 of 3")).toBeVisible(),
+      );
+      expect(sent("SelectSessionTake")).toHaveLength(1);
+      expect(sent("SelectSessionTake")[0].payload).toEqual({
+        suggestion_id: "ss-r",
+        take_index: 2,
+      });
+      expect(
+        await within(switcher()).findByText("10.0 s · 22 words"),
+      ).toBeVisible();
+      press("Enter");
+      await waitFor(() =>
+        expect(sent("AcceptSessionSuggestion")).toHaveLength(1),
+      );
+      expect(sent("AcceptSessionSuggestion")[0].payload).toMatchObject({
+        take_index: 2,
+      });
+    });
+
+    it("sends one command for a double press and none for the take already chosen", async () => {
+      mount([{ ...REPLACE, selected_take: 0 }]);
+      const next = screen.getByRole("button", { name: "Next take" });
+      fireEvent.click(next);
+      fireEvent.click(next);
+      await waitFor(() =>
+        expect(within(switcher()).getByText("Take 2 of 3")).toBeVisible(),
+      );
+      expect(sent("SelectSessionTake")).toHaveLength(1);
+      expect(sent("SelectSessionTake")[0].payload.take_index).toBe(1);
+    });
+
+    it("hears and re-warms the take just chosen", async () => {
+      mount([REPLACE]);
+      await waitFor(() =>
+        expect(fetched("/api/session-suggestion/warm?")).toHaveLength(1),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next take" }));
+      await waitFor(() =>
+        expect(fetched("/api/session-suggestion/warm?")).toHaveLength(2),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "B" }));
+      await waitFor(() =>
+        expect(fetched("hear-wav").length).toBeGreaterThan(0),
+      );
+      expect(fetched("hear-wav").at(-1)).toContain("take_index=2");
+    });
+
+    it("disables a take Accept would refuse, with the reason", async () => {
+      server.refusals = { 2: "It is shorter than the range." };
+      mount([REPLACE]);
+      const next = screen.getByRole("button", { name: "Next take" });
+      await waitFor(() =>
+        expect(next).toHaveAttribute(
+          "title",
+          "Take 3 cannot be placed: It is shorter than the range.",
+        ),
+      );
+      expect(next).toBeDisabled();
+      await userEvent.click(next);
+      expect(sent("SelectSessionTake")).toHaveLength(0);
+    });
+
+    it.each([
+      ["session_anchor_stale", "The range moved. Re-record the pickup."],
+      ["take_not_found", "That take no longer exists."],
+    ])(
+      "says why on a toast when the server refuses with %s, and the card stays on its take",
+      async (code, message) => {
+        server.refuse = { code, message };
+        mount([REPLACE]);
+        await userEvent.click(
+          screen.getByRole("button", { name: "Previous take" }),
+        );
+        await waitFor(() => expect(toast()).toBe(message));
+        expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
+        expect(within(switcher()).getByText("Take 2 of 3")).toBeVisible();
+      },
+    );
+
+    it("has no accessibility violations", async () => {
+      const { container } = mount([REPLACE]);
+      await within(switcher()).findByText("“Words of take 1”");
+      await expectNoA11yViolations(container);
+    });
   });
 
   it("opens in Edit at the session position", async () => {
