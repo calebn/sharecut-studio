@@ -308,7 +308,7 @@ Both stories share `frameStoryDecorator` for a real `.stage-frame` at
 desktop and 360px widths.
 
 `Templates/AvatarStack` and `Templates/OverlayLegend` follow the same
-adapter/view split as `TrackHeaderView`, `TimeRulerView` and
+adapter/view split as `TimeRulerView` and
 `ScriptPane`: each live component is a thin adapter that reads the DAW
 store and renders a props-only `XView`. `AvatarStackView` and
 `OverlayLegendView` take the roster/layers and callbacks as props; their adapters
@@ -368,8 +368,8 @@ selectors, command dispatch, presence and focus bindings, gestures and sheet
 eligibility. Hydrated stories share one store, so the Frame story never takes
 the `autodocs` tag.
 
-Stories compose fictional factory data with `TrackHeaderView`,
-`ScriptPane` and `FollowBannerView`. Callbacks forward to `fn()` spies
+Stories compose fictional factory data with `ScriptPane` and
+`FollowBannerView`. Callbacks forward to `fn()` spies
 and update local state. The fullscreen fixture frame has a definite block size
 and sets document shell metadata for portaled sheets; cleanup restores the
 previous document metadata. Phone stories use a 360 CSS-pixel frame.
@@ -407,7 +407,7 @@ one page and the stories would overwrite each other's hydration.
 
 `CommandButton` and `CommandMenuItem` are command-bus adapters over `Button`
 and `MenuItem`, which already have stories and need none of their own. Views
-extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
+extracted at an I/O seam follow the props-only view pattern. Existing
 examples are `TimeRulerView`, `ScriptPane`, `FollowBannerView`,
 `GuestAttentionBannerView`,
 `EditCornerView`, `CommandPaletteView`,
@@ -452,13 +452,14 @@ The view owns `useCommitRange`, draft dB output, staging/output notes, and
 unique input associations. `TrackFader` retains capability checks and dispatches
 committed values through the existing `track.setVolume` command.
 
-`Templates/TrackHeader` renders the production `TrackHeaderView` and
-`TrackMuteSoloButtonsView` from fixed, fictional props. It covers selected,
-saved/listen/implied mute, solo, stale stem, empty lane, reorder/drop,
-a speaker that matches the track name (subtitle collapses to just the role),
-and 360px phone states. The live `TrackHeader` and `TrackMuteSoloButtons`
-adapters continue to read DAW state and dispatch commands; catalog stories do
-not mount that store or simulate command execution.
+`System/TrackHeader` is the track header (element 16). The Edit stage mounts it
+through the host `stage/edit/TrackColumn.tsx`, which reads the DAW store and
+dispatches the track commands; `Stages/Edit/TrackColumn` shows that host from the
+episode fixture in the desktop, tablet and 360px phone shells, with selected,
+saved/listen/implied mute, solo, stem out of date, playing, clipped, loading and
+Shift-arrow reorder states. `TrackMuteSoloButtonsView` remains in the track
+inspector and the Mix sheet until the track inspector is rebuilt; catalog stories
+do not mount that store or simulate command execution.
 
 `Stages/Edit/Corner` and `Templates/CommandPalette` follow the same split.
 `EditCornerView` renders from fixed props (the touch range toggle is its
@@ -681,7 +682,7 @@ jsdom visibility checks.
 - 2026-09-27 — Closed #611: added props-only `ToolModeToggleView`,
   `EditingToolRailView` and `CommandPaletteView`, extracted from
   `ToolModeToggle`, `EditingToolRail` and `CommandPalette` following the
-  `TrackHeaderView` pattern, with `Templates/ToolModeToggle`,
+  props-only view pattern, with `Templates/ToolModeToggle`,
   `Templates/EditingToolRail` and `Templates/CommandPalette` stories; removed
   follow-up D from the Catalog boundary list; added the shared
   `openDialogViaLauncher` story play helper.

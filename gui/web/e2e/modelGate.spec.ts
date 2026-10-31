@@ -16,6 +16,7 @@ import {
 } from "./modelsMock";
 import { openHostProject } from "./overlayReachability";
 import { deliverPage, openPanel, phone, startExport } from "./stageNav";
+import { trackHeaderButtons } from "./trackHeader";
 
 /**
  * The model gate against a mocked `/api/bootstrap/*` and a mocked 409 `model_needed` on the Run
@@ -185,10 +186,7 @@ async function openSplitSpeakers(page: Page): Promise<void> {
   if ((page.viewportSize()?.width ?? 0) < 720) {
     await phone.showTimeline(page);
   }
-  await page
-    .getByRole("button", { name: /^Open track details/ })
-    .first()
-    .dispatchEvent("click");
+  await trackHeaderButtons(page).first().dispatchEvent("click");
   await page
     .getByRole("button", { name: "Split speakers…", exact: true })
     .click();

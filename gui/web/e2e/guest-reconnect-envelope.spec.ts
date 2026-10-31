@@ -7,6 +7,7 @@ import {
   openHostShare,
 } from "./shareNavigation";
 import { phone } from "./stageNav";
+import { trackHeaderButton } from "./trackHeader";
 
 /**
  * #1346: a phone guest's review socket drops and reconnects (the relay path
@@ -121,9 +122,7 @@ test("a guest keeps its envelope editor and baseline resources across socket rec
         await inspector.getByRole("button", { name: "Close" }).click();
       }
       await phone.showTimeline(guest);
-      await guest
-        .getByRole("button", { name: "Open track details, guest", exact: true })
-        .click();
+      await trackHeaderButton(guest, "guest").click();
       await guest
         .getByRole("button", { name: "Add volume envelope", exact: true })
         .click();

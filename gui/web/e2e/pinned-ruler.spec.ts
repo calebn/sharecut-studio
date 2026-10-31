@@ -66,7 +66,7 @@ async function readChromeGeometry(page: Page): Promise<ChromeGeometry> {
     const ruler = document.querySelector<HTMLElement>(
       `[data-testid="${ids.ruler}"]`,
     );
-    const firstTrack = document.querySelector<HTMLElement>(".track-header-row");
+    const firstTrack = document.querySelector<HTMLElement>(".sys-track");
     if (!scroller || !corner || !marker || !ruler || !firstTrack) {
       throw new Error("timeline chrome did not mount");
     }
@@ -84,7 +84,7 @@ async function readChromeGeometry(page: Page): Promise<ChromeGeometry> {
 async function exercisePinnedRuler(page: Page): Promise<void> {
   await expect(page.locator(".stage-frame")).toBeVisible();
   await expect(page.locator(".timeline-scroll")).toBeVisible();
-  await expect(page.locator(".track-header-row")).toHaveCount(TRACK_COUNT);
+  await expect(page.locator(".sys-track")).toHaveCount(TRACK_COUNT);
   await expect(page.locator(".chapter-marker")).toHaveCount(1);
   await expect(page.locator(".comment-marker")).toHaveCount(1);
 

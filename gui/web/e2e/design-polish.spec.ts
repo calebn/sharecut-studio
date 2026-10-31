@@ -7,6 +7,7 @@ import { openPhoneTimeline } from "./phoneTimeline";
 import { playButton } from "./playback";
 import { openProject, openProjectDialog, openProjectMenu } from "./stageNav";
 import { setTheme } from "./theme";
+import { trackHeaderButton } from "./trackHeader";
 import { waitForWaveformsSettled } from "./waveformHook";
 
 function contrastRatio(foreground: string, background: string): number {
@@ -163,7 +164,7 @@ for (const viewport of [
   });
 }
 
-test("light Player keeps a stable play hover paint and track rows lift on hover", async ({
+test("light Player keeps a stable play hover paint and a track header shows its controls on hover", async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
@@ -186,15 +187,12 @@ test("light Player keeps a stable play hover paint and track rows lift on hover"
   await play.hover();
   expect(await playPaint(play)).toEqual(playRest);
 
-  const row = page.locator(".track-header-row").first();
-  const rowRest = await row.evaluate(
-    (node) => getComputedStyle(node).backgroundColor,
-  );
+  // Nothing is set on the first track, so its Mute, Solo and level wait for the pointer.
+  const row = page.locator(".sys-track").first();
+  const controls = row.locator(".sys-track-controls");
+  await expect(controls).toHaveCSS("opacity", "0");
   await row.hover();
-  const rowHover = await row.evaluate(
-    (node) => getComputedStyle(node).backgroundColor,
-  );
-  expect(rowHover).not.toBe(rowRest);
+  await expect(controls).toHaveCSS("opacity", "1");
 });
 
 test("Player zones never overlap across widths", async ({ page }) => {
@@ -275,9 +273,7 @@ test("a dialog floats on the overlay rung over a dark scrim", async ({
   page,
 }) => {
   await openProject(page, e2eProjectPath);
-  await page
-    .getByRole("button", { name: "Open track details, reference" })
-    .focus();
+  await trackHeaderButton(page, "reference").focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".inspector")).toBeVisible();
   // The dialog covers the Inspector: read its raised surface in each theme

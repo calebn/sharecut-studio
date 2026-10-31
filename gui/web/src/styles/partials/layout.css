@@ -174,13 +174,55 @@ html[data-shell="phone"] .guest-attention-dismiss {
   box-sizing: border-box;
 }
 
+/* One header in a lane-high slot, so a header and its lane share a height. */
+.track-column-row {
+  position: relative;
+  display: flex;
+  flex: none;
+  block-size: var(--lane-height);
+  overflow: hidden;
+  container: track-row / size;
+}
+
+/* A lane shorter than the header's two stacked rows (large text shrinks it to
+   3.25rem) puts mute and solo beside the name, as the coarse pointer does. */
+@container track-row (max-height: 4rem) {
+  .track-column-row > .sys-track:not([data-form="phone"]) {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-1);
+    padding-inline: var(--space-1);
+  }
+
+  .track-column-row > .sys-track:not([data-form="phone"]) .sys-track-main {
+    flex: 1;
+    min-inline-size: 0;
+  }
+
+  .track-column-row > .sys-track[data-form="default"] .sys-scrub {
+    display: none;
+  }
+
+  .track-column-row > .sys-track .sys-track-controls {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.track-column-row > .sys-track[data-form] {
+  flex: 1;
+  inline-size: auto;
+  min-inline-size: 0;
+  block-size: 100%;
+}
+
 .timeline-area {
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
   overflow: hidden;
   background: var(--color-timeline-well);
-  /* Pane-size density for --header-width (Every Layout Container escape hatch). */
+  /* Pane-size density for the corner's Solo on chip (Every Layout Container escape hatch). */
   container: timeline / inline-size;
 }
 
@@ -198,8 +240,8 @@ html[data-shell="phone"] .guest-attention-dismiss {
      Chromium leaves a stable gutter outside the horizontal scroll range with short lanes. */
   overflow-y: scroll;
   /* Header plane continues to the well floor even when tracks are short.
-     Declared here, not as a :root token: --header-width is overridden per
-     pane below, and a root-level token would freeze it at 11.25rem. */
+     Declared here, not as a :root token: --header-width is overridden for the
+     phone, and a root-level token would freeze it at 10.5rem. */
   --bg-timeline-scroll: linear-gradient(
     to right,
     var(--color-bg-base) 0 var(--header-width),
@@ -246,31 +288,9 @@ html[data-shell="phone"] .guest-attention-dismiss {
   min-block-size: 100%;
 }
 
-/* Mid arrange pane: tablet-density rail (replaces viewport --header-width on shell). */
-@container timeline (inline-size < 68.75rem) {
-  .timeline-scroll,
-  .timeline-lock-inner {
-    --header-width: 8.75rem;
-  }
-}
-
-/* A phone held sideways has compact lanes, whose one-row header puts the name
-   beside M and S; its wide pane keeps the full header so the name still reads
-   (#1077). */
-@container timeline (50rem <= inline-size < 68.75rem) {
-  html[data-shell="tablet"]
-    .timeline-area[data-lane-density="compact"]
-    :is(.timeline-scroll, .timeline-lock-inner) {
-    --header-width: 11.25rem;
-  }
-}
-
-/* Narrow arrange pane: gutter token (chrome hide rules live after .track-meta). */
-@container timeline (inline-size < 30rem) {
-  .timeline-scroll,
-  .timeline-lock-inner {
-    --header-width: 4rem;
-  }
+/* The phone's header column is the 56 px avatar form of system/TrackHeader. */
+.stage-frame--phone {
+  --header-width: 3.5rem;
 }
 
 .timeline-time {
@@ -395,12 +415,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
   border: 0;
 }
 
-/* Outline-first: avoid wash behind small dim text (track-role fails 4.5:1). */
-.stale-highlight {
-  outline: var(--focus-ring-width) solid var(--color-warning);
-  outline-offset: calc(-1 * var(--focus-ring-offset));
-}
-
 .lane-row.stale-whole-track {
   box-shadow: inset 0.1875rem 0 0 var(--color-warning);
 }
@@ -420,32 +434,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
   background: var(--color-warning-band);
   outline: 1px solid var(--color-warning-underline);
   box-sizing: border-box;
-}
-
-.stale-reason-chip {
-  display: inline-block;
-  margin-left: var(--space-1);
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-micro);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  background: var(--color-warning-muted);
-  color: var(--color-warning);
-  vertical-align: middle;
-}
-
-.track-header-row.stale-whole-track {
-  box-shadow: inset 0.1875rem 0 0 var(--color-warning);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .stale-highlight {
-    transition:
-      outline-color var(--motion-hover) var(--motion-ease-out),
-      box-shadow var(--motion-hover) var(--motion-ease-out);
-  }
 }
 
 .audition-overlay {
@@ -494,10 +482,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
   .track-transport-btns .trk-btn {
     min-inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
-  }
-
-  .track-meta .track-role {
-    display: none;
   }
 }
 
@@ -646,277 +630,10 @@ html[data-shell="phone"] .guest-attention-dismiss {
   background: var(--color-comment-marker);
 }
 
-.track-header-row {
-  flex-shrink: 0;
-  position: relative;
-  height: var(--lane-height);
-  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  /* Top-aligned: lanes grow to fill the stage, names stay put. */
-  justify-content: flex-start;
-  gap: var(--space-1);
-  cursor: pointer;
-  box-sizing: border-box;
-  overflow: hidden;
-  border-inline-start: 0.1875rem solid var(--track-identity-color);
-}
-
-.track-header-row.selected {
-  /* Selected = the neutral chip; the identity bar thickens. */
-  background: var(--color-chip-selected);
-  box-shadow: inset 0.25rem 0 0 var(--track-identity-color);
-}
-
-/* Selecting a stale track keeps its warning: identity bar, then the stale
-   stripe just inside it. */
-.track-header-row.selected.stale-whole-track {
-  --track-row-edge:
-    inset 0.25rem 0 0 var(--track-identity-color),
-    inset 0.4375rem 0 0 var(--color-warning);
-
-  box-shadow: var(--track-row-edge);
-}
-
-.track-header-open {
-  position: absolute;
-  inset: 0;
-  z-index: var(--z-content);
-  border: none;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.track-reorder-handle {
-  position: absolute;
-  left: 0.125rem;
-  top: 50%;
-  z-index: var(--z-overlay);
-  width: 1rem;
-  height: 2rem;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  transform: translateY(-50%);
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: grab;
-  opacity: 0.7;
-  font-size: var(--font-size-body);
-  line-height: 2rem;
-  text-align: center;
-  user-select: none;
-  -webkit-user-drag: element;
-}
-
-.track-reorder-handle::before {
-  content: "⋮";
-  pointer-events: none;
-}
-
-.track-header-row.reorderable .track-header-open {
-  /* Leave the grip clickable / draggable above the full-bleed open hit target. */
-  left: var(--space-5);
-}
-
-.track-header-row:has(.track-reorder-handle) {
-  padding-left: var(--space-5);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .track-reorder-handle:hover {
-    opacity: 1;
-    color: var(--color-text-primary);
-  }
-}
-
-.track-header-row.dragging .track-reorder-handle {
-  opacity: 1;
-  color: var(--color-text-primary);
-}
-
-.track-reorder-handle:active {
-  cursor: grabbing;
-}
-
-.track-reorder-handle:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: 0.0625rem;
-}
-
-.track-header-open:focus {
-  outline: none;
-}
-
 /* Landing places for focus after Clear solo when no S button survives; a
    region ring would only be noise. */
 :is(.track-headers, .track-mix):focus {
   outline: none;
-}
-
-.track-header-open:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: -0.25rem;
-}
-
-.track-header-row .track-output-row {
-  position: relative;
-  z-index: var(--z-local-chrome);
-  pointer-events: none;
-  margin-block-start: auto;
-}
-
-.track-header-row .track-meta {
-  position: relative;
-  z-index: var(--z-local-chrome);
-}
-
-/* A track this listener doesn't hear goes grey like the lane beside it.
-   Solid = muted in the saved mix; dashed = only this listener hears it that
-   way (a listen-only mute, or a track their own solo silences). */
-.track-header-row:is(.muted, .mute-implied) {
-  --color-track-hover: color-mix(
-    in srgb,
-    var(--track-identity-color) 11%,
-    var(--color-track-muted)
-  );
-
-  background: var(--color-track-muted);
-}
-
-.track-header-row:is(.mute-listen, .mute-implied) {
-  border-inline-start-style: dashed;
-}
-
-.track-header-row.dragging {
-  opacity: 0.55;
-}
-
-.track-header-row.drop-before::before,
-.track-header-row.drop-after::after {
-  content: "";
-  position: absolute;
-  left: 0.5rem;
-  right: 0.5rem;
-  height: 0.125rem;
-  background: var(--color-accent);
-  pointer-events: none;
-  z-index: var(--z-overlay);
-}
-
-.track-header-row.drop-before::before {
-  top: 0;
-}
-
-.track-header-row.drop-after::after {
-  bottom: 0;
-}
-
-.track-header-row.stale-highlight .stem-status.stale {
-  filter: drop-shadow(0 0 0.125rem var(--color-warning-emphasis));
-  transform: scale(1.15);
-}
-
-/* Initials chip: shown only in the narrow (phone) rail, see the
-   @container timeline block below. Tinted lane color with full ink, so it
-   reads on every lane color; an unheard track greys its fill. */
-.track-chip {
-  --track-chip-fill: color-mix(
-    in srgb,
-    var(--track-identity-color) 22%,
-    var(--color-bg-base)
-  );
-
-  display: none;
-  place-items: center;
-  inline-size: var(--touch-min);
-  block-size: var(--touch-min);
-  flex: 0 0 auto;
-  border-width: 0.125rem;
-  border-style: solid;
-  border-color: var(--track-identity-color);
-  border-radius: 50%;
-  background: var(--track-chip-fill);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-ui);
-  font-weight: 600;
-  line-height: 1;
-}
-
-.track-header-row:is(.muted, .mute-implied) .track-chip {
-  --track-chip-fill: var(--color-track-muted);
-}
-
-.track-header-row:is(.mute-listen, .mute-implied) .track-chip {
-  border-style: dashed;
-}
-
-.track-title {
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-size: var(--font-size-small);
-  color: inherit;
-  padding: var(--space-1) 0;
-  min-height: 1.5rem;
-  text-align: left;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  padding-inline-start: var(--space-1);
-}
-
-.track-title-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.track-header-disclose {
-  display: none;
-  margin-inline-start: auto;
-  flex: 0 0 auto;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-review);
-  line-height: 1;
-  font-weight: 400;
-}
-
-.stem-status {
-  flex: 0 0 auto;
-  /* Trailing status; the leading edge belongs to the identity color. */
-  margin-inline-start: auto;
-}
-
-.stem-status.fresh {
-  color: var(--color-success-solid);
-}
-
-.stem-status.stale {
-  color: var(--color-warning);
-}
-
-.track-meta {
-  font-size: var(--font-size-micro);
-  color: var(--color-text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.track-role {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
 }
 
 .badge {
@@ -936,23 +653,6 @@ html[data-shell="phone"] .guest-attention-dismiss {
 .badge.fx {
   background: var(--color-badge-bg);
   color: var(--color-badge-fg);
-}
-
-.track-out-gain {
-  font-size: var(--font-size-micro);
-  color: var(--color-text-secondary);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.track-output-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-inline-size: 0;
-  flex-shrink: 0;
 }
 
 .track-playback-meter {
@@ -1017,114 +717,47 @@ html[data-shell="phone"] .guest-attention-dismiss {
   opacity: 1;
 }
 
-/* Short lanes (many tracks, or a short stage): name and M/S share one row
-   and the Out readout sits under them, so nothing is clipped at the lane floor. */
-.timeline-area[data-lane-density="compact"] .track-header-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "title meta"
-    "gain gain";
-  align-content: start;
-  column-gap: var(--space-3);
-  row-gap: var(--space-1);
-  padding-block: var(--space-1);
-}
-
-.timeline-area[data-lane-density="compact"] .track-title {
-  grid-area: title;
-}
-
-.timeline-area[data-lane-density="compact"] .track-meta {
-  grid-area: meta;
-}
-
-.timeline-area[data-lane-density="compact"] .track-role {
-  display: none;
-}
-
-.timeline-area[data-lane-density="compact"] .track-output-row {
-  grid-area: gain;
-}
-
 .track-clip-status {
   display: none;
 }
 
-/* After .track-meta / .track-out-gain so display:none wins the cascade. */
+/* A narrow arrange pane (a tablet at 200% text, a small window) has no room
+   for the name and the controls: the header column takes the 56 px width of
+   the phone form and the default form keeps its avatar, as the phone form
+   does. The Track inspector carries mute, solo and level. */
 @container timeline (inline-size < 30rem) {
-  .track-meta,
-  .track-out-gain,
-  .stale-reason-chip {
-    display: none;
-  }
-
-  /* Phone rail: identity first (the pattern praised mobile editors use).
-     A lane-colored initials chip at the top of each lane, the lane color on
-     the edge, and the full name on the lane's clip labels; mute, solo, gain
-     and reorder live in the track sheet and the Menu. */
-  .track-header-row {
-    padding-block: var(--space-1);
-    padding-inline: var(--space-1);
-    align-items: center;
-    gap: 0;
-    border-inline-start: 0.25rem solid var(--track-identity-color);
-  }
-
-  .track-title {
-    justify-content: center;
-    padding-block: 0;
-    flex: 0 0 auto;
-    width: auto;
-    text-overflow: unset;
-  }
-
-  .track-output-row {
-    inline-size: 100%;
-    margin-block-start: var(--space-1);
-  }
-
-  .track-playback-meter {
-    position: relative;
-    inline-size: 100%;
-    min-block-size: var(--space-3);
-  }
-
-  .track-header-row .track-clip-clear {
-    display: none;
-  }
-
-  .track-header-row .track-clip-status {
-    display: flex;
-  }
-
-  .track-playback-meter {
-    padding-inline-end: 0;
-  }
-
-  .track-chip {
-    display: grid;
-  }
-
-  .track-title-text,
-  .track-header-disclose,
-  .track-reorder-handle,
-  .stem-status {
-    display: none;
-  }
-
-  /* No grip on the phone rail: drop its gutter so the chip centers, and the
-     whole rail opens the track. */
-  .track-header-row:has(.track-reorder-handle) {
-    padding-inline-start: var(--space-1);
-  }
-
-  .track-header-row.reorderable .track-header-open {
-    left: 0;
+  .timeline-scroll,
+  .timeline-lock-inner {
+    --header-width: 3.5rem;
   }
 
   .track-headers-chrome {
     padding: 0;
+  }
+
+  .track-column-row > .sys-track[data-form="default"] {
+    align-items: center;
+    padding-inline: 0;
+  }
+
+  .track-column-row > .sys-track[data-form="default"] .sys-track-main {
+    justify-content: center;
+    min-inline-size: var(--touch-min);
+  }
+
+  .track-column-row > .sys-track[data-form="default"] .sys-track-controls {
+    display: none;
+  }
+
+  /* The name stays the select button's accessible name, as in the phone form. */
+  .track-column-row > .sys-track[data-form="default"] .sys-track-name {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 }
 

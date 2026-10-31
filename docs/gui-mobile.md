@@ -108,8 +108,8 @@ held sideways) compact the editor:
   or closing never resizes lanes under a finger; **Fit tracks to window
   height** still fills the stage. With large text the lane is 3.25rem
   (`shortTouchFloorPx`), so the 2.75rem identity chip and its meter stay whole
-  (104px at a 32px root). Track headers switch to their compact one-row layout,
-  and a sideways pane at least 50rem wide keeps the full 11.25rem header so
+  (104px at a 32px root). Track headers switch to the 56px avatar-only form,
+  and a sideways pane at least 50rem wide keeps the full 10.5rem header so
   the name still reads beside M and S.
 - An empty marker lane gives its quiet row to the tracks; rows with chapters,
   clips, comments or clip flags still show.
@@ -585,7 +585,7 @@ pending range proposals; Viewers keep the five actions visible with disabled rea
 | Listen hero (play, time, scrub) | Player bar on every stage; swipe up for the Player sheet. Guests and passive listening land in Review |
 | Mode nav (Listen, Timeline, Text, More) | Stage tab bar: Record, Prepare, Edit, Review, Deliver (`stage.*`, Mod+1 to Mod+5). Edit holds the Timeline and Script surfaces behind a waveform and text icon switch; selection and playhead carry across |
 | Comment / Fit | Comment at the playhead in the Player bar; Fit in the Edit corner |
-| Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag the Volume envelope layer for envelopes). The mix sheet adjusts all tracks without changing selection. Header mixer chrome is hidden when the timeline pane is narrow; reorder by dragging the header or the track sheet's Move up and Move down. On a tablet with a coarse pointer the wide header's **M** and **S** are 44px touch targets like the track sheet's (#1028) |
+| Track headers M/S/FX | Lane gutter tap (the whole 56px rail; the avatar is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag the Volume envelope layer for envelopes). The mix sheet adjusts all tracks without changing selection. The phone rail shows the avatar only (its ring shows the playing level); there is no touch drag to reorder, so reorder with the track sheet's Move up and Move down. On a tablet with a coarse pointer the header's **M** and **S** are 44px touch targets like the track sheet's (#1028) |
 | Timeline overlays (layer chips) | Eye sheet in the Edit corner |
 | Inspector | Selection sheet |
 | Transcript tab | Edit → Script surface |

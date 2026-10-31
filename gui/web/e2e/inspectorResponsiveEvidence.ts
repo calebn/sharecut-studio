@@ -19,9 +19,9 @@ export async function controlGeometry(control: Locator, identity = false) {
       element instanceof HTMLSelectElement
         ? element.labels?.[0]
         : null;
-    const row = element.closest(".track-header-row");
-    const chip = row?.querySelector(".track-chip");
-    const title = row?.querySelector(".track-title");
+    const row = element.closest(".sys-track");
+    const chip = row?.querySelector(".sys-track-avatar");
+    const title = row?.querySelector(".sys-track-name");
     const measure = (node: Element, paintExtent = 0) => {
       const box = node.getBoundingClientRect();
       let left = 0,

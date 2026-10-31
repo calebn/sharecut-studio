@@ -44,6 +44,7 @@ import {
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { goToStage, openPanel, openProject, phone, stageTab } from "./stageNav";
+import { trackHeaderButton } from "./trackHeader";
 import { withBrowserPages } from "./twoBrowserPages";
 
 const LIVE_PILL = /^\d+:\d{2} · Take \d+$/;
@@ -1227,9 +1228,7 @@ test.describe("record lobby", () => {
           await closeHostMore(roomDlg);
           // The landed take is a track on Edit.
           await goToStage(host, "edit");
-          await expect(
-            host.getByRole("button", { name: "Open track details, Ava" }),
-          ).toBeVisible();
+          await expect(trackHeaderButton(host, "Ava")).toBeVisible();
           await openPanel(host, "comments");
           await expect(host.getByText("Great answer").first()).toBeVisible();
           await expect(host.getByText("Producer note").first()).toBeVisible();

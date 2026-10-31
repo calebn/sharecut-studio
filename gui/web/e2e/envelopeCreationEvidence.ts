@@ -10,20 +10,18 @@ import {
 import { repoRoot } from "./env";
 import type { InteractionReceipt } from "./interactionEvidence";
 import { createRelocatedE2eProject } from "./liveProject";
+import { trackHeaderButton } from "./trackHeader";
 
 export async function openEnvelopeTrackDetails(
   page: Page,
   label: string,
   receipts: InteractionReceipt[],
 ) {
-  const button = page.getByRole("button", {
-    name: `Open track details, ${label}`,
-    exact: true,
-  });
+  const button = trackHeaderButton(page, label);
   await expect(button).toBeVisible();
   await button.scrollIntoViewIfNeeded();
   const geometry = await button.evaluate((element) => {
-    const row = element.closest(".track-header-row");
+    const row = element.closest(".sys-track");
     const visible = (candidate: Element | null) => {
       if (!candidate) return false;
       const rect = candidate.getBoundingClientRect();
@@ -35,8 +33,8 @@ export async function openEnvelopeTrackDetails(
         style.display !== "none"
       );
     };
-    const chip = row?.querySelector(".track-chip") ?? null;
-    const title = row?.querySelector(".track-title") ?? null;
+    const chip = row?.querySelector(".sys-track-avatar") ?? null;
+    const title = row?.querySelector(".sys-track-name") ?? null;
     const identity = visible(chip) ? chip : visible(title) ? title : null;
     if (!identity)
       throw new Error("Track identity has no visible title or chip");

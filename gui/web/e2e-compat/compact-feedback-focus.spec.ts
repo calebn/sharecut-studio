@@ -10,6 +10,7 @@ import {
 import { rememberInspectorDetent } from "../e2e/phoneTimeline";
 import { inspectSelectionByKey } from "../e2e/stageNav";
 import { lane } from "../e2e/touchTimeline";
+import { trackHeaderButton } from "../e2e/trackHeader";
 
 test.use({ hasTouch: true, reducedMotion: "reduce" });
 test("focused feedback Undo survives a phone turning sideways", async ({
@@ -39,12 +40,7 @@ test("focused feedback Dismiss stays in the card or its toast when a phone turns
 async function focusCompactToastAction(page: Page, name: "Undo" | "Dismiss") {
   await rememberInspectorDetent(page, "peek");
   await openAt(page, SIZES.portrait);
-  await page
-    .getByRole("button", {
-      name: "Open track details, reference",
-      exact: true,
-    })
-    .click();
+  await trackHeaderButton(page, "reference").click();
   await expect(page.locator(".modifier-inspector")).toBeVisible();
   const close = page
     .locator(".bottom-sheet-header, .sys-inspector-header")

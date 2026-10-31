@@ -19,7 +19,6 @@ import {
  *   speaker name, which opens the speaker popover): inline words in running text,
  *   where a taller hit area would take the neighbouring line's taps; the ruler and transport
  *   seek at 44px;
- * - `.track-reorder-handle`: a drag shortcut whose equivalent is the 44px Move up/down buttons;
  */
 const DOCUMENTED_EXCEPTIONS = [
   ".fade-corner",
@@ -27,7 +26,6 @@ const DOCUMENTED_EXCEPTIONS = [
   ".track-headers-well",
   ".sys-script-word",
   ".sys-script-time",
-  ".track-reorder-handle",
   ".comment-marker.pin",
   ".pending-hit",
   ".pending-handle",

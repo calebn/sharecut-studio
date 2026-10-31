@@ -85,10 +85,10 @@ const COVERED: Record<string, string[]> = {
   "OVL-RANGE": ["Templates/TimelineRange"],
   "OVL-COMMENT-BUBBLE": ["Templates/CommentPlaybackBubble", "System/Marker"],
   "CMP-TRACK-HEADERS": [
-    "Templates/TrackHeader",
     "System/ScrubField",
     "System/TrackHeader",
     "Stages/Edit/Tracks",
+    "Stages/Edit/TrackColumn",
   ],
   "CMP-TRACK-FADER": ["Templates/TrackFader", "System/ScrubField"],
   "CMP-LEGEND": ["Templates/OverlayLegend"],
