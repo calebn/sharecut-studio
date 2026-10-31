@@ -938,8 +938,16 @@ def test_window_builds_run_exactly_as_wide_as_the_cpu_budget(
     monkeypatch.setattr(track_evidence, "plan_window", lambda *args, **kwargs: object())
     monkeypatch.setattr(audio_audit, "cpu_budget", lambda: budget)
     gate = threading.Lock()
-    saturated, overflow = threading.Event(), threading.Event()
+    saturated = threading.Event()
     in_flight = peak = 0
+    widths: list[int | None] = []
+    real_run_parallel = audio_audit.run_parallel
+
+    def spy(items, fn, **kwargs):  # type: ignore[no-untyped-def]
+        widths.append(kwargs.get("max_workers"))
+        return real_run_parallel(items, fn, **kwargs)
+
+    monkeypatch.setattr(audio_audit, "run_parallel", spy)
 
     def build(
         plan: object, start: float, end: float, *, profile: LevelProfile
@@ -950,13 +958,10 @@ def test_window_builds_run_exactly_as_wide_as_the_cpu_budget(
             peak = max(peak, in_flight)
             if in_flight >= budget:
                 saturated.set()
-            if in_flight > budget:
-                overflow.set()
         try:
-            # The pool must fill up to the budget (only a failure waits out this timeout)...
+            # Builds hold until the pool is full, so the pool must reach the budget (only a
+            # failure waits out this timeout). The upper bound is the pool width asserted below.
             assert saturated.wait(timeout=5), "the pool never reached the cpu budget"
-            # ...and an extra build, if the cap is gone, starts within this grace and ends it.
-            overflow.wait(timeout=0.1)
         finally:
             with gate:
                 in_flight -= 1
@@ -967,6 +972,7 @@ def test_window_builds_run_exactly_as_wide_as_the_cpu_budget(
     found = _windowed(project, ["a", "b", "c"])
 
     assert found == {}
+    assert widths == [min(3, budget)]
     assert peak == budget
 
 
