@@ -4,7 +4,11 @@ import type { SegmentAckRow } from "../saveStatus";
 export type RecordUploadStatus = {
   session_id?: string;
   segments: SegmentAckRow[];
-  room_tone_status?: { participant_id: string; file_ack?: boolean }[];
+  room_tone_status?: {
+    participant_id: string;
+    file_ack?: boolean;
+    land_failed?: boolean;
+  }[];
 };
 
 export type RecordUploadAck = {

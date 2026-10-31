@@ -196,6 +196,18 @@ describe("useLateRoomTone", () => {
     await waitFor(() => expect(result.current?.kind).toBe("room-tone"));
   });
 
+  it("asks again when the host received the bed but could not save it", async () => {
+    const { result } = setup({
+      transport: withStatus(async () => ({
+        segments: [],
+        room_tone_status: [
+          { participant_id: "p_late", file_ack: true, land_failed: true },
+        ],
+      })),
+    });
+    await waitFor(() => expect(result.current?.kind).toBe("room-tone"));
+  });
+
   it("asks when the host's status cannot be read", async () => {
     const { result } = setup({
       transport: withStatus(async () => {
