@@ -162,7 +162,7 @@ def _validated_formats(formats: Sequence[str]) -> tuple[str, ...]:
 def _same_transcript(fmt: str, data: bytes, fresh: str, project: EpisodeProject) -> bool:
     if fmt in ("srt", "vtt"):
         return captions_match(data.decode("utf-8", errors="replace"), project)
-    return data == fresh.encode("utf-8")
+    return data.replace(b"\r\n", b"\n") == fresh.encode("utf-8")
 
 
 def _configured_limits(defaults: EffectiveConfig) -> CaptionLimits:
