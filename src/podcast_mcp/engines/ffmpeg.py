@@ -1809,6 +1809,62 @@ class FFmpegEngine:
         finally:
             list_file.unlink(missing_ok=True)
 
+    def concat_with_gap(
+        self,
+        wav_a: Path,
+        wav_b: Path,
+        out: Path,
+        *,
+        gap_sec: float,
+        rate: int,
+        channels: int,
+    ) -> Path:
+        """Write A + ``gap_sec`` of silence + B into ``out`` (pcm_s16le)."""
+        if gap_sec <= 1e-9:
+            return self.join_audio_parts([wav_a, wav_b], out)
+
+        silence = out.with_name(f".{out.stem}_gap.wav")
+        run(self._anullsrc_argv(silence, gap_sec, rate, channels), check=True, capture_output=True)
+        try:
+            # Filter concat so mismatched layouts still join cleanly.
+            cmd = [
+                self.ffmpeg,
+                "-y",
+                "-i",
+                str(wav_a),
+                "-i",
+                str(silence),
+                "-i",
+                str(wav_b),
+                "-filter_complex",
+                "[0:a][1:a][2:a]concat=n=3:v=0:a=1[out]",
+                "-map",
+                "[out]",
+                "-acodec",
+                "pcm_s16le",
+                str(out),
+            ]
+            run(cmd, check=True, capture_output=True)
+        finally:
+            silence.unlink(missing_ok=True)
+        return out
+
+    def _anullsrc_argv(self, silence: Path, gap_sec: float, rate: int, channels: int) -> list[str]:
+        ch_layout = "mono" if channels <= 1 else "stereo"
+        return [
+            self.ffmpeg,
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"anullsrc=r={rate}:cl={ch_layout}",
+            "-t",
+            f"{gap_sec:.6f}",
+            "-acodec",
+            "pcm_s16le",
+            str(silence),
+        ]
+
     def pad_end_silence(self, input_path: Path, output_path: Path, duration_sec: float) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         target = float(duration_sec)
