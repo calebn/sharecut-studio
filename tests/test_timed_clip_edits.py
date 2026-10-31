@@ -6,9 +6,9 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.clips_ops import (
-    roll_clip_join,
     punch_timeline_range_from_clips,
     remove_timeline_range_from_clips,
+    roll_clip_join,
     roll_join_limits,
     split_clip_at,
     trim_edge_limits,
@@ -94,7 +94,7 @@ def test_a_split_exactly_on_a_step_drops_that_step_and_keeps_the_audio_in_place(
     before, after = split_clip_at(clip, 112.0, defaults=_DEFAULTS)
     assert (before.source_end, after.source_start) == (20, 20)
     assert after.timeline_start == 112
-    assert _played(before, after) == _played(clip)[:1] + [(20, 30, 112), (31, 40, 122)]
+    assert _played(before, after) == [*_played(clip)[:1], (20, 30, 112), (31, 40, 122)]
 
 
 def test_a_split_at_the_join_after_a_skip_ends_the_left_clip_past_the_skipped_span() -> None:
@@ -125,7 +125,7 @@ def test_a_clip_without_timing_splits_as_before() -> None:
 def test_trim_limits_stop_the_in_edge_at_the_first_step_and_the_out_edge_after_the_last() -> None:
     clip = _clip(_STEPS)
     project = _project([clip])
-    in_lo, in_hi = trim_edge_limits(project, clip, "in", EditMode.RIPPLE)
+    _in_lo, in_hi = trim_edge_limits(project, clip, "in", EditMode.RIPPLE)
     assert in_hi == pytest.approx(20, abs=1e-5)
     assert in_hi < 20
     out_lo, out_hi = trim_edge_limits(project, clip, "out", EditMode.RIPPLE)
@@ -206,3 +206,25 @@ def test_edits_leave_the_original_clip_untouched_so_undo_can_restore_it() -> Non
     remove_timeline_range_from_clips([clip], 108.0, 115.0, defaults=_DEFAULTS)
     punch_timeline_range_from_clips([clip], 108.0, 115.0, defaults=_DEFAULTS)
     assert clip.model_dump() == snapshot
+
+
+@pytest.mark.parametrize("span", [(110.5, 111.5), (110.0, 112.0), (110.0, 111.0), (111.0, 112.0)])
+def test_a_range_wholly_inside_a_hole_shrinks_the_hole_when_removed(
+    span: tuple[float, float],
+) -> None:
+    clip = _clip(_STEPS)
+    out = remove_timeline_range_from_clips([clip], *span, defaults=_DEFAULTS)
+    shrink = span[1] - span[0]
+    assert out[-1].timeline_end == pytest.approx(clip.timeline_end - shrink)
+    assert _played(*out)[-1] == (31, 40, 122 - shrink)
+    assert out[0].timeline_end == 110
+
+
+@pytest.mark.parametrize("span", [(110.5, 111.5), (110.0, 112.0)])
+def test_a_range_wholly_inside_a_hole_changes_nothing_when_punched(
+    span: tuple[float, float],
+) -> None:
+    clip = _clip(_STEPS)
+    out = punch_timeline_range_from_clips([clip], *span, defaults=_DEFAULTS)
+    assert out[-1].timeline_end == clip.timeline_end
+    assert _played(*out)[-1] == (31, 40, 122)

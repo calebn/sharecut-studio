@@ -290,6 +290,14 @@ def remove_timeline_range_from_clips(
             before, working = split_clip_at(working, timeline_start, defaults=defaults)
             out.append(before)
 
+        if timeline_end <= working.timeline_start + 1e-9:
+            out.append(
+                working.model_copy(
+                    deep=True, update={"timeline_start": working.timeline_start - duration}
+                )
+            )
+            continue
+
         tl_end = working.timeline_end
         if tl_end > timeline_end + 1e-9:
             _, after = split_clip_at(working, timeline_end, defaults=defaults)
@@ -329,6 +337,10 @@ def punch_timeline_range_from_clips(
         if working.timeline_start < timeline_start:
             before, working = split_clip_at(working, timeline_start, defaults=defaults)
             out.append(before)
+
+        if timeline_end <= working.timeline_start + 1e-9:
+            out.append(working)
+            continue
 
         tl_end = working.timeline_end
         if tl_end > timeline_end + 1e-9:
