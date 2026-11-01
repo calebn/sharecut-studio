@@ -452,7 +452,7 @@ are −16 LUFS and −1.5 dBTP. A changed level re-masters on the next export.
 `mastered.wav` is reused on export while `mastered.hash` still matches
 `play_audit.master_fingerprint(project, MasterTarget)`: the premix (`master_source_hash`)
 plus the settings that change the audio, `master.integrated_lufs`, `master.true_peak_db`
-and `master.lra` (`engines/mastering.py::MasterTarget`). Changing any of them re-masters
+and `master.lra` (`engines/mastering.py::MasterTarget`), plus `MASTER_SEMANTICS_REV`, bumped when the mastering rules change so older masters are mastered again. Changing any of them re-masters
 on the next export; leaving them alone reuses the file (no re-render). The QC tolerances
 only judge the result, so they stay out of the fingerprint: when they change,
 `ensure_current_master` re-derives `issues` / `within_tolerance` from the stored
