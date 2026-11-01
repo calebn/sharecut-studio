@@ -2,6 +2,7 @@ import type { SourceCardProps } from "../../system/SourceCard";
 import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
+  PipelineStepTiming,
 } from "../../types/pipeline";
 import type { TrackView } from "../../types/project";
 import { getByPath, setByPath } from "../../utils/configPath";
@@ -457,19 +458,95 @@ function planRows(plan: RerunPlan): ReadyRowData[] {
   ];
 }
 
-/** "1 new · 3 reused" from the steps of a row that report it. */
-function reuseDetail(
-  job: PipelineJobSnapshot | null,
-  row: ReadyRowId,
+function reuseFromSteps(
+  steps: readonly PipelineStepTiming[],
 ): string | undefined {
   let reused = 0;
   let recomputed = 0;
-  for (const step of job?.steps ?? []) {
-    if (!ROW_STEPS[row].includes(step.name) || !step.reuse) continue;
+  for (const step of steps) {
+    if (!step.reuse) continue;
     reused += step.reuse.reused;
     recomputed += step.reuse.recomputed;
   }
   return reused > 0 ? `${recomputed} new · ${reused} reused` : undefined;
+}
+
+function reuseDetail(
+  job: PipelineJobSnapshot | null,
+  row: ReadyRowId,
+): string | undefined {
+  return reuseFromSteps(
+    (job?.steps ?? []).filter((step) => ROW_STEPS[row].includes(step.name)),
+  );
+}
+
+type RowWork = { operation: PlanOperation; timing: PipelineStepTiming };
+type TerminalRowResult =
+  | {
+      kind: "performed";
+      work: readonly [RowWork, ...RowWork[]];
+      partial: boolean;
+    }
+  | { kind: "omitted"; detail: "Skipped this run" | "Not run this time" };
+
+function ownOperations(row: ReadyRowId): readonly PlanOperation[] {
+  return row === "suggest"
+    ? [...PLAN_OPERATIONS.suggest, ...PLAN_OPERATIONS.scan]
+    : PLAN_OPERATIONS[row];
+}
+
+function terminalRowResult(
+  job: PipelineJobSnapshot | null,
+  row: ReadyRowId,
+): TerminalRowResult | null {
+  if (job?.status !== "ok" || row === "add") return null;
+  const operations = ownOperations(row);
+  const work = operations.flatMap((operation): RowWork[] => {
+    const timing = job.steps.find(
+      (step) => step.name === operation.step && step.status === "ok",
+    );
+    return timing ? [{ operation, timing }] : [];
+  });
+  const [first, ...rest] = work;
+  if (first)
+    return {
+      kind: "performed",
+      work: [first, ...rest],
+      partial: work.length < operations.length,
+    };
+  return {
+    kind: "omitted",
+    detail: operations.every((operation) =>
+      job.skip_steps?.includes(operation.step),
+    )
+      ? "Skipped this run"
+      : "Not run this time",
+  };
+}
+
+function terminalWorkDetail(
+  result: Extract<TerminalRowResult, { kind: "performed" }>,
+  fallback: string,
+): string {
+  if (result.partial) {
+    return result.work
+      .map(({ operation, timing }) => {
+        const detail =
+          reuseFromSteps([timing]) ??
+          timing.summary ??
+          (operation.step === "analyze_fillers_pauses" ? fallback : undefined);
+        return detail ? `${operation.label} · ${detail}` : operation.label;
+      })
+      .join(" · ");
+  }
+  return (
+    reuseFromSteps(result.work.map(({ timing }) => timing)) ??
+    (result.work
+      .map(({ timing }) => timing.summary)
+      .filter(Boolean)
+      .join(" · ") ||
+      fallback)
+  );
 }
 
 /** "1 min 12 s", "45 s", "1 h 2 min". */
@@ -506,6 +583,7 @@ export function reuseNote(job: PipelineJobSnapshot | null): string | undefined {
 type Outcome = {
   state: "queued" | "running" | "done" | "failed";
   error?: string;
+  skipped?: true;
 };
 
 function isLive(job: PipelineJobSnapshot | null): boolean {
@@ -527,6 +605,23 @@ export function rowOutcome(
   }
   if (mine.some((step) => step.status === "running")) {
     return { state: "running" };
+  }
+  const terminal = terminalRowResult(job, row);
+  if (terminal)
+    return { state: terminal.kind === "performed" ? "done" : "queued" };
+  const operations = ownOperations(row);
+  const reportedOwnWork = job.steps.some(
+    (step) =>
+      operations.some((operation) => operation.step === step.name) &&
+      ["ok", "running", "error"].includes(step.status),
+  );
+  if (
+    isLive(job) &&
+    operations.length > 0 &&
+    !reportedOwnWork &&
+    operations.every((operation) => job.skip_steps?.includes(operation.step))
+  ) {
+    return { state: "queued", skipped: true };
   }
   const later = ROW_ORDER.slice(ROW_ORDER.indexOf(row) + 1);
   const movedOn = job.steps.some((step) =>
@@ -612,6 +707,7 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
   }
 
   const transcribe = rowOutcome(job, "transcribe");
+  const terminalTranscribe = terminalRowResult(job, "transcribe");
   const speakers = plural(input.sourceCount, "speaker", "speakers");
   if (input.model) {
     const { model } = input;
@@ -679,15 +775,25 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
       title: ROW_TITLE.transcribe,
       detail: `Listening to ${plural(input.sourceCount, "track", "tracks")}`,
     });
-  } else if (transcribe?.state === "done" || settled) {
+  } else if (
+    transcribe?.state === "done" ||
+    settled ||
+    ((terminalTranscribe?.kind === "omitted" || transcribe?.skipped) &&
+      input.transcribed)
+  ) {
+    const kept = terminalTranscribe?.kind === "omitted" || transcribe?.skipped;
     rows.push(
       input.approximateTiming
         ? {
             id: "transcribe",
             state: "needs-you",
             title: ROW_TITLE.transcribe,
-            detail:
-              "Transcribed. Word timing is approximate, so cuts may clip word edges.",
+            detail: kept
+              ? "Existing transcripts kept. Word timing is approximate, so cuts may clip word edges."
+              : "Transcribed. Word timing is approximate, so cuts may clip word edges.",
+            ...(terminalTranscribe?.kind === "omitted"
+              ? { runDisposition: "omitted" as const }
+              : {}),
             action: input.approximateTiming.downloading
               ? undefined
               : {
@@ -700,9 +806,29 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
             id: "transcribe",
             state: "done",
             title: ROW_TITLE.transcribe,
-            detail: reuseDetail(job, "transcribe") ?? speakers,
+            detail: kept
+              ? "Existing transcripts kept"
+              : (reuseDetail(job, "transcribe") ?? speakers),
+            ...(terminalTranscribe?.kind === "omitted"
+              ? { runDisposition: "omitted" as const }
+              : {}),
           },
     );
+  } else if (transcribe?.skipped) {
+    rows.push({
+      id: "transcribe",
+      state: "queued",
+      title: ROW_TITLE.transcribe,
+      detail: "Skipped this run",
+    });
+  } else if (terminalTranscribe?.kind === "omitted") {
+    rows.push({
+      id: "transcribe",
+      state: "queued",
+      title: ROW_TITLE.transcribe,
+      detail: terminalTranscribe.detail,
+      runDisposition: "omitted",
+    });
   } else {
     rows.push({
       id: "transcribe",
@@ -721,24 +847,25 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
     });
   }
 
-  const tail: Record<"align" | "clean" | "suggest", string> = {
+  const fallback: Record<"align" | "clean" | "suggest", string> = {
     align:
-      input.sourceCount === 1
-        ? "One track, nothing to line up"
-        : (reuseDetail(job, "align") ??
-          stepSummary(job, "align") ??
-          "Lined up"),
-    clean:
-      reuseDetail(job, "clean") ??
-      stepSummary(job, "clean") ??
-      "Noise, volume, balance",
+      input.sourceCount === 1 ? "One track, nothing to line up" : "Lined up",
+    clean: "Noise, volume, balance",
     suggest:
       input.pendingSuggestions > 0
         ? plural(input.pendingSuggestions, "suggestion", "suggestions")
         : "None to decide yet",
   };
+  const tail = {
+    align:
+      reuseDetail(job, "align") ?? stepSummary(job, "align") ?? fallback.align,
+    clean:
+      reuseDetail(job, "clean") ?? stepSummary(job, "clean") ?? fallback.clean,
+    suggest: fallback.suggest,
+  };
   for (const id of ["align", "clean", "suggest"] as const) {
     const outcome = rowOutcome(job, id);
+    const terminal = terminalRowResult(job, id);
     if (outcome?.state === "failed") {
       rows.push(failedRow(id, outcome.error ?? ""));
     } else if (outcome?.state === "running") {
@@ -747,6 +874,29 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
         state: "running",
         title: ROW_TITLE[id],
         detail: ROW_ACTIVITY[id],
+      });
+    } else if (outcome?.skipped) {
+      rows.push({
+        id,
+        state: "queued",
+        title: ROW_TITLE[id],
+        detail: "Skipped this run",
+      });
+    } else if (terminal?.kind === "omitted") {
+      rows.push({
+        id,
+        state: "queued",
+        title: ROW_TITLE[id],
+        detail: terminal.detail,
+        runDisposition: "omitted",
+      });
+    } else if (terminal?.kind === "performed") {
+      rows.push({
+        id,
+        state: "done",
+        title: ROW_TITLE[id],
+        detail: terminalWorkDetail(terminal, fallback[id]),
+        ...(terminal.partial ? { runDisposition: "partial" as const } : {}),
       });
     } else if (outcome?.state === "done" || settled) {
       rows.push({
@@ -771,8 +921,19 @@ export function readySummary(
   const failed = rows.find((row) => row.state === "failed");
   if (failed) return `Getting ready: ${failed.title} failed`;
   const done = rows.filter((row) => row.state === "done").length;
-  if (done === rows.length) return "Getting ready: all done";
   const needs = rows.filter((row) => row.state === "needs-you");
+  if (
+    needs.length === 0 &&
+    rows.some((row) => row.runDisposition !== undefined) &&
+    rows.every(
+      (row) =>
+        row.state === "done" ||
+        (row.state === "queued" && row.runDisposition === "omitted"),
+    )
+  ) {
+    return "Getting ready: selected work finished";
+  }
+  if (done === rows.length) return "Getting ready: all done";
   const progress = `Getting ready: ${done} of ${rows.length} done`;
   if (needs.length === 0) return progress;
   return needs.length === 1
@@ -833,7 +994,12 @@ export function preparePhase(input: PhaseInput): PhaseResult {
   // keep) is not work in progress: nothing runs, so the hand-off is not held.
   if (
     input.rows.length > 0 &&
-    input.rows.every((r) => r.state === "done" || r.state === "needs-you")
+    input.rows.every(
+      (r) =>
+        r.state === "done" ||
+        r.state === "needs-you" ||
+        (r.state === "queued" && r.runDisposition === "omitted"),
+    )
   ) {
     return { phase: "done" };
   }

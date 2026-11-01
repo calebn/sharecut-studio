@@ -44,6 +44,7 @@ export type ReadyRowData = {
   state: StatusRowState;
   title: string;
   detail?: string;
+  runDisposition?: "omitted" | "partial";
   /** 0 to 1 while running. */
   progress?: number;
   /** The row's one primary action. */

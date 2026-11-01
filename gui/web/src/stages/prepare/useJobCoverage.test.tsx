@@ -27,8 +27,13 @@ function finished(id: string) {
     id,
     status: "ok",
     steps: [
-      { name: "transcribe", status: "ok", elapsed_sec: 1, error: null },
-      { name: "analyze", status: "ok", elapsed_sec: 1, error: null },
+      { name: "transcribe_tracks", status: "ok", elapsed_sec: 1, error: null },
+      {
+        name: "analyze_fillers_pauses",
+        status: "ok",
+        elapsed_sec: 1,
+        error: null,
+      },
     ],
   });
 }
