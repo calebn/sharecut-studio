@@ -190,28 +190,37 @@ describe("Bounce native anchor ownership", () => {
     expect(anchorValues()).toEqual(["", "", "", ""]);
   });
 
-  it("releases a start when the page returns to loading before running", async () => {
-    const value = options();
-    const view = render(
-      <div className="dv-stage">
-        <section className="dv-page">
-          <div data-testid="sibling">Readiness</div>
-          <BounceSection options={value} />
-        </section>
-      </div>,
-    );
-    await userEvent.click(screen.getByRole("button", { name: /^Bounce$/ }));
-    expect(screen.getByTestId("sibling").style.overflowAnchor).toBe("none");
-    view.rerender(
-      <div className="dv-stage">
-        <section className="dv-page">
-          <div data-testid="sibling">Readiness</div>
-          <BounceSection options={value} state="loading" />
-        </section>
-      </div>,
-    );
-    expect(screen.getByTestId("sibling").style.overflowAnchor).toBe("");
-  });
+  it.each(["idle", "running"] as const)(
+    "releases a start when the page returns to loading while %s",
+    async (phase) => {
+      const value = options();
+      const view = render(
+        <div className="dv-stage">
+          <section className="dv-page">
+            <div data-testid="sibling">Readiness</div>
+            <BounceSection options={value} />
+          </section>
+        </div>,
+      );
+      await userEvent.click(screen.getByRole("button", { name: /^Bounce$/ }));
+      expect(screen.getByTestId("sibling").style.overflowAnchor).toBe("none");
+      view.rerender(
+        <div className="dv-stage">
+          <section className="dv-page">
+            <div data-testid="sibling">Readiness</div>
+            <BounceSection
+              options={{
+                ...value,
+                state: phase === "running" ? running : value.state,
+              }}
+              state="loading"
+            />
+          </section>
+        </div>,
+      );
+      expect(screen.getByTestId("sibling").style.overflowAnchor).toBe("");
+    },
+  );
 
   it("releases on project-key replacement without seeding its background run", async () => {
     const value = options();

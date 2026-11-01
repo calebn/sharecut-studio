@@ -150,13 +150,9 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   useLayoutEffect(() => {
     const current = anchor.current;
     if (!current) return;
-    if (running) current.sawRunning = true;
-    else if (
-      current.sawRunning ||
-      state.phase !== "idle" ||
-      asking ||
-      pageState === "loading"
-    )
+    if (pageState === "loading") releaseAnchor();
+    else if (running) current.sawRunning = true;
+    else if (current.sawRunning || state.phase !== "idle" || asking)
       releaseAnchor();
   });
 
