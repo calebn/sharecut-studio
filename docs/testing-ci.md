@@ -337,18 +337,9 @@ test; other rows are whole tests. The seven direct compat axe owners and the
 shared touch-affordance and Mix helpers assign compat scans to WebKit.
 Main Chromium Studio scans and all reading-surface scans remain enabled.
 Chromium retains every non-axe assertion in the compat specs it runs.
-
 Branded Chrome keeps its full local inventory. Its `browserName` is `chromium`,
 so those conditional scans do not run there. Comment-undo and wordbar retain
 their existing unconditional helper scans in branded Chrome.
-
-The static Bounce anchoring experiment records native layout and navigation
-outcomes for candidate repairs to #2298. Its matrix row means the observation
-harness runs; candidate requirement failures remain explicit in the retained
-`playwright-report/bounce-anchor-*.json` receipts. Harness completion is not a
-product verdict. The experiment does not replace the real Deliver late-Transcript
-hydration and Cancel viewport acceptance. A native scrollbar that the hosted
-browser does not expose is recorded as unexercised, never as passing evidence.
 
 The touch-nudge strip rows and touch-peek theme and motion row describe
 assertions both engines run. WebKit also scans every collected strip state
@@ -356,7 +347,8 @@ with axe before the collected results are asserted.
 
 | Check | Spec | Area | Chromium (Chrome) | WebKit (Safari) | Firefox |
 | --- | --- | --- | --- | --- | --- |
-| static Bounce anchoring experiment records reachability and user navigation | `gui/web/e2e-compat/bounce-anchor-prototype.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Bounce remains reachable through running-row insertion and late Transcript hydration | `gui/web/e2e-compat/bounce-deliver-hydration.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Deliver restores normal reading after departure from a starting Bounce | `gui/web/e2e-compat/bounce-deliver-hydration.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | record: keeper capture, upload and landing | `gui/web/e2e-compat/core-flow.spec.ts` | getUserMedia | Pass | Pass | Not run |
 | transcribe: the episode transcript hydrates | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
 | review: the queue opens with no suggestions to decide | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
