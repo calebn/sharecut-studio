@@ -155,7 +155,7 @@ type Routes = {
     event: KeyboardEvent<HTMLElement>,
   ) => void;
   keyUp: (event: KeyboardEvent<HTMLElement>) => void;
-  blur: () => void;
+  blur: (id: string, grip: MarkerGrip) => void;
 };
 
 type ItemProps = Routes & {
@@ -228,7 +228,7 @@ const MarkerItem = memo(function MarkerItem({
     ...(movable ? { "data-movable": "true" } : {}),
     onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => bodyKey(id, event),
     onKeyUp: keyUp,
-    onBlur: blur,
+    onBlur: () => blur(id, "move"),
     ...routes("move"),
   };
   const edge = (grip: "start" | "end") => {
@@ -263,7 +263,7 @@ const MarkerItem = memo(function MarkerItem({
         onClick={(event) => click(id, event)}
         onKeyDown={(event) => edgeKey(id, grip, event)}
         onKeyUp={keyUp}
-        onBlur={blur}
+        onBlur={() => blur(id, grip)}
         {...routes(grip)}
       >
         <span className="sys-marker-grip" />
@@ -618,9 +618,11 @@ export const MarkerLane = memo(function MarkerLane({
   const cancel = useStableCallback((event: PointerEvent<HTMLElement>) =>
     grab.cancel(event),
   );
-  const blur = useStableCallback(() => {
-    grab.abort();
-    endNudge();
+  const blur = useStableCallback((id: string, grip: MarkerGrip) => {
+    const pointer = grab.active();
+    if (pointer?.id === id && pointer.grip === grip) grab.abort();
+    const nudge = nudging.current;
+    if (nudge?.origin.id === id && nudge.origin.grip === grip) endNudge();
   });
   const click = useStableCallback(
     (id: string, event: MouseEvent<HTMLElement>) => {
