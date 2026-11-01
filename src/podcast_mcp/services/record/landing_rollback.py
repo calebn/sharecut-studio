@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, SourceRecording
+from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, RoomToneOrigin, SourceRecording
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -29,6 +29,7 @@ class PriorRegistration:
     source: SourceRecording | None
     clip: Clip | None
     media: MediaAsset | None
+    origin: RoomToneOrigin | None = None
 
 
 def capture_prior(
@@ -49,8 +50,11 @@ def capture_prior(
             None,
         )
     media: MediaAsset | None = None
+    origin: RoomToneOrigin | None = None
     if track is not None:
         media = track.room_tone if room_tone else track.media
+        if room_tone:
+            origin = track.room_tone_origin
     return PriorRegistration(
         track_id=track_id,
         source_id=source_id,
@@ -60,6 +64,7 @@ def capture_prior(
         source=source.model_copy(deep=True) if source is not None else None,
         clip=clip.model_copy(deep=True) if clip is not None else None,
         media=media.model_copy(deep=True) if media is not None else None,
+        origin=origin.model_copy(deep=True) if origin is not None else None,
     )
 
 
@@ -78,6 +83,7 @@ def prior_to_json(prior: PriorRegistration) -> str:
             "source": prior.source.model_dump(mode="json") if prior.source else None,
             "clip": prior.clip.model_dump(mode="json") if prior.clip else None,
             "media": prior.media.model_dump(mode="json") if prior.media else None,
+            "origin": prior.origin.model_dump(mode="json") if prior.origin else None,
         }
     )
 
@@ -89,6 +95,7 @@ def prior_from_json(raw: str) -> PriorRegistration:
         source = data["source"]
         clip = data["clip"]
         media = data["media"]
+        origin = data.get("origin")
         return PriorRegistration(
             track_id=str(data["track_id"]),
             source_id=str(data["source_id"]),
@@ -98,6 +105,7 @@ def prior_from_json(raw: str) -> PriorRegistration:
             source=SourceRecording.model_validate(source) if source is not None else None,
             clip=Clip.model_validate(clip) if clip is not None else None,
             media=MediaAsset.model_validate(media) if media is not None else None,
+            origin=RoomToneOrigin.model_validate(origin) if origin is not None else None,
         )
     except (KeyError, TypeError, AttributeError) as exc:
         raise CodedValueError(
@@ -197,6 +205,11 @@ def revert_registration(project: EpisodeProject, prior: PriorRegistration) -> bo
     if prior.room_tone:
         if track.room_tone is not None and track.room_tone.path == prior.rel:
             track.room_tone = prior_media
+            track.room_tone_origin = (
+                prior.origin.model_copy(deep=True)
+                if prior_media is not None and prior.origin is not None
+                else None
+            )
     else:
         if track.media is not None and track.media.path == prior.rel:
             track.media = prior_media

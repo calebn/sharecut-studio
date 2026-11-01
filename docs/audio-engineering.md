@@ -587,6 +587,12 @@ step summary reports each track: holes, seconds filled, source and level, and th
 pauses or gate holds the noise was read from, or why it was left silent.
 `gate_fill.mode: off` clears every fill.
 
+### Extracted room-tone bed
+
+A track with no recorded bed has its fills picked from its own audio on every edit. `engines/room_tone_extract.py` (#1216) makes one such pick durable: `plan_extracted_bed` takes the longest clean stretch of the track's own original media, up to 8 s and at least 3 s, with the sampler's own checks (`CHECKS`, `_pick_sample`, every other speaker at their floor), and writes it at the media's rate to `raw/room-tone-extracted/{track}-{key}.wav`. The key is a hash of the track, the source bytes (`media_size`, `media_mtime_ns`), the range and `EXTRACTOR_REV`, so the same audio gives the same file and a rerun writes nothing. The file is read back with the registered-bed verdict (`_bed_verdict`) and is never registered unless it is usable. No bed is cut when the voice detector is missing, because the `voiced` row would pass silently. Processed stems, generated padding, synthetic noise and other tracks are never a source.
+
+`RoomToneBedService.extract_room_tone_bed` registers the result with `place_extracted_room_tone` (`track.room_tone`, the `room-tone-{track}` source and `track.room_tone_origin`) in one history step, and only on a track whose bed is absent or was itself extracted from audio that has since changed. A recorded or assigned bed is never replaced (`has_bed`); a track with no clean stretch stays without a bed and the reply carries the reason (`no_quiet_run`, `too_short`, `rejected`, `gated_live`, `digital_silence`, `unreadable_file`, `voice_detector_missing`). Old extracted files stay on disk, since history refers to them. Nothing calls the service yet: a registered bed wins over the pad pool in `room_tone_span`, gate fill and bleed fill, so invoking it from the pipeline needs a listening lab first.
+
 **Not covered.** A tighten mute whose `filler_pad_mode: room_tone` finds no room tone
 still renders digital silence. It is our own edit, and its fill is decided by its own
 setting. A bleed-gate mute (`transcript_gate`) has its own fill, [below](#bleed-mute-fill). A hold under 15 ms is

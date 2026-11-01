@@ -2242,6 +2242,83 @@
           ],
           "type": "object"
         },
+        "RoomToneOrigin": {
+          "properties": {
+            "bed_rms_db": {
+              "type": "number"
+            },
+            "checks": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "extractor_rev": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "file_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "floor_db": {
+              "type": "number"
+            },
+            "kind": {
+              "const": "extracted",
+              "default": "extracted",
+              "type": "string"
+            },
+            "media_mtime_ns": {
+              "type": "integer"
+            },
+            "media_size": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "source_end": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_start": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "speech_prob": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "source_start",
+            "source_end",
+            "media_size",
+            "media_mtime_ns",
+            "extractor_rev",
+            "file_sha256",
+            "floor_db",
+            "bed_rms_db"
+          ],
+          "type": "object"
+        },
         "SavedDocumentCommand": {
           "properties": {
             "base_server_seq": {
@@ -3182,6 +3259,17 @@
               "anyOf": [
                 {
                   "$ref": "#/$defs/MediaAsset"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "room_tone_origin": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RoomToneOrigin"
                 },
                 {
                   "type": "null"
@@ -5870,6 +5958,83 @@
           ],
           "type": "object"
         },
+        "RoomToneOrigin": {
+          "properties": {
+            "bed_rms_db": {
+              "type": "number"
+            },
+            "checks": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "extractor_rev": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "file_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "floor_db": {
+              "type": "number"
+            },
+            "kind": {
+              "const": "extracted",
+              "default": "extracted",
+              "type": "string"
+            },
+            "media_mtime_ns": {
+              "type": "integer"
+            },
+            "media_size": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "source_end": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_start": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "speech_prob": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "source_start",
+            "source_end",
+            "media_size",
+            "media_mtime_ns",
+            "extractor_rev",
+            "file_sha256",
+            "floor_db",
+            "bed_rms_db"
+          ],
+          "type": "object"
+        },
         "SavedDocumentCommand": {
           "properties": {
             "base_server_seq": {
@@ -6817,6 +6982,17 @@
               ],
               "default": null
             },
+            "room_tone_origin": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RoomToneOrigin"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "speaker": {
               "anyOf": [
                 {
@@ -7312,6 +7488,7 @@
     "ReviewMixVersion": "ignore",
     "ReviewSection": "ignore",
     "RoomToneFill": "ignore",
+    "RoomToneOrigin": "ignore",
     "SavedDocumentCommand": "ignore",
     "SessionSuggestion": "ignore",
     "SnapshotMeta": "ignore",
