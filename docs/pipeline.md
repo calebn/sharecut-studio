@@ -743,6 +743,15 @@ a window are unchanged.
 - **Idle release**: `PODCAST_EVIDENCE_KEEP_IDLE_S`, default 2700, as for the decode memo (waits for builds
   in flight; `0` never releases).
 - **Verify**: `PODCAST_EVIDENCE_VERIFY=1` evaluates again on every hit and compares the bits.
+- **Recorded for the next process** (#2359): a build is also written to `artifacts/track_evidence/<digest>.evd`
+  (a JSON header line, then the float32 samples of each rate), so a fresh `podcast edit cut-range` reads the
+  evidence the pipeline built instead of decoding the tracks again. The digest covers the tree, the curve, the
+  full stamp of every source, the rates, the ffmpeg build (path, version, stamp) and a code revision
+  (`evidence_records.RECORD_REV`); the project file is untouched. A record is written only under the same
+  conditions as a keep (sources unchanged and at least 2 seconds old). A record that is damaged, short,
+  long, of another key or rates, or whose header is not a JSON object is not read and the tree is evaluated
+  again. The newest 24 records and 1 GiB are kept (by write time); `PODCAST_EVIDENCE_KEEP_MB=0` writes and
+  reads none. With `PODCAST_EVIDENCE_VERIFY=1` a record is compared with a fresh evaluation, not used.
 
 ### Reusing an approval check (`PODCAST_VERDICT_CACHE`, #1958)
 
