@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict
 from typing import Any
 
@@ -50,19 +51,30 @@ def list_exported_files(ws: ProjectWorkspace, *, ticketed: bool = False) -> dict
 
 
 def download_exported_file(
-    request: Request, ws: ProjectWorkspace, file_id: str, *, ticket_version: str | None = None
+    request: Request,
+    ws: ProjectWorkspace,
+    file_id: str,
+    *,
+    ticket_version: str | None = None,
+    on_release: Callable[[], None] | None = None,
 ) -> Response:
     """Stream the listed file *file_id* as an attachment, with Range and ETag.
 
     The id is looked up in the listing and never joined to a path. It is refused with 409
     while an export of this project is writing, and with 404 when it is not listed. A *ticket_version*
-    must match the file as it is now.
+    must match the file as it is now. *on_release* runs exactly once when the download ends or is
+    refused, so a caller can hold a stream slot for it.
     """
-    if request.app.state.jobs.export_running(ws.path):
-        raise coded_http_error(409, EXPORT_RUNNING, code="export_running")
-    found = _open_listed(ws, file_id)
-    if ticket_version is not None:
-        export_ticket.require_unchanged(ticket_version, found.version)
+    try:
+        if request.app.state.jobs.export_running(ws.path):
+            raise coded_http_error(409, EXPORT_RUNNING, code="export_running")
+        found = _open_listed(ws, file_id)
+        if ticket_version is not None:
+            export_ticket.require_unchanged(ticket_version, found.version)
+    except BaseException:
+        if on_release is not None:
+            on_release()
+        raise
     try:
         return pinned_audio_response(
             found.path,
@@ -71,6 +83,7 @@ def download_exported_file(
             filename=found.path.name,
             content_disposition_type="attachment",
             headers=_DOWNLOAD_HEADERS,
+            on_release=on_release,
         )
     except FileNotFoundError as exc:
         raise coded_http_error(404, EXPORT_FILE_GONE, code="export_file_gone") from exc

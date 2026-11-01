@@ -14,6 +14,7 @@ from podcast_mcp.export.chapters import render_chapters_json
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.gui.host_reveal import reveal_in_file_manager
 from podcast_mcp.gui.routes import export_ticket
+from podcast_mcp.gui.routes.share_common import audio_slot
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     ChapterMarker,
@@ -29,6 +30,7 @@ from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
 from podcast_mcp.services.document import ExportFilesService, TranscriptService
 from podcast_mcp.services.jobs import Job
+from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 
 CODE = "x-sharecut-error-code"
@@ -558,6 +560,46 @@ def test_an_editor_download_is_a_409_while_an_export_runs(world) -> None:
         RUNNING,
     )
     assert world.client.get(base).status_code == 200
+
+
+@pytest.fixture
+def one_stream_per_link(monkeypatch):
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")
+    monkeypatch.setenv("PODCAST_RATE_LIMIT_AUDIO_CONCURRENT", "1")
+    reset_host_limiters_for_tests()
+    yield
+    reset_host_limiters_for_tests()
+
+
+def test_an_editor_past_the_stream_cap_gets_a_429_until_a_slot_frees(
+    world, one_stream_per_link
+) -> None:
+    token = world.tokens["editor"]
+    url = f"{GUEST.format(token=token)}/{sanitize_export_stem(world.ws.project.name)}.mp3"
+    release = audio_slot(token)
+    assert release is not None
+
+    held = world.client.get(url)
+    release()
+    freed = world.client.get(url)
+
+    assert (held.status_code, held.headers[CODE]) == (429, "rate_limited")
+    assert held.headers["retry-after"]
+    assert MP3 not in held.content
+    assert (freed.status_code, freed.content) == (200, MP3)
+
+
+def test_a_finished_or_refused_download_gives_its_slot_back(world, one_stream_per_link) -> None:
+    base = GUEST.format(token=world.tokens["editor"])
+    stem = sanitize_export_stem(world.ws.project.name)
+
+    assert world.client.get(f"{base}/{stem}.mp3").status_code == 200
+    assert world.client.get(f"{base}/notes.txt").status_code == 404
+    _run_export(world.app, world.ws)
+    assert world.client.get(f"{base}/{stem}.mp3").status_code == 409
+    _run_export(world.app, world.ws, status="done")
+
+    assert world.client.get(f"{base}/{stem}.mp3").status_code == 200
 
 
 @pytest.fixture

@@ -142,10 +142,13 @@ def test_export_social_clips(tmp_path, monkeypatch):
     )
     approve_social_clips(proj, [clips[0].id])
 
+    def extract(_src, out, _start, _end):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"wav")
+        return out
+
     mock_engine = MagicMock()
-    mock_engine.extract_segment = MagicMock(
-        side_effect=lambda s, o, a, b: o.write_bytes(b"wav") or o
-    )
+    mock_engine.extract_segment = MagicMock(side_effect=extract)
     monkeypatch.setattr(
         "podcast_mcp.clips.social.FFmpegEngine",
         lambda: mock_engine,
@@ -161,6 +164,90 @@ def test_export_social_clips(tmp_path, monkeypatch):
     assert json_path.is_file()
     data = json.loads(json_path.read_text())
     assert data["id"] == clips[0].id
+    assert Path(exported[0]["wav"]).read_bytes() == b"wav"
+    assert sorted(p.name for p in json_path.parent.iterdir()) == sorted(
+        [json_path.name, Path(exported[0]["wav"]).name]
+    )
+
+
+def _one_approved_clip(tmp_path, monkeypatch, extract):
+    proj = EpisodeProject.create("ep", str(tmp_path))
+    proj.ensure_dirs()
+    src = tmp_path / "source.wav"
+    src.write_bytes(b"\x00" * 100)
+    proj.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(
+                track_id="host", speaker="Host", start=0.0, end=20.0, text="Export me please?"
+            )
+        ]
+    )
+    clips = propose_social_clips(
+        proj, {"social_clips": {"min_sec": 15, "padding_ms": 0, "max_candidates": 1}}
+    )
+    approve_social_clips(proj, [clips[0].id])
+    engine = MagicMock()
+    engine.extract_segment = MagicMock(side_effect=extract)
+    monkeypatch.setattr("podcast_mcp.clips.social.FFmpegEngine", lambda: engine)
+    monkeypatch.setattr("podcast_mcp.clips.social._source_audio", lambda p: src)
+    return proj
+
+
+def test_a_reader_never_meets_a_half_written_clip(tmp_path, monkeypatch):
+    seen: list[bytes] = []
+
+    def first(_src, out, _start, _end):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"old-complete")
+        return out
+
+    proj = _one_approved_clip(tmp_path, monkeypatch, first)
+    (wav,) = [e["wav"] for e in export_social_clips(proj, {"social_clips": {"padding_ms": 0}})]
+
+    def second(_src, out, _start, _end):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"new-par")
+        seen.append(Path(wav).read_bytes())
+        assert Path(wav).parent in out.parents
+        assert out != Path(wav)
+        out.write_bytes(b"new-complete")
+        return out
+
+    monkeypatch.setattr(
+        "podcast_mcp.clips.social.FFmpegEngine",
+        lambda: MagicMock(extract_segment=MagicMock(side_effect=second)),
+    )
+    export_social_clips(proj, {"social_clips": {"padding_ms": 0}})
+
+    assert seen == [b"old-complete"]
+    assert Path(wav).read_bytes() == b"new-complete"
+
+
+def test_a_failed_clip_render_keeps_the_old_file_and_leaves_no_partial(tmp_path, monkeypatch):
+    def first(_src, out, _start, _end):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"old-complete")
+        return out
+
+    proj = _one_approved_clip(tmp_path, monkeypatch, first)
+    (wav,) = [e["wav"] for e in export_social_clips(proj, {"social_clips": {"padding_ms": 0}})]
+
+    def broken(_src, out, _start, _end):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"half")
+        raise RuntimeError("ffmpeg died")
+
+    monkeypatch.setattr(
+        "podcast_mcp.clips.social.FFmpegEngine",
+        lambda: MagicMock(extract_segment=MagicMock(side_effect=broken)),
+    )
+    with pytest.raises(RuntimeError, match="ffmpeg died"):
+        export_social_clips(proj, {"social_clips": {"padding_ms": 0}})
+
+    assert Path(wav).read_bytes() == b"old-complete"
+    assert sorted(p.name for p in Path(wav).parent.iterdir()) == sorted(
+        [Path(wav).name, Path(wav).with_suffix(".json").name]
+    )
 
 
 def test_platform_limits_uses_platform_preset():
