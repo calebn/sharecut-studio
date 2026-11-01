@@ -70,6 +70,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
     bar: [
       bar("hear"),
       bar("keep", "holdsCut"),
+      bar("split"),
       bar("comment"),
       bar("fixText"),
       bar("record", "host"),
