@@ -8,6 +8,7 @@ import {
   test,
 } from "@playwright/test";
 import { createRelocatedE2eProject } from "./liveProject";
+import { markerGestureProbe } from "./markerGestureProbe";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openPanel, openProject, phone } from "./stageNav";
@@ -562,27 +563,42 @@ for (const profile of profiles) {
       page,
     }, info) => {
       await audit(page, info, profile, false, async (projectPath, commands) => {
-        for (const label of [
-          /^Chapter Inventory chapter,/,
-          /^Clip idea Inventory social,/,
-        ]) {
-          const target = page.getByRole("button", { name: label, exact: true });
-          const start = await center(target);
-          const origin = await drawn(target);
-          const before = saved(projectPath);
-          await page.mouse.move(start.x, start.y);
-          await page.mouse.down();
-          await page.mouse.move(start.x + 20.5, start.y, { steps: 5 });
-          await expect
-            .poll(async () => (await drawn(target)).x)
-            .not.toBe(origin.x);
-          await page.keyboard.press("Escape");
-          await expect.poll(() => drawn(target)).toEqual(origin);
-          await page.mouse.move(start.x + 40.25, start.y);
-          await expect.poll(() => drawn(target)).toEqual(origin);
-          await page.mouse.up();
-          expect(saved(projectPath)).toEqual(before);
-          expect(commands).toEqual([]);
+        const probe = await markerGestureProbe(page);
+        try {
+          for (const label of [
+            /^Chapter Inventory chapter,/,
+            /^Clip idea Inventory social,/,
+          ]) {
+            const target = page.getByRole("button", {
+              name: label,
+              exact: true,
+            });
+            const start = await center(target);
+            const origin = await drawn(target);
+            const before = saved(projectPath);
+            await probe.mark(`${label.source}:before-begin`);
+            await page.mouse.move(start.x, start.y);
+            await page.mouse.down();
+            await page.mouse.move(start.x + 20.5, start.y, { steps: 5 });
+            await probe.mark(`${label.source}:after-begin`);
+            await expect
+              .poll(async () => (await drawn(target)).x)
+              .not.toBe(origin.x);
+            await page.keyboard.press("Escape");
+            await expect.poll(() => drawn(target)).toEqual(origin);
+            await page.mouse.move(start.x + 40.25, start.y);
+            await expect.poll(() => drawn(target)).toEqual(origin);
+            await probe.mark(`${label.source}:before-up`);
+            await page.mouse.up();
+            await probe.mark(`${label.source}:after-up`);
+            expect(saved(projectPath)).toEqual(before);
+            expect(commands).toEqual([]);
+          }
+        } finally {
+          await probe.attach(
+            info,
+            `inventory-escape-focus-pointer-order-${profile.id}`,
+          );
         }
       });
     });

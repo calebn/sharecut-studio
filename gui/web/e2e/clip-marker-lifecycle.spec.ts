@@ -11,6 +11,7 @@ import {
   runAudit,
   snapshot,
 } from "./lifecycleAudit";
+import { markerGestureProbe } from "./markerGestureProbe";
 
 test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
 test("F01 native off-center cross-track move preserves source and Undo", async ({
@@ -152,21 +153,30 @@ for (const edge of ["start", "end"] as const)
           name: /^Clip idea Lifecycle social,/,
         }),
         before = snapshot(p);
-      await begin(page, target, edge === "start" ? 14 : -14, edge);
-      expect(snapshot(p)).toEqual(before);
-      const preview = await draw(target);
-      await record(page, info, `social-${edge}-preview`, { preview, before });
-      await page.mouse.up();
-      await expect
-        .poll(() => c.filter((v) => v.type === "UpdateSocialClip").length)
-        .toBe(1);
-      await expect.poll(() => snapshot(p).social).not.toEqual(before.social);
-      const after = snapshot(p).social[0];
-      expect(edge === "start" ? after.end : after.start).toBe(
-        edge === "start" ? 24 : 18,
-      );
-      expect(after.end).toBeGreaterThan(after.start);
-      await page.keyboard.press("ControlOrMeta+z");
-      await expect.poll(() => snapshot(p).social).toEqual(before.social);
+      const probe = await markerGestureProbe(page);
+      try {
+        await probe.mark(`social-${edge}:before-begin`);
+        await begin(page, target, edge === "start" ? 14 : -14, edge);
+        await probe.mark(`social-${edge}:after-begin`);
+        expect(snapshot(p)).toEqual(before);
+        const preview = await draw(target);
+        await record(page, info, `social-${edge}-preview`, { preview, before });
+        await probe.mark(`social-${edge}:before-up`);
+        await page.mouse.up();
+        await probe.mark(`social-${edge}:after-up`);
+        await expect
+          .poll(() => c.filter((v) => v.type === "UpdateSocialClip").length)
+          .toBe(1);
+        await expect.poll(() => snapshot(p).social).not.toEqual(before.social);
+        const after = snapshot(p).social[0];
+        expect(edge === "start" ? after.end : after.start).toBe(
+          edge === "start" ? 24 : 18,
+        );
+        expect(after.end).toBeGreaterThan(after.start);
+        await page.keyboard.press("ControlOrMeta+z");
+        await expect.poll(() => snapshot(p).social).toEqual(before.social);
+      } finally {
+        await probe.attach(info, `social-${edge}-focus-pointer-order`);
+      }
     });
   });

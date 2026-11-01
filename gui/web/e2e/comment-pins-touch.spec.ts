@@ -104,6 +104,27 @@ const selectedPins = async (page: Page) => {
   );
 };
 
+async function expectComment(page: Page, author: string, at: number) {
+  const selected = page
+    .getByRole("main", { name: "Review" })
+    .locator('.sys-decision[data-kind="comment"]');
+  await expect(selected).toHaveCount(1);
+  await expect(selected).toBeVisible();
+  await expect(
+    selected.getByRole("heading", {
+      name: `Comment from ${author}`,
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(selected.locator(".sys-comment-author")).toHaveText(author);
+  await expect(selected.locator(".sys-comment-body")).toHaveText(
+    `${author} at ${at}`,
+  );
+  await expect(
+    selected.getByRole("textbox", { name: `Reply to ${author}`, exact: true }),
+  ).toBeVisible();
+}
+
 async function tap(
   cdp: Awaited<ReturnType<typeof newTouchPage>>["cdp"],
   at: Point,
@@ -119,41 +140,141 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
     await page.goto("/");
     await addComments(page);
     await openTimeline(page, viewport);
+    const geometry = await page
+      .locator(".sys-markers .sys-marker-hit")
+      .evaluateAll((elements) => {
+        const identity = (node: Element | null) =>
+          node
+            ? {
+                tag: node.tagName,
+                class: node.getAttribute("class"),
+                label: node.getAttribute("aria-label"),
+                id: node.getAttribute("data-hit-id"),
+                kind: node.closest(".sys-marker")?.getAttribute("data-kind"),
+                rect: node.getBoundingClientRect().toJSON(),
+                html: node.outerHTML.slice(0, 1200),
+              }
+            : null;
+        return elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          const after = getComputedStyle(element, "::after");
+          const left = Number.parseFloat(after.left);
+          const right = Number.parseFloat(after.right);
+          const centerX = rect.x + (rect.width + left - right) / 2;
+          const centerY = rect.y + rect.height / 2;
+          const point = (x: number, y: number) => {
+            const node = document.elementFromPoint(x, y);
+            return {
+              x,
+              y,
+              owned: element.contains(node),
+              node: identity(node),
+            };
+          };
+          const ancestors = [];
+          for (
+            let node = element.parentElement;
+            node && ancestors.length < 6;
+            node = node.parentElement
+          ) {
+            const style = getComputedStyle(node);
+            ancestors.push({
+              node: identity(node),
+              overflowX: style.overflowX,
+              overflowY: style.overflowY,
+            });
+          }
+          return {
+            label: element.getAttribute("aria-label"),
+            rect: rect.toJSON(),
+            row: element
+              .closest(".sys-markers")
+              ?.getBoundingClientRect()
+              .toJSON(),
+            devicePixelRatio,
+            ancestors,
+            after: {
+              content: after.content,
+              display: after.display,
+              top: after.top,
+              bottom: after.bottom,
+              left: after.left,
+              right: after.right,
+            },
+            height: rect.height,
+            pseudo:
+              after.content !== "none" &&
+              after.content !== "normal" &&
+              after.display !== "none",
+            finiteInsets: Number.isFinite(left) && Number.isFinite(right),
+            effectiveWidth: rect.width - left - right,
+            interval: { left: rect.left + left, right: rect.right - right },
+            allocated: [
+              point(rect.left + left + 0.5, centerY),
+              point(rect.right - right - 0.5, centerY),
+            ],
+            horizontal: [-21.5, 21.5].map((offset) =>
+              point(centerX + offset, centerY),
+            ),
+            boundaries: [0.25, 0.5, 0.75, 1, 2].map((offset) => ({
+              offset,
+              above: point(centerX, rect.top - offset),
+              below: point(centerX, rect.bottom + offset),
+            })),
+          };
+        });
+      });
+    const geometryFile = path.join(
+      "playwright-report",
+      `issue-2964-comment-target-geometry-${viewport}-retry${info.retry}.json`,
+    );
+    fs.mkdirSync(path.dirname(geometryFile), { recursive: true });
+    fs.writeFileSync(geometryFile, `${JSON.stringify(geometry, null, 2)}\n`);
+    await info.attach(`comment-target-geometry-${viewport}`, {
+      path: geometryFile,
+      contentType: "application/json",
+    });
     expect((await page.locator(".sys-markers").boundingBox())?.height).toBe(
       MARKER_ROW,
     );
     for (const author of ["Dee", "Eli"]) {
-      const target = await pin(page, author).evaluate((element) => {
-        const rect = element.getBoundingClientRect();
-        const after = getComputedStyle(element, "::after");
-        const left = Number.parseFloat(after.left);
-        const right = Number.parseFloat(after.right);
-        const centerX = rect.x + (rect.width + left - right) / 2;
-        const centerY = rect.y + rect.height / 2;
-        return {
-          height: rect.height,
-          pseudo:
-            after.content !== "none" &&
-            after.content !== "normal" &&
-            after.display !== "none",
-          finiteInsets: Number.isFinite(left) && Number.isFinite(right),
-          effectiveWidth: rect.width - left - right,
-          ownership: [-21.5, 21.5].map((offset) =>
-            element.contains(
-              document.elementFromPoint(centerX + offset, centerY),
-            ),
-          ),
-          outside: [rect.top - 0.5, rect.bottom + 0.5].map((y) =>
-            element.contains(document.elementFromPoint(centerX, y)),
-          ),
-        };
-      });
+      const target = geometry.find((item) =>
+        item.label?.startsWith(`Comment by ${author},`),
+      )!;
       expect(target.height).toBe(MARKER_ROW);
       expect(target.pseudo).toBe(true);
       expect(target.finiteInsets).toBe(true);
-      expect(target.effectiveWidth).toBeGreaterThanOrEqual(44);
-      expect(target.ownership).toEqual([true, true]);
-      expect(target.outside).toEqual([false, false]);
+      expect(target.allocated.map((point) => point.owned)).toEqual([
+        true,
+        true,
+      ]);
+      if (author === "Dee" && viewport === "phone") {
+        const stack = geometry.find((item) => item.label === "2 more markers")!;
+        const gap = target.rect.left - stack.rect.right;
+        expect(target.rect.width).toBe(16);
+        expect(gap).toBe(18);
+        expect(Number.parseFloat(target.after.left)).toBe(-9);
+        expect(Number.parseFloat(target.after.right)).toBe(-14);
+        expect(target.effectiveWidth).toBe(39);
+        expect(target.rect.left - target.interval.left).toBeCloseTo(gap / 2, 5);
+        expect(stack.interval.right - stack.rect.right).toBeCloseTo(gap / 2, 5);
+        expect(stack.interval.right).toBeLessThanOrEqual(target.interval.left);
+        expect(stack.allocated.map((point) => point.owned)).toEqual([
+          true,
+          true,
+        ]);
+      } else {
+        expect(target.effectiveWidth).toBeGreaterThanOrEqual(44);
+        expect(target.horizontal.map((point) => point.owned)).toEqual([
+          true,
+          true,
+        ]);
+      }
+      const boundary = target.boundaries.find((point) => point.offset === 0.5)!;
+      expect([boundary.above.owned, boundary.below.owned]).toEqual([
+        false,
+        false,
+      ]);
     }
     const file = path.join(
       "playwright-report",
@@ -165,6 +286,28 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
       path: file,
       contentType: "image/png",
     });
+  });
+}
+
+for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
+  test(`${viewport}: the dense marker has an exact Review list equivalent`, async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await addComments(page);
+    await openTimeline(page, viewport);
+    await stageTab(page, "review").click();
+    if (viewport === "phone")
+      await page.locator(".rv-phone-top button").click();
+    const row = page
+      .locator('.sys-queue-row[data-kind="comment"]')
+      .filter({ hasText: "Dee at 20" });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator(".sys-queue-snippet")).toHaveText("Dee at 20");
+    const control = row.locator(".sys-queue-main");
+    expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await control.click();
+    await expectComment(page, "Dee", 20);
   });
 }
 
@@ -236,11 +379,8 @@ test("pins on one spot fold into a +2 chip and its list picks each comment", asy
       "aria-selected",
       "true",
     );
-    const selected = p.locator(
-      '.sys-queue-row[data-kind="comment"][data-selected="true"]',
-    );
-    await expect(selected).toHaveCount(1);
-    await expect(selected).toContainText(`${author} at 5`);
+    await expectComment(p, author, 5);
+    await expect(p.getByRole("menuitem")).toHaveCount(0);
     const file = path.join(
       "playwright-report",
       `issue-2964-hidden-comment-${author}.png`,
