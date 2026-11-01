@@ -24,13 +24,22 @@ const { config, STEPS, SAVED } = vi.hoisted(() => {
     "ingest_tracks",
     "transcribe_tracks",
     "align_tracks",
+    "require_align_accept",
     "fill_gate_holes",
     "clean_audio",
+    "compress_tracks",
+    "balance_tracks",
     "analyze_fillers_pauses",
     "apply_sound_actions",
   ];
   return {
-    config: { enabled: undefined as string[] | undefined },
+    config: {
+      enabled: undefined as string[] | undefined,
+      available: true,
+      loadError: null as string | null,
+      tighten: true,
+      sounds: true,
+    },
     STEPS,
     SAVED: STEPS.filter((id) => id !== "apply_sound_actions"),
   };
@@ -46,10 +55,13 @@ vi.mock("../../hooks/usePipelineWorkingSet", () => ({
       ...pipelineConfig(),
       step_names: STEPS,
       enabled_steps: config.enabled ?? SAVED,
+      config: {
+        tighten: { enabled: config.tighten, apply_non_speech: config.sounds },
+      },
     };
     return {
-      cfg: shown,
-      loadError: null,
+      cfg: config.available ? shown : null,
+      loadError: config.loadError,
       saveError: null,
       saving: false,
       reload: vi.fn(),
@@ -94,6 +106,10 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   config.enabled = undefined;
+  config.available = true;
+  config.loadError = null;
+  config.tighten = true;
+  config.sounds = true;
   start.mockResolvedValue(
     pipelineJobSnapshot({ id: "j-new", status: "running" }),
   );
@@ -357,5 +373,108 @@ describe("the sound scan switch and the person's own start choice", () => {
     const { result } = render();
     act(() => result.current.advanced.props.onPersonal?.("align_tracks", true));
     expect(readSoundScanStart()).toBe(false);
+  });
+});
+
+describe("the saved steps in the new-audio plan", () => {
+  it.each([
+    ["transcribe", "transcribe_tracks"],
+    ["align", "align_tracks"],
+    ["suggest", "analyze_fillers_pauses"],
+  ] as const)(
+    "keeps saved-disabled %s off in the plan and run",
+    async (row, step) => {
+      config.enabled = SAVED.filter(
+        (id) => id !== step && id !== "require_align_accept",
+      );
+      const saved = [...config.enabled];
+      const { result } = render();
+      expect(result.current.view.rows.find((r) => r.id === row)).toMatchObject({
+        detail: "Off in Advanced",
+      });
+      expect(
+        result.current.view.rows.find((r) => r.id === row)?.action,
+      ).toBeUndefined();
+      act(() => result.current.view.onRowAction(row, "skip"));
+      act(() => result.current.view.onRowAction(row, "include"));
+      expect(
+        result.current.view.rows.find((r) => r.id === row)?.action,
+      ).toBeUndefined();
+      await act(async () => result.current.view.onHandoff());
+      expect(start.mock.calls[0][1]?.enabledSteps).toEqual(saved);
+      expect(start.mock.calls[0][1]?.enabledSteps).not.toContain(step);
+      expect(config.enabled).toEqual(saved);
+    },
+  );
+
+  it("names only the enabled cleaning operations", async () => {
+    config.enabled = SAVED.filter(
+      (id) => id !== "clean_audio" && id !== "fill_gate_holes",
+    );
+    const { result } = render();
+    expect(result.current.view.rows.find((r) => r.id === "clean")?.detail).toBe(
+      "All 3 tracks · Compress, balance",
+    );
+    act(() => result.current.view.onRowAction("clean", "skip"));
+    act(() => result.current.view.onRowAction("clean", "include"));
+    await act(async () => result.current.view.onHandoff());
+    expect(start.mock.calls[0][1]?.enabledSteps).toEqual(config.enabled);
+  });
+
+  it("does not claim alignment when only its review gate is enabled", () => {
+    config.enabled = SAVED.filter((id) => id !== "align_tracks");
+    const { view } = render().result.current;
+    expect(view.rows.find((r) => r.id === "align")?.detail).toBe(
+      "All 3 tracks · Check alignment",
+    );
+  });
+
+  it("respects the suggestion and sound action config gates", () => {
+    config.enabled = STEPS;
+    config.tighten = false;
+    config.sounds = false;
+    const { view } = render().result.current;
+    expect(view.rows.find((r) => r.id === "suggest")?.detail).toBe(
+      "Off in Advanced",
+    );
+    expect(view.rows.find((r) => r.id === "scan")?.action).toBeUndefined();
+    expect(view.rows.find((r) => r.id === "scan")?.detail).not.toMatch(
+      /^Whole episode/,
+    );
+  });
+
+  it.each([null, "Settings could not be loaded"])(
+    "waits for saved settings without offering Start (%s)",
+    async (error) => {
+      config.available = false;
+      config.loadError = error;
+      const { result } = render();
+      expect(result.current.view.phase).toBe("new-audio");
+      expect(result.current.view.handoff.disabledReason).toBeTruthy();
+      expect(
+        result.current.view.rows.every((r) => r.action === undefined),
+      ).toBe(true);
+      expect(result.current.view.readyNote).toMatch(
+        error ? /Advanced/ : /Loading saved steps/,
+      );
+      await act(async () => result.current.view.onHandoff());
+      expect(start).not.toHaveBeenCalled();
+    },
+  );
+
+  it("updates the plan and payload together when saved steps change", async () => {
+    const { result, rerender } = render();
+    expect(
+      result.current.view.rows.find((r) => r.id === "suggest")?.action?.run,
+    ).toBe("skip");
+    config.enabled = SAVED.filter((id) => id !== "analyze_fillers_pauses");
+    rerender();
+    expect(
+      result.current.view.rows.find((r) => r.id === "suggest")?.detail,
+    ).toBe("Off in Advanced");
+    await act(async () => result.current.view.onHandoff());
+    expect(start.mock.calls[0][1]?.enabledSteps).not.toContain(
+      "analyze_fillers_pauses",
+    );
   });
 });
