@@ -31,6 +31,7 @@ class _RunRows:
     def __init__(self) -> None:
         self.lock = threading.Lock()
         self.rows: dict[Hashable, list[dict[str, Any]]] = {}
+        self.defaults: EffectiveConfig | None = None
 
 
 _run: ContextVar[_RunRows | None] = ContextVar("audibility_run_rows", default=None)
@@ -103,15 +104,23 @@ def shared_rows(
     *,
     identity: Hashable | None,
     policy: AnalysisPolicy,
+    defaults: EffectiveConfig,
     build: Callable[[], list[dict[str, Any]]],
 ) -> list[dict[str, Any]]:
     """``build()``, or this run's earlier rows for the same audio, policy and word spans.
 
-    The returned rows belong to the caller; the run keeps its own.
+    The returned rows belong to the caller; the run keeps its own. The run is bound to the
+    first ``defaults`` it serves: the audio identity names only part of that config, so a
+    reader with different defaults builds its own rows.
     """
     run = _run.get()
     if run is None or identity is None:
         return build()
+    with run.lock:
+        if run.defaults is None:
+            run.defaults = defaults
+        elif run.defaults != defaults:
+            return build()
     key = (identity, policy, _words_signature(lanes))
     with run.lock:
         kept = run.rows.get(key)
@@ -123,8 +132,13 @@ def shared_rows(
         return built
     rows = copy.deepcopy(kept)
     words = {tr.key: tr.words for tr in project.transcripts}
-    for row in rows:
-        word = words[(row["track_id"], row["source_id"])][row["word_index"]]
+    try:
+        stamped = [
+            (row, words[(row["track_id"], row["source_id"])][row["word_index"]]) for row in rows
+        ]
+    except (KeyError, IndexError):
+        return build()
+    for row, word in stamped:
         row["text"] = word.text
         row["suppressed"] = word.suppressed
     return rows
