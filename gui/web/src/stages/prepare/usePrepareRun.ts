@@ -48,7 +48,6 @@ export function runOptions(
 ): NonNullable<Parameters<typeof startPipelineRun>[1]> {
   const fromTranscribe = mode !== "run";
   return {
-    // Plan rows skipped for this run only; the saved switches stay as they are.
     skipSteps:
       skipped && skipped.size > 0 ? oneRunSkipSteps(cfg, skipped) : undefined,
     fromStep: fromTranscribe ? TRANSCRIBE_STEP : fromStep,
@@ -116,7 +115,6 @@ type PrepareRunInput = {
   nameOf: (trackId: string) => string;
 };
 
-/** One run as asked, kept so a refusal or a failed start can replay it. */
 type RunRequest = {
   mode: RunMode;
   overwriteEdited: boolean;
@@ -149,7 +147,6 @@ export function usePrepareRun(input: PrepareRunInput) {
   const startingRef = useRef(false);
   /** Mirrors `waiting`, so a second refusal says so instead of doing nothing. */
   const waitingRef = useRef(false);
-  /** Plan rows skipped in the run that is waiting for the slot. */
   const waitSkipRef = useRef<ReadonlySet<ReadyRowId> | undefined>(undefined);
   /** The request a missing model stopped, replayed once the model is in. */
   const refusedRef = useRef<RunRequest | null>(null);
@@ -264,7 +261,6 @@ export function usePrepareRun(input: PrepareRunInput) {
   useEffect(() => {
     if (ingestBusy && !wasBusy.current) keyAtStart.current = mediaKey;
     if (!ingestBusy && wasBusy.current) {
-      // New audio next to finished work shows the plan instead of starting.
       const waitsForPlan =
         latest.current.transcribed > 0 && latest.current.untranscribed > 0;
       if (

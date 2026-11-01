@@ -88,7 +88,6 @@ test("Prepare: audio added next to transcribed tracks waits for Process new audi
       buffer: silentWav(),
     });
 
-    // The shared project already has transcripts: new audio gets a plan and waits for the person.
     const processNew = page.getByRole("button", { name: /^Process new audio/ });
     await expect(processNew).toBeVisible();
     expect(posts).toBe(0);

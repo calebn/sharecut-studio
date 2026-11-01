@@ -55,7 +55,6 @@ export function useAdvancedDemo(
       edit(id, (step) => ({
         ...step,
         enabled,
-        // The scan's cost line follows its switch, as advancedModel writes it.
         result:
           step.id === "scan"
             ? soundScanResult(enabled, undefined)

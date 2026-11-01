@@ -233,7 +233,6 @@ describe("audio added to a project that already ran", () => {
   it("sizes the scan by all the audio, not the longest track", () => {
     config.enabled = STEPS;
     const { view } = render().result.current;
-    // three tracks of 60 s: 180 s of audio, 5 s of scan per minute.
     expect(view.rows.find((r) => r.id === "scan")?.detail).toBe(
       "Whole episode · about 20 s",
     );
@@ -302,7 +301,6 @@ describe("audio added to a project that already ran", () => {
     );
     const { view } = result.current;
     expect(view.phase).toBe("done");
-    // The New marker clears once the run has covered the audio.
     expect(view.sessions[0].status).toBe("done");
     expect(view.sessions[0].sources.map((s) => s.state)).toEqual([
       "ready",
