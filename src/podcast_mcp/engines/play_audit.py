@@ -9,7 +9,7 @@ from typing import Any
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.engines.bleed_restore import RESTORE_RENDER_REV
 from podcast_mcp.engines.clips_ops import MuteIndex, clips_for_track, crossfade_borrow_sec
-from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
+from podcast_mcp.engines.ffmpeg import MASTER_SEMANTICS_REV, MIX_SEMANTICS_REV
 from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.mute_regions import IgnoredWordRegions, mute_regions_payload
@@ -24,6 +24,7 @@ from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path, stem_path
+from podcast_mcp.util.wav import rendered_wav_is_complete
 
 # Stems are timeline-clock WAVs; tolerate encoder/container rounding.
 STEM_DURATION_TOLERANCE_SEC = 0.25
@@ -725,6 +726,12 @@ def _stem_newer_than(project: EpisodeProject, track_id: str, premix_mtime: float
     return stem_mtime > premix_mtime
 
 
+def stem_blocks_premix_reuse(project: EpisodeProject, track_id: str) -> bool:
+    """Whether a stem is missing or was written at or after ``premix.wav``."""
+    stem_mtime, premix_mtime = _mtime(stem_path(project, track_id)), _mtime(premix_path(project))
+    return stem_mtime is None or premix_mtime is None or stem_mtime >= premix_mtime
+
+
 def premix_stale_vs_stems(project: EpisodeProject) -> bool:
     """True when a stem the mix plays was rendered after ``premix.wav``."""
     premix_mtime = _mtime(premix_path(project))
@@ -745,7 +752,7 @@ def premix_is_stale(project: EpisodeProject, defaults: EffectiveConfig) -> bool:
     premix_mtime = _mtime(premix_path(project))
     if premix_mtime is None:
         return False
-    if premix_stale_vs_mix(project, defaults):
+    if not rendered_wav_is_complete(premix_path(project)) or premix_stale_vs_mix(project, defaults):
         return True
     for tid in mix_gains(project):
         newer = _stem_newer_than(project, tid, premix_mtime)
@@ -786,13 +793,14 @@ def master_source_hash(project: EpisodeProject) -> str | None:
 def master_fingerprint(project: EpisodeProject, target: MasterTarget) -> str | None:
     """Fingerprint everything the master is built from, or None with no premix.
 
-    The premix (``master_source_hash``) and the ``master.*`` settings that change the
-    audio (``target``). The one place that decides whether ``mastered.wav`` is current.
+    The premix (``master_source_hash``), the ``master.*`` settings that change the
+    audio (``target``) and ``MASTER_SEMANTICS_REV``. The one place that decides whether
+    ``mastered.wav`` is current.
     """
     source = master_source_hash(project)
     if source is None:
         return None
-    return short_digest(f"{source}\n{target.to_json()}")
+    return short_digest(f"{MASTER_SEMANTICS_REV}\n{source}\n{target.to_json()}")
 
 
 def _mastered_sidecar(project: EpisodeProject) -> list[str]:
@@ -848,4 +856,8 @@ def mastered_is_fresh(project: EpisodeProject, target: MasterTarget | None = Non
     if target is None or not mastered_path(project).is_file():
         return False
     fingerprint = master_fingerprint(project, target)
-    return fingerprint is not None and read_mastered_hash(project) == fingerprint
+    return (
+        fingerprint is not None
+        and read_mastered_hash(project) == fingerprint
+        and rendered_wav_is_complete(mastered_path(project))
+    )

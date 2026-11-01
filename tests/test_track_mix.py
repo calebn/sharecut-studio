@@ -8,6 +8,7 @@ listening choices: edits, the audio audit and render caches ignore them.
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
@@ -15,7 +16,10 @@ import re
 import shutil
 import subprocess
 import threading
+import wave
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -85,6 +89,7 @@ from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util import atomic_render
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.project_state import render_lock, render_lock_path
+from podcast_mcp.util.tracks import stem_path
 from render_lock_signal import render_contention_signal
 from ripple_helpers import ripple_cut
 
@@ -112,10 +117,23 @@ def _two_tracks(minimal_project: Path) -> ProjectWorkspace:
     return ProjectWorkspace.open(minimal_project)
 
 
+def _mix_wav(payload: bytes = b"\0\0") -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as audio:
+        audio.setparams((1, 2, 48_000, 0, "NONE", "not compressed"))
+        audio.writeframes(payload + b"\0" * (len(payload) % 2))
+    return buffer.getvalue()
+
+
+def _mixed_tracks(path: Path) -> list[str]:
+    with wave.open(str(path), "rb") as audio:
+        return json.loads(audio.readframes(audio.getnframes()).rstrip(b"\0"))
+
+
 def _fake_premix(ws: ProjectWorkspace) -> None:
     premix = premix_path(ws.project)
     premix.parent.mkdir(parents=True, exist_ok=True)
-    premix.write_bytes(b"RIFF")
+    premix.write_bytes(_mix_wav())
 
 
 def _fake_rendered_stems(project) -> dict[str, str]:
@@ -130,7 +148,9 @@ def _fake_rendered_stems(project) -> dict[str, str]:
 def _mixing_engine() -> MagicMock:
     """An ffmpeg stand-in whose mix writes the file it's asked for."""
     eng = MagicMock()
-    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_bytes(b"RIFFMIX") or out
+    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: (
+        out.write_bytes(_mix_wav(b"MIX!")) or out
+    )
     eng.peak_trim_db.return_value = -2.5
     return eng
 
@@ -147,8 +167,8 @@ def _fresh_stems(project) -> dict[str, str]:
 def _mastering_engine() -> MagicMock:
     """Mix writes the track ids it mixed; master copies the premix; loudness unmeasured."""
     eng = MagicMock()
-    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_text(
-        json.dumps(sorted(Path(p).stem for p, _gain in inputs))
+    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_bytes(
+        _mix_wav(json.dumps(sorted(Path(p).stem for p, _gain in inputs)).encode())
     )
 
     def _fake_master(src, dst, **_kw):
@@ -156,8 +176,13 @@ def _mastering_engine() -> MagicMock:
         return MasterResult(Path(dst), LoudnormPlan(two_pass=False), None, "dynamic", None)
 
     eng.master_loudness.side_effect = _fake_master
+    eng.peak_trim_db.return_value = -2.5
     eng.measure_loudness_full.return_value = None
     return eng
+
+
+def _retargeted(defaults: dict[str, Any]) -> dict[str, Any]:
+    return {**defaults, "master": {**defaults["master"], "integrated_lufs": -19.0}}
 
 
 def _export(ws: ProjectWorkspace, eng: MagicMock) -> MagicMock:
@@ -171,7 +196,7 @@ def _export(ws: ProjectWorkspace, eng: MagicMock) -> MagicMock:
 
 
 def _shipped(export: MagicMock) -> list[str]:
-    return json.loads(Path(export.call_args.args[2]).read_text())
+    return _mixed_tracks(Path(export.call_args.args[2]))
 
 
 def test_export_after_mute_and_refresh_ships_the_new_mix(minimal_project: Path) -> None:
@@ -182,7 +207,7 @@ def test_export_after_mute_and_refresh_ships_the_new_mix(minimal_project: Path) 
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.mix_with_music(ws.project, defaults)
         steps.master_loudness(ws.project, defaults)
-        assert json.loads(mastered_path(ws.project).read_text()) == ["guest", "host"]
+        assert _mixed_tracks(mastered_path(ws.project)) == ["guest", "host"]
         EpisodeService(ws).set_track_mute("guest", True)
         steps.mix_with_music(ws.project, defaults)
     export = _export(ws, eng)
@@ -339,7 +364,7 @@ def test_a_master_without_a_matching_hash_is_stale(minimal_project: Path) -> Non
         assert mastered_is_fresh(ws.project) is True
         eng.master_loudness.side_effect = RuntimeError("ffmpeg died")
         with pytest.raises(RuntimeError):
-            steps.master_loudness(ws.project, defaults)
+            steps.master_loudness(ws.project, _retargeted(defaults))
     assert read_mastered_hash(ws.project) is None
     assert mastered_is_fresh(ws.project) is False
 
@@ -661,7 +686,7 @@ def test_the_mix_applies_output_gain_skips_muted_and_hashes_the_mix(
     (inputs, _out), _kw = eng.mix_tracks.call_args
     assert _kw == {"trim_db": -2.5}
     assert inputs == [(Path(rendered["host"]), -5.0)]
-    assert premix_path(project).read_bytes() == b"RIFFMIX"
+    assert premix_path(project).read_bytes() == _mix_wav(b"MIX!")
     assert read_premix_hash(project) == mix_render_hash(
         {"host": -5.0}, -1.0, defaults=load_defaults()
     )
@@ -678,7 +703,7 @@ def test_a_failed_mix_leaves_the_old_premix_whole(minimal_project: Path) -> None
     eng.mix_tracks.side_effect = RuntimeError("ffmpeg died")
     with patch.object(steps, "ffmpeg", return_value=eng), pytest.raises(RuntimeError):
         steps.mix_with_music(ws.project, load_defaults())
-    assert premix_path(ws.project).read_bytes() == b"RIFF"
+    assert premix_path(ws.project).read_bytes() == _mix_wav()
     assert read_premix_hash(ws.project) == mix_render_hash({"old": 0.0}, defaults=load_defaults())
 
 
@@ -701,6 +726,7 @@ def test_a_mix_drops_the_premix_hash_before_swapping_the_premix(
             real_replace(src, dst)
 
         monkeypatch.setattr(atomic_render.os, "replace", spy)
+        ws.project.tracks[0].fader_db = -3.0
         steps.mix_with_music(ws.project, defaults)
     assert hash_at_swap == [False]
     assert premix_hash_path(ws.project).is_file()
@@ -1187,7 +1213,7 @@ def test_a_failed_master_keeps_the_last_master_and_drops_its_qc(minimal_project:
 
         eng.master_loudness.side_effect = half_written
         with pytest.raises(RuntimeError):
-            steps.master_loudness(ws.project, defaults)
+            steps.master_loudness(ws.project, _retargeted(defaults))
     assert mastered_path(ws.project).read_bytes() == before
     assert not (art / "master_qc.json").exists()
     assert list(art.glob("*.partial.wav")) == []
@@ -1366,7 +1392,7 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project):
     assert tr is None or not tr.is_alive()
     assert errors == []
     assert state["max"] == 1
-    assert eng.mix_tracks.call_count == 2
+    assert eng.mix_tracks.call_count == 1
     assert eng.master_loudness.call_count == 1
 
 
@@ -1384,3 +1410,286 @@ def test_master_qc_records_normalization_type(minimal_project: Path) -> None:
     assert qc["premix_input"] is None
     assert qc["limiter"] is None
     assert summary is not None
+
+
+def _stamps(ws: ProjectWorkspace) -> dict[str, tuple[int, bytes]]:
+    art = ws.project.artifacts_dir()
+    names = ["premix.wav", "premix.hash", "mastered.wav", "mastered.hash", "master_qc.json"]
+    return {n: ((art / n).stat().st_mtime_ns, (art / n).read_bytes()) for n in names}
+
+
+def _mixed_and_mastered(minimal_project: Path) -> tuple[ProjectWorkspace, MagicMock, dict]:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        steps.master_loudness(ws.project, defaults)
+    return ws, eng, defaults
+
+
+def test_an_unchanged_project_reuses_the_mix_and_the_master_in_the_pipeline(
+    minimal_project: Path,
+) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    before = _stamps(ws)
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        mixed = steps.mix_with_music(ws.project, defaults)
+        mastered = steps.master_loudness(ws.project, defaults)
+    assert mixed.startswith("reused premix.wav")
+    assert mastered.startswith("reused mastered.wav")
+    assert (eng.mix_tracks.call_count, eng.master_loudness.call_count) == (1, 1)
+    assert _stamps(ws) == before
+
+
+Change = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
+
+
+def _fader(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    ws.project.tracks[0].fader_db = -3.0
+    return defaults
+
+
+def _mute(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    ws.project.tracks[0].muted = True
+    return defaults
+
+
+def _ceiling(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    return {**defaults, "mix": {**defaults["mix"], "premix_peak_ceiling_db": -2.5}}
+
+
+def _stem_mtime(ws: ProjectWorkspace, offset_ns: int) -> None:
+    premix_ns = premix_path(ws.project).stat().st_mtime_ns
+    stem = stem_path(ws.project, ws.project.tracks[0].id)
+    os.utime(stem, ns=(premix_ns, premix_ns + offset_ns))
+
+
+def _newer_stem(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    _stem_mtime(ws, 10**9)
+    return defaults
+
+
+def _same_tick_stem(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    _stem_mtime(ws, 0)
+    return defaults
+
+
+def _stale_stem(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    ws.project.tracks[0].gain_db += 2.0
+    return defaults
+
+
+def _missing_stem(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    stem_path(ws.project, ws.project.tracks[0].id).unlink()
+    return defaults
+
+
+def _no_premix_hash(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    premix_hash_path(ws.project).unlink()
+    return defaults
+
+
+def _no_trim_line(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    path = premix_hash_path(ws.project)
+    path.write_text("\n".join(path.read_text().splitlines()[:2]) + "\n", encoding="utf-8")
+    return defaults
+
+
+def _no_premix(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    premix_path(ws.project).unlink()
+    return defaults
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        _fader,
+        _mute,
+        _ceiling,
+        _newer_stem,
+        _same_tick_stem,
+        _stale_stem,
+        _missing_stem,
+        _no_premix_hash,
+        _no_trim_line,
+        _no_premix,
+    ],
+)
+def test_each_input_of_the_mix_makes_the_pipeline_mix_again(
+    minimal_project: Path, change: Change
+) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    defaults = change(ws, defaults)
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        summary = steps.mix_with_music(ws.project, defaults)
+    assert not summary.startswith("reused")
+    assert eng.mix_tracks.call_count == 2
+
+
+@pytest.mark.parametrize("role", [TrackRole.MUSIC, TrackRole.INTRO, TrackRole.OUTRO])
+def test_a_project_with_a_music_track_always_mixes(minimal_project: Path, role: TrackRole) -> None:
+    ws, _eng, defaults = _mixed_and_mastered(minimal_project)
+    rendered = json.loads((ws.project.artifacts_dir() / "track_outputs.json").read_text())
+    ws.project.tracks[0].role = role
+    with patch.object(play_audit, "premix_is_stale", return_value=False):
+        assert steps._reusable_premix_summary(ws.project, defaults, rendered) is None
+
+
+def _touch_premix(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    premix = premix_path(ws.project)
+    stat = premix.stat()
+    os.utime(premix, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
+    return defaults
+
+
+def _no_master_qc(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    (ws.project.artifacts_dir() / "master_qc.json").unlink()
+    return defaults
+
+
+def _no_master_hash(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    (ws.project.artifacts_dir() / "mastered.hash").unlink()
+    return defaults
+
+
+@pytest.mark.parametrize(
+    "key,value", [("integrated_lufs", -19.0), ("true_peak_db", -3.0), ("lra", 7.0)]
+)
+def test_each_master_target_makes_the_pipeline_master_again(
+    minimal_project: Path, key: str, value: float
+) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    retargeted = {**defaults, "master": {**defaults["master"], key: value}}
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.master_loudness(ws.project, retargeted)
+    assert eng.master_loudness.call_count == 2
+
+
+@pytest.mark.parametrize("change", [_touch_premix, _no_master_qc, _no_master_hash, _no_premix])
+def test_each_input_of_the_master_makes_the_pipeline_master_again(
+    minimal_project: Path, change: Change
+) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    defaults = change(ws, defaults)
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.master_loudness(ws.project, defaults)
+    assert eng.master_loudness.call_count == 2
+
+
+def test_a_master_step_that_rebuilt_the_premix_masters_it(minimal_project: Path) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    premix_path(ws.project).unlink()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        summary = steps.master_loudness(ws.project, defaults)
+    assert not summary.startswith("reused")
+    assert eng.master_loudness.call_count == 2
+
+
+def test_a_mastering_revision_bump_masters_again(minimal_project: Path) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    with (
+        patch.object(play_audit, "MASTER_SEMANTICS_REV", play_audit.MASTER_SEMANTICS_REV + 1),
+        patch.object(steps, "ffmpeg", return_value=eng),
+    ):
+        steps.master_loudness(ws.project, defaults)
+    assert eng.master_loudness.call_count == 2
+
+
+def test_a_master_step_after_a_stale_premix_masters_the_rebuilt_mix(minimal_project: Path) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    ws.project.tracks[0].fader_db = -3.0
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        summary = steps.master_loudness(ws.project, defaults)
+    assert not summary.startswith("reused")
+    assert eng.mix_tracks.call_count == 2
+    assert mastered_is_fresh(ws.project) is True
+
+
+def test_a_qc_tolerance_change_re_judges_a_reused_master(minimal_project: Path) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    qc_path = ws.project.artifacts_dir() / "master_qc.json"
+    qc = json.loads(qc_path.read_text())
+    qc.update(measured={"integrated_lufs": -17.2, "true_peak_db": -3.0}, issues=[])
+    qc_path.write_text(json.dumps(qc))
+    strict = {**defaults, "master": {**defaults["master"], "qc_lufs_tolerance_lu": 0.1}}
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        summary = steps.master_loudness(ws.project, strict)
+    assert summary.startswith("reused mastered.wav: -17.2 LUFS")
+    assert eng.master_loudness.call_count == 1
+    assert json.loads(qc_path.read_text())["within_tolerance"] is False
+
+
+@pytest.mark.parametrize("damage", ["zero", "header", "nonempty", "partial", "signature"])
+@pytest.mark.parametrize("operation", ["mix", "master", "direct-master", "export"])
+def test_damaged_cached_wavs_are_rebuilt(
+    minimal_project: Path, damage: str, operation: str
+) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    target = (
+        premix_path(ws.project)
+        if operation in ("mix", "direct-master")
+        else mastered_path(ws.project)
+    )
+    expected = target.read_bytes()
+    corrupt = {
+        "zero": b"",
+        "header": expected[:44],
+        "nonempty": expected[:46],
+        "partial": expected[:-1],
+        "signature": b"NOPE" + expected[4:],
+    }[damage]
+    target.write_bytes(corrupt)
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        if operation == "mix":
+            summary = steps.mix_with_music(ws.project, defaults)
+        elif operation == "export":
+            _export(ws, eng)
+            summary = "exported"
+        else:
+            summary = steps.master_loudness(ws.project, defaults)
+    assert target.read_bytes() == expected
+    assert not summary.startswith("reused")
+    assert (
+        mastered_is_fresh(ws.project)
+        if operation != "mix"
+        else not premix_is_stale(ws.project, defaults)
+    )
+
+
+@pytest.mark.parametrize("payload", [{}, {"measured": "bad"}, b"\xff"])
+@pytest.mark.parametrize("operation", ["direct", "export"])
+def test_invalid_master_qc_is_regenerated(
+    minimal_project: Path, payload: dict[str, Any] | bytes, operation: str
+) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    path = ws.project.artifacts_dir() / "master_qc.json"
+    expected = json.loads(path.read_text())
+    before = _stamps(ws)
+    if isinstance(payload, bytes):
+        path.write_bytes(payload)
+    else:
+        path.write_text(json.dumps(payload))
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        if operation == "direct":
+            steps.master_loudness(ws.project, defaults)
+        else:
+            _export(ws, eng)
+    assert json.loads(path.read_text()) == expected
+    assert eng.master_loudness.call_count == 2
+    assert _stamps(ws)["premix.wav"] == before["premix.wav"]
+    assert mastered_path(ws.project).read_bytes() == before["mastered.wav"][1]
+
+
+def test_valid_unmeasured_master_qc_reuses_audio_and_metadata(minimal_project: Path) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    path = ws.project.artifacts_dir() / "master_qc.json"
+    assert json.loads(path.read_text())["measured"] is None
+    before = _stamps(ws)
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        summary = steps.master_loudness(ws.project, defaults)
+        _export(ws, eng)
+    assert summary == "reused mastered.wav (loudness unmeasured)"
+    assert eng.master_loudness.call_count == 1
+    assert _stamps(ws) == before
