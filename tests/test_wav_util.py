@@ -209,3 +209,111 @@ def test_source_opens_wavs_only_through_open_wav():
         and re.search(r"\bwave\.(open|Wave_read)\(", path.read_text("utf-8"))
     ]
     assert offenders == []
+
+
+@pytest.mark.parametrize("damage", ["zero", "header", "body", "partial", "signature"])
+def test_rendered_wav_admission_rejects_incomplete_payload(tmp_path: Path, damage: str) -> None:
+    from podcast_mcp.util import wav
+
+    complete = pcm_wav_header(16) + b"\0" * 16
+    broken = {
+        "zero": b"",
+        "header": complete[:44],
+        "body": complete[:48],
+        "partial": complete[:-1],
+        "signature": b"NOPE" + complete[4:],
+    }[damage]
+    path = tmp_path / "rendered.wav"
+    path.write_bytes(broken)
+    assert wav.rendered_wav_is_complete(path) is False
+
+
+def test_rendered_wav_admission_accepts_silence_without_writing(tmp_path: Path) -> None:
+    from podcast_mcp.util import wav
+
+    path = tmp_path / "silence.wav"
+    complete = pcm_wav_header(16) + b"\0" * 16
+    path.write_bytes(complete)
+    before = path.stat().st_mtime_ns
+    assert wav.rendered_wav_is_complete(path) is True
+    assert path.read_bytes() == complete
+    assert path.stat().st_mtime_ns == before
+
+
+def _rendered_container(
+    fmt: bytes, data: bytes, *, rf64: bool = False, metadata: bytes = b""
+) -> bytes:
+    chunks = b"fmt " + struct.pack("<I", len(fmt)) + fmt + metadata
+    chunks += b"data" + struct.pack("<I", 0xFFFFFFFF if rf64 else len(data)) + data
+    chunks += b"\0" * (len(data) % 2)
+    if rf64:
+        ds64 = struct.pack("<QQQI", len(chunks) + 40, len(data), 0, 0)
+        return b"RF64\xff\xff\xff\xffWAVEds64" + struct.pack("<I", 28) + ds64 + chunks
+    return b"RIFF" + struct.pack("<I", len(chunks) + 4) + b"WAVE" + chunks
+
+
+@pytest.mark.parametrize("tag,bits", [(1, 8), (1, 16), (1, 24), (1, 32), (3, 32), (3, 64)])
+@pytest.mark.parametrize("rf64", [False, True])
+@pytest.mark.parametrize("extensible", [False, True])
+def test_rendered_wav_admission_accepts_render_formats(
+    tmp_path: Path, tag: int, bits: int, rf64: bool, extensible: bool
+) -> None:
+    from podcast_mcp.util import wav
+
+    align = 3 * bits // 8
+    fmt = struct.pack(
+        "<HHIIHH", 0xFFFE if extensible else tag, 3, 48_000, 48_000 * align, align, bits
+    )
+    if extensible:
+        fmt += struct.pack("<HHI", 22, bits, 0) + struct.pack("<H", tag) + PCM_SUBFORMAT_GUID[2:]
+    complete = _rendered_container(fmt, b"\0" * align * 4, rf64=rf64, metadata=b"JUNK\x01\0\0\0X\0")
+    path = tmp_path / "render.wav"
+    path.write_bytes(complete)
+    assert wav.rendered_wav_is_complete(path) is True
+    path.write_bytes(complete[:-align])
+    assert wav.rendered_wav_is_complete(path) is False
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "empty",
+        "alignment",
+        "rate",
+        "tag",
+        "short-fmt",
+        "container",
+        "chunk",
+        "rf64-no-ds64",
+        "rf64-short-ds64",
+        "too-many-chunks",
+    ],
+)
+def test_rendered_wav_admission_rejects_invalid_structure(tmp_path: Path, defect: str) -> None:
+    from podcast_mcp.util import wav
+
+    fmt = struct.pack("<HHIIHH", 1, 1, 48_000, 96_000, 2, 16)
+    data = b"\0" * 8
+    if defect == "empty":
+        data = b""
+    elif defect == "alignment":
+        data += b"X"
+    elif defect == "rate":
+        fmt = struct.pack("<HHIIHH", 1, 1, 0, 96_000, 2, 16)
+    elif defect == "tag":
+        fmt = struct.pack("<HHIIHH", 6, 1, 48_000, 96_000, 2, 16)
+    elif defect == "short-fmt":
+        fmt = b"X"
+    metadata = b"JUNK\0\0\0\0" * 65 if defect == "too-many-chunks" else b""
+    complete = _rendered_container(fmt, data, metadata=metadata)
+    if defect == "container":
+        complete = complete[:4] + struct.pack("<I", len(complete) + 100) + complete[8:]
+    elif defect == "chunk":
+        complete = complete[:40] + struct.pack("<I", 1000) + complete[44:]
+    elif defect == "rf64-no-ds64":
+        complete = b"RF64\xff\xff\xff\xff" + complete[8:]
+    elif defect == "rf64-short-ds64":
+        complete = _rendered_container(fmt, data, rf64=True)[:35]
+    path = tmp_path / "broken.wav"
+    path.write_bytes(complete)
+    assert wav.rendered_wav_is_complete(path) is False
