@@ -156,6 +156,14 @@ job ID still matches the running job. The current job keeps its pending
 cancellation when an older reply fails; its own failure shows the error and
 permits another attempt.
 
+Deliver's explicit Bounce activation temporarily seeds native page anchoring
+around the active section. The first scroll or navigation input restores owned
+prior styles. The seed writes no scroll position, moves no focus and does not
+rearm for background progress or on return to the stage. Its regression holds
+the real Transcript dry-run response until after the running row has appeared
+above the retained disabled Bounce button, then checks Cancel and its startup
+reason against both the page clip and the viewport.
+
 ## MCP progress
 
 Host MCP installs a choke-point wrap on `add_tool` / `call_tool` so every tool opens `progress_task` and binds a reporter (best-effort `notifications/progress` when MCP Context is available). When Studio is in-process, that wrap also fans into the job manager as above. Guest remote MCP (`/mcp/{token}/mcp`) reads `params._meta.progressToken` and, when set, streams `notifications/progress` over Streamable HTTP SSE before the JSON-RPC result, plus the token-scoped guest WS plane — not host SSE. Domain code uses `resolve_progress()` / `progress_task` — do not hardcode `NullProgress()` at MCP edges. See [progress.md](progress.md).

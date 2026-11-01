@@ -42,6 +42,10 @@ Outputs land in `{workspace}/export/bounces/`.
 
 ## Notes
 
+- Deliver keeps the starting Bounce controls reachable while Transcript loads.
+  A scroll or navigation input hands the page back to the reader; leaving the
+  stage does not stop the job.
+
 - Studio selected-range Bounce opens the normal configuration with a fixed exact
   target. It exports selected occurrences/lanes and preserves silent gaps between
   islands; a changed target rejects before output. Share guests cannot export it.

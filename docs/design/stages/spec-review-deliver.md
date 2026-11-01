@@ -530,6 +530,11 @@ A late failure from an earlier job leaves the current bounce's cancellation
 state unchanged. A failed Cancel for the current job shows its error and allows
 another attempt.
 
+Starting Bounce keeps its new running row and Cancel reachable while Transcript
+loads. The original disabled Bounce button stays below that row. The first
+scroll or navigation input restores normal page anchoring; background runs and
+returning to Deliver do not take ownership of the reader's position or focus.
+
 ### Transcript (new Deliver section)
 
 - **Spec:** `Stages/Deliver/Transcript` writes the edited transcript next to the audio as Text, Markdown, SRT or VTT (defaults Markdown and SRT, what every audio export already writes). A preview lists the first turns (four on phone) as the files will hold them, with speaker, `[m:ss]` time, the turn count, duration and language, and the first caption cue when SRT or VTT is chosen. Export writes the chosen files; Copy text puts the plain text on the clipboard (a blocked clipboard says so and points to the exported files; a failed read says the transcript could not be read). Files already on disk list with a note when the edit has moved on since ("Edited since export"); the section note and the button ("Export again") count only files of ticked formats. A failed export is retried with Export, which honours the same blockers as a first export. Not transcribed shows "Go to Prepare"; every word cut hides the actions.

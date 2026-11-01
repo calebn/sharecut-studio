@@ -8,7 +8,7 @@ import {
 import { playInCanvas } from "../../storybook/storyPlay";
 import type { LinkCopyState } from "../../system/LinkRow";
 import { isApplePlatform } from "../../utils/platform";
-import { BOUNCE_DEFAULTS } from "./bounceLogic";
+import { BOUNCE_DEFAULTS, type BounceState } from "./bounceLogic";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
 import {
   CHAPTERS,
@@ -34,7 +34,6 @@ import { SHARE_DEFAULTS } from "./shareLogic";
 
 const MOD_E = isApplePlatform() ? "{Meta>}e{/Meta}" : "{Control>}e{/Control}";
 
-/** Exports and copies in place, as the app will once it is wired. */
 function Live(props: DeliverStageProps) {
   const [exportState, setExportState] = useState(props.exportState);
   const [files, setFiles] = useState(props.files);
@@ -55,6 +54,36 @@ function Live(props: DeliverStageProps) {
         props.onCopyLink?.();
         setUrl(LINK);
         setCopy("copied");
+      }}
+    />
+  );
+}
+
+function LiveBounce(props: DeliverStageProps) {
+  const [state, setState] = useState<BounceState>({ phase: "idle" });
+  const bounce = props.bounce!;
+  return (
+    <Live
+      {...props}
+      bounce={{
+        ...bounce,
+        state,
+        onBounce: () => {
+          bounce.onBounce();
+          setState({
+            phase: "running",
+            progress: null,
+            detail: "Starting bounce…",
+          });
+        },
+        onCancel: () => {
+          bounce.onCancel();
+          setState({
+            phase: "cancelled",
+            files: [],
+            detail: "Nothing was written.",
+          });
+        },
       }}
     />
   );
@@ -245,6 +274,7 @@ export const NoMix: Story = {
 };
 
 export const WithBounce: Story = {
+  render: (args) => <LiveBounce {...args} />,
   args: {
     bounce: {
       state: { phase: "idle" },
@@ -257,12 +287,25 @@ export const WithBounce: Story = {
       onCancel: fn(),
     },
   },
-  play: playInCanvas(async ({ canvasElement }) => {
+  play: playInCanvas(async ({ canvasElement, args }) => {
     const view = within(canvasElement);
     await expect(view.getByRole("heading", { name: "Bounce" })).toBeVisible();
     await expect(
       view.getByRole("button", { name: "Entire mix" }),
     ).toHaveAttribute("aria-pressed", "true");
+    const original = view.getByRole("button", { name: /^Bounce$/ });
+    await userEvent.click(original);
+    await expect(args.bounce?.onBounce).toHaveBeenCalledOnce();
+    await expect(original).toBeDisabled();
+    await expect(view.getByText("Starting bounce…")).toBeVisible();
+    await expect(
+      view
+        .getByRole("button", { name: "Cancel" })
+        .compareDocumentPosition(original) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await userEvent.click(view.getByRole("button", { name: "Cancel" }));
+    await expect(args.bounce?.onCancel).toHaveBeenCalledOnce();
+    await expect(view.getByText("Bounce cancelled")).toBeVisible();
   }),
 };
 
