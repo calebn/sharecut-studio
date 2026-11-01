@@ -694,6 +694,7 @@ export function PendingEditBody({
                         step={0.01}
                         decimals={6}
                         min={0}
+                        skipUnchanged
                         readOnly={timingBusy}
                         onCommit={(value) => void commitEdge("start", value)}
                       />
@@ -708,6 +709,7 @@ export function PendingEditBody({
                         step={0.01}
                         decimals={6}
                         min={0}
+                        skipUnchanged
                         readOnly={timingBusy}
                         onCommit={(value) => void commitEdge("end", value)}
                       />

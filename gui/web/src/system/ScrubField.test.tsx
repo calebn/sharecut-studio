@@ -262,12 +262,28 @@ describe("ScrubField typing", () => {
     expect(field()).toHaveFocus();
   });
 
-  it("commits nothing when the text is left as it was shown", async () => {
+  it("with skipUnchanged commits nothing for text left as it was shown, even after the value refreshes", async () => {
     const user = userEvent.setup();
-    const { calls, field } = setup();
-    field().focus();
-    await user.keyboard("{Enter}{Enter}");
-    expect(calls.onCommit).not.toHaveBeenCalled();
+    const onCommit = vi.fn();
+    const props = { label: "Offset", unit: "s", onCommit, skipUnchanged: true };
+    const { rerender } = render(<ScrubField {...props} value={1.5} />);
+    screen.getByRole("spinbutton", { name: "Offset" }).focus();
+    await user.keyboard("{Enter}");
+    rerender(<ScrubField {...props} value={2.5} />);
+    await user.keyboard("{Enter}");
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("without skipUnchanged an unchanged Enter on a refreshed value commits as before", async () => {
+    const user = userEvent.setup();
+    const onCommit = vi.fn();
+    const props = { label: "Offset", unit: "s", onCommit };
+    const { rerender } = render(<ScrubField {...props} value={1.5} />);
+    screen.getByRole("spinbutton", { name: "Offset" }).focus();
+    await user.keyboard("{Enter}");
+    rerender(<ScrubField {...props} value={2.5} />);
+    await user.keyboard("{Enter}");
+    expect(onCommit).toHaveBeenCalledOnce();
   });
 
   it("opens the input from the keyboard with Enter", async () => {
