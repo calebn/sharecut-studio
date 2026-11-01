@@ -725,6 +725,17 @@ def _stem_newer_than(project: EpisodeProject, track_id: str, premix_mtime: float
     return stem_mtime > premix_mtime
 
 
+def stem_not_older_than_premix(project: EpisodeProject, track_id: str) -> bool:
+    """Whether a stem is missing or was written at or after ``premix.wav``.
+
+    ``premix_is_stale`` counts only a strictly newer stem and skips a missing one, so a stem
+    rewritten in the same filesystem tick as the premix reads fresh there; reuse treats
+    both as changed.
+    """
+    stem_mtime, premix_mtime = _mtime(stem_path(project, track_id)), _mtime(premix_path(project))
+    return stem_mtime is None or premix_mtime is None or stem_mtime >= premix_mtime
+
+
 def premix_stale_vs_stems(project: EpisodeProject) -> bool:
     """True when a stem the mix plays was rendered after ``premix.wav``."""
     premix_mtime = _mtime(premix_path(project))

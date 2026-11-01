@@ -930,8 +930,7 @@ def _reusable_premix_summary(
 ) -> str | None:
     """``premix.wav`` is what a full run would mix again: its summary, else None.
 
-    ``premix_is_stale`` cannot see a missing stem, and a stem stamped the same tick as the
-    premix is not newer, so both are checked here. Music tracks always mix.
+    Music tracks always mix; a missing or same-tick stem is not seen by ``premix_is_stale``.
     """
     from podcast_mcp.engines.play_audit import (
         mix_gains,
@@ -939,20 +938,15 @@ def _reusable_premix_summary(
         premix_path,
         read_premix_hash,
         read_premix_trim_db,
+        stem_not_older_than_premix,
     )
-    from podcast_mcp.util.tracks import stem_path
 
-    premix = premix_path(project)
-    if _music_tracks(project, rendered) or not premix.is_file():
+    if _music_tracks(project, rendered) or not premix_path(project).is_file():
         return None
     if read_premix_hash(project) is None or read_premix_trim_db(project) is None:
         return None
-    gains = mix_gains(project)
-    premix_ns = premix.stat().st_mtime_ns
-    for tid in gains:
-        stem = stem_path(project, tid)
-        if not stem.is_file() or stem.stat().st_mtime_ns >= premix_ns:
-            return None
+    if any(stem_not_older_than_premix(project, tid) for tid in mix_gains(project)):
+        return None
     if premix_is_stale(project, defaults):
         return None
     return "reused premix.wav"
