@@ -85,6 +85,120 @@ const DONE: Partial<PrepareViewProps> = {
   handoff: { label: "Review 14 suggestions" },
 };
 
+describe("PrepareView selected-run summary state", () => {
+  const omitted = [
+    { id: "add", state: "done", title: "Add audio" },
+    {
+      id: "transcribe",
+      state: "queued",
+      title: "Transcribe",
+      detail: "Not run this time",
+      runDisposition: "omitted",
+    },
+    {
+      id: "align",
+      state: "queued",
+      title: "Line up tracks",
+      detail: "Not run this time",
+      runDisposition: "omitted",
+    },
+  ] as const;
+
+  it("announces selected completion globally while omitted rows remain neutral", () => {
+    atWidth(PHONE_WIDTH);
+    const { container } = render(
+      <PrepareView
+        {...props({
+          phase: "done",
+          rows: omitted,
+          readySummary: "Getting ready: selected work finished",
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /^Done.*Getting ready: selected work finished$/,
+      }),
+    ).toBeInTheDocument();
+    const transcribe = within(
+      container.querySelector(".sys-prepare-ready")! as HTMLElement,
+    )
+      .getByText("Transcribe")
+      .closest(".sys-status")!;
+    expect(transcribe.querySelector(".sr-only")).toHaveTextContent("Not yet");
+  });
+
+  it("announces stopped processing globally without inventing a failed operation", () => {
+    atWidth(PHONE_WIDTH);
+    render(
+      <PrepareView
+        {...props({
+          phase: "failed",
+          rows: omitted.map((row) => ({ ...row, runDisposition: undefined })),
+          readySummary: "Getting ready: processing stopped",
+          failure: { step: "Processing", cause: "The run was stopped." },
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /^Failed.*Getting ready: processing stopped$/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it.each(["new-audio", "checking", "transcribing"] as const)(
+    "does not borrow old omitted completion during %s",
+    (phase) => {
+      atWidth(PHONE_WIDTH);
+      render(
+        <PrepareView
+          {...props({
+            phase,
+            rows: omitted,
+            readySummary: "Getting ready: current work",
+          })}
+        />,
+      );
+      expect(
+        screen.getByRole("button", {
+          name: /^Not yet.*Getting ready: current work$/,
+        }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each(["needs-you", "running", "failed"] as const)(
+    "preserves %s row feedback ahead of selected completion",
+    (state) => {
+      atWidth(PHONE_WIDTH);
+      const label =
+        state === "needs-you"
+          ? "Needs you"
+          : state === "running"
+            ? "Running"
+            : "Failed";
+      render(
+        <PrepareView
+          {...props({
+            phase: "done",
+            rows: [
+              ...omitted,
+              { id: "clean", state, title: "Clean and level" },
+            ],
+            readySummary: "Getting ready: current work",
+          })}
+        />,
+      );
+      expect(
+        screen.getByRole("button", {
+          name: new RegExp(`^${label}.*Getting ready: current work$`),
+        }),
+      ).toBeInTheDocument();
+    },
+  );
+});
+
 describe("PrepareView structure", () => {
   it("is a stage: h2 sections in one order, no h1 and no main", () => {
     const { container } = render(<PrepareView {...props()} />);
