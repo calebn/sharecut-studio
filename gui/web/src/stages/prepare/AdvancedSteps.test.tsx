@@ -32,11 +32,11 @@ function Host({
 }
 
 describe("AdvancedSteps", () => {
-  it("says at the top that switches are saved with the project, and points to Skip", () => {
+  it("names the session lifetime and restart reset, and points to Skip", () => {
     render(<Host />);
     expect(
       screen.getByText(
-        "Switches here are saved with this project and used by every run. To change one run only, use Skip in the plan.",
+        "These switches affect runs started here for this episode until ShareCut restarts. After a restart, the steps return to their defaults. Use Skip in the plan to change one run.",
       ),
     ).toBeVisible();
   });
@@ -77,7 +77,7 @@ describe("AdvancedSteps", () => {
     });
     expect(
       screen.getByText(
-        "Your own choice, saved on this computer. This project keeps the switch above.",
+        "Saved in this browser for new episodes. This episode's switch resets to its default when ShareCut restarts.",
       ),
     ).toBeVisible();
     const off = within(group).getByRole("button", { name: "Off" });

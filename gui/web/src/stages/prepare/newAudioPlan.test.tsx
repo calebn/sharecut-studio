@@ -537,3 +537,15 @@ describe("the plan's sound action and recovery controls", () => {
     expect(start).not.toHaveBeenCalled();
   });
 });
+
+it("does not claim a durable or confirmed On setting after a start-choice failure", () => {
+  localStorage.setItem("sharecut.soundScanStartFailed", P);
+  render();
+  expect(useDawStore.getState().statusAnnouncement).toContain(
+    "Could not confirm this browser's choice for sound actions",
+  );
+  expect(useDawStore.getState().statusAnnouncement).toContain(
+    "reset when ShareCut restarts",
+  );
+  expect(useDawStore.getState().statusAnnouncement).not.toContain("It is on");
+});
