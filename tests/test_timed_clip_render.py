@@ -174,3 +174,89 @@ def test_raw_samples_and_window_follow_the_pieces(tmp_path: Path) -> None:
         _project(tmp_path / "w", [_mapped()], signal), "host", 0.9, 2.4, sample_rate=RATE
     )
     assert np.allclose(window, mapped[_frames(0.9) : _frames(2.4)], atol=2e-4)
+
+
+def test_shell_fades_follow_the_micro_fade_override_and_stay_inside_short_pieces() -> None:
+    clip = _mapped().model_copy(update={"fade_in_ms": 400, "fade_out_ms": 400})
+    clips, _ = expand_timed_clips([clip], micro_fade_ms=25)
+    assert [(c.fade_in_ms, c.fade_out_ms) for c in clips] == [
+        (400, 25),
+        (25, 25),
+        (25, 25),
+        (25, 400),
+    ]
+
+    short = Clip.model_validate(
+        {
+            "id": "short",
+            "track_id": "host",
+            "source_start": 0.0,
+            "source_end": 1.0,
+            "timeline_start": 0.0,
+            "fade_in_ms": 900,
+            "fade_out_ms": 900,
+            "timing": {"steps": [{"at": 0.015, "delta_sec": 0.1}]},
+        }
+    )
+    pieces, _ = expand_timed_clips([short])
+    for piece in pieces:
+        length_ms = round((piece.source_end - piece.source_start) * 1000)
+        assert 0 <= piece.fade_in_ms <= length_ms
+        assert 0 <= piece.fade_out_ms <= length_ms - piece.fade_in_ms
+
+
+def test_a_mapped_clip_with_bleed_restore_is_refused_by_name(tmp_path: Path) -> None:
+    from podcast_mcp.engines.timeline_render import _restore_dependencies
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    project = _project(tmp_path, [_mapped()], _source())
+    track = project.timeline.tracks[0]
+    track.transcript_gate = True
+    with (
+        patch("podcast_mcp.engines.timeline_render.restore_applies", return_value=True),
+        pytest.raises(CodedValueError) as refused,
+    ):
+        _restore_dependencies(project, track, defaults={})
+    assert refused.value.code == "timing_map_bleed_restore_unsupported"
+
+
+def test_a_clip_timing_map_changes_the_track_render_hash(tmp_path: Path) -> None:
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.engines.play_audit import track_render_hash
+
+    project = _project(tmp_path, [_mapped()], _source())
+    clip = project.timeline.clips[0]
+    timing_type = type(clip.timing)
+
+    def current() -> str:
+        return track_render_hash(project, "host", defaults=load_defaults())
+
+    hashes = [current()]
+    for steps in ([{"at": 1.0, "delta_sec": 0.2}], [{"at": 1.0, "delta_sec": 0.25}]):
+        clip.timing = timing_type.model_validate({"steps": steps})
+        hashes.append(current())
+    assert len(set(hashes)) == 3
+
+
+def test_shells_are_ordered_by_time_among_plain_clips() -> None:
+    plain = Clip(id="plain", track_id="host", source_start=5.0, source_end=5.4, timeline_start=0.5)
+    parent = Clip.model_validate(
+        {
+            "id": "lane",
+            "track_id": "host",
+            "source_start": 6.0,
+            "source_end": 8.0,
+            "timeline_start": 6.0,
+            "timing": {
+                "steps": [
+                    {"at": 6.5, "delta_sec": 0.2},
+                    {"at": 7.0, "delta_sec": -0.1, "quiet": {"start_s": 7.0, "end_s": 7.1}},
+                ]
+            },
+        }
+    )
+    clips, holes = expand_timed_clips([parent, plain])
+    starts = [c.timeline_start for c in clips]
+    assert starts == sorted(starts)
+    assert clips[0].id == "plain"
+    assert [(clips[i].id, clips[i + 1].id) for i in holes] == [("lane", "lane")]

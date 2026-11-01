@@ -94,6 +94,9 @@ def _track_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effe
         if borrow > 0:
             clip_payload["join_borrow_sec"] = borrow
         previous = c
+        if c.timing is not None:
+            # Only while set, so hashes of untimed clips stay valid.
+            clip_payload["timing"] = c.timing.model_dump(mode="json")
         if c.bleed_restore is not None:
             clip_payload["bleed_restore"] = c.bleed_restore.model_dump(mode="json")
         ignored_regions = mute_regions_payload(ignored_lookup.for_clip(c))
