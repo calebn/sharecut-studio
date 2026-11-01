@@ -111,14 +111,16 @@ def shared_rows(
 
     The returned rows belong to the caller; the run keeps its own. The run is bound to the
     first ``defaults`` it serves: the audio identity names only part of that config, so a
-    reader with different defaults builds its own rows.
+    reader with different defaults builds its own rows. A lane with no clip of its own is
+    timed through clips on other tracks that neither the identity nor the signature names,
+    so a run with one never shares.
     """
     run = _run.get()
-    if run is None or identity is None:
+    if run is None or identity is None or not all(lane.placed for lane in lanes):
         return build()
     with run.lock:
         if run.defaults is None:
-            run.defaults = defaults
+            run.defaults = copy.deepcopy(defaults)
         elif run.defaults != defaults:
             return build()
     key = (identity, policy, _words_signature(lanes))
