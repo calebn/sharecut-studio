@@ -30,6 +30,7 @@ export type DocumentCommandType =
   | "FadeJoins"
   | "FillRoomTone"
   | "InsertGap"
+  | "InsertSegment"
   | "MoveByText"
   | "MoveClips"
   | "MoveSegment"
@@ -116,6 +117,7 @@ export const DocumentCommand = {
   FadeJoins: "FadeJoins",
   FillRoomTone: "FillRoomTone",
   InsertGap: "InsertGap",
+  InsertSegment: "InsertSegment",
   MoveByText: "MoveByText",
   MoveClips: "MoveClips",
   MoveSegment: "MoveSegment",

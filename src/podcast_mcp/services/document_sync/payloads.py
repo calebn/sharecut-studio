@@ -715,6 +715,12 @@ class InsertGapPayload(BaseModel):
     duration_sec: float = Field(default=1.0, allow_inf_nan=False)
 
 
+class InsertSegmentPayload(BaseModel):
+    segment_id: str
+    version: int | None = Field(default=None, ge=1)
+    at: float = Field(allow_inf_nan=False)
+
+
 class FillRoomTonePayload(BaseModel):
     track_id: str | None = None
     speaker: str | None = None
@@ -1243,6 +1249,11 @@ class InsertGapCommand(DocumentCommandEnvelope):
     payload: InsertGapPayload
 
 
+class InsertSegmentCommand(DocumentCommandEnvelope):
+    type: Literal["InsertSegment"] = "InsertSegment"
+    payload: InsertSegmentPayload
+
+
 class FillRoomToneCommand(DocumentCommandEnvelope):
     type: Literal["FillRoomTone"] = "FillRoomTone"
     payload: FillRoomTonePayload
@@ -1417,6 +1428,7 @@ DocumentCommandBody = Annotated[
     | DuplicateSegmentCommand
     | MoveSegmentCommand
     | InsertGapCommand
+    | InsertSegmentCommand
     | FillRoomToneCommand
     | ApplyAutoEditsCommand
     | ProposeTightenCommand
@@ -1558,6 +1570,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "DuplicateSegment": DuplicateSegmentPayload,
     "MoveSegment": MoveSegmentPayload,
     "InsertGap": InsertGapPayload,
+    "InsertSegment": InsertSegmentPayload,
     "FillRoomTone": FillRoomTonePayload,
     "ApplyAutoEdits": ApplyAutoEditsPayload,
     "ProposeTighten": ProposeTightenPayload,

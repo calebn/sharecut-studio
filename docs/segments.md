@@ -1,6 +1,6 @@
 # Segments
 
-A segment is a reusable piece of audio: an intro, an outro, a sponsor read or a sting. It is the audio, how its clips sit relative to each other, a level, a lane role and a ducking flag, plus an optional chapter title and transcript. The library keeps segments per user, so any episode on this machine can use them. This is slice 1 of issue #1777: the library, its file format, the `.sharecutseg` file and the `podcast segment` commands. Nothing here changes an episode project.
+A segment is a reusable piece of audio: an intro, an outro, a sponsor read or a sting. It is the audio, how its clips sit relative to each other, a level, a lane role and a ducking flag, plus an optional chapter title and transcript. The library keeps segments per user, so any episode on this machine can use them. This is issue #1777: slice 1 is the library, its file format, the `.sharecutseg` file and the `podcast segment` commands; slice 2 is Insert, which puts a saved segment on an episode's timeline (see [Insert](#insert)). Saving, listing, exporting and importing change no episode project.
 
 ## Copy, not link
 
@@ -47,6 +47,7 @@ Unknown fields are refused. `content_sha256` is a hash of the sorted media hashe
 | `podcast segment remove ID` | Delete a segment and all its versions, damaged or not. |
 | `podcast segment export ID -o FILE` | Write the newest version to a `.sharecutseg` file. |
 | `podcast segment import FILE [--json]` | Add a `.sharecutseg` file to the library. |
+| `podcast segment insert PROJECT SEGMENT --at SEC [--version N] [--json]` | Insert a segment into an episode (see [Insert](#insert)). |
 
 `save` and `import` print one of `Saved`, `Saved a new version of` or `Already in the library`; with `--json` they print `{"status": "added" | "new_version" | "unchanged", "id", "version"}`. Failures print `Error: <message> (code <code>)` and exit 1.
 
@@ -68,22 +69,39 @@ A zip of `segment.json`, the audio files and `MANIFEST.sha256` (`<sha256>  <name
 
 Errors: `segment_bundle_invalid` (bad zip, names, sizes or manifest), `segment_bundle_unsupported`, `segment_hash_mismatch`, `segment_schema_unsupported`, `segment_invalid` (`segment.json` is not valid or not a segment), `segment_busy` (the library lock is held), `segment_unreadable` (a file in the library cannot be read), `segment_unknown` (no such segment or version) and `segment_write_failed` (disk or permission errors). The manifest detects corruption, not forgery: anyone can repack a zip and recompute it, so an import is an integrity check, not a trust decision, and nothing is signed. Reading a stored segment (`get`, `show`, `export`) checks the audio hashes again and raises `segment_hash_mismatch` for a file that was changed or removed; `list` reports such a segment as damaged.
 
+## Insert
+
+`podcast segment insert PROJECT SEGMENT --at SEC` runs the `InsertSegment` document command (`segment_id`, `version?`, `at`), so the edit is journaled, synced and one undo step like every other timeline edit. It is host only: a share link never reaches the host's library. The code is `services/segment_insert.py` (audio copy and the command's service) and `edits/segment_insert.py` (the project edit).
+
+1. The library version is read with its audio hashes checked (`segment_unknown`, `segment_hash_mismatch`). The newest version is used unless `--version` names one.
+2. The position must be on the timeline, from 0 to its end inclusive (`segment_position_out_of_range`). A project with no clips accepts 0.
+3. Each audio file is copied to `raw/segment-<first 16 hex of its sha256>.flac` and the hash is checked again on the copy, so a file changed after the library read it is refused (`segment_hash_mismatch`) and nothing is left behind. The same audio inserted twice is stored once and shares one source (`seg_<16 hex>`).
+4. In one undoable mutation the edit opens the segment's length at `at` with the ripple `insert_gap` and `paste_segment` use (every dialogue track, plus the tracks the segment lands on), moves chapters and review comments at or after the point, places the clips and rebuilds the combined transcript. A clip straddling the point is split, as an `insert_gap` does.
+5. Each clip carries `segment_ref` (`segment_id`, `version`, `content_sha256` of the version inserted). Nothing reads it yet; a later slice compares it with the library to show drift. A clip split or moved later keeps its `segment_ref`; a copy made by duplicate or paste does not.
+
+**Lanes and tracks.** Lane 0 of a segment whose role is not `dialogue` goes on the project's first track of that role (an intro on the intro track the episode already has), which keeps its own fader. Every other lane, and every dialogue segment, gets a new track named for the segment (`Name`, `Name 2`, ...) with the segment's role and `fader_db`. A new dialogue track has the segment name as its speaker, since a sponsor read is not one of the episode's speakers.
+
+**What is applied.** The clips' source windows, offsets, fades and join modes. The segment's `chapter_title`, when it has one, becomes a chapter marker at `at`. `duck_under_dialogue` is stored in the library but not applied: the project has no ducking model yet.
+
+Project format: `Clip.segment_ref` is optional and absent from a clip that has none, so existing projects load and save unchanged. Under the [compatibility boundary](project-format.md#compatibility-boundary) the project version stays `2.0` and no upgrade tooling is needed before the first beta build; the shape lock is refreshed.
+
 ## Not built yet
 
-- Using a segment in an episode (inserting it on the timeline, ducking, the chapter marker). Slice 1 has no Studio, MCP or HTTP surface.
+- Ducking under dialogue, and detecting that a segment changed since it was inserted (`segment_ref` is recorded for it).
+- A Studio, MCP or HTTP surface. Neither the library nor Insert has an MCP tool or a capabilities-manifest entry: an agent could insert by id but has no way to list or save, so the tools wait for a surface that does all three.
 - Multi-segment kits (`.sharecutkit`).
 - Capturing a transcript or a chapter title.
 - Setting `duck_under_dialogue` or `chapter_title` (no command writes them yet).
 - Per-clip gain and mute-region data beyond what is rendered into the audio.
 
-## Open design points for the owner
+## Decisions
 
-Found in review and left as they are for slice 1. Each is cheap now and costly once testers hold libraries:
+Settled with slice 2, each with its reason.
 
-- The id is derived from the name (slug plus a hash of the exact name), so a rename is a new segment and an episode cannot refer to a segment across a rename. An opaque id minted on first save would fix that.
-- `schema_version` is `Literal[1]` with unknown fields refused, so any added field is a schema 2 that older builds reject. Reserve an extensions object or accept the bump on purpose. `content_sha256` is built from the serialized model, so a new field with a default changes every stored hash; a golden-hash test and an explicit encoder would pin it.
-- One role and one fader per segment, while clips carry a lane. A selection across dialogue and music collapses to the first clip's role. A per-lane table would fit an insert better.
-- No sample rate or channel count is declared; an insert has to probe the FLAC.
-- Trust is integrity only (see above); there is no signature.
-- `capture.py` lives in `segments/` but imports engines and the workspace service. It belongs in `services/` once Studio or MCP call it.
-- Dedupe compares FLAC bytes, so a different ffmpeg build can turn the same capture into a new version.
+- **Name-derived id stays.** No rename operation exists, so a rename is deliberately a new segment, and `segment_ref` also holds the content hash, so a later slice can relink by content.
+- **`schema_version` stays `Literal[1]` with unknown fields refused; a new field is schema 2 on purpose.** Beta has no libraries worth carrying, and a reserved extensions object would hide format changes from older builds. `content_sha256` is now pinned by a golden-hash test, so a field that changes every stored hash fails a test instead of passing unseen.
+- **One role and one fader per segment.** Capture collapses a mixed selection to its first clip's track and Insert maps lanes by that role; a per-lane table is a schema 2 change when capture can write one.
+- **No sample rate or channel count in `segment.json`.** Insert probes the copied file anyway to build its source, so declaring them would only add a second truth.
+- **Trust is integrity only, with no signature.** Segments move between people as files the user chooses to import; a signature needs a key story that does not exist yet. Insert re-checks the hash on its own copy.
+- **`capture.py` moved to `services/segment_capture.py`.** It imports engines and the workspace service, and `services/` is where the new Insert code lives.
+- **Dedupe compares FLAC bytes and stays that way.** A different ffmpeg build making a new version is harmless, since each version has its own content hash and a `segment_ref` points at one version.

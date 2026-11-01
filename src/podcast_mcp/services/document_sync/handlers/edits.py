@@ -13,6 +13,7 @@ from podcast_mcp.edits.decisions import AskedEdits, HeldEdit, PendingEditBaselin
 from podcast_mcp.models import CutIntent, EditMode
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import AnalysisService, EditService, TimelineService
+from podcast_mcp.services.segment_insert import insert_saved_segment
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -322,6 +323,13 @@ def move_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         float(p["source_start"]),
         float(p["source_end"]),
         float(p["insert_at"]),
+    )
+
+
+def insert_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    version = p.get("version")
+    return insert_saved_segment(
+        ws, str(p["segment_id"]), float(p["at"]), version=None if version is None else int(version)
     )
 
 
