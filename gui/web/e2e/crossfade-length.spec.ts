@@ -48,6 +48,9 @@ for (const width of [1280, 390]) {
       /aligned dialogue/i,
     );
     const commands: CommandAttempt[] = [];
+    let primaryFailure: { error: unknown } | null = null;
+    const captureFailures: unknown[] = [];
+    const cleanupFailures: unknown[] = [];
     try {
       await page.keyboard.press("Shift+ArrowRight");
       await page.keyboard.press("Shift+ArrowRight");
@@ -319,13 +322,18 @@ for (const width of [1280, 390]) {
       await page.keyboard.press("ControlOrMeta+Z");
       await page.keyboard.press("ControlOrMeta+Z");
       await expect(lane.locator(".clip-block")).toHaveCount(1);
+    } catch (error) {
+      primaryFailure = { error };
     } finally {
       try {
         await testInfo.attach("raw-document-command-attempts-before-cleanup", {
           body: Buffer.from(JSON.stringify(commands)),
           contentType: "application/json",
         });
-      } finally {
+      } catch (error) {
+        captureFailures.push(error);
+      }
+      try {
         await page.keyboard.press("Escape");
         await page.evaluate(() =>
           (document.activeElement as HTMLElement)?.blur(),
@@ -345,7 +353,28 @@ for (const width of [1280, 390]) {
           await page.keyboard.press("ControlOrMeta+Z");
           await done;
         }
+      } catch (error) {
+        cleanupFailures.push(error);
+      }
+      for (const [type, failures] of [
+        ["capture-error", captureFailures],
+        ["cleanup-error", cleanupFailures],
+      ] as const) {
+        for (const error of failures)
+          testInfo.annotations.push({
+            type,
+            description:
+              error instanceof Error
+                ? (error.stack ?? error.message)
+                : String(error),
+          });
       }
     }
+    if (primaryFailure) throw primaryFailure.error;
+    if (captureFailures.length || cleanupFailures.length)
+      throw new AggregateError(
+        [...captureFailures, ...cleanupFailures],
+        "Crossfade evidence or cleanup failed",
+      );
   });
 }
