@@ -915,7 +915,6 @@ def assemble_timeline(project: EpisodeProject, defaults: dict[str, Any]) -> Step
 
 
 def _music_tracks(project: EpisodeProject, rendered: Mapping[str, Any]) -> list[Track]:
-    """The tracks ``mix_with_music`` rebuilds on every run."""
     return [
         track
         for track in project.tracks
@@ -928,24 +927,20 @@ def _music_tracks(project: EpisodeProject, rendered: Mapping[str, Any]) -> list[
 def _reusable_premix_summary(
     project: EpisodeProject, defaults: dict[str, Any], rendered: Mapping[str, Any]
 ) -> str | None:
-    """``premix.wav`` is what a full run would mix again: its summary, else None.
-
-    Music tracks always mix; a missing or same-tick stem is not seen by ``premix_is_stale``.
-    """
     from podcast_mcp.engines.play_audit import (
         mix_gains,
         premix_is_stale,
         premix_path,
         read_premix_hash,
         read_premix_trim_db,
-        stem_not_older_than_premix,
+        stem_blocks_premix_reuse,
     )
 
     if _music_tracks(project, rendered) or not premix_path(project).is_file():
         return None
     if read_premix_hash(project) is None or read_premix_trim_db(project) is None:
         return None
-    if any(stem_not_older_than_premix(project, tid) for tid in mix_gains(project)):
+    if any(stem_blocks_premix_reuse(project, tid) for tid in mix_gains(project)):
         return None
     if premix_is_stale(project, defaults):
         return None
@@ -1126,10 +1121,6 @@ def _rejudge_master_qc(project: EpisodeProject, defaults: dict[str, Any]) -> Non
 def _reuse_current_master(
     project: EpisodeProject, defaults: dict[str, Any], target: MasterTarget
 ) -> str | None:
-    """``mastered.wav`` is current for an unchanged premix: its summary, else None.
-
-    A full run always leaves ``master_qc.json``, so a master without it is mastered again.
-    """
     from podcast_mcp.engines.play_audit import mastered_is_fresh
 
     if read_master_qc(project) is None or not mastered_is_fresh(project, target):

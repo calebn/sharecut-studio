@@ -110,10 +110,12 @@ def _mock_master_engine(measured: dict[str, float]) -> MagicMock:
     return eng
 
 
-def test_a_changed_qc_tolerance_re_judges_the_cached_master(minimal_project: Path) -> None:
+def test_a_changed_qc_tolerance_re_judges_the_cached_master(
+    minimal_project: Path, sample_wav: Path
+) -> None:
     ws = ProjectWorkspace.open(minimal_project)
     premix_path(ws.project).parent.mkdir(parents=True, exist_ok=True)
-    premix_path(ws.project).write_bytes(b"RIFF")
+    premix_path(ws.project).write_bytes(sample_wav.read_bytes())
     eng = _mock_master_engine({"integrated_lufs": -17.0, "true_peak_db": -3.0})
     defaults = load_defaults()
     qc_path = ws.project.artifacts_dir() / "master_qc.json"
@@ -136,11 +138,11 @@ def test_a_changed_qc_tolerance_re_judges_the_cached_master(minimal_project: Pat
     [("integrated_lufs", -19.0), ("true_peak_db", -3.0), ("lra", 7.0)],
 )
 def test_each_audio_setting_of_the_master_re_masters_a_cached_master(
-    minimal_project: Path, key: str, value: float
+    minimal_project: Path, sample_wav: Path, key: str, value: float
 ) -> None:
     ws = ProjectWorkspace.open(minimal_project)
     premix_path(ws.project).parent.mkdir(parents=True, exist_ok=True)
-    premix_path(ws.project).write_bytes(b"RIFF")
+    premix_path(ws.project).write_bytes(sample_wav.read_bytes())
     eng = _mock_master_engine({"integrated_lufs": -16.0, "true_peak_db": -3.0})
     defaults = load_defaults()
     with patch.object(steps, "ffmpeg", return_value=eng):
