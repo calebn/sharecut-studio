@@ -326,6 +326,20 @@ def test_configuration_is_idempotent_and_preserves_source_metadata(api, tmp_path
     assert (apt / "apt.conf.d/99sharecut-acquisition").stat().st_mode & 0o777 == 0o644
 
 
+@pytest.mark.parametrize("ending", ["\n", "\r\n", ""])
+def test_captured_regional_mirror_retains_canonical_sources(api, ending):
+    _, method = api
+    source = (
+        "# runner mirrors\nhttps://archive.ubuntu.com/ubuntu/\tpriority:2\n"
+        "https://security.ubuntu.com/ubuntu/\tpriority:3\n"
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1" + ending
+    )
+    assert method.rewrite_mirrors(source) == (
+        "# runner mirrors\nsharecut-https://archive.ubuntu.com/ubuntu/\tpriority:2\n"
+        "sharecut-https://security.ubuntu.com/ubuntu/\tpriority:3\n"
+    )
+
+
 @pytest.mark.parametrize(
     "entry",
     [
