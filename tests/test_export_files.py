@@ -319,6 +319,7 @@ def test_a_ticket_downloads_a_file_where_no_session_token_is_sent(ws, folder, re
     assert (res.status_code, res.content) == (200, MP3)
     assert res.headers["content-disposition"].startswith("attachment")
     assert bare.status_code == 403
+    assert remote.head(url, params={"path": str(ws.path), "ticket": "junk"}).status_code == 403
 
 
 def test_a_ticket_opens_only_its_own_file(ws, folder, remote) -> None:
@@ -641,12 +642,19 @@ def test_a_failed_file_manager_exit_is_reported_except_for_explorers_odd_code(
 
 def test_a_name_with_a_control_or_bidi_character_is_not_listed(ws, folder) -> None:
     clips = folder / "clips"
-    for name in ("flip\u202ecod.wav", "bell\x07.wav", "split\u2028line.wav", "plain.wav"):
+    for name in (
+        "flip\u202ecod.wav",
+        "bell\x07.wav",
+        "split\u2028line.wav",
+        "plain.wav",
+        "fam\U0001f468\u200d\U0001f469.wav",
+    ):
         (clips / name).write_bytes(WAV[:512])
 
     ids = [f.id for f in ExportFilesService(ws).list()]
 
     assert "clips/plain.wav" in ids
+    assert "clips/fam\U0001f468\u200d\U0001f469.wav" in ids
     assert not [i for i in ids if any(c in i for c in "\u202e\x07\u2028")]
 
 
@@ -689,3 +697,4 @@ def test_a_head_request_answers_with_the_headers_and_no_body(ws, folder, remote)
     assert head.headers["content-disposition"] == get.headers["content-disposition"]
     assert head.headers["etag"] == get.headers["etag"]
     assert bare.status_code == 403
+    assert remote.head(url, params={"path": str(ws.path), "ticket": "junk"}).status_code == 403

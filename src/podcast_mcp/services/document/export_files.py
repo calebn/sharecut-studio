@@ -21,12 +21,18 @@ from podcast_mcp.util.fingerprint import file_stamp
 ExportedFileKind = Literal["audio", "transcript", "chapters", "feed"]
 
 CLIPS_DIRNAME = "clips"
-_HIDDEN_CHAR_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zl", "Zp"})
+_HIDDEN_CHAR_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
+_BIDI_CONTROLS = frozenset(
+    "\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069"
+)
 
 
 def _plain_name(name: str) -> bool:
-    """False for a name with a control, format (bidi) or line-separator character in it."""
-    return not any(unicodedata.category(char) in _HIDDEN_CHAR_CATEGORIES for char in name)
+    """False for a name with a control, bidi control or line-separator character in it."""
+    return not any(
+        char in _BIDI_CONTROLS or unicodedata.category(char) in _HIDDEN_CHAR_CATEGORIES
+        for char in name
+    )
 
 
 _AUDIO_LABELS = {"wav": "Lossless master", "flac": "Lossless"}
