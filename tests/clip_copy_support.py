@@ -12,6 +12,7 @@ from podcast_mcp.models.episode import (
     ClipMuteRegion,
     ClipOffSpeakerMuteRegion,
     RoomToneFill,
+    SegmentRef,
     SourceSpan,
 )
 
@@ -47,6 +48,7 @@ def full_clip() -> Clip:
             source_sha256="a" * 64,
             regions=[SourceSpan(start_s=6.0, end_s=6.5), SourceSpan(start_s=7.0, end_s=7.5)],
         ),
+        "segment_ref": SegmentRef(segment_id="intro-1a2b3c4d", version=2, content_sha256="b" * 64),
         "timing": ClipTiming(
             steps=[TimingStep(at=5.0, delta_sec=0.4, quiet=QuietSpan(start_s=4.8, end_s=5.2))]
         ),
