@@ -76,7 +76,7 @@ export const Default: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason:
-      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+      "The play asserts the header drawn in a 48rem frame; its 360 px render is the matching Phone story.",
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -105,7 +105,7 @@ export const SavedMute: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason:
-      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+      "The play asserts the header drawn in a 48rem frame; its 360 px render is the matching Phone story.",
   },
   args: {
     muteState: "saved",
@@ -131,7 +131,7 @@ export const ListenMuteAndSolo: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason:
-      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+      "The play asserts the header drawn in a 48rem frame; its 360 px render is the matching Phone story.",
   },
   args: {
     muteState: "listen",
@@ -157,7 +157,7 @@ export const Soloed: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason:
-      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+      "The play asserts the header drawn in a 48rem frame; its 360 px render is the matching Phone story.",
   },
   args: {
     mixer: (
@@ -182,7 +182,7 @@ export const ImpliedMute: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason:
-      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+      "The play asserts the header drawn in a 48rem frame; its 360 px render is the matching Phone story.",
   },
   args: {
     muteState: "implied",
@@ -213,7 +213,7 @@ export const StaleStem: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason:
-      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+      "The play asserts the header drawn in a 48rem frame; its 360 px render is the matching Phone story.",
   },
   args: {
     stemClass: "stale",
@@ -265,7 +265,7 @@ export const ReorderTarget: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason:
-      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+      "The play asserts the header drawn in a 48rem frame; its 360 px render is the matching Phone story.",
   },
   args: { mayReorder: true, dragging: false, dropEdge: "after" },
   play: async ({ canvasElement }) => {
@@ -287,7 +287,7 @@ export const SpeakerMatchesName: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason:
-      "The header is drawn in a 48rem frame and the play cannot reach its controls at 360 px.",
+      "The play asserts the header drawn in a 48rem frame; its 360 px render is the matching Phone story.",
   },
   args: {
     track: sampleTrack({
@@ -323,3 +323,16 @@ export const PhoneWidth: Story = {
     );
   },
 };
+
+/** The same header states in a 360 px frame, without the play, so the 360 axe and overflow pass checks them. */
+const phoneOf = (state: Story): Story => ({
+  args: state.args,
+  parameters: { ...recordMobileViewport.parameters, trackHeaderPhone: true },
+  globals: recordMobileViewport.globals,
+});
+export const PhoneSavedMute: Story = phoneOf(SavedMute);
+export const PhoneListenMuteAndSolo: Story = phoneOf(ListenMuteAndSolo);
+export const PhoneSoloed: Story = phoneOf(Soloed);
+export const PhoneImpliedMute: Story = phoneOf(ImpliedMute);
+export const PhoneStaleStem: Story = phoneOf(StaleStem);
+export const PhoneReorderTarget: Story = phoneOf(ReorderTarget);
