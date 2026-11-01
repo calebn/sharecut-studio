@@ -60,7 +60,7 @@ from podcast_mcp.engines.alignment_key import (
     speaker_label,
 )
 from podcast_mcp.engines.media_probe import has_several_audio_streams
-from podcast_mcp.engines.session_timeline import shift_at
+from podcast_mcp.engines.session_timeline import source_span_on_timeline
 from podcast_mcp.engines.ungated_audio import held_mono_full
 from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
 from podcast_mcp.util.atomic_json import write_text_atomic
@@ -710,12 +710,13 @@ def _pool_spans_in_use(
         if clip.track_id != track_id:
             continue
         for region in clip.mute_regions:
-            at = region.start_s + shift_at(clip, region.start_s)
+            played = source_span_on_timeline(clip, region.start_s, region.end_s)
             if (
                 region.fill is not None
                 and region.fill.source_id is None
-                and at < window[1]
-                and window[0] < at + (region.end_s - region.start_s)
+                and played
+                and played[0][0] < window[1]
+                and window[0] < played[-1][1]
             ):
                 spans.append((region.fill.start_s, region.fill.end_s))
         if clip.timeline_end < window[0] or clip.timeline_start > window[1]:

@@ -484,12 +484,17 @@ class SourceStack:
     overlap_sec: float
 
 
-def _source_span_on_timeline(clip: Clip, start_s: float, end_s: float) -> tuple[float, float]:
-    """Timeline span of a source span; one that crosses a step runs hole to hole."""
-    return (
-        start_s + shift_at(clip, start_s),
-        end_s + shift_at(clip, max(start_s, end_s - _EPS)),
-    )
+def source_span_on_timeline(clip: Clip, start_s: float, end_s: float) -> list[tuple[float, float]]:
+    """Timeline spans a source span covers; a timed clip splits it per piece."""
+    if clip.timing is None:
+        shift = shift_at(clip, start_s)
+        return [(start_s + shift, end_s + shift_at(clip, max(start_s, end_s - _EPS)))]
+    spans: list[tuple[float, float]] = []
+    for src_a, src_b, tl_a in clip.virtual_pieces():
+        lo, hi = max(start_s, src_a), min(end_s, src_b)
+        if hi > lo:
+            spans.append((tl_a + (lo - src_a), tl_a + (hi - src_a)))
+    return spans
 
 
 def _audible_overlap_sec(a: Clip, b: Clip, lo: float, hi: float) -> float:
@@ -505,11 +510,14 @@ def _audible_overlap_sec(a: Clip, b: Clip, lo: float, hi: float) -> float:
             automatic = subtract_intervals(
                 automatic, [(r.start_s, r.end_s) for r in clip.bleed_restore.regions]
             )
-        muted.extend(_source_span_on_timeline(clip, start, end) for start, end in automatic)
         muted.extend(
-            _source_span_on_timeline(clip, r.start_s, r.end_s)
+            span for start, end in automatic for span in source_span_on_timeline(clip, start, end)
+        )
+        muted.extend(
+            span
             for r in clip.mute_regions
             if r.gain_db is None
+            for span in source_span_on_timeline(clip, r.start_s, r.end_s)
         )
     return sum(end - start for start, end in subtract_intervals([(lo, hi)], muted))
 
