@@ -62,7 +62,10 @@ Browser matrix jobs install the matrix-selected engine and system dependencies
 through the locked Playwright package with `--with-deps`. They configure
 `scripts/ci_apt_method.py` before installation. The method preserves apt's package
 resolver, Ubuntu signing keys, signature and date checks, and final package hashes.
-It removes the runner's Azure mirror entry and retains Canonical HTTPS as primary.
+It removes the runner's Azure mirror entry and the exact redundant entry
+`http://us-east-2.ec2.archive.ubuntu.com/ubuntu/` followed by one tab and `priority:1`.
+Other regional entries remain unsupported. Canonical HTTPS remains primary.
+The text reader normalizes CRLF and lone CR line endings to LF before entry validation.
 
 Apt-authenticated SHA256 objects use a second HTTPS source at
 `mirrors.edge.kernel.org/ubuntu` after a two-second hedge. Only complete bytes

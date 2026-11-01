@@ -228,6 +228,9 @@ def fields(**changes):
         {"Expected-Checksum-FileSize": "1.0"},
         {"Expected-Checksum-FileSize": "9" * 20},
         {"URI": "sharecut-https://evil.example/ubuntu/pool/main/h/hello/hello.deb"},
+        {"URI": "sharecut-https://us-east-2.ec2.archive.ubuntu.com/ubuntu/pool/main/h/hello.deb"},
+        {"URI": "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/pool/main/h/hello.deb"},
+        {"URI": "http://archive.ubuntu.com/ubuntu/pool/main/h/hello.deb"},
         {"URI": "sharecut-https://archive.ubuntu.com/ubuntu/pool/main/../evil"},
         {"URI": "sharecut-https://archive.ubuntu.com/ubuntu/pool/main/%2e%2e/evil"},
         {"URI": "sharecut-https://archive.ubuntu.com/ubuntu/pool/main/%00evil"},
@@ -290,7 +293,15 @@ def test_symlink_destinations_fail_without_changing_target(api, tmp_path):
     assert original.read_bytes() == b"keep"
 
 
-def test_configuration_is_idempotent_and_preserves_source_metadata(api, tmp_path):
+@pytest.mark.parametrize(
+    "regional",
+    [
+        "http://azure.archive.ubuntu.com/ubuntu/\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1",
+    ],
+)
+@pytest.mark.parametrize("ending", ["\n", "\r\n", "\r"])
+def test_configuration_is_idempotent_and_preserves_source_metadata(api, tmp_path, regional, ending):
     _, method = api
     apt = tmp_path / "apt"
     (apt / "sources.list.d").mkdir(parents=True)
@@ -298,10 +309,16 @@ def test_configuration_is_idempotent_and_preserves_source_metadata(api, tmp_path
     methods = tmp_path / "methods"
     methods.mkdir()
     mirrors = apt / "apt-mirrors.txt"
-    mirrors.write_text(
-        "# runner mirrors\nhttp://azure.archive.ubuntu.com/ubuntu/\tpriority:1\n"
-        "https://archive.ubuntu.com/ubuntu/\tpriority:2\n"
-        "https://security.ubuntu.com/ubuntu/\tpriority:3\n"
+    mirrors.write_bytes(
+        ending.join(
+            (
+                regional,
+                "# runner mirrors",
+                "https://archive.ubuntu.com/ubuntu/\tpriority:2",
+                "https://security.ubuntu.com/ubuntu/\tpriority:3",
+                "",
+            )
+        ).encode()
     )
     ubuntu = apt / "sources.list.d/ubuntu.sources"
     ubuntu.write_text(
@@ -338,6 +355,42 @@ def test_captured_regional_mirror_retains_canonical_sources(api, ending):
         "# runner mirrors\nsharecut-https://archive.ubuntu.com/ubuntu/\tpriority:2\n"
         "sharecut-https://security.ubuntu.com/ubuntu/\tpriority:3\n"
     )
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "https://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/",
+        "http://us-east-1.ec2.archive.ubuntu.com/ubuntu/\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:2",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:01",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/ priority:1",
+        " http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1 ",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\t\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/private\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com.evil.example/ubuntu/\tpriority:1",
+        "http://US-EAST-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com:80/ubuntu/\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1\tother:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1\r",
+    ],
+)
+def test_regional_mirror_near_matches_fail_closed(api, entry):
+    _, method = api
+    with pytest.raises(ValueError, match="unsupported runner Ubuntu mirror entry"):
+        method.rewrite_mirrors("https://archive.ubuntu.com/ubuntu/\n" + entry)
+
+
+def test_captured_regional_mirror_requires_canonical_archive(api):
+    _, method = api
+    with pytest.raises(ValueError, match="runner lacks the canonical HTTPS Ubuntu archive"):
+        method.rewrite_mirrors(
+            "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1\n"
+            "https://security.ubuntu.com/ubuntu/\tpriority:3\n"
+        )
 
 
 @pytest.mark.parametrize(
@@ -393,6 +446,11 @@ def test_rejected_public_mirror_diagnostic_identifies_exact_entry(api, entry, en
         "::error::fixture-secret",
         "https://mirror.example.net/ubuntu/ " + "9" * 4096,
         "https://mirror.example.net/ubuntu/\tpriority:" + "9" * 4096,
+        "http://fixture-user:fixture-secret@us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/?token=fixture-secret\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/#fixture-secret\tpriority:1",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1\x00fixture-secret",
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:" + "9" * 4096,
     ],
 )
 def test_rejected_unsafe_mirror_diagnostic_redacts_entire_entry(api, entry):
@@ -415,7 +473,46 @@ def test_rejected_unsafe_mirror_diagnostic_redacts_entire_entry(api, entry):
 
 
 @pytest.mark.parametrize("existing_installation", [False, True])
-def test_rejected_mirror_configuration_preserves_all_files(api, tmp_path, existing_installation):
+@pytest.mark.parametrize(
+    "entry,reported_entry",
+    [
+        (
+            "https://mirror.example.net/ubuntu/\tpriority:4",
+            "https://mirror.example.net/ubuntu/\tpriority:4",
+        ),
+        (
+            "http://us-east-2.ec2.archive.ubuntu.com.evil.example/ubuntu/\tpriority:1",
+            "http://us-east-2.ec2.archive.ubuntu.com.evil.example/ubuntu/\tpriority:1",
+        ),
+        (
+            "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/private\tpriority:1",
+            "<redacted>",
+        ),
+        (
+            "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/ priority:1",
+            "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/ priority:1",
+        ),
+        (
+            "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:2",
+            "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:2",
+        ),
+        (
+            "https://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1",
+            "https://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1",
+        ),
+        (
+            "http://us-east-2.ec2.archive.\rubuntu.com/ubuntu/\tpriority:1",
+            "<redacted>",
+        ),
+        (
+            "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tprio\rrity:1",
+            "<redacted>",
+        ),
+    ],
+)
+def test_rejected_mirror_configuration_preserves_all_files(
+    api, tmp_path, existing_installation, entry, reported_entry
+):
     _, method = api
     apt = tmp_path / "apt"
     (apt / "sources.list.d").mkdir(parents=True)
@@ -423,9 +520,9 @@ def test_rejected_mirror_configuration_preserves_all_files(api, tmp_path, existi
     methods = tmp_path / "methods"
     methods.mkdir()
     (apt / "apt-mirrors.txt").write_text(
+        "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1\n"
         "# runner mirrors\nhttps://archive.ubuntu.com/ubuntu/\tpriority:2\n"
-        "https://security.ubuntu.com/ubuntu/\tpriority:3\n"
-        "https://mirror.example.net/ubuntu/\tpriority:4\n"
+        "https://security.ubuntu.com/ubuntu/\tpriority:3\n" + entry + "\n"
     )
     (apt / "sources.list.d/ubuntu.sources").write_text(
         "Types: deb\nURIs: mirror+file:/etc/apt/apt-mirrors.txt\nSuites: resolute\n"
@@ -445,6 +542,7 @@ def test_rejected_mirror_configuration_preserves_all_files(api, tmp_path, existi
     before = {
         path.relative_to(tmp_path): (
             path.stat().st_mode,
+            path.stat().st_mtime_ns,
             path.read_bytes() if path.is_file() else None,
         )
         for path in tmp_path.rglob("*")
@@ -454,6 +552,7 @@ def test_rejected_mirror_configuration_preserves_all_files(api, tmp_path, existi
     after = {
         path.relative_to(tmp_path): (
             path.stat().st_mode,
+            path.stat().st_mtime_ns,
             path.read_bytes() if path.is_file() else None,
         )
         for path in tmp_path.rglob("*")
@@ -462,9 +561,9 @@ def test_rejected_mirror_configuration_preserves_all_files(api, tmp_path, existi
     prefix = "unsupported runner Ubuntu mirror entry "
     assert str(error.value).startswith(prefix)
     assert json.loads(str(error.value).removeprefix(prefix)) == {
-        "line": 4,
-        "length": len("https://mirror.example.net/ubuntu/\tpriority:4"),
-        "entry": "https://mirror.example.net/ubuntu/\tpriority:4",
+        "line": 5,
+        "length": len(entry.split("\r", 1)[0]),
+        "entry": reported_entry,
     }
 
 
