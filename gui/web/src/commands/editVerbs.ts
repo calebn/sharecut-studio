@@ -650,7 +650,10 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
         continue;
       const d = descriptor("mute");
       const label =
-        facts.kind === "words" && ignoreWouldRestore(project, s.selection)
+        facts.kind === "words" &&
+        s.stage === "edit" &&
+        canManageProjects(s.projectPath) &&
+        ignoreWouldRestore(project, s.selection)
           ? RESTORE_IGNORED_LABEL
           : d && d.label !== "Mute"
             ? d.label

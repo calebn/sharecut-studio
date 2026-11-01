@@ -11,7 +11,7 @@ import type { ExecuteResult } from "./types";
 
 const ignoreFlight = createSingleFlight();
 
-/** Whether `transcript.ignoreWords` would restore the current selection, because every word in it is already ignored. */
+/** Whether `transcript.ignoreWords` would restore the selection (every word already ignored). */
 export function ignoreWouldRestore(
   project: Parameters<typeof ignoreTarget>[0],
   selection: Parameters<typeof ignoreTarget>[1],

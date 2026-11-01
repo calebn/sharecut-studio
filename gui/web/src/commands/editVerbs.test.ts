@@ -602,6 +602,22 @@ describe("barModelOf", () => {
     );
   });
 
+  it("keeps the Suggest label for a non-host even when every selected word is ignored", () => {
+    const ignored = editFixtureProject();
+    for (const u of ignored.transcript?.utterances ?? [])
+      for (const w of u.words ?? [])
+        if (w.word_index === 2) (w as { ignored?: boolean }).ignored = true;
+    host(EDIT_SELECTIONS.liveWords, {
+      project: ignored,
+      projectPath: "share:tok",
+      guestMode: "edit",
+    });
+    const label = barModelOf(factsOf()!, useDawStore.getState()).more.find(
+      (r) => r.id === "mute",
+    )?.label;
+    expect(label).not.toBe("Restore ignored words");
+  });
+
   it("offers Split on a words selection", () => {
     expect(model(EDIT_SELECTIONS.liveWords).items.map((i) => i.id)).toContain(
       "split",
