@@ -11,7 +11,6 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from podcast_mcp.config.defaults import join_micro_fade_ms
 from podcast_mcp.edits.cut_policy import (
     CutJoin,
 )
@@ -43,7 +42,11 @@ from podcast_mcp.edits.edit_log import seam_source_by_track
 from podcast_mcp.engines import ffmpeg
 from podcast_mcp.engines.audio import placed_sources
 from podcast_mcp.engines.clips_ops import clip_split_origin, clips_for_track
-from podcast_mcp.engines.timeline_render import placed_track_audio, track_grid
+from podcast_mcp.engines.timeline_render import (
+    placed_track_audio,
+    shell_micro_fade_ms,
+    track_grid,
+)
 from podcast_mcp.engines.track_media import full_span_clip
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.tracks import recording_audio_path
@@ -111,7 +114,7 @@ def completed_audio_effects(
                         track,
                         clips,
                         grid=track_grid(project, track, clips),
-                        micro_fade_ms=join_micro_fade_ms(defaults),
+                        micro_fade_ms=shell_micro_fade_ms(clips, defaults),
                     ).audio,
                     crossfade_curve=curve,
                 )
