@@ -75,15 +75,16 @@ export async function goToStage(page: Page, stage: Stage): Promise<void> {
   // A window too short or too narrow for the tab bar folds it into the
   // header's Stage menu, and the fold is decided by measuring the frame, so it
   // can flip while the page settles. Retry the whole step against whichever
-  // control the frame shows now.
+  // control the frame shows now. Every read inside carries its own short
+  // timeout: a read left on the default would wait out the whole retry budget
+  // for a control the fold just removed.
   await expect(async () => {
     const menu = page.getByRole("button", { name: /^Stage menu, / });
     const tab = stageTab(page, stage);
     await expect(menu.or(tab)).toBeVisible({ timeout: 2000 });
     if (await menu.isVisible()) {
-      if (
-        !(await menu.getAttribute("aria-label"))?.endsWith(STAGE_LABEL[stage])
-      ) {
+      const label = await menu.getAttribute("aria-label", { timeout: 2000 });
+      if (!label?.endsWith(STAGE_LABEL[stage])) {
         await menu.click({ timeout: 2000 });
         await page
           .getByRole("menuitem", {
@@ -97,7 +98,10 @@ export async function goToStage(page: Page, stage: Stage): Promise<void> {
         { timeout: 2000 },
       );
     } else {
-      if ((await tab.getAttribute("aria-selected")) !== "true") {
+      const selected = await tab.getAttribute("aria-selected", {
+        timeout: 2000,
+      });
+      if (selected !== "true") {
         await tab.click({ timeout: 2000 });
       }
       await expect(tab).toHaveAttribute("aria-selected", "true", {
