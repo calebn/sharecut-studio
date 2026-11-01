@@ -454,7 +454,7 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
     start, end = max(clip.timeline_start, lo), min(clip.timeline_end, hi)
     offset = clip.timeline_start - clip.source_start
     opens, closes = clip.timeline_start >= lo, clip.timeline_end <= hi
-    return [
+    heard = [
         clip.track_id,
         clip.source_id,
         offset,
@@ -469,6 +469,10 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
         [r.model_dump(mode="json") for r in clip.off_speaker_mute_regions],
         clip.bleed_restore.model_dump(mode="json") if clip.bleed_restore else None,
     ]
+    timing = getattr(clip, "timing", None)
+    if timing is not None:
+        heard.append(timing.model_dump(mode="json"))
+    return heard
 
 
 def _words_near(project: EpisodeProject) -> Callable[[str, str | None, float, float], Any]:

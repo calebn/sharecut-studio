@@ -79,6 +79,13 @@ class PhraseAlignmentProposal:
     max_residual_ms: float
     reference_track_ids: tuple[str, ...] = ()
     media_key: str | None = None
+    timeline_length: float | None = None
+
+    @property
+    def length(self) -> float:
+        if self.timeline_length is not None:
+            return self.timeline_length
+        return self.source_end - self.source_start
 
 
 @dataclass(frozen=True)
@@ -758,6 +765,7 @@ def plan_retained_bleed_alignment(
             delay.max_residual_ms,
             tuple(sorted(reference_peers)),
             media_key,
+            old_end - old_start,
         )
         completed.add(geometry)
         return proposal
@@ -802,8 +810,7 @@ def _safe_batch_proposals(
         (
             min(proposal.previous_timeline_start, proposal.timeline_start) - margin,
             max(proposal.previous_timeline_start, proposal.timeline_start)
-            + proposal.source_end
-            - proposal.source_start
+            + proposal.length
             + margin,
         )
         for proposal in proposals
@@ -815,9 +822,7 @@ def _safe_batch_proposals(
                 conflicts.update((ordinal, other))
                 reasons.add((proposal.direct_track_id, "conflicting_phrase_corrections"))
         reference_start = proposal.timeline_start - margin
-        reference_end = (
-            proposal.timeline_start + proposal.source_end - proposal.source_start + margin
-        )
+        reference_end = proposal.timeline_start + proposal.length + margin
         references = set(proposal.reference_track_ids) | {proposal.bleed_track_id}
         for other in index.overlapping_ordinals(reference_start, reference_end):
             if other != ordinal and proposals[other].direct_track_id in references:
@@ -851,7 +856,7 @@ def apply_retained_bleed_alignment(
     results: list[dict[str, Any]] = []
     for proposal in proposals:
         lo = proposal.previous_timeline_start
-        hi = lo + proposal.source_end - proposal.source_start
+        hi = lo + proposal.length
         for boundary in (lo, hi):
             for clip in working.clips:
                 if (
