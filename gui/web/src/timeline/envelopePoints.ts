@@ -12,13 +12,24 @@ import type { HitTargetAttrs } from "./hitTargets";
 /** A nudge in progress: the point's time and level as the keys have moved them, not yet saved. */
 export type PointPreview = { id: string; time: number; db: number };
 
+/** The points whose time and level are numbers: the only ones the lane draws, as points, line or dips. */
+export function finitePoints(
+  points: readonly AutomationPoint[],
+): AutomationPoint[] {
+  return points.filter(
+    (p) => Number.isFinite(p.time) && Number.isFinite(p.value),
+  );
+}
+
 /** The lane speaks dB; the store speaks gain. A point whose time or level is not a number is left out. */
 export function toLeafPoints(
   points: readonly AutomationPoint[],
 ): EnvelopePointData[] {
-  return points
-    .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.value))
-    .map((p) => ({ id: p.id, time: p.time, db: gainToDb(p.value) }));
+  return finitePoints(points).map((p) => ({
+    id: p.id,
+    time: p.time,
+    db: gainToDb(p.value),
+  }));
 }
 
 export function selectedPointId(
