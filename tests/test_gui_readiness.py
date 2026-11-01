@@ -562,7 +562,7 @@ def test_history_entry_operation_params() -> None:
 
     store = ProjectStore(ws / "episode.sharecut")
     store.commit(p)
-    mgr = HistoryManager(ws / "episode.sharecut")
+    mgr = HistoryManager(ProjectStore(ws / "episode.sharecut"))
     entry = mgr.record(
         p,
         "after ripple delete",

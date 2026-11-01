@@ -1374,7 +1374,7 @@ def test_run_mutation_restores_mute_on_failure(tmp_path, sample_wav):
         raise RuntimeError("mutate failed")
 
     with pytest.raises(RuntimeError, match="mutate failed"):
-        run_mutation(path, project, "before", "after", boom, defaults=load_defaults())
+        run_mutation(ProjectStore(path), project, "before", "after", boom, defaults=load_defaults())
     after = [(c.id, [(r.start_s, r.end_s) for r in c.mute_regions]) for c in project.clips]
     assert after == before
 

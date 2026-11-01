@@ -262,7 +262,7 @@ class ProjectWorkspace:
             saved_ids = {entry["id"] for entry in (saved.get("history") or {}).get("entries", [])}
             if base_id not in saved_ids:
                 raise ProjectMergeConflict([HISTORY_LINEAGE_CONFLICT], advice=advice)
-        mgr = HistoryManager(self.path)
+        mgr = self.history()
         if history_label is not None:
             mgr.record(self.project, history_label)
         if saved == self._merge_base:
@@ -272,6 +272,9 @@ class ProjectWorkspace:
         )
         mgr.record(adopted, MERGED_HISTORY_LABEL)
         return adopted
+
+    def history(self) -> HistoryManager:
+        return HistoryManager(self._store)
 
     def _adopt_saved(self, project: EpisodeProject) -> None:
         if project is not self.project:
@@ -298,7 +301,7 @@ class ProjectWorkspace:
         with self.transaction():
             try:
                 result = run_mutation(
-                    self.path,
+                    self._store,
                     self.project,
                     label_before,
                     label_after,
@@ -336,6 +339,6 @@ class ProjectWorkspace:
         store = ProjectStore(path)
         store.commit(project)
         loaded = store.load()
-        HistoryManager(path).record(loaded, "initial", force=True)
+        HistoryManager(store).record(loaded, "initial", force=True)
         store.commit(loaded)
         return ProjectWorkspace(path, loaded)

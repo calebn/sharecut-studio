@@ -20,7 +20,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.models.history import ProjectHistory
-from podcast_mcp.project.history import HistoryManager, record_if_changed
+from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.project.history import rollback as rollback_mod
 from podcast_mcp.project.history.manager import (
     record_and_commit,
@@ -44,7 +44,7 @@ from podcast_mcp.util.atomic_json import write_json_atomic
 @pytest.mark.parametrize("writer", ["history_manager", "project_store"])
 def test_history_index_is_published_atomically(minimal_project, monkeypatch, writer):
     project = load_project(minimal_project)
-    manager = HistoryManager(minimal_project)
+    manager = HistoryManager(ProjectStore(minimal_project))
     first = manager.record(project, "initial", force=True)
     save_project(project, minimal_project)
 
@@ -117,7 +117,7 @@ def test_history_index_is_published_atomically(minimal_project, monkeypatch, wri
 
 def test_undo_redo_edit_decisions(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "empty", force=True)
     save_project(proj, minimal_project)
 
@@ -159,7 +159,7 @@ def test_undo_redo_edit_decisions(minimal_project):
 
 def test_undo_at_start_raises(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "only", force=True)
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
@@ -169,7 +169,7 @@ def test_undo_at_start_raises(minimal_project):
 
 def test_undo_restores_social_clip_candidates(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "no clips", force=True)
     save_project(proj, minimal_project)
 
@@ -193,7 +193,7 @@ def test_undo_restores_social_clip_candidates(minimal_project):
 
 def test_snapshot_files_persist(minimal_project, tmp_path):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "snap-a", force=True)
     save_project(proj, minimal_project)
     snap_dir = proj.history_dir() / "snapshots"
@@ -203,7 +203,7 @@ def test_snapshot_files_persist(minimal_project, tmp_path):
 
 def test_record_skips_unchanged_snapshot(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     first = mgr.record(proj, "baseline", force=True)
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
@@ -214,7 +214,7 @@ def test_record_skips_unchanged_snapshot(minimal_project):
 
 def test_record_skips_progress_cursor_only_change_and_saves_canonical_cursor(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     first = mgr.record(proj, "initial", force=True)
     proj.render.last_completed_step = "focus_from_transcript"
 
@@ -230,7 +230,7 @@ def test_record_skips_progress_cursor_only_change_and_saves_canonical_cursor(min
 
 def test_undo_restores_progress_cursor_captured_with_an_edit(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     proj.render.last_completed_step = "before edit"
     mgr.record(proj, "before edit", force=True)
     save_project(proj, minimal_project)
@@ -261,7 +261,7 @@ def test_undo_restores_progress_cursor_captured_with_an_edit(minimal_project):
 
 def test_record_truncates_redo_branch(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "v1", force=True)
     save_project(proj, minimal_project)
 
@@ -306,7 +306,7 @@ def test_record_truncates_redo_branch(minimal_project):
 
 def test_redo_at_end_raises(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "only", force=True)
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
@@ -316,7 +316,7 @@ def test_redo_at_end_raises(minimal_project):
 
 def test_goto_history_index(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "start", force=True)
     save_project(proj, minimal_project)
 
@@ -343,7 +343,7 @@ def test_goto_history_index(minimal_project):
 
 def test_goto_out_of_range(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "only", force=True)
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
@@ -353,7 +353,7 @@ def test_goto_out_of_range(minimal_project):
 
 def test_load_index_from_disk(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "persisted", force=True)
     save_project(proj, minimal_project)
 
@@ -366,7 +366,7 @@ def test_load_index_from_disk(minimal_project):
 
 def test_read_snapshot_invalid_v1_format(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     entry = mgr.record(proj, "snap", force=True)
     save_project(proj, minimal_project)
 
@@ -382,7 +382,7 @@ def test_read_snapshot_invalid_v1_format(minimal_project):
 
 def test_status_current_label(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "labeled", force=True)
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
@@ -390,15 +390,20 @@ def test_status_current_label(minimal_project):
     assert status.current_label == "labeled"
 
 
-def test_record_if_changed(minimal_project):
-    entry = record_if_changed(minimal_project, "via helper", force=True)
+def _record_committed(path, label):
+    store = ProjectStore(path)
+    return record_and_commit(store, store.load(), label, force=True)
+
+
+def test_record_and_commit(minimal_project):
+    entry = _record_committed(minimal_project, "via helper")
     proj = load_project(minimal_project)
     assert proj.history.entries[-1].id == entry.id
 
 
 def test_status_without_entries(minimal_project):
     proj = load_project(minimal_project)
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     status = mgr.status(proj)
     assert status.current_label is None
     assert status.cursor == -1
@@ -425,7 +430,7 @@ def test_legacy_null_history_loads_as_empty(minimal_project):
 
 def test_store_load_prefers_index_over_empty_history(minimal_project):
     proj = load_project(minimal_project)
-    HistoryManager(minimal_project).record(proj, "indexed", force=True)
+    HistoryManager(ProjectStore(minimal_project)).record(proj, "indexed", force=True)
     data = json.loads(minimal_project.read_text(encoding="utf-8"))
     data["history"] = {"cursor": -1, "entries": []}
     minimal_project.write_text(json.dumps(data), encoding="utf-8")
@@ -446,7 +451,7 @@ def _dead_first_commit(path: Path) -> None:
     holds the empty history and no comment.
     """
     project = load_project(path)
-    mgr = HistoryManager(path)
+    mgr = HistoryManager(ProjectStore(path))
     mgr.record(project, "before add comment")
     project.comments = [*project.comments, _comment("crashed")]
     mgr.record(project, "after add comment")
@@ -464,7 +469,10 @@ def test_store_load_ignores_an_index_a_dead_commit_left_ahead(minimal_project, c
     assert loaded.history.is_empty()
     [message] = _not_adopting(caplog)
     assert "a commit that never landed" in message
-    assert HistoryManager(minimal_project).status(load_project(minimal_project)).total == 0
+    assert (
+        HistoryManager(ProjectStore(minimal_project)).status(load_project(minimal_project)).total
+        == 0
+    )
     caplog.clear()
     with caplog.at_level("WARNING"):
         store.commit(loaded)
@@ -504,7 +512,7 @@ def test_unlocked_rollback_does_not_adopt_an_index_a_dead_commit_left_ahead(
     monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
     with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="boom"):
         run_mutation(
-            minimal_project,
+            ProjectStore(minimal_project),
             proj,
             "before add comment",
             "after add comment",
@@ -536,7 +544,7 @@ def test_unlocked_rollback_keeps_empty_history_when_the_saved_project_is_unreada
     monkeypatch.setattr(rollback_mod, "load_project", unreadable)
     with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="boom"):
         run_mutation(
-            minimal_project,
+            ProjectStore(minimal_project),
             proj,
             "before add comment",
             "after add comment",
@@ -565,7 +573,7 @@ def test_failed_first_mutation_keeps_an_index_another_writer_committed(minimal_p
 
     with pytest.raises(RuntimeError, match="boom"):
         run_mutation(
-            minimal_project,
+            ProjectStore(minimal_project),
             proj,
             "before",
             "after",
@@ -589,7 +597,7 @@ def test_store_load_does_not_adopt_an_index_without_a_readable_current_snapshot(
     minimal_project, caplog, damage, reason
 ):
     proj = load_project(minimal_project)
-    entry = HistoryManager(minimal_project).record(proj, "indexed", force=True)
+    entry = HistoryManager(ProjectStore(minimal_project)).record(proj, "indexed", force=True)
     index_path = history_index_path(proj)
     snapshot = history_snapshot_path(index_path, entry.id)
     if damage == "missing":
@@ -623,18 +631,18 @@ def test_a_saved_snapshot_matches_the_project_it_came_from(tmp_path, fixture):
 
 def test_snapshot_file_uses_the_shared_layout(minimal_project):
     proj = load_project(minimal_project)
-    entry = HistoryManager(minimal_project).record(proj, "snap", force=True)
+    entry = HistoryManager(ProjectStore(minimal_project)).record(proj, "snap", force=True)
     assert entry.snapshot_file == f"history/snapshots/{entry.id}.json"
     assert history_snapshot_path(history_index_path(proj), entry.id).is_file()
 
 
-def test_record_if_changed_rolls_back_when_the_commit_fails(minimal_project, monkeypatch):
+def test_record_and_commit_rolls_back_when_the_commit_fails(minimal_project, monkeypatch):
     import json
 
     from podcast_mcp.models import load_project
     from podcast_mcp.project.store import ProjectStore, history_index_path, history_snapshot_ids
 
-    record_if_changed(minimal_project, "initial", force=True)
+    _record_committed(minimal_project, "initial")
     index_path = history_index_path(load_project(minimal_project))
     index_before = json.loads(index_path.read_text())
     ids_before = history_snapshot_ids(index_path)
@@ -644,18 +652,18 @@ def test_record_if_changed_rolls_back_when_the_commit_fails(minimal_project, mon
 
     monkeypatch.setattr(ProjectStore, "commit", commit)
     with pytest.raises(RuntimeError, match="boom"):
-        record_if_changed(minimal_project, "manual", force=True)
+        _record_committed(minimal_project, "manual")
     assert json.loads(index_path.read_text()) == index_before
     assert history_snapshot_ids(index_path) == ids_before
 
 
-def test_record_if_changed_rolls_back_when_the_index_write_fails(minimal_project, monkeypatch):
+def test_record_and_commit_rolls_back_when_the_index_write_fails(minimal_project, monkeypatch):
     import json
 
     from podcast_mcp.models import load_project
     from podcast_mcp.project.store import history_index_path, history_snapshot_ids
 
-    record_if_changed(minimal_project, "initial", force=True)
+    _record_committed(minimal_project, "initial")
     index_path = history_index_path(load_project(minimal_project))
     index_before = json.loads(index_path.read_text())
     ids_before = history_snapshot_ids(index_path)
@@ -665,7 +673,7 @@ def test_record_if_changed_rolls_back_when_the_index_write_fails(minimal_project
 
     monkeypatch.setattr(HistoryManager, "_save_index", save_index)
     with pytest.raises(RuntimeError, match="boom"):
-        record_if_changed(minimal_project, "manual", force=True)
+        _record_committed(minimal_project, "manual")
     assert json.loads(index_path.read_text()) == index_before
     assert history_snapshot_ids(index_path) == ids_before
 
@@ -675,5 +683,5 @@ def test_write_snapshot_round_trips_through_read(minimal_project):
     rel = write_snapshot(proj, snapshot_from_project(proj), "shared-writer")
     assert rel == "history/snapshots/shared-writer.json"
     entry = HistoryEntry(id="shared-writer", label="snap", snapshot_file=rel)
-    restored = HistoryManager(minimal_project)._read_snapshot(proj, entry)
+    restored = HistoryManager(ProjectStore(minimal_project))._read_snapshot(proj, entry)
     assert restored.model_dump() == snapshot_from_project(proj).model_dump()

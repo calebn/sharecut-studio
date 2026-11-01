@@ -17,7 +17,7 @@ from podcast_mcp.models.episode import (
     TranscriptGateScope,
 )
 from podcast_mcp.project.history import HistoryManager
-from podcast_mcp.project.store import save_project
+from podcast_mcp.project.store import ProjectStore, save_project
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document.bleed_inspection import inspect_clip_bleed, restore_clip_bleed
 
@@ -316,7 +316,7 @@ def test_implicit_inspection_is_read_only_and_restore_materializes_selected_lane
     assert target.occurrence_kind == "implicit"
     result = restore_clip_bleed(workspace, target)
     assert [c.id for c in workspace.project.clips] == ["clip_host_full"]
-    manager = HistoryManager(workspace.path)
+    manager = HistoryManager(ProjectStore(workspace.path))
     manager.undo(workspace.project, expected_head_id=result["history_head_id"])
     assert workspace.project.clips == []
     manager.redo(workspace.project, expected_head_id=workspace.project.history.head_id())
@@ -437,7 +437,7 @@ def test_restore_changes_only_selected_choice_and_preserves_metadata_through_rel
     with pytest.raises(BleedRestoreChangedError):
         restore_clip_bleed(workspace, target)
     assert len(calls) == 1
-    HistoryManager(workspace.path).undo(
+    HistoryManager(ProjectStore(workspace.path)).undo(
         workspace.project, expected_head_id=result["history_head_id"]
     )
     assert workspace.project.clips == before.clips

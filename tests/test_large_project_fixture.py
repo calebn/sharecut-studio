@@ -15,6 +15,7 @@ from podcast_mcp.models import load_project
 from podcast_mcp.project.store import (
     _GENERATED_SNAPSHOT_ID,
     HISTORY_ENTRY_LIMIT,
+    ProjectStore,
     history_index_path,
     history_snapshot_path,
     history_snapshots_dir,
@@ -271,7 +272,7 @@ def test_large_project_fixture_seeds_shared_snapshot_history(tmp_path):
     )
     assert len(_group_history_entries(history.entries)) == 3
 
-    manager = HistoryManager(project_path)
+    manager = HistoryManager(ProjectStore(project_path))
     snaps = [manager._read_snapshot(project, e) for e in history.entries[:2]]
     assert diff_snapshots(snaps[0], snaps[1])
     status = manager.undo(project)
@@ -292,8 +293,6 @@ def test_large_project_fixture_seeds_shared_snapshot_history(tmp_path):
 def test_large_project_fixture_history_prunes_cleanly_past_the_cap(
     tmp_path, caplog, extra_pairs, cursor_back, expected_pruned
 ):
-    from podcast_mcp.project.store import ProjectStore
-
     builder = _load_fixture_builder()
     project_path = builder.build_project(
         tmp_path / "prune",

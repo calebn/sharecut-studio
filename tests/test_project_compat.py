@@ -324,7 +324,7 @@ def test_upgrade_requires_complete_output_and_untouched_source(
                 from podcast_mcp.project.history.manager import HistoryManager
                 from podcast_mcp.project.store import ProjectStore
 
-                HistoryManager(output / compat.PROJECT).goto(project, 0)
+                HistoryManager(ProjectStore(output / compat.PROJECT)).goto(project, 0)
                 project.history.entries = project.history.entries[:1]
                 write_json(output / "history/index.json", project.history.model_dump(mode="json"))
                 ProjectStore(output / compat.PROJECT).commit(project)
