@@ -51,13 +51,13 @@ const personKey = (person: PresencePerson) => person.id;
 const samePerson = (a: PresencePerson, b: PresencePerson) =>
   a.name === b.name &&
   a.colorIndex === b.colorIndex &&
-  a.playhead === b.playhead;
+  Object.is(a.playhead, b.playhead);
 const selectionKey = (selection: PresenceSelection) => selection.id;
 const sameSelection = (a: PresenceSelection, b: PresenceSelection) =>
   a.personId === b.personId &&
   a.laneId === b.laneId &&
-  a.start === b.start &&
-  a.end === b.end &&
+  Object.is(a.start, b.start) &&
+  Object.is(a.end, b.end) &&
   a.colorIndex === b.colorIndex;
 
 /**
