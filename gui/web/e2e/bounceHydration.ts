@@ -319,6 +319,8 @@ export async function exerciseBounceHydration(
           "Bounced 1 file(s) to export/bounces/",
         );
         await expect.poll(() => bouncedWavs(projectPath)).toHaveLength(1);
+        expect(bounceRequests).toBe(1);
+        expect(previewRequests).toBe(1);
         phases.push({
           phase: "real-bounce-finished",
           geometry: await geometry(page),

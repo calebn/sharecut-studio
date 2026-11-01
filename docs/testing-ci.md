@@ -327,6 +327,8 @@ standing in for Chrome (branded Chrome runs only locally, with
 `E2E_BRANDED_CHROME=1`). The WebKit column is Playwright WebKit, standing in
 for Safari; it is not Apple's Safari. No compat project runs Firefox, so no
 Firefox result is claimed.
+For newly added checks, Pass declares required engine coverage; it does not
+attest a result before that source head has run in CI.
 
 "Pass" means the required `frontend-e2e` gate on `main` includes the check on
 that engine with at most one retry and no skip, so a green `main` is a measured
