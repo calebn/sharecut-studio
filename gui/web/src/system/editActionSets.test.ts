@@ -30,7 +30,16 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     { kind: "words", count: 2, holdsCut: true },
     {
       leading: "scope",
-      bar: ["hear", "keep", "comment", "fixText", "record", "more", "inspect"],
+      bar: [
+        "hear",
+        "keep",
+        "split",
+        "comment",
+        "fixText",
+        "record",
+        "more",
+        "inspect",
+      ],
       more: ["mute", "moveToSpeaker", "copy"],
       primary: "cut",
     },
@@ -40,7 +49,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     { kind: "words" },
     {
       leading: "scope",
-      bar: ["hear", "comment", "fixText", "record", "more", "inspect"],
+      bar: ["hear", "split", "comment", "fixText", "record", "more", "inspect"],
       more: ["mute", "moveToSpeaker", "copy"],
       primary: "cut",
     },
@@ -50,7 +59,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     { kind: "words", role: "editor" },
     {
       leading: "scope",
-      bar: ["hear", "comment", "fixText", "more", "inspect"],
+      bar: ["hear", "split", "comment", "fixText", "more", "inspect"],
       more: ["mute", "moveToSpeaker", "copy"],
       primary: "cut",
     },

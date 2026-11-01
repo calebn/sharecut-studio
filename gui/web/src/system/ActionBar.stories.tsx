@@ -153,6 +153,7 @@ export const Words: Story = {
   play: async ({ args, canvasElement }) => {
     await expect(barNames(canvasElement)).toEqual([
       "Hear",
+      "Split",
       "Comment",
       "Fix text",
       "Record",
@@ -297,8 +298,8 @@ const playDock = async ({
     "Inspect",
     "Hear",
     "Keep",
+    "Split",
     "Comment",
-    "Fix text",
     "More",
     "Cut",
   ]);

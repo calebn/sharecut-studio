@@ -63,6 +63,7 @@ import {
   runRangeAction,
 } from "./rangeActions";
 import { seekTransport } from "./seek";
+import { ignoreWouldRestore } from "./transcriptIgnore";
 import { requestInlineEdit } from "./transcriptWord";
 import type { ExecuteResult } from "./types";
 
@@ -512,7 +513,16 @@ async function dispatch(
 // The bar draws what resolveBar says minus what is not wired yet, so no button is a dead end.
 export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
   playhead: ["split", "addChapter", "record", "paste"],
-  words: ["hear", "keep", "comment", "fixText", "record", "more", "inspect"],
+  words: [
+    "hear",
+    "keep",
+    "split",
+    "comment",
+    "fixText",
+    "record",
+    "more",
+    "inspect",
+  ],
   range: ["hear", "split", "comment", "record", "export", "more", "inspect"],
   clip: ["hear", "split", "comment", "cut", "more", "inspect"],
   seam: ["hear", "keep", "comment", "inspect"],
@@ -593,6 +603,7 @@ type BarModel = {
   readonly primary: (BarItem & { readonly disabledReason?: string }) | null;
 };
 
+const RESTORE_IGNORED_LABEL = "Restore ignored words";
 const SPEAKER_HOST_ONLY =
   "Only the host can move a reply between speaker tracks";
 const STALE_RANGE = "Selected audio changed. Select the range again.";
@@ -643,9 +654,18 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
       if (facts.kind === "clip" && selectedClipIdsOf(s.selection).length !== 1)
         continue;
       const d = descriptor("mute");
+      const label =
+        facts.kind === "words" &&
+        s.stage === "edit" &&
+        canManageProjects(s.projectPath) &&
+        ignoreWouldRestore(project, s.selection)
+          ? RESTORE_IGNORED_LABEL
+          : d && d.label !== "Mute"
+            ? d.label
+            : null;
       more.push({
         id,
-        ...(d && d.label !== "Mute" ? { label: d.label } : {}),
+        ...(label ? { label } : {}),
         ...(d?.reason ? { disabledReason: d.reason } : {}),
       });
     } else if (id === "fillRoomTone") {

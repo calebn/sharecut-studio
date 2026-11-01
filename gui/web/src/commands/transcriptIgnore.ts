@@ -11,6 +11,15 @@ import type { ExecuteResult } from "./types";
 
 const ignoreFlight = createSingleFlight();
 
+/** Whether `transcript.ignoreWords` would restore the selection (every word already ignored). */
+export function ignoreWouldRestore(
+  project: Parameters<typeof ignoreTarget>[0],
+  selection: Parameters<typeof ignoreTarget>[1],
+): boolean {
+  const target = ignoreTarget(project, selection, {});
+  return target !== null && !target.ignored;
+}
+
 /**
  * `transcript.ignoreWords` (#633): strike through and mute a word range at
  * render, non-destructively. Host-only — disabled for a share key and while
