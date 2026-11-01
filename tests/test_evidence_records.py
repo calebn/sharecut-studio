@@ -62,8 +62,7 @@ class Evaluations:
         return len(self.rates)
 
 
-def _restart() -> None:
-    """What a new process lacks: the evidence this one kept."""
+def _clear_retained() -> None:
     RETAINED.clear()
 
 
@@ -87,14 +86,14 @@ def _fresh(project: EpisodeProject) -> np.ndarray:
     return evidence[JUMP]
 
 
-def test_a_fresh_process_reads_the_recorded_evidence_with_the_same_bits_and_evaluates_nothing(
+def test_clearing_retained_evidence_reads_the_record_with_the_same_bits_and_evaluates_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _project(tmp_path, "crossfade joins")
     calls = Evaluations(monkeypatch)
     built = _samples(project)
     assert calls.count == 1 and len(_records(project)) == 1
-    _restart()
+    _clear_retained()
 
     read = _samples(project)
 
@@ -110,7 +109,7 @@ def test_both_rates_are_recorded_and_read_back(
     project = _project(tmp_path, "crossfade joins")
     calls = Evaluations(monkeypatch)
     built = track_evidence.heard(project, "caleb", load_defaults())
-    _restart()
+    _clear_retained()
 
     read = track_evidence.heard(project, "caleb", load_defaults())
 
@@ -178,7 +177,7 @@ def test_a_record_whose_header_is_not_the_records_is_evaluated_again(
     project = _project(tmp_path, "crossfade joins")
     built = _samples(project)
     (record,) = _records(project)
-    _restart()
+    _clear_retained()
     _rewrite_header(record, header)
     calls = Evaluations(monkeypatch)
 
@@ -186,7 +185,7 @@ def test_a_record_whose_header_is_not_the_records_is_evaluated_again(
 
     assert calls.count == 1
     np.testing.assert_array_equal(_bits(read), _bits(built))
-    _restart()
+    _clear_retained()
     assert _samples(project).shape == built.shape and calls.count == 1
 
 
@@ -202,7 +201,7 @@ def test_a_damaged_record_is_evaluated_again_and_replaced_whole(
     built = _samples(project)
     (record,) = _records(project)
     whole = record.read_bytes()
-    _restart()
+    _clear_retained()
     damage(record)
     calls = Evaluations(monkeypatch)
 
@@ -211,7 +210,7 @@ def test_a_damaged_record_is_evaluated_again_and_replaced_whole(
     assert calls.count == 1
     np.testing.assert_array_equal(_bits(read), _bits(built))
     assert record.read_bytes() == whole
-    _restart()
+    _clear_retained()
     _samples(project)
     assert calls.count == 1
 
@@ -251,7 +250,7 @@ def test_a_source_that_changed_gets_a_new_record(
     project = _project(tmp_path, "crossfade joins")
     _samples(project)
     source = project.workspace_path() / "raw" / "caleb.flac"
-    _restart()
+    _clear_retained()
     calls = Evaluations(monkeypatch)
 
     stat = source.stat()
@@ -264,7 +263,7 @@ def test_a_source_that_changed_gets_a_new_record(
 def test_a_changed_track_gets_a_new_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project = _project(tmp_path, "crossfade joins")
     before = _samples(project)
-    _restart()
+    _clear_retained()
     calls = Evaluations(monkeypatch)
     clip = next(c for c in project.clips if c.track_id == "caleb")
     clip.source_end -= 0.5
@@ -280,7 +279,7 @@ def test_a_code_revision_bump_makes_the_old_record_stale(
 ) -> None:
     project = _project(tmp_path, "crossfade joins")
     _samples(project)
-    _restart()
+    _clear_retained()
     calls = Evaluations(monkeypatch)
     monkeypatch.setattr(evidence_records, "RECORD_REV", evidence_records.RECORD_REV + 1)
 
@@ -294,7 +293,7 @@ def test_a_timing_map_change_gets_a_new_record(
 ) -> None:
     project = _project(tmp_path, "crossfade joins")
     before = _samples(project)
-    _restart()
+    _clear_retained()
     calls = Evaluations(monkeypatch)
     clip = next(c for c in project.clips if c.track_id == "caleb")
     clip.timing = ClipTiming.model_validate(
@@ -313,7 +312,7 @@ def test_another_ffmpeg_build_makes_the_old_record_stale(
 ) -> None:
     project = _project(tmp_path, "crossfade joins")
     _samples(project)
-    _restart()
+    _clear_retained()
     calls = Evaluations(monkeypatch)
     real = track_evidence._build_id()
     assert real is not None
@@ -366,7 +365,7 @@ def test_a_zero_keep_cap_writes_and_reads_no_record(
     calls = Evaluations(monkeypatch)
 
     _samples(project)
-    _restart()
+    _clear_retained()
     _samples(project)
 
     assert _records(project) == [] and calls.count == 2
@@ -378,10 +377,10 @@ def test_verify_mode_compares_a_record_with_a_fresh_evaluation(
     project = _project(tmp_path, "crossfade joins")
     _samples(project)
     (record,) = _records(project)
-    _restart()
+    _clear_retained()
     monkeypatch.setenv(track_evidence.VERIFY_ENV, "1")
     _samples(project)
-    _restart()
+    _clear_retained()
     wrong = evidence_records.read_record(record.parent, _full_key(record), (JUMP,))
     assert wrong is not None
     wrong[JUMP][0] += 1.0
@@ -451,7 +450,7 @@ def test_a_body_corrupted_to_the_same_length_is_evaluated_again_and_restored(
     built = _samples(project)
     (record,) = _records(project)
     whole = record.read_bytes()
-    _restart()
+    _clear_retained()
     data = bytearray(whole)
     data[-8] ^= 0x40
     record.write_bytes(bytes(data))
@@ -490,7 +489,7 @@ def test_the_full_stamp_of_the_ffmpeg_binary_is_in_the_key(
     assert real is not None
     monkeypatch.setattr(track_evidence, "_build_id", lambda: (str(binary), *real[1:]))
     _samples(project)
-    _restart()
+    _clear_retained()
     # Same size and mtime, so only the change time tells the rewrite.
     binary.write_bytes(b"two")
     os.utime(binary, ns=(10**9, 10**9))
@@ -509,7 +508,7 @@ def test_no_record_is_written_when_the_disk_would_be_left_under_the_headroom(
     calls = Evaluations(monkeypatch)
 
     _samples(project)
-    _restart()
+    _clear_retained()
     _samples(project)
 
     assert _records(project) == [] and calls.count == 2
