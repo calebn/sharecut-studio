@@ -914,6 +914,56 @@ def assemble_timeline(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     return _render_track_stems(project, defaults)
 
 
+def _music_tracks(project: EpisodeProject, rendered: Mapping[str, Any]) -> list[Track]:
+    """The tracks whose fade envelope and stem ``mix_with_music`` rebuilds on every run."""
+    return [
+        track
+        for track in project.tracks
+        if track.role in (TrackRole.MUSIC, TrackRole.INTRO, TrackRole.OUTRO)
+        and track.media
+        and track.id in rendered
+    ]
+
+
+def _reusable_premix_summary(
+    project: EpisodeProject, defaults: dict[str, Any], rendered: Mapping[str, Any]
+) -> str | None:
+    """The step summary when ``premix.wav`` is what a full run would mix again, else None.
+
+    A music track gets a new envelope id and a re-rendered stem on every run, so a project
+    with one always mixes. A missing stem counts as unknown for ``premix_is_stale``, so
+    each mixed stem must exist here, and a premix with no hash or no trim line (made
+    before they were recorded) mixes once.
+    """
+    from podcast_mcp.engines.play_audit import (
+        mix_gains,
+        premix_is_stale,
+        premix_path,
+        read_premix_hash,
+        read_premix_trim_db,
+    )
+    from podcast_mcp.util.tracks import stem_path
+
+    if _music_tracks(project, rendered):
+        return None
+    if not premix_path(project).is_file():
+        return None
+    if read_premix_hash(project) is None or read_premix_trim_db(project) is None:
+        return None
+    gains = mix_gains(project)
+    if not gains or any(
+        tid not in rendered or not stem_path(project, tid).is_file() for tid in gains
+    ):
+        return None
+    try:
+        if premix_is_stale(project, defaults):
+            return None
+    except Exception:
+        log.debug("premix freshness unreadable; mixing again", exc_info=True)
+        return None
+    return f"reused premix.wav ({len(gains)} tracks, 0 music envelopes)"
+
+
 @with_render_lock
 def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import (
@@ -930,6 +980,9 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         # No reconciliation stale mark: see ensure_current_premix (#621).
         assemble_timeline(project, defaults)
     rendered = json.loads(meta_path.read_text(encoding="utf-8"))
+    reused = _reusable_premix_summary(project, defaults, rendered)
+    if reused is not None:
+        return reused
     eng = ffmpeg()
 
     with resolve_progress_task(
@@ -939,11 +992,7 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
     ) as prog:
         prog.set_phase("envelopes", "Building music envelopes…")
         music_envelopes = 0
-        for track in project.tracks:
-            if track.role not in (TrackRole.MUSIC, TrackRole.INTRO, TrackRole.OUTRO):
-                continue
-            if not track.media or track.id not in rendered:
-                continue
+        for track in _music_tracks(project, rendered):
             fade_in = float(mix_cfg.get("fade_in_sec", 2.0))
             fade_out = float(mix_cfg.get("fade_out_sec", 3.0))
             path = Path(rendered[track.id])
@@ -1001,8 +1050,10 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
 
 
 @with_render_lock
-def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> None:
+def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> bool:
     """Re-render stems and re-mix when ``premix.wav`` is missing or behind the project.
+
+    Return True when it rebuilt the premix this call.
 
     Warns when the rebuilt premix still reads stale (a stem that never goes fresh,
     such as a duration mismatch), since every export would otherwise redo it silently.
@@ -1023,7 +1074,7 @@ def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> 
     from podcast_mcp.util.tracks import stem_path
 
     if premix_path(project).is_file() and not premix_is_stale(project, defaults):
-        return
+        return False
     assemble_timeline(project, defaults)
     mix_with_music(project, defaults)
     if premix_is_stale(project, defaults):
@@ -1038,6 +1089,7 @@ def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> 
             "(check render_status for a duration mismatch)",
             ", ".join(stuck) or "none",
         )
+    return True
 
 
 @with_render_lock
@@ -1085,6 +1137,32 @@ def _rejudge_master_qc(project: EpisodeProject, defaults: dict[str, Any]) -> Non
         artifact(project, "master_qc.json").write_text(json.dumps(qc, indent=2), encoding="utf-8")
 
 
+def _reuse_current_master(
+    project: EpisodeProject, defaults: dict[str, Any], target: MasterTarget
+) -> str | None:
+    """The step summary when ``mastered.wav`` is current for an unchanged premix, else None.
+
+    A full run always leaves ``premix.hash`` and ``master_qc.json`` behind and export reads
+    both, so a master missing either is mastered again. A hit writes only a changed QC
+    verdict, as ``ensure_current_master`` does.
+    """
+    from podcast_mcp.engines.play_audit import mastered_is_fresh, read_premix_hash
+
+    if read_premix_hash(project) is None or read_master_qc(project) is None:
+        return None
+    if not mastered_is_fresh(project, target):
+        return None
+    _rejudge_master_qc(project, defaults)
+    qc = read_master_qc(project) or {}
+    measured = qc.get("measured")
+    if not measured or measured.get("integrated_lufs") is None:
+        return "reused mastered.wav (loudness unmeasured)"
+    lufs = measured["integrated_lufs"]
+    if qc.get("within_tolerance"):
+        return f"reused mastered.wav: {lufs} LUFS (within tolerance)"
+    return f"reused mastered.wav: {lufs} LUFS ({len(qc.get('issues') or [])} QC issues)"
+
+
 def _media_seconds_reporter(
     task: ProgressTask, *, verb: str, pass_index: int = 0, passes: int = 1
 ) -> Callable[[float, float], None]:
@@ -1124,7 +1202,11 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
 
     target = MasterTarget.from_defaults(defaults)
     limits = MasterQcLimits.from_defaults(defaults)
-    ensure_current_premix(project, defaults)
+    rebuilt = ensure_current_premix(project, defaults)
+    if not rebuilt:
+        reused = _reuse_current_master(project, defaults, target)
+        if reused is not None:
+            return reused
     premix = premix_path(project)
     # Fingerprint the premix and target before mastering: a Refresh that swaps the
     # premix while loudnorm runs must leave this master stale, not vouch for it.
