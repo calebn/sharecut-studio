@@ -408,6 +408,75 @@ def test_ci_uploads_only_native_playwright_failure_diagnostics() -> None:
     assert artifact["if-no-files-found"] == "ignore"
 
 
+def test_ci_retains_only_approved_touch_peek_screenshots(tmp_path: Path) -> None:
+    uploads = [
+        step
+        for step in _frontend_e2e_steps()
+        if step.get("name") == "Upload touch-peek screenshots"
+    ]
+    assert len(uploads) == 1
+    upload = uploads[0]
+    assert upload["if"] == "always()"
+    assert upload["uses"] == "actions/upload-artifact@v7"
+    artifact = upload["with"]
+    assert artifact["name"] == "playwright-touch-peek-${{ matrix.name }}"
+    assert artifact["retention-days"] == 7
+    assert artifact["if-no-files-found"] == "ignore"
+    patterns = artifact["path"].splitlines()
+    assert set(patterns) == {
+        "gui/web/test-results/**/stow-portrait-360-2-mid-drag-*.png",
+        "gui/web/test-results/**/restored-focus-portrait-360-*.png",
+        "gui/web/test-results/**/stow-landscape-636-2-mid-drag-*.png",
+        "gui/web/test-results/**/restored-focus-landscape-636-*.png",
+        "gui/web/test-results/**/pending-card-portrait-390-32-*.png",
+        "gui/web/test-results/**/pending-card-landscape-636-32-*.png",
+    }
+    assert len(patterns) == 6
+    intended = {
+        "stow-portrait-360-2-mid-drag-dark.png",
+        "restored-focus-portrait-360-dark.png",
+        "stow-landscape-636-2-mid-drag-dark.png",
+        "restored-focus-landscape-636-dark.png",
+        "pending-card-portrait-390-32-dark.png",
+        "pending-card-landscape-636-32-dark.png",
+    }
+    forbidden = {
+        "unrelated.png",
+        "stow-portrait-360-2-before-drag-dark.png",
+        "restored-focus-portrait-390-dark.png",
+        "pending-card-landscape-636-16-dark.png",
+        "stow-portrait-360-2-mid-drag-dark.json",
+        "restored-focus-portrait-360-dark.wav",
+        "pending-card-portrait-390-32-dark.webm",
+        "episode.sharecut",
+        "storage-state.json",
+        "trace.zip",
+        "error-context.md",
+        "private.txt",
+    }
+    root = tmp_path / "gui/web/test-results"
+    for directory in (root, root / "touch-peek-chromium", root / "compat/nested"):
+        directory.mkdir(parents=True, exist_ok=True)
+        for name in intended | forbidden:
+            (directory / name).touch()
+    outside = tmp_path / "gui/web/private"
+    outside.mkdir()
+    for name in intended:
+        (outside / name).touch()
+    selected = {
+        path.relative_to(tmp_path).as_posix()
+        for pattern in patterns
+        for path in tmp_path.glob(pattern)
+        if path.is_file()
+    }
+    expected = {
+        (directory / name).relative_to(tmp_path).as_posix()
+        for directory in (root, root / "touch-peek-chromium", root / "compat/nested")
+        for name in intended
+    }
+    assert selected == expected
+
+
 def test_pull_requests_run_every_webkit_compat_spec_in_complete_shards() -> None:
     include = planned_include("pull_request", ("gui/web/src/App.tsx",))
     compat = [entry for entry in include if entry["name"].startswith("compat")]
