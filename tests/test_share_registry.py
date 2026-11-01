@@ -4,18 +4,22 @@ from __future__ import annotations
 
 import json
 import multiprocessing
+import os
 import sqlite3
+import time
 from collections.abc import Iterator
-from contextlib import closing
+from contextlib import closing, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Thread
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration import share_registry as registry_module
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.review_shares import (
     create_share,
@@ -33,6 +37,7 @@ from podcast_mcp.services.collaboration.share_registry import (
     get_share_registry,
     share_is_usable,
 )
+from podcast_mcp.util import sqlite_open
 from review_platform import requires_safe_failed_cleanup
 from review_platform import (
     unmarked_tests_run_as_unsupported_platform as unmarked_tests_run_as_unsupported_platform,
@@ -40,13 +45,71 @@ from review_platform import (
 from sqlite_helpers import FailingConnection
 
 
-def _registry_secret_process(db_path: str, barrier, queue) -> None:
-    registry = SqliteShareRegistry(Path(db_path))
+def _registry_init_phase(trace, phase: str) -> None:
+    elapsed = time.monotonic() - trace["started"]
+    entry = trace["phases"].setdefault(phase, {"calls": 0, "first_sec": elapsed})
+    entry.update(calls=entry["calls"] + 1, last_sec=elapsed)
+    trace["phase"] = phase
+
+
+def _write_registry_init_diagnostic(path: str, trace) -> None:
+    with suppress(Exception):
+        Path(path).write_text(json.dumps(trace, sort_keys=True), encoding="utf-8")
+
+
+def _registry_secret_process(db_path: str, barrier, queue, diagnostic_path: str) -> None:
+    trace = {"pid": os.getpid(), "started": time.monotonic(), "phases": {}}
+    real_wal, real_setup = sqlite_open.switch_to_wal, registry_module._apply_schema
+
+    def wal(connection):
+        _registry_init_phase(trace, "wal")
+        result = real_wal(connection)
+        trace["phase"] = "constructor"
+        return result
+
+    def setup(connection):
+        _registry_init_phase(trace, "schema")
+        result = real_setup(connection)
+        trace["phase"] = "constructor"
+        return result
+
     try:
-        barrier.wait(timeout=10)
-        queue.put(registry.recording_key_secret())
+        _registry_init_phase(trace, "constructor")
+        with (
+            patch.object(sqlite_open, "switch_to_wal", wal),
+            patch.object(registry_module, "_apply_schema", setup),
+        ):
+            registry = SqliteShareRegistry(Path(db_path))
+        _registry_init_phase(trace, "ready")
+        try:
+            _registry_init_phase(trace, "barrier")
+            barrier.wait(timeout=10)
+            _registry_init_phase(trace, "secret")
+            queue.put(registry.recording_key_secret())
+        finally:
+            previous_phase = trace["phase"]
+            _registry_init_phase(trace, "close")
+            registry.close()
+            trace["phase"] = previous_phase
+    except BaseException as exc:
+        message = str(exc)
+        trace["error"] = {
+            "type": type(exc).__name__,
+            "message": message
+            if message in {"", "attempt to write a readonly database", "database is locked"}
+            else None,
+            "sqlite_errorcode": getattr(exc, "sqlite_errorcode", None),
+            "sqlite_errorname": getattr(exc, "sqlite_errorname", None),
+            "sqlite_version": sqlite3.sqlite_version,
+            "sql_api_context": {
+                "wal": "switch_to_wal: PRAGMA journal_mode; conditional PRAGMA journal_mode=WAL",
+                "schema": "_apply_schema: PRAGMA synchronous=NORMAL; executescript(public _SCHEMA)",
+            }.get(trace["phase"]),
+            "individual_failed_statement": "UNAVAILABLE",
+        }
+        raise
     finally:
-        registry.close()
+        _write_registry_init_diagnostic(diagnostic_path, trace)
 
 
 def _iso(dt: datetime) -> str:
@@ -646,14 +709,19 @@ def test_recording_key_secret_persists_and_is_install_local(tmp_path: Path) -> N
     separate.close()
 
 
-def test_recording_key_secret_concurrent_process_initialization(tmp_path: Path) -> None:
+def test_recording_key_secret_concurrent_process_initialization(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     path = tmp_path / "shared.sqlite"
     ctx = multiprocessing.get_context("spawn")
     barrier = ctx.Barrier(4)
     queue = ctx.Queue()
     processes = [
-        ctx.Process(target=_registry_secret_process, args=(str(path), barrier, queue))
-        for _ in range(4)
+        ctx.Process(
+            target=_registry_secret_process,
+            args=(str(path), barrier, queue, str(tmp_path / f"init-{index}.json")),
+        )
+        for index in range(4)
     ]
     started = []
     try:
@@ -674,6 +742,101 @@ def test_recording_key_secret_concurrent_process_initialization(tmp_path: Path) 
             process.close()
         queue.close()
         queue.join_thread()
+        try:
+            with capsys.disabled():
+                for index in range(4):
+                    try:
+                        report = (tmp_path / f"init-{index}.json").read_text(encoding="utf-8")
+                    except OSError:
+                        report = '{"diagnostic_status":"unavailable"}'
+                    print(f"REGISTRY_INIT_CHILD_{index} {report}")
+        except Exception:
+            pass
+
+
+@pytest.mark.parametrize("report_failure", [OSError, TypeError])
+def test_registry_init_diagnostic_failure_keeps_original_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, report_failure: type[Exception]
+) -> None:
+    original = sqlite3.OperationalError("attempt to write a readonly database")
+
+    def constructor(_path):
+        raise original
+
+    def write_failure(*_args, **_kwargs):
+        raise report_failure("diagnostic output unavailable")
+
+    monkeypatch.setitem(globals(), "SqliteShareRegistry", constructor)
+    monkeypatch.setattr(Path, "write_text", write_failure)
+    with pytest.raises(sqlite3.OperationalError) as caught:
+        _registry_secret_process(str(tmp_path / "shared.sqlite"), None, None, "report.json")
+    assert caught.value is original
+
+
+@pytest.mark.parametrize("fail_secret", [False, True])
+def test_registry_init_diagnostic_is_bounded_and_excludes_secret(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fail_secret: bool
+) -> None:
+    secret = b"DO_NOT_LOG_SECRET".ljust(32, b"!")
+    original = RuntimeError(secret.decode())
+    connection = object()
+    calls = []
+    results = []
+
+    def wal(value):
+        assert value is connection
+
+    def setup(value):
+        assert value is connection
+
+    class Registry:
+        def __init__(self, _path):
+            for _ in range(250):
+                sqlite_open.switch_to_wal(connection)
+                registry_module._apply_schema(connection)
+
+        def recording_key_secret(self):
+            assert sqlite_open.switch_to_wal is wal
+            assert registry_module._apply_schema is setup
+            if fail_secret:
+                raise original
+            return secret
+
+        def close(self):
+            calls.append("close")
+
+    def wait(*, timeout):
+        assert timeout == 10
+
+    monkeypatch.setitem(globals(), "SqliteShareRegistry", Registry)
+    monkeypatch.setattr(sqlite_open, "switch_to_wal", wal)
+    monkeypatch.setattr(registry_module, "_apply_schema", setup)
+    report_path = tmp_path / "report.json"
+    args = (
+        str(tmp_path / "shared.sqlite"),
+        SimpleNamespace(wait=wait),
+        SimpleNamespace(put=results.append),
+        str(report_path),
+    )
+    if fail_secret:
+        with pytest.raises(RuntimeError) as caught:
+            _registry_secret_process(*args)
+        assert caught.value is original
+        assert results == []
+    else:
+        _registry_secret_process(*args)
+        assert results == [secret]
+    assert calls == ["close"]
+    report_text = report_path.read_text(encoding="utf-8")
+    assert secret.decode() not in report_text
+    assert len(report_text) < 2048
+    report = json.loads(report_text)
+    assert report["phases"]["wal"]["calls"] == 250
+    assert report["phases"]["schema"]["calls"] == 250
+    assert len(report["phases"]) == 7
+    if fail_secret:
+        assert report["error"]["message"] is None
+        assert report["error"]["sql_api_context"] is None
 
 
 def test_recording_key_secret_initialization_rolls_back_on_generation_failure(
