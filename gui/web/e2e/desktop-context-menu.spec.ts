@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { STUDIO_AXE_DISABLED_RULES } from "./axe";
 import { layer } from "./lifecycleAudit";
+import { focusLineStrip } from "./envelopeCreationEvidence";
 import { openHostProject } from "./overlayReachability";
 
 /*
@@ -76,14 +77,13 @@ test("a menu item runs its command and closes the menu", async ({ page }) => {
   await expect(page.locator(".chapter-marker")).toHaveCount(0);
 });
 
-test("Shift+F10 on a focused envelope level opens the create menu and Escape closes it", async ({
+test("Shift+F10 on the focused envelope line opens the create menu and Escape closes it", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openHostProject(page);
   await layer(page, "Volume envelope", true);
-  const level = page.getByRole("slider", { name: "Envelope level" }).first();
-  await level.focus();
+  await focusLineStrip(page);
   await page.keyboard.press("Shift+F10");
   await expect(menu(page)).toBeVisible();
   await page.keyboard.press("Escape");

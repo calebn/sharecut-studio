@@ -131,13 +131,6 @@
   outline: 1px solid var(--color-accent-strong);
 }
 
-.envelope-overlay .envelope-svg circle {
-  /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas envelope hit stroke */
-  stroke-width: 12px;
-  stroke: transparent;
-  paint-order: stroke fill;
-}
-
 /* The Mix sheet's Solo on chip. */
 .track-mix .solo-chip {
   min-block-size: var(--touch-min);

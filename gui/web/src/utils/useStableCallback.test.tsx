@@ -383,7 +383,6 @@ describe("stable callback source governance", () => {
       "timeline/TimelineView.tsx:onSeek",
       "timeline/TimelineView.tsx:onSelectClip",
       "timeline/TimelineView.tsx:onSelectPending",
-      "timeline/TimelineView.tsx:onSelectTrack",
       "timeline/TimelineView.tsx:seekFromRuler",
       "ui/useAnchoredPanel.ts:place",
     ]);

@@ -41,7 +41,6 @@ import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
 import { BleedAttenuationOverlay } from "./BleedAttenuationOverlay";
 import { ClipBlock } from "./ClipBlock";
-import { EnvelopeOverlay } from "./EnvelopeOverlay";
 import {
   collectJoinMarks,
   EditMarkerLayer,
@@ -51,7 +50,8 @@ import {
 import { useHitRouter } from "./hitRouterContext";
 import { HIT_SURFACE_PROPS } from "./hitTargets";
 import { JoinEditor } from "./JoinEditor";
-import { laneColor } from "./laneColors";
+import { LaneEnvelope } from "./LaneEnvelope";
+import { laneColor, laneColorIndex } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { ProsodyOverlay } from "./ProsodyOverlay";
 import { RippleArrow } from "./RippleArrow";
@@ -96,7 +96,6 @@ interface TrackLaneProps {
   ) => void;
   bleedInspection?: ClipBleedSnapshot;
   onSelectBleed?: (trackId: string, clipId: string, key: string) => void;
-  onSelectTrack: (trackId: string) => void;
   onSelectPending: (trackId: string, id: string) => void;
   canMoveClips?: boolean;
   selectedClipIds?: readonly string[];
@@ -135,7 +134,6 @@ export function TrackLaneView({
   onSelectClip,
   bleedInspection = null,
   onSelectBleed,
-  onSelectTrack,
   onSelectPending,
   canMoveClips = false,
   selectedClipIds = EMPTY_ARR,
@@ -227,10 +225,6 @@ export function TrackLaneView({
     (clipId: string, mods?: ClipSelectMods) =>
       onSelectClip(trackId, clipId, mods),
     [onSelectClip, trackId],
-  );
-  const selectTrack = useCallback(
-    () => onSelectTrack(trackId),
-    [onSelectTrack, trackId],
   );
   const selectPending = useCallback(
     (id: string) => onSelectPending(trackId, id),
@@ -506,13 +500,14 @@ export function TrackLaneView({
           />
         ))}
         {showLevels && (
-          <EnvelopeOverlay
+          <LaneEnvelope
+            trackId={track.id}
+            trackName={track.label || track.id}
+            colorIndex={laneColorIndex(track.role, trackIndex)}
             envelopes={envelopes}
             clips={clips}
-            trackId={track.id}
             zoomPxPerSec={zoomPxPerSec}
             width={width}
-            onSelectTrack={selectTrack}
           />
         )}
         {showEdits && (

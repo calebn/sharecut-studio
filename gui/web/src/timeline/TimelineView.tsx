@@ -753,9 +753,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     },
     [setSelection],
   );
-  const onSelectTrack = useStableCallback((trackId: string) => {
-    setSelection({ kind: "track", trackId });
-  });
   const onSelectPending = useStableCallback((trackId: string, id: string) =>
     setSelection({ kind: "pending", id, trackId }),
   );
@@ -1100,7 +1097,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             }
                             onSelectBleed={onSelectBleed}
                             onSelectClip={onSelectClip}
-                            onSelectTrack={onSelectTrack}
                             staleWholeTrack={Boolean(
                               showStaleInv && fallbackWhole.has(track.id),
                             )}

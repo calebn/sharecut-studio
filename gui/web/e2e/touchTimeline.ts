@@ -196,7 +196,7 @@ export async function openTimeline(
   await layer(page, "Volume envelope", true);
   await setTheme(page, theme);
   await expect(
-    page.locator('circle[aria-label^="Envelope point 2"]'),
+    page.getByRole("slider", { name: "Envelope point 2", exact: true }),
   ).toBeVisible();
 }
 
@@ -276,11 +276,11 @@ export async function pickState(page: Page) {
   return page.evaluate(() => ({
     pressedPoint:
       document
-        .querySelector('circle[aria-pressed="true"]')
+        .querySelector('.sys-env-point[aria-current="true"]')
         ?.getAttribute("aria-label") ?? null,
     pressedPointId:
       document
-        .querySelector('circle[aria-pressed="true"]')
+        .querySelector('.sys-env-point[aria-current="true"]')
         ?.getAttribute("data-hit-id") ?? null,
     openJoinId:
       document
