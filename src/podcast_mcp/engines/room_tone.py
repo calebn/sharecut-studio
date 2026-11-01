@@ -710,13 +710,13 @@ def _pool_spans_in_use(
         if clip.track_id != track_id:
             continue
         for region in clip.mute_regions:
-            played = source_span_on_timeline(clip, region.start_s, region.end_s)
+            on_timeline = source_span_on_timeline(clip, region.start_s, region.end_s)
             if (
                 region.fill is not None
                 and region.fill.source_id is None
-                and played
-                and played[0][0] < window[1]
-                and window[0] < played[-1][1]
+                and on_timeline
+                and on_timeline[0][0] < window[1]
+                and window[0] < on_timeline[-1][1]
             ):
                 spans.append((region.fill.start_s, region.fill.end_s))
         if clip.timeline_end < window[0] or clip.timeline_start > window[1]:
