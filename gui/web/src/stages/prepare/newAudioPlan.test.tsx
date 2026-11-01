@@ -649,3 +649,38 @@ it.each(["error", "cancelled"])(
     expect(result.current.view.handoff.label).toBe("Process new audio");
   },
 );
+
+it("does not announce the prior stopped run while a new selected attempt starts", async () => {
+  config.enabled = ["ingest_tracks"];
+  const { result } = render();
+  await act(async () => result.current.view.onHandoff());
+  act(() =>
+    useDawStore.setState({
+      pipelineJob: pipelineJobSnapshot({
+        id: "j-new",
+        status: "cancelled",
+        skip_steps: STEPS.filter((name) => !config.enabled!.includes(name)),
+        steps: [
+          { name: "ingest_tracks", status: "ok", elapsed_sec: 1, error: null },
+        ],
+      }),
+    }),
+  );
+  expect(result.current.view.readySummary).toBe(
+    "Getting ready: processing stopped",
+  );
+  let accept!: (job: ReturnType<typeof pipelineJobSnapshot>) => void;
+  start.mockReturnValueOnce(
+    new Promise((resolve) => {
+      accept = resolve;
+    }),
+  );
+  await act(async () => {
+    result.current.view.onRowAction("transcribe", "try-again");
+  });
+  expect(result.current.view.phase).toBe("transcribing");
+  expect(result.current.view.readySummary).not.toContain("stopped");
+  await act(async () =>
+    accept(pipelineJobSnapshot({ id: "j-retry", status: "running" })),
+  );
+});
