@@ -219,6 +219,36 @@ describe("useRoomToneCapture", () => {
     });
   });
 
+  it("reports the failed save when a deferred upload is the one the host could not register", async () => {
+    const base = memoryUploadTransport();
+    const transport = {
+      ...base,
+      put: async (...a: Parameters<typeof base.put>) => ({
+        ...(await base.put(...a)),
+        landed: false,
+        land_failed: true,
+      }),
+    };
+    const { result, rerender } = renderHook(
+      (props: { canUpload: boolean }) =>
+        useRoomToneCapture(hookArgs({ transport, canUpload: props.canUpload })),
+      { initialProps: { canUpload: false } },
+    );
+    act(() => {
+      result.current.record();
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe("recorded");
+    });
+    rerender({ canUpload: true });
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
+    expect(result.current.error).toBe(ROOM_TONE_LAND_FAILED_COPY);
+    expect(result.current.delivery).toBe("device");
+    expect(result.current.ready).toBe(false);
+  });
+
   it("does not upload a too-loud bed", async () => {
     encode.mockResolvedValue({
       wav: new Uint8Array(44 + 8),
