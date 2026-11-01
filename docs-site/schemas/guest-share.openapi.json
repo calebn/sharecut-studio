@@ -13549,7 +13549,7 @@
     },
     "/api/review/{token}/daw/export/files/{file_id}": {
       "get": {
-        "description": "An attachment for one listed file; the id is checked against the listing, never joined.\n\nThe link holds one audio stream slot until the download ends, so one Editor cannot keep\nmore downloads open than the share's audio cap.",
+        "description": "An attachment for one listed file; the id is checked against the listing, never joined.",
         "parameters": [
           {
             "in": "path",

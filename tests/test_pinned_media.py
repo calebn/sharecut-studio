@@ -440,3 +440,24 @@ def test_pinned_audio_response_releases_callback_once_after_stream(
     anyio.run(response, _http_scope("GET", [], asgi_spec_version), _server_receive(), send)
     assert b"".join(event.get("body", b"") for event in sent) == b"audio"
     assert ran == ["slot"]
+
+
+@posix_only
+@pytest.mark.anyio
+async def test_a_cancelled_response_still_runs_its_release(
+    tmp_path: Path, asgi_spec_version: str
+) -> None:
+    media = tmp_path / "mix.mp3"
+    media.write_bytes(b"0123456789")
+    released: list[bool] = []
+    response = PinnedFileResponse(media, background=BackgroundTask(lambda: released.append(True)))
+
+    async def send(event):
+        if event["type"] == "http.response.body":
+            await anyio.sleep_forever()
+
+    with anyio.move_on_after(0.2):
+        await response(_http_scope("GET", [], asgi_spec_version), _server_receive(), send)
+
+    assert released == [True]
+    assert response._source.closed

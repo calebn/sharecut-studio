@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import tempfile
 import uuid
-from functools import partial
 from pathlib import Path
-from typing import IO, Any
+from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_search import ensure_combined_transcript
@@ -16,7 +16,8 @@ from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.waveform_media import track_pyramid
 from podcast_mcp.engines.waveform_pyramid import PyramidMeta, pyramid_peak
 from podcast_mcp.models import EpisodeProject, SocialClipCandidate
-from podcast_mcp.util.atomic_file import atomic_write, publish_completed_file
+from podcast_mcp.util.atomic_file import publish_completed_file
+from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.review import approve_by_id, reject_by_id
 from podcast_mcp.util.timebase import SourceSec
@@ -363,12 +364,9 @@ def _source_audio(project: EpisodeProject) -> Path | None:
     return None
 
 
-def _write_bytes(data: bytes, handle: IO[bytes]) -> int:
-    return handle.write(data)
-
-
-CLIP_STAGING_DIRNAME = ".writing"
-"""Where a clip renders before it replaces its file, so a reader never meets half a WAV."""
+_STAGING_PREFIX = ".writing-"
+"""Where a clip renders before it replaces its file. A temp beside the clip would carry the
+``.wav`` suffix the export listing goes by, so a half-written clip could be listed and served."""
 
 
 def export_social_clips(
@@ -384,12 +382,11 @@ def export_social_clips(
         raise ValueError("No audio source found; run pipeline mix or export first")
     out_dir = project.export_dir() / "clips"
     out_dir.mkdir(parents=True, exist_ok=True)
-    staging = out_dir / CLIP_STAGING_DIRNAME
+    staging = Path(tempfile.mkdtemp(prefix=_STAGING_PREFIX, dir=out_dir))
     engine = FFmpegEngine()
     exported: list[dict[str, str]] = []
     id_set = set(ids) if ids else None
 
-    staging.mkdir(exist_ok=True)
     try:
         for clip in project.social_clip_candidates:
             if id_set and clip.id not in id_set:
@@ -407,8 +404,7 @@ def export_social_clips(
             clip.exported_path = str(wav_out.relative_to(project.workspace_path()))
             sidecar = clip.model_dump()
             sidecar["exported_wav"] = str(wav_out)
-            document = json.dumps(sidecar, indent=2).encode("utf-8")
-            atomic_write(json_out, partial(_write_bytes, document), creation_mode=0o644)
+            write_text_atomic(json_out, json.dumps(sidecar, indent=2), creation_mode=0o644)
             exported.append({"id": clip.id, "wav": str(wav_out), "json": str(json_out)})
     finally:
         shutil.rmtree(staging, ignore_errors=True)

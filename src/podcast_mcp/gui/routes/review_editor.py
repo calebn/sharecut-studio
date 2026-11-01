@@ -352,13 +352,9 @@ def get_daw_export_files(ws: ExportFilesWorkspace) -> dict[str, Any]:
 def get_daw_export_file(
     request: Request, token: str, file_id: str, ws: ExportFileWorkspace
 ) -> Response:
-    """An attachment for one listed file; the id is checked against the listing, never joined.
-
-    The link holds one audio stream slot until the download ends, so one Editor cannot keep
-    more downloads open than the share's audio cap.
-    """
+    """An attachment for one listed file; the id is checked against the listing, never joined."""
     with guest_boundary(log, "review export file"):
-        return download_exported_file(request, ws, file_id, on_release=audio_slot(token))
+        return download_exported_file(request, ws, file_id, acquire_slot=lambda: audio_slot(token))
 
 
 @router.get("/api/review/{token}/daw/export/jobs/{job_id}")

@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+import anyio
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
@@ -44,7 +45,8 @@ class PinnedFileResponse(FileResponse):
         finally:
             self.close()
             if self._on_close is not None:
-                await self._on_close()
+                with anyio.CancelScope(shield=True):
+                    await self._on_close()
 
     def _read_at(self, offset: int, length: int) -> bytes:
         # One lock covers both branches so close() never releases the descriptor mid-read.
