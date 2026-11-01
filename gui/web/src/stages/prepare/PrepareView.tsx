@@ -117,11 +117,23 @@ function useCompact(root: RefObject<HTMLElement | null>): boolean {
 }
 
 /** The worst state among the rows, for the phone's one-line summary. */
-function summaryState(rows: readonly ReadyRowData[]): StatusRowState {
+function summaryState(
+  rows: readonly ReadyRowData[],
+  phase: PreparePhase,
+): StatusRowState {
+  if (phase === "failed") return "failed";
   for (const state of ["failed", "needs-you", "running"] as const) {
     if (rows.some((row) => row.state === state)) return state;
   }
-  return rows.every((row) => row.state === "done") ? "done" : "queued";
+  return rows.every(
+    (row) =>
+      row.state === "done" ||
+      (phase === "done" &&
+        row.state === "queued" &&
+        row.runDisposition === "omitted"),
+  )
+    ? "done"
+    : "queued";
 }
 
 const GLYPH = {
@@ -292,7 +304,7 @@ export function PrepareView({
         .slice(0, at)
         .reduce((sum, earlier) => sum + earlier.sources.length, 0),
   );
-  const state = summaryState(rows);
+  const state = summaryState(rows, phase);
   const speakers = [
     ...new Map(
       sessions

@@ -243,11 +243,22 @@ for (const profile of [
         });
         await expect(processNew).toBeEnabled();
         expect(requests).toHaveLength(0);
-        const summary = page.getByRole("button", {
-          name: /^Getting ready: new audio waiting/,
-        });
-        if (await summary.isVisible()) await summary.click();
         const ready = page.locator(".sys-prepare-ready");
+        const readyHeading = ready.getByRole("heading", { level: 2 });
+        await expect(readyHeading).toHaveCount(1);
+        const summary = readyHeading.getByRole("button");
+        if (profile.name === "phone") {
+          await expect(summary).toBeVisible();
+          await expect(summary.locator(".sys-prepare-summary-text")).toHaveText(
+            "Getting ready: new audio waiting",
+          );
+          if ((await summary.getAttribute("aria-expanded")) === "false")
+            await summary.click();
+          await expect(summary).toHaveAttribute("aria-expanded", "true");
+        } else {
+          await expect(summary).toHaveCount(0);
+          await expect(readyHeading).toHaveText("Getting ready");
+        }
         for (const title of [
           "Transcribe",
           "Line up tracks",
@@ -318,7 +329,7 @@ for (const profile of [
           proofDir,
           `${proofName}-plan-top-viewport`,
           {
-            heading: ready.getByRole("heading", { name: /^Getting ready/ }),
+            heading: readyHeading,
             note: ready.locator(".sys-prepare-note"),
             added: ready.getByText("Add audio", { exact: true }),
             transcribe_title: transcribe.getByText("Transcribe", {
@@ -439,27 +450,16 @@ for (const profile of [
         );
         await expect(alignResult).not.toContainText("Lined up");
         if (profile.name === "phone") {
-          await expect(
-            page.getByRole("button", {
-              name: "Getting ready: selected work finished",
-              exact: true,
-            }),
-          ).toBeVisible();
+          await expect(summary).toBeVisible();
+          await expect(summary.locator(".sys-prepare-summary-text")).toHaveText(
+            "Getting ready: selected work finished",
+          );
         }
         await dismissFeedbackToast(page);
-        const resultHeading =
-          profile.name === "phone"
-            ? ready.getByRole("button", {
-                name: "Getting ready: selected work finished",
-                exact: true,
-              })
-            : ready.getByRole("heading", {
-                name: "Getting ready",
-                exact: true,
-              });
+        const resultHeading = profile.name === "phone" ? summary : readyHeading;
         if (
           profile.name === "phone" &&
-          (await resultHeading.getAttribute("aria-expanded")) !== "true"
+          (await resultHeading.getAttribute("aria-expanded")) === "false"
         )
           await resultHeading.click();
         await resultHeading.scrollIntoViewIfNeeded();
