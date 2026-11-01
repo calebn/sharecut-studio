@@ -81,7 +81,7 @@ const meta: Meta<typeof PrepareView> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Prepare stage inside the shell: Sources, Getting ready, Help the transcriber and Cleanup, then the one Stage hand-off. It is a plain div with h2 sections; the shell owns main and the page heading. The order in the DOM is the order on screen at every width, with no CSS reordering, and Tab follows it. From 60rem wide (a container query) it is three columns: Sources 22.5rem on the left, Getting ready in the middle, then the help column with the hand-off at its foot; Tab goes Add audio and Record, the sessions and their cards, Advanced, the rows, vocabulary, Cleanup, hand-off. Narrower it is one column and the Getting ready card moves to the very top, behind a one-line summary button ("Getting ready: 2 of 3 done") that opens the full card in place; the summary exists only at that width, and the first Tab stop is the summary, then Sources. The hand-off sticks to the bottom at 48 px. Work starts by itself after import, so the hand-off is secondary and says why it waits until everything is done, then becomes the one primary. One polite status line speaks the phase when it changes ("Adding 3 files.", "Transcribing started.", "Done. Review 14 suggestions.", or the failed step and its cause), never a progress tick. A drag over the window shows the drop frame and says the same words. The keyboard way to add audio is the Add audio tile. Presentational: data in, callbacks out; the vocabulary field is the Vocabulary surface, with the speaker chips taken from the named Source cards.\n\n**Motion.** Hover and drag-hover use `--motion-hover`; bars grow with `--motion-state`; the phone summary opens with `--motion-panel`. Under reduced motion the spinner stops and the bar stays.',
+          'The Prepare stage inside the shell: Sources, Getting ready, Help the transcriber and Cleanup, then the one Stage hand-off. It is a plain div with h2 sections; the shell owns main and the page heading. The order in the DOM is the order on screen at every width, with no CSS reordering, and Tab follows it. From 60rem wide (a container query) it is three columns: Sources 22.5rem on the left, Getting ready in the middle, then the help column with the hand-off at its foot; Tab goes Add audio and Record, the sessions and their cards, Advanced, the rows, vocabulary, Cleanup, hand-off. Narrower it is one column and the Getting ready card moves to the very top, behind a one-line summary button ("Getting ready: 2 of 3 done") that opens the full card in place; the summary exists only at that width, and the first Tab stop is the summary, then Sources. The hand-off sticks to the bottom at 48 px. Initial imports start processing automatically. Audio added beside tracks that already have transcripts waits for Process new audio. During processing the hand-off is secondary and says why it waits until the selected work is done, then becomes the one primary. One polite status line speaks the phase when it changes ("Adding 3 files.", "Processing started.", "Done. Review 14 suggestions.", or the failed step and its cause), never a progress tick. A drag over the window shows the drop frame and says the same words. The keyboard way to add audio is the Add audio tile. Presentational: data in, callbacks out; the vocabulary field is the Vocabulary surface, with the speaker chips taken from the named Source cards.\n\n**Motion.** Hover and drag-hover use `--motion-hover`; bars grow with `--motion-state`; the phone summary opens with `--motion-panel`. Under reduced motion the spinner stops and the bar stays.',
       },
     },
   },
@@ -186,7 +186,7 @@ export const Transcribing: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(stageStatus(canvasElement)).toHaveTextContent(
-      "Transcribing started.",
+      "Processing started.",
     );
     await openReady(canvasElement);
     const bar = canvas.getAllByRole("progressbar", { name: "Transcribe" })[0];
@@ -212,7 +212,7 @@ export const NeedsSpeakerNames: Story = {
       canvas.getByRole("button", { name: "Hear Maya" }),
     ).toBeVisible();
     await expect(stageStatus(canvasElement)).toHaveTextContent(
-      "Transcribing started.",
+      "Processing started.",
     );
   },
 };
