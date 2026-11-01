@@ -534,7 +534,7 @@ describe("LaneEnvelope while a save settles", () => {
     expect(stored().find((p) => p.id === "b")!.time).toBe(6);
   });
 
-  it("holds a nudge until a lagging store follows, then saves from the saved points", async () => {
+  it("holds a nudge and Delete until a lagging store follows; the pause then lets a nudge save, documenting the residual stale baseline (b at 4) of a store that never follows", async () => {
     vi.useFakeTimers();
     try {
       const { finish } = await savedDrag("never");
