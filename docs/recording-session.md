@@ -1258,7 +1258,7 @@ stateDiagram-v2
 | Room tone for a guest who joined late (alert row) | "Record 1 minute of room tone." **Record room tone** / **Skip**; while capturing the row reads "Stay quiet · 0:42" with a bar, **End early** and **Cancel** (any capturing guest sees it, host-started or not) |
 | Room tone ended too early | "Too short, record at least 10 seconds" (the take is discarded; End early keeps a take of 10 s or more) |
 | Room tone too loud | "Too loud: is something playing?" |
-| Room tone the host received but could not save | "Your room tone could not be saved. Record it again." (the take is not counted as sent; **Record room tone** offers a retake, and a guest who reloads is asked again) |
+| Room tone the host received but could not save | "Your room tone could not be saved. Record it again." (the take is not counted as sent; **Record room tone** offers a retake, and a guest who joined late and reloads is asked again while the host still reports the failed save) |
 | Room tone saved on this device (not yet acknowledged by the host) | "Room tone saved on this device" |
 | Room tone acknowledged by the host (it joins the project when the session lands) | "Room tone sent to the host" |
 | Consent | Join sheet: "You'll be recorded in full quality on this device. It saves to {host}'s project when the take ends." **Join and record** / **Not now**; Details: "Recording starts when {host} starts a take and stops when the take ends. Your audio is saved on this device first, then sent to {host}'s project. Joining means you agree to be recorded." |
