@@ -13,6 +13,7 @@ import {
   pendingEditBaseline,
 } from "../../api/documentEdits";
 import { hostFetch } from "../../api/documentTransport";
+import { executePointerCommand } from "../../commands/pointer";
 import { registerDawCommands } from "../../commands/register";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -370,6 +371,27 @@ describe("PendingEditBody", () => {
     render(<PendingEditBody edit={sessionCut} />);
     await commitField(user, "Source end", "0:12.500");
     expect((updatePendingEdit.mock.calls[0] as unknown[])[3]).toBe(12.5);
+  });
+
+  it("announces nothing when the selection changes during a Cut from the bar, as main's bar path did", async () => {
+    let finish: (value: unknown) => void = () => {};
+    approveEdits.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render(<PendingEditBody edit={sessionCut} />);
+    await waitFor(() =>
+      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+    );
+    const pending = executePointerCommand("edit.delete");
+    await waitFor(() => expect(approveEdits).toHaveBeenCalledTimes(1));
+    act(() => useDawStore.getState().setSelection(null));
+    finish({ queued: false, count: 1, historyHead: "h1" });
+    await act(async () => {
+      await pending;
+    });
+    expect(useDawStore.getState().feedbackToast?.message ?? null).toBeNull();
   });
 
   it("keeps a suggestion through the sheet when Keep is chosen", async () => {
