@@ -1078,10 +1078,10 @@ def ensure_current_master(project: EpisodeProject, defaults: dict[str, Any]) -> 
     """Master again unless ``mastered.wav`` came from the current, fresh premix."""
     from podcast_mcp.engines.play_audit import mastered_is_fresh, mastered_path, premix_is_stale
 
-    # The cheap hash check first: master_loudness checks the premix itself, so
-    # the premix is checked here only when the master looks fresh.
-    if not mastered_is_fresh(project, MasterTarget.from_defaults(defaults)) or premix_is_stale(
-        project, defaults
+    if (
+        read_master_qc(project) is None
+        or not mastered_is_fresh(project, MasterTarget.from_defaults(defaults))
+        or premix_is_stale(project, defaults)
     ):
         master_loudness(project, defaults)
     else:
@@ -1090,12 +1090,15 @@ def ensure_current_master(project: EpisodeProject, defaults: dict[str, Any]) -> 
 
 
 def read_master_qc(project: EpisodeProject) -> dict[str, Any] | None:
-    """``master_qc.json``, or None when it is missing or unreadable."""
+    """Master QC with a measurement object or None, or no report when invalid."""
     try:
         qc = json.loads(artifact(project, "master_qc.json").read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return None
-    return qc if isinstance(qc, dict) else None
+    if not isinstance(qc, dict) or "measured" not in qc:
+        return None
+    measured = qc["measured"]
+    return qc if measured is None or isinstance(measured, dict) else None
 
 
 def _rejudge_master_qc(project: EpisodeProject, defaults: dict[str, Any]) -> None:
