@@ -305,18 +305,116 @@ def _child_notify(path) -> None:
 
 
 def _child_submit_comments(path, client_id, start, count) -> None:
-    svc = DocumentSyncService.open(path)
-    start.wait(60)
-    for seq in range(1, count + 1):
-        svc.submit(
-            DocumentCommand(
-                type="AddComment",
-                payload={"body": f"{client_id}-{seq}", "author": client_id, "timeline_start": 1.0},
-                client_id=client_id,
-                role="viewer",
-                client_seq=seq,
+    import hashlib
+    import json
+    import os
+    import threading
+    from collections import deque
+    from unittest.mock import patch
+
+    from podcast_mcp.util import file_locks
+
+    observations = deque(maxlen=256)
+    truncated = False
+    incomplete = False
+    original_factory = project_state.shared_file_lock
+    observed: set[int] = set()
+
+    def capture(phase, lock, error=None):
+        nonlocal truncated, incomplete
+        try:
+            with file_locks._GUARD:
+                key_parts = tuple(
+                    key.parts for key, value in file_locks._LOCKS.items() if value is lock
+                )
+            observation = (
+                phase,
+                os.getpid(),
+                threading.get_ident(),
+                id(lock),
+                key_parts,
+                lock.lock_counter,
+                lock.is_locked,
+                type(error).__name__ if error is not None else None,
             )
-        )
+            truncated = truncated or len(observations) == observations.maxlen
+            observations.append(observation)
+        except BaseException:
+            incomplete = True
+
+    try:
+        with contextlib.ExitStack() as observers:
+
+            def observed_factory(*args, **kwargs):
+                nonlocal incomplete
+                lock = original_factory(*args, **kwargs)
+                capture(0, lock)
+                try:
+                    if id(lock) not in observed:
+                        original_acquire = lock.acquire
+
+                        def observed_acquire(*args, **kwargs):
+                            capture(1, lock)
+                            try:
+                                result = original_acquire(*args, **kwargs)
+                            except BaseException as exc:
+                                capture(3, lock, exc)
+                                raise
+                            capture(2, lock)
+                            return result
+
+                        observers.enter_context(patch.object(lock, "acquire", observed_acquire))
+                        observed.add(id(lock))
+                except BaseException:
+                    incomplete = True
+                return lock
+
+            observers.enter_context(
+                patch.object(project_state, "shared_file_lock", observed_factory)
+            )
+            svc = DocumentSyncService.open(path)
+            start.wait(60)
+            for seq in range(1, count + 1):
+                svc.submit(
+                    DocumentCommand(
+                        type="AddComment",
+                        payload={
+                            "body": f"{client_id}-{seq}",
+                            "author": client_id,
+                            "timeline_start": 1.0,
+                        },
+                        client_id=client_id,
+                        role="viewer",
+                        client_seq=seq,
+                    )
+                )
+    finally:
+        try:
+            phases = ("factory_return", "before_acquire", "acquired", "acquire_failed")
+            batch = []
+            for phase, pid, tid, lock_id, key_parts, counter, held, error in observations:
+                batch.append(
+                    {
+                        "phase": phases[phase],
+                        "pid": pid,
+                        "tid": tid,
+                        "lock_id": lock_id,
+                        "registry_key_sha256s": sorted(
+                            hashlib.sha256(str(Path(*parts)).encode()).hexdigest()
+                            for parts in key_parts
+                        ),
+                        "lock_counter": counter,
+                        "is_locked": held,
+                        "error_type": error,
+                    }
+                )
+            report = {"observations": batch, "truncated": truncated, "incomplete": incomplete}
+            sys.stderr.write(
+                "commit_lock_observation_batch " + json.dumps(report, sort_keys=True) + "\n"
+            )
+            sys.stderr.flush()
+        except BaseException:
+            pass
 
 
 def test_mutate_takes_the_lock_before_running_the_mutation(minimal_project, monkeypatch):
