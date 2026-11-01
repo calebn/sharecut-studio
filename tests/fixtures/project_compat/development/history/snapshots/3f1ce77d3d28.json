@@ -28,6 +28,7 @@
           "channels": 1
         },
         "room_tone": null,
+        "room_tone_origin": null,
         "gate_fill": null,
         "gain_db": -0.0,
         "balance_basis": null,
