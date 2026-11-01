@@ -1,11 +1,4 @@
-"""A clip with a timing map as the ordinary clips the renderer lays out (#2858, umbrella #1089).
-
-Each virtual piece of a mapped clip becomes a shell copy that keeps the parent's id and plays
-one constant shift. The inner joins get the declick micro-fade the split pieces they replace had
-(``join_micro_fade_ms``); the parent's fades and join mode stay on the outer edges. A positive
-step leaves a hole between two shells, returned so the renderer can fill it. Shells are never
-persisted.
-"""
+"""A clip with a timing map as the ordinary clips the renderer lays out (#2858, umbrella #1089)."""
 
 from __future__ import annotations
 
@@ -15,14 +8,14 @@ from itertools import pairwise
 
 from podcast_mcp.config.defaults import DEFAULT_MICRO_FADE_MS
 from podcast_mcp.models import Clip, ClipJoinMode
+from podcast_mcp.models.clip_timing import MAX_TIMING_STEPS
+from podcast_mcp.util.coded_error import CodedValueError
 
 _MIN_HOLE_SEC = 1e-6
 
 
 @dataclass(frozen=True)
 class TimingHole:
-    """The timeline span a positive step leaves between ``left`` and ``right``."""
-
     parent: Clip
     left: Clip
     right: Clip
@@ -39,8 +32,8 @@ class TimingHole:
 def expand_timed_clips(
     clips: list[Clip], *, micro_fade_ms: int = DEFAULT_MICRO_FADE_MS
 ) -> tuple[list[Clip], dict[int, TimingHole]]:
-    """``clips`` with each mapped clip replaced by its piece shells, and the holes by the index
-    of the shell on their left. A list without a mapped clip comes back as the same object."""
+    """A list without a mapped clip comes back as the same object; holes are keyed by the index of
+    the shell on their left."""
     if all(clip.timing is None for clip in clips):
         return clips, {}
     expanded: list[Clip] = []
@@ -49,6 +42,12 @@ def expand_timed_clips(
         if clip.timing is None:
             expanded.append(clip)
             continue
+        if len(clip.timing.steps) > MAX_TIMING_STEPS:
+            raise CodedValueError(
+                f"clip {clip.id} has {len(clip.timing.steps)} timing steps; a render takes at "
+                f"most {MAX_TIMING_STEPS}. Split the clip or drop the weakest steps.",
+                code="timing_map_too_many_steps",
+            )
         pieces = clip.virtual_pieces()
         shells = []
         for index, (src_a, src_b, tl_a) in enumerate(pieces):
