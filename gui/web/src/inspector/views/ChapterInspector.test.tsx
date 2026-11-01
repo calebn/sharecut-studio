@@ -70,6 +70,8 @@ describe("ChapterInspector", () => {
     expect(
       screen.queryByRole("button", { name: "Delete" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByText("Time")).toBeVisible();
+    expect(screen.getAllByText("00:05.000").length).toBeGreaterThan(0);
     expect(updateChapter).not.toHaveBeenCalled();
     expect(deleteChapter).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);

@@ -43,6 +43,7 @@ export const Viewer: Story = {
     await expect(
       canvas.queryByRole("button", { name: "Track actions" }),
     ).toBeNull();
+    await expect(canvas.getByText("Role")).toBeVisible();
   },
 };
 

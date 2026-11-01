@@ -47,5 +47,6 @@ export const Viewer: Story = {
     ).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Apply" })).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Delete" })).toBeNull();
+    await expect(canvas.getByText(/00:28\.000 – 00:44\.000/)).toBeVisible();
   },
 };

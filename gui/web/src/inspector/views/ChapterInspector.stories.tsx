@@ -47,5 +47,7 @@ export const Viewer: Story = {
       canvas.queryByRole("spinbutton", { name: "Chapter time" }),
     ).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Delete" })).toBeNull();
+    await expect(canvas.getByText("Time")).toBeVisible();
+    await expect(canvas.getAllByText("01:04.000").length).toBeGreaterThan(0);
   },
 };

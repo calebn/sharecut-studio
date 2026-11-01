@@ -257,6 +257,22 @@ describe("TrackInspector", () => {
     });
   });
 
+  it("shows the role as plain text and hides every editing control for a viewer", () => {
+    useDawStore
+      .getState()
+      .hydrate(
+        shareProjectKey("tok"),
+        minimalProject({ tracks: [hostTrack] }),
+        "view",
+      );
+    render(<TrackInspector track={hostTrack} effects={[]} />);
+    expect(screen.getByText("Role")).toBeVisible();
+    expect(screen.getByText("dialogue")).toBeVisible();
+    expect(screen.queryByRole("combobox", { name: "Track role" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Track label" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Track actions" })).toBeNull();
+  });
+
   it("hides the smooth-joins button from a guest without edit", () => {
     useDawStore
       .getState()
