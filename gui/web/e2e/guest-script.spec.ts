@@ -70,3 +70,225 @@ test("a Viewer link shows no Script, because its guests are not sent word timing
     });
   });
 });
+
+test("a Commenter keeps readable Script through native page zoom and viewport recovery", async ({
+  browser,
+}, info) => {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [
+        {},
+        {
+          viewport: { width: 390, height: 844 },
+          isMobile: true,
+          hasTouch: true,
+        },
+      ],
+      async ([host, guest]) => {
+        await openHostShare(host, projectPath);
+        const token = await createReviewShare(host, projectPath, "commenter");
+        await openGuestShare(guest, token);
+        const script = guest.locator(".stage-host-guest-script");
+        const word = script.locator(".sys-script-word").first();
+        const field = guest.locator(".rv-compose").getByRole("textbox", {
+          name: "Comment",
+          exact: true,
+        });
+        const cdp = await guest.context().newCDPSession(guest);
+        const observations: object[] = [];
+        const observe = () =>
+          guest.evaluate(() => {
+            const visual = window.visualViewport;
+            if (!visual) throw new Error("Native visual viewport is required");
+            const measure = (element: Element | null) => {
+              if (!element) return null;
+              const rect = element.getBoundingClientRect();
+              let left = visual.offsetLeft;
+              let top = visual.offsetTop;
+              let right = left + visual.width;
+              let bottom = top + visual.height;
+              let painted = true;
+              for (
+                let node: Element | null = element;
+                node;
+                node = node.parentElement
+              ) {
+                const style = getComputedStyle(node);
+                painted &&=
+                  style.display !== "none" && style.visibility === "visible";
+                if (node === element) continue;
+                const box = node.getBoundingClientRect();
+                if (/hidden|clip|auto|scroll/.test(style.overflowX)) {
+                  left = Math.max(left, box.left + node.clientLeft);
+                  right = Math.min(
+                    right,
+                    box.left + node.clientLeft + node.clientWidth,
+                  );
+                }
+                if (/hidden|clip|auto|scroll/.test(style.overflowY)) {
+                  top = Math.max(top, box.top + node.clientTop);
+                  bottom = Math.min(
+                    bottom,
+                    box.top + node.clientTop + node.clientHeight,
+                  );
+                }
+              }
+              const style = getComputedStyle(element);
+              return {
+                rect: rect.toJSON(),
+                visibleWidth: painted
+                  ? Math.max(
+                      0,
+                      Math.min(right, rect.right) - Math.max(left, rect.left),
+                    )
+                  : 0,
+                visibleHeight: painted
+                  ? Math.max(
+                      0,
+                      Math.min(bottom, rect.bottom) - Math.max(top, rect.top),
+                    )
+                  : 0,
+                fontSize: Number.parseFloat(style.fontSize),
+                color: style.color,
+                background: style.backgroundColor,
+                text: element.textContent?.trim().slice(0, 80),
+              };
+            };
+            return {
+              layout: { width: innerWidth, height: innerHeight },
+              visual: {
+                width: visual.width,
+                height: visual.height,
+                scale: visual.scale,
+                offsetLeft: visual.offsetLeft,
+                offsetTop: visual.offsetTop,
+              },
+              mediaShort: matchMedia("(max-height: 30rem)").matches,
+              documentWidth: document.documentElement.scrollWidth,
+              clientWidth: document.documentElement.clientWidth,
+              scriptCount: document.querySelectorAll(".stage-host-guest-script")
+                .length,
+              word: measure(
+                document.querySelector(
+                  ".stage-host-guest-script .sys-script-word",
+                ),
+              ),
+              field: measure(document.querySelector(".rv-compose textarea")),
+              styled:
+                getComputedStyle(
+                  document.querySelector(".rv-stage") ?? document.body,
+                ).display === "flex",
+            };
+          });
+        const capture = async (name: string, shown: boolean, scale = 1) => {
+          await expect(script).toHaveCount(shown ? 1 : 0);
+          if (shown) {
+            await expect(script).toContainText("Read only");
+            await word.focus();
+            await expect
+              .poll(async () => (await observe()).word?.visibleWidth ?? 0)
+              .toBeGreaterThan(0);
+            await expect
+              .poll(async () => (await observe()).word?.visibleHeight ?? 0)
+              .toBeGreaterThan(0);
+            const reading = await observe();
+            expect(reading.visual.scale).toBe(scale);
+            expect(reading.word?.text).toBeTruthy();
+            expect(reading.word?.visibleWidth).toBeGreaterThanOrEqual(
+              (reading.word?.rect.width ?? 0) - 1,
+            );
+            expect(reading.word?.visibleHeight).toBeGreaterThanOrEqual(
+              (reading.word?.rect.height ?? 0) - 1,
+            );
+            expect(reading.word?.fontSize).toBeGreaterThanOrEqual(12);
+            expect(reading.styled).toBe(true);
+            observations.push({
+              checkpoint: name,
+              purpose: "read-script",
+              ...reading,
+            });
+            await info.attach(`guest-script-${name}`, {
+              body: await guest.screenshot(),
+              contentType: "image/png",
+            });
+          }
+          await expect(field).toBeEditable();
+          await field.focus();
+          await expect
+            .poll(async () => (await observe()).field?.visibleWidth ?? 0)
+            .toBeGreaterThanOrEqual(44);
+          await expect
+            .poll(async () => (await observe()).field?.visibleHeight ?? 0)
+            .toBeGreaterThanOrEqual(20);
+          await guest.keyboard.type("Viewport proof");
+          await expect(field).toHaveValue("Viewport proof");
+          await guest.keyboard.press("ControlOrMeta+A");
+          await guest.keyboard.press("Backspace");
+          await expect(field).toHaveValue("");
+          const composing = await observe();
+          expect(composing.visual.scale).toBe(scale);
+          expect(composing.documentWidth).toBeLessThanOrEqual(
+            composing.clientWidth,
+          );
+          observations.push({
+            checkpoint: name,
+            purpose: "use-comment-field",
+            ...composing,
+          });
+          await info.attach(`guest-composer-${name}`, {
+            body: await guest.screenshot(),
+            contentType: "image/png",
+          });
+        };
+        try {
+          await expect.poll(async () => (await observe()).visual.scale).toBe(1);
+          await capture("initial", true);
+          await cdp.send("Emulation.setPageScaleFactor", {
+            pageScaleFactor: 2,
+          });
+          await expect.poll(async () => (await observe()).visual.scale).toBe(2);
+          await expect
+            .poll(async () => (await observe()).visual.height)
+            .toBe(422);
+          expect((await observe()).layout.height).toBe(844);
+          expect((await observe()).mediaShort).toBe(false);
+          await capture("native-zoom-2x", true, 2);
+          await cdp.send("Emulation.setPageScaleFactor", {
+            pageScaleFactor: 1,
+          });
+          await expect.poll(async () => (await observe()).visual.scale).toBe(1);
+          await capture("zoom-reset", true);
+          for (const checkpoint of [
+            { height: 460, shown: false, mediaShort: true },
+            { height: 500, shown: false, mediaShort: false },
+            { height: 519, shown: false, mediaShort: false },
+            { height: 520, shown: true, mediaShort: false },
+          ]) {
+            await guest.setViewportSize({
+              width: 390,
+              height: checkpoint.height,
+            });
+            await expect
+              .poll(async () => (await observe()).visual.height)
+              .toBe(checkpoint.height);
+            expect((await observe()).visual.scale).toBe(1);
+            expect((await observe()).mediaShort).toBe(checkpoint.mediaShort);
+            await capture(`recovery-${checkpoint.height}`, checkpoint.shown);
+          }
+        } finally {
+          await info.attach("guest-viewport-observations", {
+            body: Buffer.from(
+              JSON.stringify({
+                browserVersion: browser.version(),
+                observations,
+              }),
+            ),
+            contentType: "application/json",
+          });
+          await cdp.detach();
+        }
+      },
+    );
+  });
+});
