@@ -17,6 +17,7 @@ from podcast_mcp.segments.model import (
 from podcast_mcp.util.coded_error import CodedValueError
 
 SHA = "a" * 64
+GOLDEN_CONTENT_SHA256 = "1a61bc320f961975cbc0e8c4e0d87fd74cfd5fc7c7d0a365df9f0cdf2b56a9ac"
 
 
 def _data(**changes: object) -> dict:
@@ -127,3 +128,9 @@ def test_segment_kind_names_the_five_kinds() -> None:
     with pytest.raises(CodedValueError) as raised:
         segment_kind("jingle")
     assert raised.value.code == "segment_kind_invalid"
+
+
+def test_content_hash_is_pinned() -> None:
+    """A field added to the model changes every stored hash: this fails until that is a choice."""
+    segment = SegmentFile.model_validate(_data())
+    assert segment.content_sha256 == GOLDEN_CONTENT_SHA256

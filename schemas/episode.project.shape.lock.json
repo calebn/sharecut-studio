@@ -269,6 +269,17 @@
               },
               "type": "array"
             },
+            "segment_ref": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SegmentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "source_end": {
               "type": "number"
             },
@@ -2293,6 +2304,28 @@
             "role",
             "type",
             "base_server_seq"
+          ],
+          "type": "object"
+        },
+        "SegmentRef": {
+          "additionalProperties": false,
+          "properties": {
+            "content_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "segment_id": {
+              "type": "string"
+            },
+            "version": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "segment_id",
+            "version",
+            "content_sha256"
           ],
           "type": "object"
         },
@@ -3897,6 +3930,17 @@
               },
               "type": "array"
             },
+            "segment_ref": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SegmentRef"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "source_end": {
               "type": "number"
             },
@@ -5924,6 +5968,28 @@
           ],
           "type": "object"
         },
+        "SegmentRef": {
+          "additionalProperties": false,
+          "properties": {
+            "content_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "segment_id": {
+              "type": "string"
+            },
+            "version": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "segment_id",
+            "version",
+            "content_sha256"
+          ],
+          "type": "object"
+        },
         "SessionSuggestion": {
           "properties": {
             "anchor": {
@@ -7313,6 +7379,7 @@
     "ReviewSection": "ignore",
     "RoomToneFill": "ignore",
     "SavedDocumentCommand": "ignore",
+    "SegmentRef": "forbid",
     "SessionSuggestion": "ignore",
     "SnapshotMeta": "ignore",
     "SocialClipCandidate": "ignore",

@@ -34,6 +34,7 @@ export interface Clip {
   off_speaker_mute_regions?: Array<ClipOffSpeakerMuteRegion>;
   bleed_restore?: ClipBleedRestore | null;
   timing?: ClipTiming | null;
+  segment_ref?: SegmentRef | null;
 }
 
 /** Occurrence-owned automatic attenuation choices bound to exact recording bytes. */
@@ -329,6 +330,13 @@ export interface RoomToneFill {
   start_s: number;
   end_s: number;
   source_id?: string | null;
+}
+
+/** Where a clip came from in the segment library, kept so a later slice can see drift. ``content_sha256`` is the stored version's ``SegmentFile.content_sha256`` at insert time. */
+export interface SegmentRef {
+  segment_id: string;
+  version: number;
+  content_sha256: string;
 }
 
 /** Typed command submit - agent, viewer, and CLI use the same shape. */

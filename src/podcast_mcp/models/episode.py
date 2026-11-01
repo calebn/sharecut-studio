@@ -303,6 +303,19 @@ class ClipBleedRestore(BaseModel):
         return self
 
 
+class SegmentRef(BaseModel):
+    """Where a clip came from in the segment library, kept so a later slice can see drift.
+
+    ``content_sha256`` is the stored version's ``SegmentFile.content_sha256`` at insert time.
+    """
+
+    model_config = {"extra": "forbid", "frozen": True}
+
+    segment_id: str
+    version: int = Field(ge=1)
+    content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class Clip(BaseModel):
     id: str
     track_id: str
@@ -321,6 +334,8 @@ class Clip(BaseModel):
     # Validated against source_start/source_end when the Clip is built only: code that assigns
     # those fields afterwards must re-run timing.validate_within(source_start, source_end).
     timing: ClipTiming | None = None
+    # Set on clips an Insert made from a saved segment; None for every other clip.
+    segment_ref: SegmentRef | None = None
 
     @field_validator("off_speaker_mute_regions")
     @classmethod
@@ -342,6 +357,8 @@ class Clip(BaseModel):
             data.pop("bleed_restore", None)
         if self.timing is None:
             data.pop("timing", None)
+        if self.segment_ref is None:
+            data.pop("segment_ref", None)
         return data
 
     @model_validator(mode="after")
