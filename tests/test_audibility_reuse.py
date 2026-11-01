@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import threading
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -312,3 +313,21 @@ def test_an_identity_that_cannot_be_read_degrades_the_set_instead_of_failing(
 
     assert caches.audio_identity is None
     assert caches.caches
+
+
+def test_defaults_holding_a_cancel_check_are_shared_without_copying(
+    tmp_path: Path, builds: list
+) -> None:
+    project = _echo_stem_project(tmp_path)
+    live = {**DEFAULTS, "_pipeline_cancel_check": threading.Event().is_set}
+
+    with audibility_run_scope():
+        for _ in range(2):
+            compute_word_audibility_map(
+                project,
+                policy=POLICY,
+                caches=build_reconciliation_caches(project, defaults=live),
+                defaults=live,
+            )
+
+    assert builds == [None]
