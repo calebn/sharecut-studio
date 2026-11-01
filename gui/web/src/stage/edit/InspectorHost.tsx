@@ -70,11 +70,13 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
 
 function useBodySections(
   rangeActionsInSheet: boolean,
+  barShown = false,
 ): readonly InspectorSection[] {
   const envelope = useEnvelopePointSections(useDaw((s) => s.selection));
   const rebuilt = useSelectionSections(
     useDaw((s) => s.selection),
     rangeActionsInSheet,
+    barShown,
   );
   const legacy = useMemo(
     () => [
@@ -179,7 +181,7 @@ function Card({
     };
   }, [measure, anchor.moves, anchor.visible]);
   useResizeObserver(root, measure);
-  const sections = useBodySections(sheet.rangeActionsInSheet);
+  const sections = useBodySections(sheet.rangeActionsInSheet, true);
   // The Action bar hides the same way when its anchor scrolls out.
   const shown = placement !== null && (anchor.visible || selection === null);
   useInspectorFocus(box, shown);
@@ -228,7 +230,8 @@ function Phone({
   }, [lanes]);
   useLayoutEffect(fit, [fit]);
   useResizeObserver(lanes, fit);
-  const sections = useBodySections(sheet.rangeActionsInSheet);
+  const dockShown = !(detent === "full" && tight);
+  const sections = useBodySections(sheet.rangeActionsInSheet, dockShown);
   useInspectorFocus(box, true);
   return (
     <div ref={box} className="edit-inspector-slot">
@@ -238,9 +241,9 @@ function Phone({
         label="Inspector"
         sections={sections}
         dock={
-          detent === "full" && tight ? null : (
+          dockShown ? (
             <EditActionBar form="dock" root={null} inInspector />
-          )
+          ) : null
         }
         detent={detent}
         onDetentChange={(next) => {

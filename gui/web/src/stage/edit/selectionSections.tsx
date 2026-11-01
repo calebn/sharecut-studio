@@ -10,12 +10,13 @@ import { useWordSections } from "./wordSections";
 export function useSelectionSections(
   selection: Selection,
   rangeActionsInSheet = false,
+  barShown = false,
 ): readonly InspectorSection[] | null {
   const word = useWordSections(selection);
   const applied = useAppliedSections(selection);
   const bleed = useBleedSections(selection);
   const comment = useCommentSections(selection);
-  const pending = usePendingSections(selection);
+  const pending = usePendingSections(selection, barShown);
   if (word) return word;
   const rest = applied ?? bleed ?? comment ?? pending;
   if (!rest) return null;

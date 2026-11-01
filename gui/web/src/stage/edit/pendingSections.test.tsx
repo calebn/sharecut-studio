@@ -20,7 +20,7 @@ vi.mock("../../api", () => ({
 
 const edit = pendingEditView({ id: "edit-1", suggested_action: "cut" });
 
-function open(selection: NonNullable<Selection>) {
+function open(selection: NonNullable<Selection>, barShown = false) {
   useDawStore.getState().hydrate(
     "/tmp/p.json",
     minimalProject({
@@ -29,7 +29,7 @@ function open(selection: NonNullable<Selection>) {
     }),
   );
   useDawStore.getState().setSelection(selection);
-  return render(<SectionsBody withRange={false} />);
+  return render(<SectionsBody withRange={false} barShown={barShown} />);
 }
 
 describe("usePendingSections", () => {
@@ -48,6 +48,12 @@ describe("usePendingSections", () => {
       screen.getByRole("spinbutton", { name: "Source start" }),
     ).toBeTruthy();
     expect(screen.getByRole("spinbutton", { name: "Source end" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
+  });
+
+  it("drops Approve and Reject only where the Action bar is shown", () => {
+    open({ kind: "pending", id: "edit-1", trackId: edit.track_id }, true);
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
   });
