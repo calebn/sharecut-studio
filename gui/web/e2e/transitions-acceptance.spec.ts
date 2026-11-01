@@ -65,11 +65,8 @@ test("pending suggestions preserve drafts and save the displayed full range once
     },
     projectPath,
   );
-  const sourceStart = page.getByRole("textbox", {
-    name: "Source start",
-    exact: true,
-  });
-  await expect(sourceStart).toHaveValue("0:02.000");
+  const sourceStart = page.getByLabel("Source start", { exact: true });
+  await expect(sourceStart).toHaveAttribute("aria-valuetext", "2.000 s");
   const before = fs.readFileSync(projectPath, "utf8");
   const response = await page.request.get(
     `/api/pending-edits/${encodeURIComponent(editId)}/cut-suggestion?path=${encodeURIComponent(projectPath)}`,

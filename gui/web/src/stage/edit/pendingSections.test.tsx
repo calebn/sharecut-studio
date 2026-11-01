@@ -44,13 +44,19 @@ describe("usePendingSections", () => {
 
   it("renders the pending edit for a pending selection", () => {
     open({ kind: "pending", id: "edit-1", trackId: edit.track_id });
-    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
+    expect(
+      screen.getByRole("spinbutton", { name: "Source start" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("spinbutton", { name: "Source end" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
   });
 
   it("renders the linked pending edit for a comment on it", () => {
     open({ kind: "comment", id: "c-1" });
-    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(
+      screen.getByRole("spinbutton", { name: "Source start" }),
+    ).toBeTruthy();
   });
 
   it("says when the edit is gone", () => {

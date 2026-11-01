@@ -88,8 +88,8 @@ flowchart TD
 **Setup:** An Editor link.
 
 This journey covers every pending proposal, exact selected-range proposals
-included. A completed **Approve** or **Reject** from the inspector or timeline
-action card offers **Undo** in the feedback toast when an edit changed, including
+included. A completed **Approve** or **Reject** from the timeline action card, or **Cut** or **Keep**
+from the Action bar, offers **Undo** in the feedback toast when an edit changed, including
 trusted interactive approval. A reply that changed no edits says
 so without Undo. History remains the backstop.
 

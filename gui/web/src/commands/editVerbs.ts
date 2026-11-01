@@ -53,6 +53,7 @@ import { staleRenderBreakdown } from "../utils/staleRender";
 import { runDeleteClips } from "./editing";
 import { removeEnvelopePoint } from "./envelopes";
 import { registerCommand } from "./execute";
+import { decideThroughSheet } from "./pendingDecision";
 import { executePointerCommand } from "./pointer";
 import {
   PLAY_DENIED_REASON,
@@ -194,6 +195,8 @@ async function decidePending(
       if (live.selection === selection) live.setSelection(null);
       return OK;
     }
+    const sheet = await decideThroughSheet(edit.id, action);
+    if (sheet) return sheet;
     const capture = capturePendingReview(action, s.projectPath, edit);
     const outcome =
       action === "approve"

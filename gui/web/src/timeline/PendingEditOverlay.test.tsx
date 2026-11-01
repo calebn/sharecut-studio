@@ -34,6 +34,7 @@ import {
   clipRow,
   minimalProject,
 } from "../test/fixtures";
+import { decide } from "../test/pendingDecision";
 import type { PendingEditView } from "../types/project";
 import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
@@ -1563,7 +1564,25 @@ describe("single pending review feedback", () => {
       });
   });
 
+  async function review(
+    entrypoint: "inspector" | "overlay",
+    label: "Approve" | "Reject",
+  ) {
+    if (entrypoint === "inspector") {
+      await decide(label === "Approve" ? "cut" : "keep");
+      return;
+    }
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: label })).toBeEnabled(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: label }));
+  }
+
   function mountReview(entrypoint: "inspector" | "overlay") {
+    if (entrypoint === "inspector")
+      useDawStore
+        .getState()
+        .setSelection({ kind: "pending", id: edit.id, trackId: "host" });
     render(
       <>
         {entrypoint === "inspector" ? (
@@ -1598,17 +1617,14 @@ describe("single pending review feedback", () => {
     it.each([
       ["Approve", "ApproveEdits", "Approved 1 pending edit"],
       ["Reject", "RejectEdits", "Rejected 1 pending edit"],
-    ])(
+    ] as const)(
       "%s clears selection before document adoption and Undo restores the edit",
       async (label, command, message) => {
         const user = userEvent.setup();
         const reply = reviewReply(1, head);
         vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(reply);
         mountReview(entrypoint);
-        await waitFor(() =>
-          expect(screen.getByRole("button", { name: label })).toBeEnabled(),
-        );
-        await user.click(screen.getByRole("button", { name: label }));
+        await review(entrypoint, label);
         expect(await screen.findByText(message)).toBeVisible();
         expect(useDawStore.getState().feedbackToast?.undo).toBe(head);
         expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
@@ -1651,9 +1667,7 @@ describe("single pending review feedback", () => {
           return reply;
         });
         mountReview(entrypoint);
-        await userEvent.click(
-          await screen.findByRole("button", { name: label }),
-        );
+        await review(entrypoint, label);
         expect(await screen.findByText(message)).toBeVisible();
         expect(useDawStore.getState().feedbackToast?.undo).toBeNull();
         expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
@@ -1662,19 +1676,15 @@ describe("single pending review feedback", () => {
       },
     );
 
-    it.each(["Approve", "Reject"])(
+    it.each(["Approve", "Reject"] as const)(
       "%s stays queued without completion or Undo",
       async (label) => {
-        const user = userEvent.setup();
         vi.mocked(submitQueuedDocumentCommand).mockResolvedValue({
           queued: true,
           history_head_id: head,
         });
         mountReview(entrypoint);
-        await waitFor(() =>
-          expect(screen.getByRole("button", { name: label })).toBeEnabled(),
-        );
-        await user.click(screen.getByRole("button", { name: label }));
+        await review(entrypoint, label);
         expect(await screen.findByRole("status")).toHaveTextContent(
           "Still sending.",
         );

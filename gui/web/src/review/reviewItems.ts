@@ -22,7 +22,7 @@ export type ReviewEntry = {
   readonly content: ReviewContent;
 };
 
-const KIND_OF: Readonly<Record<PendingKind, DecisionKind>> = {
+export const KIND_OF: Readonly<Record<PendingKind, DecisionKind>> = {
   filler: "filler",
   pause: "pause",
   repeat: "repeat",
@@ -31,7 +31,7 @@ const KIND_OF: Readonly<Record<PendingKind, DecisionKind>> = {
   other: "suggestion",
 };
 
-const decisionKindOf = (kind: unknown): DecisionKind =>
+export const decisionKindOf = (kind: unknown): DecisionKind =>
   typeof kind === "string" && Object.hasOwn(KIND_OF, kind)
     ? KIND_OF[kind as PendingKind]
     : "suggestion";
