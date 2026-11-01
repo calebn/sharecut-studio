@@ -200,7 +200,7 @@ export function usePrepareModel(): PrepareModel {
     useDawStore
       .getState()
       .announceStatus(
-        "Could not apply your choice for Apply sound actions. It is on for this project; change it in Advanced.",
+        "Could not confirm this browser's choice for sound actions. Check Advanced before processing. Episode switches reset when ShareCut restarts.",
         { tone: "error" },
       );
   }, [projectPath]);

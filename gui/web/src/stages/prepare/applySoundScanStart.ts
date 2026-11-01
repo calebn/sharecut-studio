@@ -8,12 +8,12 @@ const FAILED_KEY = "sharecut.soundScanStartFailed";
 
 /**
  * Gives a project that was just created the person's own start choice for the
- * sound scan. The project keeps its own switch from then on.
+ * sound actions for the current host session. A host restart restores defaults.
  *
  * The config PUT replaces the working set with the defaults plus what it is
  * sent (`PipelineConfigStore.put`), so this sends the project's whole current
  * config with the one setting changed, the way every Advanced edit does.
- * Never throws: on failure the project keeps the saved default and the
+ * Never throws: on failure the applied choice is unconfirmed and the
  * failure is remembered for Prepare to say (`takeSoundScanStartFailure`).
  */
 export async function applySoundScanStart(projectPath: string): Promise<void> {

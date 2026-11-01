@@ -38,7 +38,7 @@ const BUSY_CODE = "pipeline_busy";
 /** `update` redoes the transcripts whose audio changed, and only those. */
 type RunMode = "run" | "retranscribe" | "retime" | "update";
 
-/** Options for one run, from the project's saved pipeline settings. */
+/** Options for one run, from this episode's staged session settings. */
 export function runOptions(
   cfg: PipelineConfigResponse,
   mode: RunMode,
@@ -130,10 +130,10 @@ type KeepFixes = {
 };
 
 /**
- * Runs the pipeline for Prepare. Import starts it by itself once the files
- * are in; a missing model never downloads on its own, it shows the Get row and
- * the run continues after the download. Re-transcribe and Re-time words ask on
- * the row before they would replace hand fixes.
+ * Runs the pipeline for Prepare. An initial import starts it once the files
+ * are in. Audio added beside transcribed tracks waits for Process new audio.
+ * A missing model shows Get and the run continues after its download.
+ * Re-transcribe and Re-time words ask before replacing hand fixes.
  */
 export function usePrepareRun(input: PrepareRunInput) {
   const { ingestBusy, canRun, mediaKey } = input;

@@ -89,8 +89,8 @@ export type AdvancedStepsProps = {
 };
 
 const BUSY = "Steps cannot change while one is running.";
-const SAVED_HERE =
-  "Switches here are saved with this project and used by every run. To change one run only, use Skip in the plan.";
+const SESSION_SCOPE =
+  "These switches affect runs started here for this episode until ShareCut restarts. After a restart, the steps return to their defaults. Use Skip in the plan to change one run.";
 
 function clampedValue(param: ScrubParam): number {
   const value = Number.isFinite(param.value) ? param.value : param.defaultValue;
@@ -405,7 +405,7 @@ export function AdvancedSteps({
       <h2 ref={heading} tabIndex={-1} id={titleId} className="sys-adv-title">
         Advanced steps
       </h2>
-      <p className="sys-adv-result">{SAVED_HERE}</p>
+      <p className="sys-adv-result">{SESSION_SCOPE}</p>
       {status}
       {groups.map((group) => (
         <section
