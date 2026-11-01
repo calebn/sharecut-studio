@@ -243,4 +243,13 @@ describe("ClipTrimWave anatomy", () => {
       expect(region.style.inlineSize).toBe(width);
     },
   );
+
+  it("releases the hold when it unmounts mid-gesture", () => {
+    const onGesture = vi.fn();
+    const { handle } = setup({ onGesture });
+    fireEvent.pointerDown(handle("In"), { pointerId: 1, clientX: 150 });
+    expect(onGesture).not.toHaveBeenCalledWith(false);
+    cleanup();
+    expect(onGesture).toHaveBeenLastCalledWith(false);
+  });
 });

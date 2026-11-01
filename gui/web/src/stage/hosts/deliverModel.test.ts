@@ -7,6 +7,7 @@ import {
   deliverFacts,
   editHeadOf,
   fixRoute,
+  sameClipBounds,
 } from "./deliverModel";
 
 const coldOpen = { id: "ch-0", at: 0, title: "Cold open" };
@@ -250,5 +251,24 @@ describe("editHeadOf", () => {
     expect(editHeadOf({ head_id: head, groups: groupsOf(c.entries) })).toBe(
       c.expected,
     );
+  });
+});
+
+describe("sameClipBounds", () => {
+  it("is true for the same ids and bounds, whatever else changed", () => {
+    expect(sameClipBounds([lineA, lineB], [lineA, lineB])).toBe(true);
+    expect(
+      sameClipBounds(
+        [lineA],
+        [{ ...lineA, title: "Renamed", approved: true, score: 0.1 }],
+      ),
+    ).toBe(true);
+  });
+
+  it("is false when a bound, an id or the count differs", () => {
+    expect(sameClipBounds([lineA], [{ ...lineA, start: 11 }])).toBe(false);
+    expect(sameClipBounds([lineA], [{ ...lineA, end: 41 }])).toBe(false);
+    expect(sameClipBounds([lineA], [{ ...lineA, id: "other" }])).toBe(false);
+    expect(sameClipBounds([lineA, lineB], [lineA])).toBe(false);
   });
 });
