@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { updateChapter, updateSocialClip } from "../api";
-import { execute } from "../commands/execute";
+import { executePointerCommand } from "../commands/pointer";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -388,7 +388,7 @@ export function LiveMarkerLane(props: LiveProps) {
     [projectPath, projectEpoch, setSelection],
   );
   const onAddChapter = useCallback(async (atTime: number, title: string) => {
-    await execute("edit.addChapter", { atTime, title }, { skipWhen: true });
+    await executePointerCommand("edit.addChapter", { atTime, title });
   }, []);
   return (
     <MarkerLaneHost

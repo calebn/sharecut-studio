@@ -465,6 +465,42 @@ describe("MarkerLane moving", () => {
     expect(fireEvent.keyDown(document.body, { key: "Escape" })).toBe(true);
   });
 
+  it.each([
+    ["chapter", "ch-interview", "move"],
+    ["clip", "sc-joke", "move"],
+    ["start edge", "sc-joke", "start"],
+    ["end edge", "sc-joke", "end"],
+  ] as const)(
+    "cancels a held %s pointer when focus leaves",
+    (kind, id, grip) => {
+      const { container, onDragEnd } = setup({ selected: [id] });
+      const target =
+        kind === "chapter"
+          ? chapter()
+          : kind === "clip"
+            ? joke()
+            : edge(grip === "start" ? "Start" : "End");
+      target.focus();
+      press(target, 180);
+      moveTo(track(), 200);
+      expect(container.querySelector(".sys-readout")).not.toBeNull();
+      fireEvent.blur(target);
+      expect(container.querySelector(".sys-readout")).toBeNull();
+      moveTo(track(), 220);
+      fireEvent.pointerUp(track(), { pointerId: 1, clientX: 220 });
+      expect(onDragEnd.mock.calls).toEqual([[id, grip, false]]);
+      expect(container.querySelector(".sys-readout")).toBeNull();
+      target.focus();
+      press(target, 180, 2);
+      moveTo(track(), 200, 2);
+      fireEvent.pointerUp(track(), { pointerId: 2, clientX: 200 });
+      expect(onDragEnd.mock.calls).toEqual([
+        [id, grip, false],
+        [id, grip, true],
+      ]);
+    },
+  );
+
   it("ends as not committed on pointercancel, a lost capture and a window blur, once each", () => {
     const { onDragEnd } = dragging();
     const lane = track();
@@ -563,6 +599,7 @@ describe("MarkerLane keys", () => {
       true,
     ]);
     fireEvent.blur(chapter());
+    fireEvent.keyUp(chapter(), { key: "ArrowRight" });
     expect(onNudgeEnd.mock.calls).toEqual([["ch-interview", "move", true]]);
   });
 

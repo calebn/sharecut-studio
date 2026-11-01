@@ -586,6 +586,38 @@ for (const profile of profiles) {
         }
       });
     });
+    test("F10 native Tab cancels a held chapter or social pointer drag", async ({
+      page,
+    }, info) => {
+      await audit(page, info, profile, false, async (projectPath, commands) => {
+        for (const label of [
+          /^Chapter Inventory chapter,/,
+          /^Clip idea Inventory social,/,
+        ]) {
+          const target = page.getByRole("button", { name: label, exact: true });
+          await target.focus();
+          await expect(target).toBeFocused();
+          const start = await center(target);
+          const origin = await drawn(target);
+          const before = saved(projectPath);
+          await page.mouse.move(start.x, start.y);
+          await page.mouse.down();
+          await page.mouse.move(start.x + 20.5, start.y, { steps: 5 });
+          await expect
+            .poll(async () => (await drawn(target)).x)
+            .not.toBe(origin.x);
+          await page.keyboard.press("Tab");
+          await expect(target).not.toBeFocused();
+          await expect.poll(() => drawn(target)).toEqual(origin);
+          await expect(page.locator(".sys-readout")).toHaveCount(0);
+          await page.mouse.move(start.x + 40.25, start.y);
+          await expect.poll(() => drawn(target)).toEqual(origin);
+          await page.mouse.up();
+          expect(saved(projectPath)).toEqual(before);
+          expect(commands).toEqual([]);
+        }
+      });
+    });
     test("F10 exposed pending drag or constrained exact timing restores with Undo", async ({
       page,
     }, info) => {

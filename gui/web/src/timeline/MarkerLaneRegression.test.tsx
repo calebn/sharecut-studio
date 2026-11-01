@@ -173,6 +173,117 @@ describe("marker lane regression contracts", () => {
     },
   );
 
+  it.each(["chapter", "clip", "start", "end"])(
+    "cancels a held %s pointer on marker blur before a fresh drag commits",
+    (kind) => {
+      const onMoveChapter = vi.fn();
+      const onMoveSocial = vi.fn();
+      const view = render(
+        <MarkerLaneHost
+          {...base}
+          chapters={[{ time: 3, title: "Opening" }]}
+          selected={["3-Opening", "social"]}
+          readOnly={false}
+          onMoveChapter={onMoveChapter}
+          onMoveSocial={onMoveSocial}
+        />,
+      );
+      const target =
+        kind === "chapter"
+          ? screen.getByRole("button", { name: /Chapter Opening/ })
+          : kind === "clip"
+            ? screen.getByRole("button", { name: /Clip idea Moment/ })
+            : screen.getByRole("slider", {
+                name: `${kind === "start" ? "Start" : "End"} of Moment`,
+              });
+      const track = view.container.querySelector(".sys-markers-track")!;
+      target.focus();
+      fireEvent.pointerDown(target, {
+        pointerId: 1,
+        button: 0,
+        clientX: 100,
+        clientY: 12,
+      });
+      fireEvent.pointerMove(track, { pointerId: 1, clientX: 130, clientY: 12 });
+      expect(view.container.querySelector(".sys-readout")).not.toBeNull();
+      fireEvent.blur(target);
+      expect(view.container.querySelector(".sys-readout")).toBeNull();
+      fireEvent.pointerMove(track, { pointerId: 1, clientX: 150, clientY: 12 });
+      fireEvent.pointerUp(track, { pointerId: 1, clientX: 150, clientY: 12 });
+      expect(onMoveChapter).not.toHaveBeenCalled();
+      expect(onMoveSocial).not.toHaveBeenCalled();
+      expect(view.container.querySelector(".sys-readout")).toBeNull();
+      target.focus();
+      fireEvent.pointerDown(target, {
+        pointerId: 2,
+        button: 0,
+        clientX: 100,
+        clientY: 12,
+      });
+      fireEvent.pointerMove(track, { pointerId: 2, clientX: 120, clientY: 12 });
+      fireEvent.pointerUp(track, { pointerId: 2, clientX: 120, clientY: 12 });
+      if (kind === "chapter") {
+        expect(onMoveChapter).toHaveBeenCalledExactlyOnceWith(
+          { time: 3, title: "Opening" },
+          5,
+        );
+        expect(onMoveSocial).not.toHaveBeenCalled();
+      } else {
+        expect(onMoveSocial).toHaveBeenCalledExactlyOnceWith(
+          "social",
+          kind === "end" ? 10 : 12,
+          kind === "start" ? 14 : 16,
+        );
+        expect(onMoveChapter).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it.each(["chapter", "clip", "start", "end"])(
+    "commits a held %s keyboard move exactly once on blur",
+    (kind) => {
+      const onMoveChapter = vi.fn();
+      const onMoveSocial = vi.fn();
+      render(
+        <MarkerLaneHost
+          {...base}
+          chapters={[{ time: 3, title: "Opening" }]}
+          selected={["3-Opening", "social"]}
+          readOnly={false}
+          onMoveChapter={onMoveChapter}
+          onMoveSocial={onMoveSocial}
+        />,
+      );
+      const target =
+        kind === "chapter"
+          ? screen.getByRole("button", { name: /Chapter Opening/ })
+          : kind === "clip"
+            ? screen.getByRole("button", { name: /Clip idea Moment/ })
+            : screen.getByRole("slider", {
+                name: `${kind === "start" ? "Start" : "End"} of Moment`,
+              });
+      target.focus();
+      fireEvent.keyDown(target, { key: "ArrowRight", shiftKey: true });
+      fireEvent.blur(target);
+      fireEvent.keyUp(target, { key: "ArrowRight" });
+      fireEvent.blur(target);
+      if (kind === "chapter") {
+        expect(onMoveChapter).toHaveBeenCalledExactlyOnceWith(
+          { time: 3, title: "Opening" },
+          4,
+        );
+        expect(onMoveSocial).not.toHaveBeenCalled();
+      } else {
+        expect(onMoveSocial).toHaveBeenCalledExactlyOnceWith(
+          "social",
+          kind === "end" ? 10 : 11,
+          kind === "start" ? 14 : 15,
+        );
+        expect(onMoveChapter).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   it("shares one pending add across inline names and the global command", async () => {
     const pending = deferred<HistoryEntryId | null>();
     vi.mocked(api.addChapter).mockReturnValue(pending.promise);

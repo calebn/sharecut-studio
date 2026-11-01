@@ -638,7 +638,7 @@ Passes 0–8: History Undo/Redo, pending Approve/Reject (bulk + nudge), applied 
 
 The Edit timeline uses one 24 px system marker row for chapters, comments and clip ideas. Markers off also hides recording clipping flags and their row. Comments have their own visibility switch. Short touch layouts can keep the clipping row without an empty marker row.
 
-Moving a clip idea with the pointer or arrow keys preserves its duration within known episode bounds. An edge keeps a 0.1 s minimum. A changed source span or coordinate window cancels held input. Ordinary blur or arrow release commits once; Escape, invalidation and unmount cancel. Unknown duration and whole spans at least as long as the episode use the existing unbounded movement contract.
+Moving a clip idea with the pointer or arrow keys preserves its duration within known episode bounds. An edge keeps a 0.1 s minimum. A changed source span or coordinate window cancels held input. Ordinary keyboard blur or arrow release commits once. A held pointer drag cancels when its marker loses focus. Escape, invalidation and unmount cancel. Unknown duration and whole spans at least as long as the episode use the existing unbounded movement contract.
 
 Inline chapter names use `edit.addChapter` with an explicit trimmed title. The playhead and touch menus keep their generated default title. All three share one pending add, undo feedback and project-lifetime protection. An older project's completion cannot replace a new project's selection or pending status.
 

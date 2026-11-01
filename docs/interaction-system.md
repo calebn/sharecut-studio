@@ -292,7 +292,7 @@ There are three overlay primitives.
 
 ### Marker lane gestures
 
-`system/MarkerLane` owns a marker's press through its actual rendered hit button. `timeline/MarkerLaneHost` supplies authoritative source times separately from preview geometry. Pointer input and held arrows cancel if the source span, duration, zoom, window start or editability changes. An identical source refresh and the host's own preview preserve the gesture. Arrow release and ordinary blur commit once; Escape, invalidation and unmount cancel. Keyboard movement uses the same whole-span bounds as pointer movement and reverses immediately at a boundary.
+`system/MarkerLane` owns a marker's press through its actual rendered hit button. `timeline/MarkerLaneHost` supplies authoritative source times separately from preview geometry. Pointer input and held arrows cancel if the source span, duration, zoom, window start or editability changes. An identical source refresh and the host's own preview preserve the gesture. Arrow release and ordinary keyboard blur commit once. A held pointer drag cancels when its marker loses focus. Escape, invalidation and unmount cancel. Keyboard movement uses the same whole-span bounds as pointer movement and reverses immediately at a boundary.
 
 Inline chapter naming executes `edit.addChapter` with `{ atTime, title }`. Menu and playhead additions keep the generated title when `title` is absent. Invalid explicit names produce no pending flag, visibility change or request. One command owns pending state, undo feedback and project-lifetime checks. Markers visibility also controls clipping rendering and reserved row height; comments remain independent.
 

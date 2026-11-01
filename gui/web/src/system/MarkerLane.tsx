@@ -155,7 +155,7 @@ type Routes = {
     event: KeyboardEvent<HTMLElement>,
   ) => void;
   keyUp: (event: KeyboardEvent<HTMLElement>) => void;
-  endNudge: () => void;
+  blur: () => void;
 };
 
 type ItemProps = Routes & {
@@ -207,7 +207,7 @@ const MarkerItem = memo(function MarkerItem({
   bodyKey,
   edgeKey,
   keyUp,
-  endNudge,
+  blur,
 }: ItemProps) {
   const { marker } = placed;
   const id = marker.id;
@@ -228,7 +228,7 @@ const MarkerItem = memo(function MarkerItem({
     ...(movable ? { "data-movable": "true" } : {}),
     onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => bodyKey(id, event),
     onKeyUp: keyUp,
-    onBlur: endNudge,
+    onBlur: blur,
     ...routes("move"),
   };
   const edge = (grip: "start" | "end") => {
@@ -263,7 +263,7 @@ const MarkerItem = memo(function MarkerItem({
         onClick={(event) => click(id, event)}
         onKeyDown={(event) => edgeKey(id, grip, event)}
         onKeyUp={keyUp}
-        onBlur={endNudge}
+        onBlur={blur}
         {...routes(grip)}
       >
         <span className="sys-marker-grip" />
@@ -618,6 +618,10 @@ export const MarkerLane = memo(function MarkerLane({
   const cancel = useStableCallback((event: PointerEvent<HTMLElement>) =>
     grab.cancel(event),
   );
+  const blur = useStableCallback(() => {
+    grab.abort();
+    endNudge();
+  });
   const click = useStableCallback(
     (id: string, event: MouseEvent<HTMLElement>) => {
       if (grab.consumeClick(event)) return;
@@ -722,7 +726,7 @@ export const MarkerLane = memo(function MarkerLane({
     bodyKey,
     edgeKey,
     keyUp,
-    endNudge,
+    blur,
   };
 
   const addAt = adding ? (adding.at - start) * pxPerSecond : 0;

@@ -123,21 +123,37 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
       MARKER_ROW,
     );
     for (const author of ["Dee", "Eli"]) {
-      const box = (await pin(page, author).boundingBox())!;
-      expect(box.height).toBe(MARKER_ROW);
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      const ownership = await pin(page, author).evaluate((element) => {
+      const target = await pin(page, author).evaluate((element) => {
         const rect = element.getBoundingClientRect();
-        return [-18, 18].map((offset) =>
-          element.contains(
-            document.elementFromPoint(
-              rect.x + rect.width / 2 + offset,
-              rect.y + rect.height / 2,
+        const after = getComputedStyle(element, "::after");
+        const left = Number.parseFloat(after.left);
+        const right = Number.parseFloat(after.right);
+        const centerX = rect.x + (rect.width + left - right) / 2;
+        const centerY = rect.y + rect.height / 2;
+        return {
+          height: rect.height,
+          pseudo:
+            after.content !== "none" &&
+            after.content !== "normal" &&
+            after.display !== "none",
+          finiteInsets: Number.isFinite(left) && Number.isFinite(right),
+          effectiveWidth: rect.width - left - right,
+          ownership: [-21.5, 21.5].map((offset) =>
+            element.contains(
+              document.elementFromPoint(centerX + offset, centerY),
             ),
           ),
-        );
+          outside: [rect.top - 0.5, rect.bottom + 0.5].map((y) =>
+            element.contains(document.elementFromPoint(centerX, y)),
+          ),
+        };
       });
-      expect(ownership).toEqual([true, true]);
+      expect(target.height).toBe(MARKER_ROW);
+      expect(target.pseudo).toBe(true);
+      expect(target.finiteInsets).toBe(true);
+      expect(target.effectiveWidth).toBeGreaterThanOrEqual(44);
+      expect(target.ownership).toEqual([true, true]);
+      expect(target.outside).toEqual([false, false]);
     }
     const file = path.join(
       "playwright-report",
