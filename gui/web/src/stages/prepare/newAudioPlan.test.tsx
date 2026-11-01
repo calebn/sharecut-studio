@@ -260,6 +260,13 @@ describe("audio added to a project that already ran", () => {
     );
     const { view } = result.current;
     expect(view.phase).toBe("done");
+    // The New marker clears once the run has covered the audio.
+    expect(view.sessions[0].status).toBe("done");
+    expect(view.sessions[0].sources.map((s) => s.state)).toEqual([
+      "ready",
+      "ready",
+      "ready",
+    ]);
     expect(view.readyNote).toBe(
       "Done in 1 min 12 s. 4 of 6 results were reused, so this run did less.",
     );
