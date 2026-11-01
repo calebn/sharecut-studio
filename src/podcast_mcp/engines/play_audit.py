@@ -9,7 +9,7 @@ from typing import Any
 from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.engines.bleed_restore import RESTORE_RENDER_REV
 from podcast_mcp.engines.clips_ops import MuteIndex, clips_for_track, crossfade_borrow_sec
-from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
+from podcast_mcp.engines.ffmpeg import MASTER_SEMANTICS_REV, MIX_SEMANTICS_REV
 from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.mute_regions import IgnoredWordRegions, mute_regions_payload
@@ -786,13 +786,14 @@ def master_source_hash(project: EpisodeProject) -> str | None:
 def master_fingerprint(project: EpisodeProject, target: MasterTarget) -> str | None:
     """Fingerprint everything the master is built from, or None with no premix.
 
-    The premix (``master_source_hash``) and the ``master.*`` settings that change the
-    audio (``target``). The one place that decides whether ``mastered.wav`` is current.
+    The premix (``master_source_hash``), the ``master.*`` settings that change the
+    audio (``target``) and ``MASTER_SEMANTICS_REV``, so masters made under older
+    mastering rules re-master once. The one place that decides whether ``mastered.wav`` is current.
     """
     source = master_source_hash(project)
     if source is None:
         return None
-    return short_digest(f"{source}\n{target.to_json()}")
+    return short_digest(f"{MASTER_SEMANTICS_REV}\n{source}\n{target.to_json()}")
 
 
 def _mastered_sidecar(project: EpisodeProject) -> list[str]:
