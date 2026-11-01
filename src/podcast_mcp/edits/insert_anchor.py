@@ -143,8 +143,9 @@ def resolve_insert_anchor(project: EpisodeProject, anchor: InsertAnchor) -> floa
         spots = recorded
     spot = spots[0]
     if abs(anchor.offset_s) > _EPS and any(
-        clip.timeline_start + _EPS < spot < clip.timeline_end - _EPS
+        tl_a + _EPS < spot < tl_a + (src_b - src_a) - _EPS
         for clip in _dialogue_clips(project)
+        for src_a, src_b, tl_a in clip.virtual_pieces()
     ):
         raise _stale()
     return spot
