@@ -311,13 +311,21 @@ export function PendingEditBody({
     setEnteredEdge(null);
   }, [timingIdentity, edit.source_start, edit.source_end]);
 
+  const busyRef = useRef(timingBusy);
+  useEffect(() => {
+    busyRef.current = timingBusy;
+  });
   const decideRef = useRef(runAction);
   useEffect(() => {
     decideRef.current = runAction;
   });
   useEffect(
     () =>
-      registerPendingDecider(edit.id, (action) => decideRef.current(action)),
+      registerPendingDecider(
+        edit.id,
+        (action) => decideRef.current(action),
+        () => (busyRef.current ? BUSY_REASON : null),
+      ),
     [edit.id],
   );
 

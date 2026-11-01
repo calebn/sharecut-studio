@@ -76,10 +76,12 @@ describe("usePendingSections", () => {
   });
 
   it("renders the linked pending edit for a comment on it", () => {
-    open({ kind: "comment", id: "c-1" });
+    open({ kind: "comment", id: "c-1" }, true);
     expect(
       screen.getByRole("spinbutton", { name: "Source start" }),
     ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
   });
 
   it("says when the edit is gone", () => {

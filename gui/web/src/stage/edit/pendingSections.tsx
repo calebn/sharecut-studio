@@ -41,7 +41,5 @@ export function usePendingSections(
   const linked = linkedId
     ? project?.pending_edits.find((e) => e.id === linkedId)
     : undefined;
-  return linked
-    ? only(<PendingEditBody edit={linked} verbsOnBar={barShown} />)
-    : null;
+  return linked ? only(<PendingEditBody edit={linked} />) : null;
 }
