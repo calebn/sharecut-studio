@@ -14,6 +14,7 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+from podcast_mcp.util.tracks import unknown_track
 
 
 def ensure_track(project: EpisodeProject, track_id: str, *, label: str) -> Track:
@@ -200,7 +201,7 @@ def place_extracted_room_tone(
     """Register a bed the pipeline cut from the track's own audio, with where it came from."""
     existing = project.track_by_id(track_id)
     if existing is None:
-        raise ValueError(f"no track {track_id!r} to hold an extracted room-tone bed")
+        raise unknown_track(track_id)
     track = place_room_tone(
         project,
         track_id=track_id,
