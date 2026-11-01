@@ -39,10 +39,11 @@ def _current(project: EpisodeProject, track: Track) -> bool:
         stamp = file_stamp(track_audio_path(project, track.id))
     except OSError:
         return False
-    if (
-        track.room_tone is None
-        or not resolve_under_workspace(project, track.room_tone.path).is_file()
-    ):
+    try:
+        bed = resolve_under_workspace(project, track.room_tone.path) if track.room_tone else None
+    except ValueError:
+        return False
+    if bed is None or not bed.is_file():
         return False
     return (stamp.size, stamp.mtime_ns) == (origin.media_size, origin.media_mtime_ns)
 
