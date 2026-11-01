@@ -875,7 +875,7 @@ describe("the plan for audio added after a run", () => {
     expect(
       rows(plan()).map((r) => [r.id, r.state, r.detail, r.action?.label]),
     ).toEqual([
-      ["add", "done", "Priya added, 4 files", undefined],
+      ["add", "done", "Priya added, 1 file", undefined],
       ["transcribe", "queued", "Priya only · 3 kept", "Skip"],
       ["align", "queued", "All 4 tracks, Priya joins", "Skip"],
       ["clean", "queued", "All 4 tracks", "Skip"],
@@ -908,7 +908,7 @@ describe("the plan for audio added after a run", () => {
     expect(skipped[2]).toMatchObject({
       id: "align",
       state: "queued",
-      detail: "Skipped this time. Priya stays where it was recorded.",
+      detail: "Skipped this time. Priya is not lined up with the others.",
       action: { label: "Include", run: "include" },
     });
     expect(skipped[1].action?.run).toBe("skip");
@@ -929,7 +929,7 @@ describe("the plan for audio added after a run", () => {
     expect(skipped[1]).toMatchObject({
       state: "queued",
       detail:
-        "Skipped this time. Priya will have no transcript, so later steps leave it out.",
+        "Skipped this time. Priya will have no transcript or suggestions.",
       action: { label: "Include", run: "include" },
     });
     const two = rows(
@@ -940,7 +940,7 @@ describe("the plan for audio added after a run", () => {
       }),
     );
     expect(two[1].detail).toBe(
-      "Skipped this time. Priya and Joss will have no transcript, so later steps leave them out.",
+      "Skipped this time. Priya and Joss will have no transcript or suggestions.",
     );
   });
 
@@ -1015,6 +1015,78 @@ describe("the plan for audio added after a run", () => {
       newTrackIds: new Set(["p"]),
     });
     expect(session.sources[1].state).toBe("needs-name");
+  });
+});
+
+describe("what a one-run Skip may leave out", () => {
+  const all = [
+    "ingest_tracks",
+    "transcribe_tracks",
+    "align_tracks",
+    "require_align_accept",
+    "merge_transcript",
+    "render_dialogue_stems",
+    "reconcile_transcript",
+    "precorrect_transcript",
+    "analyze_fillers_pauses",
+    "apply_sound_actions",
+    "fill_gate_holes",
+    "clean_audio",
+    "compress_tracks",
+    "balance_tracks",
+    "assemble_timeline",
+  ];
+
+  it("never omits the steps that build the transcript and the stems", () => {
+    const skipped = oneRunSkipSteps(
+      { step_names: all, enabled_steps: all },
+      new Set(["transcribe", "align", "clean", "scan", "suggest"]),
+    );
+    for (const kept of [
+      "merge_transcript",
+      "reconcile_transcript",
+      "precorrect_transcript",
+      "render_dialogue_stems",
+      "assemble_timeline",
+      "ingest_tracks",
+    ]) {
+      expect(skipped).not.toContain(kept);
+    }
+    expect(skipped).toEqual(
+      expect.arrayContaining([
+        "align_tracks",
+        "clean_audio",
+        "transcribe_tracks",
+      ]),
+    );
+  });
+
+  it("says plainly what Clean, Scan and Suggestions leave undone", () => {
+    const text = (id: "clean" | "scan" | "suggest") =>
+      readyRows({
+        ...base,
+        sourceCount: 4,
+        plan: {
+          newNames: ["Priya"],
+          kept: 3,
+          skipped: new Set([id]),
+          scan: { time: "about 1 min" },
+        },
+      }).find((r) => r.id === id)?.detail;
+    expect(text("clean")).toBe(
+      "Skipped this time. Priya is not cleaned or levelled.",
+    );
+    expect(text("scan")).toBe("Skipped this time. Sounds are not scanned.");
+    expect(text("suggest")).toBe("Skipped this time. No new suggestions.");
+  });
+
+  it("counts only the new files on the Add audio row", () => {
+    const [add] = readyRows({
+      ...base,
+      sourceCount: 5,
+      plan: { newNames: ["Priya", "Joss"], kept: 3, skipped: new Set() },
+    });
+    expect(add.detail).toBe("Priya and Joss added, 2 files");
   });
 });
 

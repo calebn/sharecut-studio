@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runIncludesTranscribe } from "./jobMedia";
+import { jobMediaKey, recordJobMedia, runIncludesTranscribe } from "./jobMedia";
 
 const STEPS = [
   "ingest_tracks",
@@ -58,5 +58,30 @@ describe("runIncludesTranscribe", () => {
 
   it("does not count a step it does not know", () => {
     expect(runIncludesTranscribe({ fromStep: "nope" })).toBe(false);
+  });
+});
+
+describe("the audio a job covered", () => {
+  it("is still known after a reload, from this tab's storage", () => {
+    sessionStorage.clear();
+    recordJobMedia("j-reload", "a:/a.wav");
+    // A reload keeps sessionStorage but empties the memory copy; the saved copy answers.
+    expect(
+      JSON.parse(sessionStorage.getItem("sharecut.jobMedia") ?? "{}"),
+    ).toEqual({
+      "j-reload": "a:/a.wav",
+    });
+    expect(jobMediaKey("j-reload")).toBe("a:/a.wav");
+    expect(jobMediaKey("never-seen")).toBeUndefined();
+  });
+
+  it("keeps only the latest jobs", () => {
+    sessionStorage.clear();
+    for (let at = 0; at < 25; at += 1) recordJobMedia(`j${at}`, `k${at}`);
+    const saved = JSON.parse(
+      sessionStorage.getItem("sharecut.jobMedia") ?? "{}",
+    );
+    expect(Object.keys(saved)).toHaveLength(20);
+    expect(saved.j24).toBe("k24");
   });
 });

@@ -61,6 +61,7 @@ const proj = (tracks: ReturnType<typeof sampleTrack>[], spoken: string[]) =>
   });
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
   start.mockResolvedValue(
     pipelineJobSnapshot({ id: "j-new", status: "running" }),
   );

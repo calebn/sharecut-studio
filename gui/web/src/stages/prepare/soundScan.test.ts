@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadPipelineConfig, putPipelineConfig } from "../../api";
 import { pipelineConfig } from "../../test/pipelineConfigFixture";
-import { applySoundScanStart } from "./applySoundScanStart";
+import {
+  applySoundScanStart,
+  takeSoundScanStartFailure,
+} from "./applySoundScanStart";
 import {
   readSoundScanStart,
   SOUND_SCAN_COST,
@@ -54,15 +57,22 @@ describe("New projects start with this", () => {
 
 describe("applySoundScanStart", () => {
   const path = "/tmp/new/episode.sharecut";
-  const withScan = pipelineConfig({
+  const current = pipelineConfig({
+    config: {
+      transcribe: { language: "fr" },
+      tighten: { apply_non_speech: true },
+    },
     enabled_steps: ["transcribe_tracks", "apply_sound_actions"],
   });
 
-  it("turns the scan off in a new project by default", async () => {
-    vi.mocked(loadPipelineConfig).mockResolvedValue(withScan);
+  it("turns the scan off in a new project by default, keeping every other setting", async () => {
+    vi.mocked(loadPipelineConfig).mockResolvedValue(current);
     await applySoundScanStart(path);
     expect(putPipelineConfig).toHaveBeenCalledWith(path, {
-      config: { tighten: { apply_non_speech: false } },
+      config: {
+        transcribe: { language: "fr" },
+        tighten: { apply_non_speech: false },
+      },
       enabled_steps: ["transcribe_tracks"],
     });
   });
@@ -70,18 +80,34 @@ describe("applySoundScanStart", () => {
   it("leaves it on when the person chose that", async () => {
     writeSoundScanStart(true);
     vi.mocked(loadPipelineConfig).mockResolvedValue(
-      pipelineConfig({ enabled_steps: ["transcribe_tracks"] }),
+      pipelineConfig({
+        config: { transcribe: { language: "fr" } },
+        enabled_steps: ["transcribe_tracks"],
+      }),
     );
     await applySoundScanStart(path);
     expect(putPipelineConfig).toHaveBeenCalledWith(path, {
-      config: { tighten: { apply_non_speech: true } },
+      config: {
+        transcribe: { language: "fr" },
+        tighten: { apply_non_speech: true },
+      },
       enabled_steps: ["transcribe_tracks", "apply_sound_actions"],
     });
   });
 
-  it("never throws: the project keeps its saved default", async () => {
-    vi.mocked(loadPipelineConfig).mockRejectedValue(new Error("offline"));
+  it("never throws, and remembers the failure so Prepare can say it once", async () => {
+    vi.mocked(loadPipelineConfig).mockResolvedValue(current);
+    vi.mocked(putPipelineConfig).mockRejectedValue(new Error("offline"));
     await expect(applySoundScanStart(path)).resolves.toBeUndefined();
-    expect(putPipelineConfig).not.toHaveBeenCalled();
+    expect(takeSoundScanStartFailure("/tmp/other.sharecut")).toBe(false);
+    expect(takeSoundScanStartFailure(path)).toBe(true);
+    expect(takeSoundScanStartFailure(path)).toBe(false);
+  });
+
+  it("remembers nothing when it worked", async () => {
+    vi.mocked(loadPipelineConfig).mockResolvedValue(current);
+    vi.mocked(putPipelineConfig).mockResolvedValue(current);
+    await applySoundScanStart(path);
+    expect(takeSoundScanStartFailure(path)).toBe(false);
   });
 });

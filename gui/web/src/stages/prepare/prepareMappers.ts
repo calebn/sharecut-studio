@@ -41,9 +41,19 @@ const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
 
 /** What a Skip on a plan row leaves out of the one run. */
 const SKIP_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
-  ...ROW_STEPS,
-  suggest: ["analyze_fillers_pauses"],
+  add: [],
+  // The merge, reconcile, stem and timeline steps build the transcript and the
+  // audio every later stage reads, so Skip never leaves them out.
+  transcribe: ["transcribe_tracks"],
+  align: ["align_tracks", "require_align_accept"],
+  clean: [
+    "fill_gate_holes",
+    "clean_audio",
+    "compress_tracks",
+    "balance_tracks",
+  ],
   scan: ["apply_sound_actions"],
+  suggest: ["analyze_fillers_pauses"],
 };
 
 /**
@@ -332,7 +342,7 @@ export function planNote(plan: RerunPlan): string {
   return `${first} ${rest}`;
 }
 
-function planRows(input: ReadyInput, plan: RerunPlan): ReadyRowData[] {
+function planRows(plan: RerunPlan): ReadyRowData[] {
   const who = whoIsNew(plan.newNames);
   const scope = `${who} only · ${plan.kept} kept`;
   const total = plan.kept + plan.newNames.length;
@@ -340,9 +350,13 @@ function planRows(input: ReadyInput, plan: RerunPlan): ReadyRowData[] {
   // Only Transcribe skips tracks that already have results (#2890 covers the
   // rest), so only it says "kept"; the other rows say what runs on all.
   const everyone = `All ${total} tracks`;
+  const are = plan.newNames.length === 1 ? "is" : "are";
   const consequence: Partial<Record<ReadyRowId, string>> = {
-    transcribe: `Skipped this time. ${who} will have no transcript, so later steps leave ${plan.newNames.length === 1 ? "it" : "them"} out.`,
-    align: `Skipped this time. ${who} stays where it was recorded.`,
+    transcribe: `Skipped this time. ${who} will have no transcript or suggestions.`,
+    align: `Skipped this time. ${who} ${are} not lined up with the others.`,
+    clean: `Skipped this time. ${who} ${are} not cleaned or levelled.`,
+    scan: "Skipped this time. Sounds are not scanned.",
+    suggest: "Skipped this time. No new suggestions.",
   };
   const row = (id: ReadyRowId, detail: string): ReadyRowData =>
     plan.skipped.has(id)
@@ -365,7 +379,7 @@ function planRows(input: ReadyInput, plan: RerunPlan): ReadyRowData[] {
       id: "add",
       state: "done",
       title: ROW_TITLE.add,
-      detail: `${who} added, ${plural(input.sourceCount, "file", "files")}`,
+      detail: `${who} added, ${plural(plan.newNames.length, "file", "files")}`,
     },
     row("transcribe", scope),
     row("align", joins),
@@ -497,7 +511,7 @@ export const OVERWRITE_REFUSED = "transcript_overwrite_refused";
 
 export function readyRows(input: ReadyInput): ReadyRowData[] {
   if (input.sourceCount === 0) return [];
-  if (input.plan) return planRows(input, input.plan);
+  if (input.plan) return planRows(input.plan);
   // A finished run says nothing about audio that arrived after it, unless it
   // ran on this audio and a source simply has no speech to show.
   const job =
