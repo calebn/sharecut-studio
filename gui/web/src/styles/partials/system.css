@@ -846,9 +846,10 @@
   pointer-events: none;
 }
 
-/* The phone Player drops the skip buttons (design system 2, Frame 4). It also
-   drops the "/ total" (the button's name still carries it) and shows each
-   Status pill as its glyph, with the text kept for assistive tech. */
+/* At 40 rem and under the Player drops the skip buttons (design system 2,
+   Frame 4) and the "/ total" (the button's name still carries it). Each Status
+   pill is its glyph, text kept for assistive tech, here and up to 50 rem below.
+   Touch targets and the side columns are sized for a phone. */
 @container sys-player (max-width: 40rem) {
   .sys-player {
     grid-template-columns: auto 1fr auto;
@@ -902,7 +903,9 @@
 
 /* Under 50 rem the Status pill is its glyph and the text stays for assistive
    tech: the right-hand controls and the pill's text do not fit the side column
-   of a wide phone, and the A and B toggles slid under the skip buttons. */
+   of a wide phone. Between 40 and 50 rem the skip buttons are still shown, and
+   the A and B toggles slid under them; at 40 rem and under the rule above
+   already hides the skip buttons and this rule repeats the glyph-only pill. */
 @container sys-player (max-width: 50rem) {
   /* During an audio error the Comment button and the status text give their
      room to the error pill and Retry: with all of them, the right-hand
@@ -924,9 +927,9 @@
   }
 }
 
-/* A 360 px phone is 29 px short of Play, the clock and the four controls at the
-   usual spacing: tighter gaps and a smaller clock keep every 44 px target clear
-   of the next. */
+/* A 360 px phone is short of room for Play, the clock and the four controls at
+   the usual spacing: tighter gaps and a smaller clock keep every 44 px target
+   clear of the next. */
 @container sys-player (max-width: 23.5rem) {
   .sys-player-host .sys-player {
     gap: var(--space-1);
@@ -941,7 +944,8 @@
   }
 }
 
-/* Under 14 rem (a phone at 200% text) the clock drops to the UI size, and Play,
+/* Under 14 rem (a phone at 200% text) the gap and the clock size of the rule
+   above apply to the expanded Player too, and Play,
    the clock and the hear menu are the one row: the A and B toggles, Comment and
    the status chips are in the expanded Player, as in a folded frame. */
 @container sys-player (max-width: 14rem) {
