@@ -76,7 +76,7 @@ export const Default: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason:
-      "The play asserts the header drawn in a 48rem frame; its 360 px render is the matching Phone story.",
+      "The play asserts the header drawn in a 48rem frame.",
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -287,7 +287,7 @@ export const SpeakerMatchesName: Story = {
   tags: ["wide-only"],
   parameters: {
     wideOnlyReason:
-      "The play asserts the header drawn in a 48rem frame; its 360 px render is the matching Phone story.",
+      "The play asserts the header drawn in a 48rem frame.",
   },
   args: {
     track: sampleTrack({
