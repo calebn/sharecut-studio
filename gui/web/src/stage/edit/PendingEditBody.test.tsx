@@ -394,6 +394,30 @@ describe("PendingEditBody", () => {
     expect(useDawStore.getState().feedbackToast?.message ?? null).toBeNull();
   });
 
+  it("announces a failed Cut from the bar in the status line and in the sheet", async () => {
+    approveEdits.mockRejectedValueOnce(new Error("Approval failed"));
+    render(<PendingEditBody edit={sessionCut} />);
+    await decide("cut");
+    expect(useDawStore.getState().statusAnnouncement).toBe("Approval failed");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Approval failed",
+    );
+  });
+
+  it("announces a queued Cut from the bar in the status line and in the sheet", async () => {
+    approveEdits.mockResolvedValueOnce({
+      queued: true,
+      count: null,
+      historyHead: null,
+    });
+    render(<PendingEditBody edit={sessionCut} />);
+    await decide("cut");
+    expect(useDawStore.getState().statusAnnouncement).toMatch(/Still sending/);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Still sending.",
+    );
+  });
+
   it("keeps a suggestion through the sheet when Keep is chosen", async () => {
     render(<PendingEditBody edit={sessionCut} />);
     await decide("keep");

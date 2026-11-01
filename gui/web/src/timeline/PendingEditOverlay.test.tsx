@@ -1689,9 +1689,9 @@ describe("single pending review feedback", () => {
           "Still sending.",
         );
         expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-        expect(
-          useDawStore.getState().feedbackToast?.message ?? null,
-        ).toBeNull();
+        expect(useDawStore.getState().feedbackToast?.message ?? null).toBe(
+          entrypoint === "inspector" ? PENDING_REVIEW_QUEUED_MESSAGE : null,
+        );
         expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
       },
     );
