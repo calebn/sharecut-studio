@@ -27,11 +27,14 @@ if TYPE_CHECKING:
     from podcast_mcp.models import EpisodeProject
 
 
+_RUNTIME_HOOK_PREFIX = "_pipeline_"
+
+
 class _RunRows:
     def __init__(self) -> None:
         self.lock = threading.Lock()
         self.rows: dict[Hashable, list[dict[str, Any]]] = {}
-        self.defaults: EffectiveConfig | None = None
+        self.defaults: dict[str, Any] | None = None
 
 
 _run: ContextVar[_RunRows | None] = ContextVar("audibility_run_rows", default=None)
@@ -110,7 +113,8 @@ def shared_rows(
     """``build()``, or this run's earlier rows for the same audio, policy and word spans.
 
     The returned rows belong to the caller; the run keeps its own. The run is bound to the
-    first ``defaults`` it serves: the audio identity names only part of that config, so a
+    first ``defaults`` it serves, less the per-step runtime hooks (``_pipeline_*``: persist,
+    cancel check), which are fresh closures each step: the audio identity names only part of that config, so a
     reader with different defaults builds its own rows. A lane with no clip of its own is
     timed through clips on other tracks that neither the identity nor the signature names,
     so a run with one never shares.
@@ -118,11 +122,17 @@ def shared_rows(
     run = _run.get()
     if run is None or identity is None or not all(lane.placed for lane in lanes):
         return build()
+    config = {k: v for k, v in defaults.items() if not k.startswith(_RUNTIME_HOOK_PREFIX)}
     with run.lock:
         if run.defaults is None:
-            run.defaults = defaults
-        elif run.defaults != defaults:
-            return build()
+            run.defaults = config
+        else:
+            try:
+                same = bool(run.defaults == config)
+            except (TypeError, ValueError):
+                same = False
+            if not same:
+                return build()
     key = (identity, policy, _words_signature(lanes))
     with run.lock:
         kept = run.rows.get(key)
