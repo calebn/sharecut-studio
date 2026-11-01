@@ -576,3 +576,22 @@ def test_format_social_clip_report_statuses_and_reasons():
     assert "draft" in report
     assert "pending" in report
     assert "hook_pattern" in report
+
+
+def test_two_exports_at_once_do_not_share_a_staging_folder(tmp_path, monkeypatch):
+    nested = {"running": False}
+
+    def render(_src, out, _start, _end):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        if nested["running"]:
+            out.write_bytes(b"inner")
+            return out
+        out.write_bytes(b"outer")
+        nested["running"] = True
+        export_social_clips(proj, {"social_clips": {"padding_ms": 0}})
+        return out
+
+    proj = _one_approved_clip(tmp_path, monkeypatch, render)
+    (wav,) = [e["wav"] for e in export_social_clips(proj, {"social_clips": {"padding_ms": 0}})]
+
+    assert Path(wav).read_bytes() == b"outer"

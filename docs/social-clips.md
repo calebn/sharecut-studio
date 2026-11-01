@@ -7,7 +7,7 @@ Propose short highlight clips from combined transcripts and export WAV + JSON si
 - `propose_social_clips_tool` — heuristic ranking (hooks, energy, duration, sentence-like starts; mid-utterance chunks are demoted). Energy comes from each track's own waveform pyramid (`track:<id>`), which is built inline first when missing, so the first propose call on large, freshly imported media can take a few seconds.
 - `social_clip_report_tool` — markdown summary
 - `approve_social_clips_tool` / `reject_social_clips_tool`
-- `export_social_clips_tool` — audio only
+- `export_social_clips_tool` — audio only. Each export renders its clips in a private staging folder inside `export/clips/` and replaces each WAV and its JSON sidecar atomically, so a download or listing never sees a half-written clip, and a failed render keeps the previous file.
 
 Titles/captions truncate at word boundaries. Platform presets: `.agents/defaults/pipeline.yaml` → `social_clips.platforms`. The merged config type (`EffectiveConfig`) lives in `podcast_mcp.config.defaults`.
 
