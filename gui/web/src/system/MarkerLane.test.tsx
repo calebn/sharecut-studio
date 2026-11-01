@@ -501,6 +501,46 @@ describe("MarkerLane moving", () => {
     },
   );
 
+  it.each([
+    ["start", "release"],
+    ["end", "release"],
+    ["chapter", "release"],
+    ["start", "blur"],
+    ["end", "blur"],
+    ["chapter", "blur"],
+  ] as const)(
+    "keeps a new %s pointer through the old body's blur, then ends on %s",
+    (kind, terminal) => {
+      const { container, onDragStart, onDragEnd } = setup({
+        selected: ["sc-joke", "ch-interview"],
+      });
+      const target =
+        kind === "chapter"
+          ? chapter()
+          : edge(kind === "start" ? "Start" : "End");
+      const id = kind === "chapter" ? "ch-interview" : "sc-joke";
+      const grip = kind === "chapter" ? "move" : kind;
+      joke().focus();
+      press(target, 180);
+      expect(joke()).toHaveFocus();
+      target.focus();
+      expect(target).toHaveFocus();
+      moveTo(track(), 200);
+      expect(onDragStart).toHaveBeenCalledOnce();
+      expect(container.querySelector(".sys-readout")).not.toBeNull();
+      if (terminal === "blur") {
+        fireEvent.blur(target);
+        expect(container.querySelector(".sys-readout")).toBeNull();
+        moveTo(track(), 220);
+      }
+      fireEvent.pointerUp(track(), { pointerId: 1, clientX: 220 });
+      expect(onDragEnd.mock.calls).toEqual([
+        [id, grip, terminal === "release"],
+      ]);
+      expect(container.querySelector(".sys-readout")).toBeNull();
+    },
+  );
+
   it("ends as not committed on pointercancel, a lost capture and a window blur, once each", () => {
     const { onDragEnd } = dragging();
     const lane = track();
