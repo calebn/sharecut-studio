@@ -13,7 +13,6 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.mcp.tools import edits as mcp_edits
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
-from podcast_mcp.mcp.tools import transcript as mcp_transcript
 from podcast_mcp.mcp.tools.transcript import transcript_refine_waive_tool
 from podcast_mcp.models import (
     Clip,
@@ -308,7 +307,7 @@ def test_timeline_edit_tools_journal_through_the_document_plane(tmp_path, ten_se
     mcp_timeline.add_effect_tool(path, track_id="host", effect="agate")
     mcp_timeline.set_effect_bypass_tool(path, 0, True, track_id="host")
     mcp_timeline.remove_effect_tool(path, track_id="host", effect="agate")
-    mcp_transcript.apply_low_audibility_suppression_tool(path, words=[])
+    mcp_timeline.apply_low_audibility_suppression_tool(path, words=[])
     assert _journal_types(path) == [
         "SetJoinMode",
         "SetClipJoin",
@@ -348,23 +347,23 @@ def test_transcript_batch_tools_journal_and_keep_their_codes(tmp_path, sample_wa
     _seed_transcribed(path, sample_wav)
     transcript_refine_waive_tool(path, "probe")
     cleaned = json.loads(
-        mcp_transcript.apply_transcript_cleanup_tool(
+        mcp_timeline.apply_transcript_cleanup_tool(
             path, "host", {"words": [{"word_index": 0, "text": "hi"}]}
         )
     )
     verified = json.loads(
-        mcp_transcript.verify_transcript_tool(path, "host", [{"word_index": 1, "text": "earth"}])
+        mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 1, "text": "earth"}])
     )
     assert cleaned == {"track_id": "host", "applied": 1}
     assert verified == {"verified": 1}
     assert _journal_types(path) == ["ApplyTranscriptCleanup", "VerifyTranscript"]
     with pytest.raises(ValueError) as caught:
-        mcp_transcript.apply_transcript_cleanup_tool(
+        mcp_timeline.apply_transcript_cleanup_tool(
             path, "host", {"words": [{"word_index": 99, "text": "x"}]}
         )
     assert caught.value.code == "word_index_out_of_range"
     with pytest.raises(ValueError) as bad_item:
-        mcp_transcript.verify_transcript_tool(path, "host", [{"word_index": 1}])
+        mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 1}])
     assert "text" in str(bad_item.value)
     assert _journal_types(path) == ["ApplyTranscriptCleanup", "VerifyTranscript"]
 

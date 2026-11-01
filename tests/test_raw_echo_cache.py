@@ -13,7 +13,7 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import ungated_audio
 from podcast_mcp.engines.audio_audit import build_track_rms_caches
-from podcast_mcp.mcp.tools.transcript import audibility_map_tool, reconcile_transcript_tool
+from podcast_mcp.mcp.tools.timeline import audibility_map_tool, reconcile_transcript_tool
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,

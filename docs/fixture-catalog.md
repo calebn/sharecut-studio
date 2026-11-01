@@ -119,9 +119,9 @@ Skills live under `.agents/skills/`.
 |--------|-------|--------|
 | `mcp/tools/episode.py` | 2 | Project / tracks |
 | `mcp/tools/ingest.py` | 3 | Ingest / align |
-| `mcp/tools/transcript.py` | 4 | Transcribe / reconcile / correct / refine |
+| `mcp/tools/transcript.py` | 4 | Transcribe / precorrect |
 | `mcp/tools/edits.py` | 14 | NL edit / tighten |
-| `mcp/tools/timeline.py` | 37 | Timeline, FX, chapters |
+| `mcp/tools/timeline.py` | 37 | Reconcile, timeline, FX, chapters |
 | `mcp/tools/speaker.py` | 5 | Speaker attribution |
 | `mcp/tools/play.py` | 2 | Audition |
 | `mcp/tools/pipeline.py` | 5 | Pipeline / render / export |

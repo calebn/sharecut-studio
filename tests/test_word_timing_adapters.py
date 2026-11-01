@@ -13,7 +13,7 @@ from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, Wo
 from podcast_mcp.engines.waveform_media import collect_media_refs, track_media_refs
 from podcast_mcp.gui.mapper import map_transcript_utterances_to_timeline
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.mcp.tools.transcript import set_word_timing_tool
+from podcast_mcp.mcp.tools.timeline import set_word_timing_tool
 from podcast_mcp.models import (
     MediaAsset,
     SourceRecording,

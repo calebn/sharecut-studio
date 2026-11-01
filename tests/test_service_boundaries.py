@@ -105,7 +105,7 @@ _ADAPTER_DOMAIN_ALLOWLIST: dict[str, set[str]] = {
     "podcast_mcp.mcp.tools.pipeline": {
         "podcast_mcp.edits.envelopes",
     },
-    "podcast_mcp.mcp.tools.transcript": {
+    "podcast_mcp.mcp.tools.timeline": {
         "podcast_mcp.edits.transcript_timing",
     },
 }

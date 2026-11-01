@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -20,6 +21,19 @@ from podcast_mcp.util.fingerprint import file_stamp
 ExportedFileKind = Literal["audio", "transcript", "chapters", "feed"]
 
 CLIPS_DIRNAME = "clips"
+_HIDDEN_CHAR_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
+_BIDI_CONTROLS = frozenset(
+    "\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069"
+)
+
+
+def _plain_name(name: str) -> bool:
+    """False for a name with a control, bidi control or line-separator character in it."""
+    return not any(
+        char in _BIDI_CONTROLS or unicodedata.category(char) in _HIDDEN_CHAR_CATEGORIES
+        for char in name
+    )
+
 
 _AUDIO_LABELS = {"wav": "Lossless master", "flac": "Lossless"}
 _LISTENING_LABEL = "Listening file"
@@ -104,7 +118,7 @@ class ExportFilesService:
             wanted.extend(
                 (f"{CLIPS_DIRNAME}/{p.name}", "audio", AUDIO_EXPORT_MEDIA[p.suffix[1:].lower()])
                 for p in sorted(clips.iterdir())
-                if p.suffix[1:].lower() in AUDIO_EXPORT_MEDIA
+                if p.suffix[1:].lower() in AUDIO_EXPORT_MEDIA and _plain_name(p.name)
             )
         wanted.extend(
             (f"{stem}.{fmt}", "transcript", TRANSCRIPT_MIME[fmt]) for fmt in TRANSCRIPT_FORMATS

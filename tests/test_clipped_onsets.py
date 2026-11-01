@@ -13,7 +13,7 @@ from podcast_mcp.edits import clipped_onsets
 from podcast_mcp.edits.clipped_onsets import flag_clipped_word_starts
 from podcast_mcp.edits.comments import add_reply, resolve_comment
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
-from podcast_mcp.mcp.tools.transcript import set_word_timing_tool
+from podcast_mcp.mcp.tools.timeline import set_word_timing_tool
 from podcast_mcp.models import (
     Clip,
     SpeakerIngestAlignment,

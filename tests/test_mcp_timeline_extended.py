@@ -9,7 +9,6 @@ import pytest
 
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
-from podcast_mcp.mcp.tools import transcript as mcp_transcript
 from podcast_mcp.models import (
     Clip,
     CombinedTranscript,
@@ -83,22 +82,22 @@ def test_mcp_transcript_correction_expected_text_guard(tmp_path, sample_wav):
     _seed_project(path, sample_wav)
 
     with pytest.raises(ValueError, match="changed since you read it"):
-        mcp_transcript.correct_transcript_tool(path, "host", 0, "Hi", expected_text="world")
+        mcp_timeline.correct_transcript_tool(path, "host", 0, "Hi", expected_text="world")
     proj = load_project(Path(path))
     assert proj.transcripts[0].words[0].text == "hello"
 
     corrected = json.loads(
-        mcp_transcript.correct_transcript_tool(path, "host", 0, "Hi", expected_text="hello")
+        mcp_timeline.correct_transcript_tool(path, "host", 0, "Hi", expected_text="hello")
     )
     assert corrected["text"] == "Hi"
 
     with pytest.raises(ValueError, match="changed since you read"):
-        mcp_transcript.correct_transcript_phrase_tool(
+        mcp_timeline.correct_transcript_phrase_tool(
             path, "host", 0, 1, "Hi earth", expected_text="nope"
         )
 
     phrase = json.loads(
-        mcp_transcript.correct_transcript_phrase_tool(
+        mcp_timeline.correct_transcript_phrase_tool(
             path, "host", 0, 1, "Hi earth", expected_text="Hi world"
         )
     )
@@ -110,22 +109,22 @@ def test_mcp_suppress_and_ignore_expected_text_guard(tmp_path, sample_wav):
     _seed_project(path, sample_wav)
 
     with pytest.raises(ValueError, match="changed since you read it"):
-        mcp_transcript.set_word_suppressed_tool(path, "host", 0, True, expected_text="world")
+        mcp_timeline.set_word_suppressed_tool(path, "host", 0, True, expected_text="world")
     proj = load_project(Path(path))
     assert proj.transcripts[0].words[0].suppressed is False
 
     suppressed = json.loads(
-        mcp_transcript.set_word_suppressed_tool(path, "host", 0, True, expected_text="hello")
+        mcp_timeline.set_word_suppressed_tool(path, "host", 0, True, expected_text="hello")
     )
     assert suppressed["suppressed"] is True
 
     with pytest.raises(ValueError, match="changed since you read"):
-        mcp_transcript.set_words_ignored_tool(path, "host", 0, 1, True, expected_text="nope")
+        mcp_timeline.set_words_ignored_tool(path, "host", 0, 1, True, expected_text="nope")
     proj = load_project(Path(path))
     assert not any(w.ignored for w in proj.transcripts[0].words)
 
     ignored = json.loads(
-        mcp_transcript.set_words_ignored_tool(path, "host", 0, 1, True, expected_text="hello world")
+        mcp_timeline.set_words_ignored_tool(path, "host", 0, 1, True, expected_text="hello world")
     )
     assert ignored["changed"] == 2
 
@@ -134,18 +133,18 @@ def test_mcp_set_word_automatic_clears_lock(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)
 
-    locked = json.loads(mcp_transcript.set_word_suppressed_tool(path, "host", 0, True))
+    locked = json.loads(mcp_timeline.set_word_suppressed_tool(path, "host", 0, True))
     assert locked["suppressed"] is True
     proj = load_project(Path(path))
     assert proj.transcripts[0].words[0].audibility_locked is True
 
     with pytest.raises(ValueError, match="changed since you read it"):
-        mcp_transcript.set_word_automatic_tool(path, "host", 0, expected_text="world")
+        mcp_timeline.set_word_automatic_tool(path, "host", 0, expected_text="world")
     proj = load_project(Path(path))
     assert proj.transcripts[0].words[0].audibility_locked is True
 
     unlocked = json.loads(
-        mcp_transcript.set_word_automatic_tool(path, "host", 0, expected_text="hello")
+        mcp_timeline.set_word_automatic_tool(path, "host", 0, expected_text="hello")
     )
     assert unlocked["audibility_locked"] is False
     assert unlocked["suppressed"] is True
@@ -178,15 +177,15 @@ def test_mcp_timeline_transcript_correction_tools(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)
     phrase = json.loads(
-        mcp_transcript.correct_transcript_phrase_tool(path, "host", 0, 1, "goodbye earth")
+        mcp_timeline.correct_transcript_phrase_tool(path, "host", 0, 1, "goodbye earth")
     )
     assert phrase["text"] == "goodbye earth"
-    out = json.loads(mcp_transcript.low_confidence_words_tool(path, 0.7))
+    out = json.loads(mcp_timeline.low_confidence_words_tool(path, 0.7))
     assert isinstance(out, list)
-    corrected = mcp_transcript.correct_transcript_tool(path, "host", 1, "earth")
+    corrected = mcp_timeline.correct_transcript_tool(path, "host", 1, "earth")
     data = json.loads(corrected)
     assert data["text"] == "earth"
-    batch = mcp_transcript.apply_transcript_cleanup_tool(
+    batch = mcp_timeline.apply_transcript_cleanup_tool(
         path,
         "host",
         {"words": [{"word_index": 0, "text": "hi"}], "phrases": []},
@@ -245,6 +244,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls,
         patch("podcast_mcp.mcp.tools.timeline.TimelineService", svc_cls),
         patch("podcast_mcp.mcp.tools.timeline.AnalysisService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
     ):
         svc = svc_cls.return_value
         svc.split_clip.return_value = {"operation": "split_clip", "clip_id": "c1"}
@@ -273,7 +273,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
             fill = json.loads(mcp_timeline.fill_with_room_tone_tool(path, speaker="Host"))
         loud = json.loads(mcp_timeline.check_loudness_tool(path))
         verified = json.loads(
-            mcp_transcript.verify_transcript_tool(path, "host", [{"word_index": 0, "text": "hi"}])
+            mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 0, "text": "hi"}])
         )
         removed = json.loads(mcp_timeline.remove_effect_tool(path, track_id="host", effect="agate"))
         analyzed = json.loads(mcp_timeline.analyze_cleanup_tool(path, speaker="Host"))
@@ -360,8 +360,10 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
     _seed_project(path, sample_wav)
 
     with (
-        patch("podcast_mcp.mcp.tools.transcript.AnalysisService") as svc_cls,
-        patch("podcast_mcp.mcp.tools.transcript.TranscriptService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls,
+        patch("podcast_mcp.mcp.tools.timeline.TimelineService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.AnalysisService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
     ):
         svc = svc_cls.return_value
         svc.reconciliation_status.return_value = {"stale": False}
@@ -375,31 +377,31 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
         svc.audibility_map.return_value = []
         svc.flagged_words.return_value = []
 
-        status = json.loads(mcp_transcript.reconciliation_status_tool(path))
+        status = json.loads(mcp_timeline.reconciliation_status_tool(path))
         reconcile = json.loads(
-            mcp_transcript.reconcile_transcript_tool(path, speaker="Host", dry_run=True)
+            mcp_timeline.reconcile_transcript_tool(path, speaker="Host", dry_run=True)
         )
-        bleed = json.loads(mcp_transcript.bleed_words_tool(path, track_id="host"))
+        bleed = json.loads(mcp_timeline.bleed_words_tool(path, track_id="host"))
         suppressed = json.loads(
-            mcp_transcript.apply_bleed_suppression_tool(
+            mcp_timeline.apply_bleed_suppression_tool(
                 path,
                 speaker="Host",
                 words=[{"track_id": "host", "word_index": 0}],
                 dry_run=True,
             )
         )
-        overlap = json.loads(mcp_transcript.overlap_duplicates_tool(path, start_sec=0.0))
+        overlap = json.loads(mcp_timeline.overlap_duplicates_tool(path, start_sec=0.0))
         gate_preview = json.loads(
-            mcp_transcript.apply_transcript_gate_tool(path, speaker="Host", dry_run=True)
+            mcp_timeline.apply_transcript_gate_tool(path, speaker="Host", dry_run=True)
         )
         svc.preview_bleed_mute.assert_called_once()
-        low_aud = json.loads(mcp_transcript.low_audibility_words_tool(path, track_id="host"))
+        low_aud = json.loads(mcp_timeline.low_audibility_words_tool(path, track_id="host"))
         suppressed_low = json.loads(
-            mcp_transcript.apply_low_audibility_suppression_tool(path, track_id="host")
+            mcp_timeline.apply_low_audibility_suppression_tool(path, track_id="host")
         )
-        gate = json.loads(mcp_transcript.gate_overreach_tool(path, speaker="Host"))
-        aud_map = json.loads(mcp_transcript.audibility_map_tool(path, track_id="host"))
-        flagged = json.loads(mcp_transcript.flagged_words_tool(path, speaker="Host"))
+        gate = json.loads(mcp_timeline.gate_overreach_tool(path, speaker="Host"))
+        aud_map = json.loads(mcp_timeline.audibility_map_tool(path, track_id="host"))
+        flagged = json.loads(mcp_timeline.flagged_words_tool(path, speaker="Host"))
 
     assert status["stale"] is False
     assert reconcile["dry_run"] is True
@@ -430,8 +432,7 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls,
         patch("podcast_mcp.mcp.tools.timeline.TimelineService", svc_cls),
         patch("podcast_mcp.mcp.tools.timeline.AnalysisService", svc_cls),
-        patch("podcast_mcp.mcp.tools.transcript.AnalysisService", svc_cls),
-        patch("podcast_mcp.mcp.tools.transcript.TranscriptService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
     ):
         svc = svc_cls.return_value
         svc.split_clip.return_value = {"operation": "split_clip"}
@@ -463,7 +464,7 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         shortened = json.loads(mcp_timeline.shorten_gaps_tool(path, use_inaudible_opt=True))
         assert shortened["operation"] == "shorten_word_gaps"
         json.loads(
-            mcp_transcript.reconcile_transcript_tool(
+            mcp_timeline.reconcile_transcript_tool(
                 path,
                 track_id="host",
                 start_sec=0.0,
@@ -471,21 +472,21 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
             )
         )
         json.loads(
-            mcp_transcript.apply_bleed_suppression_tool(
+            mcp_timeline.apply_bleed_suppression_tool(
                 path,
                 exclude_words=[{"track_id": "host", "word_index": 1}],
                 apply=False,
             )
         )
         json.loads(
-            mcp_transcript.apply_low_audibility_suppression_tool(
+            mcp_timeline.apply_low_audibility_suppression_tool(
                 path,
                 track_id="host",
                 words=[{"track_id": "host", "word_index": 0}],
             )
         )
         batch = json.loads(
-            mcp_transcript.apply_transcript_cleanup_tool(
+            mcp_timeline.apply_transcript_cleanup_tool(
                 path,
                 "host",
                 {
@@ -527,6 +528,7 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
         patch("podcast_mcp.mcp.tools.timeline.EditService") as svc_cls,
         patch("podcast_mcp.mcp.tools.timeline.TimelineService", svc_cls),
         patch("podcast_mcp.mcp.tools.timeline.AnalysisService", svc_cls),
+        patch("podcast_mcp.mcp.tools.timeline.TranscriptService", svc_cls),
     ):
         svc = svc_cls.return_value
         svc.analyze_cleanup.return_value = {"tracks": ["host"]}
@@ -538,9 +540,7 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
         ) as fill_submit:
             json.loads(mcp_timeline.fill_with_room_tone_tool(path, track_id="host"))
         json.loads(
-            mcp_transcript.verify_transcript_tool(
-                path, "host", [{"word_index": 1, "text": "there"}]
-            )
+            mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 1, "text": "there"}])
         )
         json.loads(mcp_timeline.remove_effect_tool(path, speaker="Host"))
         json.loads(mcp_timeline.analyze_cleanup_tool(path, track_id="host"))
@@ -557,11 +557,11 @@ def test_transcript_word_tools_journal_through_the_document_plane(tmp_path, samp
 
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)
-    mcp_transcript.correct_transcript_tool(path, "host", 0, "Hi")
-    mcp_transcript.correct_transcript_phrase_tool(path, "host", 0, 1, "good bye")
-    mcp_transcript.set_word_suppressed_tool(path, "host", 0, True)
-    mcp_transcript.set_word_automatic_tool(path, "host", 0)
-    mcp_transcript.set_words_ignored_tool(path, "host", 0, 1, True)
+    mcp_timeline.correct_transcript_tool(path, "host", 0, "Hi")
+    mcp_timeline.correct_transcript_phrase_tool(path, "host", 0, 1, "good bye")
+    mcp_timeline.set_word_suppressed_tool(path, "host", 0, True)
+    mcp_timeline.set_word_automatic_tool(path, "host", 0)
+    mcp_timeline.set_words_ignored_tool(path, "host", 0, 1, True)
     types = [r["type"] for r in DocumentSyncService.open(path).store.commands_after(0)]
     assert types == [
         "CorrectTranscriptWord",

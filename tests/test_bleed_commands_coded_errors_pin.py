@@ -12,7 +12,6 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.engines.lane_words import requested_word_keys
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools import timeline
-from podcast_mcp.mcp.tools import transcript as mcp_transcript
 from podcast_mcp.services.document import AnalysisService
 from podcast_mcp.services.document_sync import (
     DocumentSyncService,
@@ -64,9 +63,9 @@ def _conflict(excinfo) -> None:
 @pytest.mark.parametrize(
     "tool, field",
     [
-        (mcp_transcript.apply_low_audibility_suppression_tool, "words"),
-        (mcp_transcript.apply_bleed_suppression_tool, "words"),
-        (mcp_transcript.apply_bleed_suppression_tool, "exclude_words"),
+        (timeline.apply_low_audibility_suppression_tool, "words"),
+        (timeline.apply_bleed_suppression_tool, "words"),
+        (timeline.apply_bleed_suppression_tool, "exclude_words"),
     ],
     ids=["low-words", "bleed-words", "bleed-exclude"],
 )
@@ -84,7 +83,7 @@ def test_mcp_malformed_word_item_is_invalid_payload(tmp_path, tool, field):
 def test_mcp_bleed_preview_refuses_a_malformed_word_item_too(tmp_path, kwargs):
     ws = _workspace(tmp_path)
     with pytest.raises(CodedValueError) as excinfo:
-        mcp_transcript.apply_bleed_suppression_tool(str(ws.path), words=BAD_WORD, **kwargs)
+        timeline.apply_bleed_suppression_tool(str(ws.path), words=BAD_WORD, **kwargs)
     _invalid_payload(excinfo, "words.0")
     assert _journal_types(ws.path) == []
 
@@ -274,7 +273,7 @@ def test_cli_bleed_alignment_choice_journals_one_row_with_the_lock_flag(tmp_path
 def test_gap_fill_suppress_low_audibility_with_real_word_key_journals_one_row(tmp_path):
     ws = _workspace(tmp_path)
     reply = json.loads(
-        mcp_transcript.apply_low_audibility_suppression_tool(str(ws.path), words=GOOD_WORD)
+        timeline.apply_low_audibility_suppression_tool(str(ws.path), words=GOOD_WORD)
     )
     assert reply == {"suppressed_count": 1}
     assert _journal_types(ws.path) == ["SuppressLowAudibility"]
@@ -282,7 +281,7 @@ def test_gap_fill_suppress_low_audibility_with_real_word_key_journals_one_row(tm
 
 def test_gap_fill_suppress_bleed_journals_one_row_through_the_plane(tmp_path):
     ws = _workspace(tmp_path)
-    reply = json.loads(mcp_transcript.apply_bleed_suppression_tool(str(ws.path), words=GOOD_WORD))
+    reply = json.loads(timeline.apply_bleed_suppression_tool(str(ws.path), words=GOOD_WORD))
     assert reply["applied"] is True
     assert reply["dry_run"] is False
     assert _journal_types(ws.path) == ["SuppressBleed"]
@@ -322,9 +321,7 @@ def test_cli_suppress_bleed_dry_run_with_a_real_word_key_previews_without_journa
 def test_row_shaped_word_items_are_accepted_and_extra_keys_dropped(tmp_path):
     ws = _workspace(tmp_path)
     row = {**GOOD_WORD[0], "text": "hi", "start": 0.1, "end": 0.4, "rms_db": -60.0}
-    reply = json.loads(
-        mcp_transcript.apply_low_audibility_suppression_tool(str(ws.path), words=[row])
-    )
+    reply = json.loads(timeline.apply_low_audibility_suppression_tool(str(ws.path), words=[row]))
     assert reply == {"suppressed_count": 1}
     assert _last_payload(ws.path)["words"] == GOOD_WORD
 

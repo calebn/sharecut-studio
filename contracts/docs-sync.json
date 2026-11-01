@@ -551,7 +551,6 @@
           "src/podcast_mcp/gui/routes/project.py",
           "src/podcast_mcp/project/history/diff.py",
           "src/podcast_mcp/mcp/tools/timeline.py",
-          "src/podcast_mcp/mcp/tools/transcript.py",
           "gui/web/src/inspector/",
           "gui/web/src/types/project.ts",
           "src/podcast_mcp/util/tool_timebase.py",
