@@ -25,12 +25,13 @@ def reveal_in_file_manager(path: Path, *, system: str | None = None) -> bool:
 
     *path* must already be a listed export file. The argv is never a shell string.
     """
-    argv = _argv(path, (system or platform.system()).strip())
+    name = (system or platform.system()).strip()
+    argv = _argv(path, name)
     if argv is None:
         return False
     try:
-        # explorer exits 1 even when it opened the window, so the exit code is not checked.
-        process.run(argv, capture_output=True, timeout=_REVEAL_TIMEOUT_SEC, check=False)
+        done = process.run(argv, capture_output=True, timeout=_REVEAL_TIMEOUT_SEC, check=False)
     except (FileNotFoundError, process.TimeoutExpired):
         return False
-    return True
+    # explorer exits 1 even when it opened the window, so its exit code is not checked there.
+    return name == "Windows" or done.returncode == 0
