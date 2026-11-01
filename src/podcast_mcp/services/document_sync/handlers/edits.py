@@ -332,8 +332,12 @@ def move_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 def insert_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     version = p.get("version")
+    at = p["at"]
     return insert_saved_segment(
-        ws, str(p["segment_id"]), float(p["at"]), version=None if version is None else int(version)
+        ws,
+        str(p["segment_id"]),
+        at if isinstance(at, str) else float(at),
+        version=None if version is None else int(version),
     )
 
 

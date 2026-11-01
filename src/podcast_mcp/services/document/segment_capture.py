@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 import tempfile
 from collections.abc import Sequence
@@ -35,6 +36,7 @@ EDGE_SEC = 120.0
 # match the duration the segment records.
 MIN_CLIP_SEC = 0.01
 _EPS = 1e-6
+MAX_CLOCK_SEC = 24 * 3600.0
 _CLOCK = re.compile(r"^(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$|^(\d+(?:\.\d+)?)$")
 
 
@@ -46,9 +48,22 @@ def parse_clock(text: str) -> float:
             f"{text!r} is not a time. Use 1:30 or 90.", code="segment_range_invalid"
         )
     if match.group(4) is not None:
-        return float(match.group(4))
-    hours, minutes, seconds = match.group(1), match.group(2), match.group(3)
-    return int(hours or 0) * 3600 + int(minutes) * 60 + float(seconds)
+        total = float(match.group(4))
+    else:
+        hours, minutes, seconds = match.group(1), int(match.group(2)), float(match.group(3))
+        if minutes >= 60 or seconds >= 60:
+            raise CodedValueError(
+                f"{text!r} is not a time: minutes and seconds go up to 59. "
+                "Use 1:15 for one minute fifteen.",
+                code="segment_range_invalid",
+            )
+        total = int(hours or 0) * 3600 + minutes * 60 + seconds
+    if not math.isfinite(total) or total > MAX_CLOCK_SEC:
+        raise CodedValueError(
+            f"{text!r} is longer than the {MAX_CLOCK_SEC // 3600:g} hours a range can name.",
+            code="segment_range_invalid",
+        )
+    return total
 
 
 def parse_range(text: str) -> tuple[float, float]:

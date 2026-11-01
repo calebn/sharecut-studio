@@ -17,6 +17,7 @@ from podcast_mcp.mcp.tools import (
     play,
     record,
     review,
+    segments,
     session,
     speaker,
     timeline,
@@ -40,6 +41,7 @@ def register_all(mcp: MCPServer) -> None:
     play.register(mcp)
     record.register(mcp)
     session.register(mcp)
+    segments.register(mcp)
     ingest.register(mcp)
     speaker.register(mcp)
     gui.register(mcp)

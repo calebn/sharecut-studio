@@ -111,6 +111,11 @@ def doctor(
         "--project",
         help="Optional episode project path for per-track timebase drift QC.",
     ),
+    deep: bool = typer.Option(
+        False,
+        "--deep",
+        help="Also hash every saved segment's audio (slow on a large segment library).",
+    ),
     bundle: bool = typer.Option(
         False,
         "--bundle",
@@ -153,7 +158,7 @@ def doctor(
             webbrowser.open(report.support_url)
         return
 
-    result = run_doctor_checks(project)
+    result = run_doctor_checks(project, deep=deep)
     echo_doctor_report(result, typer.echo, lambda m: typer.echo(m, err=True))
     if not result.passed:
         raise typer.Exit(1)

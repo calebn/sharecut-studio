@@ -16,7 +16,12 @@ from podcast_mcp.project.history.rollback import (
     rolled_back_on_failure,
     take_history_checkpoint,
 )
-from podcast_mcp.project.io import adopt_retired_entry_file, open_project
+from podcast_mcp.project.io import (
+    RETIRED_PROJECT_FILENAME,
+    adopt_retired_entry_file,
+    open_project,
+    resolve_project_path,
+)
 from podcast_mcp.project.merge import (
     HISTORY_LINEAGE_CONFLICT,
     RERUN_ADVICE,
@@ -44,6 +49,16 @@ log = logging.getLogger(__name__)
 MERGED_HISTORY_LABEL = "after merging concurrent edits"
 
 
+def _read_in_place(project_path: Path | str) -> Path:
+    """The file that holds the project: the entry file, else the retired one. Never renames."""
+    entry = resolve_project_path(project_path)
+    if entry.name == EPISODE_PROJECT_FILENAME and not entry.exists():
+        retired = entry.with_name(RETIRED_PROJECT_FILENAME)
+        if retired.is_file():
+            return retired
+    return entry
+
+
 class ProjectWorkspace:
     def __init__(self, path: Path, project: EpisodeProject) -> None:
         self.path = path
@@ -54,13 +69,18 @@ class ProjectWorkspace:
         self._transaction_depth = 0
 
     @classmethod
-    def open(cls, project_path: Path | str) -> ProjectWorkspace:
-        path = adopt_retired_entry_file(project_path)
+    def open(cls, project_path: Path | str, *, adopt: bool = True) -> ProjectWorkspace:
+        """Open the project at ``project_path``.
+
+        ``adopt=False`` is for read-only callers: a workspace still holding the retired
+        ``episode.project.json`` is read where it is, not renamed to ``episode.sharecut``.
+        """
+        path = adopt_retired_entry_file(project_path) if adopt else _read_in_place(project_path)
         try:
             before = file_revision(path)
         except FileNotFoundError as exc:
             raise project_not_found(path) from exc
-        _, project = open_project(path)
+        project = open_project(path)[1] if adopt else ProjectStore(path).load()
         ws = cls(path, project)
         signature = file_revision(path)
         if signature == before:

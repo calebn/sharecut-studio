@@ -66,8 +66,14 @@ class DoctorReport:
 
 def run_doctor_checks(
     project: EpisodeProject | Path | None = None,
+    *,
+    deep: bool = False,
 ) -> DoctorReport:
-    """Run the same health checks as `podcast doctor` (no I/O besides reads)."""
+    """Run the same health checks as `podcast doctor` (no I/O besides reads).
+
+    ``deep`` also hashes every segment's audio; without it the segment check only looks at
+    file presence and size, so setup and the support bundle stay cheap.
+    """
     report = DoctorReport()
     try:
         engine = FFmpegEngine()
@@ -176,6 +182,8 @@ def run_doctor_checks(
             )
         )
 
+    report.checks.extend(_segment_library_checks(deep=deep))
+
     ep = _load_project(project)
     if ep is not None:
         from podcast_mcp.engines.session_timeline import timebase_qc_report
@@ -197,6 +205,51 @@ def run_doctor_checks(
             report.checks.append(DoctorCheck("warn", f"timebase: {issue}", err=True))
 
     return report
+
+
+MAX_DAMAGED_SEGMENTS_LISTED = 5
+
+
+def _segment_library_checks(*, deep: bool = False) -> list[DoctorCheck]:
+    """One warning per damaged segment (newest version), capped; silent when all are intact.
+
+    Looks at file presence, size and ``segment.json``; ``deep`` also hashes the audio. A
+    missing library costs nothing. Older versions are not checked.
+    """
+    from podcast_mcp.segments.store import SegmentStore, default_directory
+    from podcast_mcp.segments.summary import damaged_fix
+
+    directory = default_directory()
+    try:
+        present = directory.is_dir() and any(directory.iterdir())
+    except OSError:
+        return []
+    if not present:
+        return []
+    try:
+        store = SegmentStore(directory)
+        damaged = store.scan(deep=deep).damaged
+    except OSError as exc:
+        return [DoctorCheck("warn", f"segment library: cannot be read: {exc}", err=True)]
+    checks = [
+        DoctorCheck(
+            "warn",
+            f"segment {d.id} (v{d.version}): {d.problem}",
+            err=True,
+            extra=f"  Fix: {damaged_fix(store, d)}",
+        )
+        for d in damaged[:MAX_DAMAGED_SEGMENTS_LISTED]
+    ]
+    if len(damaged) > MAX_DAMAGED_SEGMENTS_LISTED:
+        more = len(damaged) - MAX_DAMAGED_SEGMENTS_LISTED
+        checks.append(
+            DoctorCheck(
+                "warn",
+                f"{more} more damaged segments; `podcast segment list` shows all of them",
+                err=True,
+            )
+        )
+    return checks
 
 
 def echo_doctor_report(report: DoctorReport, echo, echo_err) -> None:
