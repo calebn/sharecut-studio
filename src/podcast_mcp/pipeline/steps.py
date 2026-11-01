@@ -915,7 +915,7 @@ def assemble_timeline(project: EpisodeProject, defaults: dict[str, Any]) -> Step
 
 
 def _music_tracks(project: EpisodeProject, rendered: Mapping[str, Any]) -> list[Track]:
-    """The tracks whose fade envelope and stem ``mix_with_music`` rebuilds on every run."""
+    """The tracks ``mix_with_music`` rebuilds on every run."""
     return [
         track
         for track in project.tracks
@@ -928,12 +928,10 @@ def _music_tracks(project: EpisodeProject, rendered: Mapping[str, Any]) -> list[
 def _reusable_premix_summary(
     project: EpisodeProject, defaults: dict[str, Any], rendered: Mapping[str, Any]
 ) -> str | None:
-    """The step summary when ``premix.wav`` is what a full run would mix again, else None.
+    """``premix.wav`` is what a full run would mix again: its summary, else None.
 
-    A music track gets a new envelope id and a re-rendered stem on every run, so a project
-    with one always mixes. A missing stem counts as unknown for ``premix_is_stale``, so
-    each mixed stem must exist here, and a premix with no hash or no trim line (made
-    before they were recorded) mixes once.
+    ``premix_is_stale`` cannot see a missing stem, and a stem stamped the same tick as the
+    premix is not newer, so both are checked here. Music tracks always mix.
     """
     from podcast_mcp.engines.play_audit import (
         mix_gains,
@@ -944,24 +942,20 @@ def _reusable_premix_summary(
     )
     from podcast_mcp.util.tracks import stem_path
 
-    if _music_tracks(project, rendered):
-        return None
-    if not premix_path(project).is_file():
+    premix = premix_path(project)
+    if _music_tracks(project, rendered) or not premix.is_file():
         return None
     if read_premix_hash(project) is None or read_premix_trim_db(project) is None:
         return None
     gains = mix_gains(project)
-    if not gains or any(
-        tid not in rendered or not stem_path(project, tid).is_file() for tid in gains
-    ):
-        return None
-    try:
-        if premix_is_stale(project, defaults):
+    premix_ns = premix.stat().st_mtime_ns
+    for tid in gains:
+        stem = stem_path(project, tid)
+        if not stem.is_file() or stem.stat().st_mtime_ns >= premix_ns:
             return None
-    except Exception:
-        log.debug("premix freshness unreadable; mixing again", exc_info=True)
+    if not gains or premix_is_stale(project, defaults):
         return None
-    return f"reused premix.wav ({len(gains)} tracks, 0 music envelopes)"
+    return "reused premix.wav"
 
 
 @with_render_lock
@@ -1053,8 +1047,6 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
 def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> bool:
     """Re-render stems and re-mix when ``premix.wav`` is missing or behind the project.
 
-    Return True when it rebuilt the premix this call.
-
     Warns when the rebuilt premix still reads stale (a stem that never goes fresh,
     such as a duration mismatch), since every export would otherwise redo it silently.
 
@@ -1140,17 +1132,18 @@ def _rejudge_master_qc(project: EpisodeProject, defaults: dict[str, Any]) -> Non
 def _reuse_current_master(
     project: EpisodeProject, defaults: dict[str, Any], target: MasterTarget
 ) -> str | None:
-    """The step summary when ``mastered.wav`` is current for an unchanged premix, else None.
+    """``mastered.wav`` is current for an unchanged premix: its summary, else None.
 
-    A full run always leaves ``premix.hash`` and ``master_qc.json`` behind and export reads
-    both, so a master missing either is mastered again. A hit writes only a changed QC
-    verdict, as ``ensure_current_master`` does.
+    A full run always leaves ``premix.hash`` and ``master_qc.json``, so a master without
+    either is mastered again.
     """
     from podcast_mcp.engines.play_audit import mastered_is_fresh, read_premix_hash
 
-    if read_premix_hash(project) is None or read_master_qc(project) is None:
-        return None
-    if not mastered_is_fresh(project, target):
+    if (
+        read_premix_hash(project) is None
+        or read_master_qc(project) is None
+        or not mastered_is_fresh(project, target)
+    ):
         return None
     _rejudge_master_qc(project, defaults)
     qc = read_master_qc(project) or {}

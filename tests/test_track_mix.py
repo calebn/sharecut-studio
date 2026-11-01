@@ -1427,6 +1427,9 @@ def test_an_unchanged_project_reuses_the_mix_and_the_master_in_the_pipeline(
     assert _stamps(ws) == before
 
 
+Change = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
+
+
 def _fader(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
     ws.project.tracks[0].fader_db = -3.0
     return defaults
@@ -1441,10 +1444,19 @@ def _ceiling(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
     return {**defaults, "mix": {**defaults["mix"], "premix_peak_ceiling_db": -2.5}}
 
 
-def _newer_stem(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+def _stem_mtime(ws: ProjectWorkspace, offset_ns: int) -> None:
+    premix_ns = premix_path(ws.project).stat().st_mtime_ns
     stem = stem_path(ws.project, ws.project.tracks[0].id)
-    stat = stem.stat()
-    os.utime(stem, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
+    os.utime(stem, ns=(premix_ns, premix_ns + offset_ns))
+
+
+def _newer_stem(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    _stem_mtime(ws, 10**9)
+    return defaults
+
+
+def _same_tick_stem(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
+    _stem_mtime(ws, 0)
     return defaults
 
 
@@ -1481,6 +1493,7 @@ def _no_premix(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]
         _mute,
         _ceiling,
         _newer_stem,
+        _same_tick_stem,
         _stale_stem,
         _missing_stem,
         _no_premix_hash,
@@ -1489,23 +1502,21 @@ def _no_premix(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]
     ],
 )
 def test_each_input_of_the_mix_makes_the_pipeline_mix_again(
-    minimal_project: Path, change: Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
+    minimal_project: Path, change: Change
 ) -> None:
-    ws, _eng, defaults = _mixed_and_mastered(minimal_project)
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
     defaults = change(ws, defaults)
-    reused = steps._reusable_premix_summary(
-        ws.project,
-        defaults,
-        json.loads((ws.project.artifacts_dir() / "track_outputs.json").read_text()),
-    )
-    assert reused is None
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        summary = steps.mix_with_music(ws.project, defaults)
+    assert not summary.startswith("reused")
+    assert eng.mix_tracks.call_count == 2
 
 
-def test_a_project_with_a_music_track_always_mixes(minimal_project: Path) -> None:
+@pytest.mark.parametrize("role", [TrackRole.MUSIC, TrackRole.INTRO, TrackRole.OUTRO])
+def test_a_project_with_a_music_track_always_mixes(minimal_project: Path, role: TrackRole) -> None:
     ws, _eng, defaults = _mixed_and_mastered(minimal_project)
     rendered = json.loads((ws.project.artifacts_dir() / "track_outputs.json").read_text())
-    assert steps._reusable_premix_summary(ws.project, defaults, rendered) is not None
-    ws.project.tracks[0].role = TrackRole.MUSIC
+    ws.project.tracks[0].role = role
     with patch.object(play_audit, "premix_is_stale", return_value=False):
         assert steps._reusable_premix_summary(ws.project, defaults, rendered) is None
 
@@ -1527,32 +1538,22 @@ def _no_master_hash(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str,
     return defaults
 
 
-def _lufs_target(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
-    return {**defaults, "master": {**defaults["master"], "integrated_lufs": -19.0}}
-
-
-def _peak_target(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
-    return {**defaults, "master": {**defaults["master"], "true_peak_db": -3.0}}
-
-
-def _lra_target(ws: ProjectWorkspace, defaults: dict[str, Any]) -> dict[str, Any]:
-    return {**defaults, "master": {**defaults["master"], "lra": 7.0}}
-
-
 @pytest.mark.parametrize(
-    "change",
-    [
-        _touch_premix,
-        _no_master_qc,
-        _no_master_hash,
-        _no_premix_hash,
-        _lufs_target,
-        _peak_target,
-        _lra_target,
-    ],
+    "key,value", [("integrated_lufs", -19.0), ("true_peak_db", -3.0), ("lra", 7.0)]
 )
+def test_each_master_target_makes_the_pipeline_master_again(
+    minimal_project: Path, key: str, value: float
+) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    retargeted = {**defaults, "master": {**defaults["master"], key: value}}
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.master_loudness(ws.project, retargeted)
+    assert eng.master_loudness.call_count == 2
+
+
+@pytest.mark.parametrize("change", [_touch_premix, _no_master_qc, _no_master_hash, _no_premix_hash])
 def test_each_input_of_the_master_makes_the_pipeline_master_again(
-    minimal_project: Path, change: Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
+    minimal_project: Path, change: Change
 ) -> None:
     ws, eng, defaults = _mixed_and_mastered(minimal_project)
     defaults = change(ws, defaults)
@@ -1561,14 +1562,14 @@ def test_each_input_of_the_master_makes_the_pipeline_master_again(
     assert eng.master_loudness.call_count == 2
 
 
-def test_a_fader_change_re_mixes_and_re_masters_in_the_pipeline(minimal_project: Path) -> None:
+def test_a_mastering_revision_bump_masters_again(minimal_project: Path) -> None:
     ws, eng, defaults = _mixed_and_mastered(minimal_project)
-    ws.project.tracks[0].fader_db = -3.0
-    with patch.object(steps, "ffmpeg", return_value=eng):
-        mixed = steps.mix_with_music(ws.project, defaults)
+    with (
+        patch.object(play_audit, "MASTER_SEMANTICS_REV", play_audit.MASTER_SEMANTICS_REV + 1),
+        patch.object(steps, "ffmpeg", return_value=eng),
+    ):
         steps.master_loudness(ws.project, defaults)
-    assert not mixed.startswith("reused")
-    assert (eng.mix_tracks.call_count, eng.master_loudness.call_count) == (2, 2)
+    assert eng.master_loudness.call_count == 2
 
 
 def test_a_master_step_after_a_stale_premix_masters_the_rebuilt_mix(minimal_project: Path) -> None:

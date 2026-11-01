@@ -186,7 +186,7 @@ def automatic_gain_expression(
 # 3: use the completed graph's true-peak summary for headroom trim (#855).
 MIX_SEMANTICS_REV = 3
 
-# 1: the loudnorm pass plus peak limiter of ``master_loudness``; bump it when mastering changes.
+# Bump when mastering changes so older masters are mastered again.
 MASTER_SEMANTICS_REV = 1
 
 

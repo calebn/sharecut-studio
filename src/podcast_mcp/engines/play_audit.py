@@ -787,8 +787,8 @@ def master_fingerprint(project: EpisodeProject, target: MasterTarget) -> str | N
     """Fingerprint everything the master is built from, or None with no premix.
 
     The premix (``master_source_hash``), the ``master.*`` settings that change the
-    audio (``target``) and ``MASTER_SEMANTICS_REV``, so masters made under older
-    mastering rules re-master once. The one place that decides whether ``mastered.wav`` is current.
+    audio (``target``) and ``MASTER_SEMANTICS_REV``. The one place that decides whether
+    ``mastered.wav`` is current.
     """
     source = master_source_hash(project)
     if source is None:
