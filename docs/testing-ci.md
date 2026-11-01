@@ -327,6 +327,8 @@ standing in for Chrome (branded Chrome runs only locally, with
 `E2E_BRANDED_CHROME=1`). The WebKit column is Playwright WebKit, standing in
 for Safari; it is not Apple's Safari. No compat project runs Firefox, so no
 Firefox result is claimed.
+For newly added checks, Pass declares required engine coverage; it does not
+attest a result before that source head has run in CI.
 
 "Pass" means the required `frontend-e2e` gate on `main` includes the check on
 that engine with at most one retry and no skip, so a green `main` is a measured
@@ -361,6 +363,7 @@ with axe before the collected results are asserted.
 | snap ticks, mute regions and a live trim ghost share the ruler geometry | `gui/web/e2e-compat/timeline-geometry.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | short desktop lanes reach the horizontal end with classic scrollbars | `gui/web/e2e-compat/timeline-scroll-end.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Not run | Pass | Not run |
+| keeps Next, its selection and the following Script line reachable | `gui/web/e2e-compat/words-actionbar-header.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Not run | Pass | Not run |
 | native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
