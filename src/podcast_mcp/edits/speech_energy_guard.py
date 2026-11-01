@@ -54,8 +54,8 @@ from podcast_mcp.engines.level_profile import (
 )
 from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.engines.session_timeline import (
-    clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
+    shift_at,
     word_source_span,
 )
 from podcast_mcp.models import CutSpeechWord, EpisodeProject
@@ -1087,7 +1087,6 @@ def speech_words_in(
         transcript = project.transcript_for_source(clip.track_id, clip.source_id)
         if transcript is None:
             continue
-        shift = clip_source_to_timeline_shift(clip)
         for word in transcript.words:
             if word.suppressed or word.ignored or word.suspect_hallucination:
                 continue
@@ -1095,6 +1094,7 @@ def speech_words_in(
             overlap = max(min(w_end, hi) - max(w_start, lo) for lo, hi in sources)
             if overlap <= 0 or overlap < min(min_overlap, w_end - w_start) - 1e-9:
                 continue
+            shift = shift_at(clip, w_start)
             words.append(
                 CutSpeechWord(
                     text=word.text,

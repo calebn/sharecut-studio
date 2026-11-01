@@ -19,7 +19,7 @@ from podcast_mcp.edits.bleed_restore_targets import (
 )
 from podcast_mcp.engines.bleed_gate import bleed_gate_payload, build_bleed_gate_plan
 from podcast_mcp.engines.play_audit import RenderDependencies, stem_is_fresh
-from podcast_mcp.engines.session_timeline import clip_source_to_timeline_shift
+from podcast_mcp.engines.session_timeline import shift_at
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.models import Clip, EpisodeProject, Track
 from podcast_mcp.models.episode import RangeInterval, SourceSpan
@@ -167,7 +167,6 @@ def _inspect_locked(
         for region in clip.off_speaker_mute_regions
     )
     regions: list[BleedRegion] = []
-    shift = clip_source_to_timeline_shift(clip)
     for kind, actual, plan_digest, eligible in candidates:
         covered, available = region_fragments(clip, actual, saved)
         for source, is_saved in sorted(
@@ -193,7 +192,10 @@ def _inspect_locked(
                     kind=kind,
                     actual_source=SourceSpan(start_s=actual.start_s, end_s=actual.end_s),
                     source=source,
-                    timeline=RangeInterval(start=source.start_s + shift, end=source.end_s + shift),
+                    timeline=RangeInterval(
+                        start=source.start_s + shift_at(clip, source.start_s),
+                        end=source.end_s + shift_at(clip, source.end_s - 1e-6),
+                    ),
                     restore_state="saved" if is_saved else "available" if target else "unavailable",
                     target=target,
                 )

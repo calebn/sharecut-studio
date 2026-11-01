@@ -119,7 +119,9 @@ def _refuse_unrenderable(clip: Clip) -> None:
     """
     reason: str | None = None
     start, end = clip.source_start, clip.source_end
-    if any(r.start_s < end and r.end_s > start for r in clip.off_speaker_mute_regions):
+    if clip.timing is not None:
+        reason = "a timing map"
+    elif any(r.start_s < end and r.end_s > start for r in clip.off_speaker_mute_regions):
         reason = "off-speaker mutes"
     elif clip.bleed_restore and any(
         r.start_s < end and r.end_s > start for r in clip.bleed_restore.regions
