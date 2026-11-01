@@ -1093,7 +1093,7 @@ def read_master_qc(project: EpisodeProject) -> dict[str, Any] | None:
     """Master QC with a measurement object or None, or no report when invalid."""
     try:
         qc = json.loads(artifact(project, "master_qc.json").read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (UnicodeDecodeError, json.JSONDecodeError, OSError):
         return None
     if not isinstance(qc, dict) or "measured" not in qc:
         return None
