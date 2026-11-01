@@ -588,6 +588,26 @@ describe("barModelOf", () => {
     }
   });
 
+  it("names the words mute row Restore when every selected word is already ignored", () => {
+    const row = (m: ReturnType<typeof model>) =>
+      m.more.find((r) => r.id === "mute")?.label;
+    expect(row(model(EDIT_SELECTIONS.liveWords))).toBeUndefined();
+    const ignored = editFixtureProject();
+    for (const u of ignored.transcript?.utterances ?? [])
+      for (const w of u.words ?? [])
+        if (w.word_index === 2) (w as { ignored?: boolean }).ignored = true;
+    useDawStore.setState({ project: ignored });
+    expect(row(barModelOf(factsOf()!, useDawStore.getState()))).toBe(
+      "Restore ignored words",
+    );
+  });
+
+  it("offers Split on a words selection", () => {
+    expect(model(EDIT_SELECTIONS.liveWords).items.map((i) => i.id)).toContain(
+      "split",
+    );
+  });
+
   it("words a suggest link's cut and mute as suggestions", () => {
     const m = model(EDIT_SELECTIONS.rangeOnAllTracks, {
       projectPath: "share:tok",
