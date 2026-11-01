@@ -1,5 +1,9 @@
 import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
+import {
+  type CommandAttempt,
+  logicalClipJoinCommands,
+} from "./clipJoinCommands";
 import { e2eProjectPath } from "./env";
 import { openProject, phone } from "./stageNav";
 
@@ -43,6 +47,7 @@ for (const width of [1280, 390]) {
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
+    const commands: CommandAttempt[] = [];
     try {
       await page.keyboard.press("Shift+ArrowRight");
       await page.keyboard.press("Shift+ArrowRight");
@@ -66,10 +71,6 @@ for (const width of [1280, 390]) {
       const pair = initial.clips.tracks[trackId]!;
       const [left, right] = pair;
       if (!left || !right) throw new Error("missing pair");
-      const commands: Array<{
-        type: string;
-        payload: Record<string, unknown>;
-      }> = [];
       page.on("request", (r) => {
         if (r.method() === "POST" && r.url().includes("/api/document/command"))
           commands.push(r.postDataJSON());
@@ -198,7 +199,7 @@ for (const width of [1280, 390]) {
             .find((c) => c.id === right.id)?.fade_in_ms;
         })
         .toBe(1);
-      expect(commands.filter((c) => c.type === "SetClipJoin")).toHaveLength(1);
+      expect(logicalClipJoinCommands(commands)).toHaveLength(1);
       const changed = Object.values((await snapshot(page)).clips.tracks).flat();
       expect(changed.find((c) => c.id === left.id)?.fade_out_ms).toBe(1);
       expect(placement(changed.find((c) => c.id === left.id)!)).toEqual(
@@ -227,7 +228,7 @@ for (const width of [1280, 390]) {
               .find((c) => c.id === right.id)?.fade_in_ms,
         )
         .toBe(2);
-      expect(commands.filter((c) => c.type === "SetClipJoin")).toHaveLength(2);
+      expect(logicalClipJoinCommands(commands)).toHaveLength(2);
       await expectPageAxeClean(page, ".command-palette-panel");
       await expectPageAxeClean(page, ".join-edit-rail");
       const shape = await panel.evaluate((el) => {
@@ -276,7 +277,7 @@ for (const width of [1280, 390]) {
       );
       await page.keyboard.press("Escape");
       await page.mouse.up();
-      expect(commands.filter((c) => c.type === "SetClipJoin")).toHaveLength(2);
+      expect(logicalClipJoinCommands(commands)).toHaveLength(2);
       await badge.click();
       await expect(grip).toBeEnabled();
       await page.route("**/api/document/command?*", async (route) => {
@@ -319,24 +320,31 @@ for (const width of [1280, 390]) {
       await page.keyboard.press("ControlOrMeta+Z");
       await expect(lane.locator(".clip-block")).toHaveCount(1);
     } finally {
-      await page.keyboard.press("Escape");
-      await page.evaluate(() =>
-        (document.activeElement as HTMLElement)?.blur(),
-      );
-      for (let i = 0; i < 8; i++) {
-        if (
-          Object.values((await snapshot(page)).clips.tracks).every(
-            (rows) => rows.length === 1,
-          )
-        )
-          break;
-        const done = page.waitForResponse(
-          (r) =>
-            r.request().method() === "POST" &&
-            r.url().includes("/api/document/command"),
+      try {
+        await testInfo.attach("raw-document-command-attempts-before-cleanup", {
+          body: Buffer.from(JSON.stringify(commands)),
+          contentType: "application/json",
+        });
+      } finally {
+        await page.keyboard.press("Escape");
+        await page.evaluate(() =>
+          (document.activeElement as HTMLElement)?.blur(),
         );
-        await page.keyboard.press("ControlOrMeta+Z");
-        await done;
+        for (let i = 0; i < 8; i++) {
+          if (
+            Object.values((await snapshot(page)).clips.tracks).every(
+              (rows) => rows.length === 1,
+            )
+          )
+            break;
+          const done = page.waitForResponse(
+            (r) =>
+              r.request().method() === "POST" &&
+              r.url().includes("/api/document/command"),
+          );
+          await page.keyboard.press("ControlOrMeta+Z");
+          await done;
+        }
       }
     }
   });
