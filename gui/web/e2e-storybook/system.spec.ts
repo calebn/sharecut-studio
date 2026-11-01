@@ -248,6 +248,43 @@ test("System/Player follow pill X has a 44 px hit area at 360", async ({
   expect(reach).toBe(true);
 });
 
+test("System/Player stacked chips and the error pill stay clear of Play and the skips (#2576)", async ({
+  page,
+}) => {
+  const args =
+    "state:error;status:No mix yet;cuts:-4m10s;solo:Rosa;following.name:Rosa;following.colorIndex:1";
+  // 360 to 390 is a phone, 641 to 768 a narrow tablet, 801 to 896 the width
+  // where the error pill and Retry outgrew the side column beside the skips.
+  for (const width of [360, 390, 641, 768, 801, 850, 896]) {
+    await open(page, "system-player--ready", width);
+    await page.goto(
+      `${storyUrl("system-player--ready", { theme: "light" })}&args=${args}`,
+    );
+    await expect(page.locator(".sys-player-host")).toBeVisible();
+    const clash = await page.evaluate(() => {
+      const bar = document.querySelector(".sys-player");
+      const play = bar?.querySelector(".sys-player-center");
+      const right = bar?.querySelector(".sys-player-right");
+      if (!bar || !play || !right) throw new Error("Player did not render");
+      const centre = play.getBoundingClientRect();
+      return {
+        scroll: document.documentElement.scrollWidth,
+        overlaps: [...right.children].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return (
+            r.width > 0 &&
+            r.left < centre.right &&
+            r.right > centre.left &&
+            r.top < centre.bottom &&
+            r.bottom > centre.top
+          );
+        }).length,
+      };
+    });
+    expect(clash, `at ${width}`).toEqual({ scroll: width, overlaps: 0 });
+  }
+});
+
 test("System/Marker a chapter's span leaves the lane under it to the marker beneath", async ({
   page,
 }) => {
