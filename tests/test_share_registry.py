@@ -53,6 +53,23 @@ def _registry_init_phase(trace, phase: str) -> None:
     trace["phase"] = phase
 
 
+def _registry_init_error(exc: BaseException, phase: str):
+    message = str(exc)
+    return {
+        "type": type(exc).__name__,
+        "message": message
+        if message in {"", "attempt to write a readonly database", "database is locked"}
+        else None,
+        "sqlite_errorcode": getattr(exc, "sqlite_errorcode", None),
+        "sqlite_errorname": getattr(exc, "sqlite_errorname", None),
+        "sql_api_context": {
+            "wal": "switch_to_wal: PRAGMA journal_mode; conditional PRAGMA journal_mode=WAL",
+            "schema": "_apply_schema: PRAGMA synchronous=NORMAL; executescript(public _SCHEMA)",
+        }.get(phase),
+        "individual_failed_statement": "UNAVAILABLE",
+    }
+
+
 def _write_registry_init_diagnostic(path: str, trace) -> None:
     with suppress(Exception):
         Path(path).write_text(json.dumps(trace, sort_keys=True), encoding="utf-8")
@@ -63,22 +80,35 @@ def _registry_secret_process(db_path: str, barrier, queue, diagnostic_path: str)
         "pid": os.getpid(),
         "started": time.monotonic(),
         "phases": {},
+        "callback_errors": {},
         "python_version": sys.version.split()[0],
         "sqlite_version": sqlite3.sqlite_version,
     }
     real_wal, real_setup = sqlite_open.switch_to_wal, registry_module._apply_schema
 
-    def wal(connection):
-        _registry_init_phase(trace, "wal")
-        result = real_wal(connection)
+    def observe(phase, callback, connection):
+        _registry_init_phase(trace, phase)
+        try:
+            result = callback(connection)
+        except sqlite3.OperationalError as exc:
+            try:
+                entry = trace["callback_errors"].setdefault(phase, {"count": 0})
+                entry["count"] += 1
+                snapshot = _registry_init_error(exc, phase)
+                snapshot["elapsed_sec"] = time.monotonic() - trace["started"]
+                entry.setdefault("first", snapshot)
+                entry["last"] = snapshot
+            except Exception:
+                trace["error_observation_unavailable"] = True
+            raise
         trace["phase"] = "constructor"
         return result
 
+    def wal(connection):
+        return observe("wal", real_wal, connection)
+
     def setup(connection):
-        _registry_init_phase(trace, "schema")
-        result = real_setup(connection)
-        trace["phase"] = "constructor"
-        return result
+        return observe("schema", real_setup, connection)
 
     try:
         _registry_init_phase(trace, "constructor")
@@ -99,20 +129,10 @@ def _registry_secret_process(db_path: str, barrier, queue, diagnostic_path: str)
             registry.close()
             trace["phase"] = previous_phase
     except BaseException as exc:
-        message = str(exc)
-        trace["error"] = {
-            "type": type(exc).__name__,
-            "message": message
-            if message in {"", "attempt to write a readonly database", "database is locked"}
-            else None,
-            "sqlite_errorcode": getattr(exc, "sqlite_errorcode", None),
-            "sqlite_errorname": getattr(exc, "sqlite_errorname", None),
-            "sql_api_context": {
-                "wal": "switch_to_wal: PRAGMA journal_mode; conditional PRAGMA journal_mode=WAL",
-                "schema": "_apply_schema: PRAGMA synchronous=NORMAL; executescript(public _SCHEMA)",
-            }.get(trace["phase"]),
-            "individual_failed_statement": "UNAVAILABLE",
-        }
+        try:
+            trace["error"] = _registry_init_error(exc, trace["phase"])
+        except Exception:
+            trace["error_observation_unavailable"] = True
         raise
     finally:
         _write_registry_init_diagnostic(diagnostic_path, trace)
@@ -888,6 +908,127 @@ def test_registry_init_diagnostic_keeps_actual_callback_error(
     assert report["error"]["individual_failed_statement"] == "UNAVAILABLE"
     assert report["phases"]["wal"]["calls"] == 2
     assert report["phases"]["schema"]["calls"] == (1 if failure_phase == "wal" else 2)
+
+
+@pytest.mark.parametrize("phase", ["wal", "schema"])
+@pytest.mark.parametrize("terminal", [False, True])
+def test_registry_init_diagnostic_keeps_bounded_callback_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str, terminal: bool
+) -> None:
+    secret = b"DO_NOT_LOG_SECRET".ljust(32, b"!")
+    first = sqlite3.OperationalError("database is locked")
+    first.sqlite_errorcode, first.sqlite_errorname = sqlite3.SQLITE_BUSY, "SQLITE_BUSY"
+    last = sqlite3.OperationalError(f"{tmp_path} {secret.decode()}")
+    last.sqlite_errorcode, last.sqlite_errorname = sqlite3.SQLITE_READONLY, "SQLITE_READONLY"
+    last.add_note("DO_NOT_LOG_ARBITRARY_NOTE")
+    connection = object()
+    calls = {"wal": 0, "schema": 0, "close": 0}
+    results = []
+    returned = {"wal": object(), "schema": object()}
+
+    def callback(name, value):
+        assert value is connection
+        calls[name] += 1
+        if name == phase and calls[name] <= 250:
+            raise first if calls[name] == 1 else last
+        return returned[name]
+
+    def wal(value):
+        return callback("wal", value)
+
+    def setup(value):
+        return callback("schema", value)
+
+    class Registry:
+        def __init__(self, _path):
+            for attempt in range(251):
+                try:
+                    assert sqlite_open.switch_to_wal(connection) is returned["wal"]
+                    assert registry_module._apply_schema(connection) is returned["schema"]
+                except sqlite3.OperationalError as error:
+                    assert error is (first if attempt == 0 else last)
+                    if terminal and attempt == 249:
+                        raise
+                else:
+                    break
+
+        def recording_key_secret(self):
+            assert sqlite_open.switch_to_wal is wal
+            assert registry_module._apply_schema is setup
+            return secret
+
+        def close(self):
+            calls["close"] += 1
+
+    def wait(*, timeout):
+        assert timeout == 10
+
+    monkeypatch.setitem(globals(), "SqliteShareRegistry", Registry)
+    monkeypatch.setattr(sqlite_open, "switch_to_wal", wal)
+    monkeypatch.setattr(registry_module, "_apply_schema", setup)
+    report_path = tmp_path / "report.json"
+    args = (
+        str(tmp_path / "shared.sqlite"),
+        SimpleNamespace(wait=wait),
+        SimpleNamespace(put=results.append),
+        str(report_path),
+    )
+    if terminal:
+        with pytest.raises(sqlite3.OperationalError) as caught:
+            _registry_secret_process(*args)
+        assert caught.value is last
+        assert results == [] and calls["close"] == 0
+    else:
+        _registry_secret_process(*args)
+        assert results == [secret] and calls["close"] == 1
+    report_text = report_path.read_text(encoding="utf-8")
+    assert len(report_text) < 4096
+    assert str(tmp_path) not in report_text
+    assert secret.decode() not in report_text
+    assert "DO_NOT_LOG_ARBITRARY_NOTE" not in report_text
+    assert last.__notes__ == ["DO_NOT_LOG_ARBITRARY_NOTE"]
+    report = json.loads(report_text)
+    history = report["callback_errors"][phase]
+    assert set(history) == {"count", "first", "last"}
+    assert history["count"] == 250
+    assert history["first"]["sqlite_errorcode"] == sqlite3.SQLITE_BUSY
+    assert history["first"]["sqlite_errorname"] == "SQLITE_BUSY"
+    assert history["first"]["message"] == "database is locked"
+    assert history["last"]["sqlite_errorcode"] == sqlite3.SQLITE_READONLY
+    assert history["last"]["sqlite_errorname"] == "SQLITE_READONLY"
+    assert history["last"]["message"] is None
+    assert history["last"]["individual_failed_statement"] == "UNAVAILABLE"
+    assert history["last"]["elapsed_sec"] >= history["first"]["elapsed_sec"] >= 0
+    assert ("error" in report) is terminal
+    assert ("ready" in report["phases"]) is not terminal
+    assert "error_observation_unavailable" not in report
+
+
+@pytest.mark.parametrize("capture_failure", [OSError, TypeError])
+def test_registry_init_diagnostic_capture_failure_keeps_original_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capture_failure: type[Exception]
+) -> None:
+    original = sqlite3.OperationalError("attempt to write a readonly database")
+
+    def wal(_connection):
+        raise original
+
+    def constructor(_path):
+        sqlite_open.switch_to_wal(object())
+
+    def capture(*_args):
+        raise capture_failure("diagnostic capture unavailable")
+
+    monkeypatch.setitem(globals(), "SqliteShareRegistry", constructor)
+    monkeypatch.setitem(globals(), "_registry_init_error", capture)
+    monkeypatch.setattr(sqlite_open, "switch_to_wal", wal)
+    report_path = tmp_path / "report.json"
+    with pytest.raises(sqlite3.OperationalError) as caught:
+        _registry_secret_process(str(tmp_path / "shared.sqlite"), None, None, str(report_path))
+    assert caught.value is original
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["error_observation_unavailable"] is True
+    assert report["callback_errors"]["wal"]["count"] == 1
 
 
 def test_recording_key_secret_initialization_rolls_back_on_generation_failure(
