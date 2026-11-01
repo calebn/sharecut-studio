@@ -1,9 +1,21 @@
+/**
+ * How many results a step took from the cache and how many it made new.
+ * The engine does not report this yet; Prepare shows "1 new · 3 reused" and
+ * the run's reuse line only for steps that carry it.
+ */
+export interface PipelineStepReuse {
+  reused: number;
+  recomputed: number;
+}
+
 export interface PipelineStepTiming {
   name: string;
   status: string;
   elapsed_sec: number;
   error: string | null;
   summary?: string | null;
+  /** Left out (or null) when the step does not report reuse. */
+  reuse?: PipelineStepReuse | null;
 }
 
 export interface PipelineJobSnapshot {

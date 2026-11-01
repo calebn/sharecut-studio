@@ -58,6 +58,21 @@ describe("SourceCard", () => {
     expect(hear).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("reads New · not processed yet for audio added after a run", () => {
+    render(<Card name="Priya" state="new" audioTime="14:11 of audio" />);
+    expect(screen.getByText("New")).toBeVisible();
+    expect(
+      screen.getByText("14:11 of audio · not processed yet"),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Hear Priya" })).toBeVisible();
+    expect(screen.queryByText("Ready")).toBeNull();
+  });
+
+  it("still says not processed yet when the length is not known", () => {
+    render(<Card name="Priya" state="new" audioTime={undefined} />);
+    expect(screen.getByText("Not processed yet")).toBeVisible();
+  });
+
   it("omits aria-pressed from Hear while idle", () => {
     render(<Card name="Maya" playing={false} />);
     expect(screen.getByRole("button", { name: /^Hear/ })).not.toHaveAttribute(

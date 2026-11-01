@@ -285,4 +285,40 @@ describe("ReadyList", () => {
       screen.getByRole("list", { name: "Getting ready" }),
     );
   });
+
+  it("shows the plan's rows as not yet, each with a Skip named by its row", async () => {
+    const onAction = vi.fn();
+    render(<ReadyList rows={ROWS.plan} onAction={onAction} />);
+    const items = screen.getAllByRole("listitem");
+    expect(items[1]).toHaveTextContent("Not yet: Transcribe");
+    expect(items[1]).toHaveTextContent("Priya only · 3 kept");
+    expect(screen.getAllByRole("button", { name: /^Skip, / })).toHaveLength(4);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Skip, Clean and level" }),
+    );
+    expect(onAction).toHaveBeenCalledWith("clean", "skip");
+  });
+
+  it("keeps a skipped row in place and offers Include", async () => {
+    const onAction = vi.fn();
+    const { rerender } = render(
+      <ReadyList rows={ROWS.plan} onAction={onAction} />,
+    );
+    const before = screen.getAllByRole("listitem");
+    rerender(<ReadyList rows={ROWS.planSkipped} onAction={onAction} />);
+    const after = screen.getAllByRole("listitem");
+    for (const [at, item] of after.entries()) expect(item).toBe(before[at]);
+    expect(after[2]).toHaveTextContent("Skipped this time");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Include, Line up tracks" }),
+    );
+    expect(onAction).toHaveBeenCalledWith("align", "include");
+  });
+
+  it("states what a run reused on its rows", () => {
+    render(<ReadyList rows={ROWS.reused} onAction={vi.fn()} />);
+    const items = screen.getAllByRole("listitem");
+    expect(items[1]).toHaveTextContent("1 new · 3 reused");
+    expect(items[3]).toHaveTextContent("1 new · 3 reused");
+  });
 });

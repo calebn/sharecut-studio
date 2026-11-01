@@ -6,12 +6,17 @@ import {
   handoffProps,
   isWorking,
   type ModelAsk,
+  oneRunSkipSteps,
+  PROCESS_NEW_AUDIO,
+  planNote,
   prepareHandoff,
   preparePhase,
   prepareSessions,
   type ReadyInput,
+  type RerunPlan,
   readyRows,
   readySummary,
+  reuseNote,
   rowOutcome,
   STILL_GETTING_READY,
   sourceTracks,
@@ -853,5 +858,258 @@ describe("vocabulary chips", () => {
       terms: [],
       guest_names: ["Okonkwo"],
     });
+  });
+});
+
+describe("the plan for audio added after a run", () => {
+  const plan = (extra: Partial<RerunPlan> = {}): RerunPlan => ({
+    newNames: ["Priya"],
+    kept: 3,
+    skipped: new Set(),
+    ...extra,
+  });
+  const rows = (p: RerunPlan | null) =>
+    readyRows({ ...base, sourceCount: 4, plan: p });
+
+  it("says what each row does and keeps", () => {
+    expect(
+      rows(plan()).map((r) => [r.id, r.state, r.detail, r.action?.label]),
+    ).toEqual([
+      ["add", "done", "Priya added, 4 files", undefined],
+      ["transcribe", "queued", "Priya only · 3 kept", "Skip"],
+      ["align", "queued", "All 4 tracks, Priya joins", "Skip"],
+      ["clean", "queued", "Priya only · 3 kept", "Skip"],
+      ["suggest", "queued", "Whole episode", "Skip"],
+    ]);
+  });
+
+  it("names two new people, and counts more", () => {
+    const two = rows(plan({ newNames: ["Priya", "Joss"], kept: 2 }));
+    expect(two[1].detail).toBe("Priya and Joss only · 2 kept");
+    expect(two[2].detail).toBe("All 4 tracks, Priya and Joss join");
+    const many = rows(plan({ newNames: ["A", "B", "C"], kept: 1 }));
+    expect(many[1].detail).toBe("3 new tracks only · 1 kept");
+    expect(planNote(plan({ newNames: ["A", "B", "C"], kept: 1 }))).toBe(
+      "3 tracks have new audio. The other track is reused as it is.",
+    );
+  });
+
+  it("explains the plan in one line", () => {
+    expect(planNote(plan())).toBe(
+      "Priya’s audio is new. The other 3 tracks are reused as they are.",
+    );
+    expect(planNote(plan({ newNames: ["Priya", "Joss"], kept: 2 }))).toBe(
+      "Priya and Joss have new audio. The other 2 tracks are reused as they are.",
+    );
+  });
+
+  it("reads a skipped row as skipped this time, with Include", () => {
+    const skipped = rows(plan({ skipped: new Set(["align"]) }));
+    expect(skipped[2]).toMatchObject({
+      id: "align",
+      state: "queued",
+      detail: "Skipped this time",
+      action: { label: "Include", run: "include" },
+    });
+    expect(skipped[1].action?.run).toBe("skip");
+  });
+
+  it("adds the sound scan row, with its cost, only while the project has it on", () => {
+    const withScan = rows(plan({ scan: { time: "about 1 min 10 s" } }));
+    expect(withScan.map((r) => r.id)).toEqual([
+      "add",
+      "transcribe",
+      "align",
+      "clean",
+      "scan",
+      "suggest",
+    ]);
+    expect(withScan[4]).toMatchObject({
+      title: "Scan for sounds",
+      detail: "Whole episode · about 1 min 10 s",
+    });
+    expect(rows(plan()).some((r) => r.id === "scan")).toBe(false);
+  });
+
+  it("is the usual rows without a plan", () => {
+    expect(rows(null)[0].detail).toBe("4 files");
+  });
+
+  it("holds the phase, the hand-off and the summary on new audio", () => {
+    expect(
+      preparePhase({
+        sources: 4,
+        ingestBusy: false,
+        checking: false,
+        rows: rows(plan()),
+        plan: true,
+      }).phase,
+    ).toBe("new-audio");
+    expect(prepareHandoff({ pendingReviewCount: 14, newAudio: true })).toEqual({
+      label: PROCESS_NEW_AUDIO,
+      target: "process",
+    });
+    expect(prepareHandoff({ pendingReviewCount: 14 }).label).toBe(
+      "Review 14 suggestions",
+    );
+    expect(readySummary(rows(plan()), true)).toBe(
+      "Getting ready: new audio waiting",
+    );
+    expect(handoffProps("new-audio", { label: PROCESS_NEW_AUDIO })).toEqual({
+      label: "Process new audio",
+    });
+  });
+
+  it("marks the new track and the session as new until it is processed", () => {
+    const tracks = [
+      sampleTrack({ id: "a", speaker: "Maya", duration_sec: 860 }),
+      sampleTrack({ id: "p", speaker: "Priya", duration_sec: 851 }),
+    ];
+    const [session] = prepareSessions({
+      ...sessionBase,
+      tracks,
+      transcribed: new Set(["a"]),
+      newTrackIds: new Set(["p"]),
+    });
+    expect(session.status).toBe("new");
+    expect(session.sources.map((s) => s.state)).toEqual(["ready", "new"]);
+  });
+
+  it("keeps Needs a name ahead of New", () => {
+    const [session] = prepareSessions({
+      ...sessionBase,
+      tracks: [
+        sampleTrack({ id: "a", speaker: "Maya" }),
+        sampleTrack({ id: "p", speaker: null }),
+      ],
+      newTrackIds: new Set(["p"]),
+    });
+    expect(session.sources[1].state).toBe("needs-name");
+  });
+});
+
+describe("skipping for one run", () => {
+  const cfg = {
+    step_names: [
+      "ingest_tracks",
+      "transcribe_tracks",
+      "align_tracks",
+      "clean_audio",
+      "analyze_fillers_pauses",
+      "apply_sound_actions",
+    ],
+    enabled_steps: [
+      "ingest_tracks",
+      "transcribe_tracks",
+      "align_tracks",
+      "clean_audio",
+      "analyze_fillers_pauses",
+    ],
+  };
+
+  it("passes only what the saved switches leave off when nothing is skipped", () => {
+    expect(oneRunSkipSteps(cfg, new Set())).toEqual(["apply_sound_actions"]);
+  });
+
+  it("adds the steps of a skipped row to the saved ones", () => {
+    expect(oneRunSkipSteps(cfg, new Set(["align"]))).toEqual([
+      "align_tracks",
+      "apply_sound_actions",
+    ]);
+  });
+
+  it("leaves the sound scan out when its row is skipped", () => {
+    const on = {
+      ...cfg,
+      enabled_steps: [...cfg.enabled_steps, "apply_sound_actions"],
+    };
+    expect(oneRunSkipSteps(on, new Set(["scan"]))).toEqual([
+      "apply_sound_actions",
+    ]);
+    expect(oneRunSkipSteps(on, new Set(["suggest"]))).toEqual([
+      "analyze_fillers_pauses",
+    ]);
+  });
+});
+
+describe("what a run reused", () => {
+  const reused = (name: string, reused: number, recomputed: number) =>
+    step(name, "ok", { reuse: { reused, recomputed } });
+
+  it("says 1 new · 3 reused on the rows that report it", () => {
+    const job = pipelineJobSnapshot({
+      status: "ok",
+      steps: [
+        reused("transcribe_tracks", 3, 1),
+        reused("clean_audio", 3, 1),
+        step("align_tracks", "ok", { summary: "No moves needed" }),
+        step("analyze_fillers_pauses", "ok"),
+      ] as never,
+    });
+    const done = readyRows({ ...base, sourceCount: 4, transcribed: true, job });
+    expect(done.map((r) => r.detail)).toEqual([
+      "4 files",
+      "1 new · 3 reused",
+      "No moves needed",
+      "1 new · 3 reused",
+      "None to decide yet",
+    ]);
+  });
+
+  it("does not claim reuse the engine did not report", () => {
+    const job = pipelineJobSnapshot({
+      status: "ok",
+      steps: [
+        step("transcribe_tracks", "ok"),
+        reused("clean_audio", 0, 4),
+      ] as never,
+    });
+    const done = readyRows({ ...base, sourceCount: 4, transcribed: true, job });
+    expect(done[1].detail).toBe("4 speakers");
+    expect(done[3].detail).toBe("Noise, volume, balance");
+    expect(reuseNote(job)).toBeUndefined();
+  });
+
+  it("sums one line for the run, only over the steps that report", () => {
+    const job = pipelineJobSnapshot({
+      status: "ok",
+      elapsed_sec: 72,
+      steps: [
+        reused("transcribe_tracks", 3, 1),
+        reused("align_tracks", 0, 0),
+        reused("clean_audio", 3, 1),
+        reused("fill_gate_holes", 3, 2),
+        step("analyze_fillers_pauses", "ok"),
+      ] as never,
+    });
+    expect(reuseNote(job)).toBe(
+      "Done in 1 min 12 s. 9 of 13 results were reused, so this run did less.",
+    );
+  });
+
+  it("says nothing before the run is done or without a job", () => {
+    expect(reuseNote(null)).toBeUndefined();
+    expect(
+      reuseNote(
+        pipelineJobSnapshot({
+          status: "running",
+          steps: [reused("transcribe_tracks", 3, 1)] as never,
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("spells short and long runs", () => {
+    const at = (sec: number) =>
+      reuseNote(
+        pipelineJobSnapshot({
+          status: "ok",
+          elapsed_sec: sec,
+          steps: [reused("transcribe_tracks", 1, 1)] as never,
+        }),
+      );
+    expect(at(45)).toContain("Done in 45 s.");
+    expect(at(120)).toContain("Done in 2 min.");
+    expect(at(3720)).toContain("Done in 1 h 2 min.");
   });
 });

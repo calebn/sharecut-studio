@@ -93,6 +93,16 @@ export const Waiting: Story = {
   },
 };
 
+export const NewAudio: Story = {
+  render: withTakes,
+  args: { status: "new" },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText("New audio waiting"),
+    ).toBeVisible();
+  },
+};
+
 export const Running: Story = {
   render: withTakes,
   args: {

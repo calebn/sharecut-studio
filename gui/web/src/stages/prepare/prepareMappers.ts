@@ -1,5 +1,8 @@
 import type { SourceCardProps } from "../../system/SourceCard";
-import type { PipelineJobSnapshot } from "../../types/pipeline";
+import type {
+  PipelineConfigResponse,
+  PipelineJobSnapshot,
+} from "../../types/pipeline";
 import type { TrackView } from "../../types/project";
 import { getByPath, setByPath } from "../../utils/configPath";
 import { plainError } from "../../utils/plainError";
@@ -32,7 +35,31 @@ const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
     "assemble_timeline",
   ],
   suggest: ["analyze_fillers_pauses", "apply_sound_actions"],
+  // Only the plan has this row; a run reports the scan under Find suggestions.
+  scan: [],
 };
+
+/** What a Skip on a plan row leaves out of the one run. */
+const SKIP_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
+  ...ROW_STEPS,
+  suggest: ["analyze_fillers_pauses"],
+  scan: ["apply_sound_actions"],
+};
+
+/**
+ * The steps to pass as `skip_steps` for one run: what the saved settings leave
+ * off, plus what the person skipped on a plan row. The server takes an explicit
+ * list over the saved one, so the saved switches have to be in it.
+ */
+export function oneRunSkipSteps(
+  cfg: Pick<PipelineConfigResponse, "step_names" | "enabled_steps">,
+  skipped: ReadonlySet<ReadyRowId>,
+): string[] {
+  const rowSteps = new Set([...skipped].flatMap((row) => [...SKIP_STEPS[row]]));
+  return cfg.step_names.filter(
+    (name) => !cfg.enabled_steps.includes(name) || rowSteps.has(name),
+  );
+}
 
 const ROW_ORDER: readonly ReadyRowId[] = [
   "add",
@@ -47,6 +74,7 @@ const ROW_TITLE: Record<ReadyRowId, string> = {
   transcribe: "Transcribe",
   align: "Line up tracks",
   clean: "Clean and level",
+  scan: "Scan for sounds",
   suggest: "Find suggestions",
 };
 
@@ -55,6 +83,7 @@ const ROW_ACTIVITY: Record<ReadyRowId, string> = {
   transcribe: "Transcribing",
   align: "Lining up tracks",
   clean: "Cleaning",
+  scan: "Scanning for sounds",
   suggest: "Finding suggestions",
 };
 
@@ -108,6 +137,8 @@ type SessionsInput = {
   job: PipelineJobSnapshot | null;
   /** A track the person asked to split ("Split speakers…"); its prompt shows. */
   focusTrackId?: string | null;
+  /** Tracks added to a project that already ran, not processed yet. */
+  newTrackIds?: ReadonlySet<string>;
 };
 
 export const MIN_VOICES = 2;
@@ -150,7 +181,8 @@ function sourceState(
     return { state: "probing" };
   }
   if (splittable) return { state: "split-prompt" };
-  return { state: track.speaker?.trim() ? "ready" : "needs-name" };
+  if (!track.speaker?.trim()) return { state: "needs-name" };
+  return { state: input.newTrackIds?.has(track.id) ? "new" : "ready" };
 }
 
 function prepareSource(
@@ -189,6 +221,9 @@ function sessionStatus(
     };
   }
   if (job?.status === "error") return { status: "failed" };
+  if (sources.some((t) => input.newTrackIds?.has(t.id))) {
+    return { status: "new" };
+  }
   const done =
     sources.length > 0 && sources.every((t) => input.transcribed.has(t.id));
   return { status: done ? "done" : "idle" };
@@ -252,7 +287,130 @@ export type ReadyInput = {
   approximateTiming: { size: string; downloading: boolean } | null;
   /** A re-transcribe waits on whether to keep hand fixes. */
   keepFixes: { names: readonly string[] } | null;
+  /**
+   * Audio was added to a project that already ran and nothing has started:
+   * the rows are the plan. Left out while a run starts, waits, asks for a
+   * model or has failed to start.
+   */
+  plan?: RerunPlan | null;
 };
+
+/** What the next run would do when audio was added after a finished run. */
+export type RerunPlan = {
+  /** Who is new: speaker names, else track labels. */
+  newNames: readonly string[];
+  /** Tracks that already have their results. */
+  kept: number;
+  /** Rows the person skipped for this run only. */
+  skipped: ReadonlySet<ReadyRowId>;
+  /** Present while the project's sound scan is on: the plan adds its row. */
+  scan?: { time: string } | null;
+};
+
+function joined(names: readonly string[]): string {
+  return names.length === 2 ? `${names[0]} and ${names[1]}` : names[0];
+}
+
+/** "Priya", "Priya and Joss", "3 new tracks". */
+function whoIsNew(names: readonly string[]): string {
+  return names.length <= 2 ? joined(names) : `${names.length} new tracks`;
+}
+
+/** The line under the plan's title. */
+export function planNote(plan: RerunPlan): string {
+  const { newNames: names, kept } = plan;
+  const first =
+    names.length === 1
+      ? `${names[0]}’s audio is new.`
+      : `${names.length === 2 ? joined(names) : `${names.length} tracks`} have new audio.`;
+  const rest =
+    kept === 1
+      ? "The other track is reused as it is."
+      : `The other ${kept} tracks are reused as they are.`;
+  return `${first} ${rest}`;
+}
+
+function planRows(input: ReadyInput, plan: RerunPlan): ReadyRowData[] {
+  const who = whoIsNew(plan.newNames);
+  const scope = `${who} only · ${plan.kept} kept`;
+  const total = plan.kept + plan.newNames.length;
+  const joins = `All ${total} tracks, ${who} ${plan.newNames.length === 1 ? "joins" : "join"}`;
+  const row = (id: ReadyRowId, detail: string): ReadyRowData =>
+    plan.skipped.has(id)
+      ? {
+          id,
+          state: "queued",
+          title: ROW_TITLE[id],
+          detail: "Skipped this time",
+          action: { label: "Include", run: "include" },
+        }
+      : {
+          id,
+          state: "queued",
+          title: ROW_TITLE[id],
+          detail,
+          action: { label: "Skip", run: "skip" },
+        };
+  return [
+    {
+      id: "add",
+      state: "done",
+      title: ROW_TITLE.add,
+      detail: `${who} added, ${plural(input.sourceCount, "file", "files")}`,
+    },
+    row("transcribe", scope),
+    row("align", joins),
+    row("clean", scope),
+    ...(plan.scan ? [row("scan", `Whole episode · ${plan.scan.time}`)] : []),
+    row("suggest", "Whole episode"),
+  ];
+}
+
+/** "1 new · 3 reused" from the steps of a row that report it. */
+function reuseDetail(
+  job: PipelineJobSnapshot | null,
+  row: ReadyRowId,
+): string | undefined {
+  let reused = 0;
+  let recomputed = 0;
+  for (const step of job?.steps ?? []) {
+    if (!ROW_STEPS[row].includes(step.name) || !step.reuse) continue;
+    reused += step.reuse.reused;
+    recomputed += step.reuse.recomputed;
+  }
+  return reused > 0 ? `${recomputed} new · ${reused} reused` : undefined;
+}
+
+/** "1 min 12 s", "45 s", "1 h 2 min". */
+function spokenDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const rest = total % 60;
+  if (hours > 0)
+    return minutes > 0 ? `${hours} h ${minutes} min` : `${hours} h`;
+  if (minutes > 0)
+    return rest > 0 ? `${minutes} min ${rest} s` : `${minutes} min`;
+  return `${rest} s`;
+}
+
+/**
+ * The one line under the title after a run that reused results: "Done in 1 min
+ * 12 s. 9 of 13 results were reused, so this run did less." Only from steps
+ * that report reuse, so it never counts what the engine did not say.
+ */
+export function reuseNote(job: PipelineJobSnapshot | null): string | undefined {
+  if (job?.status !== "ok") return undefined;
+  let reused = 0;
+  let total = 0;
+  for (const step of job.steps) {
+    if (!step.reuse) continue;
+    reused += step.reuse.reused;
+    total += step.reuse.reused + step.reuse.recomputed;
+  }
+  if (reused <= 0 || total <= 0) return undefined;
+  return `Done in ${spokenDuration(job.elapsed_sec)}. ${reused} of ${total} results were reused, so this run did less.`;
+}
 
 type Outcome = {
   state: "queued" | "running" | "done" | "failed";
@@ -330,6 +488,7 @@ export const OVERWRITE_REFUSED = "transcript_overwrite_refused";
 
 export function readyRows(input: ReadyInput): ReadyRowData[] {
   if (input.sourceCount === 0) return [];
+  if (input.plan) return planRows(input, input.plan);
   // A finished run says nothing about audio that arrived after it, unless it
   // ran on this audio and a source simply has no speech to show.
   const job =
@@ -450,7 +609,7 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
             id: "transcribe",
             state: "done",
             title: ROW_TITLE.transcribe,
-            detail: speakers,
+            detail: reuseDetail(job, "transcribe") ?? speakers,
           },
     );
   } else {
@@ -475,8 +634,13 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
     align:
       input.sourceCount === 1
         ? "One track, nothing to line up"
-        : (stepSummary(job, "align") ?? "Lined up"),
-    clean: stepSummary(job, "clean") ?? "Noise, volume, balance",
+        : (reuseDetail(job, "align") ??
+          stepSummary(job, "align") ??
+          "Lined up"),
+    clean:
+      reuseDetail(job, "clean") ??
+      stepSummary(job, "clean") ??
+      "Noise, volume, balance",
     suggest:
       input.pendingSuggestions > 0
         ? plural(input.pendingSuggestions, "suggestion", "suggestions")
@@ -507,8 +671,12 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
   return rows;
 }
 
-export function readySummary(rows: readonly ReadyRowData[]): string {
+export function readySummary(
+  rows: readonly ReadyRowData[],
+  newAudio = false,
+): string {
   if (rows.length === 0) return "";
+  if (newAudio) return "Getting ready: new audio waiting";
   const failed = rows.find((row) => row.state === "failed");
   if (failed) return `Getting ready: ${failed.title} failed`;
   const done = rows.filter((row) => row.state === "done").length;
@@ -528,6 +696,8 @@ type PhaseInput = {
   /** The run is stopped on a missing model (asked, downloading or failed). */
   model?: ModelAsk | null;
   waiting?: boolean;
+  /** The rows are the plan for audio added after a run. */
+  plan?: boolean;
   rows: readonly ReadyRowData[];
 };
 
@@ -562,6 +732,8 @@ export function preparePhase(input: PhaseInput): PhaseResult {
   }
   // Refused for a busy slot: it starts by itself when the slot frees.
   if (input.waiting) return { phase: "waiting" };
+  // New audio waits for the person: nothing runs until Process new audio.
+  if (input.plan) return { phase: "new-audio" };
   // Never started (a row offers Start): nothing runs until Start is tapped.
   if (input.rows.some((row) => row.state === "queued" && row.action)) {
     return { phase: "not-started" };
@@ -581,12 +753,22 @@ export function isWorking(phase: PreparePhase): boolean {
   return phase === "adding" || phase === "checking" || phase === "transcribing";
 }
 
-type PrepareHandoff = { label: string; target: "review" | "edit" };
+export const PROCESS_NEW_AUDIO = "Process new audio";
+
+type PrepareHandoff = {
+  label: string;
+  target: "review" | "edit" | "process";
+};
 
 /** Where Prepare sends the host next: decisions first, then the Edit. */
 export function prepareHandoff(input: {
   pendingReviewCount: number;
+  /** New audio waits to be processed: the hand-off runs it. */
+  newAudio?: boolean;
 }): PrepareHandoff {
+  if (input.newAudio) {
+    return { label: PROCESS_NEW_AUDIO, target: "process" };
+  }
   const count = input.pendingReviewCount;
   return count > 0
     ? {

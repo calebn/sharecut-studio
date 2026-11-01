@@ -16,6 +16,7 @@ import {
   SECOND_SESSION,
   SOME_TERMS,
   session,
+  TAKES_WITH_NEW,
   UNNAMED_TAKES,
 } from "./prepareFixture";
 import type { SourceActions } from "./prepareTypes";
@@ -261,6 +262,113 @@ export const Done: Story = {
       canvas.getByRole("button", { name: /Review 14 suggestions/ }),
     );
     await expect(args.onHandoff).toHaveBeenCalled();
+  },
+};
+
+const NEW_AUDIO: Partial<PrepareViewProps> = {
+  phase: "new-audio",
+  sessions: [
+    session({ status: "new", sources: TAKES_WITH_NEW, people: 4, takes: 4 }),
+  ],
+  rows: ROWS.plan,
+  readySummary: "Getting ready: new audio waiting",
+  readyNote: "Priya’s audio is new. The other 3 tracks are reused as they are.",
+  handoff: { label: "Process new audio" },
+  onRunAll: fn(),
+};
+
+export const NewAudioWaiting: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Audio added to a project that already ran. Prepare shows the plan before anything starts: each Getting ready row says what it does and keeps ("Priya only · 3 kept", "All 4 tracks, Priya joins", "Whole episode"). The stage hand-off is the one primary, "Process new audio", and goes back to "Review N suggestions" when the run is done. The new Source card reads "New · not processed yet" and the session "New audio waiting". Skip on a row leaves it out of this run only; nothing is saved. "Run everything again" sits behind the ⋯ next to Advanced.',
+      },
+    },
+  },
+  args: NEW_AUDIO,
+  render: live,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(stageStatus(canvasElement)).toHaveTextContent(
+      "New audio is waiting. Process new audio when you are ready.",
+    );
+    await openReady(canvasElement);
+    await expect(canvas.getByText("New audio waiting")).toBeVisible();
+    await expect(
+      canvas.getByText("14:11 of audio · not processed yet"),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Skip, Clean and level" }),
+    );
+    await expect(args.onRowAction).toHaveBeenCalledWith("clean", "skip");
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Process new audio/ }),
+    );
+    await expect(args.onHandoff).toHaveBeenCalled();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "More ways to run" }),
+    );
+    await userEvent.click(
+      canvas.getByRole("menuitem", { name: "Run everything again" }),
+    );
+    await expect(args.onRunAll).toHaveBeenCalled();
+  },
+};
+
+export const NewAudioRowSkipped: Story = {
+  args: { ...NEW_AUDIO, rows: ROWS.planSkipped },
+  render: live,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await openReady(canvasElement);
+    await expect(canvas.getByText("Skipped this time")).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Include, Line up tracks" }),
+    );
+    await expect(args.onRowAction).toHaveBeenCalledWith("align", "include");
+  },
+};
+
+export const NewAudioPhone: Story = {
+  globals: phone,
+  args: NEW_AUDIO,
+  render: live,
+};
+
+export const AfterRunReused: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'After a run that reused earlier results. The rows say "1 new · 3 reused" and one line under the title sums the run up. The numbers come from the job\'s steps (`reuse: { reused, recomputed }`); a step that does not report it shows its usual line, and the summary counts only the steps that do.',
+      },
+    },
+  },
+  args: {
+    phase: "done",
+    sessions: [
+      session({ status: "done", sources: TAKES_WITH_NEW, people: 4, takes: 4 }),
+    ],
+    rows: ROWS.reused,
+    readySummary: "Getting ready: all done",
+    readyNote:
+      "Done in 1 min 12 s. 9 of 13 results were reused, so this run did less.",
+    handoff: { label: "Review 16 suggestions" },
+  },
+  render: live,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(stageStatus(canvasElement)).toHaveTextContent(
+      "Done. Review 16 suggestions.",
+    );
+    await openReady(canvasElement);
+    await expect(
+      canvas.getByText(
+        "Done in 1 min 12 s. 9 of 13 results were reused, so this run did less.",
+      ),
+    ).toBeVisible();
+    await expect(canvas.getAllByText("1 new · 3 reused")).toHaveLength(2);
   },
 };
 

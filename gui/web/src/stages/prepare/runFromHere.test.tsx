@@ -89,7 +89,7 @@ const B = sampleTrack({ id: "b" });
 async function runFromHere(step: string) {
   useDawStore.setState({ project: proj([A, B], ["a"]) });
   const v = renderHook(() => usePrepareModel(), { wrapper });
-  expect(v.result.current.view.phase).toBe("not-started");
+  expect(v.result.current.view.phase).toBe("new-audio");
   start.mockResolvedValueOnce(
     pipelineJobSnapshot({ id: "j-from", status: "running" }),
   );
@@ -109,14 +109,15 @@ async function runFromHere(step: string) {
 }
 
 describe("Run again from here and the audio an ok job covers", () => {
-  it("a step after transcribe leaves an untranscribed source not started, with Start", async () => {
+  it("a step after transcribe leaves the untranscribed source as new audio, with its plan", async () => {
     const result = await runFromHere("align_tracks");
     expect(start.mock.calls[0][1]).toMatchObject({ fromStep: "align_tracks" });
-    expect(result.current.view.phase).toBe("not-started");
+    expect(result.current.view.phase).toBe("new-audio");
     expect(
       result.current.view.rows.find((r) => r.id === "transcribe")?.action
         ?.label,
-    ).toBe("Start");
+    ).toBe("Skip");
+    expect(result.current.view.handoff.label).toBe("Process new audio");
   });
 
   it("from transcribe_tracks covers the audio", async () => {

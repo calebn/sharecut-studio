@@ -4,7 +4,7 @@ import { type PrepareTarget, SessionTargetChip } from "./SessionTargetChip";
 import { StageHandoff, type StageHandoffProps } from "./StageHandoff";
 import { StatusGlyph } from "./StatusGlyph";
 
-type SessionGroupStatus = "idle" | "running" | "done" | "failed";
+type SessionGroupStatus = "idle" | "new" | "running" | "done" | "failed";
 
 export type SessionGroupProps = {
   title: string;
@@ -56,7 +56,9 @@ export function SessionGroup({
         ? "Transcribed"
         : status === "failed"
           ? "Transcription failed"
-          : "Not started";
+          : status === "new"
+            ? "New audio waiting"
+            : "Not started";
   const ring = (
     <>
       <StatusGlyph

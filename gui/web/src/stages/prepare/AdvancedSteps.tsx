@@ -2,7 +2,13 @@ import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { useFocusRescue } from "../../system/useFocusRescue";
-import { Button, Menu, MenuItem } from "../../ui";
+import {
+  Button,
+  Menu,
+  MenuItem,
+  SegmentedControl,
+  ToggleButton,
+} from "../../ui";
 
 type ScrubParam = {
   kind: "scrub";
@@ -41,6 +47,17 @@ export type AdvancedStep = {
   optional: boolean;
   enabled: boolean;
   params: readonly StepParam[];
+  /** What the step does, in a line, under its switch. */
+  help?: string;
+  /** A choice that belongs to the person, not to this project. */
+  personal?: PersonalSetting;
+};
+
+type PersonalSetting = {
+  label: string;
+  on: boolean;
+  /** Where it is saved and what it leaves alone. */
+  note: string;
 };
 
 export type AdvancedGroup = {
@@ -64,12 +81,16 @@ export type AdvancedStepsProps = {
   onBack: () => void;
   onToggle: (id: string, enabled: boolean) => void;
   onParam: (stepId: string, paramId: string, value: number | string) => void;
+  /** The person's own choice for a step (saved on this computer). */
+  onPersonal?: (stepId: string, on: boolean) => void;
   onReset: (stepId: string, paramId: string) => void;
   onRunFromHere: (id: string) => void;
   onCancel: () => void;
 };
 
 const BUSY = "Steps cannot change while one is running.";
+const SAVED_HERE =
+  "Switches here are saved with this project and used by every run. To change one run only, use Skip in the plan.";
 
 function clampedValue(param: ScrubParam): number {
   const value = Number.isFinite(param.value) ? param.value : param.defaultValue;
@@ -194,6 +215,40 @@ function ParamField({
   );
 }
 
+function PersonalField({
+  stepId,
+  setting,
+  onPersonal,
+}: {
+  stepId: string;
+  setting: PersonalSetting;
+  onPersonal: AdvancedStepsProps["onPersonal"];
+}) {
+  const id = useId();
+  return (
+    <div className="sys-adv-field">
+      <div className="sys-adv-field-head">
+        <p className="sys-adv-label" aria-hidden="true">
+          {setting.label}
+        </p>
+      </div>
+      <SegmentedControl label={setting.label}>
+        {(["Off", "On"] as const).map((option) => (
+          <ToggleButton
+            key={option}
+            quiet
+            pressed={setting.on === (option === "On")}
+            onClick={() => onPersonal?.(stepId, option === "On")}
+          >
+            {option}
+          </ToggleButton>
+        ))}
+      </SegmentedControl>
+      <Help id={id}>{setting.note}</Help>
+    </div>
+  );
+}
+
 type SwitchProps = {
   name: string;
   checked: boolean;
@@ -240,6 +295,7 @@ export function AdvancedSteps({
   onBack,
   onToggle,
   onParam,
+  onPersonal,
   onReset,
   onRunFromHere,
   onCancel,
@@ -311,8 +367,20 @@ export function AdvancedSteps({
             <span>{selected.enabled ? "On" : "Off"}</span>
           </label>
         ) : null}
+        {selected.help ? (
+          <p className="sys-adv-result">{selected.help}</p>
+        ) : null}
+        {selected.personal ? (
+          <PersonalField
+            stepId={selected.id}
+            setting={selected.personal}
+            onPersonal={onPersonal}
+          />
+        ) : null}
         {selected.params.length === 0 ? (
-          <p className="sys-adv-result">Nothing to adjust for this step.</p>
+          selected.help || selected.personal ? null : (
+            <p className="sys-adv-result">Nothing to adjust for this step.</p>
+          )
         ) : (
           <div className="sys-adv-fields">
             {selected.params.map((param) => (
@@ -337,6 +405,7 @@ export function AdvancedSteps({
       <h2 ref={heading} tabIndex={-1} id={titleId} className="sys-adv-title">
         Advanced steps
       </h2>
+      <p className="sys-adv-result">{SAVED_HERE}</p>
       {status}
       {groups.map((group) => (
         <section

@@ -23,7 +23,12 @@ import {
 } from "../../utils/apiError";
 import { takeAutoRun } from "../../utils/openIntent";
 import { isPipelineSlotBusy } from "../../utils/pipeline";
-import { type ModelAsk, OVERWRITE_REFUSED } from "./prepareMappers";
+import {
+  type ModelAsk,
+  OVERWRITE_REFUSED,
+  oneRunSkipSteps,
+} from "./prepareMappers";
+import type { ReadyRowId } from "./ReadyList";
 
 const TRANSCRIBE_STEP = "transcribe_tracks";
 const WHISPER = "whisper";
@@ -39,9 +44,13 @@ export function runOptions(
   mode: RunMode,
   overwriteEdited: boolean,
   fromStep?: string,
+  skipped?: ReadonlySet<ReadyRowId>,
 ): NonNullable<Parameters<typeof startPipelineRun>[1]> {
   const fromTranscribe = mode !== "run";
   return {
+    // Plan rows skipped for this run only; the saved switches stay as they are.
+    skipSteps:
+      skipped && skipped.size > 0 ? oneRunSkipSteps(cfg, skipped) : undefined,
     fromStep: fromTranscribe ? TRANSCRIBE_STEP : fromStep,
     enabledSteps: fromTranscribe
       ? [...new Set([...cfg.enabled_steps, TRANSCRIBE_STEP])]
@@ -97,12 +106,22 @@ type PrepareRunInput = {
   workingSet: PipelineWorkingSet;
   /** Sources that still have no transcript. */
   untranscribed: number;
+  /** Sources that have one: audio added next to them waits for the person. */
+  transcribed: number;
   /** Changes when a track gains audio or is replaced. */
   mediaKey: string;
   ingestBusy: boolean;
   canRun: boolean;
   /** Names for a track id, for the keep-fixes line. */
   nameOf: (trackId: string) => string;
+};
+
+/** One run as asked, kept so a refusal or a failed start can replay it. */
+type RunRequest = {
+  mode: RunMode;
+  overwriteEdited: boolean;
+  fromStep?: string;
+  skipped?: ReadonlySet<ReadyRowId>;
 };
 
 type KeepFixes = {
@@ -130,18 +149,12 @@ export function usePrepareRun(input: PrepareRunInput) {
   const startingRef = useRef(false);
   /** Mirrors `waiting`, so a second refusal says so instead of doing nothing. */
   const waitingRef = useRef(false);
+  /** Plan rows skipped in the run that is waiting for the slot. */
+  const waitSkipRef = useRef<ReadonlySet<ReadyRowId> | undefined>(undefined);
   /** The request a missing model stopped, replayed once the model is in. */
-  const refusedRef = useRef<{
-    mode: RunMode;
-    overwriteEdited: boolean;
-    fromStep?: string;
-  } | null>(null);
+  const refusedRef = useRef<RunRequest | null>(null);
   /** The request that failed to start, replayed by Try again. */
-  const failedRef = useRef<{
-    mode: RunMode;
-    overwriteEdited: boolean;
-    fromStep?: string;
-  } | null>(null);
+  const failedRef = useRef<RunRequest | null>(null);
   /** Set once the model was seen missing after the ask, so a stale row never loops the run. */
   const sawMissing = useRef(false);
 
@@ -149,31 +162,40 @@ export function usePrepareRun(input: PrepareRunInput) {
    * The slot is taken, so nothing started. A plain run waits and goes on when
    * the slot frees (the row shows it); other modes say so, so none is silent.
    */
-  const busyRefused = useCallback((mode: RunMode) => {
-    if (mode === "run" && !waitingRef.current) {
-      waitingRef.current = true;
-      setWaiting(true);
-      return;
-    }
-    useDawStore
-      .getState()
-      .announceStatus(
-        mode === "run"
-          ? "Another job is running. Transcribing starts when it finishes."
-          : "Another job is running. Try again when it finishes.",
-        { tone: "error" },
-      );
-  }, []);
+  const busyRefused = useCallback(
+    (mode: RunMode, skipped?: ReadonlySet<ReadyRowId>) => {
+      if (mode === "run" && !waitingRef.current) {
+        waitingRef.current = true;
+        waitSkipRef.current = skipped;
+        setWaiting(true);
+        return;
+      }
+      useDawStore
+        .getState()
+        .announceStatus(
+          mode === "run"
+            ? "Another job is running. Transcribing starts when it finishes."
+            : "Another job is running. Try again when it finishes.",
+          { tone: "error" },
+        );
+    },
+    [],
+  );
 
   const start = useCallback(
-    async (mode: RunMode, overwriteEdited = false, fromStep?: string) => {
+    async (
+      mode: RunMode,
+      overwriteEdited = false,
+      fromStep?: string,
+      skipped?: ReadonlySet<ReadyRowId>,
+    ) => {
       if (startingRef.current) return;
       const store = useDawStore.getState();
       if (
         isPipelineSlotBusy(store.pipelineJob) ||
         isPipelineSlotBusy(store.activityJob)
       ) {
-        busyRefused(mode);
+        busyRefused(mode, skipped);
         return;
       }
       startingRef.current = true;
@@ -185,12 +207,18 @@ export function usePrepareRun(input: PrepareRunInput) {
         if (!cfg) throw new Error("Could not read the pipeline settings.");
         let job: PipelineJobSnapshot;
         const keyAtRequest = currentMediaKey();
-        const options = runOptions(cfg, mode, overwriteEdited, fromStep);
+        const options = runOptions(
+          cfg,
+          mode,
+          overwriteEdited,
+          fromStep,
+          skipped,
+        );
         try {
           job = await startPipelineRun(latest.current.projectPath, options);
         } catch (error) {
           if (isModelNeeded(error)) {
-            refusedRef.current = { mode, overwriteEdited, fromStep };
+            refusedRef.current = { mode, overwriteEdited, fromStep, skipped };
             setNeed(error.model);
             return;
           }
@@ -209,11 +237,11 @@ export function usePrepareRun(input: PrepareRunInput) {
       } catch (error) {
         const code = (error as { code?: string | null }).code;
         if (code === BUSY_CODE) {
-          busyRefused(mode);
+          busyRefused(mode, skipped);
         } else {
           waitingRef.current = false;
           setWaiting(false);
-          failedRef.current = { mode, overwriteEdited, fromStep };
+          failedRef.current = { mode, overwriteEdited, fromStep, skipped };
           setStartError(errorMessage(error));
           useDawStore
             .getState()
@@ -236,7 +264,15 @@ export function usePrepareRun(input: PrepareRunInput) {
   useEffect(() => {
     if (ingestBusy && !wasBusy.current) keyAtStart.current = mediaKey;
     if (!ingestBusy && wasBusy.current) {
-      if (canRun && mediaKey && mediaKey !== keyAtStart.current) {
+      // New audio next to finished work shows the plan instead of starting.
+      const waitsForPlan =
+        latest.current.transcribed > 0 && latest.current.untranscribed > 0;
+      if (
+        canRun &&
+        mediaKey &&
+        mediaKey !== keyAtStart.current &&
+        !waitsForPlan
+      ) {
         void start("run");
       }
     }
@@ -249,7 +285,9 @@ export function usePrepareRun(input: PrepareRunInput) {
       isPipelineSlotBusy(s.pipelineJob) || isPipelineSlotBusy(s.activityJob),
   );
   useEffect(() => {
-    if (waiting && !slotBusy && canRun) void start("run");
+    if (waiting && !slotBusy && canRun) {
+      void start("run", false, undefined, waitSkipRef.current);
+    }
   }, [waiting, slotBusy, canRun, start]);
 
   // A failed start is old news once any job holds the slot.
@@ -279,6 +317,7 @@ export function usePrepareRun(input: PrepareRunInput) {
       refused?.mode ?? "run",
       refused?.overwriteEdited ?? false,
       refused?.fromStep,
+      refused?.skipped,
     );
   }, [arrived, start]);
 
@@ -362,6 +401,7 @@ export function usePrepareRun(input: PrepareRunInput) {
         failed?.mode ?? "run",
         failed?.overwriteEdited ?? false,
         failed?.fromStep,
+        failed?.skipped,
       );
     },
     retranscribe: () => void askToReplace("retranscribe"),

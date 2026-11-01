@@ -10,7 +10,8 @@ type Spy = Pick<
   | "onReset"
   | "onRunFromHere"
   | "onCancel"
->;
+> &
+  Partial<Pick<AdvancedStepsProps, "onPersonal">>;
 
 /**
  * Story-only state for the step list: the open step, switches and settings
@@ -72,6 +73,12 @@ export function useAdvancedDemo(
         ),
       }));
       spy.onReset(id, paramId);
+    },
+    onPersonal: (id, on) => {
+      edit(id, (step) =>
+        step.personal ? { ...step, personal: { ...step.personal, on } } : step,
+      );
+      spy.onPersonal?.(id, on);
     },
     onRunFromHere: spy.onRunFromHere,
     onCancel: spy.onCancel,

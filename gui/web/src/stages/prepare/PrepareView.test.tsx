@@ -10,6 +10,7 @@ import {
   ROWS,
   SECOND_SESSION,
   session,
+  TAKES_WITH_NEW,
 } from "./prepareFixture";
 import type { SourceActions } from "./prepareTypes";
 
@@ -673,5 +674,126 @@ describe("PrepareView focus", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("region", { name: "Session 2 · 2 Nov" }),
     );
+  });
+});
+
+describe("PrepareView: audio added after a run", () => {
+  const NEW: Partial<PrepareViewProps> = {
+    phase: "new-audio",
+    sessions: [session({ status: "new", sources: TAKES_WITH_NEW })],
+    rows: ROWS.plan,
+    readySummary: "Getting ready: new audio waiting",
+    readyNote:
+      "Priya’s audio is new. The other 3 tracks are reused as they are.",
+    handoff: { label: "Process new audio" },
+  };
+
+  it("shows the plan on the rows, with the line that explains it", () => {
+    render(<PrepareView {...props(NEW)} />);
+    expect(
+      screen.getByText(
+        "Priya’s audio is new. The other 3 tracks are reused as they are.",
+      ),
+    ).toBeVisible();
+    const list = screen.getByRole("list", { name: "Getting ready" });
+    expect(within(list).getAllByText("Priya only · 3 kept")).toHaveLength(2);
+    expect(within(list).getByText("All 4 tracks, Priya joins")).toBeVisible();
+    expect(within(list).getByText("Whole episode")).toBeVisible();
+  });
+
+  it("marks the new Source card and the session", () => {
+    render(<PrepareView {...props(NEW)} />);
+    expect(screen.getByText("New audio waiting")).toBeVisible();
+    expect(screen.getByText("New")).toBeVisible();
+    expect(
+      screen.getByText("14:11 of audio · not processed yet"),
+    ).toBeVisible();
+  });
+
+  it("makes Process new audio the one primary hand-off, and runs it", async () => {
+    const onHandoff = vi.fn();
+    const { container } = render(
+      <PrepareView {...props({ ...NEW, onHandoff })} />,
+    );
+    const button = screen.getByRole("button", { name: /Process new audio/ });
+    expect(button).toHaveClass("primary");
+    expect(button).not.toHaveAttribute("aria-disabled");
+    await userEvent.click(button);
+    expect(onHandoff).toHaveBeenCalledOnce();
+    expect(live(container)).toBe(
+      "New audio is waiting. Process new audio when you are ready.",
+    );
+  });
+
+  it("skips and includes a row, named by the row", async () => {
+    const onRowAction = vi.fn();
+    const { rerender } = render(
+      <PrepareView {...props({ ...NEW, onRowAction })} />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Skip, Line up tracks" }),
+    );
+    expect(onRowAction).toHaveBeenCalledWith("align", "skip");
+    rerender(
+      <PrepareView
+        {...props({ ...NEW, rows: ROWS.planSkipped, onRowAction })}
+      />,
+    );
+    expect(screen.getByText("Skipped this time")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Include, Line up tracks" }),
+    );
+    expect(onRowAction).toHaveBeenCalledWith("align", "include");
+  });
+
+  it("offers Run everything again behind the more button next to Advanced", async () => {
+    const onRunAll = vi.fn();
+    render(<PrepareView {...props({ ...NEW, onRunAll })} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "More ways to run" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Run everything again" }),
+    );
+    expect(onRunAll).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the more button out where Run everything again is not offered", () => {
+    render(<PrepareView {...props(NEW)} />);
+    expect(
+      screen.queryByRole("button", { name: "More ways to run" }),
+    ).toBeNull();
+  });
+
+  it("holds Run everything again while the work runs", async () => {
+    const onRunAll = vi.fn();
+    render(<PrepareView {...props({ onRunAll })} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "More ways to run" }),
+    );
+    const item = screen.getByRole("menuitem", { name: /Run everything again/ });
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(item);
+    expect(onRunAll).not.toHaveBeenCalled();
+  });
+
+  it("says what the last run reused, in one line, and returns to Review", () => {
+    const note =
+      "Done in 1 min 12 s. 9 of 13 results were reused, so this run did less.";
+    render(
+      <PrepareView
+        {...props({
+          ...DONE,
+          rows: ROWS.reused,
+          readyNote: note,
+          handoff: { label: "Review 16 suggestions" },
+        })}
+      />,
+    );
+    expect(screen.getByText(note)).toBeVisible();
+    expect(screen.getAllByText("1 new · 3 reused")).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: /Review 16 suggestions/ }),
+    ).toHaveClass("primary");
   });
 });

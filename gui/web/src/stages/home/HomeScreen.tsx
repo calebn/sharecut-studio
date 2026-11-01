@@ -28,6 +28,7 @@ import {
 } from "../../utils/projectFile";
 import { OPEN_OTHER_QUERY_PARAM, projectUrl } from "../../utils/projectUrl";
 import { readLocal, writeLocal } from "../../utils/storage";
+import { applySoundScanStart } from "../prepare/applySoundScanStart";
 import { HomeView } from "./HomeView";
 import {
   bundleToGet,
@@ -255,6 +256,7 @@ export function HomeScreen() {
         async () => {
           if (files.length === 0) return undefined;
           const created = await createEpisodeProject("", name);
+          await applySoundScanStart(created.project_path);
           const ingested = await ingestIntoNewProject(
             created.project_path,
             files,
@@ -306,6 +308,7 @@ export function HomeScreen() {
           "",
           untitledEpisodeName(new Date()),
         );
+        await applySoundScanStart(created.project_path);
         writeOpenIntent(created.project_path, { stage: "record" });
         return navigateToProject(created.project_path);
       },

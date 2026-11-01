@@ -47,15 +47,15 @@ const WHISPER_NEEDED = new ApiError("model needed", "model_needed", 409, {
   state: "missing",
 });
 
-function workingSet(): PipelineWorkingSet {
+function workingSet(cfg = pipelineConfig()): PipelineWorkingSet {
   return {
-    cfg: pipelineConfig(),
+    cfg,
     loadError: null,
     saveError: null,
     saving: false,
     reload: vi.fn(),
     update: vi.fn(async () => true),
-    fetchFresh: vi.fn(async () => pipelineConfig()),
+    fetchFresh: vi.fn(async () => cfg),
   };
 }
 
@@ -83,6 +83,7 @@ function setup(models = modelsFor("missing")) {
       usePrepareRun({
         projectPath: "/tmp/p/episode.sharecut",
         workingSet: ws,
+        transcribed: 0,
         untranscribed: 1,
         mediaKey,
         ingestBusy,
@@ -275,6 +276,7 @@ describe("usePrepareRun auto-run", () => {
         usePrepareRun({
           projectPath: "/tmp/p/episode.sharecut",
           workingSet: ws,
+          transcribed: 0,
           untranscribed: 1,
           nameOf: (id) => id,
           canRun: true,
@@ -393,6 +395,7 @@ describe("usePrepareRun after a model download", () => {
         usePrepareRun({
           projectPath: "/tmp/p/episode.sharecut",
           workingSet: ws,
+          transcribed: 0,
           untranscribed: 1,
           mediaKey: "a:/a.wav",
           ingestBusy: false,
@@ -632,5 +635,109 @@ describe("usePrepareRun cancel", () => {
     await act(async () => result.current.cancel());
     expect(cancel).toHaveBeenCalledWith("j9");
     expect(useDawStore.getState().pipelineJob?.status).toBe("cancelled");
+  });
+});
+
+const FULL_STEPS = [
+  "ingest_tracks",
+  "transcribe_tracks",
+  "align_tracks",
+  "fill_gate_holes",
+  "clean_audio",
+];
+
+describe("runOptions for one run", () => {
+  it("passes no skip list when no plan row was skipped", () => {
+    expect(
+      runOptions(pipelineConfig(), "run", false).skipSteps,
+    ).toBeUndefined();
+    expect(
+      runOptions(pipelineConfig(), "run", false, undefined, new Set())
+        .skipSteps,
+    ).toBeUndefined();
+  });
+
+  it("skips the steps of a skipped row on top of the saved switches", () => {
+    const cfg = pipelineConfig({
+      step_names: FULL_STEPS,
+      enabled_steps: FULL_STEPS.filter((id) => id !== "fill_gate_holes"),
+    });
+    const options = runOptions(
+      cfg,
+      "run",
+      false,
+      undefined,
+      new Set(["align"]),
+    );
+    expect(options.skipSteps).toContain("align_tracks");
+    expect(options.skipSteps).toContain("fill_gate_holes");
+    expect(options.skipSteps).not.toContain("transcribe_tracks");
+    expect(options.enabledSteps).toEqual(cfg.enabled_steps);
+  });
+});
+
+describe("usePrepareRun with audio added after a run", () => {
+  function added(over: { canRun?: boolean } = {}) {
+    const api = modelsFor("installed");
+    const ws = workingSet(
+      pipelineConfig({ step_names: FULL_STEPS, enabled_steps: FULL_STEPS }),
+    );
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+    );
+    const view = renderHook(
+      ({ ingestBusy, mediaKey }: Props) =>
+        usePrepareRun({
+          projectPath: "/tmp/p/episode.sharecut",
+          workingSet: ws,
+          transcribed: 3,
+          untranscribed: 1,
+          mediaKey,
+          ingestBusy,
+          canRun: over.canRun ?? true,
+          nameOf: (id) => id,
+        }),
+      {
+        wrapper,
+        initialProps: { ingestBusy: false, mediaKey: "a:/a.wav" } as Props,
+      },
+    );
+    return view;
+  }
+
+  it("waits for Process new audio instead of starting when the import is done", async () => {
+    const { rerender } = added();
+    rerender({ ingestBusy: true, mediaKey: "a:/a.wav" });
+    rerender({ ingestBusy: false, mediaKey: "a:/a.wav|p:/p.wav" });
+    await act(async () => undefined);
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it("starts with the skipped rows when the person processes it", async () => {
+    const { result } = added();
+    await act(async () => {
+      await result.current.run("run", false, undefined, new Set(["clean"]));
+    });
+    expect(start).toHaveBeenCalledOnce();
+    expect(start.mock.calls[0][1]).toMatchObject({
+      skipSteps: expect.arrayContaining(["clean_audio"]),
+    });
+  });
+
+  it("keeps the skipped rows when the run waits for the slot and goes on", async () => {
+    useDawStore.setState({
+      pipelineJob: pipelineJobSnapshot({ id: "other", status: "running" }),
+    });
+    const { result } = added();
+    await act(async () => {
+      await result.current.run("run", false, undefined, new Set(["align"]));
+    });
+    expect(result.current.waiting).toBe(true);
+    expect(start).not.toHaveBeenCalled();
+    act(() => useDawStore.setState({ pipelineJob: null }));
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    expect(start.mock.calls[0][1]).toMatchObject({
+      skipSteps: expect.arrayContaining(["align_tracks"]),
+    });
   });
 });
