@@ -357,7 +357,7 @@ def clip_source_at_timeline(clip: SourcePlacement, timeline_sec: float) -> float
     A clip with a timing map reads the piece that plays at ``timeline_sec``; inside a hole
     it reads the nearer piece edge, and outside the clip it extends the nearest piece.
     """
-    if getattr(clip, "timing", None) is None:
+    if not isinstance(clip, Clip) or clip.timing is None:
         return timeline_sec - clip_source_to_timeline_shift(clip)
     previous: tuple[float, float, float] | None = None
     for piece in _timeline_pieces(clip):
