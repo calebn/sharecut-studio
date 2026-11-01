@@ -21,7 +21,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.models.episode import ChapterMarker
+from podcast_mcp.models.episode import ChapterMarker, EditDecision
 from podcast_mcp.segments.model import (
     SEGMENT_JSON,
     MediaEntry,
@@ -31,7 +31,9 @@ from podcast_mcp.segments.model import (
     segment_json,
 )
 from podcast_mcp.segments.store import SegmentStore, sha256_file
+from podcast_mcp.services.collaboration import capabilities_for_role
 from podcast_mcp.services.document_sync import DocumentSyncService
+from podcast_mcp.services.document_sync.commands import DocumentCommand
 
 runner = CliRunner()
 
@@ -276,6 +278,7 @@ def test_inserting_the_same_segment_twice_stores_its_audio_once(
     loaded = load_project(Path(project))
     assert len(list((Path(project).parent / "raw").glob("segment-*"))) == 1
     assert len([s for s in loaded.sources if s.id.startswith("seg_")]) == 1
+    assert not list((Path(project).parent / "raw").glob(".segment-*"))
 
 
 def test_a_dialogue_segment_gets_its_own_track_with_the_segment_level(
@@ -307,6 +310,72 @@ def test_each_lane_gets_its_own_track_and_a_new_role_makes_a_track(
     assert all(c.timeline_start == 4.0 for c in placed.values())
     # The music tracks are edited tracks, so they open the time too and stay aligned.
     assert load_project(Path(project)).timeline.duration_sec == pytest.approx(10.0)
+
+
+def test_a_pending_decision_after_the_point_moves_with_the_content(
+    tmp_path: Path, project: str
+) -> None:
+    proj = load_project(Path(project))
+    proj.editorial.edit_decisions = [
+        EditDecision(
+            id="later", track_id="host", start=5.0, end=5.5, applied=False, timebase="timeline"
+        ),
+        EditDecision(
+            id="earlier", track_id="host", start=1.0, end=1.5, applied=False, timebase="timeline"
+        ),
+    ]
+    save_project(proj, Path(project))
+    segment = _save(tmp_path, "Warm Intro")
+
+    assert _insert(project, segment.id, 4.0).exit_code == 0
+
+    moved = {d.id: (d.start, d.end) for d in load_project(Path(project)).editorial.edit_decisions}
+    assert moved == {"later": (7.0, 7.5), "earlier": (1.0, 1.5)}
+
+
+def test_a_stale_file_at_the_raw_name_is_never_trusted(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+    digest = segment.media["clip-01.flac"].sha256
+    stale = Path(project).parent / "raw" / f"segment-{digest}.flac"
+    stale.write_bytes(b"not the audio")
+
+    assert _insert(project, segment.id, 4.0).exit_code == 0
+
+    assert sha256_file(stale) == digest
+    source = next(s for s in load_project(Path(project)).sources if s.id.startswith("seg_"))
+    assert source.duration_sec == pytest.approx(2.0, abs=0.1)
+    assert source.path == f"raw/segment-{digest}.flac"
+
+
+def test_an_editor_share_cannot_insert_a_segment(tmp_path: Path, project: str) -> None:
+    from podcast_mcp.services.document_sync import DocumentSyncService
+
+    segment = _save(tmp_path, "Warm Intro")
+    before = _layout(project)
+    command = DocumentCommand(
+        type="InsertSegment",
+        payload={"segment_id": segment.id, "at": 4.0},
+        client_id="guest",
+        client_seq=None,
+        role="guest",
+    )
+    with pytest.raises(PermissionError, match="InsertSegment"):
+        DocumentSyncService.open(project).submit(
+            command, capabilities=capabilities_for_role("editor")
+        )
+    assert _layout(project) == before
+
+
+def test_a_dialogue_segment_named_like_a_speaker_does_not_join_that_speaker(
+    tmp_path: Path, project: str
+) -> None:
+    segment = _save(tmp_path, "host", role="dialogue")
+    assert _insert(project, segment.id, 4.0).exit_code == 0
+    loaded = load_project(Path(project))
+    new = [t for t in loaded.tracks if t.id not in ("host", "jingles")]
+    assert len(new) == 1
+    assert new[0].speaker == "host (segment)" and new[0].label == "host (segment)"
+    assert [t.speaker for t in loaded.tracks if t.id == "host"] == ["Host"]
 
 
 def test_an_old_clip_has_no_segment_ref_key_on_disk(project: str) -> None:

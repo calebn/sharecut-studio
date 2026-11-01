@@ -15,8 +15,6 @@ from podcast_mcp.segments.store import SegmentStore, sha256_file
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedValueError
 
-_HASH_CHARS = 16
-
 
 def _mismatch(segment: SegmentFile, name: str) -> CodedValueError:
     return CodedValueError(
@@ -38,28 +36,27 @@ def copy_segment_audio(
     raw.mkdir(parents=True, exist_ok=True)
     out: dict[str, SegmentAudio] = {}
     for name, entry in segment.media.items():
-        stem = entry.sha256[:_HASH_CHARS]
-        dest = raw / f"segment-{stem}{Path(name).suffix}"
-        if not (dest.is_file() and sha256_file(dest) == entry.sha256):
-            fd, tmp_name = tempfile.mkstemp(prefix=".segment-", suffix=".part", dir=raw)
-            os.close(fd)
-            tmp = Path(tmp_name)
-            try:
-                shutil.copyfile(folder / name, tmp)
-                if sha256_file(tmp) != entry.sha256:
-                    raise _mismatch(segment, name)
-                os.replace(tmp, dest)
-            except OSError as exc:
-                raise CodedValueError(
-                    f"The audio file {name} of segment {segment.name!r} could not be copied: "
-                    f"{exc.strerror or exc}.",
-                    code="segment_write_failed",
-                ) from exc
-            finally:
-                tmp.unlink(missing_ok=True)
-        asset = media_asset_from_path(dest, store_path=f"raw/{dest.name}")
+        dest = raw / f"segment-{entry.sha256}{Path(name).suffix}"
+        # Always a fresh copy: a file already at the name is never trusted or probed.
+        fd, tmp_name = tempfile.mkstemp(prefix=".segment-", suffix=Path(name).suffix, dir=raw)
+        os.close(fd)
+        tmp = Path(tmp_name)
+        try:
+            shutil.copyfile(folder / name, tmp)
+            if sha256_file(tmp) != entry.sha256:
+                raise _mismatch(segment, name)
+            asset = media_asset_from_path(tmp, store_path=f"raw/{dest.name}")
+            os.replace(tmp, dest)
+        except OSError as exc:
+            raise CodedValueError(
+                f"The audio file {name} of segment {segment.name!r} could not be copied: "
+                f"{exc.strerror or exc}.",
+                code="segment_write_failed",
+            ) from exc
+        finally:
+            tmp.unlink(missing_ok=True)
         out[name] = SegmentAudio(
-            source_id=f"seg_{stem}",
+            source_id=f"seg_{entry.sha256}",
             path=asset.path,
             duration_sec=float(asset.duration_sec or 0.0),
             sample_rate=int(asset.sample_rate or 0),

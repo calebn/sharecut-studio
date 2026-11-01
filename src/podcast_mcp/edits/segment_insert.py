@@ -13,7 +13,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.edits.comment_remap import shift_review_anchors_for_insert
+from podcast_mcp.edits.comment_remap import (
+    shift_pending_decisions_for_insert,
+    shift_review_anchors_for_insert,
+)
 from podcast_mcp.edits.ripple import ripple_insert_clips, ripple_track_ids
 from podcast_mcp.engines.clips_ops import (
     clips_for_track,
@@ -78,6 +81,22 @@ def _unique_track_id(project: EpisodeProject, preferred: str) -> str:
     return f"{base}_{i}"
 
 
+def _free_label(project: EpisodeProject, label: str) -> str:
+    """``label``, or ``label (segment)`` when a track or speaker already goes by it.
+
+    A new dialogue track's label is also its speaker, and speaker-keyed edits would
+    otherwise treat the segment as that speaker.
+    """
+    taken = {t.label.casefold() for t in project.tracks} | {
+        t.speaker.casefold() for t in project.tracks if t.speaker
+    }
+    candidate, n = label, 1
+    while candidate.casefold() in taken:
+        candidate = f"{label} (segment)" if n == 1 else f"{label} (segment {n})"
+        n += 1
+    return candidate
+
+
 def map_lanes(project: EpisodeProject, segment: SegmentFile) -> dict[int, str]:
     """The track each segment lane lands on, creating the tracks that do not exist yet.
 
@@ -94,7 +113,9 @@ def map_lanes(project: EpisodeProject, segment: SegmentFile) -> dict[int, str]:
             if existing is not None:
                 mapping[lane] = existing.id
                 continue
-        label = segment.name if lane == lanes[0] else f"{segment.name} {lane + 1}"
+        label = _free_label(
+            project, segment.name if lane == lanes[0] else f"{segment.name} {lane + 1}"
+        )
         track = Track(
             id=_unique_track_id(project, label),
             label=label,
@@ -167,6 +188,7 @@ def insert_segment(
     affected = ripple_track_ids(project, by_track)
     ripple_insert_clips(project, at, duration, affected, defaults=defaults)
     shift_review_anchors_for_insert(project, at, duration)
+    shift_pending_decisions_for_insert(project, at, duration, set(affected))
     for track_id, placed in by_track.items():
         set_track_clips(
             project, track_id, place_clips_at(clips_for_track(project, track_id), placed, at)
