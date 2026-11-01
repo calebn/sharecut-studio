@@ -449,6 +449,25 @@ describe("usePrepareRun after a model download", () => {
 });
 
 describe("usePrepareRun Run while waiting", () => {
+  it("keeps repeated busy feedback truthful when saved steps exclude ASR", async () => {
+    start.mockRejectedValue(new ApiError("busy", "pipeline_busy", 409));
+    const { result, ws } = setup(modelsFor("installed"));
+    ws.cfg!.enabled_steps = ["ingest_tracks", "clean_audio"];
+    await act(async () => result.current.run("run"));
+    expect(result.current.waiting).toBe(true);
+    expect(start.mock.calls[0][1]?.enabledSteps).toEqual([
+      "ingest_tracks",
+      "clean_audio",
+    ]);
+    const priorRefusals = start.mock.calls.length;
+    await act(async () => result.current.tryAgain());
+    expect(start).toHaveBeenCalledTimes(priorRefusals + 1);
+    expect(result.current.waiting).toBe(true);
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Another job is running. Processing starts when it finishes.",
+    );
+  });
+
   it("says another job is running and stays waiting when the slot is still busy", async () => {
     start.mockRejectedValue(new ApiError("busy", "pipeline_busy", 409));
     const { result, rerender } = setup();
