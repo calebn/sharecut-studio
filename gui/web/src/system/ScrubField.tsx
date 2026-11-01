@@ -225,6 +225,7 @@ export function ScrubField({
     refocus.current = how !== "blur";
     setDraft(null);
     if (how === "escape" || parsed === null || !valid) return;
+    if (text === (value === null ? "" : formatScrub(value, decimals))) return;
     const next = clamp(roundTo(parsed, decimals), bounds);
     if (next !== value) onCommit(next);
   };
