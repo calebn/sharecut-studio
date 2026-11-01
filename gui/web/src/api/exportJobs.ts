@@ -74,6 +74,7 @@ export async function exportDeliverables(
 export async function startExportJob(
   projectPath: string,
   formats?: Record<string, unknown>[] | null,
+  opts?: { loudnessLufs?: number | null },
 ): Promise<PipelineJobSnapshot> {
   const res = await apiFetch(
     HOST_KEY,
@@ -81,7 +82,11 @@ export async function startExportJob(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: projectPath, formats: formats ?? null }),
+      body: JSON.stringify({
+        path: projectPath,
+        formats: formats ?? null,
+        ...(opts?.loudnessLufs != null && { loudness_lufs: opts.loudnessLufs }),
+      }),
     },
   );
   const data = (await res.json()) as {

@@ -120,6 +120,8 @@ export interface ExpectedTimingWord {
 export interface ExportDeliverablesRequest {
   path: string;
   formats?: Array<Record<string, unknown>> | null;
+  /** Integrated loudness to master this export to; None keeps the project's own target. */
+  loudness_lufs?: number | null;
 }
 
 export interface ExportRevealRequest {

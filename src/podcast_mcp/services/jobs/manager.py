@@ -245,9 +245,13 @@ class JobManager:
         project_path: Path,
         *,
         formats: list[dict[str, Any]] | None = None,
+        loudness_lufs: float | None = None,
         wait_for_rebuild: bool = True,
     ) -> Job:
         """Mastered deliverables via ``PipelineService.export_audio``.
+
+        ``loudness_lufs`` masters this export to that integrated loudness instead of the
+        project's target.
 
         A mix rebuild of the same project (the automatic refresh after an edit, Undo or Redo)
         holds the slot only briefly, so the export queues behind it instead of refusing.
@@ -263,7 +267,7 @@ class JobManager:
                     project_path,
                     kind="export",
                     label="Export deliverables",
-                    config={"formats": formats},
+                    config={"formats": formats, "loudness_lufs": loudness_lufs},
                 )
             except JobSlotBusyError:
                 if not wait_for_rebuild or self._live_mix_rebuild(scope) is None:
@@ -586,7 +590,11 @@ class JobManager:
         svc = PipelineService(ws)
         if job.kind == "export":
             cfg = job.config or {}
-            export = svc.export_audio(cfg.get("formats"), cancel_check=cancel_check)
+            export = svc.export_audio(
+                cfg.get("formats"),
+                loudness_lufs=cfg.get("loudness_lufs"),
+                cancel_check=cancel_check,
+            )
             return "Export complete", export.job_result()
         if job.kind == "render_preview":
             if job.cancel_requested:

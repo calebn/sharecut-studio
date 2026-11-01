@@ -300,9 +300,15 @@ class PipelineService:
         self,
         formats: list[dict] | None = None,
         *,
+        loudness_lufs: float | None = None,
         cancel_check: Callable[[], bool] | None = None,
     ) -> AudioExportResult:
         defaults = self._run_defaults()
+        if loudness_lufs is not None:
+            defaults = {
+                **defaults,
+                "master": {**defaults.get("master", {}), "integrated_lufs": loudness_lufs},
+            }
         if formats is not None:
             defaults = {**defaults, "export": {**defaults.get("export", {}), "formats": formats}}
         from podcast_mcp.export.episode import export_episode_deliverables

@@ -169,6 +169,8 @@ class SpeakerMoveLaneSpanRequest(BaseModel):
 class ExportDeliverablesRequest(BaseModel):
     path: str
     formats: list[dict] | None = None
+    loudness_lufs: float | None = Field(default=None, ge=-40.0, le=-5.0, allow_inf_nan=False)
+    """Integrated loudness to master this export to; None keeps the project's own target."""
 
 
 class ExportRevealRequest(BaseModel):

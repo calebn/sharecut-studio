@@ -444,3 +444,65 @@ def test_export_audio_reports_the_edit_head_at_its_checkpoint(minimal_project, m
     monkeypatch.setattr("podcast_mcp.services.pipeline.service.ffmpeg", lambda: object())
     result = PipelineService(ProjectWorkspace.open(Path(minimal_project))).export_audio()
     assert result.edit_head_id == "cut-2"
+
+
+def test_export_audio_masters_to_the_loudness_target_it_is_given(
+    minimal_project, monkeypatch
+) -> None:
+    from podcast_mcp.engines.mastering import MasterTarget
+    from podcast_mcp.pipeline import steps
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.pipeline import PipelineService
+
+    mastered_with: list[MasterTarget] = []
+
+    def record_master(_project, defaults):
+        mastered_with.append(MasterTarget.from_defaults(defaults))
+        return Path("master.wav")
+
+    monkeypatch.setattr(steps, "ensure_current_master", record_master)
+    monkeypatch.setattr(steps, "read_master_qc", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        "podcast_mcp.export.episode.export_episode_deliverables",
+        lambda *_a, **_k: [Path("/tmp/demo.wav")],
+    )
+    monkeypatch.setattr("podcast_mcp.services.pipeline.service.ffmpeg", lambda: object())
+    svc = PipelineService(ProjectWorkspace.open(Path(minimal_project)))
+
+    svc.export_audio()
+    svc.export_audio(loudness_lufs=-19.0)
+
+    assert [t.integrated_lufs for t in mastered_with] == [-16.0, -19.0]
+    assert mastered_with[0].true_peak_db == mastered_with[1].true_peak_db
+
+
+def test_deliverables_route_hands_the_loudness_target_to_the_job_and_bounds_it(
+    minimal_project, monkeypatch
+) -> None:
+    seen: list[float | None] = []
+    release = threading.Event()
+    release.set()
+    _wire_ordered_slot(monkeypatch, [], release)
+    real = JobManager.start_export
+
+    def spy(self, project_path, **kwargs):
+        seen.append(kwargs.get("loudness_lufs"))
+        return real(self, project_path, **kwargs)
+
+    monkeypatch.setattr(JobManager, "start_export", spy)
+    client = TestClient(create_app())
+
+    ok = client.post(
+        "/api/export/deliverables", json={"path": str(minimal_project), "loudness_lufs": -18.5}
+    )
+    too_loud = client.post(
+        "/api/export/deliverables", json={"path": str(minimal_project), "loudness_lufs": 3}
+    )
+    not_a_number = client.post(
+        "/api/export/deliverables", json={"path": str(minimal_project), "loudness_lufs": "loud"}
+    )
+
+    assert ok.status_code == 200, ok.text
+    assert seen == [-18.5]
+    assert too_loud.status_code == 422
+    assert not_a_number.status_code == 422

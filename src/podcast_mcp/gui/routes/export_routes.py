@@ -80,7 +80,9 @@ def export_deliverables(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     try:
-        job = _jobs(request).start_export(project_path, formats=body.formats)
+        job = _jobs(request).start_export(
+            project_path, formats=body.formats, loudness_lufs=body.loudness_lufs
+        )
     except RuntimeError as exc:
         raise coded_exception_error(409, exc, code="export_job_conflict") from exc
     except (ValueError, FileNotFoundError) as exc:
