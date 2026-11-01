@@ -18,7 +18,7 @@ SHARED_FIELDS: dict[str, str] = {
     "ChapterMarker": ("image_url time title"),
     "Clip": (
         "bleed_restore fade_in_ms fade_out_ms id join_in_mode mute_regions "
-        "off_speaker_mute_regions source_end source_id source_start timeline_start timing track_id"
+        "off_speaker_mute_regions segment_ref source_end source_id source_start timeline_start timing track_id"
     ),
     "ClipBleedRestore": ("regions source_sha256"),
     "ClipMuteRegion": ("end_s fade_in_ms fade_out_ms fill gain_db start_s"),
@@ -75,6 +75,7 @@ SHARED_FIELDS: dict[str, str] = {
         "base_server_seq causation_id client_id client_seq command_id payload role type"
     ),
     "TimingStep": ("at delta_sec quiet"),
+    "SegmentRef": ("content_sha256 segment_id version"),
     "SessionSuggestion": (
         "anchor at_sec end_anchor from_sec id kind room_tone selected_take session_id session_number "
         "status takes to_sec track_follows track_ids"
