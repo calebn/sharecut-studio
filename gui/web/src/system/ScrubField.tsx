@@ -44,6 +44,8 @@ export type ScrubFieldProps = ScrubRange & {
   onPreview?: (value: number) => void;
   /** Fires once per gesture, so one drag, key press or typed value is one undo step. */
   onCommit: (value: number) => void;
+  /** Typed text left as it was shown when editing began commits nothing. */
+  skipUnchanged?: boolean;
   /** A drag ended where it began, or Escape: drop the preview. */
   onCancel?: () => void;
 };
@@ -72,6 +74,7 @@ export function ScrubField({
   onPreview,
   onCommit,
   onCancel,
+  skipUnchanged = false,
   variant = "plain",
   min,
   max,
@@ -81,11 +84,13 @@ export function ScrubField({
   const box = useRef<HTMLSpanElement>(null);
   const drag = useRef<Drag | null>(null);
   const draftRef = useRef<string | null>(null);
+  const openedText = useRef<string | null>(null);
   const refocus = useRef(false);
   const latestCancel = useRef(onCancel);
   const [rejected, setRejected] = useState(false);
   const [draft, setDraftState] = useState<string | null>(null);
   const setDraft = (next: string | null) => {
+    if (draftRef.current === null) openedText.current = next;
     draftRef.current = next;
     if (next === null) setRejected(false);
     setDraftState(next);
@@ -225,7 +230,7 @@ export function ScrubField({
     refocus.current = how !== "blur";
     setDraft(null);
     if (how === "escape" || parsed === null || !valid) return;
-    if (text === (value === null ? "" : formatScrub(value, decimals))) return;
+    if (skipUnchanged && text === openedText.current) return;
     const next = clamp(roundTo(parsed, decimals), bounds);
     if (next !== value) onCommit(next);
   };
