@@ -7,9 +7,13 @@ import inspect
 import json
 import os
 import shutil
+import sys
+import threading
 import time
+import types
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -573,7 +577,7 @@ def test_a_record_that_is_read_is_the_newest_and_outlives_an_unread_one(
 
 # Bump evidence_records.RECORD_REV and this pin together whenever the code that decides what the
 # evidence is changes: a record of the old code is otherwise read as if it were the new code's.
-EVIDENCE_CODE_PIN = "dee4a68501ba41f3"
+EVIDENCE_CODE_PIN = "be2ed78104714bf8"
 
 
 def _normalised(text: str) -> str:
@@ -581,13 +585,15 @@ def _normalised(text: str) -> str:
 
 
 # Every module whose code decides a sample value: the source decode and its channel mix
-# (decoded_source, mono_downmix, media_probe, media_seek), the tree evaluator (audio, audio_eval),
-# the windowed reads and the resampler grid (windowed_rms, ungated_audio), the evidence module
-# itself, and the ffmpeg arguments of the resample (FFmpegEngine.resample_streams).
+# (decoded_source, mono_downmix, media_probe, media_seek), the probe and the resample arguments
+# (ffmpeg, all of it: the probe, the layout helpers and the resampler live there), the tree
+# evaluator (audio, audio_eval), the resampler grid and windowed reads (ungated_audio,
+# windowed_rms) and the evidence module itself.
 EVIDENCE_MODULES = (
     "audio.py",
     "audio_eval.py",
     "decoded_source.py",
+    "ffmpeg.py",
     "media_probe.py",
     "media_seek.py",
     "mono_downmix.py",
@@ -595,17 +601,24 @@ EVIDENCE_MODULES = (
     "ungated_audio.py",
     "windowed_rms.py",
 )
+# Modules a build runs that decide the tree, which is part of the key, or are the record itself.
+TREE_AND_CONFIG_MODULES = (
+    "clips_ops.py",
+    "evidence_records.py",
+    "gate_fill.py",
+    "models/whisper.py",
+    "mute_regions.py",
+    "timeline_render.py",
+)
 
 
 def _evidence_code_digest(edited: dict[str, str] | None = None) -> str:
-    """The digest of the evidence code; ``edited`` maps a module name to a function of its text (a stand-in for an edit)."""
+    """The digest of the evidence code; ``edited`` maps a module name to text appended to it (a stand-in for an edit)."""
     root = Path(track_evidence.__file__).resolve().parent
     parts = []
     for name in EVIDENCE_MODULES:
         text = (root / name).read_text(encoding="utf-8")
         parts.append((name, _normalised(text + (edited or {}).get(name, ""))))
-    resample = inspect.getsource(FFmpegEngine.resample_streams)
-    parts.append(("FFmpegEngine.resample_streams", _normalised(resample)))
     return hashlib.sha256(repr(parts).encode()).hexdigest()[:16]
 
 
@@ -620,20 +633,42 @@ def test_the_downmix_weight_is_part_of_the_pin() -> None:
     assert "mono_downmix.py" in EVIDENCE_MODULES
 
 
-def test_every_engine_module_the_decode_imports_is_pinned_or_named_here() -> None:
+def test_every_engine_module_a_build_runs_is_pinned_or_named_as_part_of_the_key(
+    tmp_path: Path,
+) -> None:
+    """Follows the real call graph of a build, so a helper reached through another module is seen."""
     root = Path(track_evidence.__file__).resolve().parent
-    imported = {
-        line.split("podcast_mcp.engines.")[1].split(" ")[0].split(".")[0] + ".py"
-        for name in ("decoded_source.py", "audio_eval.py")
-        for line in (root / name).read_text(encoding="utf-8").splitlines()
-        if line.startswith("from podcast_mcp.engines.")
-    }
-    assert imported <= set(EVIDENCE_MODULES), imported - set(EVIDENCE_MODULES)
+    ran: set[str] = set()
+
+    def profile(frame: types.FrameType, event: str, arg: object) -> None:
+        if event == "call":
+            filename = frame.f_code.co_filename
+            if filename.startswith(str(root) + os.sep):
+                ran.add(filename[len(str(root)) + 1 :])
+
+    project = _project(tmp_path, "mixed joins and pads", mono_rate=None)
+    sys.setprofile(profile)
+    threading.setprofile(profile)
+    try:
+        track_evidence._entry(project, "caleb", load_defaults(), locked=False)
+    finally:
+        sys.setprofile(None)
+        threading.setprofile(None)
+
+    assert {"audio_eval.py", "decoded_source.py", "ffmpeg.py", "mono_downmix.py"} <= ran
+    assert ran - set(EVIDENCE_MODULES) - set(TREE_AND_CONFIG_MODULES) == set()
+
+
+def test_a_change_to_the_probe_moves_the_pin_digest() -> None:
+    assert "def probe(" in inspect.getsource(FFmpegEngine)
+    assert _evidence_code_digest({"ffmpeg.py": "\n# probe forced to one channel\n"}) != (
+        _evidence_code_digest()
+    )
 
 
 def test_the_code_that_decides_the_evidence_is_pinned_to_the_record_revision() -> None:
     assert _evidence_code_digest() == EVIDENCE_CODE_PIN, (
-        "The code behind track evidence changed (EVIDENCE_MODULES or FFmpegEngine.resample_streams). "
+        "The code behind track evidence changed (EVIDENCE_MODULES). "
         "If it can change the samples an "
         "unchanged key evaluates to, bump evidence_records.RECORD_REV so recorded evidence is "
         "evaluated again; then set EVIDENCE_CODE_PIN in tests/test_evidence_records.py to "
@@ -687,3 +722,57 @@ def test_a_record_that_cannot_be_written_does_not_fail_the_build(
     built = _samples(project)
 
     np.testing.assert_array_equal(_bits(built), _bits(_fresh(project)))
+
+
+def test_a_declined_build_is_returned_and_recorded_nowhere(tmp_path: Path) -> None:
+    project = _project(tmp_path, "crossfade joins")
+    plan = track_evidence._plan(project, "caleb", load_defaults())
+    assert not isinstance(plan, Declined)
+    key, tree = plan
+    directory = tmp_path / "records"
+
+    got = track_evidence._recorded(directory, key, tree, (JUMP,), lambda: Declined.EVALUATOR)
+
+    assert got is Declined.EVALUATOR
+    assert not directory.exists() or list(directory.iterdir()) == []
+
+
+def test_write_record_refuses_what_is_not_evidence(tmp_path: Path) -> None:
+    key = evidence_records.record_key(("x",))
+    assert key is not None
+
+    not_evidence: Any = Declined.EMPTY
+
+    assert not evidence_records.write_record(tmp_path, key, not_evidence)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_record_with_another_magic_is_not_read_though_its_header_and_checksum_are_valid(
+    tmp_path: Path,
+) -> None:
+    key = evidence_records.record_key(("magic",))
+    assert key is not None
+    assert evidence_records.write_record(tmp_path, key, {JUMP: np.arange(16, dtype=np.float32)})
+    record = evidence_records.record_path(tmp_path, key)
+    data = record.read_bytes()
+    assert evidence_records.read_record(tmp_path, key, (JUMP,)) is not None
+    record.write_bytes(b"OTHER1 " + data[len(evidence_records._MAGIC) :])
+
+    assert evidence_records.read_record(tmp_path, key, (JUMP,)) is None
+
+
+def test_a_record_whose_header_names_other_rates_is_not_read_though_its_checksum_fits(
+    tmp_path: Path,
+) -> None:
+    key = evidence_records.record_key(("rates",))
+    assert key is not None
+    evidence: Evidence = {JUMP: np.arange(16, dtype=np.float32), WAVEFORM: np.ones(8, np.float32)}
+    assert evidence_records.write_record(tmp_path, key, evidence)
+    record = evidence_records.record_path(tmp_path, key)
+    data = record.read_bytes()
+    head = json.loads(data[len(evidence_records._MAGIC) : data.index(b"\n")])
+    head["rates"] = [JUMP, 24000]
+    body = data[data.index(b"\n") + 1 :]
+    record.write_bytes(evidence_records._MAGIC + json.dumps(head).encode() + b"\n" + body)
+
+    assert evidence_records.read_record(tmp_path, key, (JUMP, WAVEFORM)) is None
