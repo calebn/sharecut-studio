@@ -125,6 +125,33 @@ describe("useShortViewport", () => {
     expect(result.current).toBe(false);
   });
 
+  it("counts a visual height of exactly 480 as short from a fresh start", () => {
+    stub(false, 480);
+    expect(renderHook(() => useShortViewport()).result.current).toBe(true);
+  });
+
+  it("forgets the short state when pinch-zoom starts", () => {
+    const control = stub(false, 844);
+    const { result } = renderHook(() => useShortViewport());
+    act(() => control.setVisual(440));
+    expect(result.current).toBe(true);
+    act(() => control.setScale(1.5));
+    act(() => control.setVisual(500));
+    act(() => control.setScale(1));
+    expect(result.current).toBe(false);
+  });
+
+  it("is false with no visual viewport on a tall window", () => {
+    stub(false, 844);
+    vi.stubGlobal("visualViewport", undefined);
+    expect(renderHook(() => useShortViewport()).result.current).toBe(false);
+  });
+
+  it("treats a missing visual height as not short", () => {
+    stub(false, undefined);
+    expect(renderHook(() => useShortViewport()).result.current).toBe(false);
+  });
+
   it("listens for resize on the window and on the visual viewport, and lets go on unmount", () => {
     const control = stub(false, 844);
     const { unmount } = renderHook(() => useShortViewport());
