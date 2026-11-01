@@ -61,6 +61,14 @@ describe("exportedFileHref", () => {
     expect(href).not.toContain("token=host");
   });
 
+  it("leaves the ticket off a host link for a row that has none", () => {
+    const href = exportedFileHref("/tmp/ep/episode.sharecut", {
+      id: "ep.mp3",
+    });
+    expect(href).toContain("/api/export/files/ep.mp3?");
+    expect(href).not.toContain("ticket=");
+  });
+
   it("sends a guest through the review route with the token in the path", () => {
     const href = exportedFileHref(shareProjectKey("tok123"), {
       id: "clips/a.wav",

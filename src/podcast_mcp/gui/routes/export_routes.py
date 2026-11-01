@@ -137,7 +137,7 @@ def list_export_files(
     return list_exported_files(ProjectWorkspace.open(resolve_project(path, request)), ticketed=True)
 
 
-@router.get("/api/export/files/{file_id:path}")
+@router.api_route("/api/export/files/{file_id:path}", methods=["GET", "HEAD"])
 def download_export_file(
     file_id: str,
     request: Request,
