@@ -1,14 +1,15 @@
+import { boundedDelta, spanBounds } from "../system/dragBounds";
 import {
   type LaneMarker,
   MARKER_MIN_SPAN,
   type MarkerGrip,
 } from "../system/MarkerLane";
+import { markerEnd } from "../system/markerLayout";
 import type {
   ChapterMarker,
   SocialClipView,
   TimelineComment,
 } from "../types/project";
-import { socialSpanAfterDrag } from "./socialDrag";
 
 /** A chapter has no id of its own: its time and title name it. */
 export function chapterMarkerId(chapter: ChapterMarker): string {
@@ -68,14 +69,23 @@ export function movedMarker(
   delta: number,
   duration: number,
 ): LaneMarker {
+  if (
+    marker.kind === "comment" ||
+    (marker.kind === "chapter" && grip !== "move")
+  )
+    return marker;
+  const end = markerEnd(marker);
+  const value = grip === "end" ? end : marker.start;
+  const bounded = boundedDelta(
+    spanBounds(grip, marker.start, end, duration, MARKER_MIN_SPAN),
+    value,
+    delta,
+  );
   if (marker.kind === "chapter")
-    return {
-      ...marker,
-      start: Math.max(0, Math.min(duration, marker.start + delta)),
-    };
-  if (marker.kind !== "clip") return marker;
-  const span = socialSpanAfterDrag(grip, marker.start, marker.end, delta);
-  const start = Math.max(0, span.start);
-  const end = Math.min(duration, Math.max(span.end, start + MARKER_MIN_SPAN));
-  return { ...marker, start, end };
+    return { ...marker, start: marker.start + bounded };
+  return {
+    ...marker,
+    start: marker.start + (grip === "end" ? 0 : bounded),
+    end: marker.end + (grip === "start" ? 0 : bounded),
+  };
 }

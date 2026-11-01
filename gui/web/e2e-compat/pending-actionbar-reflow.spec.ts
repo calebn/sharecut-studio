@@ -84,8 +84,6 @@ test("pending card: a marker added while it floats leaves the one-row lane where
     },
     projectPath,
   );
-  // The system lane is one row whatever it holds, so a new comment draws on it
-  // without moving the lane's floor.
   await expect(
     page.locator('.sys-marker[data-kind="comment"]').first(),
   ).toBeVisible();
@@ -94,7 +92,6 @@ test("pending card: a marker added while it floats leaves the one-row lane where
     0,
   );
 
-  // No scroll and no resize: the card keeps clear of the lane and the region.
   await expect
     .poll(async () => {
       const { ruler, marker } = await chromeBoxes(page);

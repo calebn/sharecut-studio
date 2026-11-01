@@ -193,7 +193,6 @@ describe("marker rows", () => {
   it("draws chapters and comments on one lane, honoring layer toggles", () => {
     const chapters = [{ time: 1, title: "Intro" }] as never[];
     const comments = [{ id: "c1" }] as never[];
-    // The chapters, social clips and comments share the one system lane.
     expect(markerLaneHeight(markerRows({ ...base, chapters, comments }))).toBe(
       MARKER_ROW_HEIGHT,
     );

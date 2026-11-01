@@ -5,6 +5,7 @@ import {
   memo,
   type PointerEvent,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -14,13 +15,7 @@ import { Menu, MenuItem } from "../ui";
 import { clamp } from "../utils/math";
 import { formatRulerTime, formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
-import {
-  type Bounds,
-  boundedDelta,
-  spanBounds,
-  UNBOUNDED,
-  within,
-} from "./dragBounds";
+import { boundedDelta, spanBounds, within } from "./dragBounds";
 import { Marker, type MarkerAttrs } from "./Marker";
 import {
   isRange,
@@ -58,6 +53,7 @@ export type AddingChapter = { at: number };
 export type MarkerLaneProps = {
   /** Keep the array and its objects stable between renders. */
   markers: readonly LaneMarker[];
+  authoritativeMarkers: readonly LaneMarker[];
   start: number;
   pxPerSecond: number;
   /** In px. The same `start`, `pxPerSecond` and `width` as the ruler. */
@@ -92,8 +88,8 @@ export type MarkerLaneProps = {
     seconds: number,
     nudge: MarkerNudge,
   ) => void;
-  /** The arrow was released or focus left: close the undo step. */
-  onNudgeEnd?: (id: string, grip: MarkerGrip) => void;
+  /** Release and ordinary blur commit; Escape, invalidation and unmount cancel. */
+  onNudgeEnd?: (id: string, grip: MarkerGrip, committed: boolean) => void;
   /** A double-click on empty lane. The host then passes `adding`. */
   onAdd?: (seconds: number) => void;
   onAddCommit?: (seconds: number, title: string) => void;
@@ -107,6 +103,14 @@ const NUDGE_BIG = 1;
 
 type Held = { id: string; grip: MarkerGrip };
 type Dragged = Held & { x: number; from: number };
+type GestureOrigin = Held & {
+  kind: "chapter" | "clip";
+  start: number;
+  end: number;
+  duration: number;
+  viewStart: number;
+  pxPerSecond: number;
+};
 
 const px = (value: number) => `${Math.round(value * 100) / 100}px`;
 const fraction = (value: number, width: number) => value / Math.max(width, 1);
@@ -440,6 +444,7 @@ function AddField({
 
 export const MarkerLane = memo(function MarkerLane({
   markers,
+  authoritativeMarkers,
   start,
   pxPerSecond,
   width,
@@ -463,14 +468,18 @@ export const MarkerLane = memo(function MarkerLane({
 }: MarkerLaneProps) {
   const root = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
-  const nudging = useRef<Held | null>(null);
-  const limits = useRef<{ from: number; bounds: Bounds } | null>(null);
+  const nudging = useRef<{ origin: GestureOrigin; delta: number } | null>(null);
+  const canceledKey = useRef(false);
   const [held, setHeld] = useState<Dragged | null>(null);
 
   const selectedIds = useMemo(() => new Set(selected ?? []), [selected]);
   const byId = useMemo(
     () => new Map(markers.map((marker) => [marker.id, marker])),
     [markers],
+  );
+  const sourceById = useMemo(
+    () => new Map(authoritativeMarkers.map((marker) => [marker.id, marker])),
+    [authoritativeMarkers],
   );
   const pinned = held?.id;
   const items = useMemo(
@@ -492,44 +501,78 @@ export const MarkerLane = memo(function MarkerLane({
     return grip === "end" ? markerEnd(marker) : marker.start;
   };
 
-  const grab = useGrab<Held>({
-    canGrab: ({ id, grip }, event) =>
-      movable(id, grip) && (!isFinger(event) || selectedIds.has(id)),
+  const captureOrigin = (
+    id: string,
+    grip: MarkerGrip,
+  ): GestureOrigin | null => {
+    const source = sourceById.get(id);
+    if (!source || source.kind === "comment" || !movable(id, grip)) return null;
+    return {
+      id,
+      grip,
+      kind: source.kind,
+      start: source.start,
+      end: markerEnd(source),
+      duration,
+      viewStart: start,
+      pxPerSecond,
+    };
+  };
+  const validOrigin = (origin: GestureOrigin) => {
+    const source = sourceById.get(origin.id);
+    return (
+      !readOnly &&
+      source?.kind === origin.kind &&
+      source.start === origin.start &&
+      markerEnd(source) === origin.end &&
+      duration === origin.duration &&
+      start === origin.viewStart &&
+      pxPerSecond === origin.pxPerSecond
+    );
+  };
+  const finishNudge = useStableCallback((committed: boolean) => {
+    const now = nudging.current;
+    nudging.current = null;
+    if (!now) return;
+    const valid = committed && validOrigin(now.origin);
+    if (!valid) canceledKey.current = true;
+    onNudgeEnd?.(now.origin.id, now.origin.grip, valid);
+  });
+  const endNudge = useStableCallback(() => finishNudge(true));
+  const grab = useGrab<GestureOrigin>({
+    canGrab: (origin, event) =>
+      validOrigin(origin) && (!isFinger(event) || selectedIds.has(origin.id)),
     slop: (_grip, event) =>
       isFinger(event) ? TOUCH_SLOP_PX : HANDLE_DRAG_MIN_PX,
     captureOnStart: () => track.current,
-    onStart: ({ id, grip }, pointer) => {
-      if (onDragStart?.(id, grip, pointer) === false) return false;
-      const marker = byId.get(id);
-      limits.current = marker
-        ? {
-            from: valueOf(id, grip),
-            bounds: spanBounds(
-              grip,
-              marker.start,
-              markerEnd(marker),
-              duration,
-              MARKER_MIN_SPAN,
-            ),
-          }
-        : null;
+    onStart: (origin, pointer) => {
+      const { id, grip } = origin;
+      if (!validOrigin(origin) || onDragStart?.(id, grip, pointer) === false)
+        return false;
       setHeld({
         id,
         grip,
         x: pointer.clientX - left(),
-        from: valueOf(id, grip),
+        from: grip === "end" ? origin.end : origin.start,
       });
       return true;
     },
-    onMove: ({ id, grip }, move) => {
+    onMove: (origin, move) => {
+      const { id, grip } = origin;
       const x = move.clientX - left();
       setHeld((now) => (now ? { ...now, x } : now));
       onDrag?.(id, grip, {
         ...move,
         delta: boundedDelta(
-          limits.current?.bounds ?? UNBOUNDED,
-          limits.current?.from ?? 0,
-          move.dx / pxPerSecond,
+          spanBounds(
+            grip,
+            origin.start,
+            origin.end,
+            origin.duration,
+            MARKER_MIN_SPAN,
+          ),
+          grip === "end" ? origin.end : origin.start,
+          move.dx / origin.pxPerSecond,
         ),
         seconds: secondsAt(move.clientX),
       });
@@ -539,29 +582,39 @@ export const MarkerLane = memo(function MarkerLane({
       onDragEnd?.(id, grip, committed);
     },
   });
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     const active = grab.active();
-    if (active && !movable(active.id, active.grip)) grab.abort();
+    if (active && !validOrigin(active)) grab.abort();
+    if (nudging.current && !validOrigin(nudging.current.origin))
+      finishNudge(false);
   });
-
-  const endNudge = useStableCallback(() => {
-    const now = nudging.current;
-    nudging.current = null;
-    if (now) onNudgeEnd?.(now.id, now.grip);
-  });
-  useEffect(() => endNudge, [endNudge]);
+  useEffect(() => () => finishNudge(false), [finishNudge]);
 
   const press = useStableCallback(
-    (id: string, grip: MarkerGrip, event: PointerEvent<HTMLElement>) =>
-      grab.press({ id, grip }, event),
+    (id: string, grip: MarkerGrip, event: PointerEvent<HTMLElement>) => {
+      if (grab.active()) return;
+      const origin = captureOrigin(id, grip);
+      if (!origin) return;
+      grab.press(origin, event);
+      if (grab.active() === origin) finishNudge(false);
+    },
   );
-  const move = useStableCallback((event: PointerEvent<HTMLElement>) =>
-    grab.move(event),
-  );
-  const up = useStableCallback((event: PointerEvent<HTMLElement>) =>
-    grab.up(event),
-  );
+  const move = useStableCallback((event: PointerEvent<HTMLElement>) => {
+    const active = grab.active();
+    if (active && !validOrigin(active)) {
+      grab.abort();
+      return;
+    }
+    grab.move(event);
+  });
+  const up = useStableCallback((event: PointerEvent<HTMLElement>) => {
+    const active = grab.active();
+    if (active && !validOrigin(active)) {
+      grab.abort();
+      return;
+    }
+    grab.up(event);
+  });
   const cancel = useStableCallback((event: PointerEvent<HTMLElement>) =>
     grab.cancel(event),
   );
@@ -592,6 +645,12 @@ export const MarkerLane = memo(function MarkerLane({
     event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
   const keys =
     (id: string, grip: MarkerGrip) => (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key === "Escape" && nudging.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        finishNudge(false);
+        return;
+      }
       const direction = arrowOf(event);
       if (grab.dragging() && swallowsDuringDrag(event)) {
         event.preventDefault();
@@ -611,10 +670,34 @@ export const MarkerLane = memo(function MarkerLane({
       }
       event.preventDefault();
       event.stopPropagation();
-      nudging.current = { id, grip };
-      onNudge?.(id, grip, direction * (event.shiftKey ? NUDGE_BIG : NUDGE), {
-        repeat: event.repeat,
-      });
+      if (event.repeat && canceledKey.current && !nudging.current) return;
+      const current = nudging.current;
+      if (
+        current &&
+        (!validOrigin(current.origin) ||
+          current.origin.id !== id ||
+          current.origin.grip !== grip)
+      ) {
+        finishNudge(false);
+        return;
+      }
+      const origin = current?.origin ?? captureOrigin(id, grip);
+      if (!origin) return;
+      canceledKey.current = false;
+      const previous = current?.delta ?? 0;
+      const delta = boundedDelta(
+        spanBounds(
+          grip,
+          origin.start,
+          origin.end,
+          origin.duration,
+          MARKER_MIN_SPAN,
+        ),
+        grip === "end" ? origin.end : origin.start,
+        previous + direction * (event.shiftKey ? NUDGE_BIG : NUDGE),
+      );
+      nudging.current = { origin, delta };
+      onNudge?.(id, grip, delta - previous, { repeat: event.repeat });
     };
   const bodyKey = useStableCallback(
     (id: string, event: KeyboardEvent<HTMLElement>) => keys(id, "move")(event),
@@ -624,12 +707,12 @@ export const MarkerLane = memo(function MarkerLane({
       keys(id, grip)(event),
   );
   const keyUp = useStableCallback((event: KeyboardEvent<HTMLElement>) => {
-    if (
-      (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
-      nudging.current
-    ) {
-      event.stopPropagation();
-      endNudge();
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      canceledKey.current = false;
+      if (nudging.current) {
+        event.stopPropagation();
+        endNudge();
+      }
     }
   });
 

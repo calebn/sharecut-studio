@@ -26,6 +26,7 @@ const MARKERS: readonly LaneMarker[] = [
 
 const base: MarkerLaneProps = {
   markers: MARKERS,
+  authoritativeMarkers: MARKERS,
   start: 0,
   pxPerSecond: 6,
   width: 360,
@@ -45,10 +46,26 @@ function setup(over: Partial<MarkerLaneProps> = {}) {
     onAddCommit: vi.fn(),
     onAddCancel: vi.fn(),
   };
-  const props = { ...base, ...handlers, ...over };
+  const props = {
+    ...base,
+    ...handlers,
+    ...over,
+    authoritativeMarkers:
+      over.authoritativeMarkers ?? over.markers ?? base.authoritativeMarkers,
+  };
   const view = render(<MarkerLane {...props} />);
   const again = (next: Partial<MarkerLaneProps>) =>
-    view.rerender(<MarkerLane {...props} {...next} />);
+    view.rerender(
+      <MarkerLane
+        {...props}
+        {...next}
+        authoritativeMarkers={
+          next.authoritativeMarkers ??
+          next.markers ??
+          props.authoritativeMarkers
+        }
+      />,
+    );
   return { ...handlers, ...view, again };
 }
 
@@ -294,6 +311,7 @@ describe("MarkerLane moving", () => {
     moveTo(chapter(), 162);
     expect(screen.getByText("+0.00 s")).toBeVisible();
     again({
+      authoritativeMarkers: MARKERS,
       markers: MARKERS.map((m) =>
         m.id === "ch-interview" ? { ...m, start: 26.25 } : m,
       ),
@@ -308,6 +326,7 @@ describe("MarkerLane moving", () => {
       "--sys-readout-x": "162px",
     });
     again({
+      authoritativeMarkers: MARKERS,
       markers: MARKERS.map((m) =>
         m.id === "ch-interview" ? { ...m, start: 22 } : m,
       ),
@@ -507,6 +526,7 @@ describe("MarkerLane moving", () => {
   it("keeps the dragged marker on its own where it would fold into another", () => {
     const { again, onDragEnd } = dragging();
     again({
+      authoritativeMarkers: MARKERS,
       markers: MARKERS.map((m) =>
         m.id === "ch-interview" ? { ...m, start: 9.2 } : m,
       ),
@@ -528,9 +548,9 @@ describe("MarkerLane keys", () => {
       ["ch-interview", "move", 1, { repeat: false }],
     ]);
     expect(onNudgeEnd.mock.calls).toEqual([
-      ["ch-interview", "move"],
-      ["ch-interview", "move"],
-      ["ch-interview", "move"],
+      ["ch-interview", "move", true],
+      ["ch-interview", "move", true],
+      ["ch-interview", "move", true],
     ]);
   });
 
@@ -543,14 +563,14 @@ describe("MarkerLane keys", () => {
       true,
     ]);
     fireEvent.blur(chapter());
-    expect(onNudgeEnd.mock.calls).toEqual([["ch-interview", "move"]]);
+    expect(onNudgeEnd.mock.calls).toEqual([["ch-interview", "move", true]]);
   });
 
-  it("ends a nudge when the lane unmounts", () => {
+  it("cancels a nudge when the lane unmounts", () => {
     const { onNudgeEnd, unmount } = setup({ selected: ["ch-interview"] });
     fireEvent.keyDown(chapter(), { key: "ArrowRight" });
     unmount();
-    expect(onNudgeEnd.mock.calls).toEqual([["ch-interview", "move"]]);
+    expect(onNudgeEnd.mock.calls).toEqual([["ch-interview", "move", false]]);
   });
 
   it("stops only the keys it handles and lets the rest reach the keymap", () => {
@@ -955,5 +975,55 @@ describe("MarkerLane keys during a drag", () => {
     expect(fireEvent.keyDown(comment, { key: "Enter" })).toBe(false);
     fireEvent.keyDown(joke(), { key: "ArrowRight", altKey: true });
     expect(edge("Start")).toHaveFocus();
+  });
+});
+
+describe("MarkerLane gesture coordinate lifetime", () => {
+  it.each([{ start: 1 }, { pxPerSecond: 12 }, { duration: 3200 }])(
+    "cancels an accepted press before movement when coordinates change %j",
+    (next) => {
+      const { again, onDragStart, onDragEnd } = setup({
+        selected: ["ch-interview"],
+      });
+      press(chapter(), 150);
+      again(next);
+      moveTo(track(), 180);
+      fireEvent.pointerUp(track(), { pointerId: 1, clientX: 180 });
+      expect(onDragStart).not.toHaveBeenCalled();
+      expect(onDragEnd).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { start: 1 },
+    { pxPerSecond: 12 },
+    { duration: 3200 },
+    { readOnly: true },
+    { markers: MARKERS.filter((marker) => marker.id !== "ch-interview") },
+  ])("cancels held keys on invalidation %j", (next) => {
+    const { again, onNudge, onNudgeEnd } = setup({
+      selected: ["ch-interview"],
+    });
+    fireEvent.keyDown(chapter(), { key: "ArrowRight" });
+    again(next);
+    expect(onNudgeEnd).toHaveBeenCalledExactlyOnceWith(
+      "ch-interview",
+      "move",
+      false,
+    );
+    expect(onNudge).toHaveBeenCalledOnce();
+  });
+
+  it("Escape cancels held keys before blur or keyup", () => {
+    const { onNudgeEnd } = setup({ selected: ["ch-interview"] });
+    fireEvent.keyDown(chapter(), { key: "ArrowRight" });
+    fireEvent.keyDown(chapter(), { key: "Escape" });
+    fireEvent.blur(chapter());
+    fireEvent.keyUp(chapter(), { key: "ArrowRight" });
+    expect(onNudgeEnd).toHaveBeenCalledExactlyOnceWith(
+      "ch-interview",
+      "move",
+      false,
+    );
   });
 });

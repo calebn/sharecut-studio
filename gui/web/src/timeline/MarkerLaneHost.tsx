@@ -1,20 +1,40 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { addChapter, updateChapter, updateSocialClip } from "../api";
+import { updateChapter, updateSocialClip } from "../api";
+import { execute } from "../commands/execute";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isShareProjectKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { type MarkerGrip, MarkerLane } from "../system/MarkerLane";
+import { type LaneMarker, markerEnd } from "../system/markerLayout";
 import type {
   ChapterMarker,
   SocialClipView,
   TimelineComment,
 } from "../types/project";
-import { errorMessage } from "../utils/apiError";
 import { MARKER_ROW_HEIGHT } from "../utils/layout";
 import { formatTimeShort } from "../utils/time";
 import type { ClippingFlag } from "./clippingFlags";
 import { hitTargetProps } from "./hitTargets";
 import { chapterMarkerId, laneMarkers, movedMarker } from "./laneMarkers";
+
+type HeldMove = {
+  origin: Extract<LaneMarker, { kind: "chapter" | "clip" }>;
+  grip: MarkerGrip;
+  delta: number;
+  duration: number;
+};
+
+function sameSource(
+  marker: LaneMarker | undefined,
+  origin: HeldMove["origin"],
+): boolean {
+  return (
+    marker?.kind === origin.kind &&
+    marker.start === origin.start &&
+    markerEnd(marker) === markerEnd(origin)
+  );
+}
 
 const NO_FLAGS: readonly ClippingFlag[] = [];
 const LANE_ANCHOR = presenceAnchorProps(presenceAnchor("markers"));
@@ -85,12 +105,8 @@ export function MarkerLaneHost({
   onSelectComment,
   onSelectClipping,
 }: MarkerLaneHostProps) {
-  /** The held marker, drawn where the drag or the keys have put it until the project catches up. */
-  const [preview, setPreview] = useState<{
-    id: string;
-    grip: MarkerGrip;
-    delta: number;
-  } | null>(null);
+  const [preview, setPreview] = useState<HeldMove | null>(null);
+  const held = useRef<HeldMove | null>(null);
   const [adding, setAdding] = useState<{ at: number } | null>(null);
   const addable = onAddChapter != null && !readOnly;
   const onAdd = useCallback(
@@ -105,33 +121,49 @@ export function MarkerLaneHost({
     },
     [onAddChapter],
   );
-  const markers = useMemo(() => {
-    const base = laneMarkers({
-      chapters,
-      socialClips,
-      comments,
-      showMarkers,
-      showComments,
-    });
-    if (!preview) return base;
-    return base.map((marker) =>
-      marker.id === preview.id
-        ? movedMarker(marker, preview.grip, preview.delta, duration)
-        : marker,
-    );
-  }, [
+  const authoritativeMarkers = useMemo(
+    () =>
+      laneMarkers({
+        chapters,
+        socialClips,
+        comments,
+        showMarkers,
+        showComments,
+      }),
+    [chapters, socialClips, comments, showMarkers, showComments],
+  );
+  const markers = useMemo(
+    () =>
+      authoritativeMarkers.map((marker) =>
+        preview &&
+        marker.id === preview.origin.id &&
+        sameSource(marker, preview.origin)
+          ? movedMarker(
+              preview.origin,
+              preview.grip,
+              preview.delta,
+              preview.duration,
+            )
+          : marker,
+      ),
+    [authoritativeMarkers, preview],
+  );
+  const latest = useRef({
     chapters,
     socialClips,
     comments,
-    showMarkers,
-    showComments,
-    preview,
+    authoritativeMarkers,
     duration,
-  ]);
-  const latest = useRef({ chapters, socialClips, comments });
-  latest.current = { chapters, socialClips, comments };
-  /** Seconds the held marker has moved: by pointer, or by the keys since the last release. */
-  const moved = useRef(0);
+    readOnly,
+  });
+  latest.current = {
+    chapters,
+    socialClips,
+    comments,
+    authoritativeMarkers,
+    duration,
+    readOnly,
+  };
 
   const onSelect = useCallback(
     (id: string) => {
@@ -146,47 +178,41 @@ export function MarkerLaneHost({
     [onSelectChapter, onSelectSocial, onSelectComment],
   );
 
-  /** Saves the move, then lets the preview go: the project now holds the new place (or the save failed and the marker returns). */
   const commit = useCallback(
-    async (id: string, grip: MarkerGrip, delta: number) => {
+    async (move: HeldMove) => {
       try {
-        if (delta === 0) return;
-        const { chapters, socialClips } = latest.current;
-        const chapter = chapters.find((c) => chapterMarkerId(c) === id);
-        if (chapter) {
-          const next = movedMarker(
-            { kind: "chapter", id, start: chapter.time, title: chapter.title },
-            grip,
-            delta,
-            duration,
-          ).start;
-          if (next !== chapter.time) await onMoveChapter?.(chapter, next);
-          return;
-        }
-        const clip = socialClips.find((c) => c.id === id);
-        if (!clip) return;
-        const moved = movedMarker(
-          {
-            kind: "clip",
-            id,
-            start: clip.start,
-            end: clip.end,
-            title: "",
-          },
-          grip,
-          delta,
-          duration,
+        const source = latest.current.authoritativeMarkers.find(
+          (marker) => marker.id === move.origin.id,
         );
         if (
-          moved.kind === "clip" &&
-          (moved.start !== clip.start || moved.end !== clip.end)
+          latest.current.readOnly ||
+          latest.current.duration !== move.duration ||
+          !sameSource(source, move.origin)
         )
-          await onMoveSocial?.(id, moved.start, moved.end);
+          return;
+        const next = movedMarker(
+          move.origin,
+          move.grip,
+          move.delta,
+          move.duration,
+        );
+        if (next.kind === "chapter" && next.start !== move.origin.start) {
+          await onMoveChapter?.(
+            { time: move.origin.start, title: next.title },
+            next.start,
+          );
+        } else if (
+          next.kind === "clip" &&
+          (next.start !== move.origin.start ||
+            next.end !== markerEnd(move.origin))
+        ) {
+          await onMoveSocial?.(next.id, next.start, next.end);
+        }
       } finally {
-        setPreview(null);
+        setPreview((current) => (current === move ? null : current));
       }
     },
-    [duration, onMoveChapter, onMoveSocial],
+    [onMoveChapter, onMoveSocial],
   );
 
   const hitProps = useCallback(
@@ -202,43 +228,67 @@ export function MarkerLaneHost({
     [markers, selected],
   );
 
-  const onDragStart = useCallback(() => {
-    moved.current = 0;
-    return true;
+  const begin = useCallback((id: string, grip: MarkerGrip) => {
+    const origin = latest.current.authoritativeMarkers.find(
+      (marker) => marker.id === id,
+    );
+    if (!origin || origin.kind === "comment" || latest.current.readOnly)
+      return null;
+    const move: HeldMove = {
+      origin,
+      grip,
+      delta: 0,
+      duration: latest.current.duration,
+    };
+    held.current = move;
+    return move;
   }, []);
+  const onDragStart = useCallback(
+    (id: string, grip: MarkerGrip) => begin(id, grip) != null,
+    [begin],
+  );
   const onDrag = useCallback(
-    (id: string, grip: MarkerGrip, drag: { delta: number }) => {
-      moved.current = drag.delta;
-      setPreview({ id, grip, delta: drag.delta });
+    (_id: string, _grip: MarkerGrip, drag: { delta: number }) => {
+      const move = held.current;
+      if (!move) return;
+      const next = { ...move, delta: drag.delta };
+      held.current = next;
+      setPreview(next);
     },
     [],
   );
-  const onDragEnd = useCallback(
-    (id: string, grip: MarkerGrip, committed: boolean) => {
-      const delta = moved.current;
-      moved.current = 0;
-      if (committed) void commit(id, grip, delta);
-      else setPreview(null);
+  const finish = useCallback(
+    (_id: string, _grip: MarkerGrip, committed: boolean) => {
+      const move = held.current;
+      held.current = null;
+      if (!move) return;
+      if (committed) void commit(move);
+      else setPreview((current) => (current === move ? null : current));
     },
     [commit],
   );
   const onNudge = useCallback(
     (id: string, grip: MarkerGrip, seconds: number) => {
-      moved.current += seconds;
-      setPreview({ id, grip, delta: moved.current });
+      const move = held.current ?? begin(id, grip);
+      if (!move) return;
+      const marker = movedMarker(
+        move.origin,
+        grip,
+        move.delta + seconds,
+        move.duration,
+      );
+      const delta =
+        grip === "end"
+          ? markerEnd(marker) - markerEnd(move.origin)
+          : marker.start - move.origin.start;
+      const next = { ...move, delta };
+      held.current = next;
+      setPreview(next);
     },
-    [],
+    [begin],
   );
-  const onNudgeEnd = useCallback(
-    (id: string, grip: MarkerGrip) => {
-      const delta = moved.current;
-      moved.current = 0;
-      void commit(id, grip, delta);
-    },
-    [commit],
-  );
-
-  const quiet = markers.length === 0 && clippingFlags.length === 0;
+  const visibleFlags = showMarkers ? clippingFlags : NO_FLAGS;
+  const quiet = markers.length === 0 && visibleFlags.length === 0;
 
   return (
     <div
@@ -248,6 +298,7 @@ export function MarkerLaneHost({
       {laneRow && (
         <MarkerLane
           markers={markers}
+          authoritativeMarkers={authoritativeMarkers}
           start={0}
           pxPerSecond={zoomPxPerSec}
           width={width}
@@ -259,18 +310,18 @@ export function MarkerLaneHost({
           onSelect={onSelect}
           onDragStart={onDragStart}
           onDrag={onDrag}
-          onDragEnd={onDragEnd}
+          onDragEnd={finish}
           onNudge={onNudge}
-          onNudgeEnd={onNudgeEnd}
+          onNudgeEnd={finish}
           adding={addable ? adding : null}
           onAdd={addable ? onAdd : undefined}
           onAddCommit={addable ? onAddCommit : undefined}
           onAddCancel={addable ? onAddCancel : undefined}
         />
       )}
-      {clippingFlags.length > 0 && (
+      {visibleFlags.length > 0 && (
         <div className="marker-row clipping" {...CLIPPING_ANCHOR}>
-          {clippingFlags.map((flag) => {
+          {visibleFlags.map((flag) => {
             const note = flag.truncated ? "; later clipping not recorded" : "";
             return (
               <button
@@ -304,21 +355,15 @@ type LiveProps = Omit<
   "readOnly" | "onMoveChapter" | "onMoveSocial" | "onAddChapter"
 >;
 
-/** Live wiring: host-only drags commit UpdateChapter / UpdateSocialClip. */
 export function LiveMarkerLane(props: LiveProps) {
-  const {
-    projectPath,
-    projectEpoch,
-    setSelection,
-    announceStatus,
-    setLayerVisible,
-  } = useDaw((s) => ({
-    projectPath: s.projectPath,
-    projectEpoch: s.projectEpoch,
-    setSelection: s.setSelection,
-    announceStatus: s.announceStatus,
-    setLayerVisible: s.setLayerVisible,
-  }));
+  const { projectPath, projectEpoch, chapterAddPending, setSelection } = useDaw(
+    (s) => ({
+      projectPath: s.projectPath,
+      projectEpoch: s.projectEpoch,
+      chapterAddPending: s.chapterAddPending,
+      setSelection: s.setSelection,
+    }),
+  );
   const onMoveChapter = useCallback(
     async (chapter: ChapterMarker, nextTime: number) => {
       await updateChapter(
@@ -328,32 +373,23 @@ export function LiveMarkerLane(props: LiveProps) {
         nextTime,
         chapter.title,
       );
-      setSelection({ kind: "chapter", id: chapter.title, time: nextTime });
+      if (useDawStore.getState().projectEpoch === projectEpoch) {
+        setSelection({ kind: "chapter", id: chapter.title, time: nextTime });
+      }
     },
-    [projectPath, setSelection],
+    [projectPath, projectEpoch, setSelection],
   );
   const onMoveSocial = useCallback(
     async (id: string, start: number, end: number) => {
       await updateSocialClip(projectPath, id, start, end);
-      setSelection({ kind: "social", id });
+      if (useDawStore.getState().projectEpoch === projectEpoch)
+        setSelection({ kind: "social", id });
     },
-    [projectPath, setSelection],
+    [projectPath, projectEpoch, setSelection],
   );
-  const onAddChapter = useCallback(
-    async (at: number, title: string) => {
-      setLayerVisible("showMarkers", true);
-      try {
-        const undo = await addChapter(projectPath, at, title);
-        setSelection({ kind: "chapter", id: title, time: at });
-        announceStatus(`Chapter added at ${at.toFixed(1)}s`, { undo });
-      } catch (err) {
-        announceStatus(`Add chapter failed: ${errorMessage(err)}`, {
-          tone: "error",
-        });
-      }
-    },
-    [projectPath, setSelection, announceStatus, setLayerVisible],
-  );
+  const onAddChapter = useCallback(async (atTime: number, title: string) => {
+    await execute("edit.addChapter", { atTime, title }, { skipWhen: true });
+  }, []);
   return (
     <MarkerLaneHost
       key={`${projectEpoch}:${projectPath}`}
@@ -361,7 +397,7 @@ export function LiveMarkerLane(props: LiveProps) {
       readOnly={isShareProjectKey(projectPath)}
       onMoveChapter={onMoveChapter}
       onMoveSocial={onMoveSocial}
-      onAddChapter={onAddChapter}
+      onAddChapter={chapterAddPending ? undefined : onAddChapter}
     />
   );
 }

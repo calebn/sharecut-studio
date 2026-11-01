@@ -144,7 +144,6 @@ describe("timelineMarkerStoryDecorator", () => {
     expect(main.style.getPropertyValue("--marker-row-height")).toBe(
       `${MARKER_ROW_HEIGHT}px`,
     );
-    // No rows arg: the marker lane and the clipping row are shown.
     expect(main.style.getPropertyValue("--marker-lane-height")).toBe(
       `${2 * MARKER_ROW_HEIGHT}px`,
     );

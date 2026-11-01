@@ -236,6 +236,18 @@ async function evidence(
     `${JSON.stringify(value, null, 2)}\n`,
   );
   await page.screenshot({ path: info.outputPath(`${name}.png`) });
+  if (name === "UpdateChapter" || name === "UpdateSocialClip") {
+    const profile = profiles.find(({ id }) =>
+      info.titlePath.some((part) => part.includes(id)),
+    )?.id;
+    const file = path.join(
+      "playwright-report",
+      `issue-2964-${info.project.name}-${profile}-${name}.png`,
+    );
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    await page.screenshot({ path: file });
+    await info.attach(name, { path: file, contentType: "image/png" });
+  }
 }
 async function audit(
   page: Page,
@@ -504,13 +516,14 @@ for (const profile of profiles) {
             return null;
           });
           expect(owner).not.toBeNull();
-          await page.mouse.move(start.x + 26, start.y, { steps: 5 });
+          await page.mouse.move(start.x + 26.5, start.y, { steps: 5 });
           await expect
             .poll(async () => (await drawn(target)).x)
             .not.toBe(origin.x);
           const forward = await drawn(target);
+          expect(forward.x - origin.x).toBeCloseTo(26.5, 1);
           expect(saved(projectPath)).toEqual(before);
-          await page.mouse.move(start.x + 14, start.y, { steps: 4 });
+          await page.mouse.move(start.x + 14.25, start.y, { steps: 4 });
           await expect
             .poll(async () => (await drawn(target)).x)
             .toBeLessThan(forward.x);
@@ -559,13 +572,13 @@ for (const profile of profiles) {
           const before = saved(projectPath);
           await page.mouse.move(start.x, start.y);
           await page.mouse.down();
-          await page.mouse.move(start.x + 20, start.y, { steps: 5 });
+          await page.mouse.move(start.x + 20.5, start.y, { steps: 5 });
           await expect
             .poll(async () => (await drawn(target)).x)
             .not.toBe(origin.x);
           await page.keyboard.press("Escape");
           await expect.poll(() => drawn(target)).toEqual(origin);
-          await page.mouse.move(start.x + 40, start.y);
+          await page.mouse.move(start.x + 40.25, start.y);
           await expect.poll(() => drawn(target)).toEqual(origin);
           await page.mouse.up();
           expect(saved(projectPath)).toEqual(before);

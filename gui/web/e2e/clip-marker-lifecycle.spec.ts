@@ -123,9 +123,7 @@ for (const kind of ["chapter", "social"] as const)
           await page.mouse.move(point.x + 32, point.y);
           await page.mouse.up();
           await layer(page, "Markers", true);
-        }
-        // The lane's track owns the pointer capture, not the marker button.
-        else
+        } else
           await interrupt(
             page,
             page.locator(".sys-markers-track"),

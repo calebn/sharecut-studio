@@ -1057,10 +1057,6 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   background: var(--color-timeline-well);
 }
 
-/* The system marker lane is one row; the clipping row sits under it when
-   there are flags (timelineMetrics). --marker-row-height is px from
-   utils/layout.ts, set by TimelineView, so rows match the lane height the code
-   computes at any root font size. */
 .marker-lane > .sys-markers {
   flex: none;
   block-size: var(--marker-row-height);

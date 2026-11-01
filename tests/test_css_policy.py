@@ -707,8 +707,6 @@ def test_timeline_edge_stays_under_the_clips() -> None:
         assert ("z-index", "var(--z-clip)") in {
             (d.prop, d.value) for d in timeline if d.preludes == (layer,)
         }, layer
-    # The system marker lane (chapters, social clips, comments) sits in the
-    # sticky marker lane, which stacks on the chrome role above the edge.
     assert ("z-index", "var(--z-timeline-chrome)") in {
         (d.prop, d.value) for d in timeline if d.preludes == (".marker-lane",)
     }

@@ -79,7 +79,6 @@ for (const [width, height] of [
     expect(layout.recoveryScrolls, "the form has no inner scroller").toBe(
       false,
     );
-    // The sheet clearance (header, rows, ruler, the one-row marker lane and a lane) stays above it.
     expect(layout.sheetTop).toBeGreaterThanOrEqual(176);
   });
 }

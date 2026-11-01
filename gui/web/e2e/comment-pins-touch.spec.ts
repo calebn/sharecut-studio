@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
@@ -15,13 +17,6 @@ import {
   VIEWPORTS,
   type ViewportName,
 } from "./touchTimeline";
-
-/*
- * Timeline comment pins on touch (#1742): a pin has a --touch-min hit area around its
- * dot while the lane stays one marker row tall, pins on one spot fold into a
- * "+N" chip whose list picks each of them, and a finger beside a pin picks it
- * without taking the ruler's or a clip's taps.
- */
 
 const CLIENT_ID = "e2e-comment-pins-touch";
 const MARKER_ROW = 24;
@@ -120,7 +115,7 @@ async function tap(
 for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
   test(`${viewport}: the lane keeps its height and a pin's hit area spans it`, async ({
     page,
-  }) => {
+  }, info) => {
     await page.goto("/");
     await addComments(page);
     await openTimeline(page, viewport);
@@ -128,8 +123,32 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
       MARKER_ROW,
     );
     for (const author of ["Dee", "Eli"]) {
-      expect((await pin(page, author).boundingBox())?.height).toBe(MARKER_ROW);
+      const box = (await pin(page, author).boundingBox())!;
+      expect(box.height).toBe(MARKER_ROW);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      const ownership = await pin(page, author).evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return [-18, 18].map((offset) =>
+          element.contains(
+            document.elementFromPoint(
+              rect.x + rect.width / 2 + offset,
+              rect.y + rect.height / 2,
+            ),
+          ),
+        );
+      });
+      expect(ownership).toEqual([true, true]);
     }
+    const file = path.join(
+      "playwright-report",
+      `issue-2964-comment-targets-${viewport}.png`,
+    );
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    await page.screenshot({ path: file });
+    await info.attach(`comment-targets-${viewport}`, {
+      path: file,
+      contentType: "image/png",
+    });
   });
 }
 
@@ -163,7 +182,7 @@ test("a tap beside a pin picks it, and a tap on a clip under the lane never does
 test("pins on one spot fold into a +2 chip and its list picks each comment", async ({
   page,
   context,
-}) => {
+}, info) => {
   await page.goto("/");
   await addComments(page);
   const { page: p, cdp } = await newTouchPage(context);
@@ -171,7 +190,6 @@ test("pins on one spot fold into a +2 chip and its list picks each comment", asy
   const chip = p.getByRole("button", { name: "2 more markers" });
   await expect(chip).toBeVisible();
 
-  // The lane keeps one of the three on show; the chip's list holds the rest.
   const shown = await pinHits(p).evaluateAll((els) =>
     els.map(
       (el) =>
@@ -187,7 +205,6 @@ test("pins on one spot fold into a +2 chip and its list picks each comment", asy
       name: new RegExp(`^Comment by ${author},`),
     });
     await expect(item).toBeVisible();
-    // The list opens under the chip; take the box once it holds still.
     let last = "";
     await expect
       .poll(async () => {
@@ -199,7 +216,26 @@ test("pins on one spot fold into a +2 chip and its list picks each comment", asy
       .toBe(true);
     const at = (await item.boundingBox())!;
     await tap(cdp, { x: at.x + at.width / 2, y: at.y + at.height / 2 });
-    await expect.poll(() => selectedPins(p)).toEqual([]);
+    await expect(stageTab(p, "review")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const selected = p.locator(
+      '.sys-queue-row[data-kind="comment"][data-selected="true"]',
+    );
+    await expect(selected).toHaveCount(1);
+    await expect(selected).toContainText(`${author} at 5`);
+    const file = path.join(
+      "playwright-report",
+      `issue-2964-hidden-comment-${author}.png`,
+    );
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    await p.screenshot({ path: file });
+    await info.attach(`hidden-comment-${author}`, {
+      path: file,
+      contentType: "image/png",
+    });
+    await stageTab(p, "edit").click();
     await expect(p.getByRole("menuitem")).toHaveCount(0);
   }
   await p.close();

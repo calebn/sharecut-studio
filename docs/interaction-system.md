@@ -290,6 +290,18 @@ There are three overlay primitives.
 | A drag | a hit kind in `timeline/inputContract.ts` and `useLongPress` | an ad-hoc `pointerdown` handler |
 | A color, space, size or z value | `var(--…)` from `styles/theme/` | a literal |
 
+### Marker lane gestures
+
+`system/MarkerLane` owns a marker's press through its actual rendered hit button. `timeline/MarkerLaneHost` supplies authoritative source times separately from preview geometry. Pointer input and held arrows cancel if the source span, duration, zoom, window start or editability changes. An identical source refresh and the host's own preview preserve the gesture. Arrow release and ordinary blur commit once; Escape, invalidation and unmount cancel. Keyboard movement uses the same whole-span bounds as pointer movement and reverses immediately at a boundary.
+
+Inline chapter naming executes `edit.addChapter` with `{ atTime, title }`. Menu and playhead additions keep the generated title when `title` is absent. Invalid explicit names produce no pending flag, visibility change or request. One command owns pending state, undo feedback and project-lifetime checks. Markers visibility also controls clipping rendering and reserved row height; comments remain independent.
+
+| Marker contract | Owner | Enforcement |
+| --- | --- | --- |
+| Captured gesture source, bounded movement and cancellation | `system/MarkerLane.tsx`, `timeline/MarkerLaneHost.tsx` | `system/MarkerLane.test.tsx`, `timeline/MarkerLaneRegression.test.tsx` |
+| Shared named and generated chapter addition | `commands/chapters.ts` | `commands/addChapter.test.ts`, `timeline/MarkerLaneRegression.test.tsx` |
+| Rendered marker hit ownership | `timeline/MarkerLaneHost.tsx` | `timeline/inputContract.conformance.test.ts` |
+
 ## Checklist
 
 A new interaction, or a change to one, passes every line. A line that does
@@ -319,6 +331,7 @@ not apply is answered "n/a" with the reason in the PR.
 - [ ] It has a manifest row with every GUI surface it appears on.
 - [ ] A new noun is in the Terminology table; a new gesture is in
       `commands/gestures.ts` and the gestures sheet.
+- [ ] Marker gestures cover pending refusal, source changes before threshold, held-arrow cancellation, identical-source continuity, exact hidden-comment selection and isolated 44 px horizontal targets in the 24 px row.
 - [ ] Tests lock the command, the key, the gesture, the surface row and the
       feedback. For UI under `gui/web/`, Vitest with axe; for shells and
       overlays, Playwright in `gui/web/e2e/`.
@@ -381,6 +394,6 @@ consistency epic tracks them.
 
 | Rule | Shipped today |
 | --- | --- |
-| Menus: one primitive, context menus from one descriptor | `stages/edit/CreateMenu.tsx` (hosted by `timeline/TimelineCreateMenu.tsx`) and `timeline/TargetChooser.tsx` hand-roll `role="menu"` (in the top layer). The create menu now opens on right click and on the Menu key or Shift+F10 over a focused target (`hitRouting.ts` `openCreate`, #1793); a lane, clip or marker is not focusable, so a keyboard user with no focused target reaches the create actions through the palette and keys only. |
+| Menus: one primitive, context menus from one descriptor | `stages/edit/CreateMenu.tsx` (hosted by `timeline/TimelineCreateMenu.tsx`) and `timeline/TargetChooser.tsx` hand-roll `role="menu"` (in the top layer). The create menu now opens on right click and on the Menu key or Shift+F10 over a focused target (`hitRouting.ts` `openCreate`, #1793); marker buttons are focusable, while a keyboard user without a focused target reaches the create actions through the palette and keys. |
 | Confirms: one primitive | The model download is a row (`stages/prepare/ReadyList.tsx`) or the model gate, not an `askConfirm`; hand fixes are asked on the Re-transcribe row. |
 | Confirms: model not downloaded | `ModelGate` (`models/gate/ModelGate.tsx`, `useModelGate`) asks before an action that needs a model, then continues after **Download**. It shows as `ModelGateDialog`, as `ModelGatePanel` in a Deliver section (Episode file, Bounce) or the body and footer inside a host dialog (Split swaps its own body, never a dialog over a dialog), as `ModelGateHint` after **Not now**, and as `JobModelDownload` beside a job that failed for a model. Focus moves to **Cancel download** while it downloads and back to the primary button when it stops. |

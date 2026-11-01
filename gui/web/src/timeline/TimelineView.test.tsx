@@ -1220,9 +1220,6 @@ describe("TimelineView lane fit", () => {
       fireEvent.pointerMove(hit, { pointerId: 1, clientX: 140, clientY: 90 });
       expect(lane("guest").querySelector(".clip-move-ghost")).toBeTruthy();
 
-      // A collaborator adds a chapter, a comment and a clipping flag: the
-      // clipping row under the marker lane would re-fit the lanes (and move
-      // them) under the still pointer.
       act(() => {
         useDawStore.setState({
           project: {
