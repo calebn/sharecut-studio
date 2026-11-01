@@ -1750,4 +1750,45 @@ describe("successful selected work", () => {
       });
     },
   );
+
+  it("keeps the actual cleaning failure while ASR was deliberately omitted", () => {
+    const job = selected(
+      [step("clean_audio", "error", { error: "Cleaning failed." })],
+      {
+        status: "error",
+        error: "Job-level fallback.",
+        skip_steps: [
+          "transcribe_tracks",
+          "align_tracks",
+          "require_align_accept",
+        ],
+      },
+    );
+    const rows = rowsFor(job);
+    expect(rows[1]).toMatchObject({
+      state: "queued",
+      detail: "Skipped this run",
+    });
+    expect(rows[3]).toMatchObject({
+      state: "failed",
+      detail: "Cleaning failed.",
+    });
+    const stoppedRun = { status: "error" as const, error: job.error };
+    expect(phaseFor(rows, { stoppedRun })).toMatchObject({
+      phase: "failed",
+      failure: { cause: "Cleaning failed." },
+    });
+    expect(readySummary(rows, false, stoppedRun)).toBe(
+      "Getting ready: Clean and level failed",
+    );
+    const transcribed = rowsFor(
+      { ...job, steps: [step("transcribe_tracks", "ok"), ...job.steps] },
+      { approximateTiming: null },
+    );
+    expect(transcribed[1]).toMatchObject({
+      state: "done",
+      detail: "3 speakers",
+    });
+    expect(phaseFor(transcribed, { stoppedRun }).phase).toBe("failed");
+  });
 });

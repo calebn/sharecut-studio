@@ -58,7 +58,7 @@ export function prepareAnnouncement({
         ? "Files added. Checking audio."
         : `${files(addCount)} added. Checking audio.`;
     case "transcribing":
-      return "Transcribing started.";
+      return "Processing started.";
     case "needs-model":
       return "Transcribing needs a download first.";
     case "model-failed":
@@ -66,9 +66,9 @@ export function prepareAnnouncement({
     case "keep-fixes":
       return "You fixed words by hand. Keep my fixes or replace them.";
     case "waiting":
-      return "Transcribing starts when the other job finishes.";
+      return "Processing starts when the other job finishes.";
     case "not-started":
-      return "Transcribing has not started. Run it when you are ready.";
+      return "Processing has not started. Run it when you are ready.";
     case "new-audio":
       return "New audio is waiting. Process new audio when you are ready.";
     case "done":
