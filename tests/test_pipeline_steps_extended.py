@@ -1163,10 +1163,10 @@ def test_export_deliverables_qc_rolls_up_master_qc_issues(
     steps.mix_with_music(proj, defaults)
     steps.master_loudness(proj, defaults)
     mark_reconciliation_fresh(proj, defaults=defaults)
-    (proj.artifacts_dir() / "master_qc.json").write_text(
-        json.dumps({"within_tolerance": False, "issues": ["True peak exceeds target"]}),
-        encoding="utf-8",
-    )
+    master_qc_path = proj.artifacts_dir() / "master_qc.json"
+    master_qc = json.loads(master_qc_path.read_text(encoding="utf-8"))
+    master_qc.update(measured=None, within_tolerance=False, issues=["True peak exceeds target"])
+    master_qc_path.write_text(json.dumps(master_qc), encoding="utf-8")
     steps.export_deliverables(proj, defaults)
     qc = json.loads((proj.artifacts_dir() / "export_qc.json").read_text(encoding="utf-8"))
     assert qc["ok"] is False
