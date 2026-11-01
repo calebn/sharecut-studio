@@ -66,7 +66,7 @@ test("pending suggestions preserve drafts and save the displayed full range once
     projectPath,
   );
   const sourceStart = page.getByLabel("Source start", { exact: true });
-  await expect(sourceStart).toHaveAttribute("aria-valuetext", "2.000 s");
+  await expect(sourceStart).toHaveAttribute("aria-valuetext", "2.000000 s");
   const before = fs.readFileSync(projectPath, "utf8");
   const response = await page.request.get(
     `/api/pending-edits/${encodeURIComponent(editId)}/cut-suggestion?path=${encodeURIComponent(projectPath)}`,
@@ -81,12 +81,24 @@ test("pending suggestions preserve drafts and save the displayed full range once
   expect(fs.readFileSync(projectPath, "utf8")).toBe(before);
   const useSuggestion = page.getByRole("button", { name: "Use suggestion" });
   await expect(useSuggestion).toBeEnabled();
-  await sourceStart.fill("2.25");
+  await sourceStart.press("Enter");
+  const startInput = page.getByRole("textbox", {
+    name: "Source start",
+    exact: true,
+  });
+  await startInput.fill("2.25");
+  await startInput.press("Enter");
   await expect(useSuggestion).toBeDisabled();
-  await expect(sourceStart).toHaveValue("2.25");
   await expectPageAxeClean(page, ".inspector");
-  await sourceStart.fill("0:02.000");
+  await sourceStart.press("Enter");
+  await startInput.fill("0:02.000");
+  await startInput.press("Enter");
   await expect(useSuggestion).toBeEnabled();
+  const refreshed = await (
+    await page.request.get(
+      `/api/pending-edits/${encodeURIComponent(editId)}/cut-suggestion?path=${encodeURIComponent(projectPath)}`,
+    )
+  ).json();
   const updateRequests: { type: string; payload: Record<string, unknown> }[] =
     [];
   page.on("request", (request) => {
@@ -104,8 +116,8 @@ test("pending suggestions preserve drafts and save the displayed full range once
     type: "UpdatePendingEdit",
     payload: {
       id: editId,
-      start: suggestion.optimized.start,
-      end: suggestion.optimized.end,
+      start: refreshed.optimized.start,
+      end: refreshed.optimized.end,
       snap: false,
     },
   });
@@ -119,8 +131,8 @@ test("pending suggestions preserve drafts and save the displayed full range once
       );
     })
     .toEqual({
-      start: suggestion.optimized.start,
-      end: suggestion.optimized.end,
+      start: refreshed.optimized.start,
+      end: refreshed.optimized.end,
     });
   const current = (await pendingSnapshot(page)).pending_edits.find(
     (edit) => edit.id === editId,

@@ -47,15 +47,9 @@ async function stubApproveEditsRefineGate(page: Page): Promise<void> {
   });
 }
 
-const verbBar = (page: Page) =>
-  page.getByRole("group", { name: /^(Selection|Edit) actions$/ });
-
 async function clickApproveUntilError(root: Locator): Promise<void> {
   const error = root.locator(".modifier-error");
-  const approve = verbBar(root.page()).getByRole("button", {
-    name: "Cut",
-    exact: true,
-  });
+  const approve = root.getByRole("button", { name: "Approve", exact: true });
   await expect(approve).toBeVisible();
   await expect
     .poll(async () =>
@@ -108,6 +102,7 @@ test.describe("Pending inspector layout", () => {
           .locator(".pending-overlay.selected")
           .getAttribute("data-pending-id");
         expect(editId).not.toBeNull();
+        let root = page.getByRole("region", { name: "Pending edit actions" });
         if (entrypoint === "phone inspector") {
           await page.setViewportSize({ width: 390, height: 844 });
           await phone.showTimeline(page);
@@ -121,15 +116,14 @@ test.describe("Pending inspector layout", () => {
             if (!(await expand.count())) break;
             await expand.click();
           }
+          root = sheet.getByRole("complementary");
+          await exposeControl(
+            page,
+            root.getByRole("button", { name: action, exact: true }),
+            [],
+          );
         }
-        const verb = action === "Approve" ? "Cut" : "Keep";
-        const verbButton = verbBar(page).getByRole("button", {
-          name: verb,
-          exact: true,
-        });
-        if (entrypoint === "phone inspector")
-          await exposeControl(page, verbButton, []);
-        await verbButton.click();
+        await root.getByRole("button", { name: action, exact: true }).click();
         const feedback = page.getByRole("region", { name: "Status messages" });
         await expect(feedback).toContainText(
           action === "Approve"
@@ -164,8 +158,8 @@ test.describe("Pending inspector layout", () => {
     const inspector = page
       .locator(".modifier-inspector")
       .filter({ has: page.getByRole("heading", { name: "Pending edit" }) });
-    await verbBar(page)
-      .getByRole("button", { name: "Cut", exact: true })
+    await inspector
+      .getByRole("button", { name: "Approve", exact: true })
       .click();
     const error = inspector.locator(".modifier-error");
     const askHelp = inspector.getByText(/Hear Suggested, then approve/);

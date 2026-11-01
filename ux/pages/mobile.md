@@ -51,8 +51,10 @@ narrow region does not make the timeline wider. In a dense set of cuts, point
 to or keyboard-focus one small region to see its label without labels stacking
 over each other. When the compact inspector is open, the same review actions
 dock in its pinned header, with Approve and Reject on the timeline action card
-and Cut and Keep on the Action bar while the inspector body scrolls. On a tablet,
-the full inspector sheet shows Cut and Keep on the Action bar beside it. Elsewhere the card stays beside the selected region and follows the
+while the inspector body scrolls. A suggestion that has an accept action shows
+Cut and Keep on the Action bar (the dock on a phone); without one, and for a
+split, an exact range, a comment-linked pending edit or the peek sheet, Approve
+and Reject stay in the sheet. Elsewhere the card stays beside the selected region and follows the
 timeline when the marker lane or the bottom panel changes size.
 On the matching track, you can drag a cut's outer start or end edge while the
 other edge stays in place. The moving edge follows nearby waveform ticks and

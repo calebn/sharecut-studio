@@ -15,6 +15,7 @@ import { PendingEditBody } from "./PendingEditBody";
 
 const mocks = vi.hoisted(() => ({
   approveEdits: vi.fn(),
+  applySuggestedActions: vi.fn(),
   updatePendingEdit: vi.fn(),
   loadPendingCutSuggestion: vi.fn(),
   loadHostCommandQueue: vi.fn(),
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   approveEdits: mocks.approveEdits,
+  applySuggestedActions: mocks.applySuggestedActions,
   updatePendingEdit: mocks.updatePendingEdit,
   loadPendingCutSuggestion: mocks.loadPendingCutSuggestion,
 }));
@@ -233,5 +235,27 @@ describe("pending timing queue settlement", () => {
     );
     await decide("cut");
     expect(mocks.approveEdits).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks a shorten or lower Cut from the bar while this edit's timing is queued", async () => {
+    const shorten = { ...edit, suggested_action: "shorten" as const };
+    useDawStore
+      .getState()
+      .hydrate("/tmp/p.json", minimalProject({ pending_edits: [shorten] }));
+    useDawStore.getState().setSelection({
+      kind: "pending",
+      id: shorten.id,
+      trackId: shorten.track_id,
+    });
+    mocks.loadHostCommandQueue.mockResolvedValue([command]);
+    render(<PendingEditBody edit={shorten} />);
+    await act(async () => {});
+    await act(async () => {
+      expect(await executePointerCommand("edit.delete")).toEqual({
+        status: "disabled",
+        reason: "Wait for the current action to finish.",
+      });
+    });
+    expect(mocks.applySuggestedActions).not.toHaveBeenCalled();
   });
 });

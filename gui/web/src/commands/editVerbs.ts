@@ -53,7 +53,7 @@ import { staleRenderBreakdown } from "../utils/staleRender";
 import { runDeleteClips } from "./editing";
 import { removeEnvelopePoint } from "./envelopes";
 import { registerCommand } from "./execute";
-import { decideThroughSheet } from "./pendingDecision";
+import { decideThroughSheet, sheetBusyReason } from "./pendingDecision";
 import { executePointerCommand } from "./pointer";
 import {
   PLAY_DENIED_REASON,
@@ -183,6 +183,8 @@ async function decidePending(
     return disabled("This link cannot decide suggestions");
   try {
     if (action === "suggested") {
+      const busy = sheetBusyReason(edit.id);
+      if (busy) return disabled(busy);
       const outcome = await applySuggestedActions(s.projectPath, [edit.id]);
       const live = useDawStore.getState();
       if (outcome.queued) {
