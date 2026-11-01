@@ -34,7 +34,7 @@ log = logging.getLogger(__name__)
 RECORD_DIR = "track_evidence"
 SUFFIX = ".evd"
 # Bump when ``audio_eval`` or the resampling changes the samples a key evaluates to.
-RECORD_REV = 1
+RECORD_REV = 2
 # Every edit to a track's tree leaves a record behind; the newest are kept, by write time.
 RECORDS_KEPT = 24
 RECORDS_KEPT_BYTES = 1 << 30
@@ -91,7 +91,7 @@ def read_record(directory: Path, key: str, rates: Sequence[int]) -> dict[int, np
                 if array.size != size:
                     return None
                 arrays[rate] = array.astype(np.float32, copy=False)
-            if header.get("sum") != _checksum(arrays.values()):
+            if header.get("sum") != _checksum(arrays, arrays.values()):
                 return None
     except (OSError, ValueError, TypeError):
         return None
@@ -101,8 +101,11 @@ def read_record(directory: Path, key: str, rates: Sequence[int]) -> dict[int, np
     return arrays
 
 
-def _checksum(arrays: Iterable[np.ndarray]) -> str:
+def _checksum(rates: Iterable[int], arrays: Iterable[np.ndarray]) -> str:
+    """The checksum of the rates, the length of each rate's samples and the samples, so a header re-split over the same bytes does not read."""
+    arrays = list(arrays)
     digest = hashlib.blake2b(digest_size=16)
+    digest.update(json.dumps([list(rates), [a.size for a in arrays]]).encode())
     for array in arrays:
         digest.update(np.ascontiguousarray(array, dtype=_DTYPE).data)
     return digest.hexdigest()
@@ -120,7 +123,7 @@ def write_record(directory: Path, key: str, evidence: dict[int, np.ndarray]) -> 
             "key": key,
             "rates": rates,
             "sizes": [evidence[rate].size for rate in rates],
-            "sum": _checksum(evidence.values()),
+            "sum": _checksum(rates, evidence.values()),
         }
     )
     path = record_path(directory, key)
