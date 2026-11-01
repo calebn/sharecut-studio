@@ -36,7 +36,7 @@ test("Prepare: the hand-off opens the next stage once the sources are ready", as
   ).toBeVisible();
 });
 
-test("Prepare: importing audio starts the run by itself and shows a waiting Run when the slot is busy", async ({
+test("Prepare: audio added next to transcribed tracks waits for Process new audio, then shows a waiting Run when the slot is busy", async ({
   page,
 }) => {
   // The import adds a take: do it in a disposable copy so the shared project is left as found.
@@ -73,6 +73,12 @@ test("Prepare: importing audio starts the run by itself and shows a waiting Run 
       mimeType: "audio/wav",
       buffer: silentWav(),
     });
+
+    // The shared project already has transcripts: new audio gets a plan and waits for the person.
+    const processNew = page.getByRole("button", { name: /^Process new audio/ });
+    await expect(processNew).toBeVisible();
+    expect(posts).toBe(0);
+    await processNew.click();
 
     await expect.poll(() => posts).toBeGreaterThanOrEqual(1);
     expect(body).toMatchObject({ use_working_set: true });
