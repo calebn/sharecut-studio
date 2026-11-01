@@ -331,3 +331,41 @@ def test_defaults_holding_a_cancel_check_are_shared_without_copying(
             )
 
     assert builds == [None]
+
+
+def test_per_step_runtime_hooks_do_not_defeat_sharing(tmp_path: Path, builds: list) -> None:
+    project = _echo_stem_project(tmp_path)
+
+    with audibility_run_scope():
+        for _ in range(3):
+            step = {**DEFAULTS, "_pipeline_persist": lambda: None}
+            compute_word_audibility_map(
+                project,
+                policy=POLICY,
+                caches=build_reconciliation_caches(project, defaults=step),
+                defaults=step,
+            )
+
+    assert builds == [None]
+
+
+def test_defaults_that_cannot_be_compared_build_instead_of_failing(
+    tmp_path: Path, builds: list
+) -> None:
+    class Unequal:
+        def __eq__(self, other: object) -> bool:
+            raise ValueError("ambiguous")
+
+    project = _echo_stem_project(tmp_path)
+
+    with audibility_run_scope():
+        for _ in range(2):
+            odd = {**DEFAULTS, "odd": Unequal()}
+            compute_word_audibility_map(
+                project,
+                policy=POLICY,
+                caches=build_reconciliation_caches(project, defaults=odd),
+                defaults=odd,
+            )
+
+    assert builds == [None, None]
