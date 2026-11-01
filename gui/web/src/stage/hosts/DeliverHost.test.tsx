@@ -880,7 +880,7 @@ describe("Deliver host refused-save banner", () => {
       created_at: createdAt,
     },
   });
-  const seed = (...conflicts: ReturnType<typeof refusedAt>[]) => {
+  const seed = (...conflicts: unknown[]) => {
     wire.conflicts[PATH] = conflicts;
   };
   const later = () => Date.now() + 60_000;
@@ -899,6 +899,14 @@ describe("Deliver host refused-save banner", () => {
       conflict: () => refusedAt(later(), { dismissed: true }),
     },
     { name: "older than the page", conflict: () => refusedAt(1) },
+    {
+      name: "not a refusal",
+      conflict: () => ({
+        ...refusedAt(later()),
+        kind: "unknown" as const,
+        recovery: "inspect-history" as const,
+      }),
+    },
     {
       name: "not a Deliver command",
       conflict: () => refusedAt(later(), { type: "SetTrackMeta" }),
