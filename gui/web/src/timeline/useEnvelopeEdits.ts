@@ -15,6 +15,7 @@ import { useTimelineGestureHold } from "./timelineMetrics";
 
 /** How long a saved point is held for the store to follow before a save that changed nothing lets go. */
 const SETTLE_MS = 1000;
+const UPDATING = "Wait for the volume envelope to update";
 const SAVING = "Wait for the volume envelope to finish saving";
 
 const liveStored = (trackId: string, id: string): AutomationPoint | undefined =>
@@ -216,7 +217,12 @@ export function useEnvelopeEdits(
   const onRemove = useCallback(
     (id: string) => {
       if (saved.current || envelopeSaveInFlight(trackId)) {
-        useDawStore.getState().announceStatus(SAVING, { tone: "error" });
+        // In flight, the save is running; in the window after it, the store has yet to hold the saved point.
+        useDawStore
+          .getState()
+          .announceStatus(envelopeSaveInFlight(trackId) ? SAVING : UPDATING, {
+            tone: "error",
+          });
         return;
       }
       void removeEnvelopePoint(trackId, id).then((result) => {
