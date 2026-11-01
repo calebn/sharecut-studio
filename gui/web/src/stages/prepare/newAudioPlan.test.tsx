@@ -124,13 +124,13 @@ describe("audio added to a project that already ran", () => {
     expect(view.phase).toBe("new-audio");
     expect(view.readySummary).toBe("Getting ready: new audio waiting");
     expect(view.readyNote).toBe(
-      "Priya’s audio is new. The other 2 tracks are reused as they are.",
+      "Priya’s audio is new. The other 2 tracks keep their transcripts.",
     );
     expect(view.rows.map((r) => r.detail)).toEqual([
       "Priya added, 3 files",
       "Priya only · 2 kept",
       "All 3 tracks, Priya joins",
-      "Priya only · 2 kept",
+      "All 3 tracks",
       "Whole episode",
     ]);
     expect(start).not.toHaveBeenCalled();
@@ -160,7 +160,7 @@ describe("audio added to a project that already ran", () => {
     const { result } = render();
     act(() => result.current.view.onRowAction("align", "skip"));
     expect(result.current.view.rows[2]).toMatchObject({
-      detail: "Skipped this time",
+      detail: "Skipped this time. Priya stays where it was recorded.",
       action: { label: "Include" },
     });
     act(() => result.current.view.onRowAction("align", "include"));
@@ -197,7 +197,9 @@ describe("audio added to a project that already ran", () => {
       }),
     );
     expect(
-      result.current.view.rows.some((r) => r.detail === "Skipped this time"),
+      result.current.view.rows.some((r) =>
+        r.detail?.startsWith("Skipped this time"),
+      ),
     ).toBe(false);
   });
 

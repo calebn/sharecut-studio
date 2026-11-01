@@ -323,10 +323,12 @@ export function planNote(plan: RerunPlan): string {
     names.length === 1
       ? `${names[0]}’s audio is new.`
       : `${names.length === 2 ? joined(names) : `${names.length} tracks`} have new audio.`;
+  // Only the transcripts are verified as kept (plan_transcription reuses a
+  // stored transcript whose audio is unchanged); the other steps run on all.
   const rest =
     kept === 1
-      ? "The other track is reused as it is."
-      : `The other ${kept} tracks are reused as they are.`;
+      ? "The other track keeps its transcript."
+      : `The other ${kept} tracks keep their transcripts.`;
   return `${first} ${rest}`;
 }
 
@@ -335,13 +337,20 @@ function planRows(input: ReadyInput, plan: RerunPlan): ReadyRowData[] {
   const scope = `${who} only · ${plan.kept} kept`;
   const total = plan.kept + plan.newNames.length;
   const joins = `All ${total} tracks, ${who} ${plan.newNames.length === 1 ? "joins" : "join"}`;
+  // Only Transcribe skips tracks that already have results (#2890 covers the
+  // rest), so only it says "kept"; the other rows say what runs on all.
+  const everyone = `All ${total} tracks`;
+  const consequence: Partial<Record<ReadyRowId, string>> = {
+    transcribe: `Skipped this time. ${who} will have no transcript, so later steps leave ${plan.newNames.length === 1 ? "it" : "them"} out.`,
+    align: `Skipped this time. ${who} stays where it was recorded.`,
+  };
   const row = (id: ReadyRowId, detail: string): ReadyRowData =>
     plan.skipped.has(id)
       ? {
           id,
           state: "queued",
           title: ROW_TITLE[id],
-          detail: "Skipped this time",
+          detail: consequence[id] ?? "Skipped this time",
           action: { label: "Include", run: "include" },
         }
       : {
@@ -360,7 +369,7 @@ function planRows(input: ReadyInput, plan: RerunPlan): ReadyRowData[] {
     },
     row("transcribe", scope),
     row("align", joins),
-    row("clean", scope),
+    row("clean", everyone),
     ...(plan.scan ? [row("scan", `Whole episode · ${plan.scan.time}`)] : []),
     row("suggest", "Whole episode"),
   ];

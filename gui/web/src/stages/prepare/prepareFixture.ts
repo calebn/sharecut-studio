@@ -250,7 +250,7 @@ export const ROWS = {
     },
     planRow("transcribe", "Transcribe", "Priya only · 3 kept"),
     planRow("align", "Line up tracks", "All 4 tracks, Priya joins"),
-    planRow("clean", "Clean and level", "Priya only · 3 kept"),
+    planRow("clean", "Clean and level", "All 4 tracks"),
     planRow("suggest", "Find suggestions", "Whole episode"),
   ],
   /** The same plan with Line up tracks skipped for this run. */
@@ -266,10 +266,10 @@ export const ROWS = {
       id: "align",
       state: "queued",
       title: "Line up tracks",
-      detail: "Skipped this time",
+      detail: "Skipped this time. Priya stays where it was recorded.",
       action: { label: "Include", run: "include" },
     },
-    planRow("clean", "Clean and level", "Priya only · 3 kept"),
+    planRow("clean", "Clean and level", "All 4 tracks"),
     planRow("suggest", "Find suggestions", "Whole episode"),
   ],
   /** After a run that reused earlier results. */
