@@ -348,12 +348,9 @@ def _stored(
     return store.get_or_build(key, partial(_produce, key, tree, rates, record_dir), rates)
 
 
-def _record_dir(project: EpisodeProject) -> Path | None:
-    """Where the project records evidence for a later process; ``None`` for a project with no workspace to write to."""
-    try:
-        return project.artifacts_dir() / evidence_records.RECORD_DIR
-    except Exception:
-        return None
+def _record_dir(project: EpisodeProject) -> Path:
+    """Where the project records evidence for a later process."""
+    return project.artifacts_dir() / evidence_records.RECORD_DIR
 
 
 def _plan(
@@ -593,7 +590,9 @@ def _recorded(
     name = (
         None
         if build_id is None
-        else evidence_records.record_key((tree, key.curve, key.revisions, rates, build_id))
+        else evidence_records.record_key(
+            (tree, key.curve, key.revisions, rates, build_id, file_stamp(Path(str(build_id[0]))))
+        )
     )
     if name is None:
         return build()

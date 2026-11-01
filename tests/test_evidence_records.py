@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import inspect
 import json
 import os
+import shutil
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -12,8 +16,11 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import evidence_records, track_evidence
+from podcast_mcp.engines.audio import Audio
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.track_evidence import Declined, Evidence
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.fingerprint import FileStamp
 from test_audio_eval import _ffmpeg_or_skip, _project
 
 JUMP, WAVEFORM = 8000, 16000
@@ -26,6 +33,8 @@ def _setup(monkeypatch: pytest.MonkeyPatch) -> None:
     _ffmpeg_or_skip()
     # Fixtures written a moment ago are racy for a record; read the clock an hour on.
     monkeypatch.setattr(track_evidence, "_now_ns", lambda: time.time_ns() + 3600 * 10**9)
+    # The sandbox's free space is a fact about the machine, not about the record.
+    monkeypatch.setattr(evidence_records, "SPILL_HEADROOM_BYTES", 0)
     RETAINED.clear()
 
 
@@ -35,7 +44,9 @@ class Evaluations:
     def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self.rates: list[tuple[int, ...]] = []
 
-        def counted(tree, curve, rates=(JUMP, WAVEFORM)):  # type: ignore[no-untyped-def]
+        def counted(
+            tree: Audio, curve: str, rates: tuple[int, ...] = (JUMP, WAVEFORM)
+        ) -> Evidence | Declined:
             self.rates.append(tuple(rates))
             return real_evaluate(tree, curve, rates)
 
@@ -180,8 +191,8 @@ def test_a_record_whose_header_is_not_the_records_is_evaluated_again(
     ids=lambda f: f.__name__.removeprefix("_damage_"),
 )
 def test_a_damaged_record_is_evaluated_again_and_replaced_whole(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, damage
-) -> None:  # type: ignore[no-untyped-def]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, damage: Callable[[Path], None]
+) -> None:
     project = _project(tmp_path, "crossfade joins")
     built = _samples(project)
     (record,) = _records(project)
@@ -308,7 +319,9 @@ def test_a_source_rewritten_during_the_build_is_not_recorded(
     project = _project(tmp_path, "crossfade joins")
     source = project.workspace_path() / "raw" / "caleb.flac"
 
-    def rewritten(tree, curve, rates=(JUMP, WAVEFORM)):  # type: ignore[no-untyped-def]
+    def rewritten(
+        tree: Audio, curve: str, rates: tuple[int, ...] = (JUMP, WAVEFORM)
+    ) -> Evidence | Declined:
         evidence = real_evaluate(tree, curve, rates)
         stat = source.stat()
         os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns + 10**9))
@@ -345,9 +358,10 @@ def test_verify_mode_compares_a_record_with_a_fresh_evaluation(
     monkeypatch.setenv(track_evidence.VERIFY_ENV, "1")
     _samples(project)
     _restart()
-    data = bytearray(record.read_bytes())
-    data[-8] ^= 0x40
-    record.write_bytes(bytes(data))
+    wrong = evidence_records.read_record(record.parent, _full_key(record), (JUMP,))
+    assert wrong is not None
+    wrong[JUMP][0] += 1.0
+    assert evidence_records.write_record(record.parent, _full_key(record), wrong)
 
     with pytest.raises(AssertionError, match="differs from a rebuild"):
         _samples(project)
@@ -379,14 +393,17 @@ def test_records_past_the_byte_cap_go_oldest_first_but_never_the_one_just_writte
     directory = tmp_path / "records"
     evidence: Evidence = {JUMP: np.arange(16, dtype=np.float32)}
     keys = [evidence_records.record_key(("tree", n)) for n in range(3)]
-    for key in keys:
+    for age, key in enumerate(keys):
         assert key is not None
         evidence_records.write_record(directory, key, evidence)
-        time.sleep(0.01)
+        path = evidence_records.record_path(directory, key)
+        os.utime(path, ns=(10**9 * (age + 1), 10**9 * (age + 1)))
+    newest = keys[2]
+    assert newest is not None
 
     kept = list(directory.glob("*.evd"))
 
-    assert [p.name for p in kept] == [evidence_records.record_path(directory, keys[2] or "").name]
+    assert [p.name for p in kept] == [evidence_records.record_path(directory, newest).name]
 
 
 def test_a_key_that_prints_a_memory_address_names_no_record() -> None:
@@ -401,3 +418,188 @@ def test_evidence_that_is_not_float32_is_not_recorded(tmp_path: Path) -> None:
     assert not evidence_records.write_record(tmp_path, key, {JUMP: np.zeros(4, dtype=np.float64)})
     assert not evidence_records.write_record(tmp_path, key, {JUMP: np.zeros(0, dtype=np.float32)})
     assert list(tmp_path.glob("*.evd")) == []
+
+
+def test_a_body_corrupted_to_the_same_length_is_evaluated_again_and_restored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, "crossfade joins")
+    built = _samples(project)
+    (record,) = _records(project)
+    whole = record.read_bytes()
+    _restart()
+    data = bytearray(whole)
+    data[-8] ^= 0x40
+    record.write_bytes(bytes(data))
+    assert len(data) == len(whole)
+    calls = Evaluations(monkeypatch)
+
+    read = _samples(project)
+
+    assert calls.count == 1
+    np.testing.assert_array_equal(_bits(read), _bits(built))
+    assert record.read_bytes() == whole
+
+
+def test_a_record_without_its_checksum_is_not_read(tmp_path: Path) -> None:
+    project = _project(tmp_path, "crossfade joins")
+    _samples(project)
+    (record,) = _records(project)
+    key = _full_key(record)
+    data = record.read_bytes()
+    head = data[len(evidence_records._MAGIC) : data.index(b"\n")]
+    stripped = {k: v for k, v in json.loads(head).items() if k != "sum"}
+    body = data[data.index(b"\n") + 1 :]
+    record.write_bytes(evidence_records._MAGIC + json.dumps(stripped).encode() + b"\n" + body)
+
+    assert evidence_records.read_record(record.parent, key, (JUMP,)) is None
+
+
+def test_the_full_stamp_of_the_ffmpeg_binary_is_in_the_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, "crossfade joins")
+    binary = tmp_path / "fake-ffmpeg"
+    binary.write_bytes(b"one")
+    os.utime(binary, ns=(10**9, 10**9))
+    real = track_evidence._build_id()
+    assert real is not None
+    monkeypatch.setattr(track_evidence, "_build_id", lambda: (str(binary), *real[1:]))
+    _samples(project)
+    _restart()
+    # Same size and mtime, so only the change time tells the rewrite.
+    binary.write_bytes(b"two")
+    os.utime(binary, ns=(10**9, 10**9))
+    calls = Evaluations(monkeypatch)
+
+    _samples(project)
+
+    assert calls.count == 1 and len(_records(project)) == 2
+
+
+def test_no_record_is_written_when_the_disk_would_be_left_under_the_headroom(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, "crossfade joins")
+    monkeypatch.setattr(evidence_records, "SPILL_HEADROOM_BYTES", 1 << 60)
+    calls = Evaluations(monkeypatch)
+
+    _samples(project)
+    _restart()
+    _samples(project)
+
+    assert _records(project) == [] and calls.count == 2
+
+
+def test_a_record_that_fits_with_the_headroom_is_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    free = shutil.disk_usage(tmp_path).free
+    monkeypatch.setattr(evidence_records, "SPILL_HEADROOM_BYTES", max(0, free - 1_000_000))
+    key = evidence_records.record_key(("x",))
+    assert key is not None
+
+    assert evidence_records.write_record(tmp_path / "r", key, {JUMP: np.ones(16, np.float32)})
+
+
+def test_a_record_that_vanishes_while_pruning_is_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    directory = tmp_path / "records"
+    evidence: Evidence = {JUMP: np.arange(16, dtype=np.float32)}
+    keys = [evidence_records.record_key(("tree", n)) for n in range(3)]
+    for age, key in enumerate(keys):
+        assert key is not None
+        evidence_records.write_record(directory, key, evidence)
+        os.utime(evidence_records.record_path(directory, key), ns=(10**9 * (age + 1),) * 2)
+    assert keys[0] is not None and keys[2] is not None
+    gone = evidence_records.record_path(directory, keys[0])
+    real_stamp = evidence_records.file_stamp
+
+    def stamp(path: Path | os.stat_result) -> FileStamp:
+        if path == gone:
+            raise FileNotFoundError(path)
+        return real_stamp(path)
+
+    monkeypatch.setattr(evidence_records, "file_stamp", stamp)
+    newest = evidence_records.record_path(directory, keys[2])
+
+    monkeypatch.setattr(evidence_records, "RECORDS_KEPT", 1)
+    evidence_records._prune(directory, keep=newest)
+
+    assert sorted(p.name for p in directory.glob("*.evd")) == sorted([gone.name, newest.name])
+
+
+def test_stale_temporary_files_of_an_interrupted_write_are_removed_and_fresh_ones_kept(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "records"
+    directory.mkdir()
+    old = directory / ".abc.evd.0123.tmp"
+    fresh = directory / ".def.evd.4567.tmp"
+    other = directory / ".notes.txt"
+    for path in (old, fresh, other):
+        path.write_bytes(b"x")
+    long_ago = time.time_ns() - 3600 * 10**9
+    os.utime(old, ns=(long_ago, long_ago))
+    os.utime(other, ns=(long_ago, long_ago))
+    key = evidence_records.record_key(("x",))
+    assert key is not None
+
+    assert evidence_records.write_record(directory, key, {JUMP: np.ones(16, np.float32)})
+
+    assert not old.exists() and fresh.exists() and other.exists()
+
+
+def test_a_record_that_is_read_is_the_newest_and_outlives_an_unread_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(evidence_records, "RECORDS_KEPT", 2)
+    directory = tmp_path / "records"
+    evidence: Evidence = {JUMP: np.arange(16, dtype=np.float32)}
+    keys = [evidence_records.record_key(("tree", n)) for n in range(3)]
+    for age, key in enumerate(keys[:2]):
+        assert key is not None
+        evidence_records.write_record(directory, key, evidence)
+        os.utime(evidence_records.record_path(directory, key), ns=(10**9 * (age + 1),) * 2)
+    assert keys[0] is not None and keys[2] is not None
+
+    assert evidence_records.read_record(directory, keys[0], (JUMP,)) is not None
+    evidence_records.write_record(directory, keys[2], evidence)
+
+    kept = {p.name for p in directory.glob("*.evd")}
+    assert kept == {evidence_records.record_path(directory, k).name for k in (keys[0], keys[2])}
+
+
+# Bump evidence_records.RECORD_REV and this pin together whenever the code that decides what the
+# evidence is changes: a record of the old code is otherwise read as if it were the new code's.
+EVIDENCE_CODE_PIN = "92bcaeef63d9ec00"
+
+
+def _normalised(text: str) -> str:
+    return "\n".join(line.rstrip() for line in text.replace("\r\n", "\n").split("\n"))
+
+
+def _evidence_code_digest() -> str:
+    root = Path(track_evidence.__file__).resolve().parent
+    modules = (
+        "audio.py",
+        "audio_eval.py",
+        "decoded_source.py",
+        "windowed_rms.py",
+        "track_evidence.py",
+    )
+    parts = [(name, _normalised((root / name).read_text(encoding="utf-8"))) for name in modules]
+    resample = inspect.getsource(FFmpegEngine.resample_streams)
+    parts.append(("FFmpegEngine.resample_streams", _normalised(resample)))
+    return hashlib.sha256(repr(parts).encode()).hexdigest()[:16]
+
+
+def test_the_code_that_decides_the_evidence_is_pinned_to_the_record_revision() -> None:
+    assert _evidence_code_digest() == EVIDENCE_CODE_PIN, (
+        "The code behind track evidence changed (audio, audio_eval, decoded_source, windowed_rms, "
+        "track_evidence or FFmpegEngine.resample_streams). If it can change the samples an "
+        "unchanged key evaluates to, bump evidence_records.RECORD_REV so recorded evidence is "
+        "evaluated again; then set EVIDENCE_CODE_PIN in tests/test_evidence_records.py to "
+        f"{_evidence_code_digest()!r}."
+    )

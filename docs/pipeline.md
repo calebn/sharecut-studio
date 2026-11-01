@@ -744,14 +744,15 @@ a window are unchanged.
   in flight; `0` never releases).
 - **Verify**: `PODCAST_EVIDENCE_VERIFY=1` evaluates again on every hit and compares the bits.
 - **Recorded for the next process** (#2359): a build is also written to `artifacts/track_evidence/<digest>.evd`
-  (a JSON header line, then the float32 samples of each rate), so a fresh `podcast edit cut-range` reads the
+  (a JSON header line with the key, the lengths and a blake2b checksum of the samples, then the float32 samples of each rate), so a fresh `podcast edit cut-range` reads the
   evidence the pipeline built instead of decoding the tracks again. The digest covers the tree, the curve, the
-  full stamp of every source, the rates, the ffmpeg build (path, version, stamp) and a code revision
-  (`evidence_records.RECORD_REV`); the project file is untouched. A record is written only under the same
-  conditions as a keep (sources unchanged and at least 2 seconds old). A record that is damaged, short,
-  long, of another key or rates, or whose header is not a JSON object is not read and the tree is evaluated
-  again. The newest 24 records and 1 GiB are kept (by write time); `PODCAST_EVIDENCE_KEEP_MB=0` writes and
-  reads none. With `PODCAST_EVIDENCE_VERIFY=1` a record is compared with a fresh evaluation, not used.
+  full stamp of every source, the rates, the ffmpeg build (path, version, full stamp of the binary) and a code revision
+  (`evidence_records.RECORD_REV`, bumped by hand; a test pins the evidence code to it); the project file is untouched. A record is written only under the same
+  conditions as a keep (sources unchanged and at least 2 seconds old) and only if the disk keeps the decode spool's 2 GiB headroom free afterwards.
+  A record that is damaged, short, long, of another key or rates, fails its checksum, or whose header is not a JSON object is not read and
+  the tree is evaluated again and the record rewritten. A record that is read is touched, so a hot record outlives an unread one. The newest 24 records and 1 GiB are kept (by write or
+  read time); the newest record is always kept, even above the byte cap. A stale temporary file of an interrupted write is removed after 10 minutes.
+  `PODCAST_EVIDENCE_KEEP_MB=0` turns the records off too (none written or read). With `PODCAST_EVIDENCE_VERIFY=1` a record is compared with a fresh evaluation, not used.
 
 ### Reusing an approval check (`PODCAST_VERDICT_CACHE`, #1958)
 
