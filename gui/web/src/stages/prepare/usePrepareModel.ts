@@ -16,6 +16,7 @@ import {
   withParam,
   withStepSwitch,
 } from "./advancedModel";
+import { takeSoundScanStartFailure } from "./applySoundScanStart";
 import type { PrepareViewProps } from "./PrepareView";
 import {
   handoffProps,
@@ -170,7 +171,8 @@ export function usePrepareModel(): PrepareModel {
     !run.model &&
     !run.keepFixes &&
     !run.startError;
-  if (!planWaits && skippedRows.size > 0) setSkippedRows(NO_ROWS);
+  // A skip belongs to the plan that is on screen; any other state drops it.
+  if (!planShown && skippedRows.size > 0) setSkippedRows(NO_ROWS);
 
   const tracks = (allTracks ?? []).map((track) =>
     sourceState.names[track.id] === undefined
@@ -192,6 +194,15 @@ export function usePrepareModel(): PrepareModel {
     newTrackIds: planShown ? new Set(newTracks.map((t) => t.id)) : undefined,
   });
   usePrepareFocus(focusTrackId, sessions.length > 0);
+  useEffect(() => {
+    if (!takeSoundScanStartFailure(projectPath)) return;
+    useDawStore
+      .getState()
+      .announceStatus(
+        "Could not apply your choice for Scan for sounds. It is on for this project; change it in Advanced.",
+        { tone: "error" },
+      );
+  }, [projectPath]);
   const sourceCount = sessions.reduce(
     (sum, one) => sum + one.sources.length,
     0,
@@ -209,7 +220,7 @@ export function usePrepareModel(): PrepareModel {
         scan: cfg?.enabled_steps.includes(SOUND_SCAN_STEP)
           ? {
               time: soundScanTime(
-                Math.max(0, ...sourcesNow.map((t) => t.duration_sec ?? 0)),
+                sourcesNow.reduce((sum, t) => sum + (t.duration_sec ?? 0), 0),
               ),
             }
           : null,

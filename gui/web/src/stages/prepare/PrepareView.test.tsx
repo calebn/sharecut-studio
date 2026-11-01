@@ -746,6 +746,33 @@ describe("PrepareView: audio added after a run", () => {
     expect(onRowAction).toHaveBeenCalledWith("align", "include");
   });
 
+  it("announces a skip and an include, and keeps focus on the button", async () => {
+    const { container } = render(<PrepareView {...props(NEW)} />);
+    const note = () =>
+      container.querySelector("[data-row-note]")?.textContent ?? "";
+    expect(note()).toBe("");
+    const skip = screen.getByRole("button", { name: "Skip, Transcribe" });
+    await userEvent.click(skip);
+    expect(note()).toBe("Transcribe skipped for this run");
+    expect(skip).toHaveFocus();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Skip, Clean and level" }),
+    );
+    expect(note()).toBe("Clean and level skipped for this run");
+  });
+
+  it("announces an include", async () => {
+    const { container } = render(
+      <PrepareView {...props({ ...NEW, rows: ROWS.planSkipped })} />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Include, Line up tracks" }),
+    );
+    expect(container.querySelector("[data-row-note]")).toHaveTextContent(
+      "Line up tracks included in this run",
+    );
+  });
+
   it("offers Run everything again behind the more button next to Advanced", async () => {
     const onRunAll = vi.fn();
     render(<PrepareView {...props({ ...NEW, onRunAll })} />);

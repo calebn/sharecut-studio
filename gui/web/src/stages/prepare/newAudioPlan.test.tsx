@@ -92,6 +92,7 @@ const project = (tracks: ReturnType<typeof sampleTrack>[], spoken: string[]) =>
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  sessionStorage.clear();
   config.enabled = undefined;
   start.mockResolvedValue(
     pipelineJobSnapshot({ id: "j-new", status: "running" }),
@@ -127,7 +128,7 @@ describe("audio added to a project that already ran", () => {
       "Priya’s audio is new. The other 2 tracks keep their transcripts.",
     );
     expect(view.rows.map((r) => r.detail)).toEqual([
-      "Priya added, 3 files",
+      "Priya added, 1 file",
       "Priya only · 2 kept",
       "All 3 tracks, Priya joins",
       "All 3 tracks",
@@ -160,7 +161,7 @@ describe("audio added to a project that already ran", () => {
     const { result } = render();
     act(() => result.current.view.onRowAction("align", "skip"));
     expect(result.current.view.rows[2]).toMatchObject({
-      detail: "Skipped this time. Priya stays where it was recorded.",
+      detail: "Skipped this time. Priya is not lined up with the others.",
       action: { label: "Include" },
     });
     act(() => result.current.view.onRowAction("align", "include"));
@@ -210,6 +211,30 @@ describe("audio added to a project that already ran", () => {
     expect(view.rows.find((r) => r.id === "scan")?.detail).toMatch(
       /^Whole episode · about /,
     );
+  });
+
+  it("sizes the scan by all the audio, not the longest track", () => {
+    config.enabled = STEPS;
+    const { view } = render().result.current;
+    // three tracks of 60 s: 180 s of audio, 5 s of scan per minute.
+    expect(view.rows.find((r) => r.id === "scan")?.detail).toBe(
+      "Whole episode · about 20 s",
+    );
+  });
+
+  it("drops a skip whenever the plan is not on screen, not only when audio changes", () => {
+    const { result } = render();
+    act(() => result.current.view.onRowAction("clean", "skip"));
+    expect(result.current.view.rows[3].detail).toMatch(/^Skipped/);
+    act(() =>
+      useDawStore.setState({
+        pipelineJob: pipelineJobSnapshot({ id: "other", status: "running" }),
+      }),
+    );
+    expect(result.current.view.phase).not.toBe("new-audio");
+    act(() => useDawStore.setState({ pipelineJob: null }));
+    expect(result.current.view.phase).toBe("new-audio");
+    expect(result.current.view.rows[3].detail).toBe("All 3 tracks");
   });
 
   it("goes back to the usual rows once the run covers the new audio", async () => {

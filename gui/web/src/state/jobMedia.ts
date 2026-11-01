@@ -35,9 +35,38 @@ export function runIncludesTranscribe(run: {
 
 /** Remember the audio a job was started on; a job nobody here started has no key. */
 export function recordJobMedia(jobId: string, key: string | null): void {
-  if (key !== null) keys.set(jobId, key);
+  if (key === null) return;
+  keys.set(jobId, key);
+  // Kept for this tab so a reload still knows which audio the last run covered.
+  const saved = savedKeys();
+  delete saved[jobId];
+  saved[jobId] = key;
+  const ids = Object.keys(saved);
+  for (const old of ids.slice(0, Math.max(0, ids.length - SAVED_JOBS))) {
+    delete saved[old];
+  }
+  try {
+    window.sessionStorage.setItem(SAVED_KEY, JSON.stringify(saved));
+  } catch {
+    /* private window: the memory copy still serves this page load */
+  }
 }
 
 export function jobMediaKey(jobId: string): string | undefined {
-  return keys.get(jobId);
+  return keys.get(jobId) ?? savedKeys()[jobId];
+}
+
+const SAVED_KEY = "sharecut.jobMedia";
+const SAVED_JOBS = 20;
+
+function savedKeys(): Record<string, string> {
+  try {
+    const raw = window.sessionStorage.getItem(SAVED_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, string>)
+      : {};
+  } catch {
+    return {};
+  }
 }
