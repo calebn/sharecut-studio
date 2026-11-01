@@ -199,7 +199,7 @@ A selected automatic reduction (from the clip's Inspect automatic audio reductio
 
 A selected comment with no pending edit behind it opens the same sheet: a Time button that seeks, the author, status and tracks, the comment text, action items, replies, a **Reply** field and **Resolve** (or **Reopen**). A share link without reply permission has no Reply field, and a share link never sees Resolve.
 
-A selected suggestion (a pending edit), or a comment on one that is still pending, opens in the same sheet with a kind line and a Why row, Start and End Scrub fields that save as you commit each one, a **Snap to silence** row, suggested bounds, the Ask thread and the Current, Suggested and A/B listen controls. **Cut** and **Keep** are on the Action bar; an exact range proposal keeps **Approve** and **Reject** in the sheet.
+A selected suggestion (a pending edit), or a comment on one that is still pending, opens in the same sheet with a kind line and a Why row, Start and End Scrub fields that save as you commit each one, a **Snap to silence** row, suggested bounds, the Ask thread and the Current, Suggested and A/B listen controls. **Cut** and **Keep** are on the Action bar when the suggestion has an accept action; otherwise, and for a split, an exact range proposal and the phone peek sheet, **Approve** and **Reject** stay in the sheet.
 
 ---
 

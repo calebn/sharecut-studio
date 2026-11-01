@@ -100,6 +100,15 @@ const sessionCut: PendingEditView = {
   scope: "session",
 };
 
+function replaceStoredEdit(edit: PendingEditView) {
+  useDawStore
+    .getState()
+    .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+  useDawStore
+    .getState()
+    .setSelection({ kind: "pending", id: edit.id, trackId: edit.track_id });
+}
+
 function expectedBaseline(edit = sessionCut) {
   return pendingEditBaseline(edit);
 }
@@ -278,20 +287,66 @@ describe("PendingEditBody", () => {
     );
   });
 
-  it("shows a kind line and a Why row with no Approve or Reject buttons", () => {
+  const barEdit = {
+    ...sessionCut,
+    kind: "filler" as const,
+    suggested_action: "cut" as const,
+  };
+
+  it("shows a kind line and a Why row", () => {
     useDawStore.getState().hydrate(
       "/tmp/p.json",
       minimalProject({
         tracks: [sampleTrack({ id: "host", label: "Jon" })],
-        pending_edits: [{ ...sessionCut, kind: "filler", reason: "tangent" }],
+        pending_edits: [barEdit],
       }),
     );
-    render(<PendingEditBody edit={{ ...sessionCut, kind: "filler" }} />);
+    render(<PendingEditBody edit={barEdit} verbsOnBar />);
     expect(screen.getByText("Filler · Jon · 2.0 s")).toBeVisible();
     expect(screen.getByText("Why")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Apply timing" })).toBeNull();
+  });
+
+  it.each([
+    ["Cut on the bar", barEdit, true, false],
+    ["no suggested action", { ...barEdit, suggested_action: null }, true, true],
+    ["leave", { ...barEdit, suggested_action: "leave" as const }, true, true],
+    ["a split", { ...barEdit, type: "split" as const }, true, true],
+    ["a surface with no bar", barEdit, false, true],
+  ])(
+    "offers Approve and Reject in the sheet for %s: %s",
+    (_name, edit, verbsOnBar, shown) => {
+      render(<PendingEditBody edit={edit} verbsOnBar={verbsOnBar} />);
+      expect(!!screen.queryByRole("button", { name: "Approve" })).toBe(shown);
+      expect(!!screen.queryByRole("button", { name: "Reject" })).toBe(shown);
+    },
+  );
+
+  it("does not save when a field is opened and left unchanged, and keeps sub-ms precision", async () => {
+    const user = userEvent.setup();
+    const precise = {
+      ...sessionCut,
+      source_start: 10.1234,
+      source_end: 12.3804,
+    };
+    replaceStoredEdit(precise);
+    render(<PendingEditBody edit={precise} />);
+    const end = screen.getByRole("spinbutton", { name: "Source end" });
+    await waitFor(() => expect(end).not.toHaveAttribute("aria-readonly"));
+    end.focus();
+    await user.keyboard("{Enter}{Tab}");
+    expect(updatePendingEdit).not.toHaveBeenCalled();
+    await commitField(user, "Source start", "10.1236");
+    const args = updatePendingEdit.mock.calls[0] as unknown[];
+    expect(args[2]).toBe(10.1236);
+    expect(args[3]).toBe(12.3804);
+  });
+
+  it("accepts m:ss.mmm in Start and End", async () => {
+    const user = userEvent.setup();
+    render(<PendingEditBody edit={sessionCut} />);
+    await commitField(user, "Source end", "0:12.500");
+    expect((updatePendingEdit.mock.calls[0] as unknown[])[3]).toBe(12.5);
   });
 
   it("keeps a suggestion through the sheet when Keep is chosen", async () => {
@@ -706,7 +761,7 @@ describe("PendingEditBody", () => {
       ).not.toBeChecked();
       expect(
         screen.getByRole("spinbutton", { name: "Source end" }),
-      ).toHaveAttribute("aria-valuetext", "12.500 s");
+      ).toHaveAttribute("aria-valuetext", "12.500000 s");
     });
 
     it("keeps submitted timing through an unrelated refresh while Apply is in flight", async () => {
@@ -733,7 +788,7 @@ describe("PendingEditBody", () => {
       rerender(<PendingEditBody edit={saved} />);
       expect(
         screen.getByRole("spinbutton", { name: "Source end" }),
-      ).toHaveAttribute("aria-valuetext", "12.500 s");
+      ).toHaveAttribute("aria-valuetext", "12.500000 s");
     });
 
     it.each([{ snap: false }, { snap: true }])(
@@ -754,10 +809,10 @@ describe("PendingEditBody", () => {
         await commitField(user, "Source end", "12.01");
         expect(
           screen.getByRole("spinbutton", { name: "Source start" }),
-        ).toHaveAttribute("aria-valuetext", "10.000 s");
+        ).toHaveAttribute("aria-valuetext", "10.000000 s");
         expect(
           screen.getByRole("spinbutton", { name: "Source end" }),
-        ).toHaveAttribute("aria-valuetext", "12.000 s");
+        ).toHaveAttribute("aria-valuetext", "12.000000 s");
         expect(
           screen.getByRole("button", { name: "Use suggestion" }),
         ).toBeEnabled();
@@ -800,7 +855,7 @@ describe("PendingEditBody", () => {
         expect(updatePendingEdit).toHaveBeenCalledTimes(1);
         expect(
           screen.getByRole("spinbutton", { name: "Source start" }),
-        ).toHaveAttribute("aria-valuetext", "10.000 s");
+        ).toHaveAttribute("aria-valuetext", "10.000000 s");
         expect(screen.queryByRole("status")).toBeNull();
       },
     );
@@ -849,7 +904,7 @@ describe("PendingEditBody", () => {
       rerender(<PendingEditBody edit={updated} />);
       expect(
         screen.getByRole("spinbutton", { name: "Source end" }),
-      ).toHaveAttribute("aria-valuetext", "14.000 s");
+      ).toHaveAttribute("aria-valuetext", "14.000000 s");
       await act(async () => second.resolve(proposal(updated)));
       expect(screen.getByText("0:09.97525 to 0:14.03525")).toBeVisible();
       await act(async () => first.resolve(proposal()));
@@ -1077,11 +1132,11 @@ describe("PendingEditBody", () => {
       expect(screen.queryByText("Crossfade")).toBeNull();
       expect(screen.getByLabelText("Source start")).toHaveAttribute(
         "aria-valuetext",
-        "0.000 s",
+        "0.000000 s",
       );
       expect(screen.getByLabelText("Source end")).toHaveAttribute(
         "aria-valuetext",
-        "2.000 s",
+        "1.999999 s",
       );
       expect(screen.getAllByText("Suggested by guest")).toHaveLength(1);
       expect(screen.queryByText("guest:suggest")).toBeNull();
@@ -1109,11 +1164,11 @@ describe("PendingEditBody", () => {
       const { container } = render(<PendingEditBody edit={guestCut} />);
       expect(screen.getByLabelText("Source start")).toHaveAttribute(
         "aria-valuetext",
-        "0.000 s",
+        "0.000000 s",
       );
       expect(screen.getByLabelText("Source end")).toHaveAttribute(
         "aria-valuetext",
-        "2.000 s",
+        "1.999999 s",
       );
       await expectNoA11yViolations(container);
       cleanup();
@@ -1152,8 +1207,7 @@ describe("PendingEditBody", () => {
       render(<PendingEditBody edit={guestCut} />);
       const snap = screen.getByRole("checkbox", { name: "Snap to silence" });
       expect(snap).toBeChecked();
-      expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Approve" })).toBeVisible();
       await user.click(snap);
       await commitField(user, "Source end", "2.5");
       expect(updatePendingEdit).toHaveBeenCalledWith(

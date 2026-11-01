@@ -94,7 +94,13 @@ function sourceTime(value: number | null): string {
   return value === null ? "Unavailable" : formatTimeMs(value);
 }
 
-export function PendingEditBody({ edit }: { edit: PendingEditView }) {
+export function PendingEditBody({
+  edit,
+  verbsOnBar = false,
+}: {
+  edit: PendingEditView;
+  verbsOnBar?: boolean;
+}) {
   const {
     project,
     projectPath,
@@ -146,6 +152,11 @@ export function PendingEditBody({ edit }: { edit: PendingEditView }) {
     edit.suggest_reason ? "current" : "suggested",
   );
   const [snapToSilence, setSnapToSilence] = useState(true);
+  const [enteredEdge, setEnteredEdge] = useState<Readonly<{
+    edge: "start" | "end";
+    value: number;
+    commandId: string;
+  }> | null>(null);
   const [startStr, setStartStr] = useState(sourceTime(edit.source_start));
   const [tracksStr, setTracksStr] = useState(
     (edit.track_ids ?? [edit.track_id]).join(", "),
@@ -286,6 +297,20 @@ export function PendingEditBody({ edit }: { edit: PendingEditView }) {
     return null;
   };
 
+  useEffect(() => {
+    if (
+      enteredEdge &&
+      settlement &&
+      settlement.commandId === enteredEdge.commandId &&
+      settlement.outcome === "applied"
+    )
+      setEnteredEdge(null);
+  }, [settlement, enteredEdge]);
+
+  useEffect(() => {
+    setEnteredEdge(null);
+  }, [timingIdentity, edit.source_start, edit.source_end]);
+
   const decideRef = useRef(runAction);
   useEffect(() => {
     decideRef.current = runAction;
@@ -348,6 +373,7 @@ export function PendingEditBody({ edit }: { edit: PendingEditView }) {
     snap,
     trackIds,
     draft,
+    entered,
   }: {
     capture: TimingCapture;
     start: number;
@@ -355,6 +381,7 @@ export function PendingEditBody({ edit }: { edit: PendingEditView }) {
     snap: boolean;
     trackIds?: string[];
     draft?: TimingDraft;
+    entered?: Readonly<{ edge: "start" | "end"; value: number }>;
   }) => {
     await run(async () => {
       try {
@@ -373,6 +400,11 @@ export function PendingEditBody({ edit }: { edit: PendingEditView }) {
           submittedTiming.current = { ...draft, commandId: result.commandId };
         }
         setQueued(result.queued, result.queued ? result.commandId : undefined);
+        setEnteredEdge(
+          result.queued && entered
+            ? { ...entered, commandId: result.commandId }
+            : null,
+        );
         if (!result.queued && draft) {
           setStartStr((text) =>
             text === draft.start ? sourceTime(saved.source_start) : text,
@@ -424,7 +456,13 @@ export function PendingEditBody({ edit }: { edit: PendingEditView }) {
       setError("Source start/end must be valid with end > start");
       return;
     }
-    await saveTiming({ capture, start, end, snap: snapToSilence });
+    await saveTiming({
+      capture,
+      start,
+      end,
+      snap: snapToSilence,
+      entered: { edge, value },
+    });
   };
 
   const recheckSnap = async (checked: boolean) => {
@@ -494,6 +532,12 @@ export function PendingEditBody({ edit }: { edit: PendingEditView }) {
     : isSplit
       ? "Pending split"
       : "Pending edit";
+  const shownEdge = (edge: "start" | "end") =>
+    enteredEdge?.edge === edge
+      ? enteredEdge.value
+      : edge === "start"
+        ? edit.source_start
+        : edit.source_end;
   const kindMeta = KIND_META[decisionKindOf(edit.kind)];
   const speaker = project?.tracks.find((t) => t.id === edit.track_id)?.label;
   const length =
@@ -503,20 +547,27 @@ export function PendingEditBody({ edit }: { edit: PendingEditView }) {
   const kindLine = [kindMeta.label, speaker, length]
     .filter(Boolean)
     .join(" · ");
-  const primaryActions = edit.exact_range
-    ? [
-        {
-          label: "Approve",
-          variant: "primary" as const,
-          action: "approve" as const,
-        },
-        {
-          label: "Reject",
-          variant: "danger" as const,
-          action: "reject" as const,
-        },
-      ]
-    : [];
+  const barHasVerbs =
+    verbsOnBar &&
+    !edit.exact_range &&
+    !isSplit &&
+    edit.suggested_action != null &&
+    edit.suggested_action !== "leave";
+  const primaryActions =
+    !barHasVerbs && (canApply || edit.exact_range)
+      ? [
+          {
+            label: "Approve",
+            variant: "primary" as const,
+            action: "approve" as const,
+          },
+          {
+            label: "Reject",
+            variant: "danger" as const,
+            action: "reject" as const,
+          },
+        ]
+      : [];
   const shownError =
     error && errorCode === TRANSCRIPT_REFINE_REQUIRED_CODE
       ? REFINE_GATE_GUI_MESSAGE
@@ -638,10 +689,10 @@ export function PendingEditBody({ edit }: { edit: PendingEditView }) {
                     <span id={pendingEditTimingFieldId(edit.id, "start")}>
                       <ScrubField
                         label="Source start"
-                        value={edit.source_start}
+                        value={shownEdge("start")}
                         unit="s"
                         step={0.01}
-                        decimals={3}
+                        decimals={6}
                         min={0}
                         readOnly={timingBusy}
                         onCommit={(value) => void commitEdge("start", value)}
@@ -652,10 +703,10 @@ export function PendingEditBody({ edit }: { edit: PendingEditView }) {
                     <span id={pendingEditTimingFieldId(edit.id, "end")}>
                       <ScrubField
                         label="Source end"
-                        value={edit.source_end}
+                        value={shownEdge("end")}
                         unit="s"
                         step={0.01}
-                        decimals={3}
+                        decimals={6}
                         min={0}
                         readOnly={timingBusy}
                         onCommit={(value) => void commitEdge("end", value)}

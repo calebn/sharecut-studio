@@ -5,8 +5,7 @@ const FIRST_CONTROL =
 
 /**
  * The first control takes focus unless the keymap would ignore it as a typing
- * target (any field, date and time included, and a scrub field, whose arrow
- * keys commit a value): a field would swallow the
+ * target (any field, date and time included): a field would swallow the
  * shortcuts the user reaches for after opening. The dialog's focus anchor
  * (inside the Escape wrapper) holds focus then, and Tab enters the form.
  */
