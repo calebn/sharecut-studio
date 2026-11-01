@@ -111,32 +111,34 @@ def test_cut_application_keeps_only_the_transcript_cuts_import_lazy() -> None:
 
 def _modules_calling(name: str) -> set[str]:
     callers: set[str] = set()
-    for path in _EDITS.rglob("*.py"):
+    for path in (_SRC / "podcast_mcp").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                fn = node.func
-                called = fn.id if isinstance(fn, ast.Name) else getattr(fn, "attr", None)
-                if called == name:
-                    callers.add(path.relative_to(_EDITS).with_suffix("").as_posix())
+            refers = (
+                (isinstance(node, ast.Name) and node.id == name)
+                or (isinstance(node, ast.Attribute) and node.attr == name)
+                or (isinstance(node, ast.alias) and node.name == name and node.asname)
+            )
+            if refers:
+                callers.add(path.relative_to(_SRC / "podcast_mcp").with_suffix("").as_posix())
     return callers
 
 
-# #1813 wants cut_application to be the only caller of both placement guards. These sets are the
-# callers today. A new caller fails the test; removing one fails it too, so shrink the set in the
-# same change.
-_PLACEMENT_GUARD_CALLERS = {
+# #1813 wants cut_application to be the only user of both placement guards. These sets are the
+# modules that reference them today (a call, an attribute access, a value or an aliased import).
+# A new user fails the test; removing one fails it too, so shrink the set in the same change.
+_PLACEMENT_GUARD_USERS = {
     "inspect_source_remove_placement": {
-        "cut_application",
-        "cut_safety",
-        "source_removals",
-        "timeline_span",
-        "transcript_cuts",
+        "edits/cut_application",
+        "edits/cut_safety",
+        "edits/source_removals",
+        "edits/timeline_span",
+        "edits/transcript_cuts",
     },
-    "require_source_remove": {"decisions", "tighten/apply", "transcript_cuts"},
+    "require_source_remove": {"edits/decisions", "edits/tighten/apply", "edits/transcript_cuts"},
 }
 
 
-def test_placement_guard_callers_only_shrink() -> None:
-    found = {name: _modules_calling(name) for name in _PLACEMENT_GUARD_CALLERS}
-    assert found == _PLACEMENT_GUARD_CALLERS
+def test_placement_guard_users_match_the_pinned_set() -> None:
+    found = {name: _modules_calling(name) for name in _PLACEMENT_GUARD_USERS}
+    assert found == _PLACEMENT_GUARD_USERS
