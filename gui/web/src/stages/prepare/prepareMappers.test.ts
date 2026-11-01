@@ -1252,3 +1252,286 @@ describe("what a run reused", () => {
     expect(at(3720)).toContain("Done in 1 h 2 min.");
   });
 });
+
+describe("successful selected work", () => {
+  const selected = (
+    steps = [
+      step("ingest_tracks", "ok"),
+      step("clean_audio", "ok", { summary: "highpass on 3 dialogue tracks" }),
+    ],
+    extra = {},
+  ) => pipelineJobSnapshot({ status: "ok", steps, ...extra });
+  const rowsFor = (job = selected(), overrides: Partial<ReadyInput> = {}) =>
+    readyRows({
+      ...base,
+      jobCoversMedia: true,
+      approximateTiming: { size: "360 MB", downloading: false },
+      job,
+      ...overrides,
+    });
+  const phaseFor = (rows: ReturnType<typeof readyRows>, extra = {}) =>
+    preparePhase({
+      sources: 3,
+      ingestBusy: false,
+      checking: false,
+      rows,
+      ...extra,
+    });
+
+  it("finishes the selected ingest and clean without inventing transcription or alignment", () => {
+    const rows = rowsFor();
+    expect(rows[1]).toMatchObject({
+      state: "queued",
+      detail: "Not run this time",
+      runDisposition: "omitted",
+    });
+    expect(rows[1].action).toBeUndefined();
+    expect(rows[2]).toMatchObject({
+      state: "queued",
+      detail: "Not run this time",
+      runDisposition: "omitted",
+    });
+    expect(rows[3]).toMatchObject({
+      state: "done",
+      detail: "Clean · highpass on 3 dialogue tracks",
+    });
+    expect(rows[4]).toMatchObject({
+      state: "queued",
+      detail: "Not run this time",
+      runDisposition: "omitted",
+    });
+    expect(
+      rows.some(
+        (row) =>
+          row.detail?.includes("Transcribed") ||
+          row.detail?.includes("Lined up"),
+      ),
+    ).toBe(false);
+    expect(phaseFor(rows).phase).toBe("done");
+    expect(readySummary(rows)).toBe("Getting ready: selected work finished");
+  });
+
+  it("does not let a successful whole job certify a row whose own work is absent", () => {
+    expect(rowOutcome(selected(), "transcribe")?.state).toBe("queued");
+    expect(rowOutcome(selected(), "align")?.state).toBe("queued");
+  });
+
+  it("reports skipped transcription and alignment despite successful shared steps", () => {
+    const job = selected(
+      [
+        step("merge_transcript", "ok"),
+        step("reconcile_transcript", "ok"),
+        step("render_dialogue_stems", "ok"),
+      ],
+      {
+        skip_steps: [
+          "transcribe_tracks",
+          "align_tracks",
+          "require_align_accept",
+        ],
+      },
+    );
+    const rows = rowsFor(job);
+    expect(rows[1]).toMatchObject({
+      state: "queued",
+      detail: "Skipped this run",
+      runDisposition: "omitted",
+    });
+    expect(rows[1].action).toBeUndefined();
+    expect(rows[2]).toMatchObject({
+      state: "queued",
+      detail: "Skipped this run",
+      runDisposition: "omitted",
+    });
+  });
+
+  it("does not treat assembly as cleaning", () => {
+    const rows = rowsFor(
+      selected(
+        [step("assemble_timeline", "ok", { summary: "stems assembled" })],
+        {
+          skip_steps: [
+            "fill_gate_holes",
+            "clean_audio",
+            "compress_tracks",
+            "balance_tracks",
+          ],
+        },
+      ),
+    );
+    expect(rows[3]).toMatchObject({
+      state: "queued",
+      detail: "Skipped this run",
+      runDisposition: "omitted",
+    });
+    expect(rows[3].detail).not.toMatch(/Noise|volume|balance|stems assembled/);
+  });
+
+  it.each([
+    [
+      "require_align_accept",
+      "align",
+      "Check alignment · checked existing alignment",
+    ],
+    ["balance_tracks", "clean", "Balance · checked existing alignment"],
+  ] as const)("names only the actual %s operation", (name, row, detail) => {
+    const result = rowsFor(
+      selected([step(name, "ok", { summary: "checked existing alignment" })]),
+    ).find((candidate) => candidate.id === row);
+    expect(result).toMatchObject({ state: "done", detail });
+  });
+
+  it("keeps actual sound action success when suggestion analysis did not run", () => {
+    const rows = rowsFor(
+      selected(
+        [step("apply_sound_actions", "ok", { summary: "3 sounds lowered" })],
+        { skip_steps: ["analyze_fillers_pauses"] },
+      ),
+    );
+    expect(rows[4]).toMatchObject({
+      state: "done",
+      detail: "Apply sound actions · 3 sounds lowered",
+    });
+  });
+
+  it("keeps actual sound action failure when suggestion analysis was omitted", () => {
+    const rows = rowsFor(
+      selected(
+        [
+          step("apply_sound_actions", "error", {
+            error: "Sound action failed.",
+          }),
+        ],
+        { status: "error", skip_steps: ["analyze_fillers_pauses"] },
+      ),
+    );
+    expect(rows[4]).toMatchObject({
+      state: "failed",
+      action: { run: "try-again" },
+    });
+    expect(phaseFor(rows).phase).toBe("failed");
+  });
+
+  it("preserves failures in shared prerequisites ahead of terminal omission", () => {
+    const rows = rowsFor(
+      selected([
+        step("reconcile_transcript", "error", {
+          error: "Could not reconcile.",
+        }),
+      ]),
+    );
+    expect(rows[2]).toMatchObject({
+      state: "failed",
+      action: { run: "try-again" },
+    });
+    expect(phaseFor(rows).phase).toBe("failed");
+  });
+
+  it("trusts reported successful work over contradictory skip metadata", () => {
+    const rows = rowsFor(
+      selected([step("transcribe_tracks", "ok")], {
+        skip_steps: ["transcribe_tracks"],
+      }),
+      { approximateTiming: null },
+    );
+    expect(rows[1]).toMatchObject({ state: "done", detail: "3 speakers" });
+  });
+
+  it("recognizes real transcription even when it produced no utterance", () => {
+    const rows = rowsFor(selected([step("transcribe_tracks", "ok")]), {
+      transcribed: false,
+      approximateTiming: null,
+    });
+    expect(rows[1]).toMatchObject({ state: "done", detail: "3 speakers" });
+    expect(phaseFor(rows).phase).toBe("done");
+  });
+
+  it("preserves current prior transcripts without claiming they were transcribed again", () => {
+    const rows = rowsFor(selected(), {
+      transcribed: true,
+      approximateTiming: null,
+    });
+    expect(rows[1]).toMatchObject({
+      state: "done",
+      detail: "Existing transcripts kept",
+    });
+    expect(phaseFor(rows).phase).toBe("done");
+  });
+
+  it("preserves word timing guidance for current prior transcripts", () => {
+    const rows = rowsFor(selected(), { transcribed: true });
+    expect(rows[1]).toMatchObject({
+      state: "needs-you",
+      detail:
+        "Existing transcripts kept. Word timing is approximate, so cuts may clip word edges.",
+      action: { run: "download-aligner" },
+    });
+  });
+
+  it("does not mark a live shared-only run terminal", () => {
+    const rows = rowsFor(
+      selected(
+        [
+          step("ingest_tracks", "ok"),
+          step("merge_transcript", "ok"),
+          step("assemble_timeline", "ok"),
+        ],
+        {
+          status: "running",
+          skip_steps: [
+            "transcribe_tracks",
+            "align_tracks",
+            "require_align_accept",
+            "fill_gate_holes",
+            "clean_audio",
+            "compress_tracks",
+            "balance_tracks",
+            "analyze_fillers_pauses",
+            "apply_sound_actions",
+          ],
+        },
+      ),
+    );
+    expect(rows.some((row) => "runDisposition" in row)).toBe(false);
+    expect(phaseFor(rows).phase).toBe("transcribing");
+  });
+
+  it.each(["error", "cancelled"])(
+    "keeps %s jobs outside successful selected completion",
+    (status) => {
+      const rows = rowsFor(selected([step("ingest_tracks", "ok")], { status }));
+      expect(rows.some((row) => "runDisposition" in row)).toBe(false);
+      expect(phaseFor(rows).phase).toBe("failed");
+    },
+  );
+
+  it("keeps stale successful selected work from certifying changed audio", () => {
+    const rows = rowsFor(selected(), { jobCoversMedia: false });
+    expect(rows[1]).toMatchObject({
+      state: "queued",
+      action: { label: "Start" },
+    });
+    expect(rows.some((row) => "runDisposition" in row)).toBe(false);
+    expect(phaseFor(rows).phase).toBe("not-started");
+  });
+
+  it.each([
+    [
+      {
+        model: {
+          phase: "ask",
+          size: "1.6 GB",
+          what: "the transcription model",
+        },
+      },
+      "needs-model",
+    ],
+    [{ waiting: true }, "waiting"],
+    [{ startError: "Network down" }, "failed"],
+    [{ keepFixes: { names: ["Maya"] } }, "keep-fixes"],
+  ] as const)("preserves pending request priority %s", (override, expected) => {
+    const rows = rowsFor(selected(), override);
+    expect(phaseFor(rows, override).phase).toBe(expected);
+    expect(rows[1]).not.toMatchObject({ runDisposition: "omitted" });
+  });
+});
