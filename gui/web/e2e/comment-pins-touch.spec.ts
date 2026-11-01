@@ -157,11 +157,35 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
             : null;
         return elements.map((element) => {
           const rect = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
           const after = getComputedStyle(element, "::after");
           const left = Number.parseFloat(after.left);
           const right = Number.parseFloat(after.right);
-          const centerX = rect.x + (rect.width + left - right) / 2;
-          const centerY = rect.y + rect.height / 2;
+          const top = Number.parseFloat(after.top);
+          const bottom = Number.parseFloat(after.bottom);
+          const border = {
+            left: Number.parseFloat(style.borderLeftWidth),
+            right: Number.parseFloat(style.borderRightWidth),
+            top: Number.parseFloat(style.borderTopWidth),
+            bottom: Number.parseFloat(style.borderBottomWidth),
+          };
+          const paddingBox = {
+            left: rect.left + border.left,
+            right: rect.right - border.right,
+            top: rect.top + border.top,
+            bottom: rect.bottom - border.bottom,
+          };
+          const interval = {
+            left: paddingBox.left + left,
+            right: paddingBox.right - right,
+          };
+          const pseudoBounds = {
+            ...interval,
+            top: paddingBox.top + top,
+            bottom: paddingBox.bottom - bottom,
+          };
+          const centerX = (interval.left + interval.right) / 2;
+          const centerY = (pseudoBounds.top + pseudoBounds.bottom) / 2;
           const point = (x: number, y: number) => {
             const node = document.elementFromPoint(x, y);
             return {
@@ -193,6 +217,9 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
               .toJSON(),
             devicePixelRatio,
             ancestors,
+            border,
+            paddingBox,
+            pseudoBounds,
             after: {
               content: after.content,
               display: after.display,
@@ -206,12 +233,22 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
               after.content !== "none" &&
               after.content !== "normal" &&
               after.display !== "none",
-            finiteInsets: Number.isFinite(left) && Number.isFinite(right),
-            effectiveWidth: rect.width - left - right,
-            interval: { left: rect.left + left, right: rect.right - right },
+            finiteInsets: [
+              left,
+              right,
+              top,
+              bottom,
+              ...Object.values(border),
+            ].every(Number.isFinite),
+            effectiveWidth: interval.right - interval.left,
+            interval,
             allocated: [
-              point(rect.left + left + 0.5, centerY),
-              point(rect.right - right - 0.5, centerY),
+              point(interval.left + 0.5, centerY),
+              point(interval.right - 0.5, centerY),
+            ],
+            outsideAllocated: [
+              point(interval.left - 1, centerY),
+              point(interval.right + 1, centerY),
             ],
             horizontal: [-21.5, 21.5].map((offset) =>
               point(centerX + offset, centerY),
@@ -244,25 +281,50 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
       expect(target.height).toBe(MARKER_ROW);
       expect(target.pseudo).toBe(true);
       expect(target.finiteInsets).toBe(true);
+      expect(target.rect.top).toBe(target.row.top);
+      expect(target.rect.bottom).toBe(target.row.bottom);
+      expect(target.row.height).toBe(MARKER_ROW);
+      expect(Number.parseFloat(target.after.top)).toBe(0);
+      expect(Number.parseFloat(target.after.bottom)).toBe(0);
+      const track = target.ancestors.find((ancestor) =>
+        ancestor.node?.class?.split(" ").includes("sys-markers-track"),
+      )!;
+      expect(track.overflowX).toBe("clip");
+      expect(track.overflowY).toBe("clip");
+      expect(track.node!.rect.top).toBe(target.row.top);
+      expect(track.node!.rect.bottom).toBe(target.row.bottom);
       expect(target.allocated.map((point) => point.owned)).toEqual([
         true,
         true,
       ]);
       if (author === "Dee" && viewport === "phone") {
         const stack = geometry.find((item) => item.label === "2 more markers")!;
-        const gap = target.rect.left - stack.rect.right;
+        const logicalStackWidth = 40;
+        const logicalStackRight = stack.rect.left + logicalStackWidth;
+        const logicalGap = target.rect.left - logicalStackRight;
+        const renderedGap = target.rect.left - stack.rect.right;
         expect(target.rect.width).toBe(16);
-        expect(gap).toBe(18);
+        expect(stack.rect.width).toBe(32);
+        expect(renderedGap).toBe(26);
+        expect(logicalGap).toBe(18);
         expect(Number.parseFloat(target.after.left)).toBe(-9);
         expect(Number.parseFloat(target.after.right)).toBe(-14);
         expect(target.effectiveWidth).toBe(39);
-        expect(target.rect.left - target.interval.left).toBeCloseTo(gap / 2, 5);
-        expect(stack.interval.right - stack.rect.right).toBeCloseTo(gap / 2, 5);
+        expect(target.rect.left - target.interval.left).toBe(logicalGap / 2);
+        expect(Number.parseFloat(stack.after.right)).toBe(-logicalGap / 2);
+        expect(stack.border).toEqual({ left: 1, right: 1, top: 1, bottom: 1 });
+        expect(stack.effectiveWidth).toBe(logicalStackWidth);
+        expect(stack.interval.right).toBe(logicalStackRight);
         expect(stack.interval.right).toBeLessThanOrEqual(target.interval.left);
+        expect(target.interval.right).toBeLessThanOrEqual(
+          geometry.find((item) => item.label?.startsWith("Comment by Eli,"))!
+            .interval.left,
+        );
         expect(stack.allocated.map((point) => point.owned)).toEqual([
           true,
           true,
         ]);
+        expect(stack.outsideAllocated[1].owned).toBe(false);
       } else {
         expect(target.effectiveWidth).toBeGreaterThanOrEqual(44);
         expect(target.horizontal.map((point) => point.owned)).toEqual([
@@ -270,11 +332,19 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
           true,
         ]);
       }
-      const boundary = target.boundaries.find((point) => point.offset === 0.5)!;
-      expect([boundary.above.owned, boundary.below.owned]).toEqual([
-        false,
-        false,
-      ]);
+      for (const offset of [1, 2]) {
+        const boundary = target.boundaries.find(
+          (point) => point.offset === offset,
+        )!;
+        expect([boundary.above.owned, boundary.below.owned]).toEqual([
+          false,
+          false,
+        ]);
+        expect(boundary.above.node?.class?.split(" ")).toContain(
+          "sys-ruler-body",
+        );
+        expect(boundary.below.node?.class?.split(" ")).toContain("lane-seek");
+      }
     }
     const file = path.join(
       "playwright-report",
