@@ -7,8 +7,8 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject, sampleTrack } from "../test/fixtures";
-import type { AutomationPoint } from "../types/project";
+import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import type { AutomationPoint, ClipRow } from "../types/project";
 import { LaneEnvelope } from "./LaneEnvelope";
 import { TimelineGestureProvider } from "./timelineMetrics";
 import { useRulerWindow } from "./useRulerWindow";
@@ -44,7 +44,13 @@ const hostSaves = () =>
     },
   );
 
-function Harness({ canvas = 360 }: { canvas?: number }) {
+function Harness({
+  canvas = 360,
+  clips = [],
+}: {
+  canvas?: number;
+  clips?: ClipRow[];
+}) {
   const envelopes = useDawStore((s) => s.project?.envelopes ?? []);
   return (
     <LaneEnvelope
@@ -52,7 +58,7 @@ function Harness({ canvas = 360 }: { canvas?: number }) {
       trackName="Maya"
       colorIndex={0}
       envelopes={envelopes}
-      clips={[]}
+      clips={clips}
       zoomPxPerSec={24}
       width={canvas}
     />
@@ -62,12 +68,12 @@ function Harness({ canvas = 360 }: { canvas?: number }) {
 const hold = vi.fn();
 const release = vi.fn();
 
-function setup(canvas?: number) {
+function setup(canvas?: number, clips?: ClipRow[]) {
   hold.mockReset().mockReturnValue(release);
   release.mockReset();
   return render(
     <TimelineGestureProvider value={hold}>
-      <Harness canvas={canvas} />
+      <Harness canvas={canvas} clips={clips} />
     </TimelineGestureProvider>,
   );
 }
@@ -471,5 +477,121 @@ describe("LaneEnvelope adding", () => {
       { tone: "error" },
     );
     await act(async () => finish());
+  });
+});
+
+describe("LaneEnvelope while a save settles", () => {
+  /** A drag of point 2 two seconds right whose save the test finishes by hand. */
+  async function savedDrag(updateStore: "before" | "after" | "never") {
+    let finish: () => void = () => {};
+    setEnvelope.mockImplementationOnce(
+      (_p: string, _t: string, points: AutomationPoint[]) =>
+        new Promise((resolve) => {
+          finish = () => {
+            if (updateStore === "before") putPoints(points);
+            resolve(null);
+          };
+        }),
+    );
+    setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    const points = lastSave();
+    return { finish: () => act(async () => finish()), points };
+  }
+
+  it("does not drop a point being saved when Delete is pressed", async () => {
+    const announce = toasts();
+    const { finish } = await savedDrag("before");
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "envelopePoint", trackId: "host", pointId: "b" }),
+    );
+    point(2).focus();
+    fireEvent.keyDown(point(2), { key: "Delete" });
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    expect(point(2).getAttribute("aria-valuetext")).toContain("0:06");
+    expect(release).not.toHaveBeenCalled();
+    expect(announce).toHaveBeenCalledWith(
+      "Wait for the volume envelope to finish saving",
+      { tone: "error" },
+    );
+    await finish();
+    expect(stored().find((p) => p.id === "b")!.time).toBe(6);
+  });
+
+  it("keeps the saved point when the store follows after the save resolves", async () => {
+    const { finish, points } = await savedDrag("after");
+    await finish();
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(point(2).getAttribute("aria-valuetext")).toContain("0:06");
+    putPoints(points);
+    await act(async () => {});
+    expect(point(2).getAttribute("aria-valuetext")).toContain("0:06");
+    expect(stored().find((p) => p.id === "b")!.time).toBe(6);
+  });
+
+  it("saves a nudge pressed after the save settled and before the store changed", async () => {
+    const { finish } = await savedDrag("never");
+    await finish();
+    point(2).focus();
+    fireEvent.keyDown(point(2), { key: "ArrowRight" });
+    fireEvent.keyUp(point(2), { key: "ArrowRight" });
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(2);
+    expect(lastSave().find((p) => p.id === "b")!.time).toBe(6.01);
+  });
+
+  it("lets go of a save that changed nothing after a pause", async () => {
+    vi.useFakeTimers();
+    try {
+      const { finish } = await savedDrag("never");
+      await finish();
+      expect(point(2).getAttribute("aria-valuetext")).toContain("0:06");
+      await act(async () => vi.advanceTimersByTime(1500));
+      expect(point(2).getAttribute("aria-valuetext")).toContain("0:04");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("LaneEnvelope on touch", () => {
+  it("saves nothing for a finger that passed the slop without locking an axis", async () => {
+    useDawStore.setState({ pointerKind: "coarse" });
+    setup();
+    const el = point(2);
+    const finger = (x: number, y: number) => ({
+      ...mouse(x, y),
+      pointerType: "touch",
+    });
+    fireEvent.pointerDown(el, finger(96, 20));
+    fireEvent.pointerMove(el, finger(130, 20));
+    fireEvent.pointerUp(el, finger(130, 20));
+    await act(async () => {});
+    expect(hold).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(setEnvelope).not.toHaveBeenCalled();
+    expect(stored().find((p) => p.id === "b")!.time).toBe(4);
+  });
+});
+
+describe("LaneEnvelope dips", () => {
+  it("draws them from the finite points only", () => {
+    putPoints([...POINTS, { id: "x", time: Number.NaN, value: 1 }]);
+    const clip = clipRow({
+      id: "c1",
+      timeline_start: 0,
+      timeline_end: 10,
+      source_start: 0,
+      fade_in_ms: 1000,
+      fade_out_ms: 0,
+    });
+    setup(undefined, [clip]);
+    const dip = screen.getByTestId("clip-gain-dip").querySelector("polyline")!;
+    expect(dip.getAttribute("points")).not.toContain("NaN");
   });
 });

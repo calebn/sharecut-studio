@@ -9,10 +9,12 @@ import { useDawStore } from "../state/dawStore";
 import type { EnvelopeChange } from "../system/Envelope";
 import { dbToGain, gainToDb } from "../system/envelopeMath";
 import type { AutomationPoint } from "../types/project";
-import { ENVELOPE_POINT_EPSILON, findVolumeEnvelope } from "../utils/envelopes";
+import { findVolumeEnvelope } from "../utils/envelopes";
 import { editFor, type PointPreview, selectedPointId } from "./envelopePoints";
 import { useTimelineGestureHold } from "./timelineMetrics";
 
+/** How long a saved point is held for the store to follow before a save that changed nothing lets go. */
+const SETTLE_MS = 1000;
 const SAVING = "Wait for the volume envelope to finish saving";
 
 const liveStored = (trackId: string, id: string): AutomationPoint | undefined =>
@@ -53,6 +55,7 @@ export function useEnvelopeEdits(
   } | null>(null);
   const storedRef = useRef(stored);
   const alive = useRef(true);
+  const idle = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const setPreview = useCallback((next: PointPreview | null) => {
     previewRef.current = next;
@@ -63,6 +66,7 @@ export function useEnvelopeEdits(
     release.current = null;
   }, []);
   const drop = useCallback(() => {
+    clearTimeout(idle.current);
     saved.current = null;
     letGo();
     setPreview(null);
@@ -76,6 +80,7 @@ export function useEnvelopeEdits(
     alive.current = true;
     return () => {
       alive.current = false;
+      clearTimeout(idle.current);
       saved.current = null;
       previewRef.current = null;
       release.current?.();
@@ -95,20 +100,24 @@ export function useEnvelopeEdits(
       const result = await setEnvelopePoint(trackId, id, edit);
       if (!alive.current) return;
       refuse(result);
-      const now = liveStored(trackId, id);
-      const applied =
-        result.status === "ok" &&
-        now !== undefined &&
-        (edit.time === undefined ||
-          Math.abs(now.time - edit.time) <= ENVELOPE_POINT_EPSILON) &&
-        (edit.value === undefined || now.value === edit.value);
       const pending = saved.current;
-      if (!applied || !pending || pending.stored !== storedRef.current) {
+      if (result.status !== "ok" || !pending) {
         drop();
         return;
       }
+      // The store may already hold the saved point or only get it a moment
+      // later: settle now, and drop the preview once the points have changed
+      // (the effect above), or after a pause if the save changed nothing.
       pending.settled = true;
       letGo();
+      if (pending.stored !== storedRef.current) {
+        drop();
+        return;
+      }
+      clearTimeout(idle.current);
+      idle.current = setTimeout(() => {
+        if (saved.current === pending) drop();
+      }, SETTLE_MS);
     },
     [trackId, drop, letGo],
   );
@@ -144,7 +153,13 @@ export function useEnvelopeEdits(
         last.current = change;
         return;
       }
-      if (envelopeSaveInFlight(trackId)) return;
+      if (envelopeSaveInFlight(trackId) || saved.current?.settled === false)
+        return;
+      if (saved.current) {
+        // A nudge begins on a saved point still waiting for the store: it takes over the preview.
+        clearTimeout(idle.current);
+        saved.current = null;
+      }
       const from =
         previewRef.current?.id === id
           ? previewRef.current
@@ -186,7 +201,7 @@ export function useEnvelopeEdits(
   const onNudgeEnd = useCallback(
     (id: string) => {
       const p = previewRef.current;
-      if (!p || p.id !== id || saved.current) return;
+      if (!p || p.id !== id || saved.current?.settled === false) return;
       const point = liveStored(trackId, id);
       const edit = point
         ? editFor({ timeSeconds: p.time, db: p.db }, point)
@@ -202,8 +217,14 @@ export function useEnvelopeEdits(
 
   const onRemove = useCallback(
     (id: string) => {
-      if (previewRef.current?.id === id) drop();
-      void removeEnvelopePoint(trackId, id).then(refuse);
+      if (saved.current?.settled === false || envelopeSaveInFlight(trackId)) {
+        useDawStore.getState().announceStatus(SAVING, { tone: "error" });
+        return;
+      }
+      void removeEnvelopePoint(trackId, id).then((result) => {
+        refuse(result);
+        if (result.status === "ok" && previewRef.current?.id === id) drop();
+      });
     },
     [trackId, drop],
   );

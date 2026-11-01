@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dbToGain, gainToDb } from "../system/envelopeMath";
+import { sameEnvelopePoint } from "../utils/envelopes";
 import {
   editFor,
   selectedPointId,
@@ -78,6 +79,18 @@ describe("editFor", () => {
       time: 5,
       value: dbToGain(-12),
     });
+  });
+});
+
+describe("editFor at the silent floor", () => {
+  it("emits a change the command will not take for the same point", () => {
+    const silent = { id: "p", time: 4, value: 0 };
+    expect(editFor({ db: -60 }, silent)).toBeNull();
+    const edit = editFor({ db: -59.99 }, silent)!;
+    expect(edit.value).toBeGreaterThan(0);
+    expect(
+      sameEnvelopePoint(silent, { id: "p", time: 4, value: edit.value! }),
+    ).toBe(false);
   });
 });
 

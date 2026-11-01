@@ -11,6 +11,7 @@ import type { AutomationEnvelope, ClipRow } from "../types/project";
 import { sortedVolumePoints } from "../utils/envelopes";
 import { ClipGainDips } from "./ClipGainDips";
 import {
+  finitePoints,
   selectedPointId,
   toHitAttrs,
   toLeafPoints,
@@ -76,7 +77,7 @@ export const LaneEnvelope = memo(function LaneEnvelope({
   const readOnly = !canEditEnvelopes(projectPath, guestMode, shareCapabilities);
 
   const stored = useMemo(
-    () => sortedVolumePoints(envelopes, trackId),
+    () => finitePoints(sortedVolumePoints(envelopes, trackId)),
     [envelopes, trackId],
   );
   const base = useMemo(() => toLeafPoints(stored), [stored]);
@@ -110,6 +111,7 @@ export const LaneEnvelope = memo(function LaneEnvelope({
       data-testid={timelineTestIds.envelope}
       style={{ left, width: winPx, height: laneHeight }}
     >
+      {/* The dips are read-only: they follow the saved points, not a drag or nudge preview. */}
       <ClipGainDips
         clips={clips}
         points={stored}
