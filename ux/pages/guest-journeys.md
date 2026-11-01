@@ -247,7 +247,11 @@ flowchart TD
    countdown sees one alert row before the next take, "Record 1 minute of room
    tone." with **Record room tone** and **Skip** (#2490); it records the same bed
    through the same path, and it does not show during a take, after a skip, or
-   after it recorded, including after a reload. Producers never record it.
+   after it recorded, including after a reload. If the host received the bed but
+   could not save it, the guest sees "Your room tone could not be saved. Record it
+   again." with a retake instead of "Room tone sent to the host", and a late
+   guest who reloads is asked again while the host still reports the failed
+   save. Producers never record it.
    While this device is not yet in the session or cannot store audio, Record room
    tone stays focusable and says so: "Room tone starts once this device has joined
    the session and can store audio. Wait a moment, then try again; if it stays like this, reload the page."
