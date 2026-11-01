@@ -433,6 +433,21 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      - name: Upload touch-peek screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-touch-peek-${{ matrix.name }}
+          path: |
+            gui/web/test-results/**/stow-portrait-360-2-mid-drag-*.png
+            gui/web/test-results/**/restored-focus-portrait-360-*.png
+            gui/web/test-results/**/stow-landscape-636-2-mid-drag-*.png
+            gui/web/test-results/**/restored-focus-landscape-636-*.png
+            gui/web/test-results/**/pending-card-portrait-390-32-*.png
+            gui/web/test-results/**/pending-card-landscape-636-32-*.png
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Upload Playwright traces from failed specs
         if: always() && hashFiles('gui/web/test-results/**/trace.zip', 'gui/web/test-results/**/error-context.md') != ''
         uses: actions/upload-artifact@v7
