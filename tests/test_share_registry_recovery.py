@@ -432,7 +432,9 @@ def test_secret_worker_closes_registry_when_barrier_fails(
 
     path = tmp_path / "registry.db"
     with pytest.raises(type(failure)) as caught:
-        _registry_secret_process(str(path), FailedBarrier(), UnusedQueue())
+        _registry_secret_process(
+            str(path), FailedBarrier(), UnusedQueue(), str(tmp_path / "init-diagnostic.json")
+        )
     assert caught.value is failure
     assert connections[0].closed
     with closing(sqlite3.connect(path)) as observer:
