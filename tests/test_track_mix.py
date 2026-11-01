@@ -8,6 +8,7 @@ listening choices: edits, the audio audit and render caches ignore them.
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
@@ -15,6 +16,7 @@ import re
 import shutil
 import subprocess
 import threading
+import wave
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -115,10 +117,23 @@ def _two_tracks(minimal_project: Path) -> ProjectWorkspace:
     return ProjectWorkspace.open(minimal_project)
 
 
+def _mix_wav(payload: bytes = b"\0\0") -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as audio:
+        audio.setparams((1, 2, 48_000, 0, "NONE", "not compressed"))
+        audio.writeframes(payload + b"\0" * (len(payload) % 2))
+    return buffer.getvalue()
+
+
+def _mixed_tracks(path: Path) -> list[str]:
+    with wave.open(str(path), "rb") as audio:
+        return json.loads(audio.readframes(audio.getnframes()).rstrip(b"\0"))
+
+
 def _fake_premix(ws: ProjectWorkspace) -> None:
     premix = premix_path(ws.project)
     premix.parent.mkdir(parents=True, exist_ok=True)
-    premix.write_bytes(b"RIFF")
+    premix.write_bytes(_mix_wav())
 
 
 def _fake_rendered_stems(project) -> dict[str, str]:
@@ -133,7 +148,9 @@ def _fake_rendered_stems(project) -> dict[str, str]:
 def _mixing_engine() -> MagicMock:
     """An ffmpeg stand-in whose mix writes the file it's asked for."""
     eng = MagicMock()
-    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_bytes(b"RIFFMIX") or out
+    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: (
+        out.write_bytes(_mix_wav(b"MIX!")) or out
+    )
     eng.peak_trim_db.return_value = -2.5
     return eng
 
@@ -150,8 +167,8 @@ def _fresh_stems(project) -> dict[str, str]:
 def _mastering_engine() -> MagicMock:
     """Mix writes the track ids it mixed; master copies the premix; loudness unmeasured."""
     eng = MagicMock()
-    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_text(
-        json.dumps(sorted(Path(p).stem for p, _gain in inputs))
+    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_bytes(
+        _mix_wav(json.dumps(sorted(Path(p).stem for p, _gain in inputs)).encode())
     )
 
     def _fake_master(src, dst, **_kw):
@@ -180,7 +197,7 @@ def _export(ws: ProjectWorkspace, eng: MagicMock) -> MagicMock:
 
 
 def _shipped(export: MagicMock) -> list[str]:
-    return json.loads(Path(export.call_args.args[2]).read_text())
+    return _mixed_tracks(Path(export.call_args.args[2]))
 
 
 def test_export_after_mute_and_refresh_ships_the_new_mix(minimal_project: Path) -> None:
@@ -191,7 +208,7 @@ def test_export_after_mute_and_refresh_ships_the_new_mix(minimal_project: Path) 
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.mix_with_music(ws.project, defaults)
         steps.master_loudness(ws.project, defaults)
-        assert json.loads(mastered_path(ws.project).read_text()) == ["guest", "host"]
+        assert _mixed_tracks(mastered_path(ws.project)) == ["guest", "host"]
         EpisodeService(ws).set_track_mute("guest", True)
         steps.mix_with_music(ws.project, defaults)
     export = _export(ws, eng)
@@ -670,7 +687,7 @@ def test_the_mix_applies_output_gain_skips_muted_and_hashes_the_mix(
     (inputs, _out), _kw = eng.mix_tracks.call_args
     assert _kw == {"trim_db": -2.5}
     assert inputs == [(Path(rendered["host"]), -5.0)]
-    assert premix_path(project).read_bytes() == b"RIFFMIX"
+    assert premix_path(project).read_bytes() == _mix_wav(b"MIX!")
     assert read_premix_hash(project) == mix_render_hash(
         {"host": -5.0}, -1.0, defaults=load_defaults()
     )
@@ -687,7 +704,7 @@ def test_a_failed_mix_leaves_the_old_premix_whole(minimal_project: Path) -> None
     eng.mix_tracks.side_effect = RuntimeError("ffmpeg died")
     with patch.object(steps, "ffmpeg", return_value=eng), pytest.raises(RuntimeError):
         steps.mix_with_music(ws.project, load_defaults())
-    assert premix_path(ws.project).read_bytes() == b"RIFF"
+    assert premix_path(ws.project).read_bytes() == _mix_wav()
     assert read_premix_hash(ws.project) == mix_render_hash({"old": 0.0}, defaults=load_defaults())
 
 
@@ -1603,3 +1620,40 @@ def test_a_qc_tolerance_change_re_judges_a_reused_master(minimal_project: Path) 
     assert summary.startswith("reused mastered.wav: -17.2 LUFS")
     assert eng.master_loudness.call_count == 1
     assert json.loads(qc_path.read_text())["within_tolerance"] is False
+
+
+@pytest.mark.parametrize("damage", ["zero", "header", "nonempty", "partial", "signature"])
+@pytest.mark.parametrize("operation", ["mix", "master", "direct-master", "export"])
+def test_damaged_cached_wavs_are_rebuilt(
+    minimal_project: Path, damage: str, operation: str
+) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    target = (
+        premix_path(ws.project)
+        if operation in ("mix", "direct-master")
+        else mastered_path(ws.project)
+    )
+    expected = target.read_bytes()
+    corrupt = {
+        "zero": b"",
+        "header": expected[:44],
+        "nonempty": expected[:46],
+        "partial": expected[:-1],
+        "signature": b"NOPE" + expected[4:],
+    }[damage]
+    target.write_bytes(corrupt)
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        if operation == "mix":
+            summary = steps.mix_with_music(ws.project, defaults)
+        elif operation == "export":
+            _export(ws, eng)
+            summary = "exported"
+        else:
+            summary = steps.master_loudness(ws.project, defaults)
+    assert target.read_bytes() == expected
+    assert not summary.startswith("reused")
+    assert (
+        mastered_is_fresh(ws.project)
+        if operation != "mix"
+        else not premix_is_stale(ws.project, defaults)
+    )
