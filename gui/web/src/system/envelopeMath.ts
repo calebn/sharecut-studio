@@ -163,11 +163,17 @@ export function sameLevelDb(a: number, b: number): boolean {
   return Math.abs(a - b) < ENVELOPE_DB_STEP / 2;
 }
 
-/** The line is sampled every this many px of height, so a curve is within a small fraction of a px of the true gain curve. */
-export const LINE_STEP_PX = 1;
-
-/** A segment always gets room for this many pieces, so a short steep one stays within 0.1 px of the curve; only a long, shallow one is held to a piece every quarter px of its width. */
-const MIN_STEP_CAP = 64;
+/**
+ * How far the drawn line may stray from the true gain curve, in px, while the
+ * window has room. On the dB scale the curve `d(t) = 20 log10(g0 + (g1 - g0) t)`
+ * has y'' / y'^2 = ln(10) / 20 at every point, so a chord over a level step of
+ * `s` dB is off by `scale * s^2 * ln(10) / 160` px (vertically, so at most
+ * that perpendicular), whatever the segment's width: the count of vertices
+ * follows from the level change and the lane height alone.
+ */
+export const LINE_TOLERANCE_PX = 0.04;
+/** A window gets at most this many sampled vertices per px of its width; past it the steps are coarsened (the error then exceeds `LINE_TOLERANCE_PX`) so dense data stays small and quick. */
+export const LINE_VERTICES_PER_PX = 2;
 
 type Spot = { x: number; db: number; gain: number };
 
@@ -176,7 +182,9 @@ type Spot = { x: number; db: number; gain: number };
  * level is linear in GAIN, as the audio (`envelopeGainAt`) plays it, so on
  * the dB scale a sloped segment is a curve: it is sampled at equal steps of
  * level, `t = (10^(d/20) - g0) / (g1 - g0)`, which puts every vertex exactly
- * on the curve. Equal levels are one straight piece and equal times a
+ * on the curve; the step count is chosen from the chord error
+ * (`LINE_TOLERANCE_PX`) and a window holds at most `LINE_VERTICES_PER_PX` per
+ * px of width, coarser beyond that. Equal levels are one straight piece and equal times a
  * vertical step. The level holds before the first point and after the last, so
  * the line runs flat to both edges of the window. With no points it is the
  * unity line at 0 dB. The path is clipped to the window: every coordinate is
@@ -204,6 +212,7 @@ export function linePath(
     return `M0 ${y}L${width} ${y}`;
   }
   const scale = pxPerDb(height);
+  const perDb = Math.sqrt((scale * Math.LN10) / 160 / LINE_TOLERANCE_PX);
   const out: string[] = [];
   let tail = "";
   const put = (x: number, db: number) => {
@@ -220,24 +229,29 @@ export function linePath(
     put(lo, db);
     put(hi, db);
   };
-  flat(Number.NEGATIVE_INFINITY, first.x, first.db);
+  // First the pieces in the window, with the steps each wants; then the budget; then the vertices.
+  type Piece = {
+    a: Spot;
+    lo: number;
+    hi: number;
+    tLo: number;
+    tHi: number;
+    span: number;
+    dg: number;
+    dLo: number;
+    dHi: number;
+    steps: number;
+  };
+  const plan: (Piece | "line")[] = [];
+  let wanted = 0;
   for (let index = 1; index < spots.length; index += 1) {
     const a = spots[index - 1];
     const b = spots[index];
     if (!a || !b) continue;
-    if (b.x <= a.x) {
-      if (a.x >= 0 && a.x <= width) {
-        put(a.x, a.db);
-        put(a.x, b.db);
-      }
-      continue;
-    }
     const lo = Math.max(0, a.x);
     const hi = Math.min(width, b.x);
-    if (lo > hi) continue;
-    if (a.db === b.db) {
-      put(lo, a.db);
-      put(hi, a.db);
+    if (b.x <= a.x || a.db === b.db || lo > hi) {
+      plan.push("line");
       continue;
     }
     const span = b.x - a.x;
@@ -246,12 +260,38 @@ export function linePath(
     const tHi = (hi - a.x) / span;
     const dLo = lo === a.x ? a.db : gainToDb(a.gain + dg * tLo);
     const dHi = hi === b.x ? b.db : gainToDb(a.gain + dg * tHi);
+    const steps = Math.max(1, Math.ceil(Math.abs(dHi - dLo) * perDb));
+    const piece = { a, lo, hi, tLo, tHi, span, dg, dLo, dHi, steps };
+    plan.push(piece);
+    wanted += dLo === dHi ? 0 : steps;
+  }
+  const budget = Math.max(256, LINE_VERTICES_PER_PX * width);
+  const keep = wanted > budget ? budget / wanted : 1;
+  flat(Number.NEGATIVE_INFINITY, first.x, first.db);
+  for (let index = 1; index < spots.length; index += 1) {
+    const a = spots[index - 1];
+    const b = spots[index];
+    if (!a || !b) continue;
+    const item = plan[index - 1];
+    if (item === "line" || item === undefined) {
+      if (b.x <= a.x) {
+        if (a.x >= 0 && a.x <= width) {
+          put(a.x, a.db);
+          put(a.x, b.db);
+        }
+        continue;
+      }
+      const lo = Math.max(0, a.x);
+      const hi = Math.min(width, b.x);
+      if (lo > hi) continue;
+      put(lo, a.db);
+      put(hi, a.db);
+      continue;
+    }
+    const { lo, hi, tLo, tHi, span, dg, dLo, dHi } = item;
     put(lo, dLo);
     if (dLo !== dHi) {
-      const steps = Math.min(
-        Math.ceil((Math.abs(dHi - dLo) * scale) / LINE_STEP_PX),
-        Math.max(MIN_STEP_CAP, Math.ceil(4 * (hi - lo))),
-      );
+      const steps = Math.max(1, Math.floor(item.steps * keep));
       // k = 0 and k = steps are on the curve too: where an end is the floor, the curve reaches gain 0.001 (-60 dB) a hair before the point.
       for (let k = 0; k <= steps; k += 1) {
         const db = dLo + ((dHi - dLo) * k) / steps;

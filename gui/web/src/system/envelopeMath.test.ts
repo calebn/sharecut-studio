@@ -221,6 +221,60 @@ function yAtX(verts: [number, number][], x: number): number {
   throw new Error(`no piece at ${x}`);
 }
 
+/**
+ * How far the drawn line of a two-point segment `span` px wide runs from the true gain curve, in px:
+ * the largest distance from points along the drawn chords to the curve (sampled by x and by level, so a
+ * steep part is as dense as a flat one, and with the flat floor where the gain reaches 0.001). A
+ * distance, not a height, so the path's 0.01 px grid on a steep part does not count.
+ */
+function driftPx(from: number, to: number, span: number, height: number) {
+  const sorted = [
+    { id: "a", time: 0, db: from },
+    { id: "b", time: span / 24, db: to },
+  ];
+  const verts = vertices(linePath(sorted, 0, 24, span + 10, height));
+  const g0 = dbToGain(from);
+  const g1 = dbToGain(to);
+  const curve: [number, number][] = [];
+  for (let x = 0; x <= span; x += Math.max(0.01, span / 1500)) {
+    curve.push([x, dbToY(gainToDb(g0 + ((g1 - g0) * x) / span), height)]);
+  }
+  for (let k = 0; k <= 5000; k += 1) {
+    const db = from + ((to - from) * k) / 5000;
+    const x = clamp01((10 ** (db / 20) - g0) / (g1 - g0)) * span;
+    curve.push([x, dbToY(db, height)]);
+  }
+  const cells = new Map<string, [number, number][]>();
+  for (const point of curve) {
+    const key = `${Math.floor(point[0])},${Math.floor(point[1])}`;
+    cells.set(key, [...(cells.get(key) ?? []), point]);
+  }
+  let worst = 0;
+  for (let i = 1; i < verts.length; i += 1) {
+    const [ax = 0, ay = 0] = verts[i - 1] ?? [];
+    const [bx = 0, by = 0] = verts[i] ?? [];
+    if (ax >= span) break;
+    for (let k = 0; k <= 4; k += 1) {
+      const x = ax + ((bx - ax) * k) / 4;
+      const y = ay + ((by - ay) * k) / 4;
+      if (x > span) continue;
+      let near = Number.POSITIVE_INFINITY;
+      // The curve is hashed into 1 px cells; a chord point is within 1 px of the curve in every case here.
+      const cx0 = Math.floor(x);
+      const cy0 = Math.floor(y);
+      for (let dx = -1; dx <= 1; dx += 1) {
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (const [cx, cy] of cells.get(`${cx0 + dx},${cy0 + dy}`) ?? []) {
+            near = Math.min(near, Math.hypot(cx - x, cy - y));
+          }
+        }
+      }
+      worst = Math.max(worst, near);
+    }
+  }
+  return { worst, vertices: verts.length };
+}
+
 const dbOf = (y: number, height: number) => yToDb(y, height);
 
 describe("linePath", () => {
@@ -278,60 +332,35 @@ describe("linePath", () => {
       const verts = vertices(path);
       expect(dbOf(yAtX(verts, 120), height)).toBeCloseTo(-6.02, 1);
       expect(path.length).toBeLessThan(height === 72 ? 1000 : 3500);
-      // The drawn polyline stays within 0.1 px of the true curve, up to the last pixel before the floor,
-      // where the curve falls 60 px in under 0.3 px of x and the path's 0.01 px grid shows.
-      let worst = 0;
-      for (let x = 0; x <= 239; x += 0.05) {
-        const gain = Math.max(0, 1 - x / 240);
-        worst = Math.max(
-          worst,
-          Math.abs(yAtX(verts, x) - dbToY(gainToDb(gain), height)),
-        );
-      }
-      expect(worst).toBeLessThan(0.1);
+      expect(driftPx(0, ENVELOPE_FLOOR_DB, 240, height).worst).toBeLessThan(
+        0.1,
+      );
     }
   });
 
-  it("stays within 0.1 px of the curve on short steep segments, 2 to 20 px wide", () => {
-    for (const [from, to] of [
+  it("stays within 0.1 px of the curve for every level pair, width and lane height while the window has room", () => {
+    const levels = [
       [0, ENVELOPE_FLOOR_DB],
       [ENVELOPE_TOP_DB, ENVELOPE_FLOOR_DB],
       [0, -20],
-    ] as const) {
-      for (const height of [72, 240]) {
-        for (const span of [2, 5, 10, 20]) {
-          const sorted = [
-            { id: "a", time: 0, db: from },
-            { id: "b", time: span / 24, db: to },
-          ];
-          const verts = vertices(linePath(sorted, 0, 24, 100, height));
-          const g0 = dbToGain(from);
-          const g1 = dbToGain(to);
-          // Distance from the drawn line to the true curve, so the path's 0.01 px grid on a steep part does not count as height.
-          const curve: [number, number][] = [];
-          for (let x = 0; x <= span; x += 0.01) {
-            const gain = g0 + ((g1 - g0) * x) / span;
-            curve.push([x, dbToY(gainToDb(gain), height)]);
-          }
-          // And by level, so a steep part is as dense as a flat one.
-          for (let k = 0; k <= 6000; k += 1) {
-            const db = from + ((to - from) * k) / 6000;
-            const x = clamp01((10 ** (db / 20) - g0) / (g1 - g0)) * span;
-            curve.push([x, dbToY(db, height)]);
-          }
-          let worst = 0;
-          for (let x = 0; x <= span; x += 0.05) {
-            const y = yAtX(verts, x);
-            let near = Number.POSITIVE_INFINITY;
-            for (const [cx, cy] of curve) {
-              near = Math.min(near, Math.hypot(cx - x, cy - y));
-            }
-            worst = Math.max(worst, near);
-          }
-          expect(worst).toBeLessThan(0.1);
+      [-30, ENVELOPE_FLOOR_DB],
+      [ENVELOPE_FLOOR_DB, -20],
+      [-20, ENVELOPE_FLOOR_DB],
+      [ENVELOPE_FLOOR_DB, ENVELOPE_TOP_DB],
+      [-1, -59],
+      [0, ENVELOPE_TOP_DB],
+      [-6, 0],
+    ] as const;
+    let worst = 0;
+    for (const height of [72, 240]) {
+      for (const [from, to] of levels) {
+        for (const span of [1, 3, 8, 20, 120]) {
+          worst = Math.max(worst, driftPx(from, to, span, height).worst);
         }
       }
     }
+    // Measured: at most 0.06 px (the tolerance is LINE_TOLERANCE_PX, 0.04, plus the sampling of the check).
+    expect(worst).toBeLessThan(0.1);
   });
 
   it("goes from the top of the scale to the floor and from the floor up", () => {
@@ -418,6 +447,31 @@ describe("linePath", () => {
       expect(path.length).toBeLessThan(120_000);
     }
     expect(paths[2]).toBe("M0 7.55L1280 7.55");
+  });
+
+  it("keeps a dense window small and quick: alternating 0 and -60 dB at 0.5 to 16 px, 1280 px wide", () => {
+    for (const height of [72, 240]) {
+      for (const gap of [0.5, 1, 4, 16]) {
+        const dense = Array.from(
+          { length: Math.ceil(1280 / gap) + 1 },
+          (_, n) => ({
+            id: `p${n}`,
+            time: (n * gap) / 24,
+            db: n % 2 ? ENVELOPE_FLOOR_DB : 0,
+          }),
+        );
+        const started = performance.now();
+        const path = linePath(dense, 0, 24, 1280, height);
+        // Measured: 23 to 36 KB and under 15 ms here (the budget is 2 vertices per px of width, so the
+        // steps are coarser than the tolerance asks for and the 0.1 px bound no longer holds).
+        expect(performance.now() - started).toBeLessThan(250);
+        expect(path.length).toBeLessThan(60_000);
+        for (const [x] of vertices(path)) {
+          expect(x).toBeGreaterThanOrEqual(0);
+          expect(x).toBeLessThanOrEqual(1280);
+        }
+      }
+    }
   });
 
   it("tolerates points that are not finite", () => {
