@@ -24,6 +24,7 @@ from podcast_mcp.engines.audio import Audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.track_evidence import Declined, Evidence
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models.clip_timing import ClipTiming
 from podcast_mcp.util.fingerprint import FileStamp
 from test_audio_eval import _ffmpeg_or_skip, _project
 
@@ -286,6 +287,25 @@ def test_a_code_revision_bump_makes_the_old_record_stale(
     _samples(project)
 
     assert calls.count == 1 and len(_records(project)) == 2
+
+
+def test_a_timing_map_change_gets_a_new_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, "crossfade joins")
+    before = _samples(project)
+    _restart()
+    calls = Evaluations(monkeypatch)
+    clip = next(c for c in project.clips if c.track_id == "caleb")
+    clip.timing = ClipTiming.model_validate(
+        {"steps": [{"at": (clip.source_start + clip.source_end) / 2, "delta_sec": 0.1}]}
+    )
+
+    changed = _samples(project)
+
+    assert calls.count == 1 and len(_records(project)) == 2
+    assert changed.shape != before.shape or not np.array_equal(changed, before)
+    np.testing.assert_array_equal(_bits(changed), _bits(_fresh(project)))
 
 
 def test_another_ffmpeg_build_makes_the_old_record_stale(
@@ -577,7 +597,7 @@ def test_a_record_that_is_read_is_the_newest_and_outlives_an_unread_one(
 
 # Bump evidence_records.RECORD_REV and this pin together whenever the code that decides what the
 # evidence is changes: a record of the old code is otherwise read as if it were the new code's.
-EVIDENCE_CODE_PIN = "be2ed78104714bf8"
+EVIDENCE_CODE_PIN = "a6568df97d554b03"
 
 
 def _normalised(text: str) -> str:
@@ -609,6 +629,7 @@ TREE_AND_CONFIG_MODULES = (
     "models/whisper.py",
     "mute_regions.py",
     "timeline_render.py",
+    "timed_pieces.py",
 )
 
 
