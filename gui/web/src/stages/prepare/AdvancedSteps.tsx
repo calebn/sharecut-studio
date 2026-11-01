@@ -232,7 +232,7 @@ function PersonalField({
           {setting.label}
         </p>
       </div>
-      <SegmentedControl label={setting.label}>
+      <SegmentedControl label={setting.label} describedBy={id}>
         {(["Off", "On"] as const).map((option) => (
           <ToggleButton
             key={option}
