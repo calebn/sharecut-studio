@@ -93,7 +93,7 @@ describe("the sound scan row", () => {
   it("is an optional step in its own group, off unless the project turned it on", () => {
     expect(scan()).toMatchObject({
       id: "apply_sound_actions",
-      name: "Scan for sounds",
+      name: "Apply sound actions",
       optional: true,
       enabled: false,
     });
@@ -101,14 +101,15 @@ describe("the sound scan row", () => {
 
   it("names its cost in plain units, off or on", () => {
     expect(scan().result).toBe(
-      "Off. Takes about 2½ minutes for 30 minutes of audio.",
+      "Off. Can take about 2½ minutes for 30 minutes of audio when analysis is needed.",
     );
     const on = {
       ...cfg,
       enabled_steps: [...cfg.enabled_steps, "apply_sound_actions"],
+      config: { ...cfg.config, tighten: { apply_non_speech: true } },
     };
     expect(scan(on).result).toBe(
-      "Takes about 2½ minutes for 30 minutes of audio.",
+      "Can take about 2½ minutes for 30 minutes of audio when analysis is needed.",
     );
   });
 
@@ -116,6 +117,7 @@ describe("the sound scan row", () => {
     const on = {
       ...cfg,
       enabled_steps: [...cfg.enabled_steps, "apply_sound_actions"],
+      config: { ...cfg.config, tighten: { apply_non_speech: true } },
     };
     const job = pipelineJobSnapshot({
       steps: [
@@ -137,7 +139,9 @@ describe("the sound scan row", () => {
       on: false,
     });
     expect(scan(cfg, { soundScanStart: true }).personal?.on).toBe(true);
-    expect(scan().help).toContain("coughs, laughs, mic bumps and clicks");
+    expect(scan().help).toContain(
+      "Applies suggested sound actions during processing",
+    );
   });
 
   it("has no personal setting on the other steps", () => {

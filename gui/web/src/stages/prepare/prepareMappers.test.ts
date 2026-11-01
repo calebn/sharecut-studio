@@ -861,10 +861,37 @@ describe("vocabulary chips", () => {
   });
 });
 
+const PLAN_SETTINGS = {
+  step_names: [
+    "transcribe_tracks",
+    "align_tracks",
+    "require_align_accept",
+    "fill_gate_holes",
+    "clean_audio",
+    "compress_tracks",
+    "balance_tracks",
+    "analyze_fillers_pauses",
+    "apply_sound_actions",
+  ],
+  enabled_steps: [
+    "transcribe_tracks",
+    "align_tracks",
+    "require_align_accept",
+    "fill_gate_holes",
+    "clean_audio",
+    "compress_tracks",
+    "balance_tracks",
+    "analyze_fillers_pauses",
+    "apply_sound_actions",
+  ],
+  config: { tighten: { enabled: true, apply_non_speech: true } },
+};
+
 describe("the plan for audio added after a run", () => {
   const plan = (extra: Partial<RerunPlan> = {}): RerunPlan => ({
     newNames: ["Priya"],
     kept: 3,
+    settings: PLAN_SETTINGS,
     skipped: new Set(),
     ...extra,
   });
@@ -955,7 +982,7 @@ describe("the plan for audio added after a run", () => {
       "suggest",
     ]);
     expect(withScan[4]).toMatchObject({
-      title: "Scan for sounds",
+      title: "Apply sound actions",
       detail: "Whole episode · about 1 min 10 s",
     });
     expect(rows(plan()).some((r) => r.id === "scan")).toBe(false);
@@ -1068,6 +1095,7 @@ describe("what a one-run Skip may leave out", () => {
         sourceCount: 4,
         plan: {
           newNames: ["Priya"],
+          settings: PLAN_SETTINGS,
           kept: 3,
           skipped: new Set([id]),
           scan: { time: "about 1 min" },
@@ -1076,15 +1104,24 @@ describe("what a one-run Skip may leave out", () => {
     expect(text("clean")).toBe(
       "Skipped this time. Priya is not cleaned or levelled.",
     );
-    expect(text("scan")).toBe("Skipped this time. Sounds are not scanned.");
-    expect(text("suggest")).toBe("Skipped this time. No new suggestions.");
+    expect(text("scan")).toBe(
+      "Skipped this time. Sound actions are not applied automatically.",
+    );
+    expect(text("suggest")).toBe(
+      "Skipped this time. Filler and pause analysis is skipped.",
+    );
   });
 
   it("counts only the new files on the Add audio row", () => {
     const [add] = readyRows({
       ...base,
       sourceCount: 5,
-      plan: { newNames: ["Priya", "Joss"], kept: 3, skipped: new Set() },
+      plan: {
+        newNames: ["Priya", "Joss"],
+        kept: 3,
+        settings: PLAN_SETTINGS,
+        skipped: new Set(),
+      },
     });
     expect(add.detail).toBe("Priya and Joss added, 2 files");
   });

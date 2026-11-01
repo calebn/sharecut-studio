@@ -41,13 +41,13 @@ describe("AdvancedSteps", () => {
     ).toBeVisible();
   });
 
-  it("lists Scan for sounds under Listen for sounds, off, with a switch", () => {
+  it("lists Apply sound actions under Listen for sounds, off, with a switch", () => {
     render(<Host />);
     const group = screen.getByRole("region", { name: "Listen for sounds" });
-    expect(within(group).getByText("Scan for sounds")).toBeVisible();
+    expect(within(group).getByText("Apply sound actions")).toBeVisible();
     expect(within(group).getByText("Off")).toBeVisible();
     expect(
-      within(group).getByRole("switch", { name: "Scan for sounds" }),
+      within(group).getByRole("switch", { name: "Apply sound actions" }),
     ).not.toBeChecked();
   });
 
@@ -55,7 +55,9 @@ describe("AdvancedSteps", () => {
     const user = userEvent.setup();
     const onToggle = vi.fn();
     render(<Host spy={{ onToggle }} />);
-    await user.click(screen.getByRole("switch", { name: "Scan for sounds" }));
+    await user.click(
+      screen.getByRole("switch", { name: "Apply sound actions" }),
+    );
     expect(onToggle).toHaveBeenCalledWith("scan", true);
   });
 
@@ -63,10 +65,12 @@ describe("AdvancedSteps", () => {
     const user = userEvent.setup();
     render(<Host selected="scan" />);
     expect(
-      screen.getByText("Off. Takes about 2½ minutes for 30 minutes of audio."),
+      screen.getByText(
+        "Off. Can take about 2½ minutes for 30 minutes of audio when analysis is needed.",
+      ),
     ).toBeVisible();
     expect(
-      screen.getByText(/coughs, laughs, mic bumps and clicks/),
+      screen.getByText(/Applies suggested sound actions during processing/),
     ).toBeVisible();
     const group = screen.getByRole("group", {
       name: "New projects start with this",
@@ -87,11 +91,15 @@ describe("AdvancedSteps", () => {
   it("moves the cost line with the switch instead of keeping the Off hint", async () => {
     const user = userEvent.setup();
     render(<Host selected="scan" />);
-    expect(screen.getByText(/^Off\. Takes about/)).toBeVisible();
-    await user.click(screen.getByRole("switch", { name: "Scan for sounds" }));
+    expect(screen.getByText(/^Off\. Can take about/)).toBeVisible();
+    await user.click(
+      screen.getByRole("switch", { name: "Apply sound actions" }),
+    );
     expect(screen.queryByText(/^Off\./)).toBeNull();
     expect(
-      screen.getByText("Takes about 2½ minutes for 30 minutes of audio."),
+      screen.getByText(
+        "Can take about 2½ minutes for 30 minutes of audio when analysis is needed.",
+      ),
     ).toBeVisible();
   });
 
