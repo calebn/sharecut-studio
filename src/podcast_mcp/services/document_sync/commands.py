@@ -68,6 +68,7 @@ DocumentCommandType = Literal[
     "DuplicateSegment",
     "MoveSegment",
     "InsertGap",
+    "InsertSegment",
     "FillRoomTone",
     "ApplyAutoEdits",
     "ProposeTighten",

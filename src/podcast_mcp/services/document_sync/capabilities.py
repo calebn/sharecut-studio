@@ -114,13 +114,15 @@ COMMENT_COMMANDS: frozenset[str] = frozenset(
 )
 
 # Naming a record session and deciding a staged one are the host's: a share link never edits
-# who the host recorded with, nor places or discards a recording.
+# who the host recorded with, nor places or discards a recording. Inserting a segment reads the
+# host's own segment library, which a share link never reaches.
 HOST_ONLY_DOCUMENT_COMMANDS: frozenset[str] = frozenset(
     {
         "SetRecordSessionName",
         "AcceptSessionSuggestion",
         "SkipSessionSuggestion",
         "SelectSessionTake",
+        "InsertSegment",
     }
 )
 

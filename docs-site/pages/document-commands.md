@@ -60,6 +60,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `FadeJoins` | — | `dry_run` (boolean \| null), `fade_ms` (integer \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `FillRoomTone` | — | `end_sec` (number \| null), `speaker` (string \| null), `start_sec` (number \| null), `track_id` (string \| null) |
 | `InsertGap` | `at_time` (number) | `duration_sec` (number) |
+| `InsertSegment` | `at` (number), `segment_id` (string) | `version` (integer \| null) |
 | `MoveByText` | `destination_query` (string), `source_query` (string) | `position` (string) |
 | `MoveClips` | `clips` (array[object]) | — |
 | `MoveSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
@@ -115,7 +116,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 83 command types._
+_Generated 84 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

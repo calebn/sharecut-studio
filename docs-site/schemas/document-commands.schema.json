@@ -2179,6 +2179,17 @@
           "title": "Off Speaker Mute Regions",
           "type": "array"
         },
+        "segment_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SegmentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "source_end": {
           "title": "Source End",
           "type": "number"
@@ -4345,6 +4356,132 @@
         "at_time"
       ],
       "title": "InsertGapPayload",
+      "type": "object"
+    },
+    "InsertSegmentCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/InsertSegmentPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "InsertSegment",
+          "default": "InsertSegment",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "InsertSegmentCommand",
+      "type": "object"
+    },
+    "InsertSegmentPayload": {
+      "properties": {
+        "at": {
+          "title": "At",
+          "type": "number"
+        },
+        "segment_id": {
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "segment_id",
+        "at"
+      ],
+      "title": "InsertSegmentPayload",
       "type": "object"
     },
     "MoveByTextCommand": {
@@ -6683,6 +6820,33 @@
         "end_s"
       ],
       "title": "RoomToneFill",
+      "type": "object"
+    },
+    "SegmentRef": {
+      "additionalProperties": false,
+      "description": "Where a clip came from in the segment library, kept so a later slice can see drift.\n\n``content_sha256`` is the stored version's ``SegmentFile.content_sha256`` at insert time.",
+      "properties": {
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "segment_id": {
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "segment_id",
+        "version",
+        "content_sha256"
+      ],
+      "title": "SegmentRef",
       "type": "object"
     },
     "SelectSessionTakeCommand": {
@@ -11679,6 +11843,7 @@
       "FadeJoins": "#/$defs/FadeJoinsCommand",
       "FillRoomTone": "#/$defs/FillRoomToneCommand",
       "InsertGap": "#/$defs/InsertGapCommand",
+      "InsertSegment": "#/$defs/InsertSegmentCommand",
       "MoveByText": "#/$defs/MoveByTextCommand",
       "MoveClips": "#/$defs/MoveClipsCommand",
       "MoveSegment": "#/$defs/MoveSegmentCommand",
@@ -11910,6 +12075,9 @@
     },
     {
       "$ref": "#/$defs/InsertGapCommand"
+    },
+    {
+      "$ref": "#/$defs/InsertSegmentCommand"
     },
     {
       "$ref": "#/$defs/FillRoomToneCommand"

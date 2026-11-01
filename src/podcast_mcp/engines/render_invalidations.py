@@ -47,6 +47,7 @@ _CLIP_OPS = frozenset(
         "move_segment",
         "move_by_text",
         "insert_gap",
+        "insert_segment",
         "move_clips",
     }
 )

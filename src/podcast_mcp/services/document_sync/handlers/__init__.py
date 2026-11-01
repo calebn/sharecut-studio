@@ -65,6 +65,7 @@ HANDLERS: dict[str, Handler] = {
     "DuplicateSegment": edits.duplicate_segment,
     "MoveSegment": edits.move_segment,
     "InsertGap": edits.insert_gap,
+    "InsertSegment": edits.insert_segment,
     "FillRoomTone": edits.fill_room_tone,
     "ApplyAutoEdits": edits.apply_auto_edits,
     "ProposeTighten": edits.propose_tighten,

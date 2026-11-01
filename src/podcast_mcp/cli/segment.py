@@ -10,10 +10,10 @@ import typer
 
 from podcast_mcp.models.episode import TrackRole
 from podcast_mcp.segments.bundle import export_segments, import_bundle
-from podcast_mcp.segments.capture import parse_range, save_segment
 from podcast_mcp.segments.model import SegmentFile, segment_kind
 from podcast_mcp.segments.store import AddResult, SegmentStore
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.segment_capture import parse_range, save_segment
 
 segment_app = typer.Typer(help="The segment library: intros, outros, sponsor reads and stings.")
 
@@ -156,3 +156,27 @@ def segment_import_cmd(
     """Add a .sharecutseg file to the library. The same audio twice changes nothing."""
     result = import_bundle(SegmentStore(), file)
     typer.echo(_json(result.wire()) if as_json else _added_text(result))
+
+
+@segment_app.command("insert")
+def segment_insert_cmd(
+    project: Path = typer.Argument(..., help="Path to episode.sharecut"),
+    segment_id: str = typer.Argument(..., metavar="SEGMENT", help="A segment id"),
+    at: float = typer.Option(..., "--at", help="Timeline second to insert at"),
+    version: int | None = typer.Option(None, "--version", help="Segment version. Default: newest"),
+    as_json: bool = typer.Option(False, "--json", help="The result as JSON"),
+) -> None:
+    """Insert a saved segment into an episode at a timeline second. Later content moves."""
+    from podcast_mcp.services.document_sync import submit_host_command_result
+
+    payload: dict[str, Any] = {"segment_id": segment_id, "at": at}
+    if version is not None:
+        payload["version"] = version
+    result = submit_host_command_result(project, "InsertSegment", payload, client_id="cli")
+    if as_json:
+        typer.echo(_json(result))
+        return
+    typer.echo(
+        f"Inserted {result['segment_id']} (v{result['segment_version']}) at {at:g} s, "
+        f"{result['duration_sec']:g} s long"
+    )
