@@ -6036,7 +6036,8 @@ input.sys-edit-fix {
 
 .sys-presence-line {
   position: absolute;
-  inset-block: 0;
+  inset-block-start: 0;
+  block-size: var(--sys-presence-end, 100%);
   inset-inline-start: calc(
     var(--sys-presence-x) -
     var(--selection-remote-width) /

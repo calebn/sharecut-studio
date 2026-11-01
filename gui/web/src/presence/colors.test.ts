@@ -21,6 +21,11 @@ describe("presence colors", () => {
     expect(initials("·2")).toBe("?");
   });
 
+  it("takes whole characters, so an astral letter is not split in two", () => {
+    expect(initials("𠮷野 家")).toBe("𠮷家");
+    expect(initials("𝒜da")).toBe("𝒜");
+  });
+
   it("disambiguates duplicate names", () => {
     const names = disambiguatedNames([
       { client_id: "a", meta: { display_name: "Ada" } },

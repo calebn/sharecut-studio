@@ -315,6 +315,21 @@ describe("TimelinePresence", () => {
       expect(leafRenders).not.toHaveBeenCalled();
     });
 
+    it("a cursor-only change redraws nothing: people and selections keep their arrays", () => {
+      seed([remote("a"), remote("b")]);
+      render(<Host />);
+      const before = leafRenders.mock.lastCall![0];
+      leafRenders.mockClear();
+      act(() => {
+        useDawStore
+          .getState()
+          .applyPresenceDelta("a", { meta: { cursor: { x: 4, y: 5 } } }, 5);
+      });
+      expect(leafRenders).not.toHaveBeenCalled();
+      expect(leafRenders.mock.calls).toHaveLength(0);
+      expect(before.people).toHaveLength(2);
+    });
+
     it("a change of one client's name renders the leaf once and leaves the others' people as they were", () => {
       seed([remote("a"), remote("b")]);
       render(<Host />);
@@ -344,7 +359,7 @@ describe("TimelinePresence", () => {
       });
       expect(leafRenders).not.toHaveBeenCalled();
       expect(first.selections).toHaveLength(1);
-      // A clip edit does rebuild them.
+      // A rebuild that finds the same selection draws nothing new.
       act(() => {
         const project = useDawStore.getState().project!;
         useDawStore.setState({
@@ -354,17 +369,45 @@ describe("TimelinePresence", () => {
           },
         });
       });
+      expect(leafRenders).not.toHaveBeenCalled();
+      // Moving the selected clip does.
+      act(() => {
+        const project = useDawStore.getState().project!;
+        useDawStore.setState({
+          project: {
+            ...project,
+            clips: {
+              ...project.clips,
+              tracks: {
+                ...project.clips.tracks,
+                guest: [
+                  clipRow({
+                    id: "c1",
+                    track_id: "guest",
+                    timeline_start: 20,
+                    timeline_end: 25,
+                  }),
+                ],
+              },
+            },
+          },
+        });
+      });
       expect(leafRenders).toHaveBeenCalledTimes(1);
+      expect(leafRenders.mock.lastCall![0].selections).not.toBe(
+        first.selections,
+      );
     });
 
-    it("a zoom change rebuilds the selections but not the rows", () => {
+    it("a zoom change keeps the rows and the selections that did not move", () => {
       seed([remote("a", { meta: { selection: { kind: "clip", id: "c1" } } })]);
       const { rerender } = render(<Host />);
       const first = leafRenders.mock.lastCall![0];
       rerender(<Host zoomPxPerSec={20} />);
       const second = leafRenders.mock.lastCall![0];
       expect(second.rows).toBe(first.rows);
-      expect(second.selections).not.toBe(first.selections);
+      expect(second.selections).toBe(first.selections);
+      expect(second.pxPerSecond).toBe(20);
     });
   });
 

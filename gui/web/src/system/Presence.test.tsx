@@ -57,6 +57,33 @@ describe("Presence", () => {
     ).toBe("348px");
   });
 
+  it("stops the line at the bottom of the last lane", () => {
+    const { container } = setup();
+    expect(
+      container
+        .querySelector<HTMLElement>(".sys-presence")
+        ?.style.getPropertyValue("--sys-presence-end"),
+    ).toBe("224px");
+  });
+
+  it("lets the line run the full height when there are no lanes", () => {
+    const { container } = setup({ rows: [] });
+    expect(
+      container
+        .querySelector<HTMLElement>(".sys-presence")
+        ?.style.getPropertyValue("--sys-presence-end"),
+    ).toBe("");
+  });
+
+  it("shows a whole astral initial on the flag", () => {
+    const { container } = setup({
+      people: [{ id: "x", name: "𠮷野", colorIndex: 0, playhead: 2 }],
+    });
+    expect(container.querySelector(".sys-presence-flag")?.textContent).toBe(
+      "𠮷",
+    );
+  });
+
   it("colours each from its person", () => {
     const { container } = setup();
     expect(

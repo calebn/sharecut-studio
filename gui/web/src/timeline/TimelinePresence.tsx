@@ -21,9 +21,10 @@ import {
   presenceIdsKey,
   useLivePresenceClients,
 } from "../presence/useLivePresenceClients";
+import { useStableList } from "../presence/useStableList";
 import { useDawStore } from "../state/dawStore";
 import { laneRows } from "../system/laneMath";
-import { Presence } from "../system/Presence";
+import { Presence, type PresenceSelection } from "../system/Presence";
 import { presenceX } from "../system/presenceMath";
 import type { SessionClient } from "../types/session";
 import { RULER_HEIGHT } from "../utils/layout";
@@ -45,6 +46,19 @@ type Props = {
 };
 
 const NO_TRACKS: never[] = [];
+
+const personKey = (person: PresencePerson) => person.id;
+const samePerson = (a: PresencePerson, b: PresencePerson) =>
+  a.name === b.name &&
+  a.colorIndex === b.colorIndex &&
+  a.playhead === b.playhead;
+const selectionKey = (selection: PresenceSelection) => selection.id;
+const sameSelection = (a: PresenceSelection, b: PresenceSelection) =>
+  a.personId === b.personId &&
+  a.laneId === b.laneId &&
+  a.start === b.start &&
+  a.end === b.end &&
+  a.colorIndex === b.colorIndex;
 
 /**
  * Announces remote joins and departures. The effect keys on the live ids by
@@ -163,28 +177,14 @@ export const TimelinePresence = memo(function TimelinePresence({
     zoomPxPerSec,
   );
 
-  const previousPeople = useRef<readonly PresencePerson[]>([]);
-  const people = useMemo(() => {
+  const nextPeople = useMemo(
     // Never older than the ticker's last frame, never older than now.
-    const next = presencePeople(
-      others,
-      durationSec,
-      Math.max(tickMs, serverNowMs()),
-    );
-    // A person whose name, colour and playhead did not change keeps their object.
-    return next.map((person) => {
-      const before = previousPeople.current.find((p) => p.id === person.id);
-      return before !== undefined &&
-        before.name === person.name &&
-        before.colorIndex === person.colorIndex &&
-        before.playhead === person.playhead
-        ? before
-        : person;
-    });
-  }, [others, durationSec, tickMs]);
-  useEffect(() => {
-    previousPeople.current = people;
-  }, [people]);
+    () => presencePeople(others, durationSec, Math.max(tickMs, serverNowMs())),
+    [others, durationSec, tickMs],
+  );
+  // A person whose name, colour and playhead did not change keeps their object,
+  // and an unchanged list keeps its array, so a cursor-only change redraws nothing.
+  const people = useStableList(nextPeople, personKey, samePerson);
   // Only what a selection is drawn from, so an unrelated project edit (a
   // comment, a chapter, a mix change) does not rebuild the selections.
   const tracksOf = project?.tracks;
@@ -203,10 +203,11 @@ export const TimelinePresence = memo(function TimelinePresence({
         : null,
     [tracksOf, clipsOf, envelopesOf, transcriptOf],
   );
-  const selections = useMemo(
+  const nextSelections = useMemo(
     () => presenceSelections(others, selectionProject, zoomPxPerSec),
     [others, selectionProject, zoomPxPerSec],
   );
+  const selections = useStableList(nextSelections, selectionKey, sameSelection);
   const tracks = project?.tracks ?? NO_TRACKS;
   const rows = useMemo(
     () =>
