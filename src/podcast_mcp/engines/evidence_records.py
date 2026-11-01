@@ -35,7 +35,6 @@ RECORD_DIR = "track_evidence"
 SUFFIX = ".evd"
 # Bump when ``audio_eval`` or the resampling changes the samples a key evaluates to.
 RECORD_REV = 2
-# Every edit to a track's tree leaves a record behind; the newest are kept, by write time.
 RECORDS_KEPT = 24
 RECORDS_KEPT_BYTES = 1 << 30
 _MAGIC = b"SCEVD1 "
