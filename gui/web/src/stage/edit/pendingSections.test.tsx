@@ -18,7 +18,7 @@ vi.mock("../../api", () => ({
   createComment: vi.fn(),
 }));
 
-const edit = pendingEditView({ id: "edit-1" });
+const edit = pendingEditView({ id: "edit-1", suggested_action: "cut" });
 
 function open(selection: NonNullable<Selection>) {
   useDawStore.getState().hydrate(

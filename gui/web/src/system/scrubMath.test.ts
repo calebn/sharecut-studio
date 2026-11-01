@@ -47,6 +47,13 @@ describe("scrubMath", () => {
     expect(formatScrub(12.345, 2)).toBe("12.35");
   });
 
+  it("parses m:ss.mmm for seconds only", () => {
+    expect(parseScrub("1:23.5", "s")).toBe(83.5);
+    expect(parseScrub("0:02.380 s", "s")).toBeCloseTo(2.38, 9);
+    expect(parseScrub("1:75", "s")).toBeNull();
+    expect(parseScrub("1:23", "dB")).toBeNull();
+  });
+
   it("parses typed text with a unit, a minus sign or a comma", () => {
     expect(parseScrub("120 ms", "ms")).toBe(120);
     expect(parseScrub("−3,5", "dB")).toBe(-3.5);

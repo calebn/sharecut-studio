@@ -27,7 +27,7 @@ export function usePendingSections(
     const edit = project?.pending_edits.find((e) => e.id === selection.id);
     return only(
       edit ? (
-        <PendingEditBody edit={edit} />
+        <PendingEditBody edit={edit} verbsOnBar />
       ) : (
         <p className="ui-field-hint">Edit not found</p>
       ),
@@ -40,5 +40,5 @@ export function usePendingSections(
   const linked = linkedId
     ? project?.pending_edits.find((e) => e.id === linkedId)
     : undefined;
-  return linked ? only(<PendingEditBody edit={linked} />) : null;
+  return linked ? only(<PendingEditBody edit={linked} verbsOnBar />) : null;
 }

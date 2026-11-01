@@ -40,6 +40,10 @@ export function parseScrub(text: string, unit?: string): number | null {
   let body = text.trim();
   if (unit && body.endsWith(unit)) body = body.slice(0, -unit.length).trim();
   if (/,\d{3}(\D|$)/.test(body)) return null;
+  if (unit === "s") {
+    const clock = /^(\d+):([0-5]?\d(?:\.\d+)?)$/.exec(body);
+    if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
+  }
   body = body.replace(MINUS, "-").replace(",", ".");
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(body)) return null;
   const parsed = Number(body);

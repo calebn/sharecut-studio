@@ -155,7 +155,7 @@ describe("pending timing queue settlement", () => {
         "Still sending.",
       );
       expect(start).toHaveAttribute("aria-readonly", "true");
-      expect(start).toHaveAttribute("aria-valuetext", "10.000 s");
+      expect(start).toHaveAttribute("aria-valuetext", "10.010000 s");
       mocks.loadHostCommandQueue.mockResolvedValue([]);
       mocks.loadHostConflicts.mockResolvedValue(
         rejected ? [{ command, reason: "stale" }] : [],
@@ -164,10 +164,13 @@ describe("pending timing queue settlement", () => {
         () => {
           expect(screen.queryByRole("status")).toBeNull();
           expect(start).not.toHaveAttribute("aria-readonly");
-          expect(start).toHaveAttribute("aria-valuetext", "10.000 s");
+          expect(start).toHaveAttribute(
+            "aria-valuetext",
+            rejected ? "10.010000 s" : "10.000000 s",
+          );
           expect(
             screen.getByRole("spinbutton", { name: "Source end" }),
-          ).toHaveAttribute("aria-valuetext", "12.000 s");
+          ).toHaveAttribute("aria-valuetext", "12.000000 s");
           expect(
             screen.getByRole("button", { name: "Use suggestion" }),
           ).toBeEnabled();
