@@ -48,4 +48,31 @@ describe("useWriteBack", () => {
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledExactlyOnceWith(2);
   });
+  it("reports a change that returns to the first value", () => {
+    const onChange = vi.fn();
+    const { rerender } = renderHook(
+      ({ value }) => useWriteBack(value, onChange),
+      { initialProps: { value: "a" } },
+    );
+    rerender({ value: "b" });
+    rerender({ value: "a" });
+    expect(onChange.mock.calls).toEqual([["b"], ["a"]]);
+  });
+
+  it("flushes the live value on unmount only when it differs from the last report", async () => {
+    const quiet = vi.fn();
+    const unchanged = renderHook(() => useWriteBack(1, quiet));
+    unchanged.unmount();
+    await Promise.resolve();
+    expect(quiet).not.toHaveBeenCalled();
+
+    const loud = vi.fn();
+    const pending = renderHook(({ latest }) => useWriteBack(1, loud, latest), {
+      initialProps: { latest: 1 },
+    });
+    pending.rerender({ latest: 5 });
+    pending.unmount();
+    await Promise.resolve();
+    expect(loud).toHaveBeenCalledExactlyOnceWith(5);
+  });
 });

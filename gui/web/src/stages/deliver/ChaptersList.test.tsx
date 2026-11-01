@@ -79,3 +79,25 @@ describe("ChaptersList title edit", () => {
     ).toBe(true);
   });
 });
+
+describe("ChaptersList external title change", () => {
+  it("shows a title changed from outside while the row stays mounted", () => {
+    const props = {
+      total: TOTAL,
+      onRetitle: vi.fn(),
+      onRetime: vi.fn(),
+      onPlayFrom: vi.fn(),
+      onRemove: vi.fn(),
+      onAdd: vi.fn(),
+    };
+    const { rerender } = render(
+      <ChaptersList chapters={CHAPTERS} {...props} />,
+    );
+    const renamed = CHAPTERS.map((c, i) =>
+      i === 0 ? { ...c, title: "Renamed elsewhere" } : c,
+    );
+    rerender(<ChaptersList chapters={renamed} {...props} />);
+    expect(first()).toHaveValue("Renamed elsewhere");
+    expect(props.onRetitle).not.toHaveBeenCalled();
+  });
+});
