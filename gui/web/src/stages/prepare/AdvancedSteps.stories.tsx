@@ -158,9 +158,11 @@ export const ScanForSounds: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByText("Off. Takes about 2½ minutes for 30 minutes of audio."),
+      canvas.getByText(
+        "Off. Can take about 2½ minutes for 30 minutes of audio when analysis is needed.",
+      ),
     ).toBeVisible();
-    const project = canvas.getByRole("switch", { name: "Scan for sounds" });
+    const project = canvas.getByRole("switch", { name: "Apply sound actions" });
     await userEvent.click(project);
     await expect(args.onToggle).toHaveBeenCalledWith("scan", true);
     const mine = canvas.getByRole("group", {

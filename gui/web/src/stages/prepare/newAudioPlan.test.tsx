@@ -36,6 +36,7 @@ const { config, STEPS, SAVED } = vi.hoisted(() => {
     config: {
       enabled: undefined as string[] | undefined,
       available: true,
+      reload: vi.fn(),
       loadError: null as string | null,
       tighten: true,
       sounds: true,
@@ -64,7 +65,7 @@ vi.mock("../../hooks/usePipelineWorkingSet", () => ({
       loadError: config.loadError,
       saveError: null,
       saving: false,
-      reload: vi.fn(),
+      reload: config.reload,
       update: vi.fn(async () => true),
       fetchFresh: vi.fn(async () => shown),
     };
@@ -416,6 +417,9 @@ describe("the saved steps in the new-audio plan", () => {
       "All 3 tracks · Compress, balance",
     );
     act(() => result.current.view.onRowAction("clean", "skip"));
+    expect(result.current.view.rows.find((r) => r.id === "clean")?.detail).toBe(
+      "Skipped this time. Compress, balance will not run.",
+    );
     act(() => result.current.view.onRowAction("clean", "include"));
     await act(async () => result.current.view.onHandoff());
     expect(start.mock.calls[0][1]?.enabledSteps).toEqual(config.enabled);
@@ -423,9 +427,13 @@ describe("the saved steps in the new-audio plan", () => {
 
   it("does not claim alignment when only its review gate is enabled", () => {
     config.enabled = SAVED.filter((id) => id !== "align_tracks");
-    const { view } = render().result.current;
-    expect(view.rows.find((r) => r.id === "align")?.detail).toBe(
+    const { result } = render();
+    expect(result.current.view.rows.find((r) => r.id === "align")?.detail).toBe(
       "All 3 tracks · Check alignment",
+    );
+    act(() => result.current.view.onRowAction("align", "skip"));
+    expect(result.current.view.rows.find((r) => r.id === "align")?.detail).toBe(
+      "Skipped this time. Check alignment will not run.",
     );
   });
 
@@ -438,9 +446,7 @@ describe("the saved steps in the new-audio plan", () => {
       "Off in Advanced",
     );
     expect(view.rows.find((r) => r.id === "scan")?.action).toBeUndefined();
-    expect(view.rows.find((r) => r.id === "scan")?.detail).not.toMatch(
-      /^Whole episode/,
-    );
+    expect(view.rows.some((r) => r.id === "scan")).toBe(false);
   });
 
   it.each([null, "Settings could not be loaded"])(
@@ -476,5 +482,58 @@ describe("the saved steps in the new-audio plan", () => {
     expect(start.mock.calls[0][1]?.enabledSteps).not.toContain(
       "analyze_fillers_pauses",
     );
+  });
+});
+
+describe("the plan's sound action and recovery controls", () => {
+  it("skips automatic sound actions while leaving included analysis enabled", async () => {
+    config.enabled = STEPS;
+    const { result } = render();
+    expect(result.current.view.rows.find((r) => r.id === "scan")?.title).toBe(
+      "Apply sound actions",
+    );
+    act(() => result.current.view.onRowAction("scan", "skip"));
+    expect(result.current.view.rows.find((r) => r.id === "scan")?.detail).toBe(
+      "Skipped this time. Sound actions are not applied automatically.",
+    );
+    await act(async () => result.current.view.onHandoff());
+    expect(start.mock.calls[0][1]?.skipSteps).toContain("apply_sound_actions");
+    expect(start.mock.calls[0][1]?.skipSteps).not.toContain(
+      "analyze_fillers_pauses",
+    );
+    expect(start.mock.calls[0][1]?.config).toMatchObject({
+      tighten: { enabled: true, apply_non_speech: true },
+    });
+  });
+
+  it("leaves a wholly disabled cleaning group off", async () => {
+    config.enabled = SAVED.filter(
+      (id) =>
+        ![
+          "fill_gate_holes",
+          "clean_audio",
+          "compress_tracks",
+          "balance_tracks",
+        ].includes(id),
+    );
+    const { result } = render();
+    expect(
+      result.current.view.rows.find((r) => r.id === "clean"),
+    ).toMatchObject({ detail: "Off in Advanced" });
+    expect(
+      result.current.view.rows.find((r) => r.id === "clean")?.action,
+    ).toBeUndefined();
+    await act(async () => result.current.view.onHandoff());
+    expect(start.mock.calls[0][1]?.enabledSteps).toEqual(config.enabled);
+  });
+
+  it("retries a failed settings load through Advanced", () => {
+    config.available = false;
+    config.loadError = "Settings could not be loaded";
+    const { result } = render();
+    act(() => result.current.view.onAdvanced());
+    expect(config.reload).toHaveBeenCalledOnce();
+    expect(result.current.advanced.open).toBe(true);
+    expect(start).not.toHaveBeenCalled();
   });
 });

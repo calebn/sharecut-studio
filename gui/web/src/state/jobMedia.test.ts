@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { jobMediaKey, recordJobMedia, runIncludesTranscribe } from "./jobMedia";
+import { recordJobMedia, runIncludesTranscribe } from "./jobMedia";
 
 const STEPS = [
   "ingest_tracks",

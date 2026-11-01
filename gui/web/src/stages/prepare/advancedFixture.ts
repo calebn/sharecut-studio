@@ -96,12 +96,13 @@ const FILLERS: AdvancedStep = {
 
 export const SCAN: AdvancedStep = {
   id: "scan",
-  name: "Scan for sounds",
-  result: "Off. Takes about 2½ minutes for 30 minutes of audio.",
+  name: "Apply sound actions",
+  result:
+    "Off. Can take about 2½ minutes for 30 minutes of audio when analysis is needed.",
   optional: true,
   enabled: false,
   params: [],
-  help: "Finds coughs, laughs, mic bumps and clicks so you can review them. New projects start with it off unless you change that below.",
+  help: "Applies suggested sound actions during processing. New projects start with it off unless you change that below.",
   personal: {
     label: "New projects start with this",
     on: false,

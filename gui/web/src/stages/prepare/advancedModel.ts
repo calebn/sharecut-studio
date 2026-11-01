@@ -159,7 +159,7 @@ const ADVANCED_DEFS: readonly GroupDef[] = [
     steps: [
       {
         id: SOUND_SCAN_STEP,
-        name: "Scan for sounds",
+        name: "Apply sound actions",
         optional: true,
         params: [],
       },
@@ -168,7 +168,7 @@ const ADVANCED_DEFS: readonly GroupDef[] = [
 ];
 
 const SOUND_SCAN_HELP =
-  "Finds coughs, laughs, mic bumps and clicks so you can review them. New projects start with it off unless you change that below.";
+  "Applies suggested sound actions during processing. New projects start with it off unless you change that below.";
 const SOUND_SCAN_START_NOTE =
   "Your own choice, saved on this computer. This project keeps the switch above.";
 
@@ -203,7 +203,7 @@ export function soundScanResult(
   ran: string | undefined,
 ): string {
   if (enabled && ran) return ran;
-  const cost = `Takes ${SOUND_SCAN_COST}.`;
+  const cost = `Can take ${SOUND_SCAN_COST} when analysis is needed.`;
   return enabled ? cost : `Off. ${cost}`;
 }
 
@@ -222,7 +222,8 @@ export function advancedGroups(
         result:
           step.id === SOUND_SCAN_STEP
             ? soundScanResult(
-                cfg.enabled_steps.includes(step.id),
+                cfg.enabled_steps.includes(step.id) &&
+                  getByPath(cfg.config, SOUND_SCAN_PATH) === true,
                 stepResult(job, step.id),
               )
             : stepResult(job, step.id),
@@ -237,7 +238,10 @@ export function advancedGroups(
             }
           : {}),
         optional: step.optional,
-        enabled: cfg.enabled_steps.includes(step.id),
+        enabled:
+          cfg.enabled_steps.includes(step.id) &&
+          (step.id !== SOUND_SCAN_STEP ||
+            getByPath(cfg.config, SOUND_SCAN_PATH) === true),
         params: step.params.map((param) => {
           const value = getByPath(cfg.config, param.path);
           const fallback = getByPath(cfg.defaults, param.path);

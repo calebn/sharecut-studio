@@ -36,6 +36,7 @@ import {
 import type { ReadyAction, ReadyRowId } from "./ReadyList";
 import {
   readSoundScanStart,
+  SOUND_SCAN_PATH,
   SOUND_SCAN_STEP,
   soundScanTime,
   writeSoundScanStart,
@@ -199,7 +200,7 @@ export function usePrepareModel(): PrepareModel {
     useDawStore
       .getState()
       .announceStatus(
-        "Could not apply your choice for Scan for sounds. It is on for this project; change it in Advanced.",
+        "Could not apply your choice for Apply sound actions. It is on for this project; change it in Advanced.",
         { tone: "error" },
       );
   }, [projectPath]);
@@ -217,13 +218,17 @@ export function usePrepareModel(): PrepareModel {
         newNames: newTracks.map((t) => nameOfTrack(t.id)),
         kept: sourcesNow.length - newTracks.length,
         skipped: skippedRows,
-        scan: cfg?.enabled_steps.includes(SOUND_SCAN_STEP)
-          ? {
-              time: soundScanTime(
-                sourcesNow.reduce((sum, t) => sum + (t.duration_sec ?? 0), 0),
-              ),
-            }
-          : null,
+        settings: cfg,
+        settingsError: workingSet.loadError,
+        scan:
+          cfg?.enabled_steps.includes(SOUND_SCAN_STEP) &&
+          getByPath(cfg.config, SOUND_SCAN_PATH) === true
+            ? {
+                time: soundScanTime(
+                  sourcesNow.reduce((sum, t) => sum + (t.duration_sec ?? 0), 0),
+                ),
+              }
+            : null,
       }
     : null;
   const rows = readyRows({
@@ -255,6 +260,7 @@ export function usePrepareModel(): PrepareModel {
     newAudio: planShown,
   });
   const processNewAudio = () => {
+    if (!cfg) return;
     const skipped = skippedRows;
     setSkippedRows(NO_ROWS);
     void run.run("run", false, undefined, skipped);
@@ -367,7 +373,15 @@ export function usePrepareModel(): PrepareModel {
     onRetranscribe: run.retranscribe,
     cleanup,
     onCleanup,
-    handoff: handoffProps(phase, target),
+    handoff:
+      planShown && !cfg
+        ? {
+            label: target.label,
+            disabledReason: workingSet.loadError
+              ? "Open Advanced to try loading saved steps again"
+              : "Loading saved steps",
+          }
+        : handoffProps(phase, target),
     addCount: ingestBusy && ingestFileCount > 0 ? ingestFileCount : undefined,
     dropActive: drop.active,
     dropCount: drop.count,
@@ -386,6 +400,7 @@ export function usePrepareModel(): PrepareModel {
     },
     onRecord: () => runPointerCommand("stage.record"),
     onAdvanced: () => {
+      if (!cfg && workingSet.loadError) workingSet.reload();
       setSelectedStep(undefined);
       setAdvancedOpen(true);
     },

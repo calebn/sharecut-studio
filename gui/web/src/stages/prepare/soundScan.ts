@@ -1,6 +1,6 @@
 import { readLocal, writeLocal } from "../../utils/storage";
 
-/** The pipeline step the "Scan for sounds" switch stands for. */
+/** The pipeline step the "Apply sound actions" switch stands for. */
 export const SOUND_SCAN_STEP = "apply_sound_actions";
 /** The setting that gates the step (it is a no-op without it). */
 export const SOUND_SCAN_PATH = "tighten.apply_non_speech";

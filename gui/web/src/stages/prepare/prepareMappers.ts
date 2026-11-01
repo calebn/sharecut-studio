@@ -39,22 +39,58 @@ const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
   scan: [],
 };
 
-/** What a Skip on a plan row leaves out of the one run. */
-const SKIP_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
-  add: [],
-  // The merge, reconcile, stem and timeline steps build the transcript and the
-  // audio every later stage reads, so Skip never leaves them out.
-  transcribe: ["transcribe_tracks"],
-  align: ["align_tracks", "require_align_accept"],
-  clean: [
-    "fill_gate_holes",
-    "clean_audio",
-    "compress_tracks",
-    "balance_tracks",
-  ],
-  scan: ["apply_sound_actions"],
-  suggest: ["analyze_fillers_pauses"],
+type PlanOperation = {
+  step: string;
+  label: string;
+  enabledPath?: string;
 };
+
+const PLAN_OPERATIONS: Readonly<Record<ReadyRowId, readonly PlanOperation[]>> =
+  {
+    add: [],
+    transcribe: [{ step: "transcribe_tracks", label: "Transcribe" }],
+    align: [
+      { step: "align_tracks", label: "Line up tracks" },
+      { step: "require_align_accept", label: "Check alignment" },
+    ],
+    clean: [
+      { step: "fill_gate_holes", label: "Fill gate holes" },
+      { step: "clean_audio", label: "Clean" },
+      { step: "compress_tracks", label: "Compress" },
+      { step: "balance_tracks", label: "Balance" },
+    ],
+    scan: [
+      {
+        step: "apply_sound_actions",
+        label: "Apply sound actions",
+        enabledPath: "tighten.apply_non_speech",
+      },
+    ],
+    suggest: [
+      {
+        step: "analyze_fillers_pauses",
+        label: "Find suggestions",
+        enabledPath: "tighten.enabled",
+      },
+    ],
+  };
+
+type PlanSettings = Pick<
+  PipelineConfigResponse,
+  "step_names" | "enabled_steps" | "config"
+>;
+
+function enabledPlanOperations(
+  settings: PlanSettings,
+  row: ReadyRowId,
+): readonly PlanOperation[] {
+  return PLAN_OPERATIONS[row].filter(
+    (operation) =>
+      settings.enabled_steps.includes(operation.step) &&
+      (!operation.enabledPath ||
+        getByPath(settings.config, operation.enabledPath) === true),
+  );
+}
 
 /**
  * The steps to pass as `skip_steps` for one run: what the saved settings leave
@@ -65,7 +101,11 @@ export function oneRunSkipSteps(
   cfg: Pick<PipelineConfigResponse, "step_names" | "enabled_steps">,
   skipped: ReadonlySet<ReadyRowId>,
 ): string[] {
-  const rowSteps = new Set([...skipped].flatMap((row) => [...SKIP_STEPS[row]]));
+  const rowSteps = new Set(
+    [...skipped].flatMap((row) =>
+      PLAN_OPERATIONS[row].map((operation) => operation.step),
+    ),
+  );
   return cfg.step_names.filter(
     (name) => !cfg.enabled_steps.includes(name) || rowSteps.has(name),
   );
@@ -84,7 +124,7 @@ const ROW_TITLE: Record<ReadyRowId, string> = {
   transcribe: "Transcribe",
   align: "Line up tracks",
   clean: "Clean and level",
-  scan: "Scan for sounds",
+  scan: "Apply sound actions",
   suggest: "Find suggestions",
 };
 
@@ -93,7 +133,7 @@ const ROW_ACTIVITY: Record<ReadyRowId, string> = {
   transcribe: "Transcribing",
   align: "Lining up tracks",
   clean: "Cleaning",
-  scan: "Scanning for sounds",
+  scan: "Applying sound actions",
   suggest: "Finding suggestions",
 };
 
@@ -313,7 +353,9 @@ export type RerunPlan = {
   kept: number;
   /** Rows the person skipped for this run only. */
   skipped: ReadonlySet<ReadyRowId>;
-  /** Present while the project's sound scan is on: the plan adds its row. */
+  settings: PlanSettings | null;
+  settingsError?: string | null;
+  /** Present while automatic sound actions are on. */
   scan?: { time: string } | null;
 };
 
@@ -328,6 +370,11 @@ function whoIsNew(names: readonly string[]): string {
 
 /** The line under the plan's title. */
 export function planNote(plan: RerunPlan): string {
+  if (!plan.settings) {
+    return plan.settingsError
+      ? "Could not load saved steps. Open Advanced to try again."
+      : "Loading saved steps…";
+  }
   const { newNames: names, kept } = plan;
   const first =
     names.length === 1
@@ -355,25 +402,46 @@ function planRows(plan: RerunPlan): ReadyRowData[] {
     transcribe: `Skipped this time. ${who} will have no transcript or suggestions.`,
     align: `Skipped this time. ${who} ${are} not lined up with the others.`,
     clean: `Skipped this time. ${who} ${are} not cleaned or levelled.`,
-    scan: "Skipped this time. Sounds are not scanned.",
-    suggest: "Skipped this time. No new suggestions.",
+    scan: "Skipped this time. Sound actions are not applied automatically.",
+    suggest: "Skipped this time. Filler and pause analysis is skipped.",
   };
-  const row = (id: ReadyRowId, detail: string): ReadyRowData =>
-    plan.skipped.has(id)
-      ? {
-          id,
-          state: "queued",
-          title: ROW_TITLE[id],
-          detail: consequence[id] ?? "Skipped this time",
-          action: { label: "Include", run: "include" },
-        }
-      : {
-          id,
-          state: "queued",
-          title: ROW_TITLE[id],
-          detail,
-          action: { label: "Skip", run: "skip" },
-        };
+  const row = (id: ReadyRowId, detail: string): ReadyRowData => {
+    const settings = plan.settings;
+    if (!settings) return { id, state: "queued", title: ROW_TITLE[id] };
+    const operations = enabledPlanOperations(settings, id);
+    if (operations.length === 0) {
+      return {
+        id,
+        state: "queued",
+        title: ROW_TITLE[id],
+        detail: "Off in Advanced",
+      };
+    }
+    const partial = operations.length < PLAN_OPERATIONS[id].length;
+    const selected = operations
+      .map((operation, index) =>
+        index === 0 ? operation.label : operation.label.toLowerCase(),
+      )
+      .join(", ");
+    if (plan.skipped.has(id)) {
+      return {
+        id,
+        state: "queued",
+        title: ROW_TITLE[id],
+        detail: partial
+          ? `Skipped this time. ${selected} will not run.`
+          : consequence[id],
+        action: { label: "Include", run: "include" },
+      };
+    }
+    return {
+      id,
+      state: "queued",
+      title: ROW_TITLE[id],
+      detail: partial ? `${everyone} · ${selected}` : detail,
+      action: { label: "Skip", run: "skip" },
+    };
+  };
   return [
     {
       id: "add",
