@@ -12,8 +12,12 @@ from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import AskedEdits, HeldEdit, PendingEditBaseline
 from podcast_mcp.models import CutIntent, EditMode
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import AnalysisService, EditService, TimelineService
-from podcast_mcp.services.segment_insert import insert_saved_segment
+from podcast_mcp.services.document import (
+    AnalysisService,
+    EditService,
+    TimelineService,
+    insert_saved_segment,
+)
 from podcast_mcp.util.coded_error import CodedValueError
 
 

@@ -71,10 +71,10 @@ Errors: `segment_bundle_invalid` (bad zip, names, sizes or manifest), `segment_b
 
 ## Insert
 
-`podcast segment insert PROJECT SEGMENT --at SEC` runs the `InsertSegment` document command (`segment_id`, `version?`, `at`), so the edit is journaled, synced and one undo step like every other timeline edit. It is host only: a share link never reaches the host's library. The code is `services/segment_insert.py` (audio copy and the command's service) and `edits/segment_insert.py` (the project edit).
+`podcast segment insert PROJECT SEGMENT --at SEC` runs the `InsertSegment` document command (`segment_id`, `version?`, `at`), so the edit is journaled, synced and one undo step like every other timeline edit. It is host only: a share link never reaches the host's library. The code is `services/document/segment_insert.py` (audio copy and the command's service) and `edits/segment_insert.py` (the project edit).
 
 1. The library version is read with its audio hashes checked (`segment_unknown`, `segment_hash_mismatch`). The newest version is used unless `--version` names one.
-2. The position must be on the timeline, from 0 to its end inclusive (`segment_position_out_of_range`). A project with no clips accepts 0.
+2. The position must be on the timeline, from 0 to its end inclusive (`segment_position_out_of_range`). A project with no clips accepts 0. A copy that cannot be made or read fails with `segment_write_failed`, audio shorter than the layout says (or a layout longer than a day) with `segment_media_invalid`.
 3. Each audio file is copied to a temporary file, its hash is checked on that copy, it is probed, and only then it is renamed to `raw/segment-<full sha256>.flac`. A file changed after the library read it is refused (`segment_hash_mismatch`) and nothing is left behind. A file already at the final name is never trusted, probed or reused: it is replaced by the verified copy. The same audio inserted twice shares one source (`seg_<sha256>`).
 4. In one undoable mutation the edit opens the segment's length at `at` with the ripple `insert_gap` and `paste_segment` use (every dialogue track, plus the tracks the segment lands on), moves chapters, review comments and pending edit decisions at or after the point (a comment the point falls inside grows to cover the segment), places the clips and rebuilds the combined transcript. A clip straddling the point is split, as an `insert_gap` does.
 5. Each clip carries `segment_ref` (`segment_id`, `version`, `content_sha256` of the version inserted). Nothing reads it yet; a later slice compares it with the library to show drift. A clip split or moved later keeps its `segment_ref`; a copy made by duplicate or paste does not.
@@ -105,5 +105,5 @@ Settled with slice 2, each with its reason.
 - **One role and one fader per segment.** Capture collapses a mixed selection to its first clip's track and Insert maps lanes by that role; a per-lane table is a schema 2 change when capture can write one.
 - **No sample rate or channel count in `segment.json`.** Insert probes the copied file anyway to build its source, so declaring them would only add a second truth.
 - **Trust is integrity only, with no signature.** Segments move between people as files the user chooses to import; a signature needs a key story that does not exist yet. Insert re-checks the hash on its own copy.
-- **`capture.py` moved to `services/segment_capture.py`.** It imports engines and the workspace service, and `services/` is where the new Insert code lives.
+- **`capture.py` moved to `services/document/segment_capture.py`.** It imports engines and the workspace service, and `services/` is where the new Insert code lives.
 - **Dedupe compares FLAC bytes and stays that way.** A different ffmpeg build making a new version is harmless, since each version has its own content hash and a `segment_ref` points at one version.
