@@ -1653,4 +1653,101 @@ describe("successful selected work", () => {
     expect(readySummary(rows)).toBe("Getting ready: selected work finished");
     expect(phaseFor(rows).phase).toBe("done");
   });
+
+  it.each(["error", "cancelled"])(
+    "does not infer skipped work from later steps after a selected run is %s",
+    (status) => {
+      const rows = rowsFor(
+        selected(
+          [
+            step("ingest_tracks", "ok"),
+            step("merge_transcript", "ok"),
+            step("reconcile_transcript", "ok"),
+            step("assemble_timeline", "ok"),
+          ],
+          {
+            status,
+            error: status === "error" ? "Selected processing stopped." : null,
+            skip_steps: [
+              "transcribe_tracks",
+              "align_tracks",
+              "require_align_accept",
+              "fill_gate_holes",
+              "clean_audio",
+              "compress_tracks",
+              "balance_tracks",
+              "analyze_fillers_pauses",
+              "apply_sound_actions",
+            ],
+          },
+        ),
+      );
+      for (const row of [rows[1]!, rows[2]!]) {
+        expect(row.state).toBe("queued");
+        expect(row.detail).toBe("Skipped this run");
+        expect(row.action).toBeUndefined();
+        expect(row.detail).not.toMatch(/Transcribed|Lined up|Word timing/);
+      }
+      expect(rows.some((row) => "runDisposition" in row)).toBe(false);
+      const stoppedRun = {
+        status: status as "error" | "cancelled",
+        error: status === "error" ? "Selected processing stopped." : null,
+      };
+      expect(phaseFor(rows, { stoppedRun })).toMatchObject({
+        phase: "failed",
+        failure: {
+          step: "Processing",
+          cause:
+            status === "error"
+              ? "Selected processing stopped."
+              : "The run was stopped.",
+        },
+      });
+      expect(readySummary(rows, false, stoppedRun)).toBe(
+        status === "error"
+          ? "Getting ready: processing failed"
+          : "Getting ready: processing stopped",
+      );
+      expect(phaseFor(rows, { stoppedRun, plan: true }).phase).toBe(
+        "new-audio",
+      );
+      expect(readySummary(rows, true, stoppedRun)).toBe(
+        "Getting ready: new audio waiting",
+      );
+    },
+  );
+
+  it.each(["error", "cancelled"])(
+    "keeps actual ASR and shared errors ahead of omission metadata after %s",
+    (status) => {
+      const rows = rowsFor(
+        selected(
+          [
+            step("transcribe_tracks", "ok"),
+            step("reconcile_transcript", "error", {
+              error: "Shared reconciliation failed.",
+            }),
+          ],
+          {
+            status,
+            skip_steps: [
+              "transcribe_tracks",
+              "align_tracks",
+              "require_align_accept",
+            ],
+          },
+        ),
+        { approximateTiming: null },
+      );
+      expect(rows[1]).toMatchObject({ state: "done", detail: "3 speakers" });
+      expect(rows[2]).toMatchObject({
+        state: "failed",
+        detail: "Shared reconciliation failed.",
+      });
+      expect(phaseFor(rows)).toMatchObject({
+        phase: "failed",
+        failure: { cause: "Shared reconciliation failed." },
+      });
+    },
+  );
 });
