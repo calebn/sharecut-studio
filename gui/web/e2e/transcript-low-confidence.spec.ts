@@ -59,6 +59,10 @@ test.describe("Script unsure-word jump (#634)", () => {
     ];
 
     for (const [key, word] of stops) {
+      // The floating Action bar hangs over the first lines of the Script and
+      // can sit on this header button, so clear the selection before the jump.
+      await page.keyboard.press("Escape");
+      await expect(selected).toHaveCount(0);
       await next.click();
       await expect(selected).toHaveCount(1);
       await expect(selected).toHaveAttribute("data-word-key", key);
