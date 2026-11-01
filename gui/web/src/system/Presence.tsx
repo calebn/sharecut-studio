@@ -60,11 +60,19 @@ export const Presence = memo(function Presence({
   pxPerSecond,
   width,
 }: PresenceProps) {
+  const last = rows.at(-1);
   return (
     <div
       className="sys-presence"
       aria-hidden="true"
-      style={{ "--sys-presence-flag": px(FLAG_PX) } as CSSProperties}
+      style={
+        {
+          "--sys-presence-flag": px(FLAG_PX),
+          ...(last === undefined
+            ? {}
+            : { "--sys-presence-end": px(last.top + last.height) }),
+        } as CSSProperties
+      }
     >
       {selections.map((selection) => {
         const row = rows.find((item) => item.id === selection.laneId);
@@ -116,7 +124,7 @@ export const Presence = memo(function Presence({
             <span
               className={`sys-presence-flag sys-presence-flag--${flagSide(x, width)}`}
             >
-              {initials(person.name).slice(0, 1)}
+              {Array.from(initials(person.name))[0]}
             </span>
           </div>
         );

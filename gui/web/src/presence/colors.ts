@@ -13,7 +13,9 @@ export function initials(name: string): string {
   if (parts.length === 0) {
     return "?";
   }
-  const letters = parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "");
+  const letters = parts
+    .slice(0, 2)
+    .map((p) => Array.from(p)[0]?.toUpperCase() ?? "");
   return letters.join("") || "?";
 }
 
