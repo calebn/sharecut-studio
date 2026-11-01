@@ -5,7 +5,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useSyncExternalStore,
+  useState,
 } from "react";
 import {
   FixTextField,
@@ -45,25 +45,14 @@ type Pinned = {
 /**
  * The field open on the last Script and what was typed in it, so a shell change
  * that remounts the Script (a rotation to another layout) keeps both, as the
- * old panel's store-held state did. It is read through useSyncExternalStore;
- * only the pin notifies, the draft is read when a field mounts.
+ * old panel's store-held state did. A Script takes it once, when it mounts.
  */
 let held: { projectPath: string; pin: Pinned; draft: string | null } | null =
   null;
-const heldListeners = new Set<() => void>();
-const subscribeHeld = (listener: () => void) => {
-  heldListeners.add(listener);
-  return () => void heldListeners.delete(listener);
-};
-const readHeld = () => held;
-function setHeld(next: typeof held): void {
-  held = next;
-  for (const listener of heldListeners) listener();
-}
 
 /** Drop the held field; for tests that start from a clean Script. */
 export function forgetHeldFixText(): void {
-  setHeld(null);
+  held = null;
 }
 
 const addressable = (
@@ -89,27 +78,27 @@ export function useScriptFixText(
   say: (message: string) => void,
   onTab: () => number | undefined,
 ): ScriptFixTextProps {
-  const projectPath = useDawStore((st) => st.projectPath);
-  const keep = useSyncExternalStore(subscribeHeld, readHeld);
-  const pinned = keep?.projectPath === projectPath ? keep.pin : null;
-  const setPinned = (pin: Pinned | null) =>
-    setHeld(
-      pin
-        ? {
-            projectPath: useDawStore.getState().projectPath,
-            pin,
-            draft: null,
-          }
-        : null,
-    );
+  const [taken] = useState(() =>
+    held?.projectPath === useDawStore.getState().projectPath ? held : null,
+  );
+  const [pinned, setPinnedState] = useState<Pinned | null>(
+    () => taken?.pin ?? null,
+  );
+  const setPinned = (pin: Pinned | null) => {
+    held = pin
+      ? {
+          projectPath: useDawStore.getState().projectPath,
+          pin,
+          draft: null,
+        }
+      : null;
+    setPinnedState(pin);
+  };
   // A field opened before the right was lost must not come back with it. A
   // Script that mounts before its words settle keeps the field it was handed.
   const wasEnabled = useRef(enabled);
   if (enabled) wasEnabled.current = true;
-  const lost = !enabled && wasEnabled.current && pinned !== null;
-  useEffect(() => {
-    if (lost) setPinned(null);
-  }, [lost]);
+  if (!enabled && wasEnabled.current && pinned !== null) setPinned(null);
   const enabledNow = useRef(enabled);
   enabledNow.current = enabled;
   const focusAfter = useRef<{ index: number; tries: number } | null>(null);
@@ -241,7 +230,9 @@ export function useScriptFixText(
     return (
       <FixTextField
         value={value}
-        initialDraft={keep?.pin === pin ? (keep.draft ?? undefined) : undefined}
+        initialDraft={
+          taken?.pin === pin ? (taken.draft ?? undefined) : undefined
+        }
         onDraftChange={(draft) => {
           if (held && held.pin === pin) held.draft = draft;
         }}
