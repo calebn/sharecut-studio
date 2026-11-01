@@ -14,9 +14,16 @@ import { StatusGlyph } from "../../system/StatusGlyph";
 import type { StatusRowState } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
 import { useFocusRescue } from "../../system/useFocusRescue";
-import { Button, SegmentedControl, ToggleButton } from "../../ui";
+import {
+  Button,
+  Menu,
+  MenuItem,
+  SegmentedControl,
+  ToggleButton,
+} from "../../ui";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { type PreparePhase, useAnnouncement } from "./prepareAnnouncement";
+import { isWorking, STILL_GETTING_READY } from "./prepareMappers";
 import type { PrepareSession, SourceActions } from "./prepareTypes";
 import {
   type ReadyAction,
@@ -64,6 +71,10 @@ export type PrepareViewProps = {
   vocabulary?: ReactNode;
   cleanup: CleanupSettings;
   onCleanup: (next: CleanupSettings) => void;
+  /** One line under the title: what the plan keeps, or what the last run reused. */
+  readyNote?: string;
+  /** "Run everything again", behind the ⋯ next to Advanced. Left out where it is not offered. */
+  onRunAll?: () => void;
   /** The one hand-off. `disabledReason` while the work is not done. */
   handoff: { label: string; disabledReason?: string };
   /** Files being added, for the live region. */
@@ -140,6 +151,8 @@ export function PrepareView({
   sessions,
   rows,
   readySummary,
+  readyNote,
+  onRunAll,
   terms,
   onTermsChange,
   needsRetranscribe,
@@ -167,6 +180,7 @@ export function PrepareView({
   const attention = rows
     .filter((row) => row.state === "failed" || row.state === "needs-you")
     .map((row) => row.id);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [readyOpen, setReadyOpen] = useState(attention.length > 0);
   const [seen, setSeen] = useState(attention);
   if (attention.join() !== seen.join()) {
@@ -272,11 +286,39 @@ export function PrepareView({
     [...counts].filter(([, count]) => count > 1).map(([key]) => key),
   );
   const advanced = (
-    <Button onClick={onAdvanced}>
-      <SystemIcon name="settings" size={14} />
-      Advanced
-    </Button>
+    <div className="sys-prepare-tools">
+      <Button onClick={onAdvanced}>
+        <SystemIcon name="settings" size={14} />
+        Advanced
+      </Button>
+      {onRunAll ? (
+        <Menu
+          open={moreOpen}
+          onOpenChange={setMoreOpen}
+          label="More ways to run"
+          className="ui-menu-root sys-menu"
+          trigger={(props) => (
+            <Button {...props} aria-label="More ways to run">
+              <SystemIcon name="ellipsis" size={16} />
+            </Button>
+          )}
+        >
+          <MenuItem
+            disabledReason={isWorking(phase) ? STILL_GETTING_READY : undefined}
+            onSelect={() => {
+              setMoreOpen(false);
+              onRunAll();
+            }}
+          >
+            Run everything again
+          </MenuItem>
+        </Menu>
+      ) : null}
+    </div>
   );
+  const note = readyNote ? (
+    <p className="sys-prepare-note">{readyNote}</p>
+  ) : null;
   const ready = compact ? (
     <section className="sys-prepare-ready" aria-labelledby={ids.ready}>
       <h2 id={ids.ready} className="sys-prepare-title">
@@ -300,6 +342,7 @@ export function PrepareView({
         data-open={readyOpen}
       >
         <div className="sys-prepare-head">{advanced}</div>
+        {note}
         <ReadyList rows={rows} onAction={onRowAction} />
       </div>
     </section>
@@ -311,6 +354,7 @@ export function PrepareView({
         </h2>
         {advanced}
       </div>
+      {note}
       <ReadyList rows={rows} onAction={onRowAction} />
     </section>
   );
@@ -410,9 +454,13 @@ export function PrepareView({
         </section>
         <div className="sys-prepare-handoff">
           <StageHandoff
-            stage="review"
+            stage={phase === "new-audio" ? "prepare" : "review"}
             label={handoff.label}
-            variant={phase === "done" ? "primary" : "secondary"}
+            variant={
+              phase === "done" || phase === "new-audio"
+                ? "primary"
+                : "secondary"
+            }
             size={40}
             keyHint={false}
             disabledReason={handoff.disabledReason}

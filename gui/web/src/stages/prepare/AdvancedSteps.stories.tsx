@@ -25,6 +25,7 @@ const meta: Meta<typeof AdvancedSteps> = {
     onReset: fn(),
     onRunFromHere: fn(),
     onCancel: fn(),
+    onPersonal: fn(),
   },
   decorators: [
     (Story) => (
@@ -148,7 +149,42 @@ export const Phone: Story = {
   render: live(),
   globals: phone,
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getAllByRole("switch")).toHaveLength(2);
+    await expect(within(canvasElement).getAllByRole("switch")).toHaveLength(3);
+  },
+};
+
+export const ScanForSounds: Story = {
+  render: live("scan"),
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Off. Takes about 2½ minutes for 30 minutes of audio."),
+    ).toBeVisible();
+    const project = canvas.getByRole("switch", { name: "Scan for sounds" });
+    await userEvent.click(project);
+    await expect(args.onToggle).toHaveBeenCalledWith("scan", true);
+    const mine = canvas.getByRole("group", {
+      name: "New projects start with this",
+    });
+    await expect(
+      within(mine).getByRole("button", { name: "Off" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(within(mine).getByRole("button", { name: "On" }));
+    await expect(args.onPersonal).toHaveBeenCalledWith("scan", true);
+    // The person's choice never moves the project's switch.
+    await expect(args.onToggle).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const PhoneScanForSounds: Story = {
+  render: live("scan"),
+  globals: phone,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("group", {
+        name: "New projects start with this",
+      }),
+    ).toBeVisible();
   },
 };
 

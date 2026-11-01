@@ -94,12 +94,28 @@ const FILLERS: AdvancedStep = {
   ],
 };
 
+export const SCAN: AdvancedStep = {
+  id: "scan",
+  name: "Scan for sounds",
+  result: "Off. Takes about 2½ minutes for 30 minutes of audio.",
+  optional: true,
+  enabled: false,
+  params: [],
+  help: "Finds coughs, laughs, mic bumps and clicks so you can review them. New projects start with it off unless you change that below.",
+  personal: {
+    label: "New projects start with this",
+    on: false,
+    note: "Your own choice, saved on this computer. This project keeps the switch above.",
+  },
+};
+
 /** Only the steps the spec maps to the Getting ready rows. */
 export const GROUPS: readonly AdvancedGroup[] = [
   { id: "transcribe", title: "Transcribe", steps: [TRANSCRIBE] },
   { id: "line-up", title: "Line up tracks", steps: [ALIGN] },
   { id: "clean", title: "Clean and level", steps: [FILL_GAPS] },
   { id: "suggest", title: "Find suggestions", steps: [FILLERS] },
+  { id: "sounds", title: "Listen for sounds", steps: [SCAN] },
 ];
 
 export const RUNNING = {

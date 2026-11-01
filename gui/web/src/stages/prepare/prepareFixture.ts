@@ -25,6 +25,12 @@ export const NAMED_TAKES: readonly PrepareSource[] = [
   take("joss", "Joss", "joss.wav", "6:02 of audio"),
 ];
 
+/** Maya, Anneke and Joss already ran; Priya's file was added after. */
+export const TAKES_WITH_NEW: readonly PrepareSource[] = [
+  ...NAMED_TAKES,
+  take("priya", "Priya", "priya.wav", "14:11 of audio", "new"),
+];
+
 export const UNNAMED_TAKES: readonly PrepareSource[] = [
   take("t1", "", "track-1.wav", "14:20 of audio", "needs-name"),
   take("t2", "", "track-2.wav", "13:58 of audio", "needs-name"),
@@ -90,6 +96,18 @@ const QUEUED = (
 const ALIGN: ReadyRowData = QUEUED("align", "Line up tracks");
 const CLEAN: ReadyRowData = QUEUED("clean", "Clean and level");
 const SUGGEST: ReadyRowData = QUEUED("suggest", "Find suggestions");
+
+const planRow = (
+  id: ReadyRowData["id"],
+  title: string,
+  detail: string,
+): ReadyRowData => ({
+  id,
+  state: "queued",
+  title,
+  detail,
+  action: { label: "Skip", run: "skip" },
+});
 
 export const ROWS = {
   queued: [
@@ -220,6 +238,66 @@ export const ROWS = {
       state: "done",
       title: "Find suggestions",
       detail: "14 suggestions",
+    },
+  ],
+  /** The plan for audio added after a run: nothing has started. */
+  plan: [
+    {
+      id: "add",
+      state: "done",
+      title: "Add audio",
+      detail: "Priya added, 4 files",
+    },
+    planRow("transcribe", "Transcribe", "Priya only · 3 kept"),
+    planRow("align", "Line up tracks", "All 4 tracks, Priya joins"),
+    planRow("clean", "Clean and level", "Priya only · 3 kept"),
+    planRow("suggest", "Find suggestions", "Whole episode"),
+  ],
+  /** The same plan with Line up tracks skipped for this run. */
+  planSkipped: [
+    {
+      id: "add",
+      state: "done",
+      title: "Add audio",
+      detail: "Priya added, 4 files",
+    },
+    planRow("transcribe", "Transcribe", "Priya only · 3 kept"),
+    {
+      id: "align",
+      state: "queued",
+      title: "Line up tracks",
+      detail: "Skipped this time",
+      action: { label: "Include", run: "include" },
+    },
+    planRow("clean", "Clean and level", "Priya only · 3 kept"),
+    planRow("suggest", "Find suggestions", "Whole episode"),
+  ],
+  /** After a run that reused earlier results. */
+  reused: [
+    { id: "add", state: "done", title: "Add audio", detail: "4 files" },
+    {
+      id: "transcribe",
+      state: "done",
+      title: "Transcribe",
+      detail: "1 new · 3 reused",
+    },
+    {
+      id: "align",
+      state: "done",
+      title: "Line up tracks",
+      detail: "No moves needed",
+    },
+    {
+      id: "clean",
+      state: "done",
+      title: "Clean and level",
+      detail: "1 new · 3 reused",
+    },
+    {
+      id: "suggest",
+      state: "done",
+      title: "Find suggestions",
+      detail: "16 suggestions",
     },
   ],
   approximateTiming: [

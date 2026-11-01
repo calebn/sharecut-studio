@@ -83,6 +83,21 @@ export const Ready: Story = {
   render: (args) => <Live {...args} />,
 };
 
+export const New: Story = {
+  args: { state: "new", name: "Priya", audioTime: "14:11 of audio" },
+  render: (args) => <Live {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("New")).toBeVisible();
+    await expect(
+      canvas.getByText("14:11 of audio · not processed yet"),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Hear Priya" }),
+    ).toBeVisible();
+  },
+};
+
 export const Playing: Story = {
   args: { state: "ready", name: "Maya", playing: true },
   render: (args) => <Live {...args} />,

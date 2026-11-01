@@ -10,6 +10,7 @@ type SourceCardState =
   | "uploading"
   | "probing"
   | "ready"
+  | "new"
   | "needs-name"
   | "failed"
   | "split-prompt"
@@ -65,6 +66,7 @@ export type SourceCardProps = {
 function hasAudio(state: SourceCardState): boolean {
   return (
     state === "ready" ||
+    state === "new" ||
     state === "needs-name" ||
     state === "split-prompt" ||
     state === "splitting"
@@ -180,6 +182,16 @@ export function SourceCard({
           state="done"
           title="Ready"
           detail={audioTime}
+        />
+      ) : null}
+      {state === "new" ? (
+        <StatusRow
+          density="inline"
+          state="queued"
+          title="New"
+          detail={
+            audioTime ? `${audioTime} · not processed yet` : "Not processed yet"
+          }
         />
       ) : null}
       {state === "needs-name" ? (

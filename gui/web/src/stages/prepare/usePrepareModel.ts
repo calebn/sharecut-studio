@@ -19,16 +19,26 @@ import {
 import type { PrepareViewProps } from "./PrepareView";
 import {
   handoffProps,
+  hasMedia,
+  planNote,
   prepareHandoff,
   preparePhase,
   prepareSessions,
+  type RerunPlan,
   readyRows,
   readySummary,
+  reuseNote,
   sourceTracks,
   trackLabel,
   transcriptIndex,
 } from "./prepareMappers";
 import type { ReadyAction, ReadyRowId } from "./ReadyList";
+import {
+  readSoundScanStart,
+  SOUND_SCAN_STEP,
+  soundScanTime,
+  writeSoundScanStart,
+} from "./soundScan";
 import { useCleanup } from "./useCleanup";
 import { useJobCoverage } from "./useJobCoverage";
 import { usePrepareDrop } from "./usePrepareDrop";
@@ -66,6 +76,8 @@ function usePrepareFocus(trackId: string | null, ready: boolean): void {
     [],
   );
 }
+
+const NO_ROWS: ReadonlySet<ReadyRowId> = new Set();
 
 export function usePrepareModel(): PrepareModel {
   const {
@@ -116,6 +128,7 @@ export function usePrepareModel(): PrepareModel {
     projectPath,
     workingSet,
     untranscribed: untranscribed.length,
+    transcribed: sourcesNow.length - untranscribed.length,
     mediaKey,
     ingestBusy,
     canRun: canIngest,
@@ -137,6 +150,28 @@ export function usePrepareModel(): PrepareModel {
   );
   const drop = usePrepareDrop(canIngest);
 
+  // Audio added after a finished run: the rows show the plan and nothing
+  // starts until Process new audio. Skips on its rows are for that one run.
+  const [skippedRows, setSkippedRows] =
+    useState<ReadonlySet<ReadyRowId>>(NO_ROWS);
+  const [soundScanStart, setSoundScanStart] = useState(readSoundScanStart);
+  const newTracks = untranscribed.filter(hasMedia);
+  const planWaits =
+    canIngest &&
+    !ingestBusy &&
+    newTracks.length > 0 &&
+    sourcesNow.length > newTracks.length &&
+    !jobCoversMedia;
+  const planShown =
+    planWaits &&
+    !running &&
+    !run.starting &&
+    !run.waiting &&
+    !run.model &&
+    !run.keepFixes &&
+    !run.startError;
+  if (!planWaits && skippedRows.size > 0) setSkippedRows(NO_ROWS);
+
   const tracks = (allTracks ?? []).map((track) =>
     sourceState.names[track.id] === undefined
       ? track
@@ -154,12 +189,32 @@ export function usePrepareModel(): PrepareModel {
     splitFailed: sourceState.splitFailed,
     job,
     focusTrackId,
+    newTrackIds: planShown ? new Set(newTracks.map((t) => t.id)) : undefined,
   });
   usePrepareFocus(focusTrackId, sessions.length > 0);
   const sourceCount = sessions.reduce(
     (sum, one) => sum + one.sources.length,
     0,
   );
+  const cfg = workingSet.cfg;
+  const nameOfTrack = (id: string) => {
+    const track = tracks.find((t) => t.id === id);
+    return track ? track.speaker?.trim() || trackLabel(track) : id;
+  };
+  const plan: RerunPlan | null = planShown
+    ? {
+        newNames: newTracks.map((t) => nameOfTrack(t.id)),
+        kept: sourcesNow.length - newTracks.length,
+        skipped: skippedRows,
+        scan: cfg?.enabled_steps.includes(SOUND_SCAN_STEP)
+          ? {
+              time: soundScanTime(
+                Math.max(0, ...sourcesNow.map((t) => t.duration_sec ?? 0)),
+              ),
+            }
+          : null,
+      }
+    : null;
   const rows = readyRows({
     sourceCount,
     ingestBusy,
@@ -173,6 +228,7 @@ export function usePrepareModel(): PrepareModel {
     model: run.model,
     approximateTiming: run.approximateTiming,
     keepFixes: run.keepFixes,
+    plan,
   });
   const { phase, failure } = preparePhase({
     sources: sourceCount,
@@ -180,14 +236,30 @@ export function usePrepareModel(): PrepareModel {
     checking: run.starting && job === null,
     model: run.model,
     waiting: run.waiting,
+    plan: planShown,
     rows,
   });
   const target = prepareHandoff({
     pendingReviewCount: project?.edit_impact.pending_review_count ?? 0,
+    newAudio: planShown,
   });
+  const processNewAudio = () => {
+    const skipped = skippedRows;
+    setSkippedRows(NO_ROWS);
+    void run.run("run", false, undefined, skipped);
+  };
 
-  const onRowAction = (_row: ReadyRowId, action: ReadyAction) => {
+  const onRowAction = (row: ReadyRowId, action: ReadyAction) => {
     switch (action) {
+      case "skip":
+      case "include":
+        setSkippedRows((current) => {
+          const next = new Set(current);
+          if (action === "skip") next.add(row);
+          else next.delete(row);
+          return next;
+        });
+        break;
       case "download-model":
         run.getModel();
         break;
@@ -210,7 +282,6 @@ export function usePrepareModel(): PrepareModel {
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectedStep, setSelectedStep] = useState<string | undefined>();
-  const cfg = workingSet.cfg;
   const busyRow = rows.find((row) => row.state === "running");
   const failed = (error: unknown) =>
     useDawStore
@@ -219,7 +290,7 @@ export function usePrepareModel(): PrepareModel {
         tone: "error",
       });
   const advancedProps: AdvancedStepsProps = {
-    groups: cfg ? advancedGroups(cfg, job) : [],
+    groups: cfg ? advancedGroups(cfg, job, { soundScanStart }) : [],
     selectedId: selectedStep,
     running: running
       ? { title: busyRow?.title ?? "Getting ready", detail: busyRow?.detail }
@@ -238,6 +309,11 @@ export function usePrepareModel(): PrepareModel {
           config: withParam(current.config, path, value),
         }))
         .catch(failed);
+    },
+    onPersonal: (stepId, on) => {
+      if (stepId !== SOUND_SCAN_STEP) return;
+      writeSoundScanStart(on);
+      setSoundScanStart(on);
     },
     onReset: (stepId, paramId) => {
       const path = paramPath(stepId, paramId);
@@ -264,7 +340,16 @@ export function usePrepareModel(): PrepareModel {
     phase,
     sessions,
     rows,
-    readySummary: readySummary(rows),
+    readySummary: readySummary(rows, planShown),
+    readyNote: plan
+      ? planNote(plan)
+      : job && !running && jobCoversMedia
+        ? reuseNote(job)
+        : undefined,
+    onRunAll:
+      canIngest && sourcesNow.length > untranscribed.length
+        ? run.retranscribe
+        : undefined,
     terms: vocabulary.terms,
     onTermsChange: vocabulary.onTermsChange,
     needsRetranscribe: vocabulary.needsRetranscribe,
@@ -294,7 +379,10 @@ export function usePrepareModel(): PrepareModel {
       setAdvancedOpen(true);
     },
     onRowAction,
-    onHandoff: () => openStage(target.target),
+    onHandoff: () =>
+      target.target === "process"
+        ? processNewAudio()
+        : openStage(target.target),
   };
   return {
     view,

@@ -4,6 +4,7 @@ import type {
 } from "../../types/pipeline";
 import { getByPath, setByPath } from "../../utils/configPath";
 import type { AdvancedGroup, AdvancedStep } from "./AdvancedSteps";
+import { SOUND_SCAN_COST, SOUND_SCAN_PATH, SOUND_SCAN_STEP } from "./soundScan";
 
 /**
  * The four pipeline steps that have a row in the Prepare design, with the one
@@ -152,7 +153,24 @@ const ADVANCED_DEFS: readonly GroupDef[] = [
       },
     ],
   },
+  {
+    id: "sounds",
+    title: "Listen for sounds",
+    steps: [
+      {
+        id: SOUND_SCAN_STEP,
+        name: "Scan for sounds",
+        optional: true,
+        params: [],
+      },
+    ],
+  },
 ];
+
+const SOUND_SCAN_HELP =
+  "Finds coughs, laughs, mic bumps and clicks so you can review them. New projects start with it off unless you change that below.";
+const SOUND_SCAN_START_NOTE =
+  "Your own choice, saved on this computer. This project keeps the switch above.";
 
 export function paramPath(stepId: string, paramId: string): string | null {
   for (const group of ADVANCED_DEFS) {
@@ -176,9 +194,20 @@ function stepResult(
   return done?.summary ?? undefined;
 }
 
+/** Settings that belong to the person, read where they are saved. */
+export type AdvancedPersonal = { soundScanStart: boolean };
+
+/** The scan names its cost where the person decides: "Off. Takes about ...". */
+function soundScanResult(enabled: boolean, ran: string | undefined): string {
+  if (enabled && ran) return ran;
+  const cost = `Takes ${SOUND_SCAN_COST}.`;
+  return enabled ? cost : `Off. ${cost}`;
+}
+
 export function advancedGroups(
   cfg: PipelineConfigResponse,
   job: PipelineJobSnapshot | null,
+  personal: AdvancedPersonal = { soundScanStart: false },
 ): AdvancedGroup[] {
   return ADVANCED_DEFS.map((group) => ({
     id: group.id,
@@ -187,7 +216,23 @@ export function advancedGroups(
       (step): AdvancedStep => ({
         id: step.id,
         name: step.name,
-        result: stepResult(job, step.id),
+        result:
+          step.id === SOUND_SCAN_STEP
+            ? soundScanResult(
+                cfg.enabled_steps.includes(step.id),
+                stepResult(job, step.id),
+              )
+            : stepResult(job, step.id),
+        ...(step.id === SOUND_SCAN_STEP
+          ? {
+              help: SOUND_SCAN_HELP,
+              personal: {
+                label: "New projects start with this",
+                on: personal.soundScanStart,
+                note: SOUND_SCAN_START_NOTE,
+              },
+            }
+          : {}),
         optional: step.optional,
         enabled: cfg.enabled_steps.includes(step.id),
         params: step.params.map((param) => {
@@ -249,6 +294,10 @@ export function withStepSwitch(
   const patch: { enabled_steps: string[]; config?: Record<string, unknown> } = {
     enabled_steps: [...set],
   };
+  if (stepId === SOUND_SCAN_STEP) {
+    // The step is a no-op without its setting, so the two move together.
+    patch.config = setByPath(current.config, SOUND_SCAN_PATH, enabled);
+  }
   if (TIGHTEN_STEPS.has(stepId)) {
     patch.config = setByPath(
       current.config,

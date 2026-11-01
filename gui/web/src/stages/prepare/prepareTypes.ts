@@ -29,7 +29,8 @@ export type PrepareSession = {
   target: PrepareTarget;
   /** The first take has landed, so the place is set. */
   targetLocked?: boolean;
-  status: "idle" | "running" | "done" | "failed";
+  /** `new`: a finished project has audio that has not been processed yet. */
+  status: "idle" | "new" | "running" | "done" | "failed";
   progress?: number;
   sources: readonly PrepareSource[];
 };

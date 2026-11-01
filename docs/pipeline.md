@@ -200,6 +200,8 @@ Each step returns a short human-readable **summary** (counts of tracks, cuts, su
 
 ## Configurable run (GUI / MCP)
 
+Studio's Prepare stage sends a run-only `skip_steps` when the person skips plan rows for new audio (#2908): the steps the saved `enabled_steps` leave off plus the skipped rows' steps. An explicit `skip_steps` wins over `enabled_steps` on the server, and the working set is not changed. A job snapshot's `steps[]` entry may carry `reuse: { reused, recomputed }` (results taken from the cache and results made new); Prepare turns it into "1 new · 3 reused" on a row and one summary line. No step reports it yet: the engine must add it to `StepTiming.snapshot()` for the transcript, clean and any other cached step before those lines appear.
+
 The settings the GUI and `podcast pipeline config` expose are `PARAM_FIELDS` in
 `pipeline/meta.py`. Each one's type and default are read from the bundled
 `.agents/defaults/pipeline.yaml`, so they cannot drift from it; the label, description, bounds,

@@ -12,6 +12,7 @@ export type PreparePhase =
   | "needs-model"
   | "waiting"
   | "not-started"
+  | "new-audio"
   | "model-failed"
   | "keep-fixes"
   | "done"
@@ -68,6 +69,8 @@ export function prepareAnnouncement({
       return "Transcribing starts when the other job finishes.";
     case "not-started":
       return "Transcribing has not started. Run it when you are ready.";
+    case "new-audio":
+      return "New audio is waiting. Process new audio when you are ready.";
     case "done":
       return `Done. ${handoffLabel}.`;
     case "failed":

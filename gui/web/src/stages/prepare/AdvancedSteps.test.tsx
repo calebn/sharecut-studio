@@ -32,6 +32,75 @@ function Host({
 }
 
 describe("AdvancedSteps", () => {
+  it("says at the top that switches are saved with the project, and points to Skip", () => {
+    render(<Host />);
+    expect(
+      screen.getByText(
+        "Switches here are saved with this project and used by every run. To change one run only, use Skip in the plan.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("lists Scan for sounds under Listen for sounds, off, with a switch", () => {
+    render(<Host />);
+    const group = screen.getByRole("region", { name: "Listen for sounds" });
+    expect(within(group).getByText("Scan for sounds")).toBeVisible();
+    expect(within(group).getByText("Off")).toBeVisible();
+    expect(
+      within(group).getByRole("switch", { name: "Scan for sounds" }),
+    ).not.toBeChecked();
+  });
+
+  it("turns the scan on from its switch", async () => {
+    const user = userEvent.setup();
+    const onToggle = vi.fn();
+    render(<Host spy={{ onToggle }} />);
+    await user.click(screen.getByRole("switch", { name: "Scan for sounds" }));
+    expect(onToggle).toHaveBeenCalledWith("scan", true);
+  });
+
+  it("shows the scan's cost and help, and the person's own start choice", async () => {
+    const user = userEvent.setup();
+    render(<Host selected="scan" />);
+    expect(
+      screen.getByText("Off. Takes about 2½ minutes for 30 minutes of audio."),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/coughs, laughs, mic bumps and clicks/),
+    ).toBeVisible();
+    const group = screen.getByRole("group", {
+      name: "New projects start with this",
+    });
+    expect(
+      screen.getByText(
+        "Your own choice, saved on this computer. This project keeps the switch above.",
+      ),
+    ).toBeVisible();
+    const off = within(group).getByRole("button", { name: "Off" });
+    const on = within(group).getByRole("button", { name: "On" });
+    expect(off).toHaveAttribute("aria-pressed", "true");
+    await user.click(on);
+    expect(on).toHaveAttribute("aria-pressed", "true");
+    expect(off).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("passes the person's choice on, apart from the project's switch", async () => {
+    const user = userEvent.setup();
+    const onPersonal = vi.fn();
+    const onToggle = vi.fn();
+    render(<Host selected="scan" spy={{ onPersonal, onToggle }} />);
+    await user.click(screen.getByRole("button", { name: "On" }));
+    expect(onPersonal).toHaveBeenCalledWith("scan", true);
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  it("keeps the personal choice off the other steps", () => {
+    render(<Host selected="fillers" />);
+    expect(
+      screen.queryByRole("group", { name: "New projects start with this" }),
+    ).toBeNull();
+  });
+
   it("lists only the mapped steps, grouped like the Getting ready rows", () => {
     render(<Host />);
     expect(
@@ -41,8 +110,9 @@ describe("AdvancedSteps", () => {
       "Line up tracks",
       "Clean and level",
       "Find suggestions",
+      "Listen for sounds",
     ]);
-    expect(screen.getAllByRole("listitem")).toHaveLength(4);
+    expect(screen.getAllByRole("listitem")).toHaveLength(5);
   });
 
   it("moves focus to the detail heading on select and back to the row on Back", async () => {

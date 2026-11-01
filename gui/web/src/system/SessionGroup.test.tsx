@@ -21,6 +21,13 @@ function Group(props: Partial<SessionGroupProps>) {
 }
 
 describe("SessionGroup", () => {
+  it("says New audio waiting while audio is not processed yet", () => {
+    render(<Group status="new" />);
+    expect(screen.getByText("New audio waiting")).toBeVisible();
+    expect(screen.getByRole("region")).toHaveAttribute("data-status", "new");
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
   it("has a heading, the stats and the target in its header", () => {
     render(<Group />);
     expect(
