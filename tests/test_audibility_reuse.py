@@ -229,3 +229,38 @@ def test_a_nested_run_scope_shares_the_outer_one(tmp_path: Path, builds: list) -
             _map(project)
 
     assert builds == [None]
+
+
+def test_a_reader_with_different_defaults_builds_its_own_rows(tmp_path: Path, builds: list) -> None:
+    project = _echo_stem_project(tmp_path)
+    other = {**copy.deepcopy(DEFAULTS), "marker": 1}
+
+    with audibility_run_scope():
+        compute_word_audibility_map(
+            project,
+            policy=POLICY,
+            caches=build_reconciliation_caches(project, defaults=DEFAULTS),
+            defaults=DEFAULTS,
+        )
+        compute_word_audibility_map(
+            project,
+            policy=POLICY,
+            caches=build_reconciliation_caches(project, defaults=other),
+            defaults=other,
+        )
+
+    assert builds == [None, None]
+
+
+def test_a_cache_set_that_fell_back_is_never_shared(tmp_path: Path, builds: list) -> None:
+    project = _echo_stem_project(tmp_path)
+
+    with audibility_run_scope():
+        full = build_reconciliation_caches(project, defaults=DEFAULTS)
+        assert full.audio_identity is not None
+        with (
+            patch.object(audio_audit, "_fresh_stem_path", return_value=None),
+            patch.object(audio_audit, "raw_samples_on_timeline", side_effect=OSError("gone")),
+        ):
+            degraded = build_reconciliation_caches(project, defaults=DEFAULTS)
+        assert degraded.audio_identity is None
