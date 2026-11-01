@@ -587,13 +587,7 @@ def _recorded(
     ``PODCAST_EVIDENCE_VERIFY=1`` a record is compared with the build instead of being used.
     """
     build_id = _build_id()
-    name = (
-        None
-        if build_id is None
-        else evidence_records.record_key(
-            (tree, key.curve, key.revisions, rates, build_id, file_stamp(Path(str(build_id[0]))))
-        )
-    )
+    name = _record_name(key, tree, rates, build_id)
     if name is None:
         return build()
     found = evidence_records.read_record(record_dir, name, rates)
@@ -604,13 +598,30 @@ def _recorded(
     built = build()
     if found is not None:
         _verify(_Entry(found), built)
-    if (
-        not isinstance(built, Declined)
-        and _build_id() == build_id
-        and RetainedEvidence._unchanged(key, tree, started)
-    ):
-        evidence_records.write_record(record_dir, name, built)
+    try:
+        if (
+            not isinstance(built, Declined)
+            and _build_id() == build_id
+            and RetainedEvidence._unchanged(key, tree, started)
+        ):
+            evidence_records.write_record(record_dir, name, built)
+    except OSError:
+        _LOG.debug("evidence record not written", exc_info=True)
     return built
+
+
+def _record_name(
+    key: EvidenceKey, tree: Audio, rates: tuple[int, ...], build_id: tuple[object, ...] | None
+) -> str | None:
+    """The record's name, or ``None`` when the evidence cannot be named (best effort: a record is never worth failing a build)."""
+    if build_id is None:
+        return None
+    try:
+        return evidence_records.record_key(
+            (tree, key.curve, key.revisions, rates, build_id, file_stamp(Path(str(build_id[0]))))
+        )
+    except OSError:
+        return None
 
 
 class RetainedEvidence:

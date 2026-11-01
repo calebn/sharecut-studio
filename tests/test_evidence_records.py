@@ -573,33 +573,117 @@ def test_a_record_that_is_read_is_the_newest_and_outlives_an_unread_one(
 
 # Bump evidence_records.RECORD_REV and this pin together whenever the code that decides what the
 # evidence is changes: a record of the old code is otherwise read as if it were the new code's.
-EVIDENCE_CODE_PIN = "92bcaeef63d9ec00"
+EVIDENCE_CODE_PIN = "dee4a68501ba41f3"
 
 
 def _normalised(text: str) -> str:
     return "\n".join(line.rstrip() for line in text.replace("\r\n", "\n").split("\n"))
 
 
-def _evidence_code_digest() -> str:
+# Every module whose code decides a sample value: the source decode and its channel mix
+# (decoded_source, mono_downmix, media_probe, media_seek), the tree evaluator (audio, audio_eval),
+# the windowed reads and the resampler grid (windowed_rms, ungated_audio), the evidence module
+# itself, and the ffmpeg arguments of the resample (FFmpegEngine.resample_streams).
+EVIDENCE_MODULES = (
+    "audio.py",
+    "audio_eval.py",
+    "decoded_source.py",
+    "media_probe.py",
+    "media_seek.py",
+    "mono_downmix.py",
+    "track_evidence.py",
+    "ungated_audio.py",
+    "windowed_rms.py",
+)
+
+
+def _evidence_code_digest(edited: dict[str, str] | None = None) -> str:
+    """The digest of the evidence code; ``edited`` maps a module name to a function of its text (a stand-in for an edit)."""
     root = Path(track_evidence.__file__).resolve().parent
-    modules = (
-        "audio.py",
-        "audio_eval.py",
-        "decoded_source.py",
-        "windowed_rms.py",
-        "track_evidence.py",
-    )
-    parts = [(name, _normalised((root / name).read_text(encoding="utf-8"))) for name in modules]
+    parts = []
+    for name in EVIDENCE_MODULES:
+        text = (root / name).read_text(encoding="utf-8")
+        parts.append((name, _normalised(text + (edited or {}).get(name, ""))))
     resample = inspect.getsource(FFmpegEngine.resample_streams)
     parts.append(("FFmpegEngine.resample_streams", _normalised(resample)))
     return hashlib.sha256(repr(parts).encode()).hexdigest()[:16]
 
 
+@pytest.mark.parametrize("name", EVIDENCE_MODULES)
+def test_an_edit_to_any_module_the_evidence_reads_changes_the_pin_digest(name: str) -> None:
+    assert _evidence_code_digest({name: "\n# edited\n"}) != _evidence_code_digest()
+
+
+def test_the_downmix_weight_is_part_of_the_pin() -> None:
+    root = Path(track_evidence.__file__).resolve().parent
+    assert "weight = 1.0 / channels" in (root / "mono_downmix.py").read_text(encoding="utf-8")
+    assert "mono_downmix.py" in EVIDENCE_MODULES
+
+
+def test_every_engine_module_the_decode_imports_is_pinned_or_named_here() -> None:
+    root = Path(track_evidence.__file__).resolve().parent
+    imported = {
+        line.split("podcast_mcp.engines.")[1].split(" ")[0].split(".")[0] + ".py"
+        for name in ("decoded_source.py", "audio_eval.py")
+        for line in (root / name).read_text(encoding="utf-8").splitlines()
+        if line.startswith("from podcast_mcp.engines.")
+    }
+    assert imported <= set(EVIDENCE_MODULES), imported - set(EVIDENCE_MODULES)
+
+
 def test_the_code_that_decides_the_evidence_is_pinned_to_the_record_revision() -> None:
     assert _evidence_code_digest() == EVIDENCE_CODE_PIN, (
-        "The code behind track evidence changed (audio, audio_eval, decoded_source, windowed_rms, "
-        "track_evidence or FFmpegEngine.resample_streams). If it can change the samples an "
+        "The code behind track evidence changed (EVIDENCE_MODULES or FFmpegEngine.resample_streams). "
+        "If it can change the samples an "
         "unchanged key evaluates to, bump evidence_records.RECORD_REV so recorded evidence is "
         "evaluated again; then set EVIDENCE_CODE_PIN in tests/test_evidence_records.py to "
         f"{_evidence_code_digest()!r}."
     )
+
+
+def test_a_header_split_differently_over_the_same_bytes_is_not_read(tmp_path: Path) -> None:
+    key = evidence_records.record_key(("split",))
+    assert key is not None
+    evidence: Evidence = {JUMP: np.arange(16, dtype=np.float32), WAVEFORM: np.ones(8, np.float32)}
+    assert evidence_records.write_record(tmp_path, key, evidence)
+    assert evidence_records.read_record(tmp_path, key, (JUMP, WAVEFORM)) is not None
+    record = evidence_records.record_path(tmp_path, key)
+    data = record.read_bytes()
+    head = json.loads(data[len(evidence_records._MAGIC) : data.index(b"\n")])
+    head["sizes"] = [15, 9]
+    body = data[data.index(b"\n") + 1 :]
+    record.write_bytes(evidence_records._MAGIC + json.dumps(head).encode() + b"\n" + body)
+
+    assert evidence_records.read_record(tmp_path, key, (JUMP, WAVEFORM)) is None
+
+
+def test_an_ffmpeg_binary_that_vanishes_does_not_fail_the_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, "crossfade joins")
+    real = track_evidence._build_id()
+    assert real is not None
+    monkeypatch.setattr(
+        track_evidence, "_build_id", lambda: (str(tmp_path / "gone-ffmpeg"), *real[1:])
+    )
+    calls = Evaluations(monkeypatch)
+
+    built = _samples(project)
+
+    assert calls.count == 1 and _records(project) == []
+    np.testing.assert_array_equal(_bits(built), _bits(_fresh(project)))
+
+
+def test_a_record_that_cannot_be_written_does_not_fail_the_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, "crossfade joins")
+
+    def refuse(*args: object, **kwargs: object) -> bool:
+        raise PermissionError("read-only")
+
+    monkeypatch.setattr(evidence_records, "write_record", refuse)
+
+    built = _samples(project)
+
+    np.testing.assert_array_equal(_bits(built), _bits(_fresh(project)))
