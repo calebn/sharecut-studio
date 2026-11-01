@@ -37,7 +37,7 @@ def test_commit_skips_unchanged_history_index_and_repairs_corruption(minimal_pro
 
 def test_load_adopts_history_index_when_only_pipeline_cursor_changed(minimal_project) -> None:
     project = ProjectStore(minimal_project).load()
-    HistoryManager(minimal_project).record(project, "initial", force=True)
+    HistoryManager(ProjectStore(minimal_project)).record(project, "initial", force=True)
     save_project(project, minimal_project)
 
     project.render.last_completed_step = "focus_from_transcript"

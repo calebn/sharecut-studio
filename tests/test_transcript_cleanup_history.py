@@ -10,6 +10,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.project.history import HistoryManager
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import TranscriptService
 
@@ -29,7 +30,7 @@ def _project_with_transcript(tmp_path) -> ProjectWorkspace:
     ]
     path = ws_dir / "episode.sharecut"
     save_project(p, path)
-    HistoryManager(path).record(p, "initial", force=True)
+    HistoryManager(ProjectStore(path)).record(p, "initial", force=True)
     save_project(p, path)
     return ProjectWorkspace.open(path)
 
@@ -45,7 +46,7 @@ def test_apply_transcript_cleanup_records_undo_step(tmp_path) -> None:
     assert n == 2
     assert ws.project.transcripts[0].words[0].text == "the"
 
-    mgr = HistoryManager(ws.path)
+    mgr = HistoryManager(ProjectStore(ws.path))
     proj = load_project(ws.path)
     status = mgr.status(proj)
     assert status.can_undo

@@ -179,6 +179,7 @@ def test_comment_service_mutate_and_snapshot(minimal_project, sample_wav, tmp_wo
 def test_comment_add_undo_redo_restores_review(minimal_project):
     """review must be in ProjectStateSnapshot or after-record is skipped."""
     from podcast_mcp.project.history import HistoryManager
+    from podcast_mcp.project.store import ProjectStore
 
     ws = ProjectWorkspace.open(minimal_project)
     ws.record_snapshot("baseline", force=True)
@@ -194,7 +195,7 @@ def test_comment_add_undo_redo_restores_review(minimal_project):
     assert "after add comment" in labels
     assert len(ws.project.comments) == 1
 
-    mgr = HistoryManager(minimal_project)
+    mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.undo(ws.project)
     assert len(ws.project.comments) == 0
     mgr.redo(ws.project)

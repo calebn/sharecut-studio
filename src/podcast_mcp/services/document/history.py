@@ -6,7 +6,6 @@ from collections.abc import Callable
 
 from podcast_mcp.engines.history_stale import AudioStateBefore, mark_history_move_stale
 from podcast_mcp.models import EpisodeProject, HistoryEntry
-from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.project.history.diff import diff_snapshots
 from podcast_mcp.project.history.summary import format_history_group_title, summarize_diff
 from podcast_mcp.project.merge import ConflictAdvice, ProjectMergeConflict
@@ -98,7 +97,7 @@ HISTORY_RERENDER_ERRORS: tuple[type[CodedError], ...] = (
 class HistoryService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
-        self._mgr = HistoryManager(workspace.path)
+        self._mgr = workspace.history()
 
     def undo(self, *, rerender: bool = False, expected_head_id: str | None = None) -> dict:
         """Undo the head entry. ``expected_head_id`` refuses with ``StaleHistoryError``

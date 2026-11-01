@@ -3,7 +3,6 @@ from podcast_mcp.project.history.manager import (
     HistoryManager,
     HistoryStatus,
     StaleHistoryError,
-    record_if_changed,
 )
 from podcast_mcp.project.history.session import run_mutation
 
@@ -12,6 +11,5 @@ __all__ = [
     "HistoryManager",
     "HistoryStatus",
     "StaleHistoryError",
-    "record_if_changed",
     "run_mutation",
 ]

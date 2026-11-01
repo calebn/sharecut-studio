@@ -442,7 +442,7 @@ def test_save_merged_conflicts_when_another_writer_undid_during_the_job(minimal_
     _other_sets_volume(minimal_project)
     ws.checkpoint()
     other = ProjectWorkspace.open(minimal_project)
-    HistoryManager(other.path).undo(other.project)
+    HistoryManager(ProjectStore(other.path)).undo(other.project)
     ws.project.track_by_id("guest").gain_db = 1.0
     with pytest.raises(ProjectMergeConflict, match=r"history\.lineage"):
         ws.save_merged(history_label="after step")
@@ -576,7 +576,7 @@ def test_pipeline_run_reports_an_undo_before_the_first_step(minimal_project, mon
         project = real_checkpoint()
         project.track_by_id("guest").gain_db = 1.0  # the run's own unsaved change
         other = ProjectWorkspace.open(minimal_project)
-        HistoryManager(other.path).undo(other.project)
+        HistoryManager(ProjectStore(other.path)).undo(other.project)
         return project
 
     ran: list[str] = []
@@ -1082,5 +1082,5 @@ def test_failed_noop_merge_preserves_a_preexisting_adopted_snapshot(minimal_proj
     assert snapshots_before
     saved = ProjectStore(minimal_project).load()
     assert [entry.label for entry in saved.history.entries] == ["other writer baseline"]
-    HistoryManager(minimal_project).record(saved, "same state")
+    HistoryManager(ProjectStore(minimal_project)).record(saved, "same state")
     assert len(saved.history.entries) == 1

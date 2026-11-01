@@ -9,6 +9,7 @@ from podcast_mcp.models import Clip, EpisodeProject, load_project, save_project
 from podcast_mcp.models.episode import ClipBleedRestore, ClipOffSpeakerMuteRegion, SourceSpan
 from podcast_mcp.models.project_format import apply_editable_snapshot, snapshot_editable_state
 from podcast_mcp.project.history import HistoryManager
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 
 
@@ -100,7 +101,7 @@ def test_workspace_undo_and_redo_preserve_absence_and_automatic_choices(tmp_path
         json.loads((tmp_path / initial.snapshot_file).read_text())["timeline"]["clips"] == original
     )
 
-    history = HistoryManager(path)
+    history = HistoryManager(ProjectStore(path))
     history.undo(workspace.project, expected_head_id=workspace.project.history.head_id())
     assert json.loads(path.read_text())["timeline"]["clips"] == original
     history.redo(workspace.project, expected_head_id=workspace.project.history.head_id())

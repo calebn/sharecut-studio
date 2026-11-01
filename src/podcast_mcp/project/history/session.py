@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TypeVar
 
 from podcast_mcp.config.defaults import EffectiveConfig
@@ -31,9 +30,7 @@ from podcast_mcp.project.history.rollback import (
     rolled_back_on_failure,
     take_history_checkpoint,
 )
-from podcast_mcp.project.store import (
-    ProjectStore,
-)
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.util.project_state import (
     project_commit_lock,
     project_state_lock,
@@ -66,7 +63,7 @@ class _PreMutateState:
 
 
 def run_mutation(
-    path: Path,
+    store: ProjectStore,
     project: EpisodeProject,
     label_before: str,
     label_after: str,
@@ -79,7 +76,7 @@ def run_mutation(
 ) -> T:
     with project_state_lock(project):
         return _run_mutation_locked(
-            path,
+            store,
             project,
             label_before,
             label_after,
@@ -92,7 +89,7 @@ def run_mutation(
 
 
 def _run_mutation_locked(
-    path: Path,
+    store: ProjectStore,
     project: EpisodeProject,
     label_before: str,
     label_after: str,
@@ -103,8 +100,7 @@ def _run_mutation_locked(
     params: dict | None,
     on_failure: Callable[[RollbackOutcome], None] | None,
 ) -> T:
-    store = ProjectStore(path)
-    mgr = HistoryManager(path)
+    mgr = HistoryManager(store)
     track_hashes_before = dialogue_render_hashes(project, defaults=defaults)
     fingerprint_before = audio_state_fingerprint(project, track_hashes_before, defaults=defaults)
     log_len_before = len(project.editorial.edit_log)

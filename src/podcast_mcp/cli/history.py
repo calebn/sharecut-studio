@@ -5,7 +5,6 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.util.coded_error import describe_error
@@ -21,7 +20,7 @@ def history_list(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    mgr = HistoryManager(ws.path)
+    mgr = ws.history()
     status = mgr.status(ws.project)
     for i, entry in enumerate(mgr.list_entries(ws.project)):
         marker = ">" if i == status.cursor else " "
@@ -91,7 +90,7 @@ def undo_cmd(
     ws = ProjectWorkspace.open(project)
     try:
         HistoryService(ws).undo(rerender=rerender, expected_head_id=expected_head)
-        status = HistoryManager(ws.path).status(ws.project)
+        status = ws.history().status(ws.project)
     except _MOVE_ERRORS as exc:
         typer.echo(describe_error(exc), err=True)
         raise typer.Exit(1) from exc
@@ -109,7 +108,7 @@ def redo_cmd(
     ws = ProjectWorkspace.open(project)
     try:
         HistoryService(ws).redo(rerender=rerender, expected_head_id=expected_head)
-        status = HistoryManager(ws.path).status(ws.project)
+        status = ws.history().status(ws.project)
     except _MOVE_ERRORS as exc:
         typer.echo(describe_error(exc), err=True)
         raise typer.Exit(1) from exc

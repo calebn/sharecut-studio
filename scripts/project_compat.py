@@ -21,7 +21,7 @@ from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, ProjectMeta, Re
 from podcast_mcp.models.history import ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, snapshot_editable_state
 from podcast_mcp.project.history.manager import HistoryManager, apply_snapshot_to_project
-from podcast_mcp.project.store import read_history_snapshot, snapshot_from_project
+from podcast_mcp.project.store import ProjectStore, read_history_snapshot, snapshot_from_project
 from podcast_mcp.util.atomic_json import write_text_atomic
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -252,7 +252,7 @@ def assert_workspace(path: Path) -> None:
         workspace = Path(temporary) / "workspace"
         shutil.copytree(path.parent, workspace)
         copied = workspace / PROJECT
-        manager = HistoryManager(copied)
+        manager = HistoryManager(ProjectStore(copied))
         replay = load_project(copied)
 
         def assert_cursor() -> None:

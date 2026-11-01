@@ -12,6 +12,7 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.mcp.tools.history import history_diff_tool, history_list, history_status_tool
 from podcast_mcp.models import Track
 from podcast_mcp.project.history import HistoryManager
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     EmptyHistoryDiffResult,
@@ -156,7 +157,7 @@ def test_history_moves_keep_dictionary_status_and_optional_preview(minimal_proje
 
 def test_history_mcp_retains_unicode_and_nested_params(minimal_project):
     workspace = ProjectWorkspace.open(minimal_project)
-    HistoryManager(minimal_project).record(
+    HistoryManager(ProjectStore(minimal_project)).record(
         workspace.project,
         "café",
         force=True,
@@ -211,7 +212,7 @@ def test_history_diff_comparison_wire_contract(minimal_project, assert_history_d
     workspace.project.timeline.tracks[0].label = "mañana"
     workspace.project.timeline.tracks[0].gain_db = -3.0
     params = {"text": "mañana", "nested": {"levels": [1, 2.5, True, None, {"é": "茶"}]}}
-    HistoryManager(minimal_project).record(
+    HistoryManager(ProjectStore(minimal_project)).record(
         workspace.project, "after café", force=True, operation="rename_track", params=params
     )
     workspace.save()

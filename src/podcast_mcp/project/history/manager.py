@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Literal
 
 from podcast_mcp.models.episode import EpisodeProject
@@ -95,9 +94,9 @@ class HistoryStatus:
 
 
 class HistoryManager:
-    def __init__(self, project_path: Path) -> None:
-        self.project_path = project_path.expanduser().resolve()
-        self._store = ProjectStore(self.project_path)
+    def __init__(self, store: ProjectStore) -> None:
+        self._store = store
+        self.project_path = store.project_path
 
     def _load_index(self, project: EpisodeProject) -> ProjectHistory:
         self._store.adopt_history_index(project)
@@ -263,16 +262,6 @@ class HistoryManager:
         return list(self._load_index(project).entries)
 
 
-def record_if_changed(
-    project_path: Path,
-    label: str,
-    *,
-    force: bool = False,
-) -> HistoryEntry:
-    store = ProjectStore(project_path)
-    return record_and_commit(store, store.load(), label, force=force)
-
-
 def record_and_commit(
     store: ProjectStore, project: EpisodeProject, label: str, *, force: bool = False
 ) -> HistoryEntry:
@@ -286,7 +275,7 @@ def record_and_commit(
     with project_commit_lock(project):
         checkpoint = take_history_checkpoint(store, project)
         with rolled_back_on_failure(project, checkpoint):
-            entry = HistoryManager(store.project_path).record(project, label, force=force)
+            entry = HistoryManager(store).record(project, label, force=force)
             checkpoint.start_commit(project)
             store.commit(project)
         return entry

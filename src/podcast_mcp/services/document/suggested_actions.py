@@ -18,10 +18,9 @@ def revise_suggested_actions(
     skip_unsure: bool = False,
 ) -> dict[str, Any]:
     """Re-apply the latest Apply suggested actions batch with ``overrides`` on top."""
-    from podcast_mcp.project.history.manager import HistoryManager
     from podcast_mcp.services.document.history import HistoryService
 
-    mgr = HistoryManager(ws.path)
+    mgr = ws.history()
     history = HistoryService(ws)
     with ws.transaction() as project:
         index = mgr.tip_entry_index(project, "apply_suggested_actions")

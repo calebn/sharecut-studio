@@ -12,6 +12,7 @@ from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.project.history import HistoryManager
+from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record import service as record_service
@@ -137,7 +138,7 @@ def test_host_rewrites_recording_ms_and_lands_comment(
     assert comment.author == guest
     assert comment.timeline_start == pytest.approx(123.4, abs=0.25)
     assert getattr(comment, "title", None) is None
-    HistoryManager(minimal_project).undo(ws.project)
+    HistoryManager(ProjectStore(minimal_project)).undo(ws.project)
     assert ws.project.comments == []
 
 

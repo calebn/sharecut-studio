@@ -84,7 +84,7 @@ def _child_goto(project_path, index, blocked, result) -> None:
     """Adopt the failing publication's uncommitted index, then jump to its last entry."""
     store = ProjectStore(Path(project_path))
     project = store.load()
-    mgr = HistoryManager(Path(project_path))
+    mgr = HistoryManager(ProjectStore(Path(project_path)))
     try:
         with observe_failed_commit_lock_attempt(project, blocked):
             mgr.goto(project, index)
@@ -265,7 +265,7 @@ def test_failed_publication_cleanup_is_not_raced_by_history_goto(minimal_project
         review_versions.FFmpegEngine.export_mp3 = original
     persisted = load_project(minimal_project)
     kept_ids = [v.id for v in persisted.review.versions]
-    doomed_index = len(HistoryManager(minimal_project).list_entries(persisted))
+    doomed_index = len(HistoryManager(ProjectStore(minimal_project)).list_entries(persisted))
 
     publishing, may_clean, cleaned = _CTX.Event(), _CTX.Event(), _CTX.Event()
     a = _CTX.Process(
