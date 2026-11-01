@@ -44,7 +44,6 @@ export type ScrubFieldProps = ScrubRange & {
   onPreview?: (value: number) => void;
   /** Fires once per gesture, so one drag, key press or typed value is one undo step. */
   onCommit: (value: number) => void;
-  /** Typed text left as it was shown when editing began commits nothing. */
   skipUnchanged?: boolean;
   /** A drag ended where it began, or Escape: drop the preview. */
   onCancel?: () => void;
