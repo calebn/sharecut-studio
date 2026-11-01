@@ -305,18 +305,83 @@ def _child_notify(path) -> None:
 
 
 def _child_submit_comments(path, client_id, start, count) -> None:
-    svc = DocumentSyncService.open(path)
-    start.wait(60)
-    for seq in range(1, count + 1):
-        svc.submit(
-            DocumentCommand(
-                type="AddComment",
-                payload={"body": f"{client_id}-{seq}", "author": client_id, "timeline_start": 1.0},
-                client_id=client_id,
-                role="viewer",
-                client_seq=seq,
+    import hashlib
+    import json
+    import os
+    import threading
+    from unittest.mock import patch
+
+    from podcast_mcp.util import file_locks
+
+    original_factory = project_state.shared_file_lock
+    observed: set[int] = set()
+    with contextlib.ExitStack() as observers:
+
+        def observed_factory(lock_path):
+            lock = original_factory(lock_path)
+
+            def emit(phase, error=None):
+                with file_locks._GUARD:
+                    registry_keys = tuple(
+                        key for key, value in file_locks._LOCKS.items() if value is lock
+                    )
+                print(
+                    "commit_lock_observation "
+                    + json.dumps(
+                        {
+                            "phase": phase,
+                            "pid": os.getpid(),
+                            "tid": threading.get_ident(),
+                            "lock_id": id(lock),
+                            "registry_key_sha256s": sorted(
+                                hashlib.sha256(str(key).encode()).hexdigest()
+                                for key in registry_keys
+                            ),
+                            "lock_counter": lock.lock_counter,
+                            "is_locked": lock.is_locked,
+                            "error_type": error,
+                        },
+                        sort_keys=True,
+                    ),
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+            emit("factory_return")
+            if id(lock) not in observed:
+                original_acquire = lock.acquire
+
+                def observed_acquire(*args, **kwargs):
+                    emit("before_acquire")
+                    try:
+                        result = original_acquire(*args, **kwargs)
+                    except BaseException as exc:
+                        emit("acquire_failed", type(exc).__name__)
+                        raise
+                    emit("acquired")
+                    return result
+
+                observers.enter_context(patch.object(lock, "acquire", observed_acquire))
+                observed.add(id(lock))
+            return lock
+
+        observers.enter_context(patch.object(project_state, "shared_file_lock", observed_factory))
+        svc = DocumentSyncService.open(path)
+        start.wait(60)
+        for seq in range(1, count + 1):
+            svc.submit(
+                DocumentCommand(
+                    type="AddComment",
+                    payload={
+                        "body": f"{client_id}-{seq}",
+                        "author": client_id,
+                        "timeline_start": 1.0,
+                    },
+                    client_id=client_id,
+                    role="viewer",
+                    client_seq=seq,
+                )
             )
-        )
 
 
 def test_mutate_takes_the_lock_before_running_the_mutation(minimal_project, monkeypatch):
@@ -381,18 +446,19 @@ def test_stale_workspace_keeps_a_commit_from_another_process(minimal_project):
     assert {c.body for c in load_project(minimal_project).comments} == {"theirs", "ours"}
 
 
-def test_document_commands_from_two_processes_keep_every_edit(minimal_project):
+def test_document_commands_from_two_processes_keep_every_edit(minimal_project, capfd):
     start = _CTX.Event()
     children = [
         _CTX.Process(target=_child_submit_comments, args=(str(minimal_project), cid, start, 5))
         for cid in ("a", "b")
     ]
-    for child in children:
-        child.start()
-    start.set()
-    for child in children:
-        assert reap(child, 120), "a submitting child hung and was killed"
-        assert child.exitcode == 0
+    with capfd.disabled():
+        for child in children:
+            child.start()
+        start.set()
+        for child in children:
+            assert reap(child, 120), "a submitting child hung and was killed"
+            assert child.exitcode == 0
     project = load_project(minimal_project)
     bodies = {c.body for c in project.comments}
     assert len(project.comments) == 10
