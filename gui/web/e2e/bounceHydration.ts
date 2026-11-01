@@ -60,6 +60,89 @@ async function fitsClip(page: Page, target: Locator): Promise<void> {
     .toBe(true);
 }
 
+async function captureAnchorEvents(page: Page) {
+  return deliverPage(page).evaluateHandle((element) => {
+    const scroller = element as HTMLElement;
+    const stage = scroller.closest<HTMLElement>(".dv-stage")!;
+    const records: Array<Record<string, unknown>> = [];
+    let dropped = 0;
+    const bindings: Array<{
+      node: HTMLElement;
+      type: string;
+      listener: (event: Event) => void;
+      capture: boolean;
+    }> = [];
+    const describe = (target: EventTarget | null) =>
+      target instanceof Element
+        ? {
+            tag: target.tagName,
+            class: target.getAttribute("class"),
+            role: target.getAttribute("role"),
+          }
+        : null;
+    const types = [
+      "scroll",
+      "pointerdown",
+      "wheel",
+      "touchstart",
+      "keydown",
+      "focusin",
+      "focusout",
+      "click",
+    ];
+    for (const [label, node] of [
+      ["stage", stage],
+      ["page", scroller],
+    ] as const) {
+      for (const capture of [true, false]) {
+        for (const type of types) {
+          const listener = (event: Event) => {
+            if (records.length === 128) {
+              dropped += 1;
+              return;
+            }
+            records.push({
+              at: performance.now(),
+              eventTime: event.timeStamp,
+              type: event.type,
+              phase: event.eventPhase,
+              listener: `${label}:${capture ? "capture" : "noncapture"}`,
+              target: describe(event.target),
+              currentTarget: describe(event.currentTarget),
+              relatedTarget:
+                event instanceof FocusEvent
+                  ? describe(event.relatedTarget)
+                  : null,
+              inlineAnchors: Array.from(
+                scroller.querySelectorAll<HTMLElement>("[style]"),
+              )
+                .filter((el) => el instanceof HTMLElement)
+                .map((el) => ({
+                  element: describe(el),
+                  value: el.style.getPropertyValue("overflow-anchor"),
+                  priority: el.style.getPropertyPriority("overflow-anchor"),
+                }))
+                .filter((style) => style.value !== ""),
+            });
+          };
+          node.addEventListener(type, listener, { capture, passive: true });
+          bindings.push({ node, type, listener, capture });
+        }
+      }
+    }
+    return {
+      records,
+      get dropped() {
+        return dropped;
+      },
+      dispose: () => {
+        for (const { node, type, listener, capture } of bindings)
+          node.removeEventListener(type, listener, capture);
+      },
+    };
+  });
+}
+
 export async function exerciseBounceHydration(
   page: Page,
   info: TestInfo,
@@ -92,6 +175,9 @@ export async function exerciseBounceHydration(
       let abortedDuringCleanup = 0;
       let failure: string | null = null;
       let primaryError: unknown;
+      let eventLog: Awaited<ReturnType<typeof captureAnchorEvents>> | null =
+        null;
+      let nativeEventDiagnostics: unknown = null;
       const cleanupFailures: unknown[] = [];
       const captureErrors: string[] = [];
       await page.route("**/api/transcript/export", async (route) => {
@@ -120,6 +206,7 @@ export async function exerciseBounceHydration(
         await setTheme(page, theme);
         await goToStage(page, "deliver");
         const deliver = deliverPage(page);
+        eventLog = await captureAnchorEvents(page);
         const bounceSection = deliver.getByRole("region", {
           name: "Bounce",
           exact: true,
@@ -189,10 +276,13 @@ export async function exerciseBounceHydration(
         let readerBefore: number | null = null;
         const readerFocus = afterInsertionFocus;
         if (departure) {
-          reader = deliver.getByRole("heading", {
-            name: "Chapters",
-            exact: true,
-          });
+          reader = deliver
+            .getByRole("region", { name: "Chapters", exact: true })
+            .getByRole("heading", {
+              name: "Chapters",
+              level: 2,
+              exact: true,
+            });
           const movement = await reader.evaluateHandle((el) => {
             const scroller = el.closest<HTMLElement>(".dv-page")!;
             const from = scroller.scrollTop;
@@ -332,6 +422,24 @@ export async function exerciseBounceHydration(
             : String(error);
         primaryError = error;
       } finally {
+        if (eventLog) {
+          try {
+            nativeEventDiagnostics = await eventLog.evaluate((state) => {
+              state.dispose();
+              return { records: state.records, dropped: state.dropped };
+            });
+          } catch (error) {
+            cleanupFailures.push(error);
+            captureErrors.push(`event listener cleanup: ${String(error)}`);
+          } finally {
+            try {
+              await eventLog.dispose();
+            } catch (error) {
+              cleanupFailures.push(error);
+              captureErrors.push(`event handle cleanup: ${String(error)}`);
+            }
+          }
+        }
         releasePreview();
         releaseBounce();
         try {
@@ -364,6 +472,7 @@ export async function exerciseBounceHydration(
           abortedDuringCleanup,
           failure,
           phases,
+          nativeEventDiagnostics,
           captureErrors,
           nativeScrollbarProof: "not claimed; prior static drag unexercised",
           physicalDeviceOrAudioProof: "not claimed",
