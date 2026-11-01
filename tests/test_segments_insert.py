@@ -241,6 +241,29 @@ def test_a_layout_longer_than_a_day_is_refused(tmp_path: Path, project: str) -> 
     assert result.exit_code == 1
     assert "segment_media_invalid" in result.output
     assert _layout(project) == before
+    assert not list((Path(project).parent / "raw").glob("segment-*"))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("fade_in_ms", 10**400), ("fade_out_ms", 4_000_000), ("duration_sec", 1e-320)],
+)
+def test_a_crafted_fade_or_sliver_is_refused_before_any_copy(
+    tmp_path: Path, project: str, field: str, value: float
+) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+    before = _layout(project)
+    manifest = SegmentStore().path(segment.id, 1) / SEGMENT_JSON
+    crafted = json.loads(manifest.read_text(encoding="utf-8"))
+    crafted["clips"][0][field] = value
+    manifest.write_text(json.dumps(crafted), encoding="utf-8")
+
+    result = _insert(project, segment.id, 4.0)
+
+    assert result.exit_code == 1
+    assert "segment_media_invalid" in result.output
+    assert _layout(project) == before
+    assert not list((Path(project).parent / "raw").glob("segment-*"))
 
 
 def test_missing_segment_and_version_are_refused(tmp_path: Path, project: str) -> None:

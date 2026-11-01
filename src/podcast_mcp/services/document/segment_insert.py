@@ -8,7 +8,12 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.edits.segment_insert import SegmentAudio, check_position, insert_segment
+from podcast_mcp.edits.segment_insert import (
+    SegmentAudio,
+    check_layout,
+    check_position,
+    insert_segment,
+)
 from podcast_mcp.engines.track_media import media_asset_from_path
 from podcast_mcp.segments.model import SegmentFile
 from podcast_mcp.segments.store import SegmentStore, sha256_file
@@ -76,11 +81,13 @@ def insert_saved_segment(
     """Insert a library segment at timeline second ``at``; later content moves by its length.
 
     The audio is copied into the project and its hash checked. The edit is one undo step.
-    Errors: ``segment_unknown``, ``segment_hash_mismatch``, ``segment_position_out_of_range``.
+    Errors: ``segment_unknown``, ``segment_hash_mismatch``, ``segment_media_invalid``,
+    ``segment_write_failed``, ``segment_position_out_of_range``.
     """
     library = store or SegmentStore()
     segment = library.get(segment_id, version)
     check_position(ws.project, at)
+    check_layout(segment)
     audio = copy_segment_audio(
         Path(ws.project.workspace_dir), segment, library.path(segment.id, segment.version)
     )
