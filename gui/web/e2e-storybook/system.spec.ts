@@ -253,8 +253,10 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
 }) => {
   const args = "state:error;status:No mix yet";
   // 801 to 960 is where the error pill and Retry outgrew the side column
-  // beside the skips; 960 (60 rem) is the widest the status text gives way.
-  for (const width of [801, 850, 896, 940, 960]) {
+  // beside the skips; 960 (60 rem) is the widest the status text gives way, and
+  // it is back, readable, from 961 up. The story fills the viewport, so the
+  // Player's container is as wide as the viewport.
+  for (const width of [801, 850, 896, 940, 960, 961, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
     await page.goto(
@@ -269,9 +271,11 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
       if (!bar || !play || !right) throw new Error("Player did not render");
       const centre = play.getBoundingClientRect();
       const status = bar.querySelector(".sys-player-status");
+      const style = status ? getComputedStyle(status) : null;
       return {
         scroll: document.documentElement.scrollWidth,
         statusKept: (status?.textContent ?? "") !== "",
+        statusDisplayed: style !== null && style.display !== "none",
         statusClipped: (status?.getBoundingClientRect().width ?? 0) <= 1,
         overlaps: [...right.children].filter((el) => {
           const r = el.getBoundingClientRect();
@@ -288,7 +292,8 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
     expect(clash, `at ${width}`).toEqual({
       scroll: width,
       statusKept: true,
-      statusClipped: true,
+      statusDisplayed: true,
+      statusClipped: width <= 960,
       overlaps: 0,
     });
   }

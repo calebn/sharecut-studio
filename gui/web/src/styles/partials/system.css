@@ -959,8 +959,8 @@
 }
 
 /* Under 14 rem (a phone at 200% text) the gap and the clock size of the rule
-   above also apply to the expanded Player (that rule is scoped to the host),
-   and Play, the clock and the hear menu are the one row: the A and B toggles,
+   above are set here too, unscoped, so they reach the expanded Player (that
+   rule is scoped to the host); Play, the clock and the hear menu are the one row: the A and B toggles,
    Comment and the status chips are in the expanded Player, as in a folded frame. */
 @container sys-player (max-width: 14rem) {
   .sys-player-now {
