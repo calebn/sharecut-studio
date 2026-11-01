@@ -272,7 +272,7 @@ const NEW_AUDIO: Partial<PrepareViewProps> = {
   ],
   rows: ROWS.plan,
   readySummary: "Getting ready: new audio waiting",
-  readyNote: "Priya’s audio is new. The other 3 tracks are reused as they are.",
+  readyNote: "Priya’s audio is new. The other 3 tracks keep their transcripts.",
   handoff: { label: "Process new audio" },
   onRunAll: fn(),
 };
@@ -322,7 +322,7 @@ export const NewAudioRowSkipped: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await openReady(canvasElement);
-    await expect(canvas.getByText("Skipped this time")).toBeVisible();
+    await expect(canvas.getByText(/^Skipped this time/)).toBeVisible();
     await userEvent.click(
       canvas.getByRole("button", { name: "Include, Line up tracks" }),
     );

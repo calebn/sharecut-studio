@@ -684,7 +684,7 @@ describe("PrepareView: audio added after a run", () => {
     rows: ROWS.plan,
     readySummary: "Getting ready: new audio waiting",
     readyNote:
-      "Priya’s audio is new. The other 3 tracks are reused as they are.",
+      "Priya’s audio is new. The other 3 tracks keep their transcripts.",
     handoff: { label: "Process new audio" },
   };
 
@@ -692,11 +692,11 @@ describe("PrepareView: audio added after a run", () => {
     render(<PrepareView {...props(NEW)} />);
     expect(
       screen.getByText(
-        "Priya’s audio is new. The other 3 tracks are reused as they are.",
+        "Priya’s audio is new. The other 3 tracks keep their transcripts.",
       ),
     ).toBeVisible();
     const list = screen.getByRole("list", { name: "Getting ready" });
-    expect(within(list).getAllByText("Priya only · 3 kept")).toHaveLength(2);
+    expect(within(list).getAllByText("Priya only · 3 kept")).toHaveLength(1);
     expect(within(list).getByText("All 4 tracks, Priya joins")).toBeVisible();
     expect(within(list).getByText("Whole episode")).toBeVisible();
   });
@@ -739,7 +739,7 @@ describe("PrepareView: audio added after a run", () => {
         {...props({ ...NEW, rows: ROWS.planSkipped, onRowAction })}
       />,
     );
-    expect(screen.getByText("Skipped this time")).toBeVisible();
+    expect(screen.getByText(/^Skipped this time/)).toBeVisible();
     await userEvent.click(
       screen.getByRole("button", { name: "Include, Line up tracks" }),
     );

@@ -878,7 +878,7 @@ describe("the plan for audio added after a run", () => {
       ["add", "done", "Priya added, 4 files", undefined],
       ["transcribe", "queued", "Priya only · 3 kept", "Skip"],
       ["align", "queued", "All 4 tracks, Priya joins", "Skip"],
-      ["clean", "queued", "Priya only · 3 kept", "Skip"],
+      ["clean", "queued", "All 4 tracks", "Skip"],
       ["suggest", "queued", "Whole episode", "Skip"],
     ]);
   });
@@ -890,16 +890,16 @@ describe("the plan for audio added after a run", () => {
     const many = rows(plan({ newNames: ["A", "B", "C"], kept: 1 }));
     expect(many[1].detail).toBe("3 new tracks only · 1 kept");
     expect(planNote(plan({ newNames: ["A", "B", "C"], kept: 1 }))).toBe(
-      "3 tracks have new audio. The other track is reused as it is.",
+      "3 tracks have new audio. The other track keeps its transcript.",
     );
   });
 
   it("explains the plan in one line", () => {
     expect(planNote(plan())).toBe(
-      "Priya’s audio is new. The other 3 tracks are reused as they are.",
+      "Priya’s audio is new. The other 3 tracks keep their transcripts.",
     );
     expect(planNote(plan({ newNames: ["Priya", "Joss"], kept: 2 }))).toBe(
-      "Priya and Joss have new audio. The other 2 tracks are reused as they are.",
+      "Priya and Joss have new audio. The other 2 tracks keep their transcripts.",
     );
   });
 
@@ -908,10 +908,40 @@ describe("the plan for audio added after a run", () => {
     expect(skipped[2]).toMatchObject({
       id: "align",
       state: "queued",
-      detail: "Skipped this time",
+      detail: "Skipped this time. Priya stays where it was recorded.",
       action: { label: "Include", run: "include" },
     });
     expect(skipped[1].action?.run).toBe("skip");
+  });
+
+  it("says kept only for Transcribe, the one step that skips finished tracks (#2890 for the rest)", () => {
+    const text = rows(plan({ scan: { time: "about 1 min" } })).map(
+      (r) => r.detail,
+    );
+    expect(text.filter((d) => /kept|reused/.test(d ?? ""))).toEqual([
+      "Priya only · 3 kept",
+    ]);
+    expect(planNote(plan())).not.toMatch(/reused/);
+  });
+
+  it("names what skipping Transcribe leaves behind, one line under the row", () => {
+    const skipped = rows(plan({ skipped: new Set(["transcribe"]) }));
+    expect(skipped[1]).toMatchObject({
+      state: "queued",
+      detail:
+        "Skipped this time. Priya will have no transcript, so later steps leave it out.",
+      action: { label: "Include", run: "include" },
+    });
+    const two = rows(
+      plan({
+        newNames: ["Priya", "Joss"],
+        kept: 2,
+        skipped: new Set(["transcribe"]),
+      }),
+    );
+    expect(two[1].detail).toBe(
+      "Skipped this time. Priya and Joss will have no transcript, so later steps leave them out.",
+    );
   });
 
   it("adds the sound scan row, with its cost, only while the project has it on", () => {
