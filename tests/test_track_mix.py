@@ -1656,3 +1656,37 @@ def test_damaged_cached_wavs_are_rebuilt(
         if operation != "mix"
         else not premix_is_stale(ws.project, defaults)
     )
+
+
+@pytest.mark.parametrize("payload", [{}, {"measured": "bad"}])
+@pytest.mark.parametrize("operation", ["direct", "export"])
+def test_invalid_master_qc_is_regenerated(
+    minimal_project: Path, payload: dict[str, Any], operation: str
+) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    path = ws.project.artifacts_dir() / "master_qc.json"
+    expected = json.loads(path.read_text())
+    before = _stamps(ws)
+    path.write_text(json.dumps(payload))
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        if operation == "direct":
+            steps.master_loudness(ws.project, defaults)
+        else:
+            _export(ws, eng)
+    assert json.loads(path.read_text()) == expected
+    assert eng.master_loudness.call_count == 2
+    assert _stamps(ws)["premix.wav"] == before["premix.wav"]
+    assert mastered_path(ws.project).read_bytes() == before["mastered.wav"][1]
+
+
+def test_valid_unmeasured_master_qc_reuses_audio_and_metadata(minimal_project: Path) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    path = ws.project.artifacts_dir() / "master_qc.json"
+    assert json.loads(path.read_text())["measured"] is None
+    before = _stamps(ws)
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        summary = steps.master_loudness(ws.project, defaults)
+        _export(ws, eng)
+    assert summary == "reused mastered.wav (loudness unmeasured)"
+    assert eng.master_loudness.call_count == 1
+    assert _stamps(ws) == before
