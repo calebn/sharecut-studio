@@ -593,6 +593,12 @@ def build_track_rms_caches(
     from podcast_mcp.engines import track_evidence
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
+    identity = (
+        audibility_reuse.audio_identity(project, unprocessed=unprocessed, defaults=defaults)
+        if track_ids is None and window is None
+        else None
+    )
+    degraded = False
     caches: dict[str, TrackRmsCache] = {}
     sources: dict[Path, np.ndarray] = {}
     raw_tracks: dict[str, tuple[list[TimelineClipSpan], list[Path]]] = {}
@@ -625,6 +631,7 @@ def build_track_rms_caches(
                 continue
             except (OSError, CalledProcessError, NoAudioDecodedError, ValueError) as exc:
                 # No unprocessed render: the track's evidence stays as before, processed.
+                degraded = True
                 _LOG.warning(
                     "reconcile evidence for track %s keeps its effects chain: %s", tid, exc
                 )
@@ -653,6 +660,7 @@ def build_track_rms_caches(
                 else [track_audio_path(project, tid).resolve()]
             )
         except (OSError, ValueError):
+            degraded = True
             continue
         raw_tracks[tid] = spans, paths
 
@@ -661,6 +669,7 @@ def build_track_rms_caches(
         try:
             samples = raw_samples_on_timeline(spans, paths, sources=sources)
         except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
+            degraded = True
             continue
         finally:
             for path in set(paths):
@@ -669,11 +678,8 @@ def build_track_rms_caches(
                     sources.pop(path, None)
         if samples.size:
             caches[tid] = TrackRmsCache(samples=samples)
-    identity = (
-        audibility_reuse.audio_identity(project, unprocessed=unprocessed, defaults=defaults)
-        if track_ids is None and window is None
-        else None
-    )
+    if degraded or any(tid not in caches for tid in wanted):
+        identity = None
     return TrackRmsCacheSet(caches=caches, audio_identity=identity)
 
 
@@ -1210,6 +1216,7 @@ def compute_word_audibility_map(
         lanes_transcripts(project, dialogue_track_ids(project)),
         identity=caches.audio_identity,
         policy=pol,
+        defaults=defaults,
         build=lambda: _measure_word_audibility(project, None, pol, progress, caches, defaults),
     )
 
