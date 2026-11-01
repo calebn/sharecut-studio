@@ -270,5 +270,6 @@ describe("sameClipBounds", () => {
     expect(sameClipBounds([lineA], [{ ...lineA, end: 41 }])).toBe(false);
     expect(sameClipBounds([lineA], [{ ...lineA, id: "other" }])).toBe(false);
     expect(sameClipBounds([lineA, lineB], [lineA])).toBe(false);
+    expect(sameClipBounds([lineA], [lineA, lineB])).toBe(false);
   });
 });

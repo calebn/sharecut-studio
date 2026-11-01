@@ -248,7 +248,12 @@ describe("ClipTrimWave anatomy", () => {
     const onGesture = vi.fn();
     const { handle } = setup({ onGesture });
     fireEvent.pointerDown(handle("In"), { pointerId: 1, clientX: 150 });
-    expect(onGesture).not.toHaveBeenCalledWith(false);
+    fireEvent.pointerMove(handle("In"), {
+      pointerId: 1,
+      clientX: 200,
+      buttons: 1,
+    });
+    expect(onGesture).toHaveBeenLastCalledWith(true);
     cleanup();
     expect(onGesture).toHaveBeenLastCalledWith(false);
   });
