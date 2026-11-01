@@ -1,7 +1,6 @@
 import {
   act,
   cleanup,
-  fireEvent,
   render,
   screen,
   waitFor,
@@ -15,18 +14,17 @@ import {
 } from "../../api/documentEdits";
 import { hostFetch } from "../../api/documentTransport";
 import { registerDawCommands } from "../../commands/register";
-import { UNAPPLIED_VALUE_REASON } from "../../inspector/NudgeButtons";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
   COMMENTER_CAPABILITIES,
-  clipRow,
   minimalProject,
   sampleComment,
   sampleTrack,
   wavResponse,
 } from "../../test/fixtures";
+import { decide } from "../../test/pendingDecision";
 import type { PendingEditView } from "../../types/project";
 import {
   ApiError,
@@ -106,6 +104,20 @@ function expectedBaseline(edit = sessionCut) {
   return pendingEditBaseline(edit);
 }
 
+async function commitField(
+  user: ReturnType<typeof userEvent.setup>,
+  label: string,
+  text: string,
+) {
+  const box = screen.getByRole("spinbutton", { name: label });
+  await waitFor(() => expect(box).not.toHaveAttribute("aria-readonly"));
+  box.focus();
+  await user.keyboard("{Enter}");
+  const input = screen.getByRole("textbox", { name: label });
+  await user.clear(input);
+  await user.type(input, `${text}{Enter}`);
+}
+
 describe("PendingEditBody", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -132,6 +144,9 @@ describe("PendingEditBody", () => {
       ...minimalProject(),
       pending_edits: [sessionCut],
     });
+    useDawStore
+      .getState()
+      .setSelection({ kind: "pending", id: "ed1", trackId: "host" });
   });
 
   it.each([
@@ -179,10 +194,14 @@ describe("PendingEditBody", () => {
       ).toBeVisible();
       expect(screen.queryByText("Type")).toBeNull();
       expect(
-        screen.queryByRole("textbox", { name: "Source start" }),
+        screen.queryByRole("spinbutton", { name: "Source start" }),
       ).toBeNull();
-      expect(screen.queryByRole("textbox", { name: "Source end" })).toBeNull();
-      expect(screen.queryByText("Snap to silence")).toBeNull();
+      expect(
+        screen.queryByRole("spinbutton", { name: "Source end" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("checkbox", { name: "Snap to silence" }),
+      ).toBeNull();
       expect(screen.queryByRole("button", { name: "Apply timing" })).toBeNull();
       expect(
         screen.queryByRole("button", { name: "Use suggestion" }),
@@ -230,75 +249,58 @@ describe("PendingEditBody", () => {
   });
 
   it("adds timing steps and disables both while a source draft is dirty", async () => {
-    const clip = clipRow({
-      id: "host-clip",
-      track_id: "host",
-      source_start: 0,
-      source_end: 60,
-      timeline_start: 0,
-      timeline_end: 60,
-    });
-    const project = minimalProject({
-      tracks: [sampleTrack({ id: "host" })],
-      clips: { tracks: { host: [clip] }, clip_count: 1 },
-      pending_edits: [sessionCut],
-    });
-    useDawStore.getState().hydrate("/tmp/p.json", project);
     render(<PendingEditBody edit={sessionCut} />);
-    const start = screen.getByRole("textbox", { name: "Source start" });
-    const group = screen.getByRole("group", { name: "Nudge source start" });
-    const later = within(group).getByRole("button", { name: "10 ms later" });
-    await waitFor(() => expect(later).not.toHaveAttribute("aria-disabled"));
-    fireEvent.change(start, { target: { value: "0:10.100" } });
-    expect(later).toHaveAttribute("aria-disabled", "true");
-    expect(later).toBeEnabled();
-    expect(later).toHaveAccessibleDescription(UNAPPLIED_VALUE_REASON);
-    expect(screen.getAllByText(UNAPPLIED_VALUE_REASON)[0]).toBeVisible();
-    later.focus();
-    expect(later).toHaveFocus();
-    await userEvent.click(later);
-    await userEvent.keyboard("{Enter}");
-    expect(updatePendingEdit).not.toHaveBeenCalled();
-    const endLater = within(
-      screen.getByRole("group", { name: "Nudge source end" }),
-    ).getByRole("button", { name: "100 ms later" });
-    expect(endLater).toHaveAttribute("aria-disabled", "true");
-    expect(endLater).toHaveAccessibleDescription(UNAPPLIED_VALUE_REASON);
+    expect(screen.queryByRole("group", { name: /Nudge source/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /ms later/ })).toBeNull();
+    const start = screen.getByRole("spinbutton", { name: "Source start" });
+    await waitFor(() => expect(start).not.toHaveAttribute("aria-readonly"));
+    expect(start).toHaveAttribute("aria-valuenow", "10");
+    expect(start).not.toHaveAttribute("aria-readonly");
+    expect(
+      screen.getByRole("spinbutton", { name: "Source end" }),
+    ).toHaveAttribute("aria-valuenow", "12");
   });
 
   it("saves one existing pending command for one timing-step click", async () => {
-    const clip = clipRow({
-      id: "host-clip",
-      track_id: "host",
-      source_start: 0,
-      source_end: 60,
-      timeline_start: 0,
-      timeline_end: 60,
-    });
-    useDawStore.getState().hydrate(
-      "/tmp/p.json",
-      minimalProject({
-        tracks: [sampleTrack({ id: "host" })],
-        clips: { tracks: { host: [clip] }, clip_count: 1 },
-        pending_edits: [sessionCut],
-      }),
-    );
     render(<PendingEditBody edit={sessionCut} />);
-    const button = within(
-      screen.getByRole("group", { name: "Nudge source start" }),
-    ).getByRole("button", { name: "10 ms later" });
-    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
-    await userEvent.click(button);
+    const start = screen.getByRole("spinbutton", { name: "Source start" });
+    start.focus();
+    await userEvent.keyboard("{ArrowUp}");
     await waitFor(() => expect(updatePendingEdit).toHaveBeenCalledTimes(1));
     expect(updatePendingEdit).toHaveBeenCalledWith(
       "/tmp/p.json",
       "ed1",
       10.01,
       12,
-      false,
+      true,
       undefined,
       expectedBaseline(sessionCut),
     );
+  });
+
+  it("shows a kind line and a Why row with no Approve or Reject buttons", () => {
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        tracks: [sampleTrack({ id: "host", label: "Jon" })],
+        pending_edits: [{ ...sessionCut, kind: "filler", reason: "tangent" }],
+      }),
+    );
+    render(<PendingEditBody edit={{ ...sessionCut, kind: "filler" }} />);
+    expect(screen.getByText("Filler · Jon · 2.0 s")).toBeVisible();
+    expect(screen.getByText("Why")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Apply timing" })).toBeNull();
+  });
+
+  it("keeps a suggestion through the sheet when Keep is chosen", async () => {
+    render(<PendingEditBody edit={sessionCut} />);
+    await decide("keep");
+    expect(approveEdits).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("spinbutton", { name: "Source start" }),
+    ).toBeVisible();
   });
 
   it("defaults a mute to Suggested", () => {
@@ -478,7 +480,6 @@ describe("PendingEditBody", () => {
   });
 
   it("keeps Ask compose and preview controls after a long approve error", async () => {
-    const user = userEvent.setup();
     approveEdits.mockRejectedValue(
       new ApiError(
         "Transcript refine is required before focus/tighten/NL edits. Run podcast-transcript-refine (whole-episode pass), then `podcast transcript refine-waive --reason ...` / transcript_refine_waive_tool.",
@@ -486,7 +487,7 @@ describe("PendingEditBody", () => {
       ),
     );
     const { container } = render(<PendingEditBody edit={sessionCut} />);
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await decide("cut");
     const error = await screen.findByRole("alert");
     expect(error).toHaveTextContent(/Review the transcript or waive/);
     expect(error).not.toHaveTextContent(/podcast transcript/);
@@ -501,11 +502,10 @@ describe("PendingEditBody", () => {
   });
 
   it("keeps an approval error when the same edit is refreshed", async () => {
-    const user = userEvent.setup();
     approveEdits.mockRejectedValue(new Error("Approval failed"));
     const { rerender } = render(<PendingEditBody edit={sessionCut} />);
 
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await decide("cut");
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Approval failed",
     );
@@ -525,11 +525,10 @@ describe("PendingEditBody", () => {
   });
 
   it("clears an approval error when the selected edit changes", async () => {
-    const user = userEvent.setup();
     approveEdits.mockRejectedValue(new Error("Approval failed"));
     const { rerender } = render(<PendingEditBody edit={sessionCut} />);
 
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await decide("cut");
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Approval failed",
     );
@@ -550,7 +549,7 @@ describe("PendingEditBody", () => {
       ),
     );
     render(<PendingEditBody edit={sessionCut} />);
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await decide("cut");
     await user.type(
       screen.getByLabelText("Waiver reason"),
       "Reviewed manually",
@@ -573,7 +572,7 @@ describe("PendingEditBody", () => {
       new ApiError("Refinement blocked", TRANSCRIPT_REFINE_REQUIRED_CODE),
     );
     const { container } = render(<PendingEditBody edit={sessionCut} />);
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await decide("cut");
     await user.click(screen.getByRole("button", { name: "Waive with reason" }));
     const reason = screen.getByRole("textbox", { name: "Waiver reason" });
     const validation = screen.getByText(
@@ -670,8 +669,6 @@ describe("PendingEditBody", () => {
       await user.click(snap);
       expect(snap).not.toBeChecked();
       expect(updatePendingEdit).not.toHaveBeenCalled();
-      await user.clear(screen.getByLabelText("Source start"));
-      await user.type(screen.getByLabelText("Source start"), "9.5");
       await user.click(snap);
       expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
         "/tmp/p.json",
@@ -682,7 +679,6 @@ describe("PendingEditBody", () => {
         undefined,
         expectedBaseline(),
       );
-      expect(screen.getByLabelText("Source start")).toHaveValue("9.5");
       expect(approveEdits).not.toHaveBeenCalled();
     });
 
@@ -692,9 +688,7 @@ describe("PendingEditBody", () => {
       await user.click(
         screen.getByRole("checkbox", { name: "Snap to silence" }),
       );
-      await user.clear(screen.getByLabelText("Source end"));
-      await user.type(screen.getByLabelText("Source end"), "12.5");
-      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      await commitField(user, "Source end", "12.5");
       expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
         "/tmp/p.json",
         "ed1",
@@ -710,7 +704,9 @@ describe("PendingEditBody", () => {
       expect(
         screen.getByRole("checkbox", { name: "Snap to silence" }),
       ).not.toBeChecked();
-      expect(screen.getByLabelText("Source end")).toHaveValue("0:12.500");
+      expect(
+        screen.getByRole("spinbutton", { name: "Source end" }),
+      ).toHaveAttribute("aria-valuetext", "12.500 s");
     });
 
     it("keeps submitted timing through an unrelated refresh while Apply is in flight", async () => {
@@ -723,63 +719,53 @@ describe("PendingEditBody", () => {
       );
       const user = userEvent.setup();
       const { rerender } = render(<PendingEditBody edit={sessionCut} />);
-      await waitFor(() =>
-        expect(screen.getByLabelText("Source end")).toBeEnabled(),
-      );
-      await user.clear(screen.getByLabelText("Source end"));
-      await user.type(screen.getByLabelText("Source end"), "12.5");
-      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      await commitField(user, "Source end", "12.5");
       rerender(
         <PendingEditBody edit={{ ...sessionCut, track_ids: ["host"] }} />,
       );
-      expect(screen.getByLabelText("Source end")).toHaveValue("12.5");
       expect(
-        screen.getByRole("button", { name: "Apply timing" }),
-      ).toBeDisabled();
+        screen.getByRole("spinbutton", { name: "Source end" }),
+      ).toHaveAttribute("aria-readonly", "true");
+      expect(updatePendingEdit).toHaveBeenCalledTimes(1);
       await act(async () => finish({ queued: false }));
       const saved = { ...sessionCut, source_end: 12.5, track_ids: ["host"] };
       act(() => replaceStored(saved));
       rerender(<PendingEditBody edit={saved} />);
-      expect(screen.getByLabelText("Source end")).toHaveValue("0:12.500");
+      expect(
+        screen.getByRole("spinbutton", { name: "Source end" }),
+      ).toHaveAttribute("aria-valuetext", "12.500 s");
     });
 
-    it.each([
-      { snap: false, start: "10", end: "12" },
-      { snap: true, start: "10.01", end: "12.01" },
-    ])(
+    it.each([{ snap: false }, { snap: true }])(
       "normalizes acknowledged unchanged bounds with $snap Snap and permits suggestion acceptance",
-      async ({ snap, start: startText, end: endText }) => {
+      async ({ snap }) => {
         loadPendingCutSuggestion.mockResolvedValue(proposal());
         const user = userEvent.setup();
         render(<PendingEditBody edit={sessionCut} />);
         await waitFor(() =>
-          expect(screen.getByLabelText("Source start")).toBeEnabled(),
+          expect(
+            screen.getByRole("spinbutton", { name: "Source start" }),
+          ).not.toHaveAttribute("aria-readonly"),
         );
         if (!snap)
           await user.click(
             screen.getByRole("checkbox", { name: "Snap to silence" }),
           );
-        const start = screen.getByLabelText("Source start");
-        const end = screen.getByLabelText("Source end");
-        await user.clear(start);
-        await user.type(start, startText);
-        await user.clear(end);
-        await user.type(end, endText);
+        await commitField(user, "Source end", "12.01");
         expect(
-          screen.getByRole("button", { name: "Use suggestion" }),
-        ).toBeDisabled();
-        // The acknowledged optimizer result is the original saved 10..12 range.
-        await user.click(screen.getByRole("button", { name: "Apply timing" }));
-        expect(start).toHaveValue("0:10.000");
-        expect(end).toHaveValue("0:12.000");
+          screen.getByRole("spinbutton", { name: "Source start" }),
+        ).toHaveAttribute("aria-valuetext", "10.000 s");
+        expect(
+          screen.getByRole("spinbutton", { name: "Source end" }),
+        ).toHaveAttribute("aria-valuetext", "12.000 s");
         expect(
           screen.getByRole("button", { name: "Use suggestion" }),
         ).toBeEnabled();
         expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
           "/tmp/p.json",
           "ed1",
-          Number(startText),
-          Number(endText),
+          10,
+          12.01,
           snap,
           undefined,
           expectedBaseline(),
@@ -798,10 +784,7 @@ describe("PendingEditBody", () => {
         );
         const user = userEvent.setup();
         const { rerender } = render(<PendingEditBody edit={sessionCut} />);
-        fireEvent.change(screen.getByLabelText("Source start"), {
-          target: { value: "10" },
-        });
-        await user.click(screen.getByRole("button", { name: "Apply timing" }));
+        await commitField(user, "Source start", "10.5");
         const next =
           change === "edit" ? { ...sessionCut, id: "ed2" } : sessionCut;
         act(() => {
@@ -813,12 +796,11 @@ describe("PendingEditBody", () => {
           if (change === "edit") replaceStored(next);
         });
         rerender(<PendingEditBody edit={next} />);
-        // A buffered input event must not be replaced by the earlier submission.
-        fireEvent.change(screen.getByLabelText("Source start"), {
-          target: { value: "9.75" },
-        });
         await act(async () => finish({ queued: change !== "typing" }));
-        expect(screen.getByLabelText("Source start")).toHaveValue("9.75");
+        expect(updatePendingEdit).toHaveBeenCalledTimes(1);
+        expect(
+          screen.getByRole("spinbutton", { name: "Source start" }),
+        ).toHaveAttribute("aria-valuetext", "10.000 s");
         expect(screen.queryByRole("status")).toBeNull();
       },
     );
@@ -828,20 +810,12 @@ describe("PendingEditBody", () => {
       loadPendingCutSuggestion.mockReturnValueOnce(pending.promise);
       const user = userEvent.setup();
       render(<PendingEditBody edit={sessionCut} />);
-      const end = screen.getByLabelText("Source end");
-      await waitFor(() => expect(end).toBeEnabled());
-      await user.clear(end);
-      await user.type(end, "12.75");
-      await act(async () => pending.resolve(proposal()));
-      expect(end).toHaveValue("12.75");
-      const use = screen.getByRole("button", { name: "Use suggestion" });
-      expect(use).toBeDisabled();
-      expect(use).toHaveAccessibleDescription(
-        "Apply timing first to review a suggestion for your changes.",
+      await waitFor(() =>
+        expect(
+          screen.getByRole("spinbutton", { name: "Source end" }),
+        ).not.toHaveAttribute("aria-readonly"),
       );
-      await user.click(use);
-      expect(updatePendingEdit).not.toHaveBeenCalled();
-      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      await commitField(user, "Source end", "12.75");
       expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
         "/tmp/p.json",
         "ed1",
@@ -851,6 +825,10 @@ describe("PendingEditBody", () => {
         undefined,
         expectedBaseline(),
       );
+      await act(async () => pending.resolve(proposal()));
+      expect(
+        screen.getByRole("button", { name: "Use suggestion" }),
+      ).toBeEnabled();
     });
 
     it("keeps dirty drafts on a remote timing change and discards the previous read", async () => {
@@ -862,29 +840,27 @@ describe("PendingEditBody", () => {
       const user = userEvent.setup();
       const { rerender } = render(<PendingEditBody edit={sessionCut} />);
       await waitFor(() =>
-        expect(screen.getByLabelText("Source start")).toBeEnabled(),
+        expect(
+          screen.getByRole("spinbutton", { name: "Source start" }),
+        ).not.toHaveAttribute("aria-readonly"),
       );
-      await user.clear(screen.getByLabelText("Source start"));
-      await user.type(screen.getByLabelText("Source start"), "9.5");
       const updated = { ...sessionCut, source_end: 14 };
       act(() => replaceStored(updated));
       rerender(<PendingEditBody edit={updated} />);
-      expect(screen.getByLabelText("Source start")).toHaveValue("9.5");
-      expect(screen.getByLabelText("Source end")).toHaveValue("0:14.000");
+      expect(
+        screen.getByRole("spinbutton", { name: "Source end" }),
+      ).toHaveAttribute("aria-valuetext", "14.000 s");
       await act(async () => second.resolve(proposal(updated)));
       expect(screen.getByText("0:09.97525 to 0:14.03525")).toBeVisible();
       await act(async () => first.resolve(proposal()));
       expect(screen.queryByText("0:09.97525 to 0:12.03525")).toBeNull();
-      expect(
-        screen.getByRole("button", { name: "Use suggestion" }),
-      ).toBeDisabled();
-      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      await user.click(screen.getByRole("button", { name: "Use suggestion" }));
       expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
         "/tmp/p.json",
         "ed1",
-        9.5,
-        14,
-        true,
+        proposal(updated).suggested.start,
+        proposal(updated).suggested.end,
+        false,
         undefined,
         expectedBaseline(updated),
       );
@@ -1014,22 +990,19 @@ describe("PendingEditBody", () => {
       const user = userEvent.setup();
       render(<PendingEditBody edit={sessionCut} />);
       await screen.findByRole("button", { name: "Retry suggestion" });
-      await user.clear(screen.getByLabelText("Source end"));
-      await user.type(screen.getByLabelText("Source end"), "12.5");
       await user.click(
         screen.getByRole("button", { name: "Retry suggestion" }),
       );
       expect(await screen.findByText("0:09.97525 to 0:12.03525")).toBeVisible();
-      expect(screen.getByLabelText("Source end")).toHaveValue("12.5");
       expect(
         screen.getByRole("button", { name: "Use suggestion" }),
-      ).toBeDisabled();
+      ).toBeEnabled();
       expect(
         screen.queryByRole("button", { name: "Retry suggestion" }),
       ).toBeNull();
     });
 
-    it.each(["Apply timing", "Snap to silence", "Use suggestion"])(
+    it.each(["Start commit", "Snap to silence", "Use suggestion"])(
       "blocks repeats while %s is queued, then reads fresh bounds",
       async (action) => {
         updatePendingEdit.mockResolvedValueOnce({ queued: true });
@@ -1041,23 +1014,22 @@ describe("PendingEditBody", () => {
         if (action === "Snap to silence") {
           await user.click(snap);
           await user.click(snap);
-        } else await user.click(screen.getByRole("button", { name: action }));
+        } else if (action === "Start commit")
+          await commitField(user, "Source start", "10.5");
+        else await user.click(screen.getByRole("button", { name: action }));
         expect(await screen.findByRole("status")).toHaveTextContent(
           "Still sending.",
         );
-        for (const name of [
-          "Apply timing",
-          "Use suggestion",
-          "Approve",
-          "Reject",
-        ]) {
-          const control = screen.getByRole("button", { name });
-          expect(control).toBeDisabled();
-          await user.click(control);
-        }
+        const use = screen.getByRole("button", { name: "Use suggestion" });
+        expect(use).toBeDisabled();
+        await user.click(use);
+        await decide("cut");
+        await decide("keep");
         expect(snap).toBeDisabled();
         await user.click(snap);
-        expect(screen.getByLabelText("Source start")).toBeDisabled();
+        expect(
+          screen.getByRole("spinbutton", { name: "Source start" }),
+        ).toHaveAttribute("aria-readonly", "true");
         expect(updatePendingEdit).toHaveBeenCalledTimes(1);
         expect(loadPendingCutSuggestion).toHaveBeenCalledTimes(1);
         expect(approveEdits).not.toHaveBeenCalled();
@@ -1103,8 +1075,14 @@ describe("PendingEditBody", () => {
       render(<PendingEditBody edit={guestCut} />);
       expect(screen.getByText("Join fade")).toBeInTheDocument();
       expect(screen.queryByText("Crossfade")).toBeNull();
-      expect(screen.getByLabelText("Source start")).toHaveValue("0:00.000");
-      expect(screen.getByLabelText("Source end")).toHaveValue("0:02.000");
+      expect(screen.getByLabelText("Source start")).toHaveAttribute(
+        "aria-valuetext",
+        "0.000 s",
+      );
+      expect(screen.getByLabelText("Source end")).toHaveAttribute(
+        "aria-valuetext",
+        "2.000 s",
+      );
       expect(screen.getAllByText("Suggested by guest")).toHaveLength(1);
       expect(screen.queryByText("guest:suggest")).toBeNull();
       expect(screen.getByText("Cut")).toBeInTheDocument();
@@ -1117,30 +1095,25 @@ describe("PendingEditBody", () => {
         .getState()
         .hydrate("/tmp/p.json", minimalProject({ pending_edits: [precise] }));
       render(<PendingEditBody edit={precise} />);
-      await user.click(screen.getByRole("button", { name: /Apply timing/ }));
-      let args = updatePendingEdit.mock.calls[0] as unknown[];
-      expect(args[2]).toBe(0.1234);
-      expect(args[3]).toBe(2.3804);
       const start = screen.getByLabelText("Source start");
-      expect(start).toHaveAttribute(
-        "id",
-        pendingEditTimingFieldId(guestCut.id, "start"),
-      );
-      await user.clear(start);
-      await user.type(start, "0:00.200");
-      await user.click(screen.getByRole("button", { name: /Apply timing/ }));
-      args = updatePendingEdit.mock.calls[1] as unknown[];
+      expect(
+        document.getElementById(pendingEditTimingFieldId(guestCut.id, "start")),
+      ).toContainElement(start);
+      await commitField(user, "Source start", "0.2");
+      const args = updatePendingEdit.mock.calls[0] as unknown[];
       expect(args[2] as number).toBeCloseTo(0.2, 9);
       expect(args[3]).toBe(2.3804);
     });
 
     it("describes the time format on every nudge field", async () => {
       const { container } = render(<PendingEditBody edit={guestCut} />);
-      expect(screen.getByLabelText("Source start")).toHaveAccessibleDescription(
-        "m:ss.mmm or seconds",
+      expect(screen.getByLabelText("Source start")).toHaveAttribute(
+        "aria-valuetext",
+        "0.000 s",
       );
-      expect(screen.getByLabelText("Source end")).toHaveAccessibleDescription(
-        "m:ss.mmm or seconds",
+      expect(screen.getByLabelText("Source end")).toHaveAttribute(
+        "aria-valuetext",
+        "2.000 s",
       );
       await expectNoA11yViolations(container);
       cleanup();
@@ -1164,11 +1137,7 @@ describe("PendingEditBody", () => {
     it("accepts m:ss.mmm in the nudge fields", async () => {
       const user = userEvent.setup();
       render(<PendingEditBody edit={guestCut} />);
-      const end = screen.getByLabelText("Source end");
-      await waitFor(() => expect(end).toBeEnabled());
-      await user.clear(end);
-      await user.type(end, "0:02.380");
-      await user.click(screen.getByRole("button", { name: /Apply timing/ }));
+      await commitField(user, "Source end", "2.38");
       expect(updatePendingEdit).toHaveBeenCalledTimes(1);
       const args = updatePendingEdit.mock.calls[0] as unknown[];
       expect(args.slice(0, 2)).toEqual(["/tmp/p.json", "ed1"]);
@@ -1183,14 +1152,15 @@ describe("PendingEditBody", () => {
       render(<PendingEditBody edit={guestCut} />);
       const snap = screen.getByRole("checkbox", { name: "Snap to silence" });
       expect(snap).toBeChecked();
-      expect(screen.getByRole("button", { name: "Approve" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
       await user.click(snap);
-      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      await commitField(user, "Source end", "2.5");
       expect(updatePendingEdit).toHaveBeenCalledWith(
         "/tmp/p.json",
         guestCut.id,
         guestCut.source_start,
-        guestCut.source_end,
+        2.5,
         false,
         undefined,
         expectedBaseline(guestCut),
@@ -1200,14 +1170,14 @@ describe("PendingEditBody", () => {
     it("rejects a malformed time", async () => {
       const user = userEvent.setup();
       render(<PendingEditBody edit={guestCut} />);
-      const end = screen.getByLabelText("Source end");
-      await waitFor(() => expect(end).toBeEnabled());
-      await user.clear(end);
-      await user.type(end, "1:75");
-      await user.click(screen.getByRole("button", { name: /Apply timing/ }));
-      expect(
-        await screen.findByText("Times must be m:ss.mmm or seconds"),
-      ).toBeInTheDocument();
+      await commitField(user, "Source end", "1:75");
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Enter a number of at least 0 s",
+      );
+      expect(updatePendingEdit).not.toHaveBeenCalled();
+      await user.keyboard("{Escape}");
+      await commitField(user, "Source end", "0");
+      expect(await screen.findByText(/end > start/)).toBeInTheDocument();
       expect(updatePendingEdit).not.toHaveBeenCalled();
     });
   });

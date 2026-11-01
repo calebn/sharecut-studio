@@ -897,10 +897,13 @@ function PendingEditRegion({
       ) {
         return;
       }
-      const field = document.getElementById(
+      const host = document.getElementById(
         pendingEditTimingFieldId(edit.id, "start"),
       );
-      if (field instanceof HTMLInputElement) {
+      const field = host?.matches("input")
+        ? host
+        : host?.querySelector<HTMLElement>("[role='spinbutton']");
+      if (field instanceof HTMLElement) {
         field.scrollIntoView({ block: "center" });
         field.focus();
       }

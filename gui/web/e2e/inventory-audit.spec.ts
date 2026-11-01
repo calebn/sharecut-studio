@@ -603,12 +603,15 @@ for (const profile of profiles) {
           await page
             .getByRole("checkbox", { name: "Snap to silence", exact: true })
             .uncheck();
-          await end.fill("25");
+          await end.press("Enter");
+          await page
+            .getByRole("textbox", { name: "Source end", exact: true })
+            .fill("25");
           expect(saved(projectPath)).toEqual(before);
           expect(commands).toEqual([]);
           await page
-            .getByRole("button", { name: "Apply timing", exact: true })
-            .click();
+            .getByRole("textbox", { name: "Source end", exact: true })
+            .press("Enter");
           await expect
             .poll(
               () =>

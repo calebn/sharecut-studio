@@ -951,7 +951,7 @@ test("a pending edit's Approve and Reject stay reachable in pinned chrome at enl
   ).toBeVisible();
   await expect(compact.getByRole("button", { name: "Close" })).toBeVisible();
   await expect(
-    compact.getByRole("textbox", { name: "Source start", exact: true }),
+    compact.getByLabel("Source start", { exact: true }),
   ).toBeVisible();
   await compact.getByRole("button", { name: "Collapse to strip" }).click();
   const previousIds = (await projectJson(page, projectPath)).pending_edits.map(

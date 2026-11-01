@@ -188,7 +188,10 @@ const SELECTIONS: Record<SelectionKind, NonNullable<Selection>> = {
   envelopePoint: { kind: "envelopePoint", trackId: "host", pointId: "e1" },
 };
 
-type Reach = { role: "button" | "heading" | "spinbutton"; name: string };
+type Reach = {
+  role: "button" | "checkbox" | "heading" | "spinbutton";
+  name: string;
+};
 
 /**
  * What a person must be able to reach for each kind of selection once Inspect
@@ -210,8 +213,8 @@ const REACH: Record<SelectionKind, Reach[]> = {
   ],
   bleedAttenuation: [{ role: "button", name: "Restore original audio" }],
   pending: [
-    { role: "button", name: "Approve" },
-    { role: "button", name: "Reject" },
+    { role: "spinbutton", name: "Source start" },
+    { role: "checkbox", name: "Snap to silence" },
   ],
   applied: [{ role: "button", name: "Open History" }],
   track: [

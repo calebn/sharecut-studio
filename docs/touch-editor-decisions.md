@@ -1327,3 +1327,5 @@ otherwise it opens the **jog pad** in the drawer's place. The pad maps finger
 travel to timeline steps; sliding up while dragging slows the gain. **Done**
 or a tap outside commits; a second finger cancels. Clip bodies, crossfade
 grips and other targets keep the existing touch grammar drag.
+
+Amended by #2294 (W3b2b, calebn, 2026-10-31): a suggestion's verbs on the Inspector sheet are Cut and Keep, not Approve and Reject, and the sheet no longer pins them in its own header; they come from the Action bar (the dock on the phone), and a Cut or Keep chosen there runs through the open sheet so its queued-timing lock and refine recovery still apply. An exact range proposal keeps Approve and Reject. The timeline overlay bar and the phone pinned chrome keep Approve and Reject until the overlay is renamed (step 2b).

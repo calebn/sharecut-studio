@@ -1,19 +1,16 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type PendingCutProposal,
   pendingEditBaseline,
 } from "../../api/documentEdits";
+import { executePointerCommand } from "../../commands/pointer";
+import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, pendingEditView } from "../../test/fixtures";
+import { decide } from "../../test/pendingDecision";
 import { PendingEditBody } from "./PendingEditBody";
 
 const mocks = vi.hoisted(() => ({
@@ -68,6 +65,7 @@ const proposal: PendingCutProposal = {
 
 describe("pending timing queue settlement", () => {
   beforeEach(() => {
+    registerDawCommands();
     mocks.approveEdits.mockReset().mockResolvedValue({
       queued: true,
       count: null,
@@ -82,18 +80,34 @@ describe("pending timing queue settlement", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+    useDawStore
+      .getState()
+      .setSelection({ kind: "pending", id: edit.id, trackId: edit.track_id });
   });
 
+  async function commitField(
+    user: ReturnType<typeof userEvent.setup>,
+    label: string,
+    text: string,
+  ) {
+    const box = screen.getByRole("spinbutton", { name: label });
+    await waitFor(() => expect(box).not.toHaveAttribute("aria-readonly"));
+    box.focus();
+    await user.keyboard("{Enter}");
+    const input = screen.getByRole("textbox", { name: label });
+    await user.clear(input);
+    await user.type(input, `${text}{Enter}`);
+  }
+
   it("says an approval that is still sending is not done yet", async () => {
-    const user = userEvent.setup();
     const { container } = render(<PendingEditBody edit={edit} />);
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
+      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
     );
     mocks.loadHostCommandQueue.mockResolvedValue([
       { ...command, type: "ApproveEdits", payload: { ids: [edit.id] } },
     ]);
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await decide("cut");
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Still sending.",
     );
@@ -102,15 +116,14 @@ describe("pending timing queue settlement", () => {
   });
 
   it("clears Still sending once the queued approval leaves the queue", async () => {
-    const user = userEvent.setup();
     render(<PendingEditBody edit={edit} />);
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
+      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
     );
     mocks.loadHostCommandQueue.mockResolvedValue([
       { ...command, type: "ApproveEdits", payload: { ids: [edit.id] } },
     ]);
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await decide("cut");
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Still sending.",
     );
@@ -135,20 +148,14 @@ describe("pending timing queue settlement", () => {
         await user.click(
           screen.getByRole("checkbox", { name: "Snap to silence" }),
         );
-      const start = screen.getByLabelText("Source start");
-      const end = screen.getByLabelText("Source end");
-      const startText = snap ? "10.01" : "10";
-      const endText = snap ? "12.01" : "12";
-      await user.clear(start);
-      await user.type(start, startText);
-      await user.clear(end);
-      await user.type(end, endText);
+      const start = screen.getByRole("spinbutton", { name: "Source start" });
       mocks.loadHostCommandQueue.mockResolvedValue([command]);
-      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      await commitField(user, "Source start", "10.01");
       expect(await screen.findByRole("status")).toHaveTextContent(
         "Still sending.",
       );
-      expect(start).toHaveValue(startText);
+      expect(start).toHaveAttribute("aria-readonly", "true");
+      expect(start).toHaveAttribute("aria-valuetext", "10.000 s");
       mocks.loadHostCommandQueue.mockResolvedValue([]);
       mocks.loadHostConflicts.mockResolvedValue(
         rejected ? [{ command, reason: "stale" }] : [],
@@ -156,12 +163,14 @@ describe("pending timing queue settlement", () => {
       await waitFor(
         () => {
           expect(screen.queryByRole("status")).toBeNull();
-          expect(start).toHaveValue(rejected ? startText : "0:10.000");
-          expect(end).toHaveValue(rejected ? endText : "0:12.000");
-          const accept = screen.getByRole("button", { name: "Use suggestion" });
-          rejected
-            ? expect(accept).toBeDisabled()
-            : expect(accept).toBeEnabled();
+          expect(start).not.toHaveAttribute("aria-readonly");
+          expect(start).toHaveAttribute("aria-valuetext", "10.000 s");
+          expect(
+            screen.getByRole("spinbutton", { name: "Source end" }),
+          ).toHaveAttribute("aria-valuetext", "12.000 s");
+          expect(
+            screen.getByRole("button", { name: "Use suggestion" }),
+          ).toBeEnabled();
         },
         { timeout: 2500 },
       );
@@ -172,39 +181,54 @@ describe("pending timing queue settlement", () => {
     const user = userEvent.setup();
     render(<PendingEditBody edit={edit} />);
     await screen.findByText("0:09.97525 to 0:12.03525");
-    fireEvent.change(screen.getByLabelText("Source start"), {
-      target: { value: "10.01" },
-    });
     mocks.loadHostCommandQueue.mockResolvedValue([command]);
-    await user.click(screen.getByRole("button", { name: "Apply timing" }));
-    fireEvent.change(screen.getByLabelText("Source start"), {
-      target: { value: "10.02" },
-    });
+    await commitField(user, "Source start", "10.01");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Still sending.",
+    );
     mocks.loadHostCommandQueue.mockResolvedValue([]);
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull(), {
       timeout: 2500,
     });
-    expect(screen.getByLabelText("Source start")).toHaveValue("10.02");
-    expect(
-      screen.getByRole("button", { name: "Use suggestion" }),
-    ).toBeDisabled();
+    await commitField(user, "Source start", "10.02");
+    expect(mocks.updatePendingEdit).toHaveBeenCalledTimes(2);
+    expect(mocks.updatePendingEdit).toHaveBeenLastCalledWith(
+      "/tmp/p.json",
+      edit.id,
+      10.02,
+      12,
+      true,
+      undefined,
+      pendingEditBaseline(edit),
+    );
   });
 
   it("blocks approval after remount until this edit's durable timing command drains", async () => {
     mocks.loadHostCommandQueue.mockResolvedValue([command]);
     const first = render(<PendingEditBody edit={edit} />);
     await act(async () => {});
-    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
     first.unmount();
     render(<PendingEditBody edit={edit} />);
-    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
     await act(async () => {});
-    expect(screen.getByRole("button", { name: "Apply timing" })).toBeDisabled();
+    expect(
+      screen.getByRole("spinbutton", { name: "Source start" }),
+    ).toHaveAttribute("aria-readonly", "true");
+    await act(async () => {
+      expect(await executePointerCommand("edit.delete")).toEqual({
+        status: "disabled",
+        reason: "Wait for the current action to finish.",
+      });
+    });
+    expect(mocks.approveEdits).not.toHaveBeenCalled();
     mocks.loadHostCommandQueue.mockResolvedValue([]);
     await waitFor(
       () =>
-        expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
+        expect(
+          screen.getByRole("spinbutton", { name: "Source start" }),
+        ).not.toHaveAttribute("aria-readonly"),
       { timeout: 2500 },
     );
+    await decide("cut");
+    expect(mocks.approveEdits).toHaveBeenCalledTimes(1);
   });
 });

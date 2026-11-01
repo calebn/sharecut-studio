@@ -35,7 +35,10 @@ test("host can waive a blocked approval in the browser", async ({ page }) => {
   const inspector = page
     .locator(".modifier-inspector")
     .filter({ has: page.getByRole("heading", { name: "Pending edit" }) });
-  await inspector.getByRole("button", { name: "Approve", exact: true }).click();
+  await page
+    .getByRole("group", { name: /^(Selection|Edit) actions$/ })
+    .getByRole("button", { name: "Cut", exact: true })
+    .click();
   await expect(
     page.getByRole("button", { name: "Waive with reason" }),
   ).toBeVisible();
@@ -43,10 +46,7 @@ test("host can waive a blocked approval in the browser", async ({ page }) => {
     page.getByText(/Review the transcript or waive with a reason below/),
   ).toBeVisible();
   await expect(
-    page
-      .locator(".modifier-inspector")
-      .filter({ has: page.getByRole("heading", { name: "Pending edit" }) })
-      .getByText(/Run podcast-transcript-refine/),
+    inspector.getByText(/Run podcast-transcript-refine/),
   ).toHaveCount(0);
   await page
     .getByRole("textbox", { name: "Waiver reason" })
