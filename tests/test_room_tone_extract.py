@@ -36,6 +36,7 @@ from podcast_mcp.services.record.landing_rollback import (
     prior_to_json,
     revert_registration,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 SR = 16000
 DURATION_SEC = 10.0
@@ -459,3 +460,23 @@ def test_a_recorded_bed_landing_between_plan_and_register_wins(tmp_path: Path) -
 
     assert result["reason"] == "has_bed"
     assert ws.project.track_by_id("host").room_tone_origin is None
+
+
+def test_placing_an_extracted_bed_on_an_unknown_track_is_a_coded_refusal(tmp_path: Path) -> None:
+    from podcast_mcp.edits.record_placement import place_extracted_room_tone
+
+    plan = _plan(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    project = _project(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+
+    with pytest.raises(CodedValueError) as refusal:
+        place_extracted_room_tone(
+            project,
+            track_id="nobody",
+            rel=plan.rel,
+            duration_s=plan.duration_sec,
+            sample_rate=plan.sample_rate,
+            channels=plan.channels,
+            origin=plan.origin,
+        )
+
+    assert refusal.value.code == "track_not_found"
