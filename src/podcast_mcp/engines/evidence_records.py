@@ -113,8 +113,10 @@ def _checksum(rates: Iterable[int], arrays: Iterable[np.ndarray]) -> str:
 
 def write_record(directory: Path, key: str, evidence: dict[int, np.ndarray]) -> bool:
     """Record ``evidence`` under ``key`` atomically and drop the oldest records past the caps; ``False`` when nothing was written."""
-    if not evidence or any(
-        a.dtype != np.float32 or a.ndim != 1 or a.size == 0 for a in evidence.values()
+    if (
+        not isinstance(evidence, dict)
+        or not evidence
+        or any(a.dtype != np.float32 or a.ndim != 1 or a.size == 0 for a in evidence.values())
     ):
         return False
     rates = list(evidence)
