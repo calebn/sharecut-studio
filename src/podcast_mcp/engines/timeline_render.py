@@ -13,7 +13,7 @@ from podcast_mcp.config.defaults import (
     EffectiveConfig,
     join_micro_fade_ms,
 )
-from podcast_mcp.engines import room_tone as tone
+from podcast_mcp.engines import room_tone
 from podcast_mcp.engines.audio import (
     At,
     Audio,
@@ -51,7 +51,7 @@ from podcast_mcp.engines.mute_regions import (
     room_tone_fills_for_source_window,
 )
 from podcast_mcp.engines.render_clock import read_render_clock
-from podcast_mcp.engines.room_tone_tiles import tile_span
+from podcast_mcp.engines.room_tone_tiles import Tile, tile_span
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.engines.timed_pieces import TimingHole, expand_timed_clips
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track
@@ -102,6 +102,35 @@ def _source_audio_path(
     return resolve_under_workspace(project, track.media.path)
 
 
+def _tile_at(
+    path: Path,
+    tile: Tile,
+    start_sec: float,
+    *,
+    clip_id: str,
+    source_id: str | None,
+    edge_in: float,
+    edge_out: float,
+) -> At:
+    """A room-tone tile; a tile edge that blends into its neighbour ramps over the blend, any
+    other edge takes ``edge_in`` / ``edge_out``."""
+    return At(
+        start_sec,
+        SourceAudio(
+            path=path,
+            src_start=tile.source_start - tile.reach_in,
+            src_end=tile.source_start + tile.length + tile.reach_out,
+            fade_in_sec=2 * tile.reach_in if tile.reach_in > 0 else edge_in,
+            fade_out_sec=2 * tile.reach_out if tile.reach_out > 0 else edge_out,
+            clip_id=clip_id,
+            source_id=source_id,
+            is_fill=True,
+            reach_in=tile.reach_in,
+            reach_out=tile.reach_out,
+        ),
+    )
+
+
 def _room_tone_under_mutes(
     project: EpisodeProject, track: Track, clip: Clip, src_start: float, src_end: float
 ) -> list[At]:
@@ -112,34 +141,16 @@ def _room_tone_under_mutes(
         t, end = max(0.0, env.start), min(seg_dur, env.end)
         repeats = tile_span(fill.start_s, fill.end_s, end - t, seed_sec=fill.start_s)
         for index, tile in enumerate(repeats):
-            blends_in, blends_out = tile.reach_in > 0, tile.reach_out > 0
+            last = index + 1 == len(repeats)
             tiles.append(
-                At(
+                _tile_at(
+                    path,
+                    tile,
                     t - tile.reach_in,
-                    SourceAudio(
-                        path=path,
-                        src_start=tile.source_start - tile.reach_in,
-                        src_end=tile.source_start + tile.length + tile.reach_out,
-                        fade_in_sec=(
-                            2 * tile.reach_in
-                            if blends_in
-                            else (env.fade_out_sec if t == env.start else 0.0)
-                        ),
-                        fade_out_sec=(
-                            2 * tile.reach_out
-                            if blends_out
-                            else (
-                                env.fade_in_sec
-                                if index + 1 == len(repeats) and env.end <= seg_dur + 1e-6
-                                else 0.0
-                            )
-                        ),
-                        clip_id=clip.id,
-                        source_id=fill.source_id,
-                        is_fill=True,
-                        reach_in=tile.reach_in,
-                        reach_out=tile.reach_out,
-                    ),
+                    clip_id=clip.id,
+                    source_id=fill.source_id,
+                    edge_in=env.fade_out_sec if t == env.start else 0.0,
+                    edge_out=env.fade_in_sec if last and env.end <= seg_dur + 1e-6 else 0.0,
                 )
             )
             t += tile.length
@@ -147,63 +158,134 @@ def _room_tone_under_mutes(
 
 
 def _hole_fill_paths(project: EpisodeProject, track: Track) -> dict[Path, None]:
-    """Files a timing hole's room tone can come from: the track's media and its recorded bed."""
     paths = {_source_audio_path(project, track, None, owner=f"track {track.id}"): None}
-    bed = project.source_by_id(tone.room_tone_source_id(track.id)) if track.room_tone else None
+    bed = project.source_by_id(room_tone.room_tone_source_id(track.id)) if track.room_tone else None
     if bed is not None:
         paths[resolve_under_workspace(project, bed.path)] = None
     return paths
 
 
-def _hole_room_tone(
-    project: EpisodeProject, track: Track, hole: TimingHole, gap_sec: float, micro_fade_ms: int
-) -> Audio | None:
-    """The track's room tone for a hole a positive timing step leaves, None for digital silence.
+_CUT_EPS_SEC = 1e-9
 
-    The same pick a pad or mute fill takes (``room_tone_span``), only when the track has a
-    recorded bed or a pool: a track without either is not measured at render time.
+
+def _cut_tile(
+    tile: Tile,
+    offset: float,
+    skip_sec: float,
+    length_sec: float,
+    path: Path,
+    grid: TrackGrid | None,
+) -> tuple[Tile, float, bool, bool] | None:
+    """``tile`` (nominally at ``offset`` in the hole) cut to the hole's ``[skip, skip + length]``.
+
+    Returns the tile as it plays inside the window, its start in the window, and whether its
+    start and end were cut; None when the window misses it. A cut edge gives up the blend
+    borrowed there, as a clip cut by a window does. On a grid the cut is made in whole frames
+    from the frames the stem plays, so the window plays the stem's samples.
     """
-    if track.room_tone is None and not tone.read_room_tone_pool(project, track.id):
+    src_lo, src_hi = tile.source_start - tile.reach_in, tile.source_start + tile.length
+    src_hi += tile.reach_out
+    lo = offset - tile.reach_in
+    if grid is None:
+        hi = lo + (src_hi - src_lo)
+        window_lo, window_hi = skip_sec, skip_sec + length_sec
+        cut_in, cut_out = window_lo - lo > _CUT_EPS_SEC, hi - window_hi > _CUT_EPS_SEC
+        seen_lo, seen_hi = (window_lo if cut_in else lo), (window_hi if cut_out else hi)
+        new_lo = src_lo + (seen_lo - lo) if cut_in else src_lo
+        new_hi = src_hi - (hi - seen_hi) if cut_out else src_hi
+        start_sec = seen_lo - skip_sec
+        if seen_hi - seen_lo <= _CUT_EPS_SEC:
+            return None
+    else:
+        seek = grid.seeks.get(path) or MediaSeek.at(0.0, lead_sec=audio_start_sec(path))
+        first = grid.frame(lo)
+        src = seek.first_sample(src_lo, grid.rate)
+        size = seek.first_sample(src_hi, grid.rate) - src
+        window_lo, window_hi = grid.frame(skip_sec), grid.frame(skip_sec) + grid.frame(length_sec)
+        cut_in, cut_out = first < window_lo, first + size > window_hi
+        seen_lo, seen_hi = max(first, window_lo), min(first + size, window_hi)
+        if seen_hi <= seen_lo:
+            return None
+        new_lo = seek.sample_time(src + seen_lo - first, grid.rate) if cut_in else src_lo
+        new_hi = seek.sample_time(src + seen_hi - first, grid.rate) if cut_out else src_hi
+        start_sec = (seen_lo - window_lo) / grid.rate
+    if not (cut_in or cut_out):
+        return tile, start_sec, False, False
+    reach_in = 0.0 if cut_in else tile.reach_in
+    reach_out = 0.0 if cut_out else tile.reach_out
+    start, end = new_lo + reach_in, new_hi - reach_out
+    if end - start <= _CUT_EPS_SEC:
+        return None
+    return Tile(start, end - start, reach_in, reach_out), start_sec, cut_in, cut_out
+
+
+def _skipped_source_spans(
+    project: EpisodeProject, track: Track, parent: Clip
+) -> list[tuple[float, float]]:
+    """Source the parent's negative steps skip; a hole's tone must not replay it."""
+    if parent.timing is None or None not in project.equivalent_source_ids(
+        track.id, parent.source_id
+    ):
+        return []
+    return [(s.at, s.at - s.delta_sec) for s in parent.timing.steps if s.delta_sec < 0]
+
+
+def _hole_room_tone(
+    project: EpisodeProject,
+    track: Track,
+    hole: TimingHole,
+    *,
+    gap_sec: float,
+    skip_sec: float,
+    length_sec: float,
+    micro_fade_ms: int,
+    grid: TrackGrid | None,
+) -> Audio | None:
+    """The track's room tone for ``[skip, skip + length]`` of a ``gap_sec`` hole; the tone is
+    laid out for the whole hole so a window plays the same samples as the stem.
+
+    None is digital silence: a track with neither a recorded bed nor a pool is not measured at
+    render time.
+    """
+    if track.room_tone is None and not room_tone.read_room_tone_pool(project, track.id):
         return None
     at = hole.right.source_start
-    pick = tone.room_tone_span(
+    pick = room_tone.room_tone_span(
         project,
         track.id,
         near_sec=at,
         near_source_id=hole.parent.source_id,
         duration_sec=gap_sec,
+        avoid=_skipped_source_spans(project, track, hole.parent),
     )
-    if isinstance(pick, tone.RecordedBedSample):
-        path, source_id, span = pick.path, pick.source_id, (pick.start, pick.end)
-    elif isinstance(pick, tone.OwnQuietSample):
+    if isinstance(pick, room_tone.RecordedBedSample):
+        path, source_id, lo, hi = pick.path, pick.source_id, pick.start, pick.end
+    elif isinstance(pick, room_tone.OwnQuietSample):
         owner = f"clip {hole.parent.id} timing hole"
         path = _source_audio_path(project, track, None, owner=owner)
-        source_id, span = None, (pick.sample.start, pick.sample.end)
+        source_id, lo, hi = None, pick.sample.start, pick.sample.end
     else:
         return None
     fade = micro_fade_ms / 1000.0
-    tiles = tile_span(span[0], span[1], gap_sec, seed_sec=at)
     ats: list[At] = []
     offset = 0.0
-    for tile in tiles:
+    for whole in tile_span(lo, hi, gap_sec, seed_sec=at):
+        cut = _cut_tile(whole, offset, skip_sec, length_sec, path, grid)
+        offset += whole.length
+        if cut is None:
+            continue
+        tile, start_sec, cut_in, cut_out = cut
         ats.append(
-            At(
-                offset - tile.reach_in,
-                SourceAudio(
-                    path=path,
-                    src_start=tile.source_start - tile.reach_in,
-                    src_end=tile.source_start + tile.length + tile.reach_out,
-                    fade_in_sec=2 * tile.reach_in if tile.reach_in > 0 else fade,
-                    fade_out_sec=2 * tile.reach_out if tile.reach_out > 0 else fade,
-                    clip_id=hole.parent.id,
-                    source_id=source_id,
-                    is_fill=True,
-                    reach_in=tile.reach_in,
-                    reach_out=tile.reach_out,
-                ),
+            _tile_at(
+                path,
+                tile,
+                start_sec,
+                clip_id=hole.parent.id,
+                source_id=source_id,
+                edge_in=0.0 if cut_in else fade,
+                edge_out=0.0 if cut_out else fade,
             )
         )
-        offset += tile.length
     return MixAudio(ats[0], tuple(ats[1:])) if ats else None
 
 
@@ -477,7 +559,7 @@ def track_grid(
 class _ClipContent:
     timeline_start: float
     timeline_end: float
-    body: Audio
+    body: Audio | None  # None: silence a timing hole leaves, which plays nothing
 
 
 @dataclass(frozen=True)
@@ -522,6 +604,8 @@ def _place_clips(
 
     components: list[_Component] = []
     ends: list[tuple[float, int]] = []
+    silent_tail = 0.0
+    after_silent_hole = False
     previous_component: int | None = None
     authored_frontier = 0.0
     clock_shift = 0.0
@@ -532,6 +616,11 @@ def _place_clips(
             previous_component = None
             continue
         body = content.body
+        if body is None:
+            previous_component = None
+            after_silent_hole = True
+            silent_tail = max(silent_tail, units(content.timeline_end) - clock_shift)
+            continue
         body_duration = units(duration(body))
         if item.borrow_in > 0 and previous_component is not None:
             left = components[previous_component]
@@ -540,8 +629,9 @@ def _place_clips(
             left.end += body_duration - units(overlap)
         else:
             start = max(0.0, units(content.timeline_start) - clock_shift)
-            if abs(start - frontier) <= tolerance:
+            if abs(start - frontier) <= tolerance and not after_silent_hole:
                 start = frontier
+            after_silent_hole = False
             if (
                 previous_component is not None
                 and abs(start - components[previous_component].end) <= join_epsilon
@@ -564,19 +654,26 @@ def _place_clips(
             "no clips to render. Add a clip to the track first.", code="missing_argument"
         )
     ats = [At(component.start / scale, component.audio) for component in components]
+    extent = None
+    if window_length is not None:
+        extent = RequestedExtent((units(window_length) - clock_shift) / scale)
+    elif silent_tail > frontier:
+        extent = RequestedExtent(silent_tail / scale)
     return _PlacedTrack(
         MixAudio(ats[0], tuple(ats[1:])),
-        RequestedExtent((units(window_length) - clock_shift) / scale)
-        if window_length is not None
-        else None,
-        tuple((item.clip.id, item.content.body) for item in prepared if item.content is not None),
+        extent,
+        tuple(
+            (item.clip.id, item.content.body)
+            for item in prepared
+            if item.content is not None and item.content.body is not None
+        ),
     )
 
 
 def shell_micro_fade_ms(clips: list[Clip], defaults: EffectiveConfig) -> int:
     """The declick fade of a mapped clip's piece joins; defaults are read only when a clip is mapped."""
     if any(clip.timing is not None for clip in clips):
-        return join_micro_fade_ms(defaults)
+        return max(0, join_micro_fade_ms(defaults))
     return DEFAULT_MICRO_FADE_MS
 
 
@@ -593,11 +690,8 @@ def placed_track_audio(
     bypass_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
     micro_fade_ms: int = DEFAULT_MICRO_FADE_MS,
 ) -> _PlacedTrack:
-    """Build the exact source, envelope and placement graph without rendering or saving.
-
-    A clip with a timing map plays as its virtual pieces; the hole at a positive step is
-    filled with the track's room tone, or left as digital silence when the track has none.
-    """
+    """Build the exact source, envelope and placement graph without rendering or saving."""
+    micro_fade_ms = max(0, micro_fade_ms)
     sorted_clips, holes = expand_timed_clips(sorted_clips, micro_fade_ms=micro_fade_ms)
     prepared: list[_PreparedClip] = []
     ignored_lookup = IgnoredWordRegions(project)
@@ -764,28 +858,45 @@ def _with_hole_fills(
     origin_frame: int,
     micro_fade_ms: int,
 ) -> list[_PreparedClip]:
-    """``prepared`` with a room-tone item after each piece that leaves a hole to fill."""
     out: list[_PreparedClip] = []
+    origin_sec = window[0] if window else 0.0
     for index, item in enumerate(prepared):
         out.append(item)
         hole = holes.get(index)
         if hole is None:
             continue
         if grid is not None:
-            first, last = grid.frame(hole.start), grid.frame(hole.end)
+            whole_first, whole_last = grid.frame(hole.start), grid.frame(hole.end)
+            first, last = whole_first, whole_last
             if window:
                 first, last = max(first, origin_frame), min(last, grid.frame(window[1]))
-            placed = ((first - origin_frame) / grid.rate, (last - origin_frame) / grid.rate)
+            gap_sec, skip_sec = (
+                (whole_last - whole_first) / grid.rate,
+                (first - whole_first) / grid.rate,
+            )
+            placed_start, placed_end = (
+                (first - origin_frame) / grid.rate,
+                (last - origin_frame) / grid.rate,
+            )
         else:
             start, end = hole.start, hole.end
             if window:
                 start, end = max(start, window[0]), min(end, window[1])
-            placed = (start - (window[0] if window else 0.0), end - (window[0] if window else 0.0))
-        if placed[1] <= placed[0]:
+            gap_sec, skip_sec = hole.end - hole.start, start - hole.start
+            placed_start, placed_end = start - origin_sec, end - origin_sec
+        if placed_end <= placed_start:
             continue
-        body = _hole_room_tone(project, track, hole, placed[1] - placed[0], micro_fade_ms)
-        if body is not None:
-            out.append(_PreparedClip(hole.parent, _ClipContent(placed[0], placed[1], body)))
+        body = _hole_room_tone(
+            project,
+            track,
+            hole,
+            gap_sec=gap_sec,
+            skip_sec=skip_sec,
+            length_sec=placed_end - placed_start,
+            micro_fade_ms=micro_fade_ms,
+            grid=grid,
+        )
+        out.append(_PreparedClip(hole.parent, _ClipContent(placed_start, placed_end, body)))
     return out
 
 

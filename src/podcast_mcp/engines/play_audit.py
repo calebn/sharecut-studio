@@ -14,7 +14,7 @@ from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.mute_regions import IgnoredWordRegions, mute_regions_payload
 from podcast_mcp.engines.off_speaker_regions import nonempty_off_speaker_regions_payload
-from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
+from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV, shell_micro_fade_ms
 from podcast_mcp.models import AutomationEnvelope, Clip, EpisodeProject, Track
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.atomic_render import render_atomic
@@ -95,8 +95,12 @@ def _track_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effe
             clip_payload["join_borrow_sec"] = borrow
         previous = c
         if c.timing is not None:
-            # Only while set, so hashes of untimed clips stay valid.
-            clip_payload["timing"] = c.timing.model_dump(mode="json")
+            # Only while set, so hashes of untimed clips stay valid. `method` and `evidence`
+            # are provenance; they change no sample.
+            clip_payload["timing"] = [
+                {"at": step.at, "delta_sec": step.delta_sec} for step in c.timing.steps
+            ]
+            clip_payload["micro_fade_ms"] = shell_micro_fade_ms([c], defaults)
         if c.bleed_restore is not None:
             clip_payload["bleed_restore"] = c.bleed_restore.model_dump(mode="json")
         ignored_regions = mute_regions_payload(ignored_lookup.for_clip(c))
