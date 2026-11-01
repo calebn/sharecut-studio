@@ -152,6 +152,34 @@ describe("useShortViewport", () => {
     expect(renderHook(() => useShortViewport()).result.current).toBe(false);
   });
 
+  it("treats a scale within 0.01 of 1 as unzoomed and a scale of 1.02 as zoomed", () => {
+    const control = stub(false, 844);
+    const { result } = renderHook(() => useShortViewport());
+    act(() => control.setScale(1.005));
+    act(() => control.setVisual(440));
+    expect(result.current).toBe(true);
+    act(() => control.setVisual(844));
+    act(() => control.setScale(1.02));
+    act(() => control.setVisual(440));
+    expect(result.current).toBe(false);
+  });
+
+  it("stops reporting short when the visual height goes missing", () => {
+    const control = stub(false, 440);
+    const { result } = renderHook(() => useShortViewport());
+    expect(result.current).toBe(true);
+    act(() => control.setVisual(undefined as unknown as number));
+    expect(result.current).toBe(false);
+  });
+
+  it("still follows the height media query while pinch-zoomed", () => {
+    const control = stub(false, 844);
+    const { result } = renderHook(() => useShortViewport());
+    act(() => control.setScale(1.5));
+    act(() => control.setMedia(true));
+    expect(result.current).toBe(true);
+  });
+
   it("listens for resize on the window and on the visual viewport, and lets go on unmount", () => {
     const control = stub(false, 844);
     const { unmount } = renderHook(() => useShortViewport());
