@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -166,7 +167,7 @@ def _write_excerpt(source: Path, dest: Path, start: float, end: float) -> None:
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    temp = dest.with_name(f".{dest.stem}.partial.wav")
+    temp = dest.with_name(f".{dest.stem}.{uuid.uuid4().hex[:8]}.partial.wav")
     try:
         FFmpegEngine().extract_segment(source, temp, start, end)
         publish_completed_file(temp, dest)

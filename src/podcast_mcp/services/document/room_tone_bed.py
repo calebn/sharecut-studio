@@ -15,6 +15,7 @@ from podcast_mcp.models import EpisodeProject, Track
 from podcast_mcp.services.document.service_base import WorkspaceService
 from podcast_mcp.util.project_state import file_stamp
 from podcast_mcp.util.tracks import track_audio_path
+from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 
 def _blocked(track: Track | None) -> str | None:
@@ -37,6 +38,11 @@ def _current(project: EpisodeProject, track: Track) -> bool:
     try:
         stamp = file_stamp(track_audio_path(project, track.id))
     except OSError:
+        return False
+    if (
+        track.room_tone is None
+        or not resolve_under_workspace(project, track.room_tone.path).is_file()
+    ):
         return False
     return (stamp.size, stamp.mtime_ns) == (origin.media_size, origin.media_mtime_ns)
 
