@@ -62,7 +62,6 @@ const baseProps = {
   envelopes: [],
   appliedRecords: [],
   pendingEdits: [],
-  onSelectTrack: vi.fn(),
   onSelectPending: vi.fn(),
 };
 

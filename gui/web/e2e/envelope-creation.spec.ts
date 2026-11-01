@@ -46,7 +46,9 @@ async function projectHistoryShortcut(
   const close = pointSheet(page).getByRole("button", { name: "Close" });
   const target = (await close.count())
     ? close
-    : page.getByRole("slider", { name: "Envelope level" }).first();
+    : page
+        .getByRole("button", { name: "Hide volume envelope", exact: true })
+        .first();
   await expect(target).toBeEnabled();
   await target.focus();
   await expect(target).toBeFocused();
@@ -56,7 +58,7 @@ async function projectHistoryShortcut(
       key,
       target: (await close.count())
         ? "enabled Close button (focused, not activated)"
-        : "Envelope level slider (focused, no point sheet open)",
+        : "Hide volume envelope button (focused, no point sheet open)",
       reason:
         "A Scrub field's text input owns typing shortcuts; project history requires a non-typing target.",
     },
@@ -136,16 +138,16 @@ for (const core of [
               exact: true,
             });
             await expect(hideLayer).toHaveAttribute("aria-pressed", "true");
-            const unity = page.locator(".envelope-overlay").first();
+            const unity = page.getByTestId("timeline-envelope").first();
             await expect(unity).toBeVisible();
-            await expect(unity.locator("polyline")).toHaveAttribute(
-              "points",
+            await expect(unity.locator(".sys-env-line")).toHaveAttribute(
+              "d",
               /\S/,
             );
-            await expect(unity.locator("circle")).toHaveCount(0);
+            await expect(unity.getByRole("slider")).toHaveCount(0);
             await hideLayer.click();
             await expect(showLayer).toHaveAttribute("aria-pressed", "false");
-            await expect(page.locator(".envelope-overlay")).toHaveCount(0);
+            await expect(page.getByTestId("timeline-envelope")).toHaveCount(0);
             expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
             expect(observer.commands).toEqual([]);
             await showLayer.click();

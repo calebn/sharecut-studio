@@ -71,9 +71,9 @@ const COVERED: Record<string, string[]> = {
   "OVL-STALE": ["Templates/StaleInvalidationOverlay"],
   "OVL-PRESENCE": ["System/Presence", "Stages/Edit/Timeline"],
   "OVL-ENVELOPE": [
-    "Templates/EnvelopeOverlay",
     "System/ReadoutChip",
     "System/Envelope",
+    "Stages/Edit/Timeline",
   ],
   "OVL-BLEED": ["Templates/BleedAttenuationOverlay"],
   "OVL-RANGE": ["Templates/TimelineRange"],

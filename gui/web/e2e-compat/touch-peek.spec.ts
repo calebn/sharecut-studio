@@ -95,7 +95,7 @@ async function open(
   await layer(page, "Volume envelope", true);
   await setTheme(page, theme);
   await expect(
-    page.locator('circle[aria-label^="Envelope point 2"]'),
+    page.getByRole("slider", { name: "Envelope point 2", exact: true }),
   ).toBeVisible();
   await setZoom(page, 3);
 }

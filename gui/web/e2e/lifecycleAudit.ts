@@ -188,6 +188,13 @@ export async function begin(
   await page.mouse.move(p.x + dx, p.y, { steps: 4 });
   return p;
 }
+/** An envelope point's drawn centre in px from the lane's window, as the leaf sets it (it follows a drag). */
+export function pointCentre(point: Locator) {
+  return point.evaluate((element) => ({
+    cx: Number.parseFloat(element.style.getPropertyValue("--sys-env-x")),
+    cy: Number.parseFloat(element.style.getPropertyValue("--sys-env-y")),
+  }));
+}
 export async function captureOwner(t: Locator) {
   const id = await t.evaluate((e) => {
     for (let i = 1; i < 32; i++) if (e.hasPointerCapture(i)) return i;
