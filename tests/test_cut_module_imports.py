@@ -107,3 +107,36 @@ def test_cut_application_keeps_only_the_transcript_cuts_import_lazy() -> None:
                 node.module or "" for node in ast.walk(fn) if isinstance(node, ast.ImportFrom)
             )
     assert lazy == _CUT_APPLICATION_LAZY
+
+
+def _modules_calling(name: str) -> set[str]:
+    callers: set[str] = set()
+    for path in _EDITS.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                fn = node.func
+                called = fn.id if isinstance(fn, ast.Name) else getattr(fn, "attr", None)
+                if called == name:
+                    callers.add(path.relative_to(_EDITS).with_suffix("").as_posix())
+    return callers
+
+
+# #1813 wants cut_application to be the only caller of both placement guards. These sets are the
+# callers today. A new caller fails the test; removing one fails it too, so shrink the set in the
+# same change.
+_PLACEMENT_GUARD_CALLERS = {
+    "inspect_source_remove_placement": {
+        "cut_application",
+        "cut_safety",
+        "source_removals",
+        "timeline_span",
+        "transcript_cuts",
+    },
+    "require_source_remove": {"decisions", "tighten/apply", "transcript_cuts"},
+}
+
+
+def test_placement_guard_callers_only_shrink() -> None:
+    found = {name: _modules_calling(name) for name in _PLACEMENT_GUARD_CALLERS}
+    assert found == _PLACEMENT_GUARD_CALLERS
