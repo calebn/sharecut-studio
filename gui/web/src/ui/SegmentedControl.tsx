@@ -6,6 +6,8 @@ type Props = {
   /** Use `none` when the segments render as `menuitemradio` rows in a Menu. */
   role?: "group" | "none";
   className?: string;
+  /** Id of the help text that describes the group. */
+  describedBy?: string;
   children: ReactNode;
 };
 
@@ -18,6 +20,7 @@ export function SegmentedControl({
   label,
   role = "group",
   className,
+  describedBy,
   children,
 }: Props) {
   return (
@@ -25,6 +28,7 @@ export function SegmentedControl({
       className={className ? `ui-segmented ${className}` : "ui-segmented"}
       role={role}
       aria-label={role === "group" ? label : undefined}
+      aria-describedby={describedBy}
     >
       {children}
     </div>
