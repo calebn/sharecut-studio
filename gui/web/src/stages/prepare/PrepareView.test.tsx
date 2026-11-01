@@ -147,6 +147,24 @@ describe("PrepareView selected-run summary state", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps live skipped rows without terminal disposition globally unsettled", () => {
+    atWidth(PHONE_WIDTH);
+    render(
+      <PrepareView
+        {...props({
+          phase: "transcribing",
+          rows: omitted.map((row) => ({ ...row, runDisposition: undefined })),
+          readySummary: "Getting ready: current work",
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /^Not yet.*Getting ready: current work$/,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it.each(["new-audio", "checking", "transcribing"] as const)(
     "does not borrow old omitted completion during %s",
     (phase) => {
