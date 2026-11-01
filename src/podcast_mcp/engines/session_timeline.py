@@ -353,8 +353,38 @@ def clip_source_at_timeline(clip: SourcePlacement, timeline_sec: float) -> float
     The one copy of ``timeline - shift`` for callers that already own the membership
     rule: :func:`seam_source_clocks_over_clips` accepts a cut that starts exactly at a
     clip's ``timeline_end``, where :func:`clip_timeline_point_to_source` raises.
+
+    A clip with a timing map reads the piece that plays at ``timeline_sec``; inside a hole
+    it reads the nearer piece edge, and outside the clip it extends the nearest piece.
     """
-    return timeline_sec - clip_source_to_timeline_shift(clip)
+    if getattr(clip, "timing", None) is None:
+        return timeline_sec - clip_source_to_timeline_shift(clip)
+    previous: tuple[float, float, float] | None = None
+    for piece in _timeline_pieces(clip):
+        tl_a, tl_b, shift = piece
+        if timeline_sec < tl_a:
+            if previous is None:
+                return timeline_sec - shift
+            before_edge = previous[1] - previous[2]
+            after_edge = tl_a - shift
+            return before_edge if timeline_sec - previous[1] <= tl_a - timeline_sec else after_edge
+        if timeline_sec <= tl_b:
+            return timeline_sec - shift
+        previous = piece
+    assert previous is not None
+    return timeline_sec - previous[2]
+
+
+def _piece_shift_at(pieces: list[tuple[float, float, float]], timeline_sec: float) -> float:
+    """Shift of the piece playing at ``timeline_sec`` (the nearer piece inside a hole)."""
+    return min(pieces, key=lambda p: max(p[0] - timeline_sec, timeline_sec - p[1], 0.0))[2]
+
+
+def _timeline_pieces(clip: Clip) -> list[tuple[float, float, float]]:
+    """``(timeline_start, timeline_end, shift)`` of each stretch a timed clip plays."""
+    return [
+        (tl_a, tl_a + (src_b - src_a), tl_a - src_a) for src_a, src_b, tl_a in clip.virtual_pieces()
+    ]
 
 
 def seam_source_clocks_over_clips(
@@ -454,6 +484,14 @@ class SourceStack:
     overlap_sec: float
 
 
+def _source_span_on_timeline(clip: Clip, start_s: float, end_s: float) -> tuple[float, float]:
+    """Timeline span of a source span; one that crosses a step runs hole to hole."""
+    return (
+        start_s + shift_at(clip, start_s),
+        end_s + shift_at(clip, max(start_s, end_s - _EPS)),
+    )
+
+
 def _audible_overlap_sec(a: Clip, b: Clip, lo: float, hi: float) -> float:
     """Seconds of ``[lo, hi)`` where neither clip mutes its audio."""
     if not any(
@@ -462,15 +500,16 @@ def _audible_overlap_sec(a: Clip, b: Clip, lo: float, hi: float) -> float:
         return hi - lo
     muted: list[tuple[float, float]] = []
     for clip in (a, b):
-        shift = clip_source_to_timeline_shift(clip)
         automatic = [(r.start_s, r.end_s) for r in clip.off_speaker_mute_regions]
         if clip.bleed_restore is not None:
             automatic = subtract_intervals(
                 automatic, [(r.start_s, r.end_s) for r in clip.bleed_restore.regions]
             )
-        muted.extend((lo + shift, hi + shift) for lo, hi in automatic)
+        muted.extend(_source_span_on_timeline(clip, start, end) for start, end in automatic)
         muted.extend(
-            (r.start_s + shift, r.end_s + shift) for r in clip.mute_regions if r.gain_db is None
+            _source_span_on_timeline(clip, r.start_s, r.end_s)
+            for r in clip.mute_regions
+            if r.gain_db is None
         )
     return sum(end - start for start, end in subtract_intervals([(lo, hi)], muted))
 
@@ -1123,8 +1162,10 @@ class SessionTimeline:
         the hole still is.
         """
         start, end = float(clip.timeline_start), float(clip.timeline_end)
-        own = -clip_source_to_timeline_shift(clip)
+        own_pieces = _timeline_pieces(clip) if clip.timing is not None else []
+        own_constant = 0.0 if own_pieces else -clip_source_to_timeline_shift(clip)
         edges = {start, end}
+        edges.update(b for tl_a, tl_b, _ in own_pieces for b in (tl_a, tl_b) if start < b < end)
         ref_idx = self._index(reference_track_id)
         if ref_idx is not None:
             for span in _candidates_timeline(ref_idx, start, end):
@@ -1138,6 +1179,7 @@ class SessionTimeline:
         worst = 0.0
         for a, b in pieces:
             mid = TimelineSec((a + b) / 2.0)
+            own = -_piece_shift_at(own_pieces, mid) if own_pieces else own_constant
             ref_src = self.timeline_to_source(reference_track_id, mid)
             if ref_src is not None:
                 candidates = [float(ref_src) - float(mid)]

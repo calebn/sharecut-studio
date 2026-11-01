@@ -40,7 +40,6 @@ from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
-    clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
     map_timeline_spans_over_clips,
 )
@@ -313,7 +312,7 @@ def _scope_intervals(project: EpisodeProject, track_id: str) -> list[tuple[float
                 min(scope.end_s, float(span.source_end)),
             )
             if end > start:
-                shift = clip_source_to_timeline_shift(span.clip)
+                shift = float(span.timeline_start) - float(span.source_start)
                 intervals.append((start + shift, end + shift))
     return merge_intervals(intervals)
 

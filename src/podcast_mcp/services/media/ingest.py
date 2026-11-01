@@ -21,6 +21,7 @@ from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.session_timeline import (
     clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
+    shift_at,
 )
 from podcast_mcp.ingest.consolidate import (
     ConsolidateResult,
@@ -124,18 +125,32 @@ def _timeline_vad_intervals(
         )
     out: list[tuple[float, float]] = []
     for clip in clips:
-        mapped = clip_timeline_overlap_to_source(clip, window_start_sec, window_end_sec)
-        if mapped is None:
-            continue
-        src_a, src_b = mapped
-        shift = clip_source_to_timeline_shift(clip)
-        for a, b in vad_speech_intervals(
-            resolve_clip_audio_path(project, track, clip),
-            start_sec=src_a,
-            duration_sec=src_b - src_a,
-        ):
-            out.append((a + shift, b + shift))
+        for src_a, src_b, shift in _window_pieces(clip, window_start_sec, window_end_sec):
+            for a, b in vad_speech_intervals(
+                resolve_clip_audio_path(project, track, clip),
+                start_sec=src_a,
+                duration_sec=src_b - src_a,
+            ):
+                out.append((a + shift, b + shift))
     return out
+
+
+def _window_pieces(clip, window_start_sec: float, window_end_sec: float):
+    """``(source_a, source_b, shift)`` for each stretch of ``clip`` inside the timeline window.
+
+    A clip with a timing map plays several stretches, each with its own shift.
+    """
+    if clip.timing is None:
+        mapped = clip_timeline_overlap_to_source(clip, window_start_sec, window_end_sec)
+        if mapped is not None:
+            yield mapped[0], mapped[1], clip_source_to_timeline_shift(clip)
+        return
+    for src_a, src_b, tl_a in clip.virtual_pieces():
+        shift = tl_a - src_a
+        lo = max(window_start_sec, tl_a)
+        hi = min(window_end_sec, tl_a + (src_b - src_a))
+        if hi > lo:
+            yield lo - shift, hi - shift, shift
 
 
 def _waveform_file_start(project, track) -> float:
@@ -148,7 +163,7 @@ def _waveform_file_start(project, track) -> float:
     clips = clips_for_track(project, track.id)
     if not clips:
         return 0.0
-    return -clip_source_to_timeline_shift(clips[0])
+    return -shift_at(clips[0], clips[0].source_start)
 
 
 class IngestService:
