@@ -4,7 +4,12 @@ import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
 import { envelopeTimeRangeMessage } from "../utils/envelopes";
-import { removeEnvelopePoint, setEnvelopePoint } from "./envelopes";
+import {
+  addEnvelopePointAt,
+  envelopeSaveInFlight,
+  removeEnvelopePoint,
+  setEnvelopePoint,
+} from "./envelopes";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
@@ -73,6 +78,111 @@ describe("envelope.addPoint", () => {
     expect(api.setEnvelope).not.toHaveBeenCalled();
     expect(useDawStore.getState().project?.envelopes).toEqual([]);
     expect(useDawStore.getState().layers.showLevels).toBe(false);
+  });
+});
+
+describe("addEnvelopePointAt", () => {
+  const withEnvelope = (duration: number) =>
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        tracks: [sampleTrack({ id: "host" })],
+        timeline_duration_sec: duration,
+        envelopes: [
+          {
+            track_id: "host",
+            parameter: "volume",
+            points: [
+              { id: "a", time: 1, value: 1 },
+              { id: "b", time: 4, value: 0.5 },
+            ],
+          },
+        ],
+      }),
+    );
+
+  beforeEach(() => {
+    vi.mocked(api.setEnvelope).mockReset().mockResolvedValue(null);
+    withEnvelope(10);
+    useDawStore.getState().setLayerVisible("showLevels", true);
+  });
+
+  it("adds at the level asked for and selects the new point", async () => {
+    expect(await addEnvelopePointAt("host", 2, 0.25)).toEqual({ status: "ok" });
+    const [, , next] = vi.mocked(api.setEnvelope).mock.calls[0]!;
+    expect(next.map(({ time, value }) => ({ time, value }))).toEqual([
+      { time: 1, value: 1 },
+      { time: 2, value: 0.25 },
+      { time: 4, value: 0.5 },
+    ]);
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "envelopePoint",
+      trackId: "host",
+      pointId: next[1]!.id,
+    });
+  });
+
+  it("copies the line's level when none is given", async () => {
+    await addEnvelopePointAt("host", 4.0000005);
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+    await addEnvelopePointAt("host", 6);
+    const [, , next] = vi.mocked(api.setEnvelope).mock.calls[0]!;
+    expect(next.find((point) => point.time === 6)?.value).toBe(0.5);
+  });
+
+  it("refuses when the timeline has no length", async () => {
+    withEnvelope(0);
+    expect(await addEnvelopePointAt("host", 0)).toMatchObject({
+      status: "disabled",
+    });
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+  });
+
+  it("refuses a view-only link and a time on top of a point", async () => {
+    expect(await addEnvelopePointAt("host", 1.0000005)).toEqual({
+      status: "disabled",
+      reason: "A point is already there",
+    });
+    useDawStore.setState({
+      projectPath: "share:tok",
+      shareCapabilities: ["view"],
+    });
+    expect(await addEnvelopePointAt("host", 2, 0.5)).toMatchObject({
+      status: "disabled",
+    });
+    expect(api.setEnvelope).not.toHaveBeenCalled();
+  });
+
+  it("refuses while a save is in flight, and a save refuses while an add is", async () => {
+    let release: (undo: null) => void = () => {};
+    vi.mocked(api.setEnvelope).mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    expect(envelopeSaveInFlight("host")).toBe(false);
+    const first = addEnvelopePointAt("host", 2, 0.25);
+    expect(envelopeSaveInFlight("host")).toBe(true);
+    expect(await addEnvelopePointAt("host", 3, 0.25)).toEqual({
+      status: "disabled",
+      reason: "Wait for the volume envelope to finish saving",
+    });
+    expect(await setEnvelopePoint("host", "b", { value: 0.3 })).toMatchObject({
+      status: "disabled",
+      reason: "Wait for the volume envelope to finish saving",
+    });
+    release(null);
+    expect(await first).toEqual({ status: "ok" });
+    expect(envelopeSaveInFlight("host")).toBe(false);
+    expect(api.setEnvelope).toHaveBeenCalledTimes(1);
+  });
+
+  it("frees the track when the save fails", async () => {
+    vi.mocked(api.setEnvelope).mockRejectedValueOnce(new Error("offline"));
+    expect(await addEnvelopePointAt("host", 2)).toMatchObject({
+      status: "disabled",
+    });
+    expect(envelopeSaveInFlight("host")).toBe(false);
   });
 });
 
