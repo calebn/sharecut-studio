@@ -170,7 +170,7 @@ const ADVANCED_DEFS: readonly GroupDef[] = [
 const SOUND_SCAN_HELP =
   "Applies suggested sound actions during processing. New projects start with it off unless you change that below.";
 const SOUND_SCAN_START_NOTE =
-  "Your own choice, saved on this computer. This project keeps the switch above.";
+  "Saved in this browser for new episodes. This episode's switch resets to its default when ShareCut restarts.";
 
 export function paramPath(stepId: string, paramId: string): string | null {
   for (const group of ADVANCED_DEFS) {
@@ -197,7 +197,7 @@ function stepResult(
 /** Settings that belong to the person, read where they are saved. */
 export type AdvancedPersonal = { soundScanStart: boolean };
 
-/** The scan names its cost where the person decides: "Off. Takes about ...". */
+/** The sound-action cost is conditional on needing analysis. */
 export function soundScanResult(
   enabled: boolean,
   ran: string | undefined,

@@ -106,7 +106,7 @@ export const SCAN: AdvancedStep = {
   personal: {
     label: "New projects start with this",
     on: false,
-    note: "Your own choice, saved on this computer. This project keeps the switch above.",
+    note: "Saved in this browser for new episodes. This episode's switch resets to its default when ShareCut restarts.",
   },
 };
 
