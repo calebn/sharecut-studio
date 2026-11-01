@@ -133,6 +133,7 @@ export function Timeline({
                 />
                 <MarkerLane
                   markers={ALL_KINDS}
+                  authoritativeMarkers={ALL_KINDS}
                   start={windowStart}
                   pxPerSecond={pxPerSecond}
                   width={width}

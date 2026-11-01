@@ -8,6 +8,8 @@
  * mouse drag cannot lose its touch path unnoticed (the clip move did once).
  */
 import { join } from "node:path";
+import { fireEvent, render } from "@testing-library/react";
+import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nudgeAxis, nudgeStep } from "../edit/nudge";
 import { softBoundaries } from "../edit/nudgeBoundaries";
@@ -46,6 +48,7 @@ import {
   softMover,
   tapAction,
 } from "./inputContract";
+import { MarkerLaneHost } from "./MarkerLaneHost";
 
 const clip = clipRow({
   id: "c2",
@@ -179,22 +182,24 @@ function lone(kind: HitKind): HTMLButtonElement {
 }
 
 /** Timeline elements that own a pointer press, and what they mark themselves as. */
-const PRESS_OWNERS = [...sourceFiles(join(SRC_ROOT, "timeline"))]
-  .filter(
-    ({ rel }) =>
-      rel.endsWith(".tsx") &&
-      !rel.includes(".test.") &&
-      !rel.includes(".stories."),
-  )
-  .flatMap(({ rel, text }) =>
-    jsxElements(text)
-      .filter(ownsPointerDown)
-      .map((element) => ({
-        at: `${rel}:${element.line}`,
-        kinds: markedKinds(element),
-        surface: marksSurface(element),
-      })),
-  );
+const PRESS_OWNERS = [
+  ...[...sourceFiles(join(SRC_ROOT, "timeline"))]
+    .filter(
+      ({ rel }) =>
+        rel.endsWith(".tsx") &&
+        !rel.includes(".test.") &&
+        !rel.includes(".stories."),
+    )
+    .flatMap(({ rel, text }) =>
+      jsxElements(text)
+        .filter(ownsPointerDown)
+        .map((element) => ({
+          at: `${rel}:${element.line}`,
+          kinds: markedKinds(element),
+          surface: marksSurface(element),
+        })),
+    ),
+];
 
 describe("touch paths", () => {
   it("lets a point win its line after the line gained focus from editing", () => {
@@ -386,6 +391,77 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
       ? "owns no drag, which a finger could not reach"
       : "has a reachable touch path: an element that marks it owns the drag",
     () => {
+      if (kind === "chapter" || kind === "social-clip") {
+        const onMoveChapter = vi.fn();
+        const onMoveSocial = vi.fn();
+        const view = render(
+          createElement(MarkerLaneHost, {
+            chapters: [{ time: 2, title: "Intro" }],
+            socialClips: [
+              {
+                id: "social",
+                track_id: "host",
+                review_required: false,
+                start: 10,
+                end: 14,
+                score: 0.5,
+                approved: false,
+                title_suggestion: "Moment",
+              },
+            ],
+            comments: [],
+            showMarkers: true,
+            showComments: false,
+            selected: [kind === "chapter" ? "2-Intro" : "social"],
+            zoomPxPerSec: 10,
+            width: 400,
+            duration: 40,
+            laneRow: true,
+            readOnly: false,
+            onMoveChapter,
+            onMoveSocial,
+            onSelectChapter: vi.fn(),
+            onSelectSocial: vi.fn(),
+            onSelectComment: vi.fn(),
+          }),
+        );
+        const hit = view.container.querySelector(`[data-hit-kind="${kind}"]`)!;
+        expect(hit).not.toBeNull();
+        const track = view.container.querySelector(".sys-markers-track")!;
+        fireEvent.pointerDown(hit, {
+          pointerId: 1,
+          pointerType: "touch",
+          clientX: 100,
+        });
+        fireEvent.pointerMove(track, {
+          pointerId: 1,
+          pointerType: "touch",
+          clientX: 130,
+        });
+        fireEvent.pointerMove(track, {
+          pointerId: 1,
+          pointerType: "touch",
+          clientX: 160,
+        });
+        fireEvent.pointerUp(track, {
+          pointerId: 1,
+          pointerType: "touch",
+          clientX: 160,
+        });
+        if (kind === "chapter")
+          expect(onMoveChapter).toHaveBeenCalledExactlyOnceWith(
+            { time: 2, title: "Intro" },
+            5,
+          );
+        else
+          expect(onMoveSocial).toHaveBeenCalledExactlyOnceWith(
+            "social",
+            13,
+            17,
+          );
+        view.unmount();
+        return;
+      }
       const owners = PRESS_OWNERS.filter((o) => o.kinds.includes(kind));
       if (contract.axis === "none") expect(owners).toEqual([]);
       else expect(owners).not.toEqual([]);

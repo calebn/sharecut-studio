@@ -37,7 +37,9 @@ test("a pin-selected comment opens a usable Inspector card at 1440", async ({
   );
   await page.setViewportSize({ width: 1440, height: 1000 });
   await openProject(page, projectPath);
-  await page.locator(".comment-marker.pin").click();
+  await page
+    .locator('.sys-marker[data-kind="comment"] .sys-marker-hit')
+    .click();
   await stageTab(page, "edit").click();
   await inspectSelection(page);
   const card = page.locator("section.sys-inspector--card");

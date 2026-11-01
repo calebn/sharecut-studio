@@ -144,9 +144,8 @@ describe("timelineMarkerStoryDecorator", () => {
     expect(main.style.getPropertyValue("--marker-row-height")).toBe(
       `${MARKER_ROW_HEIGHT}px`,
     );
-    // No rows arg: all four marker rows are shown.
     expect(main.style.getPropertyValue("--marker-lane-height")).toBe(
-      `${4 * MARKER_ROW_HEIGHT}px`,
+      `${2 * MARKER_ROW_HEIGHT}px`,
     );
   });
 

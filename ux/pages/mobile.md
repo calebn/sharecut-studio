@@ -202,7 +202,7 @@ Safari's address bar and toolbar take a lot of room, especially with the phone h
 
 Held sideways, tracks get shorter so at least three fit on screen, and the controls keep their full-size touch targets. The empty marker band under the ruler steps aside until there are markers to show. The layout also stays clear of the camera cutout and the home indicator. On a short screen the app header and a bottom sheet's header each fit on one row: the sheet's title shortens with an ellipsis, and Undo, Redo, Expand and Close stay at full touch size. A sheet has no half height when that height could not hold its header and one row of content, so it opens at full height instead. When the Script, view and zoom controls would cover a track, they move into the **Tools** button in the header, so the tracks stay clear and their Mute and Solo buttons stay reachable.
 
-Editing a volume envelope point with the phone held sideways keeps the track you are editing on screen beside the card, along with the ruler. On the shortest screens (about 914×331, or an iPhone SE held sideways) the chapter, comment and clip rows scroll with the tracks at all times, so a tap on a track's name always reaches it. **Time**, **Level** and **Remove point** stay in view in the card. Turning the phone with a point open keeps it open. On a short window, dragging the divider above the tabs can make the tabs smaller as well as larger.
+Editing a volume envelope point with the phone held sideways keeps the track you are editing on screen beside the card, along with the ruler. On the shortest screens (about 914×331, or an iPhone SE held sideways) the marker row and clipping row scroll with the tracks at all times, so a tap on a track's name always reaches it. **Time**, **Level** and **Remove point** stay in view in the card. Turning the phone with a point open keeps it open. On a short window, dragging the divider above the tabs can make the tabs smaller as well as larger.
 
 ### Mix tracks
 
@@ -272,3 +272,11 @@ the bounds without rewriting that preference. **Reset panel size** clears
 the browser preference. These controls do
 not change the episode or History. Phone uses the sheet's **Expand** and
 **Collapse** controls and has no Script divider.
+
+## Timeline markers
+
+The marker row stays 24 px tall. An isolated marker has a 44 px horizontal touch target; crowded targets share the gap and the +N list reaches each hidden comment. Choosing a hidden comment opens that exact comment in Review.
+
+A selected chapter or clip idea moves under one finger. Clip ideas keep their length at episode bounds, and resizing keeps at least 0.1 s. A source or zoom change cancels a held move. Turning Markers off also hides recording clipping flags; comments remain independently visible. Short screens may show just the clipping row.
+
+Add chapter from the dock uses the same pending operation as inline naming and the playhead action. Another addition waits until it settles. A completed add from an earlier project cannot replace the current selection or feedback.

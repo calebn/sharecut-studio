@@ -31,6 +31,7 @@ const meta: Meta<typeof MarkerLane> = {
   tags: ["autodocs"],
   args: {
     markers: ALL_KINDS,
+    authoritativeMarkers: ALL_KINDS,
     start: 0,
     pxPerSecond: 6,
     width: 360,
@@ -119,12 +120,15 @@ function LiveLane({
   withRuler,
 }: LiveProps) {
   const [markers, setMarkers] = useState(first);
+  const [preview, setPreview] = useState<readonly LaneMarker[] | null>(null);
   const [selected, setSelected] = useState(selectedFirst);
   const [adding, setAdding] = useState(addingFirst);
   const origin = useRef<Origin>({ start: 0, end: 0 });
   const edit = (id: string, change: (marker: LaneMarker) => LaneMarker) =>
-    setMarkers((now) =>
-      now.map((marker) => (marker.id === id ? change(marker) : marker)),
+    setPreview((now) =>
+      (now ?? markers).map((marker) =>
+        marker.id === id ? change(marker) : marker,
+      ),
     );
   return (
     <div style={stage}>
@@ -143,7 +147,8 @@ function LiveLane({
             ) : null}
             <MarkerLane
               {...args}
-              markers={markers}
+              markers={preview ?? markers}
+              authoritativeMarkers={markers}
               selected={selected}
               start={view.start}
               pxPerSecond={view.pxPerSecond}
@@ -178,9 +183,8 @@ function LiveLane({
                 args.onDrag?.(id, grip, drag);
               }}
               onDragEnd={(id, grip, committed) => {
-                if (!committed) {
-                  edit(id, (marker) => moved(marker, grip, 0, origin.current));
-                }
+                if (committed && preview) setMarkers(preview);
+                setPreview(null);
                 args.onDragEnd?.(id, grip, committed);
               }}
               onNudge={(id, grip, seconds, nudge) => {
@@ -194,6 +198,11 @@ function LiveLane({
                   }),
                 );
                 args.onNudge?.(id, grip, seconds, nudge);
+              }}
+              onNudgeEnd={(id, grip, committed) => {
+                if (committed && preview) setMarkers(preview);
+                setPreview(null);
+                args.onNudgeEnd?.(id, grip, committed);
               }}
               onAdd={(seconds) => {
                 setAdding({ at: seconds });

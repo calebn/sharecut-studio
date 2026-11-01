@@ -56,7 +56,10 @@ const ALL_MARKER_ROWS: MarkerRows = {
  * marker CSS vars `TimelineView` sets live, sized from the story's `rows` arg.
  */
 export const timelineMarkerStoryDecorator: Decorator = (Story, context) => {
-  const rows = (context.args.rows as MarkerRows | undefined) ?? ALL_MARKER_ROWS;
+  const rows =
+    (context.parameters.markerRows as MarkerRows | undefined) ??
+    (context.args.rows as MarkerRows | undefined) ??
+    ALL_MARKER_ROWS;
   return (
     <main
       className="timeline-area"

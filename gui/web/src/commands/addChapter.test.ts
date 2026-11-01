@@ -115,4 +115,37 @@ describe("edit.addChapter", () => {
       "Chapter 0.0s",
     );
   });
+  it("uses a trimmed explicit title at the requested time", async () => {
+    vi.mocked(api.addChapter).mockResolvedValue(null);
+    await execute(
+      "edit.addChapter",
+      { atTime: 7, title: "  Opening  " },
+      { skipWhen: true },
+    );
+    expect(api.addChapter).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/p.json",
+      7,
+      "Opening",
+    );
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "chapter",
+      id: "Opening",
+      time: 7,
+    });
+  });
+
+  it.each(["", "   ", null, 7, undefined])(
+    "rejects explicit invalid title %s before side effects",
+    async (title) => {
+      useDawStore.getState().setLayerVisible("showMarkers", false);
+      const before = useDawStore.getState().statusAnnouncement;
+      expect(
+        await execute("edit.addChapter", { title }, { skipWhen: true }),
+      ).toEqual({ status: "disabled", reason: "Chapter name is required" });
+      expect(api.addChapter).not.toHaveBeenCalled();
+      expect(useDawStore.getState().chapterAddPending).toBe(false);
+      expect(useDawStore.getState().layers.showMarkers).toBe(false);
+      expect(useDawStore.getState().statusAnnouncement).toBe(before);
+    },
+  );
 });
