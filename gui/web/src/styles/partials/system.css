@@ -903,10 +903,16 @@
 
 /* At 60 rem and under the status text beside an Audio error is wider than the
    side column next to Play and the skip buttons: it gives way to the error
-   pill and Retry, as under 50 rem. */
+   pill and Retry, and stays for assistive tech. */
 @container sys-player (max-width: 60rem) {
   .sys-player-host[data-state="error"] .sys-player-status {
-    display: none;
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
@@ -918,8 +924,8 @@
 @container sys-player (max-width: 50rem) {
   /* During an audio error the Comment button gives its room (the status text
      already has, under 60 rem) to the error pill and Retry: with all of them,
-     the right-hand controls outgrow the side column and slide under Play. The A and B toggles
-     stay, since switching what you hear can clear the error. */
+     the right-hand controls outgrow the side column and slide under Play. The
+     A and B toggles stay, since switching what you hear can clear the error. */
   .sys-player-host[data-state="error"] .sys-player-right > .sys-icon-btn {
     display: none;
   }

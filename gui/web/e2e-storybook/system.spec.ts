@@ -268,12 +268,15 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
       const right = bar?.querySelector(".sys-player-right");
       if (!bar || !play || !right) throw new Error("Player did not render");
       const centre = play.getBoundingClientRect();
+      const status = bar.querySelector(".sys-player-status");
       return {
         scroll: document.documentElement.scrollWidth,
+        statusKept: (status?.textContent ?? "") !== "",
+        statusClipped: (status?.getBoundingClientRect().width ?? 0) <= 1,
         overlaps: [...right.children].filter((el) => {
           const r = el.getBoundingClientRect();
           return (
-            r.width > 0 &&
+            r.width > 1 &&
             r.left < centre.right &&
             r.right > centre.left &&
             r.top < centre.bottom &&
@@ -282,7 +285,12 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
         }).length,
       };
     });
-    expect(clash, `at ${width}`).toEqual({ scroll: width, overlaps: 0 });
+    expect(clash, `at ${width}`).toEqual({
+      scroll: width,
+      statusKept: true,
+      statusClipped: true,
+      overlaps: 0,
+    });
   }
 });
 
