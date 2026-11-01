@@ -13,7 +13,7 @@ from podcast_mcp.segments.bundle import export_segments, import_bundle
 from podcast_mcp.segments.model import SegmentFile, segment_kind
 from podcast_mcp.segments.store import AddResult, SegmentStore
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.segment_capture import parse_range, save_segment
+from podcast_mcp.services.document import parse_range, save_segment
 
 segment_app = typer.Typer(help="The segment library: intros, outros, sponsor reads and stings.")
 

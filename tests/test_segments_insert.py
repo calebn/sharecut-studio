@@ -210,7 +210,7 @@ def test_audio_changed_while_copying_is_refused(
     tmp_path: Path, project: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The hash is checked on the project's copy, not only on the library file."""
-    from podcast_mcp.services import segment_insert
+    from podcast_mcp.services.document import segment_insert
 
     segment = _save(tmp_path, "Warm Intro")
     real_copy = shutil.copyfile
@@ -226,6 +226,21 @@ def test_audio_changed_while_copying_is_refused(
     assert "segment_hash_mismatch" in result.output
     assert not list((Path(project).parent / "raw").glob("segment-*"))
     assert not list((Path(project).parent / "raw").glob(".segment-*"))
+
+
+def test_a_layout_longer_than_a_day_is_refused(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+    before = _layout(project)
+    manifest = SegmentStore().path(segment.id, 1) / SEGMENT_JSON
+    crafted = json.loads(manifest.read_text(encoding="utf-8"))
+    crafted["clips"][0]["offset_sec"] = 1e300
+    manifest.write_text(json.dumps(crafted), encoding="utf-8")
+
+    result = _insert(project, segment.id, 4.0)
+
+    assert result.exit_code == 1
+    assert "segment_media_invalid" in result.output
+    assert _layout(project) == before
 
 
 def test_missing_segment_and_version_are_refused(tmp_path: Path, project: str) -> None:

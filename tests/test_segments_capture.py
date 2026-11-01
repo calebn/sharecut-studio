@@ -11,7 +11,7 @@ from podcast_mcp.models import Clip, EpisodeProject, Track, save_project
 from podcast_mcp.models.episode import ClipJoinMode, MediaAsset, TrackRole
 from podcast_mcp.segments.store import SegmentStore
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.segment_capture import (
+from podcast_mcp.services.document.segment_capture import (
     capture_segment,
     guess_kind,
     parse_range,

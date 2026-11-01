@@ -1,6 +1,6 @@
 """Put a saved segment on the timeline: tracks, sources, clips and an optional chapter.
 
-The project half of Insert. ``services/segment_insert.py`` copies and verifies the audio
+The project half of Insert. ``services/document/segment_insert.py`` copies and verifies the audio
 first; this runs inside the undoable mutation and only edits the project. It opens time
 with the same ripple as ``insert_gap`` and ``paste_segment`` do, so later content, chapters
 and review comments move with it.
@@ -42,6 +42,7 @@ from podcast_mcp.util.coded_error import CodedValueError
 
 # A clip may run this far past its file's probed length (container rounding).
 _DURATION_SLACK_SEC = 0.05
+_MAX_SEGMENT_SEC = 24 * 3600.0
 
 
 @dataclass(frozen=True)
@@ -143,6 +144,12 @@ def insert_segment(
     ``segment_position_out_of_range`` before anything changes.
     """
     check_position(project, at)
+    if segment.duration_sec > _MAX_SEGMENT_SEC:
+        raise CodedValueError(
+            f"The layout of segment {segment.name!r} is {segment.duration_sec:g} s long, "
+            f"more than the {_MAX_SEGMENT_SEC:g} s an insert accepts.",
+            code="segment_media_invalid",
+        )
     for clip in segment.clips:
         copy = audio[clip.audio]
         if clip.duration_sec > copy.duration_sec + _DURATION_SLACK_SEC:
