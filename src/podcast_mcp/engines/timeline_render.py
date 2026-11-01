@@ -8,7 +8,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
-from podcast_mcp.config.defaults import DEFAULT_MICRO_FADE_MS, EffectiveConfig
+from podcast_mcp.config.defaults import (
+    DEFAULT_MICRO_FADE_MS,
+    EffectiveConfig,
+    join_micro_fade_ms,
+)
 from podcast_mcp.engines import room_tone as tone
 from podcast_mcp.engines.audio import (
     At,
@@ -152,7 +156,7 @@ def _hole_fill_paths(project: EpisodeProject, track: Track) -> dict[Path, None]:
 
 
 def _hole_room_tone(
-    project: EpisodeProject, track: Track, hole: TimingHole, gap_sec: float
+    project: EpisodeProject, track: Track, hole: TimingHole, gap_sec: float, micro_fade_ms: int
 ) -> Audio | None:
     """The track's room tone for a hole a positive timing step leaves, None for digital silence.
 
@@ -177,7 +181,7 @@ def _hole_room_tone(
         source_id, span = None, (pick.sample.start, pick.sample.end)
     else:
         return None
-    fade = DEFAULT_MICRO_FADE_MS / 1000.0
+    fade = micro_fade_ms / 1000.0
     tiles = tile_span(span[0], span[1], gap_sec, seed_sec=at)
     ats: list[At] = []
     offset = 0.0
@@ -260,6 +264,12 @@ def restore_applies(project: EpisodeProject, track: Track, *, gated: bool | None
 
 def _restore_dependencies(project: EpisodeProject, track: Track, *, defaults: EffectiveConfig):
     if restore_applies(project, track):
+        if any(clip.track_id == track.id and clip.timing is not None for clip in project.clips):
+            raise CodedValueError(
+                f"track {track.id} has a clip with a timing map, which Bleed Restore does not "
+                "support yet. Remove the restore regions or the timing map.",
+                code="timing_map_bleed_restore_unsupported",
+            )
         from podcast_mcp.engines.play_audit import RenderDependencies
 
         return RenderDependencies.capture(project, track.id, defaults=defaults)
@@ -345,7 +355,12 @@ def unfiltered_track_audio(
     clips = clips_for_track(project, track.id)
     # No engine: this runs on track_evidence cache hits, which must not resolve FFmpeg.
     grid = track_grid(project, track, clips)
-    return placed_track_audio(project, track, clips, grid=grid).audio, curve
+    return (
+        placed_track_audio(
+            project, track, clips, grid=grid, micro_fade_ms=join_micro_fade_ms(defaults)
+        ).audio,
+        curve,
+    )
 
 
 @dataclass(frozen=True)
@@ -569,13 +584,14 @@ def placed_track_audio(
     mask_clocks: dict[str, tuple[BoundaryClock, int, int, tuple[FrameTransform, ...]]]
     | None = None,
     bypass_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
+    micro_fade_ms: int = DEFAULT_MICRO_FADE_MS,
 ) -> _PlacedTrack:
     """Build the exact source, envelope and placement graph without rendering or saving.
 
     A clip with a timing map plays as its virtual pieces; the hole at a positive step is
     filled with the track's room tone, or left as digital silence when the track has none.
     """
-    sorted_clips, holes = expand_timed_clips(sorted_clips)
+    sorted_clips, holes = expand_timed_clips(sorted_clips, micro_fade_ms=micro_fade_ms)
     prepared: list[_PreparedClip] = []
     ignored_lookup = IgnoredWordRegions(project)
     clock_origin = window[0] if window else 0.0
@@ -713,7 +729,14 @@ def placed_track_audio(
         )
     if holes:
         prepared = _with_hole_fills(
-            project, track, prepared, holes, grid=grid, window=window, origin_frame=origin_frame
+            project,
+            track,
+            prepared,
+            holes,
+            grid=grid,
+            window=window,
+            origin_frame=origin_frame,
+            micro_fade_ms=micro_fade_ms,
         )
     window_length = None
     if window:
@@ -732,6 +755,7 @@ def _with_hole_fills(
     grid: TrackGrid | None,
     window: tuple[float, float] | None,
     origin_frame: int,
+    micro_fade_ms: int,
 ) -> list[_PreparedClip]:
     """``prepared`` with a room-tone item after each piece that leaves a hole to fill."""
     out: list[_PreparedClip] = []
@@ -752,7 +776,7 @@ def _with_hole_fills(
             placed = (start - (window[0] if window else 0.0), end - (window[0] if window else 0.0))
         if placed[1] <= placed[0]:
             continue
-        body = _hole_room_tone(project, track, hole, placed[1] - placed[0])
+        body = _hole_room_tone(project, track, hole, placed[1] - placed[0], micro_fade_ms)
         if body is not None:
             out.append(_PreparedClip(hole.parent, _ClipContent(placed[0], placed[1], body)))
     return out
@@ -773,7 +797,14 @@ def _render_placed_track(
     defaults: EffectiveConfig,
 ) -> Path:
     grid = track_grid(project, track, sorted_clips, eng, window=window, forced_rate=graph_rate(af))
-    placed = placed_track_audio(project, track, sorted_clips, grid=grid, window=window)
+    placed = placed_track_audio(
+        project,
+        track,
+        sorted_clips,
+        grid=grid,
+        window=window,
+        micro_fade_ms=join_micro_fade_ms(defaults),
+    )
     start, end = window or (0.0, timeline_duration_sec(project))
     removed: dict[str, tuple[tuple[float, float], ...]] = {}
     clips = {clip.id: clip for clip in sorted_clips}
@@ -837,7 +868,13 @@ def _render_placed_track(
             if automatic:
                 dependencies.validate(project, track.id, defaults=defaults)
                 bypassed = placed_track_audio(
-                    project, track, sorted_clips, grid=grid, window=window, bypass_regions=removed
+                    project,
+                    track,
+                    sorted_clips,
+                    grid=grid,
+                    window=window,
+                    bypass_regions=removed,
+                    micro_fade_ms=join_micro_fade_ms(defaults),
                 )
                 bypass_clock_path = Path(directory) / "bypass-clock.json"
                 render(bypassed.audio, whole, bypass_clock_path)
@@ -943,6 +980,7 @@ def _render_placed_track(
                     removed_regions=removed,
                     mask_clocks=mask_clocks,
                     bypass_regions=removed if automatic else None,
+                    micro_fade_ms=join_micro_fade_ms(defaults),
                 )
                 render(counterfactual.audio, without, without_clock_path)
                 dependencies.validate(project, track.id, defaults=defaults)

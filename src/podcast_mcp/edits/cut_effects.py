@@ -11,6 +11,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from podcast_mcp.config.defaults import join_micro_fade_ms
 from podcast_mcp.edits.cut_policy import (
     CutJoin,
 )
@@ -110,6 +111,7 @@ def completed_audio_effects(
                         track,
                         clips,
                         grid=track_grid(project, track, clips),
+                        micro_fade_ms=join_micro_fade_ms(defaults),
                     ).audio,
                     crossfade_curve=curve,
                 )
