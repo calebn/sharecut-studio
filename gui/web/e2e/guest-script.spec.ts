@@ -90,7 +90,7 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
         const token = await createReviewShare(host, projectPath, "commenter");
         await openGuestShare(guest, token);
         const script = guest.locator(".stage-host-guest-script");
-        const word = script.locator(".sys-script-word").first();
+        const word = script.locator('.sys-script-word[tabindex="0"]').first();
         const field = guest.locator(".rv-compose").getByRole("textbox", {
           name: "Comment",
           exact: true,
@@ -171,7 +171,7 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
                 .length,
               word: measure(
                 document.querySelector(
-                  ".stage-host-guest-script .sys-script-word",
+                  '.stage-host-guest-script .sys-script-word[tabindex="0"]',
                 ),
               ),
               field: measure(document.querySelector(".rv-compose textarea")),
@@ -181,11 +181,42 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
                 ).display === "flex",
             };
           });
+        const nativeTabTo = async (target: typeof word) => {
+          const tabStops = await guest.evaluate(
+            () =>
+              Array.from(
+                document.querySelectorAll<HTMLElement>(
+                  'a[href],button,input,select,textarea,[tabindex],[contenteditable="true"]',
+                ),
+              ).filter((element) => {
+                const style = getComputedStyle(element);
+                return (
+                  element.tabIndex >= 0 &&
+                  !element.matches(":disabled") &&
+                  !element.closest("[inert]") &&
+                  style.visibility === "visible" &&
+                  element.getClientRects().length > 0
+                );
+              }).length,
+          );
+          for (let step = 0; step <= tabStops; step++) {
+            if (
+              await target.evaluate(
+                (element) => element === document.activeElement,
+              )
+            ) {
+              await expect(target).toBeFocused();
+              return;
+            }
+            await guest.keyboard.press("Tab");
+          }
+          await expect(target).toBeFocused();
+        };
         const capture = async (name: string, shown: boolean, scale = 1) => {
           await expect(script).toHaveCount(shown ? 1 : 0);
           if (shown) {
             await expect(script).toContainText("Read only");
-            await word.focus();
+            await nativeTabTo(word);
             await expect
               .poll(async () => (await observe()).word?.visibleWidth ?? 0)
               .toBeGreaterThan(0);
@@ -214,7 +245,7 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
             });
           }
           await expect(field).toBeEditable();
-          await field.focus();
+          await nativeTabTo(field);
           await expect
             .poll(async () => (await observe()).field?.visibleWidth ?? 0)
             .toBeGreaterThanOrEqual(44);
@@ -241,6 +272,7 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
             contentType: "image/png",
           });
         };
+        let bodyFailed = false;
         try {
           await expect.poll(async () => (await observe()).visual.scale).toBe(1);
           await capture("initial", true);
@@ -276,17 +308,34 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
             expect((await observe()).mediaShort).toBe(checkpoint.mediaShort);
             await capture(`recovery-${checkpoint.height}`, checkpoint.shown);
           }
+        } catch (error) {
+          bodyFailed = true;
+          throw error;
         } finally {
-          await info.attach("guest-viewport-observations", {
-            body: Buffer.from(
-              JSON.stringify({
-                browserVersion: browser.version(),
-                observations,
-              }),
-            ),
-            contentType: "application/json",
-          });
-          await cdp.detach();
+          const cleanupFailures: unknown[] = [];
+          try {
+            await info.attach("guest-viewport-observations", {
+              body: Buffer.from(
+                JSON.stringify({
+                  browserVersion: browser.version(),
+                  observations,
+                }),
+              ),
+              contentType: "application/json",
+            });
+          } catch (error) {
+            cleanupFailures.push(error);
+          }
+          try {
+            await cdp.detach();
+          } catch (error) {
+            cleanupFailures.push(error);
+          }
+          if (!bodyFailed && cleanupFailures.length > 0)
+            throw new AggregateError(
+              cleanupFailures,
+              "Guest proof cleanup failed",
+            );
         }
       },
     );
