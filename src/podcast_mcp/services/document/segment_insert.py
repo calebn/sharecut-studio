@@ -13,9 +13,12 @@ from podcast_mcp.edits.segment_insert import (
     check_layout,
     check_position,
     insert_segment,
+    timeline_end,
 )
 from podcast_mcp.engines.track_media import media_asset_from_path
+from podcast_mcp.models import EpisodeProject
 from podcast_mcp.segments.model import SegmentFile
+from podcast_mcp.segments.position import parse_position
 from podcast_mcp.segments.store import SegmentStore, sha256_file
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedValueError
@@ -70,23 +73,39 @@ def copy_segment_audio(
     return out
 
 
+def resolve_insert_position(project: EpisodeProject, at: object) -> float:
+    """``start``, ``end`` or seconds, as a second on ``project``'s timeline.
+
+    The one place the words are read: ``end`` is the end of ``project`` as it is now, so call
+    it on the project you are about to edit. Raises ``segment_position_out_of_range`` for
+    anything else (see :func:`podcast_mcp.segments.position.parse_position`).
+    """
+    parsed = parse_position(at)
+    if parsed == "start":
+        return 0.0
+    if parsed == "end":
+        return timeline_end(project)
+    return parsed
+
+
 def insert_saved_segment(
     ws: ProjectWorkspace,
     segment_id: str,
-    at: float,
+    at: float | str,
     *,
     version: int | None = None,
     store: SegmentStore | None = None,
 ) -> dict[str, Any]:
-    """Insert a library segment at timeline second ``at``; later content moves by its length.
+    """Insert a library segment at ``at`` (seconds, ``start`` or ``end``); later content moves.
 
-    The audio is copied into the project and its hash checked. The edit is one undo step.
+    ``end`` is read inside the document lock, so an edit saved meanwhile is not split. The audio is copied into the project and its hash checked. The edit is one undo step.
     Errors: ``segment_unknown``, ``segment_hash_mismatch``, ``segment_media_invalid``,
     ``segment_write_failed``, ``segment_position_out_of_range``.
     """
     library = store or SegmentStore()
     segment = library.get(segment_id, version)
-    check_position(ws.project, at)
+    early = resolve_insert_position(ws.project, at)
+    check_position(ws.project, early)
     check_layout(segment)
     audio = copy_segment_audio(
         Path(ws.project.workspace_dir), segment, library.path(segment.id, segment.version)
@@ -94,7 +113,102 @@ def insert_saved_segment(
     return ws.mutate(
         f"before insert segment {segment.name}",
         f"after insert segment {segment.name}",
-        lambda p: insert_segment(p, segment, audio, at, defaults=ws.effective_config()),
+        lambda p: insert_segment(
+            p, segment, audio, resolve_insert_position(p, at), defaults=ws.effective_config()
+        ),
         operation="insert_segment",
-        params={"segment_id": segment.id, "version": segment.version, "at": at},
+        params={"segment_id": segment.id, "version": segment.version, "at": early},
     )
+
+
+def _chapters_moved(
+    project: EpisodeProject, trial: EpisodeProject, segment: SegmentFile, at: float
+) -> list[dict[str, Any]]:
+    after = sorted(trial.editorial.chapters, key=lambda chapter: chapter.time)
+    if segment.chapter_title:
+        added = next((c for c in after if c.title == segment.chapter_title and c.time == at), None)
+        if added is not None:
+            after.remove(added)
+    before = sorted(project.editorial.chapters, key=lambda chapter: chapter.time)
+    return [
+        {"title": new.title, "from": old.time, "to": new.time}
+        for old, new in zip(before, after, strict=False)
+        if old.time != new.time
+    ]
+
+
+def preview_segment_insert(
+    ws: ProjectWorkspace,
+    segment_id: str,
+    at: float | str,
+    *,
+    version: int | None = None,
+    store: SegmentStore | None = None,
+) -> dict[str, Any]:
+    """What :func:`insert_saved_segment` would move, computed on a copy; nothing is written.
+
+    ``at`` is read the same way as for an insert. The library audio is hash-checked and probed
+    in place (read-only) as the copy would be, so a file shorter than its layout is refused
+    here too; nothing is copied into the project. Reports the new duration, the clips, chapters, comments and pending edits that move, and
+    the tracks the segment would add. Same errors as an insert, bar the copy
+    failing.
+    """
+    library = store or SegmentStore()
+    segment = library.get(segment_id, version)
+    project = ws.project
+    at = resolve_insert_position(project, at)
+    check_position(project, at)
+    check_layout(segment)
+    folder = library.path(segment.id, segment.version)
+    audio = {}
+    for name, entry in segment.media.items():
+        try:
+            asset = media_asset_from_path(
+                folder / name, store_path=f"raw/segment-{entry.sha256}{Path(name).suffix}"
+            )
+        except OSError as exc:
+            raise CodedValueError(
+                f"The audio file {name} of segment {segment.name!r} could not be read: "
+                f"{exc.strerror or exc}.",
+                code="segment_write_failed",
+            ) from exc
+        audio[name] = SegmentAudio(
+            source_id=f"seg_{entry.sha256}",
+            path=asset.path,
+            duration_sec=float(asset.duration_sec or 0.0),
+            sample_rate=int(asset.sample_rate or 0),
+            channels=int(asset.channels or 0),
+        )
+    trial = project.model_copy(deep=True)
+    summary = insert_segment(trial, segment, audio, at, defaults=ws.effective_config())
+    before = {clip.id: clip.timeline_start for clip in project.clips}
+    kept = [clip for clip in trial.clips if clip.id in before]
+    old_tracks = {track.id for track in project.tracks}
+    old_comments = {c.id: c.timeline_start for c in project.review.comments}
+    old_pending = {e.id: (e.start, e.end) for e in project.editorial.edit_decisions}
+    return {
+        "dry_run": True,
+        "segment_id": segment.id,
+        "segment_version": segment.version,
+        "at": at,
+        "duration_sec": segment.duration_sec,
+        "timeline_duration_before_sec": timeline_end(project),
+        "timeline_duration_after_sec": timeline_end(trial),
+        "clips_moved": sum(1 for clip in kept if clip.timeline_start != before[clip.id]),
+        "clips_added": len(trial.clips) - len(before),
+        "clips_from_segment": len(segment.clips),
+        "chapters_moved": _chapters_moved(project, trial, segment, at),
+        "chapter_added": segment.chapter_title,
+        "comments_moved": [
+            {"id": c.id, "from": old_comments[c.id], "to": c.timeline_start}
+            for c in trial.review.comments
+            if c.id in old_comments and c.timeline_start != old_comments[c.id]
+        ],
+        "pending_edits_moved": sum(
+            1
+            for e in trial.editorial.edit_decisions
+            if e.id in old_pending and (e.start, e.end) != old_pending[e.id]
+        ),
+        "tracks_added": [t.id for t in trial.tracks if t.id not in old_tracks],
+        "tracks": summary["tracks"],
+    }

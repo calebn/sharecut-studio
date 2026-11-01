@@ -268,3 +268,18 @@ def test_a_range_ignores_unrenderable_regions_outside_it(
             workspace, name="Late", directory=tmp_path / "cut2", time_range=(10.0, 10.85)
         )
     assert raised.value.code == "segment_render_unsupported"
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["1:75-2:00", "0:00-0:60", "0:99:99-1:00", "60:00-61:00", "0-" + "9" * 400, "0-100000"],
+)
+def test_a_range_with_impossible_clock_fields_or_size_is_refused(text: str) -> None:
+    with pytest.raises(CodedValueError) as raised:
+        parse_range(text)
+    assert raised.value.code == "segment_range_invalid"
+
+
+def test_a_range_still_takes_ordinary_clocks() -> None:
+    assert parse_range("0:59-1:15") == (59.0, 75.0)
+    assert parse_range("1:02:03.5-1:03:00") == (3723.5, 3780.0)

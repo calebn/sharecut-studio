@@ -82,3 +82,45 @@ def submit_paste_segment(
         "mode": mode.value,
     }
     return submit_host_command_result(project_path, "PasteSegment", payload, client_id=client_id)
+
+
+def submit_segment_insert(
+    project_path: str | Path,
+    segment_id: str,
+    at: object,
+    *,
+    version: int | None = None,
+    dry_run: bool = False,
+    client_id: str = "mcp-agent",
+) -> dict[str, Any]:
+    """Insert a library segment (or report what an insert would move), for the CLI and MCP.
+
+    ``at`` is ``start``, ``end`` or seconds, parsed by one function for every caller; ``end``
+    is read under the document lock when the insert runs, and in the same way for a dry run.
+    The version is pinned here, so the journaled command names the audio that went in even if
+    a newer version is saved later. A dry run reads the project in place and writes nothing,
+    not even a legacy file rename. Errors: see ``insert_saved_segment``, plus
+    ``segment_version_invalid``.
+    """
+    from podcast_mcp.segments.position import parse_position
+    from podcast_mcp.segments.store import SegmentStore
+    from podcast_mcp.services.document import preview_segment_insert
+
+    store = SegmentStore()
+    position = parse_position(at)
+    pinned = store.resolve_version(segment_id, version)
+    if dry_run:
+        return preview_segment_insert(
+            ProjectWorkspace.open(project_path, adopt=False),
+            segment_id,
+            position,
+            version=pinned,
+            store=store,
+        )
+    result = submit_host_command_result(
+        project_path,
+        "InsertSegment",
+        {"segment_id": segment_id, "at": position, "version": pinned},
+        client_id=client_id,
+    )
+    return {**result, "dry_run": False}

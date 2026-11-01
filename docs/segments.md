@@ -1,6 +1,6 @@
 # Segments
 
-A segment is a reusable piece of audio: an intro, an outro, a sponsor read or a sting. It is the audio, how its clips sit relative to each other, a level, a lane role and a ducking flag, plus an optional chapter title and transcript. The library keeps segments per user, so any episode on this machine can use them. This is issue #1777: slice 1 is the library, its file format, the `.sharecutseg` file and the `podcast segment` commands; slice 2 is Insert, which puts a saved segment on an episode's timeline (see [Insert](#insert)). Saving, listing, exporting and importing change no episode project.
+A segment is a reusable piece of audio: an intro, an outro, a sponsor read or a sting. It is the audio, how its clips sit relative to each other, a level, a lane role and a ducking flag, plus an optional chapter title and transcript. The library keeps segments per user, so any episode on this machine can use them. This is issue #1777: slice 1 is the library, its file format, the `.sharecutseg` file and the `podcast segment` commands; slice 2 is Insert, which puts a saved segment on an episode's timeline (see [Insert](#insert)); slice 3 is the headless surface: the host MCP tools, `--at start|end` and `--dry-run` on insert, and a `podcast doctor` check (see [Host MCP tools](#host-mcp-tools)). Saving, listing, exporting and importing change no episode project.
 
 ## Copy, not link
 
@@ -47,7 +47,7 @@ Unknown fields are refused. `content_sha256` is a hash of the sorted media hashe
 | `podcast segment remove ID` | Delete a segment and all its versions, damaged or not. |
 | `podcast segment export ID -o FILE` | Write the newest version to a `.sharecutseg` file. |
 | `podcast segment import FILE [--json]` | Add a `.sharecutseg` file to the library. |
-| `podcast segment insert PROJECT SEGMENT --at SEC [--version N] [--json]` | Insert a segment into an episode (see [Insert](#insert)). |
+| `podcast segment insert PROJECT SEGMENT --at start\|end\|SEC [--version N] [--dry-run] [--json]` | Insert a segment into an episode (see [Insert](#insert)). `--dry-run` reports what would move and changes nothing. |
 
 `save` and `import` print one of `Saved`, `Saved a new version of` or `Already in the library`; with `--json` they print `{"status": "added" | "new_version" | "unchanged", "id", "version"}`. Failures print `Error: <message> (code <code>)` and exit 1.
 
@@ -71,10 +71,10 @@ Errors: `segment_bundle_invalid` (bad zip, names, sizes or manifest), `segment_b
 
 ## Insert
 
-`podcast segment insert PROJECT SEGMENT --at SEC` runs the `InsertSegment` document command (`segment_id`, `version?`, `at`), so the edit is journaled, synced and one undo step like every other timeline edit. It is host only: a share link never reaches the host's library. The code is `services/document/segment_insert.py` (audio copy and the command's service) and `edits/segment_insert.py` (the project edit).
+`podcast segment insert PROJECT SEGMENT --at start|end|SEC` runs the `InsertSegment` document command (`segment_id`, `version?`, `at`), so the edit is journaled, synced and one undo step like every other timeline edit. It is host only: a share link never reaches the host's library. The code is `services/document/segment_insert.py` (audio copy and the command's service) and `edits/segment_insert.py` (the project edit).
 
 1. The library version is read with its audio hashes checked (`segment_unknown`, `segment_hash_mismatch`). The newest version is used unless `--version` names one.
-2. The position must be on the timeline, from 0 to its end inclusive (`segment_position_out_of_range`). A project with no clips accepts 0. A copy that cannot be made or read fails with `segment_write_failed`, audio shorter than the layout says (or a layout longer than a day) with `segment_media_invalid`.
+2. `--at` is `start` (0), `end` or a number of seconds, read by one parser (`segments/position.py`) for the CLI, the MCP tool and the command payload: the words ignore case and spaces, and anything else (`soon`, `1_0`, `0x10`, `nan`, `inf`, a bool) is `segment_position_out_of_range`. `end` travels in the command as the word and is resolved to the timeline end inside the document lock, so an edit saved a moment earlier is not split; a dry run resolves it the same way. The CLI and MCP always send the resolved `version` (an int), so the journal names the audio that went in; a replay inserts that version, not whichever is newest. A `--version` below 1 is `segment_version_invalid` on both paths. The `at` the journal keeps is the word `end` when `end` was asked; the result holds the second it became. The position must be on the timeline, from 0 to its end inclusive (`segment_position_out_of_range`). A project with no clips accepts 0. A copy that cannot be made or read fails with `segment_write_failed`, audio shorter than the layout says (or a layout longer than a day) with `segment_media_invalid`.
 3. Each audio file is copied to a temporary file, its hash is checked on that copy, it is probed, and only then it is renamed to `raw/segment-<full sha256>.flac`. A file changed after the library read it is refused (`segment_hash_mismatch`) and nothing is left behind. A file already at the final name is never trusted, probed or reused: it is replaced by the verified copy. The same audio inserted twice shares one source (`seg_<sha256>`).
 4. In one undoable mutation the edit opens the segment's length at `at` with the ripple `insert_gap` and `paste_segment` use (every dialogue track, plus the tracks the segment lands on), moves chapters, review comments and pending edit decisions at or after the point (a comment the point falls inside grows to cover the segment), places the clips and rebuilds the combined transcript. A clip straddling the point is split, as an `insert_gap` does.
 5. Each clip carries `segment_ref` (`segment_id`, `version`, `content_sha256` of the version inserted). Nothing reads it yet; a later slice compares it with the library to show drift. A clip split or moved later keeps its `segment_ref`; a copy made by duplicate or paste does not.
@@ -87,10 +87,20 @@ Errors: `segment_bundle_invalid` (bad zip, names, sizes or manifest), `segment_b
 
 Project format: `Clip.segment_ref` is optional and absent from a clip that has none, so existing projects load and save unchanged. Under the [compatibility boundary](project-format.md#compatibility-boundary) the project version stays `2.0` and no upgrade tooling is needed before the first beta build; the shape lock is refreshed.
 
+## Host MCP tools
+
+Four tools mirror the CLI for a host agent: `segment_list_tool`, `segment_show_tool`, `segment_save_tool` (`clip_ids` or `time_range`, plus `name`, `kind`, `role`) and `segment_insert_tool` (`project_path`, `segment_id`, `at` as `"start"`, `"end"` or seconds, `version`, `dry_run`). They live in `mcp/tools/segments.py` and use the same services as the CLI, so errors carry the same codes. They are host only: the guest share MCP has an explicit tool allowlist and none of these is on it, and `InsertSegment` stays out of every share role's document commands (`tests/test_segments_insert.py` covers both).
+
+`segment_insert_tool` submits `InsertSegment` on the document plane as `mcp:host`, so the edit is journaled, reaches an open Studio tab and is one undo step. It is applied, not held as a pending proposal: pending proposals in this codebase are `EditDecision` records of type remove, mute or split, which the host approves or rejects, and an insert that opens time and adds tracks and sources has no such record. Call it with `dry_run=true` first. The report holds `timeline_duration_before_sec` and `timeline_duration_after_sec`, `clips_moved`, `clips_added` (split halves included), `chapters_moved`, `chapter_added`, `comments_moved`, `pending_edits_moved`, `tracks_added` and the lane to track map. It is computed on a copy of the project with the library audio hash-checked and probed in place (read-only), so a file shorter than its layout is refused as the real insert refuses it (`segment_media_invalid`), and nothing is written, journaled or added to `raw/`. The project is read where it is: a workspace still named `episode.project.json` is not renamed by a dry run, `segment_save_tool` or `podcast segment save`. The real insert result carries `dry_run: false`. A `time_range` such as `0:00-1:15` takes minutes and seconds below 60 and at most 24 hours (`segment_range_invalid`).
+
+## Doctor
+
+`podcast doctor` checks the newest version of each segment in the library by looking at `segment.json` and each audio file's presence and size, without reading the audio, so `podcast setup` and the support bundle (which run the same checks) stay cheap. `podcast doctor --deep` also hashes the audio. It prints a `[warn]` line for each damaged segment (at most five, then a count of the rest). The fix line is the same text `podcast segment list` prints: import the segment again, which stores a new version and keeps the older ones; `podcast segment remove ID` is named only when the segment has no older version, because it deletes every version. A segment removed while doctor runs is left out. An absent or intact library prints nothing. A damaged segment does not fail doctor. Older versions are not checked.
+
 ## Not built yet
 
 - Ducking under dialogue, and detecting that a segment changed since it was inserted (`segment_ref` is recorded for it).
-- A Studio, MCP or HTTP surface. Neither the library nor Insert has an MCP tool or a capabilities-manifest entry: an agent could insert by id but has no way to list or save, so the tools wait for a surface that does all three.
+- A Studio or HTTP surface, and a capabilities-manifest entry for the library.
 - Multi-segment kits (`.sharecutkit`).
 - Capturing a transcript or a chapter title.
 - Setting `duck_under_dialogue` or `chapter_title` (no command writes them yet).

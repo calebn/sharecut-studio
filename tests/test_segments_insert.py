@@ -286,10 +286,7 @@ def test_a_position_off_the_timeline_is_refused(tmp_path: Path, project: str, at
     result = _insert(project, segment.id, float(at))
 
     assert result.exit_code == 1
-    # A number that is not finite never reaches the edit: the payload refuses it.
-    assert ("finite number" if at in ("nan", "inf") else "segment_position_out_of_range") in (
-        result.output
-    )
+    assert "segment_position_out_of_range" in result.output
     assert _layout(project) == before
 
 
@@ -419,3 +416,301 @@ def test_a_dialogue_segment_named_like_a_speaker_does_not_join_that_speaker(
 def test_an_old_clip_has_no_segment_ref_key_on_disk(project: str) -> None:
     text = Path(project).read_text(encoding="utf-8")
     assert "segment_ref" not in text
+
+
+def test_insert_at_start_and_end_resolve_to_the_timeline_edges(
+    tmp_path: Path, project: str
+) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+
+    assert _insert(project, segment.id, 0, "--json").exit_code == 0
+    result = runner.invoke(app, ["segment", "insert", project, segment.id, "--at", "end", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["at"] == pytest.approx(10.0)
+    placed = sorted(
+        (c.timeline_start, c.timeline_end)
+        for c in load_project(Path(project)).clips
+        if c.segment_ref
+    )
+    assert placed == [(0.0, 2.0), (10.0, 12.0)]
+
+    started = runner.invoke(
+        app, ["segment", "insert", project, segment.id, "--at", " Start ", "--json"]
+    )
+    assert started.exit_code == 0, started.output
+    assert json.loads(started.output)["at"] == 0.0
+
+
+@pytest.mark.parametrize("at", ["middle", "-1", "99"])
+def test_insert_refuses_a_position_that_is_not_on_the_timeline(
+    tmp_path: Path, project: str, at: str
+) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+    before = _layout(project)
+
+    result = runner.invoke(app, ["segment", "insert", project, segment.id, "--at", at])
+
+    assert result.exit_code != 0
+    assert "segment_position_out_of_range" in result.output
+    assert _layout(project) == before
+
+
+def test_dry_run_reports_what_moves_and_changes_nothing(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Warm Intro", chapter_title="Welcome", role="dialogue", lanes=(0, 1))
+    before_bytes = Path(project).read_bytes()
+    raw_files = sorted(p.name for p in (Path(project).parent / "raw").iterdir())
+
+    result = runner.invoke(
+        app, ["segment", "insert", project, segment.id, "--at", "4", "--dry-run", "--json"]
+    )
+
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.output)
+    assert report["dry_run"] is True
+    assert report["duration_sec"] == pytest.approx(2.0)
+    assert report["timeline_duration_before_sec"] == pytest.approx(8.0)
+    assert report["timeline_duration_after_sec"] == pytest.approx(10.0)
+    assert report["clips_moved"] == 1
+    assert report["chapters_moved"] == [{"title": "Later", "from": 6.0, "to": 8.0}]
+    assert report["chapter_added"] == "Welcome"
+    assert len(report["tracks_added"]) == 2
+    assert Path(project).read_bytes() == before_bytes
+    assert sorted(p.name for p in (Path(project).parent / "raw").iterdir()) == raw_files
+    assert DocumentSyncService.open(project).store.commands_after(0) == []
+
+    text = runner.invoke(
+        app, ["segment", "insert", project, segment.id, "--at", "end", "--dry-run"]
+    )
+    assert text.exit_code == 0, text.output
+    assert "Nothing was changed" in text.output
+
+
+def test_dry_run_refuses_what_a_real_insert_refuses(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+
+    result = runner.invoke(
+        app, ["segment", "insert", project, segment.id, "--at", "50", "--dry-run"]
+    )
+    assert result.exit_code != 0
+    assert "segment_position_out_of_range" in result.output
+
+    missing = runner.invoke(
+        app, ["segment", "insert", project, "nope-00000000", "--at", "1", "--dry-run"]
+    )
+    assert missing.exit_code != 0
+    assert "segment_unknown" in missing.output
+
+
+def test_host_mcp_tools_list_show_save_and_insert(tmp_path: Path, project: str) -> None:
+    from podcast_mcp.mcp.tools import segments as tools
+
+    assert json.loads(tools.segment_list_tool()) == []
+    clip = load_project(Path(project)).clips[0]
+    saved = json.loads(
+        tools.segment_save_tool(project, "Cold Open", clip_ids=[clip.id], kind="intro")
+    )
+    assert saved["status"] == "added"
+    again = json.loads(tools.segment_save_tool(project, "Cold Open", time_range="0:00-0:04"))
+    assert again["id"] == saved["id"]
+
+    rows = json.loads(tools.segment_list_tool())
+    assert [r["id"] for r in rows] == [saved["id"]]
+    shown = json.loads(tools.segment_show_tool(saved["id"]))
+    assert shown["name"] == "Cold Open"
+    assert shown["versions"] == [saved["version"]]
+
+    before = _layout(project)
+    preview = json.loads(tools.segment_insert_tool(project, saved["id"], "end", dry_run=True))
+    assert preview["dry_run"] is True
+    assert _layout(project) == before
+
+    result = json.loads(tools.segment_insert_tool(project, saved["id"], "start"))
+    assert result["operation"] == "insert_segment"
+    assert result["at"] == 0.0
+    placed = [c for c in load_project(Path(project)).clips if c.segment_ref]
+    assert len(placed) == 1 and placed[0].timeline_start == 0.0
+    assert [r["type"] for r in DocumentSyncService.open(project).store.commands_after(0)] == [
+        "InsertSegment"
+    ]
+
+    assert runner.invoke(app, ["undo", "--project", project]).exit_code == 0
+    assert _layout(project) == before
+
+    numeric = json.loads(tools.segment_insert_tool(project, saved["id"], 4.0))
+    assert numeric["at"] == 4.0
+
+
+def test_host_mcp_segment_tools_refuse_with_codes(tmp_path: Path, project: str) -> None:
+    from podcast_mcp.mcp.tools import segments as tools
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    with pytest.raises(CodedValueError) as unknown:
+        tools.segment_show_tool("nope-00000000")
+    assert unknown.value.code == "segment_unknown"
+    with pytest.raises(CodedValueError) as selection:
+        tools.segment_save_tool(project, "X")
+    assert selection.value.code == "segment_selection_invalid"
+    segment = _save(tmp_path, "Warm Intro")
+    with pytest.raises(CodedValueError) as where:
+        tools.segment_insert_tool(project, segment.id, 99.0)
+    assert where.value.code == "segment_position_out_of_range"
+
+
+def test_segment_tools_are_registered_for_the_host_and_absent_for_guests() -> None:
+    import asyncio
+
+    from podcast_mcp.services.remote_mcp.allowlist import ALL_GUEST_TOOLS
+    from podcast_mcp.services.remote_mcp.tools import TOOL_HANDLERS
+
+    names = {
+        "segment_list_tool",
+        "segment_show_tool",
+        "segment_save_tool",
+        "segment_insert_tool",
+    }
+    registered = {t.name for t in asyncio.run(mcp_server.mcp.list_tools())}
+    assert names <= registered
+    assert names.isdisjoint(ALL_GUEST_TOOLS)
+    assert names.isdisjoint(TOOL_HANDLERS)
+    assert not any("segment" in name for name in ALL_GUEST_TOOLS if "chapter" not in name)
+
+
+def test_the_journal_names_the_version_that_went_in(tmp_path: Path, project: str) -> None:
+    first = _save(tmp_path, "Warm Intro")
+    assert _insert(project, first.id, 0).exit_code == 0
+    second_dir = tmp_path / "second"
+    second_dir.mkdir()
+    # Same name, other audio: the next version.
+    audio = _flac(second_dir / "clip-01.flac", 2.5)
+    newer = first.model_copy(
+        update={
+            "clips": [first.clips[0].model_copy(update={"duration_sec": 2.5})],
+            "media": {
+                "clip-01.flac": MediaEntry(sha256=sha256_file(audio), bytes=audio.stat().st_size)
+            },
+        }
+    )
+    (second_dir / SEGMENT_JSON).write_text(segment_json(newer), encoding="utf-8")
+    assert SegmentStore().add(second_dir).version == 2
+
+    stored = DocumentSyncService.open(project).store.commands_after(0)
+    assert stored[0]["payload"]["version"] == 1
+    inserted = json.loads(
+        runner.invoke(app, ["segment", "insert", project, first.id, "--at", "end", "--json"]).output
+    )
+    assert inserted["segment_version"] == 2
+    again = DocumentSyncService.open(project).store.commands_after(0)
+    assert [c["payload"]["version"] for c in again] == [1, 2]
+    assert again[1]["payload"]["at"] == "end"
+
+
+def test_end_is_resolved_under_the_lock_not_from_a_snapshot(tmp_path: Path, project: str) -> None:
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import insert_saved_segment
+
+    segment = _save(tmp_path, "Warm Intro")
+    stale = ProjectWorkspace.open(project)
+    # Another writer appends 3 s after the workspace was opened.
+    other = ProjectWorkspace.open(project)
+
+    def _append(p) -> None:
+        p.clips.append(
+            Clip(id="c3", track_id="host", source_start=0.0, source_end=3.0, timeline_start=8.0)
+        )
+
+    other.mutate("before append", "after append", _append)
+    result = insert_saved_segment(stale, segment.id, "end")
+
+    assert result["at"] == pytest.approx(11.0)
+    placed = [c for c in load_project(Path(project)).clips if c.segment_ref]
+    assert placed[0].timeline_start == pytest.approx(11.0)
+
+
+@pytest.mark.parametrize("version", ["0", "-2"])
+def test_a_bad_version_has_the_same_code_on_both_paths(
+    tmp_path: Path, project: str, version: str
+) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+    for extra in ([], ["--dry-run"]):
+        result = runner.invoke(
+            app,
+            ["segment", "insert", project, segment.id, "--at", "1", "--version", version, *extra],
+        )
+        assert result.exit_code != 0
+        assert "segment_version_invalid" in result.output, result.output
+    from podcast_mcp.services.document_sync.payloads import validate_payload
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    for bad in (0, True, "2", 1.5):
+        with pytest.raises(CodedValueError) as raised:
+            validate_payload("InsertSegment", {"segment_id": "x", "at": 1.0, "version": bad})
+        assert raised.value.code == "segment_version_invalid"
+
+
+@pytest.mark.parametrize("at", ["End", " START ", "soon", "1_0", "0x10", "nan", True, None])
+def test_the_mcp_position_goes_through_the_one_parser(
+    tmp_path: Path, project: str, at: object
+) -> None:
+    from podcast_mcp.mcp.tools import segments as tools
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    segment = _save(tmp_path, "Warm Intro")
+    before = _layout(project)
+    if isinstance(at, str) and at.strip().casefold() in ("end", "start"):
+        out = json.loads(tools.segment_insert_tool(project, segment.id, at, dry_run=True))
+        assert out["at"] == (8.0 if at.strip().casefold() == "end" else 0.0)
+        return
+    with pytest.raises(CodedValueError) as raised:
+        tools.segment_insert_tool(project, segment.id, at)  # type: ignore[arg-type]
+    assert raised.value.code == "segment_position_out_of_range"
+    assert _layout(project) == before
+
+
+def test_the_mcp_schema_takes_text_for_at() -> None:
+    import asyncio
+
+    tool = next(
+        t for t in asyncio.run(mcp_server.mcp.list_tools()) if t.name == "segment_insert_tool"
+    )
+    kinds = {opt.get("type") for opt in tool.input_schema["properties"]["at"]["anyOf"]}
+    assert "string" in kinds and "enum" not in json.dumps(tool.input_schema["properties"]["at"])
+
+
+def test_dry_run_probes_the_audio_and_refuses_what_the_insert_refuses(
+    tmp_path: Path, project: str
+) -> None:
+    segment = _save(tmp_path, "Warm Intro")
+    folder = SegmentStore().path(segment.id)
+    # The layout says 2 s but the stored file is 1 s long (hash and size recorded to match).
+    short = _flac(tmp_path / "short.flac", 1.0)
+    (folder / "clip-01.flac").write_bytes(short.read_bytes())
+    stored = json.loads((folder / SEGMENT_JSON).read_text(encoding="utf-8"))
+    stored["media"]["clip-01.flac"] = {"sha256": sha256_file(short), "bytes": short.stat().st_size}
+    (folder / SEGMENT_JSON).write_text(json.dumps(stored), encoding="utf-8")
+
+    dry = runner.invoke(app, ["segment", "insert", project, segment.id, "--at", "1", "--dry-run"])
+    real = _insert(project, segment.id, 1)
+
+    assert dry.exit_code != 0 and real.exit_code != 0
+    assert "segment_media_invalid" in dry.output
+    assert "segment_media_invalid" in real.output
+
+
+def test_read_paths_do_not_rename_a_legacy_project_file(tmp_path: Path, project: str) -> None:
+    from podcast_mcp.mcp.tools import segments as tools
+
+    segment = _save(tmp_path, "Warm Intro")
+    entry = Path(project)
+    retired = entry.with_name("episode.project.json")
+    entry.rename(retired)
+
+    dry = runner.invoke(
+        app, ["segment", "insert", str(retired), segment.id, "--at", "end", "--dry-run"]
+    )
+    assert dry.exit_code == 0, dry.output
+    assert retired.exists() and not entry.exists()
+    json.loads(tools.segment_insert_tool(str(retired), segment.id, "end", dry_run=True))
+    clip = load_project(retired).clips[0]
+    tools.segment_save_tool(str(retired), "Cold Open", clip_ids=[clip.id])
+    assert retired.exists() and not entry.exists()

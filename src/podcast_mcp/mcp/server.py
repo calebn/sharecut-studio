@@ -160,6 +160,12 @@ from podcast_mcp.mcp.tools.review import (  # noqa: E402, F401
     set_active_review_version_tool,
     skip_session_suggestion_tool,
 )
+from podcast_mcp.mcp.tools.segments import (  # noqa: E402, F401
+    segment_insert_tool,
+    segment_list_tool,
+    segment_save_tool,
+    segment_show_tool,
+)
 from podcast_mcp.mcp.tools.session import (  # noqa: E402, F401
     get_session_presence_tool,
     get_session_state_tool,

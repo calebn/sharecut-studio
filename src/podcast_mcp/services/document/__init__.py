@@ -59,7 +59,10 @@ if TYPE_CHECKING:
         PendingPreviewSpan,
     )
     from podcast_mcp.services.document.segment_capture import parse_range, save_segment
-    from podcast_mcp.services.document.segment_insert import insert_saved_segment
+    from podcast_mcp.services.document.segment_insert import (
+        insert_saved_segment,
+        preview_segment_insert,
+    )
     from podcast_mcp.services.document.session_suggestion import SessionSuggestionService
     from podcast_mcp.services.document.timeline import TimelineService
     from podcast_mcp.services.document.transcript import (
@@ -116,6 +119,7 @@ __all__ = [
     "describe_fields",
     "insert_saved_segment",
     "parse_range",
+    "preview_segment_insert",
     "queue_room_tone_pools",
     "run_comment_mutation_with_file_revisions",
     "save_segment",
@@ -168,6 +172,7 @@ _MODULE_BY_NAME = {
     "TransportPath": "play",
     "insert_saved_segment": "segment_insert",
     "parse_range": "segment_capture",
+    "preview_segment_insert": "segment_insert",
     "save_segment": "segment_capture",
     "SessionSuggestionService": "session_suggestion",
     "TimelineService": "timeline",
