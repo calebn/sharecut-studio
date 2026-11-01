@@ -10,6 +10,7 @@ import {
 } from "../../test/fixtures";
 import type { Selection } from "../../types/project";
 import { SectionsBody } from "./SectionsBody";
+import { useSelectionSections } from "./selectionSections";
 
 vi.mock("../../api", () => ({
   approveEdits: vi.fn(),
@@ -20,6 +21,19 @@ vi.mock("../../api", () => ({
 
 const edit = pendingEditView({ id: "edit-1", suggested_action: "cut" });
 
+function Bar() {
+  const sections = useSelectionSections(
+    useDawStore.getState().selection,
+    false,
+    true,
+  );
+  return (
+    <>
+      {sections?.flatMap((section) => section.rows.map((row) => row.control))}
+    </>
+  );
+}
+
 function open(selection: NonNullable<Selection>, barShown = false) {
   useDawStore.getState().hydrate(
     "/tmp/p.json",
@@ -29,7 +43,9 @@ function open(selection: NonNullable<Selection>, barShown = false) {
     }),
   );
   useDawStore.getState().setSelection(selection);
-  return render(<SectionsBody withRange={false} barShown={barShown} />);
+  return barShown
+    ? render(<Bar />)
+    : render(<SectionsBody withRange={false} />);
 }
 
 describe("usePendingSections", () => {

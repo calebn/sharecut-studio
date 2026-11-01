@@ -31,6 +31,7 @@ import { useDaw } from "../../state/useDaw";
 import { KIND_META } from "../../system/decisionKinds";
 import { ScrubField } from "../../system/ScrubField";
 import { SystemIcon } from "../../system/SystemIcon";
+import { roundTo } from "../../system/scrubMath";
 import { formatSeconds } from "../../system/seconds";
 import type { PendingEditView } from "../../types/project";
 import {
@@ -450,7 +451,7 @@ export function PendingEditBody({
     if (timingBusy) return;
     const capture = captureTiming();
     if (!capture) return;
-    if (Math.abs(value - capture.expected[edge]) < 5e-7) return;
+    if (value === roundTo(capture.expected[edge], 6)) return;
     const start = edge === "start" ? value : capture.expected.start;
     const end = edge === "end" ? value : capture.expected.end;
     if (end <= start) {
