@@ -302,7 +302,6 @@ export function withStepSwitch(
     enabled_steps: [...set],
   };
   if (stepId === SOUND_SCAN_STEP) {
-    // The step is a no-op without its setting, so the two move together.
     patch.config = setByPath(current.config, SOUND_SCAN_PATH, enabled);
   }
   if (TIGHTEN_STEPS.has(stepId)) {

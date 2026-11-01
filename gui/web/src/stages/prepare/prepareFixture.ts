@@ -25,13 +25,11 @@ export const NAMED_TAKES: readonly PrepareSource[] = [
   take("joss", "Joss", "joss.wav", "6:02 of audio"),
 ];
 
-/** Maya, Anneke and Joss already ran; Priya's file was added after. */
 export const TAKES_WITH_NEW: readonly PrepareSource[] = [
   ...NAMED_TAKES,
   take("priya", "Priya", "priya.wav", "14:11 of audio", "new"),
 ];
 
-/** The same four takes once the run has processed Priya's. */
 export const TAKES_PROCESSED: readonly PrepareSource[] = [
   ...NAMED_TAKES,
   take("priya", "Priya", "priya.wav", "14:11 of audio"),
@@ -246,7 +244,6 @@ export const ROWS = {
       detail: "14 suggestions",
     },
   ],
-  /** The plan for audio added after a run: nothing has started. */
   plan: [
     {
       id: "add",
@@ -259,7 +256,6 @@ export const ROWS = {
     planRow("clean", "Clean and level", "All 4 tracks"),
     planRow("suggest", "Find suggestions", "Whole episode"),
   ],
-  /** The same plan with Line up tracks skipped for this run. */
   planSkipped: [
     {
       id: "add",
@@ -278,7 +274,6 @@ export const ROWS = {
     planRow("clean", "Clean and level", "All 4 tracks"),
     planRow("suggest", "Find suggestions", "Whole episode"),
   ],
-  /** After a run that reused earlier results. */
   reused: [
     { id: "add", state: "done", title: "Add audio", detail: "4 files" },
     {

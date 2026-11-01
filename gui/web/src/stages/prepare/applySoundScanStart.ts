@@ -3,7 +3,6 @@ import { readLocal, removeLocal, writeLocal } from "../../utils/storage";
 import { withStepSwitch } from "./advancedModel";
 import { readSoundScanStart, SOUND_SCAN_STEP } from "./soundScan";
 
-/** Set when the start choice could not be saved on a new project; Prepare says so once. */
 const FAILED_KEY = "sharecut.soundScanStartFailed";
 
 /**

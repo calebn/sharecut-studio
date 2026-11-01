@@ -153,8 +153,6 @@ export function usePrepareModel(): PrepareModel {
   );
   const drop = usePrepareDrop(canIngest);
 
-  // Audio added after a finished run: the rows show the plan and nothing
-  // starts until Process new audio. Skips on its rows are for that one run.
   const [skippedRows, setSkippedRows] =
     useState<ReadonlySet<ReadyRowId>>(NO_ROWS);
   const [soundScanStart, setSoundScanStart] = useState(readSoundScanStart);
@@ -173,7 +171,6 @@ export function usePrepareModel(): PrepareModel {
     !run.model &&
     !run.keepFixes &&
     !run.startError;
-  // A skip belongs to the plan that is on screen; any other state drops it.
   if (!planShown && skippedRows.size > 0) setSkippedRows(NO_ROWS);
 
   const tracks = (allTracks ?? []).map((track) =>

@@ -36,7 +36,6 @@ const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
     "assemble_timeline",
   ],
   suggest: ["analyze_fillers_pauses", "apply_sound_actions"],
-  // Only the plan has this row; a run reports the scan under Find suggestions.
   scan: [],
 };
 
@@ -364,7 +363,6 @@ function joined(names: readonly string[]): string {
   return names.length === 2 ? `${names[0]} and ${names[1]}` : names[0];
 }
 
-/** "Priya", "Priya and Joss", "3 new tracks". */
 function whoIsNew(names: readonly string[]): string {
   return names.length <= 2 ? joined(names) : `${names.length} new tracks`;
 }
@@ -381,8 +379,6 @@ export function planNote(plan: RerunPlan): string {
     names.length === 1
       ? `${names[0]}’s audio is new.`
       : `${names.length === 2 ? joined(names) : `${names.length} tracks`} have new audio.`;
-  // Only the transcripts are verified as kept (plan_transcription reuses a
-  // stored transcript whose audio is unchanged); the other steps run on all.
   const rest =
     kept === 1
       ? "The other track keeps its transcript."
@@ -549,7 +545,6 @@ function terminalWorkDetail(
   );
 }
 
-/** "1 min 12 s", "45 s", "1 h 2 min". */
 function spokenDuration(seconds: number): string {
   const total = Math.max(0, Math.round(seconds));
   const hours = Math.floor(total / 3600);
@@ -995,7 +990,6 @@ export function preparePhase(input: PhaseInput): PhaseResult {
   }
   // Refused for a busy slot: it starts by itself when the slot frees.
   if (input.waiting) return { phase: "waiting" };
-  // New audio waits for the person: nothing runs until Process new audio.
   if (input.plan) return { phase: "new-audio" };
   if (input.stoppedRun) {
     return {

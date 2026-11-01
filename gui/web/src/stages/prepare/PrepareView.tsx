@@ -193,7 +193,6 @@ export function PrepareView({
     .filter((row) => row.state === "failed" || row.state === "needs-you")
     .map((row) => row.id);
   const [moreOpen, setMoreOpen] = useState(false);
-  // Skip and Include change a row but not the phase, so they speak here.
   const [rowNote, setRowNote] = useState("");
   const onRow = (row: ReadyRowId, action: ReadyAction) => {
     const title = rows.find((one) => one.id === row)?.title;

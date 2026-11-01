@@ -23,7 +23,6 @@ export function soundScanTime(audioSec: number): string {
     : `about ${minutes} min ${seconds} s`;
 }
 
-/** The person's own choice, per browser: "New projects start with this". */
 const START_KEY = "sharecut.soundScanForNewProjects";
 
 /** Off unless the person turned it on. */

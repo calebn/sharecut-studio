@@ -173,7 +173,6 @@ export const ScanForSounds: Story = {
     ).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(within(mine).getByRole("button", { name: "On" }));
     await expect(args.onPersonal).toHaveBeenCalledWith("scan", true);
-    // The person's choice never moves the project's switch.
     await expect(args.onToggle).toHaveBeenCalledTimes(1);
   },
 };
