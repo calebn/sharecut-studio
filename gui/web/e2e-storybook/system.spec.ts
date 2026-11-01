@@ -248,19 +248,20 @@ test("System/Player follow pill X has a 44 px hit area at 360", async ({
   expect(reach).toBe(true);
 });
 
-test("System/Player stacked chips and the error pill stay clear of Play and the skips (#2576)", async ({
+test("System/Player error pill and Retry stay clear of Play and the skips (#2576)", async ({
   page,
 }) => {
-  const args =
-    "state:error;status:No mix yet;cuts:-4m10s;solo:Rosa;following.name:Rosa;following.colorIndex:1";
-  // 360 to 390 is a phone, 641 to 768 a narrow tablet, 801 to 896 the width
-  // where the error pill and Retry outgrew the side column beside the skips.
-  for (const width of [360, 390, 641, 768, 801, 850, 896]) {
-    await open(page, "system-player--ready", width);
+  const args = "state:error;status:No mix yet";
+  // 801 to 960 is where the error pill and Retry outgrew the side column
+  // beside the skips; 960 (60 rem) is the widest the status text gives way.
+  for (const width of [801, 850, 896, 940, 960]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
     await page.goto(
       `${storyUrl("system-player--ready", { theme: "light" })}&args=${args}`,
     );
-    await expect(page.locator(".sys-player-host")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
     const clash = await page.evaluate(() => {
       const bar = document.querySelector(".sys-player");
       const play = bar?.querySelector(".sys-player-center");

@@ -6,7 +6,7 @@ ShareCut Studio works on your phone, not just your desktop. The mobile version i
 
 ## Five stages, one job each
 
-At the bottom of the screen you'll see five tabs, one for each stage of making an episode. The player sits just above them on every stage. When the player is narrow (a phone, or any window under about 800 px wide) it keeps Play and the clock clear of the other controls; if the audio fails, Comment and the status text step aside so Retry fits. When several chips show at once (cuts, following, solo, updating mix), they wrap to a second row rather than running under Play.
+At the bottom of the screen you'll see five tabs, one for each stage of making an episode. The player sits just above them on every stage. On a narrow player (a phone, up to about 800 px wide at default text size) it keeps Play and the clock clear of the other controls; if the audio fails, Comment steps aside so Retry fits, and the status text steps aside too below about 960 px.
 
 | Stage | What it's for |
 |-------|---------------|
