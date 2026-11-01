@@ -2,21 +2,22 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { sampleComment } from "../test/fixtures";
-import { MarkerLaneView } from "./MarkerLaneView";
+import { MarkerLaneHost } from "./MarkerLaneHost";
 import { timelineMarkerStoryDecorator } from "./timelineLaneStoryDecorator";
 
-const ALL_ROWS = {
-  chapters: true,
-  social: true,
-  comments: true,
-  clipping: true,
-};
-
-const meta: Meta<typeof MarkerLaneView> = {
-  title: "Templates/MarkerLane",
-  component: MarkerLaneView,
+const meta: Meta<typeof MarkerLaneHost> = {
+  title: "Templates/MarkerLaneHost",
+  component: MarkerLaneHost,
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: {
+    layout: "fullscreen",
+    markerRows: {
+      chapters: true,
+      social: true,
+      comments: true,
+      clipping: true,
+    },
+  },
   decorators: [timelineMarkerStoryDecorator],
   args: {
     chapters: [
@@ -62,11 +63,14 @@ const meta: Meta<typeof MarkerLaneView> = {
         end: 11.8,
       },
     ],
-    rows: ALL_ROWS,
     zoomPxPerSec: 40,
     width: 640,
-    editable: true,
-    selectedCommentId: null,
+    showMarkers: true,
+    showComments: true,
+    readOnly: false,
+    selected: [],
+    duration: 30,
+    laneRow: true,
     onSelectChapter: fn(),
     onSelectSocial: fn(),
     onSelectComment: fn(),
@@ -77,43 +81,56 @@ const meta: Meta<typeof MarkerLaneView> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof MarkerLaneView>;
+type Story = StoryObj<typeof MarkerLaneHost>;
 
-export const AllRows: Story = {
+export const AllMarkers: Story = {
   play: async ({ canvasElement, args }) => {
-    await expect(canvasElement.querySelectorAll(".marker-row")).toHaveLength(4);
     const canvas = within(canvasElement);
-    const button = canvas.getByRole("button", {
-      name: "Chapter The signal",
-    });
+    await expect(canvasElement.querySelector(".sys-markers")).not.toBeNull();
+    await expect(canvasElement.querySelectorAll(".marker-row")).toHaveLength(1);
+    const button = canvas.getByRole("button", { name: /The signal/ });
     await userEvent.click(button);
-    await expect(args.onSelectChapter).toHaveBeenCalled();
+    await expect(args.onSelectChapter).toHaveBeenCalledWith({
+      time: 8,
+      title: "The signal",
+    });
+    await userEvent.unhover(button);
   },
 };
 
 export const SelectedComment: Story = {
-  args: { selectedCommentId: "cm-span" },
+  args: { selected: ["cm-span"] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const button = canvas.getByRole("button", { name: "Comment by Mira" });
+    const button = canvas.getByRole("button", { name: /^Comment by Mira/ });
     await expect(button).toHaveAttribute("aria-pressed", "true");
-    await expect(button).toHaveClass("span");
   },
 };
 
 export const ReadOnly: Story = {
-  args: { editable: false },
+  args: { readOnly: true },
   play: async ({ canvasElement }) => {
-    const chapter = canvasElement.querySelector(
-      ".chapter-marker",
-    ) as HTMLElement;
-    await expect(chapter).toHaveStyle({ cursor: "pointer" });
+    await expect(canvasElement.querySelector(".sys-markers")).toHaveAttribute(
+      "data-readonly",
+      "true",
+    );
   },
 };
 
 export const Empty: Story = {
   args: {
-    rows: { chapters: false, social: false, comments: false, clipping: false },
+    chapters: [],
+    socialClips: [],
+    comments: [],
+    clippingFlags: [],
+  },
+  parameters: {
+    markerRows: {
+      chapters: false,
+      social: false,
+      comments: false,
+      clipping: false,
+    },
   },
   play: async ({ canvasElement }) => {
     await expect(

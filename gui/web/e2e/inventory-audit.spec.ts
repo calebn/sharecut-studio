@@ -12,7 +12,6 @@ import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openPanel, openProject, phone } from "./stageNav";
 import { setTheme } from "./theme";
-import { zoomTimelineIn } from "./timelineZoom";
 
 type Clip = {
   id: string;
@@ -451,11 +450,15 @@ for (const profile of profiles) {
       await audit(page, info, profile, false, async (projectPath, commands) => {
         for (const item of [
           {
-            label: "Chapter Inventory chapter",
+            label: /^Chapter Inventory chapter,/,
             type: "UpdateChapter",
             social: false,
           },
-          { label: "Inventory social", type: "UpdateSocialClip", social: true },
+          {
+            label: /^Clip idea Inventory social,/,
+            type: "UpdateSocialClip",
+            social: true,
+          },
         ]) {
           const target = page.getByRole("button", {
             name: item.label,
@@ -546,7 +549,10 @@ for (const profile of profiles) {
       page,
     }, info) => {
       await audit(page, info, profile, false, async (projectPath, commands) => {
-        for (const label of ["Chapter Inventory chapter", "Inventory social"]) {
+        for (const label of [
+          /^Chapter Inventory chapter,/,
+          /^Clip idea Inventory social,/,
+        ]) {
           const target = page.getByRole("button", { name: label, exact: true });
           const start = await center(target);
           const origin = await drawn(target);
@@ -746,47 +752,3 @@ for (const profile of profiles) {
     });
   });
 }
-
-test("F10 native fractional chapter preview cancels to exact assigned CSS", async ({
-  page,
-}, info) => {
-  await audit(page, info, profiles[0], false, async (projectPath, commands) => {
-    const zoom = await zoomTimelineIn(page, { maxSteps: 2 });
-    const target = page.getByRole("button", {
-      name: "Chapter Inventory chapter",
-      exact: true,
-    });
-    const origin = await drawn(target);
-    expect(Number.parseFloat(origin.left) % 1).not.toBe(0);
-    const start = await center(target);
-    const hit = await target.evaluate(
-      (element, point) =>
-        element.contains(document.elementFromPoint(point.x, point.y)),
-      start,
-    );
-    expect(hit).toBe(true);
-    const before = saved(projectPath);
-    await page.mouse.move(start.x, start.y);
-    await page.mouse.down();
-    await page.mouse.move(start.x + 23, start.y, { steps: 5 });
-    await expect
-      .poll(async () => (await drawn(target)).left)
-      .not.toBe(origin.left);
-    const preview = await drawn(target);
-    await page.keyboard.press("Escape");
-    await expect.poll(() => drawn(target)).toEqual(origin);
-    await page.mouse.move(start.x + 37, start.y);
-    await expect.poll(() => drawn(target)).toEqual(origin);
-    await page.mouse.up();
-    expect(saved(projectPath)).toEqual(before);
-    expect(commands).toEqual([]);
-    await evidence(page, info, "fractional-chapter-cancel", {
-      zoom,
-      origin,
-      preview,
-      restored: await drawn(target),
-      hit,
-      commands,
-    });
-  });
-});

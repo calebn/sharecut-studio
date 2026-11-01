@@ -85,8 +85,12 @@ async function exercisePinnedRuler(page: Page): Promise<void> {
   await expect(page.locator(".stage-frame")).toBeVisible();
   await expect(page.locator(".timeline-scroll")).toBeVisible();
   await expect(page.locator(".sys-track")).toHaveCount(TRACK_COUNT);
-  await expect(page.locator(".chapter-marker")).toHaveCount(1);
-  await expect(page.locator(".comment-marker")).toHaveCount(1);
+  await expect(
+    page.locator('.sys-marker[data-kind="chapter"] .sys-marker-hit'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator('.sys-marker[data-kind="comment"] .sys-marker-hit'),
+  ).toHaveCount(1);
 
   const before = await readChromeGeometry(page);
   expect(before.verticalRange).toBeGreaterThan(VERTICAL_SCROLL_PX);
@@ -103,7 +107,9 @@ async function exercisePinnedRuler(page: Page): Promise<void> {
   expect(after.rulerTop).toBeCloseTo(before.rulerTop, 0);
   expect(after.markerTop).toBeCloseTo(before.markerTop, 0);
 
-  await page.locator(".chapter-marker").click();
+  await page
+    .locator('.sys-marker[data-kind="chapter"] .sys-marker-hit')
+    .click();
   const playhead = page.getByRole("slider", { name: "Timeline position" });
   await expect(playhead).toHaveAttribute("aria-valuenow", "15");
   const inspector = page.getByRole("dialog", { name: "Inspector" });
