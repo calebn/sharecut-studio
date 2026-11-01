@@ -190,6 +190,7 @@ class SampleAbsent:
         "window_unreadable",
         "candidate_limit",
         "no_fill_requested",
+        "voice_detector_missing",
     ]
     rejected_checks: tuple[str, ...] = ()
     unreadable_windows: int = 0
