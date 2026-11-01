@@ -8,7 +8,7 @@ import {
 } from "react";
 import { Button, Menu, MenuItem } from "../ui";
 import { disabledAttrs } from "../ui/disabledReason";
-import { useAnchoredPanel } from "../ui/useAnchoredPanel";
+import { type AnchorExclusion, useAnchoredPanel } from "../ui/useAnchoredPanel";
 import { type BarItem, foldDock, slotsOf } from "./actionBarSlots";
 import { type BarId, barDisplay } from "./editActionSets";
 import { SystemIcon } from "./SystemIcon";
@@ -19,6 +19,7 @@ export type ActionBarPlacement =
   | {
       readonly form: "floating";
       readonly anchorRef: RefObject<HTMLElement | null>;
+      readonly exclusion?: AnchorExclusion;
       /** A value that moves the anchor without a scroll or resize. */
       readonly moves?: unknown;
       /** The side tried first; above unless the selection sits under chrome (the Edit ruler). */
@@ -374,6 +375,7 @@ function Floating({
     {
       reason: "The Action bar floats beside its selection",
       ref: placement.anchorRef,
+      exclusion: placement.exclusion,
       moves: placement.moves,
       prefer: placement.prefer ?? "above",
     },

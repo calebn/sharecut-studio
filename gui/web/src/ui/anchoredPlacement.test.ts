@@ -4,6 +4,7 @@ import {
   inlineSizeCaps,
   placeAnchored,
   placeAnchoredClear,
+  placeAnchoredExcluding,
   unionRect,
   visualViewportBox,
 } from "./anchoredPlacement";
@@ -13,6 +14,128 @@ const EDGE = 8;
 const GAP = 4;
 const options = { margin: EDGE, gap: GAP };
 const panel = { width: 240, height: 120 };
+
+describe("placeAnchoredExcluding", () => {
+  const view = { left: 0, top: 0, width: 1280, height: 720 };
+  const bounds = { left: 0, top: 0, right: 1280, bottom: 720 };
+  const bar = { width: 340, height: 40 };
+  const word = { left: 1100, top: 112, right: 1160, bottom: 136 };
+  const header = { left: 880, top: 48, right: 1280, bottom: 104 };
+  const opts = {
+    margin: 8,
+    gap: 8,
+    align: "center",
+    prefer: "above",
+  } as const;
+
+  it("preserves ordinary placement exactly when the header is clear", () => {
+    const lowerWord = { ...word, top: 300, bottom: 324 };
+    expect(
+      placeAnchoredExcluding(lowerWord, bar, view, header, bounds, opts),
+    ).toEqual(placeAnchored(lowerWord, bar, view, opts));
+  });
+
+  it("keeps a first-line bar above the word and left of its header", () => {
+    expect(
+      placeAnchoredExcluding(word, bar, view, header, bounds, opts),
+    ).toMatchObject({
+      left: 532,
+      top: 64,
+      side: "above",
+    });
+  });
+
+  it("uses the right corridor when the header meets the left viewport edge", () => {
+    expect(
+      placeAnchoredExcluding(
+        { ...word, left: 100, right: 160 },
+        bar,
+        view,
+        { ...header, left: 0, right: 400 },
+        bounds,
+        opts,
+      ),
+    ).toMatchObject({ left: 408, top: 64, side: "above" });
+  });
+
+  it("chooses the nearest fitting side, with left winning a tie", () => {
+    expect(
+      placeAnchoredExcluding(
+        { ...word, left: 610, right: 670 },
+        bar,
+        view,
+        { ...header, left: 480, right: 800 },
+        bounds,
+        opts,
+      ),
+    ).toMatchObject({ left: 132, top: 64, side: "above" });
+  });
+
+  it("moves above a full-width header when neither lateral corridor fits", () => {
+    expect(
+      placeAnchoredExcluding(
+        { ...word, top: 350, bottom: 374 },
+        bar,
+        view,
+        { left: 0, top: 300, right: 1280, bottom: 340 },
+        bounds,
+        opts,
+      ),
+    ).toMatchObject({ top: 252, side: "above" });
+  });
+
+  it("flips below only when the whole bar cannot fit above or beside", () => {
+    expect(
+      placeAnchoredExcluding(
+        word,
+        bar,
+        view,
+        { ...header, left: 0, top: 0 },
+        bounds,
+        opts,
+      ),
+    ).toMatchObject({ top: 144, side: "below", maxHeight: 568 });
+  });
+
+  it("keeps the final below placement clear of the header as well as the word", () => {
+    expect(
+      placeAnchoredExcluding(
+        word,
+        bar,
+        view,
+        { left: 0, top: 0, right: 1280, bottom: 180 },
+        bounds,
+        opts,
+      ),
+    ).toMatchObject({ top: 188, side: "below" });
+  });
+
+  it("respects a visual viewport with nonzero offsets", () => {
+    expect(
+      placeAnchoredExcluding(
+        { left: 1080, top: 170, right: 1140, bottom: 194 },
+        bar,
+        { left: 200, top: 50, width: 1000, height: 600 },
+        { left: 900, top: 100, right: 1200, bottom: 160 },
+        bounds,
+        opts,
+      ),
+    ).toMatchObject({ left: 552, top: 122, side: "above" });
+  });
+
+  it("does not move above a full-width header into the application's stage chrome", () => {
+    expect(
+      placeAnchoredExcluding(
+        word,
+        bar,
+        view,
+        { left: 0, top: 80, right: 1280, bottom: 104 },
+        { left: 0, top: 48, right: 1280, bottom: 640 },
+        opts,
+      ),
+    ).toMatchObject({ top: 144, side: "below", maxHeight: 488 });
+  });
+});
 
 function anchorAt(left: number, top: number, width = 40, height = 32) {
   return { left, top, right: left + width, bottom: top + height };

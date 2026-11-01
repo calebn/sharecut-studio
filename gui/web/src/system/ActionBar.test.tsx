@@ -264,6 +264,38 @@ describe("ActionBar floating", () => {
     expect(floatAt(2, 30).style.top).toBe("38px");
   });
 
+  it("keeps the whole bar above a word while clearing its Script header", () => {
+    sizes.mockReturnValue(40);
+    widths.mockReturnValue(200);
+    const anchor = document.createElement("div");
+    anchor.getBoundingClientRect = () =>
+      ({ left: 700, right: 740, top: 112, bottom: 136 }) as DOMRect;
+    const header = document.createElement("div");
+    header.getBoundingClientRect = () =>
+      ({ left: 600, right: 1024, top: 48, bottom: 104 }) as DOMRect;
+    const content = document.createElement("div");
+    content.getBoundingClientRect = () =>
+      ({ left: 0, right: 1024, top: 48, bottom: 700 }) as DOMRect;
+    render(
+      <ActionBar
+        placement={{
+          form: "floating",
+          anchorRef: { current: anchor },
+          exclusion: {
+            ref: { current: header },
+            withinRef: { current: content },
+          },
+        }}
+        items={itemsOf(["hear", "comment"])}
+        primary={{ id: "cut" }}
+        onVerb={vi.fn()}
+      />,
+    );
+    const bar = screen.getByRole("group", { name: "Actions" });
+    expect(bar.style.top).toBe("64px");
+    expect(bar.style.left).toBe("392px");
+  });
+
   it("is icon only and names each button", () => {
     const bar = floatAt(300, 330);
     expect(
