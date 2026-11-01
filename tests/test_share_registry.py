@@ -6,6 +6,7 @@ import json
 import multiprocessing
 import os
 import sqlite3
+import sys
 import time
 from collections.abc import Iterator
 from contextlib import closing, suppress
@@ -58,7 +59,13 @@ def _write_registry_init_diagnostic(path: str, trace) -> None:
 
 
 def _registry_secret_process(db_path: str, barrier, queue, diagnostic_path: str) -> None:
-    trace = {"pid": os.getpid(), "started": time.monotonic(), "phases": {}}
+    trace = {
+        "pid": os.getpid(),
+        "started": time.monotonic(),
+        "phases": {},
+        "python_version": sys.version.split()[0],
+        "sqlite_version": sqlite3.sqlite_version,
+    }
     real_wal, real_setup = sqlite_open.switch_to_wal, registry_module._apply_schema
 
     def wal(connection):
@@ -100,7 +107,6 @@ def _registry_secret_process(db_path: str, barrier, queue, diagnostic_path: str)
             else None,
             "sqlite_errorcode": getattr(exc, "sqlite_errorcode", None),
             "sqlite_errorname": getattr(exc, "sqlite_errorname", None),
-            "sqlite_version": sqlite3.sqlite_version,
             "sql_api_context": {
                 "wal": "switch_to_wal: PRAGMA journal_mode; conditional PRAGMA journal_mode=WAL",
                 "schema": "_apply_schema: PRAGMA synchronous=NORMAL; executescript(public _SCHEMA)",
@@ -837,6 +843,51 @@ def test_registry_init_diagnostic_is_bounded_and_excludes_secret(
     if fail_secret:
         assert report["error"]["message"] is None
         assert report["error"]["sql_api_context"] is None
+
+
+@pytest.mark.parametrize("failure_phase", ["wal", "schema"])
+def test_registry_init_diagnostic_keeps_actual_callback_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_phase: str
+) -> None:
+    original = sqlite3.OperationalError("attempt to write a readonly database")
+    original.sqlite_errorcode = sqlite3.SQLITE_READONLY
+    original.sqlite_errorname = "SQLITE_READONLY"
+    original.add_note("DO_NOT_LOG_ARBITRARY_NOTE")
+    connection = object()
+    calls = {"wal": 0, "schema": 0}
+
+    def callback(phase, value):
+        assert value is connection
+        calls[phase] += 1
+        if phase == failure_phase and calls[phase] == 2:
+            raise original
+
+    monkeypatch.setattr(sqlite_open, "switch_to_wal", lambda value: callback("wal", value))
+    monkeypatch.setattr(registry_module, "_apply_schema", lambda value: callback("schema", value))
+
+    def constructor(_path):
+        for _ in range(2):
+            sqlite_open.switch_to_wal(connection)
+            registry_module._apply_schema(connection)
+
+    monkeypatch.setitem(globals(), "SqliteShareRegistry", constructor)
+    report_path = tmp_path / "report.json"
+    with pytest.raises(sqlite3.OperationalError) as caught:
+        _registry_secret_process(str(tmp_path / "shared.sqlite"), None, None, str(report_path))
+    assert caught.value is original
+    assert caught.value.__notes__ == ["DO_NOT_LOG_ARBITRARY_NOTE"]
+    report_text = report_path.read_text(encoding="utf-8")
+    assert str(tmp_path) not in report_text
+    assert "DO_NOT_LOG_ARBITRARY_NOTE" not in report_text
+    report = json.loads(report_text)
+    assert report["phase"] == failure_phase
+    context = "switch_to_wal:" if failure_phase == "wal" else "_apply_schema:"
+    assert report["error"]["sql_api_context"].startswith(context)
+    assert report["error"]["sqlite_errorcode"] == sqlite3.SQLITE_READONLY
+    assert report["error"]["sqlite_errorname"] == "SQLITE_READONLY"
+    assert report["error"]["individual_failed_statement"] == "UNAVAILABLE"
+    assert report["phases"]["wal"]["calls"] == 2
+    assert report["phases"]["schema"]["calls"] == (1 if failure_phase == "wal" else 2)
 
 
 def test_recording_key_secret_initialization_rolls_back_on_generation_failure(
