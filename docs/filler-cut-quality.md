@@ -1265,16 +1265,20 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   evidence.
 - **A string of hits is an untranscribed phrase, not several fillers** (#1359,
   `edits/acoustic_phrase.py`). Three or more runs in one gap that survive the peer
-  test, each starting within the speaker's longest ordinary word step of the previous
+  test, each starting within the speaker's longest ordinary word silence of the previous
   run's end, are proposed as none (`acoustic:phrase`): a hummed, sung or playful
   phrase the transcript dropped ("boop boop boop boop"), which muting hit by hit
-  would mute. The step is the 95th percentile of onset-to-onset steps between this
+  would mute. The ceiling is the 95th percentile of the silences (end of one word to
+  start of the next, like the silence between runs) between this
   track's live words that are less than `min_gap_sec` apart, so it follows the
   speaker's own cadence. A run that touches either end of the gap is a flanking word's voice
   running past its transcript time, not a free-standing hit, and does not join a
-  string. A track with fewer than 30 such steps has no cadence and
-  nothing is grouped. A single hit, a pair, and hits further apart than that step
+  string. A track with fewer than 30 such silences has no cadence and
+  nothing is grouped. A single hit, a pair, and hits further apart than that silence
   are each still proposed.
+  A speaker whose words abut (synthetic speech, very fast talkers) has a ceiling near
+  zero, so only hits that nearly touch chain into a phrase; a hummed string spaced
+  wider than that is proposed hit by hit, review-only (#1378).
 - **A likely laugh is flagged, not dropped** (#1365, `edits/acoustic_laugh.py`). Inside one
   voiced run the frame level rises and falls: a held "uh" is one burst, "ha ha ha" is
   several. A burst ends when the level falls 6 dB under its peak and the next begins
