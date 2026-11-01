@@ -77,9 +77,13 @@ test("a long press on empty lane space opens the Sheet, and a tap on Add chapter
   await expect(page.locator(".timeline-create-layer")).toHaveCount(0);
   await sheet(page).getByRole("button", { name: "Add chapter here" }).tap();
   await expect(sheet(page)).toHaveCount(0);
-  await expect(page.locator(".chapter-marker")).toHaveCount(1);
+  await expect(
+    page.locator('.sys-marker[data-kind="chapter"] .sys-marker-hit'),
+  ).toHaveCount(1);
   await page.keyboard.press("Control+z");
-  await expect(page.locator(".chapter-marker")).toHaveCount(0);
+  await expect(
+    page.locator('.sys-marker[data-kind="chapter"] .sys-marker-hit'),
+  ).toHaveCount(0);
 });
 
 test("a tap outside the Sheet closes it and does not move the playhead", async ({
@@ -141,8 +145,12 @@ test("a finger that slides from the held point onto a Sheet row and lifts picks 
   }
   await touch(cdp, "touchEnd");
   await expect(sheet(page)).toHaveCount(0);
-  await expect(page.locator(".chapter-marker")).toHaveCount(1);
+  await expect(
+    page.locator('.sys-marker[data-kind="chapter"] .sys-marker-hit'),
+  ).toHaveCount(1);
   // Leave the shared project as found: later specs measure its markers.
   await page.keyboard.press("Control+z");
-  await expect(page.locator(".chapter-marker")).toHaveCount(0);
+  await expect(
+    page.locator('.sys-marker[data-kind="chapter"] .sys-marker-hit'),
+  ).toHaveCount(0);
 });
