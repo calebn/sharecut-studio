@@ -616,7 +616,6 @@ export function rowOutcome(
       ["ok", "running", "error"].includes(step.status),
   );
   if (
-    isLive(job) &&
     operations.length > 0 &&
     !reportedOwnWork &&
     operations.every((operation) => job.skip_steps?.includes(operation.step))
@@ -912,14 +911,24 @@ export function readyRows(input: ReadyInput): ReadyRowData[] {
   return rows;
 }
 
+export type StoppedRun = {
+  status: "error" | "cancelled";
+  error: string | null;
+};
+
 export function readySummary(
   rows: readonly ReadyRowData[],
   newAudio = false,
+  stoppedRun?: StoppedRun,
 ): string {
   if (rows.length === 0) return "";
   if (newAudio) return "Getting ready: new audio waiting";
   const failed = rows.find((row) => row.state === "failed");
   if (failed) return `Getting ready: ${failed.title} failed`;
+  if (stoppedRun)
+    return stoppedRun.status === "cancelled"
+      ? "Getting ready: processing stopped"
+      : "Getting ready: processing failed";
   const done = rows.filter((row) => row.state === "done").length;
   const needs = rows.filter((row) => row.state === "needs-you");
   if (
@@ -950,6 +959,8 @@ type PhaseInput = {
   waiting?: boolean;
   /** The rows are the plan for audio added after a run. */
   plan?: boolean;
+  /** A stopped current run can contain only deliberately omitted rows. */
+  stoppedRun?: StoppedRun;
   rows: readonly ReadyRowData[];
 };
 
@@ -986,6 +997,19 @@ export function preparePhase(input: PhaseInput): PhaseResult {
   if (input.waiting) return { phase: "waiting" };
   // New audio waits for the person: nothing runs until Process new audio.
   if (input.plan) return { phase: "new-audio" };
+  if (input.stoppedRun) {
+    return {
+      phase: "failed",
+      failure: {
+        step: "Processing",
+        cause:
+          input.stoppedRun.error ??
+          (input.stoppedRun.status === "cancelled"
+            ? "The run was stopped."
+            : "The run did not finish."),
+      },
+    };
+  }
   // Never started (a row offers Start): nothing runs until Start is tapped.
   if (input.rows.some((row) => row.state === "queued" && row.action)) {
     return { phase: "not-started" };

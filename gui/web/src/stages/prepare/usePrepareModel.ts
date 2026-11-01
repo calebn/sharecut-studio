@@ -29,6 +29,7 @@ import {
   readyRows,
   readySummary,
   reuseNote,
+  type StoppedRun,
   sourceTracks,
   trackLabel,
   transcriptIndex,
@@ -246,6 +247,19 @@ export function usePrepareModel(): PrepareModel {
     keepFixes: run.keepFixes,
     plan,
   });
+  const stoppedRun: StoppedRun | undefined =
+    !planShown &&
+    !run.starting &&
+    !run.waiting &&
+    !run.model &&
+    !run.keepFixes &&
+    !run.startError &&
+    (job?.status === "error" || job?.status === "cancelled")
+      ? {
+          status: job.status === "cancelled" ? "cancelled" : "error",
+          error: job.error,
+        }
+      : undefined;
   const { phase, failure } = preparePhase({
     sources: sourceCount,
     ingestBusy,
@@ -253,6 +267,7 @@ export function usePrepareModel(): PrepareModel {
     model: run.model,
     waiting: run.waiting,
     plan: planShown,
+    stoppedRun,
     rows,
   });
   const target = prepareHandoff({
@@ -357,7 +372,7 @@ export function usePrepareModel(): PrepareModel {
     phase,
     sessions,
     rows,
-    readySummary: readySummary(rows, planShown),
+    readySummary: readySummary(rows, planShown, stoppedRun),
     readyNote: plan
       ? planNote(plan)
       : job && !running && jobCoversMedia
