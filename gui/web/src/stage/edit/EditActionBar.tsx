@@ -118,8 +118,8 @@ function EditActionBarImpl({
           ? {
               form: "floating",
               anchorRef: anchor.ref,
+              exclusion: anchor.exclusion,
               moves: anchor.moves,
-              // below, so the ruler stays uncovered; above a word, so the next line does
               prefer: selection?.kind === "transcriptRange" ? "above" : "below",
             }
           : { form: "dock" }

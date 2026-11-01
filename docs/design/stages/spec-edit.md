@@ -64,14 +64,16 @@ Making precise changes to the episode: cutting words and ranges, trimming, fadin
 | Hear | speaker-wave | Shift+Space | plays the words | plays the range | plays the clip | plays 2 s across the seam | A/B: A before, B after | plays from it | n/a (Space plays) |
 | Cut | scissors | Backspace / Delete | removes them | removes time | removes clip | n/a | accepts the cut (Enter also) | n/a | n/a |
 | Keep | arrow-uturn (restore) | X | restores cut words | n/a | n/a | restores the cut at this seam | rejects the suggestion | n/a | n/a |
-| Split | blade | Mod+K | n/a | splits at both edges | splits at playhead | n/a | n/a | n/a | splits at playhead |
+| Split | blade | S | splits at both selected-word edges in one undo step | splits at both edges | splits at playhead | n/a | n/a | n/a | splits at playhead |
 | Comment | speech bubble | C | comment on words | comment on range | comment on clip span | comment at seam | comment on it | reply (comment) | comment at playhead |
 | Fix text | text-cursor | Enter, F2 or double-click | inline correction | n/a | n/a | n/a | n/a | rename (chapter, social) | n/a |
 | Remove | trash | Backspace | n/a | n/a | n/a | n/a | n/a | deletes the marker | n/a |
-| More | ellipsis | . (period) opens | Mute, Move to speaker, Copy | Mute, Fill room tone, Move to speaker, Export selection | Mute, Gain, Fade, Move to track | Join type, Precision | Adjust bounds | n/a | Add chapter, Add volume point, Paste |
+| More | ellipsis | . (period) opens | Mute or Restore ignored words, Move to speaker, Copy | Mute, Fill room tone, Move to speaker, Export selection | Mute, Gain, Fade, Move to track | Join type, Precision | Adjust bounds | n/a | Add chapter, Add volume point, Paste |
 | Inspect | sliders | I | timing | In/Out/Length | properties | offset, join | why, bounds | time, title | n/a |
 
 Rules. Cut always removes audio and is drawn as struck text plus a hatched waveform. Remove deletes a non-audio object and is never called Cut. Keep undoes a cut or rejects a proposal. Verbs that do not apply are absent, never disabled. When nothing is selected the verbs act at the playhead.
+
+For the host, the words More menu shows **Restore ignored words** only when every selected word is ignored. It clears Ignore on that selection. A mixed selection keeps **Mute**. Editor links keep **Mute**, which affects the range instead of Ignore. Commenter links stay in Review and do not expose the Edit words toolbar.
 
 **How you enter and leave Edit.** Click the Edit stage (Mod+3) from anywhere; tap Edit in the phone tab bar; press E ("Adjust in Edit") on a suggestion in Review, which opens Edit with that suggestion selected and zoomed to it; tap a comment's time in Review, which opens Edit at that time. Leave by any stage tab. Nothing in Edit blocks leaving; an in-progress drag is cancelled, an open Fix text field is committed.
 
@@ -697,7 +699,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** INS-WORD--desktop-light.png, --phone-light.png. Hierarchy: Range actions and words-in-range buttons fill 150 px above the timeline; on phone the sheet covers the text being edited.
 - **Fate:** restyle.
-- **Spec:** action bar above the words (Hear, Cut, Fix text, Comment, More: Mute, Move to speaker, Copy). Inspect: text, confidence meter, timing (CMP-WORDBAR content). On phone the dock leaves the selected line visible by scrolling the text so the selection sits above the dock.
+- **Spec:** action bar above the words, clear of the Script header. If it would cover that header, move the whole bar beside or above the header within the Edit content area. Flip below only when the whole bar cannot fit above or beside. Order: Hear, Keep when available, Split, Comment, Fix text for one word, Re-record for the host, More, Inspect, then Cut as the trailing primary. Split cuts both selected-word edges in one undo step. More offers Mute or the host's contextual Restore ignored words, Move to speaker and Copy. Inspect: text, confidence meter, timing (CMP-WORDBAR content). On phone the dock leaves the selected line visible by scrolling the text so the selection sits above the dock; Fix text folds into More ahead of Record when space is short.
 - **Story to build:** `Edit/InspectorSheet` story `Words`; `Edit/ActionBar` story `Words`.
 
 ### INS-RANGE · Range

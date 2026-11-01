@@ -81,6 +81,72 @@ export function placeAnchored(
   return { left, top, maxHeight, maxWidth, side };
 }
 
+export function placeAnchoredExcluding(
+  anchor: AnchorRect,
+  panel: PanelSize,
+  viewport: PlacementViewport,
+  excluded: AnchorRect,
+  within: AnchorRect,
+  options: PlacementOptions,
+): AnchoredPlacement {
+  const placed = placeAnchored(anchor, panel, viewport, options);
+  const width = Math.min(panel.width, placed.maxWidth);
+  const height = Math.min(panel.height, placed.maxHeight);
+  const overlaps =
+    placed.left < excluded.right &&
+    placed.left + width > excluded.left &&
+    placed.top < excluded.bottom &&
+    placed.top + height > excluded.top;
+  if (!overlaps) return placed;
+
+  const { margin, gap } = options;
+  const leftEdge = Math.max(viewport.left, within.left) + margin;
+  const rightEdge =
+    Math.min(viewport.left + viewport.width, within.right) - margin;
+  const topEdge = Math.max(viewport.top, within.top) + margin;
+  const bottomEdge =
+    Math.min(viewport.top + viewport.height, within.bottom) - margin;
+  const fits = (left: number, top: number) =>
+    left >= leftEdge &&
+    left + panel.width <= rightEdge &&
+    top >= topEdge &&
+    top + panel.height <= bottomEdge;
+  const keepsAbove =
+    placed.side !== "above" || placed.top + panel.height <= anchor.top - gap;
+  const sides = [excluded.left - gap - panel.width, excluded.right + gap]
+    .filter((left) => keepsAbove && fits(left, placed.top))
+    .sort((a, b) => Math.abs(a - placed.left) - Math.abs(b - placed.left));
+  if (sides[0] !== undefined) return { ...placed, left: sides[0] };
+
+  const clampedLeft = Math.max(
+    leftEdge,
+    Math.min(placed.left, rightEdge - panel.width),
+  );
+  const above = excluded.top - gap - panel.height;
+  if (fits(clampedLeft, above) && above + panel.height <= anchor.top - gap) {
+    return {
+      ...placed,
+      left: clampedLeft,
+      top: above,
+      side: "above",
+      maxHeight: excluded.top - gap - topEdge,
+    };
+  }
+
+  const below = Math.min(
+    bottomEdge,
+    Math.max(topEdge, anchor.bottom + gap, excluded.bottom + gap),
+  );
+  return {
+    ...placed,
+    left: clampedLeft,
+    top: below,
+    side: "below",
+    maxHeight: Math.max(0, bottomEdge - below),
+    maxWidth: Math.max(0, rightEdge - leftEdge),
+  };
+}
+
 /** The smallest box holding both `a` and `b`. */
 export function unionRect(a: AnchorRect, b: AnchorRect): AnchorRect {
   return {

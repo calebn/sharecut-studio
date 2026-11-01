@@ -187,6 +187,57 @@ test.describe("Split", () => {
     await expect.poll(() => clipCount(page)).toBe(before);
   });
 
+  test("selected words split at both edges and one Undo restores the saved clips", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    await openPanel(page, "transcript");
+    const words = page.locator(
+      '.sys-script-body .sys-script-word[data-word-key^="reference:"]',
+    );
+    await words.nth(2).click();
+    await words.nth(3).click({ modifiers: ["Shift"] });
+    await expect(words.nth(2)).toHaveAttribute("data-selected");
+    await expect(words.nth(3)).toHaveAttribute("data-selected");
+    const before = await projectJson(page, projectPath);
+    const beforeCount = await clipCount(page);
+    const sent = watchCommands(page);
+    await selectionBar(page)
+      .getByRole("button", { name: /^Split/ })
+      .click();
+    await expect.poll(() => clipCount(page)).toBe(beforeCount + 2);
+    expect(sent.filter((command) => command.type === "SplitAtTime")).toEqual([
+      {
+        type: "SplitAtTime",
+        payload: {
+          at_time: 2.79,
+          extra_at_times: [3.56],
+          track_ids: ["reference"],
+          reason: null,
+        },
+      },
+    ]);
+    const split = await projectJson(page, projectPath);
+    expect(
+      split.clips.tracks.reference?.map((clip) => clip.timeline_start),
+    ).toEqual([0, 2.79, 3.56]);
+    expect(split.clips.tracks.guest).toEqual(before.clips.tracks.guest);
+    await expect(page.locator(".clip-hit")).toHaveCount(beforeCount + 2);
+    await page.screenshot({
+      path: "playwright-report/words-actionbar/words-split-saved.png",
+    });
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      /aligned dialogue/i,
+    );
+    await openPanel(page, "transcript");
+    expect(await clipCount(page)).toBe(beforeCount + 2);
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect.poll(() => clipCount(page)).toBe(beforeCount);
+    const undone = await projectJson(page, projectPath);
+    expect(undone.clips.tracks).toEqual(before.clips.tracks);
+  });
+
   test("Alt-click on a clip still splits there", async ({ page }) => {
     await openEdit(page);
     const before = await clipCount(page);
@@ -196,6 +247,62 @@ test.describe("Split", () => {
       .click({ modifiers: ["Alt"] });
     await expect.poll(() => clipCount(page)).toBeGreaterThan(before);
   });
+});
+
+test("the words More menu restores ignored words after mixed-selection Mute, with saved Undo", async ({
+  page,
+}) => {
+  await openEdit(page);
+  await openPanel(page, "transcript");
+  const words = page.locator(
+    '.sys-script-body .sys-script-word[data-word-key^="reference:"]',
+  );
+  const bar = selectionBar(page);
+  await words.nth(2).click();
+  await bar.getByRole("button", { name: /^More/ }).click();
+  await page.getByRole("menuitem", { name: "Mute", exact: true }).click();
+  await expect(words.nth(2)).toHaveAttribute("data-state", "muted");
+  await words.nth(3).click({ modifiers: ["Shift"] });
+  await bar.getByRole("button", { name: /^More/ }).click();
+  await expect(
+    page.getByRole("menuitem", { name: "Restore ignored words", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("menuitem", { name: "Mute", exact: true }).click();
+  await expect(words.nth(2)).toHaveAttribute("data-state", "muted");
+  await expect(words.nth(3)).toHaveAttribute("data-state", "muted");
+  await bar.getByRole("button", { name: /^More/ }).click();
+  const sent = watchCommands(page);
+  await page.screenshot({
+    path: "playwright-report/words-actionbar/words-restore-more.png",
+  });
+  await page
+    .getByRole("menuitem", { name: "Restore ignored words", exact: true })
+    .click();
+  await expect(words.nth(2)).not.toHaveAttribute("data-state", "muted");
+  await expect(words.nth(3)).not.toHaveAttribute("data-state", "muted");
+  const restore = sent.filter(
+    (command) => command.type === "SetTranscriptWordsIgnored",
+  );
+  expect(restore).toHaveLength(1);
+  expect(restore[0]?.payload).toMatchObject({
+    track_id: "reference",
+    start_word_index: 2,
+    end_word_index: 3,
+    ignored: false,
+  });
+  await page.screenshot({
+    path: "playwright-report/words-actionbar/words-restore-saved.png",
+  });
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    /aligned dialogue/i,
+  );
+  await openPanel(page, "transcript");
+  await expect(words.nth(2)).not.toHaveAttribute("data-state", "muted");
+  await expect(words.nth(3)).not.toHaveAttribute("data-state", "muted");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(words.nth(2)).toHaveAttribute("data-state", "muted");
+  await expect(words.nth(3)).toHaveAttribute("data-state", "muted");
 });
 
 test.describe("Cut", () => {
@@ -387,6 +494,48 @@ test.describe("Create menu", () => {
 
 test.describe("Phone dock", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test("selected words keep Split reachable and Fix text in More, with a visible Undo", async ({
+    page,
+  }) => {
+    await openEdit(page);
+    await openPanel(page, "transcript");
+    const word = page.locator('.sys-script-word[data-word-key="reference::3"]');
+    await word.tap();
+    await expect(word).toHaveAttribute("data-selected");
+    const dock = dockBar(page);
+    await expect(dock.getByRole("button", { name: /^Fix text/ })).toHaveCount(
+      0,
+    );
+    await dock.getByRole("button", { name: /^More/ }).tap();
+    await expect(
+      page.getByRole("menuitem", { name: "Fix text", exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: "playwright-report/words-actionbar/phone-dock-more.png",
+    });
+    await dock.getByRole("button", { name: /^More/ }).tap();
+    const before = await clipCount(page);
+    const sent = watchCommands(page);
+    await dock.getByRole("button", { name: /^Split/ }).tap();
+    await expect.poll(() => clipCount(page)).toBe(before + 2);
+    const split = sent.filter((command) => command.type === "SplitAtTime");
+    expect(split).toHaveLength(1);
+    expect(split[0]?.payload).toMatchObject({
+      at_time: 2.97,
+      extra_at_times: [3.56],
+      track_ids: ["reference"],
+    });
+    await page.screenshot({
+      path: "playwright-report/words-actionbar/phone-dock-split.png",
+    });
+    await page
+      .locator(".ui-toast")
+      .filter({ hasText: "Split at" })
+      .getByRole("button", { name: "Undo", exact: true })
+      .tap();
+    await expect.poll(() => clipCount(page)).toBe(before);
+  });
 
   test("docks the bar above the Player with 44 px targets that a touch reaches", async ({
     page,

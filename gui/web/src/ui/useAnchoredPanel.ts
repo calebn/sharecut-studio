@@ -4,10 +4,16 @@ import {
   inlineSizeCaps,
   placeAnchored,
   placeAnchoredClear,
+  placeAnchoredExcluding,
   unionRect,
   visualViewportBox,
 } from "./anchoredPlacement";
 import { useResizeObserver } from "./useResizeObserver";
+
+export type AnchorExclusion = {
+  ref: RefObject<HTMLElement | null>;
+  withinRef: RefObject<HTMLElement | null>;
+};
 
 /** Where an anchored `Dialog` sits: beside `ref`, clear of `avoidRef`. */
 export type DialogAnchor = {
@@ -23,6 +29,7 @@ export type DialogAnchor = {
   avoidRef?: RefObject<HTMLElement | null>;
   /** A control the panel must never cover (the join popover's length grip). */
   clearRef?: RefObject<HTMLElement | null>;
+  exclusion?: AnchorExclusion;
   /** A value that moves the anchor without a scroll or resize, such as the seam time. */
   moves?: unknown;
   /** The side tried first; below unless the subject asks to be covered less from above. */
@@ -42,6 +49,8 @@ export function useAnchoredPanel(
   const anchorRef = anchor?.ref;
   const avoidRef = anchor?.avoidRef;
   const clearRef = anchor?.clearRef;
+  const excludeRef = anchor?.exclusion?.ref;
+  const withinRef = anchor?.exclusion?.withinRef;
   const moves = anchor?.moves;
   const prefer = anchor?.prefer;
   const active = enabled && anchorRef != null;
@@ -69,6 +78,8 @@ export function useAnchoredPanel(
       prefer,
     } as const;
     const clearEl = clearRef?.current;
+    const excludedEl = excludeRef?.current;
+    const withinEl = withinRef?.current;
     const placed = clearEl
       ? placeAnchoredClear(
           anchorRect,
@@ -78,12 +89,21 @@ export function useAnchoredPanel(
           unionRect(anchorRect, clearEl.getBoundingClientRect()),
           { ...options, minWidth: 12 * rootPx },
         )
-      : placeAnchored(
-          anchorRect,
-          size,
-          visualViewportBox(avoidRef?.current ?? null),
-          options,
-        );
+      : excludedEl && withinEl
+        ? placeAnchoredExcluding(
+            anchorRect,
+            size,
+            visualViewportBox(avoidRef?.current ?? null),
+            excludedEl.getBoundingClientRect(),
+            withinEl.getBoundingClientRect(),
+            options,
+          )
+        : placeAnchored(
+            anchorRect,
+            size,
+            visualViewportBox(avoidRef?.current ?? null),
+            options,
+          );
     panel.style.left = `${placed.left}px`;
     panel.style.top = `${placed.top}px`;
     const caps = inlineSizeCaps(placed, size);
@@ -100,11 +120,8 @@ export function useAnchoredPanel(
       return;
     }
     place();
-    // The grip is positioned by a later layout effect than this one.
     const frame = clearRef ? requestAnimationFrame(place) : 0;
     window.addEventListener("resize", place);
-    // Scrolling inside the panel must not re-place it: place() lifts the size
-    // caps to measure, which resets the panel's own scroll position.
     const onScroll = (event: Event) => {
       const target = event.target;
       if (target instanceof Node && panelRef.current?.contains(target)) return;
@@ -116,8 +133,10 @@ export function useAnchoredPanel(
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", onScroll, true);
     };
-  }, [active, moves, place, clearRef, panelRef]);
+  }, [active, moves, place, clearRef, excludeRef, withinRef, panelRef]);
   useResizeObserver(panelRef, place, active);
   useResizeObserver(avoidRef, place, active);
   useResizeObserver(clearRef, place, active);
+  useResizeObserver(excludeRef, place, active);
+  useResizeObserver(withinRef, place, active);
 }

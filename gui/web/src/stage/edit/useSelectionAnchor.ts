@@ -8,6 +8,7 @@ import {
 import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../../state/dawStore";
 import type { Selection } from "../../types/project";
+import type { AnchorExclusion } from "../../ui/useAnchoredPanel";
 
 const esc = (value: string) => CSS.escape(value);
 
@@ -82,6 +83,7 @@ function findSelectionAnchor(
 
 type SelectionAnchor = {
   readonly ref: RefObject<HTMLElement | null>;
+  readonly exclusion: AnchorExclusion;
   readonly moves: readonly unknown[];
   readonly visible: boolean;
 };
@@ -92,18 +94,30 @@ export function useSelectionAnchor(
   enabled: boolean,
 ): SelectionAnchor {
   const ref = useRef<HTMLElement | null>(null);
+  const excludeRef = useRef<HTMLElement | null>(null);
+  const withinRef = useRef<HTMLElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [node, setNode] = useState<HTMLElement | null>(null);
+  const [excluded, setExcluded] = useState<HTMLElement | null>(null);
   const { project, zoomPxPerSec } = useDawStore(
     useShallow((s) => ({ project: s.project, zoomPxPerSec: s.zoomPxPerSec })),
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the project and zoom replace the marks the lookup finds
   useLayoutEffect(() => {
     const resolve = () => {
       const found =
         enabled && root ? findSelectionAnchor(root, selection) : null;
       ref.current = found;
+      const header =
+        selection?.kind === "transcriptRange" &&
+        found?.matches(".sys-script-word")
+          ? (found
+              .closest(".sys-script")
+              ?.querySelector<HTMLElement>(".sys-script-header") ?? null)
+          : null;
+      excludeRef.current = header;
+      withinRef.current = header ? root : null;
+      setExcluded(header);
       setNode(found);
     };
     resolve();
@@ -144,12 +158,13 @@ export function useSelectionAnchor(
   }, [node]);
 
   const moves = useMemo(
-    () => [zoomPxPerSec, node, selection],
-    [zoomPxPerSec, node, selection],
+    () => [zoomPxPerSec, node, selection, excluded, root],
+    [zoomPxPerSec, node, selection, excluded, root],
   );
 
   return {
     ref,
+    exclusion: { ref: excludeRef, withinRef },
     moves,
     visible: enabled && node !== null && visible,
   };

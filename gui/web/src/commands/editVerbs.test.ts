@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import type { EditFacts } from "../edit/editSelection";
 import { useDawStore } from "../state/dawStore";
+import { barDisplay } from "../system/editActionSets";
 import {
   EDIT_SELECTIONS,
   editFixtureProject,
@@ -86,6 +87,15 @@ describe("splitPlan", () => {
     });
   });
 
+  it("cuts the selected word's mapped edges on its own track", () => {
+    const f = facts(EDIT_SELECTIONS.liveWords);
+    expect(splitPlan(f, EDIT_SELECTIONS.liveWords, project, 9)).toEqual({
+      atTime: 7,
+      extraAtTimes: [8],
+      trackIds: [MIRA],
+    });
+  });
+
   it("uses the tracks the selection covers, whatever unconfirmed ticks say", () => {
     useDawStore.setState({ rangeScopeTrackIds: [MIRA] });
     const f = facts(EDIT_SELECTIONS.rangeOnAllTracks);
@@ -116,6 +126,20 @@ describe("splitPlan", () => {
 });
 
 describe("Split", () => {
+  it("sends both selected-word edges in one history-producing request", async () => {
+    host(EDIT_SELECTIONS.liveWords);
+    await runEditVerb("split", factsOf()!);
+    expect(api.splitAtTime).toHaveBeenCalledTimes(1);
+    expect(api.splitAtTime).toHaveBeenCalledWith(
+      "/tmp/episode",
+      7,
+      [MIRA],
+      null,
+      [8],
+    );
+    expect(announced()).toBe("Split at 00:07.000 and 00:08.000");
+  });
+
   it("cuts both edges of a range in one call, so one Undo restores both", async () => {
     host(EDIT_SELECTIONS.rangeOnAllTracks);
     await runEditVerb("split", factsOf()!);
@@ -600,23 +624,39 @@ describe("barModelOf", () => {
     expect(row(barModelOf(factsOf()!, useDawStore.getState()))).toBe(
       "Restore ignored words",
     );
+    useDawStore.setState({
+      selection: { ...EDIT_SELECTIONS.liveWords, startWordIndex: 0 },
+    });
+    const mixed = barModelOf(factsOf()!, useDawStore.getState()).more.find(
+      (item) => item.id === "mute",
+    );
+    expect(mixed).toMatchObject({ id: "mute" });
+    expect(mixed?.label ?? barDisplay("mute").label).toBe("Mute");
   });
 
-  it("keeps the Suggest label for a non-host even when every selected word is ignored", () => {
-    const ignored = editFixtureProject();
-    for (const u of ignored.transcript?.utterances ?? [])
-      for (const w of u.words ?? [])
-        if (w.word_index === 2) (w as { ignored?: boolean }).ignored = true;
-    host(EDIT_SELECTIONS.liveWords, {
-      project: ignored,
-      projectPath: "share:tok",
-      guestMode: "edit",
-    });
-    const label = barModelOf(factsOf()!, useDawStore.getState()).more.find(
-      (r) => r.id === "mute",
-    )?.label;
-    expect(label).not.toBe("Restore ignored words");
-  });
+  it.each([
+    ["edit", ["view", "play", "comment", "edit"], "Mute"],
+    ["comment", ["view", "play", "comment", "suggest"], "Suggest mute"],
+  ] as const)(
+    "keeps the exact mute label in the %s words model",
+    (guestMode, shareCapabilities, expected) => {
+      const ignored = editFixtureProject();
+      for (const u of ignored.transcript?.utterances ?? [])
+        for (const w of u.words ?? [])
+          if (w.word_index === 2) (w as { ignored?: boolean }).ignored = true;
+      host(EDIT_SELECTIONS.liveWords, {
+        project: ignored,
+        projectPath: "share:tok",
+        guestMode,
+        shareCapabilities: [...shareCapabilities],
+      });
+      const row = barModelOf(factsOf()!, useDawStore.getState()).more.find(
+        (r) => r.id === "mute",
+      );
+      expect(row).toBeDefined();
+      expect(row?.label ?? barDisplay("mute").label).toBe(expected);
+    },
+  );
 
   it("offers Split on a words selection", () => {
     expect(model(EDIT_SELECTIONS.liveWords).items.map((i) => i.id)).toContain(
