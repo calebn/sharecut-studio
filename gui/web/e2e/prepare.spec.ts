@@ -546,9 +546,12 @@ for (const profile of [
         );
         await expect(preferenceNote).toBeVisible();
         await expect(preferenceNote).toHaveCSS("clip-path", "none");
-        const field = sheet
-          .locator(".sys-adv-field")
-          .filter({ has: preference });
+        const field = sheet.locator(".sys-adv-field").filter({
+          has: page.getByRole("group", {
+            name: "New projects start with this",
+            exact: true,
+          }),
+        });
         await field.scrollIntoViewIfNeeded();
         await expect(off).toBeFocused();
         const preferenceAfter = {
