@@ -43,6 +43,8 @@ from podcast_mcp.util.coded_error import CodedValueError
 # A clip may run this far past its file's probed length (container rounding).
 _DURATION_SLACK_SEC = 0.05
 _MAX_SEGMENT_SEC = 24 * 3600.0
+_MAX_FADE_MS = 3_600_000
+_MIN_CLIP_SEC = 0.001
 
 
 @dataclass(frozen=True)
@@ -130,6 +132,30 @@ def map_lanes(project: EpisodeProject, segment: SegmentFile) -> dict[int, str]:
     return mapping
 
 
+def check_layout(segment: SegmentFile) -> None:
+    """Refuse a layout no real segment has, before any audio is copied.
+
+    Raises ``segment_media_invalid`` for a layout over a day, a fade over an hour, or a clip
+    shorter than a millisecond.
+    """
+    if segment.duration_sec > _MAX_SEGMENT_SEC:
+        raise CodedValueError(
+            f"The layout of segment {segment.name!r} is {segment.duration_sec:g} s long, "
+            f"more than the {_MAX_SEGMENT_SEC:g} s an insert accepts.",
+            code="segment_media_invalid",
+        )
+    for clip in segment.clips:
+        if (
+            max(clip.fade_in_ms, clip.fade_out_ms) > _MAX_FADE_MS
+            or clip.duration_sec < _MIN_CLIP_SEC
+        ):
+            raise CodedValueError(
+                f"A clip of segment {segment.name!r} has a fade over an hour or is shorter "
+                "than a millisecond.",
+                code="segment_media_invalid",
+            )
+
+
 def insert_segment(
     project: EpisodeProject,
     segment: SegmentFile,
@@ -144,12 +170,7 @@ def insert_segment(
     ``segment_position_out_of_range`` before anything changes.
     """
     check_position(project, at)
-    if segment.duration_sec > _MAX_SEGMENT_SEC:
-        raise CodedValueError(
-            f"The layout of segment {segment.name!r} is {segment.duration_sec:g} s long, "
-            f"more than the {_MAX_SEGMENT_SEC:g} s an insert accepts.",
-            code="segment_media_invalid",
-        )
+    check_layout(segment)
     for clip in segment.clips:
         copy = audio[clip.audio]
         if clip.duration_sec > copy.duration_sec + _DURATION_SLACK_SEC:
