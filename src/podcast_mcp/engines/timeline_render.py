@@ -357,7 +357,7 @@ def unfiltered_track_audio(
     grid = track_grid(project, track, clips)
     return (
         placed_track_audio(
-            project, track, clips, grid=grid, micro_fade_ms=join_micro_fade_ms(defaults)
+            project, track, clips, grid=grid, micro_fade_ms=shell_micro_fade_ms(clips, defaults)
         ).audio,
         curve,
     )
@@ -571,6 +571,13 @@ def _place_clips(
         else None,
         tuple((item.clip.id, item.content.body) for item in prepared if item.content is not None),
     )
+
+
+def shell_micro_fade_ms(clips: list[Clip], defaults: EffectiveConfig) -> int:
+    """The declick fade of a mapped clip's piece joins; defaults are read only when a clip is mapped."""
+    if any(clip.timing is not None for clip in clips):
+        return join_micro_fade_ms(defaults)
+    return DEFAULT_MICRO_FADE_MS
 
 
 def placed_track_audio(
@@ -803,7 +810,7 @@ def _render_placed_track(
         sorted_clips,
         grid=grid,
         window=window,
-        micro_fade_ms=join_micro_fade_ms(defaults),
+        micro_fade_ms=shell_micro_fade_ms(sorted_clips, defaults),
     )
     start, end = window or (0.0, timeline_duration_sec(project))
     removed: dict[str, tuple[tuple[float, float], ...]] = {}
@@ -874,7 +881,7 @@ def _render_placed_track(
                     grid=grid,
                     window=window,
                     bypass_regions=removed,
-                    micro_fade_ms=join_micro_fade_ms(defaults),
+                    micro_fade_ms=shell_micro_fade_ms(sorted_clips, defaults),
                 )
                 bypass_clock_path = Path(directory) / "bypass-clock.json"
                 render(bypassed.audio, whole, bypass_clock_path)
@@ -980,7 +987,7 @@ def _render_placed_track(
                     removed_regions=removed,
                     mask_clocks=mask_clocks,
                     bypass_regions=removed if automatic else None,
-                    micro_fade_ms=join_micro_fade_ms(defaults),
+                    micro_fade_ms=shell_micro_fade_ms(sorted_clips, defaults),
                 )
                 render(counterfactual.audio, without, without_clock_path)
                 dependencies.validate(project, track.id, defaults=defaults)
