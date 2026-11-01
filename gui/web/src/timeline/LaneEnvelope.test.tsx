@@ -5,7 +5,7 @@ import {
   renderHook,
   screen,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { AutomationPoint, ClipRow } from "../types/project";
@@ -534,14 +534,42 @@ describe("LaneEnvelope while a save settles", () => {
     expect(stored().find((p) => p.id === "b")!.time).toBe(6);
   });
 
-  it("saves a nudge pressed after the save settled and before the store changed", async () => {
-    const { finish } = await savedDrag("never");
+  it("holds a nudge until a lagging store follows, then saves from the saved points", async () => {
+    vi.useFakeTimers();
+    try {
+      const { finish } = await savedDrag("never");
+      await finish();
+      point(2).focus();
+      fireEvent.keyDown(point(2), { key: "ArrowRight" });
+      fireEvent.keyUp(point(2), { key: "ArrowRight" });
+      fireEvent.keyDown(point(2), { key: "Delete" });
+      await act(async () => {});
+      // The store still holds b at 4: a save now would send a stale baseline.
+      expect(setEnvelope).toHaveBeenCalledTimes(1);
+      await act(async () => vi.advanceTimersByTime(1500));
+      fireEvent.keyDown(point(2), { key: "ArrowRight" });
+      fireEvent.keyUp(point(2), { key: "ArrowRight" });
+      await act(async () => {});
+      expect(setEnvelope).toHaveBeenCalledTimes(2);
+      const baseline = setEnvelope.mock.calls[1]![3] as AutomationPoint[];
+      expect(baseline.find((p) => p.id === "b")!.time).toBe(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("saves a nudge once the store has followed, from the saved points", async () => {
+    const { finish, points } = await savedDrag("after");
     await finish();
+    putPoints(points);
+    await act(async () => {});
     point(2).focus();
     fireEvent.keyDown(point(2), { key: "ArrowRight" });
     fireEvent.keyUp(point(2), { key: "ArrowRight" });
     await act(async () => {});
     expect(setEnvelope).toHaveBeenCalledTimes(2);
+    const baseline = setEnvelope.mock.calls[1]![3] as AutomationPoint[];
+    expect(baseline.find((p) => p.id === "b")!.time).toBe(6);
     expect(lastSave().find((p) => p.id === "b")!.time).toBe(6.01);
   });
 
@@ -560,6 +588,18 @@ describe("LaneEnvelope while a save settles", () => {
 });
 
 describe("LaneEnvelope on touch", () => {
+  afterEach(() => useDawStore.setState({ pointerKind: "fine" }));
+
+  it("saves a mouse drag of the same distance, so the touch case below differs by the finger", async () => {
+    setup();
+    const el = point(2);
+    fireEvent.pointerDown(el, mouse(96, 20));
+    fireEvent.pointerMove(el, mouse(130, 20));
+    fireEvent.pointerUp(el, mouse(130, 20));
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+  });
+
   it("saves nothing for a finger that passed the slop without locking an axis", async () => {
     useDawStore.setState({ pointerKind: "coarse" });
     setup();
@@ -580,7 +620,7 @@ describe("LaneEnvelope on touch", () => {
 });
 
 describe("LaneEnvelope dips", () => {
-  it("draws them from the finite points only", () => {
+  it("guard: draws them from the finite points only", () => {
     putPoints([...POINTS, { id: "x", time: Number.NaN, value: 1 }]);
     const clip = clipRow({
       id: "c1",

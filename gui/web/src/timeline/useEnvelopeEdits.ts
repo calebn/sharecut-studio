@@ -33,9 +33,11 @@ function refuse(result: { status: string; reason?: string }) {
  * (the leaf draws the held point): the last change is kept in a ref and saved
  * once at its end. A nudge is folded into `preview`, which the host draws
  * (the leaf steps each press from the points it is given) and saves once when
- * the key is released. A saved gesture keeps its preview, and the geometry
- * hold, until the save settles and the store's points have followed, so the
- * point never snaps back.
+ * the key is released. A saved gesture keeps its preview until the store's
+ * points have followed (or a pause passes if the save changed nothing), so the
+ * point never snaps back; the geometry hold is released when the save settles.
+ * Until then no drag, nudge or removal starts: each save sends the store's
+ * points as its baseline, and a stale baseline is refused as a conflict.
  */
 export function useEnvelopeEdits(
   trackId: string,
@@ -138,7 +140,7 @@ export function useEnvelopeEdits(
         useDawStore.getState().announceStatus(SAVING, { tone: "error" });
         return false;
       }
-      if (previewRef.current) return false;
+      if (previewRef.current || saved.current) return false;
       dragging.current = true;
       last.current = null;
       release.current = hold?.() ?? null;
@@ -153,13 +155,9 @@ export function useEnvelopeEdits(
         last.current = change;
         return;
       }
-      if (envelopeSaveInFlight(trackId) || saved.current?.settled === false)
-        return;
-      if (saved.current) {
-        // A nudge begins on a saved point still waiting for the store: it takes over the preview.
-        clearTimeout(idle.current);
-        saved.current = null;
-      }
+      // Nothing starts from a saved point until the store holds it: a save
+      // sends the store's points as its baseline, and a stale one is a 409.
+      if (envelopeSaveInFlight(trackId) || saved.current) return;
       const from =
         previewRef.current?.id === id
           ? previewRef.current
@@ -201,7 +199,7 @@ export function useEnvelopeEdits(
   const onNudgeEnd = useCallback(
     (id: string) => {
       const p = previewRef.current;
-      if (!p || p.id !== id || saved.current?.settled === false) return;
+      if (!p || p.id !== id || saved.current) return;
       const point = liveStored(trackId, id);
       const edit = point
         ? editFor({ timeSeconds: p.time, db: p.db }, point)
@@ -217,7 +215,7 @@ export function useEnvelopeEdits(
 
   const onRemove = useCallback(
     (id: string) => {
-      if (saved.current?.settled === false || envelopeSaveInFlight(trackId)) {
+      if (saved.current || envelopeSaveInFlight(trackId)) {
         useDawStore.getState().announceStatus(SAVING, { tone: "error" });
         return;
       }

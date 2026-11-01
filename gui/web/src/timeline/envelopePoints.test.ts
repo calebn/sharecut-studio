@@ -82,7 +82,7 @@ describe("editFor", () => {
   });
 });
 
-describe("editFor at the silent floor", () => {
+describe("editFor helper at the silent floor (not a hook test)", () => {
   it("emits a change the command will not take for the same point", () => {
     const silent = { id: "p", time: 4, value: 0 };
     expect(editFor({ db: -60 }, silent)).toBeNull();
