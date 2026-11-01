@@ -180,7 +180,7 @@ is the fix, enforced in copy review.
   focusable, guards activation, and points to a visible reason beside it
   (`aria-describedby`). Remove the reason to restore activation. Applies to
   transport Play, Land mid-take, Start with blockers, Leave while uploads pend,
-  the clip and pending-edit nudge buttons (`inspector/NudgeButtons.tsx`: "Apply
+  the clip nudge buttons (`inspector/NudgeButtons.tsx`: "Apply
   or clear the typed value first.", "Fades do not apply at a cut.", the fade limit still
   loading; a nudge waiting on a save stays aria-disabled with no note, so the rows below do not jump), Find's Replace and All ("No matches to replace. Change the search
   first.", "Enter text to find first.", "Enter replacement text with a letter or a number to replace."),

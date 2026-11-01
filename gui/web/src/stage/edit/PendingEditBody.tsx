@@ -41,7 +41,10 @@ import {
   InlineError,
 } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
-import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../../utils/apiError";
+import {
+  errorMessage,
+  TRANSCRIPT_REFINE_REQUIRED_CODE,
+} from "../../utils/apiError";
 import {
   resolveCommentActor,
   sessionDisplayName,
@@ -257,6 +260,7 @@ export function PendingEditBody({
 
   const runAction = async (
     action: "approve" | "reject",
+    fromBar = false,
   ): Promise<string | null> => {
     if (timingBusy) return BUSY_REASON;
     const live = useDawStore.getState();
@@ -275,10 +279,19 @@ export function PendingEditBody({
     const capture = capturePendingReview(action, projectPath, currentEdit);
     setQueued(false);
     await run(async () => {
-      const outcome =
-        action === "approve"
-          ? await approveEdits(projectPath, [edit.id], false, true)
-          : await rejectEdits(projectPath, [edit.id]);
+      let outcome: Awaited<ReturnType<typeof approveEdits>>;
+      try {
+        outcome =
+          action === "approve"
+            ? await approveEdits(projectPath, [edit.id], false, true)
+            : await rejectEdits(projectPath, [edit.id]);
+      } catch (error) {
+        if (fromBar)
+          useDawStore
+            .getState()
+            .announceStatus(errorMessage(error), { tone: "error" });
+        throw error;
+      }
       const current = useDawStore.getState();
       if (
         current.projectPath !== projectPath ||
@@ -290,6 +303,7 @@ export function PendingEditBody({
       if (outcome.queued) {
         // Saved but not sent yet: keep the edit selected and say so.
         setQueued(true);
+        if (fromBar) finishPendingReview(capture, outcome);
         return;
       }
       finishPendingReview(capture, outcome);
@@ -323,7 +337,7 @@ export function PendingEditBody({
     () =>
       registerPendingDecider(
         edit.id,
-        (action) => decideRef.current(action),
+        (action) => decideRef.current(action, true),
         () => (busyRef.current ? BUSY_REASON : null),
       ),
     [edit.id],
