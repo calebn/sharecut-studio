@@ -17,6 +17,7 @@ const only = (control: React.ReactNode): InspectorSection[] => [
 
 export function usePendingSections(
   selection: Selection,
+  barShown = false,
 ): readonly InspectorSection[] | null {
   const project = useDaw((s) =>
     selection?.kind === "pending" || selection?.kind === "comment"
@@ -27,7 +28,7 @@ export function usePendingSections(
     const edit = project?.pending_edits.find((e) => e.id === selection.id);
     return only(
       edit ? (
-        <PendingEditBody edit={edit} verbsOnBar />
+        <PendingEditBody edit={edit} verbsOnBar={barShown} />
       ) : (
         <p className="ui-field-hint">Edit not found</p>
       ),
@@ -40,5 +41,7 @@ export function usePendingSections(
   const linked = linkedId
     ? project?.pending_edits.find((e) => e.id === linkedId)
     : undefined;
-  return linked ? only(<PendingEditBody edit={linked} verbsOnBar />) : null;
+  return linked
+    ? only(<PendingEditBody edit={linked} verbsOnBar={barShown} />)
+    : null;
 }

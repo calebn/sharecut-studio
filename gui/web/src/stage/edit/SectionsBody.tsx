@@ -1,8 +1,18 @@
 import { useDaw } from "../../state/useDaw";
 import { useSelectionSections } from "./selectionSections";
 
-export function SectionsBody({ withRange }: { withRange: boolean }) {
-  const sections = useSelectionSections(useDaw((s) => s.selection));
+export function SectionsBody({
+  withRange,
+  barShown = false,
+}: {
+  withRange: boolean;
+  barShown?: boolean;
+}) {
+  const sections = useSelectionSections(
+    useDaw((s) => s.selection),
+    false,
+    barShown,
+  );
   return (
     <div className="sys-inspector-rows">
       {sections

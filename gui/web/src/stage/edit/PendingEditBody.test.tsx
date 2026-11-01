@@ -342,6 +342,24 @@ describe("PendingEditBody", () => {
     expect(args[3]).toBe(12.3804);
   });
 
+  it("does not save an untouched field whose stored time has more than six decimals", async () => {
+    const user = userEvent.setup();
+    const sampled = {
+      ...sessionCut,
+      source_start: 10,
+      source_end: 1234567 / 44100,
+    };
+    replaceStoredEdit(sampled);
+    render(<PendingEditBody edit={sampled} />);
+    const end = screen.getByRole("spinbutton", { name: "Source end" });
+    await waitFor(() => expect(end).not.toHaveAttribute("aria-readonly"));
+    end.focus();
+    await user.keyboard("{Enter}{Enter}");
+    end.focus();
+    await user.keyboard("{Enter}{Tab}");
+    expect(updatePendingEdit).not.toHaveBeenCalled();
+  });
+
   it("accepts m:ss.mmm in Start and End", async () => {
     const user = userEvent.setup();
     render(<PendingEditBody edit={sessionCut} />);
