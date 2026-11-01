@@ -8,7 +8,6 @@ import json
 import logging
 import re
 import secrets
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -39,6 +38,9 @@ from podcast_mcp.gui.routes.guest_ws_common import (
     guest_ws_share_row,
 )
 from podcast_mcp.gui.routes.session import apply_ws_client_message
+from podcast_mcp.gui.routes.share_common import (
+    audio_slot as _audio_slot,
+)
 from podcast_mcp.gui.routes.share_common import (
     check_share_token,
     rate_limit_share,
@@ -134,7 +136,6 @@ from podcast_mcp.util.coded_error import (
     CodedValueError,
     GuardRefusal,
 )
-from podcast_mcp.util.rate_limit_http import rate_limited_error
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
 router = APIRouter()
@@ -164,20 +165,6 @@ def _check_token(token: str, *, kind: str = SHARE_KIND_REVIEW) -> dict[str, Any]
 
 def _rate_limit(token: str, kind: str) -> None:
     rate_limit_share(token, kind)
-
-
-def _audio_slot(token: str) -> Callable[[], None] | None:
-    """Take an audio concurrency slot and return its release callback.
-
-    Raises 429 when the share is at its audio concurrency cap.
-    """
-    if not host_rate_limit_enabled():
-        return None
-    lim = get_host_limiters()
-    decision = lim.audio_concurrent.try_enter(token)
-    if not decision.allowed:
-        raise rate_limited_error(decision)
-    return lambda: lim.audio_concurrent.exit(token)
 
 
 def _audio_file_response(token: str, path, **kwargs: Any):

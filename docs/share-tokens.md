@@ -593,12 +593,15 @@ name.
 An Editor can list and download what that export wrote (`GET …/daw/export/files` and
 `…/daw/export/files/{id}`; the second takes the folder-relative id, so `clips/a.wav` works).
 Both are Editor twins in `GUEST_OWNER_ROUTES` on the `read` rate bucket and need no
-`PODCAST_GUEST_RENDER`, since reading a file the host already made spends no CPU; a Viewer or
+`PODCAST_GUEST_RENDER`, since they only read files the host already made (the listing re-renders
+transcript, chapter and feed text in memory to judge `current`, and starts no render job); a Viewer or
 Commenter link is refused with `share_capability_required` by the registry's one capability
 check. The listing carries names, kinds, labels, sizes and a `current` flag, never a host
 path. A download looks its id up in a fresh listing (a client never supplies a path), serves
 only a regular file inside the export folder, and answers 404 `export_file_gone` for anything
-else and 409 `export_running` while an export of the project runs.
+else and 409 `export_running` while an export of the project runs. A download holds one of the
+share's audio concurrency slots (`PODCAST_RATE_LIMIT_AUDIO_CONCURRENT`) until it ends, so an
+Editor past the cap gets 429 `rate_limited` and a `Retry-After`.
 
 An Editor's export is the host's export (an Editor can do what the host can on the episode),
 and nothing is suppressed. It masters the project if the master is stale, then writes the

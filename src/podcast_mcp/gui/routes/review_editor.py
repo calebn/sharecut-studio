@@ -19,7 +19,7 @@ from podcast_mcp.gui.job_events import GUEST_STREAM_SLOTS
 from podcast_mcp.gui.routes.deps import coded_http_error
 from podcast_mcp.gui.routes.export_files import download_exported_file, list_exported_files
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
-from podcast_mcp.gui.routes.share_common import check_share_token, rate_limit_share
+from podcast_mcp.gui.routes.share_common import audio_slot, check_share_token, rate_limit_share
 from podcast_mcp.gui.routes.sse_common import guest_job_events_response
 from podcast_mcp.gui.schemas import (
     GuestEditImpactRequest,
@@ -343,16 +343,22 @@ def get_daw_export_status(request: Request, ws: ExportStatusWorkspace) -> dict[s
 
 @router.get("/api/review/{token}/daw/export/files")
 def get_daw_export_files(ws: ExportFilesWorkspace) -> dict[str, Any]:
-    """Names, labels and sizes of the exported files; no host paths. Spends no host CPU."""
+    """Names, labels and sizes of the exported files; no host paths. Starts no render job."""
     with guest_boundary(log, "review export files"):
         return list_exported_files(ws)
 
 
 @router.get("/api/review/{token}/daw/export/files/{file_id:path}")
-def get_daw_export_file(request: Request, file_id: str, ws: ExportFileWorkspace) -> Response:
-    """An attachment for one listed file; the id is checked against the listing, never joined."""
+def get_daw_export_file(
+    request: Request, token: str, file_id: str, ws: ExportFileWorkspace
+) -> Response:
+    """An attachment for one listed file; the id is checked against the listing, never joined.
+
+    The link holds one audio stream slot until the download ends, so one Editor cannot keep
+    more downloads open than the share's audio cap.
+    """
     with guest_boundary(log, "review export file"):
-        return download_exported_file(request, ws, file_id)
+        return download_exported_file(request, ws, file_id, on_release=audio_slot(token))
 
 
 @router.get("/api/review/{token}/daw/export/jobs/{job_id}")

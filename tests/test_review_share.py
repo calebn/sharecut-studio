@@ -2476,11 +2476,11 @@ def test_guest_audio_file_route_releases_slot_once_on_success_and_pin_failure(
 
 
 def test_guest_audio_slot_is_not_acquired_when_host_rate_limits_are_disabled(monkeypatch):
-    from podcast_mcp.gui.routes import review_share
+    from podcast_mcp.gui.routes import review_share, share_common
 
-    monkeypatch.setattr(review_share, "host_rate_limit_enabled", lambda: False)
+    monkeypatch.setattr(share_common, "host_rate_limit_enabled", lambda: False)
     monkeypatch.setattr(
-        review_share,
+        share_common,
         "get_host_limiters",
         lambda: pytest.fail("disabled host limits must not access the limiter"),
     )
