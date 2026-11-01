@@ -1551,7 +1551,7 @@ def test_each_master_target_makes_the_pipeline_master_again(
     assert eng.master_loudness.call_count == 2
 
 
-@pytest.mark.parametrize("change", [_touch_premix, _no_master_qc, _no_master_hash, _no_premix_hash])
+@pytest.mark.parametrize("change", [_touch_premix, _no_master_qc, _no_master_hash, _no_premix])
 def test_each_input_of_the_master_makes_the_pipeline_master_again(
     minimal_project: Path, change: Change
 ) -> None:
@@ -1559,6 +1559,15 @@ def test_each_input_of_the_master_makes_the_pipeline_master_again(
     defaults = change(ws, defaults)
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.master_loudness(ws.project, defaults)
+    assert eng.master_loudness.call_count == 2
+
+
+def test_a_master_step_that_rebuilt_the_premix_masters_it(minimal_project: Path) -> None:
+    ws, eng, defaults = _mixed_and_mastered(minimal_project)
+    premix_path(ws.project).unlink()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        summary = steps.master_loudness(ws.project, defaults)
+    assert not summary.startswith("reused")
     assert eng.master_loudness.call_count == 2
 
 

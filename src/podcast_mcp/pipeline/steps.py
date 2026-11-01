@@ -953,7 +953,7 @@ def _reusable_premix_summary(
         stem = stem_path(project, tid)
         if not stem.is_file() or stem.stat().st_mtime_ns >= premix_ns:
             return None
-    if not gains or premix_is_stale(project, defaults):
+    if premix_is_stale(project, defaults):
         return None
     return "reused premix.wav"
 
@@ -1134,16 +1134,11 @@ def _reuse_current_master(
 ) -> str | None:
     """``mastered.wav`` is current for an unchanged premix: its summary, else None.
 
-    A full run always leaves ``premix.hash`` and ``master_qc.json``, so a master without
-    either is mastered again.
+    A full run always leaves ``master_qc.json``, so a master without it is mastered again.
     """
-    from podcast_mcp.engines.play_audit import mastered_is_fresh, read_premix_hash
+    from podcast_mcp.engines.play_audit import mastered_is_fresh
 
-    if (
-        read_premix_hash(project) is None
-        or read_master_qc(project) is None
-        or not mastered_is_fresh(project, target)
-    ):
+    if read_master_qc(project) is None or not mastered_is_fresh(project, target):
         return None
     _rejudge_master_qc(project, defaults)
     qc = read_master_qc(project) or {}
