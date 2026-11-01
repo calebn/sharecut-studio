@@ -75,9 +75,10 @@ export async function goToStage(page: Page, stage: Stage): Promise<void> {
   // A window too short or too narrow for the tab bar folds it into the
   // header's Stage menu, and the fold is decided by measuring the frame, so it
   // can flip while the page settles. Retry the whole step against whichever
-  // control the frame shows now. Every read inside carries its own short
-  // timeout: a read left on the default would wait out the whole retry budget
-  // for a control the fold just removed.
+  // control the frame shows now. Every read that waits carries its own
+  // short timeout, so one on a control the fold just removed cannot use up the
+  // retry budget. The budget is 30 s because a loaded WebKit runner can stall
+  // the page for 10 s or more inside a single attempt.
   await expect(async () => {
     const menu = page.getByRole("button", { name: /^Stage menu, / });
     const tab = stageTab(page, stage);
@@ -111,7 +112,7 @@ export async function goToStage(page: Page, stage: Stage): Promise<void> {
     await expect(
       page.getByRole("main", { name: STAGE_LABEL[stage] }),
     ).toBeVisible({ timeout: 2000 });
-  }).toPass({ timeout: 15000 });
+  }).toPass({ timeout: 30_000 });
 }
 
 /**
