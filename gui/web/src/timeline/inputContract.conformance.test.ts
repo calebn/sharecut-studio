@@ -178,25 +178,57 @@ function lone(kind: HitKind): HTMLButtonElement {
   return el;
 }
 
+/**
+ * The system marker lane owns the press on a marker (a grab with the pointer
+ * slop); `MarkerLaneHost` marks each marker through the lane's `hitProps`, so
+ * the kinds are read from the host's own kind table, not listed here.
+ */
+const HOST_KINDS = [
+  ...(
+    /const HIT_KIND = \{([^}]*)\}/.exec(
+      [...sourceFiles(join(SRC_ROOT, "timeline"))].find(
+        ({ rel }) =>
+          rel === "MarkerLaneHost.tsx" || rel.endsWith("/MarkerLaneHost.tsx"),
+      )?.text ?? "",
+    )?.[1] ?? ""
+  ).matchAll(/"([a-z-]+)"/g),
+].map((match) => match[1]);
+
+/** The kinds a finger can drag on the lane: a chapter and a social clip (a comment owns no drag). */
+const SYSTEM_LANE_OWNERS = [
+  {
+    at: "system/MarkerLane.tsx",
+    kinds: HOST_KINDS.filter((kind) => kind !== "comment"),
+    surface: false,
+  },
+];
+
 /** Timeline elements that own a pointer press, and what they mark themselves as. */
-const PRESS_OWNERS = [...sourceFiles(join(SRC_ROOT, "timeline"))]
-  .filter(
-    ({ rel }) =>
-      rel.endsWith(".tsx") &&
-      !rel.includes(".test.") &&
-      !rel.includes(".stories."),
-  )
-  .flatMap(({ rel, text }) =>
-    jsxElements(text)
-      .filter(ownsPointerDown)
-      .map((element) => ({
-        at: `${rel}:${element.line}`,
-        kinds: markedKinds(element),
-        surface: marksSurface(element),
-      })),
-  );
+const PRESS_OWNERS = [
+  ...SYSTEM_LANE_OWNERS,
+  ...[...sourceFiles(join(SRC_ROOT, "timeline"))]
+    .filter(
+      ({ rel }) =>
+        rel.endsWith(".tsx") &&
+        !rel.includes(".test.") &&
+        !rel.includes(".stories."),
+    )
+    .flatMap(({ rel, text }) =>
+      jsxElements(text)
+        .filter(ownsPointerDown)
+        .map((element) => ({
+          at: `${rel}:${element.line}`,
+          kinds: markedKinds(element),
+          surface: marksSurface(element),
+        })),
+    ),
+];
 
 describe("touch paths", () => {
+  it("reads the lane's kinds off the host's table", () => {
+    expect(HOST_KINDS).toEqual(["chapter", "social-clip", "comment"]);
+  });
+
   it("lets a point win its line after the line gained focus from editing", () => {
     const line = button(hitTargetProps("envelope-line", "level", 0), {
       left: 100,

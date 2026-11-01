@@ -169,7 +169,7 @@ describe("--sheet-lane-clearance", () => {
     return Number.parseFloat(value) * (value.endsWith("rem") ? 16 : 1);
   };
 
-  it("is 18.5rem at the default size with the Edit rows shared, summed from the row tokens", () => {
+  it("is 17rem at the default size with the Edit rows shared, summed from the row tokens", () => {
     const row = px("--control-height") + 2 * px("--space-1");
     const clearance =
       px("--app-header-height") +
@@ -179,7 +179,7 @@ describe("--sheet-lane-clearance", () => {
       px("--lane-height") +
       px("--control-height") +
       px("--space-3");
-    expect(clearance).toBe(18.5 * 16);
+    expect(clearance).toBe(17 * 16);
   });
 
   it("counts the app header unless a phone's sheet starts below it", () => {

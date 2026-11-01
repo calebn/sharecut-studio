@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ToolModeToggle, EditToolStrip, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLaneHost, EditBoundaryMark, ClipBlock, EnvelopeOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ToolModeToggle, EditToolStrip, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -191,13 +191,15 @@ in the shared lane shell: remove, mute and split suggestions, a selected
 edit, an end-handle drag, a filtered lane and a 360px lane. The live
 `PendingEditOverlay` adapter supplies the `UpdatePendingEdit` commit (snap
 on); the story passes `fn()` callbacks and never mounts the DAW store.
-`Templates/MarkerLane` renders the production `MarkerLaneView` with
-fictional chapters, a social clip, pin and span comments, and a clipping
-flag, plus selected, read-only, empty and 360px variants. The live
-`MarkerLane` adapter decides whether markers drag (host projects only) and
-commits `UpdateChapter` / `UpdateSocialClip`; story callbacks are `fn()`
-and `timelineMarkerStoryDecorator` (beside `timelineLaneStoryDecorator`) sets
-the marker-row CSS vars that `TimelineView` sets live.
+`Templates/MarkerLaneHost` renders the production `MarkerLaneHost` (the
+system marker lane, element 18a, over the project's chapters, social clips and
+comments, plus the clipping row) with fictional chapters, a social clip, pin
+and span comments, and a clipping flag, plus selected, read-only, empty and
+360px variants. The live `LiveMarkerLane` adapter decides whether markers
+drag (host projects only) and commits `UpdateChapter` / `UpdateSocialClip`;
+story callbacks are `fn()` and `timelineMarkerStoryDecorator` (beside
+`timelineLaneStoryDecorator`) sets the marker-row CSS vars that `TimelineView`
+sets live.
 `Templates/ClipBlock` renders the production `ClipBlockView` in the shared
 lane shell: an editable clip with SVG fade ramps and top-corner fade
 handles, mute and clipping regions, a
@@ -410,7 +412,7 @@ extracted at an I/O seam follow the `TrackHeaderView` pattern. Existing
 examples are `ScriptPane`, `FollowBannerView`,
 `GuestAttentionBannerView`,
 `EditCornerView`, `CommandPaletteView`,
-`ClipBlockView`, `MarkerLaneView`, `PendingEditOverlayView`,
+`ClipBlockView`, `MarkerLaneHost`, `PendingEditOverlayView`,
 `EditBoundaryMarkView` and `InspectorSeekFooterView`.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
@@ -671,7 +673,7 @@ jsdom visibility checks.
   `withEpisode` (#2279); a view split is required only at an I/O seam.
 
 - 2026-09-27 — Closed #614: added `Templates/ClipBlock`,
-  `Templates/MarkerLane`, `Templates/PendingEditOverlay` and
+  `Templates/MarkerLaneHost`, `Templates/PendingEditOverlay` and
   `Templates/EditBoundaryMark` over props-only production views rendered by
   their live adapters; removed follow-up F from the Catalog boundary list.
 

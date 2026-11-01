@@ -740,10 +740,11 @@ viewport, containment, and midpoint hit-test checks. Existing `dense` selectors
 retain their whole-target exclusion. `gui/web/e2e/reachability.test.ts` executes
 the scanner callback with explicit jsdom geometry to check these rules. Browser
 runs prove the layout and the clip midpoint tap's exact `Clip` selection.
-A pin is `--touch-min` wide on touch and one marker row tall, so the exemption
-covers its height only; `gui/web/e2e/comment-pins-touch.spec.ts` holds its
-width to the floor and proves that a tap beside a pin picks it, a tap on a clip
-under the lane never does, and the chooser picks each pin of a stack (#1742).
+A marker on the lane (`.sys-marker-hit`) is one marker row tall, so the
+exemption covers its height only; its touch area reaches sideways by half the
+gap to its neighbour. `gui/web/e2e/comment-pins-touch.spec.ts` proves the lane
+keeps its height, that a tap beside a pin picks it, a tap on a clip under the
+lane never does, and the `+N` chip's list picks each pin folded into it (#1742).
 
 The compatibility matrix's offline comment replay and socket reconnect tests
 each use a private project through `withShareableProject`. Queue accounting

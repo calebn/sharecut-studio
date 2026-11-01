@@ -703,10 +703,15 @@ def test_timeline_edge_stays_under_the_clips() -> None:
     edge = z.pop("--z-timeline-edge")
     assert edge < min(z.values())
     timeline = _file_declarations(_PARTIALS_DIR / "timeline.css")
-    for layer in (".lane-inner", ".comment-marker", ".chapter-marker", ".social-marker"):
+    for layer in (".lane-inner", ".clipping-marker"):
         assert ("z-index", "var(--z-clip)") in {
             (d.prop, d.value) for d in timeline if d.preludes == (layer,)
         }, layer
+    # The system marker lane (chapters, social clips, comments) sits in the
+    # sticky marker lane, which stacks on the chrome role above the edge.
+    assert ("z-index", "var(--z-timeline-chrome)") in {
+        (d.prop, d.value) for d in timeline if d.preludes == (".marker-lane",)
+    }
     edges = {
         (d.prop, d.value)
         for d in _file_declarations(_PARTIALS_DIR / "stage.css")

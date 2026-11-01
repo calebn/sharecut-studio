@@ -111,8 +111,9 @@ held sideways) compact the editor:
   (104px at a 32px root). Track headers switch to their compact one-row layout,
   and a sideways pane at least 50rem wide keeps the full 11.25rem header so
   the name still reads beside M and S.
-- An empty marker lane gives its quiet row to the tracks; rows with chapters,
-  clips, comments or clip flags still show.
+- An empty marker lane gives its quiet row to the tracks; a lane with
+  chapters, clips or comments still shows, and so does the clipping row when
+  there are clip flags.
 - The tablet timeline row takes all spare height and the tool rail keeps its
   own (`grid-template-rows: minmax(0, 1fr) auto`), with 2px of block padding
   (`@container app (max-height: 40rem)`).

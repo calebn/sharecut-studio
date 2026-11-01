@@ -449,7 +449,7 @@ audited finding.
   `gui/web/e2e/touch-floor.spec.ts` sweeps every control on a coarse pointer
   (every phone mode, the tablet and landscape shells and the transport menu) and fails on any under 44 CSS px that is not one
   of its named exceptions: canvas dense targets (the trim handles, fade
-  corners, comment pins and the pending edit's hit area and handles, whose
+  corners, the marker lane's markers (the `+N` chip's list is the equivalent) and the pending edit's hit area and handles, whose
   size follows time on the timeline; a selected pending edit grows its
   handles to 44 px, and the Comments and Edits lists are the equivalent
   controls), inline transcript words and
