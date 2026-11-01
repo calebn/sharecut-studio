@@ -137,3 +137,101 @@ def open_wav(source: str | Path | BinaryIO) -> Iterator[wave.Wave_read]:
         yield reader
     finally:
         reader.close()
+
+
+def rendered_wav_is_complete(path: Path) -> bool:
+    """Whether an uncompressed RIFF/RF64 WAV has its complete, nonempty declared payload.
+
+    Checks container structure and frame alignment without decoding or reading the
+    audio payload. This does not detect changed samples or a consistently rewritten
+    shorter WAV. Unsupported encodings are not admitted for render-cache reuse.
+    """
+    try:
+        with path.open("rb") as stream:
+            return _rendered_wav_is_complete(stream)
+    except (OSError, ValueError, struct.error):
+        return False
+
+
+def _rendered_wav_alignment(fmt: bytes) -> int:
+    tag, channels, rate, byte_rate, align, bits = struct.unpack_from("<HHIIHH", fmt)
+    if tag == _FORMAT_EXTENSIBLE:
+        if len(fmt) < 40 or not 22 <= struct.unpack_from("<H", fmt, 16)[0] <= len(fmt) - 18:
+            return 0
+        valid_bits = struct.unpack_from("<H", fmt, 18)[0]
+        if valid_bits > bits or fmt[26:40] != PCM_SUBFORMAT_GUID[2:]:
+            return 0
+        tag = struct.unpack_from("<H", fmt, 24)[0]
+    widths = (8, 16, 24, 32, 64) if tag == 1 else (32, 64) if tag == 3 else ()
+    if (
+        not channels
+        or not rate
+        or bits not in widths
+        or align != channels * (bits // 8)
+        or byte_rate != rate * align
+    ):
+        return 0
+    return align
+
+
+def _rendered_wav_is_complete(stream: BinaryIO) -> bool:
+    physical_end = stream.seek(0, 2)
+    stream.seek(0)
+    header = stream.read(12)
+    if len(header) != 12 or header[8:] != b"WAVE" or header[:4] not in (b"RIFF", b"RF64"):
+        return False
+    size = struct.unpack_from("<I", header, 4)[0]
+    data_size: int | None = None
+    table: dict[bytes, list[int]] = {}
+    if header[:4] == b"RF64":
+        chunk = stream.read(8)
+        if size != 0xFFFFFFFF or len(chunk) != 8 or chunk[:4] != b"ds64":
+            return False
+        size = struct.unpack_from("<I", chunk, 4)[0]
+        if not 28 <= size <= 28 + 12 * 64:
+            return False
+        ds64 = stream.read(size)
+        riff_size, data_size, _, entries = struct.unpack_from("<QQQI", ds64)
+        if len(ds64) != size or entries > 64 or size != 28 + 12 * entries:
+            return False
+        for offset in range(28, size, 12):
+            name, length = struct.unpack_from("<4sQ", ds64, offset)
+            table.setdefault(name, []).append(length)
+        stream.seek(size & 1, 1)
+        container_end = riff_size + 8
+    else:
+        container_end = size + 8
+    if not stream.tell() <= container_end <= physical_end:
+        return False
+    align = 0
+    found_data = False
+    for _ in range(64):
+        if stream.tell() == container_end:
+            return found_data
+        if stream.tell() + 8 > container_end:
+            return False
+        name, length = struct.unpack("<4sI", stream.read(8))
+        if length == 0xFFFFFFFF:
+            if name == b"data" and data_size is not None:
+                length = data_size
+            elif table.get(name):
+                length = table[name].pop(0)
+            else:
+                return False
+        end = stream.tell() + length + (length & 1)
+        if end > container_end:
+            return False
+        if name == b"fmt ":
+            if align or found_data or not 16 <= length <= 256:
+                return False
+            align = _rendered_wav_alignment(stream.read(length))
+            if not align:
+                return False
+        elif name == b"data":
+            if found_data or not align or not length or length % align:
+                return False
+            found_data = True
+        elif name == b"ds64":
+            return False
+        stream.seek(end)
+    return False
