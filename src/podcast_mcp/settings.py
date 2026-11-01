@@ -180,7 +180,7 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         (
             "PODCAST_EVIDENCE_KEEP_MB",
-            "Megabytes of disk for track evidence kept between batches, so Approve reuses what propose built (least recently used out first; temp files read through the page cache, no resident memory); 0 keeps none.",
+            "Megabytes of disk for track evidence kept between batches, so Approve reuses what propose built (least recently used out first; temp files read through the page cache, no resident memory); 0 keeps none and also turns off the records of it under the project's artifacts/track_evidence.",
             "3072",
         ),
         (

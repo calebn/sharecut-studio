@@ -3,7 +3,7 @@
 Evaluating a track's tree decodes its source files whole and resamples them, and a command
 that starts a new process (``podcast edit cut-range``) paid that for every track on every
 run. A record holds the evaluated samples at the rates asked for: one file of a JSON header
-line (the record's key and the length of each rate's samples) followed by the float32 bytes of
+line (the record's key, the length of each rate's samples and a checksum of them) followed by the float32 bytes of
 each rate in order. The file name and the header both carry a digest of everything the
 evidence depends on, built by :func:`record_key`; a record read under another key, damaged,
 truncated or of another shape is not a record, and the caller evaluates the tree again.
@@ -11,18 +11,23 @@ truncated or of another shape is not a record, and the caller evaluates the tree
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
 import os
-from collections.abc import Sequence
+import shutil
+import time
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import IO
 
 import numpy as np
 
+from podcast_mcp.engines.decoded_source import SPILL_HEADROOM_BYTES
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.fingerprint import file_stamp
+from podcast_mcp.util.hashing import short_digest
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +40,8 @@ RECORDS_KEPT = 24
 RECORDS_KEPT_BYTES = 1 << 30
 _MAGIC = b"SCEVD1 "
 _MAX_HEADER = 4096
+# A temporary file an interrupted write left behind is removed once it is this old.
+_STALE_TEMP_NS = 600 * 10**9
 _DTYPE = np.dtype("<f4")
 
 
@@ -47,7 +54,7 @@ def record_key(parts: Sequence[object]) -> str | None:
     text = repr((RECORD_REV, *parts))
     if " at 0x" in text:
         return None
-    return hashlib.sha256(text.encode()).hexdigest()
+    return short_digest(text, 64)
 
 
 def record_path(directory: Path, key: str) -> Path:
@@ -84,9 +91,21 @@ def read_record(directory: Path, key: str, rates: Sequence[int]) -> dict[int, np
                 if array.size != size:
                     return None
                 arrays[rate] = array.astype(np.float32, copy=False)
+            if header.get("sum") != _checksum(arrays.values()):
+                return None
     except (OSError, ValueError, TypeError):
         return None
+    with contextlib.suppress(OSError):
+        # A record that is read stays among the newest, so pruning by write time keeps a hot one.
+        os.utime(path)
     return arrays
+
+
+def _checksum(arrays: Iterable[np.ndarray]) -> str:
+    digest = hashlib.blake2b(digest_size=16)
+    for array in arrays:
+        digest.update(np.ascontiguousarray(array, dtype=_DTYPE).data)
+    return digest.hexdigest()
 
 
 def write_record(directory: Path, key: str, evidence: dict[int, np.ndarray]) -> bool:
@@ -97,9 +116,17 @@ def write_record(directory: Path, key: str, evidence: dict[int, np.ndarray]) -> 
         return False
     rates = list(evidence)
     header = json.dumps(
-        {"key": key, "rates": rates, "sizes": [evidence[rate].size for rate in rates]}
+        {
+            "key": key,
+            "rates": rates,
+            "sizes": [evidence[rate].size for rate in rates],
+            "sum": _checksum(evidence.values()),
+        }
     )
     path = record_path(directory, key)
+    if not _room_for(directory, sum(a.nbytes for a in evidence.values())):
+        log.debug("track evidence record not written: too little free space near %s", directory)
+        return False
 
     def fill(handle: IO[bytes]) -> None:
         handle.write(_MAGIC + header.encode() + b"\n")
@@ -115,17 +142,45 @@ def write_record(directory: Path, key: str, evidence: dict[int, np.ndarray]) -> 
     return True
 
 
-def _prune(directory: Path, *, keep: Path) -> None:
+def _room_for(directory: Path, size: int) -> bool:
+    """Whether ``size`` bytes can be written and still leave the headroom the decode spool keeps free."""
     try:
-        found = sorted(
-            ((file_stamp(entry), entry) for entry in directory.glob(f"*{SUFFIX}")),
-            key=lambda item: item[0].mtime_ns,
-            reverse=True,
-        )
-        total = 0
-        for index, (stat, entry) in enumerate(found):
-            total += stat.size
-            if entry != keep and (index >= RECORDS_KEPT or total > RECORDS_KEPT_BYTES):
-                entry.unlink(missing_ok=True)
+        directory.mkdir(parents=True, exist_ok=True)
+        return shutil.disk_usage(directory).free >= size + SPILL_HEADROOM_BYTES
+    except OSError:
+        return False
+
+
+def _prune(directory: Path, *, keep: Path) -> None:
+    """Drop the oldest records past the caps (never ``keep``) and temporary files an interrupted write left."""
+    found: list[tuple[int, int, Path]] = []
+    now = time.time_ns()
+    try:
+        entries = list(directory.iterdir())
     except OSError:
         log.debug("track evidence records not pruned in %s", directory, exc_info=True)
+        return
+    for entry in entries:
+        try:
+            stamp = file_stamp(entry)
+            if entry.suffix == SUFFIX and not entry.name.startswith("."):
+                found.append((stamp.mtime_ns, stamp.size, entry))
+            elif (
+                entry.name.startswith(".")
+                and entry.suffix == ".tmp"
+                and now - stamp.mtime_ns > _STALE_TEMP_NS
+            ):
+                entry.unlink(missing_ok=True)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            log.debug("track evidence record %s not pruned", entry, exc_info=True)
+    found.sort(key=lambda item: item[0], reverse=True)
+    total = 0
+    for index, (_, size, entry) in enumerate(found):
+        total += size
+        if entry != keep and (index >= RECORDS_KEPT or total > RECORDS_KEPT_BYTES):
+            try:
+                entry.unlink(missing_ok=True)
+            except OSError:
+                log.debug("track evidence record %s not removed", entry, exc_info=True)
