@@ -171,6 +171,12 @@ merge. An unmuted continuation or replay retains its own words. Positive mute fa
 wings retain kept words, while a mix listening mute retains the lane's turn evidence.
 The renderer and placement masks share source sample rounding and short-fade behavior.
 
+A clip with a timing map (#1089) plays several pieces, each with its own source-to-timeline shift
+(`Clip.virtual_pieces`, `shift_at`). Readers that map a point or span (`clip_source_at_timeline`,
+relative drift, mute and gate spans, room-tone pool placement, ingest VAD windows) go piece by
+piece: a timeline second inside a hole maps to the nearer piece edge, a source span inside a skip
+plays nothing, and a span crossing a step is split per piece. Untimed clips keep their single shift.
+
 **Native sample grid** (`engines/sample_grid.py`, #1258). Every reader that turns clips into
 samples asks one function. At a reader's rate `r` a clip piece plays source samples
 `[round(source_start * r), round(source_end * r))`. Its edges round in the source clock, as

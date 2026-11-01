@@ -100,6 +100,16 @@ def test_a_mute_region_after_a_step_overlaps_where_it_plays() -> None:
     assert stacks[0].overlap_sec == pytest.approx(25.0, abs=1e-6)
 
 
+@pytest.mark.parametrize(("start", "end", "expected"), [(29.5, 30.5, 29.5), (30.2, 30.8, 30.0)])
+def test_a_mute_region_touching_a_skip_mutes_only_the_audible_part(
+    start: float, end: float, expected: float
+) -> None:
+    muted = _clip(off_speaker_mute_regions=[{"start_s": start, "end_s": end}])
+    other = Clip(id="b", track_id="guest", source_start=10, source_end=40, timeline_start=100)
+    stacks = same_source_timeline_overlaps(_project(muted, other, tracks=2))
+    assert stacks[0].overlap_sec == pytest.approx(expected, abs=1e-6)
+
+
 def test_a_gate_scope_crossing_a_step_gives_one_interval_per_piece() -> None:
     clip = _clip(source_id="src")
     project = _project(clip)

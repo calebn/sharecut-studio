@@ -149,7 +149,7 @@ def _window_pieces(clip, window_start_sec: float, window_end_sec: float):
         shift = tl_a - src_a
         lo = max(window_start_sec, tl_a)
         hi = min(window_end_sec, tl_a + (src_b - src_a))
-        if hi > lo:
+        if hi - lo > 1e-6:
             yield lo - shift, hi - shift, shift
 
 
