@@ -257,7 +257,7 @@ describe("TrackInspector", () => {
     });
   });
 
-  it("shows the role as plain text and hides every editing control for a viewer", () => {
+  it("shows the role as plain text and hides the role, label and actions controls for a viewer", () => {
     useDawStore
       .getState()
       .hydrate(
