@@ -101,7 +101,10 @@ def plan_extracted_bed(project: EpisodeProject, track_id: str) -> ExtractedBed |
     if _voice_detector_missing():
         return SampleAbsent("voice_detector_missing")
     path = track_audio_path(project, track_id)
-    stamp = file_stamp(path)
+    try:
+        stamp = file_stamp(path)
+    except OSError:
+        return SampleAbsent("missing_media")
     read = track_floor(path)
     if isinstance(read, Unmeasured):
         return SampleAbsent(read.cause)
