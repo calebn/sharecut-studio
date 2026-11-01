@@ -1083,6 +1083,7 @@ def test_the_window_and_the_tail_are_converted_at_the_same_time(
     _ffmpeg_or_skip()
     samples = _noise(3, 9.0)[: 9 * SOURCE_RATE - 3 + extra]
     whole = _whole(samples)
+    assert resampler_locality(SOURCE_RATE, RATE) is not None
     first, last = 20_000, 24_000
     real = FFmpegEngine.resample_streams
     both_running = threading.Barrier(2, timeout=20)
