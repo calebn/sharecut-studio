@@ -9,7 +9,7 @@ from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.ranges import SPAN_EPS_S
 from podcast_mcp.engines.session_timeline import (
     clip_source_at_timeline,
-    clip_source_to_timeline_shift,
+    shift_at,
 )
 from podcast_mcp.models import Clip, EpisodeProject, InsertAnchor, SessionSuggestion
 from podcast_mcp.util.coded_error import CodedValueError
@@ -24,7 +24,6 @@ def _dialogue_clips(project: EpisodeProject) -> list[Clip]:
 def _clip_anchor(
     clip: Clip, at_sec: float, *, side: Literal["before", "after"], source_sec: float
 ) -> InsertAnchor:
-    shift = clip_source_to_timeline_shift(clip)
     return InsertAnchor(
         kind="clip",
         at_sec=at_sec,
@@ -32,7 +31,7 @@ def _clip_anchor(
         source_id=clip.source_id,
         source_sec=max(source_sec, 0.0),
         side=side,
-        offset_s=at_sec - (source_sec + shift),
+        offset_s=at_sec - (source_sec + shift_at(clip, source_sec)),
     )
 
 
@@ -136,9 +135,7 @@ def resolve_insert_anchor(project: EpisodeProject, anchor: InsertAnchor) -> floa
     if starts_here and ends_here:
         dropped = ends_here if anchor.side == "before" else starts_here
         candidates = [c for c in candidates if c not in dropped] or candidates
-    spots = [
-        source_sec + clip_source_to_timeline_shift(clip) + anchor.offset_s for clip in candidates
-    ]
+    spots = [source_sec + shift_at(clip, source_sec) + anchor.offset_s for clip in candidates]
     if max(spots) - min(spots) > _EPS:
         recorded = [spot for spot in spots if abs(spot - anchor.at_sec) <= _EPS]
         if len(recorded) != 1:
