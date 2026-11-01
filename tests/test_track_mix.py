@@ -182,7 +182,6 @@ def _mastering_engine() -> MagicMock:
 
 
 def _retargeted(defaults: dict[str, Any]) -> dict[str, Any]:
-    """Defaults whose loudness target differs, so an unchanged project masters again."""
     return {**defaults, "master": {**defaults["master"], "integrated_lufs": -19.0}}
 
 

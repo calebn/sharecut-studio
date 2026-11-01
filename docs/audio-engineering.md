@@ -449,7 +449,7 @@ are −16 LUFS and −1.5 dBTP. A changed level re-masters on the next export.
 
 ### Mastering cache
 
-`mastered.wav` is reused on export while `mastered.hash` still matches
+`mastered.wav` is reused on export while its uncompressed RIFF/RF64 WAV has a complete, nonempty declared payload and `mastered.hash` still matches
 `play_audit.master_fingerprint(project, MasterTarget)`: the premix (`master_source_hash`)
 plus the settings that change the audio, `master.integrated_lufs`, `master.true_peak_db`
 and `master.lra` (`engines/mastering.py::MasterTarget`), plus `MASTER_SEMANTICS_REV`, bumped when the mastering rules change so older masters are mastered again. Changing any of them re-masters

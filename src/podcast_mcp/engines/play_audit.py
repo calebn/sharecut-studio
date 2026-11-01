@@ -24,6 +24,7 @@ from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path, stem_path
+from podcast_mcp.util.wav import rendered_wav_is_complete
 
 # Stems are timeline-clock WAVs; tolerate encoder/container rounding.
 STEM_DURATION_TOLERANCE_SEC = 0.25
@@ -725,13 +726,8 @@ def _stem_newer_than(project: EpisodeProject, track_id: str, premix_mtime: float
     return stem_mtime > premix_mtime
 
 
-def stem_not_older_than_premix(project: EpisodeProject, track_id: str) -> bool:
-    """Whether a stem is missing or was written at or after ``premix.wav``.
-
-    ``premix_is_stale`` counts only a strictly newer stem and skips a missing one, so a stem
-    rewritten in the same filesystem tick as the premix reads fresh there; reuse treats
-    both as changed.
-    """
+def stem_blocks_premix_reuse(project: EpisodeProject, track_id: str) -> bool:
+    """Whether a stem is missing or was written at or after ``premix.wav``."""
     stem_mtime, premix_mtime = _mtime(stem_path(project, track_id)), _mtime(premix_path(project))
     return stem_mtime is None or premix_mtime is None or stem_mtime >= premix_mtime
 
@@ -756,7 +752,7 @@ def premix_is_stale(project: EpisodeProject, defaults: EffectiveConfig) -> bool:
     premix_mtime = _mtime(premix_path(project))
     if premix_mtime is None:
         return False
-    if premix_stale_vs_mix(project, defaults):
+    if not rendered_wav_is_complete(premix_path(project)) or premix_stale_vs_mix(project, defaults):
         return True
     for tid in mix_gains(project):
         newer = _stem_newer_than(project, tid, premix_mtime)
@@ -860,4 +856,8 @@ def mastered_is_fresh(project: EpisodeProject, target: MasterTarget | None = Non
     if target is None or not mastered_path(project).is_file():
         return False
     fingerprint = master_fingerprint(project, target)
-    return fingerprint is not None and read_mastered_hash(project) == fingerprint
+    return (
+        fingerprint is not None
+        and read_mastered_hash(project) == fingerprint
+        and rendered_wav_is_complete(mastered_path(project))
+    )
