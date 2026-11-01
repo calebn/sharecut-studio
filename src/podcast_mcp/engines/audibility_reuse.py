@@ -120,7 +120,7 @@ def shared_rows(
         return build()
     with run.lock:
         if run.defaults is None:
-            run.defaults = copy.deepcopy(defaults)
+            run.defaults = defaults
         elif run.defaults != defaults:
             return build()
     key = (identity, policy, _words_signature(lanes))
