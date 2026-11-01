@@ -2451,14 +2451,14 @@ def test_guest_waveform_tiles_take_the_slot_before_work(minimal_project, sample_
 def test_guest_audio_file_route_releases_slot_once_on_success_and_pin_failure(
     minimal_project, sample_wav, monkeypatch
 ):
-    from podcast_mcp.gui.routes import review_share
+    from podcast_mcp.gui.routes import review_share, share_common
     from podcast_mcp.services.remote_mcp import limits
 
     client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
     limiter = limits.get_host_limiters().audio_concurrent
     allowed = limits.RateLimitDecision(allowed=True, bucket="host_audio")
     exits: list[str] = []
-    monkeypatch.setattr(review_share, "host_rate_limit_enabled", lambda: True)
+    monkeypatch.setattr(share_common, "host_rate_limit_enabled", lambda: True)
     monkeypatch.setattr(limiter, "try_enter", lambda _token: allowed)
     monkeypatch.setattr(limiter, "exit", exits.append)
 

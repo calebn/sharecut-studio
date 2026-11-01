@@ -589,6 +589,25 @@ def test_an_editor_past_the_stream_cap_gets_a_429_until_a_slot_frees(
     assert (freed.status_code, freed.content) == (200, MP3)
 
 
+def test_only_an_audio_download_takes_a_slot_and_a_304_gives_it_back(
+    world, one_stream_per_link
+) -> None:
+    token = world.tokens["editor"]
+    base = GUEST.format(token=token)
+    stem = sanitize_export_stem(world.ws.project.name)
+    release = audio_slot(token)
+    assert release is not None
+
+    text = world.client.get(f"{base}/{stem}.chapters.json")
+    release()
+    etag = world.client.get(f"{base}/{stem}.mp3").headers["etag"]
+    cached = world.client.get(f"{base}/{stem}.mp3", headers={"If-None-Match": etag})
+
+    assert text.status_code != 429
+    assert cached.status_code == 304
+    assert world.client.get(f"{base}/{stem}.mp3").status_code == 200
+
+
 def test_a_finished_or_refused_download_gives_its_slot_back(world, one_stream_per_link) -> None:
     base = GUEST.format(token=world.tokens["editor"])
     stem = sanitize_export_stem(world.ws.project.name)
