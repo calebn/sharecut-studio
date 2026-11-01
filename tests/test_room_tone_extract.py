@@ -267,6 +267,8 @@ def test_changed_audio_replaces_only_an_extracted_bed(tmp_path: Path) -> None:
     assert track is not None
     assert track.room_tone is not None
     assert track.room_tone.path == second["path"]
+    assert track.room_tone_origin is not None
+    assert track.room_tone_origin.source_start < 2.0
     # The first bed's file stays: history may still refer to it.
     assert (tmp_path / first["path"]).is_file()
 
@@ -372,3 +374,14 @@ def test_rolling_a_landing_back_restores_the_extracted_origin(tmp_path: Path) ->
     assert track.room_tone_origin == extracted
     assert track.room_tone is not None
     assert track.room_tone.path != rel
+
+
+def test_a_deleted_extracted_file_is_cut_again(tmp_path: Path) -> None:
+    service, _ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    first = service.extract_room_tone_bed(track_id="host")
+    (tmp_path / first["path"]).unlink()
+
+    second = service.extract_room_tone_bed(track_id="host")
+
+    assert second["extracted"] is True
+    assert (tmp_path / second["path"]).is_file()
