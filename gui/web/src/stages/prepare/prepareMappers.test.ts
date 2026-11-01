@@ -1630,4 +1630,27 @@ describe("successful selected work", () => {
     expect(failed[2].state).toBe("failed");
     expect(phaseFor(failed).phase).toBe("failed");
   });
+
+  it("distinguishes selected completion when every group did only its selected subset", () => {
+    const rows = rowsFor(
+      selected([
+        step("transcribe_tracks", "ok"),
+        step("align_tracks", "ok"),
+        step("clean_audio", "ok"),
+        step("analyze_fillers_pauses", "ok"),
+      ]),
+      { approximateTiming: null },
+    );
+    expect(rows.every((row) => row.state === "done")).toBe(true);
+    expect(rows[2]).toMatchObject({
+      detail: "Line up tracks",
+      runDisposition: "partial",
+    });
+    expect(rows[3]).toMatchObject({
+      detail: "Clean",
+      runDisposition: "partial",
+    });
+    expect(readySummary(rows)).toBe("Getting ready: selected work finished");
+    expect(phaseFor(rows).phase).toBe("done");
+  });
 });

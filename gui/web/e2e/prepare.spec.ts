@@ -412,6 +412,82 @@ for (const profile of [
         const retained =
           (await retainedResponse.json()) as PipelineConfigResponse;
         expect(retained.enabled_steps).toEqual(selected);
+        await expect(page.locator(".sys-prepare")).toHaveAttribute(
+          "data-phase",
+          "done",
+        );
+        await expect(
+          page.getByRole("button", { name: /^Process new audio/ }),
+        ).toHaveCount(0);
+        const transcribeResult = ready
+          .locator(".sys-status")
+          .filter({ has: page.getByText("Transcribe", { exact: true }) });
+        await expect(transcribeResult).toContainText(
+          /Skipped this run|Not run this time/,
+        );
+        await expect(transcribeResult).not.toContainText("Transcribed");
+        await expect(
+          transcribeResult.getByRole("button", {
+            name: /Download word timing/,
+          }),
+        ).toHaveCount(0);
+        const alignResult = ready
+          .locator(".sys-status")
+          .filter({ has: page.getByText("Line up tracks", { exact: true }) });
+        await expect(alignResult).toContainText(
+          /Skipped this run|Not run this time/,
+        );
+        await expect(alignResult).not.toContainText("Lined up");
+        if (profile.name === "phone") {
+          await expect(
+            page.getByRole("button", {
+              name: "Getting ready: selected work finished",
+              exact: true,
+            }),
+          ).toBeVisible();
+        }
+        await dismissFeedbackToast(page);
+        const resultHeading =
+          profile.name === "phone"
+            ? ready.getByRole("button", {
+                name: "Getting ready: selected work finished",
+                exact: true,
+              })
+            : ready.getByRole("heading", {
+                name: "Getting ready",
+                exact: true,
+              });
+        if (
+          profile.name === "phone" &&
+          (await resultHeading.getAttribute("aria-expanded")) !== "true"
+        )
+          await resultHeading.click();
+        await resultHeading.scrollIntoViewIfNeeded();
+        const resultStatus = await captureViewport(
+          page,
+          testInfo,
+          proofDir,
+          `${proofName}-selected-run-status-viewport`,
+          { ready_heading_or_summary: resultHeading },
+        );
+        await transcribeResult.scrollIntoViewIfNeeded();
+        const resultRows = await captureViewport(
+          page,
+          testInfo,
+          proofDir,
+          `${proofName}-selected-run-omitted-rows-viewport`,
+          { transcribe_result: transcribeResult, align_result: alignResult },
+        );
+        const resultCopy = {
+          phase: await page.locator(".sys-prepare").getAttribute("data-phase"),
+          heading_or_summary: await resultHeading.innerText(),
+          transcribe: await transcribeResult.innerText(),
+          align: await alignResult.innerText(),
+          process_new_audio_buttons: await processNew.count(),
+          word_timing_buttons: await transcribeResult
+            .getByRole("button", { name: /Download word timing/ })
+            .count(),
+        };
         await page.getByRole("button", { name: /^Advanced/ }).click();
         const sheet = page.getByRole("dialog", { name: "Advanced steps" });
         await dismissFeedbackToast(page);
@@ -514,9 +590,12 @@ for (const profile of [
           before_effects: beforeEffects,
           after_effects: afterEffects,
           retained_steps: retained.enabled_steps,
+          selected_run_result: resultCopy,
           captures: {
             plan_top: planTop,
             plan_handoff: planHandoff,
+            selected_run_status: resultStatus,
+            selected_run_omitted_rows: resultRows,
             session_top: session,
             sound_top: soundTop,
             focused_preference_bottom: preferenceBottom,
