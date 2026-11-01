@@ -385,3 +385,77 @@ def test_a_deleted_extracted_file_is_cut_again(tmp_path: Path) -> None:
 
     assert second["extracted"] is True
     assert (tmp_path / second["path"]).is_file()
+
+
+def test_media_gone_from_disk_is_reported_not_raised(tmp_path: Path) -> None:
+    service, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    (tmp_path / "raw" / "host.wav").unlink()
+
+    result = service.extract_room_tone_bed(track_id="host")
+
+    assert result["extracted"] is False
+    assert result["reason"] == "missing_media"
+    assert ws.project.track_by_id("host").room_tone is None
+
+
+def test_a_failed_cut_is_reported_and_leaves_no_partial_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+
+    def boom(*_a: object, **_k: object) -> None:
+        raise RuntimeError("ffmpeg died")
+
+    monkeypatch.setattr(FFmpegEngine, "extract_segment", boom)
+    service, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+
+    result = service.extract_room_tone_bed(track_id="host")
+
+    assert result["reason"] == "unreadable_file"
+    assert ws.project.track_by_id("host").room_tone is None
+    folder = tmp_path / "raw" / "room-tone-extracted"
+    assert not folder.exists() or not any(folder.iterdir())
+
+
+def test_audio_changed_between_plan_and_register_is_not_registered(tmp_path: Path) -> None:
+    _svc, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    plan = plan_extracted_bed(ws.project, "host")
+    assert isinstance(plan, ExtractedBed)
+    _write_wav(tmp_path / "raw" / "host.wav", _host_audio(((1.0, 1.5),)))
+
+    result = ws.mutate(
+        "before",
+        "after",
+        lambda p: RoomToneBedService._register(p, "host", plan),
+        operation="extract_room_tone_bed",
+        params={"track_id": "host"},
+    )
+
+    assert result["reason"] == "source_changed"
+    assert ws.project.track_by_id("host").room_tone is None
+
+
+def test_a_recorded_bed_landing_between_plan_and_register_wins(tmp_path: Path) -> None:
+    _svc, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    plan = plan_extracted_bed(ws.project, "host")
+    assert isinstance(plan, ExtractedBed)
+    place_room_tone(
+        ws.project,
+        track_id="host",
+        rel=plan.rel,
+        duration_s=3.0,
+        sample_rate=SR,
+        channels=1,
+        label="r",
+    )
+
+    result = ws.mutate(
+        "before",
+        "after",
+        lambda p: RoomToneBedService._register(p, "host", plan),
+        operation="extract_room_tone_bed",
+        params={"track_id": "host"},
+    )
+
+    assert result["reason"] == "has_bed"
+    assert ws.project.track_by_id("host").room_tone_origin is None
