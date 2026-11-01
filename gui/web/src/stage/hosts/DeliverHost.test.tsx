@@ -65,6 +65,7 @@ import type { HistoryEntryId } from "../../types/project";
 import { ApiError } from "../../utils/apiError";
 import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage as HostDeliverStage } from "./DeliverStage";
+import { patchDeliverDraft } from "./deliverDraft";
 import { ExportFlowProvider } from "./exportFlow";
 import { ShareFlowProvider } from "./shareFlow";
 
@@ -857,5 +858,80 @@ describe("Deliver host values that follow the edits", () => {
     await userEvent.type(start, "0:15{Enter}");
     await userEvent.click(screen.getByRole("button", { name: "Play A line" }));
     expect(wire.seek).toHaveBeenCalledWith(15);
+  });
+});
+
+describe("Deliver host refused-save banner", () => {
+  const refusedAt = (
+    createdAt: number,
+    extra: { type?: string; dismissed?: boolean } = {},
+  ) => ({
+    kind: "refused" as const,
+    reason: "refused",
+    recovery: "edit-and-resubmit" as const,
+    ...(extra.dismissed === undefined ? {} : { dismissed: extra.dismissed }),
+    command: {
+      command_id: `refused-${createdAt}-${extra.type ?? "DeleteChapter"}`,
+      client_id: "tab-1",
+      client_seq: 1,
+      type: extra.type ?? "DeleteChapter",
+      payload: { time: 120, title: "Middle" },
+      structural_mode: "apply" as const,
+      created_at: createdAt,
+    },
+  });
+  const seed = (...conflicts: ReturnType<typeof refusedAt>[]) => {
+    wire.conflicts[PATH] = conflicts;
+  };
+  const later = () => Date.now() + 60_000;
+
+  it("shows a refused Deliver save made after the page opened", async () => {
+    seed(refusedAt(later()));
+    render(<DeliverStage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save your changes",
+    );
+  });
+
+  it.each([
+    {
+      name: "dismissed",
+      conflict: () => refusedAt(later(), { dismissed: true }),
+    },
+    { name: "older than the page", conflict: () => refusedAt(1) },
+    {
+      name: "not a Deliver command",
+      conflict: () => refusedAt(later(), { type: "SetTrackMeta" }),
+    },
+  ])("stays quiet for a refused save that is $name", async ({ conflict }) => {
+    seed(conflict());
+    render(<DeliverStage />);
+    await screen.findByRole("textbox", { name: "Title of Middle" });
+    await act(async () => requestHostDrain(PATH));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("stays quiet for a refused save the person already acknowledged", async () => {
+    const at = later();
+    seed(refusedAt(at));
+    patchDeliverDraft(PATH, () => ({ ackedAt: at }));
+    render(<DeliverStage />);
+    await screen.findByRole("textbox", { name: "Title of Middle" });
+    await act(async () => requestHostDrain(PATH));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("Deliver host readiness facts", () => {
+  it("reports the seconds the edits removed as the Edits saved row", async () => {
+    const base = projectAt("h1");
+    useDawStore.getState().setProject({
+      ...base,
+      edit_impact: { ...base.edit_impact, total_removed_sec: 23.6 },
+    });
+    render(<DeliverStage />);
+    const row = (await screen.findByText("Edits saved")).closest("li");
+    expect(row).not.toBeNull();
+    expect(row).toHaveTextContent("23.6 s");
   });
 });
