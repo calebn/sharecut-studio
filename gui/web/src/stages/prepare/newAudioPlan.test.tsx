@@ -549,3 +549,46 @@ it("does not claim a durable or confirmed On setting after a start-choice failur
   );
   expect(useDawStore.getState().statusAnnouncement).not.toContain("It is on");
 });
+
+it("finishes real selected work without ASR, then shows a plan when more media arrives", async () => {
+  config.enabled = ["ingest_tracks", "clean_audio"];
+  const { result } = render();
+  await act(async () => result.current.view.onHandoff());
+  act(() =>
+    useDawStore.setState({
+      pipelineJob: pipelineJobSnapshot({
+        id: "j-new",
+        status: "ok",
+        skip_steps: STEPS.filter((name) => !config.enabled!.includes(name)),
+        steps: [
+          { name: "ingest_tracks", status: "ok", elapsed_sec: 1, error: null },
+          {
+            name: "clean_audio",
+            status: "ok",
+            elapsed_sec: 1,
+            error: null,
+            summary: "highpass on 3 dialogue tracks",
+          },
+        ],
+      }),
+    }),
+  );
+  expect(result.current.view.phase).toBe("done");
+  expect(result.current.view.handoff.label).not.toBe("Process new audio");
+  expect(result.current.view.rows[1]).toMatchObject({
+    state: "queued",
+    runDisposition: "omitted",
+    detail: "Skipped this run",
+  });
+  expect(result.current.view.rows[1].action).toBeUndefined();
+  act(() =>
+    useDawStore.setState({
+      project: project(
+        [MAYA, ANNEKE, PRIYA, sampleTrack({ id: "joss", speaker: "Joss" })],
+        ["maya", "anneke"],
+      ),
+    }),
+  );
+  expect(result.current.view.phase).toBe("new-audio");
+  expect(result.current.view.handoff.label).toBe("Process new audio");
+});
