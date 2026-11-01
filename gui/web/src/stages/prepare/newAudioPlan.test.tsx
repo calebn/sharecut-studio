@@ -592,3 +592,60 @@ it("finishes real selected work without ASR, then shows a plan when more media a
   expect(result.current.view.phase).toBe("new-audio");
   expect(result.current.view.handoff.label).toBe("Process new audio");
 });
+
+it.each(["error", "cancelled"])(
+  "keeps a stopped selected run %s without attributing omitted work, then allows new media",
+  async (status) => {
+    config.enabled = ["ingest_tracks"];
+    const { result } = render();
+    await act(async () => result.current.view.onHandoff());
+    act(() =>
+      useDawStore.setState({
+        pipelineJob: pipelineJobSnapshot({
+          id: "j-new",
+          status,
+          error: status === "error" ? "Selected processing stopped." : null,
+          skip_steps: STEPS.filter((name) => !config.enabled!.includes(name)),
+          steps: [
+            "ingest_tracks",
+            "merge_transcript",
+            "reconcile_transcript",
+            "assemble_timeline",
+          ].map((name) => ({
+            name,
+            status: "ok",
+            elapsed_sec: 1,
+            error: null,
+          })),
+        }),
+      }),
+    );
+    expect(result.current.view.phase).toBe("failed");
+    expect(result.current.view.readySummary).toBe(
+      status === "error"
+        ? "Getting ready: processing failed"
+        : "Getting ready: processing stopped",
+    );
+    for (const id of ["transcribe", "align"]) {
+      expect(
+        result.current.view.rows.find((row) => row.id === id),
+      ).toMatchObject({
+        state: "queued",
+        detail: "Skipped this run",
+      });
+    }
+    act(() =>
+      useDawStore.setState({
+        project: project(
+          [MAYA, ANNEKE, PRIYA, sampleTrack({ id: "joss", speaker: "Joss" })],
+          ["maya", "anneke"],
+        ),
+      }),
+    );
+    expect(result.current.view.phase).toBe("new-audio");
+    expect(result.current.view.readySummary).toBe(
+      "Getting ready: new audio waiting",
+    );
+    expect(result.current.view.handoff.label).toBe("Process new audio");
+  },
+);

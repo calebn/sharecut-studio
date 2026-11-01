@@ -284,6 +284,17 @@ describe("PrepareView hand-off", () => {
 });
 
 describe("PrepareView live region", () => {
+  it.each([
+    ["transcribing", "Processing started."],
+    ["waiting", "Processing starts when the other job finishes."],
+    ["not-started", "Processing has not started. Run it when you are ready."],
+  ] as const)(
+    "does not claim ASR for the generic %s processing phase",
+    (phase, text) => {
+      expect(prepareAnnouncement({ phase, handoffLabel: "Review" })).toBe(text);
+    },
+  );
+
   it("speaks each phase's words once, changing only when the phase does", () => {
     const { container, rerender } = render(
       <PrepareView
@@ -303,7 +314,7 @@ describe("PrepareView live region", () => {
     );
     expect(live(container)).toBe("3 files added. Checking audio.");
     rerender(<PrepareView {...props()} />);
-    expect(live(container)).toBe("Transcribing started.");
+    expect(live(container)).toBe("Processing started.");
   });
 
   it("does not change on progress, row or card changes within a phase", () => {
@@ -433,7 +444,7 @@ describe("PrepareView live region", () => {
         {...props({ ...DONE, phase: "transcribing", rows: ROWS.running })}
       />,
     );
-    expect(live(container)).toBe("Transcribing started.");
+    expect(live(container)).toBe("Processing started.");
   });
 
   it("has one polite status, and its text is a pure function of the phase", () => {
@@ -448,7 +459,7 @@ describe("PrepareView live region", () => {
       prepareAnnouncement({ phase: "model-failed", handoffLabel: "x" }),
     ).toBe("The download did not finish. Try again.");
     expect(prepareAnnouncement({ phase: "waiting", handoffLabel: "x" })).toBe(
-      "Transcribing starts when the other job finishes.",
+      "Processing starts when the other job finishes.",
     );
   });
 });
