@@ -174,7 +174,7 @@ export function usePrepareRun(input: PrepareRunInput) {
         .getState()
         .announceStatus(
           mode === "run"
-            ? "Another job is running. Transcribing starts when it finishes."
+            ? "Another job is running. Processing starts when it finishes."
             : "Another job is running. Try again when it finishes.",
           { tone: "error" },
         );
