@@ -598,11 +598,14 @@ def build_track_rms_caches(
     from podcast_mcp.engines import track_evidence
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
-    identity = (
-        audibility_reuse.audio_identity(project, unprocessed=unprocessed, defaults=defaults)
-        if track_ids is None and window is None
-        else None
-    )
+    identity = None
+    if track_ids is None and window is None:
+        try:
+            identity = audibility_reuse.audio_identity(
+                project, unprocessed=unprocessed, defaults=defaults
+            )
+        except (OSError, CalledProcessError, ValueError):
+            identity = None
     degraded = False
     caches: dict[str, TrackRmsCache] = {}
     sources: dict[Path, np.ndarray] = {}
@@ -665,7 +668,6 @@ def build_track_rms_caches(
                 else [track_audio_path(project, tid).resolve()]
             )
         except (OSError, ValueError):
-            degraded = True
             continue
         raw_tracks[tid] = spans, paths
 
@@ -674,7 +676,6 @@ def build_track_rms_caches(
         try:
             samples = raw_samples_on_timeline(spans, paths, sources=sources)
         except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
-            degraded = True
             continue
         finally:
             for path in set(paths):

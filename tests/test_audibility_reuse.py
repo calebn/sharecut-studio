@@ -19,7 +19,8 @@ from podcast_mcp.engines.audio_audit import (
     compute_word_audibility_map,
 )
 from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
+from podcast_mcp.models.episode import SourceRecording
 from test_transcript_reconcile import _echo_stem_project, _voice, _write_stem
 
 DEFAULTS = load_defaults()
@@ -188,6 +189,10 @@ def test_a_transcript_gated_project_is_never_shared(tmp_path: Path, builds: list
     with audibility_run_scope():
         caches = build_reconciliation_caches(project, defaults=DEFAULTS)
         assert caches.audio_identity is None
+        _map(project)
+        _map(project)
+
+    assert builds == [None, None]
 
 
 def test_consumers_cannot_change_what_the_run_keeps(tmp_path: Path, builds: list) -> None:
@@ -264,3 +269,46 @@ def test_a_cache_set_that_fell_back_is_never_shared(tmp_path: Path, builds: list
         ):
             degraded = build_reconciliation_caches(project, defaults=DEFAULTS)
         assert degraded.audio_identity is None
+
+
+def test_a_lane_timed_through_another_tracks_clip_is_never_shared(
+    tmp_path: Path, builds: list
+) -> None:
+    project = _echo_stem_project(tmp_path)
+    project.timeline.clips[:] = [c for c in project.timeline.clips if c.track_id != "guest"]
+    project.timeline.tracks.append(Track(id="mus", label="mus", role=TrackRole.MUSIC))
+    project.sources.append(SourceRecording(id="gsrc", path="raw/guest.wav"))
+    moved = Clip(
+        id="cm",
+        track_id="mus",
+        source_id="gsrc",
+        source_start=0.0,
+        source_end=20.0,
+        timeline_start=0.0,
+    )
+    project.timeline.clips.append(moved)
+
+    with audibility_run_scope():
+        _map(project)
+        moved.timeline_start = 1.5
+        shared = _map(project)
+
+    assert builds == [None, None]
+    assert shared == _map(project)
+
+
+def test_an_identity_that_cannot_be_read_degrades_the_set_instead_of_failing(
+    tmp_path: Path,
+) -> None:
+    project = _echo_stem_project(tmp_path)
+
+    with (
+        audibility_run_scope(),
+        patch.object(
+            audio_audit.audibility_reuse, "audio_identity", side_effect=ValueError("duration")
+        ),
+    ):
+        caches = build_reconciliation_caches(project, defaults=DEFAULTS)
+
+    assert caches.audio_identity is None
+    assert caches.caches
