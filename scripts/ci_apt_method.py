@@ -196,6 +196,9 @@ def rewrite_mirrors(source: str) -> str:
         raise ValueError("runner lacks the canonical HTTPS Ubuntu archive")
     result = []
     for line_number, line in enumerate(source.splitlines(keepends=True), start=1):
+        entry = line.removesuffix("\r\n").removesuffix("\n")
+        if entry == "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1":
+            continue
         if re.match(r"https?://azure\.archive\.ubuntu\.com/ubuntu/(?:\s|$)", line):
             continue
         if not line.strip() or line.lstrip().startswith("#"):
@@ -205,7 +208,6 @@ def rewrite_mirrors(source: str) -> str:
             re.match(rf"(?:https|{METHOD})://{re.escape(host)}/ubuntu/(?:\s|$)", line)
             for host in CANONICAL
         ):
-            entry = line.removesuffix("\r\n").removesuffix("\n")
             public_entry = None
             if len(entry) <= 512:
                 public_entry = re.fullmatch(
