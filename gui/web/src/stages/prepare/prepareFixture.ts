@@ -31,6 +31,12 @@ export const TAKES_WITH_NEW: readonly PrepareSource[] = [
   take("priya", "Priya", "priya.wav", "14:11 of audio", "new"),
 ];
 
+/** The same four takes once the run has processed Priya's. */
+export const TAKES_PROCESSED: readonly PrepareSource[] = [
+  ...NAMED_TAKES,
+  take("priya", "Priya", "priya.wav", "14:11 of audio"),
+];
+
 export const UNNAMED_TAKES: readonly PrepareSource[] = [
   take("t1", "", "track-1.wav", "14:20 of audio", "needs-name"),
   take("t2", "", "track-2.wav", "13:58 of audio", "needs-name"),

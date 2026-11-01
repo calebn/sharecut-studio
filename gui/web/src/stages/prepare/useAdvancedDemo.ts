@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { AdvancedGroup, AdvancedStepsProps } from "./AdvancedSteps";
+import { soundScanResult } from "./advancedModel";
 
 type Spy = Pick<
   AdvancedStepsProps,
@@ -51,7 +52,15 @@ export function useAdvancedDemo(
       spy.onBack();
     },
     onToggle: (id, enabled) => {
-      edit(id, (step) => ({ ...step, enabled }));
+      edit(id, (step) => ({
+        ...step,
+        enabled,
+        // The scan's cost line follows its switch, as advancedModel writes it.
+        result:
+          step.id === "scan"
+            ? soundScanResult(enabled, undefined)
+            : step.result,
+      }));
       spy.onToggle(id, enabled);
     },
     onParam: (id, paramId, value) => {

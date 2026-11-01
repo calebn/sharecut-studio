@@ -198,7 +198,10 @@ function stepResult(
 export type AdvancedPersonal = { soundScanStart: boolean };
 
 /** The scan names its cost where the person decides: "Off. Takes about ...". */
-function soundScanResult(enabled: boolean, ran: string | undefined): string {
+export function soundScanResult(
+  enabled: boolean,
+  ran: string | undefined,
+): string {
   if (enabled && ran) return ran;
   const cost = `Takes ${SOUND_SCAN_COST}.`;
   return enabled ? cost : `Off. ${cost}`;

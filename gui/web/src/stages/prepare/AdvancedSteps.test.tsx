@@ -84,6 +84,17 @@ describe("AdvancedSteps", () => {
     expect(off).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("moves the cost line with the switch instead of keeping the Off hint", async () => {
+    const user = userEvent.setup();
+    render(<Host selected="scan" />);
+    expect(screen.getByText(/^Off\. Takes about/)).toBeVisible();
+    await user.click(screen.getByRole("switch", { name: "Scan for sounds" }));
+    expect(screen.queryByText(/^Off\./)).toBeNull();
+    expect(
+      screen.getByText("Takes about 2½ minutes for 30 minutes of audio."),
+    ).toBeVisible();
+  });
+
   it("passes the person's choice on, apart from the project's switch", async () => {
     const user = userEvent.setup();
     const onPersonal = vi.fn();

@@ -16,6 +16,7 @@ import {
   SECOND_SESSION,
   SOME_TERMS,
   session,
+  TAKES_PROCESSED,
   TAKES_WITH_NEW,
   UNNAMED_TAKES,
 } from "./prepareFixture";
@@ -348,7 +349,12 @@ export const AfterRunReused: Story = {
   args: {
     phase: "done",
     sessions: [
-      session({ status: "done", sources: TAKES_WITH_NEW, people: 4, takes: 4 }),
+      session({
+        status: "done",
+        sources: TAKES_PROCESSED,
+        people: 4,
+        takes: 4,
+      }),
     ],
     rows: ROWS.reused,
     readySummary: "Getting ready: all done",
@@ -369,6 +375,8 @@ export const AfterRunReused: Story = {
       ),
     ).toBeVisible();
     await expect(canvas.getAllByText("1 new · 3 reused")).toHaveLength(2);
+    await expect(canvas.queryByText("New")).toBeNull();
+    await expect(canvas.queryByText("New audio waiting")).toBeNull();
   },
 };
 

@@ -758,6 +758,17 @@ describe("PrepareView: audio added after a run", () => {
     expect(onRunAll).toHaveBeenCalledOnce();
   });
 
+  it("opens a menu that holds Run everything again", async () => {
+    render(<PrepareView {...props({ ...NEW, onRunAll: vi.fn() })} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "More ways to run" }),
+    );
+    const menu = screen.getByRole("menu");
+    expect(
+      within(menu).getByRole("menuitem", { name: "Run everything again" }),
+    ).toBeVisible();
+  });
+
   it("leaves the more button out where Run everything again is not offered", () => {
     render(<PrepareView {...props(NEW)} />);
     expect(
