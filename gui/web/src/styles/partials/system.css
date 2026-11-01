@@ -852,7 +852,7 @@
    Touch targets and the side columns are sized for a phone. */
 @container sys-player (max-width: 40rem) {
   .sys-player {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto minmax(max-content, 1fr) auto;
     padding-inline: var(--space-3);
   }
 
@@ -898,6 +898,23 @@
   .sys-player .sys-icon-btn:not(.sys-play-btn) {
     min-inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
+  }
+}
+
+/* Between 50 and 60 rem the Audio error pill, Retry and the status text are
+   still wider than the side column beside Play and the skip buttons: the
+   status text gives way to the pill, as under 50 rem, and the chips wrap. */
+@container sys-player (max-width: 60rem) {
+  .sys-player-host[data-state="error"] .sys-player-status {
+    display: none;
+  }
+
+  /* Stacked chips (Cuts, Following, Solo, Updating mix, Audio error) wrap to
+     a second row of the right-hand column instead of running under Play and
+     the skips. */
+  .sys-player-host .sys-player-right {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
   }
 }
 
