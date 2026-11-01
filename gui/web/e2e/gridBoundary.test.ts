@@ -75,6 +75,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     loops: 1,
     reason: "hand-picked viewport and theme profiles, one per boundary cell",
   },
+  "prepare.spec.ts": {
+    loops: 1,
+    reason:
+      "#2908 requires readable desktop and phone screenshot receipts in light and dark for real selected processing and sound-action/session preferences",
+  },
   "edit-boundary-precision.spec.ts": {
     loops: 1,
     reason:

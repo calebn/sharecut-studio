@@ -1,6 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
-import { expect, test } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type TestInfo,
+  test,
+} from "@playwright/test";
 import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
@@ -135,6 +141,55 @@ function processingProofProject(projectPath: string): ProcessingProofProject {
   ) as ProcessingProofProject;
 }
 
+async function dismissFeedbackToast(page: Page): Promise<void> {
+  const toast = page
+    .getByRole("region", { name: "Status messages" })
+    .locator(".ui-toast");
+  const dismiss = toast.getByRole("button", { name: "Dismiss", exact: true });
+  if (await dismiss.isVisible()) await dismiss.click();
+  await expect(toast).toHaveCount(0);
+}
+
+async function scrollSheetTop(sheet: Locator): Promise<void> {
+  await sheet.evaluate((element) => {
+    element.scrollTop = 0;
+    for (const scroller of element.querySelectorAll<HTMLElement>(
+      ".sys-sheet-scroll, .bottom-sheet-body, .command-palette-body",
+    ))
+      scroller.scrollTop = 0;
+  });
+}
+
+async function captureViewport(
+  page: Page,
+  info: TestInfo,
+  directory: string,
+  name: string,
+  targets: Record<string, Locator>,
+) {
+  const geometry: Record<
+    string,
+    { x: number; y: number; width: number; height: number }
+  > = {};
+  for (const [label, target] of Object.entries(targets)) {
+    await expect(target, `${name}: ${label}`).toBeInViewport({ ratio: 1 });
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThan(2);
+    expect(box!.height).toBeGreaterThan(2);
+    geometry[label] = box!;
+  }
+  await expect(page.locator(".ui-toast")).toHaveCount(0);
+  const image = path.join(directory, `${name}.png`);
+  await page.screenshot({
+    path: image,
+    fullPage: false,
+    animations: "disabled",
+  });
+  await info.attach(name, { path: image, contentType: "image/png" });
+  return { image: path.basename(image), targets: geometry };
+}
+
 for (const profile of [
   { name: "desktop", viewport: { width: 1280, height: 900 } },
   { name: "phone", viewport: { width: 390, height: 844 } },
@@ -243,12 +298,54 @@ for (const profile of [
         );
         fs.mkdirSync(proofDir, { recursive: true });
         const proofName = `${profile.name}-${theme}-retry-${testInfo.retry}`;
-        const planImage = path.join(proofDir, `${proofName}-plan.png`);
-        await page.screenshot({ path: planImage, fullPage: true });
-        await testInfo.attach("selected-processing-plan", {
-          path: planImage,
-          contentType: "image/png",
+        await dismissFeedbackToast(page);
+        const stage = page.locator('[data-stage-host="prepare"]');
+        await stage.evaluate((element) => {
+          element.scrollTop = 0;
         });
+        const transcribe = ready
+          .locator(".sys-status")
+          .filter({ has: page.getByText("Transcribe", { exact: true }) });
+        const align = ready
+          .locator(".sys-status")
+          .filter({ has: page.getByText("Line up tracks", { exact: true }) });
+        const suggest = ready
+          .locator(".sys-status")
+          .filter({ has: page.getByText("Find suggestions", { exact: true }) });
+        const planTop = await captureViewport(
+          page,
+          testInfo,
+          proofDir,
+          `${proofName}-plan-top-viewport`,
+          {
+            heading: ready.getByRole("heading", { name: /^Getting ready/ }),
+            note: ready.locator(".sys-prepare-note"),
+            added: ready.getByText("Add audio", { exact: true }),
+            transcribe_title: transcribe.getByText("Transcribe", {
+              exact: true,
+            }),
+            transcribe: transcribe.getByText("Off in Advanced", {
+              exact: true,
+            }),
+            align: align.getByText("Off in Advanced", { exact: true }),
+            clean: clean.getByText(
+              `All ${before.timeline.tracks.length} tracks · Clean`,
+              { exact: true },
+            ),
+            suggest: suggest.getByText("Off in Advanced", { exact: true }),
+          },
+        );
+        await processNew.scrollIntoViewIfNeeded();
+        await expect(processNew).toBeEnabled();
+        const planHandoff = await captureViewport(
+          page,
+          testInfo,
+          proofDir,
+          `${proofName}-plan-handoff-viewport`,
+          {
+            process_new_audio: processNew,
+          },
+        );
         expect(requests).toHaveLength(0);
         const runResponse = page.waitForResponse(
           (response) =>
@@ -317,37 +414,84 @@ for (const profile of [
         expect(retained.enabled_steps).toEqual(selected);
         await page.getByRole("button", { name: /^Advanced/ }).click();
         const sheet = page.getByRole("dialog", { name: "Advanced steps" });
-        await expect(
-          sheet.getByText(
-            /These switches affect runs started here.*until ShareCut restarts/,
-          ),
-        ).toBeVisible();
-        const sessionImage = path.join(proofDir, `${proofName}-session.png`);
-        await page.screenshot({ path: sessionImage, fullPage: true });
-        await testInfo.attach("selected-processing-session-settings", {
-          path: sessionImage,
-          contentType: "image/png",
-        });
+        await dismissFeedbackToast(page);
+        await scrollSheetTop(sheet);
+        const sessionScope = sheet.getByText(
+          /These switches affect runs started here.*until ShareCut restarts/,
+        );
+        await expect(sessionScope).toBeVisible();
+        const session = await captureViewport(
+          page,
+          testInfo,
+          proofDir,
+          `${proofName}-session-top-viewport`,
+          {
+            session_scope: sessionScope,
+          },
+        );
         await sheet
           .getByRole("button", { name: /^Apply sound actions/ })
           .click();
-        await expect(
-          sheet.getByText(/Applies suggested sound actions during processing/),
-        ).toBeVisible();
-        await expect(
-          sheet.getByText(
-            /Saved in this browser for new episodes.*resets to its default when ShareCut restarts/,
-          ),
-        ).toBeVisible();
-        const actionsImage = path.join(
-          proofDir,
-          `${proofName}-sound-actions.png`,
+        await dismissFeedbackToast(page);
+        await scrollSheetTop(sheet);
+        const soundHelper = sheet.getByText(
+          /Applies suggested sound actions during processing/,
         );
-        await page.screenshot({ path: actionsImage, fullPage: true });
-        await testInfo.attach("selected-processing-sound-actions", {
-          path: actionsImage,
-          contentType: "image/png",
+        await expect(soundHelper).toBeVisible();
+        const soundTop = await captureViewport(
+          page,
+          testInfo,
+          proofDir,
+          `${proofName}-sound-actions-top-viewport`,
+          {
+            title: sheet.getByRole("heading", {
+              name: "Apply sound actions",
+              exact: true,
+            }),
+            automatic_application: soundHelper,
+          },
+        );
+        const preference = sheet.getByRole("group", {
+          name: "New projects start with this",
         });
+        const off = preference.getByRole("button", {
+          name: "Off",
+          exact: true,
+        });
+        const on = preference.getByRole("button", { name: "On", exact: true });
+        const preferenceBefore = {
+          off: await off.getAttribute("aria-pressed"),
+          on: await on.getAttribute("aria-pressed"),
+        };
+        await off.focus();
+        await expect(off).toBeFocused();
+        const preferenceNote = sheet.getByText(
+          /Saved in this browser for new episodes.*resets to its default when ShareCut restarts/,
+        );
+        await expect(preferenceNote).toBeVisible();
+        await expect(preferenceNote).toHaveCSS("clip-path", "none");
+        const field = sheet
+          .locator(".sys-adv-field")
+          .filter({ has: preference });
+        await field.scrollIntoViewIfNeeded();
+        await expect(off).toBeFocused();
+        const preferenceAfter = {
+          off: await off.getAttribute("aria-pressed"),
+          on: await on.getAttribute("aria-pressed"),
+        };
+        expect(preferenceAfter).toEqual(preferenceBefore);
+        const preferenceBottom = await captureViewport(
+          page,
+          testInfo,
+          proofDir,
+          `${proofName}-sound-preference-bottom-viewport`,
+          {
+            full_preference_field: field,
+            off,
+            on,
+            reset_note: preferenceNote,
+          },
+        );
         const receipt = {
           scope:
             "Real selected ingest and high-pass processing only; no transcription, listening or full-pipeline acceptance claim",
@@ -370,6 +514,18 @@ for (const profile of [
           before_effects: beforeEffects,
           after_effects: afterEffects,
           retained_steps: retained.enabled_steps,
+          captures: {
+            plan_top: planTop,
+            plan_handoff: planHandoff,
+            session_top: session,
+            sound_top: soundTop,
+            focused_preference_bottom: preferenceBottom,
+          },
+          preference_focus: {
+            target: "Off",
+            before: preferenceBefore,
+            after: preferenceAfter,
+          },
         };
         const receiptPath = path.join(proofDir, `${proofName}-receipt.json`);
         fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
