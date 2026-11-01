@@ -1658,16 +1658,19 @@ def test_damaged_cached_wavs_are_rebuilt(
     )
 
 
-@pytest.mark.parametrize("payload", [{}, {"measured": "bad"}])
+@pytest.mark.parametrize("payload", [{}, {"measured": "bad"}, b"\xff"])
 @pytest.mark.parametrize("operation", ["direct", "export"])
 def test_invalid_master_qc_is_regenerated(
-    minimal_project: Path, payload: dict[str, Any], operation: str
+    minimal_project: Path, payload: dict[str, Any] | bytes, operation: str
 ) -> None:
     ws, eng, defaults = _mixed_and_mastered(minimal_project)
     path = ws.project.artifacts_dir() / "master_qc.json"
     expected = json.loads(path.read_text())
     before = _stamps(ws)
-    path.write_text(json.dumps(payload))
+    if isinstance(payload, bytes):
+        path.write_bytes(payload)
+    else:
+        path.write_text(json.dumps(payload))
     with patch.object(steps, "ffmpeg", return_value=eng):
         if operation == "direct":
             steps.master_loudness(ws.project, defaults)
