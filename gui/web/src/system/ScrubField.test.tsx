@@ -262,6 +262,14 @@ describe("ScrubField typing", () => {
     expect(field()).toHaveFocus();
   });
 
+  it("commits nothing when the text is left as it was shown", async () => {
+    const user = userEvent.setup();
+    const { calls, field } = setup();
+    field().focus();
+    await user.keyboard("{Enter}{Enter}");
+    expect(calls.onCommit).not.toHaveBeenCalled();
+  });
+
   it("opens the input from the keyboard with Enter", async () => {
     const user = userEvent.setup();
     const { field } = setup();

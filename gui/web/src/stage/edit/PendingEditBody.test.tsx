@@ -342,23 +342,28 @@ describe("PendingEditBody", () => {
     expect(args[3]).toBe(12.3804);
   });
 
-  it("does not save an untouched field whose stored time ties at the seventh decimal", async () => {
-    const user = userEvent.setup();
-    const sampled = {
-      ...sessionCut,
-      source_start: 10,
-      source_end: 480003 / 48000,
-    };
-    replaceStoredEdit(sampled);
-    render(<PendingEditBody edit={sampled} />);
-    const end = screen.getByRole("spinbutton", { name: "Source end" });
-    await waitFor(() => expect(end).not.toHaveAttribute("aria-readonly"));
-    end.focus();
-    await user.keyboard("{Enter}{Enter}");
-    end.focus();
-    await user.keyboard("{Enter}{Tab}");
-    expect(updatePendingEdit).not.toHaveBeenCalled();
-  });
+  it.each([480003 / 48000, 48033 / 48000])(
+    "does not save an untouched field whose stored time is %s, but saves a real change",
+    async (stored) => {
+      const user = userEvent.setup();
+      const sampled = {
+        ...sessionCut,
+        source_start: 0.5,
+        source_end: stored + 10,
+      };
+      replaceStoredEdit(sampled);
+      render(<PendingEditBody edit={sampled} />);
+      const end = screen.getByRole("spinbutton", { name: "Source end" });
+      await waitFor(() => expect(end).not.toHaveAttribute("aria-readonly"));
+      end.focus();
+      await user.keyboard("{Enter}{Enter}");
+      end.focus();
+      await user.keyboard("{Enter}{Tab}");
+      expect(updatePendingEdit).not.toHaveBeenCalled();
+      await commitField(user, "Source end", "20");
+      expect(updatePendingEdit).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("accepts m:ss.mmm in Start and End", async () => {
     const user = userEvent.setup();
