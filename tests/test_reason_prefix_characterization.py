@@ -116,6 +116,23 @@ def test_harsh_and_listen_one_by_one_follow_the_tighten_prefix_set() -> None:
     }
 
 
+def test_harsh_needs_a_join_risk_suffix_on_a_tighten_prefix() -> None:
+    reasons = (
+        "filler:um:risky",
+        "pause:0.5s:join_review",
+        "repetition:word:a:risky",
+        "restart:we:join_review",
+        "nl:range:risky",
+    )
+    assert {reason: is_harsh_tighten_hit(_decision(reason, review=False)) for reason in reasons} == {
+        "filler:um:risky": True,
+        "pause:0.5s:join_review": True,
+        "repetition:word:a:risky": True,
+        "restart:we:join_review": True,
+        "nl:range:risky": False,
+    }
+
+
 KEEP_CASES = [
     ("filler:um", False, False, False),
     ("filler:um", False, True, False),
