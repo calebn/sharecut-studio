@@ -1,6 +1,6 @@
 """Reason-string vocabulary for generated tighten proposals.
 
-Sound disposition and review policy live in ``cut_safety``. This leaf module
+Sound disposition and review policy live in ``cut_policy``. This leaf module
 contains only reason parsing and detector vocabulary.
 """
 
