@@ -75,6 +75,7 @@ class SourceAudio:
     mute_spans: tuple[MuteEnvelope, ...] = ()
     fill_path: Path | None = None
     clip_id: str | None = field(default=None, compare=False)
+    piece: int = field(default=0, compare=False)
     source_id: str | None = field(default=None, compare=False)
     is_fill: bool = False
     reach_in: float = field(default=0.0, compare=False)
