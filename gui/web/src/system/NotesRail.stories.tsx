@@ -250,7 +250,7 @@ export const PrivateToHost: Story = {
   },
 };
 
-export const GuestViewerNotesHidden: Story = {
+export const GuestViewerSettingOff: Story = {
   args: { items: [MARKER_ROSA, NOTE_MAYA], viewer: "guest" },
   render: (args) => <LiveRail {...args} />,
   play: async ({ canvasElement }) => {
@@ -261,7 +261,7 @@ export const GuestViewerNotesHidden: Story = {
   },
 };
 
-export const GuestViewerNotesShown: Story = {
+export const GuestViewerSettingOn: Story = {
   args: { items: [MARKER_ROSA, NOTE_MAYA, NOTE_ROSA], viewer: "guest" },
   render: (args) => <LiveRail {...args} />,
   play: async ({ canvasElement }) => {

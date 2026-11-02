@@ -377,6 +377,7 @@ function RecordStageBody({
         alerts,
         defaultNotesOpen: true,
         notes: noteItems(snapshot),
+        noteVisibility: false,
         selfName: host?.display_name ?? "Host",
         onSendNote: (note) => room.liveComments.postNote(note.text),
         onInvite: () => runPointerCommand("share.manage"),
