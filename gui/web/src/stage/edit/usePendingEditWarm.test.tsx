@@ -121,4 +121,15 @@ describe("usePendingEditWarm", () => {
     expect(useDawStore.getState().sourcePreview).toBeNull();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:pending-preview");
   });
+
+  it("releases the previous edit's audio when the edit id changes", async () => {
+    seed();
+    const { rerender } = render(<Harness path="/tmp/p.json" editId="cut" />);
+    await playPendingPreview("/tmp/p.json", "cut", "suggested");
+    await waitFor(() =>
+      expect(useDawStore.getState().sourcePreview).not.toBeNull(),
+    );
+    rerender(<Harness path="/tmp/p.json" editId="other" />);
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+  });
 });
