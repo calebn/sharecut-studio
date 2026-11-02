@@ -74,14 +74,9 @@ describe("Inspector clip lookup", () => {
       trackId: "host",
     });
     render(<Inspector />);
-    expect(
-      document.querySelector('[data-presence-anchor="inspector"]'),
-    ).toBeTruthy();
     expect(screen.queryByText("Clip not found")).toBeNull();
     expect(
-      screen.getByRole("heading", {
-        name: "guest clip, 00:04.000 to 00:06.000",
-      }),
+      screen.getByRole("spinbutton", { name: "Source start" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("c1")).toBeNull();
     expect(screen.getByText(/0\.200–0\.800 s/)).toBeInTheDocument();
@@ -299,9 +294,7 @@ describe("SelectionSheetBody", () => {
       screen.getByRole("button", { name: "Cancel range selection" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("heading", {
-        name: "guest clip, 00:04.000 to 00:06.000",
-      }),
+      screen.getByRole("spinbutton", { name: "Source start" }),
     ).toBeInTheDocument();
   });
 });

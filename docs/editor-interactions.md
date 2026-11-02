@@ -131,7 +131,7 @@ The current proximity magnet is 8 px and is independent of snap-tick visibility.
 Keyboard trim/fade steps and exact numeric fields remain the fine-adjustment
 alternatives. Do not infer a new snap engine or modifier from this audit.
 
-The Clip inspector exposes the existing Seek join / Play across join footer.
+The Clip inspector exposes Seek join / Play across join as a row under More.
 Retained Precision boundary evidence checks Listen current → Listen proposed →
 Listen current through the existing audio routes and playing state without saving
 that proposal. The join footer is source-verified here; this checkpoint does not

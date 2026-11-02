@@ -74,7 +74,7 @@ for (const { cell: viewport, theme } of withAppearance([
             }
           };
           await checkHeader("initial-header-before-recovery");
-          for (const name of ["Fade in ms", "Fade out ms"]) {
+          for (const name of ["Fade in", "Fade out"]) {
             const field = page.getByLabel(name, { exact: true });
             await exposeControl(page, field, receipts);
             await nativeTabTo(
@@ -98,13 +98,10 @@ for (const { cell: viewport, theme } of withAppearance([
               expect(item.full).toBe(true);
             }
           }
-          const fade = page.getByLabel("Fade out ms", { exact: true });
-          const fadeBefore = Number(await fade.inputValue());
-          const fadeMax = Number(await fade.getAttribute("max"));
-          await fade.fill(
-            String(fadeBefore < fadeMax ? fadeBefore + 1 : fadeBefore - 1),
-          );
-          await page.getByRole("button", { name: "Apply fade out" }).click();
+          const fade = page.getByLabel("Fade out", { exact: true });
+          const fadeBefore = Number(await fade.getAttribute("aria-valuenow"));
+          const fadeMax = Number(await fade.getAttribute("aria-valuemax"));
+          await fade.press(fadeBefore < fadeMax ? "ArrowUp" : "ArrowDown");
           await expect(
             page
               .locator(".bottom-sheet-header")
