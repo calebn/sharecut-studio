@@ -92,7 +92,6 @@ const TARGET: Record<HitKind, { id: string; sec: number }> = {
   join: { id: "c2", sec: 10 },
   "edit-chip": { id: "join-c2", sec: 10 },
   "envelope-point": { id: "e1", sec: 16 },
-  "envelope-line": { id: "level", sec: 0 },
   "pending-start": { id: "p1", sec: 20 },
   "pending-end": { id: "p1", sec: 24 },
   "pending-flag": { id: "p1", sec: 20 },
@@ -208,61 +207,17 @@ const LEAF_OWNED: Partial<Record<HitKind, { host: string; leaf: string }>> = {
     leaf: "system/Envelope.tsx",
   },
 };
-/** Kinds nothing marks since the lane envelope became the leaf: the flat line is gone (W4 prunes the kind). */
-const UNMARKED: readonly HitKind[] = ["envelope-line"];
 
 const sourceOf = (rel: string) => readFileSync(join(SRC_ROOT, rel), "utf8");
 
 describe("touch paths", () => {
-  it("lets a point win its line after the line gained focus from editing", () => {
-    const line = button(hitTargetProps("envelope-line", "level", 0), {
-      left: 100,
-      top: 114,
-      right: 400,
-      bottom: 126,
-    });
+  it("ranks a selected or focused marker ahead of a point at the same spot", () => {
     const point = button(hitTargetProps("envelope-point", "point", 10), {
       left: 195,
       top: 115,
       right: 205,
       bottom: 125,
     });
-    root.append(line, point);
-    const kinds = (x: number, y: number, pointerType: string, hit: Element) =>
-      resolveHits(root, { x, y }, pointerType, hit).map(
-        ({ candidate }) => candidate.kind,
-      );
-    expect(kinds(203, 116, "mouse", point)).toEqual([
-      "envelope-point",
-      "envelope-line",
-    ]);
-    expect(kinds(210, 120, "touch", line)).toEqual([
-      "envelope-point",
-      "envelope-line",
-    ]);
-    line.focus();
-    expect(document.activeElement).toBe(line);
-    expect(kinds(203, 116, "mouse", point)).toEqual([
-      "envelope-point",
-      "envelope-line",
-    ]);
-    expect(kinds(210, 120, "touch", line)).toEqual([
-      "envelope-point",
-      "envelope-line",
-    ]);
-    expect(kinds(300, 120, "touch", line)).toEqual(["envelope-line"]);
-    point.focus();
-    expect(kinds(203, 116, "mouse", point)).toEqual([
-      "envelope-point",
-      "envelope-line",
-    ]);
-    line.focus();
-    line.setAttribute("data-hit-selected", "true");
-    expect(kinds(203, 116, "mouse", point)).toEqual([
-      "envelope-line",
-      "envelope-point",
-    ]);
-    line.removeAttribute("data-hit-selected");
     const other = button(
       hitTargetProps("chapter", "marker", 10, { selected: true }),
       {
@@ -272,52 +227,15 @@ describe("touch paths", () => {
         bottom: 125,
       },
     );
-    root.append(other);
-    expect(kinds(203, 116, "mouse", point)[0]).toBe("chapter");
+    root.append(point, other);
+    const first = () =>
+      resolveHits(root, { x: 203, y: 116 }, "mouse", point)[0].candidate.kind;
+    expect(first()).toBe("chapter");
     other.removeAttribute("data-hit-selected");
     other.focus();
-    expect(kinds(203, 116, "mouse", point)[0]).toBe("chapter");
+    expect(first()).toBe("chapter");
   });
 
-  it("arms a nearby flat point before the line and arms the line in its own reach", () => {
-    const chooser: string[][] = [];
-    router.dispose();
-    router = attachHitRouting(root, {
-      onChooser: (view) => {
-        if (view)
-          chooser.push(view.hits.map(({ candidate }) => candidate.kind));
-      },
-      onArm: (target) => armed.push(target),
-    });
-    const line = button(hitTargetProps("envelope-line", "level", 0), {
-      left: 100,
-      top: 114,
-      right: 400,
-      bottom: 126,
-    });
-    const point = button(hitTargetProps("envelope-point", "point", 10), {
-      left: 195,
-      top: 115,
-      right: 205,
-      bottom: 125,
-    });
-    root.append(line, point);
-    line.focus();
-    expect(document.activeElement).toBe(line);
-    press(point, "pointerdown", 203, 116);
-    router.longPress();
-    expect(chooser.at(-1)).toEqual(["envelope-point", "envelope-line"]);
-    router.dispose();
-    root.replaceChildren(line);
-    router = attachHitRouting(root, { onArm: (target) => armed.push(target) });
-    press(line, "pointerdown", 300, 120);
-    router.longPress();
-    expect(armed.at(-1)).toEqual({
-      kind: "envelope-line",
-      id: "level",
-      axis: "y",
-    });
-  });
   it("finds the timeline's press owners", () => {
     const dragKinds = HIT_KIND_NAMES.filter(
       (kind) => HIT_KINDS[kind].axis !== "none",
@@ -412,10 +330,6 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
         ).not.toEqual([]);
         return;
       }
-      if (UNMARKED.includes(kind)) {
-        expect(owners).toEqual([]);
-        return;
-      }
       if (contract.axis === "none") expect(owners).toEqual([]);
       else expect(owners).not.toEqual([]);
     },
@@ -441,7 +355,7 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
       vi.runAllTimers();
       expect(log.slice(0, 2)).toEqual([
         "pointerdown@200,112",
-        contract.axis === "y" ? "pointermove@200,112" : "pointermove@230,112",
+        "pointermove@230,112",
       ]);
     },
   );
@@ -507,9 +421,7 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
         ? ["pointermove@230,132"]
         : contract.axis === "x"
           ? ["pointermove@230,112"]
-          : contract.axis === "y"
-            ? ["pointermove@200,132"]
-            : [],
+          : [],
     );
   });
 

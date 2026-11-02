@@ -21,11 +21,11 @@ import type { NudgeMover } from "../edit/nudgeBoundaries";
 import type { ProjectView } from "../types/project";
 
 /**
- * How an armed target drags: along time (`x`), level (`y`), both (`xy`), or
- * not at all (`none`: a target that only takes taps, and a long-press on it
+ * How an armed target drags: along time (`x`), time and level (`xy`), or not
+ * at all (`none`: a target that only takes taps, and a long-press on it
  * selects instead of arming).
  */
-export type DragAxis = "x" | "xy" | "y" | "none";
+export type DragAxis = "x" | "xy" | "none";
 
 /** Keyboard on a focused target: arrows step its value, or it only activates. */
 export type KeyInput = "arrows" | "activate";
@@ -135,17 +135,6 @@ export const HIT_KINDS = {
     axis: "xy",
     nudges: ["envelope-time", "envelope-level"],
     soft: true,
-    keys: "activate",
-    command: null,
-    outranks: ["envelope-line"],
-    body: false,
-  },
-  "envelope-line": {
-    priority: 8,
-    label: "Envelope level",
-    axis: "y",
-    nudges: [],
-    soft: false,
     keys: "activate",
     command: null,
     outranks: [],

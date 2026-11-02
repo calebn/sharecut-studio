@@ -8,7 +8,6 @@ export function hitRouterStub(): HitRouter {
     claimsClick: fn(() => false),
     longPress: fn(),
     choose: fn(),
-    nextPage: fn(),
     openCreate: fn(() => true),
     close: fn(),
     disarm: fn(),

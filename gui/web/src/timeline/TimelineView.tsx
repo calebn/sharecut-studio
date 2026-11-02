@@ -68,7 +68,6 @@ import { WaveformStatusSync } from "../waveform/WaveformStatusSync";
 import { AuditionOverlay } from "./AuditionOverlay";
 import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
-import { visibleBox } from "./chooserLayout";
 import { clippingFlags } from "./clippingFlags";
 import { DetentMark } from "./DetentMark";
 import { attachDragWatch } from "./dragWatch";
@@ -93,7 +92,7 @@ import { ProsodyStatusAnnouncer } from "./ProsodyStatusAnnouncer";
 import { PrecisionLayer } from "./precision/PrecisionLayer";
 import { precisionHandoff } from "./precision/precisionController";
 import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
-import { TargetChooser } from "./TargetChooser";
+import { TimelineChooser } from "./TimelineChooser";
 import { TimelineCreateMenu } from "./TimelineCreateMenu";
 import { FollowPlayheadChip, SplitGuide } from "./TimelineLeaves";
 import { TimelinePresence } from "./TimelinePresence";
@@ -127,6 +126,7 @@ import {
 import { useRangeGesture } from "./useRangeGesture";
 import { useSplitAtPointer } from "./useSplitAtPointer";
 import { useTouchPress } from "./useTouchPress";
+import { visibleBox } from "./visibleBox";
 
 type Props = {
   /** Phone Timeline mode: playhead fixed at viewport center; scrub by scrolling. */
@@ -246,10 +246,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const lanesRef = useRef<HTMLDivElement>(null);
   // The routed region (marker lane plus lanes) mounts once a project loads.
   const [hitRouter, setHitRouter] = useState<HitRouter | null>(null);
-  const [chooser, setChooser] = useState<{
-    view: ChooserView;
-    closing: boolean;
-  } | null>(null);
+  const [chooser, setChooser] = useState<ChooserView | null>(null);
   const [create, setCreate] = useState<{
     view: CreateView;
     place: CreateMenuPlace;
@@ -278,15 +275,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         if (next) vibrate();
         setDetent(next);
       },
-      onChooser: (view) =>
-        setChooser((prev) =>
-          view
-            ? { view, closing: false }
-            : prev &&
-                !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-              ? { ...prev, closing: true }
-              : null,
-        ),
+      onChooser: setChooser,
       onTarget: (hit) => useDawStore.getState().setSelectionHit(hit),
       precision: precisionHandoff,
       snapshot: () => {
@@ -317,7 +306,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       setHitRouter(null);
     };
   }, []);
-  const clearChooser = useCallback(() => setChooser(null), []);
   const touchPress = useTouchPress(hitRouter);
   const applyZoomAtRef = useRef<(nextZoom: number, clientX: number) => void>(
     () => undefined,
@@ -1128,12 +1116,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
             {/* After the scroller on purpose: at the lane floor's z, tree order
               paints the edges over it, and clips and markers stay above. */}
             {chooser && hitRouter ? (
-              <TargetChooser
-                view={chooser.view}
-                closing={chooser.closing}
+              <TimelineChooser
+                view={chooser}
                 router={hitRouter}
                 bounds={visibleBox(scrollRef.current)}
-                onClosed={clearChooser}
               />
             ) : null}
             {create && hitRouter ? (

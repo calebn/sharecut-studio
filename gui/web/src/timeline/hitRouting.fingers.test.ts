@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TARGET_ID_ATTR } from "../stages/edit/chooserKinds";
 import { button, press } from "../test/hitDom";
-import {
-  attachHitRouting,
-  CHOOSER_ITEM_ATTR,
-  type HitRouter,
-  isReplayed,
-} from "./hitRouting";
+import { attachHitRouting, type HitRouter, isReplayed } from "./hitRouting";
 import { hitTargetProps } from "./hitTargets";
 
 let scroll: HTMLDivElement;
@@ -79,7 +75,7 @@ function crowdedWithChips() {
   record("fade", fade);
   const chips = ["0", "1"].map((index) => {
     const chip = document.createElement("button");
-    chip.setAttribute(CHOOSER_ITEM_ATTR, index);
+    chip.setAttribute(TARGET_ID_ATTR, index);
     document.body.append(chip);
     return chip;
   });

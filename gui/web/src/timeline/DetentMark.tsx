@@ -5,7 +5,7 @@
  */
 import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import type { ChooserBounds } from "./chooserLayout";
+import type { Bounds } from "../stages/edit/createMenuLayout";
 import type { DetentView } from "./hitRouting";
 
 export function DetentMark({
@@ -14,7 +14,7 @@ export function DetentMark({
 }: {
   detent: DetentView;
   /** The lanes' visible box: the line spans it. */
-  bounds: ChooserBounds;
+  bounds: Bounds;
 }) {
   if (detent.x < bounds.left || detent.x > bounds.right) return null;
   const style = {

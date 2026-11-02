@@ -46,6 +46,7 @@ import {
   LONG_PRESS_MS,
   TOUCH_SLOP_PX,
 } from "../hooks/gestureConstants";
+import { TARGET_ID_ATTR } from "../stages/edit/chooserKinds";
 import { COMPACT_SHEET_CLASS } from "../ui/compactSheet";
 import {
   AWAY,
@@ -164,14 +165,13 @@ function replayClick(element: Element, source: PointerEvent, at: HitPoint) {
 export interface ChooserView {
   origin: HitPoint;
   hits: readonly ResolvedHit[];
-  page: number;
   /** The opening finger is still down: lifting on a chip picks it. */
   fingerDown: boolean;
   /**
-   * The chip under that finger: a hit index, "more", or none. Resting
-   * `LONG_PRESS_MS` on a hit chip grabs its target.
+   * The chip under that finger: a hit index, or none. Resting
+   * `LONG_PRESS_MS` on a chip grabs its target.
    */
-  over: number | "more" | null;
+  over: number | null;
   /** The chip under the finger is armed: a slide along its axis drags it. */
   armed: boolean;
 }
@@ -182,8 +182,6 @@ export interface RoutedTarget {
   id: string;
 }
 
-/** Marks a chooser chip so the router can find it under a finger. */
-export const CHOOSER_ITEM_ATTR = "data-chooser-item";
 /** Marks a create menu item so the router can find it under a finger. */
 export const CREATE_ITEM_ATTR = "data-create-item";
 /** Set on a target while it is armed, for its armed look. */
@@ -266,7 +264,6 @@ export interface HitRouter {
    * own activation for a keyboard or assistive-technology pick (`null`).
    */
   choose: (index: number, pointerType: string | null) => void;
-  nextPage: () => void;
   /**
    * Opens the create menu at `origin` on `surface` with no finger down: the
    * right-click and keyboard twin of a long press on empty space (#1793).
@@ -376,7 +373,7 @@ export function attachHitRouting(
     partOf(target) != null ||
     (target instanceof Element &&
       target.closest(
-        `[${CHOOSER_ITEM_ATTR}],[${CREATE_ITEM_ATTR}],.${COMPACT_SHEET_CLASS}`,
+        `[${TARGET_ID_ATTR}],[${CREATE_ITEM_ATTR}],.${COMPACT_SHEET_CLASS}`,
       ) != null);
   let phase: Phase = IDLE;
   const gesture: MultiTouch = {
@@ -484,13 +481,12 @@ export function attachHitRouting(
     replayPointer("pointerup", element, up, at);
     replaceClick(element, up, at, true);
   };
-  const itemAt = (at: HitPoint): number | "more" | null => {
+  const itemAt = (at: HitPoint): number | null => {
     const item = doc
       .elementFromPoint?.(at.x, at.y)
-      ?.closest(`[${CHOOSER_ITEM_ATTR}]`)
-      ?.getAttribute(CHOOSER_ITEM_ATTR);
-    if (item == null) return null;
-    return item === "more" ? "more" : Number(item);
+      ?.closest(`[${TARGET_ID_ATTR}]`)
+      ?.getAttribute(TARGET_ID_ATTR);
+    return item == null ? null : Number(item);
   };
   /**
    * The create item the finger is on, once it has moved past the slop from
@@ -510,7 +506,7 @@ export function attachHitRouting(
     armed: Extract<Phase, { kind: "grabbed" }>,
     at: HitPoint,
   ): HitPoint => {
-    const wantX = armed.axis === "y" ? armed.from.x : at.x + armed.offset.x;
+    const wantX = at.x + armed.offset.x;
     const y = armed.axis === "x" ? armed.from.y : at.y + armed.offset.y;
     if (!armed.detents) return { x: wantX, y };
     const step = detentMove(armed.detents, wantX);
@@ -652,7 +648,7 @@ export function attachHitRouting(
       // target's axis to drag it. Mouse, keys and AT pick through the chip.
       const at = pointOf(event);
       const over = itemAt(at);
-      if (typeof over !== "number") return;
+      if (over === null) return;
       stop(event);
       phase.pointerId = event.pointerId;
       setFinger(pressChip(over, at, Date.now()), event);
@@ -757,13 +753,12 @@ export function attachHitRouting(
           return;
         stop(event);
         const over = itemAt(at);
-        const index = typeof over === "number" ? over : null;
         const axis =
-          index == null
+          over === null
             ? "none"
-            : HIT_KINDS[phase.view.hits[index].candidate.kind].axis;
+            : HIT_KINDS[phase.view.hits[over].candidate.kind].axis;
         const now = Date.now();
-        const step = moveOnChips(phase.finger, index, axis, at, now);
+        const step = moveOnChips(phase.finger, over, axis, at, now);
         if (step.grab && step.finger.kind === "over" && step.finger.rest) {
           // Measured from where the finger rested, so the slop's travel
           // moves the target too.
@@ -771,7 +766,7 @@ export function attachHitRouting(
           return;
         }
         setFinger(step.finger, event);
-        const armed = index != null && isArmed(step.finger, now);
+        const armed = over !== null && isArmed(step.finger, now);
         if (over !== phase.view.over || armed !== phase.view.armed) {
           phase.view = { ...phase.view, over, armed };
           emit(phase.view);
@@ -850,14 +845,14 @@ export function attachHitRouting(
         if (!phase.view.fingerDown) {
           // A tap on a chip left open: pick while the pointer is live.
           const over = itemAt(at);
-          if (typeof over === "number") router.choose(over, event.pointerType);
+          if (over !== null) router.choose(over, event.pointerType);
           return;
         }
         if (event.pointerId !== phase.pointerId) return;
         stop(event);
         setFinger(AWAY, event);
         const over = itemAt(at);
-        if (typeof over === "number") {
+        if (over !== null) {
           router.choose(over, event.pointerType);
           return;
         }
@@ -868,7 +863,6 @@ export function attachHitRouting(
           fingerDown: false,
           over: null,
           armed: false,
-          page: over === "more" ? phase.view.page + 1 : phase.view.page,
         };
         emit(phase.view);
         return;
@@ -953,7 +947,7 @@ export function attachHitRouting(
     // A chip's or create item's own press needs its click.
     if (
       event.target instanceof Element &&
-      event.target.closest(`[${CHOOSER_ITEM_ATTR}],[${CREATE_ITEM_ATTR}]`)
+      event.target.closest(`[${TARGET_ID_ATTR}],[${CREATE_ITEM_ATTR}]`)
     ) {
       return;
     }
@@ -1133,7 +1127,6 @@ export function attachHitRouting(
         view: {
           origin,
           hits,
-          page: 0,
           fingerDown: true,
           over: null,
           armed: false,
@@ -1169,16 +1162,6 @@ export function attachHitRouting(
       if (element instanceof HTMLElement || element instanceof SVGElement) {
         element.focus({ preventScroll: true });
       }
-    },
-    nextPage() {
-      if (phase.kind !== "open") return;
-      phase.view = {
-        ...phase.view,
-        page: phase.view.page + 1,
-        over: null,
-        armed: false,
-      };
-      emit(phase.view);
     },
     openCreate(origin, surface) {
       if (phase.kind !== "idle" && phase.kind !== "create") return false;

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CreateMenu, type CreateMenuProps } from "../stages/edit/CreateMenu";
+import type { Bounds } from "../stages/edit/createMenuLayout";
 import type { CreateRowId } from "../stages/edit/createMenuRows";
 import { useDawStore } from "../state/dawStore";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
 import { useTopLayerPanel } from "../ui/useTopLayerPanel";
 import { formatTime } from "../utils/time";
-import type { ChooserBounds } from "./chooserLayout";
 import {
   createAnnouncement,
   createMenuRowsFor,
@@ -22,7 +22,7 @@ export interface TimelineCreateMenuProps {
   place: CreateMenuPlace;
   router: HitRouter;
   /** The timeline's visible box; the menu stays inside it. */
-  bounds: ChooserBounds;
+  bounds: Bounds;
   /** The fixed playhead's x, which the popover sits beside; the phone Sheet ignores it. */
   avoidX: number | null;
   /** The phone shell: the rows show in a bottom Sheet instead of at the finger. */
@@ -34,7 +34,13 @@ export interface TimelineCreateMenuProps {
  * have made is swallowed by the router's close. A right click outside closes
  * it without the native menu opening.
  */
-function Scrim({ router, phone }: { router: HitRouter; phone: boolean }) {
+export function Scrim({
+  router,
+  phone,
+}: {
+  router: HitRouter;
+  phone: boolean;
+}) {
   return (
     <div
       role="presentation"

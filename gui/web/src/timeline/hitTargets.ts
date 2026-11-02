@@ -53,7 +53,7 @@ export const HIT_SURFACE_PROPS = { [SURFACE_ATTR]: "" } as const;
 
 /**
  * A surface whose tap is its own (a pending region selects its edit, the
- * envelope selects its track), so a finger's tap on it never redirects to a
+ * envelope strip adds a point), so a finger's tap on it never redirects to a
  * join glyph or chip beside it.
  */
 export const OWN_TAP_HIT_SURFACE_PROPS = {
@@ -110,9 +110,7 @@ function readTarget(element: Element): DomTarget | null {
     rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
     selected:
       element.getAttribute("data-hit-selected") === "true" ||
-      (kind !== "envelope-line" &&
-        !surfaceTapReach(kind) &&
-        element === document.activeElement),
+      (!surfaceTapReach(kind) && element === document.activeElement),
   };
 }
 
