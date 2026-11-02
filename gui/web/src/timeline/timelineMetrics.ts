@@ -213,7 +213,6 @@ export function markerLaneRow(
   );
 }
 
-/** Marker lane height: the marker lane's row, plus one when clipping flags show. */
 export function markerLaneHeight(
   rows: MarkerRows,
   fit: LaneFit = { kind: "pointer" },

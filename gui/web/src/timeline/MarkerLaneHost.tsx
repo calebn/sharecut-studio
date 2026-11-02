@@ -54,27 +54,21 @@ export interface MarkerLaneHostProps {
   comments: readonly TimelineComment[];
   showMarkers: boolean;
   showComments: boolean;
-  /** Ids of the selected markers, as `laneMarkers` names them. */
   selected: readonly string[];
   zoomPxPerSec: number;
   width: number;
   duration: number;
-  /** False hides the system lane (a short touch screen with nothing marked), see `markerLaneRow`. */
   laneRow: boolean;
-  /** A guest selects markers but cannot move them. */
   readOnly: boolean;
-  /** A chapter moved: the chapter it started from, its new time. */
   onMoveChapter?: (
     chapter: ChapterMarker,
     nextTime: number,
   ) => void | Promise<void>;
-  /** A social clip moved or resized: new bounds. */
   onMoveSocial?: (
     id: string,
     start: number,
     end: number,
   ) => void | Promise<void>;
-  /** A chapter named on the lane (double-click on an empty part). Left out, the lane cannot add. */
   onAddChapter?: (seconds: number, title: string) => void | Promise<void>;
   clippingFlags?: readonly ClippingFlag[];
   onSelectChapter: (chapter: ChapterMarker) => void;
@@ -83,7 +77,6 @@ export interface MarkerLaneHostProps {
   onSelectClipping?: (flag: ClippingFlag) => void;
 }
 
-/** The system marker lane over the project's chapters, social clips and comments, plus the clipping row. */
 export function MarkerLaneHost({
   chapters,
   socialClips,
