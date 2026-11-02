@@ -95,10 +95,13 @@ export async function showEnvelope(page: Page) {
 
 /** Focuses the strip along the envelope line (of `scope`'s first lane): its centre is the menu's anchor. */
 export async function focusLineStrip(scope: Page | Locator) {
-  await scope.locator(".sys-env-band").first().evaluate((strip) => {
-    strip.setAttribute("tabindex", "-1");
-    (strip as SVGElement).focus();
-  });
+  await scope
+    .locator(".sys-env-band")
+    .first()
+    .evaluate((strip) => {
+      strip.setAttribute("tabindex", "-1");
+      (strip as SVGElement).focus();
+    });
 }
 
 /**

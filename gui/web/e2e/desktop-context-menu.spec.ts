@@ -1,8 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { STUDIO_AXE_DISABLED_RULES } from "./axe";
-import { layer } from "./lifecycleAudit";
 import { focusLineStrip } from "./envelopeCreationEvidence";
+import { layer } from "./lifecycleAudit";
 import { openHostProject } from "./overlayReachability";
 
 /*

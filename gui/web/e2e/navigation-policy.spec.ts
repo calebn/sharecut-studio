@@ -260,9 +260,7 @@ test("F09 a viewer link shows no envelope points and posts no document command",
         });
         await openGuestShare(guest, token);
         await expect(guest.getByRole("main", { name: "Review" })).toBeVisible();
-        await expect(
-          guest.locator(".sys-env-point"),
-        ).toHaveCount(0);
+        await expect(guest.locator(".sys-env-point")).toHaveCount(0);
         expect(commands).toEqual([]);
       } finally {
         await context.close();
