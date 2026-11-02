@@ -99,6 +99,9 @@ MAX_CANDIDATES = 16
 # nearest such candidate is taken at once. Otherwise the candidates are ranked by how far the
 # loudest peer rises above its floor, quietest first.
 PEER_QUIET_DB = 3.0
+# Each ranked run keeps its best window. Ranking stops after this many runs have a passing
+# window: each window read costs every peer's file, so a run measured above PEER_QUIET_DB may
+# cost up to four reads (see ``_window_offsets``) before the next run is tried.
 MAX_RANKED = 4
 # A bed is checked in windows this long, hopping by half: a burst of speech in a long
 # bed must not be averaged away by the steady room around it. A usable run shorter than
@@ -943,9 +946,9 @@ def _pick_sample(
     unreadable = 0
     passed: list[tuple[float, int, Sample]] = []
     for order, run in enumerate(runs[:MAX_CANDIDATES]):
-        best_excess = math.inf
+        best: tuple[float, Sample] | None = None
         for index, window in enumerate(_window_offsets(run, near_sec, duration_sec)):
-            if index and (not PEER_QUIET_DB < best_excess < math.inf or len(passed) >= MAX_RANKED):
+            if index and (best is None or not PEER_QUIET_DB < best[0] < math.inf):
                 break
             sample = _measure(track, window)
             if sample is None:
@@ -962,10 +965,12 @@ def _pick_sample(
             if failed is None:
                 if excess <= PEER_QUIET_DB:
                     return OwnQuietSample(sample)
-                best_excess = min(best_excess, excess)
-                passed.append((excess, order, sample))
+                if best is None or excess < best[0]:
+                    best = (excess, sample)
             elif failed not in rejected:
                 rejected.append(failed)
+        if best is not None:
+            passed.append((best[0], order, best[1]))
         if len(passed) >= MAX_RANKED:
             break
     if passed:
