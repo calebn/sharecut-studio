@@ -211,3 +211,65 @@ def test_an_untimed_word_reads_through_one_offset(tmp_path: Path) -> None:
     assert [lane.session_span(s, s + 0.4) for s in (1.0, 5.0, 9.2)] == pytest.approx(
         [(6.0, 6.4), (10.0, 10.4), (14.2, 14.6)]
     )
+
+
+@pytest.mark.parametrize(
+    ("window", "first_source", "first_timeline"),
+    [
+        ((9.0, 12.0), 4.0, 2.0),
+        ((9.5, 100.0), 4.0, 1.5),
+        ((7.0, 100.0), 2.0, 0.0),
+        ((11.0, 100.0), 4.0, 0.0),
+        ((9.0, 100.0), 4.0, 2.0),
+    ],
+)
+def test_extract_places_a_window_opening_in_a_hole_at_the_next_piece(
+    window: tuple[float, float], first_source: float, first_timeline: float
+) -> None:
+    clip = _clip(_timing())
+
+    got = extract_clips_in_timeline_range([clip], *window)
+
+    assert (got[0].source_start, got[0].timeline_start) == pytest.approx(
+        (first_source, first_timeline)
+    )
+
+
+def test_a_timed_peer_clip_is_laid_out_once_per_piece_in_a_removal(tmp_path: Path) -> None:
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.edits.speech_energy_guard import _removal_cells
+    from podcast_mcp.models import MediaAsset
+
+    timing = ClipTiming(steps=[TimingStep(at=4.0, delta_sec=2.0)])
+    project = _project(tmp_path, _clip(timing))
+    track = project.track_by_id("host")
+    track.media = MediaAsset(path="raw/h.wav", duration_sec=60, sample_rate=16_000, channels=1)
+
+    got = _removal_cells(
+        project, "host", 0.0, 60.0, None, removal_span=(12.0, 13.0), defaults=load_defaults()
+    )
+
+    assert got.sole == [(round(12.0 * got.rate), round(13.0 * got.rate))]
+    assert got.shared == []
+    assert [(run.dest, run.length) for run in got.runs] == [(got.sole[0][0], got.rate)]
+    assert got.runs[0].first == round(5.0 * got.rate)
+
+
+def test_an_untimed_peer_clip_removal_is_one_stretch(tmp_path: Path) -> None:
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.edits.speech_energy_guard import _removal_cells
+    from podcast_mcp.models import MediaAsset
+
+    project = _project(tmp_path, _clip(None))
+    project.track_by_id("host").media = MediaAsset(
+        path="raw/h.wav", duration_sec=60, sample_rate=16_000, channels=1
+    )
+
+    got = _removal_cells(
+        project, "host", 0.0, 60.0, None, removal_span=(7.0, 8.0), defaults=load_defaults()
+    )
+
+    assert got.sole == [(7 * got.rate, 8 * got.rate)]
+    assert [(r.dest, r.first, r.length) for r in got.runs] == [
+        (7 * got.rate, 2 * got.rate, got.rate)
+    ]
