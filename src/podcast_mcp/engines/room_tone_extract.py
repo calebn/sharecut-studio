@@ -196,7 +196,7 @@ def _write_excerpt(source: Path, dest: Path, start: float, end: float) -> str | 
     try:
         FFmpegEngine().extract_segment(source, temp, start, end)
         sha = sha256_file(temp)
-        with temp.open("rb") as handle:
+        with temp.open("r+b" if os.name == "nt" else "rb") as handle:
             os.fsync(handle.fileno())
         try:
             os.link(temp, dest)
