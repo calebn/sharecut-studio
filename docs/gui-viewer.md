@@ -640,7 +640,7 @@ Passes 0–8: History Undo/Redo, pending Approve/Reject (bulk + nudge), applied 
 2. **Volume envelope** — volume automation polyline from `envelopes[]` (toggle)  
 3. **Pending edits** — applied edits draw as narrow, non-interactive seam/edge ticks with a
    top notch (a mute record's notch takes the mute hue, `--color-mark-mute`), above the clips (`.applied-edit-layer`, z above `.clip-block`; dense
-   stacks are non-interactive for WCAG 2.5.8). A cut's join glyph also selects the applied record behind it (`TrackLane.onSelectJoin`, the nearest seam within 20 ms on that track), so the seam action bar opens from the lane; a cut with no applied record there, and any fade or crossfade join, leaves the selection as it was. They are projected client-side
+   stacks are non-interactive for WCAG 2.5.8). A cut's join glyph also selects the applied record behind it (`TrackLane.onSelectJoin`, the nearest seam within 20 ms on that track), so the seam action bar opens from the lane; a join with no applied cut under it leaves the selection as it was. They are projected client-side
    through the lane's current clips (`timeline/appliedEditTicks.ts`, #527), so
    later ripples, trims and splits move a tick to the post-edit join instead of
    drawing the record's stale pre-edit range. Records that no longer map to a
