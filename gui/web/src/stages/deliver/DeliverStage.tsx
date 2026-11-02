@@ -335,6 +335,15 @@ export function DeliverStage({
     );
   };
   const sharedState = loading ? "loading" : "ready";
+  const transcriptPart = transcript ? (
+    <TranscriptSection
+      options={transcript}
+      files={files}
+      filesRunning={exporting}
+      state={sharedState}
+      compact={phone}
+    />
+  ) : null;
   const chaptersPart = (
     <ChaptersList
       chapters={chapters}
@@ -419,15 +428,6 @@ export function DeliverStage({
               onGetModel={onGetModel}
               onCancel={onCancel}
             />
-            {transcript ? (
-              <TranscriptSection
-                options={transcript}
-                files={files}
-                filesRunning={exporting}
-                state={sharedState}
-                compact={phone}
-              />
-            ) : null}
             {bounce ? (
               <BounceSection options={bounce} state={sharedState} />
             ) : null}
@@ -435,6 +435,7 @@ export function DeliverStage({
               <>
                 {chaptersPart}
                 {clipsPart}
+                {transcriptPart}
               </>
             )}
           </div>
@@ -466,6 +467,7 @@ export function DeliverStage({
           <>
             {chaptersPart}
             {clipsPart}
+            {transcriptPart}
           </>
         ) : null}
       </section>

@@ -43,8 +43,9 @@ Outputs land in `{workspace}/export/bounces/`.
 ## Notes
 
 - Deliver keeps the starting Bounce controls reachable while Transcript loads.
-  A scroll or navigation input hands the page back to the reader; leaving the
-  stage does not stop the job.
+  The whole Transcript section follows Bounce, Chapters and Clips in the current
+  desktop and phone flows; native scrolling stays under the reader's control.
+  Leaving the stage does not stop the job.
 
 - Studio selected-range Bounce opens the normal configuration with a fixed exact
   target. It exports selected occurrences/lanes and preserves silent gaps between

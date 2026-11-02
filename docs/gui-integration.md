@@ -156,13 +156,16 @@ job ID still matches the running job. The current job keeps its pending
 cancellation when an older reply fails; its own failure shows the error and
 permits another attempt.
 
-Deliver's explicit Bounce activation temporarily seeds native page anchoring
-around the active section. The first scroll or navigation input restores owned
-prior styles. The seed writes no scroll position, moves no focus and does not
-rearm for background progress or on return to the stage. Its regression holds
-the real Transcript dry-run response until after the running row has appeared
-above the retained disabled Bounce button, then checks Cancel and its startup
-reason against both the page clip and the viewport.
+Deliver renders the whole asynchronous Transcript section after Bounce, Chapters
+and Clips: inside the existing left column on desktop, and after the phone's
+outside-column Chapters and Clips. This moves Transcript later than the earlier
+shipped order so its loading and preview growth no longer inserts content above
+those controls. The section keeps its existing state, files and compact preview.
+Bounce starts through its existing command, without a native anchoring lease or
+scroll writes. The original disabled Bounce button remains below the running
+row. Application qualification holds the real Transcript dry-run response until
+after that insertion, then checks Cancel and its startup reason against both
+the page clip and viewport, and checks reading position after deliberate departure.
 
 ## MCP progress
 

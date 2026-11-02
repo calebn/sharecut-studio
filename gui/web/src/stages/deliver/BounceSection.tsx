@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { ModelGateHint, ModelGatePanel } from "../../models";
 import { Skeleton } from "../../system/Skeleton";
 import { StatusRow } from "../../system/StatusRow";
@@ -26,72 +26,6 @@ const SOURCES: readonly { id: BounceSource; label: string }[] = [
   { id: "soloed", label: "Soloed tracks" },
 ];
 
-function seedNativeAnchor(section: HTMLElement): (() => void) | null {
-  const page = section.closest<HTMLElement>(".dv-page");
-  const stage = page?.closest<HTMLElement>(".dv-stage");
-  if (!page || !stage) return null;
-  const previous = new Map<HTMLElement, { value: string; priority: string }>();
-  let branch = section;
-  while (branch !== page && branch.parentElement) {
-    const parent = branch.parentElement;
-    for (const sibling of parent.children) {
-      if (!(sibling instanceof HTMLElement) || sibling === branch) continue;
-      previous.set(sibling, {
-        value: sibling.style.getPropertyValue("overflow-anchor"),
-        priority: sibling.style.getPropertyPriority("overflow-anchor"),
-      });
-      sibling.style.setProperty("overflow-anchor", "none");
-    }
-    branch = parent;
-  }
-  let active = true;
-  const inputs = ["pointerdown", "wheel", "touchstart", "keydown"] as const;
-  const release = () => {
-    if (!active) return;
-    active = false;
-    page.removeEventListener("scroll", release, true);
-    for (const type of inputs) stage.removeEventListener(type, release, true);
-    stage.removeEventListener("focusin", leaveSection, true);
-    stage.removeEventListener("focusout", leaveStage, true);
-    for (const [element, prior] of previous) {
-      if (
-        element.style.getPropertyValue("overflow-anchor") !== "none" ||
-        element.style.getPropertyPriority("overflow-anchor") !== ""
-      )
-        continue;
-      if (prior.value)
-        element.style.setProperty(
-          "overflow-anchor",
-          prior.value,
-          prior.priority,
-        );
-      else element.style.removeProperty("overflow-anchor");
-    }
-    previous.clear();
-  };
-  const leaveSection = (event: FocusEvent) => {
-    if (
-      event.target instanceof Node &&
-      event.target !== stage &&
-      !section.contains(event.target)
-    )
-      release();
-  };
-  const leaveStage = (event: FocusEvent) => {
-    if (
-      event.relatedTarget instanceof Node &&
-      !stage.contains(event.relatedTarget)
-    )
-      release();
-  };
-  page.addEventListener("scroll", release, { capture: true, passive: true });
-  for (const type of inputs)
-    stage.addEventListener(type, release, { capture: true, passive: true });
-  stage.addEventListener("focusin", leaveSection, true);
-  stage.addEventListener("focusout", leaveStage, true);
-  return release;
-}
-
 /** A quick mixdown to `export/bounces/`: no mastering, no captions. */
 export function BounceSection({ options, state: pageState = "ready" }: Props) {
   const {
@@ -115,9 +49,6 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   const button = useRef<HTMLButtonElement>(null);
   const gatePanel = useRef<HTMLDivElement>(null);
   const clearRange = useRef<HTMLButtonElement>(null);
-  const anchor = useRef<{ release: () => void; sawRunning: boolean } | null>(
-    null,
-  );
   const asking = gate?.prompt != null;
   const state = asking ? IDLE : run;
   const running = state.phase === "running";
@@ -128,33 +59,6 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
   );
   const unavailable = blockedReason ?? blocker;
   const reason = useDisabledReasonNote(running ? undefined : unavailable);
-
-  const releaseAnchor = () => {
-    anchor.current?.release();
-    anchor.current = null;
-  };
-  const startBounce = () => {
-    releaseAnchor();
-    const section = button.current?.closest<HTMLElement>("section");
-    const release = section ? seedNativeAnchor(section) : null;
-    if (release) anchor.current = { release, sawRunning: false };
-    onBounce();
-  };
-  useLayoutEffect(
-    () => () => {
-      anchor.current?.release();
-      anchor.current = null;
-    },
-    [],
-  );
-  useLayoutEffect(() => {
-    const current = anchor.current;
-    if (!current) return;
-    if (pageState === "loading") releaseAnchor();
-    else if (running) current.sawRunning = true;
-    else if (current.sawRunning || state.phase !== "idle" || asking)
-      releaseAnchor();
-  });
 
   useEffect(() => {
     if (!asking) return;
@@ -319,7 +223,7 @@ export function BounceSection({ options, state: pageState = "ready" }: Props) {
               running ? BOUNCE_RUNNING_REASON : (unavailable ?? undefined)
             }
             {...reason.describedBy}
-            onClick={startBounce}
+            onClick={onBounce}
           >
             Bounce
           </Button>
