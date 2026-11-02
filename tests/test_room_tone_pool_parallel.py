@@ -85,6 +85,19 @@ def test_each_recording_is_measured_once_by_the_background_thread(
     assert sorted(p.name for p in calls) == ["guest.wav", "host.wav"]
 
 
+def test_recorded_pools_are_read_without_measuring_any_floor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _two_speakers(tmp_path)
+    room_tone.ensure_room_tone_pools(live, ["host", "guest"])
+    room_tone._track_floor.cache_clear()
+    calls = _slow_decode(monkeypatch)
+
+    room_tone.ensure_room_tone_pools(live, ["host", "guest"])
+
+    assert calls == []
+
+
 def test_a_request_during_the_background_recording_does_not_measure_the_floors_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
