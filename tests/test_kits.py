@@ -951,12 +951,14 @@ def test_the_kit_tool_is_in_the_timebase_registry() -> None:
 
 @pytest.mark.parametrize("changed", [False, True])
 @pytest.mark.parametrize("version", [None, 1])
+@pytest.mark.parametrize("populated", [False, True])
 def test_cli_import_refuses_duplicate_member_identity_before_library_writes(
     tmp_path: Path,
     library: tuple[str, str],
     monkeypatch: pytest.MonkeyPatch,
     changed: bool,
     version: int | None,
+    populated: bool,
 ) -> None:
     _, bundle = _export(tmp_path, library)
 
@@ -975,12 +977,23 @@ def test_cli_import_refuses_duplicate_member_identity_before_library_writes(
 
     ambiguous = _tampered(bundle, tmp_path / "duplicate.sharecutkit", duplicate)
     destination = tmp_path / "destination"
+    if populated:
+        kits, segments = _fresh(tmp_path, "destination")
+        segments_for(library, segments)
+        kits.add(_kit("Existing Kit", (library[0], "end")))
+    before = {
+        p.relative_to(destination): p.read_bytes() for p in destination.rglob("*") if p.is_file()
+    }
     monkeypatch.setenv("PODCAST_CONFIG_DIR", str(destination))
 
     refused = runner.invoke(app, ["kit", "import", str(ambiguous), "--json"])
 
     assert _code(refused) == "kit_bundle_invalid"
-    assert not destination.exists()
+    assert before == {
+        p.relative_to(destination): p.read_bytes() for p in destination.rglob("*") if p.is_file()
+    }
+    if not populated:
+        assert not destination.exists()
 
 
 def test_import_preserves_repeated_entries_for_one_shared_member(tmp_path: Path) -> None:
@@ -1005,3 +1018,30 @@ def test_import_preserves_repeated_entries_for_one_shared_member(tmp_path: Path)
     assert kits.get(kit.id).entries == kit.entries
     assert again.kit.status == "unchanged"
     assert [result.status for result in again.segments] == ["unchanged"]
+
+
+def test_import_preserves_distinct_bundled_versions_of_one_segment(tmp_path: Path) -> None:
+    first = _save(tmp_path, "Versioned Intro")
+    folder = tmp_path / f"build-{first.id}"
+    second = first.model_copy(update={"fader_db": -9.0})
+    (folder / SEGMENT_JSON).write_text(segment_json(second), encoding="utf-8")
+    assert SegmentStore().add(folder).version == 2
+    kit = KitFile(
+        id=kit_id_for("Versioned Kit"),
+        name="Versioned Kit",
+        entries=[
+            KitEntry(segment_id=first.id, version=1, at="start"),
+            KitEntry(segment_id=first.id, version=2, at="end"),
+            KitEntry(segment_id=first.id, at=3),
+        ],
+    )
+    KitStore().add(kit)
+    bundle = export_kit(KitStore(), SegmentStore(), kit.id, tmp_path / "versions.sharecutkit")
+    kits, segments = _fresh(tmp_path, "versions-destination")
+
+    result = import_kit_bundle(kits, segments, bundle)
+
+    assert [added.version for added in result.segments] == [1, 2]
+    assert kits.get(kit.id).entries == kit.entries
+    assert segments.get(first.id, 1).fader_db == -3.0
+    assert segments.get(first.id, 2).fader_db == -9.0
