@@ -46,6 +46,11 @@ test.describe("Applied-edit seam ticks", () => {
         const box = await ticks.nth(i).boundingBox();
         expect(box?.width ?? 0).toBeLessThanOrEqual(3);
       }
+      // A cut's join glyph also selects the applied record behind it.
+      await lanes.first().locator(".edit-mark").first().click();
+      await expect(lanes.first().locator(".applied-tick.selected")).toHaveCount(
+        1,
+      );
       const after = await scroll.evaluate((el) => el.scrollWidth);
       expect(after).toBeLessThanOrEqual(base + 1);
     } finally {

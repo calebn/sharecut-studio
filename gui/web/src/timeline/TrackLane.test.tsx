@@ -63,6 +63,7 @@ const baseProps = {
   appliedRecords: [],
   pendingEdits: [],
   onSelectPending: vi.fn(),
+  onSelectApplied: vi.fn(),
 };
 
 describe("TrackLane", () => {
