@@ -113,6 +113,8 @@ test.describe("Clip inspector fade controls", () => {
         return false;
       }
     });
+    // A Scrub value owns its keys, so Undo needs a focus that is not a field.
+    await page.getByRole("button", { name: "Close", exact: true }).focus();
     await page.keyboard.press("ControlOrMeta+Z");
     const undo = await undoRequest;
     expect(undo.postDataJSON()).toMatchObject({ type: "UndoHistory" });
