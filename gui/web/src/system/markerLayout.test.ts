@@ -299,3 +299,101 @@ describe("layoutMarkers", () => {
     });
   });
 });
+
+const effective = (item: ReturnType<typeof layoutMarkers>[number]) => ({
+  from: item.left - item.reachStart,
+  to: item.right + item.reachEnd,
+});
+
+describe("layoutMarkers target reach", () => {
+  const kinds: readonly ((id: string, at: number) => LaneMarker)[] = [
+    (id, at) => ({ kind: "chapter", id, start: at, title: "Chapter" }),
+    (id, at) => ({ kind: "clip", id, start: at, end: at + 1, title: "Clip" }),
+    (id, at) => ({ kind: "comment", id, start: at, author: "Pin" }),
+    (id, at) => ({
+      kind: "comment",
+      id,
+      start: at,
+      end: at + 1,
+      author: "Span",
+    }),
+  ];
+
+  it.each([16, 24, 32])(
+    "never lets two mixed neighbours share a hit pixel at a %i px root",
+    (root) => {
+      for (const first of kinds) {
+        for (const second of kinds) {
+          for (const gap of [0, 8, 14, 20, 28, 40, 60, 90]) {
+            const items = layoutMarkers(
+              [first("a", 40), second("b", 40 + gap)],
+              0,
+              1,
+              400,
+              undefined,
+              undefined,
+              root,
+            ).filter((item) => item.type === "marker");
+            if (items.length < 2) continue;
+            const [a, b] = items.map(effective);
+            expect(a.to).toBeLessThanOrEqual(b.from + 1e-9);
+          }
+        }
+      }
+    },
+  );
+
+  it.each([16, 32])(
+    "gives a point pin a full touch width whenever its neighbours are far enough at a %i px root",
+    (root) => {
+      const unit = root / 16;
+      const items = layoutMarkers(
+        [
+          { kind: "chapter", id: "left", start: 20, title: "L" },
+          { kind: "comment", id: "pin", start: 200, author: "Pin" },
+          { kind: "clip", id: "right", start: 380, end: 390, title: "R" },
+        ],
+        0,
+        1,
+        420,
+        undefined,
+        undefined,
+        root,
+      );
+      const pin = items.find(
+        (item) => item.type === "marker" && item.marker.id === "pin",
+      )!;
+      expect(pin.right - pin.left).toBe(16 * unit);
+      expect(effective(pin).to - effective(pin).from).toBe(44 * unit);
+    },
+  );
+
+  it("shares only the gap between a pin and its mixed neighbours, never more than half of it each", () => {
+    for (const root of [16, 32]) {
+      for (const gap of [10, 20, 30, 40]) {
+        const unit = root / 16;
+        const items = layoutMarkers(
+          [
+            { kind: "clip", id: "clip", start: 100, end: 110, title: "C" },
+            {
+              kind: "comment",
+              id: "pin",
+              start: 110 + gap * unit + 8 * unit,
+              author: "P",
+            },
+          ],
+          0,
+          1,
+          400,
+          undefined,
+          undefined,
+          root,
+        );
+        const [clip, pin] = items;
+        expect(pin.reachStart).toBeLessThanOrEqual(
+          (pin.left - clip.right) / 2 + 1e-9,
+        );
+      }
+    }
+  });
+});

@@ -549,10 +549,21 @@ export const MarkerLane = memo(function MarkerLane({
     [authoritativeMarkers],
   );
   const pinned = held?.id;
+  const rootFontPx =
+    Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
+    16;
   const items = useMemo(
     () =>
-      layoutMarkers(markers, start, pxPerSecond, width, pinned, stackButtons),
-    [markers, start, pxPerSecond, width, pinned, stackButtons],
+      layoutMarkers(
+        markers,
+        start,
+        pxPerSecond,
+        width,
+        pinned,
+        stackButtons,
+        rootFontPx,
+      ),
+    [markers, start, pxPerSecond, width, pinned, stackButtons, rootFontPx],
   );
 
   const left = () => root.current?.getBoundingClientRect().left ?? 0;
