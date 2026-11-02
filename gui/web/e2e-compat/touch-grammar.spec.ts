@@ -141,11 +141,14 @@ const open = (page: Page) => openWith(page, async () => undefined);
 const openWithGap = (page: Page) => openWith(page, () => splitGuestLane(page));
 
 async function expectBelowEnvelopeLine(page: Page, trackId: string, y: number) {
+  // The line is a zero-height path with no Playwright box; its strip is wider than it.
   const line = await page
-    .locator(`.lane-row[data-track-id="${trackId}"] .envelope-line-target`)
-    .boundingBox();
-  expect(line).not.toBeNull();
-  expect(y).toBeGreaterThan(line!.y + line!.height + TOUCH_HIT_RADIUS_PX);
+    .locator(`.lane-row[data-track-id="${trackId}"] .sys-env-line`)
+    .evaluate((path) => {
+      const box = path.getBoundingClientRect();
+      return { y: box.y, height: box.height };
+    });
+  expect(y).toBeGreaterThan(line.y + line.height + TOUCH_HIT_RADIUS_PX);
 }
 
 async function expectClipAt(page: Page, selector: string, at: Point) {
