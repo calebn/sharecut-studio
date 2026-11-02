@@ -125,7 +125,7 @@
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas ruler height */
   --ruler-height: 24px;
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas marker lane height */
-  --marker-lane-height: 72px;
+  --marker-lane-height: 48px;
   /* Clip top inset inside a lane: the top gutter an edit marker fills, so a
      12 px glyph clears the fade corners. The bottom inset stays 8 px, so a
      clip loses 4 px of height, not 8. px like --lane-height, so both hold at

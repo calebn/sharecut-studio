@@ -53,7 +53,7 @@ const COVERED: Record<string, string[]> = {
   "CMP-SAVEDOT": ["System/SaveIndicator"],
   "CMP-RULER": ["System/Ruler"],
   "CMP-MARKERS": [
-    "Templates/MarkerLane",
+    "Templates/MarkerLaneHost",
     "System/ReadoutChip",
     "System/Marker",
     "System/MarkerLane",

@@ -5,16 +5,6 @@ import { registerCommand } from "./execute";
 import { hostProjectGate } from "./host";
 import type { ExecuteResult } from "./types";
 
-/**
- * `edit.addChapter`: the plus menu and the touch create menu (`{ atTime }`,
- * the held time; else the playhead) share this one implementation.
- * Single-flight via the store's `chapterAddPending` flag rather
- * than a module ref, so a menu unmounting/remounting the control mid-add
- * still sees it pending. Guarded by `projectEpoch`: a settled add whose
- * project has since changed (hydrate resets `chapterAddPending` and bumps
- * the epoch) must not select, announce, or clear the new project's flag.
- * Turns the Markers layer on so the new chapter is visible.
- */
 export function registerChapterCommands(): void {
   registerCommand(
     "edit.addChapter",
@@ -22,6 +12,12 @@ export function registerChapterCommands(): void {
       const blocked = hostProjectGate(ctx);
       if (blocked) {
         return blocked;
+      }
+      if (
+        "title" in args &&
+        (typeof args.title !== "string" || args.title.trim() === "")
+      ) {
+        return { status: "disabled", reason: "Chapter name is required" };
       }
       const store = useDawStore.getState();
       if (store.chapterAddPending) {
@@ -36,7 +32,10 @@ export function registerChapterCommands(): void {
       } = useDawStore.getState();
       const at = Number(args.atTime);
       const atSec = args.atTime != null && Number.isFinite(at) ? at : playhead;
-      const title = `Chapter ${atSec.toFixed(1)}s`;
+      const title =
+        typeof args.title === "string"
+          ? args.title.trim()
+          : `Chapter ${atSec.toFixed(1)}s`;
       const sameProject = () =>
         useDawStore.getState().projectEpoch === projectEpoch;
       useDawStore

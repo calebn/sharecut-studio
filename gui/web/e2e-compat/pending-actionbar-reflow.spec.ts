@@ -60,7 +60,7 @@ async function cardTop(page: Page): Promise<number> {
   return (await boxOf(page.locator(".pending-actionbar"))).top;
 }
 
-test("pending card: a marker lane that grows while it floats moves the card clear of the lane", async ({
+test("pending card: a marker added while it floats leaves the one-row lane where it was and the card clear of it", async ({
   page,
 }) => {
   test.setTimeout(40_000);
@@ -84,12 +84,14 @@ test("pending card: a marker lane that grows while it floats moves the card clea
     },
     projectPath,
   );
-  await expect
-    .poll(async () => (await chromeBoxes(page)).marker.bottom)
-    .toBeGreaterThan(before.marker.bottom + 1);
+  await expect(
+    page.locator('.sys-marker[data-kind="comment"]').first(),
+  ).toBeVisible();
+  expect((await chromeBoxes(page)).marker.bottom).toBeCloseTo(
+    before.marker.bottom,
+    0,
+  );
 
-  // No scroll and no resize since the lane grew: the card must follow the
-  // lane's floor and keep clear of the region the lane pushed down.
   await expect
     .poll(async () => {
       const { ruler, marker } = await chromeBoxes(page);

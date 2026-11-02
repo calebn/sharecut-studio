@@ -435,6 +435,7 @@ export const AboveMarkers: Story = {
         <>
           <MarkerLane
             markers={ALL_KINDS}
+            authoritativeMarkers={ALL_KINDS}
             start={start}
             pxPerSecond={pxPerSecond}
             width={width}
@@ -465,6 +466,7 @@ export const Phone: Story = {
       below={(width, start, pxPerSecond) => (
         <MarkerLane
           markers={[]}
+          authoritativeMarkers={[]}
           start={start}
           pxPerSecond={pxPerSecond}
           width={width}

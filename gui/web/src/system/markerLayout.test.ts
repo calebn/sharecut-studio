@@ -18,10 +18,72 @@ const summary = (items: ReturnType<typeof layoutMarkers>) =>
   );
 
 describe("layoutMarkers", () => {
+  it("leaves a full point-comment target before optional chapter text", () => {
+    const items = layoutMarkers(
+      [
+        {
+          kind: "chapter",
+          id: "chapter",
+          start: 6,
+          title: "Independent chapter",
+        },
+        { kind: "comment", id: "comment", start: 25, author: "Verifier" },
+      ],
+      0,
+      5,
+      360,
+    );
+    const chapter = items.find(
+      (item) => item.type === "marker" && item.marker.id === "chapter",
+    )!;
+    const comment = items.find(
+      (item) => item.type === "marker" && item.marker.id === "comment",
+    )!;
+    expect(
+      comment.right - comment.left + comment.reachStart + comment.reachEnd,
+    ).toBe(44);
+    expect(chapter.right + chapter.reachEnd).toBeLessThanOrEqual(
+      comment.left - comment.reachStart,
+    );
+    expect(chapter.right - chapter.left).toBeGreaterThanOrEqual(44);
+  });
+
+  it("uses the real stack ownership before Dee without changing the hidden identities", () => {
+    const markers: LaneMarker[] = [
+      { kind: "comment", id: "a", start: 5, author: "Ada" },
+      { kind: "comment", id: "b", start: 5, author: "Ben" },
+      { kind: "comment", id: "c", start: 5, author: "Cy" },
+      { kind: "comment", id: "d", start: 20, author: "Dee" },
+      { kind: "comment", id: "e", start: 30, author: "Eli" },
+    ];
+    const sizes = new Map([
+      ["b", { count: 2, width: 32.40625, borderStart: 1, borderEnd: 1 }],
+    ]);
+    const items = layoutMarkers(markers, 0, 304 / 60, 304, undefined, sizes);
+    const stack = items.find((item) => item.type === "stack")!;
+    const dee = items.find(
+      (item) => item.type === "marker" && item.marker.id === "d",
+    )!;
+    const eli = items.find(
+      (item) => item.type === "marker" && item.marker.id === "e",
+    )!;
+    expect(
+      stack.type === "stack" && stack.hidden.map((marker) => marker.id),
+    ).toEqual(["b", "c"]);
+    expect(dee.right - dee.left + dee.reachStart + dee.reachEnd).toBe(44);
+    expect(eli.right - eli.left + eli.reachStart + eli.reachEnd).toBe(44);
+    const stackOwnedEnd =
+      stack.left + 32.40625 + Math.max(0, stack.reachEnd - 1);
+    expect(stackOwnedEnd).toBeLessThanOrEqual(dee.left - dee.reachStart);
+    expect(dee.right + dee.reachEnd).toBeLessThanOrEqual(
+      eli.left - eli.reachStart,
+    );
+  });
+
   it("puts each kind where its drawing sits and reaches half the gap to a neighbour, 14 px at most", () => {
     expect(summary(layoutMarkers(ALL, 0, 6, 360))).toEqual([
-      ["a", 6, 46, 3, 0],
-      ["b", 46, 62, 0, 11],
+      ["a", 6, 22, 3, 12],
+      ["b", 46, 62, 12, 11],
       ["c", 84, 117, 11, 13.5],
       ["d", 144, 180, 13.5, 0],
       ["e", 180, 252, 0, 12],
@@ -34,7 +96,7 @@ describe("layoutMarkers", () => {
       (i) => i.type === "marker" && i.marker.kind === "chapter",
     );
     expect(chapters.map((i) => i.type === "marker" && i.titleEnd)).toEqual([
-      46, 180,
+      22, 180,
     ]);
     const last = layoutMarkers([ALL[3] as LaneMarker], 0, 6, 360);
     expect(last[0]).toMatchObject({ left: 144, titleEnd: 360 });
@@ -171,8 +233,8 @@ describe("layoutMarkers", () => {
     ];
     expect(summary(layoutMarkers(wide, 0, 6, 1500))).toEqual([
       ["d", 720, 1620, 14, 0],
-      ["a", 1080, 1252, 14, 0],
-      ["c", 1252, 1268, 0, 14],
+      ["a", 1080, 1224, 14, 14],
+      ["c", 1252, 1268, 14, 14],
       ["b", 1440, 1500, 14, 0],
     ]);
   });

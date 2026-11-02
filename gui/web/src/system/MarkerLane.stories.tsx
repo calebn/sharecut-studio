@@ -31,6 +31,7 @@ const meta: Meta<typeof MarkerLane> = {
   tags: ["autodocs"],
   args: {
     markers: ALL_KINDS,
+    authoritativeMarkers: ALL_KINDS,
     start: 0,
     pxPerSecond: 6,
     width: 360,
@@ -51,7 +52,7 @@ const meta: Meta<typeof MarkerLane> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The marker lane (design-system element 18a): one 24 px lane for chapters, comments and social clips, on plain data and the same `start`, `pxPerSecond` and `width` as the ruler above it. A chapter is a 12 px flag in the chapter token with its title inline, cut off at the next marker. A comment is a 16 px speech-bubble pin with the author's initial, and a range comment adds a 3 px bar. A social clip is a `[ ]` bracket pair in the social token joined by a 2 px line, hatched while proposed. Hover or focus shows the title and time. Markers whose drawings overlap fold into one: the earliest stays and a `+N` chip after it opens a list of the rest.\n\nA click or Enter selects (`onSelect(id, additive)`). A drag on a chapter, on a bracket, or on a bracket's edge moves it: `onDragStart` (return `false` to refuse), `onDrag` with the pointer, Shift, Alt and the seconds moved, and `onDragEnd`, which reports `committed: false` for Escape, a window blur, `pointercancel`, a lost capture or the marker leaving the lane. The lane draws a readout chip from the marker's current time, so a host that snaps shows the snapped time. A double-click on an empty part of the lane asks for a chapter (`onAdd`); the host then passes `adding` and the lane shows the name field, which commits on Enter (`onAddCommit`) and cancels on Escape (`onAddCancel`). A guest cannot drag or add.\n\nTab walks the markers in time order. Left and Right on a selected chapter or bracket nudge it 0.1 s (Shift 1 s) with `onNudge` and `onNudgeEnd`; Alt with Left or Right walks a selected bracket's focus to its edge sliders. Delete is the host's.\n\nUnder a coarse pointer a marker's touch area is 44 px wide and the lane's full 24 px tall, reaching only half the gap to its neighbour so it never covers the ruler above, the lanes below or another marker. A finger grabs a selected marker only; on an unselected one it pans the lane.\n\n**Motion.** None. Selection and the tip appear without easing.",
+          "The marker lane (design-system element 18a): one 24 px lane for chapters, comments and social clips, on plain data and the same `start`, `pxPerSecond` and `width` as the ruler above it. A chapter is a 12 px flag in the chapter token with its title inline, cut before the next marker while leaving room for a following point pin. A comment is a 16 px speech-bubble pin with the author's initial, and a range comment adds a 3 px bar. A social clip is a `[ ]` bracket pair in the social token joined by a 2 px line, hatched while proposed. Hover or focus shows the title and time. Markers whose drawings overlap fold into one: the earliest stays and a `+N` chip after it opens a list of the rest.\n\nA click or Enter selects (`onSelect(id, additive)`). A drag on a chapter, on a bracket, or on a bracket's edge moves it: `onDragStart` (return `false` to refuse), `onDrag` with the pointer, Shift, Alt and the seconds moved, and `onDragEnd`, which reports `committed: false` for Escape, a window blur, `pointercancel`, a lost capture or the marker leaving the lane. The lane draws a readout chip from the marker's current time, so a host that snaps shows the snapped time. A double-click on an empty part of the lane asks for a chapter (`onAdd`); the host then passes `adding` and the lane shows the name field, which commits on Enter (`onAddCommit`) and cancels on Escape (`onAddCancel`). A guest cannot drag or add.\n\nTab walks the markers in time order. Left and Right on a selected chapter or bracket nudge it 0.1 s (Shift 1 s) with `onNudge` and `onNudgeEnd`; Alt with Left or Right walks a selected bracket's focus to its edge sliders. Delete is the host's.\n\nThe coarse-pointer target requirement is 44 px horizontally and the lane's full 24 px height. Chapter text leaves room for point pins; reach beside a +N chip uses its measured button and allocated input bounds. Other crowded neighbours share the available gap under the existing dense-target exception. Overlapping marker input at 32 px root text remains an unresolved supported-setting defect. A finger grabs a selected marker only; on an unselected one it pans the lane.\n\n**Motion.** None. Selection and the tip appear without easing.",
       },
     },
   },
@@ -119,12 +120,15 @@ function LiveLane({
   withRuler,
 }: LiveProps) {
   const [markers, setMarkers] = useState(first);
+  const [preview, setPreview] = useState<readonly LaneMarker[] | null>(null);
   const [selected, setSelected] = useState(selectedFirst);
   const [adding, setAdding] = useState(addingFirst);
   const origin = useRef<Origin>({ start: 0, end: 0 });
   const edit = (id: string, change: (marker: LaneMarker) => LaneMarker) =>
-    setMarkers((now) =>
-      now.map((marker) => (marker.id === id ? change(marker) : marker)),
+    setPreview((now) =>
+      (now ?? markers).map((marker) =>
+        marker.id === id ? change(marker) : marker,
+      ),
     );
   return (
     <div style={stage}>
@@ -143,7 +147,8 @@ function LiveLane({
             ) : null}
             <MarkerLane
               {...args}
-              markers={markers}
+              markers={preview ?? markers}
+              authoritativeMarkers={markers}
               selected={selected}
               start={view.start}
               pxPerSecond={view.pxPerSecond}
@@ -178,9 +183,8 @@ function LiveLane({
                 args.onDrag?.(id, grip, drag);
               }}
               onDragEnd={(id, grip, committed) => {
-                if (!committed) {
-                  edit(id, (marker) => moved(marker, grip, 0, origin.current));
-                }
+                if (committed && preview) setMarkers(preview);
+                setPreview(null);
                 args.onDragEnd?.(id, grip, committed);
               }}
               onNudge={(id, grip, seconds, nudge) => {
@@ -194,6 +198,11 @@ function LiveLane({
                   }),
                 );
                 args.onNudge?.(id, grip, seconds, nudge);
+              }}
+              onNudgeEnd={(id, grip, committed) => {
+                if (committed && preview) setMarkers(preview);
+                setPreview(null);
+                args.onNudgeEnd?.(id, grip, committed);
               }}
               onAdd={(seconds) => {
                 setAdding({ at: seconds });
