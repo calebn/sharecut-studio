@@ -293,7 +293,10 @@ def _read_cgroup_int(path: Path) -> int | None:
 
 
 def _own_cgroup_dirs(root: Path) -> list[Path]:
-    """This process's cgroup v2 directory and every ancestor up to the root, innermost first."""
+    """This process's cgroup v2 directory and every ancestor up to the root, innermost first.
+
+    Only the root when the own group cannot be read or has no usable v2 line.
+    """
     try:
         lines = _SELF_CGROUP.read_text(encoding="ascii").splitlines()
     except (OSError, ValueError):
@@ -309,7 +312,8 @@ def _cgroup_headroom_bytes() -> int | None:
     """Bytes left under the tightest memory limit above this process; None when unlimited.
 
     cgroup v2 reads the process's own group and every ancestor, because a limit can sit on
-    any of them; v1 reads the root of the memory controller.
+    any of them (the root alone when the own group is unknown); v1 reads the root of the
+    memory controller.
     """
     headrooms = []
     for directory in _own_cgroup_dirs(_CGROUP_ROOT):
