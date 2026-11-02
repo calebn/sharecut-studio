@@ -78,8 +78,8 @@ from podcast_mcp.engines.room_tone_synth import (
 from podcast_mcp.engines.room_tone_tiles import CROSSFADE_MS, tile_span
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
-    clip_source_to_timeline_shift,
     origin_track_id_for_clip,
+    shift_at,
 )
 from podcast_mcp.engines.track_media import full_span_clip
 from podcast_mcp.engines.transcript_sync import (
@@ -106,6 +106,19 @@ from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.text import normalize_text
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path, unknown_track
+
+
+def _edge_on_timeline(
+    original: Clip, source_edge: float, side: Literal["left", "right"]
+) -> float | None:
+    if original.timing is None:
+        return source_edge + shift_at(original, source_edge)
+    for src_a, src_b, tl_a in original.virtual_pieces():
+        if side == "left" and src_a + 1e-6 < source_edge <= src_b + 1e-6:
+            return tl_a + (source_edge - src_a)
+        if side == "right" and src_a - 1e-6 <= source_edge < src_b - 1e-6:
+            return tl_a + (source_edge - src_a)
+    return None
 
 
 def _optimized_ripple_span(
@@ -1490,8 +1503,8 @@ def bind_pause_effects(
                     if original.source_id == clip.source_id
                     and original.source_start - 1e-6 <= clip.source_start
                     and original.source_end + 1e-6 >= clip.source_end
-                    and abs(source_edge + clip_source_to_timeline_shift(original) - before_edge)
-                    <= 1e-6
+                    and (placed := _edge_on_timeline(original, source_edge, side)) is not None
+                    and abs(placed - before_edge) <= 1e-6
                 ]
                 if len(matches) != 1 or track is None:
                     return LaneUnavailable(tid, "effect_source_geometry")
@@ -1509,16 +1522,13 @@ def bind_pause_effects(
                     and sound.media is not None
                     and same_recording(sound.media, media)
                 ]
-                original_start = (
-                    before_edge - (clip.source_end - clip.source_start)
-                    if side == "left"
-                    else before_edge
+                footprint_s = (
+                    clip.source_end - clip.source_start
+                    if clip.timing is None
+                    else clip.timeline_end - clip.timeline_start
                 )
-                original_end = (
-                    before_edge
-                    if side == "left"
-                    else before_edge + (clip.source_end - clip.source_start)
-                )
+                original_start = before_edge - footprint_s if side == "left" else before_edge
+                original_end = before_edge if side == "left" else before_edge + footprint_s
                 if side == "left":
                     quiet_start = max(
                         [original_start]
@@ -1540,13 +1550,16 @@ def bind_pause_effects(
                     )
                     capacity = max(0.0, quiet_end - before_edge)
                 capacity_ms = max(0, math.floor(capacity * 1000.0 + 1e-6))
-                if (
-                    min(inherited, (clip.source_end - clip.source_start) * 1000.0)
-                    > capacity_ms + 1e-6
-                ):
+                if min(inherited, footprint_s * 1000.0) > capacity_ms + 1e-6:
                     return LaneUnavailable(tid, "unsafe_inherited_fade")
                 milliseconds = max(inherited, min(splice_fade_ms, capacity_ms))
-                footprint = min(milliseconds / 1000.0, clip.source_end - clip.source_start)
+                edge_a, edge_b, _ = clip.virtual_pieces()[-1 if side == "left" else 0]
+                footprint = min(
+                    milliseconds / 1000.0,
+                    clip.source_end - clip.source_start,
+                    footprint_s,
+                    edge_b - edge_a,
+                )
                 fades.append(
                     PauseEdgeFade(
                         tid,
