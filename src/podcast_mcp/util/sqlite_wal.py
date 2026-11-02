@@ -60,6 +60,7 @@ def retry_transient(
     started = monotonic()
     deadline = started + timeout_sec
     attempts = 0
+    reopens = 0
     while True:
         try:
             attempts += 1
@@ -75,13 +76,21 @@ def retry_transient(
                 exc.add_note(
                     f"SQLite retry failed: sqlite_errorcode={getattr(exc, 'sqlite_errorcode', None)} "
                     f"sqlite_errorname={getattr(exc, 'sqlite_errorname', None)} "
-                    f"sqlite_version={sqlite3.sqlite_version} attempts={attempts} "
+                    f"sqlite_version={sqlite3.sqlite_version} attempts={attempts} reopens={reopens} "
                     f"elapsed_sec={now - started:.6f} terminal_reason={reason}"
                 )
                 raise
             sleep(retry_sec)
             if readonly and reopen is not None:
-                connection = reopen()
+                reopens += 1
+                try:
+                    connection = reopen()
+                except sqlite3.Error as reopen_exc:
+                    reopen_exc.add_note(
+                        f"SQLite retry failed: reopen after attempt {attempts} "
+                        f"(sqlite_errorcode={getattr(exc, 'sqlite_errorcode', None)}) raised"
+                    )
+                    raise
 
 
 def ensure_wal(
