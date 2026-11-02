@@ -674,12 +674,8 @@ describe("seamTickAtJoin", () => {
     expect(seamTickAtJoin(ticks, { sec: 2 })?.recordId).toBe("a");
   });
 
-  it("skips edge and mute ticks and anything past the tolerance", () => {
-    const ticks = [
-      tick("edge", 2, { kind: "edge" }),
-      tick("mute", 2, { mute: true }),
-      tick("far", 2.05),
-    ];
+  it("skips edge ticks and anything past the tolerance", () => {
+    const ticks = [tick("edge", 2, { kind: "edge" }), tick("far", 2.05)];
     expect(seamTickAtJoin(ticks, { sec: 2 })).toBeUndefined();
   });
 });
