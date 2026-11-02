@@ -1201,7 +1201,7 @@ def list_clips(
     track_id: str | None = None,
     *,
     secret: bytes,
-    timing_steps: bool = False,
+    include_timing_steps: bool = False,
     defaults: EffectiveConfig | None = None,
 ) -> dict:
     clips = project.clips
@@ -1232,7 +1232,7 @@ def list_clips(
             {
                 "timing_steps": len(c.timing.steps),
                 "timing_summary": c.timing.summary(),
-                **({"timing": c.timing.row_payload(micro_fade_ms)} if timing_steps else {}),
+                **({"timing": c.timing.row_payload(micro_fade_ms)} if include_timing_steps else {}),
             }
             if c.timing is not None
             else {}

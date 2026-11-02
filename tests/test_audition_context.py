@@ -1062,7 +1062,84 @@ def test_a_real_offset_past_a_timed_first_clip_is_still_skew(
     guest_a = next(c for c in proj.clips if c.id == "guest_a")
     guest_a.timing = ClipTiming(steps=[TimingStep(at=0.5, delta_sec=0.3)])
     guest_a.timeline_start, guest_a.source_start, guest_a.source_end = 0.0, 0.0, 1.0
-    next(c for c in proj.clips if c.id == "guest_b").source_start = 19.6
+    next(c for c in proj.clips if c.id == "guest_b").source_start = 19.0
     pair = _skew_pair(proj, (10.0, 12.0))
     assert pair["skewed"] is True
+    assert pair["skew_sec"] == pytest.approx(0.7, abs=1e-6)
+
+
+_STEP = TimingStep(at=5.0, delta_sec=0.3)
+
+
+def _lane_project(minimal_project, sample_wav, tmp_workspace, host, guest):
+    proj = _two_track_project(minimal_project, sample_wav, tmp_workspace)
+    proj.clips = [
+        Clip(id=f"{tid}_{i}", track_id=tid, source_start=a, source_end=b, timeline_start=t)
+        for tid, lane in (("host", host), ("guest", guest))
+        for i, (a, b, t) in enumerate(lane)
+    ]
+    next(c for c in proj.clips if c.id == "host_0").timing = ClipTiming(steps=[_STEP])
+    return proj
+
+
+def test_a_later_clip_reusing_the_first_clips_source_range_is_not_skew(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _lane_project(
+        minimal_project,
+        sample_wav,
+        tmp_workspace,
+        [(0.0, 30.0, 0.0), (20.0, 30.0, 40.0)],
+        [(0.0, 30.0, 0.0), (20.0, 30.0, 40.0)],
+    )
+    assert _skew_pair(proj, (44.0, 46.0))["skewed"] is False
+
+
+@pytest.mark.parametrize("window", [(10.0, 12.0), (40.0, 42.0)])
+def test_a_later_clip_that_followed_the_step_is_not_skew_in_any_window(
+    minimal_project, sample_wav, tmp_workspace, window
+):
+    proj = _lane_project(
+        minimal_project,
+        sample_wav,
+        tmp_workspace,
+        [(0.0, 30.0, 0.0), (30.0, 60.0, 30.3)],
+        [(0.0, 30.0, 0.0), (30.0, 60.0, 30.0)],
+    )
+    assert _skew_pair(proj, window)["skewed"] is False
+
+
+def test_an_extra_offset_beyond_the_step_is_still_skew(minimal_project, sample_wav, tmp_workspace):
+    proj = _lane_project(
+        minimal_project,
+        sample_wav,
+        tmp_workspace,
+        [(0.0, 30.0, 0.0), (30.0, 60.0, 30.7)],
+        [(0.0, 30.0, 0.0), (30.0, 60.0, 30.0)],
+    )
+    pair = _skew_pair(proj, (40.0, 42.0))
+    assert pair["skewed"] is True
     assert pair["skew_sec"] == pytest.approx(0.4, abs=1e-6)
+
+
+def test_a_window_inside_the_timing_hole_has_no_pair_to_judge(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _lane_project(
+        minimal_project,
+        sample_wav,
+        tmp_workspace,
+        [(0.0, 30.0, 0.0)],
+        [(0.0, 30.0, 0.0)],
+    )
+    ctx = build_audition_context(
+        proj,
+        5.1,
+        5.2,
+        skew_warn_sec=0.05,
+        include_dsp=False,
+        include_prosody=False,
+        defaults=load_defaults(),
+    )
+    assert ctx["clip_skew"]["pairs"] == []
+    assert ctx["clip_skew"]["any_skewed"] is False

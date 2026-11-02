@@ -53,21 +53,18 @@ def test_shared_fixture(case: dict) -> None:
         assert clip.timing.summary() == case["summary"]
 
 
-@pytest.mark.parametrize(
-    ("deltas", "expected"),
-    [
-        ([0.0005], "1 correction"),
-        ([0.0005, 0.0004], "2 corrections, largest 1 ms"),
-        ([0.0015, 0.0001], "2 corrections, largest 2 ms"),
-        ([0.0025, -0.001], "2 corrections, largest 3 ms"),
-    ],
-)
-def test_summary_rounds_half_up_with_a_one_ms_floor(deltas: list[float], expected: str) -> None:
-    steps = [{"at": 12 + 5 * i, "delta_sec": d} for i, d in enumerate(deltas)]
+_SUMMARY_CASES = json.loads(
+    (Path(__file__).parent / "fixtures" / "timing_map" / "cases.json").read_text()
+)["summary_cases"]["cases"]
+
+
+@pytest.mark.parametrize("case", _SUMMARY_CASES, ids=[str(c["deltas"]) for c in _SUMMARY_CASES])
+def test_summary_rounds_half_up_with_a_one_ms_floor(case: dict) -> None:
+    steps = [{"at": 12 + 5 * i, "delta_sec": d} for i, d in enumerate(case["deltas"])]
     for step in steps:
         if step["delta_sec"] < 0:
             step["quiet"] = {"start_s": step["at"] - 1, "end_s": step["at"] + 1}
-    assert _clip(steps).timing.summary() == expected
+    assert _clip(steps).timing.summary() == case["summary"]
 
 
 def test_row_payload_drops_quiet_and_evidence() -> None:

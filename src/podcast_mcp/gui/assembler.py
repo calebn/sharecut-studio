@@ -142,6 +142,7 @@ def build_project_view(
     *,
     projection: ViewProjection | str = ViewProjection.FULL,
     history: HistoryListResult | None = None,
+    audience: Literal["host", "guest"] = "host",
 ) -> ProjectView:
     """Assemble a DAW ProjectView.
 
@@ -167,7 +168,7 @@ def build_project_view(
     project = ws.project
     include_words = proj is ViewProjection.FULL
 
-    clips = TimelineService(ws).list_clips(timing_steps=True)
+    clips = TimelineService(ws).list_clips(include_timing_steps=audience != "guest")
     render_status = edit.render_status()
     pending = edit.list_decisions(applied=False)
     applied = edit.list_applied_edits()
@@ -264,6 +265,7 @@ def dump_project_projection(
         else parse_view_projection(str(projection))
     )
     ws, _path = _workspace(source)
+    steps = audience != "guest"
     if proj is ViewProjection.TRACKS:
         return {"tracks": [t.model_dump() for t in build_track_views(ws)]}
     if proj is ViewProjection.COMMENTS:
@@ -271,7 +273,7 @@ def dump_project_projection(
     if proj is ViewProjection.CLIPS:
         edit = EditService(ws)
         return _freshness_patch(
-            ws, {"clips": TimelineService(ws).list_clips(timing_steps=True)}, edit=edit
+            ws, {"clips": TimelineService(ws).list_clips(include_timing_steps=steps)}, edit=edit
         )
     if proj is ViewProjection.FX:
         edit = EditService(ws)
@@ -313,12 +315,16 @@ def dump_project_projection(
             # An ignored word is a mute the render adds to the clips (``ignored_word_regions``).
             edit = EditService(ws)
             return _freshness_patch(
-                ws, {**base, "clips": TimelineService(ws).list_clips(timing_steps=True)}, edit=edit
+                ws,
+                {**base, "clips": TimelineService(ws).list_clips(include_timing_steps=steps)},
+                edit=edit,
             )
         return base
     # A view build is read-only, so each recording's path is resolved once, not per clip.
     with batch_scope():
-        return build_project_view(ws, projection=proj, history=history).model_dump()
+        return build_project_view(
+            ws, projection=proj, history=history, audience=audience
+        ).model_dump()
 
 
 def projection_dependencies(
