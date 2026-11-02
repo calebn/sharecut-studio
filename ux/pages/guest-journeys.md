@@ -99,7 +99,7 @@ flowchart TD
   banner --> chip[Tap the Review tab, badged with the pending count]
   chip --> tl[Review queue, suggested cuts]
   tl --> audition[Hear rendered before or after]
-  audition --> decide{Approve / Reject / Ask}
+  audition --> decide{Cut / Keep / Ask}
   decide -->|Ask| thread[Inspector Ask thread]
   decide -->|Approve or Reject| done[Decision applied]
 ```
