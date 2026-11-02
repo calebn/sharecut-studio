@@ -109,6 +109,8 @@ Review lists every unsure word as its own item, whether or not the transcript ch
 
 ### A/B audition window (pending preview)
 
+The Studio plays the A and B sides separately from the Action bar (Hear before, Hear after) and, on a sheet with no bar, from the footer's Current / Suggested / A/B; the one-press A/B render is the footer's, the Review Queue's, the CLI's and MCP's.
+
 The Review Decision card's A (original) and B (edited) are two files from one service function, `PlayService.play_pending_preview`, behind `GET /api/pending-preview?path&edit_id&mode=current|suggested&pad_sec` (guest twin `GET /api/review/{token}/daw/pending-preview`, MCP `play_pending_preview_tool`, CLI `podcast play pending-preview --padding`, guest MCP `guest_pending_preview`). The route, MCP tool and CLI only parse arguments. `mode=current` is A and `mode=suggested` is B; `mode=ab` (one WAV with a gap) stays for the agent and the inspector footer.
 
 - `pad_sec` is the audio either side of the edit, 0 to 10 seconds (default 0.5, the inspector footer's window; the Review card asks for 3). Out of range is HTTP 422 on the routes and `pending_preview_pad_out_of_range` from the service. The window is clamped to the timeline: it never starts before 0 or ends after the last audio, so an edit near either end, or one shorter than the pad, plays what exists.
