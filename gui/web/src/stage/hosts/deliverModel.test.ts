@@ -303,6 +303,9 @@ describe("clipWordsOf", () => {
           w("gone", { suppressed: true }),
           w("muted", { ignored: true }),
           w("bad", { mappable: false }),
+          w("backwards", { timeline_start: 12, timeline_end: 11 }),
+          w("never", { timeline_end: Number.NaN }),
+          w("forever", { timeline_end: Number.POSITIVE_INFINITY }),
           w("kept"),
         ]),
       ),
@@ -312,5 +315,12 @@ describe("clipWordsOf", () => {
   it("is undefined with no words", () => {
     expect(clipWordsOf(undefined)).toBeUndefined();
     expect(clipWordsOf(utterance([]))).toBeUndefined();
+  });
+
+  it("reads an utterance that carries no words field as empty", () => {
+    const bare = [
+      { track_id: "t", speaker: "A", start: 0, end: 9, text: "" },
+    ] as unknown as Parameters<typeof clipWordsOf>[0];
+    expect(clipWordsOf(bare)).toBeUndefined();
   });
 });

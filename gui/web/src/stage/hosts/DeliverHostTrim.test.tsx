@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -277,5 +283,29 @@ describe("Deliver host word-snapped trims", () => {
     const end = sent()[0]?.[1].end as number;
     expect(end).toBeCloseTo(30.6, 1);
     expect(end).not.toBe(30.25);
+  });
+
+  it("snaps once the transcript arrives after the page is open", async () => {
+    TRANSCRIPT.current = null;
+    useDawStore.getState().hydrate(PATH, projectAt("h1"));
+    await trimOpen();
+    TRANSCRIPT.current = {
+      utterances: [
+        {
+          track_id: "t1",
+          speaker: "A",
+          start: 9.8,
+          end: 31.4,
+          text: "one two three four ghost",
+          words: WORDS,
+        },
+      ],
+    };
+    act(() => useDawStore.getState().hydrate(PATH, projectAt("h1")));
+    dragTo("Out handle of A line", 30.5);
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()).toEqual([
+      ["UpdateSocialClip", { id: "s1", start: 10, end: 30.25 }],
+    ]);
   });
 });
