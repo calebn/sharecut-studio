@@ -9,10 +9,8 @@ _SAVE_PROJECT = re.compile(r"\bsave_project\(")
 _STORE_CTOR = re.compile(r"\bProjectStore\(")
 
 # ProjectWorkspace is the committer. Undo/redo/goto no longer commit (HistoryManager.apply_*
-# leave that to the workspace). manager.py stays only through record_and_commit, and
-# session.py through run_mutation, until slice 4 moves them.
+# leave that to the workspace). session.py stays only through run_mutation until slice 4 moves it.
 _COMMITTERS = {
-    "project/history/manager.py",
     "project/history/session.py",
     "services/app/workspace.py",
 }
