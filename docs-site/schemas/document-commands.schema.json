@@ -11599,6 +11599,139 @@
       "title": "UpdateSocialClipCommand",
       "type": "object"
     },
+    "UpdateSocialClipDetailsCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/UpdateSocialClipDetailsPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "UpdateSocialClipDetails",
+          "default": "UpdateSocialClipDetails",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "UpdateSocialClipDetailsCommand",
+      "type": "object"
+    },
+    "UpdateSocialClipDetailsPayload": {
+      "description": "Retitle and/or approve one clip; an omitted field stays as it is, an empty title clears it.",
+      "properties": {
+        "approved": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "UpdateSocialClipDetailsPayload",
+      "type": "object"
+    },
     "UpdateSocialClipPayload": {
       "properties": {
         "end": {
@@ -11909,6 +12042,7 @@
       "UpdateComment": "#/$defs/UpdateCommentCommand",
       "UpdatePendingEdit": "#/$defs/UpdatePendingEditCommand",
       "UpdateSocialClip": "#/$defs/UpdateSocialClipCommand",
+      "UpdateSocialClipDetails": "#/$defs/UpdateSocialClipDetailsCommand",
       "VerifyTranscript": "#/$defs/VerifyTranscriptCommand"
     },
     "propertyName": "type"
@@ -12048,6 +12182,9 @@
     },
     {
       "$ref": "#/$defs/UpdateSocialClipCommand"
+    },
+    {
+      "$ref": "#/$defs/UpdateSocialClipDetailsCommand"
     },
     {
       "$ref": "#/$defs/DeleteSocialClipCommand"

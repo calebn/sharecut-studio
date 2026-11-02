@@ -6,6 +6,7 @@ from podcast_mcp.clips.social import (
     list_social_clips,
     propose_social_clips,
     reject_social_clips,
+    update_social_clip_details,
     update_social_clip_times,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "list_social_clips",
     "propose_social_clips",
     "reject_social_clips",
+    "update_social_clip_details",
     "update_social_clip_times",
 ]

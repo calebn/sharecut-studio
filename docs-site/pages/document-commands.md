@@ -114,9 +114,10 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateComment` | `comment_id` (string) | `body` (string \| null), `timeline_end` (number \| null), `timeline_start` (number \| null), `track_ids` (array \| null) |
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `override_audio_checks` (boolean), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
+| `UpdateSocialClipDetails` | `id` (string) | `approved` (boolean \| null), `title` (string \| null) |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 84 command types._
+_Generated 85 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

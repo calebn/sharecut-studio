@@ -47,6 +47,15 @@ def update_social_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any
     return clip.model_dump()
 
 
+def update_social_clip_details(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    clip = ClipService(ws).update_details(
+        str(p["id"]),
+        title=str(p["title"]) if p.get("title") is not None else None,
+        approved=bool(p["approved"]) if p.get("approved") is not None else None,
+    )
+    return clip.model_dump()
+
+
 def delete_social_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     n = ClipService(ws).reject([str(p["id"])])
     return {"deleted": n, "id": p["id"]}

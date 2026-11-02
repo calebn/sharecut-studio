@@ -102,8 +102,8 @@ export type DeliverStageProps = {
   feed?: ReactNode;
   /** False when the host cannot put a removed clip back into the project. */
   clipUndo?: boolean;
-  /** False when the host cannot save a clip's title or approval. */
-  showClipEdits?: boolean;
+  /** True when each clip title is saved as it is finished (Enter or leaving the field), not on every keystroke. */
+  clipTitleCommit?: boolean;
   onFix: (stage: StageId, target?: string) => void;
   onExport: (request: ExportRequest) => void;
   onCancel?: () => void;
@@ -156,7 +156,7 @@ export function DeliverStage({
   share,
   feed,
   clipUndo = true,
-  showClipEdits = true,
+  clipTitleCommit = false,
   onChapters,
   onClips,
   onFix,
@@ -378,7 +378,10 @@ export function DeliverStage({
       state={sharedState}
       words={words}
       peaks={peaks}
-      onRetitle={(id, title) => setClips((now) => retitleClip(now, id, title))}
+      onRetitle={(id, title) => {
+        liveClips.current = retitleClip(liveClips.current, id, title);
+        setClips(liveClips.current);
+      }}
       onTrim={(id, edge, at) => {
         liveClips.current = trimClip(liveClips.current, id, edge, at, total);
         setClips(liveClips.current);
@@ -389,7 +392,7 @@ export function DeliverStage({
       onOpenInEdit={onOpenClipInEdit}
       onFind={onFindClips}
       onTrimGesture={setTrimming}
-      editable={showClipEdits}
+      commitTitles={clipTitleCommit}
     />
   );
 

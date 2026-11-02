@@ -92,6 +92,7 @@ export {
   updateChapter,
   updatePendingEdit,
   updateSocialClip,
+  updateSocialClipDetails,
   waiveTranscriptRefine,
 } from "./api/documentEdits";
 export type { ExportedFileEntry, ExportedFileKind } from "./api/exportedFiles";

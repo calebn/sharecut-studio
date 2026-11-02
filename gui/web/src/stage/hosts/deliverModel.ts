@@ -16,10 +16,15 @@ export function chaptersOf(markers: readonly ChapterMarker[]): Chapter[] {
   return markers.map((m, i) => ({ id: `ch-${i}`, at: m.time, title: m.title }));
 }
 
+const UNTITLED_CLIP = "Untitled clip";
+/** What the page shows for a title: an empty one reads as the project's untitled clip. */
+export const shownTitle = (title: string | null | undefined) =>
+  title?.trim() || UNTITLED_CLIP;
+
 export function clipsOf(clips: readonly SocialClipView[]): Clip[] {
   return clips.map((c) => ({
     id: c.id,
-    title: c.title_suggestion?.trim() || "Untitled clip",
+    title: shownTitle(c.title_suggestion),
     start: c.start,
     end: c.end,
     score: c.score,
@@ -87,6 +92,7 @@ export function chapterOps(
 
 export type ClipOp =
   | { kind: "trim"; id: string; start: number; end: number }
+  | { kind: "details"; id: string; title?: string; approved?: boolean }
   | { kind: "delete"; id: string };
 
 export function clipOps(
@@ -97,9 +103,22 @@ export function clipOps(
   const ops: ClipOp[] = [];
   for (const c of base) {
     const after = now.get(c.id);
-    if (!after) ops.push({ kind: "delete", id: c.id });
-    else if (after.start !== c.start || after.end !== c.end) {
+    if (!after) {
+      ops.push({ kind: "delete", id: c.id });
+      continue;
+    }
+    if (after.start !== c.start || after.end !== c.end) {
       ops.push({ kind: "trim", id: c.id, start: after.start, end: after.end });
+    }
+    const title = shownTitle(after.title) !== shownTitle(c.title);
+    const approved = after.approved !== c.approved;
+    if (title || approved) {
+      ops.push({
+        kind: "details",
+        id: c.id,
+        ...(title ? { title: after.title.trim() } : {}),
+        ...(approved ? { approved: after.approved } : {}),
+      });
     }
   }
   return ops;
@@ -159,12 +178,17 @@ export function sameChapters(a: readonly Chapter[], b: readonly Chapter[]) {
   );
 }
 
-export function sameClipBounds(a: readonly Clip[], b: readonly Clip[]) {
+/** Whether two lists hold the same clips as the document saves them: id, bounds, title and approval. */
+export function sameClips(a: readonly Clip[], b: readonly Clip[]) {
   return (
     a.length === b.length &&
     a.every(
       (c, i) =>
-        c.id === b[i]?.id && c.start === b[i]?.start && c.end === b[i]?.end,
+        c.id === b[i]?.id &&
+        c.start === b[i]?.start &&
+        c.end === b[i]?.end &&
+        c.approved === b[i]?.approved &&
+        shownTitle(c.title) === shownTitle(b[i]?.title),
     )
   );
 }

@@ -771,6 +771,19 @@ export async function updateSocialClip(
   });
 }
 
+/** Host only. An empty title clears it; a field left out stays as it is. */
+export async function updateSocialClipDetails(
+  projectPath: string,
+  id: string,
+  details: { title?: string; approved?: boolean },
+): Promise<void> {
+  await submitDocumentCommand(
+    projectPath,
+    DocumentCommand.UpdateSocialClipDetails,
+    { id, ...details },
+  );
+}
+
 export async function deleteSocialClip(
   projectPath: string,
   id: string,
