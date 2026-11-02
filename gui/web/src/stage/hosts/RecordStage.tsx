@@ -473,7 +473,7 @@ function RecordStageBody({
       }}
       guestsSeeNotes={snapshot.guests_see_notes === true}
       onGuestsSeeNotesChange={room.setGuestsSeeNotes}
-      error={room.transportError}
+      guestsSeeNotesError={room.guestsSeeNotesError}
       onDevices={() => {
         setMoreOpen(false);
         setDeviceOpen(true);
