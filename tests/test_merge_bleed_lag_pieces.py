@@ -3,21 +3,32 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
+import time
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
 import pytest
+from filelock import FileLock
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import room_tone
 from podcast_mcp.engines.clips_ops import split_clip_at
 from podcast_mcp.engines.session_timeline import slip_clip_to_shift
-from podcast_mcp.models import Clip, EpisodeProject
-from podcast_mcp.models.episode import SpeakerIngestAlignment, load_project
+from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, TrackRole
+from podcast_mcp.models.episode import (
+    ClipBleedRestore,
+    ClipMuteRegion,
+    ClipOffSpeakerMuteRegion,
+    SpeakerIngestAlignment,
+    load_project,
+)
 from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.history import HistoryService
+from podcast_mcp.util import project_state
+from podcast_mcp.util.project_state import project_commit_lock_path
 from script_loader import load_script
 from test_timed_clip_render import RATE, _frames, _project, _render
 
@@ -206,7 +217,9 @@ def test_repeat_step_is_gated_then_leaves_a_hole_and_nothing_else_differs(
     before = path.read_bytes()
     assert _run(path, "--apply", "--json") == 0
     out = json.loads(capsys.readouterr().out)
-    assert [r["reason"] for lane in out["lanes"] for r in lane["refused"]] == ["repeat_hole_gated"]
+    (lane,) = out["lanes"]
+    assert lane["gated"] is True
+    assert lane["holes"] == {"junctions": 1, "hole_sec": pytest.approx(0.1)}
     assert len(load_project(path).clips) == 2
     assert _run(path, "--apply", "--allow-repeat-holes") == 0
     merged = load_project(path)
@@ -231,7 +244,8 @@ def test_repeat_hole_plays_room_tone_when_the_track_has_a_pool(tmp_path: Path) -
     with patch.object(room_tone, "read_room_tone_pool", return_value=pool):
         samples = _render(load_project(path), tmp_path)
     start = _frames(pieces[0].timeline_end)
-    assert samples[start + _frames(0.03) : start + _frames(0.07)].any()
+    inside = samples[start + _frames(0.03) : start + _frames(0.07)] / 32767
+    assert np.sqrt(np.mean(inside**2)) == pytest.approx(0.3 / np.sqrt(3), rel=0.25)
 
 
 def _two_step(tmp_path: Path) -> tuple[Path, list[Clip]]:
@@ -317,3 +331,186 @@ def test_a_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert _run(path) == 0
     assert path.read_bytes() == before
     assert not list(path.parent.glob("*.bak"))
+
+
+def _edit(path: Path, change) -> None:
+    project = load_project(path)
+    change(project)
+    ProjectStore(path).commit(project)
+
+
+def _by_time(project: EpisodeProject) -> list[Clip]:
+    return sorted(project.clips, key=lambda c: c.timeline_start)
+
+
+def test_a_lane_with_a_repeat_junction_merges_nothing_until_the_flag_is_given(
+    tmp_path: Path,
+) -> None:
+    _, _, path = _lane(tmp_path, [2.0, 3.5], [-0.08, 0.10])
+    before = path.read_bytes()
+    assert _run(path, "--apply") == 0
+    assert path.read_bytes() == before
+    assert not list(path.parent.glob("*.bak"))
+    assert _run(path, "--apply", "--allow-repeat-holes") == 0
+    (clip,) = load_project(path).clips
+    assert [round(s.delta_sec, 6) for s in clip.timing.steps] == [-0.08, 0.10]
+
+
+def test_a_concurrent_commit_is_not_reverted_by_apply(tmp_path: Path) -> None:
+    _, _, path = _lane(tmp_path, [2.0], [-0.08])
+    original = ProjectWorkspace.effective_config
+
+    def commit_elsewhere(self: ProjectWorkspace):
+        _edit(path, lambda p: setattr(p.meta, "name", "ConcurrentEdit"))
+        return original(self)
+
+    with patch.object(ProjectWorkspace, "effective_config", commit_elsewhere):
+        assert _run(path, "--apply") == 0
+    merged = load_project(path)
+    assert merged.meta.name == "ConcurrentEdit"
+    assert len(merged.clips) == 1
+
+
+def test_an_artifact_without_the_lane_refuses_like_a_missing_one(tmp_path: Path) -> None:
+    _, _, path = _lane(tmp_path, [3.5], [0.10])
+    _rewrite_artifact(path, lambda data: data.update(bleed_lag_segments={}))
+    project = load_project(path)
+    rows = script.merge_project(project, allow_holes=True)
+    assert [r["reason"] for r in rows[0]["refused"]] == ["no_artifact_match"]
+    assert len(project.clips) == 2
+
+
+def test_a_corrupt_artifact_is_a_clean_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path, _ = _two_step(tmp_path)
+    artifact = path.parent / "artifacts" / "alignment" / "conversation_align.json"
+    artifact.write_text("{", encoding="utf-8")
+    assert _run(path, "--apply") == 1
+    assert "unreadable alignment artifact" in capsys.readouterr().err
+
+
+def test_an_unknown_lane_is_an_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    path, _ = _two_step(tmp_path)
+    assert _run(path, "--lane", "nobody") == 1
+    assert "unknown lane nobody" in capsys.readouterr().err
+
+
+def test_hand_split_pieces_stay_split(tmp_path: Path) -> None:
+    path, _ = _two_step(tmp_path)
+    _edit(path, lambda p: setattr(p.meta, "ingest_alignment", {}))
+    assert _reasons(path) == []
+    manual = SpeakerIngestAlignment(align_method="manual")
+    _edit(path, lambda p: setattr(p.meta, "ingest_alignment", {"Host": manual}))
+    project = load_project(path)
+    script.merge_project(project)
+    assert len(project.clips) == 4
+
+
+def test_mute_and_off_speaker_regions_are_unioned_once(tmp_path: Path) -> None:
+    path, _ = _two_step(tmp_path)
+    mute = ClipMuteRegion(start_s=1.0, end_s=1.2)
+    off = ClipOffSpeakerMuteRegion(start_s=2.5, end_s=2.7)
+
+    def add(project: EpisodeProject) -> None:
+        for clip in _by_time(project)[:2]:
+            clip.mute_regions = [mute]
+            clip.off_speaker_mute_regions = [off]
+
+    _edit(path, add)
+    project = load_project(path)
+    script.merge_project(project)
+    (clip,) = project.clips
+    assert clip.mute_regions == [mute]
+    assert clip.off_speaker_mute_regions == [off]
+
+
+def test_a_merged_clip_without_off_speaker_regions_does_not_serialize_the_key(
+    tmp_path: Path,
+) -> None:
+    path, _ = _two_step(tmp_path)
+    project = load_project(path)
+    script.merge_project(project)
+    assert "off_speaker_mute_regions" not in project.clips[0].model_dump(mode="json")
+
+
+def test_differing_bleed_restore_refuses_the_junction(tmp_path: Path) -> None:
+    path, _ = _two_step(tmp_path)
+    restore = ClipBleedRestore(source_sha256="a" * 64, regions=[])
+    _edit(path, lambda p: setattr(_by_time(p)[1], "bleed_restore", restore))
+    assert _reasons(path) == ["bleed_restore_differs"] * 2
+
+
+def test_a_cut_join_is_not_a_fade_join(tmp_path: Path) -> None:
+    path, _ = _two_step(tmp_path)
+    _edit(path, lambda p: setattr(_by_time(p)[1], "join_in_mode", ClipJoinMode.CUT))
+    assert _reasons(path) == ["non_fade_join"]
+
+
+@pytest.mark.parametrize("fade", [0, 5])
+def test_internal_fades_must_equal_the_micro_fade(tmp_path: Path, fade: int) -> None:
+    path, _ = _two_step(tmp_path)
+    _edit(path, lambda p: setattr(_by_time(p)[1], "fade_in_ms", fade))
+    assert _reasons(path) == ["custom_fade"]
+
+
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        (lambda t: setattr(t, "timeline_empty", True), "timeline_empty"),
+        (lambda t: setattr(t, "role", TrackRole.MUSIC), "not_dialogue"),
+    ],
+)
+def test_lanes_that_are_not_dialogue_or_are_emptied_are_skipped(
+    tmp_path: Path, change, reason: str
+) -> None:
+    path, _ = _two_step(tmp_path)
+    project = load_project(path)
+    change(project.tracks[0])
+    rows = script.merge_project(project)
+    assert rows[0]["skipped"] == [reason]
+    assert len(project.clips) == 4
+
+
+def test_the_lane_filter_leaves_other_lanes_alone(tmp_path: Path) -> None:
+    path, _ = _two_step(tmp_path)
+    project = load_project(path)
+    assert script.merge_project(project, lanes=["other"]) == []
+    assert len(project.clips) == 4
+
+
+def test_an_existing_backup_is_never_overwritten(tmp_path: Path) -> None:
+    path, _ = _two_step(tmp_path)
+    old = path.with_name(path.name + ".pre-2861.bak")
+    old.write_text("keep", encoding="utf-8")
+    assert _run(path, "--apply") == 0
+    assert old.read_text(encoding="utf-8") == "keep"
+    assert len(list(path.parent.glob("*.bak*"))) == 2
+
+
+def _hold(lock_path: str, ready, release) -> None:
+    with FileLock(lock_path):
+        ready.set()
+        release.wait(30)
+
+
+def test_a_locked_project_exits_3_and_writes_nothing(tmp_path: Path) -> None:
+    path, _ = _two_step(tmp_path)
+    lock_path = project_commit_lock_path(load_project(path))
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    context = multiprocessing.get_context("fork")
+    ready, release = context.Event(), context.Event()
+    holder = context.Process(target=_hold, args=(str(lock_path), ready, release))
+    holder.start()
+    assert ready.wait(30)
+    before = path.read_bytes()
+    started = time.monotonic()
+    try:
+        with patch.object(project_state, "PROJECT_COMMIT_LOCK_TIMEOUT_SEC", 0.3):
+            assert _run(path, "--apply") == 3
+    finally:
+        release.set()
+        holder.join(30)
+    assert time.monotonic() - started < 20
+    assert path.read_bytes() == before
+    assert not list(path.parent.glob("*.bak*"))
