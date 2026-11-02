@@ -114,6 +114,7 @@ function TrackColumnView({
     projectPath,
     guestMode,
     shareCapabilities,
+    pointerKind,
   } = useDaw((s) => ({
     project: s.project,
     tracks: s.project?.tracks ?? null,
@@ -122,9 +123,12 @@ function TrackColumnView({
     projectPath: s.projectPath,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
+    pointerKind: s.pointerKind,
   }));
   const breakdown = useStaleRenderBreakdown(project);
-  const mayReorder = canIngestMedia(projectPath, guestMode, shareCapabilities);
+  const mayReorder =
+    canIngestMedia(projectPath, guestMode, shareCapabilities) &&
+    pointerKind === "fine";
   const mayMix = canEditMix(projectPath, guestMode, shareCapabilities);
   const deselectTip = capabilityTooltip("daw.track.deselectAll");
   const [dragTrackId, setDragTrackId] = useState<string | null>(null);
