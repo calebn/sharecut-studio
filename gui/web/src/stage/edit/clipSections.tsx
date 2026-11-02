@@ -363,18 +363,19 @@ export function useClipSections(
               {
                 id: "ripple",
                 control: (
-                  <>
-                    <Button
-                      variant="danger"
-                      disabledReason={busy ? BUSY_REASON : undefined}
-                      onClick={() => void ripple()}
-                    >
-                      {commandLabel("edit.rippleDelete", "short")}
-                    </Button>
-                    {note(
-                      "Cut on the bar leaves a gap. Ripple delete closes it on every dialogue track.",
-                    )}
-                  </>
+                  <Button
+                    variant="danger"
+                    disabledReason={busy ? BUSY_REASON : undefined}
+                    onClick={() => void ripple()}
+                  >
+                    {commandLabel("edit.rippleDelete", "short")}
+                  </Button>
+                ),
+              },
+              {
+                id: "ripple-note",
+                control: note(
+                  "Cut on the bar leaves a gap. Ripple delete closes it on every dialogue track.",
                 ),
               },
             ]

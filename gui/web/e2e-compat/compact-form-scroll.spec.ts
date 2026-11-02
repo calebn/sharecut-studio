@@ -55,7 +55,9 @@ for (const { cell: viewport, theme } of withAppearance([
             .first()
             .click({ position: { x: 20, y: 20 } });
           await inspectSelection(page);
-          await expect(page.locator(".modifier-badge")).toHaveText("Clip");
+          await expect(
+            page.getByRole("spinbutton", { name: "Source start", exact: true }),
+          ).toBeVisible();
           await page.locator("html").evaluate((html) => {
             html.style.fontSize = "32px";
           });
