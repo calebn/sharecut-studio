@@ -528,7 +528,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
     - Drag across words, Shift-click, or double-click (word) / triple-click (sentence): selects; the action bar appears above the selection. Built so far: Shift-click, Shift with the arrows and the two handles. Mouse drag, double-click, triple-click and long-press are deferred.
     - Enter, F2 or double-click on a word: Fix text on that selection. Typing never starts it.
     - Backspace with a selection: Cut. Backspace with only a caret: nothing (protects against accidental cuts).
-  - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; low-confidence words get a dotted underline.
+  - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; low-confidence words get a dotted underline (a suppressed word is never low-confidence, in the stepper chip or the underline).
   - Follow: pin on by default. Scrolling by hand turns it off and shows a "Back to playhead" pill at the bottom center; clicking it scrolls and re-pins.
 - **Primary action:** select words.
 - **Anticipated next action:** after selecting, Cut; after cutting, the next occurrence (INT-WORD-CUT).
