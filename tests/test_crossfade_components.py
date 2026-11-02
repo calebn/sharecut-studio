@@ -372,3 +372,27 @@ def test_component_frontier_retires_a_shrunk_maximum(tmp_path: Path):
     )
     assert duration(plan.audio) == pytest.approx(25.00075)
     assert plan.extent.seconds == pytest.approx(25.99925)
+
+
+@pytest.mark.parametrize(
+    ("ended", "silent", "start", "placed_at"),
+    [
+        (-0.1, False, 0.02, 0.02),  # a real gap to the clip before the window: no snap
+        (-0.01, False, 0.02, 0.0),  # under the join tolerance: it joined the clip before
+        (-0.01, True, 0.02, 0.02),  # a silent timing hole sits between them: no snap
+        (-0.0001, False, 0.0, 0.0),
+    ],
+)
+def test_first_clip_of_a_window_snaps_only_to_a_clip_that_ends_before_it(
+    tmp_path: Path, ended: float, silent: bool, start: float, placed_at: float
+):
+    """A window sees the clips before it as markers, so it knows what its first clip follows (#2498)."""
+    audio = SourceAudio(tmp_path / "a.wav", 0.0, 1.0)
+    before = _PreparedClip(
+        _prepared("before", -2, ended, audio).clip,
+        None,
+        before_window_end=ended,
+        silent_before=silent,
+    )
+    plan = _place_clips([before, _prepared("a", start, start + 1, audio)], window_length=2.0)
+    assert plan.audio == MixAudio(At(placed_at, audio), ())

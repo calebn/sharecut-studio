@@ -213,3 +213,68 @@ def test_window_equals_the_stem_for_runs_that_start_off_the_sample_grid(
         residual = float(np.sum((window[settle:] - expected[settle:]) ** 2))
         energy = float(np.sum(expected[settle:] ** 2))
         assert 10 * math.log10((residual + 1e-12) / energy) < limit_db
+
+
+@pytest.mark.parametrize("rate", [48_000, 44_100])
+@pytest.mark.parametrize("lead_ms", [120.0, 60.0, 40.0, 10.0, 1.1, 0.9, 0.4, 0.0])
+def test_window_opening_just_before_a_clip_after_a_gap_equals_the_stem(
+    tmp_path: Path, rate: int, lead_ms: float
+) -> None:
+    """A window that starts a few ms before a clip that follows a pause keeps the pause (#2498).
+
+    The stem snaps a clip to the one before it only when the gap is under JOIN_GAP_TOLERANCE_SEC;
+    the window must not snap to its own start because it cannot see the clip it opens after.
+    """
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    project = _layout_project(
+        tmp_path, rate=rate, first_start=0.0, gap_before={5: 0.15}, highpass=False
+    )
+    stem_path = tmp_path / "stem.wav"
+    render_track_from_timeline(project, project.tracks[0], stem_path, {}, engine=eng)
+    stem = _read_pcm(stem_path)
+    start = project.timeline.clips[5].timeline_start - lead_ms / 1000
+    segment_path = tmp_path / "segment.wav"
+    render_track_segment(project, "host", start, start + 2.0, segment_path, {}, engine=eng)
+    window = _read_pcm(segment_path)
+    first = round(start * rate)
+    expected = stem[first : first + len(window)]
+    assert len(window) == round(2.0 * rate)
+    assert _best_lag(window, stem, first) == 0
+    residual = float(np.sum((window - expected) ** 2))
+    assert 10 * math.log10((residual + 1e-12) / float(np.sum(expected**2))) < -100
+
+
+@pytest.mark.parametrize("rate", [48_000, 44_100])
+@pytest.mark.parametrize(
+    "window", [(3.0, 4.0), (3.5, 4.5), (3.6, 4.6), (8.0, 9.0), (2.5, 3.5), (2.6, 3.6)]
+)
+def test_window_through_a_filled_mute_plays_the_stems_room_tone_tiles(
+    tmp_path: Path, rate: int, window: tuple[float, float]
+) -> None:
+    """The fill's tiles are laid out over the whole mute, so a window cuts them, not re-tiles (#2498)."""
+    from podcast_mcp.models import ClipMuteRegion, RoomToneFill
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    project = _layout_project(tmp_path, rate=rate, first_start=0.0, gap_before={}, highpass=False)
+    clip = Clip(id="m", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    clip.mute_regions = [
+        ClipMuteRegion(start_s=3.0, end_s=5.0, fill=RoomToneFill(start_s=20.0, end_s=20.45))
+    ]
+    project.timeline.clips = [clip]
+    project.timeline.duration_sec = 10.0
+    stem_path = tmp_path / "stem.wav"
+    render_track_from_timeline(project, project.tracks[0], stem_path, {}, engine=eng)
+    stem = _read_pcm(stem_path)
+    segment_path = tmp_path / "segment.wav"
+    render_track_segment(project, "host", window[0], window[1], segment_path, {}, engine=eng)
+    got = _read_pcm(segment_path)
+    first = round(window[0] * rate)
+    expected = stem[first : first + len(got)]
+    assert len(got) == round((window[1] - window[0]) * rate)
+    assert _best_lag(got, stem, first) == 0
+    residual = float(np.sum((got - expected) ** 2))
+    assert 10 * math.log10((residual + 1e-12) / float(np.sum(expected**2))) < -100

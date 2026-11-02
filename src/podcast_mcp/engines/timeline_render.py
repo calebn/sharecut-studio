@@ -64,7 +64,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 if TYPE_CHECKING:
     from podcast_mcp.engines.bleed_gate import BleedGatePlan
 
-RENDER_SEMANTICS_REV = 23
+RENDER_SEMANTICS_REV = 24
 _MAX_GRID_RATE = 192_000
 
 
@@ -132,8 +132,23 @@ def _tile_at(
 
 
 def _room_tone_under_mutes(
-    project: EpisodeProject, track: Track, clip: Clip, src_start: float, src_end: float
+    project: EpisodeProject,
+    track: Track,
+    clip: Clip,
+    src_start: float,
+    src_end: float,
+    *,
+    stem_span: tuple[float, float] | None = None,
+    grid: TrackGrid | None = None,
 ) -> list[At]:
+    """The room tone under ``clip``'s filled mutes in the source window ``[src_start, src_end]``.
+
+    ``stem_span`` is the range the whole stem plays for this clip when the window cuts it: the
+    tone is laid out over that range and cut to the window, so a window plays the stem's tiles
+    (their count, length and order depend on the whole fill) rather than its own (#2498).
+    """
+    if stem_span is not None:
+        return _room_tone_cut_to_window(project, track, clip, src_start, src_end, stem_span, grid)
     seg_dur = src_end - src_start
     tiles: list[At] = []
     for env, fill in room_tone_fills_for_source_window(clip, src_start, src_end):
@@ -154,6 +169,50 @@ def _room_tone_under_mutes(
                 )
             )
             t += tile.length
+    return tiles
+
+
+def _room_tone_cut_to_window(
+    project: EpisodeProject,
+    track: Track,
+    clip: Clip,
+    src_start: float,
+    src_end: float,
+    stem_span: tuple[float, float],
+    grid: TrackGrid | None,
+) -> list[At]:
+    stem_start, stem_end = stem_span
+    stem_dur = stem_end - stem_start
+    skip, length = src_start - stem_start, src_end - src_start
+    tiles: list[At] = []
+    for env, fill in room_tone_fills_for_source_window(clip, stem_start, stem_end):
+        path = _source_audio_path(project, track, fill.source_id, owner=f"clip {clip.id} fill")
+        t, end = max(0.0, env.start), min(stem_dur, env.end)
+        repeats = tile_span(fill.start_s, fill.end_s, end - t, seed_sec=fill.start_s)
+        for index, whole in enumerate(repeats):
+            last = index + 1 == len(repeats)
+            cut = _cut_tile(whole, t, skip, length, path, grid)
+            t += whole.length
+            if cut is None:
+                continue
+            tile, start_sec, cut_in, cut_out = cut
+            tiles.append(
+                _tile_at(
+                    path,
+                    tile,
+                    start_sec,
+                    clip_id=clip.id,
+                    source_id=fill.source_id,
+                    edge_in=env.fade_out_sec
+                    if index == 0 and env.start >= 0 and not cut_in
+                    else 0.0,
+                    edge_out=(
+                        env.fade_in_sec
+                        if last and env.end <= stem_dur + 1e-6 and not cut_out
+                        else 0.0
+                    ),
+                )
+            )
     return tiles
 
 
@@ -567,6 +626,11 @@ class _PreparedClip:
     clip: Clip
     content: _ClipContent | None
     borrow_in: float = 0.0
+    # Set instead of content for an item that ends at or before a window's start: where it ends
+    # (seconds from the window start, <= 0) and whether it was a hole that plays silence. It
+    # carries no audio, only what decides if the window's first clip snaps to it (#2498).
+    before_window_end: float | None = None
+    silent_before: bool = False
 
 
 @dataclass
@@ -610,8 +674,17 @@ def _place_clips(
     authored_frontier = 0.0
     clock_shift = 0.0
     frontier = 0.0
+    seeded = False
     for item in prepared:
         content = item.content
+        if item.before_window_end is not None:
+            end_before = units(item.before_window_end)
+            if not item.silent_before:
+                frontier = max(frontier, end_before) if seeded else end_before
+                seeded = True
+            after_silent_hole = item.silent_before
+            previous_component = None
+            continue
         if content is None:
             previous_component = None
             continue
@@ -630,7 +703,7 @@ def _place_clips(
         else:
             start = max(0.0, units(content.timeline_start) - clock_shift)
             if abs(start - frontier) <= tolerance and not after_silent_hole:
-                start = frontier
+                start = max(frontier, 0.0)
             after_silent_hole = False
             if (
                 previous_component is not None
@@ -677,28 +750,23 @@ def shell_micro_fade_ms(clips: list[Clip], defaults: EffectiveConfig) -> int:
     return DEFAULT_MICRO_FADE_MS
 
 
-def placed_track_audio(
+def _spans_and_borrow(
     project: EpisodeProject,
     track: Track,
     sorted_clips: list[Clip],
-    *,
     grid: TrackGrid | None,
-    window: tuple[float, float] | None = None,
-    removed_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
-    mask_clocks: dict[str, tuple[BoundaryClock, int, int, tuple[FrameTransform, ...]]]
-    | None = None,
-    bypass_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
-    micro_fade_ms: int = DEFAULT_MICRO_FADE_MS,
-) -> _PlacedTrack:
-    """Build the exact source, envelope and placement graph without rendering or saving."""
-    micro_fade_ms = max(0, micro_fade_ms)
-    sorted_clips, holes = expand_timed_clips(sorted_clips, micro_fade_ms=micro_fade_ms)
-    prepared: list[_PreparedClip] = []
-    ignored_lookup = IgnoredWordRegions(project)
-    clock_origin = window[0] if window else 0.0
+    window: tuple[float, float] | None,
+    origin_frame: int,
+    mutes: MuteIndex,
+) -> tuple[
+    list[tuple[float, float, tuple[float, float] | None]],
+    list[tuple[int, int, int] | None],
+    list[float],
+    list[float],
+]:
+    """Each clip's span in the window (or whole), its grid cell, and the blends and borrows."""
     spans: list[tuple[float, float, tuple[float, float] | None]] = []
     cells: list[tuple[int, int, int] | None] = []
-    origin_frame = grid.frame(window[0]) if grid and window else 0
     for clip in sorted_clips:
         if grid is None:
             timeline_start = max(window[0], clip.timeline_start) if window else clip.timeline_start
@@ -733,7 +801,6 @@ def placed_track_audio(
         )
     blends = [0.0] * len(sorted_clips)
     borrow = [0.0] * len(sorted_clips)
-    mutes = MuteIndex(project)
     for index in range(1, len(sorted_clips)):
         left, right = sorted_clips[index - 1], sorted_clips[index]
         blends[index] = crossfade_borrow_sec(project, left, right, mutes)
@@ -750,10 +817,74 @@ def placed_track_audio(
             )
             if grid:
                 borrow[index] = grid.frame(borrow[index]) / grid.rate
+    return spans, cells, blends, borrow
+
+
+def _stem_leaf_bounds(
+    parts: tuple, index: int, grid: TrackGrid | None, src: Path
+) -> tuple[float, float]:
+    """The source range clip ``index`` plays in the whole stem, borrowed blends included."""
+    spans, cells, _, borrow = parts
+    borrow_in = borrow[index]
+    borrow_out = borrow[index + 1] if index + 1 < len(borrow) else 0.0
+    if grid and (cell := cells[index]):
+        start, end, origin = cell
+        return (
+            grid.source_time(src, origin - grid.frame(borrow_in)),
+            grid.source_time(src, origin + end - start + grid.frame(borrow_out)),
+        )
+    bounds = spans[index][2]
+    assert bounds is not None
+    return bounds[0] - borrow_in, bounds[1] + borrow_out
+
+
+def _before_window(
+    clip: Clip, grid: TrackGrid | None, window: tuple[float, float] | None, origin_frame: int
+) -> dict[str, float]:
+    """The ``_PreparedClip`` fields for a clip a window leaves out because it ends before it."""
+    if window is None:
+        return {}
+    if grid is not None:
+        last = grid.frame(clip.timeline_end)
+        return (
+            {"before_window_end": (last - origin_frame) / grid.rate} if last <= origin_frame else {}
+        )
+    if clip.timeline_end <= window[0]:
+        return {"before_window_end": clip.timeline_end - window[0]}
+    return {}
+
+
+def placed_track_audio(
+    project: EpisodeProject,
+    track: Track,
+    sorted_clips: list[Clip],
+    *,
+    grid: TrackGrid | None,
+    window: tuple[float, float] | None = None,
+    removed_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
+    mask_clocks: dict[str, tuple[BoundaryClock, int, int, tuple[FrameTransform, ...]]]
+    | None = None,
+    bypass_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
+    micro_fade_ms: int = DEFAULT_MICRO_FADE_MS,
+) -> _PlacedTrack:
+    """Build the exact source, envelope and placement graph without rendering or saving."""
+    micro_fade_ms = max(0, micro_fade_ms)
+    sorted_clips, holes = expand_timed_clips(sorted_clips, micro_fade_ms=micro_fade_ms)
+    prepared: list[_PreparedClip] = []
+    ignored_lookup = IgnoredWordRegions(project)
+    clock_origin = window[0] if window else 0.0
+    origin_frame = grid.frame(window[0]) if grid and window else 0
+    mutes = MuteIndex(project)
+    spans, cells, blends, borrow = _spans_and_borrow(
+        project, track, sorted_clips, grid, window, origin_frame, mutes
+    )
+    stem_parts: tuple | None = None
     for index, clip in enumerate(sorted_clips):
         timeline_start, timeline_end, source_bounds = spans[index]
         if source_bounds is None:
-            prepared.append(_PreparedClip(clip, None))
+            prepared.append(
+                _PreparedClip(clip, None, **_before_window(clip, grid, window, origin_frame))
+            )
             continue
         borrow_in = borrow[index]
         borrow_out = borrow[index + 1] if index + 1 < len(sorted_clips) else 0.0
@@ -796,7 +927,14 @@ def placed_track_audio(
             reach_in=borrow_in,
             reach_out=borrow_out,
         )
-        tiles = _room_tone_under_mutes(project, track, clip, source_start, source_end)
+        stem_span = None
+        if window and any(region.fill is not None for region in clip.mute_regions):
+            if stem_parts is None:
+                stem_parts = _spans_and_borrow(project, track, sorted_clips, grid, None, 0, mutes)
+            stem_span = _stem_leaf_bounds(stem_parts, index, grid, src)
+        tiles = _room_tone_under_mutes(
+            project, track, clip, source_start, source_end, stem_span=stem_span, grid=grid
+        )
         body: Audio = MixAudio(At(0.0, leaf), tuple(tiles)) if tiles else leaf
         if clip.off_speaker_mute_regions:
             body = OffSpeakerAudio(
@@ -860,6 +998,7 @@ def _with_hole_fills(
 ) -> list[_PreparedClip]:
     out: list[_PreparedClip] = []
     origin_sec = window[0] if window else 0.0
+    ended_before: tuple[TimingHole, float, float, int] | None = None
     for index, item in enumerate(prepared):
         out.append(item)
         hole = holes.get(index)
@@ -878,13 +1017,18 @@ def _with_hole_fills(
                 (first - origin_frame) / grid.rate,
                 (last - origin_frame) / grid.rate,
             )
+            before_end = (whole_last - origin_frame) / grid.rate if window else None
         else:
             start, end = hole.start, hole.end
             if window:
                 start, end = max(start, window[0]), min(end, window[1])
             gap_sec, skip_sec = hole.end - hole.start, start - hole.start
             placed_start, placed_end = start - origin_sec, end - origin_sec
+            before_end = hole.end - origin_sec if window else None
         if placed_end <= placed_start:
+            if before_end is not None and before_end <= 0:
+                out.append(_PreparedClip(hole.parent, None, before_window_end=before_end))
+                ended_before = (hole, gap_sec, before_end, len(out) - 1)
             continue
         body = _hole_room_tone(
             project,
@@ -897,7 +1041,35 @@ def _with_hole_fills(
             grid=grid,
         )
         out.append(_PreparedClip(hole.parent, _ClipContent(placed_start, placed_end, body)))
+    if ended_before is not None and ended_before[3] == _last_before_window(out):
+        hole, gap_sec, before_end, at = ended_before
+        silent = (
+            _hole_room_tone(
+                project,
+                track,
+                hole,
+                gap_sec=gap_sec,
+                skip_sec=0.0,
+                length_sec=gap_sec,
+                micro_fade_ms=micro_fade_ms,
+                grid=grid,
+            )
+            is None
+        )
+        out[at] = _PreparedClip(
+            hole.parent, None, before_window_end=before_end, silent_before=silent
+        )
     return out
+
+
+def _last_before_window(items: list[_PreparedClip]) -> int:
+    """Index of the last item in the run of before-window markers that opens the list."""
+    last = -1
+    for index, item in enumerate(items):
+        if item.before_window_end is None:
+            break
+        last = index
+    return last
 
 
 def _render_placed_track(
