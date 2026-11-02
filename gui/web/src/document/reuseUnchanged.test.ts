@@ -138,6 +138,29 @@ describe("reuseUnchanged", () => {
     );
   });
 
+  it("reuses a clip whose timing steps are equal and not one whose steps moved", () => {
+    const timing = () => ({
+      steps: [{ at: 20, delta_sec: 0.1 }],
+      method: "bleed_lag",
+      micro_fade_ms: 10,
+    });
+    const prev = project();
+    prev.clips.tracks.host![1]!.timing = timing();
+    const same = fresh(prev);
+    same.clips.tracks.host![1]!.timing = timing();
+    expect(reuseUnchanged(prev, same).clips.tracks.host![1]).toBe(
+      prev.clips.tracks.host![1],
+    );
+    const moved = fresh(prev);
+    moved.clips.tracks.host![1]!.timing = {
+      ...timing(),
+      steps: [{ at: 21, delta_sec: 0.1 }],
+    };
+    expect(reuseUnchanged(prev, moved).clips.tracks.host![1]).not.toBe(
+      prev.clips.tracks.host![1],
+    );
+  });
+
   it("keeps an unchanged track by id when another track changes", () => {
     const prev = project();
     const next = fresh(prev);

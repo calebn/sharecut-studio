@@ -1,5 +1,14 @@
 {
   "comment": "Hand-computed oracle for Clip.timing (#2857). Steps are in source seconds; delta>0 is a hole, delta<0 skips source [at, at+|delta|). source_to_timeline / timeline_to_source: null = no audio there. The TS port (stage 6) reads this file too.",
+  "summary_cases": {
+    "comment": "Step i sits at 12 + 5 * i source seconds; a negative delta gets a quiet span of 1 s either side. summary() rounds the largest |delta| half up to ms, at least 1 ms.",
+    "cases": [
+      {"deltas": [0.0001, 0.0002], "summary": "2 corrections, largest 1 ms"},
+      {"deltas": [0.001, -0.003], "summary": "2 corrections, largest 3 ms"},
+      {"deltas": [0.0025, 0.0015], "summary": "2 corrections, largest 3 ms"},
+      {"deltas": [0.0004, 0.0004], "summary": "2 corrections, largest 1 ms"}
+    ]
+  },
   "cases": [
     {
       "name": "no_timing",

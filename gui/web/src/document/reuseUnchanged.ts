@@ -53,7 +53,7 @@ function sameSourceSpans(
 
 /**
  * Same own keys with equal values; `mute_regions` and `clipping_regions`
- * compared per region, and any key named in `deepKeys` compared structurally
+ * compared per region, `timing` and any key named in `deepKeys` compared structurally
  * (`jsonEqual`) instead of by identity.
  * Any other nested value compares by identity, so a freshly parsed one never
  * matches. That is safe (the row only loses reuse), but a nested field added
@@ -86,7 +86,7 @@ function sameExcept<T extends object>(
 }
 
 function sameShallow<T extends object>(a: T, b: T): boolean {
-  return sameExcept(a, b);
+  return sameExcept(a, b, ["timing" as keyof T]);
 }
 
 /** Same `clips` fields other than the lanes (count, duration, any later key). */
