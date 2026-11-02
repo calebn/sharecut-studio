@@ -1,5 +1,6 @@
 import { stagesForRole } from "../../state/stageRoutes";
 import type { StageId } from "../../types/stage";
+import { ROLE_HINT_TEXT } from "../../utils/roleHint";
 
 export type GuestRole = "viewer" | "commenter" | "editor";
 
@@ -10,11 +11,7 @@ export function guestStages(role: GuestRole): readonly StageId[] | null {
     : null;
 }
 
-export const ROLE_HINT: Record<GuestRole, string> = {
-  viewer: "You can listen along. The host decides.",
-  commenter: "You can comment and suggest cuts. The host decides.",
-  editor: "You can edit and comment. The host decides what ships.",
-};
+export const ROLE_HINT: Record<GuestRole, string> = ROLE_HINT_TEXT;
 
 export function lastStartedWordAt(
   wordStarts: readonly number[],

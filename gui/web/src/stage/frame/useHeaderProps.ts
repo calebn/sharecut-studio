@@ -42,9 +42,7 @@ export function useHeaderProps(): Omit<
   const stages = useStageBarProps();
   const { preference, setPreference } = useTheme();
   const role = stageRoleOf(guestMode);
-  const [hintShown, setHintShown] = useState(
-    () => role !== "host" && !roleHintSeen(role),
-  );
+  const [dismissed, setDismissed] = useState<readonly string[]>([]);
   const guest: AppHeaderProps["guest"] =
     role === "host"
       ? undefined
@@ -53,10 +51,10 @@ export function useHeaderProps(): Omit<
           role,
           hint: {
             text: ROLE_HINT_TEXT[role],
-            shown: hintShown && !roleHintSeen(role),
+            shown: !dismissed.includes(role) && !roleHintSeen(role),
             onDismiss: () => {
               markRoleHintSeen(role);
-              setHintShown(false);
+              setDismissed((current) => [...current, role]);
             },
           },
         };
