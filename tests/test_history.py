@@ -40,6 +40,12 @@ from podcast_mcp.util import atomic_file
 from podcast_mcp.util.atomic_json import write_json_atomic
 
 
+def _run(path, project, *args, **kwargs):
+    """``run_mutation`` over a store at ``path``, committing through that store."""
+    store = ProjectStore(path)
+    return run_mutation(store, project, *args, commit=store.commit, **kwargs)
+
+
 @pytest.mark.parametrize("writer", ["history_manager", "project_store"])
 def test_history_index_is_published_atomically(minimal_project, monkeypatch, writer):
     project = load_project(minimal_project)
@@ -509,8 +515,8 @@ def test_unlocked_rollback_does_not_adopt_an_index_a_dead_commit_left_ahead(
     monkeypatch.setattr(HistoryManager, "_save_index", save_index)
     monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
     with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="boom"):
-        run_mutation(
-            ProjectStore(minimal_project),
+        _run(
+            minimal_project,
             proj,
             "before add comment",
             "after add comment",
@@ -541,8 +547,8 @@ def test_unlocked_rollback_keeps_empty_history_when_the_saved_project_is_unreada
     monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
     monkeypatch.setattr(rollback_mod, "load_project", unreadable)
     with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="boom"):
-        run_mutation(
-            ProjectStore(minimal_project),
+        _run(
+            minimal_project,
             proj,
             "before add comment",
             "after add comment",
@@ -569,8 +575,8 @@ def test_failed_first_mutation_keeps_an_index_another_writer_committed(minimal_p
         raise RuntimeError("boom")
 
     with pytest.raises(RuntimeError, match="boom"):
-        run_mutation(
-            ProjectStore(minimal_project),
+        _run(
+            minimal_project,
             proj,
             "before",
             "after",
