@@ -5,11 +5,11 @@ import { seekTransport } from "../commands/seek";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
-import type { HistoryEntryId } from "../types/project";
 import {
   RECORDED_SESSIONS_RESPONSE,
   recordedSessionsProject,
-} from "./sessionBandsFixture";
+} from "../test/sessionBandsFixture";
+import type { HistoryEntryId } from "../types/project";
 import { pillWidthPx } from "./sessionPillLayout";
 import { TimelineRuler } from "./TimelineRuler";
 

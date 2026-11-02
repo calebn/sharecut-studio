@@ -1,6 +1,6 @@
 import type { RecordSessionSummary } from "../record/types";
-import { episode } from "../test/episodeFixture";
 import type { ProjectView } from "../types/project";
+import { episode } from "./episodeFixture";
 
 /** The episode with each track's clip cut in half and landed as two record sessions: `s1` is the first half, `s2` the second. */
 export function recordedSessionsProject(): ProjectView {
