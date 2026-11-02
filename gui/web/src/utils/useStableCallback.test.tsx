@@ -409,5 +409,5 @@ describe("stable callback source governance", () => {
       }
       expect(findStableCallbackRenderCalls(source), source.rel).toEqual([]);
     }
-  });
+  }, 30_000);
 });

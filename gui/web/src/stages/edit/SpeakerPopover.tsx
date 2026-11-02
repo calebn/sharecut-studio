@@ -117,14 +117,21 @@ export function SpeakerPopover({
     return undefined;
   };
   const picking = useRef(false);
+  // Esc during a pending pick already closed the popover: the pick must not close it a second time.
+  const dismissed = useRef(false);
+  const dismiss = () => {
+    dismissed.current = true;
+    onClose();
+  };
   const pick = async (id: string) => {
     if (picking.current) return;
     picking.current = true;
+    dismissed.current = false;
     setError(null);
     try {
       const reason = id === currentId ? undefined : await settle(onPick(id));
       if (reason) setError(reason);
-      else onClose();
+      else if (!dismissed.current) onClose();
     } finally {
       picking.current = false;
     }
@@ -199,7 +206,7 @@ export function SpeakerPopover({
 
   if (form === "bottom") {
     return (
-      <Sheet form="bottom" title="Speaker" open={open} onClose={onClose}>
+      <Sheet form="bottom" title="Speaker" open={open} onClose={dismiss}>
         {content}
       </Sheet>
     );
@@ -207,7 +214,7 @@ export function SpeakerPopover({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={dismiss}
       title="Speaker"
       panelClassName="sys-speaker-panel"
       initialFocusRef={initialFocus}
