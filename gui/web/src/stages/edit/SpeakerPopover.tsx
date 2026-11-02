@@ -117,7 +117,7 @@ export function SpeakerPopover({
     return undefined;
   };
   const picking = useRef(false);
-  // Esc during a pending pick already closed the popover: the pick must not close it a second time.
+  // Esc or an outside press during a pending pick or add already closed the popover: the answer must not close it a second time.
   const dismissed = useRef(false);
   const dismiss = () => {
     dismissed.current = true;
@@ -137,8 +137,9 @@ export function SpeakerPopover({
     }
   };
   const addSpeaker = async (name: string) => {
+    dismissed.current = false;
     const reason = await settle(onAddSpeaker?.(name));
-    if (!reason) onClose();
+    if (!reason && !dismissed.current) onClose();
     return reason;
   };
 

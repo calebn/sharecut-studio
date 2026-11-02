@@ -305,6 +305,21 @@ describe("SpeakerPopover new speaker", () => {
     expect(onAddSpeaker.mock.calls).toEqual([["Priya Shah"]]);
   });
 
+  it("closes once when an outside press closes it while a new speaker is pending", async () => {
+    const user = userEvent.setup();
+    let answer: (reason: string | undefined) => void = () => undefined;
+    const { onAddSpeaker, onClose } = setup();
+    onAddSpeaker.mockImplementationOnce(
+      () => new Promise<string | undefined>((resolve) => (answer = resolve)),
+    );
+    await add(user);
+    await user.keyboard("Dana{Enter}");
+    await user.click(document.body);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await act(async () => answer(undefined));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("refuses an empty name and a duplicate, case aside", async () => {
     const user = userEvent.setup();
     const { onAddSpeaker } = setup();
