@@ -743,7 +743,7 @@ runs prove the layout and the clip midpoint tap's exact `Clip` selection.
 A marker on the lane (`.sys-marker-hit`) is one marker row tall, so the
 exemption covers its height only. Chapter text leaves room for point-pin targets.
 Beside a stack chip, pin reach uses the chip's measured button and allocated
-input bounds; other neighbours share half the gap.
+input bounds; other neighbours share half the gap. Where the neighbours leave room the spec asserts exactly 44 px, with no slack.
 `gui/web/e2e/comment-pins-touch.spec.ts` proves the lane
 keeps its height, that a tap beside a pin picks it, a tap on a clip under the
 lane never does, and the `+N` chip's list picks each pin folded into it (#1742).
