@@ -28,8 +28,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "../../..");
 
 const WHEN_HINTS: Record<string, string> = {
-  always: "Always (when not typing in an input)",
-  layoutShell: "Desktop or tablet shell (when not typing in an input)",
+  always: "Always (when not typing in a field or a Scrub value)",
+  layoutShell:
+    "Desktop or tablet shell (when not typing in a field or a Scrub value)",
   editorFocused: "Timeline or transcript focused",
   timelineFocused: "Timeline focused",
   canSuggestStructural: "Structural edits allowed",

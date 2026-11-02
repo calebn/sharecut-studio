@@ -21,7 +21,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
 | `Space` | Play / pause (`transport.togglePlay`) | Timeline or transcript focused | When timeline or transcript is focused; Shift+Space is Hear |
-| `K` | Stop playback (`transport.stop`) | Always (when not typing in an input) | K alone stops playback; Mod+K splits at the playhead |
+| `K` | Stop playback (`transport.stop`) | Always (when not typing in a field or a Scrub value) | K alone stops playback; Mod+K splits at the playhead |
 | `Mod+B` | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Mod+B: rebuild stems/premix when host or Docs Editor |
 
 ## navigation
@@ -33,12 +33,12 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Mod+3` | Go to Edit (`stage.edit`) | Project loaded, host or editor link | Mod+3; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
 | `Mod+4` | Go to Review (`stage.review`) | Project loaded | Mod+4; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
 | `Mod+5` | Go to Deliver (`stage.deliver`) | Project loaded, host or editor link | Mod+5; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
-| `ArrowLeft` | Nudge playhead back (`navigation.nudgePlayheadBack`) | Always (when not typing in an input) | Shift for 5 seconds |
-| `ArrowRight` | Nudge playhead forward (`navigation.nudgePlayheadForward`) | Always (when not typing in an input) | Shift for 5 seconds |
-| `Mod+ArrowLeft` | Go to start (`navigation.goToStart`) | Always (when not typing in an input) | Mod+ArrowLeft: Home alias for laptops |
-| `Home` | Go to start (`navigation.goToStart`) | Always (when not typing in an input) | Also Mod+ArrowLeft (laptops without Home) |
-| `Mod+ArrowRight` | Go to end (`navigation.goToEnd`) | Always (when not typing in an input) | Mod+ArrowRight: End alias for laptops |
-| `End` | Go to end (`navigation.goToEnd`) | Always (when not typing in an input) | Also Mod+ArrowRight (laptops without End) |
+| `ArrowLeft` | Nudge playhead back (`navigation.nudgePlayheadBack`) | Always (when not typing in a field or a Scrub value) | Shift for 5 seconds |
+| `ArrowRight` | Nudge playhead forward (`navigation.nudgePlayheadForward`) | Always (when not typing in a field or a Scrub value) | Shift for 5 seconds |
+| `Mod+ArrowLeft` | Go to start (`navigation.goToStart`) | Always (when not typing in a field or a Scrub value) | Mod+ArrowLeft: Home alias for laptops |
+| `Home` | Go to start (`navigation.goToStart`) | Always (when not typing in a field or a Scrub value) | Also Mod+ArrowLeft (laptops without Home) |
+| `Mod+ArrowRight` | Go to end (`navigation.goToEnd`) | Always (when not typing in a field or a Scrub value) | Mod+ArrowRight: End alias for laptops |
+| `End` | Go to end (`navigation.goToEnd`) | Always (when not typing in a field or a Scrub value) | Also Mod+ArrowRight (laptops without End) |
 
 ## history
 
@@ -100,7 +100,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
 | `M` | Record marker (`record.marker`) | recordStageActive | M: live marker on the Record stage; on any other stage, M still mutes — M drops a marker only on the Record stage; otherwise M mutes |
-| `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in an input) | Also Shift+/ |
+| `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in a field or a Scrub value) | Also Shift+/ |
 | `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B: Bounce in Deliver (export/bounces/) |
 | `Mod+Shift+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+Shift+E: mastered export/ via PipelineService |
 | `Mod+N` | New project… (`project.new`) | Host project management | Mod+N |
@@ -119,9 +119,9 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Command | Id | When | Notes |
 |---------|----|------|-------|
 | Restore original audio | `edit.restoreClipBleed` | Loaded host project | Restore the selected automatic region in this clip. Host only. |
-| Seek playhead | `transport.seek` | Always (when not typing in an input) | Args: { sec: number } |
+| Seek playhead | `transport.seek` | Always (when not typing in a field or a Scrub value) | Args: { sec: number } |
 | Audition Full mix / Edited stems / Original | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
-| Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
+| Follow | `presence.follow` | Always (when not typing in a field or a Scrub value) | Args: { clientId: string } |
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
 | Open history | `edit.history` | Host or shared edit mode | Opens the History sheet, which stays reachable when Undo and Redo are both empty. Host or Editor. |
 | Play range | `range.play` | Project loaded |  |
@@ -135,7 +135,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Toggle track mute | `track.muteToggle` | Project loaded | Mute (edit.mute) on a track: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? }) |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
 | Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
-| Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in an input) | Toggle: fill the stage height, or a fixed track height |
+| Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in a field or a Scrub value) | Toggle: fill the stage height, or a fixed track height |
 | Export transcript… | `export.transcript` | Loaded host project | Go to Deliver and focus the Transcript Export → export/ |
 | Share… | `share.manage` | Loaded host project | Open the Deliver Share section: live links, create, revoke |
 | Create record room | `record.createRoom` | Loaded host project | Mint guest + producer links in place and copy the guest link |
@@ -157,7 +157,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Find and replace transcript | `transcript.findReplace` | Loaded host project |  |
 | Extend transcript range | `transcript.extendRange` | Project loaded | Args: { edge: 'start' \| 'end', by: 1 \| -1 }: moves one edge of the selected word range by one word; a selection change only (#1029) |
 | Ignore / restore transcript words | `transcript.ignoreWords` | Project loaded | Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only |
-| Show cut away | `view.showCutAway` | Always (when not typing in an input) |  |
+| Show cut away | `view.showCutAway` | Always (when not typing in a field or a Scrub value) |  |
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |
 | Set clip join | `edit.setClipJoin` | Host or shared edit mode | Join glyph popover on the timeline; Incoming transition select and Transition length field in the clip inspector |
 | Move clips | `edit.moveClips` | Host or shared edit mode | Args: { clips: non-empty list } — Clip inspector Apply move or pointer body drag; one clip or a multi-selection. Inspector placementToken is rechecked inside the mutation queue. |

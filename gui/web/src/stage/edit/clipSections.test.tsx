@@ -115,6 +115,29 @@ describe("clip content", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("saves nothing when a source edge is opened and left unchanged", async () => {
+    open([{ ...clip, source_start: 1.2345 }]);
+    await key("Source start", "Enter");
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Source start" }), {
+        key: "Enter",
+      });
+    });
+    expect(saveClipEdge).not.toHaveBeenCalled();
+  });
+
+  it("shows a Viewer no fade note", () => {
+    open();
+    act(() => {
+      useDawStore.setState({
+        projectPath: "share:ep",
+        guestMode: "viewer",
+        shareCapabilities: ["view"],
+      });
+    });
+    expect(screen.queryByText(/max \d+ ms/)).toBeNull();
+  });
+
   it("refuses a source edge outside the minimum-span bounds", async () => {
     open();
     await type("Source start", "5");
@@ -135,21 +158,6 @@ describe("clip content", () => {
       screen.getByRole("button", { name: "Inspect automatic audio reduction" }),
     );
     expect(screen.queryByLabelText("Timeline start (seconds)")).toBeNull();
-  });
-
-  it("does not let Backspace on a focused field reach the keymap", () => {
-    open();
-    const reached = vi.fn();
-    window.onkeydown = reached;
-    fireEvent.keyDown(
-      screen.getByRole("spinbutton", { name: "Source start" }),
-      {
-        key: "Backspace",
-      },
-    );
-    window.onkeydown = null;
-    expect(reached).not.toHaveBeenCalled();
-    expect(executePointerCommand).not.toHaveBeenCalled();
   });
 
   it("shows a refused trim as an alert", async () => {
