@@ -1,4 +1,4 @@
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, useId, useState } from "react";
 import { type LandGate, STOP_CONFIRM_COPY, UploadStatus } from "../../record";
 import { Sheet } from "../../system/Sheet";
 import { Button, InlineConfirm, ToggleButton } from "../../ui";
@@ -20,6 +20,7 @@ export type RecordMoreSheetProps = {
   onInvite: () => void;
   guestsSeeNotes: boolean;
   onGuestsSeeNotesChange: (enabled: boolean) => void;
+  error?: string | null;
   onDevices: () => void;
   /** Absent once the end is pending or being sent. */
   onEndSession?: () => void;
@@ -43,11 +44,13 @@ export function RecordMoreSheet({
   onInvite,
   guestsSeeNotes,
   onGuestsSeeNotesChange,
+  error,
   onDevices,
   onEndSession,
   endReason,
 }: RecordMoreSheetProps) {
   const [confirming, setConfirming] = useState(false);
+  const helpId = useId();
   return (
     <Sheet
       form="centered"
@@ -105,15 +108,21 @@ export function RecordMoreSheet({
         ) : null}
         <ToggleButton
           pressed={guestsSeeNotes}
+          aria-describedby={busy ? undefined : helpId}
           disabledReason={busy ? BUSY_REASON : undefined}
           onClick={() => onGuestsSeeNotesChange(!guestsSeeNotes)}
         >
           Guests see notes
         </ToggleButton>
-        <p className="stage-host-note">
+        <p id={helpId} className="stage-host-note">
           Off: guests see their own notes and everyone’s markers. On: they also
           see other people’s notes.
         </p>
+        {error ? (
+          <p className="stage-host-note" role="status">
+            {error}
+          </p>
+        ) : null}
         <Button onClick={onDevices}>Devices…</Button>
         <Button onClick={onInvite}>Invite and links…</Button>
         {onEndSession ? (
