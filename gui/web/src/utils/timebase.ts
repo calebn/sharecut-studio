@@ -1,5 +1,10 @@
 import { TIME_EPS_SEC as EPS } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
+import {
+  clipSourceToTimeline,
+  clipSourceToTimelineNearest,
+  clipTimelineToSource,
+} from "./clipTiming";
 
 /**
  * Map a timeline second to source media time via clip dual clocks.
@@ -15,6 +20,13 @@ export function timelinePointToSource(
       timelineSec + EPS >= clip.timeline_start &&
       timelineSec + EPS < clip.timeline_end
     ) {
+      if (clip.timing) {
+        const source =
+          clipTimelineToSource(clip, timelineSec) ??
+          clipTimelineToSource(clip, timelineSec + EPS);
+        if (source === null) continue;
+        return source;
+      }
       return clip.source_start + (timelineSec - clip.timeline_start);
     }
   }
@@ -35,7 +47,11 @@ export function sourcePointToTimeline(
       sourceSec + EPS >= clip.source_start &&
       sourceSec + EPS < clip.source_end
     ) {
-      const tl = clip.timeline_start + (sourceSec - clip.source_start);
+      const tl = clip.timing
+        ? (clipSourceToTimeline(clip, sourceSec) ??
+          clipSourceToTimeline(clip, sourceSec + EPS))
+        : clip.timeline_start + (sourceSec - clip.source_start);
+      if (tl === null) continue;
       if (best === null || tl < best) {
         best = tl;
       }
@@ -69,9 +85,16 @@ export function clipsForOriginTrack(
 
 /** Map a source second on one clip to timeline (no half-open / null). */
 export function sourceSecOnClipToTimeline(
-  clip: Pick<ClipRow, "source_start" | "timeline_start">,
+  clip: Pick<ClipRow, "source_start" | "timeline_start"> &
+    Partial<Pick<ClipRow, "source_end" | "timing">>,
   sourceSec: number,
 ): number {
+  if (clip.timing && clip.source_end !== undefined) {
+    return clipSourceToTimelineNearest(
+      { ...clip, source_end: clip.source_end },
+      sourceSec,
+    );
+  }
   return clip.timeline_start + (sourceSec - clip.source_start);
 }
 
@@ -85,7 +108,8 @@ export function sourceSecInClipToTimeline(
   clip: Pick<
     ClipRow,
     "source_start" | "source_end" | "timeline_start" | "timeline_end"
-  >,
+  > &
+    Partial<Pick<ClipRow, "timing">>,
   sourceSec: number,
 ): number | null {
   if (

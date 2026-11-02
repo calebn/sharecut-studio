@@ -1,0 +1,139 @@
+import type { ClipRow } from "../types/project";
+
+export type TimedPlacement = Pick<
+  ClipRow,
+  "source_start" | "source_end" | "timeline_start" | "timing"
+>;
+
+export interface VirtualPiece {
+  srcA: number;
+  srcB: number;
+  tlA: number;
+}
+
+type StepDelta = { delta_sec: number };
+
+export function clipTimingSteps(clip: Pick<ClipRow, "timing">) {
+  return clip.timing?.steps ?? [];
+}
+
+export function clipVirtualPieces(clip: TimedPlacement): VirtualPiece[] {
+  const out: VirtualPiece[] = [];
+  let cur = clip.source_start;
+  let tl = clip.timeline_start;
+  for (const step of clipTimingSteps(clip)) {
+    const pieceEndTl = tl + (step.at - cur);
+    if (step.at > cur) {
+      out.push({ srcA: cur, srcB: step.at, tlA: tl });
+    }
+    if (step.delta_sec > 0) {
+      cur = step.at;
+      tl = pieceEndTl + step.delta_sec;
+    } else {
+      cur = step.at - step.delta_sec;
+      tl = pieceEndTl;
+    }
+  }
+  if (clip.source_end > cur) {
+    out.push({ srcA: cur, srcB: clip.source_end, tlA: tl });
+  }
+  return out;
+}
+
+export function clipTotalDelta(clip: Pick<ClipRow, "timing">): number {
+  let total = 0;
+  for (const step of clipTimingSteps(clip)) {
+    total += step.delta_sec;
+  }
+  return total;
+}
+
+export function clipTimelineEnd(clip: TimedPlacement): number {
+  return (
+    clip.timeline_start +
+    (clip.source_end - clip.source_start) +
+    clipTotalDelta(clip)
+  );
+}
+
+export function clipTimelineSpanSec(clip: TimedPlacement): number {
+  return clipTimelineEnd(clip) - clip.timeline_start;
+}
+
+export function pieceTimelineEnd(piece: VirtualPiece): number {
+  return piece.tlA + (piece.srcB - piece.srcA);
+}
+
+export function clipSourceToTimeline(
+  clip: TimedPlacement,
+  sourceSec: number,
+): number | null {
+  for (const { srcA, srcB, tlA } of clipVirtualPieces(clip)) {
+    if (srcA <= sourceSec && sourceSec < srcB) {
+      return tlA + (sourceSec - srcA);
+    }
+  }
+  return sourceSec === clip.source_end ? clipTimelineEnd(clip) : null;
+}
+
+export function clipTimelineToSource(
+  clip: TimedPlacement,
+  timelineSec: number,
+): number | null {
+  for (const piece of clipVirtualPieces(clip)) {
+    if (piece.tlA <= timelineSec && timelineSec < pieceTimelineEnd(piece)) {
+      return piece.srcA + (timelineSec - piece.tlA);
+    }
+  }
+  return null;
+}
+
+export function clipShiftAt(clip: TimedPlacement, sourceSec: number): number {
+  let atPoint = 0;
+  let atStart = 0;
+  for (const step of clipTimingSteps(clip)) {
+    if (step.at <= sourceSec) {
+      atPoint += step.delta_sec;
+    }
+    if (step.at <= clip.source_start) {
+      atStart += step.delta_sec;
+    }
+  }
+  return clip.timeline_start - clip.source_start + atPoint - atStart;
+}
+
+export function clipSourceToTimelineNearest(
+  clip: TimedPlacement,
+  sourceSec: number,
+): number {
+  const pieces = clipVirtualPieces(clip);
+  const first = pieces[0];
+  const last = pieces[pieces.length - 1];
+  if (!first || !last) {
+    return clip.timeline_start + (sourceSec - clip.source_start);
+  }
+  if (sourceSec < first.srcA) {
+    return first.tlA + (sourceSec - first.srcA);
+  }
+  for (const { srcA, srcB, tlA } of pieces) {
+    if (sourceSec < srcA) {
+      return tlA;
+    }
+    if (sourceSec < srcB) {
+      return tlA + (sourceSec - srcA);
+    }
+  }
+  return last.tlA + (sourceSec - last.srcA);
+}
+
+export function timingSummary(steps: readonly StepDelta[]): string {
+  if (steps.length === 0) {
+    return "";
+  }
+  if (steps.length === 1) {
+    return "1 correction";
+  }
+  const largest = Math.max(...steps.map((step) => Math.abs(step.delta_sec)));
+  const ms = Math.max(1, Math.floor(largest * 1000 + 0.5));
+  return `${steps.length} corrections, largest ${ms} ms`;
+}

@@ -29,6 +29,23 @@ describe("clip labels", () => {
     });
   });
 
+  it("reads the duration from the timeline span of a timed clip", () => {
+    const timed = clipRow({
+      source_start: 30,
+      source_end: 36,
+      timeline_start: 4,
+      timeline_end: 12,
+      timing: {
+        steps: [{ at: 33, delta_sec: 2 }],
+        method: "bleed_lag",
+        micro_fade_ms: 10,
+      },
+    });
+    expect(clipLabels({ clip: timed, role: "dialogue" }).select).toBe(
+      "Select Dialogue clip at 00:04.000, 8s",
+    );
+  });
+
   it("uses a human track label then role without using internal IDs", () => {
     expect(
       clipLabels({
