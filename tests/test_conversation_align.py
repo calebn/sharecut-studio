@@ -804,7 +804,7 @@ def test_snapshot_restore_clip_geometry(tmp_path: Path) -> None:
     proj = _project(tmp_path, [("host", 10.0, [TranscriptWord(text="hi", start=0.0, end=0.2)])])
     snap = snapshot_clip_geometry(proj)
     proj.clips[0].timeline_start = 9.0
-    restore_clip_geometry(proj, [*snap, ("host", "missing", 0.0, 1.0, 0.0)])
+    restore_clip_geometry(proj, [*snap, ("host", "missing", 0.0, 1.0, 0.0, None)])
     assert proj.clips[0].timeline_start == 0.0
 
 
