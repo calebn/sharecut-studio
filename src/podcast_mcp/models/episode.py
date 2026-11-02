@@ -258,15 +258,17 @@ class RoomToneOrigin(BaseModel):
 
     Only an extracted bed carries this; a recorded or assigned bed has none. ``source_id``
     is the source recording the excerpt came from (None for the track's primary media) and
-    ``source_start``/``source_end`` are seconds in it. ``media_size`` and ``media_mtime_ns``
-    identify that source's bytes, so a rerun on unchanged audio finds the bed already there.
-    ``file_sha256`` names the written bed. ``measurements`` is what the extractor saw.
+    ``source_start``/``source_end`` are seconds in it. ``source_path`` and ``media_sha256``
+    identify the source independently of its size and modification time.
+    ``file_sha256`` names the written bed. The level, speech and check fields record validation.
     """
 
     kind: Literal["extracted"] = "extracted"
     source_id: str | None = None
     source_start: float = Field(ge=0, allow_inf_nan=False)
     source_end: float = Field(gt=0, allow_inf_nan=False)
+    source_path: str
+    media_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     media_size: int = Field(ge=0)
     media_mtime_ns: int
     extractor_rev: int = Field(ge=1)
