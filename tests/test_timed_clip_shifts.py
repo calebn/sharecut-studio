@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 
 import pytest
 
@@ -11,7 +10,6 @@ from podcast_mcp.edits import conversation_align
 from podcast_mcp.edits.verdict_cache import _heard
 from podcast_mcp.engines.bleed_gate import gate_scope_for_window
 from podcast_mcp.models import Clip
-from podcast_mcp.util.coded_error import CodedValueError
 from test_timed_clip_consumers import _clip, _project
 
 _PIECES = [(10, 20, 100), (20, 30, 112), (31, 40, 122)]
@@ -63,46 +61,6 @@ def test_a_gate_scope_window_over_a_timed_clip_equals_the_same_pieces_untimed() 
         assert gate_scope_for_window(timed, "host", *window) == expected
     scopes = gate_scope_for_window(timed, "host", 105.0, 125.0)
     assert [(s.start_s, s.end_s) for s in scopes] == [(15.0, 30.0), (31.0, 34.0)]
-
-
-def test_alignment_refuses_a_timed_clip_once_at_entry(monkeypatch: pytest.MonkeyPatch) -> None:
-    timed = _clip()
-    plain = Clip(id="b", track_id="guest", source_start=0, source_end=10, timeline_start=0)
-    monkeypatch.setattr(
-        conversation_align,
-        "dialogue_align_units",
-        lambda _p: [(SimpleNamespace(id="host"), timed, [], 30.0)],
-    )
-    with pytest.raises(CodedValueError) as err:
-        conversation_align.plan_conversation_alignment(_project(timed), defaults=load_defaults())
-    assert err.value.code == "timing_map_alignment_unsupported"
-    monkeypatch.setattr(
-        conversation_align,
-        "dialogue_align_units",
-        lambda _p: [(SimpleNamespace(id="guest"), plain, [], 10.0)],
-    )
-    result = conversation_align.plan_conversation_alignment(
-        _project(plain), defaults=load_defaults()
-    )
-    assert result.skipped_reason == "skipped (<2 dialogue clips)"
-
-
-def test_applying_a_plan_refuses_a_timed_clip_before_any_change(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    timed = _clip()
-    monkeypatch.setattr(
-        conversation_align,
-        "dialogue_align_units",
-        lambda _p: [(SimpleNamespace(id="host"), timed, [], 30.0)],
-    )
-    result = SimpleNamespace(skipped_reason=None, plans=[object()])
-    project = _project(timed)
-    before = [clip.model_dump() for clip in project.clips]
-    with pytest.raises(CodedValueError) as err:
-        conversation_align.apply_alignment_plans(project, result, defaults=load_defaults())
-    assert err.value.code == "timing_map_alignment_unsupported"
-    assert [clip.model_dump() for clip in project.clips] == before
 
 
 def test_an_untimed_window_keeps_a_sub_microsecond_overlap() -> None:

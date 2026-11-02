@@ -1,4 +1,4 @@
-"""Piecewise lane latency (#1071): steps found at silences, applied as clip pieces, undone."""
+"""Piecewise lane latency (#1071): steps found at silences, applied as one clip with a timing map, undone."""
 
 from __future__ import annotations
 
@@ -11,7 +11,11 @@ import pytest
 
 import bleed_helpers as bh
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.conversation_align import align_artifact_path, plan_conversation_alignment
+from podcast_mcp.edits.conversation_align import (
+    _timing_for,
+    align_artifact_path,
+    plan_conversation_alignment,
+)
 from podcast_mcp.engines.bleed_lag_segments import (
     STEP_COSTS,
     BleedPair,
@@ -21,7 +25,7 @@ from podcast_mcp.engines.bleed_lag_segments import (
 )
 from podcast_mcp.engines.bleed_latency import HOP_SEC
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
-from podcast_mcp.models import SpeakerIngestAlignment
+from podcast_mcp.models import Clip, SpeakerIngestAlignment
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.history import HistoryService
 from podcast_mcp.services.pipeline.service import PipelineService
@@ -42,6 +46,16 @@ def _from(mic: np.ndarray, lag_sec: float, audio: dict[str, np.ndarray]) -> list
     references = bh.references(audio)
     gap = references["caleb"] - references["audra"]
     return [BleedPair(mic, lane_talks=True, lag_sec=lag_sec, other_over_lane_db=gap)]
+
+
+def _steps(plan) -> list[tuple[float, float]]:
+    return (
+        [(round(s.at, 2), round(s.delta_sec, 3)) for s in plan.timing.steps] if plan.timing else []
+    )
+
+
+def _flat(rows) -> list[float]:
+    return [value for row in rows for value in row]
 
 
 def _clips(ws: ProjectWorkspace, track_id: str) -> list[tuple[str, float, float, float]]:
@@ -311,6 +325,38 @@ def test_steps_show_through_the_other_voice_on_the_lane_mic() -> None:
     ]
 
 
+def test_lag_segment_units_are_lane_source_time() -> None:
+    audio = _stepped()
+    levels = bh.levels(audio)
+    found = lag_segments(
+        levels["audra"],
+        _from(levels["caleb"], 0.15, audio),
+        heard=levels["audra"],
+        heard_peak=bh.peaks(audio)["audra"],
+        deadband_sec=0.02,
+    )
+    assert found is not None
+    quiet = found.segments[1].gap_sec
+    assert quiet is not None
+
+    steps = []
+    for timeline_start in (0.0, 7.0):
+        clip = Clip(
+            id="c",
+            track_id="audra",
+            source_start=0.0,
+            source_end=240.0,
+            timeline_start=timeline_start,
+        )
+        timing, _base = _timing_for(clip, found.segments, "")
+        assert timing is not None
+        steps.append(timing.steps[0].at)
+
+    assert steps[0] == steps[1]
+    assert steps[0] == pytest.approx(found.segments[1].start_sec - 0.04)
+    assert quiet[0] < steps[0] < quiet[1]
+
+
 def test_steps_use_a_mic_other_than_the_reference(tmp_path) -> None:
     # Audra's voice reaches only Lana's mic, and Lana's reaches Caleb's (the reference).
     # Audra's step shows on the Audra -> Lana pair once Lana sits on the reference clock;
@@ -321,12 +367,9 @@ def test_steps_use_a_mic_other_than_the_reference(tmp_path) -> None:
 
     result = plan_conversation_alignment(ws.project, defaults=load_defaults())
 
-    assert [
-        (p.track_id, p.method, round(p.offset_sec, 3), [(round(a, 4), o) for a, o in p.steps])
-        for p in result.plans
-    ] == [
+    assert [(p.track_id, p.method, round(p.offset_sec, 3), _steps(p)) for p in result.plans] == [
         ("caleb", "reference", 0.0, []),
-        ("audra", "bleed_lag", -0.12, [(182.65, -0.2)]),
+        ("audra", "bleed_lag", -0.12, [(182.77, -0.08)]),
         ("lana", "hold", 0.0, []),
     ]
 
@@ -492,28 +535,40 @@ def stepped(tmp_path) -> ProjectWorkspace:
     return bh.workspace(tmp_path, _stepped())
 
 
-def test_align_tracks_splits_the_lane_in_the_silence_and_undo_restores(
+def test_align_tracks_steps_the_lane_in_the_silence_and_undo_restores(
     stepped: ProjectWorkspace,
 ) -> None:
     PipelineService(stepped).run(only_step="align_tracks", unattended=True)
 
-    pieces = _clips(stepped, "audra")
+    clip = next(c for c in stepped.project.clips if c.track_id == "audra")
     # The step sits mid-silence (182.81 s of Audra's file): the first piece plays her
     # file 120 ms early, the second 200 ms early, and the 80 ms between them is silence.
-    assert [tuple(geometry) for _id, *geometry in pieces] == [
-        (0.12, 182.77, 0.0),
-        (182.85, 240.0, 182.65),
-    ]
+    assert _clips(stepped, "audra") == [("clip_audra", 0.12, 240.0, 0.0)]
+    assert clip.timing is not None
+    assert _flat((s.at, s.delta_sec) for s in clip.timing.steps) == pytest.approx(
+        [182.77, -0.08], abs=1e-9
+    )
+    assert _flat(clip.virtual_pieces()) == pytest.approx(
+        [0.12, 182.77, 0.0, 182.85, 240.0, 182.65], abs=1e-9
+    )
+    assert clip.timeline_end == pytest.approx(239.8)
     assert not np.any(_stepped()["audra"][round(182.77 * bh.RATE) : round(182.85 * bh.RATE)])
-    artifact = json.loads(align_artifact_path(stepped.project).read_text())["bleed_lag_segments"]
+    artifact = json.loads(align_artifact_path(stepped.project).read_text())
     # No dearer step cost fits held-out speech measurably better, so the smallest stands.
-    assert (artifact["audra"]["step_cost"], len(artifact["audra"]["segments"])) == (0.5, 2)
+    lane = artifact["bleed_lag_segments"]["audra"]
+    assert (lane["step_cost"], len(lane["segments"])) == (0.5, 2)
+    audra = next(p for p in artifact["plans"] if p["track_id"] == "audra")
+    assert [(s["delta_sec"], s["quiet"] is not None) for s in audra["timing_steps"]] == [
+        (pytest.approx(-0.08), True)
+    ]
+    assert all("timing_steps" not in p for p in artifact["plans"] if p["track_id"] != "audra")
     labels = [entry.label for entry in stepped.project.history.entries]
     assert labels == ["initial", "before pipeline run", "after align_tracks"]
 
     HistoryService(stepped).goto(labels.index("before pipeline run"))
 
     assert _clips(stepped, "audra") == [("clip_audra", 0.0, 240.0, 0.0)]
+    assert next(c for c in stepped.project.clips if c.track_id == "audra").timing is None
 
 
 def _methods(ws: ProjectWorkspace) -> dict[str, str]:
@@ -565,12 +620,12 @@ def test_drifting_lane_is_flagged_and_not_split(tmp_path) -> None:
 
     result = plan_conversation_alignment(ws.project, defaults=load_defaults())
 
-    audra = [(p.method, p.offset_sec, p.steps) for p in result.plans if p.track_id == "audra"]
-    assert audra == [("hold", 0.0, ())]
+    audra = [(p.method, p.offset_sec, p.timing) for p in result.plans if p.track_id == "audra"]
+    assert audra == [("hold", 0.0, None)]
     assert "bleed lag drifting: audra (left in place)" in result.summary()
 
 
-@pytest.mark.parametrize(("late", "step_at"), [(0.155, 121.47), (0.2, 121.47)])
+@pytest.mark.parametrize(("late", "step_at"), [(0.155, 121.59), (0.2, 121.59)])
 def test_a_long_step_is_split_not_read_as_drift_or_scatter(
     tmp_path, late: float, step_at: float
 ) -> None:
@@ -585,11 +640,9 @@ def test_a_long_step_is_split_not_read_as_drift_or_scatter(
     result = plan_conversation_alignment(ws.project, defaults=load_defaults())
 
     audra = [
-        (p.method, round(p.offset_sec, 3), [(round(at, 2), round(o, 3)) for at, o in p.steps])
-        for p in result.plans
-        if p.track_id == "audra"
+        (p.method, round(p.offset_sec, 3), _steps(p)) for p in result.plans if p.track_id == "audra"
     ]
-    assert audra == [("bleed_lag", -0.12, [(step_at, -late)])]
+    assert audra == [("bleed_lag", -0.12, [(step_at, round(0.12 - late, 3))])]
 
 
 def test_manifest_pin_proposes_one_shift_and_keeps_the_clip_whole(
@@ -604,8 +657,8 @@ def test_manifest_pin_proposes_one_shift_and_keeps_the_clip_whole(
     result = plan_conversation_alignment(stepped.project, defaults=load_defaults())
 
     audra = [
-        (p.method, p.offset_sec, round(p.candidate_offset_sec or 0.0, 2), p.steps)
+        (p.method, p.offset_sec, round(p.candidate_offset_sec or 0.0, 2), p.timing)
         for p in result.plans
         if p.track_id == "audra"
     ]
-    assert audra == [("manual", 0.0, -0.12, ())]
+    assert audra == [("manual", 0.0, -0.12, None)]

@@ -1519,8 +1519,8 @@ lane's media), in the lane's source time, with each step in a silence of its
 full-band envelope (RMS and sample peak both under their gates) and the step cost
 chosen per lane by cross-validation (`LagSteps.step_cost`). `conversation_align.py`
 (`_stepped_lanes`) places lanes on the clock outward from the reference, turns the
-segments into per-clip plans with `steps`, and `apply_alignment_plans` splits those
-clips (`split_clip_at`) before slipping each piece; a clip already at its recorded
+segments into per-clip plans with a `ClipTiming`, and `apply_alignment_plans` slips the
+clip to its base shift and sets the timing map; a clip already at its recorded
 placement keeps its `meta.ingest_alignment` entry, so a re-run changes nothing.
 Once the clips are placed, the
 `align_tracks` step calls `edits/clipped_onsets.py`, which measures the copy paths

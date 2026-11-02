@@ -29,7 +29,7 @@ from podcast_mcp.engines.alignment_key import (
     ingest_alignment_key,
     speaker_key_unique,
 )
-from podcast_mcp.engines.clips_ops import clips_for_track, set_track_clips, split_clip_at
+from podcast_mcp.engines.clips_ops import clips_for_track
 from podcast_mcp.engines.envelope_lag import (
     LEVEL_FLOOR_DB,
     level_envelope_db,
@@ -166,9 +166,6 @@ class ClipAlignPlan:
     acoustic_confirmed: bool | None = None
     skipped_reason: str | None = None
     proposal: str | None = None  # why candidate_offset_sec is proposed, not applied
-    # (timeline_sec, offset_sec): split the clip at timeline_sec; the piece from there plays
-    # at offset_sec (bleed latency steps, #1071).
-    steps: tuple[tuple[float, float], ...] = ()
     timing: ClipTiming | None = None
 
 
@@ -1472,7 +1469,6 @@ def plan_conversation_alignment(
         cancel_check = None
 
     units = dialogue_align_units(project)
-    _refuse_timed_units(units)
     if len(units) < 2:
         return AlignResult(
             skipped_reason="skipped (<2 dialogue clips)", large_move_sec=large_move_sec
@@ -1656,6 +1652,50 @@ def _is_whole_file_clip(
     return clip.timeline_start <= DURATION_EPS_SEC and _at_recorded_placement(project, track, clip)
 
 
+def _linear_view(clip: Clip) -> Clip:
+    """The clip's timeline window as one linear range of source: no timing, same start and length."""
+    if clip.timing is None:
+        return clip
+    window = clip.timeline_end - clip.timeline_start
+    return clip.model_copy(update={"timing": None, "source_end": clip.source_start + window})
+
+
+def _timed_geometry(
+    clip: Clip, plan: ClipAlignPlan, ref_shift: float, media_dur: float
+) -> tuple[float, float, float] | None:
+    """Geometry for a clip that carries or gets a timing map; ``plan`` takes the steps that fit.
+
+    The timeline window is kept (the source end gives back the steps' total delta). A step the
+    slipped range no longer holds is dropped, and one passed at the head folds into the shift.
+    """
+    view = _linear_view(clip)
+    target = plan.offset_sec + ref_shift
+    timing = plan.timing
+    geometry: tuple[float, float, float] | None = None
+    while timing is not None:
+        slipped = slip_clip_to_shift(view, target, media_duration=0.0)
+        placed = None if slipped is None else _timed_range(slipped, timing, media_dur)
+        if placed is None:
+            return None
+        source_start, source_end, timeline_start, timing, head_delta = placed
+        if not head_delta:
+            geometry = (source_start, source_end, timeline_start)
+            break
+        target += head_delta
+    else:
+        geometry = slip_clip_to_shift(view, target, media_duration=media_dur)
+    if geometry is None:
+        return None
+    plan.timing = timing
+    plan.offset_sec = target - ref_shift
+    stored = (clip.source_start, clip.source_end, clip.timeline_start)
+    if clip.timing is not None and all(
+        abs(a - b) <= 1e-9 for a, b in zip(geometry, stored, strict=True)
+    ):
+        return stored
+    return geometry
+
+
 def _planned_geometry(
     project: EpisodeProject,
     track: Track,
@@ -1667,8 +1707,10 @@ def _planned_geometry(
     media_dur: float,
 ) -> tuple[float, float, float] | None:
     ref_shift = _reference_shift_at(clip, ref_clips)
+    untimed = clip.timing is None and plan.timing is None
     if (
         plan.method in (REFERENCE_METHOD, "manual", BLEED_LAG_KEPT_METHOD)
+        or (clip.timing is not None and plan.method != BLEED_LAG_METHOD)
         or (
             plan.method == "hold"
             and (
@@ -1677,13 +1719,15 @@ def _planned_geometry(
                 or abs(clip.timeline_start) > 1e-9
             )
         )
-        or abs(plan.offset_sec + ref_shift) < 1e-9
+        or (untimed and abs(plan.offset_sec + ref_shift) < 1e-9)
     ):
         # Identity: reference clips (incl. sequential extras), manifest-pinned clips,
         # held clips with existing placement (including a prior nudge), and
         # guests whose rebased offset is zero keep their placement. A virgin
         # identity hold is rebased onto the reference lead-in once.
         return clip.source_start, clip.source_end, clip.timeline_start
+    if not untimed:
+        return _timed_geometry(clip, plan, ref_shift, media_dur)
     if _is_whole_file_clip(project, track, clip, media_readers, media_dur):
         return offset_to_clip_geometry(plan.offset_sec + ref_shift, media_duration=media_dur)
     return slip_clip_to_shift(clip, plan.offset_sec + ref_shift, media_duration=media_dur)
@@ -2104,6 +2148,15 @@ def _timed_range(
     )
 
 
+def _same_steps(a: ClipTiming | None, b: ClipTiming | None) -> bool:
+    if a is None or b is None:
+        return a is b
+    return len(a.steps) == len(b.steps) and all(
+        abs(x.at - y.at) <= 1e-9 and abs(x.delta_sec - y.delta_sec) <= 1e-9
+        for x, y in zip(a.steps, b.steps, strict=True)
+    )
+
+
 def _piecewise_plan(
     plan: ClipAlignPlan,
     clip: Clip,
@@ -2111,30 +2164,16 @@ def _piecewise_plan(
     ref_shift: float,
     settings: bleed_latency.LatencySettings,
 ) -> ClipAlignPlan:
-    """The clip's plan from its lane's segments: a step at each silence the clip holds whole.
+    """The clip's plan from its lane's segments: one timing step at each silence the clip holds.
 
-    A piece plays at its segment's shift. A split point sits where the two pieces' source
-    ends straddle the middle of the silence, so a step skips or repeats only silence. A clip
-    with no step inside it is kept where it sits when that is within the deadband.
+    The clip plays at its first segment's shift and steps at each later one, so a step skips
+    or inserts only silence. A clip whose steps and base shift are those it already has
+    (within the deadband) is kept where it sits.
     """
-    segments = lane.segments
-    steps: list[tuple[float, float]] = []
-    for before, segment in itertools.pairwise(segments):
-        quiet = segment.gap_sec
-        at = segment.start_sec + (before.shift_sec + segment.shift_sec) / 2
-        if (
-            quiet is not None
-            and clip.source_start < quiet[0]
-            and quiet[1] < clip.source_end
-            and clip.timeline_start < at < clip.timeline_end
-        ):
-            steps.append((at, segment.shift_sec - ref_shift))
-    first_end = steps[0][0] - _base_shift(clip) if steps else clip.source_end
-    starts = [segment.start_sec for segment in segments]
-    shift = segments[bisect_right(starts, (clip.source_start + first_end) / 2) - 1].shift_sec
     note = _steps_note(lane)
+    timing, shift = _timing_for(clip, lane.segments, note)
     current = _base_shift(clip)
-    if not steps and abs(shift - current) <= settings.deadband_sec:
+    if _same_steps(timing, clip.timing) and abs(shift - current) <= settings.deadband_sec:
         return replace(
             plan,
             offset_sec=current - ref_shift,
@@ -2146,45 +2185,8 @@ def _piecewise_plan(
         offset_sec=shift - ref_shift,
         method=BLEED_LAG_METHOD,
         detail=f"{note}; instead of {plan.method}: {plan.detail}",
-        steps=tuple(steps),
+        timing=timing,
     )
-
-
-def _split_at_steps(
-    track_id: str,
-    clips: list[Clip],
-    by_key: dict[tuple[str, str], ClipAlignPlan],
-    *,
-    defaults: EffectiveConfig,
-) -> tuple[list[Clip], dict[str, list[ClipAlignPlan]]]:
-    """Split each clip whose plan has steps; the pieces' plans by the split clip's id."""
-    lane: list[Clip] = []
-    pieces: dict[str, list[ClipAlignPlan]] = {}
-    for clip in clips:
-        plan = by_key.get((track_id, clip.id))
-        if plan is None or not plan.steps:
-            lane.append(clip)
-            continue
-        split = [clip]
-        plans = [replace(plan, steps=())]
-        for timeline_sec, offset_sec in plan.steps:
-            before, after = split_clip_at(split[-1], timeline_sec, defaults=defaults)
-            split[-1:] = [before, after]
-            plans[-1] = replace(plans[-1], clip_id=before.id)
-            plans.append(replace(plan, clip_id=after.id, offset_sec=offset_sec, steps=()))
-        lane.extend(split)
-        pieces[clip.id] = plans
-    return lane, pieces
-
-
-def _refuse_timed_units(units: Sequence[Any]) -> None:
-    timed = next((clip for _t, clip, _tok, _d in units if clip.timing is not None), None)
-    if timed is not None:
-        raise CodedValueError(
-            f"clip {timed.id!r} has a timing map, and alignment re-times whole clips. "
-            "Align tracks does not support it yet; remove the timing map first.",
-            code="timing_map_alignment_unsupported",
-        )
 
 
 def apply_alignment_plans(
@@ -2193,7 +2195,6 @@ def apply_alignment_plans(
     """Mutate clips + meta.ingest_alignment. Returns number of clips updated."""
     if result.skipped_reason or not result.plans:
         return 0
-    _refuse_timed_units(dialogue_align_units(project))
     by_key = {(p.track_id, p.clip_id): p for p in result.plans}
     updated = 0
     align_meta: dict[str, SpeakerIngestAlignment] = dict(project.meta.ingest_alignment or {})
@@ -2220,11 +2221,6 @@ def apply_alignment_plans(
             )
             project.clips.append(clip)
             clips = [clip]
-        whole = clips
-        clips, pieces = _split_at_steps(track.id, whole, by_key, defaults=defaults)
-        if pieces:
-            set_track_clips(project, track.id, clips)
-            by_key.update({(track.id, p.clip_id): p for plans in pieces.values() for p in plans})
 
         media_readers = collections.Counter(clip_media_key(project, c) for c in clips)
         staged: list[tuple[Clip, ClipAlignPlan, tuple[float, float, float] | None]] = []
@@ -2259,9 +2255,11 @@ def apply_alignment_plans(
                 tuple(sorted(zip(s.track_ids, s.clip_ids, strict=True)))
                 for s in same_source_timeline_overlaps(project)
             }
-            for clip, _plan, geom in staged:
+            for clip, plan, geom in staged:
                 assert geom is not None
                 clip.source_start, clip.source_end, clip.timeline_start = geom
+                if plan.method == BLEED_LAG_METHOD:
+                    clip.timing = plan.timing
             new_stacks = [
                 s
                 for s in same_source_timeline_overlaps(project)
@@ -2274,21 +2272,9 @@ def apply_alignment_plans(
 
         if skip:
             log.warning("align_tracks: skipping %s: %s", track.id, skip)
-            if pieces:
-                set_track_clips(project, track.id, whole)
-            for plan in [p for _clip, p, _geom in staged] + [
-                by_key[(track.id, clip_id)] for clip_id in pieces
-            ]:
+            for _clip, plan, _geom in staged:
                 plan.skipped_reason = f"{skip}; track left unchanged"
             continue
-        if pieces:
-            result.plans = [
-                piece
-                for plan in result.plans
-                for piece in (
-                    pieces.get(plan.clip_id, [plan]) if plan.track_id == track.id else [plan]
-                )
-            ]
 
         for clip, plan, _geom in staged:
             updated += 1
@@ -2344,6 +2330,21 @@ def clip_drift_rows(project: EpisodeProject, reference_track_id: str) -> list[di
     ]
 
 
+def _timing_steps(plan: ClipAlignPlan) -> dict[str, Any]:
+    if plan.timing is None or plan.skipped_reason:
+        return {}
+    return {
+        "timing_steps": [
+            {
+                "at": step.at,
+                "delta_sec": step.delta_sec,
+                "quiet": step.quiet.model_dump() if step.quiet else None,
+            }
+            for step in plan.timing.steps
+        ]
+    }
+
+
 def write_alignment_artifact(project: EpisodeProject, result: AlignResult) -> Path:
     path = align_artifact_path(project)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -2381,6 +2382,7 @@ def write_alignment_artifact(project: EpisodeProject, result: AlignResult) -> Pa
                 "acoustic_confirmed": p.acoustic_confirmed,
                 "skipped_reason": p.skipped_reason,
                 "proposal": p.proposal,
+                **_timing_steps(p),
                 **{k: (placed.get((p.track_id, p.clip_id)) or {}).get(k) for k in _PLACEMENT_KEYS},
             }
             for p in result.plans
