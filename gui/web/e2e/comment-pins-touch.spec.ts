@@ -133,6 +133,59 @@ async function tap(
   await touch(cdp, "touchEnd");
 }
 
+test("phone: at a 32 px root every pixel of a pin's drawing hits that pin", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await addComments(page);
+  await openTimeline(page, "phone");
+  const dee = await centre(page, "Dee");
+  const eli = await centre(page, "Eli");
+  const pxPerSecond = (eli.x - dee.x) / 10;
+  await postDocumentCommand(
+    page,
+    CLIENT_ID,
+    "AddComment",
+    {
+      body: "Fay at 20.8",
+      author: "Fay",
+      timeline_start: 20 + 24 / pxPerSecond,
+    },
+    projectPath,
+  );
+  await expect(pinHits(page)).toHaveCount(4);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "32px";
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => getComputedStyle(document.documentElement).fontSize),
+    )
+    .toBe("32px");
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => resolve(null))),
+  );
+  const wrong = await pinHits(page).evaluateAll((hits) => {
+    const strays: string[] = [];
+    for (const hit of hits) {
+      const rect = hit.getBoundingClientRect();
+      const y = rect.top + rect.height / 2;
+      for (let x = rect.left + 1; x < rect.right - 1; x += 2) {
+        const owner = document
+          .elementFromPoint(x, y)
+          ?.closest(".sys-marker-hit");
+        if (owner !== hit) {
+          strays.push(
+            `${hit.getAttribute("aria-label")} at ${x} owned by ${owner?.getAttribute("aria-label") ?? "nothing"}`,
+          );
+        }
+      }
+    }
+    return strays;
+  });
+  expect(wrong).toEqual([]);
+});
+
 for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
   test(`${viewport}: the lane keeps its height and a pin's hit area spans it`, async ({
     page,
