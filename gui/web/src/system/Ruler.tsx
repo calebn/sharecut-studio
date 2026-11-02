@@ -11,6 +11,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { HANDLE_DRAG_MIN_PX, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
+import { makeRemProbe, rootFontPx } from "../ui/rootFont";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { clamp } from "../utils/math";
 import { formatRulerTime, formatTime } from "../utils/time";
@@ -104,23 +105,6 @@ const EDGE_NAMES: Record<RulerEdge, string> = {
 };
 
 const px = (value: number) => `${value}px`;
-
-/** A zero-height box one rem wide: it resizes when the root text size changes, which `resize` does not report. */
-function makeRemProbe(): HTMLElement {
-  const el = document.createElement("div");
-  el.setAttribute("aria-hidden", "true");
-  el.style.cssText =
-    "position:absolute;visibility:hidden;pointer-events:none;inline-size:1rem;block-size:0";
-  return el;
-}
-
-/** The root font size in px: the labels' room is figured in rem, so a larger text setting spaces them wider. */
-function rootFontPx(): number {
-  const size = Number.parseFloat(
-    getComputedStyle(document.documentElement).fontSize,
-  );
-  return size > 0 ? size : DEFAULT_REM_PX;
-}
 
 export const Ruler = memo(function Ruler({
   start,

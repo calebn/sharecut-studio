@@ -36,6 +36,7 @@ export function useRecordSessions(
   const pendingSince = useRef<number | null>(null);
   useEffect(() => {
     if (!enabled || !projectPath || refreshKey === "") {
+      pendingSince.current = null;
       return;
     }
     let stale = false;

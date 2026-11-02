@@ -37,12 +37,16 @@ describe("useRecordSessions", () => {
       { initialProps: { key: "h:0" } },
     );
     await act(async () => vi.advanceTimersByTimeAsync(0));
-    for (let i = 1; i <= 9; i++) {
+    const calls = () => vi.mocked(loadHostRecordSessions).mock.calls.length;
+    let elapsed = 0;
+    let at1900 = 0;
+    for (let i = 1; elapsed < 2100; i++) {
       rerender({ key: `h:${i}` });
-      await act(async () => vi.advanceTimersByTimeAsync(250));
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      elapsed += 100;
+      if (elapsed === 1900) at1900 = calls();
     }
-    expect(vi.mocked(loadHostRecordSessions).mock.calls.length).toBeGreaterThan(
-      1,
-    );
+    expect(at1900).toBe(1);
+    expect(calls()).toBe(2);
   });
 });
