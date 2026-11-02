@@ -33,11 +33,6 @@ import { note } from "./sheetNote";
 
 const FADE_LIMIT_LOADING = "The fade limit is still loading. Wait a moment.";
 
-/**
- * The Inspector's content for a clip: source edges and fades as Scrub fields,
- * the incoming join, mute regions, Move clip, and the seek and ripple rows that
- * have no spec home. Each committed value is one save and one undo step.
- */
 export function useClipSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {
@@ -263,6 +258,7 @@ export function useClipSections(
                           value={null}
                           unit="ms"
                           decimals={0}
+                          stepsFromEmpty={false}
                           min={clip.join_in_mode === "crossfade" ? 1 : 0}
                           readOnly={locked}
                           onCommit={(value) =>

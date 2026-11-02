@@ -45,6 +45,8 @@ export type ScrubFieldProps = ScrubRange & {
   /** Fires once per gesture, so one drag, key press or typed value is one undo step. */
   onCommit: (value: number) => void;
   skipUnchanged?: boolean;
+  /** False keeps the arrow, Home and End keys from committing while the field is empty, so only a typed or dragged value sets it. */
+  stepsFromEmpty?: boolean;
   /** A drag ended where it began, or Escape: drop the preview. */
   onCancel?: () => void;
 };
@@ -74,6 +76,7 @@ export function ScrubField({
   onCommit,
   onCancel,
   skipUnchanged = false,
+  stepsFromEmpty = true,
   variant = "plain",
   min,
   max,
@@ -179,6 +182,7 @@ export function ScrubField({
   };
 
   const commitStep = (next: number) => {
+    if (value === null && !stepsFromEmpty) return;
     if (next !== value) onCommit(next);
   };
 
@@ -189,6 +193,12 @@ export function ScrubField({
         event.stopPropagation();
         cancelDrag();
       }
+      return;
+    }
+    // A span is not a typing target, so the window keymap would run Cut on Backspace.
+    if (event.key === "Backspace" || event.key === "Delete") {
+      event.preventDefault();
+      event.stopPropagation();
       return;
     }
     if (readOnly) return;

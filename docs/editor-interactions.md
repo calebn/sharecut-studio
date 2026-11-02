@@ -205,7 +205,7 @@ pending #301, and named-device profiling remains with #879.
 
 ## Automatic reduction inspection
 
-The Clip inspector opens **Automatic reduction** for the current occurrence.
+The Clip inspector's **Inspect automatic audio reduction** button (the Auto reduction row) opens **Automatic reduction** for the current occurrence.
 A selected region uses the same inspector body on desktop and the phone sheet.
 The timeline band uses a compact selector in the lane’s lower gutter. Its visual
 wash lets pointer input through to the clip. The full-size inspector list and

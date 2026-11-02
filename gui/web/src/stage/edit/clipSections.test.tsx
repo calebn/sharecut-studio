@@ -121,11 +121,47 @@ describe("clip content", () => {
     expect(saveClipEdge).not.toHaveBeenCalled();
   });
 
+  it("keeps a pending placement when a trim is refused", async () => {
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Move clip" }));
+    await type("Source start", "5");
+    expect(screen.getByLabelText("Timeline start (seconds)")).toBeVisible();
+  });
+
+  it("cancels a pending placement when auto reduction opens", () => {
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Move clip" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Inspect automatic audio reduction" }),
+    );
+    expect(screen.queryByLabelText("Timeline start (seconds)")).toBeNull();
+  });
+
+  it("does not let Backspace on a focused field reach the keymap", () => {
+    open();
+    const reached = vi.fn();
+    window.onkeydown = reached;
+    fireEvent.keyDown(
+      screen.getByRole("spinbutton", { name: "Source start" }),
+      {
+        key: "Backspace",
+      },
+    );
+    window.onkeydown = null;
+    expect(reached).not.toHaveBeenCalled();
+    expect(executePointerCommand).not.toHaveBeenCalled();
+  });
+
   it("shows a refused trim as an alert", async () => {
     vi.mocked(saveClipEdge).mockRejectedValueOnce(new Error("Trim refused"));
     open();
     await type("Source end", "2.5");
     expect(await screen.findByRole("alert")).toHaveTextContent("Trim refused");
+  });
+
+  it("omits the mute row when a trim left the mute outside the clip", () => {
+    open([{ ...clip, mute_regions: [{ start_s: 8, end_s: 9 }] }]);
+    expect(screen.queryByText("Mute regions")).toBeNull();
   });
 
   it("lists only the mutes the clip still plays", () => {
@@ -223,6 +259,36 @@ describe("clip fades", () => {
     expect(screen.getByText("max 100 ms")).toBeVisible();
   });
 
+  it("limits an uncapped track to the clip length less the other fade", async () => {
+    open([clip], { fade_max_ms: null });
+    await key("Fade in", "End");
+    expect(setClipFade).toHaveBeenCalledWith(
+      "/tmp/ep.json",
+      "c1",
+      1980,
+      20,
+      expect.anything(),
+    );
+  });
+
+  it("ignores the fade-out when the next join is a cut", async () => {
+    open([clip, { ...second, join_in_mode: "cut" }]);
+    await key("Fade out", "ArrowUp");
+    expect(setClipFade).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/Fade out ignored: the join after this clip is a cut/),
+    ).toBeVisible();
+  });
+
+  it("shows the fade cap next to the cut hint", () => {
+    open([clip, { ...second, join_in_mode: "cut" }], { fade_max_ms: 100 });
+    expect(
+      screen.getByText(
+        "Fade out ignored: the join after this clip is a cut · max 100 ms",
+      ),
+    ).toBeVisible();
+  });
+
   it("waits for the clip's track before offering the fields", async () => {
     open([clip], {}, clip, []);
     expect(screen.getByText(/still loading/)).toBeVisible();
@@ -301,6 +367,19 @@ describe("clip join", () => {
       "fade",
       120,
     );
+  });
+
+  it("does not commit a length from the empty field with the arrow keys", async () => {
+    open([clip, second], {}, second);
+    await key("Transition length", "ArrowUp");
+    await key("Transition length", "Home");
+    expect(setClipJoin).not.toHaveBeenCalled();
+  });
+
+  it("refuses a negative length without calling the server", async () => {
+    open([clip, second], {}, second);
+    await type("Transition length", "-5");
+    expect(setClipJoin).not.toHaveBeenCalled();
   });
 
   it("refuses a zero crossfade length", async () => {

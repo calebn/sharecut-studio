@@ -156,6 +156,21 @@ describe("precision drag of an envelope level (a draft preview)", () => {
       expect(level()).toBe(1);
     });
 
+    it("a refusal that arrives after switching projects is not announced", async () => {
+      const refused = deferred<never>();
+      api.setEnvelope.mockImplementationOnce(() => refused.promise);
+      const drag = driver();
+      drag.begin();
+      drag.show(1.5);
+      const committing = drag.commit();
+      resetDocumentAuthority("/tmp/other.json");
+      useDawStore.getState().hydrate("/tmp/other.json", project, null);
+      const before = useDawStore.getState().statusAnnouncement;
+      refused.reject(new Error("refused"));
+      await committing;
+      expect(useDawStore.getState().statusAnnouncement).toBe(before);
+    });
+
     it("a frame after a push that changed the point shows the pushed value", () => {
       const drag = driver();
       drag.begin();
