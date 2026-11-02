@@ -1568,7 +1568,7 @@ def test_each_master_target_makes_the_pipeline_master_again(
     assert eng.master_loudness.call_count == 2
 
 
-@pytest.mark.parametrize("change", [_touch_premix, _no_master_qc, _no_master_hash, _no_premix])
+@pytest.mark.parametrize("change", [_touch_premix, _no_master_qc, _no_master_hash])
 def test_each_input_of_the_master_makes_the_pipeline_master_again(
     minimal_project: Path, change: Change
 ) -> None:
@@ -1660,7 +1660,16 @@ def test_damaged_cached_wavs_are_rebuilt(
 
 
 @pytest.mark.parametrize(
-    "payload", [{}, {"measured": "bad"}, {"measured": {"integrated_lufs": "x"}}, b"\xff"]
+    "payload",
+    [
+        {},
+        {"measured": "bad"},
+        {"measured": {"integrated_lufs": "x"}},
+        {"measured": {"true_peak_db": True}},
+        {"measured": {"integrated_lufs": float("nan")}},
+        {"measured": {"true_peak_db": float("inf")}},
+        b"\xff",
+    ],
 )
 @pytest.mark.parametrize("operation", ["direct", "export"])
 def test_invalid_master_qc_is_regenerated(
@@ -1708,6 +1717,24 @@ def test_an_unmeasured_peak_premix_is_not_reused(minimal_project: Path) -> None:
         steps.mix_with_music(ws.project, defaults)
         assert read_premix_trim_db(ws.project) is None
         eng.mix_peak_db.return_value = 1.5
+        summary = steps.mix_with_music(ws.project, defaults)
+    assert not summary.startswith("reused")
+    assert eng.mix_tracks.call_count == 2
+    assert read_premix_trim_db(ws.project) == -2.5
+
+
+def test_a_revision_three_premix_with_zero_trim_is_mixed_again(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mixing_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        with monkeypatch.context() as old_mix:
+            old_mix.setattr(play_audit, "MIX_SEMANTICS_REV", 3)
+            write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0, defaults=defaults)
         summary = steps.mix_with_music(ws.project, defaults)
     assert not summary.startswith("reused")
     assert eng.mix_tracks.call_count == 2
