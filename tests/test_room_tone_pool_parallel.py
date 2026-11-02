@@ -1,4 +1,4 @@
-"""A project's room-tone pools are recorded side by side, to the same pools as one at a time."""
+"""A project's room-tone pools are recorded side by side, to the pools one at a time gives."""
 
 from __future__ import annotations
 
@@ -12,20 +12,25 @@ import pytest
 
 from podcast_mcp.engines import room_tone
 from podcast_mcp.models import EpisodeProject
-from test_room_tone import _host_audio, _noise
+from test_room_tone import _host_audio
 from test_room_tone import _project as _room_project
+from test_room_tone_pool_on_open import _join_pools, _two_speakers
 
 pytestmark = pytest.mark.usefixtures("real_room_tone_scheduling")
 
 
-def _two_speakers(tmp_path: Path) -> EpisodeProject:
-    return _room_project(tmp_path, host=_host_audio(), guest=_noise(-64.0, seed=2))
+def _slow_decode(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
+    """Every recording decode for a floor, slowed so that two decodes of one file overlap."""
+    calls: list[Path] = []
+    real = room_tone.held_mono_full
 
+    def slow(path: Path, **kwargs):
+        calls.append(path)
+        time.sleep(0.4)
+        return real(path, **kwargs)
 
-def _join_pools() -> None:
-    for thread in threading.enumerate():
-        if thread.name.startswith("room-tone-pool-"):
-            thread.join(60)
+    monkeypatch.setattr(room_tone, "held_mono_full", slow)
+    return calls
 
 
 def _sequential_pools(project: EpisodeProject) -> dict[str, tuple[room_tone.Sample, ...] | None]:
@@ -47,6 +52,7 @@ def test_ensure_records_the_pools_a_track_at_a_time_would(tmp_path: Path) -> Non
 def test_the_background_thread_records_the_pools_a_track_at_a_time_would(tmp_path: Path) -> None:
     reference = _two_speakers(tmp_path / "ref")
     expected = _sequential_pools(reference)
+    assert expected["host"]
 
     room_tone._track_floor.cache_clear()
     live = _two_speakers(tmp_path / "live")
@@ -61,15 +67,7 @@ def test_each_recording_is_measured_once_when_the_pools_are_recorded_together(
 ) -> None:
     live = _two_speakers(tmp_path)
     room_tone._track_floor.cache_clear()
-    calls: list[Path] = []
-    real = room_tone.held_mono_full
-
-    def slow(path: Path, **kwargs):
-        calls.append(path)
-        time.sleep(0.4)
-        return real(path, **kwargs)
-
-    monkeypatch.setattr(room_tone, "held_mono_full", slow)
+    calls = _slow_decode(monkeypatch)
     room_tone.ensure_room_tone_pools(live, ["host", "guest"])
 
     assert sorted(p.name for p in calls) == ["guest.wav", "host.wav"]
@@ -80,16 +78,22 @@ def test_each_recording_is_measured_once_by_the_background_thread(
 ) -> None:
     live = _two_speakers(tmp_path)
     room_tone._track_floor.cache_clear()
-    calls: list[Path] = []
-    real = room_tone.held_mono_full
-
-    def slow(path: Path, **kwargs):
-        calls.append(path)
-        time.sleep(0.4)
-        return real(path, **kwargs)
-
-    monkeypatch.setattr(room_tone, "held_mono_full", slow)
+    calls = _slow_decode(monkeypatch)
     assert room_tone.schedule_room_tone_pools(live) == 2
+    _join_pools()
+
+    assert sorted(p.name for p in calls) == ["guest.wav", "host.wav"]
+
+
+def test_a_request_during_the_background_recording_does_not_measure_the_floors_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _two_speakers(tmp_path)
+    room_tone._track_floor.cache_clear()
+    calls = _slow_decode(monkeypatch)
+
+    assert room_tone.schedule_room_tone_pools(live) == 2
+    room_tone.ensure_room_tone_pools(live, ["host", "guest"])
     _join_pools()
 
     assert sorted(p.name for p in calls) == ["guest.wav", "host.wav"]
@@ -154,17 +158,14 @@ def test_pool_records_pruned_while_another_thread_removes_one_are_skipped(
 
     monkeypatch.setattr(Path, "stat", racing)
     room_tone._prune_pool_records(tmp_path)
-    monkeypatch.undo()
+    monkeypatch.setattr(Path, "stat", real_stat)
 
     assert sorted(p.name for p in tmp_path.glob("*.json")) == ["2.json", "3.json"]
 
 
 def test_a_noise_only_project_still_records_empty_pools_together(tmp_path: Path) -> None:
-    live = _room_project(
-        tmp_path,
-        host=np.zeros(len(_host_audio())),
-        guest=np.zeros(len(_host_audio())),
-    )
+    silence = np.zeros(len(_host_audio()))
+    live = _room_project(tmp_path, host=silence, guest=silence)
     room_tone.ensure_room_tone_pools(live, ["host", "guest"])
 
     assert room_tone.read_room_tone_pool(live, "host") == ()

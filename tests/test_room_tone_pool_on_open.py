@@ -30,7 +30,7 @@ def _two_speakers(tmp_path: Path) -> EpisodeProject:
     return _room_project(tmp_path, host=_host_audio(), guest=_noise(-64.0, seed=2))
 
 
-def _on_pool_thread() -> bool:
+def _at_pool_priority() -> bool:
     """On the pool thread or one of its workers: both run at the pool's lowered priority."""
     return current_niceness() > 0
 
@@ -45,7 +45,7 @@ class _Block:
         real = room_tone._no_foreign_voice
 
         def gate(project: EpisodeProject, track_id: str):
-            if _on_pool_thread():
+            if _at_pool_priority():
                 self.recordings += 1
                 self.projects.append(project)
                 self.started.set()
