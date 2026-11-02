@@ -72,27 +72,38 @@ def open_sqlite(
     """Open *target* in WAL mode with a busy timeout of *busy_timeout_ms*.
 
     The WAL switch can return busy without invoking the busy handler, so it runs
-    with the handler off (``timeout=0``) and ``ensure_wal`` retries it every
-    *wal_retry_sec* for up to *wal_timeout_sec*; the busy timeout is set after it
-    for the store's own statements. ``setup`` (a store's idempotent schema) runs
+    with the handler off (``timeout=0``) and ``retry_transient`` retries it every
+    *wal_retry_sec* for up to *wal_timeout_sec*, on a fresh connection after a readonly
+    answer; the busy timeout is set after it for the store's own statements. ``setup`` (a store's idempotent schema) runs
     inside that same bounded retry, because the first write after a concurrent first
     open can answer busy or transiently readonly just like the switch (#1932).
     ``verify`` runs after the connect and after the WAL switch and setup so a store
     can check the files sqlite just created. The connection is closed if any step
     raises, including ``KeyboardInterrupt``.
     """
-    connection = sqlite3.connect(
-        str(target),
-        check_same_thread=False,
-        isolation_level=isolation_level,
-        timeout=0,
-        uri=uri,
-    )
+
+    def connect() -> sqlite3.Connection:
+        opened = sqlite3.connect(
+            str(target),
+            check_same_thread=False,
+            isolation_level=isolation_level,
+            timeout=0,
+            uri=uri,
+        )
+        if row_factory is not None:
+            opened.row_factory = row_factory
+        return opened
+
+    connection = connect()
     try:
         if verify is not None:
             verify()
-        if row_factory is not None:
-            connection.row_factory = row_factory
+
+        def reopen() -> sqlite3.Connection:
+            nonlocal connection
+            connection.close()
+            connection = connect()
+            return connection
 
         def wal_and_setup() -> None:
             switch_to_wal(connection)
@@ -109,6 +120,7 @@ def open_sqlite(
             retry_sec=wal_retry_sec,
             monotonic=time.monotonic,
             sleep=time.sleep,
+            reopen=reopen,
         )
         if verify is not None:
             verify()

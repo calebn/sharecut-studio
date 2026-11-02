@@ -1,0 +1,51 @@
+{
+  "clip_count": 2,
+  "tracks": {
+    "host": [
+      {
+        "clipping_regions": [],
+        "clipping_truncated": false,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "id": "a",
+        "join_crossfade_blocked": null,
+        "join_crossfade_ms": 0,
+        "join_in_mode": "fade",
+        "join_left_clip_id": null,
+        "join_render_mode": null,
+        "mute_regions": [],
+        "origin_track_id": "host",
+        "recording_key": "rec_7d5affead8776578",
+        "source_duration_sec": 600.0,
+        "source_end": 40.0,
+        "source_id": null,
+        "source_start": 10.0,
+        "timeline_end": 130.0,
+        "timeline_start": 100.0,
+        "track_id": "host"
+      },
+      {
+        "clipping_regions": [],
+        "clipping_truncated": false,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "id": "b",
+        "join_crossfade_blocked": null,
+        "join_crossfade_ms": 0,
+        "join_in_mode": "fade",
+        "join_left_clip_id": "a",
+        "join_render_mode": "fade",
+        "mute_regions": [],
+        "origin_track_id": "host",
+        "recording_key": "rec_7d5affead8776578",
+        "source_duration_sec": 600.0,
+        "source_end": 60.0,
+        "source_id": null,
+        "source_start": 50.0,
+        "timeline_end": 210.0,
+        "timeline_start": 200.0,
+        "track_id": "host"
+      }
+    ]
+  }
+}

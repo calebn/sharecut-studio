@@ -797,11 +797,11 @@ describe("PrepareView focus", () => {
       name: /Where this session goes/,
     });
     await userEvent.click(chip);
-    act(() => screen.getByRole("menuitem", { name: /Starts/ }).focus());
+    act(() => screen.getByRole("menuitemradio", { name: /Starts/ }).focus());
     await userEvent.keyboard("{Escape}");
     expect(document.activeElement).toBe(chip);
     await userEvent.click(chip);
-    act(() => screen.getByRole("menuitem", { name: /Starts/ }).focus());
+    act(() => screen.getByRole("menuitemradio", { name: /Starts/ }).focus());
     await userEvent.keyboard("{Enter}");
     expect(onTarget).toHaveBeenCalled();
     expect(document.activeElement).toBe(chip);

@@ -939,7 +939,22 @@ def sanitize_guest_project_view(
         ]
     if "render_status" in out:
         out["render_status"] = _sanitize_guest_render_status(out.get("render_status"))
+    if isinstance(out.get("clips"), dict) and isinstance(out["clips"].get("tracks"), dict):
+        out["clips"] = {
+            **out["clips"],
+            "tracks": {
+                track: [_without_timing_steps(row) for row in rows]
+                if isinstance(rows, list)
+                else rows
+                for track, rows in out["clips"]["tracks"].items()
+            },
+        }
     return _drop_absolute_path_strings(out)
+
+
+def _without_timing_steps(row: Any) -> Any:
+    """A clip row without its timing step list; the count and summary stay."""
+    return {k: v for k, v in row.items() if k != "timing"} if isinstance(row, dict) else row
 
 
 def _guest_file_signature(value: Any) -> dict[str, int] | None:

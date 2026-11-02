@@ -47,6 +47,34 @@ def test_shared_fixture(case: dict) -> None:
         assert clip.timeline_to_source(timeline_s) == pytest.approx(expected), timeline_s
     for source_s, expected in case["shift_at"]:
         assert shift_at(clip, source_s) == pytest.approx(expected), source_s
+    if clip.timing is None:
+        assert case["summary"] is None
+    else:
+        assert clip.timing.summary() == case["summary"]
+
+
+_SUMMARY_CASES = json.loads(
+    (Path(__file__).parent / "fixtures" / "timing_map" / "cases.json").read_text()
+)["summary_cases"]["cases"]
+
+
+@pytest.mark.parametrize("case", _SUMMARY_CASES, ids=[str(c["deltas"]) for c in _SUMMARY_CASES])
+def test_summary_rounds_half_up_with_a_one_ms_floor(case: dict) -> None:
+    steps = [{"at": 12 + 5 * i, "delta_sec": d} for i, d in enumerate(case["deltas"])]
+    for step in steps:
+        if step["delta_sec"] < 0:
+            step["quiet"] = {"start_s": step["at"] - 1, "end_s": step["at"] + 1}
+    assert _clip(steps).timing.summary() == case["summary"]
+
+
+def test_row_payload_drops_quiet_and_evidence() -> None:
+    clip = _clip([{"at": 20, "delta_sec": -1, "quiet": {"start_s": 19, "end_s": 22}}])
+    clip.timing.evidence = "bleed"
+    assert clip.timing.row_payload(12) == {
+        "steps": [{"at": 20, "delta_sec": -1}],
+        "method": "bleed_lag",
+        "micro_fade_ms": 12,
+    }
 
 
 def test_step_exactly_at_a_point_belongs_to_the_later_piece() -> None:

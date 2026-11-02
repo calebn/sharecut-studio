@@ -2159,6 +2159,17 @@ describe("Record stage session target", () => {
   const chip = (name: string) =>
     screen.getByRole("button", { name: `Where this session goes: ${name}` });
 
+  it("reads an empty project's end as the start of the episode", async () => {
+    const project = minimalProject();
+    useDawStore.getState().hydrate("/tmp/p.json", {
+      ...project,
+      clips: { ...project.clips, tracks: { t1: [] } },
+    });
+    setRoom({ target: { kind: "end" } });
+    mount();
+    expect(await waitFor(() => chip("Starts the episode"))).toBeVisible();
+  });
+
   it("shows where the session lands and sends the pick", async () => {
     withClip();
     setRoom({ target: { kind: "end" } });
@@ -2167,10 +2178,10 @@ describe("Record stage session target", () => {
       await waitFor(() => chip("Lands at the end · after 52:10")),
     );
     expect(
-      screen.getAllByRole("menuitem").map((item) => item.textContent),
+      screen.getAllByRole("menuitemradio").map((item) => item.textContent),
     ).toEqual(["At the end", "At the start", "At the playhead (0:00)"]);
     await userEvent.click(
-      screen.getByRole("menuitem", { name: "At the start" }),
+      screen.getByRole("menuitemradio", { name: "At the start" }),
     );
     expect(exec).toHaveBeenCalledWith(
       "record.setTarget",
@@ -2195,7 +2206,7 @@ describe("Record stage session target", () => {
       await waitFor(() => chip("Lands at the end · after 52:10")),
     );
     await userEvent.click(
-      screen.getByRole("menuitem", { name: "At the playhead (12:04)" }),
+      screen.getByRole("menuitemradio", { name: "At the playhead (12:04)" }),
     );
     expect(exec).toHaveBeenLastCalledWith(
       "record.setTarget",
@@ -2204,7 +2215,7 @@ describe("Record stage session target", () => {
     );
     await userEvent.click(chip("Lands at the end · after 52:10"));
     await userEvent.click(
-      screen.getByRole("menuitem", { name: "Replace selection" }),
+      screen.getByRole("menuitemradio", { name: "Replace selection" }),
     );
     expect(exec).toHaveBeenLastCalledWith(
       "record.setTarget",
@@ -2265,10 +2276,10 @@ describe("Record stage session target", () => {
       await waitFor(() => chip("Lands at the end · after 52:10")),
     );
     expect(
-      screen.queryByRole("menuitem", { name: "Replace selection" }),
+      screen.queryByRole("menuitemradio", { name: "Replace selection" }),
     ).toBeNull();
     expect(
-      screen.getByRole("menuitem", { name: "At the playhead (0:00)" }),
+      screen.getByRole("menuitemradio", { name: "At the playhead (0:00)" }),
     ).toBeVisible();
   });
 
@@ -2375,7 +2386,7 @@ describe("Record stage session target", () => {
     await user.click(
       screen.getByRole("button", { name: /Where this session goes/ }),
     );
-    await user.click(screen.getByRole("menuitem", { name: /start/i }));
+    await user.click(screen.getByRole("menuitemradio", { name: /start/i }));
     expect(useDawStore.getState().recordScript).toBeNull();
   });
 

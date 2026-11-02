@@ -86,7 +86,7 @@ function sameExcept<T extends object>(
 }
 
 function sameShallow<T extends object>(a: T, b: T): boolean {
-  return sameExcept(a, b);
+  return sameExcept(a, b, ["timing" as keyof T]);
 }
 
 /** Same `clips` fields other than the lanes (count, duration, any later key). */

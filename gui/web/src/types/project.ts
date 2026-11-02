@@ -5,6 +5,7 @@ import type {
   ProjectView as GeneratedProjectView,
   TrackView as GeneratedTrackView,
   RangeInterval,
+  TimingStep,
   TranscriptRefineStatusView,
 } from "./project.generated";
 
@@ -81,6 +82,13 @@ export interface ClipRow {
   clipping_regions?: ClippingRegion[];
   /** The recording hit its clip-region cap; clipping after this clip's last flag was not recorded. */
   clipping_truncated?: boolean;
+  timing_steps?: number;
+  timing_summary?: string;
+  timing?: {
+    steps: Array<Pick<TimingStep, "at" | "delta_sec">>;
+    method: string;
+    micro_fade_ms: number;
+  };
 }
 
 export type ExactRangeClip = Pick<

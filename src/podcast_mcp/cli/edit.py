@@ -966,9 +966,15 @@ def edit_list_chapters_cmd(
 def edit_list_clips_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str | None = typer.Option(None, "--track"),
+    include_timing_steps: bool = typer.Option(False, "--timing-steps"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(TimelineService(ws).list_clips(track), indent=2))
+    typer.echo(
+        json.dumps(
+            TimelineService(ws).list_clips(track, include_timing_steps=include_timing_steps),
+            indent=2,
+        )
+    )
 
 
 @edit_app.command("list-applied")

@@ -562,10 +562,18 @@ def paste_segment_tool(
     return to_json(submit_paste_segment(project_path, insert_at, clipboard, mode=EditMode(mode)))
 
 
-def list_clips_tool(project_path: str, track_id: str | None = None) -> str:
-    """List clips in timeline order for one track or all tracks when track_id is omitted."""
+def list_clips_tool(
+    project_path: str, track_id: str | None = None, include_timing_steps: bool = False
+) -> str:
+    """List clips in timeline order for one track or all tracks when track_id is omitted.
+
+    A clip with `timing_steps` has timing corrections, so its timeline length is not
+    `source_end - source_start`; `include_timing_steps` adds the step list.
+    """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(TimelineService(ws).list_clips(track_id))
+    return to_json(
+        TimelineService(ws).list_clips(track_id, include_timing_steps=include_timing_steps)
+    )
 
 
 def list_applied_edits_tool(

@@ -548,4 +548,29 @@ describe("Menu", () => {
     expect(onSelect).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);
   });
+
+  it("is a radio with its state when it says it is checked", async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(
+      <div role="menu" aria-label="Where">
+        <MenuItem checked onSelect={onSelect}>
+          At the end
+        </MenuItem>
+        <MenuItem checked={false}>At the start</MenuItem>
+        <MenuItem>Plain</MenuItem>
+      </div>,
+    );
+    expect(
+      screen.getByRole("menuitemradio", { name: "At the end" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("menuitemradio", { name: "At the start" }),
+    ).not.toBeChecked();
+    const plain = screen.getByRole("menuitem", { name: "Plain" });
+    expect(plain).not.toHaveAttribute("aria-checked");
+    await user.click(screen.getByRole("menuitemradio", { name: "At the end" }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    await expectNoA11yViolations(container);
+  });
 });

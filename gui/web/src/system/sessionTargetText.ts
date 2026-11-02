@@ -2,15 +2,26 @@ import { clockText } from "./roomPhase";
 
 /** Where a session lands, in the terms the chip shows. Times are timeline seconds. */
 export type SessionTargetView =
-  | { kind: "end"; afterSec?: number }
+  | { kind: "end"; afterSec?: number; empty?: boolean }
   | { kind: "start" }
   | { kind: "insert"; atSec: number }
   | { kind: "replace"; fromSec: number; toSec: number };
+
+/**
+ * Where the session really lands. An end in a loaded project with no clip to
+ * follow is the start of the episode, so it reads and draws as one.
+ */
+export function sessionTargetPlacement(
+  target: SessionTargetView,
+): SessionTargetView["kind"] {
+  return target.kind === "end" && target.empty ? "start" : target.kind;
+}
 
 /** The chip's text for a target; the one wording shared by the trigger and the lock. */
 export function sessionTargetText(target: SessionTargetView): string {
   switch (target.kind) {
     case "end":
+      if (target.empty) return "Starts the episode";
       return target.afterSec === undefined
         ? "Lands at the end"
         : `Lands at the end · after ${clockText(target.afterSec)}`;

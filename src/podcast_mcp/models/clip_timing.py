@@ -88,6 +88,22 @@ class ClipTiming(BaseModel):
         ]
         return self.model_copy(update={"steps": keep}) if keep else None
 
+    def summary(self) -> str:
+        """``"N corrections, largest X ms"``; X is the biggest step rounded half up, at least 1."""
+        count = len(self.steps)
+        if count == 1:
+            return "1 correction"
+        largest = max(abs(step.delta_sec) for step in self.steps)
+        return f"{count} corrections, largest {max(1, math.floor(largest * 1000 + 0.5))} ms"
+
+    def row_payload(self, micro_fade_ms: int) -> dict[str, object]:
+        """The step list a clip row carries: no quiet spans, no evidence."""
+        return {
+            "steps": [{"at": step.at, "delta_sec": step.delta_sec} for step in self.steps],
+            "method": self.method,
+            "micro_fade_ms": micro_fade_ms,
+        }
+
     def total_delta(self) -> float:
         return math.fsum(step.delta_sec for step in self.steps)
 

@@ -4,7 +4,16 @@ import { lastClipEndSec, targetViewOf, wireTargetOf } from "./recordStageModel";
 
 describe("session target mapping", () => {
   it("reads the server target as the chip's view", () => {
-    expect(targetViewOf(undefined, 90)).toEqual({ kind: "end", afterSec: 90 });
+    expect(targetViewOf(undefined, 90)).toEqual({
+      kind: "end",
+      afterSec: 90,
+      empty: false,
+    });
+    expect(targetViewOf(undefined, undefined, true)).toEqual({
+      kind: "end",
+      afterSec: undefined,
+      empty: true,
+    });
     expect(targetViewOf({ kind: "start" }, 90)).toEqual({ kind: "start" });
     expect(targetViewOf({ kind: "insert", at_sec: 5 }, 90)).toEqual({
       kind: "insert",

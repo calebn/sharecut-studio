@@ -649,14 +649,18 @@
   border-block-end: 1px solid var(--color-border-subtle);
 }
 
+/* A wide target (Replaces 12:04-17:29) wraps under the label at phone width
+   instead of squeezing it. */
 .sys-room-view-header--embedded {
+  flex-wrap: wrap;
   justify-content: flex-end;
   min-block-size: 2.5rem;
 }
 
 .sys-room-view-session {
-  flex: 0 100 auto;
-  min-inline-size: 0;
+  flex: 0 1 auto;
+  min-inline-size: 6rem;
+  max-inline-size: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -32,7 +32,7 @@ const meta: Meta<typeof SessionTargetChip> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'Where a session goes in the episode, in words. Before the first take it is a menu: "Starts the episode" or "At the end". After it, the chip is locked: a lock icon and "Set when the first take landed" in the text, not a control and not a tab stop. The text wraps and is never cut off.\n\n**Motion.** The menu drops in through `ui/Menu`. Nothing else moves.',
+          'Where a session goes in the episode: a placement glyph and the words. Before the first take it is a menu whose entries are radio items (the current choice is announced): "At the start" or "At the end", plus the playhead and selection entries on the host. A loaded, empty project reads "Starts the episode" for its end target. After it, the chip is locked: a lock icon and "Set when the first take landed" in the text, not a control and not a tab stop. The text wraps and is never cut off.\n\n**Motion.** The menu drops in through `ui/Menu`. Nothing else moves.',
       },
     },
   },
@@ -79,7 +79,7 @@ export const Menu: Story = {
     );
     const body = within(document.body);
     await userEvent.click(
-      await body.findByRole("menuitem", { name: "At the end" }),
+      await body.findByRole("menuitemradio", { name: "At the end" }),
     );
     await expect(args.onTarget).toHaveBeenCalledWith("end");
     await waitFor(() => expect(body.queryByRole("menu")).toBeNull());
@@ -120,16 +120,20 @@ export const Placements: Story = {
       }),
     );
     const body = within(document.body);
+    const items = await body.findAllByRole("menuitemradio");
     await expect(
-      (await body.findAllByRole("menuitem")).map((item) => item.textContent),
-    ).toEqual([
+      items
+        .filter((item) => item.ariaChecked === "true")
+        .map((item) => item.textContent),
+    ).toEqual(["At the end"]);
+    await expect(items.map((item) => item.textContent)).toEqual([
       "At the end",
       "At the start",
       "At the playhead (12:04)",
       "Replace selection",
     ]);
     await userEvent.click(
-      body.getByRole("menuitem", { name: "Replace selection" }),
+      body.getByRole("menuitemradio", { name: "Replace selection" }),
     );
     await expect(args.onChange).toHaveBeenCalledWith({
       kind: "replace",
@@ -142,6 +146,58 @@ export const Placements: Story = {
         name: "Where this session goes: Replaces 12:04-12:29",
       }),
     ).toBeVisible();
+  },
+};
+
+export const EmptyProject: Story = {
+  args: { target: { kind: "end", empty: true }, onChange: fn() },
+  render: (args) => <Choosing {...args} />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'An end in a loaded project with no clip reads "Starts the episode" and draws the start glyph; the menu still has the end checked.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("button", {
+        name: "Where this session goes: Starts the episode",
+      }),
+    ).toBeVisible();
+  },
+};
+
+export const Glyphs: Story = {
+  args: { locked: false },
+  render: () => (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: "var(--space-3)",
+        alignItems: "flex-start",
+      }}
+    >
+      <SessionTargetChip target={{ kind: "end", afterSec: 3130 }} />
+      <SessionTargetChip target={{ kind: "start" }} />
+      <SessionTargetChip target={{ kind: "insert", atSec: 724 }} />
+      <SessionTargetChip
+        target={{ kind: "replace", fromSec: 724, toSec: 749 }}
+      />
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "One placement glyph per kind (end, start, insert, replace) ahead of the words. The glyph is decorative: the text carries the meaning, and a locked chip shows only the lock.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getAllByRole("button")).toHaveLength(4);
   },
 };
 

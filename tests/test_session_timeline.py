@@ -1130,7 +1130,7 @@ def test_a_view_build_runs_inside_a_batch_scope(tmp_path, monkeypatch):
 
     seen: list[bool] = []
 
-    def fake_build(ws, *, projection, history):
+    def fake_build(ws, *, projection, history, audience):
         seen.append(_scope.get() is not None)
         raise RuntimeError("stop")
 

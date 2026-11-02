@@ -2725,13 +2725,6 @@ button.sys-picker-option:focus-visible {
   white-space: normal;
 }
 
-.sys-target-check {
-  display: inline-flex;
-  flex: none;
-  justify-content: center;
-  inline-size: 1rem;
-}
-
 /* The line to read under a Replace target */
 
 .sys-target-script {

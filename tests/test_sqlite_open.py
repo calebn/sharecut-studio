@@ -132,6 +132,34 @@ def test_open_sqlite_retries_the_setup_with_the_wal_switch_on_a_transient_readon
         assert _pragma(connection, "journal_mode") == "wal"
 
 
+def test_open_sqlite_retries_a_persistent_readonly_answer_on_a_fresh_connection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    seen: list[sqlite3.Connection] = []
+
+    def setup(connection: sqlite3.Connection) -> None:
+        seen.append(connection)
+        if connection is seen[0]:
+            exc = sqlite3.OperationalError("attempt to write a readonly database")
+            exc.sqlite_errorcode = sqlite3.SQLITE_READONLY  # type: ignore[attr-defined]
+            raise exc
+        connection.executescript("CREATE TABLE IF NOT EXISTS t (x)")
+
+    with closing(
+        open_sqlite(tmp_path / "s.db", setup=setup, row_factory=sqlite3.Row)
+    ) as connection:
+        assert len(seen) == 2
+        assert seen[0] is not seen[1]
+        assert connection is seen[1]
+        assert connection.row_factory is sqlite3.Row
+        assert connection.execute("SELECT count(*) FROM t").fetchone()[0] == 0
+        assert _pragma(connection, "journal_mode") == "wal"
+        assert _pragma(connection, "busy_timeout") == 5000
+    with pytest.raises(sqlite3.ProgrammingError):
+        seen[0].execute("SELECT 1")
+
+
 def test_open_sqlite_closes_the_connection_when_the_setup_fails(tmp_path: Path) -> None:
     opened: list[sqlite3.Connection] = []
 
