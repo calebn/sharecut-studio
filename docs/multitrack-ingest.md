@@ -114,6 +114,8 @@ inside continuous speech is planned in #1089. On the lab tape a lag change insid
 one talk spurt (1663.8-1671.1 s) and a lag outside the 100 ms search (646-660 s, and
 about 20 ms at 740.4 s) need that timing map.
 
+The renderer already plays a clip that carries a timing map (`Clip.timing`, #2858); no producer sets one yet. Each piece plays at its own shift, with the declick micro-fade (`inaudible_cuts.micro_fade_ms`, never below 0) at the inner joins and the clip's own fades on its outer edges. A positive step leaves a hole as long as the step, even under 50 ms. The hole is filled with the track's room tone (its recorded bed, else a pooled quiet sample) and is digital silence when the track has neither. The tone is laid out for the whole hole, so a play segment that cuts a hole matches the stem, and a pooled or own-audio tone never replays source that a negative step skips (a recorded bed is not filtered that way). Bleed Restore is refused on a clip with a timing map (`timing_map_bleed_restore_unsupported`), and a render takes at most 200 steps per clip (`timing_map_too_many_steps`).
+
 #### Word starts missing from their own track
 
 After placing the clips, `align_tracks` checks every opening of a speaker's own track whose sound reached another mic first (#1059). Two different things look alike there:
