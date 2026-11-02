@@ -73,7 +73,7 @@ class ProjectWorkspace:
         """Open the project at ``project_path``.
 
         ``adopt=False`` is for read-only callers: a workspace still holding the retired
-        ``episode.project.json`` is read where it is, not renamed to ``episode.sharecut``.
+        entry file is read where it is, not renamed to ``episode.sharecut``.
         """
         path = adopt_retired_entry_file(project_path) if adopt else _read_in_place(project_path)
         try:

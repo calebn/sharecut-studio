@@ -46,7 +46,7 @@ def segment_save_tool(
 
     Pass ``clip_ids`` or ``time_range`` (such as ``0:00-0:22``), not both. ``kind`` is
     intro, outro, sponsor, sting or other; it is guessed from the position when omitted. The
-    episode is not changed (a project still named ``episode.project.json`` is not renamed). The same name with new audio becomes the next version of that
+    episode is not changed (a project still under its retired entry-file name is not renamed). The same name with new audio becomes the next version of that
     segment; identical audio is reported ``unchanged``. Returns ``{status, id, version}``.
     """
     result = save_segment(

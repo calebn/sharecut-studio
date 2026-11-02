@@ -22,6 +22,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.models.episode import ChapterMarker, EditDecision
+from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME
 from podcast_mcp.segments.model import (
     SEGMENT_JSON,
     MediaEntry,
@@ -702,7 +703,7 @@ def test_read_paths_do_not_rename_a_legacy_project_file(tmp_path: Path, project:
 
     segment = _save(tmp_path, "Warm Intro")
     entry = Path(project)
-    retired = entry.with_name("episode.project.json")
+    retired = entry.with_name(RETIRED_PROJECT_FILENAME)
     entry.rename(retired)
 
     dry = runner.invoke(
