@@ -92,7 +92,7 @@ def read_record(directory: Path, key: str, rates: Sequence[int]) -> dict[int, np
                 arrays[rate] = array.astype(np.float32, copy=False)
             if header.get("sum") != _checksum(arrays, arrays.values()):
                 return None
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError, RecursionError):
         return None
     with contextlib.suppress(OSError):
         # A record that is read stays among the newest, so pruning by write time keeps a hot one.
