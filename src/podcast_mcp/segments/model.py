@@ -26,16 +26,19 @@ _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
-def segment_id_for(name: str) -> str:
+def slug_id_for(name: str, *, code: str, what: str) -> str:
     """A file-safe id for ``name``: its ASCII slug plus a short hash of the exact name."""
     stripped = name.strip()
     folded = unicodedata.normalize("NFKD", stripped).encode("ascii", "ignore").decode("ascii")
     slug = re.sub(r"[^a-z0-9]+", "-", folded.lower()).strip("-")[:_SLUG_MAX].strip("-")
     if not slug:
-        raise CodedValueError(
-            "A segment needs a name with letters or digits in it.", code="segment_name_invalid"
-        )
+        raise CodedValueError(f"A {what} needs a name with letters or digits in it.", code=code)
     return f"{slug}-{hashlib.sha256(stripped.encode('utf-8')).hexdigest()[:8]}"
+
+
+def segment_id_for(name: str) -> str:
+    """The id of a segment called ``name``."""
+    return slug_id_for(name, code="segment_name_invalid", what="segment")
 
 
 def segment_kind(value: str) -> SegmentKind:

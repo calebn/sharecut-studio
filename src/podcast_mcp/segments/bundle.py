@@ -12,7 +12,7 @@ import stat
 import tempfile
 import zipfile
 import zlib
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import IO
@@ -46,6 +46,11 @@ def _invalid(message: str, code: str = "segment_bundle_invalid") -> CodedValueEr
     return CodedValueError(message, code=code)
 
 
+def _bundle_code(code: str, prefix: str) -> str:
+    """``segment_bundle_invalid`` as ``kit_bundle_invalid`` for a kit file, and so on."""
+    return code if prefix == "segment" else code.replace("segment_", f"{prefix}_", 1)
+
+
 def export_segments(store: SegmentStore, ids: Sequence[str], out_path: Path) -> Path:
     """Write the newest version of the one segment in ``ids`` to ``out_path``."""
     if len(ids) != 1:
@@ -72,51 +77,78 @@ def export_segments(store: SegmentStore, ids: Sequence[str], out_path: Path) -> 
         ) from exc
 
 
-def _checked_entries(archive: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
+def _checked_entries(
+    archive: zipfile.ZipFile,
+    *,
+    max_entries: int = MAX_ENTRIES,
+    name_ok: Callable[[str], bool] | None = None,
+    json_names: Sequence[str] = (SEGMENT_JSON,),
+    prefix: str = "segment",
+) -> dict[str, zipfile.ZipInfo]:
+    """The entries of ``archive`` once every header is checked; nothing is read yet.
+
+    ``name_ok`` and ``json_names`` let a kit file (several segments, flat names) reuse the
+    checks; ``prefix`` is the code prefix of the errors.
+    """
+    code = _bundle_code("segment_bundle_invalid", prefix)
     infos = archive.infolist()
-    if len(infos) > MAX_ENTRIES:
-        raise _invalid(f"The bundle has more than {MAX_ENTRIES} files.")
+    if len(infos) > max_entries:
+        raise _invalid(f"The bundle has more than {max_entries} files.", code)
     entries: dict[str, zipfile.ZipInfo] = {}
     folded: set[str] = set()
     total = 0
     for info in infos:
         name = info.filename
-        if not _ENTRY_NAME.fullmatch(name) or ".." in name:
-            raise _invalid(f"The bundle holds an unsafe file name: {name!r}.")
+        if not (name_ok or _ENTRY_NAME.fullmatch)(name) or ".." in name:
+            raise _invalid(f"The bundle holds an unsafe file name: {name!r}.", code)
         if name.casefold() in folded:
-            raise _invalid(f"The bundle lists {name} twice (names are compared ignoring case).")
+            raise _invalid(
+                f"The bundle lists {name} twice (names are compared ignoring case).", code
+            )
         folded.add(name.casefold())
         kind = stat.S_IFMT(info.external_attr >> 16)
         if kind not in (0, stat.S_IFREG):
-            raise _invalid(f"The bundle entry {name} is not a plain file.")
-        limit = {SEGMENT_JSON: MAX_SEGMENT_JSON_BYTES, MANIFEST: MAX_MANIFEST_BYTES}.get(
-            name, MAX_ENTRY_BYTES
+            raise _invalid(f"The bundle entry {name} is not a plain file.", code)
+        limit = (
+            MAX_SEGMENT_JSON_BYTES
+            if name in json_names
+            else MAX_MANIFEST_BYTES
+            if name == MANIFEST
+            else MAX_ENTRY_BYTES
         )
         if info.file_size > limit:
-            raise _invalid(f"The bundle entry {name} is larger than {limit} bytes.")
+            raise _invalid(f"The bundle entry {name} is larger than {limit} bytes.", code)
         if (
             info.file_size > _RATIO_FLOOR
             and info.file_size > max(info.compress_size, 1) * MAX_RATIO
         ):
-            raise _invalid(f"The bundle entry {name} is compressed far more than audio can be.")
+            raise _invalid(
+                f"The bundle entry {name} is compressed far more than audio can be.", code
+            )
         total += info.file_size
         if total > MAX_TOTAL_BYTES:
-            raise _invalid("The bundle is larger than 2 GiB when unpacked.")
+            raise _invalid("The bundle is larger than 2 GiB when unpacked.", code)
         entries[name] = info
     return entries
 
 
-def _manifest_hashes(text: str) -> dict[str, str]:
+def _manifest_hashes(text: str, code: str = "segment_bundle_invalid") -> dict[str, str]:
     hashes: dict[str, str] = {}
     for line in text.splitlines():
         match = _MANIFEST_LINE.fullmatch(line)
         if match is None or match.group(2) in hashes:
-            raise _invalid(f"{MANIFEST} has a line this app cannot read.")
+            raise _invalid(f"{MANIFEST} has a line this app cannot read.", code)
         hashes[match.group(2)] = match.group(1)
     return hashes
 
 
-def _unpack(archive: zipfile.ZipFile, info: zipfile.ZipInfo, dest: Path, budget: int) -> int:
+def _unpack(
+    archive: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+    dest: Path,
+    budget: int,
+    prefix: str = "segment",
+) -> int:
     """Copy one entry, stopping if it holds more than its header said. Returns bytes written."""
     written = 0
     try:
@@ -124,22 +156,27 @@ def _unpack(archive: zipfile.ZipFile, info: zipfile.ZipInfo, dest: Path, budget:
             while block := source.read(_CHUNK):
                 written += len(block)
                 if written > info.file_size or written > budget:
-                    raise _invalid(f"The bundle entry {info.filename} is larger than it says.")
+                    raise _invalid(
+                        f"The bundle entry {info.filename} is larger than it says.",
+                        _bundle_code("segment_bundle_invalid", prefix),
+                    )
                 target.write(block)
     except OSError as exc:
         raise _invalid(
-            f"{info.filename} could not be unpacked: {exc.strerror or exc}.", "segment_write_failed"
+            f"{info.filename} could not be unpacked: {exc.strerror or exc}.",
+            _bundle_code("segment_write_failed", prefix),
         ) from exc
     return written
 
 
 @contextmanager
-def _staging_dir() -> Iterator[str]:
+def _staging_dir(prefix: str = "segment") -> Iterator[str]:
     try:
-        directory = tempfile.TemporaryDirectory(prefix="sharecutseg-")
+        directory = tempfile.TemporaryDirectory(prefix=f"sharecut{prefix[:3]}-")
     except OSError as exc:
         raise _invalid(
-            f"There is no room to unpack the bundle: {exc.strerror or exc}.", "segment_write_failed"
+            f"There is no room to unpack the bundle: {exc.strerror or exc}.",
+            _bundle_code("segment_write_failed", prefix),
         ) from exc
     with directory as name:
         yield name

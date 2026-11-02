@@ -145,6 +145,26 @@ def preview_segment_insert(
     version: int | None = None,
     store: SegmentStore | None = None,
 ) -> dict[str, Any]:
+    report, _trial = preview_segment_insert_on(
+        ws, ws.project, segment_id, at, version=version, store=store
+    )
+    return report
+
+
+def preview_segment_insert_on(
+    ws: ProjectWorkspace,
+    project: EpisodeProject,
+    segment_id: str,
+    at: float | str,
+    *,
+    version: int | None = None,
+    store: SegmentStore | None = None,
+) -> tuple[dict[str, Any], EpisodeProject]:
+    """:func:`preview_segment_insert` on ``project`` (a copy the caller owns) and the result.
+
+    Returns the report and the project as it would be after the insert, so a kit's dry run
+    can feed one entry's result to the next. ``ws`` only supplies the config defaults.
+    """
     """What :func:`insert_saved_segment` would move, computed on a copy; nothing is written.
 
     ``at`` is read the same way as for an insert. The library audio is hash-checked and probed
@@ -155,7 +175,6 @@ def preview_segment_insert(
     """
     library = store or SegmentStore()
     segment = library.get(segment_id, version)
-    project = ws.project
     at = resolve_insert_position(project, at)
     check_position(project, at)
     check_layout(segment)
@@ -186,7 +205,7 @@ def preview_segment_insert(
     old_tracks = {track.id for track in project.tracks}
     old_comments = {c.id: c.timeline_start for c in project.review.comments}
     old_pending = {e.id: (e.start, e.end) for e in project.editorial.edit_decisions}
-    return {
+    report = {
         "dry_run": True,
         "segment_id": segment.id,
         "segment_version": segment.version,
@@ -212,3 +231,4 @@ def preview_segment_insert(
         "tracks_added": [t.id for t in trial.tracks if t.id not in old_tracks],
         "tracks": summary["tracks"],
     }
+    return report, trial

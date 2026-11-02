@@ -183,6 +183,7 @@ def run_doctor_checks(
         )
 
     report.checks.extend(_segment_library_checks(deep=deep))
+    report.checks.extend(_kit_library_checks())
 
     ep = _load_project(project)
     if ep is not None:
@@ -250,6 +251,47 @@ def _segment_library_checks(*, deep: bool = False) -> list[DoctorCheck]:
             )
         )
     return checks
+
+
+def _kit_library_checks() -> list[DoctorCheck]:
+    """One warning per kit (newest version) naming segments that are not in the library.
+
+    Reads each ``kit.json`` and lists segment folders; no audio is read. Silent without kits.
+    """
+    from podcast_mcp.segments.kit import KitStore, default_kit_directory
+    from podcast_mcp.segments.kit_summary import find_missing
+    from podcast_mcp.segments.store import SegmentStore, default_directory
+
+    directory = default_kit_directory()
+    try:
+        if not (directory.is_dir() and any(directory.iterdir())):
+            return []
+        listing = KitStore(directory).scan()
+        segments = SegmentStore(default_directory())
+        checks: list[DoctorCheck] = []
+        for kit in listing.kits:
+            missing = find_missing(kit, segments)
+            if not missing:
+                continue
+            names = ", ".join(m.entry.label() for m in missing[:MAX_DAMAGED_SEGMENTS_LISTED])
+            more = len(missing) - MAX_DAMAGED_SEGMENTS_LISTED
+            checks.append(
+                DoctorCheck(
+                    "warn",
+                    f"kit {kit.id} (v{kit.version}): {len(missing)} of its segments are not in "
+                    f"the library: {names}{f' and {more} more' if more > 0 else ''}",
+                    err=True,
+                    extra="  Fix: import the segments (or the kit's .sharecutkit file) again, "
+                    f"or save the kit again without them (`podcast kit show {kit.id}`).",
+                )
+            )
+        checks.extend(
+            DoctorCheck("warn", f"kit {d.id} (v{d.version}): {d.problem}", err=True)
+            for d in listing.damaged
+        )
+        return checks
+    except OSError as exc:
+        return [DoctorCheck("warn", f"kit library: cannot be read: {exc}", err=True)]
 
 
 def echo_doctor_report(report: DoctorReport, echo, echo_err) -> None:
