@@ -671,7 +671,7 @@ def write_premix_hash(
     project: EpisodeProject,
     gains: Mapping[str, float],
     *,
-    trim_db: float,
+    trim_db: float | None,
     peak_ceiling_db: float | None = None,
     defaults: EffectiveConfig,
 ) -> str:
@@ -680,7 +680,8 @@ def write_premix_hash(
     The sidecar holds the mix hash, then the peak ceiling it was mixed under, so a
     caller without the run's config can still judge the premix (``premix_stale_vs_mix``),
     then the headroom trim the whole mix got, so a window mixed from segments plays at
-    the premix's level.
+    the premix's level. ``trim_db`` is None when the mix's true peak was not measured
+    (it mixed untrimmed); no trim is recorded, so the premix is never reused.
     """
     ceiling = (
         mix_peak_ceiling_db(defaults=defaults)
@@ -688,7 +689,8 @@ def write_premix_hash(
         else float(peak_ceiling_db)
     )
     h = mix_render_hash(gains, ceiling, defaults=defaults)
-    write_text_atomic(premix_hash_path(project), f"{h}\n{round(ceiling, 2)}\n{trim_db}\n")
+    lines = [h, str(round(ceiling, 2))] + ([] if trim_db is None else [str(trim_db)])
+    write_text_atomic(premix_hash_path(project), "\n".join(lines) + "\n")
     return h
 
 

@@ -2010,12 +2010,12 @@ class FFmpegEngine:
         self._sum_tracks(track_wavs, output_path, trim_db=trim_db)
         return output_path
 
-    def peak_trim_db(self, track_wavs: list[tuple[Path, float]], ceiling_db: float) -> float:
-        """Gain (<= 0 dB) that brings the unity sum's true peak down to ``ceiling_db``.
+    def mix_peak_db(self, track_wavs: list[tuple[Path, float]], ceiling_db: float) -> float | None:
+        """True peak (dBTP) of the unity sum, or None when ffmpeg did not report one.
 
-        Measures the true peak on the float graph (ebur128 to a null output), one span per
-        worker in parallel. The spans meet in quiet blocks (``mix_spans.quiet_spans``), so
-        their loudest peak is the single-pass peak.
+        Measures on the float graph (ebur128 to a null output), one span per worker in
+        parallel. The spans meet in quiet blocks (``mix_spans.quiet_spans``), so their
+        loudest peak is the single-pass peak.
         """
         spans = quiet_spans(track_wavs, ceiling_db)
         peaks = run_parallel(spans, lambda span: self._sum_true_peak_db(track_wavs, span))
@@ -2024,6 +2024,11 @@ class FFmpegEngine:
             log.warning(
                 "mix true peak not measured; mixing untrimmed (ceiling %s dBTP)", ceiling_db
             )
+        return peak
+
+    def peak_trim_db(self, track_wavs: list[tuple[Path, float]], ceiling_db: float) -> float:
+        """Gain (<= 0 dB) that brings the unity sum's true peak down to ``ceiling_db``."""
+        peak = self.mix_peak_db(track_wavs, ceiling_db)
         trim = headroom_trim_db(peak, ceiling_db)
         if trim < 0:
             log.info("mix peaks at %s dBTP; trimmed %s dB to %s dBTP", peak, trim, ceiling_db)
