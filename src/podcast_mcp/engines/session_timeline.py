@@ -432,7 +432,7 @@ def seam_source_clocks_over_clips(
 
 
 SAME_SOURCE_OVERLAP_TOLERANCE_SEC = 0.05
-_MIN_SLIP_SEC = 0.01
+MIN_SLIP_SEC = 0.01
 
 
 def slip_clip_to_shift(
@@ -460,7 +460,7 @@ def slip_clip_to_shift(
         src_start = 0.0
     if media_duration > 0:
         src_end = min(src_end, media_duration)
-    if src_end - src_start < _MIN_SLIP_SEC:
+    if src_end - src_start < MIN_SLIP_SEC:
         return None
     return src_start, src_end, tl_start
 

@@ -3,8 +3,8 @@
 A step is a discontinuity of the clip's source-to-timeline shift, placed in a quiet span.
 ``delta_sec > 0`` inserts a hole of that length at ``at``; ``delta_sec < 0`` skips source
 ``[at, at + |delta_sec|)``. Steps are in SOURCE seconds, so moving a clip never edits them.
-The renderer plays a mapped clip as its pieces (``engines/timed_pieces.py``); no producer sets
-``Clip.timing`` yet.
+The renderer plays a mapped clip as its pieces (``engines/timed_pieces.py``); ``align_tracks``
+sets it for a lane whose bleed latency steps (``edits/conversation_align.py``).
 """
 
 from __future__ import annotations
