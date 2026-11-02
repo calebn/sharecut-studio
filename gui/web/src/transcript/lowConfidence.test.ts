@@ -27,6 +27,11 @@ describe("isLowConfidenceWord", () => {
     expect(isLowConfidenceWord({ unsure: false })).toBe(false);
     expect(isLowConfidenceWord({})).toBe(false);
   });
+
+  it("never counts a suppressed word", () => {
+    expect(isLowConfidenceWord({ unsure: true, suppressed: true })).toBe(false);
+    expect(isLowConfidenceWord({ unsure: true, suppressed: false })).toBe(true);
+  });
 });
 
 describe("lowConfidenceStops", () => {

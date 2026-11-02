@@ -9,7 +9,7 @@ import {
 
 /**
  * The server's flag (`analysis.unsure_word_confidence`, suppressed words excluded) drives the Annotate underline, WORD inspector note, walkthrough stops and Review.
- * A suppressed word is never a stop, even inside an utterance that also has unsure words, so the walkthrough cannot count one the server status leaves out.
+ * A suppressed word is never unsure here, even inside an utterance that also has unsure words, so no surface counts one the server status leaves out.
  */
 export function isLowConfidenceWord(
   w: Pick<TranscriptWordView, "unsure" | "suppressed">,

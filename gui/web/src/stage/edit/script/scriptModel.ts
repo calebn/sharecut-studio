@@ -8,6 +8,7 @@ import type {
   WordsSelection,
 } from "../../../system/scriptPieces";
 import { placeEditBoundaries } from "../../../transcript/editBoundaryPlacement";
+import { isLowConfidenceWord } from "../../../transcript/lowConfidence";
 import type {
   CombinedUtterance,
   EditBoundaryView,
@@ -202,7 +203,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
           seek: wordSeek(word),
           end: word.timeline_end ?? NO_TIME,
           ...(mark ? { mark } : {}),
-          lowConfidence: word.unsure === true,
+          lowConfidence: isLowConfidenceWord(word),
           cut: false,
         });
       }
