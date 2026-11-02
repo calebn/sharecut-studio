@@ -21,7 +21,9 @@ export function useAnnounceStageSwitch(stage: StageId): void {
     const active = document.activeElement;
     if (active instanceof HTMLElement && active.getAttribute("role") === "tab")
       return;
-    useDawStore.getState().announceStatus(`${stageLabel(stage)} stage`);
+    useDawStore
+      .getState()
+      .announceStatus(`${stageLabel(stage)} stage`, { toast: false });
     const body = document.getElementById(STAGE_BODY_ID);
     if (body && !body.contains(active)) body.focus({ preventScroll: true });
   }, [stage]);
