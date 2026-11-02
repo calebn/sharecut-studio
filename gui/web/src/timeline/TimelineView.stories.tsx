@@ -3,11 +3,11 @@ import { expect, within } from "storybook/test";
 import { TrackColumn } from "../stage/edit/TrackColumn";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { selections } from "../test/episodeFixture";
-import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import {
   RECORDED_SESSIONS_RESPONSE,
   recordedSessionsProject,
-} from "./sessionBandsFixture";
+} from "../test/sessionBandsFixture";
+import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
 import { TimelineView } from "./TimelineView";
 
 const meta: Meta<typeof TimelineView> = {
