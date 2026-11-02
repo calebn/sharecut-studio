@@ -525,7 +525,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
   - Body: turns (CMP-TURN). Text IBM Plex Sans 16/26, words as plain text runs with normal word spacing, max 68 characters measure, 24 px side padding.
   - No modes. One grammar:
     - Click a word: places the caret before it and seeks the playhead there.
-    - Drag across words, Shift-click, or double-click (word) / triple-click (sentence): selects; the action bar appears above the selection. Built so far: Shift-click, Shift with the arrows and the two handles. Mouse drag, double-click, triple-click and long-press are deferred.
+    - Drag across words, Shift-click, or double-click (word) / triple-click (sentence): selects; the action bar appears above the selection. Built: mouse drag, Shift-click, long-press, Shift with the arrows and the two handles; double-click on a word starts Fix text (next bullet). Triple-click (sentence) is deferred.
     - Enter, F2 or double-click on a word: Fix text on that selection. Typing never starts it.
     - Backspace with a selection: Cut. Backspace with only a caret: nothing (protects against accidental cuts).
   - Rendering of state: playing word gets a 2 px accent underline; cut words collapse into an Edit boundary pill (CMP-EDITBOUNDARY) unless the eye is on, then they show struck in the cut token; suggested cuts show struck with hatch background (Suggestion); muted words show greyed with a speaker-slash glyph before the run; low-confidence words get a dotted underline (a suppressed word is never low-confidence, in the stepper chip or the underline).
