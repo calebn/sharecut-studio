@@ -16,14 +16,32 @@ async function geometry(page: Page) {
   return deliverPage(page).evaluate((element) => {
     const scroller = element as HTMLElement;
     const box = scroller.getBoundingClientRect();
-    const rect = (selector: string) => {
-      const node = scroller.querySelector(selector);
+    const rectOf = (node: Element | null) => {
       if (!node) return null;
       const r = node.getBoundingClientRect();
-      return { top: r.top, bottom: r.bottom, height: r.height };
+      return { top: r.top, bottom: r.bottom, height: r.height, width: r.width };
     };
+    const rect = (selector: string) => rectOf(scroller.querySelector(selector));
+    const section = (title: string) =>
+      Array.from(scroller.querySelectorAll("section.dv-section")).find(
+        (node) =>
+          node.querySelector(".dv-section-title")?.textContent === title,
+      ) ?? null;
+    const transcriptSection = section("Transcript");
+    const scrollHeight = scroller.scrollHeight;
+    const clientHeight = scroller.clientHeight;
     return {
       scrollTop: scroller.scrollTop,
+      scrollHeight,
+      clientHeight,
+      maxScrollTop: Math.max(0, scrollHeight - clientHeight),
+      episodeFile: rectOf(section("Episode file")),
+      chapters: rectOf(section("Chapters")),
+      clips: rectOf(section("Clips")),
+      transcriptSection: rectOf(transcriptSection),
+      loadingSkeleton: rectOf(
+        transcriptSection?.querySelector(".sys-skeleton") ?? null,
+      ),
       clipTop: box.top + scroller.clientTop,
       clipBottom: box.top + scroller.clientTop + scroller.clientHeight,
       viewportWidth: innerWidth,
