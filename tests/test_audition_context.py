@@ -14,6 +14,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.models.clip_timing import ClipTiming, TimingStep
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import PlayService
 from prosody_helpers import seed_prosody_profile, single_track_prosody_project
@@ -1018,3 +1019,50 @@ def test_audition_context_prosody_no_workspace_path_leak(minimal_project, tmp_wo
     ctx = build_audition_context(proj, 0.0, 2.0, defaults=load_defaults())
     dumped = json_mod.dumps(ctx)
     assert str(tmp_workspace) not in dumped
+
+
+def _timed_first_clip_project(minimal_project, sample_wav, tmp_workspace, *, host_start: float):
+    proj = _two_track_project(minimal_project, sample_wav, tmp_workspace)
+    for clip in proj.clips:
+        clip.timeline_start = 0.0 if clip.track_id == "guest" else host_start
+    guest = next(c for c in proj.clips if c.track_id == "guest")
+    guest.timing = ClipTiming(steps=[TimingStep(at=25.0, delta_sec=0.3)])
+    return proj
+
+
+def _skew_pair(proj, window: tuple[float, float]) -> dict:
+    ctx = build_audition_context(
+        proj,
+        *window,
+        skew_warn_sec=0.05,
+        include_dsp=False,
+        include_prosody=False,
+        defaults=load_defaults(),
+    )
+    (pair,) = ctx["clip_skew"]["pairs"]
+    return pair
+
+
+def test_a_solver_step_on_a_timed_first_clip_is_not_skew(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _timed_first_clip_project(minimal_project, sample_wav, tmp_workspace, host_start=0.0)
+    host = next(c for c in proj.clips if c.track_id == "host")
+    host.timing = ClipTiming(steps=[TimingStep(at=25.0, delta_sec=0.3)])
+    assert _skew_pair(proj, (20.0, 24.0))["skewed"] is False
+    host.timing = None
+    host.timeline_start = 0.3
+    assert _skew_pair(proj, (20.0, 24.0))["skewed"] is False
+
+
+def test_a_real_offset_past_a_timed_first_clip_is_still_skew(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _two_track_ripple_project(minimal_project, sample_wav, tmp_workspace)
+    guest_a = next(c for c in proj.clips if c.id == "guest_a")
+    guest_a.timing = ClipTiming(steps=[TimingStep(at=0.5, delta_sec=0.3)])
+    guest_a.timeline_start, guest_a.source_start, guest_a.source_end = 0.0, 0.0, 1.0
+    next(c for c in proj.clips if c.id == "guest_b").source_start = 19.6
+    pair = _skew_pair(proj, (10.0, 12.0))
+    assert pair["skewed"] is True
+    assert pair["skew_sec"] == pytest.approx(0.4, abs=1e-6)
