@@ -326,7 +326,7 @@
       }
     },
     "RoomToneOrigin": {
-      "description": "Where a track's room-tone bed was cut from, when the pipeline extracted it.\n\nOnly an extracted bed carries this; a recorded or assigned bed has none. ``source_id``\nis the source recording the excerpt came from (None for the track's primary media) and\n``source_start``/``source_end`` are seconds in it. ``source_path`` and ``media_sha256``\nidentify the source independently of its size and modification time.\n``file_sha256`` names the written bed. ``measurements`` is what the extractor saw.",
+      "description": "Where a track's room-tone bed was cut from, when the pipeline extracted it.\n\nOnly an extracted bed carries this; a recorded or assigned bed has none. ``source_id``\nis the source recording the excerpt came from (None for the track's primary media) and\n``source_start``/``source_end`` are seconds in it. ``source_path`` and ``media_sha256``\nidentify the source independently of its size and modification time.\n``file_sha256`` names the written bed. The level, speech and check fields record validation.",
       "properties": {
         "kind": {
           "const": "extracted",
