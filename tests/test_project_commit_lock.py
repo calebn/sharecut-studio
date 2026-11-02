@@ -32,7 +32,7 @@ from podcast_mcp.services.document_sync.service import (
 )
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
-from podcast_mcp.util.file_locks import file_lock_holder_pid, shared_file_lock
+from podcast_mcp.util.file_locks import file_lock_holder_pid
 from podcast_mcp.util.project_state import (
     LOCK_BUSY_MESSAGE,
     PROJECT_BUSY_CODE,
@@ -310,13 +310,14 @@ def _child_notify(path) -> None:
 
 
 def _child_submit_comments(path, client_id, start, count, reports) -> None:
-    began = time.monotonic()
+    began = submit_began = time.monotonic()
     seq = 0
     try:
         svc = DocumentSyncService.open(path)
         start.wait(60)
         for seq in range(1, count + 1):
-            reports.put(f"{client_id} submitting {seq} at +{time.monotonic() - began:.1f}s")
+            submit_began = time.monotonic()
+            reports.put(f"{client_id} submitting {seq} at +{submit_began - began:.1f}s")
             svc.submit(
                 DocumentCommand(
                     type="AddComment",
@@ -331,23 +332,18 @@ def _child_submit_comments(path, client_id, start, count, reports) -> None:
                 )
             )
     except BaseException as exc:
-        reports.put(_failure_report(client_id, seq, exc, began, path))
+        reports.put(_failure_report(client_id, seq, exc, time.monotonic() - submit_began))
         raise
 
 
-def _failure_report(client_id, seq, exc, began, path) -> str:
-    """Why a submit failed. The elapsed time tells a 30 s lock timeout (contention) from
-    a fail-fast near zero (a broken re-entrant acquire); a bare ``filelock.Timeout`` has
-    no ``contention``, so the time and the in-process lock state are reported too."""
-    try:
-        lock = shared_file_lock(project_commit_lock_path(load_project(path)))
-        held = f"is_locked={lock.is_locked} lock_counter={getattr(lock, 'lock_counter', None)}"
-    except Exception as lock_exc:
-        held = f"lock state unreadable: {lock_exc!r}"
+def _failure_report(client_id, seq, exc, submit_sec) -> str:
+    """Why a submit failed. The seconds it ran before failing tell a 30 s lock timeout
+    (contention) from a fail-fast near zero (a broken re-entrant acquire); a bare
+    ``filelock.Timeout`` has no ``contention``, and its ``holder_pid`` is None off Linux."""
     return (
-        f"{client_id} submit {seq} FAILED at +{time.monotonic() - began:.1f}s "
+        f"{client_id} submit {seq} FAILED after {submit_sec:.1f}s "
         f"pid={os.getpid()} thread={threading.get_ident()} {type(exc).__name__} "
-        f"contention={getattr(exc, 'contention', None)} {held}\n"
+        f"contention={getattr(exc, 'contention', None)}\n"
         + "".join(traceback.format_exception(exc))
     )
 
