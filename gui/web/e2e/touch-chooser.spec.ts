@@ -415,7 +415,7 @@ test("resting on a chip grabs its target and keeps dragging", async ({
   await touch(cdp, "touchStart", [at]);
   await page.waitForTimeout(HOLD_MS + 250);
   const chip = chooser(page).getByRole("menuitem", {
-    name: /Envelope point.*0\.80×/,
+    name: /^Envelope point, 0\.80× at 00:10\.000(, selected)?$/,
   });
   const box = (await chip.boundingBox())!;
   const onChip = { x: box.x + box.width / 2, y: box.y + box.height / 2 };

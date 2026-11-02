@@ -350,9 +350,9 @@ describe("CreateMenu picking", () => {
     ).toEqual(["0", "1", "2", "3"]);
   });
 
-  it("never claims the router's chooser attribute", () => {
+  it("never claims the chooser's target id attribute", () => {
     render(<CreateMenu {...props()} />);
-    expect(menu().querySelector("[data-chooser-item]")).toBeNull();
+    expect(menu().querySelector("[data-target-id]")).toBeNull();
   });
 });
 
