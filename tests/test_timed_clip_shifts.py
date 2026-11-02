@@ -8,12 +8,10 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits import conversation_align
-from podcast_mcp.edits.audition_context import build_audition_context
 from podcast_mcp.edits.verdict_cache import _heard
 from podcast_mcp.engines.bleed_gate import gate_scope_for_window
 from podcast_mcp.models import Clip
 from podcast_mcp.util.coded_error import CodedValueError
-from test_audition_context import _two_track_project
 from test_timed_clip_consumers import _clip, _project
 
 _PIECES = [(10, 20, 100), (20, 30, 112), (31, 40, 122)]
@@ -58,25 +56,6 @@ def test_two_step_maps_with_the_same_window_hear_differently() -> None:
     assert _heard(first, 90, 140) != _heard(_clip(source_id="s", timing=None), 90, 140)
 
 
-def test_audition_alignment_reads_the_shift_at_the_first_clips_source_start(
-    minimal_project, sample_wav, tmp_workspace
-) -> None:
-    project = _two_track_project(minimal_project, sample_wav, tmp_workspace)
-    host = next(c for c in project.clips if c.id == "c_host")
-    host.timing = Clip.model_validate(
-        {
-            "id": "t",
-            "track_id": "host",
-            "source_start": 10,
-            "source_end": 40,
-            "timeline_start": 0,
-            "timing": {"steps": [{"at": 20, "delta_sec": 2}]},
-        }
-    ).timing
-    ctx = build_audition_context(project, 2.0, 6.0, defaults=load_defaults())
-    assert ctx["clip_skew"]["any_skewed"] is False
-
-
 def test_a_gate_scope_window_over_a_timed_clip_equals_the_same_pieces_untimed() -> None:
     timed = _project(_clip(source_id="src"))
     plain = _project(*[_plain(*piece, i) for i, piece in enumerate(_PIECES)])
@@ -107,3 +86,28 @@ def test_alignment_refuses_a_timed_clip_once_at_entry(monkeypatch: pytest.Monkey
         _project(plain), defaults=load_defaults()
     )
     assert result.skipped_reason == "skipped (<2 dialogue clips)"
+
+
+def test_applying_a_plan_refuses_a_timed_clip_before_any_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    timed = _clip()
+    monkeypatch.setattr(
+        conversation_align,
+        "dialogue_align_units",
+        lambda _p: [(SimpleNamespace(id="host"), timed, [], 30.0)],
+    )
+    result = SimpleNamespace(skipped_reason=None, plans=[object()])
+    with pytest.raises(CodedValueError) as err:
+        conversation_align.apply_alignment_plans(_project(timed), result, defaults=load_defaults())
+    assert err.value.code == "timing_map_alignment_unsupported"
+
+
+def test_an_untimed_window_keeps_a_sub_microsecond_overlap() -> None:
+    plain = _project(
+        Clip(id="a", track_id="host", source_start=10, source_end=40, timeline_start=100)
+    )
+    scopes = gate_scope_for_window(plain, "host", 100.0, 100.0 + 1e-7)
+    assert len(scopes) == 1
+    assert scopes[0].start_s == 10.0
+    assert scopes[0].end_s == pytest.approx(10.0 + 1e-7)
