@@ -40,7 +40,6 @@ from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
-    clip_timeline_overlap_to_source,
     map_timeline_spans_over_clips,
 )
 from podcast_mcp.engines.ungated_audio import raw_evidence_layout_reason, raw_timeline_samples
@@ -267,11 +266,12 @@ def gate_scope_for_window(
     scopes: list[TranscriptGateScope] = []
     clips = SessionTimeline(project).lane_clip_spans(track_id)
     for span in clips:
-        mapped = clip_timeline_overlap_to_source(span.clip, start, end)
-        if mapped is not None:
+        lo, hi = max(start, float(span.timeline_start)), min(end, float(span.timeline_end))
+        if hi > lo + 1e-6:
+            shift = float(span.source_start) - float(span.timeline_start)
             scopes.append(
                 TranscriptGateScope(
-                    start_s=float(mapped[0]), end_s=float(mapped[1]), source_id=span.clip.source_id
+                    start_s=lo + shift, end_s=hi + shift, source_id=span.clip.source_id
                 )
             )
     if not clips and end > start:
