@@ -10,6 +10,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    StrictBool,
     StrictInt,
     ValidationError,
     field_validator,
@@ -43,6 +44,7 @@ RecordCommandType = Literal[
     "Stop",
     "RoomToneCountdown",
     "SetTarget",
+    "SetGuestsSeeNotes",
     "RemoveParticipant",
     "UpdateName",
     "Comment",
@@ -63,6 +65,7 @@ COMMAND_TYPES: frozenset[str] = frozenset(
         "Stop",
         "RoomToneCountdown",
         "SetTarget",
+        "SetGuestsSeeNotes",
         "RemoveParticipant",
         "UpdateName",
         "Comment",
@@ -71,7 +74,16 @@ COMMAND_TYPES: frozenset[str] = frozenset(
 )
 
 HOST_ONLY: frozenset[str] = frozenset(
-    {"Start", "Pause", "Resume", "Stop", "RoomToneCountdown", "SetTarget", "RemoveParticipant"}
+    {
+        "Start",
+        "Pause",
+        "Resume",
+        "Stop",
+        "RoomToneCountdown",
+        "SetTarget",
+        "SetGuestsSeeNotes",
+        "RemoveParticipant",
+    }
 )
 REQUIRES_JOIN_CAP: frozenset[str] = frozenset({"Consent", "SetMuted", "SegmentReport"})
 REQUIRES_COMMENT_CAP: frozenset[str] = frozenset({"Comment"})
@@ -131,6 +143,11 @@ class SegmentReportPayload(BaseModel):
 class SetTargetPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
     target: SessionTarget
+
+
+class SetGuestsSeeNotesPayload(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    enabled: StrictBool
 
 
 class RemoveParticipantPayload(BaseModel):
@@ -194,6 +211,7 @@ _PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     "SetMuted": SetMutedPayload,
     "HeadphonesAck": HeadphonesAckPayload,
     "SetTarget": SetTargetPayload,
+    "SetGuestsSeeNotes": SetGuestsSeeNotesPayload,
     "RemoveParticipant": RemoveParticipantPayload,
     "UpdateName": UpdateNamePayload,
     "Comment": CommentPayload,
