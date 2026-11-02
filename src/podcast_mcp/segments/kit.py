@@ -36,6 +36,8 @@ from podcast_mcp.util.file_locks import hold_shared_file_lock
 
 KIT_JSON = "kit.json"
 MAX_KIT_ENTRIES = 32
+MAX_NAME_CHARS = 200
+MAX_NOTE_CHARS = 500
 LOCK_WAIT_SEC = 15.0
 _VERSION_DIR = re.compile(r"^v([1-9][0-9]*)$")
 
@@ -59,7 +61,7 @@ class KitEntry(BaseModel):
     segment_id: str
     version: Annotated[int, Field(ge=1)] | None = None
     at: float | Literal["start", "end"]
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=MAX_NOTE_CHARS)
 
     @field_validator("version", mode="before")
     @classmethod
@@ -97,7 +99,7 @@ class KitFile(BaseModel):
 
     schema_version: Literal[1] = 1
     id: str
-    name: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=MAX_NAME_CHARS)
     version: Annotated[int, Field(ge=1)] = 1
     entries: list[KitEntry] = Field(min_length=1, max_length=MAX_KIT_ENTRIES)
 
@@ -281,7 +283,8 @@ class KitStore:
 
         The id must be the one its name derives. The version number on ``kit`` is ignored.
         With ``keep_existing`` a kit that already has other entries is left as it is and the
-        result is ``skipped`` (naming the newest stored version).
+        result is ``skipped`` (naming the newest stored version). ``unchanged`` means the
+        newest stored version has these entries.
         """
         if kit.id != kit_id_for(kit.name):
             raise CodedValueError(
@@ -289,14 +292,26 @@ class KitStore:
             )
         with self._lock():
             versions = self.versions(kit.id)
-            for version in versions:
+            newest: KitFile | None = None
+            readable = 0
+            for version in reversed(versions):
                 try:
                     stored = self._read(self.directory / kit.id / f"v{version}")
                 except CodedValueError:
                     continue
-                if stored.content_sha256 == kit.content_sha256:
-                    return KitAddResult("unchanged", stored.id, stored.version)
-            if versions and keep_existing:
+                readable += 1
+                newest = newest or stored
+            # Only the newest version counts as "the same": it is the one `kit apply` uses, so
+            # saving an older list again is a new version, not a report of an old one.
+            if newest is not None:
+                if newest.name != kit.name:
+                    raise CodedValueError(
+                        f"The kit {kit.id} is called {newest.name!r}, not {kit.name!r}.",
+                        code="kit_invalid",
+                    )
+                if newest.version == versions[-1] and newest.content_sha256 == kit.content_sha256:
+                    return KitAddResult("unchanged", newest.id, newest.version)
+            if readable and keep_existing:
                 return KitAddResult("skipped", kit.id, versions[-1])
             number = (versions[-1] if versions else 0) + 1
             stored = kit.model_copy(update={"version": number})

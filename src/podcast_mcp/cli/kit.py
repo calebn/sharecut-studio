@@ -7,52 +7,25 @@ from pathlib import Path
 from typing import Any
 
 import typer
-from pydantic import ValidationError
 
-from podcast_mcp.segments.kit import KitAddResult, KitEntry, KitStore
+from podcast_mcp.segments.kit import KitAddResult, KitStore
 from podcast_mcp.segments.kit_bundle import (
     KitImportResult,
     conflict_policy,
     export_kit,
     import_kit_bundle,
 )
-from podcast_mcp.segments.kit_summary import kit_rows, save_kit, show_kit
+from podcast_mcp.segments.kit_summary import kit_rows, parse_entry_spec, save_kit, show_kit
 from podcast_mcp.segments.store import SegmentStore
-from podcast_mcp.services.document_sync import submit_kit_apply
-from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.services.document import submit_kit_apply
 
 kit_app = typer.Typer(
     help="Show kits: intro, outro and the rest, applied to an episode in one step."
 )
 
-DEFAULT_AT = "start"
-
 
 def _json(payload: Any) -> str:
     return json.dumps(payload, indent=2, ensure_ascii=False)
-
-
-def parse_segment_spec(spec: str) -> KitEntry:
-    """``ID``, ``ID:AT``, ``ID@VERSION`` or ``ID@VERSION:AT``; AT is start, end or seconds."""
-    head, _, at = spec.partition(":")
-    segment_id, _, version = head.partition("@")
-    pinned: object = None
-    if version:
-        try:
-            pinned = int(version)
-        except ValueError:
-            raise CodedValueError(
-                f"{version!r} is not a segment version. Use a whole number from 1.",
-                code="segment_version_invalid",
-            ) from None
-    try:
-        return KitEntry.model_validate(
-            {"segment_id": segment_id.strip(), "version": pinned, "at": at.strip() or DEFAULT_AT}
-        )
-    except ValidationError as exc:
-        raise CodedValueError(
-            f"{spec!r} is not a kit entry: {exc.errors()[0]['msg']}.", code="kit_invalid"
-        ) from exc
 
 
 def _saved_text(result: KitAddResult) -> str:
@@ -78,7 +51,7 @@ def kit_save_cmd(
 ) -> None:
     """Save a kit: the segments to put on an episode, in order, and where each goes."""
     result = save_kit(
-        KitStore(), SegmentStore(), name, [parse_segment_spec(spec) for spec in segment]
+        KitStore(), SegmentStore(), name, [parse_entry_spec(spec) for spec in segment]
     )
     typer.echo(_json(result.wire()) if as_json else _saved_text(result))
 

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from podcast_mcp.segments.kit import (
     MAX_KIT_ENTRIES,
+    MAX_NAME_CHARS,
     KitAddResult,
     KitEntry,
     KitFile,
@@ -126,10 +127,67 @@ def save_kit(
         kit = KitFile(id=kit_id, name=name.strip(), entries=entries)
     except ValidationError as exc:
         raise CodedValueError(
-            f"A kit needs 1 to {MAX_KIT_ENTRIES} segments: {exc.errors()[0]['msg']}.",
+            f"A kit needs a name up to {MAX_NAME_CHARS} characters and 1 to {MAX_KIT_ENTRIES} "
+            f"segments: {exc.errors()[0]['msg']}.",
             code="kit_invalid",
         ) from exc
     missing = find_missing(kit, segments)
     if missing:
         raise CodedValueError(missing_text(missing), code="kit_segment_missing")
     return kits.add(kit)
+
+
+_ENTRY_KEYS = {"segment_id", "version", "at", "note"}
+
+
+def make_entry(
+    segment_id: object, version: object = None, at: object = "start", note: object = None
+) -> KitEntry:
+    """One kit entry from loose values; the one place CLI and MCP turn input into an entry.
+
+    A version that is not a whole number from 1 is ``segment_version_invalid`` (the segment
+    vocabulary, as for ``segment insert --version``); anything else wrong is ``kit_invalid``.
+    """
+    if version is not None and (
+        isinstance(version, bool) or not isinstance(version, int) or version < 1
+    ):
+        raise CodedValueError(
+            f"{version!r} is not a segment version. Use a whole number from 1.",
+            code="segment_version_invalid",
+        )
+    try:
+        return KitEntry.model_validate(
+            {"segment_id": segment_id, "version": version, "at": at, "note": note}
+        )
+    except ValidationError as exc:
+        first = exc.errors()[0]
+        raise CodedValueError(
+            f"Not a kit entry: {'.'.join(str(p) for p in first['loc'])}: {first['msg']}.",
+            code="kit_invalid",
+        ) from exc
+
+
+def parse_entry_spec(spec: str) -> KitEntry:
+    """``ID``, ``ID:AT``, ``ID@VERSION`` or ``ID@VERSION:AT`` (AT is start, end or seconds)."""
+    head, _, at = spec.partition(":")
+    segment_id, _, version = head.partition("@")
+    pinned: object = None
+    if version:
+        try:
+            pinned = int(version)
+        except ValueError:
+            pinned = version
+    return make_entry(segment_id.strip(), pinned, at.strip() or "start")
+
+
+def entry_from_mapping(raw: object) -> KitEntry:
+    """An MCP ``entries`` item: ``{segment_id, at, version?, note?}`` and nothing else."""
+    if (
+        not isinstance(raw, dict)
+        or not {"segment_id", "at"} <= raw.keys()
+        or not raw.keys() <= _ENTRY_KEYS
+    ):
+        raise CodedValueError(
+            "A kit entry is {segment_id, at, version?, note?}.", code="kit_invalid"
+        )
+    return make_entry(raw["segment_id"], raw.get("version"), raw["at"], raw.get("note"))

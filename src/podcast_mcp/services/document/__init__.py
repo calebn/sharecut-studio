@@ -51,6 +51,7 @@ if TYPE_CHECKING:
         HistoryListResult,
         PopulatedHistoryDiffResult,
     )
+    from podcast_mcp.services.document.kit_apply import submit_kit_apply
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
     from podcast_mcp.services.document.play_pending import (
         PENDING_PREVIEW_PAD_DEFAULT_SEC,
@@ -126,6 +127,7 @@ __all__ = [
     "run_comment_mutation_with_file_revisions",
     "save_segment",
     "score_golden_ear",
+    "submit_kit_apply",
     "warm_in_background",
     "with_audio_check",
 ]
@@ -173,6 +175,7 @@ _MODULE_BY_NAME = {
     "PlayService": "play",
     "TransportPath": "play",
     "insert_saved_segment": "segment_insert",
+    "submit_kit_apply": "kit_apply",
     "parse_range": "segment_capture",
     "preview_segment_insert": "segment_insert",
     "preview_segment_insert_on": "segment_insert",

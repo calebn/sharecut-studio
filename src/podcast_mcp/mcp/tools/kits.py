@@ -7,11 +7,10 @@ from typing import Any
 from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
-from podcast_mcp.segments.kit import KitEntry, KitStore
-from podcast_mcp.segments.kit_summary import kit_rows, save_kit, show_kit
+from podcast_mcp.segments.kit import KitStore
+from podcast_mcp.segments.kit_summary import entry_from_mapping, kit_rows, save_kit, show_kit
 from podcast_mcp.segments.store import SegmentStore
-from podcast_mcp.services.document_sync import submit_kit_apply
-from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.services.document import submit_kit_apply
 
 
 def kit_list_tool() -> str:
@@ -36,19 +35,13 @@ def kit_save_tool(name: str, entries: list[dict[str, Any]]) -> str:
 
     Each entry is ``{"segment_id", "at", "version"?, "note"?}``; ``at`` is ``start``, ``end``
     or a number of seconds (read when the kit is applied), ``version`` pins a segment version
-    (omitted = the newest when the kit is applied). The same name with other entries becomes
+    (omitted = the newest when the kit is applied; not a whole number from 1 is
+    ``segment_version_invalid``, as on the CLI). The same name with other entries becomes
     the next version; the same entries are reported ``unchanged``. Returns
     ``{status, id, version}``. Errors: ``kit_name_invalid``, ``kit_invalid``,
     ``kit_segment_missing`` (names every entry whose segment is not in the library).
     """
-    parsed: list[KitEntry] = []
-    for position, raw in enumerate(entries, start=1):
-        try:
-            parsed.append(KitEntry.model_validate(raw))
-        except ValueError as exc:
-            raise CodedValueError(
-                f"Kit entry {position} is not valid: {exc}", code="kit_invalid"
-            ) from exc
+    parsed = [entry_from_mapping(raw) for raw in entries]
     return to_json(save_kit(KitStore(), SegmentStore(), name, parsed).wire())
 
 
@@ -59,9 +52,12 @@ def kit_apply_tool(project_path: str, kit_id: str, dry_run: bool = False) -> str
     content ripples), so ``end`` means the end after the earlier entries. There is no compound
     command: every entry is its own undo step, ``undo_steps`` in the result says how many.
     Use ``dry_run=true`` first: it runs the whole kit on a copy, reports each entry's effect
-    and the new duration, and changes nothing (not even a legacy project rename). A segment
-    or pinned version missing from the library, or any entry's own refusal, is reported before
-    anything is written. Errors: ``kit_unknown``, ``kit_segment_missing``,
+    and the new duration, and changes nothing (not even a legacy project rename). An unknown
+    kit, a segment or pinned version missing from the library, changed segment audio and any
+    refusal the copy run finds are reported before anything is written. A failure of the
+    write itself (disk, lock, conflict) can still stop the apply after earlier entries went
+    in; the error then names the entry and how many were applied, and each applied entry is
+    its own undo step. Errors: ``kit_unknown``, ``kit_segment_missing``,
     ``segment_hash_mismatch``, ``segment_position_out_of_range``, ``segment_media_invalid``,
     ``segment_write_failed``.
     """
