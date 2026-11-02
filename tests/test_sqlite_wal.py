@@ -317,3 +317,35 @@ def test_deadline_elapsed_includes_the_failed_step(tmp_path: Path) -> None:
     assert "attempts=1" in error.__notes__[0]
     assert "elapsed_sec=0.750000" in error.__notes__[0]
     assert clock.slept == []
+
+
+def test_retry_transient_reopens_after_a_readonly_answer_and_not_after_a_busy_one(
+    tmp_path: Path,
+) -> None:
+    clock = _Clock()
+    opened: list[sqlite3.Connection] = []
+    answers = [
+        _error("database is locked", sqlite3.SQLITE_BUSY),
+        _error("attempt to write a readonly database", sqlite3.SQLITE_READONLY),
+        _error("attempt to write a readonly database", sqlite3.SQLITE_READONLY_RECOVERY),
+    ]
+    calls: list[int] = []
+
+    def step() -> None:
+        calls.append(1)
+        if answers:
+            raise answers.pop(0)
+
+    def reopen() -> sqlite3.Connection:
+        opened.append(sqlite3.connect(tmp_path / "fresh.db"))
+        return opened[-1]
+
+    first = sqlite3.connect(tmp_path / "fresh.db")
+    try:
+        retry_transient(first, step, monotonic=clock.monotonic, sleep=clock.sleep, reopen=reopen)
+    finally:
+        first.close()
+        for connection in opened:
+            connection.close()
+    assert len(calls) == 4
+    assert len(opened) == 2
