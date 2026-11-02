@@ -91,6 +91,10 @@ const RECORDED_CAP = 4;
 /** Producers listen; everyone else is recorded. */
 const isRecorded = (person: RoomPerson) => person.role !== "producer";
 
+/** A guest who declined or left frees their place for the host to invite someone else. */
+const isGone = (person: RoomPerson) =>
+  !person.you && (person.presence === "declined" || person.presence === "left");
+
 /** The id when the caller has one; otherwise role and name, which collide for two guests called "Guest". */
 const personKey = (entry: RoomPerson) =>
   entry.id ?? `${entry.role}-${entry.person.name}`;
@@ -182,7 +186,10 @@ function savingStatus(phase: RoomPhase): string | null {
 export function roomViewModel(input: RoomViewInput): RoomViewModel {
   const { role, people, phase, viewerWidth } = input;
 
-  const recorded = people.filter(isRecorded);
+  const hostInvites = role === "host" && input.invite !== false;
+  const recorded = people.filter(
+    (person) => isRecorded(person) && !(hostInvites && isGone(person)),
+  );
   // The host leads with their own tile everywhere; a guest only on the phone.
   const ordered =
     role === "host" || isPhoneWidth(viewerWidth)
@@ -193,7 +200,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
     kind: "person",
     props: tileProps(entry),
   }));
-  if (role === "host" && input.invite !== false) {
+  if (hostInvites) {
     const open = Math.max(0, RECORDED_CAP - tiles.length);
     for (let slot = 1; slot <= open; slot += 1) {
       tiles.push({ key: `invite-${slot}`, kind: "invite" });
@@ -234,7 +241,10 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
     columns,
     listeners,
     dockSeat: role,
-    showComment: phase.kind !== "waiting" && phase.kind !== "countdown",
+    showComment:
+      phase.kind === "live" ||
+      phase.kind === "paused" ||
+      phase.kind === "reconnecting",
     railOpen,
     sheetOpen,
     notesOpen: railOpen || sheetOpen,
