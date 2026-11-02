@@ -22,7 +22,7 @@ from podcast_mcp.models.history import ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, snapshot_editable_state
 from podcast_mcp.project.history.manager import apply_snapshot_to_project
 from podcast_mcp.project.store import read_history_snapshot, snapshot_from_project
-from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.atomic_json import write_text_atomic
 
 ROOT = Path(__file__).resolve().parents[1]
