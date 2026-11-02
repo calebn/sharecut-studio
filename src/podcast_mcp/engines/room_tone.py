@@ -188,6 +188,8 @@ class SampleAbsent:
         "window_unreadable",
         "candidate_limit",
         "no_fill_requested",
+        "voice_detector_missing",
+        "bed_changed",
     ]
     rejected_checks: tuple[str, ...] = ()
     unreadable_windows: int = 0
@@ -955,11 +957,11 @@ def _speech_prob(audio: np.ndarray) -> float | None:
     return float(np.max(vad.speech_probs(audio)))
 
 
-def track_floor(path: Path) -> FloorRead:
+def track_floor(path: Path, *, content_sha256: str | None = None) -> FloorRead:
     """Live, digital or unreadable source facts cached per file revision."""
     try:
         resolved = path.resolve(strict=True)
-        return _track_floor(resolved, file_revision(resolved))
+        return _track_floor(resolved, file_revision(resolved), content_sha256)
     except FileNotFoundError:
         return Unmeasured("missing_file", path)
     except Exception as exc:
@@ -968,7 +970,9 @@ def track_floor(path: Path) -> FloorRead:
 
 
 @lru_cache(maxsize=8)
-def _track_floor(path: Path, revision: FileRevision) -> FloorRead:
+def _track_floor(
+    path: Path, revision: FileRevision, content_sha256: str | None = None
+) -> FloorRead:
     """Decode ``path`` once per file revision into its floor, speech level and quiet runs.
 
     A track whose bed is digital silence (more of it is digital silence than live audio
@@ -979,7 +983,7 @@ def _track_floor(path: Path, revision: FileRevision) -> FloorRead:
 
     frame = round(SAMPLE_RATE * FRAME_SEC)
     try:
-        held = held_mono_full(path, sample_rate=SAMPLE_RATE)
+        held = held_mono_full(path, sample_rate=SAMPLE_RATE) if content_sha256 is None else None
         if held is not None:
             chunks = (held[i : i + _HELD_CHUNK] for i in range(0, held.size, _HELD_CHUNK))
             frames = frame_rms_db_stream(chunks, frame, frame, floor_db=DIGITAL_SILENCE_DB)

@@ -1880,7 +1880,8 @@ def _room_tone_missing(
         suggestion = session_suggestion_for(project, session_id)
         return suggestion is None or all(bed.track_id != track_id for bed in suggestion.room_tone)
     track = project.track_by_id(track_id)
-    return track is None or track.room_tone is None
+    # An extracted bed is the pipeline's stand-in: a recorded bed still lands over it.
+    return track is None or track.room_tone is None or track.room_tone_origin is not None
 
 
 def pending_rows(

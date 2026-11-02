@@ -253,6 +253,38 @@ class GateFill(BaseModel):
     audio_stream: int | None = Field(default=None, ge=0)
 
 
+class RoomToneOrigin(BaseModel):
+    """Where a track's room-tone bed was cut from, when the pipeline extracted it.
+
+    Only an extracted bed carries this; a recorded or assigned bed has none. ``source_id``
+    is the source recording the excerpt came from (None for the track's primary media) and
+    ``source_start``/``source_end`` are seconds in it. ``source_path`` and ``media_sha256``
+    identify the source independently of its size and modification time.
+    ``file_sha256`` names the written bed. The level, speech and check fields record validation.
+    """
+
+    kind: Literal["extracted"] = "extracted"
+    source_id: str | None = None
+    source_start: float = Field(ge=0, allow_inf_nan=False)
+    source_end: float = Field(gt=0, allow_inf_nan=False)
+    source_path: str
+    media_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    media_size: int = Field(ge=0)
+    media_mtime_ns: int
+    extractor_rev: int = Field(ge=1)
+    file_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    floor_db: float = Field(allow_inf_nan=False)
+    bed_rms_db: float = Field(allow_inf_nan=False)
+    speech_prob: float | None = Field(default=None, allow_inf_nan=False)
+    checks: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> RoomToneOrigin:
+        if self.source_end <= self.source_start:
+            raise ValueError("room-tone origin needs source_end after source_start")
+        return self
+
+
 class Track(BaseModel):
     id: str
     label: str
@@ -264,6 +296,9 @@ class Track(BaseModel):
     # projects). Filler pads prefer this over room tone sampled from the track
     # (engines/room_tone.py) when filler_pad_mode is room_tone.
     room_tone: MediaAsset | None = None
+    # Set only when the pipeline extracted that bed from the track's own audio
+    # (engines/room_tone_extract.py); a recorded or assigned bed leaves it None.
+    room_tone_origin: RoomToneOrigin | None = None
     # Written by the pipeline's fill_gate_holes step (engines/gate_fill.py).
     gate_fill: GateFill | None = None
     # Staging gain the pipeline's balance step writes (dialogue toward target LUFS).
@@ -279,6 +314,12 @@ class Track(BaseModel):
     transcript_gate_scope: list[TranscriptGateScope] | None = None
     proxy: TrackProxy | None = None
     timeline_empty: bool = False
+
+    @model_validator(mode="after")
+    def _origin_needs_bed(self) -> Track:
+        if self.room_tone_origin is not None and self.room_tone is None:
+            raise ValueError("a room-tone origin needs the room-tone bed it describes")
+        return self
 
     @property
     def output_gain_db(self) -> float:

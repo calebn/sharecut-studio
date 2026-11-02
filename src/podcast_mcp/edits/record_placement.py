@@ -8,11 +8,13 @@ from podcast_mcp.models import (
     Clip,
     EpisodeProject,
     MediaAsset,
+    RoomToneOrigin,
     SourceClippingRegion,
     SourceRecording,
     Track,
     TrackRole,
 )
+from podcast_mcp.util.tracks import unknown_track
 
 
 def ensure_track(project: EpisodeProject, track_id: str, *, label: str) -> Track:
@@ -166,6 +168,8 @@ def place_room_tone(
 ) -> Track:
     """The track, its held room-tone bed and the bed's shared source."""
     track = ensure_track(project, track_id, label=label)
+    # A recorded or assigned bed replaces an extracted one, and says so.
+    track.room_tone_origin = None
     track.room_tone = MediaAsset(
         path=rel,
         duration_sec=duration_s,
@@ -181,4 +185,31 @@ def place_room_tone(
         sample_rate=sample_rate,
         channels=channels,
     )
+    return track
+
+
+def place_extracted_room_tone(
+    project: EpisodeProject,
+    *,
+    track_id: str,
+    rel: str,
+    duration_s: float,
+    sample_rate: int,
+    channels: int,
+    origin: RoomToneOrigin,
+) -> Track:
+    """Register a bed the pipeline cut from the track's own audio, with where it came from."""
+    existing = project.track_by_id(track_id)
+    if existing is None:
+        raise unknown_track(track_id)
+    track = place_room_tone(
+        project,
+        track_id=track_id,
+        label=existing.label,
+        rel=rel,
+        duration_s=duration_s,
+        sample_rate=sample_rate,
+        channels=channels,
+    )
+    track.room_tone_origin = origin
     return track

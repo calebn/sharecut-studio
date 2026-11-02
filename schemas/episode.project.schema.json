@@ -325,6 +325,108 @@
         "speech_gated": { "type": "boolean" }
       }
     },
+    "RoomToneOrigin": {
+      "description": "Where a track's room-tone bed was cut from, when the pipeline extracted it.\n\nOnly an extracted bed carries this; a recorded or assigned bed has none. ``source_id``\nis the source recording the excerpt came from (None for the track's primary media) and\n``source_start``/``source_end`` are seconds in it. ``source_path`` and ``media_sha256``\nidentify the source independently of its size and modification time.\n``file_sha256`` names the written bed. The level, speech and check fields record validation.",
+      "properties": {
+        "kind": {
+          "const": "extracted",
+          "default": "extracted",
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        },
+        "source_start": {
+          "minimum": 0,
+          "title": "Source Start",
+          "type": "number"
+        },
+        "source_end": {
+          "exclusiveMinimum": 0,
+          "title": "Source End",
+          "type": "number"
+        },
+        "source_path": {
+          "title": "Source Path",
+          "type": "string"
+        },
+        "media_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Media Sha256",
+          "type": "string"
+        },
+        "media_size": {
+          "minimum": 0,
+          "title": "Media Size",
+          "type": "integer"
+        },
+        "media_mtime_ns": {
+          "title": "Media Mtime Ns",
+          "type": "integer"
+        },
+        "extractor_rev": {
+          "minimum": 1,
+          "title": "Extractor Rev",
+          "type": "integer"
+        },
+        "file_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "File Sha256",
+          "type": "string"
+        },
+        "floor_db": {
+          "title": "Floor Db",
+          "type": "number"
+        },
+        "bed_rms_db": {
+          "title": "Bed Rms Db",
+          "type": "number"
+        },
+        "speech_prob": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speech Prob"
+        },
+        "checks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Checks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_start",
+        "source_end",
+        "source_path",
+        "media_sha256",
+        "media_size",
+        "media_mtime_ns",
+        "extractor_rev",
+        "file_sha256",
+        "floor_db",
+        "bed_rms_db"
+      ],
+      "title": "RoomToneOrigin",
+      "type": "object"
+    },
     "Track": {
       "type": "object",
       "required": ["id", "label", "role"],
@@ -336,6 +438,7 @@
         "speaker": { "type": ["string", "null"] },
         "media": { "$ref": "#/$defs/MediaAsset" },
         "room_tone": { "anyOf": [{ "$ref": "#/$defs/MediaAsset" }, { "type": "null" }] },
+        "room_tone_origin": { "anyOf": [{ "$ref": "#/$defs/RoomToneOrigin" }, { "type": "null" }] },
         "gate_fill": {
           "anyOf": [{ "$ref": "#/$defs/GateFill" }, { "type": "null" }],
           "default": null,
