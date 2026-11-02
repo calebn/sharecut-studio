@@ -1116,7 +1116,9 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
   const chips = await chooser
     .getByRole("menuitem")
     .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
-  const trimChip = chooser.getByRole("menuitem", { name: /Trim start/ });
+  const trimChip = chooser.getByRole("menuitem", {
+    name: /^Clip, Trim start at /,
+  });
   const chip = await centerOfLocator(trimChip);
   await finger.slide(chip, 6, 30);
   await page.waitForTimeout(HOLD_MS);
@@ -1202,7 +1204,7 @@ test("#1154: a touch ripple trim over the guest's speech applies as one manual t
   const chooser = page.getByRole("menu", { name: "Targets here" });
   await expect(chooser).toBeVisible();
   const chip = await centerOfLocator(
-    chooser.getByRole("menuitem", { name: /Trim start/ }),
+    chooser.getByRole("menuitem", { name: /^Clip, Trim start at / }),
   );
   await finger.slide(chip, 6, 30);
   await page.waitForTimeout(HOLD_MS);

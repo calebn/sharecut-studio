@@ -304,7 +304,7 @@ test("jog: a ripple over the guest's speech applies as one manual trim", async (
   const chooser = page.getByRole("menu", { name: "Targets here" });
   await expect(chooser).toBeVisible();
   const chip = await centerOfLocator(
-    chooser.getByRole("menuitem", { name: /Trim start/ }),
+    chooser.getByRole("menuitem", { name: /^Clip, Trim start at / }),
   );
   await finger.slide(chip, 6, 30);
   await page.waitForTimeout(HOLD_MS);

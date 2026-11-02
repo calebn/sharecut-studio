@@ -95,7 +95,9 @@ const KIND_BY_LABEL: [string, string][] = [
 ];
 
 function labelTarget(label: string): { kind: string; time: number } {
-  const kind = KIND_BY_LABEL.find(([name]) => label.includes(name))?.[1];
+  const kind = KIND_BY_LABEL.find(
+    ([name]) => label.startsWith(name) || label.includes(`, ${name}`),
+  )?.[1];
   const [, mm, ss] = label.match(/(\d+):(\d+\.\d+)(?:, selected)?$/) ?? [];
   if (!kind || mm == null) throw new Error(`unparsed chip label ${label}`);
   return { kind, time: Number(mm) * 60 + Number(ss) };
@@ -399,6 +401,64 @@ test("cancel paths close with no change; an early move edits nothing", async ({
     commands: [],
     projectUnchanged: true,
   });
+});
+
+test("a right click on the dimmed timeline closes the fan and selects nothing under it", async ({
+  page,
+}, info) => {
+  const cdp = await page.context().newCDPSession(page);
+  const commands = watchCommands(page);
+  await openProject(page, projectPath);
+  await buildFixture(page);
+  await openTimeline(page, "phone", "dark");
+  await setZoom(page, 0);
+  const at = await clusterPoint(page, "edge");
+  const clip = await page.evaluate(() => {
+    const box = document
+      .querySelector(".lane-row .clip-block")!
+      .getBoundingClientRect();
+    return { x: box.left + box.width * 0.8, y: box.top + box.height * 0.75 };
+  });
+  const results: Record<string, unknown> = {};
+  for (const [name, point] of [
+    ["scrim over a clip", clip],
+    ["scrim over empty timeline", { x: 20, y: 760 }],
+  ] as const) {
+    expect(await openAt(cdp, page, at)).toBe(true);
+    const before = await pickState(page);
+    commands.length = 0;
+    await page.evaluate(() => {
+      (window as unknown as { nativeMenu: boolean[] }).nativeMenu = [];
+      window.addEventListener("contextmenu", (e) => {
+        (window as unknown as { nativeMenu: boolean[] }).nativeMenu.push(
+          !e.defaultPrevented,
+        );
+      });
+    });
+    await page.mouse.click(point.x, point.y, { button: "right" });
+    await page.waitForTimeout(300);
+    const after = await pickState(page);
+    results[name] = {
+      closed: (await chooser(page).count()) === 0,
+      selectedBefore: before.selectedClips,
+      selectedAfter: after.selectedClips,
+      commands: commands.map((c) => c.type),
+      createMenu: await page.getByRole("menu", { name: /^Create at / }).count(),
+    };
+    await page.keyboard.press("Escape");
+  }
+  json(info, "right-click", results);
+  for (const row of Object.values(results) as {
+    closed: boolean;
+    selectedBefore: unknown;
+    selectedAfter: unknown;
+    commands: string[];
+    createMenu: number;
+  }[]) {
+    expect(row.closed).toBe(true);
+    expect(row.selectedAfter).toEqual(row.selectedBefore);
+    expect(row.commands).toEqual([]);
+  }
 });
 
 test("resting on a chip grabs its target and keeps dragging", async ({

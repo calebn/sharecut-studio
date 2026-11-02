@@ -224,7 +224,7 @@ async function holdOpen(page: Page, finger: Finger): Promise<Point> {
 }
 
 const trimChip = (page: Page) =>
-  chooser(page).getByRole("menuitem", { name: /Trim start/ });
+  chooser(page).getByRole("menuitem", { name: /^Clip, Trim start at / });
 
 /** Source start of the clip that starts at 10 s: what a Trim start drag moves. */
 async function trimStartSec(page: Page): Promise<number> {
