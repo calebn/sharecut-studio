@@ -161,6 +161,11 @@ and Clips: inside the existing left column on desktop, and after the phone's
 outside-column Chapters and Clips. This moves Transcript later than the earlier
 shipped order so its loading and preview growth no longer inserts content above
 those controls. The section keeps its existing state, files and compact preview.
+Episode file's automatic-caption explanation depends only on whether the host
+includes a Transcript section, never on its asynchronous preview kind. It says
+available captions and transcript are included with audio export; it points to
+more formats below only when that section exists. This does not claim files
+already exist or promise captions when the project has no transcript.
 Bounce starts through its existing command, without a native anchoring lease or
 scroll writes. The original disabled Bounce button remains below the running
 row. Application qualification holds the real Transcript dry-run response until
