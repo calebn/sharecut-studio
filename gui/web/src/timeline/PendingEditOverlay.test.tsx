@@ -1,14 +1,24 @@
 import {
   act,
   cleanup,
+  configure,
   fireEvent,
+  getConfig,
   render,
   screen,
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { updatePendingEdit, waiveTranscriptRefine } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
 import {
@@ -1523,6 +1533,11 @@ it("keeps a waiver save busy across relocation and shows its failure on the same
 });
 
 describe("single pending review feedback", () => {
+  // Each review polls the host queue on a real interval; on a loaded machine the default 1 s
+  // findBy window can close before the notice or toast renders (origin/main fails the same way).
+  const defaultAsyncTimeout = getConfig().asyncUtilTimeout;
+  beforeAll(() => configure({ asyncUtilTimeout: 8000 }));
+  afterAll(() => configure({ asyncUtilTimeout: defaultAsyncTimeout }));
   const path = "/tmp/p.json";
   const head = "1b0040fb2927";
   const pending = () => minimalProject({ pending_edits: [edit] });
@@ -1814,6 +1829,12 @@ describe("overlay Cut and Keep", () => {
     });
   });
 
+  // Let the review finish (reply applied, selection cleared) so nothing writes into the next test.
+  const settled = () =>
+    waitFor(() => {
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
   function mount(target: PendingEditView) {
     useDawStore
       .getState()
@@ -1874,6 +1895,7 @@ describe("overlay Cut and Keep", () => {
         { refineRecoveryInline: true },
       ),
     );
+    await settled();
     cleanup();
     vi.mocked(submitQueuedDocumentCommand).mockClear();
     mount({ ...edit, suggested_action: "cut" });
@@ -1886,6 +1908,7 @@ describe("overlay Cut and Keep", () => {
         undefined,
       ),
     );
+    await settled();
   });
 
   it("Cut on a shorten suggestion applies its own action, as the Action bar's Cut does", async () => {
@@ -1901,6 +1924,7 @@ describe("overlay Cut and Keep", () => {
         undefined,
       ),
     );
+    await settled();
     expect(submitQueuedDocumentCommand).not.toHaveBeenCalledWith(
       path,
       "ApproveEdits",
@@ -1928,6 +1952,7 @@ describe("overlay Cut and Keep", () => {
         { refineRecoveryInline: true },
       ),
     );
+    await settled();
     expect(submitQueuedDocumentCommand).toHaveBeenCalledTimes(1);
   });
 
@@ -1960,6 +1985,7 @@ describe("overlay Cut and Keep", () => {
         "The host said no",
       ),
     );
+    await waitFor(() => expect(screen.queryByText("Shortening…")).toBeNull());
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });

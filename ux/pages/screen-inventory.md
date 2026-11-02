@@ -181,7 +181,7 @@ Not the Share section. Guest share agents use `{base}/mcp/{token}/mcp`.
 | | |
 |--|--|
 | **Purpose** | Modifier for whatever is selected (pending cut, clip fade, track FX, word, …) |
-| **Primary actions** | Approve / Reject / Restore · Play around · param edits · Close |
+| **Primary actions** | Cut / Keep (Approve / Reject for a split, exact range or no accept action) / Restore · Hear before / Hear after (footer Play around where there is no Action bar) · param edits · Close |
 | **Data shown** | Type badge · label · agent reason · source + timeline ranges · shape-specific params |
 | **Phone** | Ordinary modifier sheets use half or full height. Heading, actions, fields, errors, related commands, and audition footer scroll together. Scroll to the top for Close, Expand, and Collapse. Ordinary modifiers use a taller half height. The compact inspector uses peek, half, and full heights with its header pinned outside one bounded body scroller. Feedback and fields scroll in that body. Sheets never stack. |
 | **Tablet** | Ordinary sheets dock above the tabs band when the tabs are visible and scroll as on phone. Maximize timeline hides the tabs and docks the sheet above the status row. The compact inspector docks above the status row and keeps its header pinned outside the body scroller. |
