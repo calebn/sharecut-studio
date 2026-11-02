@@ -540,7 +540,10 @@ def test_advisory_release_guards_run_on_uncertainty_and_stop_on_cancellation() -
     for name in names:
         workflow = load_github_yaml(ROOT / ".github/workflows" / f"{name}.yml")
         selector = workflow["jobs"]["changes"]
-        assert selector["if"] == "github.event_name == 'pull_request'"
+        assert (
+            selector["if"]
+            == "github.event_name == 'pull_request' && github.event.pull_request.draft != true"
+        )
         expected_outputs = (
             {"release-only": "${{ steps.plan.outputs.release-only }}"}
             if name == "extras-import"
@@ -566,7 +569,9 @@ for (const [label, job] of Object.entries(jobs)) {
   const dependencies = Array.isArray(job.needs) ? job.needs : [job.needs];
   if (!dependencies.includes('changes')) throw Error(label + ' lacks selector');
   const expression = job.if.slice(3, -2).replace(/\.([\w]+(?:-[\w]+)+)/g, "['$1']");
-  const evaluate = Function('needs', 'cancelled', `return (${expression});`);
+  const evaluate = Function('needs', 'cancelled', 'github', `return (${expression});`);
+  const ready = {event: {pull_request: {draft: false}}};
+  const draft = {event: {pull_request: {draft: true}}};
   for (const [result, flag, cancelled, expected] of [
     ['success', '1', false, false],
     ['success', '0', false, true],
@@ -585,12 +590,13 @@ for (const [label, job] of Object.entries(jobs)) {
     const needs = Object.fromEntries(dependencies.map(name => [name, {result: 'success'}]));
     const key = job.if.match(/outputs\.([\w-]+)/)[1];
     needs.changes = {result, outputs: {[key]: typeof flag === 'string' ? flag.toLowerCase() : flag}};
-    if (evaluate(needs, () => cancelled) !== expected) {
+    if (evaluate(needs, () => cancelled, draft) !== false) throw Error(label + ' runs on a draft');
+    if (evaluate(needs, () => cancelled, ready) !== expected) {
       throw Error(JSON.stringify({label, result, flag, cancelled, expected}));
     }
     for (const dependency of dependencies.filter(name => name !== 'changes')) {
       needs[dependency].result = 'failure';
-      if (evaluate(needs, () => cancelled) !== false) throw Error(label + ' ignores failed producer');
+      if (evaluate(needs, () => cancelled, ready) !== false) throw Error(label + ' ignores failed producer');
       needs[dependency].result = 'success';
     }
   }

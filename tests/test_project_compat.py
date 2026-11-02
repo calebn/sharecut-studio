@@ -385,7 +385,8 @@ def test_capture_failure_does_not_publish_partial_fixture(
 
 def test_every_pr_runs_compatibility_outside_pytest_scope() -> None:
     workflow = load_github_yaml(ROOT / ".github/workflows/test.yml")
-    assert "if" not in workflow["jobs"]["pytest"]
+    # Only the draft gate may skip this job; no change-scope gate may.
+    assert workflow["jobs"]["pytest"].get("if") == "github.event.pull_request.draft != true"
     steps = workflow["jobs"]["pytest"]["steps"]
     guard = next(step for step in steps if step.get("name") == "Project and history compatibility")
     assert "if" not in guard

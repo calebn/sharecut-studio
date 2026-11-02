@@ -8,6 +8,7 @@ name: extras-import
 on:
   workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths: &extras-paths
       - "pyproject.toml"
       - "src/podcast_mcp/engines/speaker_id.py"
@@ -28,7 +29,7 @@ concurrency:
 
 jobs:
   changes:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -43,7 +44,7 @@ jobs:
 
   extras:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.release-only != '1') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.release-only != '1') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
