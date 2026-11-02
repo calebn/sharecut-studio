@@ -32,7 +32,7 @@ from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.engines.bleed_echo import EchoConfig, EchoPairProfile, echo_profiles
 from podcast_mcp.engines.clips_ops import clips_for_track, is_session_join
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.session_timeline import SessionTimeline, shift_at
 from podcast_mcp.models import EditMode, EpisodeProject
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedValueError
@@ -391,7 +391,7 @@ def build_audition_context(
         source_at_mid[tid] = float(src_mid) if src_mid is not None else None
         first = next(iter(clips_for_track(project, tid)), None)
         if first is not None:
-            alignment_shift[tid] = float(first.timeline_start) - float(first.source_start)
+            alignment_shift[tid] = float(shift_at(first, first.source_start))
         words = _words_in_source_spans(project, tid, spans)
         text = " ".join(w.text for w in words).strip()
         mapped_words: list[tuple[float, str]] = []
