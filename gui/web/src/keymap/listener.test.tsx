@@ -480,6 +480,33 @@ function showHistory(history: { can_undo: boolean; can_redo: boolean }) {
   });
 }
 
+it("Mod+C copies the selection but stays native inside a text field", async () => {
+  render(
+    <>
+      <KeymapHost />
+      <input aria-label="Fix text" />
+    </>,
+  );
+  const copy = async (target: HTMLElement) => {
+    vi.mocked(execute).mockClear();
+    vi.mocked(execute).mockImplementation(async () => ({ status: "ok" }));
+    await act(async () => {
+      fireEvent.keyDown(target, {
+        key: "c",
+        code: "KeyC",
+        metaKey: true,
+        ctrlKey: true,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    return vi.mocked(execute).mock.calls.map(([id]) => id);
+  };
+  expect(await copy(screen.getByTestId("canvas"))).toEqual(["edit.copy"]);
+  expect(await copy(screen.getByRole("textbox", { name: "Fix text" }))).toEqual(
+    [],
+  );
+});
+
 it("Mod+Z with nothing to undo does not send the command (#2168)", async () => {
   render(<KeymapHost />);
   vi.mocked(undoHistory).mockClear();
