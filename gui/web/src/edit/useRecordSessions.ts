@@ -1,23 +1,21 @@
 import { useEffect, useState } from "react";
 import { loadHostRecordSessions } from "../api";
 
+// Derived from the loader: importDirection keeps edit/ from importing record/types.
 type RecordSessionSummary = Awaited<
   ReturnType<typeof loadHostRecordSessions>
 >[number];
 
-type Loaded = {
-  projectPath: string;
-  refreshKey: string;
-  sessions: RecordSessionSummary[];
-};
+type Loaded = { projectPath: string; sessions: RecordSessionSummary[] };
 
 const NONE: RecordSessionSummary[] = [];
 
 /**
- * The host's record sessions for the open project, fetched when `refreshKey`
- * changes (it names the landed session clips, so a land or an undo refetches).
- * Empty while pending, on a failure, for a share key (the endpoint is host-only)
- * and when `enabled` is false; the caller shows no labels then.
+ * The host's record sessions for the open project, fetched again whenever
+ * `refreshKey` changes (the document's history head, so a land, a rename and an
+ * undo of either all refetch). The last good answer stays until a newer one
+ * lands, and a failed fetch keeps it. Empty before the first answer, for a share
+ * key (the endpoint is host-only), and when `enabled` is false.
  */
 export function useRecordSessions(
   projectPath: string | null,
@@ -32,7 +30,7 @@ export function useRecordSessions(
     let stale = false;
     loadHostRecordSessions(projectPath).then(
       (sessions) => {
-        if (!stale) setLoaded({ projectPath, refreshKey, sessions });
+        if (!stale) setLoaded({ projectPath, sessions });
       },
       () => {},
     );
@@ -40,9 +38,7 @@ export function useRecordSessions(
       stale = true;
     };
   }, [projectPath, refreshKey, enabled]);
-  return enabled &&
-    loaded?.projectPath === projectPath &&
-    loaded.refreshKey === refreshKey
+  return enabled && loaded?.projectPath === projectPath
     ? loaded.sessions
     : NONE;
 }

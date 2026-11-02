@@ -7,6 +7,19 @@ import { partial, rule, rules } from "../test/cssRules";
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe("timeline styles", () => {
+  it("keeps the session pill pressable: no overflow clip on the button, a minimum width, a coarse-pointer target", () => {
+    const css = partial("timeline.css");
+    const pill = rule(css, ".timeline-session-pill");
+    expect(pill).not.toMatch(/overflow/);
+    expect(pill).toMatch(/min-inline-size:\s*1\.5rem/);
+    expect(css).toMatch(
+      /@media \(pointer: coarse\)[^}]*\{[^}]*\.timeline-session-pill/s,
+    );
+    expect(css).toMatch(
+      /@media \(forced-colors: active\)[^}]*\{[^}]*\.timeline-ruler \.sys-ruler-session/s,
+    );
+  });
+
   it("keeps the playhead in timeline.css, unlit until playing", () => {
     const playhead = rule(partial("timeline.css"), ".playhead");
     expect(playhead).not.toMatch(/box-shadow/);

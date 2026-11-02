@@ -14,14 +14,12 @@ type Props = {
   pxPerSecond: number;
 };
 
-/** A later pill that starts inside an earlier band steps right by this much, so both stay pressable. */
-const OVERLAP_STEP_PX = 2;
-
 /**
  * The session pills over the Edit ruler: one button per band, a sibling of the
  * system Ruler (whose slider holds no interactive children). Pressing one seeks
  * to the session's start and selects its clips, like "Edit Session N". The
  * layer takes no pointer itself, so the ruler under it keeps seeking and scrubbing.
+ * A pill that starts inside an earlier band stacks one pill-width to its right.
  */
 export const SessionBandLayer = memo(function SessionBandLayer({
   bands,
@@ -55,19 +53,20 @@ export const SessionBandLayer = memo(function SessionBandLayer({
             type="button"
             className="timeline-session-pill"
             title={band.title}
-            aria-label={`${band.title}, select its clips`}
-            aria-pressed={selected}
+            aria-label={`${band.label}, ${band.title}: select its clips`}
+            aria-current={selected ? "true" : undefined}
             data-selected={selected || undefined}
             style={
               {
-                "--session-x": `${from + under * OVERLAP_STEP_PX}px`,
+                "--session-x": `${from}px`,
+                "--session-stack": under,
                 "--session-w": `${to - from}px`,
                 zIndex: index + 1,
               } as CSSProperties
             }
             onClick={() => select(band)}
           >
-            {band.label}
+            <span className="timeline-session-pill-text">{band.label}</span>
           </button>
         );
       })}

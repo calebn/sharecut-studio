@@ -4,7 +4,6 @@ import type { ClipRow } from "../types/project";
 export type SessionBand = {
   sessionId: string;
   number: number;
-  /** The pill: `S2`. */
   label: string;
   /** The full name for hover and the button's name: `Session 2`, or `Session 2 - Name`. */
   title: string;
@@ -24,7 +23,7 @@ type SessionRow = {
 /**
  * One band per numbered session whose clips are on the timeline, in start order
  * (number breaks ties). The extent is derived from the clips, so a session whose
- * clips were all moved away or deleted has no band, and sessions that overlap
+ * clips were all deleted has no band, and sessions that overlap
  * (a replace or insert target) each keep their own band.
  */
 export function sessionBands(
@@ -52,7 +51,6 @@ export function sessionBands(
   return bands.sort((a, b) => a.start - b.start || a.number - b.number);
 }
 
-/** True when the selection is exactly the band's clips. */
 export function bandSelected(
   band: Pick<SessionBand, "clipIds">,
   selectedIds: readonly string[],

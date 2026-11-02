@@ -38,7 +38,7 @@ export type RulerEdge = "start" | "end";
 type RulerGrip = "scrub" | RulerEdge;
 
 /** An empty `label` draws the tint only: a host that makes the pill a button draws it over the ruler itself. */
-export type RulerSession = TimeRange & { label: string };
+export type RulerSession = TimeRange & { label: string; id?: string };
 
 type RulerDrag = GrabMove & {
   /** Where the edge would sit under the pointer, held to the episode. */
@@ -421,7 +421,7 @@ export const Ruler = memo(function Ruler({
           if (to <= from) return null;
           return (
             <span
-              key={`${session.start}-${session.end}`}
+              key={session.id ?? `${session.start}-${session.end}`}
               className="sys-ruler-session"
               data-odd={index % 2 === 1 || undefined}
               style={
