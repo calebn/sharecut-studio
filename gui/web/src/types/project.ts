@@ -82,10 +82,8 @@ export interface ClipRow {
   clipping_regions?: ClippingRegion[];
   /** The recording hit its clip-region cap; clipping after this clip's last flag was not recorded. */
   clipping_truncated?: boolean;
-  /** Present only on a clip with a timing map: its step count and a one-line summary. */
   timing_steps?: number;
   timing_summary?: string;
-  /** The step list, when the server was asked for it; source seconds. */
   timing?: {
     steps: Array<Pick<TimingStep, "at" | "delta_sec">>;
     method: string;
