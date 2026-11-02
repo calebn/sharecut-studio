@@ -151,7 +151,7 @@ def _mixing_engine() -> MagicMock:
     eng.mix_tracks.side_effect = lambda inputs, out, **_kw: (
         out.write_bytes(_mix_wav(b"MIX!")) or out
     )
-    eng.peak_trim_db.return_value = -2.5
+    eng.mix_peak_db.return_value = 1.5
     return eng
 
 
@@ -176,7 +176,7 @@ def _mastering_engine() -> MagicMock:
         return MasterResult(Path(dst), LoudnormPlan(two_pass=False), None, "dynamic", None)
 
     eng.master_loudness.side_effect = _fake_master
-    eng.peak_trim_db.return_value = -2.5
+    eng.mix_peak_db.return_value = 1.5
     eng.measure_loudness_full.return_value = None
     return eng
 
@@ -682,7 +682,7 @@ def test_the_mix_applies_output_gain_skips_muted_and_hashes_the_mix(
     eng = _mixing_engine()
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.mix_with_music(project, load_defaults())
-    eng.peak_trim_db.assert_called_once_with([(Path(rendered["host"]), -5.0)], -1.0)
+    eng.mix_peak_db.assert_called_once_with([(Path(rendered["host"]), -5.0)], -1.0)
     (inputs, _out), _kw = eng.mix_tracks.call_args
     assert _kw == {"trim_db": -2.5}
     assert inputs == [(Path(rendered["host"]), -5.0)]
@@ -700,6 +700,7 @@ def test_a_failed_mix_leaves_the_old_premix_whole(minimal_project: Path) -> None
     write_premix_hash(ws.project, {"old": 0.0}, trim_db=0.0, defaults=load_defaults())
     _fake_rendered_stems(ws.project)
     eng = MagicMock()
+    eng.mix_peak_db.return_value = None
     eng.mix_tracks.side_effect = RuntimeError("ffmpeg died")
     with patch.object(steps, "ffmpeg", return_value=eng), pytest.raises(RuntimeError):
         steps.mix_with_music(ws.project, load_defaults())
@@ -1658,7 +1659,9 @@ def test_damaged_cached_wavs_are_rebuilt(
     )
 
 
-@pytest.mark.parametrize("payload", [{}, {"measured": "bad"}, b"\xff"])
+@pytest.mark.parametrize(
+    "payload", [{}, {"measured": "bad"}, {"measured": {"integrated_lufs": "x"}}, b"\xff"]
+)
 @pytest.mark.parametrize("operation", ["direct", "export"])
 def test_invalid_master_qc_is_regenerated(
     minimal_project: Path, payload: dict[str, Any] | bytes, operation: str
@@ -1693,3 +1696,19 @@ def test_valid_unmeasured_master_qc_reuses_audio_and_metadata(minimal_project: P
     assert summary == "reused mastered.wav (loudness unmeasured)"
     assert eng.master_loudness.call_count == 1
     assert _stamps(ws) == before
+
+
+def test_an_unmeasured_peak_premix_is_not_reused(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mixing_engine()
+    eng.mix_peak_db.return_value = None
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        assert read_premix_trim_db(ws.project) is None
+        eng.mix_peak_db.return_value = 1.5
+        summary = steps.mix_with_music(ws.project, defaults)
+    assert not summary.startswith("reused")
+    assert eng.mix_tracks.call_count == 2
+    assert read_premix_trim_db(ws.project) == -2.5
