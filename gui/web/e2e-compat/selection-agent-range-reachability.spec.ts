@@ -106,7 +106,9 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
 
   const sheet = page.locator(".sys-inspector");
   await expect(sheet).toBeVisible();
-  await expect(sheet.locator(".modifier-badge")).toHaveText("Clip");
+  await expect(
+    sheet.getByRole("spinbutton", { name: "Source start", exact: true }),
+  ).toBeVisible();
 
   await expect(barActions).toHaveCount(0);
 
@@ -118,7 +120,9 @@ test("agent range controls stay reachable from a tablet clip sheet", async ({
       name: "Use agent range on selected tracks",
     }),
   ).toBeVisible();
-  await expect(sheet.locator(".modifier-badge")).toHaveText("Clip");
+  await expect(
+    sheet.getByRole("spinbutton", { name: "Source start", exact: true }),
+  ).toBeVisible();
 
   const track = actions.getByRole("checkbox").first();
   await expect(track).toBeChecked();
