@@ -504,15 +504,16 @@ test.describe("Phone dock", () => {
     await word.tap();
     await expect(word).toHaveAttribute("data-selected");
     const dock = dockBar(page);
-    await expect(dock.getByRole("button", { name: /^Fix text/ })).toHaveCount(
-      0,
-    );
+    await expect(dock.getByRole("button", { name: /^Fix text/ })).toBeVisible();
+    await expect(
+      dock.getByRole("button", { name: "Keep", exact: true }),
+    ).toHaveCount(0);
     await dock.getByRole("button", { name: /^More/ }).tap();
     await expect(
-      page.getByRole("menuitem", { name: "Fix text", exact: true }),
+      page.getByRole("menuitem", { name: "Re-record", exact: true }),
     ).toBeVisible();
     await page.screenshot({
-      path: "playwright-report/words-actionbar/phone-dock-more.png",
+      path: "playwright-report/words-actionbar/phone-live-more.png",
     });
     await dock.getByRole("button", { name: /^More/ }).tap();
     const before = await clipCount(page);
@@ -535,6 +536,44 @@ test.describe("Phone dock", () => {
       .getByRole("button", { name: "Undo", exact: true })
       .tap();
     await expect.poll(() => clipCount(page)).toBe(before);
+    await word.tap();
+    await dock.getByRole("button", { name: "Inspect", exact: true }).tap();
+    const sheet = inspector(page);
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole("button", { name: "Suppress", exact: true }).tap();
+    await expect(word).toHaveAttribute("data-state", "muted");
+    const suppression = sent.filter(
+      (command) => command.type === "SetTranscriptWordSuppressed",
+    );
+    expect(suppression).toHaveLength(1);
+    expect(suppression[0]?.payload).toMatchObject({
+      track_id: "reference",
+      word_index: 3,
+      suppressed: true,
+      expected_text: "delighted",
+    });
+    await sheet.getByRole("button", { name: "Close", exact: true }).tap();
+    await expect(sheet).toBeHidden();
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      /aligned dialogue/i,
+    );
+    await openPanel(page, "transcript");
+    await expect(word).toHaveAttribute("data-state", "muted");
+    await word.tap();
+    await expect(
+      dock.getByRole("button", { name: "Keep", exact: true }),
+    ).toBeVisible();
+    await expect(dock.getByRole("button", { name: /^Fix text/ })).toHaveCount(
+      0,
+    );
+    await dock.getByRole("button", { name: /^More/ }).tap();
+    await expect(
+      page.getByRole("menuitem", { name: "Fix text", exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: "playwright-report/words-actionbar/phone-suppressed-more.png",
+    });
   });
 
   test("docks the bar above the Player with 44 px targets that a touch reaches", async ({
