@@ -1,4 +1,5 @@
 import type { ClipRow, ProjectView, TrackView } from "../types/project";
+import { clipSourceToTimelineNearest } from "../utils/clipTiming";
 import { originTrackId } from "../utils/timebase";
 import type { MediaRef, WaveformKind } from "./types";
 
@@ -31,9 +32,16 @@ export function clipMediaStartSec(
   ref: MediaRef,
 ): number {
   if (ref.startsWith("stem:")) {
+    if (clip.timing) {
+      return clipSourceToTimelineNearest(clip, sourceStart);
+    }
     return clip.timeline_start + (sourceStart - clip.source_start);
   }
   return sourceStart;
+}
+
+export function clipDrawsPieces(clip: ClipRow, ref: MediaRef): boolean {
+  return clip.timing != null && !ref.startsWith("stem:");
 }
 
 /**

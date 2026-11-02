@@ -214,3 +214,64 @@ describe("clipBlockGeometry", () => {
     expect(dragged.fadeDragEdge).toBe("in");
   });
 });
+
+describe("clipBlockGeometry for a timed clip", () => {
+  const timed = clipRow({
+    source_start: 10,
+    source_end: 40,
+    timeline_start: 100,
+    timeline_end: 132,
+    timing: {
+      steps: [{ at: 20, delta_sec: 2 }],
+      method: "bleed_lag",
+      micro_fade_ms: 10,
+    },
+  });
+  const at = (previews: Partial<Parameters<typeof clipBlockGeometry>[0]>) =>
+    geometry({
+      clip: timed,
+      zoomPxPerSec: ZOOM,
+      rollPreview: null,
+      trimPreview: null,
+      fadePreview: null,
+      previewTimelineStart: null,
+      ...previews,
+    });
+
+  it("spans the timeline length, hole included", () => {
+    const g = at({});
+    expect(g.width).toBe(32 * ZOOM);
+    expect(g.committedWidth).toBe(32 * ZOOM);
+    expect(g.spanSec).toBe(32);
+    expect(g.pieces).toEqual([
+      { srcA: 10, srcB: 20, tlA: 0 },
+      { srcA: 20, srcB: 40, tlA: 12 },
+    ]);
+  });
+
+  it("drops a step a trim preview leaves outside the range", () => {
+    const g = at({
+      trimPreview: {
+        edge: "in",
+        mode: "gap",
+        sourceStart: 25,
+        sourceEnd: 40,
+      },
+    });
+    expect(g.spanSec).toBe(15);
+    expect(g.pieces).toEqual([{ srcA: 25, srcB: 40, tlA: 0 }]);
+  });
+
+  it("keeps an untimed clip as one piece from its left edge", () => {
+    const g = geometry({
+      clip: clipRow({ source_start: 5, source_end: 12, timeline_start: 4 }),
+      zoomPxPerSec: ZOOM,
+      rollPreview: null,
+      trimPreview: null,
+      fadePreview: null,
+      previewTimelineStart: null,
+    });
+    expect(g.pieces).toEqual([{ srcA: 5, srcB: 12, tlA: 0 }]);
+    expect(g.spanSec).toBe(7);
+  });
+});

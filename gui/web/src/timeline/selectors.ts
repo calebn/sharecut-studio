@@ -9,6 +9,7 @@ export const timelineTestIds = {
   trimOut: "timeline-trim-out",
   waveform: "timeline-waveform",
   waveformTile: "timeline-waveform-tile",
+  waveformPiece: "timeline-waveform-piece",
   snapTick: "timeline-snap-tick",
   muteRegion: "timeline-mute-region",
 } as const satisfies Record<string, string>;

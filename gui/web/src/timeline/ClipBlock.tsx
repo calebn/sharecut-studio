@@ -34,7 +34,7 @@ import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow } from "../types/project";
 import { EMPTY_ARR } from "../utils/empty";
-import { clipMediaStartSec } from "../waveform/mediaRef";
+import { clipDrawsPieces, clipMediaStartSec } from "../waveform/mediaRef";
 import { type MediaRef, refKind } from "../waveform/types";
 import {
   ClipBlockView,
@@ -44,6 +44,7 @@ import {
 import { clipBlockGeometry } from "./clipBlockGeometry";
 import { useHitRouter } from "./hitRouterContext";
 import { HIT_KINDS } from "./inputContract";
+import { PieceWaveforms } from "./PieceWaveforms";
 import { useHoldTimelineMetrics } from "./timelineMetrics";
 import { useClipEdgeHandles } from "./useClipEdgeHandles";
 import type { RangeGesture } from "./useRangeGesture";
@@ -669,17 +670,30 @@ export function ClipBlockLive({
       interactive={interactive}
       snapTicks={drawTicks ? ticks : EMPTY_ARR}
       waveform={
-        <WaveformLayer
-          mediaRef={mediaRef}
-          kind={waveKind}
-          mediaStartSec={clipMediaStartSec(clip, sourceStart, mediaRef)}
-          clipLeftCss={geometry.left}
-          clipWidthCss={geometry.width}
-          zoom={zoomPxPerSec}
-          colorVar={color}
-          role={role}
-          gainDb={gainDb}
-        />
+        clipDrawsPieces(clip, mediaRef) ? (
+          <PieceWaveforms
+            pieces={geometry.pieces}
+            leftCss={geometry.left}
+            zoom={zoomPxPerSec}
+            mediaRef={mediaRef}
+            kind={waveKind}
+            colorVar={color}
+            role={role}
+            gainDb={gainDb}
+          />
+        ) : (
+          <WaveformLayer
+            mediaRef={mediaRef}
+            kind={waveKind}
+            mediaStartSec={clipMediaStartSec(clip, sourceStart, mediaRef)}
+            clipLeftCss={geometry.left}
+            clipWidthCss={geometry.width}
+            zoom={zoomPxPerSec}
+            colorVar={color}
+            role={role}
+            gainDb={gainDb}
+          />
+        )
       }
       ghostWaveform={
         geometry.ghostExtraPx > 0 ? (

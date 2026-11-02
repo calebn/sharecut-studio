@@ -12,6 +12,11 @@ import { rippleDetail } from "../edit/ripplePreview";
 import type { ClipRow } from "../types/project";
 import { RippleMark } from "../ui/RippleMark";
 import { clipLabels } from "../utils/clipLabels";
+import {
+  clipTotalDelta,
+  piecesSourceToTimelineNearest,
+  type VirtualPiece,
+} from "../utils/clipTiming";
 import type { ClipBlockGeometry } from "./clipBlockGeometry";
 import { FadeCurves } from "./FadeCurves";
 import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
@@ -24,6 +29,7 @@ function RegionSpans({
   className,
   keyPrefix,
   testId,
+  pieces,
   sourceStart,
   sourceEnd,
   zoomPxPerSec,
@@ -32,31 +38,34 @@ function RegionSpans({
   className: string;
   keyPrefix: string;
   testId?: string;
+  pieces: readonly VirtualPiece[];
   sourceStart: number;
   sourceEnd: number;
   zoomPxPerSec: number;
 }) {
   return (
     <>
-      {(regions ?? []).map((region, i) => {
-        const start = Math.max(region.start_s, sourceStart);
-        const end = Math.min(region.end_s, sourceEnd);
-        if (!(end > start + 1e-9)) {
-          return null;
-        }
-        return (
-          <span
-            key={`${keyPrefix}-${region.start_s}-${region.end_s}-${i}`}
-            data-testid={testId}
-            className={className}
-            style={{
-              left: (start - sourceStart) * zoomPxPerSec,
-              width: Math.max(1, (end - start) * zoomPxPerSec),
-            }}
-            aria-hidden
-          />
-        );
-      })}
+      {(regions ?? []).map((region, i) =>
+        pieces.map((piece, j) => {
+          const start = Math.max(region.start_s, sourceStart, piece.srcA);
+          const end = Math.min(region.end_s, sourceEnd, piece.srcB);
+          if (!(end > start + 1e-9)) {
+            return null;
+          }
+          return (
+            <span
+              key={`${keyPrefix}-${region.start_s}-${region.end_s}-${i}-${j}`}
+              data-testid={testId}
+              className={className}
+              style={{
+                left: (piece.tlA + (start - piece.srcA)) * zoomPxPerSec,
+                width: Math.max(1, (end - start) * zoomPxPerSec),
+              }}
+              aria-hidden
+            />
+          );
+        }),
+      )}
     </>
   );
 }
@@ -181,7 +190,8 @@ export function ClipBlockView({
   const {
     sourceStart,
     sourceEnd,
-    durationSec,
+    spanSec,
+    pieces,
     left,
     width,
     committedWidth,
@@ -200,13 +210,15 @@ export function ClipBlockView({
   const timelineStart = left / zoomPxPerSec;
   // Saved times for the hit targets: the chooser names a target by them.
   const savedStart = clip.timeline_start;
-  const savedEnd = savedStart + (clip.source_end - clip.source_start);
+  const savedEnd =
+    savedStart + (clip.source_end - clip.source_start) + clipTotalDelta(clip);
   const labels = clipLabels({
     clip: {
       source_start: sourceStart,
       source_end: sourceEnd,
       timeline_start: timelineStart,
-      timeline_end: timelineStart + durationSec,
+      timeline_end: timelineStart + spanSec,
+      timing: clip.timing,
     },
     trackSpeaker,
     trackLabel,
@@ -437,7 +449,9 @@ export function ClipBlockView({
               data-testid={timelineTestIds.snapTick}
               data-source-sec={t}
               className="clip-waveform-snap"
-              style={{ left: (t - sourceStart) * zoomPxPerSec }}
+              style={{
+                left: piecesSourceToTimelineNearest(pieces, t) * zoomPxPerSec,
+              }}
             />
           ))}
         </span>
@@ -447,6 +461,7 @@ export function ClipBlockView({
         className="clip-mute-region"
         keyPrefix="mute"
         testId={timelineTestIds.muteRegion}
+        pieces={pieces}
         sourceStart={sourceStart}
         sourceEnd={sourceEnd}
         zoomPxPerSec={zoomPxPerSec}
@@ -455,6 +470,7 @@ export function ClipBlockView({
         regions={clip.clipping_regions}
         className="clip-clipping-region"
         keyPrefix="clipping"
+        pieces={pieces}
         sourceStart={sourceStart}
         sourceEnd={sourceEnd}
         zoomPxPerSec={zoomPxPerSec}

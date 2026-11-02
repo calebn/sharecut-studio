@@ -123,3 +123,53 @@ describe("clipGainDips", () => {
     expect(dips[0]?.points[0]?.time).toBe(dips[1]?.points[0]?.time);
   });
 });
+
+describe("clipGainDips for a timed clip", () => {
+  const timed = (over: Partial<ClipRow> = {}) =>
+    clip({
+      source_end: 10,
+      timeline_end: 12,
+      timing: {
+        steps: [{ at: 4, delta_sec: 2 }],
+        method: "bleed_lag",
+        micro_fade_ms: 10,
+      },
+      ...over,
+    });
+
+  it("places a mute after a hole where the timeline plays it", () => {
+    const dips = clipGainDips(
+      [timed({ mute_regions: [{ start_s: 6, end_s: 7 }] })],
+      unity,
+    );
+    expect(dips).toHaveLength(1);
+    expect(dips[0]?.points[0]?.time).toBe(8);
+    expect(dips[0]?.points.at(-1)?.time).toBe(9);
+  });
+
+  it("splits a mute that spans a hole into one dip per piece", () => {
+    const dips = clipGainDips(
+      [timed({ mute_regions: [{ start_s: 3, end_s: 5 }] })],
+      unity,
+    );
+    expect(dips.map((d) => [d.points[0]?.time, d.points.at(-1)?.time])).toEqual(
+      [
+        [3, 4],
+        [6, 7],
+      ],
+    );
+  });
+
+  it("keeps the edge fades on the first and last piece only", () => {
+    const dips = clipGainDips(
+      [timed({ fade_in_ms: 500, fade_out_ms: 500 })],
+      unity,
+    );
+    expect(dips.map((d) => [d.points[0]?.time, d.points.at(-1)?.time])).toEqual(
+      [
+        [0, 0.5],
+        [11.5, 12],
+      ],
+    );
+  });
+});

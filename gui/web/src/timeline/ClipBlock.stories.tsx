@@ -94,6 +94,36 @@ export const Editable: Story = {
   },
 };
 
+const timedClip = clipRow({
+  ...clip,
+  id: "story-clip-timed",
+  timeline_end: 12,
+  mute_regions: [{ start_s: 7.5, end_s: 8.5 }],
+  timing: {
+    steps: [{ at: 8, delta_sec: 1 }],
+    method: "bleed_lag",
+    micro_fade_ms: 10,
+  },
+});
+
+export const TimedClip: Story = {
+  args: {
+    clip: timedClip,
+    geometry: geometry(timedClip),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", {
+        name: "Select Dialogue clip at 00:04.000, 8s",
+      }),
+    ).toBeInTheDocument();
+    await expect(
+      canvasElement.querySelectorAll(".clip-mute-region"),
+    ).toHaveLength(2);
+  },
+};
+
 export const SelectedCrossfadeJoin: Story = {
   args: {
     selected: true,
