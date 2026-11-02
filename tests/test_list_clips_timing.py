@@ -184,3 +184,20 @@ def test_guest_payloads_keep_the_summary_but_not_the_step_list(
     assert row["timing_summary"] == "2 corrections, largest 120 ms"
     assert row["timing_steps"] == 2
     assert "timing" not in row
+
+
+def test_guest_sanitizer_drops_the_step_list_from_any_clip_row(timed_project: Path) -> None:
+    from podcast_mcp.gui.assembler import dump_project_projection
+    from podcast_mcp.services.collaboration.share import (
+        sanitize_guest_document_event,
+        sanitize_guest_project_view,
+    )
+
+    host_view = dump_project_projection(timed_project, projection="clips")
+    assert "timing" in _first_row(host_view)
+    shown = sanitize_guest_project_view(host_view)
+    row = _first_row(shown)
+    assert "timing" not in row
+    assert row["timing_summary"] == "2 corrections, largest 120 ms"
+    event = sanitize_guest_document_event({"snapshot": {"project": host_view}})
+    assert "timing" not in _first_row(event["snapshot"]["project"])
