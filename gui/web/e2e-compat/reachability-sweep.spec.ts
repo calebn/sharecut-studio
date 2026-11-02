@@ -185,15 +185,19 @@ async function clipSurface(page: Page, sheet: boolean): Promise<Reach[]> {
   });
   await page.touchscreen.tap(point.x, point.y);
   await inspectSelection(page);
+  const sourceStart = page.getByRole("spinbutton", {
+    name: "Source start",
+    exact: true,
+  });
   // A phone selection opens the drawer at its strip; the body shows from half height.
   const expand = page.getByRole("button", { name: /^Expand to/ });
   while (await expand.isVisible()) {
     await expand.click();
     await settle(page);
-    if (await page.locator(".modifier-badge").isVisible()) break;
+    if (await sourceStart.isVisible()) break;
   }
-  await expect(page.locator(".modifier-badge")).toHaveText("Clip");
-  const surface = sheet ? SHEET : "aside.inspector";
+  await expect(sourceStart).toBeVisible();
+  const surface = SHEET;
   await expect(page.locator(surface)).toBeVisible();
   await settle(page);
   const failures = await reachFailures(page, {
