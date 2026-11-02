@@ -19,7 +19,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Approve / Reject** | Commit or discard a pending cut |
 | **Ripple / Leave a gap** | The two edit modes for trim, delete, cut and paste. Ripple closes or opens the time on every speaker's track, so everyone stays in sync; Leave a gap leaves silence (or pastes over) and moves nothing else |
 | **Comment** | A note at a time on the mix |
-| **Room tone** | A track's own quiet background sound, laid into the gap a cut leaves so the track does not drop to dead silence. A track with none to lay gets a silent pad, and the cut still applies |
+| **Room tone** | A track's own quiet background sound, laid into the gap a cut leaves so the track does not drop to dead silence. A track with none to lay gets a silent pad, and the cut still applies. An extracted sample retains its original recording and range. Extraction is not connected to the pipeline yet; recorded or manually assigned beds are preserved |
 | **Review mix** | Frozen listen file for guests (link previews and agents) |
 | **Review link** | `/r/…` URL with limited powers. It works until the host chooses **Stop sharing**; it never expires on its own |
 | **Viewer / Commenter / Editor** | Review-link roles, as in Google Docs. Viewer views and plays; Commenter (default) also comments and suggests edits; Editor also edits directly and approves or rejects suggestions |

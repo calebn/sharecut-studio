@@ -728,3 +728,57 @@ def test_stereo_native_rate_excerpt_preserves_source_samples(tmp_path: Path) -> 
         recording.setpos(round(plan.origin.source_start * 48000))
         assert bed.readframes(bed.getnframes()) == recording.readframes(bed.getnframes())
     assert source.read_bytes() == before
+
+
+def test_unsupported_no_replace_publication_leaves_no_bed_or_partial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unsupported(_source: Path, _destination: Path) -> None:
+        raise OSError("filesystem does not support hard links")
+
+    monkeypatch.setattr(room_tone_extract.os, "link", unsupported)
+    service, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    original = (tmp_path / "raw/host.wav").read_bytes()
+    before = ws.project.model_dump_json()
+
+    result = service.extract_room_tone_bed(track_id="host")
+
+    assert result["reason"] == "unreadable_file"
+    assert ws.project.model_dump_json() == before
+    assert not any((tmp_path / EXTRACT_DIR).iterdir())
+    assert (tmp_path / "raw/host.wav").read_bytes() == original
+
+
+@pytest.mark.parametrize("change", ["source_bytes", "bed_bytes", "bed_missing"])
+def test_service_refuses_asset_changes_at_the_registration_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    from podcast_mcp.services.document import room_tone_bed
+
+    service, _ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    plan = room_tone_bed.plan_extracted_bed
+
+    def changed(project: EpisodeProject, track_id: str) -> ExtractedBed | SampleAbsent:
+        result = plan(project, track_id)
+        assert isinstance(result, ExtractedBed)
+        if change == "bed_missing":
+            result.path.unlink()
+        elif change == "bed_bytes":
+            _write_wav(result.path, _noise(-70.0, seed=9))
+        else:
+            source = tmp_path / "raw/host.wav"
+            stamp = source.stat()
+            _write_wav(source, _host_audio(((1.0, 1.5),)))
+            os.utime(source, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+        return result
+
+    monkeypatch.setattr(room_tone_bed, "plan_extracted_bed", changed)
+
+    result = service.extract_room_tone_bed(track_id="host")
+
+    assert result["extracted"] is False
+    assert result["reason"] == ("source_changed" if change == "source_bytes" else "bed_changed")
+    reopened = ProjectWorkspace.open(tmp_path / "episode.sharecut")
+    assert reopened.project.tracks[0].room_tone is None
+    assert reopened.project.tracks[0].room_tone_origin is None
+    assert reopened.project.source_by_id("room-tone-host") is None
