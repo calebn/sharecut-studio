@@ -52,6 +52,23 @@ describe("AppHeader as a guest", () => {
     expect(screen.getByRole("button", { name: "Palette" })).toBeInTheDocument();
   });
 
+  it.each(ROLES)(
+    "a $id can change the theme without a Project menu",
+    async ({ id }) => {
+      const onChange = vi.fn();
+      setup({
+        guest: { version: "v3", role: id },
+        appearance: { value: "system", onChange },
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Appearance" }));
+      await userEvent.click(
+        screen.getByRole("menuitemradio", { name: "Dark" }),
+      );
+      expect(onChange).toHaveBeenCalledWith("dark");
+      expect(screen.queryByRole("button", { name: "Project menu" })).toBeNull();
+    },
+  );
+
   it("is the host, with the edit controls, when it is not a guest", () => {
     setup();
     for (const name of EDIT_CONTROLS) {

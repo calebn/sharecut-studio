@@ -104,6 +104,60 @@ function Row({ icon, children }: { icon: SystemIconName; children: string }) {
   );
 }
 
+function AppearanceSection({
+  value,
+  onChange,
+}: NonNullable<AppHeaderProps["appearance"]>) {
+  return (
+    <MenuSection label="Appearance">
+      {/* Radios keep the menu open so the themes can be compared in place. */}
+      <SegmentedControl role="none">
+        {APPEARANCE.map((option) => (
+          <ToggleButton
+            key={option.id}
+            quiet
+            role="menuitemradio"
+            tabIndex={-1}
+            pressed={value === option.id}
+            aria-checked={value === option.id}
+            onClick={() => onChange(option.id)}
+          >
+            {option.label}
+          </ToggleButton>
+        ))}
+      </SegmentedControl>
+    </MenuSection>
+  );
+}
+
+/** A link has no Project menu, so its theme choice lives in a menu of its own. */
+function GuestAppearanceMenu(
+  appearance: NonNullable<AppHeaderProps["appearance"]>,
+) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Menu
+      open={open}
+      onOpenChange={setOpen}
+      label="Appearance"
+      className="ui-menu-root sys-menu"
+      trigger={(props) => (
+        <button
+          type="button"
+          className="sys-icon-btn"
+          aria-label="Appearance"
+          title="Appearance"
+          {...props}
+        >
+          <SystemIcon name="sun-moon" size={16} />
+        </button>
+      )}
+    >
+      <AppearanceSection {...appearance} />
+    </Menu>
+  );
+}
+
 function ProjectMenu({
   title,
   appearance,
@@ -192,26 +246,7 @@ function ProjectMenu({
         <MenuItem onSelect={run("help")}>
           <Row icon="circle-help">Help</Row>
         </MenuItem>
-        {appearance ? (
-          <MenuSection label="Appearance">
-            {/* Radios keep the menu open so the themes can be compared in place. */}
-            <SegmentedControl role="none">
-              {APPEARANCE.map((option) => (
-                <ToggleButton
-                  key={option.id}
-                  quiet
-                  role="menuitemradio"
-                  tabIndex={-1}
-                  pressed={appearance.value === option.id}
-                  aria-checked={appearance.value === option.id}
-                  onClick={() => appearance.onChange(option.id)}
-                >
-                  {option.label}
-                </ToggleButton>
-              ))}
-            </SegmentedControl>
-          </MenuSection>
-        ) : null}
+        {appearance ? <AppearanceSection {...appearance} /> : null}
       </Menu>
       {onRename ? (
         <RenameProjectPopover
@@ -296,6 +331,7 @@ export function AppHeader({
           <Row icon="user-plus">Invite</Row>
         </MenuItem>
       ) : null}
+      {guest && appearance ? <AppearanceSection {...appearance} /> : null}
     </>
   ) : undefined;
   return (
@@ -404,6 +440,9 @@ export function AppHeader({
               ) : null}
               {canInvite ? (
                 <VerbButton verb="invite" onClick={onInvite} />
+              ) : null}
+              {guest && appearance ? (
+                <GuestAppearanceMenu {...appearance} />
               ) : null}
               <VerbButton verb="palette" onClick={onPalette} />
             </>
