@@ -29,7 +29,7 @@ describe("SheetHostPlacement", () => {
     expect(document.activeElement).not.toBe(button);
   });
 
-  it("leaves focus alone when the host stays live or focus is elsewhere", () => {
+  it("leaves focus alone when the host stays live", () => {
     const { host, button } = hostWithFocusedButton();
     render(<SheetHostPlacement host={host} column={false} stowed={false} />);
     expect(document.activeElement).toBe(button);
