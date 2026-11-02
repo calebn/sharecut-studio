@@ -221,7 +221,7 @@ const COVERED: Record<string, string[]> = {
   ],
   "CMP-REC-NOTICES": ["Stages/Record/RoomAlert", "Templates/Record · Notices"],
   "TOAST-MAIN": ["Molecules/Toast", "Templates/Toast dock"],
-  "CMP-GUEST-COMMENT": ["Templates/CommentCompose", "System/Composer"],
+  "CMP-GUEST-COMMENT": ["System/Composer"],
 };
 
 /** Listed in the inventory but with nothing to draw. */

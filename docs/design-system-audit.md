@@ -31,7 +31,7 @@ The domain composition inventory covered 42 story families. This is a snapshot f
 | Layout (16) | AvatarStack, BottomTabsSplitter, BounceDialog, CommandPalette, EditingToolRail, FollowBanner, GuestAttentionBanner, HostMcpDialog, ListenHero, OverlayLegend, PipelineStatusChip, StatusBar, ToolModeToggle, TransportFrame, TransportPlayControls |
 | Timeline (9) | AppliedEditOverlay, ClipBlock, CommentPlaybackBubble, EditMarkerLayer, JoinPopover, MarkerLane, PendingEditOverlay, StaleInvalidationOverlay, TimelineRange |
 | Transcript (3) | EditBoundaryMark, GhostWordChips, TranscriptTurn |
-| Comments (2) | CommentCompose, CommentCard (now `System/CommentCard`) |
+| Comments (2) | CommentCompose, CommentCard (both deleted after this snapshot; `System/CommentCard` and `System/Composer` replaced them) |
 | Recording (7) | ConsentGate, Declined, DeviceCheck, FullRoom, LiveComments, Lobby, RecIndicator |
 | Tracks (1) | System/TrackHeader |
 
