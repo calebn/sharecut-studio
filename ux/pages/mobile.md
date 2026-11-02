@@ -52,15 +52,17 @@ to or keyboard-focus one small region to see its label without labels stacking
 over each other. When the compact inspector is open, the same review actions
 dock in its pinned header, with Cut and Keep (Approve and Reject for a split, an exact range or a suggestion with no accept action) on the timeline action card
 while the inspector body scrolls. A suggestion that has an accept action shows
-Cut and Keep on the Action bar (the dock on a phone), and the sheet drops its
-own Approve and Reject buttons when the edit is not a split or an exact range.
+Cut and Keep on the Action bar (the dock on a phone), and where the sheet has
+that bar it drops its own Approve and Reject buttons when the edit is not a split
+or an exact range.
 The timeline card says Cut and Keep for those same edits. For a split, an
 exact range, a suggestion with no accept action and a comment-linked pending
-edit, Approve and Reject stay in the sheet and on the card. On the phone's
-compact drawer (no dock) a cut suggestion shows Cut and Keep on the pinned card
-and Approve and Reject in the sheet body (the bar's
+edit, Approve and Reject stay in the sheet and on the card. Where the phone sheet has no
+bar dock (the compact drawer, and the full sheet at a tight height) a cut
+suggestion shows Cut and Keep on the docked card and Approve and Reject in the
+sheet body for the same edit (the bar's
 verb follows the accept action alone, so a split or exact range that carries one
-still shows it on the bar, as it did before). The peek sheet shows no verbs. Elsewhere the card stays beside the selected region and follows the
+still shows it on the bar, as it did before). The peek strip's body shows no verbs, but the card docks into the strip's chrome and shows them. Elsewhere the card stays beside the selected region and follows the
 timeline when the marker lane or the bottom panel changes size.
 On the matching track, you can drag a cut's outer start or end edge while the
 other edge stays in place. The moving edge follows nearby waveform ticks and
