@@ -5,7 +5,7 @@ import {
 } from "../hooks/gestureConstants";
 
 /** Who made the selection. A key is a gesture too, so the host reads one vocabulary. */
-type ScriptGestureSource = "mouse" | "pen" | "touch" | "keyboard";
+type ScriptGestureSource = "mouse" | "pen" | "touch";
 
 /**
  * What the selection is for. `drag` is a press that moved, `extend` the same
