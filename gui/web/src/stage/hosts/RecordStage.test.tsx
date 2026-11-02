@@ -1430,8 +1430,17 @@ describe("Record stage Guests see notes", () => {
     mount();
     const dialog = await openMore();
     await userEvent.click(row(dialog));
-    expect(await screen.findByText(/Room unreachable/)).toBeVisible();
+    expect(await within(dialog).findByText(/Room unreachable/)).toBeVisible();
     expect(row(dialog)).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("ties the help line to the toggle", async () => {
+    setRoom();
+    mount();
+    const dialog = await openMore();
+    expect(row(dialog)).toHaveAccessibleDescription(
+      /Off: guests see their own notes/,
+    );
   });
 });
 
