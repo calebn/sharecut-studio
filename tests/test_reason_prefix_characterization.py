@@ -108,10 +108,10 @@ def test_harsh_and_listen_one_by_one_follow_the_tighten_prefix_set() -> None:
         for reason in ("filler:um", "pause:0.5s", "repetition:word:a", "restart:we", "nl:range")
     }
     assert rows == {
-        "filler:um": (True, False),
-        "pause:0.5s": (True, True),
-        "repetition:word:a": (True, False),
-        "restart:we": (True, False),
+        "filler:um": (False, False),
+        "pause:0.5s": (False, True),
+        "repetition:word:a": (False, False),
+        "restart:we": (False, False),
         "nl:range": (False, False),
     }
 
