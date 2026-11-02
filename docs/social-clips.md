@@ -9,6 +9,8 @@ Propose short highlight clips from combined transcripts and export WAV + JSON si
 - `approve_social_clips_tool` / `reject_social_clips_tool`
 - `export_social_clips_tool` — audio only. Each export renders its clips in a private staging folder inside `export/clips/` and replaces each WAV and its JSON sidecar atomically, so a download or listing never sees a half-written clip, and a failed render keeps the previous file. The next export removes a staging folder a killed export left behind once it is a day old (only folders named like the ones an export makes). A clip id is reduced to letters, digits, `_` and `-` in the file name, and two clips whose ids reduce to the same name stop the export.
 
+The Deliver stage saves a clip's title and approval with the host-only `update_social_clip_details` document command (one undo step): a title is trimmed, capped at 200 characters and refused if it holds control characters, an empty title clears it, and approving or unapproving sets `approved` and `review_required` together. It is not an MCP tool.
+
 Titles/captions truncate at word boundaries. Platform presets: `.agents/defaults/pipeline.yaml` → `social_clips.platforms`. The merged config type (`EffectiveConfig`) lives in `podcast_mcp.config.defaults`.
 
 ## Timebase
