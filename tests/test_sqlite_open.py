@@ -140,7 +140,7 @@ def test_open_sqlite_retries_a_persistent_readonly_answer_on_a_fresh_connection(
 
     def setup(connection: sqlite3.Connection) -> None:
         seen.append(connection)
-        if len(seen) == 1:
+        if connection is seen[0]:
             exc = sqlite3.OperationalError("attempt to write a readonly database")
             exc.sqlite_errorcode = sqlite3.SQLITE_READONLY  # type: ignore[attr-defined]
             raise exc
@@ -150,6 +150,7 @@ def test_open_sqlite_retries_a_persistent_readonly_answer_on_a_fresh_connection(
         open_sqlite(tmp_path / "s.db", setup=setup, row_factory=sqlite3.Row)
     ) as connection:
         assert len(seen) == 2
+        assert seen[0] is not seen[1]
         assert connection is seen[1]
         assert connection.row_factory is sqlite3.Row
         assert connection.execute("SELECT count(*) FROM t").fetchone()[0] == 0
