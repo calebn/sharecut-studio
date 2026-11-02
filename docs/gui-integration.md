@@ -105,7 +105,7 @@ Review lists every unsure word as its own item, whether or not the transcript ch
 | `sound` | `acoustic`, `laugh`, `possible_word` |
 | `other` | `null` (missing or unrecognized reason) |
 
-`types/project.ts` types the union as `PendingKind`. The Review stage keeps its own `DecisionKind` vocabulary and will need a mapping from `PendingKind` when it is wired. The table rows for `backchannel`, `breath`, `mouth_click` and `playful_phrase` in `cut_policy.py` are policy-only today: no reason code produces them, so they never appear as `sound_kind`. Unsure words are not a kind; a later slice sends them as a separate per-edit list.
+`types/project.ts` types the union as `PendingKind`. The Review stage keeps its own `DecisionKind` vocabulary and will need a mapping from `PendingKind` when it is wired. Every row of the sound table in `cut_policy.py` has a reason code that produces it, so `sound_kind` is one of `filler`, `pause`, `repetition`, `restart`, `acoustic`, `laugh` or `possible_word`. Unsure words are not a kind; a later slice sends them as a separate per-edit list.
 
 ### A/B audition window (pending preview)
 
