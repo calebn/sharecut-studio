@@ -244,8 +244,8 @@ Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
 see every marker and their own notes until landing, plus other people's text
 notes when the host turns on the room setting `guests_see_notes`, set with the
 host-only `SetGuestsSeeNotes` command from the Record More sheet; off by
-default, reset to off for each new room, producers cannot change it yet). Later: `control` (start/stop/pause), `talk`
-(producer push-to-talk), `video`. Roles are a **kind-scoped** map
+default, reset to off for each new room, producers cannot change it yet). Later:
+`control` (start/stop/pause), `talk` (producer push-to-talk), `video`. Roles are a **kind-scoped** map
 (`RECORD_ROLE_PRESETS` in `share_capabilities.py` / `contracts/caps.json`), not
 keys stuffed into review `REVIEW_ROLE_CAPABILITIES`: **guest** = `join monitor comment`;
 **producer** = `monitor comment`; **host** = all.
@@ -1010,8 +1010,9 @@ field. Typed notes use the same path with a real `body`.
 the WS clock offset (± 250 ms); the **host rewrites** it on ingest from
 `pressed_wall_ms` + authoritative `pauses[]` / `session_start`. **Visibility
 before landing is host-enforced** (not a client-only filter): host and
-producers receive all live comments; a guest receives only their own. Session
-WS must not fan out other guests' rows to a guest.
+producers receive all live comments; a guest receives their own and every marker,
+and other guests' text notes only while `guests_see_notes` is on. Session WS must
+not fan out other guests' rows to a guest unless that applies.
 
 Stored in `record_live_comments` (same `sync.db`) until landing, keyed by
 client idempotency `id` (`live-…`). Comment commands are also appended to the
