@@ -20,6 +20,7 @@ import {
   TranscriptRefineRecovery,
 } from "../../inspector/TranscriptRefineRecovery";
 import { useQueuedReviewNotice } from "../../inspector/useQueuedReviewNotice";
+import { presenceAnchor, presenceAnchorProps } from "../../presence/anchors";
 import { decisionKindOf } from "../../review/reviewItems";
 import {
   canComment,
@@ -877,23 +878,25 @@ export function PendingEditBody({
         <section className="edit-ask" aria-label="Ask about this edit">
           <h3>Ask</h3>
           {thread ? (
-            <CommentCard
-              comment={commentCardOf(
-                thread,
-                thread.resolved,
-                project?.timeline_duration_sec ?? Number.NaN,
-              )}
-              onResolve={
-                canApply ? (next) => void resolve(thread, next) : undefined
-              }
-              onToggleAction={
-                canApply
-                  ? (actionId, done) =>
-                      void toggleAction(thread, actionId, done)
-                  : undefined
-              }
-              reply={mayReply ? askComposer : undefined}
-            />
+            <div {...presenceAnchorProps(presenceAnchor("comment", thread.id))}>
+              <CommentCard
+                comment={commentCardOf(
+                  thread,
+                  thread.resolved,
+                  project?.timeline_duration_sec ?? Number.NaN,
+                )}
+                onResolve={
+                  canApply ? (next) => void resolve(thread, next) : undefined
+                }
+                onToggleAction={
+                  canApply
+                    ? (actionId, done) =>
+                        void toggleAction(thread, actionId, done)
+                    : undefined
+                }
+                reply={mayReply ? askComposer : undefined}
+              />
+            </div>
           ) : (
             <>
               <p className="inspector-body">
