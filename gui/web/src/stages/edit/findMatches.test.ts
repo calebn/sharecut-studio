@@ -50,8 +50,15 @@ describe("findMatches", () => {
     expect(findMatches(SCRIPT_TURNS, "so you", false)).toEqual([]);
   });
 
-  it("does not match across turns", () => {
-    expect(findMatches(SCRIPT_TURNS, "one. Thanks", false)).toEqual([]);
+  it("matches a phrase that ends one turn and starts the next, as the backend does", () => {
+    const hits = findMatches(SCRIPT_TURNS, "one. Thanks", false);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].end).toBe(hits[0].start + 1);
+    const turnOf = (index: number) =>
+      SCRIPT_TURNS.findIndex((turn) =>
+        turn.words.some((word) => word.index === index),
+      );
+    expect(turnOf(hits[0].end)).toBe(turnOf(hits[0].start) + 1);
   });
 
   it("matches case only when asked", () => {

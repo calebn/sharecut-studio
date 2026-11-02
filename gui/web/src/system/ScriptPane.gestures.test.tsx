@@ -403,6 +403,23 @@ describe("ScriptPane touch", () => {
     ]);
   });
 
+  it("Esc puts the selection back while an end grip is dragged, and the rest of the drag does nothing", () => {
+    layout();
+    const { onSelect, container } = setup({ selection: words(12, 12) });
+    const grip = container.querySelector<HTMLElement>(
+      '.sys-handle[data-edge="end"]',
+    );
+    if (!grip) throw new Error("no end grip");
+    fireEvent.pointerDown(grip, { ...FINGER, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(grip, { ...FINGER, ...centre(14) });
+    expect(onSelect).toHaveBeenCalled();
+    onSelect.mockClear();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onSelect.mock.calls).toEqual([[words(12, 12)]]);
+    fireEvent.pointerMove(grip, { ...FINGER, ...centre(13) });
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
   it("a hold that never moves selects just that word, with its grips", () => {
     const { body, onSelect } = setup();
     fireEvent.pointerDown(word("small"), { ...FINGER, ...centre(12) });
