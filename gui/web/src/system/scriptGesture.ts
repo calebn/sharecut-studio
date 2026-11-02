@@ -4,7 +4,7 @@ import {
   TOUCH_SLOP_PX,
 } from "../hooks/gestureConstants";
 
-/** Who made the selection. A key is a gesture too, so the host reads one vocabulary. */
+/** Which pointer made the selection. */
 type ScriptGestureSource = "mouse" | "pen" | "touch";
 
 /**
