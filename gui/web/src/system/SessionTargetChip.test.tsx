@@ -167,7 +167,7 @@ describe("SessionTargetChip", () => {
     });
 
     it("reads an end with no clip to follow as the start of the episode", async () => {
-      render(<SessionTargetChip target={{ kind: "end" }} />);
+      render(<SessionTargetChip target={{ kind: "end", empty: true }} />);
       const trigger = screen.getByRole("button", {
         name: "Where this session goes: Starts the episode",
       });

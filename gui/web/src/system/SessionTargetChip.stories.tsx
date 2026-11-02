@@ -150,13 +150,13 @@ export const Placements: Story = {
 };
 
 export const EmptyProject: Story = {
-  args: { target: { kind: "end" }, onChange: fn() },
+  args: { target: { kind: "end", empty: true }, onChange: fn() },
   render: (args) => <Choosing {...args} />,
   parameters: {
     docs: {
       description: {
         story:
-          'An end with no clip to follow reads "Starts the episode" and draws the start glyph; the menu still has the end checked.',
+          'An end in a loaded project with no clip reads "Starts the episode" and draws the start glyph; the menu still has the end checked.',
       },
     },
   },

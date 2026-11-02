@@ -53,7 +53,11 @@ export function RecordTargetChip({
       : null;
   const chip = (
     <SessionTargetChip
-      target={targetViewOf(snapshot.target, endSec)}
+      target={targetViewOf(
+        snapshot.target,
+        endSec,
+        !!project && endSec === undefined,
+      )}
       locked={targetLocked(snapshot)}
       endAfterSec={endSec}
       disabledReason={busy ? BUSY_REASON : undefined}
