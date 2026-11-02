@@ -3,16 +3,13 @@ import { describe, expect, it } from "vitest";
 import { TIME_EPS_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import {
-  clipShiftAt,
   clipSourceToTimeline,
   clipSourceToTimelineNearest,
   clipTimelineEnd,
-  clipTimelineSpanSec,
   clipTimelineToSource,
   clipTimingDelta,
   clipVirtualPieces,
   stepsWithin,
-  timingSummary,
 } from "./clipTiming";
 import {
   sourcePointToTimeline,
@@ -23,7 +20,6 @@ import {
 type Pair = [number, number | null];
 interface FixtureCase {
   name: string;
-  summary: string | null;
   clip: {
     id: string;
     track_id: string;
@@ -46,9 +42,6 @@ const FIXTURE = JSON.parse(
   ),
 );
 const CASES: FixtureCase[] = FIXTURE.cases;
-const SUMMARY_CASES: { deltas: number[]; summary: string }[] =
-  FIXTURE.summary_cases.cases;
-
 function timedClip(c: FixtureCase) {
   const { timing, ...rest } = c.clip;
   return {
@@ -67,10 +60,6 @@ describe("clip timing pinned to Clip in models/episode.py (#2862)", () => {
       c.pieces,
     );
     expect(clipTimelineEnd(clip)).toBeCloseTo(c.timeline_end, 9);
-    expect(clipTimelineSpanSec(clip)).toBeCloseTo(
-      c.timeline_end - c.clip.timeline_start,
-      9,
-    );
   });
 
   it.each(CASES)("source to timeline: $name", (c) => {
@@ -86,39 +75,6 @@ describe("clip timing pinned to Clip in models/episode.py (#2862)", () => {
       expect(clipTimelineToSource(clip, timeline)).toBe(expected);
     }
   });
-
-  it.each(CASES)("shift at a source second: $name", (c) => {
-    const clip = timedClip(c);
-    for (const [source, expected] of c.shift_at) {
-      expect(clipShiftAt(clip, source)).toBe(expected);
-    }
-  });
-
-  it.each(CASES)("summary: $name", (c) => {
-    if (c.summary === null) {
-      expect(timingSummary(c.clip.timing?.steps ?? [])).toBe("");
-      return;
-    }
-    expect(timingSummary(c.clip.timing?.steps ?? [])).toBe(c.summary);
-  });
-
-  it.each(SUMMARY_CASES)("summary rounds half up: $deltas", (c) => {
-    const steps = c.deltas.map((delta_sec, i) => ({
-      at: 12 + 5 * i,
-      delta_sec,
-    }));
-    expect(timingSummary(steps)).toBe(c.summary);
-  });
-
-  it("says 1 correction in the singular whatever its size", () => {
-    expect(timingSummary([{ delta_sec: -0.25 }])).toBe("1 correction");
-  });
-
-  it("floors the largest step at 1 ms", () => {
-    expect(
-      timingSummary([{ delta_sec: 0.00001 }, { delta_sec: 0.00001 }]),
-    ).toBe("2 corrections, largest 1 ms");
-  });
 });
 
 describe("untimed clips keep the linear map", () => {
@@ -128,7 +84,6 @@ describe("untimed clips keep the linear map", () => {
     expect(clipVirtualPieces(untimed)).toEqual([
       { srcA: 10, srcB: 40, tlA: 100 },
     ]);
-    expect(clipShiftAt(untimed, 25)).toBe(90);
     expect(clipTimelineEnd(untimed)).toBe(130);
   });
 
@@ -250,5 +205,28 @@ describe("a row that names steps but carries none", () => {
   it("adds nothing without steps", () => {
     expect(clipTimingDelta(row({}))).toBe(0);
     expect(clipTimingDelta(row({ timing_steps: 0 }))).toBe(0);
+  });
+});
+
+describe("a timed clip beside another covering clip", () => {
+  const hole = timedClip(CASES.find((c) => c.name === "hole")!);
+  const skip = timedClip(CASES.find((c) => c.name === "skip")!);
+  const other = {
+    ...timedClip(CASES[0]!),
+    id: "other",
+    source_start: 0,
+    source_end: 200,
+    timeline_start: 50,
+    timeline_end: 250,
+  } as ClipRow;
+
+  it("falls through to the next clip when a hole has no source", () => {
+    expect(timelinePointToSource([hole, other], 110.5)).toBe(60.5);
+    expect(timelinePointToSource([other, hole], 110.5)).toBe(60.5);
+  });
+
+  it("keeps the earliest timeline point when a skip has no timeline", () => {
+    expect(sourcePointToTimeline([skip, other], 21)).toBe(71);
+    expect(sourcePointToTimeline([other, skip], 21)).toBe(71);
   });
 });

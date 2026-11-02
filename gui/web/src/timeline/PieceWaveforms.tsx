@@ -34,7 +34,7 @@ export function PieceWaveforms({
         scrollLeft: number;
         timelineViewportWidth: number;
       }): [number, number] =>
-        culled
+        culled && s.timelineViewportWidth > 0
           ? visiblePieceRange({
               pieces,
               leftCss,
