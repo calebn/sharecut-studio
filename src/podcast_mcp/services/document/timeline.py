@@ -702,9 +702,13 @@ class TimelineService(CutMutatingService):
             params={"insert_at": insert_at, "duration": duration, "mode": mode.value},
         )
 
-    def list_clips(self, track_id: str | None = None) -> dict:
+    def list_clips(self, track_id: str | None = None, *, timing_steps: bool = False) -> dict:
         secret = get_share_registry().recording_key_secret()
-        return list_clips(self.ws.project, track_id, secret=secret)
+        timed = timing_steps and any(c.timing is not None for c in self.ws.project.clips)
+        defaults = self.ws.effective_config() if timed else None
+        return list_clips(
+            self.ws.project, track_id, secret=secret, timing_steps=timing_steps, defaults=defaults
+        )
 
     def fill_room_tone(
         self,

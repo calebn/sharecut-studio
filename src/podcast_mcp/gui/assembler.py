@@ -167,7 +167,7 @@ def build_project_view(
     project = ws.project
     include_words = proj is ViewProjection.FULL
 
-    clips = TimelineService(ws).list_clips()
+    clips = TimelineService(ws).list_clips(timing_steps=True)
     render_status = edit.render_status()
     pending = edit.list_decisions(applied=False)
     applied = edit.list_applied_edits()
@@ -270,7 +270,9 @@ def dump_project_projection(
         return {"comments": comments_for_view(ws.project)}
     if proj is ViewProjection.CLIPS:
         edit = EditService(ws)
-        return _freshness_patch(ws, {"clips": TimelineService(ws).list_clips()}, edit=edit)
+        return _freshness_patch(
+            ws, {"clips": TimelineService(ws).list_clips(timing_steps=True)}, edit=edit
+        )
     if proj is ViewProjection.FX:
         edit = EditService(ws)
         return _freshness_patch(ws, {"effects_by_track": _effects_by_track(ws)}, edit=edit)
@@ -311,7 +313,7 @@ def dump_project_projection(
             # An ignored word is a mute the render adds to the clips (``ignored_word_regions``).
             edit = EditService(ws)
             return _freshness_patch(
-                ws, {**base, "clips": TimelineService(ws).list_clips()}, edit=edit
+                ws, {**base, "clips": TimelineService(ws).list_clips(timing_steps=True)}, edit=edit
             )
         return base
     # A view build is read-only, so each recording's path is resolved once, not per clip.
