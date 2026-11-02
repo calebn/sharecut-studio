@@ -114,8 +114,7 @@ props-only view (`CommentPlaybackBubbleView`); the live adapter keeps the store,
 API and timeline-metrics reads. It has a 360px story alongside its desktop ones, and a guard
 test keeps the view itself free of direct store/API imports. The volume envelope
 is the `System/Envelope` leaf mounted by `timeline/LaneEnvelope.tsx`.
-`Templates/CommentCompose` and `Templates/GhostWordChips` show the
-shipped comment and transcript preview components with fictional, local-only state; the GhostWordChips stories include a 360px phone variant.
+`Templates/GhostWordChips` shows the shipped transcript preview component with fictional, local-only state, including a 360px phone variant.
 They do not mount the live comment panel.
 `System/ScriptPane` is the production Script pane; `Stages/Edit/ScriptHost`
 runs `stage/edit/script/ScriptHost` over fixture store data for mapped,
@@ -530,7 +529,7 @@ Double-submit guards: use `hooks/useSingleFlight()` (`busy` / `run`) instead of 
 
 For caught values, use `utils/apiError.errorMessage(error, fallback)` when the caller has a specific fallback for non-`Error` values. Omit the fallback only when showing the string form of any thrown value is intentional.
 
-Comments: shared `src/comments/` (`CommentCompose`, `useCommentActions`; the comment card is `system/CommentCard`).
+Comments: shared `src/comments/` (`useCommentActions`, `usePostComment`, `commentTimeLabel`); the card and composer are `system/CommentCard` and `system/Composer`.
 
 Feedback: `src/feedback/`. `announceStatus(message, { undo })` speaks in the shell's live region and shows the same string in `FeedbackToast`. Pass `{ toast: false }` only when a persistent control already shows the status (the job chip, presence avatars). For Undo, pass the history entry the command's own reply names (`replyHistoryHead(reply)`, or `historyHead` from `approveEdits` / `rejectEdits`); the toast shows Undo while that entry is the tab's `history.head_id`, runs `history.undo` with it as the expected head, and drops Undo once anything else moves history. While this tab's own edit is saving the Undo stays pressable and the toast says "Undo ready after save" (`Toast` `undoNote`); a press is held by `commands/undoWait.ts` and runs when the save settles. If another edit landed first, the server refuses (`history_stale`) and the toast says nothing was undone ([docs/history.md § Guarded undo and redo](../../docs/history.md#guarded-undo-and-redo-expected-head)). Ask before an action with `await askConfirm({ title, message, keepLabel, actionLabel, danger })`; `AskDialog` renders the question in the shared `Dialog` (a bottom sheet on phones). Never call `window.confirm` / `alert` / `prompt`; in tests, answer with `test/ask.answerQuestions(reply)`.
 
