@@ -219,7 +219,7 @@ test("F09 host numeric inspector opens an envelope point's time and level", asyn
       await setTheme(page, "dark");
       await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
       const owner = page
-        .locator('circle[aria-label^="Envelope point 1 at"]')
+        .getByRole("slider", { name: "Envelope point 1", exact: true })
         .first();
       await owner.click();
       await inspectEnvelopePoint(page);
@@ -260,9 +260,7 @@ test("F09 a viewer link shows no envelope points and posts no document command",
         });
         await openGuestShare(guest, token);
         await expect(guest.getByRole("main", { name: "Review" })).toBeVisible();
-        await expect(
-          guest.locator('circle[aria-label^="Envelope point"]'),
-        ).toHaveCount(0);
+        await expect(guest.locator(".sys-env-point")).toHaveCount(0);
         expect(commands).toEqual([]);
       } finally {
         await context.close();

@@ -138,7 +138,7 @@ def test_host_rewrites_recording_ms_and_lands_comment(
     assert comment.author == guest
     assert comment.timeline_start == pytest.approx(123.4, abs=0.25)
     assert getattr(comment, "title", None) is None
-    HistoryManager(ProjectStore(minimal_project)).undo(ws.project)
+    HistoryManager(ProjectStore(minimal_project)).apply_undo(ws.project)
     assert ws.project.comments == []
 
 

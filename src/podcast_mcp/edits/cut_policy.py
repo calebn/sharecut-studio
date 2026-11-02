@@ -12,10 +12,11 @@ from typing import Literal, TypedDict
 
 from podcast_mcp.edits.tighten_reasons import (
     ACOUSTIC_FILLER_REASON,
-    PAUSE_REASON_PREFIX,
     REPETITION_REASON_PREFIX,
     RESTART_REASON_PREFIX,
+    is_filler_reason,
     is_likely_laugh_reason,
+    is_pause_reason,
     is_possible_word_reason,
 )
 from podcast_mcp.models import EditDecision, EditDecisionType
@@ -203,9 +204,9 @@ def sound_kind(reason: str | None) -> str | None:
         if is_likely_laugh_reason(text):
             return "laugh"
         return "acoustic"
-    if text.startswith("filler:"):
+    if is_filler_reason(text):
         return "filler"
-    if text.startswith(PAUSE_REASON_PREFIX):
+    if is_pause_reason(text):
         return "pause"
     if text.startswith(REPETITION_REASON_PREFIX):
         return "repetition"

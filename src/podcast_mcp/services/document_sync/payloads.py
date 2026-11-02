@@ -6,6 +6,7 @@ via ``scripts/export_document_command_schema.py`` → ``schemas/document-command
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
@@ -39,6 +40,7 @@ from podcast_mcp.models.episode import (
     RangeInterval,
 )
 from podcast_mcp.models.feed import FieldValue, PinAuthor
+from podcast_mcp.segments.position import parse_position
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.text import has_meaningful_text
@@ -716,9 +718,33 @@ class InsertGapPayload(BaseModel):
 
 
 class InsertSegmentPayload(BaseModel):
+    """``at`` is seconds, or ``start`` / ``end`` resolved under the document lock at apply time.
+
+    ``version`` is the version used. The host adapters always send it, so the journal names
+    the audio that went in. Without it the newest version at apply time is used.
+    """
+
     segment_id: str
     version: int | None = Field(default=None, ge=1)
-    at: float = Field(allow_inf_nan=False)
+    at: float | Literal["start", "end"]
+
+
+def _coerce_insert_segment(payload: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+    """Parse ``at`` and ``version`` with the segment error codes, before pydantic sees them."""
+    if not isinstance(payload, dict):
+        return payload
+    out = dict(payload)
+    if "at" in out:
+        out["at"] = parse_position(out["at"])
+    version = out.get("version")
+    if version is not None and (
+        isinstance(version, bool) or not isinstance(version, int) or version < 1
+    ):
+        raise CodedValueError(
+            f"{version!r} is not a segment version. Use a whole number from 1.",
+            code="segment_version_invalid",
+        )
+    return out
 
 
 class FillRoomTonePayload(BaseModel):
@@ -1636,8 +1662,11 @@ def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[
         raise CodedValueError(
             f"unknown document command: {command_type}", code="document_command_unknown"
         )
+    raw: Mapping[str, Any] | None = payload
+    if command_type == "InsertSegment":
+        raw = _coerce_insert_segment(payload)
     try:
-        validated = model.model_validate(payload or {})
+        validated = model.model_validate(raw or {})
     except ValidationError as exc:
         if command_type not in _CODED_PAYLOAD_TYPES:
             raise

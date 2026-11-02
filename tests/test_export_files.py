@@ -759,3 +759,9 @@ def test_a_head_request_answers_with_the_headers_and_no_body(ws, folder, remote)
     assert head.headers["etag"] == get.headers["etag"]
     assert bare.status_code == 403
     assert remote.head(url, params={"path": str(ws.path), "ticket": "junk"}).status_code == 403
+
+
+def test_the_head_route_stays_out_of_the_openapi_schema(remote) -> None:
+    paths = remote.get("/openapi.json").json()["paths"]
+
+    assert set(paths["/api/export/files/{file_id}"]) == {"get"}

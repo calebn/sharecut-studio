@@ -3,7 +3,8 @@
 A step is a discontinuity of the clip's source-to-timeline shift, placed in a quiet span.
 ``delta_sec > 0`` inserts a hole of that length at ``at``; ``delta_sec < 0`` skips source
 ``[at, at + |delta_sec|)``. Steps are in SOURCE seconds, so moving a clip never edits them.
-Inert until a producer sets ``Clip.timing`` (stages 2-4).
+The renderer plays a mapped clip as its pieces (``engines/timed_pieces.py``); no producer sets
+``Clip.timing`` yet.
 """
 
 from __future__ import annotations
@@ -14,6 +15,9 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 MIN_STEP_GAP_SEC = 1e-6
+# Most steps a render takes for one clip. FFmpeg 9.0.2 rendered 1500; the unsupported 6.1.1
+# failed near 60. Past this a clip is split, not rendered.
+MAX_TIMING_STEPS = 200
 
 # (source_a, source_b, timeline_a): source [a, b) plays at timeline_a with a constant shift.
 VirtualPiece = tuple[float, float, float]

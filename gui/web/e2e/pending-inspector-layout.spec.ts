@@ -84,6 +84,19 @@ async function expectErrorPinnedAboveAudition(root: Locator): Promise<void> {
   await expectNoOverlap(error, preview);
 }
 
+/** The preview footer is gone where the Action bar plays and seeks; the error sits above Ask. */
+async function expectErrorAboveAskWithNoFooter(root: Locator): Promise<void> {
+  const error = root.locator(".modifier-error");
+  await expect(error).toBeVisible();
+  await expect(
+    root.getByRole("region", { name: "Ask about this edit" }),
+  ).toBeAttached();
+  await expect(root.getByRole("group", { name: "Preview mode" })).toHaveCount(
+    0,
+  );
+  await expect(root.locator(".modifier-footer")).toHaveCount(0);
+}
+
 test.describe("Pending inspector layout", () => {
   for (const entrypoint of [
     "desktop action card",
@@ -151,7 +164,7 @@ test.describe("Pending inspector layout", () => {
     });
   }
 
-  test("error, Ask, and A/B do not overlap at 1280px", async ({ page }) => {
+  test("error and Ask do not overlap at 1280px", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await stubApproveEditsRefineGate(page);
     await openSuggestedPendingEdit(page, e2eProjectPath);
@@ -162,19 +175,21 @@ test.describe("Pending inspector layout", () => {
       .getByRole("button", { name: "Approve", exact: true })
       .click();
     const error = inspector.locator(".modifier-error");
-    const askHelp = inspector.getByText(/Hear Suggested, then approve/);
+    const askHelp = inspector.getByText(
+      /Ask a question here before you approve/,
+    );
     const name = inspector.getByText("Your name");
-    const seek = inspector.getByRole("button", { name: "Seek" });
-    const preview = inspector.getByRole("group", { name: "Preview mode" });
     await expect(error).toBeVisible();
     await expectNoOverlap(error, askHelp);
-    await expectNoOverlap(error, seek);
-    await expectNoOverlap(error, preview);
-    await expectNoOverlap(seek, name);
-    await expectNoOverlap(name, preview);
+    await expectNoOverlap(error, name);
+    await expect(
+      inspector.getByRole("group", { name: "Preview mode" }),
+    ).toHaveCount(0);
   });
 
-  test("tablet card keeps error above the A/B footer", async ({ page }) => {
+  test("tablet card keeps error above Ask and has no preview footer", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await stubApproveEditsRefineGate(page);
     await openSuggestedPendingEdit(page, e2eProjectPath);
@@ -188,16 +203,12 @@ test.describe("Pending inspector layout", () => {
     ).toBeVisible();
     const inspector = dialog.getByRole("complementary");
     await clickApproveUntilError(inspector);
-    await expectErrorPinnedAboveAudition(inspector);
-    await exposeControl(page, dialog.getByRole("button", { name: "Seek" }), []);
-    await exposeControl(
-      page,
-      dialog.getByRole("group", { name: "Preview mode" }),
-      [],
-    );
+    await expectErrorAboveAskWithNoFooter(inspector);
   });
 
-  test("phone sheet keeps error above the A/B footer", async ({ page }) => {
+  test("phone drawer keeps error above Ask and above its preview footer", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await stubApproveEditsRefineGate(page);
     await openSuggestedPendingEdit(page, e2eProjectPath);
@@ -218,6 +229,7 @@ test.describe("Pending inspector layout", () => {
     ).toBeVisible();
     const inspector = dialog.getByRole("complementary");
     await clickApproveUntilError(inspector);
+    // The timeline's compact drawer has no Action bar dock, so the footer stays.
     await expectErrorPinnedAboveAudition(inspector);
     await exposeControl(
       page,

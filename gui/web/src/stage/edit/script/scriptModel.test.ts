@@ -167,7 +167,7 @@ describe("buildScriptModel", () => {
     const flagged = utterance("host", "Maya", [
       word("maybe", 0, 1, { unsure: true }),
       word("skip", 1, 2, { ignored: true }),
-      word("gone", 2, 3, { suppressed: true }),
+      word("gone", 2, 3, { suppressed: true, unsure: true }),
       word("plain", 3, 4),
     ]);
     const words = buildScriptModel(input([flagged])).turns[0]?.words ?? [];
@@ -175,6 +175,7 @@ describe("buildScriptModel", () => {
     expect(words[0]?.mark).toBeUndefined();
     expect(words[1]?.mark).toEqual({ kind: "muted" });
     expect(words[2]?.mark).toEqual({ kind: "muted" });
+    expect(words[2]?.lowConfidence).toBeUndefined();
     expect(words[3]?.mark).toBeUndefined();
     expect(words[3]?.lowConfidence).toBeUndefined();
   });

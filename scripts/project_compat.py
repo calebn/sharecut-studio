@@ -20,8 +20,9 @@ from podcast_mcp.models import EpisodeProject, load_project, save_project
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, ProjectMeta, RenderSection
 from podcast_mcp.models.history import ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, snapshot_editable_state
-from podcast_mcp.project.history.manager import HistoryManager, apply_snapshot_to_project
-from podcast_mcp.project.store import ProjectStore, read_history_snapshot, snapshot_from_project
+from podcast_mcp.project.history.manager import apply_snapshot_to_project
+from podcast_mcp.project.store import read_history_snapshot, snapshot_from_project
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.atomic_json import write_text_atomic
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -252,8 +253,8 @@ def assert_workspace(path: Path) -> None:
         workspace = Path(temporary) / "workspace"
         shutil.copytree(path.parent, workspace)
         copied = workspace / PROJECT
-        manager = HistoryManager(ProjectStore(copied))
-        replay = load_project(copied)
+        ws = ProjectWorkspace.open(copied)
+        replay = ws.project
 
         def assert_cursor() -> None:
             expected = read_history_snapshot(replay, replay.history.entries[replay.history.cursor])
@@ -273,13 +274,13 @@ def assert_workspace(path: Path) -> None:
             )
 
         for position in range(len(history.entries)):
-            manager.goto(replay, position)
+            ws.goto(position)
             assert_cursor()
         while replay.history.can_undo():
-            manager.undo(replay)
+            ws.undo()
             assert_cursor()
         while replay.history.can_redo():
-            manager.redo(replay)
+            ws.redo()
             assert_cursor()
 
 

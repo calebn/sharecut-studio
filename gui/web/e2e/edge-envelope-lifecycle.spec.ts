@@ -6,6 +6,7 @@ import {
   interrupt,
   layer,
   layerDuringDrag,
+  pointCentre,
   runAudit,
   snapshot,
 } from "./lifecycleAudit";
@@ -34,7 +35,10 @@ for (const family of ["fade", "trim", "envelope"] as const)
             : family === "trim"
               ? block.locator(".trim-handle.out")
               : page
-                  .locator('circle[aria-label^="Envelope point 1 at"]')
+                  .getByRole("slider", {
+                    name: "Envelope point 1",
+                    exact: true,
+                  })
                   .first();
         if (family === "envelope") await layer(page, "Volume envelope", true);
         if (family === "trim") {
@@ -44,16 +48,12 @@ for (const family of ["fade", "trim", "envelope"] as const)
             "true",
           );
         }
-        const pointGeometry = () =>
-          target.evaluate((element) => ({
-            cx: element.getAttribute("cx"),
-            cy: element.getAttribute("cy"),
-          }));
+        const pointGeometry = () => pointCentre(target);
         const originPoint =
           family === "envelope" ? await pointGeometry() : null;
         const before = snapshot(p),
           origin = await draw(block),
-          originCx = Number(await target.getAttribute("cx"));
+          originCx = family === "envelope" ? (await pointGeometry()).cx : 0;
         const point = await begin(page, target, family === "trim" ? -20 : 20);
         if (family === "fade")
           await expect(block.locator(".clip-fade-line")).not.toHaveCount(0);
@@ -63,7 +63,7 @@ for (const family of ["fade", "trim", "envelope"] as const)
             .not.toBe(origin.width);
         else
           await expect
-            .poll(async () => Number(await target.getAttribute("cx")))
+            .poll(async () => (await pointGeometry()).cx)
             .toBeCloseTo(originCx + 20, 1);
         expect(snapshot(p)).toEqual(before);
         expect(c.filter((command) => command.type === "SetEnvelope")).toEqual(
@@ -90,7 +90,14 @@ for (const family of ["fade", "trim", "envelope"] as const)
             removeRelocatedE2eProject(other.workspaceDir);
           }
         } else if (family === "envelope") {
-          await interrupt(page, target, terminal, point, false);
+          // The press is captured by the envelope's own surface, not by the dot.
+          await interrupt(
+            page,
+            page.locator(".sys-env").first(),
+            terminal,
+            point,
+            false,
+          );
           await expect.poll(pointGeometry).toEqual(originPoint);
           expect(snapshot(p)).toEqual(before);
           expect(c.filter((command) => command.type === "SetEnvelope")).toEqual(

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import { pointSheet } from "./envelopeCreationEvidence";
-import { layer } from "./lifecycleAudit";
+import { layer, pointCentre } from "./lifecycleAudit";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
@@ -79,18 +79,19 @@ export async function exerciseEnvelopeRecovery(
       if (shell === "phone") await openPhoneTimeline(page);
       await layer(page, "Volume envelope", true);
       const lane = page.locator(".lane-row").first();
-      const owner = lane.locator('circle[aria-label^="Envelope point 1 at"]');
+      const owner = lane.getByRole("slider", {
+        name: "Envelope point 1",
+        exact: true,
+      });
+      // The leaf's root owns the pointer capture and sees every pointer event of a drag.
+      const surface = lane.locator(".sys-env");
       await expect(owner).toBeVisible();
       await setTheme(page, theme);
       const otherControl = page.getByRole("button", {
         name: "View options",
         exact: true,
       });
-      const geometry = () =>
-        owner.evaluate((element) => ({
-          cx: Number(element.getAttribute("cx")),
-          cy: Number(element.getAttribute("cy")),
-        }));
+      const geometry = () => pointCentre(owner);
       const scroll = () =>
         owner.evaluate((element) => {
           const offsets: number[] = [window.scrollX, window.scrollY];
@@ -117,7 +118,7 @@ export async function exerciseEnvelopeRecovery(
         commands.push(command);
         responses.push(request.response());
       });
-      const events = await owner.evaluateHandle((element) => {
+      const events = await surface.evaluateHandle((element) => {
         const events: Array<{
           type: string;
           pointerId: number;
@@ -171,16 +172,17 @@ export async function exerciseEnvelopeRecovery(
           expect(Math.abs(preview.cx - original.cx - 32)).toBeLessThanOrEqual(
             1,
           );
-          expect(Math.abs(preview.cy - original.cy + 8)).toBeLessThanOrEqual(1);
+          // The drag locks to its dominant axis (time), so the level stays put.
+          expect(Math.abs(preview.cy - original.cy)).toBeLessThanOrEqual(1);
         }).toPass({ timeout: 5_000 });
         const pointerId = await ownerId();
         expect(
-          await owner.evaluate(
+          await surface.evaluate(
             (element, id) => element.hasPointerCapture(id),
             pointerId,
           ),
         ).toBe(true);
-        await expect(owner).toHaveAttribute("aria-pressed", "true");
+        await expect(owner).toHaveAttribute("aria-current", "true");
         return { start, pointerId };
       };
       const settle = async () => {
@@ -201,25 +203,20 @@ export async function exerciseEnvelopeRecovery(
       expect(savedState(projectPath)).toEqual(before);
       await page.keyboard.press("Escape");
       await expect.poll(geometry).toEqual(original);
-      await expect(owner).toHaveAttribute("aria-pressed", "false");
-      await expect(
-        pointSheet(page).getByRole("spinbutton", { name: "Time", exact: true }),
-      ).toHaveCount(0);
+      // The drag selected the point at its start; Escape restores the line, not the selection.
+      await expect(owner).toHaveAttribute("aria-current", "true");
       await expect(owner).toBeFocused();
-      expect(
-        await owner.evaluate(
-          (element, id) => element.hasPointerCapture(id),
-          escape.pointerId,
-        ),
-      ).toBe(false);
+      // The surface keeps the capture until release, but the drag is over: further moves draw nothing.
+      await page.mouse.move(escape.start.x + 60, escape.start.y + 20);
+      await expect.poll(geometry).toEqual(original);
       await page.mouse.up();
       await settle();
       expect(commands).toHaveLength(0);
       expect(savedState(projectPath)).toEqual(before);
 
+      // The leaf ends a drag when the window loses focus; moving focus inside the page does not.
       await begin();
-      await otherControl.focus();
-      await expect(otherControl).toBeFocused();
+      await page.evaluate(() => window.dispatchEvent(new Event("blur")));
       await expect.poll(geometry).toEqual(original);
       await page.mouse.up();
       await settle();
@@ -228,7 +225,7 @@ export async function exerciseEnvelopeRecovery(
 
       const normal = await begin();
       const ownerDraft = await geometry();
-      await owner.dispatchEvent("pointermove", {
+      await surface.dispatchEvent("pointermove", {
         pointerId: 99,
         pointerType: "touch",
         clientX: normal.start.x + 110,
@@ -237,7 +234,7 @@ export async function exerciseEnvelopeRecovery(
         buttons: 1,
       });
       expect(await geometry()).toEqual(ownerDraft);
-      await owner.dispatchEvent("pointerup", {
+      await surface.dispatchEvent("pointerup", {
         pointerId: 99,
         pointerType: "touch",
         bubbles: true,
@@ -248,7 +245,7 @@ export async function exerciseEnvelopeRecovery(
       expect(savedState(projectPath)).toEqual(before);
       expect(await geometry()).toEqual(ownerDraft);
       expect(
-        await owner.evaluate(
+        await surface.evaluate(
           (element, id) => element.hasPointerCapture(id),
           normal.pointerId,
         ),
@@ -318,11 +315,11 @@ export async function exerciseEnvelopeRecovery(
       expect(commands).toHaveLength(1);
       expect(savedState(projectPath).points).toEqual(before.points);
       const selectedState = savedState(projectPath);
-      const second = lane.locator('circle[aria-label^="Envelope point 2 at"]');
-      const secondOrigin = await second.evaluate((element) => ({
-        cx: element.getAttribute("cx"),
-        cy: element.getAttribute("cy"),
-      }));
+      const second = lane.getByRole("slider", {
+        name: "Envelope point 2",
+        exact: true,
+      });
+      const secondOrigin = await pointCentre(second);
       await otherControl.focus();
       const secondBox = await second.boundingBox();
       if (!secondBox) throw new Error("Second envelope point has no hit area");
@@ -351,7 +348,7 @@ export async function exerciseEnvelopeRecovery(
       expect(
         await second.evaluate(
           (element, center) =>
-            document.elementFromPoint(center.x, center.y) === element,
+            element.contains(document.elementFromPoint(center.x, center.y)),
           secondStart,
         ),
       ).toBe(true);
@@ -359,27 +356,23 @@ export async function exerciseEnvelopeRecovery(
       await page.mouse.down();
       await expect(second).toBeFocused();
       await page.mouse.move(secondStart.x + 8, secondStart.y - 4);
-      await expect(second).toHaveAttribute("aria-pressed", "true");
-      await expect(owner).toHaveAttribute("aria-pressed", "false");
+      await expect(second).toHaveAttribute("aria-current", "true");
+      await expect(owner).not.toHaveAttribute("aria-current", "true");
       expect(
-        await second.evaluate(
+        await surface.evaluate(
           (element, id) => element.hasPointerCapture(id),
           normal.pointerId,
         ),
       ).toBe(true);
       await page.keyboard.press("Escape");
       await expect(second).toBeFocused();
-      await expect(second).toHaveAttribute("aria-pressed", "false");
-      await expect(owner).toHaveAttribute("aria-pressed", "true");
+      // The drag selected the second point at its start and Escape keeps it.
+      await expect(second).toHaveAttribute("aria-current", "true");
+      await expect(owner).not.toHaveAttribute("aria-current", "true");
       await expect(
         pointSheet(page).getByRole("spinbutton", { name: "Time", exact: true }),
       ).toBeVisible();
-      expect(
-        await second.evaluate((element) => ({
-          cx: element.getAttribute("cx"),
-          cy: element.getAttribute("cy"),
-        })),
-      ).toEqual(secondOrigin);
+      expect(await pointCentre(second)).toEqual(secondOrigin);
       await page.mouse.up();
       await settle();
       expect(commands).toHaveLength(1);

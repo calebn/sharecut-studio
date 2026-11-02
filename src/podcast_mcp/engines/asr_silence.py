@@ -116,6 +116,7 @@ def placement_digest(project: EpisodeProject) -> str:
     dialogue = set(dialogue_track_ids(project))
     rows = sorted(
         (c.track_id, c.source_id or "", c.source_start, c.source_end, c.timeline_start)
+        + (() if c.timing is None else (tuple((s.at, s.delta_sec) for s in c.timing.steps),))
         for c in project.clips
         if c.track_id in dialogue
     )

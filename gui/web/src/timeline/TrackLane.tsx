@@ -39,19 +39,21 @@ import { sessionSecOf } from "../utils/zoom";
 import { clipMediaRef } from "../waveform/mediaRef";
 import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
+import { appliedEditTicks, seamTickAtJoin } from "./appliedEditTicks";
 import { BleedAttenuationOverlay } from "./BleedAttenuationOverlay";
 import { ClipBlock } from "./ClipBlock";
-import { EnvelopeOverlay } from "./EnvelopeOverlay";
 import {
   collectJoinMarks,
   EditMarkerLayer,
+  type JoinMark,
   type PlacedChip,
   planLaneMarks,
 } from "./editMarkers";
 import { useHitRouter } from "./hitRouterContext";
 import { HIT_SURFACE_PROPS } from "./hitTargets";
 import { JoinEditor } from "./JoinEditor";
-import { laneColor } from "./laneColors";
+import { LaneEnvelope } from "./LaneEnvelope";
+import { laneColor, laneColorIndex } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { ProsodyOverlay } from "./ProsodyOverlay";
 import { RippleArrow } from "./RippleArrow";
@@ -96,8 +98,8 @@ interface TrackLaneProps {
   ) => void;
   bleedInspection?: ClipBleedSnapshot;
   onSelectBleed?: (trackId: string, clipId: string, key: string) => void;
-  onSelectTrack: (trackId: string) => void;
   onSelectPending: (trackId: string, id: string) => void;
+  onSelectApplied: (trackId: string, id: string) => void;
   canMoveClips?: boolean;
   selectedClipIds?: readonly string[];
   previewStartById?: Readonly<Record<string, number>>;
@@ -135,8 +137,8 @@ export function TrackLaneView({
   onSelectClip,
   bleedInspection = null,
   onSelectBleed,
-  onSelectTrack,
   onSelectPending,
+  onSelectApplied,
   canMoveClips = false,
   selectedClipIds = EMPTY_ARR,
   previewStartById = EMPTY_OBJ,
@@ -228,9 +230,16 @@ export function TrackLaneView({
       onSelectClip(trackId, clipId, mods),
     [onSelectClip, trackId],
   );
-  const selectTrack = useCallback(
-    () => onSelectTrack(trackId),
-    [onSelectTrack, trackId],
+  const appliedTicks = useMemo(
+    () => appliedEditTicks(appliedRecords, trackId, clips),
+    [appliedRecords, trackId, clips],
+  );
+  const onSelectJoin = useCallback(
+    (mark: JoinMark) => {
+      const tick = seamTickAtJoin(appliedTicks, mark);
+      if (tick) onSelectApplied(trackId, tick.recordId);
+    },
+    [appliedTicks, onSelectApplied, trackId],
   );
   const selectPending = useCallback(
     (id: string) => onSelectPending(trackId, id),
@@ -477,7 +486,11 @@ export function TrackLaneView({
             gainDb={trackOutputGainDb(track)}
           />
         ))}
-        <EditMarkerLayer plan={plan} onZoomChip={onZoomChip} />
+        <EditMarkerLayer
+          plan={plan}
+          onZoomChip={onZoomChip}
+          onSelectJoin={onSelectJoin}
+        />
         {/* Move ghosts draw raw media on purpose. A stem is per lane and on
             the timeline clock, so the destination lane's stem read at the
             ghost's new timeline_start would show unrelated audio. After the
@@ -506,13 +519,14 @@ export function TrackLaneView({
           />
         ))}
         {showLevels && (
-          <EnvelopeOverlay
+          <LaneEnvelope
+            trackId={track.id}
+            trackName={track.label || track.id}
+            colorIndex={laneColorIndex(track.role, trackIndex)}
             envelopes={envelopes}
             clips={clips}
-            trackId={track.id}
             zoomPxPerSec={zoomPxPerSec}
             width={width}
-            onSelectTrack={selectTrack}
           />
         )}
         {showEdits && (

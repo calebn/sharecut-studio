@@ -76,7 +76,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Combined transcript** | Utterance stream for search/NL | `transcripts.combined` | Search / agent; export captions |
 | **Transcription vocabulary** | Names and terms used for Whisper; Re-transcribe (forces ASR; normal runs reuse transcripts) when any transcript was produced with a different saved revision | `transcript_context.yaml` revision + `transcripts.per_track[].vocabulary_revision` | Pipeline vocabulary editor |
 | **FX chain** | Per-track cleanup/EQ/etc. | `mix.processing_chains` | Track FX, audition FX vs Raw |
-| **Envelope** | Volume automation over time | `mix.automation_envelopes` | Volume envelope overlay, Inspector point fields |
+| **Envelope** | Volume automation over time | `mix.automation_envelopes` | Volume envelope on the lane, Inspector point fields |
 | **Volume (fader)** | A track's saved level, on top of the staging gain Balance sets | `timeline.tracks[].fader_db` (+ `gain_db`) | Track inspector / sheet fader; the track details show the sum |
 | **Balance status** | Whether the last dialogue loudness measurement still matches the media revision, ordered FX chain, and kept speech spans; status is not measured before the first successful balance run, current while those inputs match, and stale when they change. The displayed LUFS is the measured level, and “ungated” indicates the measurement fell back from speech gating | `timeline.tracks[].balance_basis` + derived render status | Track inspector below the Volume fader |
 | **Mute / solo** | M removes a track from the saved mix (host and Editors); Shift+S, and a guest's M, change only what you hear. Tracks your solo silences go grey like a muted track (row, lane, clips and waveform), dashed rather than solid. While any track is soloed, a **Solo on · Clear solo** button shows and clears every solo in one press | `timeline.tracks[].muted`; solo and listen-only mute are per-listener | Track headers, lanes, inspector, Mix sheet (solid = saved, dashed = only you); Solo on above the track headers, in the phone status row and in the Mix sheet |
@@ -218,11 +218,17 @@ Users don’t need tool IDs. They need this story:
 3. **Commit** — same services agents use → history snapshot.
 4. **Possibly re-render** — stems/premix may show “stale” until refresh. If an undo or redo is saved but its preview render fails, the app reports a conflict that says to re-render the preview, not to repeat the move.
 
-An editable envelope drag focuses its point without scrolling. Escape or moving
-focus away discards its preview and preserves the pregesture selection. Escape
-retains point focus without opening the inspector. Only the owning pointer can
-complete the drag. A click selects on release; a changed save selects on success. A completed save remains in flight until
-it settles, and History Undo restores the saved edit.
+An editable envelope drag focuses its point without scrolling and selects it at
+its start. Escape, a cancelled pointer or the window losing focus ends the drag
+and restores the point; the selection stays and nothing saves. Only the owning
+pointer can complete the drag, which locks to time or level once it passes a
+few pixels and saves one undo step on release. A completed save remains in flight
+until it settles, and History Undo restores the saved edit. Arrow keys on a
+focused point nudge it (10 ms or 0.5 dB, larger with Shift) and save once when the
+key is released; Delete or Backspace removes the selected point. A click on the
+line, or **Add volume point**, adds a point; on an empty envelope it writes the
+start and end anchors with it. A point's accessible name is "Envelope point N"
+(N counts in time order) and its value text gives the level and time.
 
 Show the volume envelope and select a point (from the lane or the create menu's
 **Add volume point**), then **Inspect** opens its **Time** and **Level** fields

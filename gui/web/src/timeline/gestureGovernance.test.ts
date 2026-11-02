@@ -86,8 +86,6 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
 
 /** Arrow keys outside the command bus's focused-handle commands, and why. */
 const ARROW_ALLOWLIST: Record<string, string> = {
-  "timeline/EnvelopeOverlayView.tsx":
-    "the focused DOM slider owns native arrow and Home/End value keys, previews locally, then saves one existing SetEnvelope on key release; no catalog command owns line level",
   "timeline/MarkerLaneView.tsx": "swallows keys while a marker drag is live",
   "timeline/ClipBlock.tsx": "swallows keys while a clip body drag is live",
   "timeline/useClipEdgeHandles.ts":
@@ -178,9 +176,8 @@ describe("gesture package governance", () => {
  * gesture adds a line here, or routes through `commands/gestures.ts`.
  */
 const SURFACE_GESTURES: Record<string, string> = {
-  "comments/CommentCard.tsx": "long-press on a comment card selects it",
   "hooks/useLongPress.ts":
-    "one long-press timing for comment cards, track headers, transcript words and the rail's icon-only labels (gestureConstants)",
+    "one long-press timing for track headers, transcript words and the rail's icon-only labels (gestureConstants)",
   "hooks/useTwoFingerTap.ts":
     "two-finger tap is Undo (the Two-finger tap row in commands/gestures.ts), read from window pointers",
   "hooks/useHoldRepeat.ts":

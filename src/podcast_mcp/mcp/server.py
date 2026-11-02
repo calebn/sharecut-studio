@@ -113,6 +113,12 @@ from podcast_mcp.mcp.tools.ingest import (  # noqa: E402, F401
     ingest_verify_alignment_tool,
     play_compare_tool,
 )
+from podcast_mcp.mcp.tools.kits import (  # noqa: E402, F401
+    kit_apply_tool,
+    kit_list_tool,
+    kit_save_tool,
+    kit_show_tool,
+)
 from podcast_mcp.mcp.tools.pipeline import (  # noqa: E402, F401
     bounce_audio_tool,
     export_audio_tool,
@@ -159,6 +165,12 @@ from podcast_mcp.mcp.tools.review import (  # noqa: E402, F401
     select_session_take_tool,
     set_active_review_version_tool,
     skip_session_suggestion_tool,
+)
+from podcast_mcp.mcp.tools.segments import (  # noqa: E402, F401
+    segment_insert_tool,
+    segment_list_tool,
+    segment_save_tool,
+    segment_show_tool,
 )
 from podcast_mcp.mcp.tools.session import (  # noqa: E402, F401
     get_session_presence_tool,

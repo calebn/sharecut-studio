@@ -1,11 +1,4 @@
-"""A clip with a timing map as the ordinary clips the renderer lays out (#2858, umbrella #1089).
-
-Each virtual piece of a mapped clip becomes a shell copy that keeps the parent's id and plays
-one constant shift. The inner joins get the declick micro-fade the split pieces they replace had
-(``join_micro_fade_ms``); the parent's fades and join mode stay on the outer edges. A positive
-step leaves a hole between two shells, returned so the renderer can fill it. Shells are never
-persisted.
-"""
+"""A clip with a timing map as the ordinary clips the renderer lays out (#2858, umbrella #1089)."""
 
 from __future__ import annotations
 
@@ -15,14 +8,14 @@ from itertools import pairwise
 
 from podcast_mcp.config.defaults import DEFAULT_MICRO_FADE_MS
 from podcast_mcp.models import Clip, ClipJoinMode
+from podcast_mcp.models.clip_timing import MAX_TIMING_STEPS
+from podcast_mcp.util.coded_error import CodedValueError
 
 _MIN_HOLE_SEC = 1e-6
 
 
 @dataclass(frozen=True)
 class TimingHole:
-    """The timeline span a positive step leaves between ``left`` and ``right``."""
-
     parent: Clip
     left: Clip
     right: Clip
@@ -39,16 +32,33 @@ class TimingHole:
 def expand_timed_clips(
     clips: list[Clip], *, micro_fade_ms: int = DEFAULT_MICRO_FADE_MS
 ) -> tuple[list[Clip], dict[int, TimingHole]]:
-    """``clips`` with each mapped clip replaced by its piece shells, and the holes by the index
-    of the shell on their left. A list without a mapped clip comes back as the same object."""
+    """A list without a mapped clip comes back as the same object; holes are keyed by the index of
+    the shell on their left."""
+    expanded, holes, _ = expand_timed_pieces(clips, micro_fade_ms=micro_fade_ms)
+    return expanded, holes
+
+
+def expand_timed_pieces(
+    clips: list[Clip], *, micro_fade_ms: int = DEFAULT_MICRO_FADE_MS
+) -> tuple[list[Clip], dict[int, TimingHole], list[int]]:
+    """``expand_timed_clips`` plus, per returned clip, its ordinal in its parent's
+    ``virtual_pieces()`` order (0 for an unmapped clip); the list itself is re-sorted by time."""
     if all(clip.timing is None for clip in clips):
-        return clips, {}
+        return clips, {}, [0] * len(clips)
     expanded: list[Clip] = []
+    ordinal_of: dict[int, int] = {}
     hole_after: dict[int, TimingHole] = {}
     for clip in clips:
         if clip.timing is None:
             expanded.append(clip)
+            ordinal_of[id(clip)] = 0
             continue
+        if len(clip.timing.steps) > MAX_TIMING_STEPS:
+            raise CodedValueError(
+                f"clip {clip.id} has {len(clip.timing.steps)} timing steps; a render takes at "
+                f"most {MAX_TIMING_STEPS}. Split the clip or drop the weakest steps.",
+                code="timing_map_too_many_steps",
+            )
         pieces = clip.virtual_pieces()
         shells = []
         for index, (src_a, src_b, tl_a) in enumerate(pieces):
@@ -58,19 +68,19 @@ def expand_timed_clips(
                 clip.fade_out_ms if index + 1 == len(pieces) else micro_fade_ms,
                 piece_ms - fade_in,
             )
-            shells.append(
-                clip.model_copy(
-                    update={
-                        "timing": None,
-                        "source_start": src_a,
-                        "source_end": src_b,
-                        "timeline_start": tl_a,
-                        "fade_in_ms": fade_in,
-                        "fade_out_ms": fade_out,
-                        "join_in_mode": clip.join_in_mode if index == 0 else ClipJoinMode.FADE,
-                    }
-                )
+            shell = clip.model_copy(
+                update={
+                    "timing": None,
+                    "source_start": src_a,
+                    "source_end": src_b,
+                    "timeline_start": tl_a,
+                    "fade_in_ms": fade_in,
+                    "fade_out_ms": fade_out,
+                    "join_in_mode": clip.join_in_mode if index == 0 else ClipJoinMode.FADE,
+                }
             )
+            ordinal_of[id(shell)] = index
+            shells.append(shell)
         for left, right in pairwise(shells):
             if right.timeline_start - left.timeline_end > _MIN_HOLE_SEC:
                 hole_after[id(left)] = TimingHole(clip, left, right)
@@ -78,4 +88,4 @@ def expand_timed_clips(
     # Shells sit at the parent's list position; neighbours of the join rules are by time.
     expanded.sort(key=lambda c: c.timeline_start)
     holes = {index: hole_after[id(c)] for index, c in enumerate(expanded) if id(c) in hole_after}
-    return expanded, holes
+    return expanded, holes, [ordinal_of[id(c)] for c in expanded]

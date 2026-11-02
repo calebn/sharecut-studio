@@ -123,6 +123,61 @@ describe("roomViewModel tiles", () => {
     expect(full.tiles).toHaveLength(5);
   });
 
+  it("turns a declined guest's tile, and a guest who left before the take, into an Invite slot for the host", () => {
+    const people = [
+      host({ you: true }),
+      guest(JON, { presence: "declined" }),
+      guest(ANNEKE, { presence: "left" }),
+      guest(JOSS),
+    ];
+    const kinds = (phase: RoomPhase) =>
+      roomViewModel(base({ role: "host", people, phase })).tiles.map(
+        (tile) => tile.kind,
+      );
+    expect(kinds(WAITING)).toEqual(["person", "person", "invite", "invite"]);
+    expect(kinds({ kind: "countdown", secondsLeft: 3 })).toEqual([
+      "person",
+      "person",
+      "invite",
+      "invite",
+    ]);
+  });
+
+  it("keeps a guest's tile when they drop during or after a take, but frees a declined one", () => {
+    const people = [
+      host({ you: true }),
+      guest(JON, { presence: "declined" }),
+      guest(ANNEKE, { presence: "left" }),
+    ];
+    for (const phase of [LIVE, { kind: "saved" } as const]) {
+      const tiles = roomViewModel(base({ role: "host", people, phase })).tiles;
+      expect(tiles.map((tile) => tile.kind)).toEqual([
+        "person",
+        "person",
+        "invite",
+        "invite",
+      ]);
+      expect(tiles[1]?.key).toContain("Anneke");
+    }
+  });
+
+  it("keeps a declined guest's tile for a guest viewer and for a host who cannot invite", () => {
+    const people = [host(), guest(JON, { presence: "declined" })];
+    expect(
+      roomViewModel(base({ role: "guest", people })).tiles.map((t) => t.kind),
+    ).toEqual(["person", "person"]);
+    expect(
+      roomViewModel(base({ role: "host", invite: false, people })).tiles,
+    ).toHaveLength(2);
+  });
+
+  it("never turns the host's own left tile into an Invite slot", () => {
+    const model = roomViewModel(
+      base({ role: "host", people: [host({ you: true, presence: "left" })] }),
+    );
+    expect(model.tiles[0]?.kind).toBe("person");
+  });
+
   it("gives no Invite slots when the host has no invite handler", () => {
     const model = roomViewModel(
       base({ role: "host", invite: false, people: [host({ you: true })] }),
@@ -162,9 +217,23 @@ describe("roomViewModel columns", () => {
 });
 
 describe("roomViewModel dock and rail", () => {
-  it("passes the viewer's seat through and hides Comment while waiting", () => {
+  it("passes the viewer's seat through and hides Comment until recording starts", () => {
     expect(roomViewModel(base({ phase: WAITING })).showComment).toBe(false);
+    expect(
+      roomViewModel(base({ phase: { kind: "countdown", secondsLeft: 3 } }))
+        .showComment,
+    ).toBe(false);
     expect(roomViewModel(base({ phase: LIVE })).showComment).toBe(true);
+    expect(
+      roomViewModel(base({ phase: { kind: "paused", clockSec: 4 } }))
+        .showComment,
+    ).toBe(true);
+    expect(
+      roomViewModel(base({ phase: { kind: "reconnecting" } })).showComment,
+    ).toBe(true);
+    expect(roomViewModel(base({ phase: { kind: "saved" } })).showComment).toBe(
+      false,
+    );
     expect(
       roomViewModel(base({ role: "producer", phase: LIVE })).dockSeat,
     ).toBe("producer");

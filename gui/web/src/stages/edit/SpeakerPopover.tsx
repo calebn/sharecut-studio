@@ -117,21 +117,29 @@ export function SpeakerPopover({
     return undefined;
   };
   const picking = useRef(false);
+  // Esc or an outside press during a pending pick or add already closed the popover: the answer must not close it a second time.
+  const dismissals = useRef(0);
+  const dismiss = () => {
+    dismissals.current += 1;
+    onClose();
+  };
   const pick = async (id: string) => {
     if (picking.current) return;
     picking.current = true;
+    const seen = dismissals.current;
     setError(null);
     try {
       const reason = id === currentId ? undefined : await settle(onPick(id));
       if (reason) setError(reason);
-      else onClose();
+      else if (dismissals.current === seen) onClose();
     } finally {
       picking.current = false;
     }
   };
   const addSpeaker = async (name: string) => {
+    const seen = dismissals.current;
     const reason = await settle(onAddSpeaker?.(name));
-    if (!reason) onClose();
+    if (!reason && dismissals.current === seen) onClose();
     return reason;
   };
 
@@ -199,7 +207,7 @@ export function SpeakerPopover({
 
   if (form === "bottom") {
     return (
-      <Sheet form="bottom" title="Speaker" open={open} onClose={onClose}>
+      <Sheet form="bottom" title="Speaker" open={open} onClose={dismiss}>
         {content}
       </Sheet>
     );
@@ -207,7 +215,7 @@ export function SpeakerPopover({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={dismiss}
       title="Speaker"
       panelClassName="sys-speaker-panel"
       initialFocusRef={initialFocus}

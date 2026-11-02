@@ -46,6 +46,17 @@ test.describe("Applied-edit seam ticks", () => {
         const box = await ticks.nth(i).boundingBox();
         expect(box?.width ?? 0).toBeLessThanOrEqual(3);
       }
+      const glyph = lanes.first().locator(".edit-mark").first();
+      await glyph.click();
+      const selected = lanes.first().locator(".applied-tick.selected");
+      await expect(selected).toHaveCount(1);
+      const glyphBox = await glyph.boundingBox();
+      const tickBox = await selected.boundingBox();
+      const centre = (box: { x: number; width: number } | null) =>
+        (box?.x ?? Number.NaN) + (box?.width ?? 0) / 2;
+      expect(Math.abs(centre(glyphBox) - centre(tickBox))).toBeLessThanOrEqual(
+        12,
+      );
       const after = await scroll.evaluate((el) => el.scrollWidth);
       expect(after).toBeLessThanOrEqual(base + 1);
     } finally {

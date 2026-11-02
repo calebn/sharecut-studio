@@ -20,6 +20,12 @@ import type { ExecuteResult } from "./types";
 
 const saving = new Set<string>();
 
+/** The wording a refusal gives for the short window after a lane save, before the store holds the saved point. */
+export const ENVELOPE_UPDATING = "Wait for the volume envelope to update";
+
+/** Tracks whose lane has a saved gesture the store has yet to follow. */
+const settling = new Set<string>();
+
 const savingKey = (trackId: string): string => {
   const { projectPath, projectEpoch } = useDawStore.getState();
   return `${projectPath}:${projectEpoch}:${trackId}`;
@@ -28,6 +34,20 @@ const savingKey = (trackId: string): string => {
 /** Whether a save for this track's volume envelope is still running (a drag, a nudge, an add or a removal). */
 export function envelopeSaveInFlight(trackId: string): boolean {
   return saving.has(savingKey(trackId));
+}
+
+/**
+ * Marks `trackId`'s envelope as settling: the lane saved a gesture and the
+ * store has yet to hold it, so a save from anywhere (the Create menu, the
+ * Inspector fields, Remove) would send a stale baseline and is refused until
+ * the returned function is called.
+ */
+export function holdEnvelopeSettling(trackId: string): () => void {
+  const key = savingKey(trackId);
+  settling.add(key);
+  return () => {
+    settling.delete(key);
+  };
 }
 
 /**
@@ -81,6 +101,9 @@ export async function addEnvelopePointAt(
       status: "disabled",
       reason: "Wait for the volume envelope to finish saving",
     };
+  }
+  if (settling.has(key)) {
+    return { status: "disabled", reason: ENVELOPE_UPDATING };
   }
   const point = {
     id: randomUuid(),
@@ -165,6 +188,8 @@ async function saveEnvelope(
       status: "disabled",
       reason: "Wait for the volume envelope to finish saving",
     };
+  if (settling.has(key))
+    return { status: "disabled", reason: ENVELOPE_UPDATING };
   const origin = pointsOf(trackId);
   const next = plan(origin);
   if (!Array.isArray(next)) return next;

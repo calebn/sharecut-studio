@@ -12,11 +12,13 @@ from podcast_mcp.mcp.tools import (
     gui,
     history,
     ingest,
+    kits,
     models,
     pipeline,
     play,
     record,
     review,
+    segments,
     session,
     speaker,
     timeline,
@@ -40,6 +42,8 @@ def register_all(mcp: MCPServer) -> None:
     play.register(mcp)
     record.register(mcp)
     session.register(mcp)
+    segments.register(mcp)
+    kits.register(mcp)
     ingest.register(mcp)
     speaker.register(mcp)
     gui.register(mcp)

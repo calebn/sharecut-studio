@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useId, useRef } from "react";
 import { ToggleButton } from "../ui";
+import { isImeKey } from "./imeKey";
 import {
   canSendNote,
   isRestrictedNote,
@@ -37,7 +38,6 @@ export type NotesRailProps = {
 };
 
 const SEND_REASON = "Write a note to send";
-const IME_KEYCODE = 229;
 
 /**
  * The Notes rail body: the chronological list of markers and notes as
@@ -71,11 +71,9 @@ export function NotesRail({
   };
   // Enter sends. Shift+Enter keeps its newline, and an IME commit is not a send.
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    // keyCode 229 is the IME's own keydown, which some browsers send without isComposing.
-    const composing =
-      event.nativeEvent.isComposing || event.keyCode === IME_KEYCODE;
-    if (event.key !== "Enter" || event.shiftKey || composing) return;
+    if (event.key !== "Enter" || event.shiftKey || isImeKey(event)) return;
     event.preventDefault();
+    if (event.repeat) return;
     send();
   };
   return (
@@ -103,8 +101,11 @@ export function NotesRail({
                         {noteSnippet(item)}
                       </>
                     ) : (
-                      <span title={noteSnippet(item)}>{noteSnippet(item)}</span>
+                      noteSnippet(item)
                     )
+                  }
+                  fullText={
+                    item.kind === "marker" ? undefined : noteSnippet(item)
                   }
                   time={item.time ?? undefined}
                   restricted={isRestrictedNote(item)}

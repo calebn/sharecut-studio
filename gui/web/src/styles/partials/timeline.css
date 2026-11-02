@@ -996,50 +996,19 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   outline: var(--focus-ring-width) solid var(--color-warning);
 }
 
-.envelope-overlay {
+.lane-envelope-window {
   position: absolute;
-  inset: 0;
+  inset-block: 0;
   /* Above clip-block (3) so Levels points are draggable over clips. */
   z-index: var(--z-edit-overlay);
   pointer-events: none;
 }
 
-.envelope-hit {
+.lane-envelope-dips {
   position: absolute;
-  inset: 0;
-  z-index: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.envelope-overlay .envelope-svg {
-  position: absolute;
-  inset: 0;
-  z-index: var(--z-content);
+  inset-block-start: 0;
+  inset-inline-start: 0;
   pointer-events: none;
-}
-
-.envelope-overlay .envelope-svg circle {
-  pointer-events: auto;
-}
-
-.envelope-overlay .envelope-svg .envelope-line-target {
-  pointer-events: auto;
-  cursor: ns-resize;
-}
-
-.envelope-overlay .envelope-svg .envelope-line-target:focus-visible {
-  stroke: var(--color-accent);
-  stroke-width: var(--focus-ring-width);
-}
-
-.envelope-overlay .envelope-svg circle.envelope-point-selected {
-  fill: var(--color-timeline-lane);
-  stroke: var(--color-envelope-line);
-  stroke-width: var(--focus-ring-width);
 }
 
 .marker-lane {
@@ -1889,10 +1858,8 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   }
 }
 
-.envelope-overlay .envelope-svg circle[data-hit-armed] {
-  stroke: var(--color-accent);
-  stroke-width: var(--focus-ring-width);
-  filter: drop-shadow(0 0 0.25rem var(--color-accent-muted));
+.sys-env-point[data-hit-armed] .sys-env-dot {
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--color-accent);
 }
 
 /* A drag held at a soft boundary: a line through the lanes there, and a

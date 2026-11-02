@@ -1,9 +1,8 @@
-import { isShareProjectKey } from "../shareMode";
 import type { TranscriptCheckStatus } from "../types/project";
-import { apiFetch, HOST_KEY } from "./http";
+import { apiFetch, HOST_KEY, isHostProjectKey } from "./http";
 
 function requireHost(projectPath: string) {
-  if (isShareProjectKey(projectPath))
+  if (!isHostProjectKey(projectPath))
     throw new Error("The transcript check is only available to the host.");
 }
 

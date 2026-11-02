@@ -1,6 +1,6 @@
 """Reason-string vocabulary for generated tighten proposals.
 
-Sound disposition and review policy live in ``cut_safety``. This leaf module
+Sound disposition and review policy live in ``cut_policy``. This leaf module
 contains only reason parsing and detector vocabulary.
 """
 
@@ -19,6 +19,7 @@ REPETITION_REASON_PREFIX = "repetition:"
 RESTART_REASON_PREFIX = "restart:"
 RESTART_PARTIAL_REASON_PREFIX = f"{RESTART_REASON_PREFIX}partial:"
 PAUSE_REASON_PREFIX = "pause:"
+FILLER_REASON_PREFIX = "filler:"
 REPEATED_WORD_REASON_PREFIX = f"{REPETITION_REASON_PREFIX}word:"
 # Suffixes the proposer appends after a reason's own fields; the repeated word ends where one begins.
 _REASON_FLAGS = frozenset(
@@ -35,6 +36,16 @@ _REASON_FLAGS = frozenset(
 )
 _PAUSE_GAP = re.compile(r"^pause:(\d+(?:\.\d+)?)s(?::|$)")
 _MAX_PAUSE_GAP_SEC = 3600.0
+
+
+def is_pause_reason(reason: str | None) -> bool:
+    """True for a pause proposal or a pause-trim edit reason."""
+    return (reason or "").startswith(PAUSE_REASON_PREFIX)
+
+
+def is_filler_reason(reason: str | None) -> bool:
+    """True for every filler proposal, acoustic runs included."""
+    return (reason or "").startswith(FILLER_REASON_PREFIX)
 
 
 def pause_gap_sec(reason: str | None) -> float | None:

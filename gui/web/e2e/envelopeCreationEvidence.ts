@@ -93,9 +93,20 @@ export async function showEnvelope(page: Page) {
     .click();
 }
 
+/** Focuses the strip along the envelope line (of `scope`'s first lane): its centre is the menu's anchor. */
+export async function focusLineStrip(scope: Page | Locator) {
+  await scope
+    .locator(".sys-env-band")
+    .first()
+    .evaluate((strip) => {
+      strip.setAttribute("tabindex", "-1");
+      (strip as SVGElement).focus();
+    });
+}
+
 /**
- * Adds a point through the lane's create menu: from the keyboard on the flat
- * level line (of `lane`, else the first), or, given a share of the lane's
+ * Adds a point through the lane's create menu: from the keyboard on the
+ * envelope line's strip (of `lane`, else the first), or, given a share of the lane's
  * width, where a right click lands.
  */
 export async function addEnvelopePoint(
@@ -120,10 +131,9 @@ export async function addEnvelopePoint(
       { button: "right" },
     );
   } else {
-    await (at.lane ?? page)
-      .getByRole("slider", { name: "Envelope level" })
-      .first()
-      .focus();
+    // The line's strip is a hit surface the create menu anchors on, but Tab
+    // never reaches it: focus it directly, as a stand-in for the key's target.
+    await focusLineStrip(at.lane ?? page);
     await page.keyboard.press("Shift+F10");
   }
   await createMenuRow(page, "Add volume point").click();
@@ -182,11 +192,11 @@ export async function inspectEnvelopePoint(page: Page) {
 /** Selects the nth point on the lane from the keyboard and opens it in the Inspector. */
 export async function openEnvelopePoint(page: Page, n: number) {
   const point = page
-    .locator(`circle[aria-label^="Envelope point ${n} at"]`)
+    .getByRole("slider", { name: `Envelope point ${n}`, exact: true })
     .first();
   await point.focus();
   await page.keyboard.press("Enter");
-  await expect(point).toHaveAttribute("aria-pressed", "true");
+  await expect(point).toHaveAttribute("aria-current", "true");
   await inspectEnvelopePoint(page);
 }
 

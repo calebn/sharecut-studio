@@ -534,8 +534,8 @@ html[data-shell="phone"] .guest-attention-dismiss {
   cursor: crosshair;
 }
 
-[data-split-armed] .envelope-overlay,
-[data-split-armed] .envelope-overlay .envelope-svg circle,
+[data-split-armed] .sys-env-band,
+[data-split-armed] .sys-env-point,
 [data-split-armed] .pending-overlay,
 [data-split-armed] .applied-tick {
   pointer-events: none;

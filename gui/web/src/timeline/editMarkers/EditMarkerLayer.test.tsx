@@ -55,6 +55,45 @@ describe("EditMarkerLayer glyphs", () => {
     useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
   });
 
+  it("hands the join to onSelectJoin when its glyph is pressed, so a cut can select its applied record", () => {
+    const { left, right } = pair("s", 2, "cut");
+    const onSelectJoin = vi.fn();
+    render(
+      <EditMarkerLayer
+        plan={planOf([left, right], 50)}
+        onZoomChip={vi.fn()}
+        onSelectJoin={onSelectJoin}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /join at 0:02\.0$/ }));
+    expect(onSelectJoin).toHaveBeenCalledTimes(1);
+    expect(onSelectJoin.mock.calls[0][0]).toMatchObject({
+      clipId: "s1",
+      sec: 2,
+      kind: "join-cut",
+    });
+    expect(useDawStore.getState().openJoinId).toBe("s1");
+    fireEvent.click(screen.getByRole("button", { name: /join at 0:02\.0$/ }));
+    expect(onSelectJoin).toHaveBeenCalledTimes(2);
+    expect(useDawStore.getState().openJoinId).toBeNull();
+  });
+
+  it("leaves the selection alone while a join change is saving", () => {
+    useDawStore.setState({ joinMutationInFlight: true });
+    const { left, right } = pair("s", 2, "cut");
+    const onSelectJoin = vi.fn();
+    render(
+      <EditMarkerLayer
+        plan={planOf([left, right], 50)}
+        onZoomChip={vi.fn()}
+        onSelectJoin={onSelectJoin}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /join at 0:02\.0$/ }));
+    expect(onSelectJoin).not.toHaveBeenCalled();
+    expect(useDawStore.getState().openJoinId).toBeNull();
+  });
+
   it.each([
     ["cut", "M6 1V11", "Cut"],
     ["fade", "M1 2L6 10L11 2", "Fade"],

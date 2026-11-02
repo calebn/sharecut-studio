@@ -7,6 +7,7 @@
  * that owns its drag, and that no drag hides behind a plain surface, so a
  * mouse drag cannot lose its touch path unnoticed (the clip move did once).
  */
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nudgeAxis, nudgeStep } from "../edit/nudge";
@@ -195,6 +196,22 @@ const PRESS_OWNERS = [...sourceFiles(join(SRC_ROOT, "timeline"))]
         surface: marksSurface(element),
       })),
   );
+
+/**
+ * A system leaf owns the press and the timeline host only marks it: the host
+ * hands the leaf `hitTargetProps` through `hitProps`, so no timeline element
+ * both marks the kind and owns the pointerdown.
+ */
+const LEAF_OWNED: Partial<Record<HitKind, { host: string; leaf: string }>> = {
+  "envelope-point": {
+    host: "timeline/LaneEnvelope.tsx",
+    leaf: "system/Envelope.tsx",
+  },
+};
+/** Kinds nothing marks since the lane envelope became the leaf: the flat line is gone (W4 prunes the kind). */
+const UNMARKED: readonly HitKind[] = ["envelope-line"];
+
+const sourceOf = (rel: string) => readFileSync(join(SRC_ROOT, rel), "utf8");
 
 describe("touch paths", () => {
   it("lets a point win its line after the line gained focus from editing", () => {
@@ -387,6 +404,18 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
       : "has a reachable touch path: an element that marks it owns the drag",
     () => {
       const owners = PRESS_OWNERS.filter((o) => o.kinds.includes(kind));
+      const leaf = LEAF_OWNED[kind];
+      if (leaf) {
+        expect(sourceOf(leaf.host)).toContain(`hitTargetProps("${kind}"`);
+        expect(
+          jsxElements(sourceOf(leaf.leaf)).filter(ownsPointerDown),
+        ).not.toEqual([]);
+        return;
+      }
+      if (UNMARKED.includes(kind)) {
+        expect(owners).toEqual([]);
+        return;
+      }
       if (contract.axis === "none") expect(owners).toEqual([]);
       else expect(owners).not.toEqual([]);
     },

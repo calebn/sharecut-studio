@@ -23,6 +23,18 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document.episode_results import (
+    EmptyTrackAddedResult,
+    ProjectRenamedResult,
+    RecordSessionRenamedResult,
+    StreamsCurrentResult,
+    TrackMediaSetResult,
+    TrackMetaResult,
+    TrackMuteResult,
+    TrackRemovedResult,
+    TrackReorderedResult,
+    TrackVolumeResult,
+)
 from podcast_mcp.services.media import ensure_audio_in_workspace, schedule_track_waveforms
 from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedValueError
 from podcast_mcp.util.tracks import unknown_track
@@ -72,7 +84,7 @@ class EpisodeService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
 
-    def rename_project(self, name: str) -> dict:
+    def rename_project(self, name: str) -> ProjectRenamedResult:
         """Set the project's display name; the folder and files keep their names."""
         cleaned = _clean_project_name(name)
 
@@ -86,9 +98,9 @@ class EpisodeService:
             operation="rename_project",
             params={"name": cleaned},
         )
-        return {"name": self.ws.project.meta.name}
+        return ProjectRenamedResult(name=self.ws.project.meta.name)
 
-    def set_record_session_name(self, session_id: str, name: str) -> dict:
+    def set_record_session_name(self, session_id: str, name: str) -> RecordSessionRenamedResult:
         """Name a landed record session, or clear its name with an empty one."""
         cleaned = _clean_session_name(name)
         if not any(
@@ -110,7 +122,7 @@ class EpisodeService:
             operation="rename_session",
             params={"session_id": session_id, "name": cleaned},
         )
-        return {"session_id": session_id, "name": cleaned}
+        return RecordSessionRenamedResult(session_id=session_id, name=cleaned)
 
     def add_track(
         self,
@@ -162,7 +174,7 @@ class EpisodeService:
         role: str = "dialogue",
         speaker: str | None = None,
         label: str | None = None,
-    ) -> dict:
+    ) -> EmptyTrackAddedResult:
         track_id = slug_track_id(track_id)
         if self.ws.project.track_by_id(track_id) is not None:
             raise CodedValueError(f"track already exists: {track_id}", code="track_exists")
@@ -185,9 +197,9 @@ class EpisodeService:
             operation="add_empty_track",
             params={"track_id": track_id},
         )
-        return {"track_id": track_id, "label": label or track_id, "role": role}
+        return EmptyTrackAddedResult(track_id=track_id, label=label or track_id, role=role)
 
-    def set_track_media(self, track_id: str, file_path: str) -> dict:
+    def set_track_media(self, track_id: str, file_path: str) -> TrackMediaSetResult:
         audio_in = Path(file_path).expanduser().resolve()
         if not audio_in.is_file():
             raise CodedFileNotFoundError(
@@ -216,11 +228,11 @@ class EpisodeService:
         schedule_track_waveforms(self.ws.project, track, defaults=self.ws.effective_config())
         if track.role == TrackRole.DIALOGUE:
             schedule_room_tone_pool(self.ws.project, track_id)
-        return {
-            "track_id": track_id,
-            "media_path": track.media.path,
-            "duration_sec": track.media.duration_sec,
-        }
+        return TrackMediaSetResult(
+            track_id=track_id,
+            media_path=track.media.path,
+            duration_sec=track.media.duration_sec,
+        )
 
     def set_track_meta(
         self,
@@ -229,7 +241,7 @@ class EpisodeService:
         label: str | None = None,
         role: str | None = None,
         speaker: str | None = None,
-    ) -> dict:
+    ) -> TrackMetaResult:
         if self.ws.project.track_by_id(track_id) is None:
             raise unknown_track(track_id)
         if label is None and role is None and speaker is None:
@@ -262,14 +274,14 @@ class EpisodeService:
         )
         track = self.ws.project.track_by_id(track_id)
         assert track is not None
-        return {
-            "track_id": track_id,
-            "label": track.label,
-            "role": track.role.value if hasattr(track.role, "value") else str(track.role),
-            "speaker": track.speaker,
-        }
+        return TrackMetaResult(
+            track_id=track_id,
+            label=track.label,
+            role=track.role.value if hasattr(track.role, "value") else str(track.role),
+            speaker=track.speaker,
+        )
 
-    def set_track_volume(self, track_id: str, fader_db: float) -> dict:
+    def set_track_volume(self, track_id: str, fader_db: float) -> TrackVolumeResult:
         """Set a track's saved volume: the mix plays it at ``gain_db + fader_db``."""
         if self.ws.project.track_by_id(track_id) is None:
             raise unknown_track(track_id)
@@ -296,13 +308,13 @@ class EpisodeService:
         )
         track = self.ws.project.track_by_id(track_id)
         assert track is not None
-        return {
-            "track_id": track_id,
-            "fader_db": track.fader_db,
-            "output_gain_db": track.output_gain_db,
-        }
+        return TrackVolumeResult(
+            track_id=track_id,
+            fader_db=track.fader_db,
+            output_gain_db=track.output_gain_db,
+        )
 
-    def set_track_mute(self, track_id: str, muted: bool) -> dict:
+    def set_track_mute(self, track_id: str, muted: bool) -> TrackMuteResult:
         """Set a track's saved mix mute: the mix, play and bounce leave it out.
 
         The track stays on the timeline, so edits, stems and analysis cover it.
@@ -326,9 +338,9 @@ class EpisodeService:
         )
         track = self.ws.project.track_by_id(track_id)
         assert track is not None
-        return {"track_id": track_id, "muted": track.muted}
+        return TrackMuteResult(track_id=track_id, muted=track.muted)
 
-    def remove_track(self, track_id: str) -> dict:
+    def remove_track(self, track_id: str) -> TrackRemovedResult:
         if self.ws.project.track_by_id(track_id) is None:
             raise unknown_track(track_id)
 
@@ -348,7 +360,7 @@ class EpisodeService:
             operation="remove_track",
             params={"track_id": track_id},
         )
-        return {"track_id": track_id, "removed": True}
+        return TrackRemovedResult(track_id=track_id, removed=True)
 
     def summary(self) -> dict:
         """Compact project overview for ``podcast info`` (default output).
@@ -385,14 +397,14 @@ class EpisodeService:
             }
         return summary
 
-    def mark_streams_current(self) -> dict:
+    def mark_streams_current(self) -> StreamsCurrentResult:
         """Record that the user re-ran the steps listed for stale multi-stream media."""
         with self.ws.transaction() as p:
             p.meta.analysis_reads_first_audio_stream = True
             self.ws.save()
-        return {"analysis_reads_first_audio_stream": True}
+        return StreamsCurrentResult(analysis_reads_first_audio_stream=True)
 
-    def reorder_track(self, track_id: str, index: int) -> dict:
+    def reorder_track(self, track_id: str, index: int) -> TrackReorderedResult:
         """Move ``track_id`` to 0-based position ``index`` in ``timeline.tracks``."""
         if self.ws.project.track_by_id(track_id) is None:
             raise unknown_track(track_id)
@@ -413,8 +425,8 @@ class EpisodeService:
             params={"track_id": track_id, "index": index},
         )
         order = [t.id for t in self.ws.project.tracks]
-        return {
-            "track_id": track_id,
-            "index": order.index(track_id),
-            "track_ids": order,
-        }
+        return TrackReorderedResult(
+            track_id=track_id,
+            index=order.index(track_id),
+            track_ids=order,
+        )

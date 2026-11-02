@@ -2,6 +2,7 @@ import { type ReactNode, useId, useState } from "react";
 import { Button } from "../ui";
 import { ActionBar, type ActionBarProps } from "./ActionBar";
 import type { BarId } from "./editActionSets";
+import { isImeKey } from "./imeKey";
 import { SystemIcon } from "./SystemIcon";
 import { capsOf, hintOf, iconOf, verbOf } from "./verbDisplay";
 import { STAGES, type VerbId } from "./verbs";
@@ -194,9 +195,9 @@ export function ActionPrompt({
           value={note}
           onChange={(event) => setNote(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            if (event.key === "Enter" && !event.shiftKey && !isImeKey(event)) {
               event.preventDefault();
-              confirm();
+              if (!event.repeat) confirm();
             }
           }}
         />

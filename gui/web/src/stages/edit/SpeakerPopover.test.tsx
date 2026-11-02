@@ -145,6 +145,20 @@ describe("SpeakerPopover", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
+  it("closes once when Esc closes it while a move is pending", async () => {
+    const user = userEvent.setup();
+    let answer: (reason: string | undefined) => void = () => undefined;
+    const { onPick, onClose } = setup();
+    onPick.mockImplementationOnce(
+      () => new Promise<string | undefined>((resolve) => (answer = resolve)),
+    );
+    await opened();
+    await user.keyboard("{ArrowDown}{Enter}{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await act(async () => answer(undefined));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("closes on Esc and puts focus back on the margin name", async () => {
     const user = userEvent.setup();
     const { onClose } = setup();
@@ -289,6 +303,21 @@ describe("SpeakerPopover new speaker", () => {
     await user.keyboard("Priya Shah{Enter}");
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(onAddSpeaker.mock.calls).toEqual([["Priya Shah"]]);
+  });
+
+  it("closes once when an outside press closes it while a new speaker is pending", async () => {
+    const user = userEvent.setup();
+    let answer: (reason: string | undefined) => void = () => undefined;
+    const { onAddSpeaker, onClose } = setup();
+    onAddSpeaker.mockImplementationOnce(
+      () => new Promise<string | undefined>((resolve) => (answer = resolve)),
+    );
+    await add(user);
+    await user.keyboard("Dana{Enter}");
+    await user.click(document.body);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await act(async () => answer(undefined));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("refuses an empty name and a duplicate, case aside", async () => {

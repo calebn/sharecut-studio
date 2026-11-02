@@ -5,7 +5,7 @@ import { SRC_ROOT } from "../test/sourceFiles";
 import { importSpecifiers } from "../test/storyGovernance";
 
 /**
- * The three live-overlay production views must stay prop-only: no direct
+ * The two live-overlay production views must stay prop-only: no direct
  * import of the DAW store, the API layer, or the timeline-metrics context.
  * Reads real import specifiers (not raw text), so barrels like "../state"
  * are caught and comments are ignored. `followSync` (via `clock.ts`) still
@@ -14,7 +14,6 @@ import { importSpecifiers } from "../test/storyGovernance";
  */
 const VIEW_FILES = [
   "timeline/CommentPlaybackBubbleView.tsx",
-  "timeline/EnvelopeOverlayView.tsx",
   "timeline/JoinPopoverView.tsx",
 ];
 
