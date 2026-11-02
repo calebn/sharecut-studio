@@ -641,7 +641,7 @@ def test_ci_gate_requires_the_plan_and_every_planned_suite(
 ) -> None:
     gate = load_github_yaml(WORKFLOW)["jobs"][gate_name]
     assert gate["needs"] == ["changes", suite_name]
-    assert gate["if"] == "always()"
+    assert gate["if"] == "${{ always() && github.event.pull_request.draft != true }}"
     assert not gate.get("continue-on-error"), f"{CI_GATE_JOB} must fail the build"
     (step,) = gate["steps"]
     assert "if" not in step
