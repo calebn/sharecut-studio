@@ -240,7 +240,7 @@ read as landed, so no warning appears; `podcast record land` stages it again.
 
 Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
 (live notes — **same create path as review comments**, kind-scoped ACL: guests
-see only their own until landing). Later: `control` (start/stop/pause), `talk`
+see their own and every marker, other notes only when the host turns on `guests_see_notes`, until landing). Later: `control` (start/stop/pause), `talk`
 (producer push-to-talk), `video`. Roles are a **kind-scoped** map
 (`RECORD_ROLE_PRESETS` in `share_capabilities.py` / `contracts/caps.json`), not
 keys stuffed into review `REVIEW_ROLE_CAPABILITIES`: **guest** = `join monitor comment`;
@@ -882,7 +882,7 @@ Host-only `SetTarget` (payload `{"target": {"kind": "end"}}`, or a bare `"end"` 
 `POST /api/record/command`, `RecordControlService.set_target()`, `podcast record target end` and
 `record_target_tool` (`daw.record.setTarget`, command `record.setTarget`).
 
-**Guests see notes.** Host-only `SetGuestsSeeNotes` (payload `{"enabled": true}` or `{"enabled": false}`; `enabled` must be a real boolean, anything else is `invalid_record_request`) sets the snapshot field `guests_see_notes` (default `false`). It is accepted in every state (lobby, recording, paused, stopped), is idempotent, and reaches the room through `POST /api/record/command` and `RecordControlService.set_guests_see_notes()` (no CLI command or MCP tool yet; tracked in #3068). A guest always sees their own live comments and every marker, including other guests' markers (new with this setting, whatever the web client shows); other people's text notes only while the setting is on. A comment whose stored body is exactly `Marker` counts as a marker (the server trims surrounding spaces when it stores a comment, so a typed `Marker` with spaces counts too), even when typed as text. The filter applies to every guest-facing record event and snapshot (WebSocket join snapshot, `Applied` fanout and echoes); the host and producers always see all comments.
+**Guests see notes.** Host-only `SetGuestsSeeNotes` (payload `{"enabled": true}` or `{"enabled": false}`; `enabled` must be a real boolean, anything else is `invalid_record_request`) sets the snapshot field `guests_see_notes` (default `false`). It is accepted in every state (lobby, recording, paused, stopped), is idempotent, and reaches the room through `POST /api/record/command` and `RecordControlService.set_guests_see_notes()` (no CLI command or MCP tool yet; tracked in #3068). A guest always sees their own live comments and every marker, including other guests' markers; other people's text notes only while the setting is on. A comment whose stored body is exactly `Marker` counts as a marker (the server trims surrounding spaces when it stores a comment, so a typed `Marker` with spaces counts too), even when typed as text. The filter applies to every guest-facing record event and snapshot (WebSocket join snapshot, `Applied` fanout and echoes); the host and producers always see all comments.
 
 | Rule | Behavior |
 |------|----------|
@@ -1008,8 +1008,8 @@ field. Typed notes use the same path with a real `body`.
 the WS clock offset (± 250 ms); the **host rewrites** it on ingest from
 `pressed_wall_ms` + authoritative `pauses[]` / `session_start`. **Visibility
 before landing is host-enforced** (not a client-only filter): host and
-producers receive all live comments; a guest receives only their own. Session
-WS must not fan out other guests' rows to a guest.
+producers receive all live comments; a guest receives their own and every marker, and other guests' notes only while `guests_see_notes` is on. Session
+WS must not fan out other guests' notes to a guest while it is off.
 
 Stored in `record_live_comments` (same `sync.db`) until landing, keyed by
 client idempotency `id` (`live-…`). Comment commands are also appended to the
@@ -1768,7 +1768,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`,
 | Takes | Stop then Start: take 2 lands after take 1 + `take_gap_ms` (2 s) **even if take 1 is still uploading**; a participant absent from take 2 has no clip there; tracks = union; no re-consent prompt shown to already-consented clients; deleting take 1 is refused while its manifest is non-terminal; a tombstone voids in-flight ACK and leaves take 2 at offset 0. |
 | Cap / decline | 5th guest (or 3rd producer) gets the full-room page and never calls `getUserMedia`; a client that declines consent (Not now) sees the declined scrim and cannot rejoin as a guest until the room waits for a take. |
 | Producer transparency | With one producer present, every guest's roster shows a "Not recorded" group containing the producer; the consent copy contains the listeners sentence; producer joining mid-take fires the same join notification as a guest; roles cannot change during a take. |
-| Live comments | Guest adds a comment (`body` `"Marker"` or a note) at host recording clock 123.4 s in take 1: after landing, `review.comments[]` has one `TimelineComment` at `123.4 s ± 0.25 s` (no lead, no `title`/`metadata`) created through `add_comment` under `ProjectWorkspace.mutate()` (undo removes it); host rewrote `recording_ms` from `pressed_wall_ms` + `pauses[]`; a comment during PAUSED lands at the pause point; before landing the host and producer lists contain it, the other guest's list does not (host-enforced); deleting take 1 deletes its comments; a comment queued while a client was disconnected upserts once on reconnect (no duplicate); browser end-to-end in the Playwright US-1 scenario (`e2e/record-lobby.spec.ts`). |
+| Live comments | Guest adds a comment (`body` `"Marker"` or a note) at host recording clock 123.4 s in take 1: after landing, `review.comments[]` has one `TimelineComment` at `123.4 s ± 0.25 s` (no lead, no `title`/`metadata`) created through `add_comment` under `ProjectWorkspace.mutate()` (undo removes it); host rewrote `recording_ms` from `pressed_wall_ms` + `pauses[]`; a comment during PAUSED lands at the pause point; before landing the host and producer lists contain it, the other guest's list contains a `Marker` but not a note unless the host turned on `guests_see_notes` (host-enforced); deleting take 1 deletes its comments; a comment queued while a client was disconnected upserts once on reconnect (no duplicate); browser end-to-end in the Playwright US-1 scenario (`e2e/record-lobby.spec.ts`). |
 
 ## Next PR: recording links (checklist)
 
@@ -1867,7 +1867,7 @@ Shipped in `feat/recording-producer-live-comments`:
 - [x] Everyone in the room can add a timeline comment during REC or PAUSED (same `comment` cap). Host does not need `comment` on the default join/monitor cap list.
 - [x] `M` posts `body` `"Marker"` (guest `GuestRoomApp` window listener; host DAW listener exception while the Record stage is active — not a second DAW window listener). Typed notes use the same Comment command.
 - [x] Client idempotency `id`; host rewrites `recording_ms` from `pressed_wall_ms` + `pauses[]` / `session_start`; PAUSED comments land at the pause point.
-- [x] Visibility is host-enforced: host + producer see all; a guest sees only their own (WS Echo/Snapshot/Applied).
+- [x] Visibility is host-enforced: host + producer see all; a guest sees their own and every marker, plus other notes only while `guests_see_notes` is on (WS Echo/Snapshot/Applied).
 - [x] Stored in `record_live_comments` in `sync.db`; snapshot attaches unlanded rows. Landing uses `add_comment` under `ProjectWorkspace.mutate()` at `take_offset_s + recording_ms/1000` (no lead/title/metadata; `take_offset_s` includes the session origin).
 - [x] Discard take deletes sqlite rows and `review.comments[]` with those ids. Reconnect queue `record:{token}:comments` upserts once.
 - [x] Host agents drop the same marker with MCP `record_marker_tool` or CLI `podcast record marker [--body]`, through `RecordControlService.marker` and the host Comment command (#1140).
