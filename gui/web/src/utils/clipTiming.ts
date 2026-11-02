@@ -48,6 +48,30 @@ export function clipTotalDelta(clip: Pick<ClipRow, "timing">): number {
   return total;
 }
 
+export function clipTimingDelta(
+  clip: Pick<
+    ClipRow,
+    | "timing"
+    | "timing_steps"
+    | "source_start"
+    | "source_end"
+    | "timeline_start"
+    | "timeline_end"
+  >,
+): number {
+  if (clip.timing) {
+    return clipTotalDelta(clip);
+  }
+  if ((clip.timing_steps ?? 0) > 0) {
+    return (
+      clip.timeline_end -
+      clip.timeline_start -
+      (clip.source_end - clip.source_start)
+    );
+  }
+  return 0;
+}
+
 export function clipTimelineEnd(clip: TimedPlacement): number {
   return (
     clip.timeline_start +

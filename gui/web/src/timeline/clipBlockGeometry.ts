@@ -6,7 +6,7 @@ import {
 } from "../edit/clipEdgePreview";
 import type { ClipRow } from "../types/project";
 import {
-  clipTotalDelta,
+  clipTimingDelta,
   livePieces,
   stepsWithin,
   type VirtualPiece,
@@ -29,9 +29,7 @@ export interface ClipBlockGeometry {
   sourceStart: number;
   sourceEnd: number;
   durationSec: number;
-  /** Timeline length of the live range: `durationSec` plus the holes and skips of a timed clip. */
   spanSec: number;
-  /** Constant-shift pieces of the live range; `tlA` is seconds from the clip's left edge. */
   pieces: VirtualPiece[];
   /** Timeline x and width of the clip's border box (css px). */
   left: number;
@@ -105,7 +103,7 @@ export function clipBlockGeometry(input: {
         (sum, step) => sum + step.delta_sec,
         0,
       )
-    : 0;
+    : clipTimingDelta(clip);
   const spanSec = durationSec + liveDelta;
   const pieces = clip.timing
     ? livePieces(clip, sourceStart, sourceEnd, 0)
@@ -113,7 +111,8 @@ export function clipBlockGeometry(input: {
   const width = Math.max(4, spanSec * zoomPxPerSec);
   const committedWidth = Math.max(
     4,
-    (clip.source_end - clip.source_start + clipTotalDelta(clip)) * zoomPxPerSec,
+    (clip.source_end - clip.source_start + clipTimingDelta(clip)) *
+      zoomPxPerSec,
   );
   const fadeInMs = fadePreview?.inMs ?? clip.fade_in_ms;
   const fadeOutMs = fadePreview?.outMs ?? clip.fade_out_ms;
@@ -133,7 +132,7 @@ export function clipBlockGeometry(input: {
   const gapMode = trimPreview?.mode === "gap";
   const rippleSec =
     trimPreview != null && !rollActive && !gapMode
-      ? spanSec - (clip.source_end - clip.source_start + clipTotalDelta(clip))
+      ? spanSec - (clip.source_end - clip.source_start + clipTimingDelta(clip))
       : 0;
   const landing =
     Math.abs(headShift) > 1e-9 && !gapMode

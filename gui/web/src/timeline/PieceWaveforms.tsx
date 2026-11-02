@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useDawStore } from "../state/dawStore";
 import type { VirtualPiece } from "../utils/clipTiming";
 import type { MediaRef, WaveformKind } from "../waveform/types";
@@ -28,28 +28,23 @@ export function PieceWaveforms({
   gainDb,
 }: Props) {
   const culled = pieces.length > PIECE_CULL_MIN;
-  const window = useDawStore(
-    useCallback(
-      (s: { scrollLeft: number; timelineViewportWidth: number }) =>
-        culled
-          ? visiblePieceRange({
-              pieces,
-              leftCss,
-              zoom,
-              scrollLeft: s.scrollLeft,
-              viewportWidth: s.timelineViewportWidth,
-            }).join(":")
-          : "",
-      [culled, pieces, leftCss, zoom],
+  const [first, last] = useDawStore(
+    useShallow((s: { scrollLeft: number; timelineViewportWidth: number }) =>
+      culled
+        ? visiblePieceRange({
+            pieces,
+            leftCss,
+            zoom,
+            scrollLeft: s.scrollLeft,
+            viewportWidth: s.timelineViewportWidth,
+          })
+        : [0, pieces.length - 1],
     ),
   );
-  const [lo, hi] = culled
-    ? window.split(":").map(Number)
-    : [0, pieces.length - 1];
   return (
     <>
       {pieces.map((piece, i) =>
-        i < lo! || i > hi! ? null : (
+        i < first! || i > last! ? null : (
           <span
             key={`${piece.srcA}-${piece.tlA}`}
             data-testid={timelineTestIds.waveformPiece}
