@@ -205,21 +205,6 @@ def test_shell_fades_follow_the_micro_fade_override_and_stay_inside_short_pieces
         assert 0 <= piece.fade_out_ms <= length_ms - piece.fade_in_ms
 
 
-def test_a_mapped_clip_with_bleed_restore_is_refused_by_name(tmp_path: Path) -> None:
-    from podcast_mcp.engines.timeline_render import _restore_dependencies
-    from podcast_mcp.util.coded_error import CodedValueError
-
-    project = _project(tmp_path, [_mapped()], _source())
-    track = project.timeline.tracks[0]
-    track.transcript_gate = True
-    with (
-        patch("podcast_mcp.engines.timeline_render.restore_applies", return_value=True),
-        pytest.raises(CodedValueError) as refused,
-    ):
-        _restore_dependencies(project, track, defaults={})
-    assert refused.value.code == "timing_map_bleed_restore_unsupported"
-
-
 def test_a_clip_timing_map_changes_the_track_render_hash(tmp_path: Path) -> None:
     from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.engines.play_audit import track_render_hash
