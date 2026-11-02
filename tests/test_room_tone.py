@@ -1756,7 +1756,7 @@ def test_ranking_reads_only_the_nearest_few_windows_a_peer_is_loud_over(
 
     picked = room_tone_module._pick_sample(track, near_sec=0.0, duration_sec=1.0, clear=clear)
 
-    assert len(asked) == room_tone_module.MAX_RANKED
+    assert len({int(span[0] // 10) for span in asked}) == room_tone_module.MAX_RANKED
     assert isinstance(picked, room_tone_module.OwnQuietSample)
     assert picked.sample.start == asked[-1][0]
 
@@ -1786,7 +1786,7 @@ def test_a_measured_window_among_the_nearest_few_beats_uncovered_ones_and_reads_
 
     assert isinstance(picked, room_tone_module.OwnQuietSample)
     assert picked.sample.start == 30.0
-    assert len(asked) == room_tone_module.MAX_RANKED
+    assert len({int(start // 10) for start in asked}) == room_tone_module.MAX_RANKED
 
 
 def test_a_peer_recording_that_ends_early_does_not_reject_later_room_tone(tmp_path: Path) -> None:
@@ -1926,3 +1926,31 @@ def test_a_long_quiet_run_is_tried_at_other_offsets_when_the_nearest_window_is_u
 
     assert isinstance(picked, room_tone_module.OwnQuietSample)
     assert (picked.sample.start, picked.sample.end) == (9.0, 10.0)
+
+
+def test_one_long_run_does_not_use_up_the_ranking_before_a_later_quiet_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    track = room_tone_module.TrackFloor(
+        path=Path("x.wav"), floor_db=-60.0, speech_db=None, runs=((0.0, 10.0), (50.0, 52.0))
+    )
+    monkeypatch.setattr(
+        room_tone_module,
+        "_measure",
+        lambda _t, span: room_tone_module.Sample(span[0], span[1], -70.0, None),
+    )
+    monkeypatch.setattr(room_tone_module, "rejection", lambda *_a: None)
+
+    def clear(span: tuple[float, float]) -> float:
+        return 10.0 if span[1] <= 10.0 else 0.0
+
+    picked = room_tone_module._pick_sample(track, near_sec=2.0, duration_sec=1.0, clear=clear)
+
+    assert isinstance(picked, room_tone_module.OwnQuietSample)
+    assert picked.sample.start >= 50.0
+
+
+def test_a_long_run_is_offered_at_its_nearest_start_middle_and_end_windows() -> None:
+    windows = room_tone_module._window_offsets((0.0, 10.0), 1.0, 1.0)
+
+    assert windows == [(0.5, 1.5), (0.0, 1.0), (4.5, 5.5), (9.0, 10.0)]
