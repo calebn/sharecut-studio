@@ -162,12 +162,6 @@ button.sys-composer-chip {
     min-block-size: var(--touch-min);
     block-size: var(--touch-min);
   }
-
-  button.sys-comment-main,
-  .sys-comment-actions .sys-comment-action,
-  .sys-comment-footer .ui-control {
-    min-block-size: var(--touch-min);
-  }
 }
 
 .sys-comment {
@@ -326,4 +320,12 @@ button.sys-comment-main:hover {
   align-items: center;
   gap: var(--space-1);
   margin-inline-start: auto;
+}
+
+/* After the base rules so the floor wins at equal specificity. */
+@media (pointer: coarse) {
+  button.sys-comment-main,
+  .sys-comment-action {
+    min-block-size: var(--touch-min);
+  }
 }

@@ -337,19 +337,15 @@ describe("CommentCard touch floor", () => {
     join(SRC_ROOT, "styles/partials/system-comment.css"),
     "utf8",
   );
-  const coarse = css.slice(css.indexOf("@media (pointer: coarse) {"));
 
-  it("lifts the row button, action rows and footer buttons to the touch minimum", () => {
-    for (const selector of [
-      "button\\.sys-comment-main",
-      "\\.sys-comment-actions \\.sys-comment-action",
-      "\\.sys-comment-footer \\.ui-control",
-    ])
-      expect(coarse).toMatch(
-        new RegExp(
-          `${selector}[^{]*\\{[^}]*min-block-size: var\\(--touch-min\\)`,
-        ),
-      );
+  it("declares the touch minimum after every base rule for the row and action rows", () => {
+    const floor = css.lastIndexOf("@media (pointer: coarse) {");
+    const block = css.slice(floor);
+    for (const selector of ["button.sys-comment-main", ".sys-comment-action"]) {
+      expect(block).toContain(selector);
+      expect(css.lastIndexOf(`\n${selector}`)).toBeLessThan(floor);
+    }
+    expect(block).toContain("min-block-size: var(--touch-min)");
   });
 
   it("renders the title row as a plain div with no dead modifier class", () => {
