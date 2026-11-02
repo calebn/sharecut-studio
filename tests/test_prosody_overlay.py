@@ -39,15 +39,17 @@ def test_prosody_overlay_maps_seeded_profile(minimal_project):
     assert host["status"] == "fresh"
     assert len(host["segments"]) == 1
     seg = host["segments"][0]
-    assert seg["spans"] == pytest.approx([{"start": 0.0, "end": 2.0}])
+    assert [(s["start"], s["end"]) for s in seg["spans"]] == [pytest.approx((0.0, 2.0))]
     assert seg["trend"] == "falling"
     assert "F0" in seg["line"]
 
     thirds = seg["energy_thirds"]
     assert [t["db"] for t in thirds] == pytest.approx([62.0, 60.0, 58.0])
-    assert thirds[0]["spans"] == pytest.approx([{"start": 0.0, "end": 2.0 / 3.0}])
-    assert thirds[1]["spans"] == pytest.approx([{"start": 2.0 / 3.0, "end": 4.0 / 3.0}])
-    assert thirds[2]["spans"] == pytest.approx([{"start": 4.0 / 3.0, "end": 2.0}])
+    assert [(s["start"], s["end"]) for s in thirds[0]["spans"]] == [pytest.approx((0.0, 2.0 / 3.0))]
+    assert [(s["start"], s["end"]) for s in thirds[1]["spans"]] == [
+        pytest.approx((2.0 / 3.0, 4.0 / 3.0))
+    ]
+    assert [(s["start"], s["end"]) for s in thirds[2]["spans"]] == [pytest.approx((4.0 / 3.0, 2.0))]
 
     assert len(host["boundaries"]) == 1
     boundary = host["boundaries"][0]
@@ -82,15 +84,15 @@ def test_prosody_overlay_follows_cuts(minimal_project):
     seg = host["segments"][0]
     # The two clips' timeline ranges (0-1, 1-1.5) are contiguous, so map_source_span
     # (SessionTimeline) merges them into one span.
-    assert seg["spans"] == pytest.approx([{"start": 0.0, "end": 1.5}])
+    assert [(s["start"], s["end"]) for s in seg["spans"]] == [pytest.approx((0.0, 1.5))]
 
     boundary = host["boundaries"][0]
     assert boundary["timeline_sec"] == pytest.approx(1.5)
 
     middle = seg["energy_thirds"][1]
-    assert middle["spans"] == pytest.approx([{"start": 2.0 / 3.0, "end": 1.0}])
+    assert [(s["start"], s["end"]) for s in middle["spans"]] == [pytest.approx((2.0 / 3.0, 1.0))]
     last = seg["energy_thirds"][2]
-    assert last["spans"] == pytest.approx([{"start": 1.0, "end": 1.5}])
+    assert [(s["start"], s["end"]) for s in last["spans"]] == [pytest.approx((1.0, 1.5))]
 
 
 def test_prosody_overlay_stale_keeps_data(minimal_project):
