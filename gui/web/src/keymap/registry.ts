@@ -132,7 +132,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "hasProject",
+    when: "stageAllowed:record",
     notes: `Mod+1; ${BROWSER_TAB_CHORD_NOTE}, so use the Stage bar there (desktop app unaffected)`,
   },
   {
@@ -143,7 +143,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "hasProject",
+    when: "stageAllowed:prepare",
     notes: `Mod+2; ${BROWSER_TAB_CHORD_NOTE}, so use the Stage bar there (desktop app unaffected)`,
   },
   {
@@ -154,7 +154,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "hasProject",
+    when: "stageAllowed:edit",
     notes: `Mod+3; ${BROWSER_TAB_CHORD_NOTE}, so use the Stage bar there (desktop app unaffected)`,
   },
   {
@@ -165,7 +165,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "hasProject",
+    when: "stageAllowed:review",
     notes: `Mod+4; ${BROWSER_TAB_CHORD_NOTE}, so use the Stage bar there (desktop app unaffected)`,
   },
   {
@@ -176,7 +176,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "hasProject",
+    when: "stageAllowed:deliver",
     notes: `Mod+5; ${BROWSER_TAB_CHORD_NOTE}, so use the Stage bar there (desktop app unaffected)`,
   },
   {

@@ -418,6 +418,39 @@ describe("command governance", () => {
     clearRegisteredCommands();
   });
 
+  it("gates stage navigation and history on the link's role", () => {
+    const stages = ["record", "prepare", "edit", "review", "deliver"] as const;
+    for (const stage of stages) {
+      expect(COMMANDS[`stage.${stage}`].when).toBe(`stageAllowed:${stage}`);
+    }
+    expect(COMMANDS["edit.history"].when).toBe("canEditMix");
+    const project = { meta: { name: "t" }, tracks: [] } as never;
+    const open = (mode: string | null) => {
+      useDawStore.setState({
+        projectPath: mode ? "share:token" : "/tmp/ep",
+        guestMode: mode,
+        project,
+      });
+      const ctx = buildCommandContext();
+      return stages.filter(
+        (stage) => evaluateWhen(`stageAllowed:${stage}`, ctx).ok,
+      );
+    };
+    expect(open(null)).toEqual([...stages]);
+    expect(open("edit")).toEqual(["edit", "review", "deliver"]);
+    expect(open("comment")).toEqual(["review"]);
+    expect(open("view")).toEqual(["review"]);
+    expect(evaluateWhen("stageAllowed:record", buildCommandContext()).ok).toBe(
+      false,
+    );
+    expect(evaluateWhen("canEditMix", buildCommandContext()).ok).toBe(false);
+    useDawStore.setState({ project: null });
+    expect(evaluateWhen("stageAllowed:edit", buildCommandContext())).toEqual({
+      ok: false,
+      reason: "No project loaded",
+    });
+  });
+
   it("canUndo and canRedo follow the history flags, canUndo also in-flight saves and guests", async () => {
     const history = (can_undo: boolean, can_redo: boolean) =>
       ({
