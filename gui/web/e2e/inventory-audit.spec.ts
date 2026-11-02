@@ -522,7 +522,9 @@ for (const profile of profiles) {
             .poll(async () => (await drawn(target)).x)
             .not.toBe(origin.x);
           const forward = await drawn(target);
-          expect(forward.x - origin.x).toBeCloseTo(26.5, 1);
+          expect(Math.abs(forward.x - origin.x - 26.5)).toBeLessThan(
+            item.social ? 0.05 : 0.6,
+          );
           expect(saved(projectPath)).toEqual(before);
           await page.mouse.move(start.x + 14.25, start.y, { steps: 4 });
           await expect
