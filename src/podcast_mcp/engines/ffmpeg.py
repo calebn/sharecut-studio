@@ -183,8 +183,17 @@ def automatic_gain_expression(
     return gain
 
 
+def logged_headroom_trim_db(true_peak_db: float | None, ceiling_db: float) -> float:
+    """``headroom_trim_db``, logging when the mix is trimmed."""
+    trim = headroom_trim_db(true_peak_db, ceiling_db)
+    if trim < 0:
+        log.info("mix peaks at %s dBTP; trimmed %s dB to %s dBTP", true_peak_db, trim, ceiling_db)
+    return trim
+
+
 # 3: use the completed graph's true-peak summary for headroom trim (#855).
-MIX_SEMANTICS_REV = 3
+# 4: premixes cached with trim 0.0 from an unmeasured peak must re-mix (#2890).
+MIX_SEMANTICS_REV = 4
 
 MASTER_SEMANTICS_REV = 1
 
@@ -2028,11 +2037,7 @@ class FFmpegEngine:
 
     def peak_trim_db(self, track_wavs: list[tuple[Path, float]], ceiling_db: float) -> float:
         """Gain (<= 0 dB) that brings the unity sum's true peak down to ``ceiling_db``."""
-        peak = self.mix_peak_db(track_wavs, ceiling_db)
-        trim = headroom_trim_db(peak, ceiling_db)
-        if trim < 0:
-            log.info("mix peaks at %s dBTP; trimmed %s dB to %s dBTP", peak, trim, ceiling_db)
-        return trim
+        return logged_headroom_trim_db(self.mix_peak_db(track_wavs, ceiling_db), ceiling_db)
 
     def loudnorm_input_stats(
         self,

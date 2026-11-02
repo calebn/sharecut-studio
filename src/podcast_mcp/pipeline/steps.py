@@ -14,7 +14,7 @@ from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.edits.cut_application import apply_suggested_to_project
 from podcast_mcp.engines import TranscriptionEngine
-from podcast_mcp.engines.ffmpeg import headroom_trim_db
+from podcast_mcp.engines.ffmpeg import logged_headroom_trim_db
 from podcast_mcp.engines.mastering import (
     MasterQcLimits,
     MasterResult,
@@ -1022,7 +1022,7 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         # cancelled mix keeps the old premix and hash, and no reader pairs old hash, new bytes.
         ceiling = mix_peak_ceiling_db(defaults)
         peak = eng.mix_peak_db(inputs, ceiling)
-        trim = headroom_trim_db(peak, ceiling)
+        trim = logged_headroom_trim_db(peak, ceiling)
         render_atomic(
             premix_path(project),
             lambda tmp: eng.mix_tracks(inputs, tmp, trim_db=trim),
@@ -1110,7 +1110,7 @@ def read_master_qc(project: EpisodeProject) -> dict[str, Any] | None:
     if measured is None:
         return qc
     if not isinstance(measured, dict) or not all(
-        v is None or (isinstance(v, (int, float)) and not isinstance(v, bool))
+        v is None or (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v))
         for v in measured.values()
     ):
         return None
