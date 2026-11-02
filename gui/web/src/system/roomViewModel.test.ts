@@ -123,6 +123,43 @@ describe("roomViewModel tiles", () => {
     expect(full.tiles).toHaveLength(5);
   });
 
+  it("turns a declined or left guest's tile into an Invite slot for the host", () => {
+    const model = roomViewModel(
+      base({
+        role: "host",
+        people: [
+          host({ you: true }),
+          guest(JON, { presence: "declined" }),
+          guest(ANNEKE, { presence: "left" }),
+          guest(JOSS),
+        ],
+      }),
+    );
+    expect(model.tiles.map((tile) => tile.kind)).toEqual([
+      "person",
+      "person",
+      "invite",
+      "invite",
+    ]);
+  });
+
+  it("keeps a declined guest's tile for the guest and for a host who cannot invite", () => {
+    const people = [host(), guest(JON, { presence: "declined", you: true })];
+    expect(
+      roomViewModel(base({ role: "guest", people })).tiles.map((t) => t.kind),
+    ).toEqual(["person", "person"]);
+    expect(
+      roomViewModel(base({ role: "host", invite: false, people })).tiles,
+    ).toHaveLength(2);
+  });
+
+  it("never turns the host's own left tile into an Invite slot", () => {
+    const model = roomViewModel(
+      base({ role: "host", people: [host({ you: true, presence: "left" })] }),
+    );
+    expect(model.tiles[0]?.kind).toBe("person");
+  });
+
   it("gives no Invite slots when the host has no invite handler", () => {
     const model = roomViewModel(
       base({ role: "host", invite: false, people: [host({ you: true })] }),
@@ -169,6 +206,16 @@ describe("roomViewModel dock and rail", () => {
         .showComment,
     ).toBe(false);
     expect(roomViewModel(base({ phase: LIVE })).showComment).toBe(true);
+    expect(
+      roomViewModel(base({ phase: { kind: "paused", clockSec: 4 } }))
+        .showComment,
+    ).toBe(true);
+    expect(
+      roomViewModel(base({ phase: { kind: "reconnecting" } })).showComment,
+    ).toBe(true);
+    expect(roomViewModel(base({ phase: { kind: "saved" } })).showComment).toBe(
+      false,
+    );
     expect(
       roomViewModel(base({ role: "producer", phase: LIVE })).dockSeat,
     ).toBe("producer");
