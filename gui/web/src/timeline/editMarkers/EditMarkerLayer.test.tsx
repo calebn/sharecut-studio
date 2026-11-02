@@ -70,7 +70,12 @@ describe("EditMarkerLayer glyphs", () => {
     expect(onSelectJoin.mock.calls[0][0]).toMatchObject({
       clipId: "s1",
       sec: 2,
+      kind: "join-cut",
     });
+    expect(useDawStore.getState().openJoinId).toBe("s1");
+    fireEvent.click(screen.getByRole("button", { name: /join at 0:02\.0$/ }));
+    expect(onSelectJoin).toHaveBeenCalledTimes(2);
+    expect(useDawStore.getState().openJoinId).toBeNull();
   });
 
   it.each([

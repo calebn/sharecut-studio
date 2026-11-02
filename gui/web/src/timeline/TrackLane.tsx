@@ -39,7 +39,7 @@ import { sessionSecOf } from "../utils/zoom";
 import { clipMediaRef } from "../waveform/mediaRef";
 import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
-import { appliedEditTicks } from "./appliedEditTicks";
+import { appliedEditTicks, seamTickAtJoin } from "./appliedEditTicks";
 import { BleedAttenuationOverlay } from "./BleedAttenuationOverlay";
 import { ClipBlock } from "./ClipBlock";
 import {
@@ -119,9 +119,6 @@ interface TrackLaneProps {
   /** Prosody overlay row for this lane when the layer is on (#719). */
   prosody?: ProsodyOverlayTrack | null;
 }
-
-/** A join glyph and an applied seam are the same moment when their timeline seconds agree to a frame. */
-const SEAM_MATCH_SEC = 0.02;
 
 export function TrackLaneView({
   track,
@@ -233,22 +230,16 @@ export function TrackLaneView({
       onSelectClip(trackId, clipId, mods),
     [onSelectClip, trackId],
   );
-  // A join that is a cut sits at an applied seam: the glyph selects that record too.
-  const seamTicks = useMemo(
-    () =>
-      appliedEditTicks(appliedRecords, trackId, clips).filter(
-        (t) => t.kind === "seam" && !t.mute,
-      ),
+  const appliedTicks = useMemo(
+    () => appliedEditTicks(appliedRecords, trackId, clips),
     [appliedRecords, trackId, clips],
   );
   const onSelectJoin = useCallback(
     (mark: JoinMark) => {
-      const tick = seamTicks.find(
-        (t) => Math.abs(t.sec - mark.sec) <= SEAM_MATCH_SEC,
-      );
+      const tick = seamTickAtJoin(appliedTicks, mark);
       if (tick) onSelectApplied(trackId, tick.recordId);
     },
-    [seamTicks, onSelectApplied, trackId],
+    [appliedTicks, onSelectApplied, trackId],
   );
   const selectPending = useCallback(
     (id: string) => onSelectPending(trackId, id),
