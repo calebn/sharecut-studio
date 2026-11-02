@@ -31,11 +31,13 @@ import {
   ApiError,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../../utils/apiError";
+import { COMMENT_NAME_MAX } from "../../utils/commentAuthor";
 import { pendingEditTimingFieldId } from "../../utils/pendingEditTimingField";
 import { PendingEditBody } from "./PendingEditBody";
 
 const createComment = vi.fn();
 const patchComment = vi.fn();
+const setCommentActionDone = vi.fn();
 const refreshProject = vi.fn();
 const approveEdits = vi.fn();
 const waiveTranscriptRefine = vi.fn();
@@ -62,6 +64,8 @@ vi.mock("../../audio/pendingPreview", async (importOriginal) => ({
 vi.mock("../../api", () => ({
   createComment: (...args: unknown[]) => createComment(...args),
   patchComment: (...args: unknown[]) => patchComment(...args),
+  setCommentActionDone: (...args: unknown[]) => setCommentActionDone(...args),
+  addCommentReply: vi.fn(),
   refreshProject: (...args: unknown[]) => refreshProject(...args),
   approveEdits: (...args: unknown[]) => approveEdits(...args),
   waiveTranscriptRefine: (...args: unknown[]) => waiveTranscriptRefine(...args),
@@ -503,6 +507,53 @@ describe("PendingEditBody", () => {
     );
   });
 
+  it("posts the Ask with Enter and keeps the name field visible", async () => {
+    const user = userEvent.setup();
+    createComment.mockResolvedValue(
+      sampleComment({ edit_decision_id: "ed1", body: "Why?" }),
+    );
+    render(<PendingEditBody edit={sessionCut} />);
+    expect(screen.getByRole("textbox", { name: "Your name" })).toBeTruthy();
+    await user.type(
+      screen.getByPlaceholderText("Ask for more context before deciding…"),
+      "Why?{Enter}",
+    );
+    expect(createComment).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      expect.objectContaining({ body: "Why?", editDecisionId: "ed1" }),
+    );
+  });
+
+  it("limits the Ask name to the server's cap", async () => {
+    const user = userEvent.setup();
+    render(<PendingEditBody edit={sessionCut} />);
+    const name = screen.getByRole("textbox", { name: "Your name" });
+    await user.clear(name);
+    await user.type(name, "x".repeat(COMMENT_NAME_MAX + 20));
+    expect((name as HTMLInputElement).value).toHaveLength(COMMENT_NAME_MAX);
+  });
+
+  it("shows the Ask thread as a system card with Reply compose", () => {
+    const comment = sampleComment({
+      edit_decision_id: "ed1",
+      body: "Why this cut?",
+    });
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/p.json",
+        minimalProject({ pending_edits: [sessionCut], comments: [comment] }),
+      );
+    render(<PendingEditBody edit={sessionCut} />);
+    const region = screen.getByRole("region", { name: "Ask about this edit" });
+    expect(within(region).getByText("Why this cut?")).toBeTruthy();
+    const list = region.querySelector(".pending-ask-list");
+    expect(list).not.toBeNull();
+    expect(list?.tagName).toBe("DIV");
+    expect(list?.querySelector(":scope > .sys-comment")).not.toBeNull();
+    expect(within(region).getByRole("button", { name: "Reply" })).toBeTruthy();
+  });
+
   it("resolves and reopens a linked Ask thread through the command", async () => {
     const user = userEvent.setup();
     const comment = sampleComment({ edit_decision_id: "ed1" });
@@ -586,6 +637,120 @@ describe("PendingEditBody", () => {
       key,
       expect.objectContaining({ author: "Guest" }),
     );
+  });
+
+  const actionComment = () =>
+    sampleComment({
+      edit_decision_id: "ed1",
+      action_items: [
+        { id: "a1", text: "Tighten the open", done: false, completed_by: null },
+      ] as never,
+    });
+
+  const actionList = () => screen.getByRole("list", { name: "Action items" });
+
+  function hydrateGuestWithThread(caps: string[]) {
+    const key = shareProjectKey("tok");
+    useDawStore.getState().hydrate(
+      key,
+      {
+        ...minimalProject(),
+        pending_edits: [sessionCut],
+        comments: [actionComment()],
+      },
+      "comment",
+      caps,
+    );
+    return key;
+  }
+
+  it("shows a guest the thread without Resolve, action items or toggles", () => {
+    hydrateGuestWithThread(["play", "view", "comment", "reply"]);
+    render(<PendingEditBody edit={sessionCut} />);
+    const region = screen.getByRole("region", { name: "Ask about this edit" });
+    expect(within(region).getByText("Needs a tighter open")).toBeTruthy();
+    expect(
+      within(region).queryByRole("button", { name: "Resolve" }),
+    ).toBeNull();
+    expect(within(region).queryByText("Tighten the open")).toBeNull();
+    expect(
+      within(region).queryByRole("list", { name: "Action items" }),
+    ).toBeNull();
+    expect(within(region).queryByRole("checkbox")).toBeNull();
+  });
+
+  it("shows a host the action items with a toggle", () => {
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        pending_edits: [sessionCut],
+        comments: [actionComment()],
+      }),
+    );
+    render(<PendingEditBody edit={sessionCut} />);
+    expect(screen.getByText("Tighten the open")).toBeTruthy();
+    expect(within(actionList()).getByRole("checkbox")).toBeTruthy();
+  });
+
+  it("gives a viewer without reply capability a thread but no composer", () => {
+    // "comment" implies "reply" (hasShareCapability), so a viewer is the
+    // lowest role that lacks reply.
+    hydrateGuestWithThread(["play", "view"]);
+    render(<PendingEditBody edit={sessionCut} />);
+    const region = screen.getByRole("region", { name: "Ask about this edit" });
+    expect(within(region).getByText("Needs a tighter open")).toBeTruthy();
+    expect(within(region).queryByRole("textbox")).toBeNull();
+    expect(within(region).queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it("gates the thread composer on reply, not on comment", () => {
+    hydrateGuestWithThread(["play", "view", "reply"]);
+    render(<PendingEditBody edit={sessionCut} />);
+    const region = screen.getByRole("region", { name: "Ask about this edit" });
+    expect(within(region).getByRole("button", { name: "Reply" })).toBeTruthy();
+  });
+
+  it("posts the length-limited, markup-stripped name as the author", async () => {
+    const user = userEvent.setup();
+    createComment.mockResolvedValue(sampleComment({ edit_decision_id: "ed1" }));
+    render(<PendingEditBody edit={sessionCut} />);
+    const name = screen.getByRole("textbox", { name: "Your name" });
+    await user.clear(name);
+    await user.click(name);
+    await user.paste(`<b>Zoë</b>${"é".repeat(COMMENT_NAME_MAX + 10)}`);
+    const expected = Array.from(`bZoë/b${"é".repeat(COMMENT_NAME_MAX + 10)}`)
+      .slice(0, COMMENT_NAME_MAX)
+      .join("");
+    expect((name as HTMLInputElement).value).toBe(expected);
+    await user.type(
+      screen.getByPlaceholderText("Ask for more context before deciding…"),
+      "Why?",
+    );
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    expect(createComment).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      expect.objectContaining({ author: expected }),
+    );
+    expect(expected).not.toMatch(/[<>]/);
+  });
+
+  it("ignores Resolve and action toggles while a thread change is in flight", async () => {
+    const user = userEvent.setup();
+    patchComment.mockReset().mockReturnValue(new Promise(() => {}));
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        pending_edits: [sessionCut],
+        comments: [actionComment()],
+      }),
+    );
+    render(<PendingEditBody edit={sessionCut} />);
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
+    await waitFor(() => expect(patchComment).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
+    await user.click(within(actionList()).getByRole("checkbox"));
+    expect(patchComment).toHaveBeenCalledTimes(1);
+    expect(setCommentActionDone).not.toHaveBeenCalled();
   });
 
   it("hides Ask compose from a Viewer, who cannot comment", () => {
