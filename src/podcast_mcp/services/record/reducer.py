@@ -295,7 +295,7 @@ def apply_record_command(
         out.target = session_target
         return out
     if ctype == "SetGuestsSeeNotes":
-        out.guests_see_notes = bool(cmd.payload.get("enabled"))
+        out.guests_see_notes = cmd.payload["enabled"]
         return out
     if ctype == "Pause":
         if out.state != "recording":
