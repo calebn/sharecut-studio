@@ -13,7 +13,7 @@ import {
   pendingOffersCut,
   registerPendingDecider,
 } from "../../commands/pendingDecision";
-import { CommentCard, CommentCompose, useCommentActions } from "../../comments";
+import { useCommentActions } from "../../comments";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import {
   REFINE_GATE_GUI_MESSAGE,
@@ -31,6 +31,8 @@ import {
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import { CommentCard } from "../../system/CommentCard";
+import { Composer } from "../../system/Composer";
 import { KIND_META } from "../../system/decisionKinds";
 import { ScrubField } from "../../system/ScrubField";
 import { SystemIcon } from "../../system/SystemIcon";
@@ -49,6 +51,7 @@ import {
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../../utils/apiError";
 import {
+  limitCommentName,
   resolveCommentActor,
   sessionDisplayName,
 } from "../../utils/commentAuthor";
@@ -63,6 +66,7 @@ import {
 } from "../../utils/pendingReviewPass";
 import type { PreviewMode } from "../../utils/playRange";
 import { formatTimeMs, parseTimecode } from "../../utils/time";
+import { commentCardOf } from "../hosts/commentCardData";
 import { PendingPreview } from "./PendingPreview";
 import { usePendingCutSuggestion } from "./usePendingCutSuggestion";
 import { usePendingEditWarm } from "./usePendingEditWarm";
@@ -204,6 +208,7 @@ export function PendingEditBody({
     setError: setThreadError,
     resolve,
     reply,
+    toggleAction,
   } = useCommentActions({ role, author, setAuthor });
 
   const thread = useMemo(
@@ -212,6 +217,17 @@ export function PendingEditBody({
       null,
     [project?.comments, edit.id],
   );
+
+  // Viewers who cannot apply see the thread without its action items.
+  const askCard = useMemo(() => {
+    if (!thread) return null;
+    const card = commentCardOf(
+      thread,
+      thread.resolved,
+      project?.timeline_duration_sec ?? Number.NaN,
+    );
+    return canApply ? card : { ...card, actions: [] };
+  }, [thread, canApply, project?.timeline_duration_sec]);
 
   useEffect(() => {
     setError(null);
@@ -868,17 +884,28 @@ export function PendingEditBody({
           aria-label="Ask about this edit"
         >
           <h3>Ask</h3>
-          {thread ? (
-            <ul className="pending-ask-list">
+          {thread && askCard ? (
+            <div className="pending-ask-list">
               <CommentCard
-                comment={thread}
-                guestShare={!canApply}
-                showResolve={canApply}
-                showReply={false}
-                showActions={canApply}
-                onResolve={(resolved) => void resolve(thread, resolved)}
+                comment={askCard}
+                onResolve={
+                  canApply
+                    ? (resolved) => {
+                        if (busy || threadBusy) return;
+                        void resolve(thread, resolved);
+                      }
+                    : undefined
+                }
+                onToggleAction={
+                  canApply
+                    ? (actionId, done) => {
+                        if (busy || threadBusy) return;
+                        void toggleAction(thread, actionId, done);
+                      }
+                    : undefined
+                }
               />
-            </ul>
+            </div>
           ) : (
             <p className="inspector-body">
               Hear Suggested, then approve, reject, or ask a question in this
@@ -886,17 +913,19 @@ export function PendingEditBody({
             </p>
           )}
           {(thread ? mayReply : mayAsk) ? (
-            <CommentCompose
+            <Composer
               body={askBody}
               onBodyChange={setAskBody}
-              busy={busy || threadBusy}
+              onSubmit={() => void postAsk()}
+              state={busy || threadBusy ? "posting" : "idle"}
               submitLabel={thread ? "Reply" : "Ask"}
-              bodyPlaceholder={
+              placeholder={
                 thread ? "Reply…" : "Ask for more context before deciding…"
               }
-              onSubmit={() => void postAsk()}
-              author={author}
-              onAuthorChange={setAuthor}
+              name={{
+                value: author,
+                onChange: (v) => setAuthor(limitCommentName(v)),
+              }}
             />
           ) : null}
         </section>
