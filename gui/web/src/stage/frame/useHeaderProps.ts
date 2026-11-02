@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { runPointerCommand } from "../../commands/pointer";
 import { useRenameProject } from "../../hooks/useRenameProject";
 import { type ThemePreference, useTheme } from "../../hooks/useTheme";
@@ -6,6 +6,11 @@ import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
 import { useDaw } from "../../state/useDaw";
 import type { AppHeaderProps } from "../../system/AppHeader";
+import {
+  markRoleHintSeen,
+  ROLE_HINT_TEXT,
+  roleHintSeen,
+} from "../../utils/roleHint";
 import { useHistoryControls } from "./useHistoryControls";
 import { useSaveIndicator } from "./useSaveIndicator";
 import { useStageBarProps } from "./useStageBarProps";
@@ -37,6 +42,24 @@ export function useHeaderProps(): Omit<
   const stages = useStageBarProps();
   const { preference, setPreference } = useTheme();
   const role = stageRoleOf(guestMode);
+  const [hintShown, setHintShown] = useState(
+    () => role !== "host" && !roleHintSeen(role),
+  );
+  const guest: AppHeaderProps["guest"] =
+    role === "host"
+      ? undefined
+      : {
+          version: "Shared link",
+          role,
+          hint: {
+            text: ROLE_HINT_TEXT[role],
+            shown: hintShown && !roleHintSeen(role),
+            onDismiss: () => {
+              markRoleHintSeen(role);
+              setHintShown(false);
+            },
+          },
+        };
   const onMenuCommand = useCallback((command: string) => {
     const id = MENU_COMMANDS[command];
     if (id) runPointerCommand(id);
@@ -50,7 +73,7 @@ export function useHeaderProps(): Omit<
     loading: title === null,
     save: save ?? undefined,
     stages,
-    guest: role === "host" ? undefined : { version: "Shared link", role },
+    guest,
     canUndo: history.history?.canUndo ?? false,
     canRedo: history.history?.canRedo ?? false,
     onUndo: history.onUndo,
