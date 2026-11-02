@@ -156,6 +156,16 @@ describe("NotesRail", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it("ignores a held Enter: auto-repeat neither sends nor adds a newline", () => {
+    const onSend = vi.fn();
+    setup({ draft: "a", onSend });
+    const held = fireEvent.keyDown(field(), { key: "Enter", repeat: true });
+    expect(onSend).not.toHaveBeenCalled();
+    expect(held).toBe(false);
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(onSend).toHaveBeenCalledOnce();
+  });
+
   it("sends from the button when the draft has words", async () => {
     const user = userEvent.setup();
     const onSend = vi.fn();

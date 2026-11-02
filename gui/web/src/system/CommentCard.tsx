@@ -120,7 +120,7 @@ export function CommentCard({
           {head}
         </button>
       ) : (
-        <div className="sys-comment-main sys-comment-main--static">{head}</div>
+        <div className="sys-comment-main">{head}</div>
       )}
       {pending?.state === "failed" ? (
         <div className="sys-comment-retry">
