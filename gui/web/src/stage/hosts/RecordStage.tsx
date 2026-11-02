@@ -470,6 +470,8 @@ function RecordStageBody({
         setMoreOpen(false);
         runPointerCommand("share.manage");
       }}
+      guestsSeeNotes={snapshot.guests_see_notes === true}
+      onGuestsSeeNotesChange={room.setGuestsSeeNotes}
       onDevices={() => {
         setMoreOpen(false);
         setDeviceOpen(true);

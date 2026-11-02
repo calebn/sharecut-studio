@@ -17,6 +17,7 @@ import {
   retryHostKeeperStorage,
 } from "./hostKeeperStorage";
 import { useRecordHostStore } from "./hostStore";
+import { submitHostRecordTransport } from "./hostTransport";
 import { sendRecordHostCommand } from "./hostWire";
 import type { TakeClipRegion } from "./keeper/clipRegions";
 import { HOST_COMMENT_QUEUE_TOKEN } from "./liveCommentQueue";
@@ -231,6 +232,17 @@ export function useHostRoom(
       });
   };
 
+  const setGuestsSeeNotes = (enabled: boolean) => {
+    if (transportBusy) {
+      return;
+    }
+    setTransportBusy(true);
+    setTransportError(null);
+    void submitHostRecordTransport("SetGuestsSeeNotes", { enabled })
+      .catch((err: unknown) => setTransportError(errorMessage(err)))
+      .finally(() => setTransportBusy(false));
+  };
+
   useEffect(
     () => () => {
       setTransportError(null);
@@ -372,6 +384,7 @@ export function useHostRoom(
     endSession: { ...endSession, gate: end },
     doneNotice,
     transportBusy,
+    setGuestsSeeNotes,
     runCommand,
     sink,
     sinkError,
