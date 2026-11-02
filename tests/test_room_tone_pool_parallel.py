@@ -169,3 +169,15 @@ def test_a_noise_only_project_still_records_empty_pools_together(tmp_path: Path)
 
     assert room_tone.read_room_tone_pool(live, "host") == ()
     assert room_tone.read_room_tone_pool(live, "guest") == ()
+
+
+def test_a_track_whose_pool_key_cannot_be_read_does_not_raise_from_ensure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _two_speakers(tmp_path)
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("probe failed")
+
+    monkeypatch.setattr(room_tone, "_pool_key", broken)
+    room_tone.ensure_room_tone_pools(live, ["host", "guest"])
