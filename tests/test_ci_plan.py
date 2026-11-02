@@ -42,6 +42,7 @@ GUI_PATTERNS = [
     "tests/fixtures/document_delta/**",
     "tests/fixtures/gain_curve/**",
     "tests/fixtures/render_clock/**",
+    "tests/fixtures/timing_map/**",
     "tests/fixtures/edit_head/**",
     "scripts/ci_plan.py",
     "scripts/docs_sync.py",

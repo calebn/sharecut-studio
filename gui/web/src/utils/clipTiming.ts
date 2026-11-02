@@ -11,8 +11,6 @@ export interface VirtualPiece {
   tlA: number;
 }
 
-type StepDelta = { delta_sec: number };
-
 export function clipTimingSteps(clip: Pick<ClipRow, "timing">) {
   return clip.timing?.steps ?? [];
 }
@@ -80,10 +78,6 @@ export function clipTimelineEnd(clip: TimedPlacement): number {
   );
 }
 
-export function clipTimelineSpanSec(clip: TimedPlacement): number {
-  return clipTimelineEnd(clip) - clip.timeline_start;
-}
-
 export function pieceTimelineEnd(piece: VirtualPiece): number {
   return piece.tlA + (piece.srcB - piece.srcA);
 }
@@ -110,20 +104,6 @@ export function clipTimelineToSource(
     }
   }
   return null;
-}
-
-export function clipShiftAt(clip: TimedPlacement, sourceSec: number): number {
-  let atPoint = 0;
-  let atStart = 0;
-  for (const step of clipTimingSteps(clip)) {
-    if (step.at <= sourceSec) {
-      atPoint += step.delta_sec;
-    }
-    if (step.at <= clip.source_start) {
-      atStart += step.delta_sec;
-    }
-  }
-  return clip.timeline_start - clip.source_start + atPoint - atStart;
 }
 
 export function piecesSourceToTimelineNearest(
@@ -191,16 +171,4 @@ export function livePieces(
     timeline_start: timelineStart,
     timing: clip.timing && { ...clip.timing, steps },
   });
-}
-
-export function timingSummary(steps: readonly StepDelta[]): string {
-  if (steps.length === 0) {
-    return "";
-  }
-  if (steps.length === 1) {
-    return "1 correction";
-  }
-  const largest = Math.max(...steps.map((step) => Math.abs(step.delta_sec)));
-  const ms = Math.max(1, Math.floor(largest * 1000 + 0.5));
-  return `${steps.length} corrections, largest ${ms} ms`;
 }

@@ -199,6 +199,11 @@ describe("ClipBlock with many pieces", () => {
     expect(starts).toEqual(Array.from({ length: starts.length }, (_, i) => i));
   });
 
+  it("mounts every piece before the viewport is measured", () => {
+    useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 0 });
+    expect(draw(manyPieces(60)).layers).toHaveLength(60);
+  });
+
   it("follows the scroll position", () => {
     const starts = mounted(60, 1500);
     expect(starts[0]).toBeGreaterThan(0);
