@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-
 import pytest
 
-from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits import conversation_align
 from podcast_mcp.edits.verdict_cache import _heard
 from podcast_mcp.engines.bleed_gate import gate_scope_for_window
 from podcast_mcp.models import Clip
