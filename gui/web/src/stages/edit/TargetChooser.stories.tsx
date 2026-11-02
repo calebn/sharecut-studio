@@ -38,6 +38,18 @@ const POINT: ChooserTarget = {
   trackColorIndex: 2,
   label: "-3.0 dB at 12:04.3",
 };
+const CHAPTER: ChooserTarget = {
+  id: "chapter-1",
+  kind: "chapter",
+  trackColorIndex: 0,
+  label: "00:05.000",
+};
+const SOCIAL_CLIP: ChooserTarget = {
+  id: "social-clip-1",
+  kind: "social-clip",
+  trackColorIndex: 0,
+  label: "Opening hook at 00:12.000",
+};
 const WORD: ChooserTarget = {
   id: "word-1",
   kind: "word",
@@ -57,7 +69,7 @@ const meta: Meta<typeof ChooserDemo> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The touch target chooser (spec-edit POP-CHOOSER): on a long-press over overlapping targets, a fan of 44 px round chips opens 56 px above the finger (to the chip's centre). Each chip carries its object kind's icon (clip, seam, comment, suggestion, envelope point, word) in a 3 px ring of its track's colour. Slide to a chip and lift to select it; lift anywhere else to cancel. It is never drawn for one target: under two it renders nothing.\n\nThe leaf is plain data: `targets` ({ id, kind, trackColorIndex, label }), `anchor`, `bounds`, `over` (a target id), `onPick(id)` and `onCancel()`. It reads no store and runs no command, and it owns no gesture: the host holds the press, reports the chip under the finger as `over` (each chip carries `data-target-id`), calls `onPick` on a lift over a chip and `onCancel` on a lift elsewhere. At most five chips are drawn, in the order given (left to right); a longer list is paged by the host. The caption, on the far side of the arc from the press point, is the label of the chip `over` names.\n\nThe fan is positioned inside the box it is mounted in, never over the press point: the outer chips' lower edge is 28 px above it (a sag of 6 px, 8 px clear of an assumed 20 px fingertip), 16 px from the box's edges, and it opens below the point near the top. There is no portal, top layer or fixed position here; the host adds those.\n\nThis story host is a fixture: press and hold the surface for half a second to open the fan there, slide over a chip and lift. Its grammar is a stub; the app's hit router owns the real gesture.\n\n**Keys.** Left, Right, Home and End move between chips and Escape cancels (`useMenuKeyboard`, the only window listener); while the fan is open the keymap holds every key, so Escape does not also clear the selection. Enter and Space pick the focused chip. Tab out of the fan cancels it. Chips are `role=\"menuitem\"` buttons named \"Clip, Maya take 2\". The host announces \"3 targets here\". Opening the fan focuses its first chip, as the Create here menu does.",
+          "The touch target chooser (spec-edit POP-CHOOSER): on a long-press over overlapping targets, a fan of 44 px round chips opens 56 px above the finger (to the chip's centre). Each chip carries its object kind's icon (clip, seam, comment, suggestion, envelope point, chapter, social clip, word) in a 3 px ring of its track's colour. Slide to a chip and lift to select it; lift anywhere else to cancel. It is never drawn for one target: under two it renders nothing.\n\nThe leaf is plain data: `targets` ({ id, kind, trackColorIndex, label }), `anchor`, `bounds`, `over` (a target id), `onPick(id)` and `onCancel()`. It reads no store and runs no command, and it owns no gesture: the host holds the press, reports the chip under the finger as `over` (each chip carries `data-target-id`), calls `onPick` on a lift over a chip and `onCancel` on a lift elsewhere. At most five chips are drawn, in the order given (left to right); the host keeps the best-ranked. The caption, on the far side of the arc from the press point, is the label of the chip `over` names.\n\nThe fan is positioned inside the box it is mounted in, never over the press point: the outer chips' lower edge is 28 px above it (a sag of 6 px, 8 px clear of an assumed 20 px fingertip), 16 px from the box's edges, and it opens below the point near the top. There is no portal, top layer or fixed position here; the host adds those.\n\nThis story host is a fixture: press and hold the surface for half a second to open the fan there, slide over a chip and lift. Its grammar is a stub; the app's hit router owns the real gesture.\n\n**Keys.** Left, Right, Home and End move between chips and Escape cancels (`useMenuKeyboard`, the only window listener); while the fan is open the keymap holds every key, so Escape does not also clear the selection. Enter and Space pick the focused chip. Tab out of the fan cancels it. Chips are `role=\"menuitem\"` buttons named \"Clip, Maya take 2\". The host announces \"3 targets here\". Opening the fan focuses its first chip, as the Create here menu does.",
       },
     },
   },
@@ -90,6 +102,22 @@ export const FourTargets: Story = {
     await expect(await canvas.findByRole("menu")).toBeVisible();
     await expect(canvas.getAllByRole("menuitem")).toHaveLength(4);
     await expect(canvas.getByText("Cut at 12:04.3")).toBeInTheDocument();
+  },
+};
+
+export const MarkerTargets: Story = {
+  args: { targets: [CHAPTER, COMMENT, SOCIAL_CLIP] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas
+        .getAllByRole("menuitem")
+        .map((el) => el.getAttribute("aria-label")),
+    ).toEqual([
+      "Chapter, 00:05.000",
+      "Comment, Check the level here",
+      "Social clip, Opening hook at 00:12.000",
+    ]);
   },
 };
 

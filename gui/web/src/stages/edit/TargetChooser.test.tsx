@@ -143,6 +143,8 @@ describe("TargetChooser chips", () => {
       comment: "message-square",
       suggestion: "wand-sparkles",
       "envelope-point": "spline",
+      chapter: "flag",
+      "social-clip": "brackets",
       word: "text-cursor-input",
     });
     for (const name of Object.values(KIND_ICONS)) {
@@ -154,6 +156,8 @@ describe("TargetChooser chips", () => {
       comment: "Comment",
       suggestion: "Suggestion",
       "envelope-point": "Envelope point",
+      chapter: "Chapter",
+      "social-clip": "Social clip",
       word: "Word",
     });
     const kinds = Object.keys(KIND_ICONS) as ChooserKind[];
@@ -163,7 +167,7 @@ describe("TargetChooser chips", () => {
       trackColorIndex: 0,
       label: kind,
     }));
-    render(<TargetChooser {...props({ targets: all.slice(0, 5) })} />);
+    render(<TargetChooser {...props({ targets: all.slice(-5) })} />);
     for (const chip of chips()) {
       expect(chip.querySelector("svg")).not.toBeNull();
     }

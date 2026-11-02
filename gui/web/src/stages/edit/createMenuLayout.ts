@@ -1,10 +1,8 @@
 /**
  * Where the Create here menu sits for a held point (spec-edit MENU-CREATE).
- * A pure port of the placement rules of the legacy `timeline/chooserLayout.ts`
- * (the legacy file stays until the wiring slice retires it; nothing here
- * imports `timeline/`): above the point, else below it, else beside it, inside
- * `bounds`, or inside `viewport` when the menu is taller than `bounds`; a menu
- * taller than any room is capped so it scrolls. It keeps 24 px from the point
+ * Nothing here imports `timeline/`. It sits above the point, else below it,
+ * else beside it, inside `bounds`, or inside `viewport` when the menu is taller
+ * than `bounds`; a menu taller than any room is capped so it scrolls. It keeps 24 px from the point
  * so a finger never covers it, and clear of a fixed playhead at `avoidX`.
  * Every number is in the leaf's own coordinates: the host converts.
  */
