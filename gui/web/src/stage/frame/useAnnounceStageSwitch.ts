@@ -24,11 +24,12 @@ function typingTarget(active: Element | null): boolean {
 }
 
 /**
- * After a stage switch a person made with a key (Mod+1..5), the palette or the
- * phone's Stage menu, say which stage opened and put focus on its body, so
- * focus is not left on a control that is gone. Only a stage command a person
- * ran counts: the landing on open, a leader's Follow and a screen's own
- * openStage are left alone. A Stage tab announces itself and keeps focus for
+ * After a stage switch a person made by running a stage command (a key such as
+ * Mod+1..5, the palette, the phone's Stage menu, or a button that opens
+ * another stage such as a banner's Review link), say which stage opened and
+ * put focus on its body, so focus is not left on a control that is gone. The
+ * landing on open, a leader's Follow and a screen's own openStage are left
+ * alone. A Stage tab announces itself and keeps focus for
  * the arrow keys. Focus never leaves a field, menu or dialog.
  */
 export function useAnnounceStageSwitch(stage: StageId): void {

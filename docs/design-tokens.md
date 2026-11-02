@@ -278,7 +278,7 @@ beneath (2.76:1 on a hovered light row, 3.77:1 in dark). The opaque pair holds
 against the base, selected and muted rows.
 
 **Transport.** The transport is fixed dark in both themes (`--color-transport-*`,
-`--bg-transport`, `--shadow-transport-*`). Play is the only orange control and
+`--bg-transport`). Play is the only orange control and
 glows only while playing (static, never pulsing); selected audition segments
 and tools use `--color-transport-chip` with full-strength text. Transport status
 pills use their own light-on-dark warning and success inks.

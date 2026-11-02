@@ -27,9 +27,17 @@ describe("userStageSwitch", () => {
   });
 
   it("is marked by running a stage command, not by another command", async () => {
-    registerCommand("stage.review", () => ({ status: "ok" as const }));
+    useDawStore.setState({ stage: "edit" });
+    registerCommand("stage.review", () => {
+      useDawStore.getState().openStage("review");
+      return { status: "ok" as const };
+    });
     await execute("stage.review", {}, { skipWhen: true });
     expect(takeUserStageSwitch()).toBe(true);
+    registerCommand("stage.edit", () => ({ status: "ok" as const }));
+    useDawStore.setState({ stage: "edit" });
+    await execute("stage.edit", { surface: "text" }, { skipWhen: true });
+    expect(takeUserStageSwitch()).toBe(false);
     registerCommand("view.toggleScript", () => ({ status: "ok" as const }));
     await execute("view.toggleScript", {}, { skipWhen: true });
     expect(takeUserStageSwitch()).toBe(false);
