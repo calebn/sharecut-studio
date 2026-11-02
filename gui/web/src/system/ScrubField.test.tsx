@@ -269,6 +269,17 @@ describe("ScrubField window keys", () => {
     expect(calls.onCommit).toHaveBeenCalledOnce();
   });
 
+  it("refuses a typed fraction when integerOnly", async () => {
+    const user = userEvent.setup();
+    const strict = setup({ decimals: 0, integerOnly: true, min: 0, max: 100 });
+    await user.click(strict.field());
+    const input = screen.getByRole("textbox", { name: "Offset" });
+    await user.clear(input);
+    await user.type(input, "1.5{Enter}");
+    expect(strict.calls.onCommit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("whole number");
+  });
+
   it("steps from an empty value by default", () => {
     const { calls, field } = setup({ value: null, min: 0 });
     fireEvent.keyDown(field(), { key: "ArrowUp" });

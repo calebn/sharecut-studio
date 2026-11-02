@@ -189,6 +189,7 @@ export function useClipSections(
         unit="ms"
         step={CLIP_HANDLE_STEPS.fade.small}
         decimals={0}
+        integerOnly
         min={0}
         max={edgeFadeMaxMs(
           clipSec,
@@ -264,6 +265,7 @@ export function useClipSections(
                           unit="ms"
                           decimals={0}
                           stepsFromEmpty={false}
+                          integerOnly
                           min={clip.join_in_mode === "crossfade" ? 1 : 0}
                           readOnly={locked}
                           onCommit={(value) =>
