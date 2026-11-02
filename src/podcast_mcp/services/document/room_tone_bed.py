@@ -10,42 +10,39 @@ from podcast_mcp.engines.room_tone_extract import (
     EXTRACTOR_REV,
     ExtractedBed,
     plan_extracted_bed,
+    source_matches,
 )
 from podcast_mcp.models import EpisodeProject, Track
 from podcast_mcp.services.document.service_base import WorkspaceService
-from podcast_mcp.util.project_state import file_stamp
-from podcast_mcp.util.tracks import track_audio_path
+from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 
 def _blocked(track: Track | None) -> str | None:
-    """Why ``track`` may not take an extracted bed, or None when it may."""
     if track is None:
         return "missing_track"
     if track.media is None:
         return "missing_media"
     if track.room_tone is not None and track.room_tone_origin is None:
-        # A recorded or assigned bed is never replaced by the pipeline.
         return "has_bed"
     return None
 
 
-def _current(project: EpisodeProject, track: Track) -> bool:
-    """True when ``track``'s extracted bed was cut from its audio as it is now."""
+def _current(project: EpisodeProject, track: Track) -> str | None:
     origin = track.room_tone_origin
-    if origin is None or origin.extractor_rev != EXTRACTOR_REV:
-        return False
+    if origin is None or track.room_tone is None:
+        return None
     try:
-        stamp = file_stamp(track_audio_path(project, track.id))
-    except OSError:
-        return False
-    try:
-        bed = resolve_under_workspace(project, track.room_tone.path) if track.room_tone else None
-    except ValueError:
-        return False
-    if bed is None or not bed.is_file():
-        return False
-    return (stamp.size, stamp.mtime_ns) == (origin.media_size, origin.media_mtime_ns)
+        bed = resolve_under_workspace(project, track.room_tone.path)
+        if not bed.exists():
+            return None
+        if sha256_file(bed) != origin.file_sha256:
+            return "bed_changed"
+    except (OSError, ValueError):
+        return "unreadable_file"
+    if origin.extractor_rev == EXTRACTOR_REV and source_matches(project, track.id, origin):
+        return "already_extracted"
+    return None
 
 
 class RoomToneBedService(WorkspaceService):
@@ -66,8 +63,9 @@ class RoomToneBedService(WorkspaceService):
         if reason is not None:
             return {"track_id": tid, "extracted": False, "reason": reason}
         assert track is not None
-        if _current(project, track):
-            return {"track_id": tid, "extracted": False, "reason": "already_extracted"}
+        current = _current(project, track)
+        if current is not None:
+            return {"track_id": tid, "extracted": False, "reason": current}
         plan = plan_extracted_bed(project, tid)
         if isinstance(plan, SampleAbsent):
             return {
@@ -91,12 +89,14 @@ class RoomToneBedService(WorkspaceService):
         if reason is not None:
             return {"track_id": tid, "extracted": False, "reason": reason}
         assert track is not None
-        try:
-            stamp = file_stamp(track_audio_path(project, tid))
-        except OSError:
-            return {"track_id": tid, "extracted": False, "reason": "unreadable_file"}
-        if (stamp.size, stamp.mtime_ns) != (plan.origin.media_size, plan.origin.media_mtime_ns):
+        if not source_matches(project, tid, plan.origin):
             return {"track_id": tid, "extracted": False, "reason": "source_changed"}
+        try:
+            bed = resolve_under_workspace(project, plan.rel)
+            if sha256_file(bed) != plan.origin.file_sha256:
+                return {"track_id": tid, "extracted": False, "reason": "bed_changed"}
+        except (OSError, ValueError):
+            return {"track_id": tid, "extracted": False, "reason": "bed_changed"}
         place_extracted_room_tone(
             project,
             track_id=tid,
