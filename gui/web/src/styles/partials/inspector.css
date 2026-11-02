@@ -278,9 +278,7 @@ html[data-shell="phone"]
 }
 
 .pending-ask-list {
-  list-style: none;
   margin: 0 0 var(--space-3);
-  padding: 0;
 }
 
 .nudge-fields {
