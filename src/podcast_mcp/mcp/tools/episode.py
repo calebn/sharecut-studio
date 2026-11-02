@@ -37,13 +37,17 @@ def track_add_empty_tool(
 ) -> dict:
     """Add an empty (silent placeholder) track to the project."""
     ws = ProjectWorkspace.open(project_path)
-    return EpisodeService(ws).add_empty_track(track_id, role=role, speaker=speaker, label=label)
+    return (
+        EpisodeService(ws)
+        .add_empty_track(track_id, role=role, speaker=speaker, label=label)
+        .model_dump()
+    )
 
 
 def track_set_media_tool(project_path: str, track_id: str, file_path: str) -> dict:
     """Replace the media file backing an existing track."""
     ws = ProjectWorkspace.open(project_path)
-    return EpisodeService(ws).set_track_media(track_id, file_path)
+    return EpisodeService(ws).set_track_media(track_id, file_path).model_dump()
 
 
 def track_set_meta_tool(
@@ -55,7 +59,11 @@ def track_set_meta_tool(
 ) -> dict:
     """Update a track's label, role, or speaker metadata."""
     ws = ProjectWorkspace.open(project_path)
-    return EpisodeService(ws).set_track_meta(track_id, label=label, role=role, speaker=speaker)
+    return (
+        EpisodeService(ws)
+        .set_track_meta(track_id, label=label, role=role, speaker=speaker)
+        .model_dump()
+    )
 
 
 def track_set_volume_tool(project_path: str, track_id: str, fader_db: float) -> dict:
@@ -65,7 +73,7 @@ def track_set_volume_tool(project_path: str, track_id: str, fader_db: float) -> 
     step never changes the fader. Undoable; stales the premix until re-mixed.
     """
     ws = ProjectWorkspace.open(project_path)
-    return EpisodeService(ws).set_track_volume(track_id, fader_db)
+    return EpisodeService(ws).set_track_volume(track_id, fader_db).model_dump()
 
 
 def track_set_mute_tool(project_path: str, track_id: str, muted: bool) -> dict:
@@ -76,19 +84,19 @@ def track_set_mute_tool(project_path: str, track_id: str, muted: bool) -> dict:
     still cover it. Undoable. Solo is a per-listener GUI control, not saved.
     """
     ws = ProjectWorkspace.open(project_path)
-    return EpisodeService(ws).set_track_mute(track_id, muted)
+    return EpisodeService(ws).set_track_mute(track_id, muted).model_dump()
 
 
 def track_remove_tool(project_path: str, track_id: str) -> dict:
     """Remove a track from the project."""
     ws = ProjectWorkspace.open(project_path)
-    return EpisodeService(ws).remove_track(track_id)
+    return EpisodeService(ws).remove_track(track_id).model_dump()
 
 
 def track_reorder_tool(project_path: str, track_id: str, index: int) -> dict:
     """Move a track to a new position in the track order."""
     ws = ProjectWorkspace.open(project_path)
-    return EpisodeService(ws).reorder_track(track_id, index)
+    return EpisodeService(ws).reorder_track(track_id, index).model_dump()
 
 
 def register(mcp: MCPServer) -> None:
