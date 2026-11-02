@@ -84,6 +84,7 @@ export type DocumentCommandType =
   | "UpdateComment"
   | "UpdatePendingEdit"
   | "UpdateSocialClip"
+  | "UpdateSocialClipDetails"
   | "VerifyTranscript";
 
 /** Wire names, so a call site spells `DocumentCommand.MoveClips`, never a string. */
@@ -171,5 +172,6 @@ export const DocumentCommand = {
   UpdateComment: "UpdateComment",
   UpdatePendingEdit: "UpdatePendingEdit",
   UpdateSocialClip: "UpdateSocialClip",
+  UpdateSocialClipDetails: "UpdateSocialClipDetails",
   VerifyTranscript: "VerifyTranscript",
 } as const satisfies Record<DocumentCommandType, DocumentCommandType>;

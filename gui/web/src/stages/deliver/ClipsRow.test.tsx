@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ClipsRow } from "./ClipsRow";
 import { CLIPS, TOTAL } from "./deliverFixture";
@@ -36,5 +37,29 @@ describe("ClipsRow editable", () => {
     expect(screen.queryAllByRole("textbox", { name: /^Title of/ })).toEqual([]);
     expect(screen.queryAllByRole("button", { name: /^Approve / })).toEqual([]);
     expect(screen.getByText(CLIPS[0].title)).toBeVisible();
+  });
+});
+
+describe("ClipsRow commitTitles", () => {
+  it("reports a retitle on every keystroke by default", async () => {
+    const onRetitle = vi.fn();
+    renderRow({ onRetitle });
+    const [first] = screen.getAllByRole("textbox", { name: /^Title of/ });
+    await userEvent.type(first as HTMLElement, "ab");
+    expect(onRetitle).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports one retitle on Enter, and none for text left as it was", async () => {
+    const onRetitle = vi.fn();
+    renderRow({ onRetitle, commitTitles: true });
+    const [first] = screen.getAllByRole("textbox", { name: /^Title of/ });
+    await userEvent.type(first as HTMLElement, "ab");
+    expect(onRetitle).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Enter}");
+    expect(onRetitle).toHaveBeenCalledOnce();
+    expect(onRetitle).toHaveBeenCalledWith(CLIPS[0].id, `${CLIPS[0].title}ab`);
+    await userEvent.keyboard("{Backspace}{Backspace}");
+    await userEvent.tab();
+    expect(onRetitle).toHaveBeenCalledTimes(1);
   });
 });

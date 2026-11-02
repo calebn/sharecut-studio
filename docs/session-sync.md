@@ -549,6 +549,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | MCP `remove_chapter_tool` / `podcast edit remove-chapter` | `TimelineService.remove_chapter` | `title` only (removes every marker with that title) |
 | `AddSocialClip` | `ClipService.add_manual` | `track_id`, `start`, `end`, `title?` (timeline clocks) |
 | `UpdateSocialClip` | `ClipService.update_times` | `id`, `start`, `end` |
+| `UpdateSocialClipDetails` | `ClipService.update_details` | `id` and at least one of `title?`, `approved?` — retitle (`title_suggestion`; trimmed, at most 200 characters, no control or format characters, `invalid_clip_title`; an empty title clears it) and/or approve or unapprove one clip; approving also clears `review_required`, unapproving leaves it; host only, no review-link role holds it; an unknown clip is refused (`social_clip_not_found`); one undo step |
 | `DeleteSocialClip` | `ClipService.reject` | `id` |
 | `SuggestPendingEdit` | `EditService.suggest_pending_edit` | `track_id`, `start`, `end`, `reason?` (source clocks) |
 | `SplitAtTime` | `TimelineService.split_at_time` | `at_time`, `track_ids?`, `reason?` — host/Editor applies; Commenter proposes `type: split` |

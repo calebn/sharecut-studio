@@ -5,6 +5,7 @@ import re
 import shutil
 import tempfile
 import time
+import unicodedata
 import uuid
 from pathlib import Path
 from typing import Any
@@ -339,6 +340,55 @@ def update_social_clip_times(
         if clip.id != clip_id:
             continue
         updated = clip.model_copy(update={"start": float(start), "end": float(end)})
+        project.social_clip_candidates[i] = updated
+        return updated
+    raise CodedValueError(f"social clip not found: {clip_id!r}", code="social_clip_not_found")
+
+
+SOCIAL_CLIP_TITLE_MAX_CHARS = 200
+
+
+def _clean_clip_title(title: str) -> str | None:
+    """The trimmed clip title; None (back to "Untitled clip") when nothing is left."""
+    cleaned = title.strip()
+    if len(cleaned) > SOCIAL_CLIP_TITLE_MAX_CHARS:
+        raise CodedValueError(
+            f"clip title must be at most {SOCIAL_CLIP_TITLE_MAX_CHARS} characters",
+            code="invalid_clip_title",
+        )
+    if any(unicodedata.category(char) in {"Cc", "Cf"} for char in cleaned):
+        raise CodedValueError(
+            "clip title must not contain control or invisible formatting characters",
+            code="invalid_clip_title",
+        )
+    return cleaned or None
+
+
+def update_social_clip_details(
+    project: EpisodeProject,
+    clip_id: str,
+    *,
+    title: str | None = None,
+    approved: bool | None = None,
+) -> SocialClipCandidate:
+    """Set a clip's title and/or approval; ``None`` leaves that field as it is.
+
+    An empty title clears it. Approving also clears ``review_required``, as
+    ``approve_social_clips`` does; unapproving leaves ``review_required`` as it was.
+    """
+    if title is None and approved is None:
+        raise CodedValueError("set a title or an approval to change", code="invalid_clip_details")
+    changes: dict[str, Any] = {}
+    if title is not None:
+        changes["title_suggestion"] = _clean_clip_title(title)
+    if approved is not None:
+        changes["approved"] = approved
+        if approved:
+            changes["review_required"] = False
+    for i, clip in enumerate(project.social_clip_candidates):
+        if clip.id != clip_id:
+            continue
+        updated = clip.model_copy(update=changes)
         project.social_clip_candidates[i] = updated
         return updated
     raise CodedValueError(f"social clip not found: {clip_id!r}", code="social_clip_not_found")

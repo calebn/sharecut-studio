@@ -6,6 +6,7 @@ import {
   deleteSocialClip,
   updateChapter,
   updateSocialClip,
+  updateSocialClipDetails,
 } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
@@ -61,7 +62,8 @@ import {
   type FixRoute,
   fixRoute,
   sameChapters,
-  sameClipBounds,
+  sameClips,
+  shownTitle,
 } from "./deliverModel";
 import { shareOptionsOf } from "./deliverShare";
 import { useExportFlow } from "./exportFlowContext";
@@ -84,6 +86,7 @@ const DELIVER_COMMANDS = new Set([
   "UpdateChapter",
   "DeleteChapter",
   "UpdateSocialClip",
+  "UpdateSocialClipDetails",
   "DeleteSocialClip",
 ]);
 
@@ -95,6 +98,11 @@ async function saveChapterOp(path: string, op: ChapterOp) {
 
 async function saveClipOp(path: string, op: ClipOp) {
   if (op.kind === "delete") await deleteSocialClip(path, op.id);
+  else if (op.kind === "details")
+    await updateSocialClipDetails(path, op.id, {
+      ...(op.title !== undefined && { title: op.title }),
+      ...(op.approved !== undefined && { approved: op.approved }),
+    });
   else await updateSocialClip(path, op.id, op.start, op.end);
 }
 
@@ -363,7 +371,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     if (!projectPath || settling || state !== "ready") return;
     if (
       !sameChapters(page.chapters, chaptersOf(docChapters ?? [])) ||
-      !sameClipBounds(page.clips, clipsOf(docClips ?? []))
+      !sameClips(page.clips, clipsOf(docClips ?? []))
     ) {
       patchDeliverDraft(projectPath, (d) => ({ epoch: d.epoch + 1 }));
     }
@@ -384,7 +392,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const onClips = (next: readonly Clip[]) => {
     if (!projectPath) return;
     const ops = clipOps(page.clips, next);
-    commit({ clips: [...next] });
+    commit({ clips: next.map((c) => ({ ...c, title: shownTitle(c.title) })) });
     if (ops.length === 0) return;
     sendDeliverEdit(projectPath, async (path) => {
       for (const op of ops) await saveClipOp(path, op);
@@ -547,7 +555,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           showLink={false}
           showPlayer={false}
           clipUndo={false}
-          showClipEdits={false}
+          clipTitleCommit
           onChapters={onChapters}
           onClips={onClips}
           onFix={(stage, target) => runFix(fixRoute(stage, target))}

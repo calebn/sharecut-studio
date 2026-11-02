@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { InlineEdit } from "../../system/InlineEdit";
 import { Skeleton } from "../../system/Skeleton";
 import { SystemIcon } from "../../system/SystemIcon";
 import { formatSeconds } from "../../system/seconds";
@@ -45,6 +46,8 @@ type Props = {
   onTrimGesture?: (active: boolean) => void;
   /** False shows a clip's title as text and leaves out Approve. */
   editable?: boolean;
+  /** True reports a retitle on Enter or when the field is left, not on every keystroke. */
+  commitTitles?: boolean;
 };
 
 const shown = (
@@ -117,6 +120,7 @@ export function ClipsRow({
   onFind,
   onTrimGesture,
   editable = true,
+  commitTitles = false,
 }: Props) {
   const sortedWords = useMemo(
     () => (words ? normaliseWords(words) : undefined),
@@ -171,7 +175,16 @@ export function ClipsRow({
                     onClick={() => onPlay(clip.id)}
                   />
                 </div>
-                {editable ? (
+                {editable && commitTitles ? (
+                  <InlineEdit
+                    commitOnUnmount
+                    className="dv-clip-title"
+                    label={`Title of ${name}`}
+                    value={clip.title}
+                    maxLength={200}
+                    onCommit={(title) => onRetitle(clip.id, title)}
+                  />
+                ) : editable ? (
                   <input
                     className="dv-clip-title"
                     aria-label={`Title of ${name}`}
