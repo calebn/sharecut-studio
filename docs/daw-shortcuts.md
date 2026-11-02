@@ -26,11 +26,11 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `Mod+1` | Go to Record (`stage.record`) | Project loaded | Mod+1; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
-| `Mod+2` | Go to Prepare (`stage.prepare`) | Project loaded | Mod+2; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
-| `Mod+3` | Go to Edit (`stage.edit`) | Project loaded | Mod+3; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
-| `Mod+4` | Go to Review (`stage.review`) | Project loaded | Mod+4; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
-| `Mod+5` | Go to Deliver (`stage.deliver`) | Project loaded | Mod+5; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+1` | Go to Record (`stage.record`) | stageAllowed:record | Mod+1; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+2` | Go to Prepare (`stage.prepare`) | stageAllowed:prepare | Mod+2; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+3` | Go to Edit (`stage.edit`) | stageAllowed:edit | Mod+3; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+4` | Go to Review (`stage.review`) | stageAllowed:review | Mod+4; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+5` | Go to Deliver (`stage.deliver`) | stageAllowed:deliver | Mod+5; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
 | `ArrowLeft` | Nudge playhead back (`navigation.nudgePlayheadBack`) | Always (when not typing in an input) | Shift for 5 seconds |
 | `ArrowRight` | Nudge playhead forward (`navigation.nudgePlayheadForward`) | Always (when not typing in an input) | Shift for 5 seconds |
 | `Mod+ArrowLeft` | Go to start (`navigation.goToStart`) | Always (when not typing in an input) | Mod+ArrowLeft: Home alias for laptops |
@@ -121,7 +121,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Audition Full mix / Edited stems / Original | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
-| Open history | `edit.history` | Project loaded | Opens the History sheet, which stays reachable when Undo and Redo are both empty. Host or Editor. |
+| Open history | `edit.history` | Host or shared edit mode | Opens the History sheet, which stays reachable when Undo and Redo are both empty. Host or Editor. |
 | Play range | `range.play` | Project loaded |  |
 | Cut selected range | `range.cut` | Project loaded |  |
 | Mute selected range | `range.mute` | Project loaded |  |
