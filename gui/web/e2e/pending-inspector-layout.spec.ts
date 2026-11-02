@@ -175,7 +175,9 @@ test.describe("Pending inspector layout", () => {
       .getByRole("button", { name: "Approve", exact: true })
       .click();
     const error = inspector.locator(".modifier-error");
-    const askHelp = inspector.getByText(/Hear Suggested, then approve/);
+    const askHelp = inspector.getByText(
+      /Ask a question here before you approve/,
+    );
     const name = inspector.getByText("Your name");
     await expect(error).toBeVisible();
     await expectNoOverlap(error, askHelp);

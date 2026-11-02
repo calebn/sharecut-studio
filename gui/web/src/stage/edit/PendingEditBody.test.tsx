@@ -39,6 +39,8 @@ import { pendingEditTimingFieldId } from "../../utils/pendingEditTimingField";
 import { PendingEditBody } from "./PendingEditBody";
 
 const createComment = vi.fn();
+const addCommentReply = vi.fn();
+const setCommentActionDone = vi.fn();
 const patchComment = vi.fn();
 const refreshProject = vi.fn();
 const approveEdits = vi.fn();
@@ -65,6 +67,8 @@ vi.mock("../../audio/pendingPreview", async (importOriginal) => ({
 
 vi.mock("../../api", () => ({
   createComment: (...args: unknown[]) => createComment(...args),
+  addCommentReply: (...args: unknown[]) => addCommentReply(...args),
+  setCommentActionDone: (...args: unknown[]) => setCommentActionDone(...args),
   patchComment: (...args: unknown[]) => patchComment(...args),
   refreshProject: (...args: unknown[]) => refreshProject(...args),
   approveEdits: (...args: unknown[]) => approveEdits(...args),
@@ -143,6 +147,8 @@ describe("PendingEditBody", () => {
       .mockReset()
       .mockImplementation(() => new Promise(() => {}));
     patchComment.mockReset().mockResolvedValue(null);
+    addCommentReply.mockReset().mockResolvedValue(null);
+    setCommentActionDone.mockReset().mockResolvedValue(null);
     refreshProject.mockReset();
     approveEdits.mockReset().mockResolvedValue({
       queued: false,
@@ -612,6 +618,136 @@ describe("PendingEditBody", () => {
       key,
       expect.objectContaining({ author: "Guest" }),
     );
+  });
+
+  it("says nothing about a footer in the empty Ask copy", () => {
+    render(<PendingEditBody edit={sessionCut} verbsOnBar />);
+    const region = screen.getByRole("region", { name: "Ask about this edit" });
+    expect(region).toHaveTextContent(
+      "Ask a question here before you approve or reject.",
+    );
+    expect(region).not.toHaveTextContent(/Hear Suggested/);
+  });
+
+  it("posts the first Ask with Enter and keeps Shift+Enter for a new line", async () => {
+    const user = userEvent.setup();
+    createComment.mockResolvedValue(sampleComment({ edit_decision_id: "ed1" }));
+    render(<PendingEditBody edit={sessionCut} />);
+    const field = screen.getByRole("textbox", { name: "Your question" });
+    await user.type(field, "Why{Shift>}{Enter}{/Shift}this cut?");
+    expect(createComment).not.toHaveBeenCalled();
+    await user.type(field, "{Enter}");
+    await waitFor(() =>
+      expect(createComment).toHaveBeenCalledWith(
+        "/tmp/p.json",
+        expect.objectContaining({ body: "Why\nthis cut?" }),
+      ),
+    );
+  });
+
+  it("replies to an existing Ask thread instead of creating a second one", async () => {
+    const user = userEvent.setup();
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        pending_edits: [sessionCut],
+        comments: [sampleComment({ edit_decision_id: "ed1", author: "Ines" })],
+      }),
+    );
+    render(<PendingEditBody edit={sessionCut} />);
+    expect(screen.queryByRole("textbox", { name: "Your question" })).toBeNull();
+    const reply = screen.getByRole("textbox", { name: "Reply to Ines" });
+    await user.type(reply, "Looks fine to me");
+    await user.click(screen.getByRole("button", { name: "Reply" }));
+    await waitFor(() =>
+      expect(addCommentReply).toHaveBeenCalledWith("/tmp/p.json", "c1", {
+        body: "Looks fine to me",
+        author: "Host",
+      }),
+    );
+    expect(createComment).not.toHaveBeenCalled();
+    await waitFor(() => expect(reply).toHaveValue(""));
+  });
+
+  it("keeps the typed reply when the reply is refused", async () => {
+    const user = userEvent.setup();
+    addCommentReply.mockRejectedValueOnce(new Error("Reply failed"));
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        pending_edits: [sessionCut],
+        comments: [sampleComment({ edit_decision_id: "ed1", author: "Ines" })],
+      }),
+    );
+    render(<PendingEditBody edit={sessionCut} />);
+    const reply = screen.getByRole("textbox", { name: "Reply to Ines" });
+    await user.type(reply, "Looks fine to me");
+    await user.click(screen.getByRole("button", { name: "Reply" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Reply failed");
+    expect(reply).toHaveValue("Looks fine to me");
+  });
+
+  it("lets the host tick an action item and shows it read-only to a Commenter", async () => {
+    const user = userEvent.setup();
+    const comment = sampleComment({
+      edit_decision_id: "ed1",
+      action_items: [
+        {
+          id: "a1",
+          text: "Check the room tone",
+          done: false,
+          completed_at: null,
+          completed_by: null,
+        },
+      ],
+    });
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/p.json",
+        minimalProject({ pending_edits: [sessionCut], comments: [comment] }),
+      );
+    const { unmount } = render(<PendingEditBody edit={sessionCut} />);
+    await user.click(screen.getByRole("checkbox", { name: /room tone/ }));
+    await waitFor(() =>
+      expect(setCommentActionDone).toHaveBeenCalledWith(
+        "/tmp/p.json",
+        "c1",
+        "a1",
+        { done: true, by: "Host" },
+      ),
+    );
+    unmount();
+
+    const key = shareProjectKey("tok");
+    useDawStore
+      .getState()
+      .hydrate(
+        key,
+        minimalProject({ pending_edits: [sessionCut], comments: [comment] }),
+        "comment",
+        COMMENTER_CAPABILITIES,
+      );
+    render(<PendingEditBody edit={sessionCut} />);
+    expect(screen.getByText("Check the room tone")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
+  });
+
+  it("shows a Viewer the thread without a reply field", () => {
+    const key = shareProjectKey("tok");
+    useDawStore.getState().hydrate(
+      key,
+      minimalProject({
+        pending_edits: [sessionCut],
+        comments: [sampleComment({ edit_decision_id: "ed1", author: "Ines" })],
+      }),
+      "view",
+      ["play", "view"],
+    );
+    render(<PendingEditBody edit={sessionCut} />);
+    expect(screen.getByText("Needs a tighter open")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).toBeNull();
   });
 
   it("hides Ask compose from a Viewer, who cannot comment", () => {

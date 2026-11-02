@@ -1,7 +1,6 @@
 /* Bottom panels, transcript, comments, pipeline */
 
-.comment-compose button,
-.comment-card-footer button {
+.comment-compose button {
   /* Interaction paint from .ui-control */
   padding: var(--space-1) var(--space-3);
   font: inherit;
@@ -56,80 +55,15 @@
   }
 }
 
-.comment-card {
-  position: relative;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-raised);
-  padding: var(--space-3) var(--space-3);
-  /* Keep vertical scroll + pinch zoom. */
-  touch-action: pan-y pinch-zoom;
-}
-
-.comment-card.selected {
-  border-color: var(--color-text-secondary);
-  background: var(--color-chip-selected);
-  color: var(--color-chip-selected-fg);
-}
-
-.comment-card.resolved:not(.selected) {
-  background: var(--color-bg-sunken);
-}
-
-.comment-card-main {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-0);
-  width: 100%;
-  background: transparent;
-  border: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  padding: 0;
-}
-
-.comment-card-main.static {
-  cursor: default;
-}
-
-.comment-card-time {
-  color: var(--color-accent-fg);
-  font-variant-numeric: tabular-nums;
-}
-
 .comment-card-author {
   color: var(--color-text-secondary);
   overflow-wrap: anywhere;
-}
-
-.comment-card-status {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
 }
 
 .comment-card-body {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   min-inline-size: 0;
-}
-
-.comment-card-tracks {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-}
-
-.comment-actions {
-  list-style: none;
-  margin: var(--space-3) 0 0;
-  padding: 0;
-}
-
-.comment-actions .done {
-  text-decoration: line-through;
-  color: var(--color-text-secondary);
 }
 
 .comment-replies {
@@ -182,10 +116,6 @@
   font-size: var(--font-size-caption);
 }
 
-.comment-card-footer {
-  margin-top: var(--space-3);
-}
-
 .comment-playback-bubble {
   position: absolute;
   top: 0.25rem;
@@ -226,19 +156,6 @@
 
 .error-screen {
   color: var(--color-danger);
-}
-
-/*
- * Touch long-press on a word / comment opens its sheet; stop the native
- * selection handles and callout (~500 ms) from claiming the press first.
- * Fine pointers keep text selection.
- */
-@media (pointer: coarse) {
-  .comment-card-main {
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-  }
 }
 
 .edit-boundary-mark {

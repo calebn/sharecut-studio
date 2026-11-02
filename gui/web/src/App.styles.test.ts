@@ -155,13 +155,4 @@ describe("App styles", () => {
     expect(body).toMatch(/box-shadow:\s*inset/);
     expect(body).not.toMatch(/outline-offset/);
   });
-
-  it("keeps iOS Safari's native selection off comment cards with the prefixed property", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const css = readFileSync(join(here, "styles/partials/panels.css"), "utf8");
-    const at = css.indexOf("  .comment-card-main {");
-    expect(at).toBeGreaterThan(-1);
-    const body = css.slice(at, css.indexOf("}", at));
-    expect(body).toMatch(/-webkit-user-select:\s*none/);
-  });
 });

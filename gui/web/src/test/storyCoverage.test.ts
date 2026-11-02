@@ -42,7 +42,11 @@ const COVERED: Record<string, string[]> = {
   ],
   "INS-TRACK": ["Templates/Editor · Inspector · Track", "System/ScrubField"],
   "INS-APPLIED": ["System/InspectorSheet", "System/Seam"],
-  "INS-PENDING": ["System/InspectorSheet", "System/ScrubField"],
+  "INS-PENDING": [
+    "System/InspectorSheet",
+    "System/ScrubField",
+    "Stages/Edit/PendingInspector",
+  ],
   "SCR-LOADING": ["Organisms/LoadingScreen"],
   "SCR-ERROR": ["Organisms/ErrorScreen"],
   "SCR-COVER": ["Organisms/CoverScreen"],
