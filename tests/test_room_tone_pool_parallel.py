@@ -130,6 +130,23 @@ def test_two_missing_pools_of_three_are_recorded_with_each_floor_measured_once(
     assert sorted(p.name for p in calls) == ["guest.wav", "guest2.wav", "host.wav"]
 
 
+def test_two_missing_pools_have_their_floors_measured_together_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _two_speakers(tmp_path)
+    warmed: list[EpisodeProject] = []
+    real = room_tone._warm_floors
+
+    def warm(project: EpisodeProject) -> None:
+        warmed.append(project)
+        real(project)
+
+    monkeypatch.setattr(room_tone, "_warm_floors", warm)
+    room_tone.ensure_room_tone_pools(live, ["host", "guest"])
+
+    assert len(warmed) == 1
+
+
 def test_a_request_during_the_background_recording_does_not_measure_the_floors_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
