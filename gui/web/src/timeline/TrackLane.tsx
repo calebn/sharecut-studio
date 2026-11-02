@@ -39,12 +39,14 @@ import { sessionSecOf } from "../utils/zoom";
 import { clipMediaRef } from "../waveform/mediaRef";
 import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
+import { appliedEditTicks } from "./appliedEditTicks";
 import { BleedAttenuationOverlay } from "./BleedAttenuationOverlay";
 import { ClipBlock } from "./ClipBlock";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
 import {
   collectJoinMarks,
   EditMarkerLayer,
+  type JoinMark,
   type PlacedChip,
   planLaneMarks,
 } from "./editMarkers";
@@ -98,6 +100,7 @@ interface TrackLaneProps {
   onSelectBleed?: (trackId: string, clipId: string, key: string) => void;
   onSelectTrack: (trackId: string) => void;
   onSelectPending: (trackId: string, id: string) => void;
+  onSelectApplied: (trackId: string, id: string) => void;
   canMoveClips?: boolean;
   selectedClipIds?: readonly string[];
   previewStartById?: Readonly<Record<string, number>>;
@@ -118,6 +121,9 @@ interface TrackLaneProps {
   prosody?: ProsodyOverlayTrack | null;
 }
 
+/** A join glyph and an applied seam are the same moment when their timeline seconds agree to a frame. */
+const SEAM_MATCH_SEC = 0.02;
+
 export function TrackLaneView({
   track,
   trackIndex,
@@ -137,6 +143,7 @@ export function TrackLaneView({
   onSelectBleed,
   onSelectTrack,
   onSelectPending,
+  onSelectApplied,
   canMoveClips = false,
   selectedClipIds = EMPTY_ARR,
   previewStartById = EMPTY_OBJ,
@@ -231,6 +238,23 @@ export function TrackLaneView({
   const selectTrack = useCallback(
     () => onSelectTrack(trackId),
     [onSelectTrack, trackId],
+  );
+  // A join that is a cut sits at an applied seam: the glyph selects that record too.
+  const seamTicks = useMemo(
+    () =>
+      appliedEditTicks(appliedRecords, trackId, clips).filter(
+        (t) => t.kind === "seam" && !t.mute,
+      ),
+    [appliedRecords, trackId, clips],
+  );
+  const onSelectJoin = useCallback(
+    (mark: JoinMark) => {
+      const tick = seamTicks.find(
+        (t) => Math.abs(t.sec - mark.sec) <= SEAM_MATCH_SEC,
+      );
+      if (tick) onSelectApplied(trackId, tick.recordId);
+    },
+    [seamTicks, onSelectApplied, trackId],
   );
   const selectPending = useCallback(
     (id: string) => onSelectPending(trackId, id),
@@ -477,7 +501,11 @@ export function TrackLaneView({
             gainDb={trackOutputGainDb(track)}
           />
         ))}
-        <EditMarkerLayer plan={plan} onZoomChip={onZoomChip} />
+        <EditMarkerLayer
+          plan={plan}
+          onZoomChip={onZoomChip}
+          onSelectJoin={onSelectJoin}
+        />
         {/* Move ghosts draw raw media on purpose. A stem is per lane and on
             the timeline clock, so the destination lane's stem read at the
             ghost's new timeline_start would show unrelated audio. After the
