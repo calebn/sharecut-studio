@@ -7,7 +7,7 @@ import {
   evaluateWhen,
 } from "./context";
 import type { CommandHandler, ExecuteResult } from "./types";
-import { markUserStageSwitch } from "./userStageSwitch";
+import { cancelUserStageSwitch, markUserStageSwitch } from "./userStageSwitch";
 
 const handlers = new Map<string, CommandHandler>();
 
@@ -47,8 +47,11 @@ export async function execute(
       return { status: "disabled", reason: gate.reason };
     }
   }
+  const stageBefore = useDawStore.getState().stage;
   if (id.startsWith("stage.")) markUserStageSwitch();
   const result = await handler(args, ctx);
+  if (id.startsWith("stage.") && useDawStore.getState().stage === stageBefore)
+    cancelUserStageSwitch();
   if (def.breaksFollow && result.status === "ok" && !isProgrammaticUi()) {
     useDawStore.getState().stopFollow("local");
   }

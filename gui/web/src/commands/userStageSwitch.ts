@@ -14,3 +14,8 @@ export function takeUserStageSwitch(): boolean {
   markedAt = Number.NEGATIVE_INFINITY;
   return fresh;
 }
+
+/** The stage command left the stage where it was (a surface or sheet argument): nothing to announce. */
+export function cancelUserStageSwitch(): void {
+  markedAt = Number.NEGATIVE_INFINITY;
+}

@@ -79,6 +79,11 @@ html[data-frame-short][data-shell="phone"] {
   grid-row: 2;
 }
 
+/* The body takes programmatic focus after a stage switch (useAnnounceStageSwitch); it is a landmark, not a control, so it draws no ring. */
+.stage-frame-body:focus {
+  outline: none;
+}
+
 .stage-frame-body {
   grid-row: 3;
 }
