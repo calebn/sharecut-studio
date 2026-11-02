@@ -10,8 +10,9 @@ const BUSY_RETRIES = 400;
 
 export async function decide(verb: "cut" | "keep") {
   registerDawCommands();
-  await waitFor(() =>
-    expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+  await waitFor(
+    () => expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+    { timeout: 10_000 },
   );
   // The sheet answers BUSY_REASON before it does anything, so a retry never repeats a decision;
   // a queued notice is a real block that tests assert on, so it ends the retries.

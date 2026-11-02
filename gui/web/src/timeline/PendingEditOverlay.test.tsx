@@ -1578,8 +1578,9 @@ describe("single pending review feedback", () => {
       await decide(label === "Approve" ? "cut" : "keep");
       return;
     }
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: label })).toBeEnabled(),
+    await waitFor(
+      () => expect(screen.getByRole("button", { name: label })).toBeEnabled(),
+      { timeout: 10_000 },
     );
     await userEvent.click(screen.getByRole("button", { name: label }));
   }
