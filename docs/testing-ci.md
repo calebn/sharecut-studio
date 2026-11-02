@@ -610,7 +610,7 @@ skips the later ones until it is fixed; the report names the failing
 `e2e-compat/deep-zoom.spec.ts` stretches a disposable `aligned_dialogue` copy
 to a one-hour session (`e2e/deepZoom.ts` `stretchProjectToSession`) and zooms to
 `effectiveMaxZoomPxPerSec(3600)` (about 15 M px of content). At the end it
-checks, within 1 px: `scrollWidth`, the reachable scroll end, the last ruler
+checks, within 1 px (the envelope window only must start at or before its point): `scrollWidth`, the reachable scroll end, the last ruler
 label, tick offsets (`t × zoom`), tile placement on the 512 px grid ending at
 the session end, and envelope point offsets and the window's left edge. The Vitest helper test
 also validates the actual stretched project against

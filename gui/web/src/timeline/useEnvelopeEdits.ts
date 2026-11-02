@@ -137,14 +137,18 @@ export function useEnvelopeEdits(
       edit: { time?: number; value?: number },
       held: (() => void) | null,
     ) => {
-      saved.current = { stored: storedRef.current, settled: false };
+      const record = { stored: storedRef.current, settled: false };
+      saved.current = record;
       if (held) release.current = held;
       const result = await setEnvelopePoint(trackId, id, edit);
       // A refusal is told even when the lane went away meanwhile (a 409 after an unmount).
       refuse(result);
       if (!alive.current) return;
-      const pending = saved.current;
-      if (result.status !== "ok" || !pending) {
+      // The record of this save: a project switch may have dropped it and a
+      // newer gesture started its own, which this response must not settle.
+      const pending = record;
+      if (saved.current !== pending) return;
+      if (result.status !== "ok") {
         drop();
         return;
       }

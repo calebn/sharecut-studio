@@ -589,6 +589,69 @@ describe("LaneEnvelope while a save settles", () => {
   });
 });
 
+describe("LaneEnvelope line clicks", () => {
+  const press = (band: Element, x: number, y: number) =>
+    fireEvent.mouseDown(band, { clientX: x, clientY: y });
+
+  it("adds nothing for a drag along the line that ends over it", async () => {
+    const { container } = setup();
+    const band = container.querySelector(".sys-env-band")!;
+    press(band, 120, 30);
+    fireEvent.pointerUp(band, mouse(180, 30));
+    fireEvent.click(band, { clientX: 180, clientY: 30, detail: 1 });
+    await act(async () => {});
+    expect(setEnvelope).not.toHaveBeenCalled();
+  });
+
+  it("adds a point for a click that moved less than the drag slop", async () => {
+    const { container } = setup();
+    const band = container.querySelector(".sys-env-band")!;
+    press(band, 120, 30);
+    fireEvent.click(band, { clientX: 121, clientY: 31, detail: 1 });
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+  });
+
+  it("forgets a drag, so the next plain click adds", async () => {
+    const { container } = setup();
+    const band = container.querySelector(".sys-env-band")!;
+    press(band, 120, 30);
+    fireEvent.click(band, { clientX: 180, clientY: 30, detail: 1 });
+    press(band, 200, 30);
+    fireEvent.click(band, { clientX: 200, clientY: 30, detail: 1 });
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("LaneEnvelope project switch mid-save", () => {
+  it("does not let the old save's response settle the new drag's hold", async () => {
+    const finishers: Array<() => void> = [];
+    setEnvelope.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishers.push(() => resolve(null));
+        }),
+    );
+    setup();
+    let drag = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(drag.el, mouse(0, 0));
+    await act(async () => {});
+    expect(finishers).toHaveLength(1);
+    act(() => useDawStore.setState({ projectEpoch: 7 }));
+    await act(async () => {});
+    const released = release.mock.calls.length;
+    drag = dragPoint(2, 24, 0);
+    fireEvent.pointerUp(drag.el, mouse(0, 0));
+    await act(async () => {});
+    expect(finishers).toHaveLength(2);
+    await act(async () => finishers[0]!());
+    expect(release).toHaveBeenCalledTimes(released);
+    await act(async () => finishers[1]!());
+    expect(release).toHaveBeenCalledTimes(released + 1);
+  });
+});
+
 describe("LaneEnvelope leftovers", () => {
   const nudge = (place: number) => {
     point(place).focus();

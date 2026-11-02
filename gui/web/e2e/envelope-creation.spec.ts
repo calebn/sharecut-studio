@@ -571,6 +571,45 @@ test.describe("volume envelope point gestures", () => {
   });
 });
 
+test.describe("volume envelope line strip", () => {
+  test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
+  test("a drag along the line adds nothing; a click adds one point", async ({
+    page,
+    receipts,
+  }) => {
+    await withShareableProject(
+      async (projectPath) => {
+        const track = envelopeTrack(projectPath);
+        await openEnvelope(page, projectPath, "light", receipts);
+        await savedAt(page, () => addEnvelopePoint(page));
+        const before = envelopeSnapshot(projectPath, track.id);
+        const line = await page
+          .locator(".sys-env-line")
+          .first()
+          .evaluate((path) => {
+            const box = path.getBoundingClientRect();
+            return { x: box.left, y: box.top + box.height / 2, w: box.width };
+          });
+        const from = { x: line.x + line.w * 0.3, y: line.y };
+        await page.mouse.move(from.x, from.y);
+        await page.mouse.down();
+        await page.mouse.move(from.x + 120, from.y, { steps: 6 });
+        await page.mouse.up();
+        await settle(page);
+        expect(envelopeSnapshot(projectPath, track.id)).toEqual(before);
+        const added = await savedAt(page, async () => {
+          await page.mouse.click(line.x + line.w * 0.7, line.y);
+        });
+        expect(added.command.payload.points).toHaveLength(
+          before.points.length + 1,
+        );
+      },
+      undefined,
+      emptyEnvelopeProject,
+    );
+  });
+});
+
 test.describe("host envelope playback", () => {
   test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
   test("created envelope reaches actual host edited-stem media playback", async ({
