@@ -121,10 +121,9 @@ describe("session bands on the Edit ruler", () => {
     );
     expect(seekTransport).toHaveBeenCalledExactlyOnceWith(s2Start);
     expect(onSeek).not.toHaveBeenCalled();
-    expect(s2).toHaveAttribute("aria-current", "true");
-    expect(s2).not.toHaveAttribute("aria-pressed");
+    expect(s2).toHaveAttribute("data-selected");
     expect(screen.getByRole("button", { name: /^S1,/ })).not.toHaveAttribute(
-      "aria-current",
+      "data-selected",
     );
   });
 
@@ -180,38 +179,24 @@ describe("session bands on the Edit ruler", () => {
     expect(screen.getByRole("button", { name: /^S2,/ })).toBeVisible();
   });
 
-  it("stacks a pill that starts inside an earlier band to the right of it", async () => {
-    const project = recordedSessionsProject();
-    const first = Object.values(project.clips.tracks)[0][0];
-    const tracks = {
-      ...project.clips.tracks,
-      nested: [
-        {
-          ...first,
-          id: "nested",
-          source_id: "rec-s3-0-x",
-          timeline_start: first.timeline_start + 1,
-          timeline_end: first.timeline_start + 5,
-        },
-      ],
-    };
-    useDawStore.getState().hydrate(project.project_path, {
-      ...project,
-      clips: { ...project.clips, tracks },
-    });
-    vi.mocked(loadHostRecordSessions).mockResolvedValue([
-      ...RECORDED_SESSIONS_RESPONSE.sessions,
-      {
-        ...RECORDED_SESSIONS_RESPONSE.sessions[0],
-        session_id: "s3",
-        number: 3,
-      },
-    ]);
+  it("fetches once for a burst of history changes", async () => {
+    hydrate();
     render(<Ruler />);
-    const stack = async (re: RegExp) =>
-      (await pill(re)).style.getPropertyValue("--session-stack");
-    expect(await stack(/^S1,/)).toBe("0");
-    expect(await stack(/^S3,/)).toBe("1");
+    await pill(/^S2,/);
+    advanceHistory("h2");
+    advanceHistory("h3");
+    await new Promise((r) => setTimeout(r, 450));
+    expect(loadHostRecordSessions).toHaveBeenCalledTimes(2);
+  });
+
+  it("marks the selected pill visually and not with aria-pressed or aria-current", async () => {
+    hydrate();
+    render(<Ruler />);
+    const s2 = await pill(/^S2,/);
+    fireEvent.click(s2);
+    expect(s2).toHaveAttribute("data-selected");
+    expect(s2).not.toHaveAttribute("aria-current");
+    expect(s2).not.toHaveAttribute("aria-pressed");
   });
 
   it("has no axe violations", async () => {

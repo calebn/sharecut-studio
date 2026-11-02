@@ -7,11 +7,14 @@ import { partial, rule, rules } from "../test/cssRules";
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe("timeline styles", () => {
-  it("keeps the session pill pressable: no overflow clip on the button, a minimum width, a coarse-pointer target", () => {
+  it("keeps the session pill pressable: no overflow clip, its own width, a focus ring, a coarse-pointer target", () => {
     const css = partial("timeline.css");
     const pill = rule(css, ".timeline-session-pill");
     expect(pill).not.toMatch(/overflow/);
-    expect(pill).toMatch(/min-inline-size:\s*1\.5rem/);
+    expect(pill).not.toMatch(/min-inline-size|max-inline-size/);
+    expect(rule(css, ".timeline-session-pill:focus-visible")).toMatch(
+      /outline:\s*var\(--focus-ring-width\) solid var\(--color-accent\)/,
+    );
     expect(css).toMatch(
       /@media \(pointer: coarse\)[^}]*\{[^}]*\.timeline-session-pill/s,
     );

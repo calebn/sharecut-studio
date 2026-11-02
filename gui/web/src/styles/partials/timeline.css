@@ -1304,13 +1304,6 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 .timeline-session-pill {
   position: absolute;
   inset-block-end: var(--space-1);
-  inset-inline-start: calc(
-    var(--session-x) +
-    var(--session-stack, 0) *
-    2.25rem
-  );
-  min-inline-size: 1.5rem;
-  max-inline-size: var(--session-w);
   padding: 0 var(--space-1);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-xl);
@@ -1325,25 +1318,23 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 
 .timeline-session-pill-text {
   display: block;
-  overflow: hidden;
-  text-align: center;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* A coarse pointer gets a 44 px wide target the height of the ruler row (the row
-   is 24 px and clips anything taller). */
+/* A coarse pointer gets the pill's own width and the height of the ruler row (the
+   row is 24 px and clips anything taller); a tap beside the pill still seeks. */
 @media (pointer: coarse) {
-  .timeline-session-pill {
-    min-inline-size: 2.75rem;
-  }
-
   .timeline-session-pill::after {
     content: "";
     position: absolute;
     inset-block: calc(var(--space-1) * -1);
     inset-inline: 0;
   }
+}
+
+.timeline-session-pill:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .timeline-session-pill[data-selected] {
