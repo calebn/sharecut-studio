@@ -432,7 +432,7 @@ export function seamTickAtJoin(
   let best: AppliedTick | undefined;
   let bestGap = SEAM_MATCH_SEC;
   for (const tick of ticks) {
-    if (tick.kind !== "seam" || tick.mute) continue;
+    if (tick.kind !== "seam") continue;
     const gap = Math.abs(tick.sec - join.sec);
     if (gap <= bestGap) {
       best = tick;
