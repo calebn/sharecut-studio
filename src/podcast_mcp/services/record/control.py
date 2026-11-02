@@ -51,6 +51,9 @@ class RecordControlService:
     def set_target(self, target: str | dict[str, Any] | None = None) -> dict[str, Any]:
         return self._host("SetTarget", {"target": parse_session_target(target).model_dump()})
 
+    def set_guests_see_notes(self, enabled: bool) -> dict[str, Any]:
+        return self._host("SetGuestsSeeNotes", {"enabled": enabled})
+
     def marker(self, body: str = "Marker") -> dict[str, Any]:
         """Drop a live comment at this moment of the open take; it lands as a comment."""
         marker_id = f"{LIVE_COMMENT_ID_PREFIX}{uuid4().hex}"

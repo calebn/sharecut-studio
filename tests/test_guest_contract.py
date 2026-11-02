@@ -886,6 +886,7 @@ RECORD_WS_COMMAND_PAYLOADS: dict[str, dict[str, object]] = {
     "Stop": {},
     "RoomToneCountdown": {},
     "SetTarget": {"target": {"kind": "end"}},
+    "SetGuestsSeeNotes": {"enabled": True},
     "RemoveParticipant": {"participant_id": "p1"},
     "UpdateName": {"display_name": "Guest"},
     "Comment": {"id": "live-c1", "body": "comment"},

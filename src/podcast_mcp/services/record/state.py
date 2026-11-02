@@ -167,6 +167,7 @@ class RecordSnapshot(BaseModel):
     host_offline_gap_ms: int | None = None
     room_tone: RoomToneRound | None = None
     target: SessionTarget = Field(default_factory=EndTarget)
+    guests_see_notes: bool = False
 
 
 def empty_record_snapshot(session_id: str, target: SessionTarget | None = None) -> RecordSnapshot:

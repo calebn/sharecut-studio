@@ -294,6 +294,9 @@ def apply_record_command(
         session_target = parse_session_target(cmd.payload.get("target"))
         out.target = session_target
         return out
+    if ctype == "SetGuestsSeeNotes":
+        out.guests_see_notes = bool(cmd.payload.get("enabled"))
+        return out
     if ctype == "Pause":
         if out.state != "recording":
             raise RecordStateError("cannot pause unless recording")
