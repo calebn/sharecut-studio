@@ -7,7 +7,6 @@ from typing import Literal
 from podcast_mcp.models.episode import EpisodeProject
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import apply_editable_snapshot
-from podcast_mcp.project.history.rollback import rolled_back_on_failure, take_history_checkpoint
 from podcast_mcp.project.store import (
     ProjectStore,
     history_index_path,
@@ -261,22 +260,3 @@ class HistoryManager:
 
     def list_entries(self, project: EpisodeProject) -> list[HistoryEntry]:
         return list(self._load_index(project).entries)
-
-
-def record_and_commit(
-    store: ProjectStore, project: EpisodeProject, label: str, *, force: bool = False
-) -> HistoryEntry:
-    """Record ``label`` and commit ``project`` as one locked step.
-
-    A failure rolls the new entry back (``history.rollback.rolled_back_on_failure``).
-    """
-    # record() and store.commit() take project_commit_lock again inside this hold; that
-    # nests only because both locks are re-entrant per thread
-    # (tests/test_project_commit_lock.py::test_lock_is_reentrant_and_shared_per_workspace).
-    with project_commit_lock(project):
-        checkpoint = take_history_checkpoint(store, project)
-        with rolled_back_on_failure(project, checkpoint):
-            entry = HistoryManager(store).record(project, label, force=force)
-            checkpoint.start_commit(project)
-            store.commit(project)
-        return entry

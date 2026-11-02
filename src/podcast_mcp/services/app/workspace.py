@@ -9,7 +9,6 @@ from typing import Any, TypeVar
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, EpisodeProject, project_not_found
 from podcast_mcp.project.history import HistoryManager, HistoryStatus, run_mutation
-from podcast_mcp.project.history.manager import record_and_commit
 from podcast_mcp.project.history.rollback import (
     HistoryRollbackPolicy,
     RollbackOutcome,
@@ -366,7 +365,15 @@ class ProjectWorkspace:
         """Record ``label`` as a history entry and commit it; a failure rolls the entry back."""
         with self.transaction():
             try:
-                entry = record_and_commit(self._store, self.project, label, force=force)
+                # record() and the store's commit take project_commit_lock again inside this
+                # hold; that nests only because both locks are re-entrant per thread
+                # (tests/test_project_commit_lock.py::test_lock_is_reentrant_and_shared_per_workspace).
+                with project_commit_lock(self.project):
+                    checkpoint = take_history_checkpoint(self._store, self.project)
+                    with rolled_back_on_failure(self.project, checkpoint):
+                        entry = HistoryManager(self._store).record(self.project, label, force=force)
+                        checkpoint.start_commit(self.project)
+                        self._store.commit(self.project)
             except BaseException:
                 # A failed commit may still have replaced the file; re-read before trusting it.
                 self._loaded_file_signature = None
