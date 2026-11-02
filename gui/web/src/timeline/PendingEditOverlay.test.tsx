@@ -1534,7 +1534,7 @@ it("keeps a waiver save busy across relocation and shows its failure on the same
 
 describe("single pending review feedback", () => {
   // Each review polls the host queue on a real interval; on a loaded machine the default 1 s
-  // findBy window can close before the notice or toast renders (origin/main fails the same way).
+  // findBy window can close before the notice or toast renders (origin/main failed the same way before its queued-outbox model).
   const defaultAsyncTimeout = getConfig().asyncUtilTimeout;
   beforeAll(() => configure({ asyncUtilTimeout: 8000 }));
   afterAll(() => configure({ asyncUtilTimeout: defaultAsyncTimeout }));
