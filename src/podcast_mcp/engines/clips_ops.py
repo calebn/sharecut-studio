@@ -367,13 +367,20 @@ def extract_clips_in_timeline_range(
         if src_bounds is None:
             continue
         src_start, src_end = src_bounds
+        timing = None if clip.timing is None else clip.timing.sliced(src_start, src_end)
+        placed_at = ov_start
+        if clip.timing is not None:
+            for piece_a, piece_b, piece_tl in clip.virtual_pieces():
+                if piece_b > src_start:
+                    placed_at = piece_tl + max(0.0, src_start - piece_a)
+                    break
         extracted.append(
             Clip(
                 id=new_clip_id(),
                 track_id=clip.track_id,
                 source_start=src_start,
                 source_end=src_end,
-                timeline_start=ov_start - timeline_start,
+                timeline_start=placed_at - timeline_start,
                 source_id=clip.source_id,
                 fade_in_ms=clip.fade_in_ms,
                 fade_out_ms=clip.fade_out_ms,
@@ -385,6 +392,7 @@ def extract_clips_in_timeline_range(
                 bleed_restore=clip.bleed_restore.model_copy(deep=True)
                 if clip.bleed_restore
                 else None,
+                timing=timing,
             )
         )
     return extracted
