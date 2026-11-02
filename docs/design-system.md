@@ -233,7 +233,7 @@ store transitively through `clock.ts`, which the guard does not follow.
 `Templates/CommentCompose` and `Templates/GhostWordChips` preview the
 comment form and restored-word preview with fictional data. Their stories
 show an empty, a drafted and a posting form, restored-word and empty ghost
-output, and a 360px phone layout. The
+output, and (GhostWordChips only) a 360px phone layout. The
 callbacks update only story-local state; the live comment panel remains outside this catalog slice. The restored-word preview
 uses the theme's unmapped text color at full opacity so its ghost styling
 remains readable in both themes.
