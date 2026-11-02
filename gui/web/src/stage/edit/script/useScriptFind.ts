@@ -30,6 +30,8 @@ export type ScriptFind = ScriptFindState & {
   current: number;
   /** What the pane's live region says about the search; undefined while the bar is closed. */
   status: string | undefined;
+  /** Counts the steps to a match, so a repeated status ("1 of 1") is announced again. */
+  statusKey: number;
   openBar: () => void;
   closeBar: () => void;
   setQuery: (query: string) => void;
@@ -63,6 +65,7 @@ export function useScriptFind(
     replaceText: "",
   });
   const [at, setAt] = useState(0);
+  const [stepped, setStepped] = useState(0);
   const { query, caseSensitive, replaceText } = state;
   const matches = useMemo(
     () => (open ? findMatches(model.turns, query, caseSensitive) : []),
@@ -92,6 +95,7 @@ export function useScriptFind(
   );
   const step = (by: number) => {
     if (matches.length === 0) return;
+    setStepped((n) => n + 1);
     go(matches, (Math.max(current, 0) + by + matches.length) % matches.length);
   };
 
@@ -146,6 +150,7 @@ export function useScriptFind(
     matches,
     current,
     status: open ? findCountText(query, matches.length, current) : undefined,
+    statusKey: stepped,
     openBar,
     closeBar,
     setQuery: (value) => edit({ query: value }),

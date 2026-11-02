@@ -124,6 +124,7 @@ export function ScriptHost({
         matches={find.matches}
         currentMatch={find.current}
         findStatus={find.status}
+        findStatusKey={find.statusKey}
         editing={fix.editing}
         renderEditor={fix.renderEditor}
         showCutText={showCut}
