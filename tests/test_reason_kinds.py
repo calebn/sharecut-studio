@@ -40,7 +40,9 @@ def test_pause_reasons_are_pauses(reason: str) -> None:
     assert sound_kind(reason) == "pause"
 
 
-@pytest.mark.parametrize("reason", [None, "", "filler:um", "repetition:word:the", "unpause:1s"])
+@pytest.mark.parametrize(
+    "reason", [None, "", "filler:um", "repetition:word:the", "unpause:1s", "pausing", "pause"]
+)
 def test_other_reasons_are_not_pauses(reason: str | None) -> None:
     assert not is_pause_reason(reason)
 
