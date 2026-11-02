@@ -79,6 +79,10 @@ export function SheetHostPlacement({
     if (column) host.removeAttribute("role");
     else host.setAttribute("role", "presentation");
     host.toggleAttribute("inert", !column && stowed);
+    const active = doc.activeElement;
+    if (host.hasAttribute("inert") && active && host.contains(active)) {
+      (active as HTMLElement).blur();
+    }
     const placed = slot
       ? host.previousElementSibling === slot
       : host.parentElement === doc.body;
