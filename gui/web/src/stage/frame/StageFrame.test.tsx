@@ -219,6 +219,20 @@ describe("StageFrame roles", () => {
     localStorage.removeItem("sharecut.roleHintSeen.commenter");
   });
 
+  it("shows the hint when the guest role arrives after the first render", () => {
+    localStorage.removeItem("sharecut.roleHintSeen.editor");
+    useDawStore.setState({ guestMode: null, stage: "edit" });
+    mount();
+    expect(screen.queryByText(/The host decides/)).toBeNull();
+    act(() => useDawStore.setState({ guestMode: "edit" }));
+    expect(
+      screen.getByText(
+        "You can edit and comment. The host decides what ships.",
+      ),
+    ).toBeInTheDocument();
+    localStorage.removeItem("sharecut.roleHintSeen.editor");
+  });
+
   it("shows a host no role hint", () => {
     mount();
     expect(screen.queryByText(/The host decides/)).toBeNull();
