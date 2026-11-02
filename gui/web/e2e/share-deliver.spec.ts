@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { TUNNEL_STATUS_POLL_MS as TUNNEL_POLL_MS } from "../src/stage/hosts/useTunnelStatus";
 import { expectPageAxeClean } from "./axe";
 import { createRecordRoom } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
@@ -9,9 +10,6 @@ import {
   openProject,
   openProjectDialog,
 } from "./stageNav";
-
-// Matches TUNNEL_STATUS_POLL_MS in src/stage/hosts/useTunnelStatus.ts.
-const TUNNEL_POLL_MS = 5_000;
 
 type Row = {
   token: string;

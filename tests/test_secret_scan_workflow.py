@@ -385,6 +385,17 @@ def test_public_tree_allows_private_documentation_and_allowlisted_ipv4(tmp_path:
     assert _public_tree_violations(tmp_path) == []
 
 
+def test_the_172_private_block_ends_at_31_and_starts_at_16(tmp_path: Path) -> None:
+    _init_git_repo(tmp_path)
+    inside = ("172." + "16.0.1", "172." + "31.255.254")
+    outside = ("172." + "15.255.254", "172." + "32.0.1")
+    (tmp_path / "tracked.txt").write_text(" ".join((*inside, *outside)) + "\n")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=tmp_path, check=True)
+    assert _public_tree_violations(tmp_path) == [
+        f"tracked.txt: public IPv4 literal {ip}" for ip in outside
+    ]
+
+
 def test_public_tree_skips_lockfiles_assets_and_binary_blobs_for_ipv4(tmp_path: Path) -> None:
     _init_git_repo(tmp_path)
     ip = "8.8." + "4.4"
