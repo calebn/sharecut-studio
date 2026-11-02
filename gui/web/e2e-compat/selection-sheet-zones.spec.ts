@@ -21,7 +21,7 @@ async function expectZonesLaidOutLikeTheInspector(
   const layout = await page.evaluate(() => {
     const box = (el: Element) => el.getBoundingClientRect();
     const inspector = document.querySelector<HTMLElement>(
-      ".bottom-sheet .inspector, .sys-inspector .inspector",
+      ".bottom-sheet .sys-inspector-rows, .sys-inspector .sys-inspector-rows",
     )!;
     const gutter =
       box(inspector).left +
@@ -60,8 +60,16 @@ test("the phone sheet lays its related and more zones out like the inspector abo
   await expectZonesLaidOutLikeTheInspector(page, { width: 390, height: 844 });
 });
 
-test("the tablet sheet lays its related and more zones out like the inspector above them", async ({
+test("the tablet clip sheet shows its rows and leaves the related commands to the Action bar", async ({
   page,
 }) => {
-  await expectZonesLaidOutLikeTheInspector(page, { width: 820, height: 1180 });
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await openHostProject(page);
+  await page.locator(".clip-hit").first().tap();
+  await inspectSelection(page);
+  const sheet = page.getByRole("dialog", { name: "Inspector" });
+  await expect(
+    sheet.getByRole("spinbutton", { name: "Source start", exact: true }),
+  ).toBeVisible();
+  await expect(sheet.locator(".related-commands-zone")).toHaveCount(0);
 });
