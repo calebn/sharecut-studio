@@ -285,6 +285,7 @@ def _read_members(
     if len(files) > MAX_KIT_ENTRIES:
         raise _bundle_error(f"The bundle holds more than {MAX_KIT_ENTRIES} segments.")
     members: list[_Member] = []
+    seen: set[tuple[str, int]] = set()
     for index in sorted(files):
         if SEGMENT_JSON not in files[index] or len(files[index]) > MEMBER_MAX_FILES:
             raise _bundle_error(
@@ -305,6 +306,12 @@ def _read_members(
             raise _bundle_error(
                 f"The files of segment {index} do not match the audio its segment.json names."
             )
+        key = (segment.id, segment.version)
+        if key in seen:
+            raise _bundle_error(
+                f"Segment {index} repeats {segment.id} version {segment.version} in the bundle."
+            )
+        seen.add(key)
         members.append(_Member(index, segment))
     return members
 

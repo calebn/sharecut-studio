@@ -1045,3 +1045,35 @@ def test_import_preserves_distinct_bundled_versions_of_one_segment(tmp_path: Pat
     assert kits.get(kit.id).entries == kit.entries
     assert segments.get(first.id, 1).fader_db == -3.0
     assert segments.get(first.id, 2).fader_db == -9.0
+
+
+def test_import_keeps_cross_id_content_dedupe(tmp_path: Path) -> None:
+    from podcast_mcp.segments.model import segment_id_for
+
+    segment = _save(tmp_path, "Original Intro")
+    kit = _kit("Dedupe Kit", (segment.id, "start"), (segment.id, "end"), version=1)
+    KitStore().add(kit)
+    bundle = export_kit(KitStore(), SegmentStore(), kit.id, tmp_path / "dedupe.sharecutkit")
+    alias_id = segment_id_for("Alias Intro")
+
+    def alias(members: dict[str, bytes]) -> dict[str, bytes]:
+        for name, data in list(members.items()):
+            if name.startswith("seg01__"):
+                members[name.replace("seg01__", "seg02__")] = data
+        other = json.loads(members["seg02__segment.json"])
+        other.update(id=alias_id, name="Alias Intro")
+        members["seg02__segment.json"] = json.dumps(other).encode()
+        kit_data = json.loads(members["kit.json"])
+        kit_data["entries"][1]["segment_id"] = alias_id
+        members["kit.json"] = json.dumps(kit_data).encode()
+        return _regen(members)
+
+    portable = _tampered(bundle, tmp_path / "alias.sharecutkit", alias)
+    kits, segments = _fresh(tmp_path, "dedupe-destination")
+
+    result = import_kit_bundle(kits, segments, portable)
+
+    assert [added.status for added in result.segments] == ["added", "unchanged"]
+    assert [entry.segment_id for entry in kits.get(kit.id).entries] == [segment.id, segment.id]
+    assert [entry.version for entry in kits.get(kit.id).entries] == [1, 1]
+    assert [stored.id for stored in segments.list()] == [segment.id]
