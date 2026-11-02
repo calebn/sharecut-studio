@@ -813,6 +813,10 @@ describe("Deliver host export while a save is in flight", () => {
 
 describe("Deliver host export while an edit is not saved", () => {
   const exportHeld = () => screen.getAllByRole("button", { name: "Export" })[0];
+  const exportStarts = (spy: { mock: { calls: unknown[][] } }) =>
+    spy.mock.calls.filter(([url]) =>
+      String(url).includes("/api/export/deliverables"),
+    ).length;
 
   it("holds Export while an edit waits in the offline queue", async () => {
     network.mode = "down";
@@ -831,10 +835,12 @@ describe("Deliver host export while an edit is not saved", () => {
     render(<DeliverStage />);
     await removeMiddle();
     await screen.findByRole("alert");
+    const fetched = vi.spyOn(globalThis, "fetch");
     act(() => useDawStore.getState().setExportRequested(true));
     await waitFor(() =>
       expect(useDawStore.getState().chrome.exportRequested).toBe(false),
     );
+    expect(exportStarts(fetched)).toBe(0);
   });
 
   it("drops a queued Export request while an edit waits in the offline queue", async () => {
@@ -842,10 +848,12 @@ describe("Deliver host export while an edit is not saved", () => {
     render(<DeliverStage />);
     await removeMiddle();
     await screen.findByRole("status");
+    const fetched = vi.spyOn(globalThis, "fetch");
     act(() => useDawStore.getState().setExportRequested(true));
     await waitFor(() =>
       expect(useDawStore.getState().chrome.exportRequested).toBe(false),
     );
+    expect(exportStarts(fetched)).toBe(0);
   });
 
   it("holds Export after a refused save until the saved version is shown", async () => {
