@@ -340,6 +340,28 @@ describe("MarkerLaneHost", () => {
     expect(onMoveChapter.mock.calls[0][1]).toBeCloseTo(40, 5);
   });
 
+  it("saves a snapped chapter without float drift (#2960)", async () => {
+    const { onMoveChapter } = setup({
+      chapters: [{ time: 1.1, title: "Intro" }],
+      zoomPxPerSec: 10,
+    });
+    const chapter = screen.getByRole("button", { name: /^Chapter Intro,/ });
+    fireEvent.pointerDown(chapter, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(chapter, { pointerId: 1, clientX: 152 });
+    fireEvent.pointerUp(chapter, { pointerId: 1, clientX: 152 });
+    await waitFor(() => expect(onMoveChapter).toHaveBeenCalled());
+    expect(onMoveChapter.mock.calls[0][1]).toBe(6.3);
+  });
+
+  it("does not start a chapter drag while the duration is unknown", () => {
+    const { onMoveChapter } = setup({ duration: 0 });
+    const chapter = screen.getByRole("button", { name: /^Chapter Intro,/ });
+    fireEvent.pointerDown(chapter, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(chapter, { pointerId: 1, clientX: 150 });
+    fireEvent.pointerUp(chapter, { pointerId: 1, clientX: 150 });
+    expect(onMoveChapter).not.toHaveBeenCalled();
+  });
+
   it("previews the chapter on the snapped grid and treats a drop back on the origin as no move (#2960)", async () => {
     const { onMoveChapter } = setup({ zoomPxPerSec: 100 });
     const chapter = () =>
