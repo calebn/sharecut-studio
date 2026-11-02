@@ -167,9 +167,21 @@ def _rewrite_header(path: Path, header: bytes) -> None:
         b'{"key": "x", "rates": [8000], "sizes": [1]}',
         b'{"rates": [8000], "sizes": [1]}',
         b"[" * 4000 + b"]" * 4000,
+        b"[" * 2000 + b"]" * 2000,
         b"{not json",
     ],
-    ids=["null", "list", "text", "number", "empty-object", "other-key", "no-key", "deep", "broken"],
+    ids=[
+        "null",
+        "list",
+        "text",
+        "number",
+        "empty-object",
+        "other-key",
+        "no-key",
+        "deep",
+        "deep-within-the-header-cap",
+        "broken",
+    ],
 )
 def test_a_record_whose_header_is_not_the_records_is_evaluated_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, header: bytes
@@ -187,6 +199,33 @@ def test_a_record_whose_header_is_not_the_records_is_evaluated_again(
     np.testing.assert_array_equal(_bits(read), _bits(built))
     _clear_retained()
     assert _samples(project).shape == built.shape and calls.count == 1
+
+
+def test_a_record_that_claims_no_samples_is_not_read(tmp_path: Path) -> None:
+    key = "c" * 64
+    header = json.dumps(
+        {
+            "key": key,
+            "rates": [JUMP],
+            "sizes": [0],
+            "sum": evidence_records._checksum([JUMP], [np.zeros(0, np.float32)]),
+        }
+    )
+    path = evidence_records.record_path(tmp_path, key)
+    path.write_bytes(evidence_records._MAGIC + header.encode() + b"\n")
+
+    assert evidence_records.read_record(tmp_path, key, [JUMP]) is None
+
+
+def test_a_record_that_cannot_be_written_is_reported_not_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(evidence_records, "atomic_write", refuse)
+
+    assert not evidence_records.write_record(tmp_path, "d" * 64, {JUMP: np.ones(16, np.float32)})
 
 
 @pytest.mark.parametrize(
@@ -597,6 +636,7 @@ def test_a_record_that_is_read_is_the_newest_and_outlives_an_unread_one(
 # Bump evidence_records.RECORD_REV and this pin together whenever the code that decides what the
 # evidence is changes: a record of the old code is otherwise read as if it were the new code's.
 EVIDENCE_CODE_PIN = "cdc35885d62f417a"
+EVIDENCE_RECORD_REV_PIN = 2
 
 
 def _normalised(text: str) -> str:
@@ -687,6 +727,9 @@ def test_a_change_to_the_probe_moves_the_pin_digest() -> None:
 
 
 def test_the_code_that_decides_the_evidence_is_pinned_to_the_record_revision() -> None:
+    assert evidence_records.RECORD_REV == EVIDENCE_RECORD_REV_PIN, (
+        "RECORD_REV changed: set EVIDENCE_RECORD_REV_PIN in tests/test_evidence_records.py with it."
+    )
     assert _evidence_code_digest() == EVIDENCE_CODE_PIN, (
         "The code behind track evidence changed (EVIDENCE_MODULES). "
         "If it can change the samples an "
