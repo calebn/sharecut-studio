@@ -91,7 +91,7 @@ tighten:
   # (discourse "like" over-cut + broken splice flow). Manual propose/apply still works.
   # See docs/filler-cut-quality.md § Default pipeline status.
   enabled: false
-  # Non-speech sounds (laughs, unclear sounds, backchannels) get their suggested action
+  # Non-speech sounds (laughs, unclear sounds, possible missed words) get their suggested action
   # applied by the apply_sound_actions step, in one undo step, whatever `enabled` says:
   # a laugh with another speaker over it is lowered, an unclear sound is left. Filler,
   # pause, repetition and restart proposals are not touched here. false = propose only
