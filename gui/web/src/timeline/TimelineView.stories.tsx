@@ -106,7 +106,7 @@ export const WithRecordedSessions: Story = {
     await expect(
       await canvas.findByRole("button", { name: "Mira" }),
     ).toBeVisible();
-    // The pills need a measured ruler window, which jsdom has not; SessionBands.test.tsx presses them.
+    // The pills need a measured ruler window, which jsdom has not; SessionBandLayer.test.tsx presses them.
   },
 };
 
