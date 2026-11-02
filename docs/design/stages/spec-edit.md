@@ -820,7 +820,7 @@ Each interaction uses the object selection model above. Every edit is one undo s
 
 - **Today:** SCR-SHELL-DESKTOP shots. Hierarchy: Stop is as big as Play. Consistency: phone uses ±15 s, desktop has none.
 - **Fate:** restyle.
-- **Spec:** Space play/pause (any focus except text fields and the Fix text field); K pauses and returns to the play start; J/L shuttle; click ruler or word seeks; ← → 1 s (Shift 5 s); Home/End. Playback always follows the playhead in the timeline and the Script while Follow is on.
+- **Spec:** Space play/pause (any focus except text fields, Scrub values and the Fix text field); K pauses and returns to the play start; J/L shuttle; click ruler or word seeks; ← → 1 s (Shift 5 s); Home/End. Playback always follows the playhead in the timeline and the Script while Follow is on.
 - **Story to build:** `Shell/PlayerBar` (states).
 
 ### INT-AUDITION · Audition mode

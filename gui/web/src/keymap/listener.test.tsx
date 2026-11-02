@@ -658,7 +658,7 @@ it("says why a refused edit did nothing, in the live region", async () => {
   );
 });
 
-it("leaves Split, Undo and the playhead keys to a focused Scrub field, but not Escape", async () => {
+it("leaves Split, Undo, Backspace and the playhead keys to a focused Scrub field, but not Escape", async () => {
   render(
     <>
       <KeymapHost />
@@ -677,6 +677,8 @@ it("leaves Split, Undo and the playhead keys to a focused Scrub field, but not E
   await press({ key: " ", code: "Space" });
   await press({ key: "ArrowRight", code: "ArrowRight" });
   await press({ key: "Home", code: "Home" });
+  await press({ key: "Backspace", code: "Backspace" });
+  await press({ key: "Delete", code: "Delete" });
   expect(execute).not.toHaveBeenCalled();
   act(() =>
     useDawStore.setState({

@@ -195,12 +195,6 @@ export function ScrubField({
       }
       return;
     }
-    // A span is not a typing target, so the window keymap would run Cut on Backspace.
-    if (event.key === "Backspace" || event.key === "Delete") {
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
     if (readOnly) return;
     const direction =
       event.key === "ArrowUp" || event.key === "ArrowRight"

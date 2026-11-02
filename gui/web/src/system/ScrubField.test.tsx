@@ -250,16 +250,6 @@ describe("ScrubField keys against the window keymap", () => {
 });
 
 describe("ScrubField window keys", () => {
-  it("keeps Backspace and Delete from reaching the window keymap", () => {
-    const reached = vi.fn();
-    window.onkeydown = reached;
-    const { field } = setup();
-    fireEvent.keyDown(field(), { key: "Backspace" });
-    fireEvent.keyDown(field(), { key: "Delete" });
-    expect(reached).not.toHaveBeenCalled();
-    window.onkeydown = null;
-  });
-
   it("does not step from an empty value when stepsFromEmpty is false", () => {
     const { calls, field } = setup({
       value: null,

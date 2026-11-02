@@ -171,6 +171,7 @@ export function useClipSections(
         unit="s"
         step={CLIP_HANDLE_STEPS.trim.small}
         decimals={3}
+        skipUnchanged
         min={limits?.lo}
         max={limits?.hi}
         readOnly={locked}
@@ -211,17 +212,21 @@ export function useClipSections(
         { id: "out", label: "Source end", control: edge("out") },
         { id: "fadeIn", label: "Fade in", control: fadeField("in") },
         { id: "fadeOut", label: "Fade out", control: fadeField("out") },
-        {
-          id: "fadeNote",
-          control: note(
-            capKnown
-              ? [fadeHint, `max ${maxFadeMs(clipSec, capMs)} ms`]
-                  .filter(Boolean)
-                  .join(" · ")
-              : FADE_LIMIT_LOADING,
-            "status",
-          ),
-        },
+        ...(editable
+          ? [
+              {
+                id: "fadeNote",
+                control: note(
+                  capKnown
+                    ? [fadeHint, `max ${maxFadeMs(clipSec, capMs)} ms`]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : FADE_LIMIT_LOADING,
+                  "status",
+                ),
+              },
+            ]
+          : []),
         ...(leftClipId === null
           ? []
           : [
