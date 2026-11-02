@@ -1424,7 +1424,7 @@ describe("Record stage Guests see notes", () => {
     );
   });
 
-  it("shows a failed post and keeps the old value", async () => {
+  it("shows a failed post only in the sheet, never in the page alert", async () => {
     setRoom({ guests_see_notes: false });
     postTransport.mockRejectedValue(new Error("Room unreachable"));
     mount();
@@ -1432,6 +1432,50 @@ describe("Record stage Guests see notes", () => {
     await userEvent.click(row(dialog));
     expect(await within(dialog).findByText(/Room unreachable/)).toBeVisible();
     expect(row(dialog)).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getAllByText(/Room unreachable/)).toHaveLength(1);
+    expect(useRecordHostStore.getState().transportError).toBeNull();
+    postTransport.mockResolvedValue(undefined);
+    await userEvent.click(row(dialog));
+    await waitFor(() =>
+      expect(within(dialog).queryByText(/Room unreachable/)).toBeNull(),
+    );
+  });
+
+  it("does not show an unrelated transport error beside the toggle", async () => {
+    setRoom();
+    useRecordHostStore.getState().setTransportError("Start failed");
+    mount();
+    const dialog = await openMore();
+    expect(within(dialog).queryByText("Start failed")).toBeNull();
+  });
+
+  it("keeps an always-mounted status container, empty without an error", async () => {
+    setRoom();
+    mount();
+    const dialog = await openMore();
+    const status = within(dialog).getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+  });
+
+  it("marks the toggle aria-disabled while busy and ignores its click", async () => {
+    setRoom();
+    let finish: () => void = () => undefined;
+    postTransport.mockImplementation(
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    );
+    mount();
+    const dialog = await openMore();
+    await userEvent.click(row(dialog));
+    await waitFor(() =>
+      expect(row(dialog)).toHaveAttribute("aria-disabled", "true"),
+    );
+    expect(row(dialog)).not.toBeDisabled();
+    await userEvent.click(row(dialog));
+    expect(postTransport).toHaveBeenCalledTimes(1);
+    finish();
+    await waitFor(() =>
+      expect(row(dialog)).not.toHaveAttribute("aria-disabled"),
+    );
   });
 
   it("ties the help line to the toggle", async () => {
