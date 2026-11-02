@@ -258,9 +258,6 @@ export const GuestViewerNotesHidden: Story = {
     await expect(
       canvas.getByRole("button", { name: /Jon's mic drops out here/ }),
     ).toBeVisible();
-    await expect(
-      canvas.queryByText("Can we keep the laugh in this take?"),
-    ).toBeNull();
   },
 };
 

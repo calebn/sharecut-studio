@@ -244,8 +244,8 @@ Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
 see every marker and their own notes until landing, plus other people's text
 notes when the host turns on the room setting `guests_see_notes`, set with the
 host-only `SetGuestsSeeNotes` command from the Record More sheet; off by
-default, reset to off for each new room, producers cannot change it yet). Later: `control` (start/stop/pause), `talk`
-(producer push-to-talk), `video`. Roles are a **kind-scoped** map
+default, reset to off for each new room, producers cannot change it yet). Later:
+`control` (start/stop/pause), `talk` (producer push-to-talk), `video`. Roles are a **kind-scoped** map
 (`RECORD_ROLE_PRESETS` in `share_capabilities.py` / `contracts/caps.json`), not
 keys stuffed into review `REVIEW_ROLE_CAPABILITIES`: **guest** = `join monitor comment`;
 **producer** = `monitor comment`; **host** = all.
