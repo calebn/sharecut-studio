@@ -191,7 +191,7 @@ test.describe("Pending inspector layout", () => {
     await expectErrorAboveAskWithNoFooter(inspector);
   });
 
-  test("phone sheet keeps error above Ask and has no preview footer", async ({
+  test("phone drawer keeps error above Ask and above its preview footer", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -214,7 +214,14 @@ test.describe("Pending inspector layout", () => {
     ).toBeVisible();
     const inspector = dialog.getByRole("complementary");
     await clickApproveUntilError(inspector);
-    await expectErrorAboveAskWithNoFooter(inspector);
+    // The timeline's compact drawer has no Action bar dock, so the footer stays.
+    await expect(inspector.locator(".modifier-error")).toBeVisible();
+    const seek = inspector.getByRole("button", { name: "Seek", exact: true });
+    const preview = inspector.getByRole("group", { name: "Preview mode" });
+    await expect(seek).toBeVisible();
+    await expect(preview).toBeVisible();
+    await expectNoOverlap(inspector.locator(".modifier-error"), seek);
+    await expectNoOverlap(inspector.locator(".modifier-error"), preview);
   });
 
   test("inline review stays hit-testable and tall recovery scrolls outside the lane", async ({
