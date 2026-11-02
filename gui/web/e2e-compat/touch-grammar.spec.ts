@@ -34,7 +34,6 @@ import {
   save,
   setZoom,
   TRACK,
-  visiblePoint,
   watchCommands,
 } from "../e2e/touchTimeline";
 import { CHOOSER_EDGE_PX } from "../src/timeline/chooserLayout";
