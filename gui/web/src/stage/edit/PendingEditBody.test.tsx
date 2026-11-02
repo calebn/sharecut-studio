@@ -840,7 +840,7 @@ describe("PendingEditBody", () => {
     render(<PendingEditBody edit={sessionCut} />);
     await decide("cut");
     await user.type(
-      screen.getByLabelText("Waiver reason"),
+      await screen.findByLabelText("Waiver reason"),
       "Reviewed manually",
     );
     await user.click(screen.getByRole("button", { name: "Waive with reason" }));
@@ -862,7 +862,9 @@ describe("PendingEditBody", () => {
     );
     const { container } = render(<PendingEditBody edit={sessionCut} />);
     await decide("cut");
-    await user.click(screen.getByRole("button", { name: "Waive with reason" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Waive with reason" }),
+    );
     const reason = screen.getByRole("textbox", { name: "Waiver reason" });
     const validation = screen.getByText(
       "A reason is required to waive transcript refinement.",
