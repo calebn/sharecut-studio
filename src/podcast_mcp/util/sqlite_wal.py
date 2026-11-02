@@ -44,11 +44,18 @@ def retry_transient(
     retry_sec: float = 0.05,
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    reopen: Callable[[], sqlite3.Connection] | None = None,
 ) -> None:
     """Run *step* until it stops answering busy or transiently readonly, for up to *timeout_sec*.
 
     *step* must be safe to repeat; any other error, and the last transient one at the
     deadline, is raised with a note describing the terminal attempt.
+
+    A connection that has answered readonly can keep answering it for the whole window
+    while a fresh one to the same file succeeds (Windows CI saw 195 attempts over 10 s fail
+    on one connection in a concurrent first open). With *reopen*, each transient readonly
+    answer is followed by ``reopen()``, which closes the connection and returns a new one
+    that *step* and this loop use from then on.
     """
     started = monotonic()
     deadline = started + timeout_sec
@@ -59,7 +66,9 @@ def retry_transient(
             step()
             return
         except sqlite3.OperationalError as exc:
-            transient = is_sqlite_busy(exc) or _transient_readonly(connection, exc)
+            busy = is_sqlite_busy(exc)
+            readonly = not busy and _transient_readonly(connection, exc)
+            transient = busy or readonly
             now = monotonic()
             if not transient or now >= deadline:
                 reason = "deadline" if transient else "not_transient"
@@ -71,6 +80,8 @@ def retry_transient(
                 )
                 raise
             sleep(retry_sec)
+            if readonly and reopen is not None:
+                connection = reopen()
 
 
 def ensure_wal(
