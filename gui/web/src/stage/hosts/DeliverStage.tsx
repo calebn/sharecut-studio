@@ -55,6 +55,7 @@ import {
   chaptersOf,
   clipOps,
   clipsOf,
+  clipWordsOf,
   deliverFacts,
   editHeadOf,
   type FixRoute,
@@ -230,6 +231,11 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     [chosenFormats],
   );
   const edits = project ? editHeadOf(project.history) : undefined;
+  const transcriptUtterances = project?.transcript?.utterances;
+  const clipWords = useMemo(
+    () => clipWordsOf(transcriptUtterances),
+    [transcriptUtterances],
+  );
   const transcriptFlow = useTranscriptFlow({
     projectPath,
     enabled: state === "ready",
@@ -528,6 +534,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           }
           files={files}
           getPlayheadSec={() => useDawStore.getState().playheadSec}
+          words={clipWords}
           layout={shell === "phone" ? "phone" : "desktop"}
           showLink={false}
           showPlayer={false}

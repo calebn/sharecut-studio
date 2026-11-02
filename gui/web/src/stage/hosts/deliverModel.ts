@@ -1,3 +1,4 @@
+import type { ClipWord } from "../../stages/deliver/clipTrim";
 import type {
   Chapter,
   Clip,
@@ -5,6 +6,7 @@ import type {
 } from "../../stages/deliver/deliverLogic";
 import type {
   ChapterMarker,
+  CombinedUtterance,
   HistoryGroup,
   SocialClipView,
 } from "../../types/project";
@@ -23,6 +25,29 @@ export function clipsOf(clips: readonly SocialClipView[]): Clip[] {
     score: c.score,
     approved: c.approved,
   }));
+}
+
+/**
+ * The words a clip's trim handles snap to, on the timeline clock the clips
+ * use: the project transcript's own per-word timings (the forced-aligned ones,
+ * never a raw ASR pass). Cut-away, suppressed and ignored words are left out.
+ * `undefined` when the transcript has no words, so the handles move freely.
+ */
+export function clipWordsOf(
+  utterances: readonly CombinedUtterance[] | undefined,
+): ClipWord[] | undefined {
+  const words: ClipWord[] = [];
+  for (const utterance of utterances ?? []) {
+    for (const w of utterance.words ?? []) {
+      if (w.suppressed || w.ignored || w.mappable === false) continue;
+      const { timeline_start: start, timeline_end: end } = w;
+      if (start == null || end == null) continue;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end < start)
+        continue;
+      words.push({ text: w.text, start, end });
+    }
+  }
+  return words.length > 0 ? words : undefined;
 }
 
 export type ChapterOp =

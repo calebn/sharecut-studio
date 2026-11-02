@@ -4,6 +4,7 @@ import {
   chapterOps,
   clipOps,
   clipsOf,
+  clipWordsOf,
   deliverFacts,
   editHeadOf,
   fixRoute,
@@ -271,5 +272,45 @@ describe("sameClipBounds", () => {
     expect(sameClipBounds([lineA], [{ ...lineA, id: "other" }])).toBe(false);
     expect(sameClipBounds([lineA, lineB], [lineA])).toBe(false);
     expect(sameClipBounds([lineA], [lineA, lineB])).toBe(false);
+  });
+});
+
+describe("clipWordsOf", () => {
+  const utterance = (words: object[]) =>
+    [
+      { track_id: "t", speaker: "A", start: 0, end: 9, text: "", words },
+    ] as unknown as Parameters<typeof clipWordsOf>[0];
+  const w = (text: string, extra: object = {}) => ({
+    text,
+    start: 1,
+    end: 2,
+    timeline_start: 11,
+    timeline_end: 12,
+    ...extra,
+  });
+
+  it("takes timeline-clock times, not source times", () => {
+    expect(clipWordsOf(utterance([w("hi")]))).toEqual([
+      { text: "hi", start: 11, end: 12 },
+    ]);
+  });
+
+  it("leaves out cut, suppressed and ignored words", () => {
+    expect(
+      clipWordsOf(
+        utterance([
+          w("cut", { timeline_start: null, timeline_end: null }),
+          w("gone", { suppressed: true }),
+          w("muted", { ignored: true }),
+          w("bad", { mappable: false }),
+          w("kept"),
+        ]),
+      ),
+    ).toEqual([{ text: "kept", start: 11, end: 12 }]);
+  });
+
+  it("is undefined with no words", () => {
+    expect(clipWordsOf(undefined)).toBeUndefined();
+    expect(clipWordsOf(utterance([]))).toBeUndefined();
   });
 });
