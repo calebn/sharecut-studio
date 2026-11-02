@@ -197,7 +197,7 @@ def test_pipeline_history_records_only_editable_state_changes(minimal_project):
         return out
 
     engine.mix_tracks.side_effect = mix
-    engine.peak_trim_db.return_value = 0.0
+    engine.mix_peak_db.return_value = None
     with patch.object(steps, "ffmpeg", return_value=engine):
         PipelineService(ws).run(only_step="mix_with_music")
     assert len(history_snapshot_ids(index_path)) == 1
@@ -228,7 +228,7 @@ def test_pipeline_mix_keeps_a_mid_mix_volume_and_reports_the_premix_stale(minima
 
     eng = MagicMock()
     eng.mix_tracks.side_effect = mix
-    eng.peak_trim_db.return_value = 0.0
+    eng.mix_peak_db.return_value = None
     with patch.object(steps, "ffmpeg", return_value=eng):
         PipelineService(ws).run(only_step="mix_with_music")
     saved = load_project(minimal_project)

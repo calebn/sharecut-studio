@@ -14,6 +14,7 @@ from podcast_mcp.config.defaults import EffectiveConfig, mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.edits.cut_application import apply_suggested_to_project
 from podcast_mcp.engines import TranscriptionEngine
+from podcast_mcp.engines.ffmpeg import headroom_trim_db
 from podcast_mcp.engines.mastering import (
     MasterQcLimits,
     MasterResult,
@@ -1020,14 +1021,22 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         # Mix beside it and swap in whole with the old hash dropped first (#356): a failed or
         # cancelled mix keeps the old premix and hash, and no reader pairs old hash, new bytes.
         ceiling = mix_peak_ceiling_db(defaults)
-        trim = eng.peak_trim_db(inputs, ceiling)
+        peak = eng.mix_peak_db(inputs, ceiling)
+        trim = headroom_trim_db(peak, ceiling)
         render_atomic(
             premix_path(project),
             lambda tmp: eng.mix_tracks(inputs, tmp, trim_db=trim),
             before_replace=functools.partial(clear_premix_hash, project),
             reap_partials=True,
         )
-        write_premix_hash(project, mixed, trim_db=trim, peak_ceiling_db=ceiling, defaults=defaults)
+        # An unmeasured peak mixed untrimmed: record no trim, so the premix is not reused.
+        write_premix_hash(
+            project,
+            mixed,
+            trim_db=None if peak is None else trim,
+            peak_ceiling_db=ceiling,
+            defaults=defaults,
+        )
         prog.message(f"{len(mixed)} tracks mixed")
     return f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
 
@@ -1098,7 +1107,14 @@ def read_master_qc(project: EpisodeProject) -> dict[str, Any] | None:
     if not isinstance(qc, dict) or "measured" not in qc:
         return None
     measured = qc["measured"]
-    return qc if measured is None or isinstance(measured, dict) else None
+    if measured is None:
+        return qc
+    if not isinstance(measured, dict) or not all(
+        v is None or (isinstance(v, (int, float)) and not isinstance(v, bool))
+        for v in measured.values()
+    ):
+        return None
+    return qc
 
 
 def _rejudge_master_qc(project: EpisodeProject, defaults: dict[str, Any]) -> None:
