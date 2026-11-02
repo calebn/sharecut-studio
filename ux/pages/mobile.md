@@ -57,7 +57,7 @@ timeline card show Cut and Keep only when the edit is not a split or an exact
 range; for those, for a suggestion with no accept action and for a
 comment-linked pending edit, Approve and Reject stay in the sheet (the bar's
 verb follows the accept action alone, so a split or exact range that carries one
-still shows it on the bar, and it approves the edit). The peek sheet shows no verbs. Elsewhere the card stays beside the selected region and follows the
+still shows it on the bar, as it did before). The peek sheet shows no verbs. Elsewhere the card stays beside the selected region and follows the
 timeline when the marker lane or the bottom panel changes size.
 On the matching track, you can drag a cut's outer start or end edge while the
 other edge stays in place. The moving edge follows nearby waveform ticks and
