@@ -11,12 +11,27 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines import room_tone
-from podcast_mcp.models import EpisodeProject
-from test_room_tone import _host_audio
+from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
+from test_room_tone import DURATION_SEC, _host_audio, _noise, _write_wav
 from test_room_tone import _project as _room_project
 from test_room_tone_pool_on_open import _join_pools, _two_speakers
 
 pytestmark = pytest.mark.usefixtures("real_room_tone_scheduling")
+
+
+def _three_speakers(tmp_path: Path) -> EpisodeProject:
+    project = _two_speakers(tmp_path)
+    _write_wav(tmp_path / "raw" / "guest2.wav", _noise(-62.0, seed=3))
+    project.tracks.append(
+        Track(
+            id="guest2",
+            label="Guest2",
+            role=TrackRole.DIALOGUE,
+            speaker="Guest2",
+            media=MediaAsset(path="raw/guest2.wav", duration_sec=DURATION_SEC),
+        )
+    )
+    return project
 
 
 def _slow_decode(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
@@ -96,6 +111,19 @@ def test_recorded_pools_are_read_without_measuring_any_floor(
     room_tone.ensure_room_tone_pools(live, ["host", "guest"])
 
     assert calls == []
+
+
+def test_two_missing_pools_of_three_are_recorded_with_each_floor_measured_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _three_speakers(tmp_path)
+    room_tone.record_room_tone_pool(live, "host")
+    room_tone._track_floor.cache_clear()
+    calls = _slow_decode(monkeypatch)
+
+    room_tone.ensure_room_tone_pools(live, ["host", "guest", "guest2"])
+
+    assert sorted(p.name for p in calls) == ["guest.wav", "guest2.wav", "host.wav"]
 
 
 def test_a_request_during_the_background_recording_does_not_measure_the_floors_again(
