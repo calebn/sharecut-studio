@@ -164,7 +164,7 @@ button.sys-composer-chip {
   }
 
   button.sys-comment-main,
-  .sys-comment-action,
+  .sys-comment-actions .sys-comment-action,
   .sys-comment-footer .ui-control {
     min-block-size: var(--touch-min);
   }

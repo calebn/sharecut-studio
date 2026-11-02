@@ -342,7 +342,7 @@ describe("CommentCard touch floor", () => {
   it("lifts the row button, action rows and footer buttons to the touch minimum", () => {
     for (const selector of [
       "button\\.sys-comment-main",
-      "\\.sys-comment-action",
+      "\\.sys-comment-actions \\.sys-comment-action",
       "\\.sys-comment-footer \\.ui-control",
     ])
       expect(coarse).toMatch(
