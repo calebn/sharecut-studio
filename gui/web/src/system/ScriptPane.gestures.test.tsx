@@ -715,6 +715,21 @@ describe("ScriptPane text selection and copy", () => {
     ]);
   });
 
+  it("leaves a copy from the Fix text field to the browser", () => {
+    const setData = vi.fn();
+    setup({
+      selection: words(12, 12),
+      editing: { start: 12, end: 12 },
+      renderEditor: () => <input aria-label="Fix text" defaultValue="small" />,
+    });
+    const event = new Event("copy", { bubbles: true, cancelable: true });
+    Object.assign(event, { clipboardData: { setData } });
+    expect(
+      screen.getByRole("textbox", { name: "Fix text" }).dispatchEvent(event),
+    ).toBe(true);
+    expect(setData).not.toHaveBeenCalled();
+  });
+
   it("leaves a copy with a cut or nothing selected to the browser", () => {
     const { body } = setup({ selection: { kind: "cut", id: "x" } });
     const event = new Event("copy", { bubbles: true, cancelable: true });
