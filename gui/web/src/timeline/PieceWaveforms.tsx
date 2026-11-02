@@ -29,22 +29,26 @@ export function PieceWaveforms({
 }: Props) {
   const culled = pieces.length > PIECE_CULL_MIN;
   const [first, last] = useDawStore(
-    useShallow((s: { scrollLeft: number; timelineViewportWidth: number }) =>
-      culled
-        ? visiblePieceRange({
-            pieces,
-            leftCss,
-            zoom,
-            scrollLeft: s.scrollLeft,
-            viewportWidth: s.timelineViewportWidth,
-          })
-        : [0, pieces.length - 1],
+    useShallow(
+      (s: {
+        scrollLeft: number;
+        timelineViewportWidth: number;
+      }): [number, number] =>
+        culled
+          ? visiblePieceRange({
+              pieces,
+              leftCss,
+              zoom,
+              scrollLeft: s.scrollLeft,
+              viewportWidth: s.timelineViewportWidth,
+            })
+          : [0, pieces.length - 1],
     ),
   );
   return (
     <>
       {pieces.map((piece, i) =>
-        i < first! || i > last! ? null : (
+        i < first || i > last ? null : (
           <span
             key={`${piece.srcA}-${piece.tlA}`}
             data-testid={timelineTestIds.waveformPiece}

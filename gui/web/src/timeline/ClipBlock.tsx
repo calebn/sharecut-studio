@@ -33,7 +33,6 @@ import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow } from "../types/project";
-import { livePieces } from "../utils/clipTiming";
 import { EMPTY_ARR } from "../utils/empty";
 import { clipDrawsPieces, clipMediaStartSec } from "../waveform/mediaRef";
 import { type MediaRef, refKind } from "../waveform/types";
@@ -645,14 +644,6 @@ export function ClipBlockLive({
     },
   };
 
-  const timing = clip.timing;
-  const drawsPieces = clipDrawsPieces(clip, mediaRef);
-  const waveformPieces = useMemo(
-    () =>
-      drawsPieces ? livePieces({ timing }, sourceStart, sourceEnd, 0) : [],
-    [drawsPieces, timing, sourceStart, sourceEnd],
-  );
-
   const showSnapPoints = useDawStore((s) => s.layers.showSnapPoints);
   // Ticks still load for the paused playhead (a body move magnets to them),
   // but draw only where they explain an edit: trimming, or the Alt-click Split
@@ -679,9 +670,9 @@ export function ClipBlockLive({
       interactive={interactive}
       snapTicks={drawTicks ? ticks : EMPTY_ARR}
       waveform={
-        drawsPieces ? (
+        clipDrawsPieces(clip, mediaRef) ? (
           <PieceWaveforms
-            pieces={waveformPieces}
+            pieces={geometry.pieces}
             leftCss={geometry.left}
             zoom={zoomPxPerSec}
             mediaRef={mediaRef}

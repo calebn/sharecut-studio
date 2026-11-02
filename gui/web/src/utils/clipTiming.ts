@@ -157,7 +157,10 @@ export function clipSourceToTimelineNearest(
   if (pieces.length === 0) {
     return clip.timeline_start + (sourceSec - clip.source_start);
   }
-  return piecesSourceToTimelineNearest(pieces, sourceSec);
+  return Math.min(
+    piecesSourceToTimelineNearest(pieces, sourceSec),
+    clipTimelineEnd(clip),
+  );
 }
 
 const STEP_EDGE_EPS_SEC = 1e-6;
