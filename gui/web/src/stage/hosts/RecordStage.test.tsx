@@ -1361,6 +1361,13 @@ describe("Record stage Guests see notes", () => {
     expect(row(await openMore())).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("offers no per-note Everyone toggle: the room setting is the only switch", async () => {
+    setRoom();
+    mount();
+    await screen.findByRole("button", { name: "More" });
+    expect(screen.queryByRole("button", { name: "Everyone" })).toBeNull();
+  });
+
   it("is off when the snapshot carries no setting", async () => {
     setRoom();
     mount();
