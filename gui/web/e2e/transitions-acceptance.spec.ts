@@ -221,9 +221,12 @@ test("clip names identify audio and pending hatching fills the lane", async ({
   expect(name).toMatch(/Select .+ clip .+\d/);
   await hit.click();
   await inspectSelection(page);
-  await expect(page.locator(".inspector")).toContainText("Delete");
-  await expect(page.locator(".inspector")).not.toContainText(clipId!);
-  await expectPageAxeClean(page, ".inspector");
+  const sheet = page.getByRole("dialog", { name: "Inspector" });
+  await expect(
+    sheet.getByRole("spinbutton", { name: "Source start", exact: true }),
+  ).toBeVisible();
+  await expect(sheet).not.toContainText(clipId!);
+  await expectPageAxeClean(page, ".sys-inspector");
 });
 
 test("the seam line rolls one join and Undo restores both clip bounds", async ({
