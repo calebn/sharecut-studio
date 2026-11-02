@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import shutil
 import wave
 from pathlib import Path
 
@@ -20,8 +22,10 @@ from podcast_mcp.engines.room_tone_extract import (
     ExtractedBed,
     plan_extracted_bed,
 )
+from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import (
     Clip,
+    CombinedTranscript,
     EpisodeProject,
     MediaAsset,
     RoomToneOrigin,
@@ -29,6 +33,7 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document.history import HistoryService
 from podcast_mcp.services.document.room_tone_bed import RoomToneBedService
 from podcast_mcp.services.record.landing import _room_tone_missing
 from podcast_mcp.services.record.landing_rollback import (
@@ -37,6 +42,7 @@ from podcast_mcp.services.record.landing_rollback import (
     prior_to_json,
     revert_registration,
 )
+from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedValueError
 
 SR = 16000
@@ -193,7 +199,7 @@ def test_a_track_without_media_has_no_bed(tmp_path: Path) -> None:
     assert plan_extracted_bed(project, "nobody") == SampleAbsent("missing_track")
 
 
-def test_the_service_registers_the_bed_and_it_renders(tmp_path: Path) -> None:
+def test_the_service_registers_a_usable_bed(tmp_path: Path) -> None:
     service, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
 
     result = service.extract_room_tone_bed(track_id="host")
@@ -288,6 +294,8 @@ def test_no_clean_audio_leaves_the_track_untouched_and_says_why(tmp_path: Path) 
 
 def _origin() -> RoomToneOrigin:
     return RoomToneOrigin(
+        source_path="raw/host.wav",
+        media_sha256="1" * 64,
         source_start=5.0,
         source_end=9.0,
         media_size=10,
@@ -553,3 +561,170 @@ def test_changed_assets_between_plan_and_registration_are_refused(
     assert result["extracted"] is False
     assert result["reason"] == ("source_changed" if change.startswith("source") else "bed_changed")
     assert ws.project.model_dump_json() == before
+
+
+@pytest.mark.parametrize("held", [False, True])
+def test_replanning_same_stat_audio_uses_its_new_quiet_runs(tmp_path: Path, held: bool) -> None:
+    project = _project(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    source = tmp_path / "raw/host.wav"
+    with batch_scope():
+        if held:
+            load_mono_full(source, sample_rate=room_tone_module.SAMPLE_RATE)
+        first = plan_extracted_bed(project, "host")
+        assert isinstance(first, ExtractedBed)
+        stamp = source.stat()
+        _write_wav(source, _host_audio(((1.0, 1.5),)))
+        os.utime(source, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+
+        second = plan_extracted_bed(project, "host")
+
+    assert isinstance(second, ExtractedBed)
+    assert second.origin.source_start < 2.0
+    assert second.rel != first.rel
+    with wave.open(str(source), "rb") as recording, wave.open(str(second.path), "rb") as bed:
+        recording.setpos(round(second.origin.source_start * SR))
+        assert bed.readframes(bed.getnframes()) == recording.readframes(bed.getnframes())
+
+
+def test_direct_planning_does_not_bless_a_replaced_cached_bed(tmp_path: Path) -> None:
+    project = _project(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    first = plan_extracted_bed(project, "host")
+    assert isinstance(first, ExtractedBed)
+    _write_wav(first.path, _noise(-70.0, seed=9))
+    damaged = first.path.read_bytes()
+
+    second = plan_extracted_bed(project, "host")
+
+    assert second == SampleAbsent("bed_changed")
+    assert first.path.read_bytes() == damaged
+
+
+def test_a_concurrent_bed_publication_is_not_overwritten(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_link = os.link
+    competing = _noise(-70.0, seed=9)
+    published = []
+
+    def publish_first(source: Path, destination: Path) -> None:
+        _write_wav(destination, competing)
+        published.append(destination.read_bytes())
+        real_link(source, destination)
+
+    monkeypatch.setattr(room_tone_extract.os, "link", publish_first)
+    project = _project(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+
+    result = plan_extracted_bed(project, "host")
+
+    assert result == SampleAbsent("bed_changed")
+    assert [p.read_bytes() for p in (tmp_path / EXTRACT_DIR).glob("*.wav")] == published
+
+
+def test_extraction_is_one_undoable_step_and_preserves_original_geometry(tmp_path: Path) -> None:
+    service, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    original_bytes = (tmp_path / "raw/host.wav").read_bytes()
+    original_clips = [clip.model_dump() for clip in ws.project.clips]
+    original_track = ws.project.tracks[0].model_dump()
+    before_count = len(ws.project.history.entries)
+
+    result = service.extract_room_tone_bed(track_id="host")
+
+    assert result["extracted"] is True
+    assert len(ws.project.history.entries) == before_count + 2
+    assert [clip.model_dump() for clip in ws.project.clips] == original_clips
+    extracted = ws.project.tracks[0].model_dump()
+    assert {k: v for k, v in extracted.items() if k not in {"room_tone", "room_tone_origin"}} == {
+        k: v for k, v in original_track.items() if k not in {"room_tone", "room_tone_origin"}
+    }
+    origin = ws.project.tracks[0].room_tone_origin
+    service.extract_room_tone_bed(track_id="host")
+    assert len(ws.project.history.entries) == before_count + 2
+    history = HistoryService(ws)
+    history.undo()
+    assert ws.project.tracks[0].room_tone is None
+    assert ws.project.tracks[0].room_tone_origin is None
+    assert ws.project.source_by_id("room-tone-host") is None
+    history.redo()
+    assert ws.project.tracks[0].room_tone_origin == origin
+    assert (tmp_path / result["path"]).is_file()
+    assert (tmp_path / "raw/host.wav").read_bytes() == original_bytes
+    assert [clip.model_dump() for clip in ws.project.clips] == original_clips
+    reloaded = ProjectWorkspace.open(tmp_path / "episode.sharecut")
+    assert reloaded.project.tracks[0].room_tone_origin == origin
+
+
+def test_populated_origin_is_described_and_validated_by_the_public_schema(tmp_path: Path) -> None:
+    import jsonschema
+
+    service, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    ws.project.combined_transcript = CombinedTranscript(utterances=[])
+    ws.save()
+    assert service.extract_room_tone_bed(track_id="host")["extracted"] is True
+    schema = json.loads(
+        (Path(__file__).resolve().parents[1] / "schemas/episode.project.schema.json").read_text()
+    )
+    assert "room_tone_origin" in schema["$defs"]["Track"]["properties"]
+    persisted = json.loads(ws.path.read_text())
+    jsonschema.validate(persisted, schema)
+    invalid = persisted
+    invalid["timeline"]["tracks"][0]["room_tone_origin"]["media_sha256"] = "invalid"
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(invalid, schema)
+
+
+def test_a_different_source_path_with_identical_bytes_has_distinct_provenance(
+    tmp_path: Path,
+) -> None:
+    service, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    first = service.extract_room_tone_bed(track_id="host")
+    shutil.copy2(tmp_path / "raw/host.wav", tmp_path / "raw/copy.wav")
+    ws.project.tracks[0].media.path = "raw/copy.wav"
+    ws.save()
+
+    second = service.extract_room_tone_bed(track_id="host")
+
+    assert second["extracted"] is True
+    assert second["path"] != first["path"]
+    assert ws.project.tracks[0].room_tone_origin.source_path == "raw/copy.wav"
+
+
+def test_extracted_source_identity_survives_workspace_relocation(tmp_path: Path) -> None:
+    original = tmp_path / "original"
+    original.mkdir()
+    service, _ws = _service(original, _host_audio(SPEECH_THEN_ROOM))
+    first = service.extract_room_tone_bed(track_id="host")
+    copied = tmp_path / "copied"
+    shutil.copytree(original, copied)
+    reopened = ProjectWorkspace.open(copied / "episode.sharecut")
+    reopened.project.workspace_dir = str(copied)
+    reopened.save()
+    origin = reopened.project.tracks[0].room_tone_origin
+
+    result = RoomToneBedService(reopened).extract_room_tone_bed(track_id="host")
+
+    assert result["reason"] == "already_extracted"
+    assert reopened.project.tracks[0].room_tone_origin == origin
+    assert (copied / first["path"]).is_file()
+
+
+def test_stereo_native_rate_excerpt_preserves_source_samples(tmp_path: Path) -> None:
+    host = _host_audio(SPEECH_THEN_ROOM)
+    project = _project(tmp_path, host)
+    samples = np.column_stack((np.repeat(host, 3), np.repeat(host * 0.7, 3)))
+    pcm = np.round(np.clip(samples, -1.0, 1.0) * 32767).astype("<i2")
+    source = tmp_path / "raw/host.wav"
+    with wave.open(str(source), "wb") as writer:
+        writer.setnchannels(2)
+        writer.setsampwidth(2)
+        writer.setframerate(48000)
+        writer.writeframes(pcm.tobytes())
+    before = source.read_bytes()
+
+    plan = plan_extracted_bed(project, "host")
+
+    assert isinstance(plan, ExtractedBed)
+    assert (plan.sample_rate, plan.channels) == (48000, 2)
+    with wave.open(str(source), "rb") as recording, wave.open(str(plan.path), "rb") as bed:
+        recording.setpos(round(plan.origin.source_start * 48000))
+        assert bed.readframes(bed.getnframes()) == recording.readframes(bed.getnframes())
+    assert source.read_bytes() == before
