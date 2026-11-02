@@ -18,6 +18,7 @@ import { PlayerBar } from "./PlayerBar";
 import { SheetHost } from "./SheetHost";
 import { STAGE_BODY_ID, StageFrameView } from "./StageFrameView";
 import { StatusLive } from "./StatusLive";
+import { useAnnounceStageSwitch } from "./useAnnounceStageSwitch";
 import { useHeaderProps } from "./useHeaderProps";
 import { useShellAttributes } from "./useShellAttributes";
 import { useShortFrame } from "./useShortFrame";
@@ -48,6 +49,7 @@ function StageFrameAdapter({
       setTimelineFocused: s.setTimelineFocused,
     })),
   );
+  useAnnounceStageSwitch(stage);
   const headerProps = useHeaderProps();
   const stageBar = useStageBarProps();
   const rootRef = useRef<HTMLDivElement>(null);

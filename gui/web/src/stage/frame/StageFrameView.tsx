@@ -73,6 +73,7 @@ export function StageFrameView({
         id={STAGE_BODY_ID}
         className="stage-frame-body"
         aria-label={stageLabel}
+        tabIndex={-1}
       >
         {children}
       </main>
