@@ -282,7 +282,7 @@ flowchart TD
 6. While a take is live, the guest sees the pill (`m:ss · Take N`), a tile per
    person, and hears "Recording in full quality on this device." and **Hearing the
    room.** from the screen-reader lines. Press **M** for a Marker or type a
-   note (other guests in the record room never see it; after land it is an
+   note (other guests see a Marker but not a typed note unless the host turned on Guests see notes; after land it is an
    ordinary timeline comment on the host). The recorder notes where your mic
    clipped (sample peak) with your full-quality recording, so the flags can
    survive a reload. After Stop, if your mic clipped in a take, the room's Notes

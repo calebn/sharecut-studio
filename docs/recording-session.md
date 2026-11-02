@@ -1008,8 +1008,8 @@ field. Typed notes use the same path with a real `body`.
 the WS clock offset (± 250 ms); the **host rewrites** it on ingest from
 `pressed_wall_ms` + authoritative `pauses[]` / `session_start`. **Visibility
 before landing is host-enforced** (not a client-only filter): host and
-producers receive all live comments; a guest receives their own and every marker, and other guests' notes only while `guests_see_notes` is on. Session
-WS must not fan out other guests' notes to a guest while it is off.
+producers receive all live comments; a guest receives their own and every marker, and other notes only while `guests_see_notes` is on. Session
+WS must not fan out other notes to a guest while it is off.
 
 Stored in `record_live_comments` (same `sync.db`) until landing, keyed by
 client idempotency `id` (`live-…`). Comment commands are also appended to the
