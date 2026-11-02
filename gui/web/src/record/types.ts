@@ -96,7 +96,6 @@ export type RecordSnapshot = {
   target?: SessionTarget;
   /** Ms left of the current room-tone round at snapshot time; count down locally from it. */
   countdown_left_ms?: number;
-  /** Room setting: when on, guests also see other people's text notes. */
   guests_see_notes?: boolean;
   participants: RecordParticipant[];
   caps: { recorded: number; producers: number };

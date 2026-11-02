@@ -1869,7 +1869,7 @@ Shipped in `feat/recording-producer-live-comments`:
 - [x] Everyone in the room can add a timeline comment during REC or PAUSED (same `comment` cap). Host does not need `comment` on the default join/monitor cap list.
 - [x] `M` posts `body` `"Marker"` (guest `GuestRoomApp` window listener; host DAW listener exception while the Record stage is active — not a second DAW window listener). Typed notes use the same Comment command.
 - [x] Client idempotency `id`; host rewrites `recording_ms` from `pressed_wall_ms` + `pauses[]` / `session_start`; PAUSED comments land at the pause point.
-- [x] Visibility is host-enforced: host + producer see all; a guest sees only their own (WS Echo/Snapshot/Applied).
+- [x] Visibility is host-enforced: host + producer see all; a guest sees their own comments and every marker, and other people's notes only when the host turns on `guests_see_notes` (WS Echo/Snapshot/Applied).
 - [x] Stored in `record_live_comments` in `sync.db`; snapshot attaches unlanded rows. Landing uses `add_comment` under `ProjectWorkspace.mutate()` at `take_offset_s + recording_ms/1000` (no lead/title/metadata; `take_offset_s` includes the session origin).
 - [x] Discard take deletes sqlite rows and `review.comments[]` with those ids. Reconnect queue `record:{token}:comments` upserts once.
 - [x] Host agents drop the same marker with MCP `record_marker_tool` or CLI `podcast record marker [--body]`, through `RecordControlService.marker` and the host Comment command (#1140).

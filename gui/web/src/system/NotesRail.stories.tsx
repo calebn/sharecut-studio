@@ -250,8 +250,6 @@ export const PrivateToHost: Story = {
   },
 };
 
-// A guest only ever receives what the room's "Guests see notes" setting allows:
-// off, their own notes plus every marker; on, other people's notes too.
 export const GuestViewerNotesHidden: Story = {
   args: { items: [MARKER_ROSA, NOTE_MAYA], viewer: "guest" },
   render: (args) => <LiveRail {...args} />,
