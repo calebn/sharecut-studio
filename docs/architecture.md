@@ -176,6 +176,8 @@ A clip with a timing map (#1089) plays several pieces, each with its own source-
 relative drift, mute and gate spans, room-tone pool placement, ingest VAD windows) go piece by
 piece: a timeline second inside a hole maps to the nearer piece edge, a source span inside a skip
 plays nothing, and a span crossing a step is split per piece. Untimed clips keep their single shift.
+`align_tracks` is the producer: a lane whose bleed latency steps stays one clip, and its steps are source
+seconds in the lane's quiet spans. The aligner reads a clip's placement as its shift at `source_start`.
 
 **Native sample grid** (`engines/sample_grid.py`, #1258). Every reader that turns clips into
 samples asks one function. At a reader's rate `r` a clip piece plays source samples

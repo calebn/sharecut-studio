@@ -6,17 +6,23 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.conversation_align import (
+    AlignResult,
+    ClipAlignPlan,
     _base_shift,
+    _piecewise_plan,
     _timed_range,
     _timing_for,
     alignment_fingerprint,
+    apply_alignment_plans,
     restore_clip_geometry,
     snapshot_clip_geometry,
 )
-from podcast_mcp.engines.bleed_lag_segments import LagSegment
+from podcast_mcp.engines.bleed_lag_segments import LagSegment, LagSteps
+from podcast_mcp.engines.bleed_latency import LatencySettings
 from podcast_mcp.engines.session_timeline import slip_clip_to_shift
-from podcast_mcp.models import Clip, EpisodeProject, ProjectMeta
+from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, ProjectMeta, Track, TrackRole
 from podcast_mcp.models.clip_timing import ClipTiming
 
 
@@ -172,3 +178,151 @@ def test_the_fingerprint_changes_with_a_timing_edit_and_not_for_an_untimed_clip(
 
     assert alignment_fingerprint(plain) == alignment_fingerprint(_project(tmp_path, _clip()))
     assert len({alignment_fingerprint(p) for p in (plain, timed, moved)}) == 3
+
+
+def _lane(tmp_path: Path, clip: Clip | None = None, *, media: float = 240.0) -> EpisodeProject:
+    project = EpisodeProject(meta=ProjectMeta(name="apply", workspace_dir=str(tmp_path)))
+    project.tracks.append(
+        Track(
+            id="t",
+            label="T",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/t.wav", duration_sec=media),
+        )
+    )
+    project.clips.append(clip or _clip(0.0, media))
+    return project
+
+
+def _apply(project: EpisodeProject, plan: ClipAlignPlan) -> int:
+    result = AlignResult(plans=[plan], reference_track_id=None)
+    return apply_alignment_plans(project, result, defaults=load_defaults())
+
+
+def _skip_step(at: float = 182.77, delta: float = -0.08) -> ClipTiming:
+    return _timed({"at": at, "delta_sec": delta, "quiet": {"start_s": at - 1.0, "end_s": at + 1.0}})
+
+
+def test_apply_times_the_one_clip_and_keeps_its_window(tmp_path: Path) -> None:
+    project = _lane(tmp_path)
+    plan = ClipAlignPlan("t", "c", -0.12, "bleed_lag", timing=_skip_step())
+
+    assert _apply(project, plan) == 1
+
+    (clip,) = project.clips
+    assert (clip.id, clip.source_start, clip.source_end, clip.timeline_start) == (
+        "c",
+        pytest.approx(0.12),
+        240.0,
+        0.0,
+    )
+    assert clip.timing == plan.timing
+    assert clip.timeline_end == pytest.approx(239.8)
+    assert next(iter(project.meta.ingest_alignment.values())).align_method == "bleed_lag"
+
+
+def test_apply_gives_a_hole_back_to_the_source_end(tmp_path: Path) -> None:
+    project = _lane(tmp_path, _clip(0.0, 230.0, 1.0))
+    plan = ClipAlignPlan(
+        "t", "c", -0.22, "bleed_lag", timing=_timed({"at": 60.0, "delta_sec": 0.1})
+    )
+
+    _apply(project, plan)
+
+    (clip,) = project.clips
+    assert clip.source_start == pytest.approx(1.22)
+    assert clip.source_end == pytest.approx(230.0 + 1.22 - 0.1)
+    assert clip.timeline_end == pytest.approx(231.0)
+    assert clip.timeline_start == 1.0
+
+
+def test_apply_trims_the_head_when_the_shift_passes_the_file_start(tmp_path: Path) -> None:
+    project = _lane(tmp_path)
+    plan = ClipAlignPlan("t", "c", 0.5, "bleed_lag", timing=_timed({"at": 100.0, "delta_sec": 0.2}))
+
+    _apply(project, plan)
+
+    (clip,) = project.clips
+    assert (clip.source_start, clip.timeline_start) == (0.0, 0.5)
+    assert clip.source_end == pytest.approx(239.5 - 0.2)
+
+
+def test_apply_folds_a_step_the_slipped_head_passes_into_the_base_shift(tmp_path: Path) -> None:
+    project = _lane(tmp_path, _clip(0.0, 240.0, 10.0))
+    timing = _timed({"at": 0.1, "delta_sec": 0.2}, {"at": 100.0, "delta_sec": 0.1})
+    plan = ClipAlignPlan("t", "c", 9.0, "bleed_lag", timing=timing)
+
+    _apply(project, plan)
+
+    (clip,) = project.clips
+    assert clip.timing is not None and [s.at for s in clip.timing.steps] == [100.0]
+    assert plan.offset_sec == pytest.approx(9.2)
+
+
+def test_apply_with_no_timing_clears_it_and_keeps_the_window(tmp_path: Path) -> None:
+    timed = _clip(0.12, 240.0, 0.0, timing=_skip_step())
+    project = _lane(tmp_path, timed)
+    window = timed.timeline_end
+
+    _apply(project, ClipAlignPlan("t", "c", -0.12, "bleed_lag"))
+
+    (clip,) = project.clips
+    assert clip.timing is None
+    assert clip.timeline_end == pytest.approx(window)
+    assert clip.source_start == pytest.approx(0.12)
+
+
+def test_apply_leaves_a_timed_clip_alone_for_a_plan_that_is_not_bleed_lag(tmp_path: Path) -> None:
+    timed = _clip(0.12, 240.0, 0.0, timing=_skip_step())
+    project = _lane(tmp_path, timed)
+    before = timed.model_dump()
+
+    _apply(project, ClipAlignPlan("t", "c", 0.0, "bleed_lag_kept"))
+
+    assert project.clips[0].model_dump() == before
+
+
+def test_apply_skips_the_lane_when_the_slip_leaves_no_audio(tmp_path: Path) -> None:
+    project = _lane(tmp_path, _clip(0.0, 5.0, 0.0), media=5.0)
+    plan = ClipAlignPlan("t", "c", -9.0, "bleed_lag", timing=_timed({"at": 2.0, "delta_sec": 0.1}))
+
+    assert _apply(project, plan) == 0
+
+    assert plan.skipped_reason
+    assert project.clips[0].timing is None
+    assert project.clips[0].source_end == 5.0
+
+
+def test_a_timed_rerun_over_the_same_lane_is_kept_and_a_changed_lane_is_not(
+    tmp_path: Path,
+) -> None:
+    segments = (_segment(0.0, -0.12), _segment(182.81, -0.2, (152.5, 213.0)))
+    lane = LagSteps(segments=segments, step_cost=0.5)
+    settings = LatencySettings()
+    base = ClipAlignPlan("t", "c", 0.0, "hold")
+    first = _piecewise_plan(base, _clip(), lane, 0.0, settings)
+    clip = _clip(0.12, 240.0, 0.0, timing=first.timing)
+
+    again = _piecewise_plan(base, clip, lane, 0.0, settings)
+    moved = _piecewise_plan(
+        base,
+        clip,
+        LagSteps((segments[0], _segment(182.81, -0.3, (152.5, 213.0))), 0.5),
+        0.0,
+        settings,
+    )
+
+    assert (first.method, again.method, moved.method) == (
+        "bleed_lag",
+        "bleed_lag_kept",
+        "bleed_lag",
+    )
+    assert again.offset_sec == pytest.approx(-0.12)
+
+
+def test_a_legacy_piece_whose_edge_cuts_the_quiet_span_gets_no_timing() -> None:
+    segments = [_segment(0.0, -0.12), _segment(182.81, -0.2, (152.5, 213.0))]
+
+    left, right = _clip(0.12, 182.65, 0.0), _clip(182.85, 240.0, 182.65)
+
+    assert [_timing_for(piece, segments, "")[0] for piece in (left, right)] == [None, None]
