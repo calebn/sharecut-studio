@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { SRC_ROOT } from "../test/sourceFiles";
 import { CommentCard, type CommentCardData } from "./CommentCard";
 
 const base: CommentCardData = {
@@ -326,5 +329,31 @@ describe("CommentCard", () => {
       </>,
     );
     await expectNoA11yViolations(container);
+  });
+});
+
+describe("CommentCard touch floor", () => {
+  const css = readFileSync(
+    join(SRC_ROOT, "styles/partials/system-comment.css"),
+    "utf8",
+  );
+  const coarse = css.slice(css.indexOf("@media (pointer: coarse) {"));
+
+  it("lifts the row button, action rows and footer buttons to the touch minimum", () => {
+    for (const selector of [
+      "button\\.sys-comment-main",
+      "\\.sys-comment-action",
+      "\\.sys-comment-footer \\.ui-control",
+    ])
+      expect(coarse).toMatch(
+        new RegExp(
+          `${selector}[^{]*\\{[^}]*min-block-size: var\\(--touch-min\\)`,
+        ),
+      );
+  });
+
+  it("renders the title row as a plain div with no dead modifier class", () => {
+    const { container } = render(<CommentCard comment={{ ...base }} />);
+    expect(container.querySelector(".sys-comment-main--static")).toBeNull();
   });
 });

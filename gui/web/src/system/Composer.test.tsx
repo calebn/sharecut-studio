@@ -260,6 +260,22 @@ describe("Composer", () => {
       expect(onSubmit).toHaveBeenCalledOnce();
     });
 
+    it("ignores a held Ctrl+Enter and an IME Enter", () => {
+      stubMatchMedia(true);
+      const onSubmit = vi.fn();
+      render(<Harness start="Hi" onSubmit={onSubmit} />);
+      fireEvent.keyDown(field(), { key: "Enter", ctrlKey: true, repeat: true });
+      fireEvent.keyDown(field(), {
+        key: "Enter",
+        ctrlKey: true,
+        isComposing: true,
+      });
+      fireEvent.keyDown(field(), { key: "Enter", ctrlKey: true, keyCode: 229 });
+      expect(onSubmit).not.toHaveBeenCalled();
+      fireEvent.keyDown(field(), { key: "Enter", ctrlKey: true });
+      expect(onSubmit).toHaveBeenCalledOnce();
+    });
+
     it("hints Return as a new line and omits the Enter shortcut", () => {
       stubMatchMedia(true);
       render(<Harness />);
@@ -530,6 +546,45 @@ describe("Composer", () => {
     input.dispatchEvent(event);
     expect(input).toHaveFocus();
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("keeps a pasted comment postable and posts it", async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness onSubmit={onSubmit} />);
+    expect(submit()).toBeDisabled();
+    await user.click(field());
+    await user.paste("Pasted\nthought");
+    expect(field()).toHaveValue("Pasted\nthought");
+    expect(submit()).toBeEnabled();
+    await user.click(submit());
+    expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the pinned chip when the body is backspaced to empty, and blocks Post", async () => {
+    const user = userEvent.setup();
+    render(
+      <Harness
+        start="a"
+        anchor={{ kind: "pinned", start: 4 }}
+        onAnchor={noop}
+      />,
+    );
+    await user.click(field());
+    await user.keyboard("{Backspace}");
+    expect(field()).toHaveValue("");
+    expect(screen.getByRole("button", { name: /^Pinned/ })).toBeInTheDocument();
+    expect(submit()).toBeDisabled();
+  });
+
+  it("ignores Ctrl+Enter while a post is in flight", () => {
+    const onSubmit = vi.fn();
+    render(<Harness start="Sent" state="posting" onSubmit={onSubmit} />);
+    const chord = fireEvent.keyDown(field(), { key: "Enter", ctrlKey: true });
+    fireEvent.keyDown(field(), { key: "Enter", metaKey: true });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(chord).toBe(false);
   });
 
   it("queues offline: a named arrow and a glyph, still postable", () => {

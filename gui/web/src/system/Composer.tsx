@@ -12,6 +12,7 @@ import {
   formatAnchor,
 } from "./composerAnchor";
 import { composerBlock } from "./composerBlock";
+import { isImeKey } from "./imeKey";
 import { StatusGlyph } from "./StatusGlyph";
 import { SystemIcon } from "./SystemIcon";
 import { verbOf } from "./verbDisplay";
@@ -29,8 +30,8 @@ export type ComposerState = "idle" | "posting" | "offline";
 export type ComposerProps = {
   body: string;
   onBodyChange: (value: string) => void;
-  /** Fires only when Post can fire. The caller clears `body` when it accepts the
-   *  comment (optimistically, at once). A send failure shows on the CommentCard, never here. */
+  /** Fires only when Post can fire. The caller clears `body` once the send is
+   *  accepted, not before. A send failure shows on the CommentCard, never here. */
   onSubmit: () => void;
   /** The leading chip. Omit for no chip at all (replies). */
   anchor?: ComposerAnchor;
@@ -108,13 +109,7 @@ export function Composer(props: ComposerProps) {
   );
   // Escape from any control inside (name, comment, chip, Post).
   const onRootKeyDown = (event: KeyboardEvent) => {
-    if (
-      event.key !== "Escape" ||
-      !onEscape ||
-      event.nativeEvent.isComposing ||
-      event.keyCode === 229
-    )
-      return;
+    if (event.key !== "Escape" || !onEscape || isImeKey(event)) return;
     event.stopPropagation();
     onEscape();
   };
@@ -129,12 +124,7 @@ export function Composer(props: ComposerProps) {
       : submitLabel;
 
   const onBodyKeyDown = (event: KeyboardEvent) => {
-    if (
-      event.key !== "Enter" ||
-      event.nativeEvent.isComposing ||
-      event.keyCode === 229
-    )
-      return;
+    if (event.key !== "Enter" || isImeKey(event)) return;
     const chord = event.metaKey || event.ctrlKey;
     if (!chord && (event.shiftKey || isCoarsePointer())) return;
     event.preventDefault();
@@ -144,12 +134,7 @@ export function Composer(props: ComposerProps) {
   };
 
   const onNameKeyDown = (event: KeyboardEvent) => {
-    if (
-      event.key !== "Enter" ||
-      event.nativeEvent.isComposing ||
-      event.keyCode === 229
-    )
-      return;
+    if (event.key !== "Enter" || isImeKey(event)) return;
     event.preventDefault();
     event.stopPropagation();
     if (event.repeat) return;
