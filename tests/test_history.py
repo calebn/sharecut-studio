@@ -135,15 +135,15 @@ def test_undo_redo_edit_decisions(minimal_project):
     mgr.record(proj, "with edit")
     save_project(proj, minimal_project)
 
-    proj = load_project(minimal_project)
-    status = mgr.undo(proj)
+    ws = ProjectWorkspace.open(minimal_project)
+    status = ws.undo()
     assert status.cursor == 0
-    assert len(proj.edit_decisions) == 0
+    assert len(ws.project.edit_decisions) == 0
 
-    proj = load_project(minimal_project)
-    status = mgr.redo(proj)
+    ws = ProjectWorkspace.open(minimal_project)
+    status = ws.redo()
     assert status.cursor == 1
-    assert len(proj.edit_decisions) == 1
+    assert len(ws.project.edit_decisions) == 1
 
     proj = load_project(minimal_project)
     proj.edit_decisions.clear()
@@ -164,7 +164,7 @@ def test_undo_at_start_raises(minimal_project):
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
     with pytest.raises(ValueError, match="Nothing to undo"):
-        mgr.undo(proj)
+        mgr.apply_undo(proj)
 
 
 def test_undo_restores_social_clip_candidates(minimal_project):
@@ -187,7 +187,7 @@ def test_undo_restores_social_clip_candidates(minimal_project):
     save_project(proj, minimal_project)
 
     proj = load_project(minimal_project)
-    mgr.undo(proj)
+    mgr.apply_undo(proj)
     assert proj.social_clip_candidates == []
 
 
@@ -250,11 +250,11 @@ def test_undo_restores_progress_cursor_captured_with_an_edit(minimal_project):
     save_project(proj, minimal_project)
 
     restored = load_project(minimal_project)
-    mgr.undo(restored)
+    mgr.apply_undo(restored)
     assert restored.comments == []
     assert restored.render.last_completed_step == "before edit"
 
-    mgr.redo(restored)
+    mgr.apply_redo(restored)
     assert len(restored.comments) == 1
     assert restored.render.last_completed_step == "after edit"
 
@@ -280,7 +280,7 @@ def test_record_truncates_redo_branch(minimal_project):
     save_project(proj, minimal_project)
 
     proj = load_project(minimal_project)
-    mgr.undo(proj)
+    mgr.apply_undo(proj)
     save_project(proj, minimal_project)
 
     proj = load_project(minimal_project)
@@ -311,7 +311,7 @@ def test_redo_at_end_raises(minimal_project):
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
     with pytest.raises(ValueError, match="Nothing to redo"):
-        mgr.redo(proj)
+        mgr.apply_redo(proj)
 
 
 def test_goto_history_index(minimal_project):
@@ -335,7 +335,7 @@ def test_goto_history_index(minimal_project):
     save_project(proj, minimal_project)
 
     proj = load_project(minimal_project)
-    status = mgr.goto(proj, 0)
+    status = mgr.apply_goto(proj, 0)
     assert status.cursor == 0
     assert status.current_label == "start"
     assert len(proj.edit_decisions) == 0
@@ -348,7 +348,7 @@ def test_goto_out_of_range(minimal_project):
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
     with pytest.raises(ValueError, match="out of range"):
-        mgr.goto(proj, 5)
+        mgr.apply_goto(proj, 5)
 
 
 def test_load_index_from_disk(minimal_project):

@@ -196,9 +196,9 @@ def test_comment_add_undo_redo_restores_review(minimal_project):
     assert len(ws.project.comments) == 1
 
     mgr = HistoryManager(ProjectStore(minimal_project))
-    mgr.undo(ws.project)
+    mgr.apply_undo(ws.project)
     assert len(ws.project.comments) == 0
-    mgr.redo(ws.project)
+    mgr.apply_redo(ws.project)
     assert len(ws.project.comments) == 1
     assert ws.project.comments[0].body == "Pin"
 
