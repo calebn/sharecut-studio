@@ -21,9 +21,10 @@ describe("placeAnchoredExcluding", () => {
   const bar = { width: 340, height: 40 };
   const word = { left: 1100, top: 112, right: 1160, bottom: 136 };
   const header = { left: 880, top: 48, right: 1280, bottom: 104 };
+  const clearance = 8;
   const opts = {
-    margin: 8,
-    gap: 8,
+    margin: clearance,
+    gap: clearance,
     align: "center",
     prefer: "above",
   } as const;

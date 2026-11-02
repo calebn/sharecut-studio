@@ -398,12 +398,15 @@ export async function runMute(): Promise<ExecuteResult> {
   const s = useDawStore.getState();
   if (s.stage !== "edit") return executePointerCommand("track.muteToggle");
   switch (s.selection?.kind) {
-    case "transcriptRange":
+    case "transcriptRange": {
+      const restore = wordsRestoreAvailability(s);
+      if (restore?.reason) return disabled(restore.reason);
       return executePointerCommand(
         canManageProjects(s.projectPath)
           ? "transcript.ignoreWords"
           : "range.mute",
       );
+    }
     case "range":
       return executePointerCommand("range.mute");
     case "clip": {
@@ -608,6 +611,29 @@ const SPEAKER_HOST_ONLY =
   "Only the host can move a reply between speaker tracks";
 const STALE_RANGE = "Selected audio changed. Select the range again.";
 
+function wordsRestoreAvailability(
+  s: DawState,
+): { reason: string | null } | null {
+  if (
+    s.stage !== "edit" ||
+    !canManageProjects(s.projectPath) ||
+    s.selection?.kind !== "transcriptRange" ||
+    !s.project ||
+    !ignoreWouldRestore(s.project, s.selection)
+  )
+    return null;
+  return {
+    reason:
+      s.project.meta.hydration?.transcript_words === false
+        ? "Transcript words not loaded"
+        : s.rangeBusy
+          ? "Range action in progress"
+          : s.joinMutationInFlight
+            ? "Wait for the join edit"
+            : null,
+  };
+}
+
 export function barModelOf(facts: EditFacts, s: DawState): BarModel {
   const resolved = resolveBar(facts);
   const wired = WIRED_VERBS[facts.kind];
@@ -654,19 +680,18 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
       if (facts.kind === "clip" && selectedClipIdsOf(s.selection).length !== 1)
         continue;
       const d = descriptor("mute");
-      const label =
-        facts.kind === "words" &&
-        s.stage === "edit" &&
-        canManageProjects(s.projectPath) &&
-        ignoreWouldRestore(project, s.selection)
-          ? RESTORE_IGNORED_LABEL
-          : d && d.label !== "Mute"
-            ? d.label
-            : null;
+      const restore =
+        facts.kind === "words" ? wordsRestoreAvailability(s) : null;
+      const label = restore
+        ? RESTORE_IGNORED_LABEL
+        : d && d.label !== "Mute"
+          ? d.label
+          : null;
+      const reason = restore ? restore.reason : d?.reason;
       more.push({
         id,
         ...(label ? { label } : {}),
-        ...(d?.reason ? { disabledReason: d.reason } : {}),
+        ...(reason ? { disabledReason: reason } : {}),
       });
     } else if (id === "fillRoomTone") {
       const reason = descriptor("fillRoomTone")?.reason;

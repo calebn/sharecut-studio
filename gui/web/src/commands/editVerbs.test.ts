@@ -20,7 +20,7 @@ import {
 } from "./editVerbs";
 import { clearRegisteredCommands, execute, registerCommand } from "./execute";
 import { executePointerCommand } from "./pointer";
-import { registerDawCommands } from "./register";
+import { _resetSingleFlightsForTests, registerDawCommands } from "./register";
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
@@ -31,6 +31,7 @@ vi.mock("../api", async (importOriginal) => ({
   rejectEdits: vi.fn(),
   applySuggestedActions: vi.fn(),
   splitAtTime: vi.fn(async () => "h-split"),
+  setTranscriptWordsIgnored: vi.fn(async () => "h-ignore"),
 }));
 
 const runRangeAction = vi.hoisted(() =>
@@ -65,10 +66,211 @@ function host(selection: unknown, extra: Record<string, unknown> = {}) {
 
 const announced = () => useDawStore.getState().statusAnnouncement;
 
+const RESTORE_WORDS = {
+  kind: "transcriptRange",
+  trackId: MIRA,
+  startWordIndex: 2,
+  endWordIndex: 3,
+} as const;
+
+function wordsProject(ignored: readonly [boolean, boolean] = [true, true]) {
+  const project = editFixtureProject();
+  const utterance = project.transcript?.utterances[0];
+  if (!utterance) throw new Error("The fixture has no words");
+  return {
+    ...project,
+    meta: {
+      ...project.meta,
+      hydration: { transcript_words: true, history_groups: true },
+    },
+    transcript: {
+      ...project.transcript,
+      utterances: [
+        {
+          ...utterance,
+          start: 7,
+          end: 9,
+          text: "this now",
+          words: [
+            {
+              text: "this",
+              start: 7,
+              end: 8,
+              word_index: 2,
+              ignored: ignored[0],
+            },
+            {
+              text: "now",
+              start: 8,
+              end: 9,
+              word_index: 3,
+              ignored: ignored[1],
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
 beforeEach(() => {
+  _resetSingleFlightsForTests();
   vi.clearAllMocks();
   clearRegisteredCommands();
   registerDawCommands();
+});
+
+describe("host words Restore", () => {
+  it("enables Restore without audible words and sends one guarded mutation with Undo", async () => {
+    host(RESTORE_WORDS, { project: wordsProject() });
+    const model = barModelOf(factsOf()!, useDawStore.getState());
+    expect(model.more.find((item) => item.id === "mute")).toEqual({
+      id: "mute",
+      label: "Restore ignored words",
+    });
+    expect(model.primary?.disabledReason).toBe("Choose a range");
+    expect(await runMute()).toEqual({ status: "ok" });
+    expect(api.setTranscriptWordsIgnored).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/episode",
+      MIRA,
+      2,
+      3,
+      false,
+      "this now",
+    );
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Restored selection",
+      undo: "h-ignore",
+    });
+  });
+
+  it.each([
+    ["range busy", { rangeBusy: true }, "Range action in progress"],
+    ["join busy", { joinMutationInFlight: true }, "Wait for the join edit"],
+  ] as const)(
+    "retains the %s refusal in both row and dispatch",
+    async (_name, state, reason) => {
+      host(RESTORE_WORDS, { project: wordsProject(), ...state });
+      expect(
+        barModelOf(factsOf()!, useDawStore.getState()).more.find(
+          (item) => item.id === "mute",
+        )?.disabledReason,
+      ).toBe(reason);
+      expect(await runMute()).toEqual({ status: "disabled", reason });
+      expect(api.setTranscriptWordsIgnored).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retains hydration and unloaded-project refusals", async () => {
+    const project = wordsProject();
+    project.meta.hydration.transcript_words = false;
+    host(RESTORE_WORDS, { project });
+    expect(
+      barModelOf(factsOf()!, useDawStore.getState()).more.find(
+        (item) => item.id === "mute",
+      )?.disabledReason,
+    ).toBe("Transcript words not loaded");
+    expect(await runMute()).toEqual({
+      status: "disabled",
+      reason: "Transcript words not loaded",
+    });
+    useDawStore.setState({ project: null });
+    expect(await runMute()).toEqual({
+      status: "disabled",
+      reason: "No project loaded",
+    });
+    expect(api.setTranscriptWordsIgnored).not.toHaveBeenCalled();
+  });
+
+  it("keeps mixed words on Mute and preserves their captured text", async () => {
+    host(RESTORE_WORDS, { project: wordsProject([true, false]) });
+    const row = barModelOf(factsOf()!, useDawStore.getState()).more.find(
+      (item) => item.id === "mute",
+    );
+    expect(row?.label ?? barDisplay("mute").label).toBe("Mute");
+    expect(row?.disabledReason).toBeUndefined();
+    expect(await runMute()).toEqual({ status: "ok" });
+    expect(api.setTranscriptWordsIgnored).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/episode",
+      MIRA,
+      2,
+      3,
+      true,
+      "this now",
+    );
+  });
+
+  it.each([
+    ["edit", ["view", "play", "comment", "edit"]],
+    ["view", ["view", "play"]],
+  ] as const)(
+    "does not give the %s share the host Restore exception",
+    async (guestMode, capabilities) => {
+      host(RESTORE_WORDS, {
+        project: wordsProject(),
+        projectPath: "share:tok",
+        guestMode,
+        shareCapabilities: [...capabilities],
+      });
+      const row = barModelOf(factsOf()!, useDawStore.getState()).more.find(
+        (item) => item.id === "mute",
+      );
+      expect(row?.label).not.toBe("Restore ignored words");
+      if (guestMode === "edit")
+        expect(row?.disabledReason).toBe("Choose a range");
+      else expect(row).toBeUndefined();
+      expect((await runMute()).status).toBe("disabled");
+      expect(api.setTranscriptWordsIgnored).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps a fully ignored selection outside Edit on the track command", async () => {
+    const track = vi.fn(() => ({ status: "ok" as const }));
+    registerCommand("track.muteToggle", track);
+    host(RESTORE_WORDS, { project: wordsProject(), stage: "review" });
+    expect(await runMute()).toEqual({ status: "ok" });
+    expect(track).toHaveBeenCalledOnce();
+    expect(api.setTranscriptWordsIgnored).not.toHaveBeenCalled();
+  });
+
+  it("retains single flight while Restore is pending", async () => {
+    let release: () => void = () => {};
+    vi.mocked(api.setTranscriptWordsIgnored).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve(null);
+        }),
+    );
+    host(RESTORE_WORDS, { project: wordsProject() });
+    const first = runMute();
+    expect(await runMute()).toEqual({
+      status: "disabled",
+      reason: "Ignore already in progress",
+    });
+    release();
+    expect(await first).toEqual({ status: "ok" });
+    expect(api.setTranscriptWordsIgnored).toHaveBeenCalledOnce();
+  });
+
+  it("retains the stale-text refusal from the existing word command", async () => {
+    vi.mocked(api.setTranscriptWordsIgnored).mockRejectedValueOnce(
+      new Error("Selected words changed"),
+    );
+    host(RESTORE_WORDS, { project: wordsProject() });
+    expect(await runMute()).toEqual({
+      status: "disabled",
+      reason: "Selected words changed",
+    });
+    expect(api.setTranscriptWordsIgnored).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/episode",
+      MIRA,
+      2,
+      3,
+      false,
+      "this now",
+    );
+    expect(announced()).toBe("Ignore failed: Selected words changed");
+  });
 });
 
 describe("splitPlan", () => {
@@ -621,9 +823,11 @@ describe("barModelOf", () => {
       for (const w of u.words ?? [])
         if (w.word_index === 2) (w as { ignored?: boolean }).ignored = true;
     useDawStore.setState({ project: ignored });
-    expect(row(barModelOf(factsOf()!, useDawStore.getState()))).toBe(
-      "Restore ignored words",
-    );
+    const restored = barModelOf(factsOf()!, useDawStore.getState());
+    expect(row(restored)).toBe("Restore ignored words");
+    expect(
+      restored.more.find((item) => item.id === "mute")?.disabledReason,
+    ).toBeUndefined();
     useDawStore.setState({
       selection: { ...EDIT_SELECTIONS.liveWords, startWordIndex: 0 },
     });
