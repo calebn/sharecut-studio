@@ -421,3 +421,25 @@ export function appliedRecordOnTimeline(
       0,
   );
 }
+
+/** Frames at 50 fps: a glyph and its seam tick are drawn from the same cut, so they agree this closely. */
+export const SEAM_MATCH_SEC = 0.02;
+
+/** The seam tick a cut's join glyph sits on: the nearest one within the tolerance, or none for a join that is not a cut. */
+export function seamTickAtJoin(
+  ticks: readonly AppliedTick[],
+  join: { kind: string; sec: number },
+): AppliedTick | undefined {
+  if (join.kind !== "join-cut") return undefined;
+  let best: AppliedTick | undefined;
+  let bestGap = SEAM_MATCH_SEC;
+  for (const tick of ticks) {
+    if (tick.kind !== "seam" || tick.mute) continue;
+    const gap = Math.abs(tick.sec - join.sec);
+    if (gap <= bestGap) {
+      best = tick;
+      bestGap = gap;
+    }
+  }
+  return best;
+}

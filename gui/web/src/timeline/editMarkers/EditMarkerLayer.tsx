@@ -27,7 +27,6 @@ import {
 interface EditMarkerLayerProps {
   plan: LanePlan;
   onZoomChip: (chip: PlacedChip) => void;
-  /** A cut's join glyph also selects the applied record behind it, so the seam bar opens from the lane (#2294 W4b). */
   onSelectJoin?: (mark: JoinMark) => void;
 }
 
