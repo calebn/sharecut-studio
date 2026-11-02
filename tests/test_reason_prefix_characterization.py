@@ -124,7 +124,9 @@ def test_harsh_needs_a_join_risk_suffix_on_a_tighten_prefix() -> None:
         "restart:we:join_review",
         "nl:range:risky",
     )
-    assert {reason: is_harsh_tighten_hit(_decision(reason, review=False)) for reason in reasons} == {
+    assert {
+        reason: is_harsh_tighten_hit(_decision(reason, review=False)) for reason in reasons
+    } == {
         "filler:um:risky": True,
         "pause:0.5s:join_review": True,
         "repetition:word:a:risky": True,
