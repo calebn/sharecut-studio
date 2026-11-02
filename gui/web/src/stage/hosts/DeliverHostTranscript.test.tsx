@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../api";
@@ -123,25 +123,48 @@ describe("Transcript on the Deliver stage", () => {
     );
   });
 
-  it("points the Episode file note at the Transcript chips once they show", async () => {
+  it("keeps the Episode file presence note stable while the real host preview loads", async () => {
+    let releasePreview!: (value: typeof dryRun) => void;
+    const preview = new Promise<typeof dryRun>((resolve) => {
+      releasePreview = resolve;
+    });
+    vi.mocked(api.exportTranscript).mockReturnValueOnce(preview);
     asHost(true);
     render(<Host />);
-    await screen.findByText("Hello there.");
-    expect(
-      screen.getByText(
-        "The transcript is written with every export. Choose more files in Transcript below.",
-      ),
-    ).toBeVisible();
+    const note = await screen.findByText(
+      "Available captions and transcript are included with every audio export. Choose more files in Transcript below.",
+    );
+    expect(note).toBeVisible();
+    const originalNote = note.textContent!;
+    await waitFor(() => expect(api.exportTranscript).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Hello there.")).toBeNull();
+    await act(async () => releasePreview(dryRun));
+    expect(await screen.findByText("Hello there.")).toBeVisible();
+    expect(note.textContent).toBe(originalNote);
+    expect(screen.getByText(originalNote)).toBe(note);
+    expect(api.exportTranscript).toHaveBeenCalledTimes(1);
   });
 
-  it("drops the Episode file note when nothing is transcribed", async () => {
+  it("keeps the qualified note and Prepare action when nothing is transcribed", async () => {
     asHost(false);
     render(<Host />);
     await screen.findByText("Transcribe first");
     expect(
-      screen.queryByText(/Choose more files in Transcript below/),
+      screen.getByText(
+        "Available captions and transcript are included with every audio export. Choose more files in Transcript below.",
+      ),
+    ).toBeVisible();
+    const transcript = screen.getByRole("region", { name: "Transcript" });
+    expect(
+      within(transcript).queryByRole("button", { name: /^Export/ }),
     ).toBeNull();
-    expect(screen.queryByText(/written with every export/)).toBeNull();
+    expect(api.exportTranscript).not.toHaveBeenCalled();
+    expect(server.exportRequests).toHaveLength(0);
+    await userEvent.click(
+      within(transcript).getByRole("button", { name: "Go to Prepare" }),
+    );
+    await waitFor(() => expect(useDawStore.getState().stage).toBe("prepare"));
+    expect(api.exportTranscript).not.toHaveBeenCalled();
   });
 
   it("lists the exported transcript files again when an audio export finishes", async () => {
