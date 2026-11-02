@@ -303,7 +303,7 @@ evidence:
 - WCAG 2.5.8 Target Size (Minimum), the Equivalent exception: the 12 px glyph is under the 24 px target and its hit box is 24 px wide but only as tall as the gutter, so the same function (a join's mode and length) is also offered by the inspector's Join control at full size
 - WCAG 1.4.11 Non-text Contrast: a glyph is the only visual identity of its button, so every type's hue must reach 3:1 against the tag face at every tier in both themes; the tiers shrink size and stroke weight and never dim
 - WCAG 2.5.3 Label in Name and 2.4.3 Focus Order: the visible text leads the accessible name, Tab follows time, and focus survives a zoom that removes the focused mark
-- The shipped rule in AppliedEditOverlay.tsx and gui-viewer.md: applied ticks are decorative because dense stacks cannot meet 2.5.8 as 24 px buttons
+- Applied cuts and edges are 24 px Seam buttons that fold into a count chip when closer than 24 px (SeamMarks.tsx, seamPlan.ts, #2294 W4b); only mute ticks stay decorative
 enforced-by:
 - gui/web/src/timeline/editMarkers/plan.test.ts::keeps adjacent placed marks at least 24 px apart across zooms
 - gui/web/src/timeline/editMarkers/EditMarkerLayer.test.tsx::names the group by count and type, and zooms to its span on click
@@ -318,7 +318,8 @@ enforced-by:
 - gui/web/e2e/edit-markers.spec.ts::a touch in the lane above a glyph seeks
 - gui/web/e2e/edit-markers.spec.ts::a tap beside a glyph delivered in Mobile Safari's event order opens the join and does not seek
 - gui/web/src/timeline/hitRouting.grammar.test.ts::opens the join from the browser's click when a finger lands 20 px beside it
-- gui/web/src/timeline/AppliedEditOverlay.test.tsx::has no axe violations with a selected seam tick
+- gui/web/src/timeline/SeamMarks.test.tsx::has no axe violations with a selected seam
+- gui/web/src/timeline/seamPlan.test.ts::folds seams closer than 24 px into one chip centred on the group
 -->
 
 Two touch targets join the timeline: a join glyph and an edit chip. Both

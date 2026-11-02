@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect } from "storybook/test";
+import { expect, fn } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { appliedEditRecord, clipRow } from "../test/fixtures";
-import { AppliedEditOverlay } from "./AppliedEditOverlay";
+import { SeamMarks } from "./SeamMarks";
 import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
 
 const clips = [
@@ -86,9 +86,9 @@ const filtered = [
   }),
 ];
 
-const meta: Meta<typeof AppliedEditOverlay> = {
-  title: "Templates/AppliedEditOverlay",
-  component: AppliedEditOverlay,
+const meta: Meta<typeof SeamMarks> = {
+  title: "Templates/SeamMarks",
+  component: SeamMarks,
   tags: ["autodocs"],
   parameters: {
     layout: "fullscreen",
@@ -100,12 +100,15 @@ const meta: Meta<typeof AppliedEditOverlay> = {
     clips,
     trackId: "mira-voice",
     zoomPxPerSec: 40,
+    sessionSec: 60,
     selectedId: null,
+    onSelect: fn(),
+    onZoomChip: fn(),
   },
 };
 
 export default meta;
-type Story = StoryObj<typeof AppliedEditOverlay>;
+type Story = StoryObj<typeof SeamMarks>;
 
 export const Visible: Story = {
   play: async ({ canvasElement }) => {
@@ -113,28 +116,42 @@ export const Visible: Story = {
       "aria-label",
       "Applied edit marker preview",
     );
-    const ticks = canvasElement.querySelectorAll(".applied-tick--seam");
-    await expect(ticks).toHaveLength(2);
-    await expect(ticks[0]).toHaveStyle({ left: "80px" });
+    const seams = canvasElement.querySelectorAll(".applied-seam");
+    await expect(seams).toHaveLength(2);
+    await expect(seams[0]).toHaveStyle({ left: "80px" });
   },
 };
 
 export const Selected: Story = {
   args: { selectedId: selected.id },
   play: async ({ canvasElement }) => {
-    const ticks = canvasElement.querySelectorAll(".applied-tick.selected");
-    await expect(ticks).toHaveLength(1);
+    const pressed = canvasElement.querySelectorAll(
+      '.sys-seam-hit[aria-pressed="true"]',
+    );
+    await expect(pressed).toHaveLength(1);
   },
 };
 
 export const DenseSeams: Story = {
   args: { records: dense, clips: denseSeamClips },
   play: async ({ canvasElement }) => {
-    const ticks = canvasElement.querySelectorAll(".applied-tick");
-    await expect(ticks).toHaveLength(4);
-    for (const tick of ticks) {
-      await expect(tick).not.toHaveAttribute("width");
-    }
+    // Seams a second apart at 40 px/s are 40 px apart, so they stay diamonds.
+    await expect(canvasElement.querySelectorAll(".applied-seam")).toHaveLength(
+      4,
+    );
+  },
+};
+
+export const FoldedSeams: Story = {
+  args: { records: dense, clips: denseSeamClips, zoomPxPerSec: 10 },
+  play: async ({ canvasElement }) => {
+    // At 10 px/s the four seams are 10 px apart: one count chip, no diamonds.
+    await expect(canvasElement.querySelectorAll(".applied-seam")).toHaveLength(
+      0,
+    );
+    await expect(canvasElement.querySelector(".edit-chip")).toHaveTextContent(
+      "4",
+    );
   },
 };
 
@@ -143,7 +160,7 @@ export const PhoneFiltered: Story = {
   globals: recordMobileViewport.globals,
   args: { records: filtered },
   play: async ({ canvasElement }) => {
-    await expect(canvasElement.querySelectorAll(".applied-tick")).toHaveLength(
+    await expect(canvasElement.querySelectorAll(".applied-seam")).toHaveLength(
       1,
     );
     await expect(canvasElement.querySelector(".lane-row")).toHaveStyle({
@@ -157,7 +174,7 @@ export const PhoneEmpty: Story = {
   globals: recordMobileViewport.globals,
   args: { records: filtered, trackId: "no-edits" },
   play: async ({ canvasElement }) => {
-    await expect(canvasElement.querySelectorAll(".applied-tick")).toHaveLength(
+    await expect(canvasElement.querySelectorAll(".applied-seam")).toHaveLength(
       0,
     );
     await expect(canvasElement.querySelector(".lane-row")).toHaveStyle({
@@ -181,7 +198,7 @@ export const Unmapped: Story = {
     ],
   },
   play: async ({ canvasElement }) => {
-    await expect(canvasElement.querySelectorAll(".applied-tick")).toHaveLength(
+    await expect(canvasElement.querySelectorAll(".applied-seam")).toHaveLength(
       0,
     );
     await expect(canvasElement.querySelector(".applied-edit-layer")).toBeNull();

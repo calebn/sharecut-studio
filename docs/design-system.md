@@ -173,11 +173,10 @@ labels) and with a host-drawn needle (`hidePlayhead`). The live
 state (zoom arrives as a prop) and passes the window the marker lane will
 share. It keeps the store-driven `Playhead` as the needle, which moves by transform, so a playing
 playhead re-renders no ruler; the phone's fixed line is the needle there.
-`Templates/AppliedEditOverlay` renders the shipped applied-edit ticks in a
+`Templates/SeamMarks` renders the shipped applied-edit marks in a
 production timeline lane. Fictional prop records cover visible and selected
-edits, densely spaced short cuts, and filtered and empty 360px lanes. The
-ticks remain decorative and non-interactive; the Applied edits list that selected them
-was removed with the former Impact panel (#2293). The story does not mount the DAW store or alter edit behavior.
+edits, densely spaced short cuts that stay diamonds, a run that folds into a count chip, and filtered and empty 360px lanes. A cut
+or edge is a selectable Seam diamond; mute ticks stay decorative. The story does not mount the DAW store or alter edit behavior.
 `Templates/StaleInvalidationOverlay` renders the same diagnostic bands used in
 the live track lane. Fictional regional, overlapping, short, clipped, filtered,
 and empty states show how render invalidations appear at desktop and 360px

@@ -537,6 +537,8 @@ html[data-shell="phone"] .guest-attention-dismiss {
 [data-split-armed] .envelope-overlay,
 [data-split-armed] .envelope-overlay .envelope-svg circle,
 [data-split-armed] .pending-overlay,
+[data-split-armed] .applied-seam,
+[data-split-armed] .applied-edit-layer .edit-chip,
 [data-split-armed] .applied-tick {
   pointer-events: none;
 }

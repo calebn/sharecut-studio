@@ -7,8 +7,8 @@ import {
 import { e2eProjectPath } from "./env";
 import { openProject } from "./stageNav";
 
-test.describe("Applied-edit seam ticks", () => {
-  test("ripple deletes project to narrow seam ticks and never widen the scroll range", async ({
+test.describe("Applied-edit seam marks", () => {
+  test("ripple deletes draw selectable seam marks and never widen the scroll range", async ({
     page,
   }) => {
     await openProject(page, e2eProjectPath);
@@ -39,13 +39,10 @@ test.describe("Applied-edit seam ticks", () => {
       });
 
       await expect(lanes.first().locator(".clip-block")).toHaveCount(3);
-      const ticks = lanes.first().locator(".applied-tick--seam");
-      await expect(ticks).toHaveCount(2);
-      const count = await ticks.count();
-      for (let i = 0; i < count; i += 1) {
-        const box = await ticks.nth(i).boundingBox();
-        expect(box?.width ?? 0).toBeLessThanOrEqual(3);
-      }
+      const seams = lanes.first().locator(".applied-seam .sys-seam-hit");
+      await expect(seams).toHaveCount(2);
+      await seams.first().click();
+      await expect(seams.first()).toHaveAttribute("aria-pressed", "true");
       const after = await scroll.evaluate((el) => el.scrollWidth);
       expect(after).toBeLessThanOrEqual(base + 1);
     } finally {
