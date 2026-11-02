@@ -4,6 +4,7 @@ import { loadHostRecordSessions } from "../api";
 import { seekTransport } from "../commands/seek";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import type { HistoryEntryId } from "../types/project";
 import {
   RECORDED_SESSIONS_RESPONSE,
@@ -192,6 +193,38 @@ describe("session bands on the Edit ruler", () => {
       expect(lefts[1]).toBeGreaterThanOrEqual(lefts[0] + pillWidthPx("S1", 32));
     } finally {
       document.documentElement.style.fontSize = "";
+    }
+  });
+
+  it("re-lays the pills out when the root font changes after mount", async () => {
+    stubResizeObserver();
+    const root = document.documentElement;
+    try {
+      hydrate();
+      render(
+        <TimelineRuler
+          canvasWidthPx={200}
+          viewportPx={200}
+          sessionSec={100}
+          zoomPxPerSec={0.25}
+          fixedPlayhead={false}
+          onSeek={onSeek}
+          onFit={vi.fn()}
+        />,
+      );
+      const second = async () =>
+        Number.parseFloat((await pill(/^S2,/)).style.insetInlineStart);
+      expect(await second()).toBeCloseTo(pillWidthPx("S1", 16) + 2);
+      const probe = document.body.querySelector<HTMLElement>(
+        ':scope > [aria-hidden="true"][style*="1rem"]',
+      );
+      expect(probe).not.toBeNull();
+      root.style.fontSize = "32px";
+      act(() => FakeResizeObserver.of(probe as Element).fire(probe as Element));
+      expect(await second()).toBeCloseTo(pillWidthPx("S1", 32) + 4);
+    } finally {
+      root.style.fontSize = "";
+      vi.unstubAllGlobals();
     }
   });
 
