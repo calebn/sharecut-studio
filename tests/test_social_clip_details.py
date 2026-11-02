@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from podcast_mcp.clips.social import SOCIAL_CLIP_TITLE_MAX_CHARS
+from podcast_mcp.clips.social import SOCIAL_CLIP_TITLE_MAX_CHARS, format_social_clip_report
 from podcast_mcp.models import Track, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
@@ -17,7 +17,7 @@ from podcast_mcp.services.document_sync.capabilities import (
     document_command_types_for_caps,
 )
 from podcast_mcp.services.document_sync.handlers import apply_command
-from podcast_mcp.services.document_sync.payloads import DOCUMENT_COMMAND_ADAPTER
+from podcast_mcp.services.document_sync.payloads import DOCUMENT_COMMAND_ADAPTER, validate_payload
 from podcast_mcp.util.coded_error import CodedValueError
 
 CMD = "UpdateSocialClipDetails"
@@ -82,12 +82,47 @@ def test_approving_clears_the_review_flag_and_leaves_the_title(clip):
     assert (row.approved, row.review_required, row.title_suggestion) == (True, False, "Hook")
 
 
-def test_unapproving_keeps_the_review_flag_as_it_was(clip):
+def test_unapproving_puts_the_clip_back_in_review(clip):
     ws, cid = clip
     apply_command(ws, CMD, {"id": cid, "approved": True})
+    assert _row(ws, cid).review_required is False
     apply_command(ws, CMD, {"id": cid, "approved": False})
     row = _row(ws, cid)
-    assert (row.approved, row.review_required) == (False, False)
+    assert (row.approved, row.review_required) == (False, True)
+    # The default export skips a clip that is unapproved and in review.
+    assert "[pending]" in format_social_clip_report(ws.project)
+
+
+def test_unapproving_a_fresh_clip_keeps_it_in_review(clip):
+    ws, cid = clip
+    apply_command(ws, CMD, {"id": cid, "approved": False})
+    row = _row(ws, cid)
+    assert (row.approved, row.review_required) == (False, True)
+
+
+def test_the_title_limit_is_200_characters():
+    assert SOCIAL_CLIP_TITLE_MAX_CHARS == 200
+
+
+@pytest.mark.parametrize(("length", "ok"), [(200, True), (201, False)])
+def test_a_literal_200_char_title_is_kept_and_201_refused(clip, length, ok):
+    ws, cid = clip
+    if ok:
+        apply_command(ws, CMD, {"id": cid, "title": "t" * length})
+        assert _row(ws, cid).title_suggestion == "t" * length
+    else:
+        with pytest.raises(CodedValueError) as err:
+            apply_command(ws, CMD, {"id": cid, "title": "t" * length})
+        assert err.value.code == "invalid_clip_title"
+
+
+def test_the_dict_level_validator_knows_the_command():
+    ok = validate_payload(CMD, {"id": "s1", "title": "x"})
+    assert (ok["id"], ok["title"], ok["approved"]) == ("s1", "x", None)
+    with pytest.raises(ValidationError):
+        validate_payload(CMD, {"id": "s1"})
+    with pytest.raises(ValidationError):
+        validate_payload(CMD, {"title": "x"})
 
 
 def test_a_title_and_an_approval_land_together_as_one_undo_step(clip):
