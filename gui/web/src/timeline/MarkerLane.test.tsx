@@ -166,7 +166,7 @@ describe("MarkerLane", () => {
     },
   );
 
-  it("saves a pointer-dragged chapter on the same 0.1 s grid as keyboard nudges (#2960)", async () => {
+  it("saves a pointer-dragged chapter on a 0.1 s grid (#2960)", async () => {
     vi.mocked(updateChapter).mockClear();
     const { container } = renderLane(
       { chapters: true, social: false, comments: false, clipping: false },
