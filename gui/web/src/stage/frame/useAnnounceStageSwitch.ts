@@ -1,29 +1,57 @@
 import { useEffect, useRef } from "react";
+import { takeUserStageSwitch } from "../../commands/userStageSwitch";
 import { useDawStore } from "../../state/dawStore";
 import { stageLabel } from "../../system/verbs";
 import type { StageId } from "../../types/stage";
 import { STAGE_BODY_ID } from "./StageFrameView";
 
+const TAB_CLICK_MS = 600;
+let tabPressedAt = Number.NEGATIVE_INFINITY;
+
+/** A mouse click on a Stage tab does not focus it in Safari or Firefox on macOS, so the press itself is noted. */
+function noteTabPress(event: PointerEvent): void {
+  if (event.target instanceof Element && event.target.closest('[role="tab"]'))
+    tabPressedAt = performance.now();
+}
+
+function typingTarget(active: Element | null): boolean {
+  return (
+    active instanceof HTMLElement &&
+    (active.isContentEditable ||
+      active.closest('[role="dialog"], [role="menu"]') != null ||
+      /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName))
+  );
+}
+
 /**
- * After a stage switch the person did not make on a Stage tab, say which stage
- * opened and put focus on its body, so a key (Mod+1..5), the palette or the
- * phone's Stage menu does not leave focus on a control that is gone. A tab
- * announces itself and keeps focus for the arrow keys; a switch a leader drove
- * (Follow) is left alone, so it does not pull focus out of what is being typed.
+ * After a stage switch a person made with a key (Mod+1..5), the palette or the
+ * phone's Stage menu, say which stage opened and put focus on its body, so
+ * focus is not left on a control that is gone. Only a stage command a person
+ * ran counts: the landing on open, a leader's Follow and a screen's own
+ * openStage are left alone. A Stage tab announces itself and keeps focus for
+ * the arrow keys. Focus never leaves a field, menu or dialog.
  */
 export function useAnnounceStageSwitch(stage: StageId): void {
   const shown = useRef(stage);
   useEffect(() => {
+    document.addEventListener("pointerdown", noteTabPress, true);
+    return () =>
+      document.removeEventListener("pointerdown", noteTabPress, true);
+  }, []);
+  useEffect(() => {
     if (shown.current === stage) return;
     shown.current = stage;
-    // A person's own switch ends Follow first, so a switch while following is the leader's.
-    if (useDawStore.getState().followingClientId != null) return;
+    if (!takeUserStageSwitch()) return;
     const active = document.activeElement;
     if (active instanceof HTMLElement && active.getAttribute("role") === "tab")
       return;
+    const tabPress = performance.now() - tabPressedAt < TAB_CLICK_MS;
+    tabPressedAt = Number.NEGATIVE_INFINITY;
+    if (tabPress) return;
     useDawStore
       .getState()
       .announceStatus(`${stageLabel(stage)} stage`, { toast: false });
+    if (typingTarget(active)) return;
     const body = document.getElementById(STAGE_BODY_ID);
     if (body && !body.contains(active)) body.focus({ preventScroll: true });
   }, [stage]);

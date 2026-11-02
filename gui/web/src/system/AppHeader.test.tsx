@@ -69,6 +69,18 @@ describe("AppHeader as a guest", () => {
     },
   );
 
+  it("keeps the theme in the Stage menu when the header is compact", async () => {
+    const onChange = vi.fn();
+    setup({
+      compact: true,
+      guest: { version: "v3", role: "viewer" },
+      appearance: { value: "system", onChange },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Light" }));
+    expect(onChange).toHaveBeenCalledWith("light");
+  });
+
   it("is the host, with the edit controls, when it is not a guest", () => {
     setup();
     for (const name of EDIT_CONTROLS) {

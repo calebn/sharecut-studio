@@ -26,11 +26,11 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `Mod+1` | Go to Record (`stage.record`) | stageAllowed:record | Mod+1; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
-| `Mod+2` | Go to Prepare (`stage.prepare`) | stageAllowed:prepare | Mod+2; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
-| `Mod+3` | Go to Edit (`stage.edit`) | stageAllowed:edit | Mod+3; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
-| `Mod+4` | Go to Review (`stage.review`) | stageAllowed:review | Mod+4; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
-| `Mod+5` | Go to Deliver (`stage.deliver`) | stageAllowed:deliver | Mod+5; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+1` | Go to Record (`stage.record`) | Project loaded, host only | Mod+1; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+2` | Go to Prepare (`stage.prepare`) | Project loaded, host only | Mod+2; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+3` | Go to Edit (`stage.edit`) | Project loaded, host or editor link | Mod+3; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+4` | Go to Review (`stage.review`) | Project loaded | Mod+4; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
+| `Mod+5` | Go to Deliver (`stage.deliver`) | Project loaded, host or editor link | Mod+5; a browser tab may keep Mod+1–5 for tab switching, so use the Stage bar there (desktop app unaffected) |
 | `ArrowLeft` | Nudge playhead back (`navigation.nudgePlayheadBack`) | Always (when not typing in an input) | Shift for 5 seconds |
 | `ArrowRight` | Nudge playhead forward (`navigation.nudgePlayheadForward`) | Always (when not typing in an input) | Shift for 5 seconds |
 | `Mod+ArrowLeft` | Go to start (`navigation.goToStart`) | Always (when not typing in an input) | Mod+ArrowLeft: Home alias for laptops |
