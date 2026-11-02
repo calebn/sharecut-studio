@@ -38,10 +38,22 @@ describe("ToolsButton", () => {
   it("opens the Tools sheet", async () => {
     const user = userEvent.setup();
     render(<ToolsButton />);
-    const button = screen.getByRole("button", { name: "Tools" });
+    const button = screen.getByRole("button", { name: "Tools, Timeline" });
     await user.click(button);
     expect(useDawStore.getState().openSheet).toBe("tools");
     expect(button).toHaveAttribute("aria-haspopup", "dialog");
+  });
+
+  it("names the Edit surface in use on a phone, and just Tools elsewhere", () => {
+    useDawStore.setState({ editSurface: "text" });
+    const { unmount } = render(<ToolsButton />);
+    expect(
+      screen.getByRole("button", { name: "Tools, Script" }),
+    ).toBeInTheDocument();
+    unmount();
+    viewport.shell = "tablet";
+    render(<ToolsButton />);
+    expect(screen.getByRole("button", { name: "Tools" })).toBeInTheDocument();
   });
 });
 
