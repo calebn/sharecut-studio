@@ -4,9 +4,9 @@
  * set of rules about who sees what.
  */
 
-export type NoteKind = "marker" | "note";
+type NoteKind = "marker" | "note";
 /** "hosts" is host and producers; guests never see it unless they wrote it. */
-export type NoteVisibility = "everyone" | "hosts";
+type NoteVisibility = "everyone" | "hosts";
 export type NoteViewer = "host" | "producer" | "guest";
 
 export type NoteItem = {
@@ -41,15 +41,12 @@ function clockSeconds(time: string): number {
 
 /**
  * Chronological: a session-level note (no time) lands at the session start, so
- * it sorts first. Equal times fall back to the id, which keeps the order
- * deterministic when two notes share a second.
+ * it sorts first. Equal times keep the order the items arrive in, which is
+ * creation order, so ids are never compared as strings ("n10" before "n2") and
+ * session-level notes stay in the order they were made.
  */
 export function sortNotes(items: readonly NoteItem[]): NoteItem[] {
-  return [...items].sort((a, b) => {
-    const byTime = compareTime(a.time, b.time);
-    if (byTime !== 0) return byTime;
-    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-  });
+  return [...items].sort((a, b) => compareTime(a.time, b.time));
 }
 
 function compareTime(a: string | null, b: string | null): number {
