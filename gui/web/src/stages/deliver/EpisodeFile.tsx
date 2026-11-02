@@ -307,7 +307,11 @@ export function EpisodeFile({
             detail={exportState.cause}
             action={
               options.onExportAgain
-                ? { label: "Try again", onAction: options.onExportAgain }
+                ? {
+                    label: "Try again",
+                    onAction: options.onExportAgain,
+                    disabledReason: blocker,
+                  }
                 : undefined
             }
           />
@@ -323,7 +327,11 @@ export function EpisodeFile({
           detail={exportState.detail}
           action={
             options.onExportAgain
-              ? { label: "Export again", onAction: options.onExportAgain }
+              ? {
+                  label: "Export again",
+                  onAction: options.onExportAgain,
+                  disabledReason: blocker,
+                }
               : undefined
           }
         />
