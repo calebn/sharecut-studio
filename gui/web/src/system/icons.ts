@@ -1,5 +1,7 @@
 import {
+  ArrowLeftToLine,
   ArrowRight,
+  ArrowRightToLine,
   ArrowUp,
   AudioWaveform,
   BetweenHorizontalStart,
@@ -117,7 +119,9 @@ export const LUCIDE_ICONS = {
   "text-search": TextSearch,
   search: Search,
   "wand-sparkles": WandSparkles,
+  "arrow-left-to-line": ArrowLeftToLine,
   "arrow-right": ArrowRight,
+  "arrow-right-to-line": ArrowRightToLine,
   "arrow-up": ArrowUp,
   "locate-fixed": LocateFixed,
   "door-open": DoorOpen,

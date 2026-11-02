@@ -1,9 +1,11 @@
 import { useId, useState } from "react";
 import { Button, Menu, MenuItem } from "../ui";
+import type { SystemIconName } from "./icons";
 import { SystemIcon } from "./SystemIcon";
 import {
   type SessionTargetView,
   sessionTargetMenuText,
+  sessionTargetPlacement,
   sessionTargetText,
 } from "./sessionTargetText";
 
@@ -15,6 +17,14 @@ export type PrepareTarget = "start" | "end";
 const TARGET_TEXT: Record<PrepareTarget, string> = {
   start: "Starts the episode",
   end: "At the end",
+};
+
+/** The placement glyph of each kind; the text beside it says the same in words. */
+const PLACEMENT_GLYPH: Record<SessionTargetView["kind"], SystemIconName> = {
+  end: "arrow-right-to-line",
+  start: "arrow-left-to-line",
+  insert: "between-horizontal-start",
+  replace: "replace",
 };
 
 export type { SessionTargetView };
@@ -117,8 +127,8 @@ function isPrepare(props: SessionTargetChipProps): props is PrepareChipProps {
 }
 
 /**
- * Where a session goes in the episode. Text only. Before the first take it
- * is a menu; after, it is a lock and the reason in words, not a control.
+ * Where a session goes in the episode: a placement glyph and the words.
+ * Before the first take it is a menu; after, it is a lock and the reason in words, not a control.
  */
 export function SessionTargetChip(props: SessionTargetChipProps) {
   const { locked = false, disabledReason, session } = props;
@@ -128,6 +138,10 @@ export function SessionTargetChip(props: SessionTargetChipProps) {
   const text = prepare
     ? TARGET_TEXT[props.target]
     : sessionTargetText(props.target);
+  const glyph =
+    PLACEMENT_GLYPH[
+      prepare ? props.target : sessionTargetPlacement(props.target)
+    ];
   const entries: Entry[] = prepare
     ? (["start", "end"] as const).map((value) => ({
         key: value,
@@ -165,6 +179,7 @@ export function SessionTargetChip(props: SessionTargetChipProps) {
           disabledReason={disabledReason}
           aria-label={`${SUBJECT}: ${text}${session ? `, ${session}` : ""}`}
         >
+          <SystemIcon name={glyph} size={14} />
           <span>{text}</span>
           <SystemIcon name="chevron-down" size={14} />
         </Button>
@@ -173,6 +188,7 @@ export function SessionTargetChip(props: SessionTargetChipProps) {
       {entries.map((entry) => (
         <MenuItem
           key={entry.key}
+          checked={entry.checked}
           onSelect={() => {
             setOpen(false);
             entry.pick();

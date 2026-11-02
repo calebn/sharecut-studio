@@ -7,12 +7,24 @@ export type SessionTargetView =
   | { kind: "insert"; atSec: number }
   | { kind: "replace"; fromSec: number; toSec: number };
 
+/**
+ * Where the session really lands. An end with no last clip to follow is the
+ * start of the episode, so it reads and draws as one.
+ */
+export function sessionTargetPlacement(
+  target: SessionTargetView,
+): SessionTargetView["kind"] {
+  return target.kind === "end" && target.afterSec === undefined
+    ? "start"
+    : target.kind;
+}
+
 /** The chip's text for a target; the one wording shared by the trigger and the lock. */
 export function sessionTargetText(target: SessionTargetView): string {
   switch (target.kind) {
     case "end":
       return target.afterSec === undefined
-        ? "Lands at the end"
+        ? "Starts the episode"
         : `Lands at the end · after ${clockText(target.afterSec)}`;
     case "start":
       return "Starts the episode";

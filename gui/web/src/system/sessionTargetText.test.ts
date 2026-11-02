@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { sessionTargetMenuText, sessionTargetText } from "./sessionTargetText";
+import {
+  sessionTargetMenuText,
+  sessionTargetPlacement,
+  sessionTargetText,
+} from "./sessionTargetText";
 
 describe("sessionTargetText", () => {
   it("words each target", () => {
     expect(sessionTargetText({ kind: "end", afterSec: 3130 })).toBe(
       "Lands at the end · after 52:10",
     );
-    expect(sessionTargetText({ kind: "end" })).toBe("Lands at the end");
+    // No clip to land after: the session starts the episode.
+    expect(sessionTargetText({ kind: "end" })).toBe("Starts the episode");
     expect(sessionTargetText({ kind: "start" })).toBe("Starts the episode");
     expect(sessionTargetText({ kind: "insert", atSec: 724 })).toBe(
       "Inserts at 12:04",
@@ -14,6 +19,12 @@ describe("sessionTargetText", () => {
     expect(
       sessionTargetText({ kind: "replace", fromSec: 724, toSec: 749 }),
     ).toBe("Replaces 12:04-12:29");
+  });
+
+  it("places an end with no clip to follow at the start", () => {
+    expect(sessionTargetPlacement({ kind: "end" })).toBe("start");
+    expect(sessionTargetPlacement({ kind: "end", afterSec: 0 })).toBe("end");
+    expect(sessionTargetPlacement({ kind: "insert", atSec: 1 })).toBe("insert");
   });
 
   it("uses hours past an hour", () => {
