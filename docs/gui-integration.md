@@ -347,9 +347,9 @@ readable reason; in-flight mutations block duplicates. Play uses the owned
 transport preview; Bounce captures a detached target with ordinary configuration.
 
 The idle desktop inspector collapses and restores when an inspector object is
-selected. Pending edits with no place on the timeline (cut-away audio) are not listed in the inspector; they
-appear in the Review Queue as the last row of their group, and every review-required pending item
-remains selectable there. The transport holds the single mix freshness
+selected. Pending edits with no place on the timeline (cut-away audio) are not listed in the inspector; a
+review-required one appears in the Review Queue as the last row of its group, and every
+review-required pending item remains selectable there. The transport holds the single mix freshness
 cue (**Mix out of date**, which hosts never have to click); the footer retains transcript,
 pending, comment and job status.
 
