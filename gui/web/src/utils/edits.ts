@@ -1,16 +1,4 @@
 import type { PendingEditView } from "../types/project";
-import { plural } from "./format";
-
-/** Name for pending edits whose span was cut away, so they have no place on the timeline. */
-export const UNMAPPED_PENDING_TITLE = "Edits in removed audio";
-
-export function pendingEditsStatus(count: number): string {
-  return `${count} pending ${plural(count, "edit")}`;
-}
-
-export function unmappedPendingStatus(count: number): string {
-  return `${count} ${plural(count, "edit")} in removed audio`;
-}
 
 /** Pending edits that cannot be drawn on the timeline (cut-away spans). */
 export function selectUnmappedPending(

@@ -27,10 +27,10 @@ import {
   fullOrder,
   groupQueue,
   holdsGateKind,
+  itemVerb,
   type ReviewFilter,
   type ReviewItem,
   type ReviewResult,
-  verbOf,
 } from "./reviewQueueModel";
 
 export type ReviewIntent = {
@@ -159,7 +159,7 @@ export function ReviewStage({
     gate &&
     ids.some((id) =>
       items.some(
-        (i) => i.id === id && holdsGateKind(i) && verbOf(i) !== "lower",
+        (i) => i.id === id && holdsGateKind(i) && itemVerb(i) !== "lower",
       ),
     );
 
@@ -210,7 +210,7 @@ export function ReviewStage({
     if (item?.kind === "comment")
       return item.result || guest ? undefined : onResolve?.(id);
     if (!canDecide) return;
-    if (item && verbOf(item) === "keep")
+    if (item && itemVerb(item) === "keep")
       return item.blocked ? undefined : keep(id);
     if (!cuttable(id)) return;
     if (holdsGate([id])) setPending({ ids: [id] });
@@ -258,7 +258,7 @@ export function ReviewStage({
 
   const handleKey = useEffectEvent((event: KeyboardEvent) => {
     const action = stageActionFor(event, {
-      primary: selected ? verbOf(selected) : undefined,
+      primary: selected ? itemVerb(selected) : undefined,
       root: root.current,
     });
     if (!action) return;
@@ -420,7 +420,7 @@ export function ReviewStage({
               state !== "ready" ? state : selected && body ? "ready" : "empty"
             }
             {...card}
-            verb={selected ? verbOf(selected) : undefined}
+            verb={selected ? itemVerb(selected) : undefined}
             verbDisabledReason={
               guest && selected?.kind === "comment"
                 ? "The host resolves comments."
@@ -448,14 +448,14 @@ export function ReviewStage({
             prompt={
               armed && pendingItem
                 ? {
-                    verb: verbOf(pendingItem),
+                    verb: itemVerb(pendingItem),
                     checkLabel: `Check ${unsureWords} ${unsureWords === 1 ? "word" : "words"}`,
                     onConfirm: confirmAnyway,
                     onCheck: checkWords,
                   }
                 : held && selected && canDecide
                   ? {
-                      verb: verbOf(selected),
+                      verb: itemVerb(selected),
                       message: held.message,
                       allowNote: false,
                       onConfirm: () =>

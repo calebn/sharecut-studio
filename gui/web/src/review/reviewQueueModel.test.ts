@@ -7,11 +7,11 @@ import {
   filterCounts,
   filterItems,
   groupQueue,
+  itemVerb,
   landPlan,
   progressLine,
   type ReviewItem,
   resultText,
-  verbOf,
 } from "./reviewQueueModel";
 
 const item = (over: Partial<ReviewItem>): ReviewItem => ({
@@ -96,8 +96,8 @@ describe("pickups", () => {
   });
 
   it("takes Replace or Insert as its verb and words the result with the session", () => {
-    expect(verbOf(pickup())).toBe("replace");
-    expect(verbOf(pickup({ pickup: { kind: "insert", number: 2 } }))).toBe(
+    expect(itemVerb(pickup())).toBe("replace");
+    expect(itemVerb(pickup({ pickup: { kind: "insert", number: 2 } }))).toBe(
       "insert",
     );
     expect(resultText(pickup({ result: "applied" }))).toBe("Added Session 2");
@@ -236,7 +236,7 @@ describe("decisionMessage", () => {
   });
 });
 
-describe("verbOf", () => {
+describe("itemVerb", () => {
   it.each([
     [{ kind: "filler" }, "cut"],
     [{ kind: "pause" }, "shorten"],
@@ -249,7 +249,7 @@ describe("verbOf", () => {
     [{ kind: "sound", suggested: "leave" }, "keep"],
     [{ kind: "filler", suggested: undefined }, "cut"],
   ] as const)("gives %o the %s verb", (over, verb) => {
-    expect(verbOf(item({ ...over }))).toBe(verb);
+    expect(itemVerb(item({ ...over }))).toBe(verb);
   });
 
   it("words the result and the bulk message from it", () => {

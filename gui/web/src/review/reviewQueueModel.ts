@@ -1,7 +1,7 @@
 import type { DecisionKind } from "../system/decisionKinds";
 import { KIND_META } from "../system/decisionKinds";
 import { formatSeconds } from "../system/seconds";
-import { verbOf as verbDefOf } from "../system/verbDisplay";
+import { verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
 
 export type ReviewResult = "applied" | "kept";
@@ -69,7 +69,7 @@ const KIND_ORDER = Object.keys(QUEUE_KIND) as DecisionKind[];
 
 export const holdsGateKind = (item: ReviewItem) => QUEUE_KIND[item.kind].gated;
 
-export function verbOf(item: ReviewItem): VerbId {
+export function itemVerb(item: ReviewItem): VerbId {
   if (item.pickup) return item.pickup.kind;
   switch (item.suggested) {
     case "cut":
@@ -85,8 +85,8 @@ export function verbOf(item: ReviewItem): VerbId {
 
 /** The verb the items share, or Approve when they differ (cut with shorten). */
 function groupVerbOf(items: readonly ReviewItem[]): VerbId {
-  const first = items[0] && verbOf(items[0]);
-  return first && items.every((item) => verbOf(item) === first)
+  const first = items[0] && itemVerb(items[0]);
+  return first && items.every((item) => itemVerb(item) === first)
     ? first
     : "approve";
 }
@@ -100,8 +100,8 @@ function bulkEligible(item: ReviewItem): boolean {
     !item.unsure &&
     !item.blocked &&
     !item.oneByOne &&
-    verbOf(item) !== "keep" &&
-    verbOf(item) !== "lower" &&
+    itemVerb(item) !== "keep" &&
+    itemVerb(item) !== "lower" &&
     !isDecided(item)
   );
 }
@@ -130,8 +130,8 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
               (i) =>
                 !eligible.includes(i) &&
                 !i.hostOnly &&
-                verbOf(i) !== "keep" &&
-                verbOf(i) !== "lower",
+                itemVerb(i) !== "keep" &&
+                itemVerb(i) !== "lower",
             ).length
           : 0,
         bulk:
@@ -219,11 +219,11 @@ export function resultText(item: ReviewItem): string {
       : `Added Session ${item.pickup.number}`;
   if (item.result === "kept") return "Kept";
   if (item.kind === "comment") return "Resolved";
-  const verb = verbOf(item);
+  const verb = itemVerb(item);
   const word =
     verb === KIND_META[item.kind].verb
-      ? (KIND_META[item.kind].verbLabel ?? verbDefOf(verb).label)
-      : verbDefOf(verb).label;
+      ? (KIND_META[item.kind].verbLabel ?? verbOf(verb).label)
+      : verbOf(verb).label;
   return item.savedSeconds > 0
     ? `${word} ${formatSeconds(item.savedSeconds)}`
     : word;
@@ -240,5 +240,5 @@ export function decisionMessage(
   if (!first) return "Done";
   if (picked.length === 1) return resultText({ ...first, result });
   if (result === "kept") return `Kept ${picked.length}`;
-  return `${verbDefOf(groupVerbOf(picked)).label} ${picked.length} · saves ${formatSeconds(sumSaved(picked))}`;
+  return `${verbOf(groupVerbOf(picked)).label} ${picked.length} · saves ${formatSeconds(sumSaved(picked))}`;
 }
