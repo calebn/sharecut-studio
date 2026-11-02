@@ -140,16 +140,30 @@ def _counts() -> dict[str, int]:
     return dict(found)
 
 
+def _over_cap(counts: dict[str, int], caps: dict[str, int]) -> dict[str, int]:
+    return {f: n for f, n in counts.items() if n > caps.get(f, 0)}
+
+
+def _stale(counts: dict[str, int], caps: dict[str, int]) -> list[str]:
+    return sorted(f for f in caps if f not in counts)
+
+
 def test_service_dict_returns_stay_within_the_allowlist() -> None:
-    counts = _counts()
-    over = {f: n for f, n in counts.items() if n > DICT_RETURNS.get(f, 0)}
+    over = _over_cap(_counts(), DICT_RETURNS)
     assert not over, f"new bare dict returns (cap in DICT_RETURNS): {over}"
 
 
 def test_the_allowlist_has_no_stale_files() -> None:
-    counts = _counts()
-    stale = sorted(f for f in DICT_RETURNS if f not in counts)
+    stale = _stale(_counts(), DICT_RETURNS)
     assert not stale, f"remove from DICT_RETURNS, no bare dict returns left: {stale}"
+
+
+def test_the_cap_check_fails_one_above_a_cap_and_for_an_uncapped_file() -> None:
+    assert _over_cap({"a.py": 2}, {"a.py": 2}) == {}
+    assert _over_cap({"a.py": 1}, {"a.py": 2}) == {}
+    assert _over_cap({"a.py": 3}, {"a.py": 2}) == {"a.py": 3}
+    assert _over_cap({"new.py": 1}, {"a.py": 2}) == {"new.py": 1}
+    assert _stale({"a.py": 1}, {"a.py": 2, "gone.py": 1}) == ["gone.py"]
 
 
 def _annotation(text: str) -> ast.expr:
