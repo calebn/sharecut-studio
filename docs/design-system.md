@@ -377,7 +377,7 @@ adapter and View pairs; `src/system/` stays presentational.
 A store-bound component gets a story that hydrates the DAW store with the shared
 fictional episode (`src/test/episodeFixture.ts`) through the `withEpisode`
 decorator and the `episodeBeforeEach` hook (`src/test/withEpisode.tsx`), which
-a story file sets together on its meta, the way `ClipInspector.stories.tsx`
+a story file sets together on its meta, the way `stage/edit/ClipInspector.stories.tsx`
 does. From `parameters.episode` they take the role (the host opens the project
 by path, a guest opens `share:episode` with that role's capabilities), the
 feature ids the server offers (the role's defaults, so the guest banner and the

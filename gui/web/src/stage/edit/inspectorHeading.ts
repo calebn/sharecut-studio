@@ -1,5 +1,6 @@
 import type { SystemIconName } from "../../system/icons";
 import type { ProjectView, Selection } from "../../types/project";
+import { clipIdentityTrack, clipLabels } from "../../utils/clipLabels";
 import { sortedVolumePoints } from "../../utils/envelopes";
 
 export interface InspectorHeading {
@@ -14,6 +15,23 @@ const RANGE: InspectorHeading = {
 
 const trackLabel = (project: ProjectView | null, trackId: string) =>
   project?.tracks.find((track) => track.id === trackId)?.label || trackId;
+
+function clipName(
+  project: ProjectView | null,
+  clipId: string,
+  trackId: string,
+): string {
+  const clip = project?.clips.tracks[trackId]?.find((c) => c.id === clipId);
+  if (!clip || !project) return `${trackLabel(project, trackId)} clip`;
+  const identity = clipIdentityTrack({ clip, tracks: project.tracks });
+  const labels = clipLabels({
+    clip,
+    trackSpeaker: identity?.speaker,
+    trackLabel: identity?.label,
+    role: identity?.role ?? "audio",
+  });
+  return `${labels.speaker} · ${labels.start} to ${labels.end}`;
+}
 
 export function inspectorHeading(
   selection: Selection,
@@ -30,7 +48,7 @@ export function inspectorHeading(
         name:
           count > 1
             ? `${count} clips`
-            : `${trackLabel(project, selection.trackId)} clip`,
+            : clipName(project, selection.id, selection.trackId),
       };
     }
     case "track": {

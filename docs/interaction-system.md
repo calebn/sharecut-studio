@@ -334,7 +334,7 @@ Locked by a test or a check today:
   `ui/disabledReason.tsx`); `useDisabledReasonNote` there adds the visible
   note and `aria-describedby` where touch has no hover. A control reached by
   key or touch uses `aria-disabled`, stays focusable and refuses activation
-  (`inspector/NudgeButtons.test.tsx`, `stages/edit/FindBar.test.tsx`,
+  (`stages/edit/FindBar.test.tsx`,
   `tracks/TrackPlaybackMeter.test.tsx`, `transcript/EditBoundaryMark.test.tsx`).
 - One label per command: the written name on every `CommandButton` and
   `CommandMenuItem`, the palette rows and the manifest equal the catalog entry

@@ -23,16 +23,13 @@ test.describe("Clip inspector join control", () => {
       await inspectSelection(page);
       const joinMode = page.getByLabel("Incoming transition");
       await expect(joinMode).toBeVisible();
-      await expectPageAxeClean(page, ".inspector");
-      await page.getByLabel("Transition length ms").fill("30");
+      await expectPageAxeClean(page, ".sys-inspector");
       await joinMode.focus();
       await page.keyboard.press("Tab");
-      await expect(page.getByLabel("Transition length ms")).toBeFocused();
-      await page.keyboard.press("Tab");
       await expect(
-        page.getByRole("button", { name: "Apply transition length" }),
+        page.getByRole("spinbutton", { name: "Transition length" }),
       ).toBeFocused();
-      await expectPageAxeClean(page, ".inspector");
+      await expectPageAxeClean(page, ".sys-inspector");
     } finally {
       // Leave the shared live E2E project as later specs expect it.
       await page.keyboard.press("Escape");
@@ -69,10 +66,10 @@ test.describe("Clip inspector fade controls", () => {
     await firstBlock.click();
     await inspectSelection(page);
 
-    const fadeIn = page.getByLabel("Fade in ms");
-    await expect(fadeIn).toBeEnabled();
-    const before = Number(await fadeIn.inputValue());
-    const maximum = Number(await fadeIn.getAttribute("max"));
+    const fadeIn = page.getByRole("spinbutton", { name: "Fade in" });
+    await expect(fadeIn).not.toHaveAttribute("aria-readonly", "true");
+    const before = Number(await fadeIn.getAttribute("aria-valuenow"));
+    const maximum = Number(await fadeIn.getAttribute("aria-valuemax"));
     const expected = before < maximum ? before + 1 : before - 1;
     const fadeRequest = page.waitForRequest((request) => {
       if (!request.url().includes("/api/document/command")) return false;
@@ -83,8 +80,7 @@ test.describe("Clip inspector fade controls", () => {
         return false;
       }
     });
-    await fadeIn.fill(String(expected));
-    await page.getByRole("button", { name: "Apply fade in" }).click();
+    await fadeIn.press(expected > before ? "ArrowUp" : "ArrowDown");
     const request = await fadeRequest;
     expect(request.postDataJSON()).toMatchObject({
       type: "SetClipFade",

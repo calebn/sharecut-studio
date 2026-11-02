@@ -207,9 +207,9 @@ const REACH: Record<SelectionKind, Reach[]> = {
     { role: "button", name: "Ignore" },
   ],
   clip: [
-    { role: "button", name: "Delete" },
-    { role: "button", name: "Copy" },
-    { role: "button", name: "Cut" },
+    { role: "spinbutton", name: "Fade in" },
+    { role: "button", name: "Move clip" },
+    { role: "button", name: "Ripple delete" },
   ],
   bleedAttenuation: [{ role: "button", name: "Restore original audio" }],
   pending: [

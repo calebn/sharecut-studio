@@ -22,7 +22,6 @@ import {
   relatedCopyWord,
 } from "./relatedRows";
 import { ChapterInspector } from "./views/ChapterInspector";
-import { ClipInspector } from "./views/ClipInspector";
 import { SocialClipInspector } from "./views/SocialClipInspector";
 import { TrackInspector } from "./views/TrackInspector";
 
@@ -114,12 +113,9 @@ export const SELECTION_SURFACES: {
     peek: peekClip,
     related: relatedCopy,
     more: moreCutClip,
-    body: (sel, { project }) => {
-      const clip = Object.values(project.clips.tracks)
-        .flat()
-        .find((c) => c.id === sel.id);
-      return clip ? <ClipInspector clip={clip} /> : notFound("Clip not found");
-    },
+    body: (_sel, { placement }) => (
+      <SectionsBody withRange={placement === "sheet"} />
+    ),
   },
   bleedAttenuation: {
     ...plain,

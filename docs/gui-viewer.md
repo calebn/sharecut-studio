@@ -131,7 +131,7 @@ A share registry file or folder that is not private to the host user raises `Reg
 
 Focused timeline fade and trim handles accept Left/Right arrows through the shared command bus. Fade steps are 1 ms (Shift 10 ms); trim steps are 10 ms (Shift 100 ms), without snapping. Right grows fade-in, Left grows fade-out; Right advances either source boundary. Holding a key previews repeated steps and releasing that arrow saves once, so one Undo restores the gesture. Normal blur also saves; Escape, pointer cancellation, unmount, or changed project/clip geometry discards the preview. An in-flight save blocks another handle gesture. Fades preserve the opposite edge and clamp to the track cap and remaining clip length; trims preserve minimum span and neighbor bounds. A handle that retains native focus after a project reload edits the fresh clip. Removing the focused handle releases keyboard ownership. Arrow keys outside a focused handle retain playhead navigation.
 
-The selected clip Inspector exposes editable numeric Source start and Source end fields for precise trim targets. Apply validates the typed value against the current source, minimum-span and neighboring-clip limits, then submits the existing trim command once. Each edge also has 10 ms and 100 ms nudges. Pending-edit source boundaries use the same two nudge sizes, and, in the phone's peek strip, a selected envelope point exposes 10 ms and 100 ms time nudges plus ±0.5 dB level nudges. These buttons keep the 44 px Inspector target size and use the same existing document mutations as their drag or typed-edit paths, so each accepted action is one Undo entry. Envelope levels remain linear multipliers in the project. A +0.5 dB step from exactly 0× starts at the existing −60 dB floor and yields −59.5 dB; a downward step remains at zero, while positive values below the floor retain their multiplicative step.
+The selected clip Inspector exposes Source start and Source end Scrub fields for precise trim targets. A committed value (Enter, blur, an arrow key or a drag end) is refused outside the current source, minimum-span and neighboring-clip bounds, otherwise submitted once through the existing trim command. Arrow keys step 10 ms (Shift 100 ms, Alt 1 ms). Pending-edit source boundaries use the same two nudge sizes, and, in the phone's peek strip, a selected envelope point exposes 10 ms and 100 ms time nudges plus ±0.5 dB level nudges. These buttons keep the 44 px Inspector target size and use the same existing document mutations as their drag or typed-edit paths, so each accepted action is one Undo entry. Envelope levels remain linear multipliers in the project. A +0.5 dB step from exactly 0× starts at the existing −60 dB floor and yields −59.5 dB; a downward step remains at zero, while positive values below the floor retain their multiplicative step.
 
 A held trim nudge in the inspector has one detachable display layer in the
 project store. Its run token and captured path, epoch, document generation,
@@ -271,9 +271,9 @@ focus. Restore skips a disabled, inert, or hidden return target. A remounted
 inspector does not steal focus from a docked waiver field. A new sheet still
 takes Close after deferred envelope first-entry. The keymap
 does not run Escape commands while any overlay is open (`overlayOpen()`
-skips `edit.clearSelection`). Clip Inspector fade Escape stops
-propagation only while a fade preview is in progress, so cancelling it
-leaves the sheet open. Idle Escape on a fade slider still dismisses the sheet. A host move that detaches a focused
+skips `edit.clearSelection`). A clip fade Scrub field's Escape stops
+propagation only while a drag or typed edit is open, so cancelling it
+leaves the sheet open. Idle Escape on a fade field still dismisses the sheet. A host move that detaches a focused
 action without a blur (a modal-covered or stowed host) resumes the toast timer.
 Ordinary body scrolling exposes feedback when a full native label and the card
 cannot fit together. The single Toast pauses its remaining visible lifetime
@@ -622,9 +622,9 @@ A project with no source media or timeline clips stays **Mix up to date** despit
 
 While a coupled join change is still saving, competing clip fade, trim, roll, and move gestures wait. The existing join save flag guards gesture starts and commits, including commits after an asynchronous boundary read. This prevents an older individual fade from overwriting one side of a coupled crossfade.
 
-Clip labels use the originating speaker when available, otherwise a human track label or role, followed by a readable duration such as `Avery · 17m 26s`. Accessible names include identity, timeline position, and full duration. The Clip inspector title includes identity and timeline bounds. Delete and Ripple delete follow the constructive controls in a separate group.
+Clip labels use the originating speaker when available, otherwise a human track label or role, followed by a readable duration such as `Avery · 17m 26s`. Accessible names include identity, timeline position, and full duration. The Clip inspector title includes identity and timeline bounds. Ripple delete sits in the More section after the other controls; Cut is on the Action bar.
 
-Clip Inspector fade ranges preview a paired fade value and send one `SetClipFade` when the pointer or keyboard gesture ends, or when focus leaves ordinarily. Escape and pointer cancellation discard the preview. **Incoming transition** names the join from the previous clip into the selected clip. **Track actions → Smooth all joins** runs the existing track-wide recommendation command. The seam line rolls the join below its top glyph. Pending hatch regions cover the complete lane height.
+Clip Inspector fades are Scrub fields: a drag, an arrow key or a typed value (Enter or blur) sends one `SetClipFade` that carries the other edge's saved value. Escape cancels a drag or a typed edit. **Incoming transition** names the join from the previous clip into the selected clip. **Track actions → Smooth all joins** runs the existing track-wide recommendation command. The seam line rolls the join below its top glyph. Pending hatch regions cover the complete lane height.
 
 In Pending edit Inspector, **Snap to silence** starts checked without a write. Turning it off changes no bounds. Checking it again immediately submits one `UpdatePendingEdit` for the stored bounds with snapping enabled. Each Start or End commit (Enter, blur, arrow key or drag end) uses the current checkbox value. Cut and Keep remain separate review actions.
 
@@ -860,9 +860,9 @@ inner overlay closes without a usable return target. A remounted inspector
 does not steal focus from a docked waiver field. A new sheet still takes
 Close after deferred envelope first-entry. The keymap skips Escape
 commands while any overlay is open (`overlayOpen()` skips
-`edit.clearSelection`). Clip Inspector fade Escape stops propagation only
-while a fade preview is in progress, so cancelling it leaves the sheet
-open. Idle Escape on a fade slider still dismisses the sheet. `Toast` re-reads
+`edit.clearSelection`). A clip fade Scrub field's Escape stops propagation only
+while a drag or typed edit is open, so cancelling it leaves the sheet
+open. Idle Escape on a fade field still dismisses the sheet. `Toast` re-reads
 `document.activeElement` after each commit, so a host move that detaches a
 focused action without a blur resumes its timer. Store announcements and command authority
 remain unchanged. See [mobile feedback](gui-mobile.md#feedback-toast).

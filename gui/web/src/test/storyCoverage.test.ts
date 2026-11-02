@@ -95,7 +95,7 @@ const COVERED: Record<string, string[]> = {
   "CMP-GHOST": ["Templates/GhostWordChips"],
   "CMP-EDITBOUNDARY": ["Templates/EditBoundaryMark", "System/Seam"],
   "CMP-REFINE": ["Templates/GuestAttentionBanner"],
-  "INS-CLIP": ["Templates/Editor · Inspector · Clip", "System/ScrubField"],
+  "INS-CLIP": ["Stages/Edit/ClipInspector", "System/ScrubField"],
   "INS-ENVELOPE": [
     "System/InspectorSheet",
     "System/ScrubField",

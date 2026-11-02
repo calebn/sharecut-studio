@@ -5,7 +5,7 @@ import { inspectSelection, openProject } from "./stageNav";
 
 type FadeCommand = { command_id: string; type: string };
 
-test("a fade nudge that queues offline stays shown, then saves once online", async ({
+test("a fade step that queues offline stays shown, then saves once online", async ({
   page,
 }) => {
   await withShareableProject(async (projectPath) => {
@@ -25,17 +25,14 @@ test("a fade nudge that queues offline stays shown, then saves once online", asy
     await block.click();
     await inspectSelection(page);
 
-    const fadeIn = page.getByLabel("Fade in ms");
-    await expect(fadeIn).toHaveValue("0");
-    await page
-      .getByRole("group", { name: "Nudge fade in" })
-      .getByRole("button", { name: "10 ms longer" })
-      .click();
+    const fadeIn = page.getByRole("spinbutton", { name: "Fade in" });
+    await expect(fadeIn).toHaveAttribute("aria-valuenow", "0");
+    await fadeIn.press("Shift+ArrowUp");
 
     await expect.poll(() => commands.length).toBe(1);
     await expect.poll(() => hostOfflineQueueCount(page, projectPath)).toBe(1);
     // The save has settled as queued; the value must not jump back to 0.
-    await expect(fadeIn).toHaveValue("10");
+    await expect(fadeIn).toHaveAttribute("aria-valuenow", "10");
     await expect(block.locator(".fade-corner.in")).not.toHaveClass(/zero/);
 
     offline = false;
@@ -43,7 +40,7 @@ test("a fade nudge that queues offline stays shown, then saves once online", asy
     await expect.poll(() => commands.length).toBe(2);
     expect(commands[1]?.command_id).toBe(commands[0]?.command_id);
     await expect.poll(() => hostOfflineQueueCount(page, projectPath)).toBe(0);
-    await expect(fadeIn).toHaveValue("10");
+    await expect(fadeIn).toHaveAttribute("aria-valuenow", "10");
     const serverFadeIn = async () => {
       const response = await page.request.get(
         `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`,

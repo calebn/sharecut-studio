@@ -118,7 +118,6 @@
   }
 
   .pending-cut-suggestion .ui-control,
-  .clip-destructive-controls .ui-control,
   .modifier-footer-actions .ui-control {
     min-block-size: var(--touch-min);
   }
@@ -143,7 +142,6 @@ html[data-shell="phone"] .inspector dd select {
 }
 
 html[data-shell="phone"] .pending-cut-suggestion .ui-control,
-html[data-shell="phone"] .clip-destructive-controls .ui-control,
 html[data-shell="phone"] .modifier-footer-actions .ui-control {
   min-block-size: var(--touch-min);
 }
@@ -423,20 +421,6 @@ html[data-shell="phone"]
   font-size: var(--font-size-small);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
-}
-
-.clip-destructive-controls {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-block-start: var(--space-5);
-  padding-block-start: var(--space-3);
-  border-block-start: 1px solid var(--color-border);
-}
-
-.clip-destructive-controls h3 {
-  margin: 0;
-  font-size: var(--font-size-small);
 }
 
 .pending-cut-suggestion {
