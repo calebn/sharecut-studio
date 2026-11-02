@@ -31,12 +31,9 @@
      5.3:1 on controls; selected chips carry full text (9.5:1). */
   --color-transport-top: var(--primitive-warm-925);
   --color-transport-bottom: var(--primitive-warm-950);
-  --color-transport-border: var(--primitive-warm-975);
   --color-transport-text: var(--primitive-neutral-60);
   --color-transport-muted: var(--primitive-warm-300);
   --color-transport-control: var(--primitive-warm-800);
-  --color-transport-control-border: var(--primitive-warm-700);
-  --color-transport-segment: var(--primitive-warm-975);
   --color-transport-chip: var(--primitive-warm-700);
   --color-transport-play: var(--primitive-orange-250);
   --color-transport-shadow: color-mix(
@@ -49,33 +46,12 @@
     var(--color-transport-play) 45%,
     transparent
   );
-  --color-transport-play-fg: var(--primitive-warm-975);
   --color-transport-warning: var(--primitive-amber-350);
   --color-transport-ok: var(--primitive-teal-250);
   /* Record REC label and the agent/session region pill: their themed roles
      are tuned for light panes and fall to 2.8:1 / 3.8:1 on the strip. */
   --color-transport-danger: var(--primitive-red-350);
   --color-transport-audition: var(--primitive-teal-400);
-  --color-transport-danger-bg: color-mix(
-    in srgb,
-    var(--color-transport-danger) 18%,
-    transparent
-  );
-  --color-transport-audition-bg: color-mix(
-    in srgb,
-    var(--color-transport-audition) 18%,
-    transparent
-  );
-  --color-transport-warning-bg: color-mix(
-    in srgb,
-    var(--color-transport-warning) 18%,
-    transparent
-  );
-  --color-transport-ok-bg: color-mix(
-    in srgb,
-    var(--color-transport-ok) 18%,
-    transparent
-  );
   /* Top-edge highlights on the strip, chips and Play. Built from white here:
      the themed overlay-white roles turn dark in light mode, which drew dark
      lines on the fixed-dark strip. */
@@ -99,16 +75,5 @@
     var(--color-transport-top),
     var(--color-transport-bottom)
   );
-  --shadow-transport:
-    inset 0 1px 0 var(--color-transport-highlight),
-    0 1px 0.5rem var(--color-transport-shadow);
-  --shadow-transport-play:
-    inset 0 1px 0 var(--color-transport-highlight-play),
-    0 1px 0.25rem var(--color-transport-shadow);
   /* Live-state light: only while playing, never pulsing. */
-  --shadow-transport-playing:
-    inset 0 1px 0 var(--color-transport-highlight-play),
-    0 0 1.25rem var(--color-transport-play-glow);
-  --shadow-transport-timecode: 0 0 0.75rem var(--color-transport-play-glow);
-  --shadow-transport-chip: inset 0 1px 0 var(--color-transport-highlight-chip);
 }
