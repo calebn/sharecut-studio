@@ -290,8 +290,9 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     wantedSettings.current !== null &&
     exportFlow.loadedGeneration >= wantedSettings.current;
   useEffect(() => {
-    if (exportRequested && unsaved) setExportRequested(false);
-  }, [exportRequested, unsaved, setExportRequested]);
+    if (exportRequested && (unsaved || offline.pending > 0))
+      setExportRequested(false);
+  }, [exportRequested, unsaved, offline.pending, setExportRequested]);
   useEffect(() => {
     if (
       !exportRequested ||

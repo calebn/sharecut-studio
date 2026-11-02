@@ -826,6 +826,28 @@ describe("Deliver host export while an edit is not saved", () => {
     await waitFor(() => expect(exportHeld()).toBeEnabled());
   });
 
+  it("drops a queued Export request while a change is refused", async () => {
+    network.mode = "refusing";
+    render(<DeliverStage />);
+    await removeMiddle();
+    await screen.findByRole("alert");
+    act(() => useDawStore.getState().setExportRequested(true));
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.exportRequested).toBe(false),
+    );
+  });
+
+  it("drops a queued Export request while an edit waits in the offline queue", async () => {
+    network.mode = "down";
+    render(<DeliverStage />);
+    await removeMiddle();
+    await screen.findByRole("status");
+    act(() => useDawStore.getState().setExportRequested(true));
+    await waitFor(() =>
+      expect(useDawStore.getState().chrome.exportRequested).toBe(false),
+    );
+  });
+
   it("holds Export after a refused save until the saved version is shown", async () => {
     network.mode = "refusing";
     render(<DeliverStage />);

@@ -5388,6 +5388,23 @@ describe("host export options", () => {
     expect(screen.getByText("Export failed")).toBeInTheDocument();
   });
 
+  it("explains why Export again is held and keeps the cancelled row", async () => {
+    const onExportAgain = vi.fn();
+    const { all } = setup({
+      exportState: { phase: "cancelled", detail: "Cancelled." },
+      exportOptions: {
+        onExportAgain,
+        blockedReason: "Saving your changes first.",
+      },
+    });
+    const again = screen.getByRole("button", { name: "Export again" });
+    expect(again).toHaveAccessibleDescription("Saving your changes first.");
+    await userEvent.click(again);
+    expect(onExportAgain).not.toHaveBeenCalled();
+    expect(all.onExport).not.toHaveBeenCalled();
+    expect(screen.getByText("Export cancelled")).toBeInTheDocument();
+  });
+
   it("lists what a cancelled export had written, and offers Export again", async () => {
     const onExportAgain = vi.fn();
     setup({
