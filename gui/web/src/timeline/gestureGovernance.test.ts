@@ -176,9 +176,8 @@ describe("gesture package governance", () => {
  * gesture adds a line here, or routes through `commands/gestures.ts`.
  */
 const SURFACE_GESTURES: Record<string, string> = {
-  "comments/CommentCard.tsx": "long-press on a comment card selects it",
   "hooks/useLongPress.ts":
-    "one long-press timing for comment cards, track headers, transcript words and the rail's icon-only labels (gestureConstants)",
+    "one long-press timing for track headers, transcript words and the rail's icon-only labels (gestureConstants)",
   "hooks/useTwoFingerTap.ts":
     "two-finger tap is Undo (the Two-finger tap row in commands/gestures.ts), read from window pointers",
   "hooks/useHoldRepeat.ts":

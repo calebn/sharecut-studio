@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ToolModeToggle, EditToolStrip, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, AvatarStack, OverlayLegend, ToolModeToggle, EditToolStrip, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -230,11 +230,10 @@ caught and comments are ignored) and checks they never reach the store, the
 API layer, or `timelineMetrics` directly — `followSync` still reaches the
 store transitively through `clock.ts`, which the guard does not follow.
 
-`Templates/CommentCard`, `Templates/CommentCompose`, and
-`Templates/GhostWordChips` preview the production transcript comment card,
-comment form, and restored-word preview with fictional data. Their stories
-show open and resolved comments, action items, replies, read-only and busy
-states, editable drafts, empty ghost output, and 360px phone layouts. The
+`Templates/CommentCompose` and `Templates/GhostWordChips` preview the
+comment form and restored-word preview with fictional data. Their stories
+show an empty, a drafted and a posting form, restored-word and empty ghost
+output, and a 360px phone layout. The
 callbacks update only story-local state; the live comment panel remains outside this catalog slice. The restored-word preview
 uses the theme's unmapped text color at full opacity so its ghost styling
 remains readable in both themes.

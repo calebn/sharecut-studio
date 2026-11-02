@@ -13,7 +13,7 @@ import {
   pendingOffersCut,
   registerPendingDecider,
 } from "../../commands/pendingDecision";
-import { CommentCard, CommentCompose, useCommentActions } from "../../comments";
+import { useCommentActions } from "../../comments";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import {
   REFINE_GATE_GUI_MESSAGE,
@@ -31,6 +31,8 @@ import {
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import { CommentCard } from "../../system/CommentCard";
+import { Composer } from "../../system/Composer";
 import { KIND_META } from "../../system/decisionKinds";
 import { ScrubField } from "../../system/ScrubField";
 import { SystemIcon } from "../../system/SystemIcon";
@@ -63,6 +65,7 @@ import {
 } from "../../utils/pendingReviewPass";
 import type { PreviewMode } from "../../utils/playRange";
 import { formatTimeMs, parseTimecode } from "../../utils/time";
+import { commentCardOf } from "../hosts/commentCardData";
 import { PendingPreview } from "./PendingPreview";
 import { usePendingCutSuggestion } from "./usePendingCutSuggestion";
 import { usePendingEditWarm } from "./usePendingEditWarm";
@@ -204,6 +207,7 @@ export function PendingEditBody({
     setError: setThreadError,
     resolve,
     reply,
+    toggleAction,
   } = useCommentActions({ role, author, setAuthor });
 
   const thread = useMemo(
@@ -601,6 +605,13 @@ export function PendingEditBody({
           },
         ]
       : [];
+  const askComposer = {
+    body: askBody,
+    onBodyChange: setAskBody,
+    onSubmit: () => void postAsk(),
+    state: busy || threadBusy ? ("posting" as const) : ("idle" as const),
+    name: { value: author, onChange: setAuthor },
+  };
   const shownError =
     error && errorCode === TRANSCRIPT_REFINE_REQUIRED_CODE
       ? REFINE_GATE_GUI_MESSAGE
@@ -863,42 +874,41 @@ export function PendingEditBody({
             onRecovered={() => setError(null)}
           />
         ) : null}
-        <section
-          className="pending-ask-thread"
-          aria-label="Ask about this edit"
-        >
+        <section className="edit-ask" aria-label="Ask about this edit">
           <h3>Ask</h3>
           {thread ? (
-            <ul className="pending-ask-list">
-              <CommentCard
-                comment={thread}
-                guestShare={!canApply}
-                showResolve={canApply}
-                showReply={false}
-                showActions={canApply}
-                onResolve={(resolved) => void resolve(thread, resolved)}
-              />
-            </ul>
-          ) : (
-            <p className="inspector-body">
-              Hear Suggested, then approve, reject, or ask a question in this
-              thread.
-            </p>
-          )}
-          {(thread ? mayReply : mayAsk) ? (
-            <CommentCompose
-              body={askBody}
-              onBodyChange={setAskBody}
-              busy={busy || threadBusy}
-              submitLabel={thread ? "Reply" : "Ask"}
-              bodyPlaceholder={
-                thread ? "Reply…" : "Ask for more context before deciding…"
+            <CommentCard
+              comment={commentCardOf(
+                thread,
+                thread.resolved,
+                project?.timeline_duration_sec ?? Number.NaN,
+              )}
+              onResolve={
+                canApply ? (next) => void resolve(thread, next) : undefined
               }
-              onSubmit={() => void postAsk()}
-              author={author}
-              onAuthorChange={setAuthor}
+              onToggleAction={
+                canApply
+                  ? (actionId, done) =>
+                      void toggleAction(thread, actionId, done)
+                  : undefined
+              }
+              reply={mayReply ? askComposer : undefined}
             />
-          ) : null}
+          ) : (
+            <>
+              <p className="inspector-body">
+                Ask a question here before you approve or reject.
+              </p>
+              {mayAsk ? (
+                <Composer
+                  {...askComposer}
+                  label="Your question"
+                  placeholder="Ask for more context before deciding…"
+                  submitLabel="Ask"
+                />
+              ) : null}
+            </>
+          )}
         </section>
       </div>
       {shownError ? (
