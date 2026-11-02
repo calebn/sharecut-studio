@@ -39,6 +39,12 @@ import {
 
 export type { LaneMarker } from "./markerLayout";
 
+function readRootFontPx(): number {
+  return (
+    Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+  );
+}
+
 export type MarkerGrip = "move" | "start" | "end";
 
 type MarkerDrag = GrabMove & {
@@ -503,6 +509,7 @@ export const MarkerLane = memo(function MarkerLane({
   onAddCancel,
 }: MarkerLaneProps) {
   const root = useRef<HTMLDivElement>(null);
+  const remProbe = useRef<HTMLSpanElement>(null);
   const track = useRef<HTMLDivElement>(null);
   const nudging = useRef<{ origin: GestureOrigin; delta: number } | null>(null);
   const canceledKey = useRef(false);
@@ -549,9 +556,10 @@ export const MarkerLane = memo(function MarkerLane({
     [authoritativeMarkers],
   );
   const pinned = held?.id;
-  const rootFontPx =
-    Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
-    16;
+  const [rootFontPx, setRootFontPx] = useState(readRootFontPx);
+  useResizeObserver(remProbe, () => {
+    setRootFontPx(readRootFontPx());
+  });
   const items = useMemo(
     () =>
       layoutMarkers(
@@ -881,6 +889,7 @@ export const MarkerLane = memo(function MarkerLane({
           />
         ) : null}
       </div>
+      <span ref={remProbe} className="sys-markers-rem" aria-hidden="true" />
       {held && heldMarker ? (
         <ReadoutChip
           delta={signed(heldValue - held.from)}

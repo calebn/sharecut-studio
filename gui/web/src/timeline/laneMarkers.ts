@@ -59,9 +59,8 @@ export function laneMarkers(input: {
 }
 
 /**
- * Where a marker sits once it has moved `delta` seconds by `grip`, held to the
- * episode: a chapter moves whole; a social clip moves whole (`move`) or by one
- * bound (`start`, `end`) and keeps its minimum span. Comments never move.
+ * A whole-clip move is bounded by the episode, so at an edge the clip stops with
+ * its length intact instead of shrinking; a grip moves only its own bound.
  */
 export function movedMarker(
   marker: LaneMarker,

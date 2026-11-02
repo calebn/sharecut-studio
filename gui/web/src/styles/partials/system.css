@@ -5848,6 +5848,16 @@ input.sys-edit-fix {
   touch-action: none;
 }
 
+.sys-markers-rem {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 1rem;
+  block-size: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .sys-markers .sys-marker-hit[aria-pressed="true"] {
   outline-offset: calc(var(--selection-outline-width) * -1);
 }

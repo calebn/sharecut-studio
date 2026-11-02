@@ -183,24 +183,22 @@ function lone(kind: HitKind): HTMLButtonElement {
 }
 
 /** Timeline elements that own a pointer press, and what they mark themselves as. */
-const PRESS_OWNERS = [
-  ...[...sourceFiles(join(SRC_ROOT, "timeline"))]
-    .filter(
-      ({ rel }) =>
-        rel.endsWith(".tsx") &&
-        !rel.includes(".test.") &&
-        !rel.includes(".stories."),
-    )
-    .flatMap(({ rel, text }) =>
-      jsxElements(text)
-        .filter(ownsPointerDown)
-        .map((element) => ({
-          at: `${rel}:${element.line}`,
-          kinds: markedKinds(element),
-          surface: marksSurface(element),
-        })),
-    ),
-];
+const PRESS_OWNERS = [...sourceFiles(join(SRC_ROOT, "timeline"))]
+  .filter(
+    ({ rel }) =>
+      rel.endsWith(".tsx") &&
+      !rel.includes(".test.") &&
+      !rel.includes(".stories."),
+  )
+  .flatMap(({ rel, text }) =>
+    jsxElements(text)
+      .filter(ownsPointerDown)
+      .map((element) => ({
+        at: `${rel}:${element.line}`,
+        kinds: markedKinds(element),
+        surface: marksSurface(element),
+      })),
+  );
 
 /**
  * A system leaf owns the press and the timeline host only marks it: the host
