@@ -49,7 +49,7 @@ def test_comment_can_target_shared_review_version_without_changing_active_versio
     )
 
     saved = load_project(minimal_project)
-    assert comment["review_version_id"] == "shared-version"
+    assert comment.review_version_id == "shared-version"
     assert saved.review.active_version_id == "host-selected-version"
 
 
@@ -164,7 +164,7 @@ def test_comment_service_mutate_and_snapshot(minimal_project, sample_wav, tmp_wo
         timeline_start=3.0,
         action_texts=["Fix breath"],
     )
-    assert comment["author"] == "reviewer"
+    assert comment.author == "reviewer"
     snap = snapshot_editable_state(ws.project)
     assert "review" in snap
     assert len(snap["review"]["comments"]) == 1
@@ -214,8 +214,8 @@ def test_add_reply_domain_and_service(minimal_project, sample_wav, tmp_workspace
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     result = CommentService(ws).add_reply(c.id, body="On it", author="agent")
-    assert result["reply"]["author"] == "agent"
-    assert len(CommentService(ws).get(c.id)["replies"]) == 2
+    assert result.reply.author == "agent"
+    assert len(CommentService(ws).get(c.id).replies) == 2
 
 
 def test_comment_body_max_length(minimal_project, sample_wav, tmp_workspace):
