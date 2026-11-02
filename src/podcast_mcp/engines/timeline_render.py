@@ -53,7 +53,7 @@ from podcast_mcp.engines.mute_regions import (
 from podcast_mcp.engines.render_clock import read_render_clock
 from podcast_mcp.engines.room_tone_tiles import Tile, tile_span
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
-from podcast_mcp.engines.timed_pieces import TimingHole, expand_timed_clips
+from podcast_mcp.engines.timed_pieces import TimingHole, expand_timed_pieces
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedValueError
@@ -346,12 +346,6 @@ def restore_applies(project: EpisodeProject, track: Track, *, gated: bool | None
 
 def _restore_dependencies(project: EpisodeProject, track: Track, *, defaults: EffectiveConfig):
     if restore_applies(project, track):
-        if any(clip.track_id == track.id and clip.timing is not None for clip in project.clips):
-            raise CodedValueError(
-                f"track {track.id} has a clip with a timing map, which Bleed Restore does not "
-                "support yet. Remove the restore regions or the timing map.",
-                code="timing_map_bleed_restore_unsupported",
-            )
         from podcast_mcp.engines.play_audit import RenderDependencies
 
         return RenderDependencies.capture(project, track.id, defaults=defaults)
@@ -567,6 +561,7 @@ class _PreparedClip:
     clip: Clip
     content: _ClipContent | None
     borrow_in: float = 0.0
+    piece: int = 0
 
 
 @dataclass
@@ -580,7 +575,7 @@ class _Component:
 class _PlacedTrack:
     audio: Audio
     extent: RequestedExtent | None
-    bodies: tuple[tuple[str, Audio], ...] = ()
+    bodies: tuple[tuple[tuple[str, int], Audio], ...] = ()
 
 
 def _place_clips(
@@ -663,9 +658,9 @@ def _place_clips(
         MixAudio(ats[0], tuple(ats[1:])),
         extent,
         tuple(
-            (item.clip.id, item.content.body)
+            ((item.clip.id, item.piece), item.content.body)
             for item in prepared
-            if item.content is not None and item.content.body is not None
+            if item.content is not None and item.content.body is not None and item.piece >= 0
         ),
     )
 
@@ -685,14 +680,14 @@ def placed_track_audio(
     grid: TrackGrid | None,
     window: tuple[float, float] | None = None,
     removed_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
-    mask_clocks: dict[str, tuple[BoundaryClock, int, int, tuple[FrameTransform, ...]]]
+    mask_clocks: dict[tuple[str, int], tuple[BoundaryClock, int, int, tuple[FrameTransform, ...]]]
     | None = None,
     bypass_regions: dict[str, tuple[tuple[float, float], ...]] | None = None,
     micro_fade_ms: int = DEFAULT_MICRO_FADE_MS,
 ) -> _PlacedTrack:
     """Build the exact source, envelope and placement graph without rendering or saving."""
     micro_fade_ms = max(0, micro_fade_ms)
-    sorted_clips, holes = expand_timed_clips(sorted_clips, micro_fade_ms=micro_fade_ms)
+    sorted_clips, holes, pieces = expand_timed_pieces(sorted_clips, micro_fade_ms=micro_fade_ms)
     prepared: list[_PreparedClip] = []
     ignored_lookup = IgnoredWordRegions(project)
     clock_origin = window[0] if window else 0.0
@@ -753,7 +748,7 @@ def placed_track_audio(
     for index, clip in enumerate(sorted_clips):
         timeline_start, timeline_end, source_bounds = spans[index]
         if source_bounds is None:
-            prepared.append(_PreparedClip(clip, None))
+            prepared.append(_PreparedClip(clip, None, piece=pieces[index]))
             continue
         borrow_in = borrow[index]
         borrow_out = borrow[index + 1] if index + 1 < len(sorted_clips) else 0.0
@@ -792,6 +787,7 @@ def placed_track_audio(
             mute_spans=mute_spans_for_source_window(clip, source_start, source_end, extra=ignored),
             fill_path=fill,
             clip_id=clip.id,
+            piece=pieces[index],
             source_id=clip.source_id,
             reach_in=borrow_in,
             reach_out=borrow_out,
@@ -817,7 +813,9 @@ def placed_track_audio(
                 if start < source_end and end > source_start
             )
             if windows:
-                clock, first_frame, source_rate, transforms = (mask_clocks or {})[clip.id]
+                clock, first_frame, source_rate, transforms = (mask_clocks or {})[
+                    clip.id, pieces[index]
+                ]
                 body = MaskAudio(
                     body, source_start, windows, clock, first_frame, source_rate, transforms
                 )
@@ -826,6 +824,7 @@ def placed_track_audio(
                 clip,
                 _ClipContent(placed_start, placed_end, body),
                 borrow_in,
+                pieces[index],
             )
         )
     if holes:
@@ -896,7 +895,9 @@ def _with_hole_fills(
             micro_fade_ms=micro_fade_ms,
             grid=grid,
         )
-        out.append(_PreparedClip(hole.parent, _ClipContent(placed_start, placed_end, body)))
+        out.append(
+            _PreparedClip(hole.parent, _ClipContent(placed_start, placed_end, body), piece=-1)
+        )
     return out
 
 
@@ -1008,7 +1009,9 @@ def _render_placed_track(
             for rendered_source in rendered:
                 if rendered_source.source.is_fill or rendered_source.source.clip_id not in removed:
                     continue
-                primary[rendered_source.source.clip_id] = rendered_source
+                primary[rendered_source.source.clip_id, rendered_source.source.piece] = (
+                    rendered_source
+                )
                 rate = rendered_source.source_sample_rate
                 for lo, hi in removed[rendered_source.source.clip_id]:
                     if (
@@ -1054,8 +1057,8 @@ def _render_placed_track(
             if late_affected:
                 node_indices = {id(node): i for i, node in enumerate(postorder(placed.audio))}
                 mask_clocks = {}
-                for clip_id, body in placed.bodies:
-                    if clip_id not in primary:
+                for key, body in placed.bodies:
+                    if key not in primary:
                         continue
                     body_index = node_indices[id(body)]
                     body_nodes = [
@@ -1083,10 +1086,10 @@ def _render_placed_track(
                         for source in rendered_sources(body, local_clock)
                         if not source.source.is_fill
                     )
-                    mask_clocks[clip_id] = (
+                    mask_clocks[key] = (
                         clock.nodes[body_index],
-                        primary[clip_id].source_first_frame,
-                        primary[clip_id].source_sample_rate,
+                        primary[key].source_first_frame,
+                        primary[key].source_sample_rate,
                         local_primary.transforms[:-1] if automatic else (),
                     )
                 counterfactual = placed_track_audio(
