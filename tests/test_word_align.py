@@ -458,9 +458,9 @@ def test_apply_word_spans_clamps_runs_and_leaves_open_edges() -> None:
         TranscriptWord(text="42", start=1.5, end=2.0),
     ]
     apply_word_spans(words, [(0.0, 0.5), None, None, (0.9, 1.4), None])
-    assert [(w.start, w.end) for w in words] == pytest.approx(
-        [(0.0, 0.5), (0.5, 0.8), (0.8, 0.9), (0.9, 1.4), (1.5, 2.0)]
-    )
+    expected = [(0.0, 0.5), (0.5, 0.8), (0.8, 0.9), (0.9, 1.4), (1.5, 2.0)]
+    for word, (start, end) in zip(words, expected, strict=True):
+        assert (word.start, word.end) == pytest.approx((start, end))
     assert _monotonic(words)
 
 
