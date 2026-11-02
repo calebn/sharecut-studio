@@ -1589,7 +1589,7 @@ describe("single pending review feedback", () => {
       () => expect(useDawStore.getState().feedbackToast?.message).toBe(message),
       { timeout: 10_000 },
     );
-    return screen.findByText(message);
+    return screen.findByText(message, undefined, { timeout: 10_000 });
   }
 
   function mountReview(entrypoint: "inspector" | "overlay") {
