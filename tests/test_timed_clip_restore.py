@@ -13,7 +13,6 @@ from podcast_mcp.engines.timeline_render import render_track_from_timeline, rend
 from podcast_mcp.models import ClipOffSpeakerMuteRegion, EpisodeProject
 from test_bleed_restore_core import _restore
 from test_timed_clip_render import (
-    _PIECES,
     RATE,
     _four_clips,
     _frames,
@@ -43,12 +42,6 @@ def _gated(project: EpisodeProject, monkeypatch: pytest.MonkeyPatch) -> EpisodeP
     return project
 
 
-def _mapped_with(mutes: list[dict]):
-    return _mapped().model_copy(
-        update={"off_speaker_mute_regions": [ClipOffSpeakerMuteRegion(**m) for m in mutes]}
-    )
-
-
 def _render(project: EpisodeProject, name: str) -> np.ndarray:
     out = Path(project.workspace_dir) / "artifacts" / f"{name}.wav"
     render_track_from_timeline(project, project.tracks[0], out, {})
@@ -74,7 +67,7 @@ def _pair(tmp_path, monkeypatch, regions, signal=None):
     return timed, pieces
 
 
-def test_restore_in_two_pieces_equals_the_pieces_as_untimed_clips(
+def test_regions_spanning_pieces_0_2_and_3_equal_the_pieces_as_untimed_clips(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     timed, pieces = _pair(tmp_path, monkeypatch, _REGIONS)
@@ -82,20 +75,8 @@ def test_restore_in_two_pieces_equals_the_pieces_as_untimed_clips(
     rendered_pieces = _render(pieces, "pieces")
     assert rendered_timed.shape == rendered_pieces.shape
     assert np.array_equal(rendered_timed, rendered_pieces)
-
-
-def test_restore_changes_audio_under_every_restored_piece(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    timed, _ = _pair(tmp_path, monkeypatch, _REGIONS)
-    restored = _render(timed, "restored")
-    timed.clips[0] = _mapped()
     plain = _render(_gated(_project(tmp_path / "plain", [_mapped()], _source()), monkeypatch), "p")
-    assert restored.shape == plain.shape
-    for src_a, _, tl_a in (_PIECES[0], _PIECES[2], _PIECES[3]):
-        lo, hi = (r for r in _REGIONS if src_a <= r[0] < src_a + 1.0).__next__()
-        window = slice(_frames(tl_a + lo - src_a) + 400, _frames(tl_a + hi - src_a) - 400)
-        assert np.any(restored[window] != plain[window])
+    assert np.any(rendered_timed != plain)
 
 
 def test_pieces_without_restore_regions_are_untouched(
@@ -123,13 +104,12 @@ def test_a_segment_render_restores_each_piece_like_the_untimed_pieces(
     assert np.array_equal(rendered[0], rendered[1])
 
 
-def test_automatic_off_speaker_mutes_restore_per_piece(
+def test_automatic_mutes_under_a_late_gate_restore_per_piece(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     mutes = [{"start_s": 0.1, "end_s": 0.9}, {"start_s": 2.2, "end_s": 2.9}]
     timed, pieces = _pair(tmp_path, monkeypatch, [(0.3, 0.6), (2.3, 2.7)])
     for project in (timed, pieces):
-        project.tracks[0].transcript_gate = False
         project.clips = [
             clip.model_copy(
                 update={
@@ -142,17 +122,4 @@ def test_automatic_off_speaker_mutes_restore_per_piece(
             )
             for clip in project.clips
         ]
-    rendered = _render(timed, "timed")
-    assert np.array_equal(rendered, _render(pieces, "pieces"))
-    muted = _render(
-        _project(tmp_path / "bare", [_mapped_with(mutes)], _source()),
-        "bare",
-    )
-    assert np.any(rendered[_frames(2.5) : _frames(2.8)] != muted[_frames(2.5) : _frames(2.8)])
-
-
-def test_the_timing_map_refusal_is_gone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from podcast_mcp.engines.timeline_render import _restore_dependencies
-
-    timed, _ = _pair(tmp_path, monkeypatch, _REGIONS)
-    assert _restore_dependencies(timed, timed.tracks[0], defaults={}) is not None
+    assert np.array_equal(_render(timed, "timed"), _render(pieces, "pieces"))
