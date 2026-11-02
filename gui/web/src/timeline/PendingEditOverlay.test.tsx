@@ -1584,6 +1584,14 @@ describe("single pending review feedback", () => {
     await userEvent.click(screen.getByRole("button", { name: label }));
   }
 
+  async function reviewToast(message: string) {
+    await waitFor(
+      () => expect(useDawStore.getState().feedbackToast?.message).toBe(message),
+      { timeout: 10_000 },
+    );
+    return screen.findByText(message);
+  }
+
   function mountReview(entrypoint: "inspector" | "overlay") {
     if (entrypoint === "inspector")
       useDawStore
@@ -1661,7 +1669,7 @@ describe("single pending review feedback", () => {
         vi.mocked(submitQueuedDocumentCommand).mockResolvedValue(reply);
         mountReview(entrypoint);
         await review(entrypoint, label);
-        expect(await screen.findByText(message)).toBeVisible();
+        expect(await reviewToast(message)).toBeVisible();
         expect(useDawStore.getState().feedbackToast?.undo).toBe(head);
         expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
           path,
@@ -1704,7 +1712,7 @@ describe("single pending review feedback", () => {
         });
         mountReview(entrypoint);
         await review(entrypoint, label);
-        expect(await screen.findByText(message)).toBeVisible();
+        expect(await reviewToast(message)).toBeVisible();
         expect(useDawStore.getState().feedbackToast?.undo).toBeNull();
         expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
         expect(useDawStore.getState().project?.pending_edits).toEqual([]);
