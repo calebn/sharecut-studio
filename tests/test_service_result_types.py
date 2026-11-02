@@ -1,8 +1,10 @@
 """Ratchet for #1811: service functions that return a bare ``dict``.
 
-Each entry is the exact number of functions under ``services/`` annotated ``-> dict`` or
-``-> dict[...]`` in that file. A typed result model removes entries; the count may only go
-down, and a lower count must be written here so the list stays exact.
+Each entry is the most functions under ``services/`` that may be annotated ``-> dict`` or
+``-> dict[...]`` in that file. A typed result model lowers a cap and the lowered cap must be
+written here. A count above its cap fails, so a file cannot gain a bare ``-> dict``. A count
+below its cap does not fail, so two PRs that each type a different function cannot turn main
+red; a cap that no longer matches any function at all is reported as stale.
 """
 
 from __future__ import annotations
@@ -138,8 +140,16 @@ def _counts() -> dict[str, int]:
     return dict(found)
 
 
-def test_service_dict_returns_match_the_allowlist_exactly() -> None:
-    assert _counts() == DICT_RETURNS
+def test_service_dict_returns_stay_within_the_allowlist() -> None:
+    counts = _counts()
+    over = {f: n for f, n in counts.items() if n > DICT_RETURNS.get(f, 0)}
+    assert not over, f"new bare dict returns (cap in DICT_RETURNS): {over}"
+
+
+def test_the_allowlist_has_no_stale_files() -> None:
+    counts = _counts()
+    stale = sorted(f for f in DICT_RETURNS if f not in counts)
+    assert not stale, f"remove from DICT_RETURNS, no bare dict returns left: {stale}"
 
 
 def _annotation(text: str) -> ast.expr:
