@@ -115,7 +115,7 @@ API and timeline-metrics reads. It has a 360px story alongside its desktop ones,
 test keeps the view itself free of direct store/API imports. The volume envelope
 is the `System/Envelope` leaf mounted by `timeline/LaneEnvelope.tsx`.
 `Templates/CommentCompose` and `Templates/GhostWordChips` show the
-shipped comment and transcript preview components with fictional, local-only state, including 360px phone variants.
+shipped comment and transcript preview components with fictional, local-only state; the GhostWordChips stories include a 360px phone variant.
 They do not mount the live comment panel.
 `System/ScriptPane` is the production Script pane; `Stages/Edit/ScriptHost`
 runs `stage/edit/script/ScriptHost` over fixture store data for mapped,

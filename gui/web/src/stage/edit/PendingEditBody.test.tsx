@@ -544,8 +544,11 @@ describe("PendingEditBody", () => {
         "/tmp/p.json",
         minimalProject({ pending_edits: [sessionCut], comments: [comment] }),
       );
-    render(<PendingEditBody edit={sessionCut} />);
+    const { container } = render(<PendingEditBody edit={sessionCut} />);
 
+    expect(
+      container.querySelector('[data-presence-anchor="comment:c1"]'),
+    ).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await waitFor(() =>
       expect(patchComment).toHaveBeenCalledWith("/tmp/p.json", "c1", {
