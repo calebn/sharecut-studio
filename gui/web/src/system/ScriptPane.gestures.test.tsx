@@ -211,6 +211,20 @@ describe("ScriptPane mouse drag", () => {
     expect(onSelect.mock.calls).toEqual([[words(20, 20)]]);
   });
 
+  it("drops a pending swallow when the gestures switch off and back on", () => {
+    const { body, onSelect, onCaret, rerender } = setup();
+    drag(stop(12), 12, 14);
+    fireEvent.pointerUp(body, { ...MOUSE, ...centre(14) });
+    const calls = { onCaret, onSelect };
+    rerender(<ScriptPane turns={SCRIPT_TURNS} onCaret={onCaret} />);
+    rerender(<ScriptPane turns={SCRIPT_TURNS} {...calls} />);
+    onSelect.mockClear();
+    onCaret.mockClear();
+    fireEvent.click(stop(20), { detail: 1 });
+    expect(onCaret).toHaveBeenCalledTimes(1);
+    expect(onSelect.mock.calls).toEqual([[words(20, 20)]]);
+  });
+
   it("after an Escape the swallow waits for the real release, then ends with it", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const { body, onSelect } = setup();
