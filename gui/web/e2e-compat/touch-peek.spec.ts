@@ -565,7 +565,8 @@ test("the strip and the expanded inspector leave the selection in view", async (
   );
   // A lone envelope point on the first lane, and a clip on the second.
   const targets = {
-    "lane 1 point": `${lane} [data-hit-kind="envelope-point"][data-hit-id="env-c"]`,
+    // The drawn dot: its 44 px touch box may reach past the lane at a high level.
+    "lane 1 point": `${lane} [data-hit-kind="envelope-point"][data-hit-id="env-c"] .sys-env-dot`,
     "lane 2 clip": `.clip-block[data-clip-id="${guestClip}"]`,
   };
   const rows: Record<string, unknown>[] = [];

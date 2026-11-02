@@ -262,14 +262,27 @@ test("one finger moving never edits; a long-press arms, and the armed point drag
   await hold(page, finger, from);
   await expect(armed(page)).toHaveCount(1);
   await frame(page, info, `grammar-arm-held-${browserName}`);
-  await finger.slide({ x: from.x + 24, y: from.y - 12 });
+  // The drag locks to one axis once it is past a few px: along time first.
+  await finger.slide({ x: from.x + 24, y: from.y }, 8, 16);
   await frame(page, info, `grammar-arm-dragging-${browserName}`);
   await finger.up();
   await expect(armed(page)).toHaveCount(0);
-  // The saved point, once the save lands: later in time, higher in level.
+  // The saved point, once the save lands: later in time, level untouched.
   await expect
     .poll(async () => (await points(page)).find((p) => p.id === "env-c")?.time)
     .toBeGreaterThan(16);
+  const moved = (await points(page)).find((p) => p.id === "env-c");
+  expect(moved?.value).toBe(1);
+  // A second long press drags it along level.
+  const next = await centerOf(page, envC);
+  await hold(page, finger, next);
+  await expect(armed(page)).toHaveCount(1);
+  await finger.slide({ x: next.x, y: next.y - 30 }, 8, 16);
+  await finger.up();
+  await expect(armed(page)).toHaveCount(0);
+  await expect
+    .poll(async () => (await points(page)).find((p) => p.id === "env-c")?.value)
+    .toBeGreaterThan(1);
   const point = (await points(page)).find((p) => p.id === "env-c");
   json(info, `grammar-arm-${browserName}`, {
     afterScroll,
@@ -277,8 +290,8 @@ test("one finger moving never edits; a long-press arms, and the armed point drag
     commands: commands.map((c) => c.type),
   });
   expect(afterScroll).toEqual([]);
-  expect(commands.filter((c) => c.type === "SetEnvelope")).toHaveLength(1);
-  expect(point?.value).toBeGreaterThan(1);
+  expect(commands.filter((c) => c.type === "SetEnvelope")).toHaveLength(2);
+  expect(point?.time).toBe(moved?.time);
 });
 
 test("at 390x844 by default, one finger dragging a selected clip's trim end saves nothing and opens the strip, not the half sheet", async ({
@@ -333,7 +346,9 @@ test("at 390x844 by default, one finger dragging a selected clip's trim end save
   });
 });
 
-test("an armed drag holds at a soft boundary, and saves there", async ({
+// The pending-cut detent the legacy drag held at ("At the pending remove") is
+// not in the system Envelope, whose drag has no soft boundaries (#2294 S7b W3b).
+test.fixme("an armed drag holds at a soft boundary, and saves there", async ({
   page,
   context,
   browserName,
