@@ -454,5 +454,19 @@ describe("GuestScriptHost", () => {
         document.querySelector(".sys-script-word[data-playing]"),
       ).toBeNull();
     });
+    it("does not scroll or offer Back to playhead before the first word", () => {
+      as("view", 5);
+      mount();
+      expect(
+        document.querySelector(".sys-script-word[data-playing]"),
+      ).toBeNull();
+      probe.clear();
+      moveTo(6);
+      expect(scrolledTo()).toEqual([]);
+      scrollAway();
+      expect(
+        screen.queryByRole("button", { name: /Back to playhead/ }),
+      ).toBeNull();
+    });
   });
 });
