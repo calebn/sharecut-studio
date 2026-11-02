@@ -41,9 +41,8 @@ function clockSeconds(time: string): number {
 
 /**
  * Chronological: a session-level note (no time) lands at the session start, so
- * it sorts first. Equal times keep the order the items arrive in, which is
- * creation order, so ids are never compared as strings ("n10" before "n2") and
- * session-level notes stay in the order they were made.
+ * it sorts first. Equal times keep the order the items arrive in, so ids are
+ * never compared as strings ("n10" before "n2").
  */
 export function sortNotes(items: readonly NoteItem[]): NoteItem[] {
   return [...items].sort((a, b) => compareTime(a.time, b.time));
