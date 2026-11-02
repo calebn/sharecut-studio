@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
@@ -73,6 +73,21 @@ describe("usePendingSections", () => {
     open({ kind: "pending", id: "edit-1", trackId: edit.track_id }, true);
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+  });
+
+  it("drops the preview footer where the Action bar plays and seeks, and keeps it without one", () => {
+    open({ kind: "pending", id: "edit-1", trackId: edit.track_id }, true);
+    expect(screen.queryByRole("group", { name: "Preview mode" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Seek/ })).toBeNull();
+    cleanup();
+    open({ kind: "pending", id: "edit-1", trackId: edit.track_id });
+    expect(screen.getByRole("group", { name: "Preview mode" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Seek/ })).toBeTruthy();
+  });
+
+  it("keeps the preview footer for a comment on a pending edit, whose bar has no Hear A/B", () => {
+    open({ kind: "comment", id: "c-1" }, true);
+    expect(screen.getByRole("group", { name: "Preview mode" })).toBeTruthy();
   });
 
   it("renders the linked pending edit for a comment on it", () => {

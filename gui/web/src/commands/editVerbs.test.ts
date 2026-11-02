@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
+import { playPendingPreview } from "../audio/pendingPreview";
 import type { EditFacts } from "../edit/editSelection";
 import { useDawStore } from "../state/dawStore";
 import {
@@ -38,6 +39,11 @@ const runRangeAction = vi.hoisted(() =>
 vi.mock("./rangeActions", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./rangeActions")>()),
   runRangeAction,
+}));
+
+vi.mock("../audio/pendingPreview", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../audio/pendingPreview")>()),
+  playPendingPreview: vi.fn(),
 }));
 
 const playRange = vi.hoisted(() => vi.fn());
@@ -300,6 +306,104 @@ describe("Keep", () => {
       status: "disabled",
       reason: "Nothing was cut here",
     });
+  });
+});
+
+describe("Hear and Seek on a suggestion", () => {
+  function withEdit(overrides: Record<string, unknown>) {
+    host(EDIT_SELECTIONS.suggestion);
+    const project = useDawStore.getState().project!;
+    useDawStore.setState({
+      project: {
+        ...project,
+        pending_edits: project.pending_edits.map((edit) => ({
+          ...edit,
+          ...overrides,
+        })),
+      },
+    });
+  }
+
+  it("plain Hear plays the suggested side", async () => {
+    vi.mocked(playPendingPreview).mockResolvedValue({ status: "ok" } as never);
+    withEdit({ suggest_reason: null });
+    await runEditVerb("hear", factsOf()!);
+    expect(playPendingPreview).toHaveBeenCalledWith(
+      "/tmp/episode",
+      "pending-cut",
+      "suggested",
+    );
+  });
+
+  it("plain Hear plays the current side where no suggested render exists", async () => {
+    vi.mocked(playPendingPreview).mockResolvedValue({ status: "ok" } as never);
+    withEdit({ suggest_reason: "A split does not change the mix." });
+    await runEditVerb("hear", factsOf()!);
+    expect(playPendingPreview).toHaveBeenCalledWith(
+      "/tmp/episode",
+      "pending-cut",
+      "current",
+    );
+  });
+
+  it("gives a read-only guest a Hear that plays the suggestion", async () => {
+    vi.mocked(playPendingPreview).mockResolvedValue({ status: "ok" } as never);
+    host(EDIT_SELECTIONS.suggestion, {
+      projectPath: "share:tok",
+      guestMode: "view",
+      shareCapabilities: ["view", "play"],
+    });
+    const model = barModelOf(factsOf()!, useDawStore.getState());
+    expect(model.items.map((item) => item.id)).toEqual(["hear", "comment"]);
+    await runEditVerb("hear", factsOf()!);
+    expect(playPendingPreview).toHaveBeenCalledWith(
+      "share:tok",
+      "pending-cut",
+      expect.any(String),
+    );
+  });
+
+  it("announces a refused preview in the status line", async () => {
+    vi.mocked(playPendingPreview).mockResolvedValue({
+      status: "disabled",
+      reason: "This share cannot play audio",
+    } as never);
+    host(EDIT_SELECTIONS.suggestion);
+    await runEditVerb("hear", factsOf()!);
+    expect(announced()).toBe("This share cannot play audio");
+  });
+
+  it("offers Seek to start as a More row and moves the playhead to the suggestion", async () => {
+    const seek = vi.fn((_args: Record<string, unknown>) => ({
+      status: "ok" as const,
+    }));
+    registerCommand("transport.seek", seek);
+    withEdit({ timeline_start: 7.5, source_start: 3 });
+    const model = barModelOf(factsOf()!, useDawStore.getState());
+    expect(model.more.map((row) => row.id)).toContain("seek");
+    await runEditVerb("seek", factsOf()!);
+    expect(seek.mock.calls.map((call) => call[0])).toEqual([{ sec: 7.5 }]);
+  });
+
+  it("seeks to the source start when the edit has no timeline start", async () => {
+    const seek = vi.fn((_args: Record<string, unknown>) => ({
+      status: "ok" as const,
+    }));
+    registerCommand("transport.seek", seek);
+    withEdit({ timeline_start: undefined, source_start: 3 });
+    await runEditVerb("seek", factsOf()!);
+    expect(seek.mock.calls.map((call) => call[0])).toEqual([{ sec: 3 }]);
+  });
+
+  it("does not offer Seek to a read-only guest", () => {
+    host(EDIT_SELECTIONS.suggestion, {
+      projectPath: "share:tok",
+      guestMode: "view",
+      shareCapabilities: ["view", "play"],
+    });
+    expect(
+      barModelOf(factsOf()!, useDawStore.getState()).more.map((r) => r.id),
+    ).not.toContain("seek");
   });
 });
 

@@ -4,7 +4,6 @@ import { timelineTestIds } from "../src/timeline/selectors";
 import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
-import { expectPreviewFooterTouchBounds } from "./inspectorFooterBounds";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline } from "./phoneTimeline";
 import {
@@ -550,7 +549,9 @@ test.describe("ShareCut Studio mobile smoke", () => {
 test.describe("Inspector footer with a desktop coarse pointer", () => {
   test.use({ viewport: { width: 1440, height: 900 }, hasTouch: true });
 
-  test("every footer control reaches the touch target", async ({ page }) => {
+  test("every footer control reaches the touch target, and a pending edit has no preview footer", async ({
+    page,
+  }) => {
     await openProject(page, e2eProjectPath);
     await expect(page.locator("html")).toHaveAttribute("data-shell", "desktop");
     expect(
@@ -562,6 +563,6 @@ test.describe("Inspector footer with a desktop coarse pointer", () => {
     const inspector = page
       .locator(".modifier-inspector")
       .filter({ has: page.getByRole("heading", { name: "Pending edit" }) });
-    await expectPreviewFooterTouchBounds(inspector);
+    await expect(inspector.locator(".modifier-footer")).toHaveCount(0);
   });
 });

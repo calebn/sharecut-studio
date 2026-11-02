@@ -16,7 +16,8 @@ export type MoreCommandId =
   | "fade"
   | "moveToTrack"
   | "joinType"
-  | "adjustBounds";
+  | "adjustBounds"
+  | "seek";
 
 /** `paste` is the one command that sits in the bar itself, on the playhead. */
 export type BarId = VerbId | MoreCommandId;
@@ -129,7 +130,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
       bar("more"),
       bar("inspect"),
     ],
-    more: [row("adjustBounds")],
+    more: [row("adjustBounds"), row("seek")],
   },
   chapter: {
     bar: [bar("hear"), bar("fixText"), bar("remove"), bar("inspect")],
@@ -244,6 +245,7 @@ const MORE_COMMANDS: Readonly<
   moveToTrack: { label: "Move to track", icon: null },
   joinType: { label: "Join type", icon: null },
   adjustBounds: { label: "Adjust bounds", icon: null },
+  seek: { label: "Seek to start", icon: null },
 };
 
 const isVerbId = (id: BarId): id is VerbId =>

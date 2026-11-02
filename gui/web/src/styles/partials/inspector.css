@@ -117,8 +117,6 @@
     block-size: var(--touch-min);
   }
 
-  .pending-source-time-field,
-  .pending-source-time-apply,
   .pending-cut-suggestion .ui-control,
   .clip-destructive-controls .ui-control,
   .modifier-footer-actions .ui-control {
@@ -144,8 +142,6 @@ html[data-shell="phone"] .inspector dd select {
   block-size: var(--touch-min);
 }
 
-html[data-shell="phone"] .pending-source-time-field,
-html[data-shell="phone"] .pending-source-time-apply,
 html[data-shell="phone"] .pending-cut-suggestion .ui-control,
 html[data-shell="phone"] .clip-destructive-controls .ui-control,
 html[data-shell="phone"] .modifier-footer-actions .ui-control {
