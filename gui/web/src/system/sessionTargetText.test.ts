@@ -10,8 +10,12 @@ describe("sessionTargetText", () => {
     expect(sessionTargetText({ kind: "end", afterSec: 3130 })).toBe(
       "Lands at the end · after 52:10",
     );
-    // No clip to land after: the session starts the episode.
-    expect(sessionTargetText({ kind: "end" })).toBe("Starts the episode");
+    // A loaded project with no clip to land after: the session starts the episode.
+    expect(sessionTargetText({ kind: "end", empty: true })).toBe(
+      "Starts the episode",
+    );
+    // Not loaded yet: say nothing about the project.
+    expect(sessionTargetText({ kind: "end" })).toBe("Lands at the end");
     expect(sessionTargetText({ kind: "start" })).toBe("Starts the episode");
     expect(sessionTargetText({ kind: "insert", atSec: 724 })).toBe(
       "Inserts at 12:04",
@@ -21,8 +25,9 @@ describe("sessionTargetText", () => {
     ).toBe("Replaces 12:04-12:29");
   });
 
-  it("places an end with no clip to follow at the start", () => {
-    expect(sessionTargetPlacement({ kind: "end" })).toBe("start");
+  it("places an end in an empty project at the start", () => {
+    expect(sessionTargetPlacement({ kind: "end", empty: true })).toBe("start");
+    expect(sessionTargetPlacement({ kind: "end" })).toBe("end");
     expect(sessionTargetPlacement({ kind: "end", afterSec: 0 })).toBe("end");
     expect(sessionTargetPlacement({ kind: "insert", atSec: 1 })).toBe("insert");
   });

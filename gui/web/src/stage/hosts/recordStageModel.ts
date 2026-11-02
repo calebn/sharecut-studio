@@ -123,6 +123,7 @@ export function takeIndexOf(id: string): number {
 export function targetViewOf(
   target: SessionTarget | undefined,
   afterSec: number | undefined,
+  empty = false,
 ): SessionTargetView {
   switch (target?.kind) {
     case "start":
@@ -136,7 +137,7 @@ export function targetViewOf(
         toSec: target.to_sec,
       };
     default:
-      return { kind: "end", afterSec };
+      return { kind: "end", afterSec, empty };
   }
 }
 
