@@ -279,6 +279,16 @@ describe("clip fades", () => {
     );
   });
 
+  it("refuses a typed fraction for a fade without saving", async () => {
+    open();
+    await type("Fade in", "1.5");
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Fade in" }), {
+      key: "Escape",
+    });
+    await type("Fade in", "0.4");
+    expect(setClipFade).not.toHaveBeenCalled();
+  });
+
   it("ignores the fade-out when the next join is a cut", async () => {
     open([clip, { ...second, join_in_mode: "cut" }]);
     await key("Fade out", "ArrowUp");
@@ -381,6 +391,12 @@ describe("clip join", () => {
     open([clip, second], {}, second);
     await key("Transition length", "ArrowUp");
     await key("Transition length", "Home");
+    expect(setClipJoin).not.toHaveBeenCalled();
+  });
+
+  it("refuses a fractional length without calling the server", async () => {
+    open([clip, second], {}, second);
+    await type("Transition length", "1.5");
     expect(setClipJoin).not.toHaveBeenCalled();
   });
 

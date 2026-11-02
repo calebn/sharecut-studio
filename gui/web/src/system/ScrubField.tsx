@@ -47,6 +47,8 @@ export type ScrubFieldProps = ScrubRange & {
   skipUnchanged?: boolean;
   /** False keeps the arrow, Home and End keys from committing while the field is empty, so only a typed or dragged value sets it. */
   stepsFromEmpty?: boolean;
+  /** Refuses a typed number with a fraction instead of rounding it. */
+  integerOnly?: boolean;
   /** A drag ended where it began, or Escape: drop the preview. */
   onCancel?: () => void;
 };
@@ -77,6 +79,7 @@ export function ScrubField({
   onCancel,
   skipUnchanged = false,
   stepsFromEmpty = true,
+  integerOnly = false,
   variant = "plain",
   min,
   max,
@@ -120,9 +123,12 @@ export function ScrubField({
   const base = value ?? defaultValue ?? min ?? 0;
   const unitText = unit ? ` ${unit}` : "";
   const typed = draft === null ? null : parseScrub(draft, unit);
+  const fractional = integerOnly && typed !== null && !Number.isInteger(typed);
   const typedError =
-    draft !== null && (typed === null || !inBounds(typed, bounds))
-      ? rangeHint(bounds, unit)
+    draft !== null && (typed === null || !inBounds(typed, bounds) || fractional)
+      ? fractional && typed !== null && inBounds(typed, bounds)
+        ? "Enter a whole number"
+        : rangeHint(bounds, unit)
       : undefined;
   const message = error ?? typedError;
 
@@ -227,7 +233,10 @@ export function ScrubField({
     const text = draftRef.current;
     if (text === null) return;
     const parsed = parseScrub(text, unit);
-    const valid = parsed !== null && inBounds(parsed, bounds);
+    const valid =
+      parsed !== null &&
+      inBounds(parsed, bounds) &&
+      !(integerOnly && !Number.isInteger(parsed));
     if (how === "enter" && !valid) {
       setRejected(true);
       return;

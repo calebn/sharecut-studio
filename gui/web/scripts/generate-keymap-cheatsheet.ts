@@ -28,9 +28,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "../../..");
 
 const WHEN_HINTS: Record<string, string> = {
-  always: "Always (when not typing in a field or a Scrub value)",
+  always: "Always (when not typing in a field or on a focused Scrub field)",
   layoutShell:
-    "Desktop or tablet shell (when not typing in a field or a Scrub value)",
+    "Desktop or tablet shell (when not typing in a field or on a focused Scrub field)",
   editorFocused: "Timeline or transcript focused",
   timelineFocused: "Timeline focused",
   canSuggestStructural: "Structural edits allowed",
@@ -104,7 +104,7 @@ function generatedBody(linkStyle: "docs" | "ux"): string {
   );
   lines.push("");
   lines.push(
-    "Shortcuts dispatch through the ShareCut Studio command bus (`execute(id)`). Character keys (letters, digits, Space) are scoped by context (WCAG 2.1.4). **Mod** = ⌘ on macOS / Ctrl elsewhere.",
+    "Shortcuts dispatch through the ShareCut Studio command bus (`execute(id)`). Character keys (letters, digits, Space) are scoped by context (WCAG 2.1.4). **Mod** = ⌘ on macOS / Ctrl elsewhere. A **Scrub field** is a draggable number in the Inspector or a track header; while it has focus it keeps every key except Escape, so these shortcuts (Mod+Z, S, Backspace and the rest) do not run from it.",
   );
   lines.push("");
   lines.push(
