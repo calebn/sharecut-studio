@@ -21,6 +21,9 @@ import { isButtonActivation, isScrubValue, isTypingTarget } from "./typing";
  * in-app confirm. Native keys inside the dialog (typing in its field, Tab,
  * Enter on its buttons) are left to the browser.
  *
+ * A Scrub value (a `[role="spinbutton"]` span, `isScrubValue`) owns every key
+ * but Escape while it has focus, as a text field does.
+ *
  * When several keymap rows share a key (Backspace track or clip;
  * Escape follow or selection), try each match in the order
  * `SHARED_KEY_ORDER` declares and run the first whose when-clause passes.
