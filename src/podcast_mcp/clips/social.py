@@ -371,17 +371,23 @@ _STAGING_PREFIX = ".writing-"
 
 
 _STALE_STAGING_SECONDS = 24 * 3600
+_STAGING_NAME = re.compile(rf"{re.escape(_STAGING_PREFIX)}[a-z0-9_]{{8}}")
 
 
 def _sweep_stale_staging(out_dir: Path) -> None:
-    """Remove staging folders a killed export left behind; a day-old one cannot be live."""
+    """Remove the staging folders of exports that were killed; a day is far past any render."""
     cutoff = time.time() - _STALE_STAGING_SECONDS
-    for leftover in out_dir.glob(f"{_STAGING_PREFIX}*"):
+    for leftover in out_dir.iterdir():
         try:
-            if leftover.is_dir() and leftover.stat().st_mtime < cutoff:
-                shutil.rmtree(leftover, ignore_errors=True)
+            stale = (
+                _STAGING_NAME.fullmatch(leftover.name)
+                and leftover.is_dir()
+                and leftover.stat().st_mtime < cutoff
+            )
         except OSError:
             continue
+        if stale:
+            shutil.rmtree(leftover, ignore_errors=True)
 
 
 def export_social_clips(
@@ -402,6 +408,7 @@ def export_social_clips(
     engine = FFmpegEngine()
     exported: list[dict[str, str]] = []
     id_set = set(ids) if ids else None
+    stems: set[str] = set()
 
     try:
         for clip in project.social_clip_candidates:
@@ -413,6 +420,9 @@ def export_social_clips(
             end = clip.end + padding
             slug = re.sub(r"[^a-z0-9]+", "-", (clip.title_suggestion or clip.id).lower())[:40]
             stem = f"{slug}_{re.sub(r'[^A-Za-z0-9_-]+', '-', clip.id)}"
+            if stem in stems:
+                raise ValueError(f"two social clips share the file name {stem!r}")
+            stems.add(stem)
             wav_out = out_dir / f"{stem}.wav"
             json_out = out_dir / f"{stem}.json"
             staged = staging / wav_out.name

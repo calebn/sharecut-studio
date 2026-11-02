@@ -602,8 +602,8 @@ only a regular file inside the export folder, and answers 404 `export_file_gone`
 else and 409 `export_running` while an export of the project runs. A download holds one of the
 share's audio concurrency slots (`PODCAST_RATE_LIMIT_AUDIO_CONCURRENT`) until it ends, so an
 Editor past the cap gets 429 `rate_limited` and a `Retry-After`. Transcript, chapters and feed
-downloads take no slot. Every guest of the link shares
-that cap, so a Viewer's audio can be refused while an Editor's downloads are open.
+downloads take no slot. Every guest of the link shares that cap, so a Viewer's audio can be
+refused while an Editor's downloads are open.
 
 An Editor's export is the host's export (an Editor can do what the host can on the episode),
 and nothing is suppressed. It masters the project if the master is stale, then writes the
