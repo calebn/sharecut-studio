@@ -3,6 +3,7 @@
   "cases": [
     {
       "name": "no_timing",
+      "summary": null,
       "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 100},
       "timeline_end": 130,
       "pieces": [[10, 40, 100]],
@@ -12,6 +13,7 @@
     },
     {
       "name": "hole",
+      "summary": "1 correction",
       "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 100,
                "timing": {"steps": [{"at": 20, "delta_sec": 2, "quiet": {"start_s": 19, "end_s": 21}}]}},
       "timeline_end": 132,
@@ -22,6 +24,7 @@
     },
     {
       "name": "skip",
+      "summary": "1 correction",
       "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 100,
                "timing": {"steps": [{"at": 20, "delta_sec": -3, "quiet": {"start_s": 19, "end_s": 24}}]}},
       "timeline_end": 127,
@@ -32,6 +35,7 @@
     },
     {
       "name": "multiple_steps",
+      "summary": "3 corrections, largest 2000 ms",
       "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 100,
                "timing": {"steps": [{"at": 15, "delta_sec": 1}, {"at": 25, "delta_sec": 2}, {"at": 35, "delta_sec": -2, "quiet": {"start_s": 34, "end_s": 38}}]}},
       "timeline_end": 131,
@@ -42,6 +46,7 @@
     },
     {
       "name": "negative_then_positive",
+      "summary": "2 corrections, largest 2000 ms",
       "clip": {"id": "a", "track_id": "host", "source_start": 10, "source_end": 40, "timeline_start": 0,
                "timing": {"steps": [{"at": 15, "delta_sec": -1, "quiet": {"start_s": 14, "end_s": 17}}, {"at": 25, "delta_sec": 2}]}},
       "timeline_end": 31,

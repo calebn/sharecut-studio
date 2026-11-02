@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
-from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.config.defaults import DEFAULT_MICRO_FADE_MS, EffectiveConfig, join_micro_fade_ms
 from podcast_mcp.edits.clipping_regions import clip_clipping_payload, clip_clipping_truncated
 from podcast_mcp.edits.comment_remap import (
     remap_review_anchors_for_cuts,
@@ -1196,7 +1196,14 @@ def plan_shorten_word_gaps(
     return RippleRemoval.of(spans) if spans else None
 
 
-def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: bytes) -> dict:
+def list_clips(
+    project: EpisodeProject,
+    track_id: str | None = None,
+    *,
+    secret: bytes,
+    timing_steps: bool = False,
+    defaults: EffectiveConfig | None = None,
+) -> dict:
     clips = project.clips
     if track_id:
         clips = [c for c in clips if c.track_id == track_id]
@@ -1206,6 +1213,9 @@ def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: 
     mutes = MuteIndex(project)
     recordings: dict[tuple[str, str | None], tuple[float | None, str | None]] = {}
     ignored_words = IgnoredWordRegions(project)
+    micro_fade_ms = (
+        max(0, join_micro_fade_ms(defaults)) if defaults is not None else DEFAULT_MICRO_FADE_MS
+    )
     for c in sorted(clips, key=lambda x: (x.track_id, x.timeline_start)):
         src = sources.get(c.source_id) if c.source_id else None
         ignored = ignored_words.for_clip(c)
@@ -1218,6 +1228,15 @@ def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: 
         duration, key = recordings[c.track_id, c.source_id]
         prev = prev_by_track.get(c.track_id)
         prev_by_track[c.track_id] = c
+        timed = (
+            {
+                "timing_steps": len(c.timing.steps),
+                "timing_summary": c.timing.summary(),
+                **({"timing": c.timing.row_payload(micro_fade_ms)} if timing_steps else {}),
+            }
+            if c.timing is not None
+            else {}
+        )
         by_track.setdefault(c.track_id, []).append(
             {
                 "id": c.id,
@@ -1240,6 +1259,7 @@ def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: 
                 **nonempty_off_speaker_regions_payload(c),
                 "clipping_regions": clip_clipping_payload(src, c.source_start, c.source_end),
                 "clipping_truncated": clip_clipping_truncated(src, c.source_end),
+                **timed,
             }
         )
     return {"tracks": by_track, "clip_count": len(clips)}
