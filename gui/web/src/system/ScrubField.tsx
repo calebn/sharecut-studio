@@ -211,6 +211,8 @@ export function ScrubField({
     if (direction !== null) {
       event.preventDefault();
       event.stopPropagation();
+      // A held key would otherwise save and undo once per repeat.
+      if (event.repeat) return;
       commitStep(steppedValue(base, direction, step, event, decimals, bounds));
     } else if (event.key === "Home" && min !== undefined) {
       event.preventDefault();

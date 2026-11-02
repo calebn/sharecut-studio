@@ -21,7 +21,9 @@ function clipName(
   clipId: string,
   trackId: string,
 ): string {
-  const clip = project?.clips.tracks[trackId]?.find((c) => c.id === clipId);
+  const clip = Object.values(project?.clips.tracks ?? {})
+    .flat()
+    .find((c) => c.id === clipId);
   if (!clip || !project) return `${trackLabel(project, trackId)} clip`;
   const identity = clipIdentityTrack({ clip, tracks: project.tracks });
   const labels = clipLabels({
