@@ -311,14 +311,20 @@ def _analyse(path: str, revision: object, basis: _Basis) -> _Analysis | None:
     except Exception:
         log.warning("room tone basis unreadable; keeping the recorded tiling", exc_info=True)
         return None
-    measured = measure_noise_psd(samples, rate)
-    if measured is None or not _steady(samples, rate) or _tonal(samples, rate):
-        return None
-    psd, nfft = measured
-    probe = synthesise_noise(
-        psd, nfft, SYNTH_RATE, source_rate=rate, seed_key="level-probe", length_sec=PROBE_SEC
-    )
-    if abs(rms_db(probe) - rms_db(samples - np.mean(samples))) > LEVEL_TOLERANCE_DB:
+    try:
+        measured = measure_noise_psd(samples, rate)
+        if measured is None or not _steady(samples, rate) or _tonal(samples, rate):
+            return None
+        psd, nfft = measured
+        probe = synthesise_noise(
+            psd, nfft, SYNTH_RATE, source_rate=rate, seed_key="level-probe", length_sec=PROBE_SEC
+        )
+        if abs(rms_db(probe) - rms_db(samples - np.mean(samples))) > LEVEL_TOLERANCE_DB:
+            return None
+    except Exception:
+        log.warning(
+            "room tone basis could not be analysed; keeping the recorded tiling", exc_info=True
+        )
         return None
     digest = hashlib.sha256(
         f"{_params()}:{basis.kind}:{rate}".encode() + np.asarray(samples, dtype="<f4").tobytes()

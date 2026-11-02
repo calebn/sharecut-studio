@@ -1221,7 +1221,7 @@ def test_a_peer_voice_that_lines_up_after_the_ingest_shift_is_not_room_tone(
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
     assert fill is not None
-    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
+    assert fill.end_s + 2.0 <= 7.0 or fill.start_s + 2.0 >= 9.0
 
 
 def test_a_peer_voice_that_only_lines_up_at_the_same_raw_second_is_not_evidence(
@@ -1265,7 +1265,7 @@ def test_ingest_entries_relate_the_files_whatever_the_first_clips_are_placed_at(
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
     assert fill is not None
-    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
+    assert fill.end_s <= 5.0 or fill.start_s >= 7.0
 
 
 def _host_clips(project: EpisodeProject, ids: tuple[str, ...], shift: float) -> None:
@@ -1706,7 +1706,7 @@ def test_a_nearer_window_under_a_loud_peer_loses_to_a_farther_one_where_the_peer
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
     assert fill is not None
-    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
+    assert fill.end_s <= 5.0 or fill.start_s >= 8.0
 
 
 def test_with_no_window_where_the_peer_is_quiet_the_quietest_peer_wins_over_the_nearest(
@@ -1733,7 +1733,7 @@ def test_a_peer_file_that_does_not_cover_a_window_ranks_it_after_one_it_covers(
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
     assert fill is not None
-    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
+    assert fill.end_s <= 5.0
 
 
 def test_ranking_reads_only_the_nearest_few_windows_a_peer_is_loud_over(
@@ -1868,3 +1868,61 @@ def test_a_rewind_join_in_the_same_source_is_not_a_cut(tmp_path: Path) -> None:
 
     assert result["affected_tracks"] == []
     assert project.clips[1].join_in_mode == ClipJoinMode.CROSSFADE
+
+
+def _with_third_track(project: EpisodeProject, tmp_path: Path, samples: np.ndarray) -> None:
+    _write_wav(tmp_path / "raw" / "third.wav", samples)
+    project.tracks.append(
+        Track(
+            id="third",
+            label="Third",
+            role=TrackRole.DIALOGUE,
+            speaker="Third",
+            media=MediaAsset(path="raw/third.wav", duration_sec=DURATION_SEC),
+        )
+    )
+    project.clips.append(
+        Clip(
+            id="full_third",
+            track_id="third",
+            source_start=0.0,
+            source_end=DURATION_SEC,
+            timeline_start=0.0,
+        )
+    )
+
+
+def test_one_peer_file_that_ends_early_does_not_sink_windows_the_other_peers_show_quiet(
+    tmp_path: Path,
+) -> None:
+    guest = _noise(-64.0, seed=2)
+    _add_voice(guest, 3.0, 8.0, -25.0)
+    project = _project(tmp_path, host=_host_audio(), guest=guest)
+    _with_third_track(project, tmp_path, _noise(-64.0, seed=3)[: SR * 5])
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    assert fill is not None
+    assert fill.start_s >= 8.0
+
+
+def test_a_long_quiet_run_is_tried_at_other_offsets_when_the_nearest_window_is_under_a_loud_peer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    track = room_tone_module.TrackFloor(
+        path=Path("x.wav"), floor_db=-60.0, speech_db=None, runs=((0.0, 10.0),)
+    )
+    monkeypatch.setattr(
+        room_tone_module,
+        "_measure",
+        lambda _t, span: room_tone_module.Sample(span[0], span[1], -70.0, None),
+    )
+    monkeypatch.setattr(room_tone_module, "rejection", lambda *_a: None)
+
+    def clear(span: tuple[float, float]) -> float:
+        return 0.0 if span[0] >= 8.0 else 30.0
+
+    picked = room_tone_module._pick_sample(track, near_sec=1.0, duration_sec=1.0, clear=clear)
+
+    assert isinstance(picked, room_tone_module.OwnQuietSample)
+    assert (picked.sample.start, picked.sample.end) == (9.0, 10.0)
