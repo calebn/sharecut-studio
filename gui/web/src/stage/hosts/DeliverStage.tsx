@@ -219,7 +219,11 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   }, [reloadExportSettings]);
   const exportBlockedReason =
     exportCmd.whenReason ??
-    (draft.pending > 0 ? "Saving your changes first." : undefined);
+    (draft.pending > 0 || offline.pending > 0
+      ? "Saving your changes first."
+      : unsaved
+        ? "Some chapter or clip changes are not saved."
+        : undefined);
   const chosenFormats = exportFlow.selected;
   const episodeSettings = useMemo(
     () => ({
@@ -264,10 +268,10 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
         });
   const guardedStart = useCallback(
     (keys: readonly string[], request: ExportRequest) => {
-      if (formatsBlocker) return;
+      if (formatsBlocker || exportBlockedReason) return;
       startExport(keys, request);
     },
-    [formatsBlocker, startExport],
+    [formatsBlocker, exportBlockedReason, startExport],
   );
   useEffect(() => {
     liveHosts += 1;
@@ -285,6 +289,9 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const settingsCurrent =
     wantedSettings.current !== null &&
     exportFlow.loadedGeneration >= wantedSettings.current;
+  useEffect(() => {
+    if (exportRequested && unsaved) setExportRequested(false);
+  }, [exportRequested, unsaved, setExportRequested]);
   useEffect(() => {
     if (
       !exportRequested ||

@@ -247,6 +247,7 @@ export function DeliverStage({
   const exportAgain = exportOptions?.onExportAgain;
   const exportAgainAndStart = exportAgain
     ? () => {
+        if (blocker || exporting || inFlight.current) return;
         exportAgain();
         startExport();
       }

@@ -811,6 +811,38 @@ describe("Deliver host export while a save is in flight", () => {
   });
 });
 
+describe("Deliver host export while an edit is not saved", () => {
+  const exportHeld = () => screen.getAllByRole("button", { name: "Export" })[0];
+
+  it("holds Export while an edit waits in the offline queue", async () => {
+    network.mode = "down";
+    render(<DeliverStage />);
+    await removeMiddle();
+    await screen.findByRole("status");
+    expect(exportHeld()).toBeDisabled();
+    expect(exportHeld()).toHaveAttribute("title", "Saving your changes first.");
+    network.mode = "up";
+    await act(async () => requestHostDrain(PATH));
+    await waitFor(() => expect(exportHeld()).toBeEnabled());
+  });
+
+  it("holds Export after a refused save until the saved version is shown", async () => {
+    network.mode = "refusing";
+    render(<DeliverStage />);
+    await removeMiddle();
+    const alert = await screen.findByRole("alert");
+    expect(exportHeld()).toBeDisabled();
+    expect(exportHeld()).toHaveAttribute(
+      "title",
+      "Some chapter or clip changes are not saved.",
+    );
+    await userEvent.click(
+      within(alert).getByRole("button", { name: "Show the saved version" }),
+    );
+    await waitFor(() => expect(exportHeld()).toBeEnabled());
+  });
+});
+
 describe("Deliver host clip removal", () => {
   it("offers no Undo, because the project cannot take a clip back", async () => {
     render(<DeliverStage />);
