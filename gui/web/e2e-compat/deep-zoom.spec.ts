@@ -20,7 +20,6 @@ import { withShareableProject } from "../e2e/shareableProject";
 import { openProject } from "../e2e/stageNav";
 import { expectPaintedWaveformTile } from "../e2e/waveformHook";
 import { timelineTestIds } from "../src/timeline/selectors";
-import { VIEWPORT_CHUNK_PX } from "../src/utils/timelineViewport";
 import {
   effectiveMaxZoomPxPerSec,
   RENDER_TILE_CSS_PX,
@@ -66,7 +65,7 @@ async function laneGeometry(page: Page, trackId: string) {
       });
       // The stretched envelope's end point: exactly one must match in the lane.
       const points = lane.querySelectorAll(
-        'circle[aria-label^="Envelope point 2 at"]',
+        '[role="slider"][aria-label="Envelope point 2"]',
       );
       const pr =
         points.length === 1 ? points[0].getBoundingClientRect() : undefined;
@@ -170,14 +169,14 @@ test.describe("deep zoom at the content ceiling", () => {
             Math.abs(Math.max(...g.tiles.map((t) => t.right)) - contentPx),
           ).toBeLessThanOrEqual(DEEP_ZOOM_TOLERANCE_PX);
 
-          // Levels envelope: the point sits at t x zoom, and its chunk on the 2048 px grid.
+          // Levels envelope: the point sits at t x zoom, inside the lane's visible window.
           expect(g.pointCount).toBe(1);
           expect(
             Math.abs(g.pointX! - stretched.endPointSec * zoom),
           ).toBeLessThanOrEqual(DEEP_ZOOM_TOLERANCE_PX);
           expect(g.overlayX).not.toBeNull();
-          expect(offGridPx(g.overlayX!, VIEWPORT_CHUNK_PX)).toBeLessThanOrEqual(
-            DEEP_ZOOM_TOLERANCE_PX,
+          expect(g.overlayX!).toBeLessThanOrEqual(
+            g.pointX! + DEEP_ZOOM_TOLERANCE_PX,
           );
         }).toPass({ timeout: 60_000 });
       },

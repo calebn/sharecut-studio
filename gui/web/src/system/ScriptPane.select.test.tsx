@@ -482,6 +482,21 @@ describe("ScriptPane live region", () => {
   });
 });
 
+describe("ScriptPane Find status", () => {
+  it("speaks identical status text again when the user steps to a match", () => {
+    const { rerender } = render(
+      <ScriptPane {...props({ findStatus: "1 of 1", findStatusKey: 0 })} />,
+    );
+    const first = screen.getByRole("status").textContent;
+    rerender(
+      <ScriptPane {...props({ findStatus: "1 of 1", findStatusKey: 1 })} />,
+    );
+    const second = screen.getByRole("status").textContent;
+    expect(second).not.toBe(first);
+    expect(second?.trim()).toBe("1 of 1");
+  });
+});
+
 describe("ScriptPane keys the window keymap must not see", () => {
   const reached = () => {
     const seen = vi.fn();

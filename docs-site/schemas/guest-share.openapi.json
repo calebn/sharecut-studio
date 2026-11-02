@@ -4803,10 +4803,22 @@
         "type": "object"
       },
       "InsertSegmentPayload": {
+        "description": "``at`` is seconds, or ``start`` / ``end`` resolved under the document lock at apply time.\n\n``version`` is the version used. The host adapters always send it, so the journal names\nthe audio that went in. Without it the newest version at apply time is used.",
         "properties": {
           "at": {
-            "title": "At",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "enum": [
+                  "start",
+                  "end"
+                ],
+                "type": "string"
+              }
+            ],
+            "title": "At"
           },
           "segment_id": {
             "title": "Segment Id",

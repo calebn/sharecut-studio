@@ -45,7 +45,7 @@ import {
   type WordTarget,
   wordIdOf,
 } from "../../review/reviewItems";
-import { kindInFilter, verbOf } from "../../review/reviewQueueModel";
+import { landPlan, verbOf } from "../../review/reviewQueueModel";
 import { useReviewSession } from "../../review/reviewSession";
 import {
   canReviewPendingEdit,
@@ -244,9 +244,13 @@ export function useReviewQueue(guestShare = false) {
   const selected = useStableCallback(() => session.props.selectedId);
   const onFilter = useStableCallback(session.props.onFilter);
   const land = useStableCallback((id: string) => {
-    if (open.find((e) => e.item.id === id)?.item.result) return;
-    if (!kindInFilter("comment", session.props.filter)) onFilter("all");
-    select(id);
+    const plan = landPlan(
+      open.map((e) => e.item),
+      id,
+      session.props.filter,
+    );
+    if (plan.resetFilter) onFilter("all");
+    if (plan.select) select(id);
   });
   useEffect(() => {
     if (picked) land(commentItemId(picked.id));

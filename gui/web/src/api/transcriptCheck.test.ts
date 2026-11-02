@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { recordProjectKey } from "./http";
 import { loadTranscriptCheck, markTranscriptChecked } from "./transcriptCheck";
 
 const status = {
@@ -68,12 +69,15 @@ describe("transcript check client", () => {
     );
   });
 
-  it("refuses shared guests without sending a request", async () => {
+  it.each([
+    ["a share guest", "share:guest"],
+    ["a recording guest", recordProjectKey("guest")],
+  ])("refuses %s without sending a request", async (_name, key) => {
     const fetch = vi.spyOn(globalThis, "fetch");
-    await expect(loadTranscriptCheck("share:guest")).rejects.toThrow(
+    await expect(loadTranscriptCheck(key)).rejects.toThrow(
       "only available to the host",
     );
-    await expect(markTranscriptChecked("share:guest")).rejects.toThrow(
+    await expect(markTranscriptChecked(key)).rejects.toThrow(
       "only available to the host",
     );
     expect(fetch).not.toHaveBeenCalled();

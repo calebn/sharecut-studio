@@ -54,6 +54,11 @@ function audienceOf(projectKey: string): Audience {
   return { kind: "host" };
 }
 
+/** True for a host project path or the host's own key; false for a share or recording guest. */
+export function isHostProjectKey(projectKey: string): boolean {
+  return audienceOf(projectKey).kind === "host";
+}
+
 function resolve(
   projectKey: string,
   route: ApiRoute,

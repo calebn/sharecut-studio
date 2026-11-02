@@ -74,3 +74,47 @@ def test_to_json_matches_indented_json_dumps_and_stringifies_unencodable_values(
     payload = {"name": "café", "n": [1, 2], "ok": True}
     assert to_json(payload) == json.dumps(payload, indent=2)
     assert json.loads(to_json({"p": Path("x")})) == {"p": "x"}
+
+
+def test_to_json_stringifies_unencodable_values_inside_dataclasses_and_lists():
+    from datetime import datetime
+    from pathlib import Path
+
+    @dataclass
+    class Located:
+        where: Path
+        when: datetime
+
+    when = datetime(2026, 11, 2, 5, 0, 0)
+    expected = {"where": "x", "when": str(when)}
+
+    assert json.loads(to_json(Located(Path("x"), when))) == expected
+    assert json.loads(to_json([Located(Path("x"), when)])) == [expected]
+
+
+def test_to_json_model_list_matches_the_single_model_encoding():
+    from datetime import datetime
+
+    class Stamped(BaseModel):
+        at: datetime
+
+    stamped = Stamped(at=datetime(2026, 11, 2, 5, 0, 0))
+
+    assert json.loads(to_json([stamped])) == [json.loads(to_json(stamped))]
+
+
+def test_to_json_list_of_models_and_dataclasses_converts_each_item():
+    items = [SampleModel(name="b", value=2), SampleDataclass(name="c", value=3), {"raw": 1}]
+
+    assert json.loads(to_json(items)) == [
+        {"name": "b", "value": 2},
+        {"name": "c", "value": 3},
+        {"raw": 1},
+    ]
+    assert to_json([]) == "[]"
+
+
+def test_to_json_keeps_the_text_of_a_list_that_starts_with_a_plain_item():
+    model = SampleModel(name="b", value=2)
+
+    assert json.loads(to_json([{"raw": 1}, model])) == [{"raw": 1}, str(model)]

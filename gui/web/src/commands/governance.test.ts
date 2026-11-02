@@ -60,6 +60,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "system/ScriptPane.select.test.tsx",
   // A drag in progress on a ruler handle, the ruler body or a marker takes Escape from the document, wherever focus is, so the cancel does not depend on the grabbed element holding focus.
   "system/useGrab.ts",
+  // A selection-handle drag in progress takes Escape from the window, wherever focus is, and puts back the selection the grip took, so the cancel does not depend on the grip holding focus.
+  "system/ScriptPane.tsx",
   // The same window-level listener, to prove the keys the ruler and the marker lane handle never reach the keymap.
   "system/Ruler.test.tsx",
   "system/MarkerLane.test.tsx",
@@ -77,7 +79,6 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
 const ON_KEY_DOWN_ALLOWLIST = new Set([
   "transcript/EditBoundaryMarkView.tsx",
   "timeline/MarkerLaneView.tsx",
-  "timeline/EnvelopeOverlayView.tsx",
   // The ARIA tablist pattern: arrows, Home and End move among the tabs.
   "ui/Tabs.tsx",
   // Arrows, Home and End move the one tab stop among the cards.

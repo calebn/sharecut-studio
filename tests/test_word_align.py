@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import wave
 from collections.abc import Generator
 from itertools import pairwise
@@ -279,6 +280,41 @@ def test_word_aligner_reuses_one_default_ffmpeg_engine(monkeypatch, tmp_path) ->
 
     assert len(built) == 1
     assert fake.calls == 2
+
+
+def test_racing_first_aligns_build_one_default_ffmpeg_engine(monkeypatch, tmp_path) -> None:
+    samples = np.zeros(round(1.2 * SAMPLE_RATE_WAV2VEC2), dtype=np.float32)
+    fake = FakeStreamEngine(samples, SAMPLE_RATE_WAV2VEC2)
+    built: list[int] = []
+    rival = threading.Event()
+
+    def factory() -> FakeStreamEngine:
+        built.append(1)
+        if len(built) > 1:
+            rival.set()
+        else:
+            rival.wait(0.5)
+        return fake
+
+    monkeypatch.setattr("podcast_mcp.engines.word_align.FFmpegEngine", factory)
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+    aligner = WordAligner(
+        word_aligner_model(), FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7), vocab
+    )
+    words = [TranscriptWord(text="hi", start=0.0, end=0.5)]
+    barrier = threading.Barrier(4, timeout=10)
+
+    def go() -> None:
+        barrier.wait()
+        aligner.align(tmp_path / "a.wav", words)
+
+    threads = [threading.Thread(target=go) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(10)
+
+    assert len(built) == 1
 
 
 def test_word_aligner_align_raises_on_empty_decode(tmp_path) -> None:

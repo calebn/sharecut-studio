@@ -391,9 +391,7 @@ test.describe("root32 phone many points and request recovery", () => {
             }),
             receipts,
           );
-          await expect(
-            page.locator('circle[aria-label^="Envelope point"]'),
-          ).toHaveCount(3);
+          await expect(page.locator(".sys-env-point")).toHaveCount(3);
           await openEnvelopePoint(page, 3);
           const dialog = pointSheet(page);
           const time = dialog.getByRole("spinbutton", {

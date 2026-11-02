@@ -146,6 +146,8 @@ export type ScriptPaneProps = {
   currentMatch?: number;
   /** What the pane's live region says about the search: the Find bar's count, for example "3 of 12" or "No matches". */
   findStatus?: string;
+  /** Changes when the user steps to a match, so identical status text ("1 of 1") is spoken again. */
+  findStatusKey?: number;
   /**
    * Fix text: the words in this span give way to `renderEditor`'s field. A
    * span that crosses turns gets one field, drawn in the first turn it
@@ -405,6 +407,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       matches = NO_MATCHES,
       currentMatch,
       findStatus,
+      findStatusKey,
       editing,
       renderEditor,
       renderJoin,
@@ -450,6 +453,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const findButton = useRef<HTMLButtonElement>(null);
     const layoutCache = useRef<Measured | null>(null);
     const [dragging, setDragging] = useState(false);
+    /** The words a handle drag started from, put back by Esc. Null when the grip was taken with no words selected, or once Esc cancelled the drag; either way the rest of the drag is ignored. */
+    const grabbed = useRef<WordsSelection | null>(null);
     const [spoken, setSpoken] = useState("");
     const hadSelection = useRef(false);
     const lastTap = useRef<{ index: number; at: number } | null>(null);
@@ -1042,8 +1047,11 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       }
     }, [summary, dragging, selecting]);
     useEffect(() => {
-      if (findStatus) setSpoken(findStatus);
-    }, [findStatus]);
+      if (!findStatus) return;
+      setSpoken((previous) =>
+        previous === findStatus ? `${findStatus}\u00a0` : findStatus,
+      );
+    }, [findStatus, findStatusKey]);
 
     const handlesShown =
       handles &&
@@ -1087,10 +1095,23 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         document.fonts?.removeEventListener("loadingdone", replaceHandles);
     }, [handlesShown, replaceHandles]);
 
+    useEffect(() => {
+      if (!dragging) return;
+      const cancel = (event: globalThis.KeyboardEvent) => {
+        if (event.key !== "Escape" || grabbed.current === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        live.current.props.onSelect?.(grabbed.current);
+        grabbed.current = null;
+      };
+      window.addEventListener("keydown", cancel, true);
+      return () => window.removeEventListener("keydown", cancel, true);
+    }, [dragging]);
+
     const dragHandle = (edge: HandleEdge, point: { x: number; y: number }) => {
       const now = live.current;
       const body = bodyRef.current;
-      if (!body) return;
+      if (!body || grabbed.current === null) return;
       const origin = body.getBoundingClientRect();
       const at = nearestStop(
         measure(),
@@ -1291,7 +1312,14 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                 start={places.start}
                 end={places.end}
                 onDrag={dragHandle}
-                onGrab={() => setDragging(true)}
+                onGrab={() => {
+                  const now = live.current.selection;
+                  grabbed.current =
+                    now?.kind === "words"
+                      ? { kind: "words", anchor: now.anchor, head: now.head }
+                      : null;
+                  setDragging(true);
+                }}
                 onRelease={() => setDragging(false)}
               />
             ) : null}

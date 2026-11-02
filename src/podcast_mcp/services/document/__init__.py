@@ -51,6 +51,7 @@ if TYPE_CHECKING:
         HistoryListResult,
         PopulatedHistoryDiffResult,
     )
+    from podcast_mcp.services.document.kit_apply import KitApplyReport, submit_kit_apply
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
     from podcast_mcp.services.document.play_pending import (
         PENDING_PREVIEW_PAD_DEFAULT_SEC,
@@ -59,7 +60,12 @@ if TYPE_CHECKING:
         PendingPreviewSpan,
     )
     from podcast_mcp.services.document.segment_capture import parse_range, save_segment
-    from podcast_mcp.services.document.segment_insert import insert_saved_segment
+    from podcast_mcp.services.document.segment_insert import (
+        SegmentInsertReport,
+        insert_saved_segment,
+        preview_segment_insert,
+        preview_segment_insert_on,
+    )
     from podcast_mcp.services.document.session_suggestion import SessionSuggestionService
     from podcast_mcp.services.document.timeline import TimelineService
     from podcast_mcp.services.document.transcript import (
@@ -96,11 +102,13 @@ __all__ = [
     "HistoryDiffResult",
     "HistoryListResult",
     "HistoryService",
+    "KitApplyReport",
     "PendingPreviewSpan",
     "PlayRequest",
     "PlayService",
     "PopulatedHistoryDiffResult",
     "RollBoundaryTarget",
+    "SegmentInsertReport",
     "ServedFile",
     "SessionSuggestionService",
     "TimelineService",
@@ -116,10 +124,13 @@ __all__ = [
     "describe_fields",
     "insert_saved_segment",
     "parse_range",
+    "preview_segment_insert",
+    "preview_segment_insert_on",
     "queue_room_tone_pools",
     "run_comment_mutation_with_file_revisions",
     "save_segment",
     "score_golden_ear",
+    "submit_kit_apply",
     "warm_in_background",
     "with_audio_check",
 ]
@@ -167,7 +178,12 @@ _MODULE_BY_NAME = {
     "PlayService": "play",
     "TransportPath": "play",
     "insert_saved_segment": "segment_insert",
+    "submit_kit_apply": "kit_apply",
     "parse_range": "segment_capture",
+    "preview_segment_insert": "segment_insert",
+    "preview_segment_insert_on": "segment_insert",
+    "SegmentInsertReport": "segment_insert",
+    "KitApplyReport": "kit_apply",
     "save_segment": "segment_capture",
     "SessionSuggestionService": "session_suggestion",
     "TimelineService": "timeline",

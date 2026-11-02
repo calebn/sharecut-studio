@@ -35,12 +35,14 @@ describe("sortNotes", () => {
     expect(sorted.map((item) => item.id)).toEqual(["session", "timed"]);
   });
 
-  it("breaks a tie on the id so the order is deterministic", () => {
+  it("keeps arrival order on a tie, without comparing ids as strings", () => {
     const sorted = sortNotes([
-      note({ id: "z", time: "12:04" }),
-      note({ id: "m", time: "12:04" }),
+      note({ id: "n10", time: "12:04" }),
+      note({ id: "n2", time: "12:04" }),
+      note({ id: "s2", time: null }),
+      note({ id: "s1", time: null }),
     ]);
-    expect(sorted.map((item) => item.id)).toEqual(["m", "z"]);
+    expect(sorted.map((item) => item.id)).toEqual(["s2", "s1", "n10", "n2"]);
   });
 
   it("reads hours and does not mix up 10:00 and 9:00", () => {

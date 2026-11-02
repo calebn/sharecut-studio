@@ -42,7 +42,11 @@ const COVERED: Record<string, string[]> = {
   ],
   "INS-TRACK": ["Templates/Editor · Inspector · Track", "System/ScrubField"],
   "INS-APPLIED": ["System/InspectorSheet", "System/Seam"],
-  "INS-PENDING": ["System/InspectorSheet", "System/ScrubField"],
+  "INS-PENDING": [
+    "System/InspectorSheet",
+    "System/ScrubField",
+    "Stages/Edit/PendingInspector",
+  ],
   "SCR-LOADING": ["Organisms/LoadingScreen"],
   "SCR-ERROR": ["Organisms/ErrorScreen"],
   "SCR-COVER": ["Organisms/CoverScreen"],
@@ -71,9 +75,9 @@ const COVERED: Record<string, string[]> = {
   "OVL-STALE": ["Templates/StaleInvalidationOverlay"],
   "OVL-PRESENCE": ["System/Presence", "Stages/Edit/Timeline"],
   "OVL-ENVELOPE": [
-    "Templates/EnvelopeOverlay",
     "System/ReadoutChip",
     "System/Envelope",
+    "Stages/Edit/Timeline",
   ],
   "OVL-BLEED": ["Templates/BleedAttenuationOverlay"],
   "OVL-RANGE": ["Templates/TimelineRange"],

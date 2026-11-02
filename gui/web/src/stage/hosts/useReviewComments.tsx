@@ -24,6 +24,7 @@ import {
   commentRole,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import type { CommentDraft } from "../../state/types";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import { InlineError } from "../../ui";
@@ -266,10 +267,26 @@ export function useReviewComments(guest: boolean) {
     }
   };
 
-  const type = (value: string) => {
+  // The draft the first keystroke made. Emptying the field drops it, so the
+  // time follows the playhead (or the selected range) again, but only while it
+  // is still this object: C, Comment here or the range command each set a new
+  // draft, which stays. A ref is enough: the draft is never reset on close or
+  // post, because a later draft is always a different object.
+  const typedDraft = useRef<CommentDraft | null>(null);
+  const type = (value: string, composing = false) => {
     const state = useDawStore.getState();
-    if (value && !state.commentDraft)
-      state.setCommentDraft(resolveCommentAnchor(state).draft);
+    if (value && !state.commentDraft) {
+      typedDraft.current = resolveCommentAnchor(state).draft;
+      state.setCommentDraft(typedDraft.current);
+    } else if (
+      !value &&
+      !composing &&
+      typedDraft.current &&
+      typedDraft.current === state.commentDraft
+    ) {
+      state.setCommentDraft(null);
+    }
+    if (!value && !composing) typedDraft.current = null;
     setBody(value);
   };
 

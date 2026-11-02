@@ -367,7 +367,7 @@ def test_the_volume_range_matches_the_gui_and_the_schema() -> None:
 def test_set_track_volume_saves_rounds_and_undoes(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
     out = EpisodeService(ws).set_track_volume("host", -3.337)
-    assert out == {"track_id": "host", "fader_db": -3.34, "output_gain_db": -5.34}
+    assert out.model_dump() == {"track_id": "host", "fader_db": -3.34, "output_gain_db": -5.34}
     assert load_project(minimal_project).track_by_id("host").fader_db == -3.34
 
     HistoryService(ws).undo()
@@ -383,7 +383,7 @@ def test_set_track_volume_rejects_values_outside_the_range(minimal_project, bad)
 
 def test_set_track_mute_saves_and_undoes(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
-    assert EpisodeService(ws).set_track_mute("guest", True) == {
+    assert EpisodeService(ws).set_track_mute("guest", True).model_dump() == {
         "track_id": "guest",
         "muted": True,
     }

@@ -34,10 +34,13 @@ from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.process import run
 from podcast_mcp.util.wav import open_wav
 
+# Line-anchored: FFmpeg indents multi-line tag values in its metadata dump, so a forged
+# value is no event. Readers must use text mode: a progress \r ends the line before an event.
 _EVENT = re.compile(
-    r"\[ashowinfo@restore_(?P<name>\w+) @ [^]]+\] n:(?P<n>\d+) "
+    r"^\[ashowinfo@restore_(?P<name>\w+) @ [^]]+\] n:(?P<n>\d+) "
     r"pts:[^ ]+ pts_time:[^ ]+ fmt:(?P<fmt>\w+) channels:\d+ "
-    r"chlayout:(?P<layout>[^ ]+) rate:(?P<rate>\d+) nb_samples:(?P<count>\d+)"
+    r"chlayout:(?P<layout>[^ ]+) rate:(?P<rate>\d+) nb_samples:(?P<count>\d+)",
+    re.MULTILINE,
 )
 _FORMATS = frozenset(
     f"{base}{planar}" for base in ("u8", "s16", "s32", "s64", "flt", "dbl") for planar in ("", "p")

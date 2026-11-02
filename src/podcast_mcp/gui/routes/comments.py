@@ -49,7 +49,7 @@ def create_comment(
     except ValueError as exc:
         raise coded_exception_error(400, exc, code="comment_invalid") from exc
     notify_comments_changed(path, file_revisions=file_revisions)
-    return {"comment": comment}
+    return {"comment": comment.model_dump()}
 
 
 @router.patch("/api/comments/{comment_id}")
@@ -103,7 +103,7 @@ def patch_comment(
         raise coded_exception_error(400, exc, code="comment_invalid") from exc
     if mutated:
         notify_comments_changed(path, file_revisions=file_revisions)
-    return {"comment": comment}
+    return {"comment": comment.model_dump()}
 
 
 @router.post("/api/comments/{comment_id}/actions/{action_id}/done")
@@ -130,7 +130,7 @@ def action_done(
     except ValueError as exc:
         raise coded_exception_error(400, exc, code="comment_invalid") from exc
     notify_comments_changed(path, file_revisions=file_revisions)
-    return result
+    return result.model_dump()
 
 
 @router.post("/api/comments/{comment_id}/replies")
@@ -154,7 +154,7 @@ def create_reply(
     except ValueError as exc:
         raise coded_exception_error(400, exc, code="comment_invalid") from exc
     notify_comments_changed(path, file_revisions=file_revisions)
-    return result
+    return result.model_dump()
 
 
 @router.delete("/api/comments/{comment_id}")
@@ -175,4 +175,4 @@ def remove_comment(
     except KeyError as exc:
         raise coded_exception_error(404, exc, code="comment_not_found") from exc
     notify_comments_changed(project_path, file_revisions=file_revisions)
-    return result
+    return result.model_dump()

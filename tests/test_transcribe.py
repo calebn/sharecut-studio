@@ -109,6 +109,38 @@ def test_transcribe_file_segment_without_words_and_with_prompt(sample_wav):
     assert mock_model.transcribe.call_args.kwargs["initial_prompt"] == "podcast glossary"
 
 
+def test_transcribe_file_stops_between_segments_once_cancelled(sample_wav):
+    from unittest.mock import MagicMock, patch
+
+    from podcast_mcp.engines.transcribe import TRANSCRIBE_CANCELLED
+    from podcast_mcp.util.progress import CancelledProgress
+    from podcast_mcp.util.project_state import render_cancel_scope
+
+    pulled: list[int] = []
+    cancelled = False
+
+    def segments():
+        nonlocal cancelled
+        for index in range(5):
+            pulled.append(index)
+            if index == 1:
+                cancelled = True
+            yield MagicMock(
+                words=[MagicMock(word=" w ", start=index, end=index + 0.5, probability=0.9)],
+                end=float(index + 1),
+                compression_ratio=1.0,
+            )
+
+    engine = TranscriptionEngine(defaults=load_defaults())
+    model = MagicMock()
+    model.transcribe.return_value = (segments(), None)
+    with patch.object(engine, "_get_model", return_value=model):
+        with render_cancel_scope(lambda: cancelled):
+            with pytest.raises(CancelledProgress, match=TRANSCRIBE_CANCELLED):
+                engine.transcribe_file(sample_wav, language="en")
+    assert pulled == [0, 1]
+
+
 def test_transcribe_file_passes_vad_and_decode_kwargs(sample_wav):
     from unittest.mock import MagicMock, patch
 

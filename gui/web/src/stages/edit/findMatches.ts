@@ -27,18 +27,23 @@ const edges = (text: string): [string, string, string] => {
 const unfindable = (word: ScriptWord) =>
   word.mark?.kind === "muted" || word.mark?.kind === "cut";
 
+/** The transcript a word belongs to ("trackId:sourceId" of its key). Words without a key share one. */
+const transcriptOf = (word: ScriptWord) =>
+  word.key === undefined ? "" : word.key.slice(0, word.key.lastIndexOf(":"));
+
 /**
  * Where `query` occurs in the turns, as spans of word indices for the Script
  * pane's `matches`. It finds what the backend replaces: the query is split on
  * whitespace and each token is matched against a whole word, so "an" does not
- * match "banana" and "room." matches "room". A phrase can match across words
- * but never across turns, and hits do not overlap. Muted and cut words, shown
- * or not, are skipped, so Cut all never cuts a cut again. The cost is the words
- * of each turn (a query of k tokens costs at most k comparisons per word).
- *
- * Parity gap for W2, recorded in design-system.md: the backend matches over a
- * transcript's whole word list, so a phrase that ends one turn and starts the
- * next is replaced there but is neither highlighted nor counted here.
+ * match "banana" and "room." matches "room". The backend matches over each
+ * transcript's whole word list, so a phrase can match across words and across
+ * a turn boundary of one transcript. Here it must also be contiguous in the
+ * Script's order, so a phrase split by another transcript's turn (A, B, A) is
+ * found by the backend and not by the bar. It never crosses two transcripts
+ * (tracks or sources), and hits do not overlap. Muted and cut words, shown or
+ * not,
+ * are skipped, so Cut all never cuts a cut again. The cost is the transcript's
+ * words (a query of k tokens costs at most k comparisons per word).
  */
 export function findMatches(
   turns: readonly ScriptTurn[],
@@ -50,26 +55,30 @@ export function findMatches(
     .filter((token) => token !== "")
     .map((token) => matchKey(token, caseSensitive));
   if (needle.length === 0 || needle.some((token) => token === "")) return [];
-  return turns.flatMap((turn) => {
-    const { words } = turn;
-    const keys = words.map((word) =>
-      unfindable(word) ? null : matchKey(word.text, caseSensitive),
-    );
-    const spans: ScriptSpan[] = [];
-    let at = 0;
-    while (at + needle.length <= words.length) {
-      if (needle.every((token, offset) => keys[at + offset] === token)) {
-        spans.push({
-          start: words[at].index,
-          end: words[at + needle.length - 1].index,
-        });
-        at += needle.length;
-      } else {
-        at += 1;
-      }
+  const words = turns.flatMap((turn) => turn.words);
+  const keys = words.map((word) =>
+    unfindable(word) ? null : matchKey(word.text, caseSensitive),
+  );
+  const owners = words.map(transcriptOf);
+  const spans: ScriptSpan[] = [];
+  let at = 0;
+  while (at + needle.length <= words.length) {
+    if (
+      needle.every(
+        (token, offset) =>
+          keys[at + offset] === token && owners[at + offset] === owners[at],
+      )
+    ) {
+      spans.push({
+        start: words[at].index,
+        end: words[at + needle.length - 1].index,
+      });
+      at += needle.length;
+    } else {
+      at += 1;
     }
-    return spans;
-  });
+  }
+  return spans;
 }
 
 /**

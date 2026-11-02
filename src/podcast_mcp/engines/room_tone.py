@@ -67,6 +67,7 @@ from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.batch_scope import scoped, unscoped
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db_stream, rms_db
 from podcast_mcp.util.intervals import subtract_intervals
+from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 from podcast_mcp.util.tracks import track_audio_path
 
@@ -473,6 +474,19 @@ def record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sampl
     return _record_room_tone_pool(project, track_id)
 
 
+def _prune_pool_records(directory: Path) -> None:
+    """Keep the newest records; one another thread removed meanwhile is skipped."""
+    stamped: list[tuple[float, Path]] = []
+    for path in directory.glob("*.json"):
+        try:
+            stamped.append((path.stat().st_mtime, path))
+        except OSError:
+            continue
+    stamped.sort(key=lambda item: item[0])
+    for _, old in stamped[:-_POOL_RECORDS_KEPT]:
+        old.unlink(missing_ok=True)
+
+
 def _record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Sample, ...] | None:
     track = project.track_by_id(track_id)
     key = _pool_key(project, track_id)
@@ -521,10 +535,7 @@ def _record_room_tone_pool(project: EpisodeProject, track_id: str) -> tuple[Samp
             record,
             json.dumps({"samples": [[x.start, x.end, x.rms_db, x.speech_prob] for x in result]}),
         )
-        for old in sorted(record.parent.glob("*.json"), key=lambda p: p.stat().st_mtime)[
-            :-_POOL_RECORDS_KEPT
-        ]:
-            old.unlink(missing_ok=True)
+        _prune_pool_records(record.parent)
     except OSError:
         log.debug("room tone pool not recorded to %s", record, exc_info=True)
     _remember_pool(key, result)
@@ -542,18 +553,58 @@ POOL_SNAPSHOT_LOCK_SEC = 2.0
 POOL_WAIT_SEC = 900.0
 
 
+def _warm_floors(project: EpisodeProject) -> None:
+    """Measure every dialogue recording's floor side by side, so the picks that follow read them cached.
+
+    A cache miss is not single flight: tracks recorded side by side would each decode their
+    peers' files while those are being decoded for their own pick.
+    """
+    paths: list[Path] = []
+    for track in project.tracks:
+        if track.role == TrackRole.DIALOGUE and track.media is not None:
+            try:
+                paths.append(track_audio_path(project, track.id))
+            except (OSError, ValueError):
+                continue
+    run_parallel(paths, track_floor)
+
+
 def ensure_room_tone_pools(project: EpisodeProject, track_ids: Sequence[str]) -> None:
-    """Record the pool of each track that has none, now, on the caller's thread.
+    """Record the pool of each track that has none, now, and return when all are recorded.
 
     Ingest and background warming record pools. Cut requests only read existing pools
     or select live room tone without recording it. Unreadable tracks are skipped. A pool
-    being recorded in the background is waited for, not recorded twice.
+    being recorded in the background is waited for, not recorded twice. The tracks' pools
+    are recorded side by side, each a pure function of its own recording and its peers'.
     """
-    for track_id in dict.fromkeys(track_ids):
+    wanted = list(dict.fromkeys(track_ids))
+
+    def record(track_id: str) -> None:
         try:
             record_room_tone_pool(project, track_id)
         except Exception:
             log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
+
+    if len(wanted) > 1:
+        try:
+            if _unrecorded_and_idle(project, wanted):
+                _warm_floors(project)
+        except Exception:
+            log.debug("room tone floors not measured together", exc_info=True)
+    run_parallel(wanted, record)
+
+
+def _unrecorded_and_idle(project: EpisodeProject, track_ids: Sequence[str]) -> bool:
+    """Whether some track has no pool and none is being recorded: only then is a warm needed.
+
+    The background thread that is recording a pool measures the floors itself; measuring
+    them here too would decode every file twice.
+    """
+    keys = [_pool_key(project, track_id) for track_id in track_ids]
+    with _POOLS_LOCK:
+        if any(key in _PENDING_POOLS for key in keys if key is not None):
+            return False
+    return any(key is not None and _stored_pool(project, key) is None for key in keys)
 
 
 def _release_pool(key: PoolKey) -> None:
@@ -589,8 +640,8 @@ def schedule_room_tone_pools(
 ) -> int:
     """Record the missing pools of these tracks (None: every dialogue track) in the background.
 
-    One low-priority thread records the tracks that have media and no pool, one after the
-    other, from its own copy of the project taken under ``project_state_lock``: the live
+    One low-priority thread records the tracks that have media and no pool, side by side,
+    from its own copy of the project taken under ``project_state_lock``: the live
     project is never read by that thread. ``owned`` says no other thread can reach
     ``project`` (a freshly opened one), so the lock is not taken. Once per recording: a pool
     that is known, being recorded or recently unrecordable is skipped. Returns at once with
@@ -627,22 +678,31 @@ def schedule_room_tone_pools(
             _release_pool(key)
         return 0
 
+    released: set[PoolKey] = set()
+
+    def record(item: tuple[str, PoolKey]) -> None:
+        track_id, key = item
+        try:
+            if _record_room_tone_pool(own, track_id) is None:
+                _note_unrecorded(key)
+        except Exception:
+            log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
+            _note_unrecorded(key)
+        finally:
+            _release_pool(key)
+            released.add(key)
+
     def run() -> None:
         from podcast_mcp.util.process import low_priority
 
-        released: set[PoolKey] = set()
         try:
             with unscoped(), low_priority():
-                for track_id, key in claimed:
+                if len(claimed) > 1:
                     try:
-                        if _record_room_tone_pool(own, track_id) is None:
-                            _note_unrecorded(key)
+                        _warm_floors(own)
                     except Exception:
-                        log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
-                        _note_unrecorded(key)
-                    finally:
-                        _release_pool(key)
-                        released.add(key)
+                        log.debug("room tone floors not measured together", exc_info=True)
+                run_parallel(claimed, record)
         finally:
             for _, key in claimed:
                 if key not in released:

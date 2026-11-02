@@ -12,8 +12,10 @@ from podcast_mcp.models.episode import TrackRole
 from podcast_mcp.segments.bundle import export_segments, import_bundle
 from podcast_mcp.segments.model import SegmentFile, segment_kind
 from podcast_mcp.segments.store import AddResult, SegmentStore
+from podcast_mcp.segments.summary import damaged_fix, library_rows, show_segment
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import parse_range, save_segment
+from podcast_mcp.services.document_sync import submit_segment_insert
 
 segment_app = typer.Typer(help="The segment library: intros, outros, sponsor reads and stings.")
 
@@ -31,10 +33,6 @@ def _clock(seconds: float) -> str:
 
 def _row(segment: SegmentFile) -> str:
     return f"{segment.id}  {segment.kind}  v{segment.version}  {_clock(segment.duration_sec)}  {segment.name}"
-
-
-def _detail(segment: SegmentFile, versions: list[int]) -> dict[str, Any]:
-    return {**segment.model_dump(mode="json"), "versions": versions}
 
 
 def _added_text(result: AddResult) -> str:
@@ -64,7 +62,7 @@ def segment_save_cmd(
 ) -> None:
     """Save clips from an episode into the library, as a copy."""
     result = save_segment(
-        ProjectWorkspace.open(project),
+        ProjectWorkspace.open(project, adopt=False),
         SegmentStore(),
         name=name,
         kind=segment_kind(kind) if kind else None,
@@ -79,21 +77,10 @@ def segment_save_cmd(
 def segment_list_cmd(as_json: bool = typer.Option(False, "--json")) -> None:
     """List the segments in the library, newest version of each."""
     store = SegmentStore()
-    listing = store.scan()
     if as_json:
-        rows = [_detail(s, list(store.versions(s.id))) for s in listing.segments]
-        rows += [
-            {
-                "id": d.id,
-                "damaged": True,
-                "version": d.version,
-                "problem": d.problem,
-                "code": d.code,
-            }
-            for d in listing.damaged
-        ]
-        typer.echo(_json(rows))
+        typer.echo(_json(library_rows(store)))
         return
+    listing = store.scan()
     if not listing.segments and not listing.damaged:
         typer.echo("No segments yet. Save one with `podcast segment save`.")
     for segment in listing.segments:
@@ -101,7 +88,7 @@ def segment_list_cmd(as_json: bool = typer.Option(False, "--json")) -> None:
     for damaged in listing.damaged:
         typer.echo(
             f"{damaged.id}  DAMAGED  v{damaged.version}  {damaged.problem} "
-            f"Import it again, or remove it with `podcast segment remove {damaged.id}`."
+            f"{damaged_fix(store, damaged)}"
         )
 
 
@@ -112,11 +99,11 @@ def segment_show_cmd(
 ) -> None:
     """Show one segment: its layout, level and files."""
     store = SegmentStore()
+    if as_json:
+        typer.echo(_json(show_segment(store, segment_id)))
+        return
     segment = store.get(segment_id)
     versions = list(store.versions(segment_id))
-    if as_json:
-        typer.echo(_json(_detail(segment, versions)))
-        return
     typer.echo(_row(segment))
     typer.echo(
         f"role {segment.role.value}, fader {segment.fader_db:+.1f} dB, "
@@ -162,21 +149,32 @@ def segment_import_cmd(
 def segment_insert_cmd(
     project: Path = typer.Argument(..., help="Path to episode.sharecut"),
     segment_id: str = typer.Argument(..., metavar="SEGMENT", help="A segment id"),
-    at: float = typer.Option(..., "--at", help="Timeline second to insert at"),
+    at: str = typer.Option(
+        ..., "--at", help="Where: start, end or a timeline second. Later content moves"
+    ),
     version: int | None = typer.Option(None, "--version", help="Segment version. Default: newest"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Report what would move and change nothing"
+    ),
     as_json: bool = typer.Option(False, "--json", help="The result as JSON"),
 ) -> None:
-    """Insert a saved segment into an episode at a timeline second. Later content moves."""
-    from podcast_mcp.services.document_sync import submit_host_command_result
-
-    payload: dict[str, Any] = {"segment_id": segment_id, "at": at}
-    if version is not None:
-        payload["version"] = version
-    result = submit_host_command_result(project, "InsertSegment", payload, client_id="cli")
+    """Insert a saved segment into an episode at start, end or a timeline second."""
+    result = submit_segment_insert(
+        project, segment_id, at, version=version, dry_run=dry_run, client_id="cli"
+    ).wire()
     if as_json:
         typer.echo(_json(result))
-        return
-    typer.echo(
-        f"Inserted {result['segment_id']} (v{result['segment_version']}) at {at:g} s, "
-        f"{result['duration_sec']:g} s long"
-    )
+    elif dry_run:
+        typer.echo(
+            f"Would insert {result['segment_id']} (v{result['segment_version']}) at "
+            f"{result['at']:g} s, {result['duration_sec']:g} s long: the episode would go from "
+            f"{result['timeline_duration_before_sec']:g} s to "
+            f"{result['timeline_duration_after_sec']:g} s, {result['clips_moved']} clips, "
+            f"{len(result['chapters_moved'])} chapters and "
+            f"{len(result['comments_moved'])} comments move. Nothing was changed."
+        )
+    else:
+        typer.echo(
+            f"Inserted {result['segment_id']} (v{result['segment_version']}) at "
+            f"{result['at']:g} s, {result['duration_sec']:g} s long"
+        )

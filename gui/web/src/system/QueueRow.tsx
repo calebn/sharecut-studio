@@ -23,6 +23,8 @@ export type QueueRowProps = {
   /** A comment row shows who wrote it instead of the kind glyph. */
   author?: { name: string; colorIndex?: number };
   unread?: boolean;
+  /** The full text of a snippet the row clips, shown as the row button's tooltip. */
+  fullText?: string;
   /** Host and producers only: a lock after the snippet, named in the row. */
   restricted?: boolean;
   /** Waiting to send: the guest is offline. */
@@ -48,6 +50,7 @@ export function QueueRow({
   selected = false,
   author,
   unread = false,
+  fullText,
   restricted = false,
   offline = false,
   decided,
@@ -111,6 +114,7 @@ export function QueueRow({
         type="button"
         className="sys-queue-main"
         aria-current={selected ? "true" : undefined}
+        title={fullText}
         onClick={() => {
           if (!swipe.wasDrag()) onSelect?.();
         }}

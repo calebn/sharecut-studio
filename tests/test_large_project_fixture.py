@@ -275,7 +275,7 @@ def test_large_project_fixture_seeds_shared_snapshot_history(tmp_path):
     manager = HistoryManager(ProjectStore(project_path))
     snaps = [manager._read_snapshot(project, e) for e in history.entries[:2]]
     assert diff_snapshots(snaps[0], snaps[1])
-    status = manager.undo(project)
+    status = manager.apply_undo(project)
     assert status.cursor == 4
     assert project.history.can_redo()
     assert project.timeline.clips[0].fade_in_ms == 10

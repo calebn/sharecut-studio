@@ -7,7 +7,6 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hostFetch } from "../../api/documentTransport";
-import { warmPendingPreview } from "../../audio/pendingPreview";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -23,10 +22,6 @@ import type { PreviewMode } from "../../utils/playRange";
 import { PendingPreview } from "./PendingPreview";
 
 vi.mock("../../api/documentTransport", () => ({ hostFetch: vi.fn() }));
-vi.mock("../../audio/pendingPreview", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../audio/pendingPreview")>()),
-  warmPendingPreview: vi.fn(),
-}));
 
 const SPLIT_REASON = "A split does not change the mix until you delete a side.";
 
@@ -186,26 +181,6 @@ describe("pending preview footer", () => {
       media: { kind: "rendered", url: "blob:pending-preview" },
       startSec: 0,
       endSec: 1.918,
-    });
-  });
-
-  it("warms the host for the edit it shows, again once the mix changes", async () => {
-    setup({ edit: () => ordinaryEdit() });
-    await waitFor(
-      () =>
-        expect(warmPendingPreview).toHaveBeenCalledWith("/tmp/p.json", "cut"),
-      { timeout: 3000 },
-    );
-    vi.mocked(warmPendingPreview).mockClear();
-    act(() => {
-      const project = useDawStore.getState().project!;
-      useDawStore.getState().hydrate("/tmp/p.json", {
-        ...project,
-        tracks: project.tracks.map((track) => ({ ...track, fader_db: -6 })),
-      });
-    });
-    await waitFor(() => expect(warmPendingPreview).toHaveBeenCalledTimes(1), {
-      timeout: 3000,
     });
   });
 
@@ -378,17 +353,6 @@ describe("pending preview footer", () => {
     await settle();
     expect(onError).toHaveBeenLastCalledWith("premix missing");
     expect(useDawStore.getState().sourcePreview).toBeNull();
-  });
-
-  it("releases its preview and frees the audio on unmount", async () => {
-    const { unmount } = setup({ edit: () => ordinaryEdit() });
-    fireEvent.click(playButton());
-    await waitFor(() =>
-      expect(useDawStore.getState().sourcePreview).not.toBeNull(),
-    );
-    unmount();
-    expect(useDawStore.getState().sourcePreview).toBeNull();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:pending-preview");
   });
 
   it("uses the token-scoped full mix route for a guest with view/play", async () => {

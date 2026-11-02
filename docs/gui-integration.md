@@ -6,7 +6,7 @@ Guide for building a desktop or web editor on top of Podcast MCP services and MC
 
 - **State:** `episode.sharecut` is the source of truth for clips, pending edits, FX chains, and `editorial.edit_log`.
 - **Mutations:** Route all timeline changes through `EditService` / MCP tools or typed document commands (`POST /api/document/command` — never bare domain calls). Each mutation creates history snapshots. On the web client, `api.ts` exposes `submitDocumentCommand`; `services/commandQueue.ts` persists and orders host/guest edits, handles replay and conflicts, and applies successful results only for the active project. `api/documentTransport.ts` posts the command to the host or guest endpoint.
-- **ShareCut Studio today:** comments (incl. Ask threads on pending edits), pipeline, History Undo/Redo, pending Approve/Reject (incl. Review Queue Cut all + tighten hits (grouped by the server `kind`; reasons `filler:`/`pause:`/`repetition:`/`restart:`) with Find more at the saved intensity (pipeline `analyze_fillers_pauses` only)), pending nudge, Current/Suggested/A/B audition, applied source MUTE Restore and Open History for cuts, clip fades / join mode, Track FX bypass, Transcript Edit-mode correct/suppress/ignore, chapter/social marker CRUD, blade/delete, project/track/audio ingest via document commands, host **Menu → Share…** (live links, mint, revoke), the host **Record** stage (lobby/consent/Start + full-quality recording + mix-minus), and host **Menu → Connect agent…** (local Streamable HTTP MCP URL) — [daw-editing.md](daw-editing.md), [share-tokens.md](share-tokens.md), [recording-session.md](recording-session.md).
+- **ShareCut Studio today:** comments (incl. Ask threads on pending edits), pipeline, History Undo/Redo, pending Cut/Keep (the sheet and card say Approve/Reject for a split, exact range or no accept action; incl. Review Queue Cut all + tighten hits (grouped by the server `kind`; reasons `filler:`/`pause:`/`repetition:`/`restart:`) with Find more at the saved intensity (pipeline `analyze_fillers_pauses` only)), pending nudge, Hear before/Hear after audition (Current/Suggested/A/B footer on a sheet with no Action bar), applied source MUTE Restore and Open History for cuts, clip fades / join mode, Track FX bypass, Transcript Edit-mode correct/suppress/ignore, chapter/social marker CRUD, blade/delete, project/track/audio ingest via document commands, host **Menu → Share…** (live links, mint, revoke), the host **Record** stage (lobby/consent/Start + full-quality recording + mix-minus), and host **Menu → Connect agent…** (local Streamable HTTP MCP URL) — [daw-editing.md](daw-editing.md), [share-tokens.md](share-tokens.md), [recording-session.md](recording-session.md).
 - **Host MCP (local Streamable HTTP):** `gui/host_mcp.py` mounts the same `MCPServer` as stdio at `http://127.0.0.1:8765/mcp` (official `mcp` SDK). Tools apply to the open episode (`app.state.served_project`). See § Local host MCP.
 - **Remote MCP (share tokens):** `gui/routes/remote_mcp.py` + `services/remote_mcp/` — capability-scoped guest tools over JSON-RPC; mutations still go through `ShareService` / `DocumentSyncService` (no forked domain logic). See [host-online-relay.md](host-online-relay.md) § Remote MCP.
 - **Audio:** Rendered stems and premix live under `artifacts/`; undo restores project JSON only — call `render_preview` or `history_undo(rerender=true)` after undo.
@@ -108,6 +108,8 @@ Review lists every unsure word as its own item, whether or not the transcript ch
 `types/project.ts` types the union as `PendingKind`. The Review stage keeps its own `DecisionKind` vocabulary and will need a mapping from `PendingKind` when it is wired. The table rows for `backchannel`, `breath`, `mouth_click` and `playful_phrase` in `cut_policy.py` are policy-only today: no reason code produces them, so they never appear as `sound_kind`. Unsure words are not a kind; a later slice sends them as a separate per-edit list.
 
 ### A/B audition window (pending preview)
+
+The Studio plays the A and B sides separately from the Action bar (Hear before, Hear after) and, on a sheet with no bar, from the footer's Current / Suggested / A/B; the one-press A/B render is the footer's, the Review Queue's, the CLI's and MCP's.
 
 The Review Decision card's A (original) and B (edited) are two files from one service function, `PlayService.play_pending_preview`, behind `GET /api/pending-preview?path&edit_id&mode=current|suggested&pad_sec` (guest twin `GET /api/review/{token}/daw/pending-preview`, MCP `play_pending_preview_tool`, CLI `podcast play pending-preview --padding`, guest MCP `guest_pending_preview`). The route, MCP tool and CLI only parse arguments. `mode=current` is A and `mode=suggested` is B; `mode=ab` (one WAV with a gap) stays for the agent and the inspector footer.
 
@@ -303,7 +305,7 @@ Storybook browser tests cover these behaviors at desktop and phone widths.
 
 Pending edit review actions keep one state and command owner. On phones and
 sideways compact layouts, the selected action card portals into the compact
-inspector's pinned header, so Approve and Reject remain available while the
+inspector's pinned header, so Cut and Keep (Approve and Reject for a split, an exact range or a suggestion with no accept action) remain available while the
 inspector body scrolls. Timing stays in the peek strip or expanded inspector.
 Outside compact mode, the card floats beside the selected timeline region,
 between the sticky ruler and marker lane and the bottom panel. It re-places
@@ -311,7 +313,7 @@ itself on scroll, window resize, and any size change of the region, the card,
 the compact sheet, the marker lane, or the bottom panel, so a comment that
 grows the marker lane or a Script divider drag moves it without a scroll. While the
 tablet's regular inspector sheet is open, the card stays out of the canvas
-(the sheet covers it) and the sheet's own Approve and Reject carry the review.
+(the sheet covers it) and the Action bar's Cut and Keep carry the review, and the sheet's own Approve and Reject buttons appear for a split, an exact range, a suggestion with no accept action or a comment-linked pending edit, and on a phone sheet with no bar dock (the compact drawer, the full sheet at a tight height; its card says Cut and Keep beside a sheet body that says Approve and Reject). The bar's verb follows the suggestion's accept action alone (pre-existing), so for a split or exact range that carries one the bar still shows Cut, Shorten or Lower while the sheet and card say Approve and Reject. The bar's Cut runs `ApproveEdits` for a cut action and `ApplySuggestedActions` for shorten or lower.
 The card keeps the same portal host across relocation, preserving recovery
 drafts and busy/error state. Relocation restores the currently focused control
 only if it was inside the card; body and external control focus stay unchanged.

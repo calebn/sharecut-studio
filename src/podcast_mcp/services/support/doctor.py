@@ -66,8 +66,14 @@ class DoctorReport:
 
 def run_doctor_checks(
     project: EpisodeProject | Path | None = None,
+    *,
+    deep: bool = False,
 ) -> DoctorReport:
-    """Run the same health checks as `podcast doctor` (no I/O besides reads)."""
+    """Run the same health checks as `podcast doctor` (no I/O besides reads).
+
+    ``deep`` also hashes every segment's audio; without it the segment check only looks at
+    file presence and size, so setup and the support bundle stay cheap.
+    """
     report = DoctorReport()
     try:
         engine = FFmpegEngine()
@@ -176,6 +182,9 @@ def run_doctor_checks(
             )
         )
 
+    report.checks.extend(_segment_library_checks(deep=deep))
+    report.checks.extend(_kit_library_checks())
+
     ep = _load_project(project)
     if ep is not None:
         from podcast_mcp.engines.session_timeline import timebase_qc_report
@@ -197,6 +206,92 @@ def run_doctor_checks(
             report.checks.append(DoctorCheck("warn", f"timebase: {issue}", err=True))
 
     return report
+
+
+MAX_DAMAGED_SEGMENTS_LISTED = 5
+
+
+def _segment_library_checks(*, deep: bool = False) -> list[DoctorCheck]:
+    """One warning per damaged segment (newest version), capped; silent when all are intact.
+
+    Looks at file presence, size and ``segment.json``; ``deep`` also hashes the audio. A
+    missing library costs nothing. Older versions are not checked.
+    """
+    from podcast_mcp.segments.store import SegmentStore, default_directory
+    from podcast_mcp.segments.summary import damaged_fix
+
+    directory = default_directory()
+    try:
+        present = directory.is_dir() and any(directory.iterdir())
+    except OSError:
+        return []
+    if not present:
+        return []
+    try:
+        store = SegmentStore(directory)
+        damaged = store.scan(deep=deep).damaged
+    except OSError as exc:
+        return [DoctorCheck("warn", f"segment library: cannot be read: {exc}", err=True)]
+    checks = [
+        DoctorCheck(
+            "warn",
+            f"segment {d.id} (v{d.version}): {d.problem}",
+            err=True,
+            extra=f"  Fix: {damaged_fix(store, d)}",
+        )
+        for d in damaged[:MAX_DAMAGED_SEGMENTS_LISTED]
+    ]
+    if len(damaged) > MAX_DAMAGED_SEGMENTS_LISTED:
+        more = len(damaged) - MAX_DAMAGED_SEGMENTS_LISTED
+        checks.append(
+            DoctorCheck(
+                "warn",
+                f"{more} more damaged segments; `podcast segment list` shows all of them",
+                err=True,
+            )
+        )
+    return checks
+
+
+def _kit_library_checks() -> list[DoctorCheck]:
+    """One warning per kit (newest version) naming segments that are not in the library.
+
+    Reads each ``kit.json`` and lists segment folders; no audio is read. Silent without kits.
+    """
+    from podcast_mcp.segments.kit import KitStore, default_kit_directory
+    from podcast_mcp.segments.kit_summary import find_missing
+    from podcast_mcp.segments.store import SegmentStore, default_directory
+
+    directory = default_kit_directory()
+    try:
+        if not (directory.is_dir() and any(directory.iterdir())):
+            return []
+        listing = KitStore(directory).scan()
+        segments = SegmentStore(default_directory())
+        checks: list[DoctorCheck] = []
+        for kit in listing.kits:
+            missing = find_missing(kit, segments)
+            if not missing:
+                continue
+            names = ", ".join(m.entry.label() for m in missing[:MAX_DAMAGED_SEGMENTS_LISTED])
+            more = len(missing) - MAX_DAMAGED_SEGMENTS_LISTED
+            checks.append(
+                DoctorCheck(
+                    "warn",
+                    f"kit {kit.id} (v{kit.version}): {len(missing)} of its segments {'is' if len(missing) == 1 else 'are'} not in "
+                    f"the library: {names}{f' and {more} more' if more > 0 else ''}",
+                    err=True,
+                    extra="  Fix: import the segments (or the kit's .sharecutkit file) again, "
+                    f"or save the kit again without them (`podcast kit show {kit.id}`).",
+                )
+            )
+        checks.extend(
+            DoctorCheck("warn", f"kit {d.id} (v{d.version}): {d.problem}", err=True)
+            for d in listing.damaged
+        )
+        return checks
+    except OSError as exc:
+        return [DoctorCheck("warn", f"kit library: cannot be read: {exc}", err=True)]
 
 
 def echo_doctor_report(report: DoctorReport, echo, echo_err) -> None:

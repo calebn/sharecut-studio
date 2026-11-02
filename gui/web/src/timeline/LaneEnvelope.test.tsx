@@ -6,9 +6,11 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { addEnvelopePointAt, setEnvelopePoint } from "../commands/envelopes";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { AutomationPoint, ClipRow } from "../types/project";
+import { ApiError } from "../utils/apiError";
 import { LaneEnvelope } from "./LaneEnvelope";
 import { TimelineGestureProvider } from "./timelineMetrics";
 import { useRulerWindow } from "./useRulerWindow";
@@ -584,6 +586,160 @@ describe("LaneEnvelope while a save settles", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("LaneEnvelope line clicks", () => {
+  const press = (band: Element, x: number, y: number) =>
+    fireEvent.mouseDown(band, { clientX: x, clientY: y });
+
+  it("adds nothing for a drag along the line that ends over it", async () => {
+    const { container } = setup();
+    const band = container.querySelector(".sys-env-band")!;
+    press(band, 120, 30);
+    fireEvent.pointerUp(band, mouse(180, 30));
+    fireEvent.click(band, { clientX: 180, clientY: 30, detail: 1 });
+    await act(async () => {});
+    expect(setEnvelope).not.toHaveBeenCalled();
+  });
+
+  it("adds a point for a click that moved less than the drag slop", async () => {
+    const { container } = setup();
+    const band = container.querySelector(".sys-env-band")!;
+    press(band, 120, 30);
+    fireEvent.click(band, { clientX: 121, clientY: 31, detail: 1 });
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+  });
+
+  it("forgets a drag, so the next plain click adds", async () => {
+    const { container } = setup();
+    const band = container.querySelector(".sys-env-band")!;
+    press(band, 120, 30);
+    fireEvent.click(band, { clientX: 180, clientY: 30, detail: 1 });
+    press(band, 200, 30);
+    fireEvent.click(band, { clientX: 200, clientY: 30, detail: 1 });
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("LaneEnvelope project switch mid-save", () => {
+  it("does not let the old save's response settle the new drag's hold", async () => {
+    const finishers: Array<() => void> = [];
+    setEnvelope.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishers.push(() => resolve(null));
+        }),
+    );
+    setup();
+    let drag = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(drag.el, mouse(0, 0));
+    await act(async () => {});
+    expect(finishers).toHaveLength(1);
+    act(() => useDawStore.setState({ projectEpoch: 7 }));
+    await act(async () => {});
+    const released = release.mock.calls.length;
+    drag = dragPoint(2, 24, 0);
+    fireEvent.pointerUp(drag.el, mouse(0, 0));
+    await act(async () => {});
+    expect(finishers).toHaveLength(2);
+    await act(async () => finishers[0]!());
+    expect(release).toHaveBeenCalledTimes(released);
+    await act(async () => finishers[1]!());
+    expect(release).toHaveBeenCalledTimes(released + 1);
+  });
+});
+
+describe("LaneEnvelope leftovers", () => {
+  const nudge = (place: number) => {
+    point(place).focus();
+    fireEvent.keyDown(point(place), { key: "ArrowRight" });
+  };
+
+  it("clears a nudge in progress when the project epoch changes, so the next gesture starts", async () => {
+    const { container } = setup();
+    nudge(2);
+    expect(point(2).getAttribute("aria-valuetext")).toContain("0:04");
+    act(() => useDawStore.setState({ projectEpoch: 5 }));
+    await act(async () => {});
+    expect(point(2).getAttribute("aria-valuetext")).toContain("0:04");
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".sys-env")).not.toBeNull();
+  });
+
+  it("tells a conflict that arrives after the lane unmounted", async () => {
+    let fail: (error: Error) => void = () => {};
+    setEnvelope.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    const announce = toasts();
+    const view = setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    view.unmount();
+    await act(async () =>
+      fail(new ApiError("Points changed", "conflict", 409)),
+    );
+    expect(announce).toHaveBeenCalledWith("Points changed", { tone: "error" });
+  });
+
+  it("says a failed add once, not as the command's wording and again as the bare reason", async () => {
+    setEnvelope.mockRejectedValueOnce(new Error("offline"));
+    const { container } = setup();
+    const seq = useDawStore.getState().statusAnnouncementSeq;
+    const band = container.querySelector(".sys-env-band")!;
+    fireEvent.pointerDown(band, mouse(120, 30));
+    fireEvent.click(band, { clientX: 120, clientY: 30, detail: 1 });
+    await act(async () => {});
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(seq + 1);
+    expect(useDawStore.getState().statusAnnouncement).toContain("offline");
+  });
+
+  it("says why an add waits while a nudge is held", async () => {
+    const { container } = setup();
+    nudge(2);
+    const announce = toasts();
+    const band = container.querySelector(".sys-env-band")!;
+    fireEvent.pointerDown(band, mouse(120, 30));
+    fireEvent.click(band, { clientX: 120, clientY: 30, detail: 1 });
+    await act(async () => {});
+    expect(setEnvelope).not.toHaveBeenCalled();
+    expect(announce).toHaveBeenCalledWith(
+      "Wait for the volume envelope to update",
+      { tone: "error" },
+    );
+  });
+
+  it("makes the Create menu and the Inspector wait for a saved drag the store has yet to follow", async () => {
+    setEnvelope.mockImplementationOnce(async () => null);
+    setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    const refusal = {
+      status: "disabled",
+      reason: "Wait for the volume envelope to update",
+    };
+    expect(await addEnvelopePointAt("host", 20)).toEqual(refusal);
+    expect(await setEnvelopePoint("host", "a", { value: 0.5 })).toMatchObject(
+      refusal,
+    );
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    putPoints(lastSave());
+    await act(async () => {});
+    expect(await setEnvelopePoint("host", "a", { value: 0.5 })).toEqual({
+      status: "ok",
+    });
   });
 });
 

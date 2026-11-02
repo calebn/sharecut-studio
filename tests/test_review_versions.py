@@ -2045,7 +2045,8 @@ def test_publish_keeps_media_after_a_late_failure_and_undo(
     def fail_after_committed_transaction():
         with original_transaction() as project:
             yield project
-        HistoryManager(ProjectStore(ws.path)).undo(ws.project)
+        HistoryManager(ProjectStore(ws.path)).apply_undo(ws.project)
+        ws.save()
         raise OSError("transaction exit failed")
 
     monkeypatch.setattr(ws, "transaction", fail_after_committed_transaction)
@@ -2056,5 +2057,5 @@ def test_publish_keeps_media_after_a_late_failure_and_undo(
     assert saved.review.versions == []
     assert saved.history.can_redo()
     assert (art / "review" / "redo-version" / "mix.wav").is_file()
-    HistoryManager(ProjectStore(ws.path)).redo(saved)
+    HistoryManager(ProjectStore(ws.path)).apply_redo(saved)
     assert [version.id for version in saved.review.versions] == ["redo-version"]

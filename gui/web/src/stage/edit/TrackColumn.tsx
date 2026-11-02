@@ -114,6 +114,7 @@ function TrackColumnView({
     projectPath,
     guestMode,
     shareCapabilities,
+    pointerKind,
   } = useDaw((s) => ({
     project: s.project,
     tracks: s.project?.tracks ?? null,
@@ -122,9 +123,11 @@ function TrackColumnView({
     projectPath: s.projectPath,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
+    pointerKind: s.pointerKind,
   }));
   const breakdown = useStaleRenderBreakdown(project);
   const mayReorder = canIngestMedia(projectPath, guestMode, shareCapabilities);
+  const mayDragReorder = mayReorder && pointerKind === "fine";
   const mayMix = canEditMix(projectPath, guestMode, shareCapabilities);
   const deselectTip = capabilityTooltip("daw.track.deselectAll");
   const [dragTrackId, setDragTrackId] = useState<string | null>(null);
@@ -182,10 +185,10 @@ function TrackColumnView({
     () => ({
       form,
       mayMix,
-      onDragStart: mayReorder ? onDragStart : undefined,
+      onDragStart: mayDragReorder ? onDragStart : undefined,
       onDragEnd: mayReorder ? clearReorderUi : undefined,
     }),
-    [form, mayMix, mayReorder, onDragStart, clearReorderUi],
+    [form, mayMix, mayReorder, mayDragReorder, onDragStart, clearReorderUi],
   );
 
   const staleByTrack = useMemo(() => {
@@ -261,7 +264,7 @@ function TrackColumnView({
       >
         {/*
           Pointer-only chrome; keyboard uses the well / Mod+Shift+A.
-          Same pattern as .lane-seek / .envelope-hit: a div (not button) so
+          Same pattern as .lane-seek: a div (not button) so
           Lighthouse target-size ignores this full-bleed hit area. Do not
           restore a hidden button or a title that names a second deselect control.
         */}

@@ -4,11 +4,13 @@ import json
 import re
 import shutil
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits.tighten_reasons import is_filler_reason
 from podcast_mcp.edits.transcript_search import ensure_combined_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import premix_path
@@ -163,10 +165,7 @@ def _score_utterance(
     filler_hits = sum(
         1
         for e in project.edit_decisions
-        if e.track_id == track_id
-        and e.start < end
-        and e.end > start
-        and (e.reason or "").startswith("filler:")
+        if e.track_id == track_id and e.start < end and e.end > start and is_filler_reason(e.reason)
     )
     if filler_hits > 2:
         score -= 0.2
@@ -369,6 +368,26 @@ _STAGING_PREFIX = ".writing-"
 ``.wav`` suffix the export listing goes by, so a half-written clip could be listed and served."""
 
 
+_STALE_STAGING_SECONDS = 24 * 3600
+_STAGING_NAME = re.compile(rf"{re.escape(_STAGING_PREFIX)}[a-z0-9_]{{8}}")
+
+
+def _sweep_stale_staging(out_dir: Path) -> None:
+    """Remove the staging folders of exports that were killed; a day is far past any render."""
+    cutoff = time.time() - _STALE_STAGING_SECONDS
+    for leftover in out_dir.iterdir():
+        try:
+            stale = (
+                _STAGING_NAME.fullmatch(leftover.name)
+                and leftover.is_dir()
+                and leftover.stat().st_mtime < cutoff
+            )
+        except OSError:
+            continue
+        if stale:
+            shutil.rmtree(leftover, ignore_errors=True)
+
+
 def export_social_clips(
     project: EpisodeProject,
     defaults: dict[str, Any],
@@ -382,10 +401,12 @@ def export_social_clips(
         raise ValueError("No audio source found; run pipeline mix or export first")
     out_dir = project.export_dir() / "clips"
     out_dir.mkdir(parents=True, exist_ok=True)
+    _sweep_stale_staging(out_dir)
     staging = Path(tempfile.mkdtemp(prefix=_STAGING_PREFIX, dir=out_dir))
     engine = FFmpegEngine()
     exported: list[dict[str, str]] = []
     id_set = set(ids) if ids else None
+    stems: set[str] = set()
 
     try:
         for clip in project.social_clip_candidates:
@@ -396,8 +417,12 @@ def export_social_clips(
             start = max(0.0, clip.start - padding)
             end = clip.end + padding
             slug = re.sub(r"[^a-z0-9]+", "-", (clip.title_suggestion or clip.id).lower())[:40]
-            wav_out = out_dir / f"{slug}_{clip.id}.wav"
-            json_out = out_dir / f"{slug}_{clip.id}.json"
+            stem = f"{slug}_{re.sub(r'[^A-Za-z0-9_-]+', '-', clip.id)}"
+            if stem in stems:
+                raise ValueError(f"two social clips share the file name {stem!r}")
+            stems.add(stem)
+            wav_out = out_dir / f"{stem}.wav"
+            json_out = out_dir / f"{stem}.json"
             staged = staging / wav_out.name
             engine.extract_segment(src, staged, start, end)
             publish_completed_file(staged, wav_out)

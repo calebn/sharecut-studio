@@ -50,8 +50,30 @@ describe("findMatches", () => {
     expect(findMatches(SCRIPT_TURNS, "so you", false)).toEqual([]);
   });
 
-  it("does not match across turns", () => {
-    expect(findMatches(SCRIPT_TURNS, "one. Thanks", false)).toEqual([]);
+  it("matches a phrase that ends one turn and starts the next, as the backend does", () => {
+    const hits = findMatches(SCRIPT_TURNS, "one. Thanks", false);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].end).toBe(hits[0].start + 1);
+    const turnOf = (index: number) =>
+      SCRIPT_TURNS.findIndex((turn) =>
+        turn.words.some((word) => word.index === index),
+      );
+    expect(turnOf(hits[0].end)).toBe(turnOf(hits[0].start) + 1);
+  });
+
+  it("never matches a phrase across two transcripts", () => {
+    const side = (key: string, index: number, text: string): ScriptTurn => ({
+      ...SCRIPT_TURNS[0],
+      words: [{ index, key, text }],
+    });
+    const turns = [side("host:a:7", 0, "one"), side("guest:b:0", 1, "thanks")];
+    expect(findMatches(turns, "one thanks", false)).toEqual([]);
+    const sources = [side("host:a:7", 0, "one"), side("host:b:0", 1, "thanks")];
+    expect(findMatches(sources, "one thanks", false)).toEqual([]);
+    const same = [side("host:a:7", 0, "one"), side("host:a:8", 1, "thanks")];
+    expect(findMatches(same, "one thanks", false)).toEqual([
+      { start: 0, end: 1 },
+    ]);
   });
 
   it("matches case only when asked", () => {

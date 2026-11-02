@@ -41,7 +41,9 @@ from podcast_mcp.edits.tighten_reasons import (
     REPETITION_REASON_PREFIX,
     RESTART_REASON_PREFIX,
     is_acoustic_filler_reason,
+    is_filler_reason,
     is_likely_laugh_reason,
+    is_pause_reason,
     is_possible_word_reason,
 )
 from podcast_mcp.engines.models.whisper import WhisperWeightsMissingError
@@ -60,8 +62,8 @@ def format_tighten_propose_summary(
     acoustic = sum(1 for d in decisions if is_acoustic_filler_reason(d.reason))
     laughs = sum(1 for d in decisions if is_likely_laugh_reason(d.reason))
     words = sum(1 for d in decisions if is_possible_word_reason(d.reason))
-    fillers = sum(1 for d in decisions if (d.reason or "").startswith("filler:")) - acoustic
-    pauses = sum(1 for d in decisions if (d.reason or "").startswith("pause:"))
+    fillers = sum(1 for d in decisions if is_filler_reason(d.reason)) - acoustic
+    pauses = sum(1 for d in decisions if is_pause_reason(d.reason))
     repetitions = sum(
         1
         for d in decisions
@@ -104,7 +106,7 @@ def _keep_on_reproposal(decision: EditDecision) -> bool:
     policy = decision_policy(decision)
     if policy is not None and policy.proposal_review:
         return decision.applied
-    if reason.startswith(("filler:", "pause:")):
+    if is_filler_reason(reason) or is_pause_reason(reason):
         return decision.applied and decision.review_required
     return True
 
