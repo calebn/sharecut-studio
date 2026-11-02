@@ -7,6 +7,7 @@ from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
 from podcast_mcp.edits.cut_safety import hold_is_overridable, inspect_source_remove
 from podcast_mcp.edits.cut_speech import assess_cut_speech
+from podcast_mcp.edits.tighten_reasons import is_pause_reason
 from podcast_mcp.edits.timeline_ops import (
     LaneUnavailable,
     plan_ripple_delete,
@@ -60,7 +61,7 @@ def cut_label(project: EpisodeProject, edit: EditDecision) -> str:
     """People's name for a pending cut: whose, what kind and where in the recording."""
     track = project.track_by_id(edit.track_id)
     who = (track.speaker or track.label or track.id) if track else edit.track_id
-    kind = "pause trim" if (edit.reason or "").startswith("pause:") else "cut"
+    kind = "pause trim" if is_pause_reason(edit.reason) else "cut"
     return f"{who}'s {kind} at {clock_label(edit.start)}"
 
 

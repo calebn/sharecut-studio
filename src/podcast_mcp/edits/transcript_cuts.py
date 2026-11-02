@@ -27,6 +27,7 @@ from podcast_mcp.edits.source_removals import (
     require_source_remove,
 )
 from podcast_mcp.edits.speech_energy_guard import PeerSpeechBlocked
+from podcast_mcp.edits.tighten_reasons import is_pause_reason
 from podcast_mcp.edits.transcript_search import ensure_combined_transcript, search_transcript
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_plays_lane
 from podcast_mcp.models import (
@@ -604,7 +605,7 @@ def _merged_pad_sec(
 
 
 def _is_pause(edit: EditDecision) -> bool:
-    return (edit.reason or "").startswith("pause:")
+    return is_pause_reason(edit.reason)
 
 
 def _keeps_independent_review(left: EditDecision, right: EditDecision) -> bool:

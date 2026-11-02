@@ -48,6 +48,7 @@ from podcast_mcp.edits.cut_placement import (
 )
 from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import SourceExtent, _chosen_on_timeline
+from podcast_mcp.edits.tighten_reasons import is_pause_reason
 from podcast_mcp.models import ClipJoinMode
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.fingerprint import file_stamp
@@ -164,7 +165,7 @@ def _digest(payload: Any) -> str:
 
 
 def _is_pause(edit: EditDecision) -> bool:
-    return (edit.reason or "").startswith("pause:")
+    return is_pause_reason(edit.reason)
 
 
 def _held_pause_span(

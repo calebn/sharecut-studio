@@ -61,6 +61,7 @@ from podcast_mcp.edits.session_air import GeometricPause, SessionAir
 from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
 from podcast_mcp.edits.tighten_reasons import (
     is_acoustic_filler_reason,
+    is_pause_reason,
 )
 from podcast_mcp.edits.timeline_ops import LaneSample, LaneUnavailable, bind_pause_effects
 from podcast_mcp.edits.voiced_runs import (
@@ -1083,7 +1084,7 @@ def observe_source_cut(
         assess_held_pause(
             project, edit, span, defaults=defaults, audio_caches=audio_caches, manual=manual
         )
-        if (edit.reason or "").startswith("pause:")
+        if is_pause_reason(edit.reason)
         else None
     )
     removal = (
@@ -1315,7 +1316,7 @@ def inspect_source_remove(
     span = placement if placement is not None else inspect_source_remove_placement(project, edit)
     if isinstance(span, CutScopeHold):
         return span
-    if (edit.reason or "").startswith("pause:"):
+    if is_pause_reason(edit.reason):
         timeline = SessionTimeline(project)
         loss = float(span[1] - span[0]) - (edit.replace_gap_sec or 0.0)
         if loss <= 0:
