@@ -36,7 +36,7 @@ import {
   TRACK,
   watchCommands,
 } from "../e2e/touchTimeline";
-import { CHOOSER_EDGE_PX } from "../src/timeline/chooserLayout";
+import { CHOOSER_EDGE_PX } from "../src/stages/edit/chooserMath";
 import { TOUCH_HIT_RADIUS_PX } from "../src/timeline/hitCandidates";
 
 /*
@@ -1114,9 +1114,9 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
   const chooser = page.getByRole("menu", { name: "Targets here" });
   await expect(chooser).toBeVisible();
   const chips = await chooser
-    .getByRole("menuitemradio")
+    .getByRole("menuitem")
     .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
-  const trimChip = chooser.getByRole("menuitemradio", { name: /^Trim start/ });
+  const trimChip = chooser.getByRole("menuitem", { name: /Trim start/ });
   const chip = await centerOfLocator(trimChip);
   await finger.slide(chip, 6, 30);
   await page.waitForTimeout(HOLD_MS);
@@ -1138,7 +1138,7 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
     lanes,
     commands: commands.map((c) => ({ type: c.type, payload: c.payload })),
   });
-  expect(chips.some((label) => label?.startsWith("Roll"))).toBe(true);
+  expect(chips.some((label) => label?.includes("Roll"))).toBe(true);
   // The trimmed start sheds time on the reference lane: its later clip (50 s)
   // moves back by that much.
   const [moved] = lanes[TRACK].arrows;
@@ -1202,7 +1202,7 @@ test("#1154: a touch ripple trim over the guest's speech applies as one manual t
   const chooser = page.getByRole("menu", { name: "Targets here" });
   await expect(chooser).toBeVisible();
   const chip = await centerOfLocator(
-    chooser.getByRole("menuitemradio", { name: /^Trim start/ }),
+    chooser.getByRole("menuitem", { name: /Trim start/ }),
   );
   await finger.slide(chip, 6, 30);
   await page.waitForTimeout(HOLD_MS);
@@ -1237,10 +1237,12 @@ test("#1154: a touch ripple trim over the guest's speech applies as one manual t
   });
   expect(starts).toHaveLength(4);
   expect(starts.slice(0, 3)).toEqual([0, 10, 40]);
-  // The edge follows the finger: 6 steps of pps px is 6.0 to 6.2 s at this
-  // zoom, so the clip starts at 50 minus that (a paused playhead near the edge
-  // can stop it a little earlier, so the bound does not depend on where it is).
-  expect(starts[3]).toBeGreaterThan(43.5);
+  // The edge follows the finger: 6 steps of pps px is 6.0 to 6.7 s at this
+  // zoom (the grab leaves from where the finger settled on the chip, a few px
+  // off its centre), so the clip starts at 50 minus that (a paused playhead
+  // near the edge can stop it a little earlier, so the bound does not depend on
+  // where it is).
+  expect(starts[3]).toBeGreaterThan(43);
   expect(starts[3]).toBeLessThan(50);
   expect(after.guest).not.toEqual(before.guest);
   expect(trims()).toHaveLength(1);

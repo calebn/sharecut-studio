@@ -79,7 +79,7 @@ const editedProject = async (page: Page) => {
 const openTimeline = (page: Page, viewport: ViewportName, theme: Theme) =>
   openTouchTimeline(page, projectPath, viewport, theme);
 
-/** Chip label prefix → the target kind it names. */
+/** Chip label text → the target kind it names. */
 const KIND_BY_LABEL: [string, string][] = [
   ["Envelope point", "envelope-point"],
   ["Pending start", "pending-start"],
@@ -95,15 +95,14 @@ const KIND_BY_LABEL: [string, string][] = [
 ];
 
 function labelTarget(label: string): { kind: string; time: number } {
-  const kind = KIND_BY_LABEL.find(([prefix]) => label.startsWith(prefix))?.[1];
-  const [, mm, ss] = label.match(/at (\d+):(\d+\.\d+)$/) ?? [];
+  const kind = KIND_BY_LABEL.find(([name]) => label.includes(name))?.[1];
+  const [, mm, ss] = label.match(/(\d+):(\d+\.\d+)(?:, selected)?$/) ?? [];
   if (!kind || mm == null) throw new Error(`unparsed chip label ${label}`);
   return { kind, time: Number(mm) * 60 + Number(ss) };
 }
 
-const chooser = (page: Page) =>
-  page.locator(".target-chooser:not(.is-closing)");
-const chips = (page: Page) => page.getByRole("menuitemradio");
+const chooser = (page: Page) => page.locator(".edit-target-chooser");
+const chips = (page: Page) => chooser(page).getByRole("menuitem");
 
 async function chipLabels(page: Page): Promise<string[]> {
   return chips(page).evaluateAll((els) =>
@@ -152,14 +151,13 @@ async function openAt(
   await page.waitForTimeout(HOLD_MS);
   const opened = (await chooser(page).count()) > 0;
   await touch(cdp, "touchEnd");
-  // Let the entrance finish before anything measures or screenshots it.
   await page.waitForTimeout(250);
   return opened;
 }
 
 async function closeChooser(page: Page): Promise<void> {
   await page.keyboard.press("Escape");
-  await expect(page.locator(".target-chooser")).toHaveCount(0);
+  await expect(chooser(page)).toHaveCount(0);
 }
 
 test("clusters open the chooser at every size and zoom", async ({
@@ -416,8 +414,8 @@ test("resting on a chip grabs its target and keeps dragging", async ({
   commands.length = 0;
   await touch(cdp, "touchStart", [at]);
   await page.waitForTimeout(HOLD_MS + 250);
-  const chip = page.getByRole("menuitemradio", {
-    name: /Envelope point 0\.80×/,
+  const chip = chooser(page).getByRole("menuitem", {
+    name: /Envelope point.*0\.80×/,
   });
   const box = (await chip.boundingBox())!;
   const onChip = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -425,13 +423,11 @@ test("resting on a chip grabs its target and keeps dragging", async ({
     { x: (at.x + onChip.x) / 2, y: (at.y + onChip.y) / 2 },
   ]);
   await touch(cdp, "touchMove", [onChip]);
-  // Halfway through the rest: the chip shows it is about to grab.
   await page.waitForTimeout(LONG_PRESS_MS / 2);
-  const arming = await page
-    .locator(".target-chip.is-arming")
-    .getAttribute("aria-label");
-  const hint = await page.locator(".target-chooser-hint").textContent();
-  await shot(info, page, "phone-about-to-grab-dark");
+  const caption = await page
+    .locator(".edit-target-chooser-caption")
+    .textContent();
+  await shot(info, page, "phone-resting-on-chip-dark");
   await page.waitForTimeout(LONG_PRESS_MS / 2 + 150);
   const closedOnGrab = (await chooser(page).count()) === 0;
   await touch(cdp, "touchMove", [{ x: onChip.x, y: onChip.y - 10 }]);
@@ -449,17 +445,15 @@ test("resting on a chip grabs its target and keeps dragging", async ({
   const edge = points.find((pt) => pt.id === "env-edge");
   const pxPerSec = Math.round((await rulerWidthPx(page)) / SESSION_SEC);
   json(info, "grab", {
-    arming,
-    hint,
+    caption,
     closedOnGrab,
     pxPerSec,
     commands,
     envEdge: edge,
   });
-  expect(arming).toMatch(/^Envelope point 0\.80× at /);
-  expect(hint).toBe("Slide to drag · lift to select");
+  expect(caption).toMatch(/^0\.80× at /);
   expect(closedOnGrab).toBe(true);
-  // Grabbed from the chip 64 px away, the point keeps its time (to a pixel)
+  // Grabbed from the chip 56 px away, the point keeps its time (to a pixel)
   // and rises with the 20 px drag instead of jumping to the finger.
   expect(Math.abs((edge?.time ?? 0) - 10)).toBeLessThan(1 / pxPerSec);
   expect(edge?.value).toBeGreaterThan(0.8);
@@ -488,7 +482,7 @@ test("axe, themes and reduced motion with the chooser open", async ({
         await touch(cdp, "touchStart", [at]);
         await page.waitForTimeout(LONG_PRESS_MS + 20);
         const animations = await page.evaluate(() =>
-          [...document.querySelectorAll(".target-chip")].reduce(
+          [...document.querySelectorAll(".edit-target-chooser-chip")].reduce(
             (n, el) => n + el.getAnimations().length,
             0,
           ),
@@ -496,37 +490,30 @@ test("axe, themes and reduced motion with the chooser open", async ({
         if (reduced) {
           await shot(info, page, "phone-reduced-motion-dark");
           results.reducedMotionChipAnimations = animations;
-          // About to grab, without motion: the ring shows at once, still.
           const box = (await chips(page).first().boundingBox())!;
           await touch(cdp, "touchMove", [
             { x: box.x + box.width / 2, y: box.y + box.height / 2 },
           ]);
           await page.waitForTimeout(100);
-          results.reducedMotionArming = await page.evaluate(() => {
-            const chip = document.querySelector(".target-chip.is-arming");
-            return chip
-              ? {
-                  ring: getComputedStyle(chip, "::before").borderTopStyle,
-                  animations: chip.getAnimations({ subtree: true }).length,
-                }
-              : null;
-          });
-          await shot(info, page, "phone-about-to-grab-reduced-motion-dark");
+          await shot(info, page, "phone-reduced-motion-over-chip-dark");
           await touch(cdp, "touchEnd");
           await page.waitForTimeout(300);
           await page.keyboard.press("Escape");
-          await expect(page.locator(".target-chooser")).toHaveCount(0);
+          await expect(chooser(page)).toHaveCount(0);
           continue;
         }
         await touch(cdp, "touchEnd");
         await page.waitForTimeout(250);
         await shot(info, page, `${viewport}-edge-${theme}`);
+        await expect(
+          page.locator(".edit-target-chooser-caption"),
+        ).toBeVisible();
         const axe = await new AxeBuilder({ page })
-          .include(".target-chooser")
+          .include(".edit-target-chooser")
           .disableRules([...STUDIO_AXE_DISABLED_RULES])
           .analyze();
         const contrast = await new AxeBuilder({ page })
-          .include(".target-chooser-caption")
+          .include(".edit-target-chooser-caption")
           .withRules(["color-contrast"])
           .analyze();
         results[`${viewport}-${theme}`] = {
@@ -541,7 +528,6 @@ test("axe, themes and reduced motion with the chooser open", async ({
   }
   json(info, "a11y-motion", results);
   expect(results.reducedMotionChipAnimations).toBe(0);
-  expect(results.reducedMotionArming).toEqual({ ring: "solid", animations: 0 });
   for (const key of ["phone-dark", "phone-light", "tablet-dark"]) {
     expect(results[key]).toMatchObject({
       axeViolations: [],

@@ -100,8 +100,7 @@ async function open(
   await setZoom(page, 3);
 }
 
-const chooser = (page: Page) =>
-  page.locator(".target-chooser:not(.is-closing)");
+const chooser = (page: Page) => page.locator(".edit-target-chooser");
 const sheet = (page: Page) => page.locator(".bottom-sheet, .sys-inspector");
 
 /** A tap that selects shuts the sheet it found; wait for that, if it happens. */
@@ -225,7 +224,7 @@ async function holdOpen(page: Page, finger: Finger): Promise<Point> {
 }
 
 const trimChip = (page: Page) =>
-  page.getByRole("menuitemradio", { name: /^Trim start/ });
+  chooser(page).getByRole("menuitem", { name: /Trim start/ });
 
 /** Source start of the clip that starts at 10 s: what a Trim start drag moves. */
 async function trimStartSec(page: Page): Promise<number> {
@@ -479,12 +478,14 @@ test("no grab while passing over chips or moving off the axis", async ({
   await open(page, "portrait-360");
   const rows: Record<string, unknown>[] = [];
   const allChips = () =>
-    page.getByRole("menuitemradio").evaluateAll((els) =>
-      els.map((e) => {
-        const r = e.getBoundingClientRect();
-        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-      }),
-    );
+    chooser(page)
+      .getByRole("menuitem")
+      .evaluateAll((els) =>
+        els.map((e) => {
+          const r = e.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }),
+      );
 
   for (const variant of ["sweep", "settle then vertical"] as const) {
     const commands = watchCommands(page);
