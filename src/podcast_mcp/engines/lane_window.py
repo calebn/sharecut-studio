@@ -65,7 +65,9 @@ class Placement:
 
 
 def lane_clip_placements(project: EpisodeProject, track: Track) -> list[tuple[Clip, Placement]]:
-    """Each clip a lane plays with its placement, in timeline order.
+    """Each placement a lane plays with the clip it belongs to, in timeline order.
+
+    A timed clip yields one pair per constant-shift piece, all with the same clip.
 
     A lane with no clips plays its media from the start of the session, as ingest places
     an un-clipped track. The media a clip plays is resolved as the render resolves it.
