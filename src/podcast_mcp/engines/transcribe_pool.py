@@ -68,18 +68,24 @@ def run_jobs_concurrently(
 
     futures: list[Future[T | None]] = []
     pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="transcribe")
+
+    def absorb() -> None:
+        for entry in state:
+            if entry is not None:
+                engine.absorb_run_state(entry)
+
     try:
         for index, job in enumerate(jobs):
             futures.append(pool.submit(contextvars.copy_context().run, work, index, job))
         pool.shutdown(wait=True)
     except BaseException:
-        # KeyboardInterrupt lands in the wait above: drop the queued jobs, let running ones end.
+        # KeyboardInterrupt lands in the wait above: drop the queued jobs, let running ones
+        # end, and keep what they learned (their run state) for the run that was interrupted.
         stop.set()
         pool.shutdown(wait=True, cancel_futures=True)
+        absorb()
         raise
-    for entry in state:
-        if entry is not None:
-            engine.absorb_run_state(entry)
+    absorb()
     results: list[T] = []
     for future in futures:
         value = future.result()

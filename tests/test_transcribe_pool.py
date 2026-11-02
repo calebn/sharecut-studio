@@ -278,6 +278,33 @@ def test_interrupt_cancels_queued_jobs(engine, monkeypatch):
     assert len(started) <= 2
 
 
+def test_interrupt_keeps_the_run_state_of_the_jobs_that_ran(engine, monkeypatch):
+    monkeypatch.setattr(transcribe_pool, "cpu_budget", lambda: 8)
+    release = threading.Event()
+    absorbed: list[dict[str, list]] = []
+
+    def body(self: TranscriptionEngine, job: TranscribeJob) -> None:
+        self._run_state_probe = job.track_id  # type: ignore[attr-defined]
+        assert release.wait(WAIT)
+
+    class Interrupting(transcribe_pool.ThreadPoolExecutor):
+        def shutdown(self, wait=True, *, cancel_futures=False):
+            if not cancel_futures:
+                raise KeyboardInterrupt
+            release.set()
+            super().shutdown(wait=wait, cancel_futures=cancel_futures)
+
+    monkeypatch.setattr(transcribe_pool, "ThreadPoolExecutor", Interrupting)
+    monkeypatch.setattr(TranscriptionEngine, "take_run_state", lambda self: {"ran": [1]})
+    monkeypatch.setattr(
+        TranscriptionEngine, "absorb_run_state", lambda self, entry: absorbed.append(entry)
+    )
+    _fake(monkeypatch, body)
+    with pytest.raises(KeyboardInterrupt):
+        _run(engine, _jobs(8))
+    assert absorbed and all(entry == {"ran": [1]} for entry in absorbed)
+
+
 def test_concurrent_tracks_keep_their_own_progress_row_and_heartbeat(engine, monkeypatch):
     from podcast_mcp.util.progress import bind_progress, progress_task
     from podcast_mcp.util.progress.reporters import ElapsedProgressMixin
