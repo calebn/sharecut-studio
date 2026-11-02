@@ -303,7 +303,7 @@ Storybook browser tests cover these behaviors at desktop and phone widths.
 
 Pending edit review actions keep one state and command owner. On phones and
 sideways compact layouts, the selected action card portals into the compact
-inspector's pinned header, so Approve and Reject remain available while the
+inspector's pinned header, so Cut and Keep (Approve and Reject for a split, an exact range or a suggestion with no accept action) remain available while the
 inspector body scrolls. Timing stays in the peek strip or expanded inspector.
 Outside compact mode, the card floats beside the selected timeline region,
 between the sticky ruler and marker lane and the bottom panel. It re-places
@@ -311,7 +311,7 @@ itself on scroll, window resize, and any size change of the region, the card,
 the compact sheet, the marker lane, or the bottom panel, so a comment that
 grows the marker lane or a Script divider drag moves it without a scroll. While the
 tablet's regular inspector sheet is open, the card stays out of the canvas
-(the sheet covers it) and the sheet's own Approve and Reject carry the review.
+(the sheet covers it) and the Action bar's Cut and Keep (or the sheet's own Approve and Reject where the bar does not offer them) carry the review.
 The card keeps the same portal host across relocation, preserving recovery
 drafts and busy/error state. Relocation restores the currently focused control
 only if it was inside the card; body and external control focus stay unchanged.

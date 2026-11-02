@@ -120,7 +120,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: null,
       bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
-      more: ["adjustBounds"],
+      more: ["adjustBounds", "seek"],
       primary: "cut",
     },
   ],
@@ -130,7 +130,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: null,
       bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
-      more: ["adjustBounds"],
+      more: ["adjustBounds", "seek"],
       primary: "lower",
     },
   ],
@@ -140,7 +140,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: null,
       bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
-      more: ["adjustBounds"],
+      more: ["adjustBounds", "seek"],
       primary: null,
     },
   ],
@@ -150,7 +150,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: null,
       bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
-      more: ["adjustBounds"],
+      more: ["adjustBounds", "seek"],
       primary: "shorten",
     },
   ],
@@ -160,7 +160,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     {
       leading: null,
       bar: ["hearBefore", "hearAfter", "keep", "comment", "more", "inspect"],
-      more: ["adjustBounds"],
+      more: ["adjustBounds", "seek"],
       primary: null,
     },
   ],

@@ -360,7 +360,7 @@ the empty state, not a separate discovery task.
   its place (#1690). For a logical approval recorded across two commands,
   the first toast's Undo is refused and the pass toast's Undo takes back both
   edits (#1677). Transcript word fixes, Suppress, Ignore and Restore, a range Cut or
-  Mute, single pending-edit Approve and Reject, the Review queue's group verbs (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
+  Mute, single pending-edit Cut and Keep (Approve and Reject where the bar offers no Cut), the Review queue's group verbs (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
 - A stale fade gesture says "This clip changed. Nothing was saved. Adjust the
   fade again." Timeline handles and phone nudges use the visible announcement;
