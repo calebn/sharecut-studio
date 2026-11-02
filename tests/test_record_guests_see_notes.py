@@ -91,7 +91,7 @@ def _visible(role: str, pid: str, *, flag: bool | None, shape: str = "event") ->
 @pytest.mark.parametrize("shape", ["event", "bare"])
 def test_guest_filter_setting_off(shape: str) -> None:
     for flag in (False, None):
-        assert _visible("guest", "p_me", flag=flag, shape=shape) == ["own", "marker", "spaced"]
+        assert _visible("guest", "p_me", flag=flag, shape=shape) == ["own", "marker"]
 
 
 @pytest.mark.parametrize("shape", ["event", "bare"])
@@ -105,7 +105,7 @@ def test_guest_filter_setting_on(shape: str) -> None:
 
 
 def test_guest_without_comments_sees_only_markers_when_off() -> None:
-    assert _visible("guest", "p_new", flag=False) == ["marker", "spaced"]
+    assert _visible("guest", "p_new", flag=False) == ["marker"]
 
 
 @pytest.mark.parametrize("role", ["host", "producer"])
@@ -125,5 +125,10 @@ def test_setting_applies_only_to_the_snapshot_that_carries_it() -> None:
     assert [c["id"] for c in out["history"][0]["snapshot"]["comments"]] == [
         "own",
         "marker",
-        "spaced",
     ]
+
+
+def test_a_new_room_starts_with_the_setting_off() -> None:
+    first = _set(empty_record_snapshot("room-one"), True)
+    assert first.guests_see_notes is True
+    assert empty_record_snapshot("room-two").guests_see_notes is False

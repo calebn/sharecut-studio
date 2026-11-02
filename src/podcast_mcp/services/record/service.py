@@ -238,7 +238,7 @@ _MARKER_BODY = "Marker"
 
 
 def _is_marker_comment(row: dict[str, Any]) -> bool:
-    return str(row.get("body") or "").strip() == _MARKER_BODY
+    return row.get("body") == _MARKER_BODY
 
 
 def _filter_live_comments_for_guest(obj: Any, participant_id: str) -> Any:
