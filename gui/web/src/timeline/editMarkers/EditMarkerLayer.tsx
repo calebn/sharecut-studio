@@ -17,6 +17,7 @@ import { hitTargetProps } from "../hitTargets";
 import {
   chipCount,
   chipLabel,
+  type JoinMark,
   joinPopoverId,
   type LanePlan,
   type PlacedChip,
@@ -26,6 +27,8 @@ import {
 interface EditMarkerLayerProps {
   plan: LanePlan;
   onZoomChip: (chip: PlacedChip) => void;
+  /** A cut's join glyph also selects the applied record behind it, so the seam bar opens from the lane (#2294 W4b). */
+  onSelectJoin?: (mark: JoinMark) => void;
 }
 
 type Track = (id: string) => {
@@ -179,7 +182,11 @@ function Glyph({
   );
 }
 
-export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
+export function EditMarkerLayer({
+  plan,
+  onZoomChip,
+  onSelectJoin,
+}: EditMarkerLayerProps) {
   const { openJoinId, setOpenJoinId } = useDaw((s) => ({
     openJoinId: s.openJoinId,
     setOpenJoinId: s.setOpenJoinId,
@@ -278,7 +285,10 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
             key={item.symbol.mark.id}
             symbol={item.symbol}
             open={openJoinId === item.symbol.mark.clipId}
-            onClick={() => toggle(item.symbol.mark.clipId)}
+            onClick={() => {
+              onSelectJoin?.(item.symbol.mark);
+              toggle(item.symbol.mark.clipId);
+            }}
             register={register}
             track={track}
             epoch={epoch}
