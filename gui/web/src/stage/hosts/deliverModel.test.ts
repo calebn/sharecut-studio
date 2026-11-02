@@ -8,7 +8,7 @@ import {
   deliverFacts,
   editHeadOf,
   fixRoute,
-  sameClipBounds,
+  sameClips,
 } from "./deliverModel";
 
 const coldOpen = { id: "ch-0", at: 0, title: "Cold open" };
@@ -98,9 +98,31 @@ describe("chapterOps", () => {
 });
 
 describe("clipOps", () => {
-  it("keeps only what the document can hold", () => {
-    const next = [{ ...lineA, title: "New", approved: true }, lineB];
-    expect(clipOps(clips, next)).toEqual([]);
+  it("sends a retitle and an approval as one details op", () => {
+    const next = [{ ...lineA, title: " New ", approved: true }, lineB];
+    expect(clipOps(clips, next)).toEqual([
+      { kind: "details", id: "s1", title: "New", approved: true },
+    ]);
+  });
+
+  it("sends only the field that changed, and unapproves", () => {
+    expect(clipOps(clips, [{ ...lineA, title: "New" }, lineB])).toEqual([
+      { kind: "details", id: "s1", title: "New" },
+    ]);
+    expect(clipOps(clips, [lineA, { ...lineB, approved: false }])).toEqual([
+      { kind: "details", id: "s2", approved: false },
+    ]);
+  });
+
+  it("clears a title that was emptied, and ignores one the project already shows as untitled", () => {
+    expect(clipOps(clips, [{ ...lineA, title: "  " }, lineB])).toEqual([
+      { kind: "details", id: "s1", title: "" },
+    ]);
+    expect(clipOps(clips, [lineA, { ...lineB, title: "" }])).toEqual([]);
+  });
+
+  it("sends nothing for a title only padded with spaces", () => {
+    expect(clipOps(clips, [{ ...lineA, title: "A line " }, lineB])).toEqual([]);
   });
 
   it("trims and deletes", () => {
@@ -255,23 +277,25 @@ describe("editHeadOf", () => {
   });
 });
 
-describe("sameClipBounds", () => {
-  it("is true for the same ids and bounds, whatever else changed", () => {
-    expect(sameClipBounds([lineA, lineB], [lineA, lineB])).toBe(true);
-    expect(
-      sameClipBounds(
-        [lineA],
-        [{ ...lineA, title: "Renamed", approved: true, score: 0.1 }],
-      ),
-    ).toBe(true);
+describe("sameClips", () => {
+  it("is true for the same clips, whatever else changed", () => {
+    expect(sameClips([lineA, lineB], [lineA, lineB])).toBe(true);
+    expect(sameClips([lineA], [{ ...lineA, score: 0.1 }])).toBe(true);
   });
 
-  it("is false when a bound, an id or the count differs", () => {
-    expect(sameClipBounds([lineA], [{ ...lineA, start: 11 }])).toBe(false);
-    expect(sameClipBounds([lineA], [{ ...lineA, end: 41 }])).toBe(false);
-    expect(sameClipBounds([lineA], [{ ...lineA, id: "other" }])).toBe(false);
-    expect(sameClipBounds([lineA, lineB], [lineA])).toBe(false);
-    expect(sameClipBounds([lineA], [lineA, lineB])).toBe(false);
+  it("reads an empty title as the untitled clip", () => {
+    expect(sameClips([lineB], [{ ...lineB, title: "  " }])).toBe(true);
+    expect(sameClips([lineA], [{ ...lineA, title: " A line " }])).toBe(true);
+  });
+
+  it("is false when a bound, an id, a title, an approval or the count differs", () => {
+    expect(sameClips([lineA], [{ ...lineA, start: 11 }])).toBe(false);
+    expect(sameClips([lineA], [{ ...lineA, end: 41 }])).toBe(false);
+    expect(sameClips([lineA], [{ ...lineA, id: "other" }])).toBe(false);
+    expect(sameClips([lineA], [{ ...lineA, title: "Renamed" }])).toBe(false);
+    expect(sameClips([lineA], [{ ...lineA, approved: true }])).toBe(false);
+    expect(sameClips([lineA, lineB], [lineA])).toBe(false);
+    expect(sameClips([lineA], [lineA, lineB])).toBe(false);
   });
 });
 

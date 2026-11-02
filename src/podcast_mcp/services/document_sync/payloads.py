@@ -578,6 +578,20 @@ class UpdateSocialClipPayload(BaseModel):
     end: float
 
 
+class UpdateSocialClipDetailsPayload(BaseModel):
+    """Retitle and/or approve one clip; an omitted field stays as it is, an empty title clears it."""
+
+    id: str
+    title: str | None = None
+    approved: bool | None = None
+
+    @model_validator(mode="after")
+    def _something_to_change(self) -> UpdateSocialClipDetailsPayload:
+        if self.title is None and self.approved is None:
+            raise ValueError("set a title or an approval")
+        return self
+
+
 class DeleteSocialClipPayload(BaseModel):
     id: str
 
@@ -1200,6 +1214,11 @@ class UpdateSocialClipCommand(DocumentCommandEnvelope):
     payload: UpdateSocialClipPayload
 
 
+class UpdateSocialClipDetailsCommand(DocumentCommandEnvelope):
+    type: Literal["UpdateSocialClipDetails"] = "UpdateSocialClipDetails"
+    payload: UpdateSocialClipDetailsPayload
+
+
 class DeleteSocialClipCommand(DocumentCommandEnvelope):
     type: Literal["DeleteSocialClip"] = "DeleteSocialClip"
     payload: DeleteSocialClipPayload
@@ -1441,6 +1460,7 @@ DocumentCommandBody = Annotated[
     | ClearFeedFieldCommand
     | AddSocialClipCommand
     | UpdateSocialClipCommand
+    | UpdateSocialClipDetailsCommand
     | DeleteSocialClipCommand
     | SetEnvelopeCommand
     | EditSelectedRangeCommand
@@ -1583,6 +1603,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "ClearFeedField": ClearFeedFieldPayload,
     "AddSocialClip": AddSocialClipPayload,
     "UpdateSocialClip": UpdateSocialClipPayload,
+    "UpdateSocialClipDetails": UpdateSocialClipDetailsPayload,
     "DeleteSocialClip": DeleteSocialClipPayload,
     "SetEnvelope": SetEnvelopePayload,
     "EditSelectedRange": EditSelectedRangePayload,

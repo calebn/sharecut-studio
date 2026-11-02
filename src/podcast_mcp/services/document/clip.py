@@ -11,6 +11,7 @@ from podcast_mcp.clips import (
     list_social_clips,
     propose_social_clips,
     reject_social_clips,
+    update_social_clip_details,
     update_social_clip_times,
 )
 from podcast_mcp.engines.waveform_media import ensure_project_waveforms
@@ -101,6 +102,24 @@ class ClipService:
         return self.ws.mutate(
             "before update social clip",
             "after update social clip",
+            mutate,
+        )
+
+    def update_details(
+        self,
+        clip_id: str,
+        *,
+        title: str | None = None,
+        approved: bool | None = None,
+    ) -> SocialClipCandidate:
+        """Retitle and/or approve or unapprove one clip as a single undo step."""
+
+        def mutate(p) -> SocialClipCandidate:
+            return update_social_clip_details(p, clip_id, title=title, approved=approved)
+
+        return self.ws.mutate(
+            "before update social clip details",
+            "after update social clip details",
             mutate,
         )
 

@@ -55,6 +55,7 @@ DocumentCommandType = Literal[
     "ClearFeedField",
     "AddSocialClip",
     "UpdateSocialClip",
+    "UpdateSocialClipDetails",
     "DeleteSocialClip",
     "SetEnvelope",
     "EditSelectedRange",

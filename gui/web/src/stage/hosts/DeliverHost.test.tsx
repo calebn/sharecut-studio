@@ -94,7 +94,7 @@ const CLIP = {
   start: 10,
   end: 40,
   score: 0.9,
-  title_suggestion: "A line",
+  title_suggestion: "A line" as string | null,
   approved: false,
   review_required: false,
 };
@@ -123,7 +123,7 @@ const server = {
 };
 const network = { mode: "up" as "up" | "down" | "refusing" };
 
-function serve(type: string, p: Record<string, number | string>) {
+function serve(type: string, p: Record<string, number | string | boolean>) {
   const { held } = server;
   if (type === "AddChapter") {
     held.chapters = [
@@ -144,6 +144,18 @@ function serve(type: string, p: Record<string, number | string>) {
     held.social_clips = held.social_clips.map((c) =>
       c.id === p.id ? { ...c, start: Number(p.start), end: Number(p.end) } : c,
     );
+  } else if (type === "UpdateSocialClipDetails") {
+    held.social_clips = held.social_clips.map((c) =>
+      c.id === p.id
+        ? {
+            ...c,
+            ...(p.title !== undefined && {
+              title_suggestion: String(p.title).trim() || null,
+            }),
+            ...(p.approved !== undefined && { approved: Boolean(p.approved) }),
+          }
+        : c,
+    );
   } else if (type === "DeleteSocialClip") {
     held.social_clips = held.social_clips.filter((c) => c.id !== p.id);
   }
@@ -151,7 +163,7 @@ function serve(type: string, p: Record<string, number | string>) {
 
 function answer(body: {
   type: string;
-  payload: Record<string, number | string>;
+  payload: Record<string, number | string | boolean>;
 }) {
   if (network.mode === "down") {
     return { ok: false, status: 503, failure: new ApiError("busy", null, 503) };
@@ -542,19 +554,10 @@ describe("Deliver host when a refusal needs the page back", () => {
       if (mode === "refusing") await screen.findByRole("alert");
       else await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
       await restore();
-      expect(await screen.findByText("A line")).toBeInTheDocument();
+      expect(await screen.findByDisplayValue("A line")).toBeInTheDocument();
       expect(screen.getByText("Approved")).toBeInTheDocument();
     },
   );
-
-  it("shows a clip's title as text and offers no Approve", () => {
-    render(<DeliverStage />);
-    expect(screen.getByText("A line")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("textbox", { name: "Title of A line" }),
-    ).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Approve/ })).toBeNull();
-  });
 });
 
 describe("Deliver host edits still being made when the page goes away", () => {
@@ -699,7 +702,7 @@ describe("Deliver host when the document changes elsewhere", () => {
           await screen.findByRole("menuitem", { name: "Remove" }),
         );
       },
-      restored: () => screen.findByText("A line"),
+      restored: () => screen.findByDisplayValue("A line"),
     },
   ])("shows the $name Undo brings back", async ({ remove, restored }) => {
     render(<DeliverStage />);
@@ -823,7 +826,7 @@ describe("Deliver host clip removal", () => {
     expect(screen.getByText("Removed A line")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
     await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
-    expect(screen.queryByText("A line")).toBeNull();
+    expect(screen.queryByDisplayValue("A line")).toBeNull();
   });
 });
 
@@ -941,5 +944,114 @@ describe("Deliver host readiness facts", () => {
     const row = (await screen.findByText("Edits saved")).closest("li");
     expect(row).not.toBeNull();
     expect(row).toHaveTextContent("23.6 s");
+  });
+});
+
+describe("Deliver host clip titles and approvals", () => {
+  const titleField = () =>
+    screen.getByRole("textbox", { name: "Title of A line" });
+
+  it("saves a retitle once, when Enter ends it, and the project shows it", async () => {
+    render(<DeliverStage />);
+    const title = titleField();
+    await userEvent.clear(title);
+    await userEvent.type(title, "  A better line ");
+    expect(wire.post).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()).toEqual([
+      ["UpdateSocialClipDetails", { id: "s1", title: "A better line" }],
+    ]);
+    await waitFor(() =>
+      expect(useDawStore.getState().project?.social_clips[0]).toMatchObject({
+        title_suggestion: "A better line",
+      }),
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByDisplayValue("A better line")).toBeInTheDocument();
+  });
+
+  it("saves a retitle when the field is left, and sends a cleared one as empty", async () => {
+    render(<DeliverStage />);
+    await userEvent.clear(titleField());
+    await userEvent.tab();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()).toEqual([
+      ["UpdateSocialClipDetails", { id: "s1", title: "" }],
+    ]);
+  });
+
+  it("sends nothing for a title put back to what it was", async () => {
+    render(<DeliverStage />);
+    await userEvent.type(titleField(), "x{Backspace}{Enter}");
+    expect(wire.post).not.toHaveBeenCalled();
+  });
+
+  it("approves a clip with one command and shows it Approved", async () => {
+    render(<DeliverStage />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve A line" }),
+    );
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()).toEqual([
+      ["UpdateSocialClipDetails", { id: "s1", approved: true }],
+    ]);
+    await waitFor(() =>
+      expect(useDawStore.getState().project?.social_clips[0]?.approved).toBe(
+        true,
+      ),
+    );
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says it is waiting when the server is busy, and sends once it can", async () => {
+    network.mode = "down";
+    render(<DeliverStage />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Approve A line" }),
+    );
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Not saved yet");
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    expect(wire.rows).toHaveLength(1);
+    network.mode = "up";
+    await act(async () => requestHostDrain(PATH));
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    expect(useDawStore.getState().project?.social_clips[0]?.approved).toBe(
+      true,
+    );
+    expect(wire.rows).toHaveLength(0);
+  });
+
+  it("keeps the page's retitle and says so when the project refuses it", async () => {
+    network.mode = "refusing";
+    render(<DeliverStage />);
+    const title = titleField();
+    await userEvent.clear(title);
+    await userEvent.type(title, "Mine{Enter}");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Could not save your changes");
+    expect(screen.getByDisplayValue("Mine")).toBeInTheDocument();
+    await userEvent.click(
+      within(alert).getByRole("button", { name: "Show the saved version" }),
+    );
+    expect(await screen.findByDisplayValue("A line")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Mine")).toBeNull();
+    expect(
+      useDawStore.getState().project?.social_clips[0]?.title_suggestion,
+    ).toBe("A line");
+  });
+
+  it("sends a title typed but not yet finished when the stage is left", async () => {
+    const view = render(<DeliverStage />);
+    await userEvent.type(titleField(), " two");
+    expect(wire.post).not.toHaveBeenCalled();
+    view.unmount();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()).toEqual([
+      ["UpdateSocialClipDetails", { id: "s1", title: "A line two" }],
+    ]);
   });
 });

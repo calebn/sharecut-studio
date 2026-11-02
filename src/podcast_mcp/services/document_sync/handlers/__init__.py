@@ -53,6 +53,7 @@ HANDLERS: dict[str, Handler] = {
     "DeleteChapter": markers.delete_chapter,
     "AddSocialClip": markers.add_social_clip,
     "UpdateSocialClip": markers.update_social_clip,
+    "UpdateSocialClipDetails": markers.update_social_clip_details,
     "DeleteSocialClip": markers.delete_social_clip,
     "SetEnvelope": markers.set_envelope,
     "SuggestPendingEdit": markers.suggest_pending_edit,
