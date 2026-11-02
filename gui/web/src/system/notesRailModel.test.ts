@@ -35,7 +35,7 @@ describe("sortNotes", () => {
     expect(sorted.map((item) => item.id)).toEqual(["session", "timed"]);
   });
 
-  it("keeps creation order on a tie, without comparing ids as strings", () => {
+  it("keeps arrival order on a tie, without comparing ids as strings", () => {
     const sorted = sortNotes([
       note({ id: "n10", time: "12:04" }),
       note({ id: "n2", time: "12:04" }),
