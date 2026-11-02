@@ -1,14 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { bouncedWavs } from "./exportFiles";
 import { withShareableProject } from "./shareableProject";
-import { deliverPage, goToStage, startBounce } from "./stageNav";
+import { deliverPage, goToStage, openProject, startBounce } from "./stageNav";
 
 test("Bounce on Deliver writes a WAV, says so, and the shortcut brings it into view", async ({
   page,
 }) => {
   await withShareableProject(async (projectPath) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await goToStage(page, "edit");
+    await openProject(page, projectPath);
     await page.keyboard.press("ControlOrMeta+Shift+b");
     const deliver = deliverPage(page);
     const bounce = deliver.getByRole("button", { name: "Bounce", exact: true });
