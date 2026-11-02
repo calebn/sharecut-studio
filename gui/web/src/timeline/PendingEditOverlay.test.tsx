@@ -1,5 +1,6 @@
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -14,6 +15,8 @@ import {
   _resetHistoryMovesForTests,
   registerHistoryCommands,
 } from "../commands/history";
+import { executePointerCommand } from "../commands/pointer";
+import { registerDawCommands } from "../commands/register";
 import { applyDocumentResult } from "../document/applyDocumentUpdate";
 import {
   activateDocumentScope,
@@ -21,10 +24,12 @@ import {
 } from "../document/authorityState";
 import { FeedbackToast } from "../feedback/FeedbackToast";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
+import { QUEUED_NOTICE_POLL_MS } from "../inspector/useQueuedReviewNotice";
 import {
   submitLiveHistoryCommand,
   submitQueuedDocumentCommand,
 } from "../services/commandQueue";
+import * as offlineStore from "../services/offlineQueue/offlineStore";
 import { shareProjectKey } from "../shareMode";
 import { PendingEditBody } from "../stage/edit/PendingEditBody";
 import { useDawStore } from "../state/dawStore";
@@ -1613,6 +1618,36 @@ describe("single pending review feedback", () => {
     };
   }
 
+  function queuedReviewOutbox() {
+    const commands: offlineStore.QueuedCommand[] = [];
+    const queue = vi
+      .spyOn(offlineStore, "loadHostCommandQueue")
+      .mockImplementation(async () => commands);
+    const count = vi
+      .spyOn(offlineStore, "loadHostCommandCount")
+      .mockImplementation(async () => commands.length);
+    vi.mocked(submitQueuedDocumentCommand).mockImplementation(
+      async (_path, type, payload = {}) => {
+        commands.push({
+          command_id: "queued-review",
+          client_id: "fixture-client",
+          client_seq: 1,
+          created_at: 0,
+          type,
+          payload,
+        });
+        return { queued: true, history_head_id: head };
+      },
+    );
+    return {
+      commands,
+      restore() {
+        queue.mockRestore();
+        count.mockRestore();
+      },
+    };
+  }
+
   describe.each(["inspector", "overlay"] as const)("%s", (entrypoint) => {
     it.each([
       ["Approve", "ApproveEdits", "Approved 1 pending edit"],
@@ -1679,21 +1714,67 @@ describe("single pending review feedback", () => {
     it.each(["Approve", "Reject"] as const)(
       "%s stays queued without completion or Undo",
       async (label) => {
-        vi.mocked(submitQueuedDocumentCommand).mockResolvedValue({
-          queued: true,
-          history_head_id: head,
-        });
-        mountReview(entrypoint);
-        await review(entrypoint, label);
-        expect(await screen.findByRole("status")).toHaveTextContent(
-          "Still sending.",
-        );
-        expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
-        expect(useDawStore.getState().feedbackToast?.message ?? null).toBe(
-          entrypoint === "inspector" ? PENDING_REVIEW_QUEUED_MESSAGE : null,
-        );
-        expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
+        const outbox = queuedReviewOutbox();
+        try {
+          mountReview(entrypoint);
+          await review(entrypoint, label);
+          expect(await screen.findByRole("status")).toHaveTextContent(
+            "Still sending.",
+          );
+          expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+          expect(useDawStore.getState().feedbackToast?.message ?? null).toBe(
+            entrypoint === "inspector" ? PENDING_REVIEW_QUEUED_MESSAGE : null,
+          );
+          expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
+        } finally {
+          cleanup();
+          outbox.restore();
+        }
       },
     );
   });
+  it.each(["Approve", "Reject"] as const)(
+    "%s keeps its queued notice through polling until the outbox drains",
+    async (label) => {
+      const outbox = queuedReviewOutbox();
+      vi.useFakeTimers();
+      try {
+        mountReview("inspector");
+        await act(async () => {});
+        expect(screen.queryByText("Checking queued timing…")).toBeNull();
+        expect(outbox.commands).toEqual([]);
+        registerDawCommands();
+        await act(async () => {
+          expect(
+            await executePointerCommand(
+              label === "Approve" ? "edit.delete" : "edit.keep",
+            ),
+          ).toEqual({ status: "ok" });
+        });
+        expect(submitQueuedDocumentCommand).toHaveBeenCalledTimes(1);
+        expect(outbox.commands).toHaveLength(1);
+        expect(outbox.commands[0]?.type).toBe(
+          label === "Approve" ? "ApproveEdits" : "RejectEdits",
+        );
+        expect(outbox.commands[0]?.payload.ids).toEqual([edit.id]);
+        expect(screen.getByRole("status")).toHaveTextContent("Still sending.");
+        await act(() => vi.advanceTimersByTimeAsync(QUEUED_NOTICE_POLL_MS));
+        expect(screen.getByRole("status")).toHaveTextContent("Still sending.");
+        expect(useDawStore.getState().feedbackToast?.message).toBe(
+          PENDING_REVIEW_QUEUED_MESSAGE,
+        );
+        expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+        expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
+        outbox.commands.splice(0);
+        await act(() => vi.advanceTimersByTimeAsync(QUEUED_NOTICE_POLL_MS));
+        expect(screen.queryByRole("status")).toBeNull();
+        expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+        expect(useDawStore.getState().project?.pending_edits).toEqual([edit]);
+      } finally {
+        cleanup();
+        vi.useRealTimers();
+        outbox.restore();
+      }
+    },
+  );
 });
