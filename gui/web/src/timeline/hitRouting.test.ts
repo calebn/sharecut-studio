@@ -4,10 +4,10 @@ import {
   LONG_PRESS_MS,
   TOUCH_SLOP_PX,
 } from "../hooks/gestureConstants";
+import { TARGET_ID_ATTR } from "../stages/edit/chooserKinds";
 import { button, press } from "../test/hitDom";
 import {
   attachHitRouting,
-  CHOOSER_ITEM_ATTR,
   type ChooserView,
   type HitRouter,
   isReplayed,
@@ -541,7 +541,7 @@ describe("touch input grammar", () => {
     expect(views.at(-1)?.fingerDown).toBe(false);
 
     const chip = document.createElement("button");
-    chip.setAttribute(CHOOSER_ITEM_ATTR, "1");
+    chip.setAttribute(TARGET_ID_ATTR, "1");
     document.body.append(chip);
     document.elementFromPoint = () => chip;
     press(chip, "pointerdown", 120, 40, 9);
@@ -555,6 +555,21 @@ describe("touch input grammar", () => {
       "fade:pointerup@206,112",
       "fade:click@206,112",
     ]);
+  });
+
+  it("leaves the chips open, with none over, after a lift past them", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    router.longPress();
+    document.elementFromPoint = () => null;
+    press(fade, "pointermove", 300, 53);
+    press(fade, "pointerup", 300, 53);
+    expect(views.at(-1)).toMatchObject({
+      fingerDown: false,
+      over: null,
+      armed: false,
+    });
+    expect(views.at(-1)).not.toHaveProperty("page");
   });
 
   it("closes with no change on pointercancel or close()", () => {
@@ -586,7 +601,7 @@ describe("touch input grammar", () => {
   it("lets a fresh tap elsewhere click at once after a chip drag lifts", () => {
     const { fade } = edgeCluster();
     const chip = document.createElement("button");
-    chip.setAttribute(CHOOSER_ITEM_ATTR, "1");
+    chip.setAttribute(TARGET_ID_ATTR, "1");
     const confirm = document.createElement("button");
     document.body.append(chip, confirm);
     document.elementFromPoint = (x: number) => (x > 230 ? chip : null);
@@ -611,7 +626,7 @@ describe("touch input grammar", () => {
   it("marks a rested-on chip, then grabs it after a long press and drags from the target", () => {
     const { fade } = edgeCluster();
     const chip = document.createElement("button");
-    chip.setAttribute(CHOOSER_ITEM_ATTR, "1");
+    chip.setAttribute(TARGET_ID_ATTR, "1");
     document.body.append(chip);
     document.elementFromPoint = (x: number) => (x > 230 ? chip : null);
 
@@ -639,7 +654,7 @@ describe("touch input grammar", () => {
   function chipRow() {
     const chips = ["0", "1"].map((index) => {
       const chip = document.createElement("button");
-      chip.setAttribute(CHOOSER_ITEM_ATTR, index);
+      chip.setAttribute(TARGET_ID_ATTR, index);
       document.body.append(chip);
       return chip;
     });

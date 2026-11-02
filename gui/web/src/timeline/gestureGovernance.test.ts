@@ -57,14 +57,10 @@ const TOUCH_ALLOWLIST: Record<string, string> = {
 /** Pointer handlers on elements outside the routed lanes, by a marker in the element. */
 const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
   {
-    file: "timeline/TargetChooser.tsx",
-    marker: "<button",
-    reason: "the chooser's chips: router-owned overlay",
-  },
-  {
-    file: "timeline/TargetChooser.tsx",
-    marker: 'className="target-chooser-scrim"',
-    reason: "the chooser's scrim closes it",
+    file: "timeline/TimelineChooser.tsx",
+    marker: 'className="timeline-chooser-host"',
+    reason:
+      "records the pointer type and suppresses the compat mousedown of a chip press; the router owns the gesture",
   },
   {
     file: "timeline/TimelineCreateMenu.tsx",
