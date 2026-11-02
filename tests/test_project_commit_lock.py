@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import contextlib
 import multiprocessing as mp
+import os
+import queue
 import sys
+import threading
+import time
 import traceback
 from pathlib import Path
 from types import SimpleNamespace
@@ -28,7 +32,7 @@ from podcast_mcp.services.document_sync.service import (
 )
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
-from podcast_mcp.util.file_locks import file_lock_holder_pid
+from podcast_mcp.util.file_locks import file_lock_holder_pid, shared_file_lock
 from podcast_mcp.util.project_state import (
     LOCK_BUSY_MESSAGE,
     PROJECT_BUSY_CODE,
@@ -305,11 +309,14 @@ def _child_notify(path) -> None:
     notify_document_changed(path)
 
 
-def _child_submit_comments(path, client_id, start, count, failures=None) -> None:
-    svc = DocumentSyncService.open(path)
-    start.wait(60)
-    for seq in range(1, count + 1):
-        try:
+def _child_submit_comments(path, client_id, start, count, reports) -> None:
+    began = time.monotonic()
+    seq = 0
+    try:
+        svc = DocumentSyncService.open(path)
+        start.wait(60)
+        for seq in range(1, count + 1):
+            reports.put(f"{client_id} submitting {seq} at +{time.monotonic() - began:.1f}s")
             svc.submit(
                 DocumentCommand(
                     type="AddComment",
@@ -323,27 +330,46 @@ def _child_submit_comments(path, client_id, start, count, failures=None) -> None
                     client_seq=seq,
                 )
             )
-        except Exception as exc:
-            if failures is not None:
-                failures.put(_failure_report(client_id, seq, exc))
-            raise
+    except BaseException as exc:
+        reports.put(_failure_report(client_id, seq, exc, began, path))
+        raise
 
 
-def _failure_report(client_id: str, seq: int, exc: BaseException) -> str:
-    """What a failed submit knew: a lock timeout's wait and holder tell contention (a wait
-    near the timeout) from a broken re-entrant acquire (a wait near zero)."""
-    contention = getattr(exc, "contention", None)
-    chain = []
-    link: BaseException | None = exc
-    while link is not None and len(chain) < 6:
-        chain.append(type(link).__name__)
-        link = link.__cause__ or link.__context__
+def _failure_report(client_id, seq, exc, began, path) -> str:
+    """Why a submit failed. The elapsed time tells a 30 s lock timeout (contention) from
+    a fail-fast near zero (a broken re-entrant acquire); a bare ``filelock.Timeout`` has
+    no ``contention``, so the time and the in-process lock state are reported too."""
+    try:
+        lock = shared_file_lock(project_commit_lock_path(load_project(path)))
+        held = f"is_locked={lock.is_locked} lock_counter={getattr(lock, 'lock_counter', None)}"
+    except Exception as lock_exc:
+        held = f"lock state unreadable: {lock_exc!r}"
     return (
-        f"{client_id} submit {seq}: {' <- '.join(chain)}; "
-        f"waited={getattr(contention, 'waited_seconds', None)} "
-        f"holder_pid={getattr(contention, 'holder_pid', None)}\n"
+        f"{client_id} submit {seq} FAILED at +{time.monotonic() - began:.1f}s "
+        f"pid={os.getpid()} thread={threading.get_ident()} {type(exc).__name__} "
+        f"contention={getattr(exc, 'contention', None)} {held}\n"
         + "".join(traceback.format_exception(exc))
     )
+
+
+def _join_with_reports(children, reports, timeout):
+    """Join ``children`` while draining ``reports`` (a full pipe would stall a child), then
+    return ``(all exited on their own, report lines)``."""
+    lines: list[str] = []
+    deadline = time.monotonic() + timeout
+
+    def drain(wait: float) -> None:
+        while True:
+            try:
+                lines.append(reports.get(timeout=wait))
+            except queue.Empty:
+                return
+
+    while any(c.is_alive() for c in children) and time.monotonic() < deadline:
+        drain(0.5)
+    exited = [reap(child, 0) for child in children]
+    drain(1)
+    return all(exited), lines
 
 
 def test_mutate_takes_the_lock_before_running_the_mutation(minimal_project, monkeypatch):
@@ -409,22 +435,19 @@ def test_stale_workspace_keeps_a_commit_from_another_process(minimal_project):
 
 
 def test_document_commands_from_two_processes_keep_every_edit(minimal_project):
-    start, failures = _CTX.Event(), _CTX.Queue()
+    start, reports = _CTX.Event(), _CTX.Queue()
     children = [
         _CTX.Process(
-            target=_child_submit_comments, args=(str(minimal_project), cid, start, 5, failures)
+            target=_child_submit_comments, args=(str(minimal_project), cid, start, 5, reports)
         )
         for cid in ("a", "b")
     ]
     for child in children:
         child.start()
     start.set()
-    exited = [reap(child, 120) for child in children]
-    reports = []
-    while not failures.empty():
-        reports.append(failures.get(timeout=5))
-    detail = "\n".join(reports)
-    assert all(exited), f"a submitting child hung and was killed\n{detail}"
+    exited, lines = _join_with_reports(children, reports, 120)
+    detail = "\n".join(lines)
+    assert exited, f"a submitting child hung and was killed\n{detail}"
     assert [child.exitcode for child in children] == [0, 0], detail
     project = load_project(minimal_project)
     bodies = {c.body for c in project.comments}
