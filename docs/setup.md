@@ -695,7 +695,7 @@ Every environment variable the package reads is declared once in `src/podcast_mc
 | `PODCAST_DECODE_MEMO_IDLE_S` | `90` | Seconds without a decode memo hit or store, and no decode running, before the memo releases its recordings (about twice that if a decode overlaps the deadline; capped at 86400); 0 never releases. |
 | `PODCAST_DECODE_MEMO_SPILL_MB` | `1536` | Megabytes of disk where a released or evicted decode memo entry is kept as a read-only map of a temp file, so Approve after a pause does not decode again (least recently used out first; at most 64 entries; not on tmpfs or Windows); 0 keeps none. |
 | `PODCAST_DECODE_MEMO_SPILL_IDLE_S` | `2700` | Seconds without a hit on a spilled decode memo entry before the spilled tier is dropped and its temp files are freed (capped at 86400); 0 never drops. |
-| `PODCAST_EVIDENCE_KEEP_MB` | `3072` | Megabytes of disk for track evidence kept between batches, so Approve reuses what propose built (least recently used out first; temp files read through the page cache, no resident memory); 0 keeps none. |
+| `PODCAST_EVIDENCE_KEEP_MB` | `3072` | Megabytes of disk for track evidence kept between batches, so Approve reuses what propose built (least recently used out first; temp files read through the page cache, no resident memory); 0 keeps none and also turns off the records of it under the project's artifacts/track_evidence. |
 | `PODCAST_EVIDENCE_KEEP_IDLE_S` | `2700` | Seconds without a kept-evidence hit or store, and no build running, before it is released and its temp files are freed (capped at 86400); 0 never releases. |
 | `PODCAST_EVIDENCE_VERIFY` |  | On every cache hit, rebuild the track evidence and fail if it differs from the cached copy (tests, lab). Also re-decodes on every decode memo hit. |
 

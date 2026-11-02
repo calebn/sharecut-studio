@@ -37,7 +37,7 @@ import numpy as np
 
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.engines import timeline_render
+from podcast_mcp.engines import evidence_records, timeline_render
 from podcast_mcp.engines.audio import Audio, sources
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.engines.audio_eval import (
@@ -182,6 +182,7 @@ def rms_readers(
     A reader raises what :func:`rms` would raise for its track, so the caller keeps its per-track fallback.
     """
     store = _store()
+    record_dir = _record_dir(project)
     planned: dict[str, tuple[EvidenceKey, Audio] | Declined | Exception] = {}
     for track_id in dict.fromkeys(track_ids):
         try:
@@ -202,7 +203,7 @@ def rms_readers(
         keys = list(missing)
         results = run_parallel(
             keys,
-            lambda key: _build_or_error(store, key, missing[key]),
+            lambda key: _build_or_error(store, key, missing[key], record_dir),
             max_workers=min(len(keys), MAX_EVALUATORS, cpu_budget()),
         )
         evaluated = dict(zip(keys, results, strict=True))
@@ -217,7 +218,7 @@ def rms_readers(
         elif plan[0] in evaluated:
             entry = evaluated[plan[0]]
         else:
-            entry = _stored(store, plan[0], plan[1])
+            entry = _stored(store, plan[0], plan[1], record_dir=record_dir)
         if isinstance(entry, Exception):
             raise entry
         if isinstance(entry, Declined):
@@ -325,19 +326,31 @@ def _verify_window(window: WindowedTrackRmsCache, whole: _Entry | Declined) -> N
         raise AssertionError("a window differs from the whole-track evidence over its range")
 
 
-def _build_or_error(store: _Store, key: EvidenceKey, tree: Audio) -> _Entry | Declined | Exception:
+def _build_or_error(
+    store: _Store, key: EvidenceKey, tree: Audio, record_dir: Path | None = None
+) -> _Entry | Declined | Exception:
     try:
-        return _stored(store, key, tree)
+        return _stored(store, key, tree, record_dir=record_dir)
     except Exception as exc:
         return exc
 
 
 def _stored(
-    store: _Store, key: EvidenceKey, tree: Audio, rates: tuple[int, ...] | None = None
+    store: _Store,
+    key: EvidenceKey,
+    tree: Audio,
+    rates: tuple[int, ...] | None = None,
+    *,
+    record_dir: Path | None = None,
 ) -> _Entry | Declined:
     """The store's evidence of ``key`` at ``rates`` (the tree's own when none), built on a miss."""
     rates = _rates(tree) if rates is None else rates
-    return store.get_or_build(key, partial(_produce, key, tree, rates), rates)
+    return store.get_or_build(key, partial(_produce, key, tree, rates, record_dir), rates)
+
+
+def _record_dir(project: EpisodeProject) -> Path:
+    """Where the project records evidence for a later process."""
+    return project.artifacts_dir() / evidence_records.RECORD_DIR
 
 
 def _plan(
@@ -418,7 +431,7 @@ def _entry(
     if isinstance(planned, Declined):
         return planned
     key, tree = planned
-    return _stored(_store(), key, tree, rates)
+    return _stored(_store(), key, tree, rates, record_dir=_record_dir(project))
 
 
 class _Store:
@@ -546,10 +559,69 @@ def _superseded(old: EvidenceKey, new: EvidenceKey) -> bool:
 
 
 def _produce(
-    key: EvidenceKey, tree: Audio, rates: tuple[int, ...] = _RATES
+    key: EvidenceKey,
+    tree: Audio,
+    rates: tuple[int, ...] = _RATES,
+    record_dir: Path | None = None,
 ) -> Evidence | Declined | _Entry:
-    """What a batch store builds a missing key from: retained evidence, else a fresh evaluation."""
-    return _RETAINED.get_or_build(key, tree, lambda: _evaluate(tree, key.curve, rates), rates)
+    """What a batch store builds a missing key from: retained evidence, else a recorded or fresh evaluation."""
+    build = partial(_evaluate, tree, key.curve, rates)
+    if record_dir is not None and keep_bytes() > 0:
+        build = partial(_recorded, record_dir, key, tree, rates, build)
+    return _RETAINED.get_or_build(key, tree, build, rates)
+
+
+def _recorded(
+    record_dir: Path,
+    key: EvidenceKey,
+    tree: Audio,
+    rates: tuple[int, ...],
+    build: Callable[[], Evidence | Declined],
+) -> Evidence | Declined:
+    """The evidence a record of ``key`` holds, else ``build()``, recorded when that is exact.
+
+    The record's key names what ``build`` reads: the tree, the curve, the stamp of every source,
+    the rates, the ffmpeg build that resamples and ``evidence_records.RECORD_REV``. A build is
+    recorded only when no source changed while it ran and none was recent enough to share a
+    stamp with a rewrite, as for the evidence kept in this process. With
+    ``PODCAST_EVIDENCE_VERIFY=1`` a record is compared with the build instead of being used.
+    """
+    build_id = _build_id()
+    name = _record_name(key, tree, rates, build_id)
+    if name is None:
+        return build()
+    found = evidence_records.read_record(record_dir, name, rates)
+    if found is not None and not settings.flag(VERIFY_ENV):
+        _LOG.info("evidence read from record rates=%s", rates)
+        return found
+    started = _now_ns()
+    built = build()
+    if found is not None:
+        _verify(_Entry(found), built)
+    try:
+        if (
+            not isinstance(built, Declined)
+            and _build_id() == build_id
+            and RetainedEvidence._unchanged(key, tree, started)
+        ):
+            evidence_records.write_record(record_dir, name, built)
+    except OSError:
+        _LOG.debug("evidence record not written", exc_info=True)
+    return built
+
+
+def _record_name(
+    key: EvidenceKey, tree: Audio, rates: tuple[int, ...], build_id: tuple[object, ...] | None
+) -> str | None:
+    """The record's name, or ``None`` when the evidence cannot be named (best effort: a record is never worth failing a build)."""
+    if build_id is None:
+        return None
+    try:
+        return evidence_records.record_key(
+            (tree, key.curve, key.revisions, rates, build_id, file_stamp(Path(str(build_id[0]))))
+        )
+    except OSError:
+        return None
 
 
 class RetainedEvidence:
