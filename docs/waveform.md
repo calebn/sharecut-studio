@@ -640,10 +640,11 @@ The ceiling was chosen under every engine's layout limit. Blink and WebKit store
   smaller; ruler comment span 4 px), so edits work at any zoom. Domain minimums (0.05 s spans,
   `MIN_EDGE_SPAN_SEC` in `edit/clipEdgePreview.ts`; integer-ms fades) are unchanged.
 - **Bounded DOM.** The ruler, the Levels envelope and the waveform tiles
-  mount only what meets the viewport: the ruler and envelope in 2048 px
-  chunks (`utils/timelineViewport.ts` `viewportChunkRange`, a selector that
-  returns a string), the tiles in 512 px tiles plus overscan. A ruler never
-  mounts more than `ceil((viewport + 4096) / 70) + 1` ticks. A Levels point being dragged, selected or focused stays mounted outside the chunks, so pointer capture and focus survive a scroll.
+  mount only what meets the viewport: the ruler in 2048 px chunks
+  (`utils/timelineViewport.ts` `viewportChunkRange`, a selector that
+  returns a string), the envelope in the ruler's window (`useRulerWindow`,
+  drawing only the points inside it), the tiles in 512 px tiles plus overscan. A ruler never
+  mounts more than `ceil((viewport + 4096) / 70) + 1` ticks. Only the Levels point being dragged stays mounted outside the window, so pointer capture survives a scroll; a selected or focused point that leaves the window is unmounted.
 
 **Budgets:** the bitmap cache holds 128 MB (48 MB on the phone shell), data
 tiles 64 MB (32 MB on the phone shell) and PCM 32 MB. There are 4 fetches in

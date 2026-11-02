@@ -427,7 +427,6 @@ with axe before the collected results are asserted.
 | scrolled fades and pinned actions retain pointer and keyboard ownership | `gui/web/e2e-compat/compact-form-scroll.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | one finger moving never edits; a long-press arms, and the armed point drags in time and level | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | at 390x844 by default, one finger dragging a selected clip's trim end saves nothing and opens the strip, not the half sheet | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
-| an armed drag holds at a soft boundary, and saves there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a long-press arms a clip, which moves in time only, holds at its neighbour's edge and saves there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels an armed clip move | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a long-press on empty space opens the create menu; Add volume point adds one there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
@@ -559,7 +558,7 @@ then zooms, scrolls, and drags a trim-out handle. It compares snap ticks and mut
 regions against rendered ruler ticks within 0.5 CSS px, and the trim ghost
 waveform against the committed clip edge before verifying the saved trim.
 The deep-zoom journey keeps its accessible envelope-point query and measures
-waveform tiles, ruler ticks, and envelope chunks through the same hooks.
+waveform tiles, ruler ticks, and the envelope window through the same hooks.
 
 The `frontend-e2e-suites` compatibility job runs the focused
 `gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in bundled Chromium
@@ -613,7 +612,7 @@ to a one-hour session (`e2e/deepZoom.ts` `stretchProjectToSession`) and zooms to
 `effectiveMaxZoomPxPerSec(3600)` (about 15 M px of content). At the end it
 checks, within 1 px: `scrollWidth`, the reachable scroll end, the last ruler
 label, tick offsets (`t × zoom`), tile placement on the 512 px grid ending at
-the session end, and envelope point and chunk offsets. The Vitest helper test
+the session end, and envelope point offsets and the window's left edge. The Vitest helper test
 also validates the actual stretched project against
 `schemas/episode.project.schema.json` with strict draft 2020-12 Ajv, and checks
 that malformed clip timing and envelope values report their schema paths.
