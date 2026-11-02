@@ -201,30 +201,30 @@ describe("TimelineChooser", () => {
     });
   });
 
-  it("keeps the selected target and one of each kind before a second of one kind", () => {
+  it("never cuts the selected target, even as the second of its kind", () => {
     const kinds = [
       "trim-in",
-      "trim-out",
-      "fade-in",
-      "fade-out",
       "roll",
+      "pending-start",
       "comment",
       "chapter",
+      "social-clip",
+      "trim-out",
     ] as const;
     const many = kinds.map((kind, i) =>
       hit(target(hitTargetProps(kind, `k${i}`, i)), {
         kind,
         x: i * 10,
-        selected: kind === "comment",
+        selected: kind === "trim-out",
       }),
     );
     show({ hits: many });
     expect(chips().map((c) => c.getAttribute("aria-label"))).toEqual([
       "Clip, Trim start at 00:00.000",
-      "Clip, Trim end at 00:01.000",
-      "Seam, Roll at 00:04.000",
-      "Comment, 00:05.000, selected",
-      "Chapter, 00:06.000",
+      "Seam, Roll at 00:01.000",
+      "Suggestion, Pending start at 00:02.000",
+      "Comment, 00:03.000",
+      "Clip, Trim end at 00:06.000, selected",
     ]);
   });
 

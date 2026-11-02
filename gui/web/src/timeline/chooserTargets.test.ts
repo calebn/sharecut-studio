@@ -168,23 +168,25 @@ describe("chooserTargetsOf", () => {
     expect(new Set(targets.map((t) => t.id)).size).toBe(7);
   });
 
-  it("keeps a selected target and one of each kind before a second of the same kind", () => {
+  it("never cuts the selected target, even as the second of its kind, and keeps one of each kind before it", () => {
     const hits = [
       hit("trim-in", { x: 10 }),
-      hit("trim-out", { x: 20 }),
-      hit("fade-in", { x: 30 }),
-      hit("fade-out", { x: 40 }),
-      hit("roll", { x: 50 }),
-      hit("bleed-attenuation", { x: 60 }),
-      hit("comment", { x: 70, selected: true }),
+      hit("roll", { x: 20 }),
+      hit("pending-start", { x: 30 }),
+      hit("comment", { x: 40 }),
+      hit("chapter", { x: 50 }),
+      hit("social-clip", { x: 60 }),
+      hit("trim-out", { x: 70, selected: true }),
     ];
-    const shown = chooserTargetsOf(hits).slice(0, 5);
-    expect(shown.map((t) => t.kind).sort()).toEqual(
-      ["clip", "comment", "seam", "suggestion", "clip"].sort(),
-    );
-    expect(shown.map((t) => t.id)).toContain("6");
-    expect(shown.map((t) => t.id)).toContain("4");
-    expect(shown.map((t) => t.id)).toContain("5");
+    const targets = chooserTargetsOf(hits);
+    expect(targets.slice(0, 5).map((t) => t.id)).toEqual([
+      "0",
+      "1",
+      "2",
+      "3",
+      "6",
+    ]);
+    expect(targets.slice(5).map((t) => t.id)).toEqual(["4", "5"]);
   });
 
   it("keeps the five best-ranked when the kinds repeat", () => {
