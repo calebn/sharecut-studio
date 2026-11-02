@@ -95,7 +95,7 @@ Four tools mirror the CLI for a host agent: `segment_list_tool`, `segment_show_t
 
 ## Doctor
 
-`podcast doctor` checks the newest version of each segment in the library by looking at `segment.json` and each audio file's presence and size, without reading the audio, so `podcast setup` and the support bundle (which run the same checks) stay cheap. `podcast doctor --deep` also hashes the audio. It prints a `[warn]` line for each damaged segment (at most five, then a count of the rest). The fix line is the same text `podcast segment list` prints: import the segment again, which stores a new version and keeps the older ones; `podcast segment remove ID` is named only when the segment has no older version, because it deletes every version. A segment removed while doctor runs is left out. An absent or intact library prints nothing. A damaged segment does not fail doctor. Older versions are not checked.
+`podcast doctor` checks the newest version of each segment in the library by looking at `segment.json` and each audio file's presence and size, without reading the audio, so the support bundle (which runs the same checks) stays cheap. `podcast doctor --deep` also hashes the audio. It prints a `[warn]` line for each damaged segment (at most five, then a count of the rest). The fix line is the same text `podcast segment list` prints: import the segment again, which stores a new version and keeps the older ones; `podcast segment remove ID` is named only when the segment has no older version, because it deletes every version. A segment removed while doctor runs is left out. An absent or intact library prints nothing. A damaged segment does not fail doctor. Older versions are not checked.
 
 ## Not built yet
 
