@@ -175,6 +175,10 @@ export async function exerciseBounceHydration(
       let abortedDuringCleanup = 0;
       let failure: string | null = null;
       let primaryError: unknown;
+      let breakpointViewportChanged = false;
+      let breakpointControl: Awaited<
+        ReturnType<Locator["elementHandle"]>
+      > | null = null;
       let eventLog: Awaited<ReturnType<typeof captureAnchorEvents>> | null =
         null;
       let nativeEventDiagnostics: unknown = null;
@@ -415,6 +419,62 @@ export async function exerciseBounceHydration(
           phase: "real-bounce-finished",
           geometry: await geometry(page),
         });
+        if (departure) {
+          const formats = transcript.getByRole("button", {
+            name: "VTT",
+            exact: true,
+          });
+          await formats.click();
+          await expect(formats).toHaveAttribute("aria-pressed", "true");
+          const selectedFormats = await transcript
+            .getByRole("button", { pressed: true })
+            .allTextContents();
+          await page.keyboard.press("Tab");
+          await page.keyboard.press("Tab");
+          const copy = transcript.getByRole("button", {
+            name: "Copy text",
+            exact: true,
+          });
+          await expect(copy).toBeFocused();
+          breakpointControl = await copy.elementHandle();
+          expect(breakpointControl).toBeTruthy();
+          const oppositeWidth = width === 1280 ? 390 : 1280;
+          breakpointViewportChanged = true;
+          await page.setViewportSize({ width: oppositeWidth, height: 844 });
+          await expect(deliver.locator("..")).toHaveAttribute(
+            "data-layout",
+            oppositeWidth === 1280 ? "desktop" : "phone",
+          );
+          await expect
+            .poll(() =>
+              deliver.evaluate(
+                (el) => document.activeElement === el.closest(".dv-stage"),
+              ),
+            )
+            .toBe(true);
+          expect(
+            await breakpointControl!.evaluate((el) => el.isConnected),
+          ).toBe(false);
+          await expect(
+            deliver.getByRole("region", { name: "Transcript", exact: true }),
+          ).toHaveCount(1);
+          expect(
+            await transcript
+              .getByRole("button", { pressed: true })
+              .allTextContents(),
+          ).toEqual(selectedFormats);
+          expect(previewRequests).toBe(1);
+          expect(bounceRequests).toBe(1);
+          phases.push({
+            phase: "transcript-breakpoint-existing-stage-focus-recovery",
+            oppositeWidth,
+            selectedFormats,
+            geometry: await geometry(page),
+          });
+          await page.screenshot({
+            path: path.join(folder, `${stem}-breakpoint.png`),
+          });
+        }
       } catch (error) {
         failure =
           error instanceof Error
@@ -455,6 +515,32 @@ export async function exerciseBounceHydration(
             });
           } catch (error) {
             captureErrors.push(`failure screenshot: ${String(error)}`);
+          }
+        }
+        if (breakpointControl) {
+          try {
+            await breakpointControl.dispose();
+          } catch (error) {
+            cleanupFailures.push(error);
+            captureErrors.push(`breakpoint handle cleanup: ${String(error)}`);
+            info.annotations.push({
+              type: "cleanup-error",
+              description: `breakpoint handle: ${String(error)}`,
+            });
+          }
+        }
+        if (breakpointViewportChanged) {
+          try {
+            await page.setViewportSize({ width, height: 844 });
+          } catch (error) {
+            cleanupFailures.push(error);
+            captureErrors.push(
+              `breakpoint viewport restoration: ${String(error)}`,
+            );
+            info.annotations.push({
+              type: "cleanup-error",
+              description: `breakpoint viewport: ${String(error)}`,
+            });
           }
         }
         const receipt = {

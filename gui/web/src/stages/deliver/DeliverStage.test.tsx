@@ -4,6 +4,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ModelGate } from "../../models";
 import { registryModels } from "../../test/modelsStory";
+import { BOUNCE_DEFAULTS, type BounceOptions } from "./bounceLogic";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
 import {
   CHAPTERS,
@@ -5221,7 +5222,11 @@ describe("host export options", () => {
 
   it("scrolls the running export into view on the phone when it starts, not when it is already running", () => {
     const scroll = vi.fn();
-    Element.prototype.scrollIntoView = scroll;
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: scroll,
+    });
     try {
       const running = {
         phase: "running" as const,
@@ -5246,7 +5251,11 @@ describe("host export options", () => {
 
   it("leaves the scroll alone on a desktop, where the section is already in view", () => {
     const scroll = vi.fn();
-    Element.prototype.scrollIntoView = scroll;
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: scroll,
+    });
     try {
       const view = render(<DeliverStage {...props()} />);
       view.rerender(
@@ -5486,5 +5495,166 @@ describe("Share section", () => {
     unmount();
     setup({ share, guest: true });
     expect(screen.queryByRole("heading", { name: "Share" })).toBeNull();
+  });
+});
+
+describe("Deliver asynchronous section composition", () => {
+  const bounce = (): BounceOptions => ({
+    state: { phase: "idle" },
+    choices: BOUNCE_DEFAULTS,
+    onChoices: vi.fn(),
+    selectedCount: 2,
+    soloCount: 0,
+    hasRegion: true,
+    onBounce: vi.fn(),
+    onCancel: vi.fn(),
+  });
+  it.each(["desktop", "phone"] as const)(
+    "%s keeps one Transcript after Bounce, Chapters and Clips during hydration",
+    (layout) => {
+      const value = bounce();
+      const all = props({
+        layout,
+        bounce: value,
+        transcript: transcriptOptions({ preview: { kind: "loading" } }),
+      });
+      const view = render(<DeliverStage {...all} />);
+      const transcript = screen.getByRole("region", { name: "Transcript" });
+      const chapters = screen.getByRole("region", { name: "Chapters" });
+      const clips = screen.getByRole("region", { name: "Clips" });
+      const bounceSection = screen.getByRole("region", { name: "Bounce" });
+      for (const preceding of [bounceSection, chapters, clips]) {
+        expect(
+          preceding.compareDocumentPosition(transcript) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+      }
+      expect(transcript.closest(".dv-col") !== null).toBe(layout === "desktop");
+      chapters.querySelector("input")!.focus();
+      const reader = document.activeElement;
+      const preview = {
+        ...SAMPLE_PREVIEW,
+        shown: Array.from({ length: 6 }, (_, i) => ({
+          ...SAMPLE_PREVIEW.shown[0],
+          startSec: i,
+          text: `Turn ${i}`,
+        })),
+      };
+      view.rerender(
+        <DeliverStage
+          {...all}
+          transcript={transcriptOptions({
+            preview: { kind: "ready", preview },
+          })}
+        />,
+      );
+      expect(
+        screen.getAllByRole("region", { name: "Transcript" }),
+      ).toHaveLength(1);
+      expect(screen.getByRole("region", { name: "Transcript" })).toBe(
+        transcript,
+      );
+      expect(screen.getByRole("region", { name: "Chapters" })).toBe(chapters);
+      expect(document.activeElement).toBe(reader);
+      expect(
+        within(
+          screen.getByRole("list", { name: "Transcript preview" }),
+        ).getAllByRole("listitem"),
+      ).toHaveLength(layout === "phone" ? 4 : 6);
+      expect(value.onBounce).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["desktop", "phone"] as const)(
+    "%s breakpoint relocation uses existing stage focus recovery without restarting work or changing choices",
+    (layout) => {
+      const transcript = transcriptOptions({
+        choices: ["txt", "vtt"],
+        onChoices: vi.fn(),
+        onExport: vi.fn(),
+        onPrepare: vi.fn(),
+      });
+      const value = bounce();
+      const all = props({ layout, transcript, bounce: value });
+      const view = render(<DeliverStage {...all} />);
+      const copy = within(
+        screen.getByRole("region", { name: "Transcript" }),
+      ).getByRole("button", { name: "Copy text" });
+      copy.focus();
+      const priorScroll = Object.getOwnPropertyDescriptor(
+        Element.prototype,
+        "scrollIntoView",
+      );
+      const scroll = vi.fn();
+      Object.defineProperty(Element.prototype, "scrollIntoView", {
+        configurable: true,
+        writable: true,
+        value: scroll,
+      });
+      try {
+        view.rerender(
+          <DeliverStage
+            {...all}
+            layout={layout === "desktop" ? "phone" : "desktop"}
+          />,
+        );
+        const region = screen.getByRole("region", { name: "Transcript" });
+        expect(copy.isConnected).toBe(false);
+        expect(document.activeElement).toBe(
+          view.container.querySelector(".dv-stage"),
+        );
+        expect(
+          within(region).getByRole("button", { name: "Text" }),
+        ).toHaveAttribute("aria-pressed", "true");
+        expect(
+          within(region).getByRole("button", { name: "VTT" }),
+        ).toHaveAttribute("aria-pressed", "true");
+        expect(
+          within(region).getByRole("button", { name: "Markdown" }),
+        ).toHaveAttribute("aria-pressed", "false");
+        expect(
+          within(region).getByRole("button", { name: "SRT" }),
+        ).toHaveAttribute("aria-pressed", "false");
+        expect(scroll).not.toHaveBeenCalled();
+        expect(transcript.onChoices).not.toHaveBeenCalled();
+        expect(transcript.onExport).not.toHaveBeenCalled();
+        expect(transcript.onPrepare).not.toHaveBeenCalled();
+        expect(value.onBounce).not.toHaveBeenCalled();
+      } finally {
+        if (priorScroll)
+          Object.defineProperty(
+            Element.prototype,
+            "scrollIntoView",
+            priorScroll,
+          );
+        else Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+      }
+    },
+  );
+  it.each(["desktop", "phone"] as const)(
+    "%s still honors an explicit Transcript focus request",
+    (layout) => {
+      const onFocused = vi.fn();
+      setup({
+        layout,
+        transcript: transcriptOptions({ focusRequested: true, onFocused }),
+      });
+      const region = screen.getByRole("region", { name: "Transcript" });
+      expect(document.activeElement).toBe(
+        within(region).getByRole("button", { name: /^Export/ }),
+      );
+      expect(onFocused).toHaveBeenCalledOnce();
+    },
+  );
+  it("starts the existing command without changing another section's native anchoring", async () => {
+    const value = bounce();
+    setup({ bounce: value, transcript: transcriptOptions() });
+    const transcript = screen.getByRole("region", { name: "Transcript" });
+    transcript.style.setProperty("overflow-anchor", "auto", "important");
+    await userEvent.click(screen.getByRole("button", { name: /^Bounce$/ }));
+    expect(value.onBounce).toHaveBeenCalledOnce();
+    expect(transcript.style.getPropertyValue("overflow-anchor")).toBe("auto");
+    expect(transcript.style.getPropertyPriority("overflow-anchor")).toBe(
+      "important",
+    );
   });
 });
