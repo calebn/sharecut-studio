@@ -570,7 +570,7 @@ def test_cli_save_list_show_remove(library: tuple[str, str]) -> None:
 
     SegmentStore().remove(outro)
     assert "MISSING" in runner.invoke(app, ["kit", "show", kit_id]).output
-    assert "1 segments missing" in runner.invoke(app, ["kit", "list"]).output
+    assert "1 segment missing" in runner.invoke(app, ["kit", "list"]).output
 
     assert runner.invoke(app, ["kit", "remove", kit_id]).exit_code == 0
     assert _code(runner.invoke(app, ["kit", "show", kit_id])) == "kit_unknown"
