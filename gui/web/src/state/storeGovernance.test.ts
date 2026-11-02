@@ -538,6 +538,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "TimelineScrollSync and FixedPlayheadRecenter alone select hot scroll and transport fields; the parent hook selects only actions",
   },
   {
+    file: "timeline/PieceWaveforms.tsx",
+    reason:
+      "reads the current scroll position to mount only the pieces near the view",
+  },
+  {
     file: "timeline/WaveformLayer.tsx",
     reason: "reads the current scroll position to draw only the visible chunk",
   },

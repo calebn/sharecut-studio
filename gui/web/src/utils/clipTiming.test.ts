@@ -168,9 +168,9 @@ describe("wrappers follow the pieces of a timed clip", () => {
     expect(sourceSecInClipToTimeline(hole, 40)).toBe(132);
   });
 
-  it("nearest map extends the outer pieces linearly", () => {
+  it("nearest map extends the first piece back and clamps at the end", () => {
     expect(clipSourceToTimelineNearest(skip, 9)).toBe(99);
-    expect(clipSourceToTimelineNearest(skip, 41)).toBe(128);
+    expect(clipSourceToTimelineNearest(skip, 41)).toBe(127);
   });
 });
 
@@ -184,6 +184,26 @@ describe("wrappers snap within the time epsilon", () => {
     expect(timelinePointToSource([hole], 112 - 2 * TIME_EPS_SEC)).toBeNull();
     expect(sourcePointToTimeline([skip], 23 - half)).toBeCloseTo(110, 8);
     expect(sourcePointToTimeline([skip], 23 - 2 * TIME_EPS_SEC)).toBeNull();
+  });
+});
+
+describe("nearest map past a trailing skip", () => {
+  const trailing = {
+    source_start: 10,
+    source_end: 40,
+    timeline_start: 0,
+    timing: {
+      steps: [{ at: 38, delta_sec: -2 }],
+      method: "bleed_lag",
+      micro_fade_ms: 10,
+    },
+  };
+
+  it("clamps the out point to the timeline end like Python", () => {
+    expect(clipTimelineEnd(trailing)).toBe(28);
+    expect(clipSourceToTimelineNearest(trailing, 40)).toBe(28);
+    expect(clipSourceToTimelineNearest(trailing, 39)).toBe(28);
+    expect(clipSourceToTimelineNearest(trailing, 37)).toBe(27);
   });
 });
 
