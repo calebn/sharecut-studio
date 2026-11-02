@@ -168,7 +168,7 @@ describe("chooserTargetsOf", () => {
     expect(new Set(targets.map((t) => t.id)).size).toBe(7);
   });
 
-  it("never cuts the selected target, even as the second of its kind, and keeps one of each kind before it", () => {
+  it("never cuts the selected target, even as the second of its kind", () => {
     const hits = [
       hit("trim-in", { x: 10 }),
       hit("roll", { x: 20 }),
@@ -187,6 +187,22 @@ describe("chooserTargetsOf", () => {
       "6",
     ]);
     expect(targets.slice(5).map((t) => t.id)).toEqual(["4", "5"]);
+  });
+
+  it("keeps a distinct kind that ranks beyond five hits of one kind", () => {
+    const hits = [
+      ...Array.from({ length: 5 }, (_, i) => hit("trim-in", { x: i * 10 })),
+      hit("roll", { x: 100 }),
+    ];
+    const targets = chooserTargetsOf(hits);
+    expect(targets.slice(0, 5).map((t) => t.id)).toEqual([
+      "0",
+      "1",
+      "2",
+      "3",
+      "5",
+    ]);
+    expect(targets[5].id).toBe("4");
   });
 
   it("keeps the five best-ranked when the kinds repeat", () => {
