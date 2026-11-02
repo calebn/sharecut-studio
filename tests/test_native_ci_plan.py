@@ -139,6 +139,9 @@ def test_git_diff_preserves_newline_names_and_both_rename_directions(tmp_path) -
     assert cp.plan("pull_request", changed).native.required == native.ALL_NATIVE
 
 
+PR_TYPES = ["opened", "synchronize", "reopened", "ready_for_review"]
+
+
 def test_workflow_inventory_forwarding_roots_and_predicates_match_policy() -> None:
     action = load_github_yaml(ROOT / ".github/actions/ci-plan/action.yml")
     assert set(action["outputs"]) == set(cp.plan("push", []).outputs())
@@ -149,7 +152,10 @@ def test_workflow_inventory_forwarding_roots_and_predicates_match_policy() -> No
         workloads = [workload for workload in native.NATIVE_WORKLOADS if workload.workflow == name]
         assert set(workflow["jobs"]) == {"changes", *(workload.job for workload in workloads)}
         changes = workflow["jobs"]["changes"]
-        assert changes["if"] == "github.event_name == 'pull_request'"
+        assert (
+            changes["if"]
+            == "github.event_name == 'pull_request' && github.event.pull_request.draft != true"
+        )
         assert changes["steps"][0]["with"]["fetch-depth"] == 0
         assert changes["steps"][1]["uses"] == "./.github/actions/ci-plan"
         assert changes["outputs"] == {
@@ -172,7 +178,10 @@ def test_workflow_inventory_forwarding_roots_and_predicates_match_policy() -> No
                     )
                     + ")"
                 )
-            assert job["if"] == f"${{{{ !cancelled() && {predicate} }}}}"
+            assert (
+                job["if"]
+                == f"${{{{ !cancelled() && github.event.pull_request.draft != true && {predicate} }}}}"
+            )
             commands = "\n".join(step.get("run", "") for step in job["steps"])
             assert set(re.findall(r"tests/[\w/]+\.py", commands)) == set(workload.test_roots)
             assert all(command in commands for command in workload.command_roots)
@@ -204,9 +213,12 @@ def test_full_event_coverage_and_exact_desktop_exclusions() -> None:
         assert events["push"] == {"branches": ["main"]}
         assert events["schedule"] and "workflow_dispatch" in events
         if name == "desktop.yml":
-            assert events["pull_request"] == {"paths": list(native.DESKTOP_PR_PATHS)}
+            assert events["pull_request"] == {
+                "types": PR_TYPES,
+                "paths": list(native.DESKTOP_PR_PATHS),
+            }
         else:
-            assert events["pull_request"] == {"branches": ["main"]}
+            assert events["pull_request"] == {"types": PR_TYPES, "branches": ["main"]}
 
 
 @pytest.mark.parametrize(
@@ -232,19 +244,22 @@ const jobs = JSON.parse(process.argv[1]);
 for (const job of jobs) {
   const deps = Array.isArray(job.needs) ? job.needs : [job.needs];
   const expr = job.if.slice(3, -2).replace(/\.([\w]+(?:-[\w]+)+)/g, "['$1']");
-  const evaluate = Function('needs', 'cancelled', `return (${expr});`);
+  const evaluate = Function('needs', 'cancelled', 'github', `return (${expr});`);
+  const ready = {event: {pull_request: {draft: false}}};
+  const draft = {event: {pull_request: {draft: true}}};
   const key = job.if.match(/outputs\.(skip-native-[\w-]+)/)[1];
   for (const result of ['success', 'failure', 'skipped', 'cancelled']) {
     for (const flag of ['1', '0', '01', '1.0', ' 1 ', 'true', 'false', '', 'TRUE', 'garbled', undefined, null]) {
       for (const cancelled of [true, false]) {
         const needs = Object.fromEntries(deps.map(dep => [dep, {result: 'success'}]));
         needs.changes = {result, outputs: {[key]: typeof flag === 'string' ? flag.toLowerCase() : flag}};
+        if (evaluate(needs, () => cancelled, draft)) throw Error('runs on a draft');
         const expected = !cancelled && (result !== 'success' || flag !== '1');
-        if (evaluate(needs, () => cancelled) !== expected) throw Error(JSON.stringify({job, result, flag, cancelled}));
+        if (evaluate(needs, () => cancelled, ready) !== expected) throw Error(JSON.stringify({job, result, flag, cancelled}));
         for (const dep of deps.filter(dep => dep !== 'changes')) {
           for (const state of ['failure', 'skipped', 'cancelled']) {
             needs[dep].result = state;
-            if (evaluate(needs, () => cancelled)) throw Error('failed payload producer');
+            if (evaluate(needs, () => cancelled, ready)) throw Error('failed payload producer');
           }
         }
       }
