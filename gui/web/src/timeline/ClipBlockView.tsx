@@ -13,7 +13,7 @@ import type { ClipRow } from "../types/project";
 import { RippleMark } from "../ui/RippleMark";
 import { clipLabels } from "../utils/clipLabels";
 import {
-  clipTotalDelta,
+  clipTimingDelta,
   piecesSourceToTimelineNearest,
   type VirtualPiece,
 } from "../utils/clipTiming";
@@ -211,7 +211,7 @@ export function ClipBlockView({
   // Saved times for the hit targets: the chooser names a target by them.
   const savedStart = clip.timeline_start;
   const savedEnd =
-    savedStart + (clip.source_end - clip.source_start) + clipTotalDelta(clip);
+    savedStart + (clip.source_end - clip.source_start) + clipTimingDelta(clip);
   const labels = clipLabels({
     clip: {
       source_start: sourceStart,
@@ -219,6 +219,7 @@ export function ClipBlockView({
       timeline_start: timelineStart,
       timeline_end: timelineStart + spanSec,
       timing: clip.timing,
+      timing_steps: clip.timing_steps,
     },
     trackSpeaker,
     trackLabel,

@@ -44,13 +44,13 @@ export function clipLabels({
     ClipRow,
     "source_start" | "source_end" | "timeline_start" | "timeline_end"
   > &
-    Partial<Pick<ClipRow, "timing">>;
+    Partial<Pick<ClipRow, "timing" | "timing_steps">>;
 } & ClipSpeakerIdentity) {
   const speaker = clipSpeakerLabel({ trackSpeaker, trackLabel, role });
   const start = formatTime(clip.timeline_start);
   const end = formatTime(clip.timeline_end);
   const duration = formatDurationLabel(
-    clip.timing
+    clip.timing || (clip.timing_steps ?? 0) > 0
       ? clip.timeline_end - clip.timeline_start
       : clip.source_end - clip.source_start,
   );

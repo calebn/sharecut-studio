@@ -275,3 +275,77 @@ describe("clipBlockGeometry for a timed clip", () => {
     expect(g.spanSec).toBe(7);
   });
 });
+
+describe("clipBlockGeometry for a row with timing_steps but no timing", () => {
+  const rowWith = (timelineEnd: number) =>
+    clipRow({
+      source_start: 10,
+      source_end: 40,
+      timeline_start: 100,
+      timeline_end: timelineEnd,
+      timing_steps: 1,
+    });
+  const at = (clip: ReturnType<typeof clipRow>) =>
+    geometry({
+      clip,
+      zoomPxPerSec: ZOOM,
+      rollPreview: null,
+      trimPreview: null,
+      fadePreview: null,
+      previewTimelineStart: null,
+    });
+
+  it.each([
+    ["a hole", 132],
+    ["a skip", 127],
+  ])("sizes the block by the timeline length across %s", (_name, end) => {
+    const g = at(rowWith(end));
+    expect(g.left + g.width).toBe(end * ZOOM);
+    expect(g.committedWidth).toBe((end - 100) * ZOOM);
+    expect(g.pieces).toEqual([{ srcA: 10, srcB: 40, tlA: 0 }]);
+  });
+
+  it("does not overlap or leave a gap before the next clip", () => {
+    const first = at(rowWith(132));
+    const next = at(
+      clipRow({
+        source_start: 40,
+        source_end: 50,
+        timeline_start: 132,
+        timeline_end: 142,
+      }),
+    );
+    expect(first.left + first.width).toBe(next.left);
+  });
+});
+
+describe("clipBlockGeometry trim preview of a skip", () => {
+  const timed = clipRow({
+    source_start: 10,
+    source_end: 40,
+    timeline_start: 100,
+    timeline_end: 127,
+    timing: {
+      steps: [{ at: 35, delta_sec: -3 }],
+      method: "bleed_lag",
+      micro_fade_ms: 10,
+    },
+  });
+  const trimTo = (sourceEnd: number) =>
+    geometry({
+      clip: timed,
+      zoomPxPerSec: ZOOM,
+      rollPreview: null,
+      trimPreview: { edge: "out", mode: "gap", sourceStart: 10, sourceEnd },
+      fadePreview: null,
+      previewTimelineStart: null,
+    });
+
+  it("keeps the skip while it fits the range", () => {
+    expect(trimTo(38).spanSec).toBe(25);
+  });
+
+  it("drops the skip once the range ends inside it", () => {
+    expect(trimTo(37).spanSec).toBe(27);
+  });
+});

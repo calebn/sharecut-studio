@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { TIME_EPS_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import {
   clipShiftAt,
@@ -8,7 +9,9 @@ import {
   clipTimelineEnd,
   clipTimelineSpanSec,
   clipTimelineToSource,
+  clipTimingDelta,
   clipVirtualPieces,
+  stepsWithin,
   timingSummary,
 } from "./clipTiming";
 import {
@@ -168,5 +171,64 @@ describe("wrappers follow the pieces of a timed clip", () => {
   it("nearest map extends the outer pieces linearly", () => {
     expect(clipSourceToTimelineNearest(skip, 9)).toBe(99);
     expect(clipSourceToTimelineNearest(skip, 41)).toBe(128);
+  });
+});
+
+describe("wrappers snap within the time epsilon", () => {
+  const hole = timedClip(CASES.find((c) => c.name === "hole")!);
+  const skip = timedClip(CASES.find((c) => c.name === "skip")!);
+  const half = TIME_EPS_SEC / 2;
+
+  it("lands a point just before a piece start on that piece", () => {
+    expect(timelinePointToSource([hole], 112 - half)).toBeCloseTo(20, 8);
+    expect(timelinePointToSource([hole], 112 - 2 * TIME_EPS_SEC)).toBeNull();
+    expect(sourcePointToTimeline([skip], 23 - half)).toBeCloseTo(110, 8);
+    expect(sourcePointToTimeline([skip], 23 - 2 * TIME_EPS_SEC)).toBeNull();
+  });
+});
+
+describe("steps inside a live range", () => {
+  const timing = {
+    method: "bleed_lag",
+    micro_fade_ms: 10,
+    steps: [
+      { at: 20, delta_sec: 1 },
+      { at: 35, delta_sec: -3 },
+    ],
+  };
+
+  it("keeps a skip only when it ends inside the range", () => {
+    expect(stepsWithin(timing, 10, 38).map((s) => s.at)).toEqual([20, 35]);
+    expect(stepsWithin(timing, 10, 37).map((s) => s.at)).toEqual([20]);
+  });
+
+  it("drops a step at or outside either bound", () => {
+    expect(stepsWithin(timing, 20, 40).map((s) => s.at)).toEqual([35]);
+    expect(stepsWithin(timing, 10, 20)).toEqual([]);
+  });
+});
+
+describe("a row that names steps but carries none", () => {
+  const row = (over: Partial<ClipRow>) =>
+    ({
+      source_start: 10,
+      source_end: 40,
+      timeline_start: 100,
+      timeline_end: 130,
+      ...over,
+    }) as ClipRow;
+
+  it("reads the extra timeline length from its own end", () => {
+    expect(clipTimingDelta(row({ timeline_end: 132, timing_steps: 1 }))).toBe(
+      2,
+    );
+    expect(clipTimingDelta(row({ timeline_end: 127, timing_steps: 1 }))).toBe(
+      -3,
+    );
+  });
+
+  it("adds nothing without steps", () => {
+    expect(clipTimingDelta(row({}))).toBe(0);
+    expect(clipTimingDelta(row({ timing_steps: 0 }))).toBe(0);
   });
 });

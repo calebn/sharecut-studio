@@ -85,15 +85,12 @@ export function clipsForOriginTrack(
 
 /** Map a source second on one clip to timeline (no half-open / null). */
 export function sourceSecOnClipToTimeline(
-  clip: Pick<ClipRow, "source_start" | "timeline_start"> &
-    Partial<Pick<ClipRow, "source_end" | "timing">>,
+  clip: Pick<ClipRow, "source_start" | "source_end" | "timeline_start"> &
+    Partial<Pick<ClipRow, "timing">>,
   sourceSec: number,
 ): number {
-  if (clip.timing && clip.source_end !== undefined) {
-    return clipSourceToTimelineNearest(
-      { ...clip, source_end: clip.source_end },
-      sourceSec,
-    );
+  if (clip.timing) {
+    return clipSourceToTimelineNearest(clip, sourceSec);
   }
   return clip.timeline_start + (sourceSec - clip.source_start);
 }

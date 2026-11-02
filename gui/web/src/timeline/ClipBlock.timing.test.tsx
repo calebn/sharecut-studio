@@ -4,6 +4,8 @@ import { useDawStore } from "../state/dawStore";
 import { clipRow } from "../test/fixtures";
 import type { ClipRow } from "../types/project";
 import { ClipBlock } from "./ClipBlock";
+import { ClipBlockView } from "./ClipBlockView";
+import { clipBlockGeometry } from "./clipBlockGeometry";
 import { PIECE_CULL_MIN, visiblePieceRange } from "./visiblePieces";
 
 type LayerProps = {
@@ -167,21 +169,74 @@ describe("ClipBlock waveform pieces", () => {
 });
 
 describe("ClipBlock with many pieces", () => {
-  it("mounts only the pieces near the view", () => {
-    const steps = Array.from({ length: 60 }, (_, i) => ({
-      at: i + 1,
-      delta_sec: 0.5,
-    }));
-    useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 400 });
-    const { layers: drawn } = draw({
-      ...untimed,
-      source_end: 61,
-      timeline_end: 91,
-      timing: timing(steps),
+  const manyPieces = (count: number): ClipRow => ({
+    ...untimed,
+    source_start: 0,
+    source_end: count,
+    timeline_end: 1 + count + (count - 1) * 0.5,
+    timing: timing(
+      Array.from({ length: count - 1 }, (_, i) => ({
+        at: i + 1,
+        delta_sec: 0.5,
+      })),
+    ),
+  });
+  const mounted = (count: number, scrollLeft: number) => {
+    useDawStore.setState({ scrollLeft, timelineViewportWidth: 100 });
+    return draw(manyPieces(count)).layers.map((l) => l.mediaStartSec);
+  };
+
+  it.each([19, 20])("mounts every piece of %i", (count) => {
+    expect(mounted(count, 0)).toEqual(
+      Array.from({ length: count }, (_, i) => i),
+    );
+  });
+
+  it("starts culling at 21 pieces and keeps the visible run", () => {
+    const starts = mounted(21, 0);
+    expect(starts.length).toBeGreaterThan(0);
+    expect(starts.length).toBeLessThan(21);
+    expect(starts).toEqual(Array.from({ length: starts.length }, (_, i) => i));
+  });
+
+  it("follows the scroll position", () => {
+    const starts = mounted(60, 1500);
+    expect(starts[0]).toBeGreaterThan(0);
+    expect(starts.at(-1)).toBeLessThan(59);
+    expect(starts).toEqual(
+      Array.from({ length: starts.length }, (_, i) => starts[0]! + i),
+    );
+  });
+});
+
+describe("ClipBlockView snap ticks on a timed clip", () => {
+  it("puts a tick past the hole where the timeline plays it", () => {
+    const geometry = clipBlockGeometry({
+      clip: hole,
+      zoomPxPerSec: 50,
+      rollPreview: null,
+      trimPreview: null,
+      fadePreview: null,
+      previewTimelineStart: null,
     });
-    expect(drawn.length).toBeGreaterThan(0);
-    expect(drawn.length).toBeLessThan(25);
-    expect(drawn[0]?.mediaStartSec).toBe(0);
+    const { container } = render(
+      <ClipBlockView
+        clip={hole}
+        {...{ role: "dialogue" }}
+        zoomPxPerSec={50}
+        color="var(--color-clip-dialogue-0)"
+        selected={false}
+        geometry={geometry}
+        prevClip={null}
+        nextClip={null}
+        showHandles={false}
+        snapTicks={[1, 3]}
+      />,
+    );
+    const ticks = [
+      ...container.querySelectorAll<HTMLElement>(".clip-waveform-snap"),
+    ];
+    expect(ticks.map((t) => t.style.left)).toEqual(["50px", "200px"]);
   });
 });
 
