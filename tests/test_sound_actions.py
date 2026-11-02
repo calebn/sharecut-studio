@@ -116,6 +116,24 @@ def test_every_sound_kind_maps_to_a_review_kind() -> None:
     assert {row[5] for row in cut_policy._SOUND_ACTIONS} <= set(get_args(cut_policy.ReviewKind))
 
 
+def test_every_sound_row_has_a_reason_that_produces_it() -> None:
+    from podcast_mcp.edits import cut_policy
+
+    produced = {
+        cut_policy.sound_kind(reason)
+        for reason in (
+            "filler:um",
+            "filler:acoustic",
+            "filler:acoustic:likely_laugh",
+            "filler:acoustic:possible_word",
+            "pause:1.20s",
+            "repetition:the",
+            "restart:we",
+        )
+    }
+    assert produced == {row[0] for row in cut_policy._SOUND_ACTIONS}
+
+
 def test_propose_payload_carries_kind_and_sound_kind() -> None:
     laugh = EditDecision(
         id="e1", track_id="t1", start=1.0, end=2.0, reason="filler:acoustic:likely_laugh"

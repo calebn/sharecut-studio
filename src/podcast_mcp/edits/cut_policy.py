@@ -112,10 +112,6 @@ _SOUND_ACTIONS: tuple[tuple[str, str, SuggestedAction, bool, bool, ReviewKind], 
     ("acoustic", "Unclear sound", "leave", False, True, "sound"),
     ("laugh", "Laugh", "lower", False, True, "sound"),
     ("possible_word", "Possible missed word", "leave", False, True, "sound"),
-    ("backchannel", "Backchannel", "lower", False, False, "sound"),
-    ("breath", "Breath", "leave", False, False, "sound"),
-    ("mouth_click", "Mouth click", "cut", False, False, "sound"),
-    ("playful_phrase", "Playful phrase", "leave", False, False, "other"),
 )
 
 _REVIEW_KIND_BY_SOUND: dict[str, ReviewKind] = {row[0]: row[5] for row in _SOUND_ACTIONS}

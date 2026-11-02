@@ -145,8 +145,7 @@ export type PendingKind =
 
 /**
  * The raw sound the detector heard (`edits/cut_policy.py::sound_kind`); drives the Sound card variant.
- * Only filler, pause, repetition, restart, acoustic, laugh and possible_word are ever sent today;
- * backchannel, breath, mouth_click and playful_phrase are policy-table rows no reason code produces.
+ * These are exactly the rows of the policy table in `cut_policy.py`; each has a reason code that produces it.
  */
 export type PendingSoundKind =
   | "filler"
@@ -155,11 +154,7 @@ export type PendingSoundKind =
   | "restart"
   | "acoustic"
   | "laugh"
-  | "possible_word"
-  | "backchannel"
-  | "breath"
-  | "mouth_click"
-  | "playful_phrase";
+  | "possible_word";
 
 export interface PendingEditView {
   exact_range?: ExactRangeTarget | null;
