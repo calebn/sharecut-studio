@@ -46,6 +46,7 @@ PROVIDER_PRIORITY = (CUDA_PROVIDER, COREML_PROVIDER, DIRECTML_PROVIDER, CPU_PROV
 
 _CGROUP_ROOT = Path("/sys/fs/cgroup")
 _MEMINFO = Path("/proc/meminfo")
+_SELF_CGROUP = Path("/proc/self/cgroup")
 _PROBE_TIMEOUT_SEC = 3.0
 
 
@@ -208,7 +209,7 @@ def _physical_cores() -> int | None:
         if system == "Linux":
             return _linux_physical_cores()
         if system == "Darwin":
-            out = subprocess.run(  # nosec B603 B607
+            out = process.run(
                 ["sysctl", "-n", "hw.physicalcpu"],
                 capture_output=True,
                 text=True,
@@ -291,21 +292,38 @@ def _read_cgroup_int(path: Path) -> int | None:
         return None
 
 
+def _own_cgroup_dirs(root: Path) -> list[Path]:
+    """This process's cgroup v2 directory and every ancestor up to the root, innermost first."""
+    try:
+        lines = _SELF_CGROUP.read_text(encoding="ascii").splitlines()
+    except OSError:
+        return [root]
+    own = next((line[3:] for line in lines if line.startswith("0::")), None)
+    parts = [part for part in (own or "").split("/") if part]
+    if ".." in parts:
+        return [root]
+    return [root.joinpath(*parts[:depth]) for depth in range(len(parts), -1, -1)]
+
+
 def _cgroup_headroom_bytes() -> int | None:
-    """Bytes left under this container's memory limit (cgroup v2, else v1); None when unlimited."""
-    for limit_file, used_file in (
-        (_CGROUP_ROOT / "memory.max", _CGROUP_ROOT / "memory.current"),
-        (
-            _CGROUP_ROOT / "memory" / "memory.limit_in_bytes",
-            _CGROUP_ROOT / "memory" / "memory.usage_in_bytes",
-        ),
-    ):
-        limit = _read_cgroup_int(limit_file)
-        used = _read_cgroup_int(used_file)
-        if limit is None or used is None or limit >= _NO_LIMIT_BYTES:
-            continue
-        return max(0, limit - used)
-    return None
+    """Bytes left under the tightest memory limit above this process; None when unlimited.
+
+    cgroup v2 reads the process's own group and every ancestor, because a limit can sit on
+    any of them; v1 reads the root of the memory controller.
+    """
+    headrooms = []
+    for directory in _own_cgroup_dirs(_CGROUP_ROOT):
+        limit = _read_cgroup_int(directory / "memory.max")
+        used = _read_cgroup_int(directory / "memory.current")
+        if limit is not None and used is not None and limit < _NO_LIMIT_BYTES:
+            headrooms.append(max(0, limit - used))
+    if headrooms:
+        return min(headrooms)
+    limit = _read_cgroup_int(_CGROUP_ROOT / "memory" / "memory.limit_in_bytes")
+    used = _read_cgroup_int(_CGROUP_ROOT / "memory" / "memory.usage_in_bytes")
+    if limit is None or used is None or limit >= _NO_LIMIT_BYTES:
+        return None
+    return max(0, limit - used)
 
 
 def _onnx_providers() -> tuple[str, ...]:
@@ -326,13 +344,13 @@ def _ctranslate2_cuda_devices() -> int:
 
 
 def _nvidia_smi(
-    run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    run: Callable[..., subprocess.CompletedProcess[Any]] | None = None,
 ) -> CudaDevice | None:
     exe = shutil.which("nvidia-smi")
     if exe is None:
         return None
     try:
-        out = run(
+        out = (run or process.run)(
             [exe, "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader,nounits"],
             capture_output=True,
             text=True,
