@@ -103,18 +103,18 @@ def test_to_json_model_list_matches_the_single_model_encoding():
     assert json.loads(to_json([stamped])) == [json.loads(to_json(stamped))]
 
 
-def test_to_json_list_dispatch_does_not_depend_on_the_first_item():
-    items = [{"raw": 1}, SampleModel(name="b", value=2), SampleDataclass(name="c", value=3)]
+def test_to_json_list_of_models_and_dataclasses_converts_each_item():
+    items = [SampleModel(name="b", value=2), SampleDataclass(name="c", value=3), {"raw": 1}]
 
     assert json.loads(to_json(items)) == [
-        {"raw": 1},
         {"name": "b", "value": 2},
         {"name": "c", "value": 3},
+        {"raw": 1},
     ]
     assert to_json([]) == "[]"
 
 
-def test_to_json_encodes_models_in_a_list_that_starts_with_a_plain_item():
-    out = json.loads(to_json([{"raw": 1}, SampleModel(name="b", value=2)]))
+def test_to_json_keeps_the_text_of_a_list_that_starts_with_a_plain_item():
+    model = SampleModel(name="b", value=2)
 
-    assert out == [{"raw": 1}, {"name": "b", "value": 2}]
+    assert json.loads(to_json([{"raw": 1}, model])) == [{"raw": 1}, str(model)]

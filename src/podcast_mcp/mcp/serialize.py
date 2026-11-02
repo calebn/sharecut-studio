@@ -24,8 +24,10 @@ def to_json(data: Any, *, indent: int | None = 2) -> str:
         return data.model_dump_json(indent=indent)
     if _is_dataclass_instance(data):
         return json.dumps(asdict(data), indent=indent, default=str)
-    if isinstance(data, list) and any(
-        isinstance(x, BaseModel) or _is_dataclass_instance(x) for x in data
+    if (
+        isinstance(data, list)
+        and data
+        and (isinstance(data[0], BaseModel) or _is_dataclass_instance(data[0]))
     ):
         return json.dumps([_plain(x) for x in data], indent=indent, default=str)
     return json.dumps(data, indent=indent, default=str)
