@@ -80,7 +80,7 @@ def run_jobs_concurrently(
         pool.shutdown(wait=True)
     except BaseException:
         # KeyboardInterrupt lands in the wait above: drop the queued jobs, let running ones
-        # end, and keep what they learned (their run state) for the run that was interrupted.
+        # end, and absorb their run state as the serial path's engine already holds it.
         stop.set()
         pool.shutdown(wait=True, cancel_futures=True)
         absorb()
