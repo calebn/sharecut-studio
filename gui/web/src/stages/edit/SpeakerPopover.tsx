@@ -118,28 +118,28 @@ export function SpeakerPopover({
   };
   const picking = useRef(false);
   // Esc or an outside press during a pending pick or add already closed the popover: the answer must not close it a second time.
-  const dismissed = useRef(false);
+  const dismissals = useRef(0);
   const dismiss = () => {
-    dismissed.current = true;
+    dismissals.current += 1;
     onClose();
   };
   const pick = async (id: string) => {
     if (picking.current) return;
     picking.current = true;
-    dismissed.current = false;
+    const seen = dismissals.current;
     setError(null);
     try {
       const reason = id === currentId ? undefined : await settle(onPick(id));
       if (reason) setError(reason);
-      else if (!dismissed.current) onClose();
+      else if (dismissals.current === seen) onClose();
     } finally {
       picking.current = false;
     }
   };
   const addSpeaker = async (name: string) => {
-    dismissed.current = false;
+    const seen = dismissals.current;
     const reason = await settle(onAddSpeaker?.(name));
-    if (!reason && !dismissed.current) onClose();
+    if (!reason && dismissals.current === seen) onClose();
     return reason;
   };
 
