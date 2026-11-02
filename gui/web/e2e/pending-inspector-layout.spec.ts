@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { waiveRefineGate } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { expectPreviewFooterTouchBounds } from "./inspectorFooterBounds";
 import { exposeControl } from "./inspectorResponsiveEvidence";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { phone } from "./stageNav";
@@ -69,6 +70,18 @@ async function clickApproveUntilError(root: Locator): Promise<void> {
     }
     await expect(error).toBeVisible();
   }).toPass();
+}
+
+async function expectErrorPinnedAboveAudition(root: Locator): Promise<void> {
+  const error = root.locator(".modifier-error");
+  const seek = root.getByRole("button", { name: "Seek" });
+  const preview = root.getByRole("group", { name: "Preview mode" });
+  await expect(error).toBeVisible();
+  await expect(
+    root.getByRole("region", { name: "Ask about this edit" }),
+  ).toBeAttached();
+  await expectNoOverlap(error, seek);
+  await expectNoOverlap(error, preview);
 }
 
 /** The preview footer is gone where the Action bar plays and seeks; the error sits above Ask. */
@@ -215,13 +228,18 @@ test.describe("Pending inspector layout", () => {
     const inspector = dialog.getByRole("complementary");
     await clickApproveUntilError(inspector);
     // The timeline's compact drawer has no Action bar dock, so the footer stays.
-    await expect(inspector.locator(".modifier-error")).toBeVisible();
-    const seek = inspector.getByRole("button", { name: "Seek", exact: true });
-    const preview = inspector.getByRole("group", { name: "Preview mode" });
-    await expect(seek).toBeVisible();
-    await expect(preview).toBeVisible();
-    await expectNoOverlap(inspector.locator(".modifier-error"), seek);
-    await expectNoOverlap(inspector.locator(".modifier-error"), preview);
+    await expectErrorPinnedAboveAudition(inspector);
+    await exposeControl(
+      page,
+      inspector.getByRole("button", { name: "Seek" }),
+      [],
+    );
+    await exposeControl(
+      page,
+      inspector.getByRole("group", { name: "Preview mode" }),
+      [],
+    );
+    await expectPreviewFooterTouchBounds(inspector);
   });
 
   test("inline review stays hit-testable and tall recovery scrolls outside the lane", async ({

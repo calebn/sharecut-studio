@@ -1,24 +1,14 @@
 import {
   act,
   cleanup,
-  configure,
   fireEvent,
-  getConfig,
   render,
   screen,
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { updatePendingEdit, waiveTranscriptRefine } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
 import {
@@ -1533,11 +1523,6 @@ it("keeps a waiver save busy across relocation and shows its failure on the same
 });
 
 describe("single pending review feedback", () => {
-  // Each review polls the host queue on a real interval; on a loaded machine the default 1 s
-  // findBy window can close before the notice or toast renders (origin/main failed the same way before its queued-outbox model).
-  const defaultAsyncTimeout = getConfig().asyncUtilTimeout;
-  beforeAll(() => configure({ asyncUtilTimeout: 8000 }));
-  afterAll(() => configure({ asyncUtilTimeout: defaultAsyncTimeout }));
   const path = "/tmp/p.json";
   const head = "1b0040fb2927";
   const pending = () => minimalProject({ pending_edits: [edit] });
