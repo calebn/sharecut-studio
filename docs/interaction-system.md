@@ -117,7 +117,9 @@ adoption and reply-head Undo through both entry points.
    menu primitive; the two hand-built menus left are listed under Shipped
    gaps. It lives in the top layer (`ui/topLayerFloor.ts`),
    supports arrow keys, Home and End (`ui/useMenuKeyboard.ts`), closes on
-   choose and on Escape, and returns focus to its anchor.
+   choose and on Escape, and returns focus to its anchor. A one-of-many
+   choice passes `checked` to `MenuItem`, which makes it a `menuitemradio` with
+   `aria-checked` (the Session target chip's menu); a plain action leaves it out.
 3. **Context menus come from one descriptor.** The create menu a long press
    opens on touch and the context menu a right click opens on desktop render
    the same descriptor. A touch gesture that opens a menu has a right-click
