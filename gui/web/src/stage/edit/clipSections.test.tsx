@@ -186,8 +186,8 @@ describe("clip content", () => {
     expect(screen.queryByText(/8\.000/)).toBeNull();
   });
 
-  it("shows the server's timing summary as read-only text, only for a timed clip", () => {
-    open([
+  it("shows the server's timing summary as read-only text, with no axe violations", async () => {
+    const { container } = open([
       {
         ...clip,
         timing_steps: 2,
@@ -198,6 +198,7 @@ describe("clip content", () => {
     expect(value).toBeVisible();
     expect(value.querySelector("button, input, select, a")).toBeNull();
     expect(screen.getByText("Timing")).toBeVisible();
+    await expectNoA11yViolations(container);
   });
 
   it("hides the timing line for an untimed clip", () => {
