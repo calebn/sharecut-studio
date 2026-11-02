@@ -378,7 +378,7 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
         expect(logicalGap).toBe(18);
         expect(Number.parseFloat(target.after.left)).toBe(-14);
         expect(Number.parseFloat(target.after.right)).toBe(-14);
-        expect(target.effectiveWidth).toBeGreaterThanOrEqual(43.5);
+        expect(target.effectiveWidth).toBeGreaterThanOrEqual(44);
         expect(target.rect.left - target.interval.left).toBe(14);
         expect(Number.parseFloat(stack.after.right)).toBe(-logicalGap / 2);
         expect(stack.border).toEqual({ left: 1, right: 1, top: 1, bottom: 1 });
@@ -514,7 +514,7 @@ for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
       contentType: "application/json",
     });
     expect(geometry.point.right - geometry.point.left).toBeGreaterThanOrEqual(
-      43.5,
+      44,
     );
     expect(geometry.point.rect.height).toBe(MARKER_ROW);
     expect(geometry.chapter.right).toBeLessThanOrEqual(geometry.point.left);
