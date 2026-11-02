@@ -381,7 +381,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/ReviewQueue`: Groups, CommentsChronological, Guest, PhoneSheet, BulkRunning.
 
 **23. Queue row**
-- 56 px: kind glyph or author avatar, snippet (Suggestion drawing for proposals), time in mono, value (saved seconds, or reply count), unread 8 px accent dot, offline clock. Swipe right = primary, swipe left = Keep.
+- 56 px: kind glyph or author avatar, snippet (Suggestion drawing for proposals), time in mono, value (saved seconds, or reply count), unread 8 px accent dot, offline clock. Swipe right = primary, swipe left = Keep (not on a comment row: swipe left does nothing there).
 - Used: Review queue items, comment rows, Record comments and markers (a marker is a comment with no text).
 - Replaces: Comment row (rdp), Notes rail rows (record).
 - Story: `System/QueueRow`.

@@ -171,6 +171,18 @@ export function filterItems(
 export const kindInFilter = (kind: DecisionKind, filter: ReviewFilter) =>
   filter === "all" || QUEUE_KIND[kind].filter === filter;
 
+/** Where a comment pick lands: decided rows are left alone; a filter hiding comments resets to All. */
+export function landPlan(
+  items: readonly ReviewItem[],
+  id: string,
+  filter: ReviewFilter,
+): { select: boolean; resetFilter: boolean } {
+  if (items.find((i) => i.id === id)?.result) {
+    return { select: false, resetFilter: false };
+  }
+  return { select: true, resetFilter: !kindInFilter("comment", filter) };
+}
+
 export function filterCounts(
   items: readonly ReviewItem[],
 ): Record<ReviewFilter, number> {

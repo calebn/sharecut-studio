@@ -7,6 +7,7 @@ import {
   filterCounts,
   filterItems,
   groupQueue,
+  landPlan,
   progressLine,
   type ReviewItem,
   resultText,
@@ -275,4 +276,44 @@ describe("verbOf", () => {
       );
     },
   );
+});
+
+describe("landing a comment pick", () => {
+  const items = [
+    item({ id: "comment:open", kind: "comment" }),
+    item({ id: "comment:done", kind: "comment", result: "applied" }),
+    item({ id: "filler:1", kind: "filler" }),
+  ];
+
+  it("selects an open comment and keeps a filter that shows comments", () => {
+    expect(landPlan(items, "comment:open", "comments")).toEqual({
+      select: true,
+      resetFilter: false,
+    });
+    expect(landPlan(items, "comment:open", "all")).toEqual({
+      select: true,
+      resetFilter: false,
+    });
+  });
+
+  it("resets a filter that hides comments to All", () => {
+    expect(landPlan(items, "comment:open", "suggestions").resetFilter).toBe(
+      true,
+    );
+    expect(landPlan(items, "comment:open", "checks").resetFilter).toBe(true);
+  });
+
+  it("leaves a decided comment alone, even under a hiding filter", () => {
+    expect(landPlan(items, "comment:done", "suggestions")).toEqual({
+      select: false,
+      resetFilter: false,
+    });
+  });
+
+  it("still selects an id that is not in the queue", () => {
+    expect(landPlan(items, "comment:new", "all")).toEqual({
+      select: true,
+      resetFilter: false,
+    });
+  });
 });
