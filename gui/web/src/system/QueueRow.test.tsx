@@ -15,6 +15,15 @@ const swipe = (el: Element, dx: number) => {
 };
 
 describe("QueueRow", () => {
+  it("puts fullText on the row button as its title, and no title without it", () => {
+    const { rerender } = render(
+      <QueueRow kind="filler" snippet="um…" time="18:36" fullText="um, well" />,
+    );
+    expect(screen.getByRole("button")).toHaveAttribute("title", "um, well");
+    rerender(<QueueRow kind="filler" snippet="um…" time="18:36" />);
+    expect(screen.getByRole("button")).not.toHaveAttribute("title");
+  });
+
   it("selects on click and marks the current row", async () => {
     const onSelect = vi.fn();
     render(
