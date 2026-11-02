@@ -1,4 +1,5 @@
-import { memo, useCallback, useMemo } from "react";
+import { type MouseEvent, memo, useCallback, useMemo, useRef } from "react";
+import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
 import { canEditEnvelopes } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import {
@@ -103,12 +104,33 @@ export const LaneEnvelope = memo(function LaneEnvelope({
     [point],
   );
 
+  // The leaf adds a point on any click that ends on the line, even one that
+  // ended a drag along it: a mouse click that left its press by more than the drag
+  // slop is a drag and reaches nothing.
+  const pressed = useRef<{ x: number; y: number } | null>(null);
+  const notePress = useCallback((event: MouseEvent<HTMLElement>) => {
+    pressed.current = { x: event.clientX, y: event.clientY };
+  }, []);
+  const dropDragClick = useCallback((event: MouseEvent<HTMLElement>) => {
+    const down = pressed.current;
+    pressed.current = null;
+    if (
+      (event.target as Element).classList.contains("sys-env-band") &&
+      down &&
+      Math.hypot(event.clientX - down.x, event.clientY - down.y) >
+        HANDLE_DRAG_MIN_PX
+    )
+      event.stopPropagation();
+  }, []);
+
   if (winPx <= 0) return null;
   const start = left / zoomPxPerSec;
   return (
     <div
       className="lane-envelope-window"
       data-testid={timelineTestIds.envelope}
+      onMouseDownCapture={notePress}
+      onClickCapture={dropDragClick}
       style={{ left, width: winPx, height: laneHeight }}
     >
       {/* The dips are read-only: they follow the saved points, not a drag or nudge preview. */}
