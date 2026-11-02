@@ -231,11 +231,11 @@ API layer, or `timelineMetrics` directly — `followSync` still reaches the
 store transitively through `clock.ts`, which the guard does not follow.
 
 `Templates/GhostWordChips` previews the restored-word preview with
-fictional data. Its stories show empty ghost output and a 360px phone layout.
-The comment card and composer are the system components (`System/CommentCard`,
-`System/Composer`); the old `Templates/CommentCompose` story was removed with
-`src/comments/CommentCompose`. The
-callbacks update only story-local state; the live comment panel remains outside this catalog slice. The restored-word preview
+fictional data. Its stories show restored words, empty ghost output and a
+360px phone layout. The comment card and composer are the system components
+(`System/CommentCard`, `System/Composer`); the old `Templates/CommentCompose`
+story was removed with `src/comments/CommentCompose`. The live comment panel
+remains outside this catalog slice. The restored-word preview
 uses the theme's unmapped text color at full opacity so its ghost styling
 remains readable in both themes.
 Open, Resolved, and Empty stay fixed for visual comparison. ResolveAndReopen
