@@ -172,6 +172,8 @@ describe("gesture package governance", () => {
  * gesture adds a line here, or routes through `commands/gestures.ts`.
  */
 const SURFACE_GESTURES: Record<string, string> = {
+  "stage/frame/useAnnounceStageSwitch.ts":
+    "only notes that a Stage tab was pressed, so a mouse click on a tab is not announced as a key switch; it starts no gesture and moves nothing",
   "hooks/useLongPress.ts":
     "one long-press timing for track headers, transcript words and the rail's icon-only labels (gestureConstants)",
   "hooks/useTwoFingerTap.ts":
