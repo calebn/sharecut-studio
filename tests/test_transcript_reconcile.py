@@ -1039,7 +1039,10 @@ def test_run_mutation_marks_stale_on_audio_change(tmp_path: Path):
             )
         ]
 
-    run_mutation(ProjectStore(path), project, "before", "after", add_gate, defaults=load_defaults())
+    store = ProjectStore(path)
+    run_mutation(
+        store, project, "before", "after", add_gate, commit=store.commit, defaults=load_defaults()
+    )
     assert project.reconciliation_stale is True
 
 
@@ -1067,12 +1070,19 @@ def test_run_mutation_skips_auto_reconcile_when_stems_stale(tmp_path: Path):
             )
         ]
 
+    store = ProjectStore(path)
     with patch(
         "podcast_mcp.project.history.session.maybe_auto_reconcile",
         return_value={"status_updates": 1},
     ) as auto_rec:
         run_mutation(
-            ProjectStore(path), project, "before", "after", add_gate, defaults=load_defaults()
+            store,
+            project,
+            "before",
+            "after",
+            add_gate,
+            commit=store.commit,
+            defaults=load_defaults(),
         )
 
     auto_rec.assert_not_called()
