@@ -155,6 +155,7 @@ function Markers() {
       </button>
       <MarkerLane
         markers={chapters}
+        authoritativeMarkers={chapters}
         start={0}
         pxPerSecond={6}
         width={360}
@@ -243,6 +244,7 @@ function MovingMarkers() {
       </button>
       <MarkerLane
         markers={markers}
+        authoritativeMarkers={markers}
         start={0}
         pxPerSecond={6}
         width={400}

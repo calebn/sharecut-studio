@@ -91,7 +91,7 @@ status controls explain the render state.
 with fictional remove, mute and split suggestions, a selected edit, an
 end-handle drag, and filtered and 360px lanes. The live adapter commits
 `UpdatePendingEdit`.
-`Templates/MarkerLane` previews the production `MarkerLaneView` with
+`Templates/MarkerLaneHost` previews the production `MarkerLaneHost` with
 fictional chapters, a social clip, comments and a clipping flag, plus
 selected, read-only, empty and 360px variants. The live adapter commits
 `UpdateChapter` / `UpdateSocialClip` on host projects only.

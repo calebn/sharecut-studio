@@ -8,11 +8,11 @@ import {
   test,
 } from "@playwright/test";
 import { createRelocatedE2eProject } from "./liveProject";
+import { markerGestureProbe } from "./markerGestureProbe";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openPanel, openProject, phone } from "./stageNav";
 import { setTheme } from "./theme";
-import { zoomTimelineIn } from "./timelineZoom";
 
 type Clip = {
   id: string;
@@ -237,6 +237,18 @@ async function evidence(
     `${JSON.stringify(value, null, 2)}\n`,
   );
   await page.screenshot({ path: info.outputPath(`${name}.png`) });
+  if (name === "UpdateChapter" || name === "UpdateSocialClip") {
+    const profile = profiles.find(({ id }) =>
+      info.titlePath.some((part) => part.includes(id)),
+    )?.id;
+    const file = path.join(
+      "playwright-report",
+      `issue-2964-${info.project.name}-${profile}-${name}.png`,
+    );
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    await page.screenshot({ path: file });
+    await info.attach(name, { path: file, contentType: "image/png" });
+  }
 }
 async function audit(
   page: Page,
@@ -451,11 +463,15 @@ for (const profile of profiles) {
       await audit(page, info, profile, false, async (projectPath, commands) => {
         for (const item of [
           {
-            label: "Chapter Inventory chapter",
+            label: /^Chapter Inventory chapter,/,
             type: "UpdateChapter",
             social: false,
           },
-          { label: "Inventory social", type: "UpdateSocialClip", social: true },
+          {
+            label: /^Clip idea Inventory social,/,
+            type: "UpdateSocialClip",
+            social: true,
+          },
         ]) {
           const target = page.getByRole("button", {
             name: item.label,
@@ -501,13 +517,14 @@ for (const profile of profiles) {
             return null;
           });
           expect(owner).not.toBeNull();
-          await page.mouse.move(start.x + 26, start.y, { steps: 5 });
+          await page.mouse.move(start.x + 26.5, start.y, { steps: 5 });
           await expect
             .poll(async () => (await drawn(target)).x)
             .not.toBe(origin.x);
           const forward = await drawn(target);
+          expect(forward.x - origin.x).toBeCloseTo(26.5, 1);
           expect(saved(projectPath)).toEqual(before);
-          await page.mouse.move(start.x + 14, start.y, { steps: 4 });
+          await page.mouse.move(start.x + 14.25, start.y, { steps: 4 });
           await expect
             .poll(async () => (await drawn(target)).x)
             .toBeLessThan(forward.x);
@@ -546,20 +563,70 @@ for (const profile of profiles) {
       page,
     }, info) => {
       await audit(page, info, profile, false, async (projectPath, commands) => {
-        for (const label of ["Chapter Inventory chapter", "Inventory social"]) {
+        const probe = await markerGestureProbe(page);
+        try {
+          for (const label of [
+            /^Chapter Inventory chapter,/,
+            /^Clip idea Inventory social,/,
+          ]) {
+            const target = page.getByRole("button", {
+              name: label,
+              exact: true,
+            });
+            const start = await center(target);
+            const origin = await drawn(target);
+            const before = saved(projectPath);
+            await probe.mark(`${label.source}:before-begin`);
+            await page.mouse.move(start.x, start.y);
+            await page.mouse.down();
+            await page.mouse.move(start.x + 20.5, start.y, { steps: 5 });
+            await probe.mark(`${label.source}:after-begin`);
+            await expect
+              .poll(async () => (await drawn(target)).x)
+              .not.toBe(origin.x);
+            await page.keyboard.press("Escape");
+            await expect.poll(() => drawn(target)).toEqual(origin);
+            await page.mouse.move(start.x + 40.25, start.y);
+            await expect.poll(() => drawn(target)).toEqual(origin);
+            await probe.mark(`${label.source}:before-up`);
+            await page.mouse.up();
+            await probe.mark(`${label.source}:after-up`);
+            expect(saved(projectPath)).toEqual(before);
+            expect(commands).toEqual([]);
+          }
+        } finally {
+          await probe.attach(
+            info,
+            `inventory-escape-focus-pointer-order-${profile.id}`,
+          );
+        }
+      });
+    });
+    test("F10 native Tab cancels a held chapter or social pointer drag", async ({
+      page,
+    }, info) => {
+      await audit(page, info, profile, false, async (projectPath, commands) => {
+        for (const label of [
+          /^Chapter Inventory chapter,/,
+          /^Clip idea Inventory social,/,
+        ]) {
           const target = page.getByRole("button", { name: label, exact: true });
+          await target.focus();
+          await expect(target).toBeFocused();
           const start = await center(target);
           const origin = await drawn(target);
           const before = saved(projectPath);
           await page.mouse.move(start.x, start.y);
           await page.mouse.down();
-          await page.mouse.move(start.x + 20, start.y, { steps: 5 });
+          await page.mouse.move(start.x + 20.5, start.y, { steps: 5 });
           await expect
             .poll(async () => (await drawn(target)).x)
             .not.toBe(origin.x);
-          await page.keyboard.press("Escape");
+          await page.keyboard.press("Tab");
+          await expect(target).not.toBeFocused();
           await expect.poll(() => drawn(target)).toEqual(origin);
-          await page.mouse.move(start.x + 40, start.y);
+          await expect(page.locator(".sys-readout")).toHaveCount(0);
+          await page.mouse.move(start.x + 40.25, start.y);
           await expect.poll(() => drawn(target)).toEqual(origin);
           await page.mouse.up();
           expect(saved(projectPath)).toEqual(before);
@@ -746,47 +813,3 @@ for (const profile of profiles) {
     });
   });
 }
-
-test("F10 native fractional chapter preview cancels to exact assigned CSS", async ({
-  page,
-}, info) => {
-  await audit(page, info, profiles[0], false, async (projectPath, commands) => {
-    const zoom = await zoomTimelineIn(page, { maxSteps: 2 });
-    const target = page.getByRole("button", {
-      name: "Chapter Inventory chapter",
-      exact: true,
-    });
-    const origin = await drawn(target);
-    expect(Number.parseFloat(origin.left) % 1).not.toBe(0);
-    const start = await center(target);
-    const hit = await target.evaluate(
-      (element, point) =>
-        element.contains(document.elementFromPoint(point.x, point.y)),
-      start,
-    );
-    expect(hit).toBe(true);
-    const before = saved(projectPath);
-    await page.mouse.move(start.x, start.y);
-    await page.mouse.down();
-    await page.mouse.move(start.x + 23, start.y, { steps: 5 });
-    await expect
-      .poll(async () => (await drawn(target)).left)
-      .not.toBe(origin.left);
-    const preview = await drawn(target);
-    await page.keyboard.press("Escape");
-    await expect.poll(() => drawn(target)).toEqual(origin);
-    await page.mouse.move(start.x + 37, start.y);
-    await expect.poll(() => drawn(target)).toEqual(origin);
-    await page.mouse.up();
-    expect(saved(projectPath)).toEqual(before);
-    expect(commands).toEqual([]);
-    await evidence(page, info, "fractional-chapter-cancel", {
-      zoom,
-      origin,
-      preview,
-      restored: await drawn(target),
-      hit,
-      commands,
-    });
-  });
-});

@@ -57,6 +57,13 @@ export type PlacedStack = {
   reachEnd: number;
 };
 
+export type StackButtonMetrics = {
+  count: number;
+  width: number;
+  borderStart: number;
+  borderEnd: number;
+};
+
 type PlacedItem = PlacedMarker | PlacedStack;
 
 type Footprint = {
@@ -113,8 +120,9 @@ function footprint(
  * span (a clip, a range comment) is drawn behind the markers inside it and
  * does not fold them; only its start glyph, its chip and a bracket's end
  * glyph do. Positions are held to the lane plus `CLAMP_PX`, but culling and
- * folding use the true footprint. A touch hit area reaches past a marker by
- * half the gap to its neighbour at most, so two hit areas never overlap.
+ * folding use the true footprint. Chapter labels leave room for point-pin
+ * targets. Reach beside a chip uses its measured button and allocated input
+ * bounds; other neighbours share half the gap.
  */
 export function layoutMarkers(
   markers: readonly LaneMarker[],
@@ -122,6 +130,7 @@ export function layoutMarkers(
   pxPerSecond: number,
   width: number,
   pinnedId?: string,
+  stackButtons?: ReadonlyMap<string, StackButtonMetrics>,
 ): PlacedItem[] {
   const held = (x: number) => clamp(x, -CLAMP_PX, width + CLAMP_PX);
   const all = markers.map((marker) => footprint(marker, start, pxPerSecond));
@@ -189,16 +198,36 @@ export function layoutMarkers(
   });
 
   const items: (Open | OpenStack)[] = [];
+  const chapterLimit = (
+    head: Footprint,
+    next: Footprint | undefined,
+    end: number,
+  ) =>
+    Math.max(
+      head.l + MARKER_GLYPH_PX,
+      end -
+        (head.marker.kind === "chapter" &&
+        next?.marker.kind === "comment" &&
+        !isRange(next.marker)
+          ? 2 * MARKER_REACH_PX
+          : 0),
+    );
   groups.forEach(({ head, rest }, index) => {
+    const next =
+      pinned &&
+      pinned.l > head.l &&
+      pinned.l < (groups[index + 1]?.head.l ?? width)
+        ? pinned
+        : groups[index + 1]?.head;
     const nextLeft = Math.min(
       groups[index + 1]?.head.l ?? width,
       pinned && pinned.l > head.l ? pinned.l : width,
     );
     const chipLeft = head.l + MARKER_GLYPH_PX + STACK_CHIP_GAP_PX;
-    const titleEnd = Math.max(
-      head.l + MARKER_GLYPH_PX,
-      rest.length > 0 ? chipLeft : nextLeft,
-    );
+    const titleEnd =
+      rest.length > 0
+        ? Math.max(head.l + MARKER_GLYPH_PX, chipLeft)
+        : chapterLimit(head, next, nextLeft);
     items.push(place(head, titleEnd, rest.length > 0));
     if (rest.length > 0) {
       items.push({
@@ -214,14 +243,14 @@ export function layoutMarkers(
   });
 
   if (pinned) {
-    const nextHead = groups.find((group) => group.head.l > pinned.l)?.head.l;
+    const nextHead = groups.find((group) => group.head.l > pinned.l)?.head;
     const at = items.findIndex((item) => item.l > pinned.l);
     items.splice(
       at < 0 ? items.length : at,
       0,
       place(
         pinned,
-        Math.max(pinned.l + MARKER_GLYPH_PX, nextHead ?? width),
+        chapterLimit(pinned, nextHead, nextHead?.l ?? width),
         false,
       ),
     );
@@ -232,7 +261,7 @@ export function layoutMarkers(
       (item.type === "marker" && item.marker.id === pinnedId) ||
       (item.r >= -CULL_PX && item.l <= width + CULL_PX),
   );
-  return near.map((item, index): PlacedItem => {
+  const placed = near.map((item, index): PlacedItem => {
     let gapBefore = item.type === "stack" ? item.l - item.glyphEnd : item.l;
     let gapAfter = width - item.r;
     near.forEach((other, at) => {
@@ -267,5 +296,80 @@ export function layoutMarkers(
       reachStart,
       reachEnd,
     };
+  });
+  const sizeOf = (item: PlacedStack) => {
+    const size = stackButtons?.get(item.hidden[0]?.id ?? "");
+    return size?.count === item.hidden.length ? size : undefined;
+  };
+  const stacks = placed.map((item) => {
+    if (item.type !== "stack") return item;
+    const size = sizeOf(item);
+    if (!size) return item;
+    let { reachStart, reachEnd } = item;
+    for (const point of placed) {
+      if (
+        point.type !== "marker" ||
+        point.marker.kind !== "comment" ||
+        isRange(point.marker)
+      ) {
+        continue;
+      }
+      if (point.right <= item.left) {
+        reachStart = Math.min(
+          reachStart,
+          clamp(
+            item.left - point.right - MARKER_REACH_PX + size.borderStart,
+            0,
+            MARKER_REACH_PX,
+          ),
+        );
+      } else if (point.left >= item.right) {
+        reachEnd = Math.min(
+          reachEnd,
+          clamp(
+            point.left -
+              MARKER_REACH_PX -
+              item.left -
+              size.width +
+              size.borderEnd,
+            0,
+            MARKER_REACH_PX,
+          ),
+        );
+      }
+    }
+    return { ...item, reachStart, reachEnd };
+  });
+  return stacks.map((item) => {
+    if (
+      item.type !== "marker" ||
+      item.marker.kind !== "comment" ||
+      isRange(item.marker)
+    ) {
+      return item;
+    }
+    let reachStart = clamp(item.left / 2, 0, MARKER_REACH_PX);
+    let reachEnd = clamp((width - item.right) / 2, 0, MARKER_REACH_PX);
+    for (const other of stacks) {
+      if (other === item) continue;
+      const size = other.type === "stack" ? sizeOf(other) : undefined;
+      if (other.right <= item.left) {
+        const available = size
+          ? item.left -
+            other.left -
+            size.width -
+            Math.max(0, other.reachEnd - size.borderEnd)
+          : (item.left - other.right) / 2;
+        reachStart = Math.min(reachStart, clamp(available, 0, MARKER_REACH_PX));
+      } else if (other.left >= item.right) {
+        const available = size
+          ? other.left -
+            Math.max(0, other.reachStart - size.borderStart) -
+            item.right
+          : (other.left - item.right) / 2;
+        reachEnd = Math.min(reachEnd, clamp(available, 0, MARKER_REACH_PX));
+      }
+    }
+    return { ...item, reachStart, reachEnd };
   });
 }
