@@ -198,7 +198,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         page,
         `e2e-long-chapter-${viewport.name}`,
         "AddChapter",
-        { time: 1, title },
+        { time: 22, title },
       );
       try {
         if (viewport.name !== "desktop") {
@@ -208,7 +208,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         await setTheme(page, chapterTheme);
         if (viewport.name === "phone") await openPhoneTimeline(page);
         await page
-          .getByRole("button", { name: `Chapter ${title}`, exact: true })
+          .getByRole("button", { name: new RegExp(`^Chapter ${title},`) })
           .click();
         await inspectSelection(page);
         const inspector = page.locator(".modifier-inspector");
@@ -220,7 +220,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
         ).toHaveValue(title);
         await expect(
           inspector.getByRole("spinbutton", { name: "Chapter time" }),
-        ).toHaveValue("1");
+        ).toHaveValue("22");
         await expectTextFits(inspector.locator(".modifier-header"));
         await expectTextFits(inspector);
         await expectEditorAxeClean(page, ".modifier-inspector");
@@ -229,7 +229,7 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
           page,
           `e2e-remove-chapter-${viewport.name}`,
           "DeleteChapter",
-          { time: 1, title },
+          { time: 22, title },
         );
       }
     });
