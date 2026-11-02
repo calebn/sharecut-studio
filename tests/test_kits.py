@@ -429,7 +429,7 @@ def test_apply_resolves_end_after_earlier_entries_ripple(
     intro, outro = library
     kit = _show_kit(library)
 
-    result = submit_kit_apply(project, kit.id)
+    result = submit_kit_apply(project, kit.id).wire()
 
     assert result["dry_run"] is False and result["undo_steps"] == 2
     assert result["timeline_duration_before_sec"] == pytest.approx(8.0)
@@ -472,7 +472,7 @@ def test_apply_uses_a_pinned_version_and_numeric_positions(
             KitEntry(segment_id=outro, at="start", note="hi"),
         ],
     )
-    result = submit_kit_apply(project, kit_id_for("Numbers"))
+    result = submit_kit_apply(project, kit_id_for("Numbers")).wire()
     assert [e["at"] for e in result["entries"]] == [4.0, 0.0]
     assert result["entries"][1]["note"] == "hi"
     spans = {s[0]: s for s in _spans(project)}
@@ -533,7 +533,7 @@ def test_dry_run_is_read_only_and_reports_chained_effects(
     entry.rename(retired)
     snapshot = {p: p.read_bytes() for p in retired.parent.rglob("*") if p.is_file()}
 
-    dry = submit_kit_apply(str(retired), kit.id, dry_run=True)
+    dry = submit_kit_apply(str(retired), kit.id, dry_run=True).wire()
 
     assert retired.exists() and not entry.exists()
     assert snapshot == {p: p.read_bytes() for p in retired.parent.rglob("*") if p.is_file()}

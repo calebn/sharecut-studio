@@ -143,7 +143,7 @@ def kit_apply_cmd(
     as_json: bool = typer.Option(False, "--json", help="The result as JSON"),
 ) -> None:
     """Put every segment of a kit on an episode, in order. Each segment is its own undo step."""
-    result = submit_kit_apply(project, kit_id, dry_run=dry_run, client_id="cli")
+    result = submit_kit_apply(project, kit_id, dry_run=dry_run, client_id="cli").wire()
     if as_json:
         typer.echo(_json(result))
         return
