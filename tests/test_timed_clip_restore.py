@@ -67,7 +67,7 @@ def _pair(tmp_path, monkeypatch, regions, signal=None):
     return timed, pieces
 
 
-def test_regions_spanning_pieces_0_2_and_3_equal_the_pieces_as_untimed_clips(
+def test_regions_in_pieces_0_2_and_3_equal_the_pieces_as_untimed_clips(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     timed, pieces = _pair(tmp_path, monkeypatch, _REGIONS)
@@ -86,6 +86,7 @@ def test_pieces_without_restore_regions_are_untouched(
     rendered_timed = _render(timed, "timed")
     assert np.array_equal(rendered_timed, _render(pieces, "pieces"))
     plain = _render(_gated(_project(tmp_path / "plain", [_mapped()], _source()), monkeypatch), "p")
+    assert np.any(rendered_timed != plain)
     middle = slice(_frames(1.3), _frames(3.1))
     assert np.array_equal(rendered_timed[middle], plain[middle])
 
@@ -102,6 +103,10 @@ def test_a_segment_render_restores_each_piece_like_the_untimed_pieces(
         rendered.append(_pcm(out))
     assert rendered[0].shape == rendered[1].shape
     assert np.array_equal(rendered[0], rendered[1])
+    plain = _gated(_project(tmp_path / "plain", [_mapped()], _source()), monkeypatch)
+    out = Path(plain.workspace_dir) / "artifacts" / "plain-segment.wav"
+    render_track_segment(plain, "host", *window, out, {})
+    assert np.any(rendered[0] != _pcm(out))
 
 
 def test_automatic_mutes_under_a_late_gate_restore_per_piece(
@@ -122,4 +127,7 @@ def test_automatic_mutes_under_a_late_gate_restore_per_piece(
             )
             for clip in project.clips
         ]
-    assert np.array_equal(_render(timed, "timed"), _render(pieces, "pieces"))
+    rendered = _render(timed, "timed")
+    assert np.array_equal(rendered, _render(pieces, "pieces"))
+    plain = _render(_gated(_project(tmp_path / "plain", [_mapped()], _source()), monkeypatch), "p")
+    assert np.any(rendered != plain)
