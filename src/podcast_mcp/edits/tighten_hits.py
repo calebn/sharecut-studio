@@ -15,8 +15,8 @@ from typing import Any
 
 from podcast_mcp.edits.cut_policy import review_kind, sound_kind
 from podcast_mcp.edits.tighten_reasons import (
-    PAUSE_REASON_PREFIX,
     RESTART_PARTIAL_REASON_PREFIX,
+    is_pause_reason,
     pause_gap_sec,
     repeated_word,
 )
@@ -64,7 +64,7 @@ def is_listen_one_by_one_hit(decision: EditDecision) -> bool:
     One that passed the risk checks is applied like a safe filler. Apply suggested actions
     leaves one whose join still needs review pending and names it.
     """
-    return (decision.reason or "").startswith(PAUSE_REASON_PREFIX) and decision.review_required
+    return is_pause_reason(decision.reason) and decision.review_required
 
 
 MAX_QUOTED_CHARS = 24

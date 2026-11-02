@@ -63,7 +63,11 @@ from podcast_mcp.edits.source_removals import (
     record_suggested_cut_speech,
 )
 from podcast_mcp.edits.suggested_actions import SuggestedActionsResult, record_sound_action
-from podcast_mcp.edits.tighten_reasons import is_pause_reason
+from podcast_mcp.edits.tighten_reasons import (
+    FILLER_REASON_PREFIX,
+    PAUSE_REASON_PREFIX,
+    is_pause_reason,
+)
 from podcast_mcp.edits.timeline_ops import (
     _write_punch_delete,
     _write_punch_delete_clips,
@@ -1540,7 +1544,10 @@ def apply_prefix_edits(
 
 def apply_auto_edits(project: EpisodeProject, defaults: EffectiveConfig) -> int:
     return apply_prefix_edits(
-        project, ("filler:", "pause:"), config_key="tighten", defaults=defaults
+        project,
+        (FILLER_REASON_PREFIX, PAUSE_REASON_PREFIX),
+        config_key="tighten",
+        defaults=defaults,
     )
 
 
