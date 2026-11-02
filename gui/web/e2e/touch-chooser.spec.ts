@@ -422,21 +422,16 @@ test("a right click on the dimmed timeline closes the fan and selects nothing un
   const results: Record<string, unknown> = {};
   for (const [name, point] of [
     ["scrim over a clip", clip],
-    ["scrim over empty timeline", { x: 20, y: 760 }],
+    [
+      "scrim over empty timeline",
+      { x: 20, y: page.viewportSize()!.height - 40 },
+    ],
   ] as const) {
     expect(await openAt(cdp, page, at)).toBe(true);
     const before = await pickState(page);
     commands.length = 0;
-    await page.evaluate(() => {
-      (window as unknown as { nativeMenu: boolean[] }).nativeMenu = [];
-      window.addEventListener("contextmenu", (e) => {
-        (window as unknown as { nativeMenu: boolean[] }).nativeMenu.push(
-          !e.defaultPrevented,
-        );
-      });
-    });
     await page.mouse.click(point.x, point.y, { button: "right" });
-    await page.waitForTimeout(300);
+    await expect(chooser(page)).toHaveCount(0);
     const after = await pickState(page);
     results[name] = {
       closed: (await chooser(page).count()) === 0,
