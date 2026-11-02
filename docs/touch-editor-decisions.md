@@ -579,9 +579,9 @@ press hooks are native Pointer Events:
   text selection off while pressed, blocks the long-press context menu, and
   keeps the browser's click from reaching targets for a second after a
   release. `TimelineView` and `JoinEditor` use it.
-- `timeline/TargetChooser.tsx`: the chooser's chip buttons pick on click, with
-  the `pointerType` taken from the pointerdown (`virtual` for a click with
-  no pointer).
+- `timeline/TimelineChooser.tsx`: the chooser's chip buttons pick on click,
+  with the `pointerType` taken from the pointerdown that pressed inside the fan
+  (`virtual` for a click with no such pointer).
 
 What the native layer does not do that React Aria's hooks did (#1312, to check
 on a phone in #960): it does not focus the target on a long press, ignore
@@ -764,33 +764,41 @@ and a 10 px slop, after the iOS and Android long-press defaults it cites.
   (round 4b). Unselected targets let the finger scroll
   (`touch-action: pan-x pan-y`).
 - **Hold still.** After the long press, two or more targets in reach open the
-  chooser (`timeline/TargetChooser.tsx`); one target, or a surface, is grabbed
-  and the drag continues on it, and released in place it is a slow tap. Chips
-  of `--touch-min` fan out on an arc 64 px above the finger, below it when
-  there is no room above, and swing away from side edges
-  (`timeline/chooserLayout.ts`). Chips and caption stay inside the timeline's
-  visible box, clear of the transport bar, tabs and sheets. Each chip draws its
-  target's glyph at twice its size on the clip colour under it, with a leader
-  line and ring at the real position. Chips read left to right by real x; more
-  than five page through "More". One caption names the chip under the finger,
-  else the focused chip, else the best-ranked one; envelope chips also show
-  their gain.
+  chooser (`stages/edit/TargetChooser.tsx`, hosted by
+  `timeline/TimelineChooser.tsx`); one target, or a surface, is grabbed and the
+  drag continues on it, and released in place it is a slow tap. Chips of
+  `--touch-min` fan out on an arc 56 px above the finger, below it when there
+  is no room above, and swing away from side edges
+  (`stages/edit/chooserMath.ts`). Chips and caption stay inside the timeline's
+  visible box, clear of the transport bar, tabs and sheets. Each chip shows its
+  object kind's icon (clip, seam, comment, suggestion, envelope point, chapter,
+  social clip) in a ring of its track's colour, with no leader line to the real
+  position; trims, fades and the crossfade end share the clip icon, and the
+  roll, join and edit group share the seam icon, so the caption and the chip's
+  spoken name tell them apart. Chips read left to right by real x. The fan
+  draws five: when more crowd the spot it keeps the selected target and the
+  best-ranked of each kind before a second of one kind, and says "showing 5 of
+  N". Press a little nearer or zoom in to reach the others; a stack of six or
+  more same-time comment pins cannot be told apart on touch. One caption names
+  the chip under the finger, else the focused chip (the first chip when the fan
+  opens); an envelope point's caption includes its gain, a comment's its author
+  (cut to 16 characters), and the selected target's ends ", selected".
 - **Commit.** Lifting on a chip replays a tap on its target at the target's own
-  position and focuses it. A chip under the held finger shows it is about to
-  grab: an accent ring closes in on it over the long press (shown at once
-  under reduced motion), and the caption names what the finger can do there,
-  "Slide sideways to drag · lift to select" for a time-only target. A slide
-  along the target's drag axis grabs it at once (see
-  [Drag from a chip](#drag-from-a-chip-1051-round-3)); resting the long press,
-  within the slop, still grabs as a fallback. A grab replays the press on the
-  target and forwards the rest of the drag offset by the chip-to-target
-  distance, so the target moves without jumping to the finger. Chips take taps
-  on click, so touch, mouse, keyboard and assistive-technology
-  presses pick.
+  position and focuses it. A slide along the target's drag axis grabs it at
+  once (see [Drag from a chip](#drag-from-a-chip-1051-round-3)); resting the
+  long press, within the slop, still grabs as a fallback. Nothing on screen
+  shows either any more: the fan has no closing ring, chevrons or hint line, so
+  a rest of about 500 ms on a chip turns a pick into a grab without warning. A
+  grab replays the press on the target and forwards the rest of the drag offset
+  by the chip-to-target distance, so the target moves without jumping to the
+  finger. Chips take taps on click, so touch, mouse, keyboard and
+  assistive-technology presses pick.
 - **Cancel.** Lifting anywhere but a chip leaves the chips open to tap. A tap
   on the dimmed timeline, Escape, a second finger before the hold ends, or
   `pointercancel` closes the chooser or drops the hold with no change; the
-  closing tap's click is swallowed. That ghost-click window only covers the
+  closing tap's click is swallowed. Focus leaving the fan (an app switch, the
+  on-screen keyboard, a screen reader's cursor) closes it too, and a right
+  click on the dimmed timeline opens no native menu. That ghost-click window only covers the
   finger that just lifted: the next press anywhere clears it, so a tap on a
   dialog the drag opened (the cut-speech question) clicks at once.
 
@@ -804,18 +812,16 @@ clip opens that lane's create menu at the session's end, and one before 0 at
 0. The owner's phone test found that spot selecting text when the rule sat on
 the lanes alone.
 
-The chooser is a `role="menu"` of `menuitemradio` chips (checked marks the
-currently selected target, with an accent edge and corner notch). It announces
-"N targets here", moves with Left/Right/Home/End, and Escape returns focus.
+The chooser is a `role="menu"` of `menuitem` chips named "<Kind>, <label>",
+for example "Clip, Trim start at 00:03.000". The selected target is no longer
+marked on its chip; its label ends ", selected" instead. It announces "N
+targets here" ("N targets here, showing 5 of N" past five), moves with
+Left/Right/Home/End, and Escape or Tab out closes it.
 `ui/useMenuKeyboard.ts` owns that keyboard and focus contract for every popup
 menu, so the chooser adds no keydown listener.
 
-Motion follows the repo's motion rules rather than the research spec's exact
-times: chips fly out from the finger on `--motion-hover` (150 ms; the spec
-asked for 160 ms) and the chooser fades out on `--motion-press` (80 ms; the
-spec asked for 100 ms). Under reduced motion the chips appear in place with no
-animation, because reduced motion may only stop motion here; the spec's 100 ms
-fade in place is not used.
+The chooser has no motion: it appears and disappears at once, with or without
+reduced motion, and a chip under the finger scales without a transition.
 
 Open question for physical testing: whether the platform hold (500 ms) feels
 slow for the chooser and the rest-to-grab. The scroll-first rule replaced
@@ -862,8 +868,7 @@ open chips:
   grabs one.
 - **Over a chip, armed.** The finger came down on the chip (after lifting at
   the origin), or a finger that slid there has stayed within the slop for
-  `CHIP_SETTLE_MS` (100 ms, Android's tap timeout). The chip shows chevrons
-  pointing the ways its target moves.
+  `CHIP_SETTLE_MS` (100 ms, Android's tap timeout).
 - **Dragging.** An armed chip grabs on the first move past the slop that runs
   along its target's axis. The drag is measured from where the finger
   came to rest on the chip (not where it first crossed its edge), so that
@@ -1167,7 +1172,7 @@ chooser lab until the owner made it the default (2026-10-07).
 - **Arming.** A long press (`LONG_PRESS_MS`) on one target arms it, if its
   contract gives it an axis, or selects it (a join glyph, a pending split).
   Over two or more targets the chooser opens, and a chip arms its target as
-  before. An armed target wears the chooser's about-to-grab halo, the screen
+  before. An armed target wears an accent halo, the screen
   reader hears "Fade in armed: drag sideways to move it, lift to finish",
   and Android gives a haptic tick. It drags along its own axes only: the
   router holds an edge's y, and an envelope point moves freely. Lifting
