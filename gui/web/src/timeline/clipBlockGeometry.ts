@@ -5,6 +5,12 @@ import {
   type TrimEdge,
 } from "../edit/clipEdgePreview";
 import type { ClipRow } from "../types/project";
+import {
+  clipTotalDelta,
+  livePieces,
+  stepsWithin,
+  type VirtualPiece,
+} from "../utils/clipTiming";
 
 export type FadeEdge = "in" | "out";
 export type ClipFadePreview = { edge: FadeEdge; inMs: number; outMs: number };
@@ -23,6 +29,10 @@ export interface ClipBlockGeometry {
   sourceStart: number;
   sourceEnd: number;
   durationSec: number;
+  /** Timeline length of the live range: `durationSec` plus the holes and skips of a timed clip. */
+  spanSec: number;
+  /** Constant-shift pieces of the live range; `tlA` is seconds from the clip's left edge. */
+  pieces: VirtualPiece[];
   /** Timeline x and width of the clip's border box (css px). */
   left: number;
   width: number;
@@ -90,10 +100,20 @@ export function clipBlockGeometry(input: {
       ? input.previewTimelineStart
       : rollGeom.timelineStart + headShift;
   const left = timelineStart * zoomPxPerSec;
-  const width = Math.max(4, durationSec * zoomPxPerSec);
+  const liveDelta = clip.timing
+    ? stepsWithin(clip.timing, sourceStart, sourceEnd).reduce(
+        (sum, step) => sum + step.delta_sec,
+        0,
+      )
+    : 0;
+  const spanSec = durationSec + liveDelta;
+  const pieces = clip.timing
+    ? livePieces(clip, sourceStart, sourceEnd, 0)
+    : [{ srcA: sourceStart, srcB: sourceEnd, tlA: 0 }];
+  const width = Math.max(4, spanSec * zoomPxPerSec);
   const committedWidth = Math.max(
     4,
-    (clip.source_end - clip.source_start) * zoomPxPerSec,
+    (clip.source_end - clip.source_start + clipTotalDelta(clip)) * zoomPxPerSec,
   );
   const fadeInMs = fadePreview?.inMs ?? clip.fade_in_ms;
   const fadeOutMs = fadePreview?.outMs ?? clip.fade_out_ms;
@@ -113,13 +133,13 @@ export function clipBlockGeometry(input: {
   const gapMode = trimPreview?.mode === "gap";
   const rippleSec =
     trimPreview != null && !rollActive && !gapMode
-      ? durationSec - (clip.source_end - clip.source_start)
+      ? spanSec - (clip.source_end - clip.source_start + clipTotalDelta(clip))
       : 0;
   const landing =
     Math.abs(headShift) > 1e-9 && !gapMode
       ? {
           left: -headShift * zoomPxPerSec,
-          width: Math.max(4, durationSec * zoomPxPerSec),
+          width: Math.max(4, spanSec * zoomPxPerSec),
         }
       : null;
   // A gap trim that shortens the clip leaves its old start or end empty.
@@ -129,7 +149,7 @@ export function clipBlockGeometry(input: {
     : headShift > 1e-9
       ? { left: -headShift * zoomPxPerSec, width: headShift * zoomPxPerSec }
       : tailCut > 1e-9
-        ? { left: durationSec * zoomPxPerSec, width: tailCut * zoomPxPerSec }
+        ? { left: spanSec * zoomPxPerSec, width: tailCut * zoomPxPerSec }
         : null;
 
   return {
@@ -137,6 +157,8 @@ export function clipBlockGeometry(input: {
     sourceStart,
     sourceEnd,
     durationSec,
+    spanSec,
+    pieces,
     left,
     width,
     committedWidth,

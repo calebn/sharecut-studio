@@ -9,6 +9,7 @@ import {
 } from "../audio/gainCurve";
 import { clipIdsBeforeCut, isCutJoin } from "../edit/joinRender";
 import type { ClipRow } from "../types/project";
+import { clipVirtualPieces } from "../utils/clipTiming";
 
 export interface ClipGainPoint {
   readonly time: number;
@@ -72,36 +73,55 @@ export function clipGainDips(
       ...(clip.ignored_word_regions ?? []),
     ]);
     const automaticMute = automaticSpansOf(clip.off_speaker_mute_regions);
-    const fade: ClipFade = {
-      timelineStartSec: clip.timeline_start,
-      timelineEndSec: clip.timeline_end,
-      fadeInSec,
-      fadeOutSec,
-      sourceStartSec: clip.source_start,
-      mute,
-      automaticMute,
-    };
-    const length = clip.timeline_end - clip.timeline_start;
-    const regions: [number, number][] = [];
-    if (fadeInSec > 0)
-      regions.push([
-        clip.timeline_start,
-        clip.timeline_start + renderedFadeSec(length, fadeInSec),
-      ]);
-    if (fadeOutSec > 0)
-      regions.push([
-        clip.timeline_end - renderedFadeSec(length, fadeOutSec),
-        clip.timeline_end,
-      ]);
-    const shift = clip.timeline_start - clip.source_start;
-    for (const span of [...mute, ...automaticMute])
-      regions.push([
-        Math.max(clip.timeline_start, span.start + shift),
-        Math.min(clip.timeline_end, span.end + shift),
-      ]);
-    for (const [from, to] of regions) {
-      const dip = dipOver(volume, fade, clip.id, from, to);
-      if (dip) out.push(dip);
+    const parts = clip.timing
+      ? clipVirtualPieces(clip).map((piece, i, all) => ({
+          start: piece.tlA,
+          end: piece.tlA + (piece.srcB - piece.srcA),
+          sourceStart: piece.srcA,
+          fadeIn: i === 0 ? fadeInSec : 0,
+          fadeOut: i === all.length - 1 ? fadeOutSec : 0,
+        }))
+      : [
+          {
+            start: clip.timeline_start,
+            end: clip.timeline_end,
+            sourceStart: clip.source_start,
+            fadeIn: fadeInSec,
+            fadeOut: fadeOutSec,
+          },
+        ];
+    for (const part of parts) {
+      const fade: ClipFade = {
+        timelineStartSec: part.start,
+        timelineEndSec: part.end,
+        fadeInSec: part.fadeIn,
+        fadeOutSec: part.fadeOut,
+        sourceStartSec: part.sourceStart,
+        mute,
+        automaticMute,
+      };
+      const length = part.end - part.start;
+      const regions: [number, number][] = [];
+      if (part.fadeIn > 0)
+        regions.push([
+          part.start,
+          part.start + renderedFadeSec(length, part.fadeIn),
+        ]);
+      if (part.fadeOut > 0)
+        regions.push([
+          part.end - renderedFadeSec(length, part.fadeOut),
+          part.end,
+        ]);
+      const shift = part.start - part.sourceStart;
+      for (const span of [...mute, ...automaticMute])
+        regions.push([
+          Math.max(part.start, span.start + shift),
+          Math.min(part.end, span.end + shift),
+        ]);
+      for (const [from, to] of regions) {
+        const dip = dipOver(volume, fade, clip.id, from, to);
+        if (dip) out.push(dip);
+      }
     }
   }
   return out;

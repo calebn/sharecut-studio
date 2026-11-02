@@ -102,15 +102,14 @@ export function clipShiftAt(clip: TimedPlacement, sourceSec: number): number {
   return clip.timeline_start - clip.source_start + atPoint - atStart;
 }
 
-export function clipSourceToTimelineNearest(
-  clip: TimedPlacement,
+export function piecesSourceToTimelineNearest(
+  pieces: readonly VirtualPiece[],
   sourceSec: number,
 ): number {
-  const pieces = clipVirtualPieces(clip);
   const first = pieces[0];
   const last = pieces[pieces.length - 1];
   if (!first || !last) {
-    return clip.timeline_start + (sourceSec - clip.source_start);
+    return sourceSec;
   }
   if (sourceSec < first.srcA) {
     return first.tlA + (sourceSec - first.srcA);
@@ -124,6 +123,47 @@ export function clipSourceToTimelineNearest(
     }
   }
   return last.tlA + (sourceSec - last.srcA);
+}
+
+export function clipSourceToTimelineNearest(
+  clip: TimedPlacement,
+  sourceSec: number,
+): number {
+  const pieces = clipVirtualPieces(clip);
+  if (pieces.length === 0) {
+    return clip.timeline_start + (sourceSec - clip.source_start);
+  }
+  return piecesSourceToTimelineNearest(pieces, sourceSec);
+}
+
+const STEP_EDGE_EPS_SEC = 1e-6;
+
+export function stepsWithin(
+  timing: ClipRow["timing"],
+  sourceStart: number,
+  sourceEnd: number,
+) {
+  return (timing?.steps ?? []).filter(
+    (step) =>
+      sourceStart < step.at &&
+      step.at < sourceEnd &&
+      step.at + Math.max(0, -step.delta_sec) <= sourceEnd + STEP_EDGE_EPS_SEC,
+  );
+}
+
+export function livePieces(
+  clip: Pick<ClipRow, "timing">,
+  sourceStart: number,
+  sourceEnd: number,
+  timelineStart: number,
+): VirtualPiece[] {
+  const steps = stepsWithin(clip.timing, sourceStart, sourceEnd);
+  return clipVirtualPieces({
+    source_start: sourceStart,
+    source_end: sourceEnd,
+    timeline_start: timelineStart,
+    timing: clip.timing && { ...clip.timing, steps },
+  });
 }
 
 export function timingSummary(steps: readonly StepDelta[]): string {

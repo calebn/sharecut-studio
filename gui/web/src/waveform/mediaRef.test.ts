@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import type { ClipRow } from "../types/project";
-import { clipMediaRef, clipMediaStartSec, mediaSignature } from "./mediaRef";
+import {
+  clipDrawsPieces,
+  clipMediaRef,
+  clipMediaStartSec,
+  mediaSignature,
+} from "./mediaRef";
 
 const clip: ClipRow = {
   id: "c1",
@@ -39,6 +44,32 @@ describe("clipMediaRef", () => {
     expect(clipMediaRef({ ...clip, source_id: "s9" }, lane, "raw")).toBe(
       "source:s9",
     );
+  });
+});
+
+describe("timed clips", () => {
+  const timed: ClipRow = {
+    ...clip,
+    timeline_end: 16,
+    timing: {
+      steps: [{ at: 15, delta_sec: 2 }],
+      method: "bleed_lag",
+      micro_fade_ms: 10,
+    },
+  };
+
+  it("draws pieces for source media only", () => {
+    expect(clipDrawsPieces(timed, "track:guest")).toBe(true);
+    expect(clipDrawsPieces(timed, "source:s9")).toBe(true);
+    expect(clipDrawsPieces(timed, "stem:guest")).toBe(false);
+    expect(clipDrawsPieces(clip, "track:guest")).toBe(false);
+  });
+
+  it("puts stem media on the timeline through the pieces", () => {
+    expect(clipMediaStartSec(timed, 10, "stem:guest")).toBe(4);
+    expect(clipMediaStartSec(timed, 15, "stem:guest")).toBe(11);
+    expect(clipMediaStartSec(timed, 20, "stem:guest")).toBe(16);
+    expect(clipMediaStartSec(timed, 12, "track:guest")).toBe(12);
   });
 });
 
