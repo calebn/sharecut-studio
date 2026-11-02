@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
@@ -16,6 +16,9 @@ from podcast_mcp.services.document_sync.commands import (
 from podcast_mcp.services.document_sync.payloads import validate_payload
 from podcast_mcp.services.document_sync.service import DocumentSyncService
 from podcast_mcp.util.coded_error import CodedValueError
+
+if TYPE_CHECKING:
+    from podcast_mcp.services.document import SegmentInsertReport
 
 
 def submit_host_document_command(
@@ -92,7 +95,7 @@ def submit_segment_insert(
     version: int | None = None,
     dry_run: bool = False,
     client_id: str = "mcp-agent",
-) -> dict[str, Any]:
+) -> SegmentInsertReport:
     """Insert a library segment (or report what an insert would move), for the CLI and MCP.
 
     ``at`` is ``start``, ``end`` or seconds, parsed by one function for every caller; ``end``
@@ -104,7 +107,7 @@ def submit_segment_insert(
     """
     from podcast_mcp.segments.position import parse_position
     from podcast_mcp.segments.store import SegmentStore
-    from podcast_mcp.services.document import preview_segment_insert
+    from podcast_mcp.services.document import SegmentInsertReport, preview_segment_insert
 
     store = SegmentStore()
     position = parse_position(at)
@@ -123,4 +126,4 @@ def submit_segment_insert(
         {"segment_id": segment_id, "at": position, "version": pinned},
         client_id=client_id,
     )
-    return {**result, "dry_run": False}
+    return SegmentInsertReport.model_validate({**result, "dry_run": False})

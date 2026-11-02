@@ -61,7 +61,9 @@ def kit_apply_tool(project_path: str, kit_id: str, dry_run: bool = False) -> str
     ``segment_hash_mismatch``, ``segment_position_out_of_range``, ``segment_media_invalid``,
     ``segment_write_failed``.
     """
-    return to_json(submit_kit_apply(project_path, kit_id, dry_run=dry_run, client_id="mcp:host"))
+    return to_json(
+        submit_kit_apply(project_path, kit_id, dry_run=dry_run, client_id="mcp:host").wire()
+    )
 
 
 def register(mcp: MCPServer) -> None:
