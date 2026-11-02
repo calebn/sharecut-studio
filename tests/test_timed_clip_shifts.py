@@ -111,3 +111,10 @@ def test_an_untimed_window_keeps_a_sub_microsecond_overlap() -> None:
     assert len(scopes) == 1
     assert scopes[0].start_s == 10.0
     assert scopes[0].end_s == pytest.approx(10.0 + 1e-7)
+
+
+def test_an_untimed_clip_of_a_nanosecond_of_source_yields_no_scope() -> None:
+    sliver = _project(
+        Clip(id="a", track_id="host", source_start=10, source_end=10 + 1e-10, timeline_start=100)
+    )
+    assert gate_scope_for_window(sliver, "host", 99.0, 101.0) == []
