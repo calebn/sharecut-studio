@@ -40,6 +40,7 @@ from podcast_mcp.engines.clips_ops import (
     remove_timeline_range_from_clips,
 )
 from podcast_mcp.engines.lane_window import (
+    Placement,
     SampleRun,
     lane_clip_placements,
     lane_placements,
@@ -58,7 +59,7 @@ from podcast_mcp.engines.session_timeline import (
     shift_at,
     word_source_span,
 )
-from podcast_mcp.models import CutSpeechWord, EpisodeProject
+from podcast_mcp.models import Clip, CutSpeechWord, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db
 from podcast_mcp.util.intervals import intersect_intervals, merge_intervals, subtract_intervals
@@ -176,6 +177,20 @@ def _as_cells(spans: list[tuple[float, float]]) -> list[tuple[int, int]]:
     return [(int(a), int(b)) for a, b in spans]
 
 
+def _piece_clip(clip: Clip, placement: Placement) -> Clip:
+    """``clip`` as the one constant-shift stretch ``placement`` plays; an untimed clip is its own."""
+    if clip.timing is None:
+        return clip
+    return clip.model_copy(
+        update={
+            "source_start": placement.src_start,
+            "source_end": placement.src_end,
+            "timeline_start": placement.tl_start,
+            "timing": None,
+        }
+    )
+
+
 def _removal_cells(
     project: EpisodeProject,
     peer_track_id: str,
@@ -202,7 +217,7 @@ def _removal_cells(
     pairs = lane_clip_placements(project, track) if track else []
     limit = track.media.duration_sec if track and track.media else None
     clips = [
-        clip
+        _piece_clip(clip, placement)
         if math.isfinite(placement.tl_end)
         else clip.model_copy(
             update={
