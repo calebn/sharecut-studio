@@ -180,6 +180,21 @@ describe("MarkerLane", () => {
     expect(vi.mocked(updateChapter).mock.calls[0]![3]).toBe(16.7);
   });
 
+  it("previews the chapter on the snapped grid and treats a drop back on the origin as no move (#2960)", async () => {
+    vi.mocked(updateChapter).mockClear();
+    const { container } = renderLane(
+      { chapters: true, social: false, comments: false, clipping: false },
+      100,
+    );
+    const marker = container.querySelector(".chapter-marker") as HTMLElement;
+    fireEvent.pointerDown(marker, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(marker, { pointerId: 1, clientX: 144 });
+    expect(marker.style.left).toBe(`${2.4 * 100 - MARKER_ROW_HEIGHT / 2}px`);
+    fireEvent.pointerMove(marker, { pointerId: 1, clientX: 104 });
+    fireEvent.pointerUp(marker, { pointerId: 1, clientX: 104 });
+    expect(updateChapter).not.toHaveBeenCalled();
+  });
+
   it("centers point markers with the row height constant", () => {
     const { container } = renderLane({
       chapters: true,
