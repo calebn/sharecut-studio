@@ -162,8 +162,12 @@ describe("roomViewModel columns", () => {
 });
 
 describe("roomViewModel dock and rail", () => {
-  it("passes the viewer's seat through and hides Comment while waiting", () => {
+  it("passes the viewer's seat through and hides Comment until recording starts", () => {
     expect(roomViewModel(base({ phase: WAITING })).showComment).toBe(false);
+    expect(
+      roomViewModel(base({ phase: { kind: "countdown", secondsLeft: 3 } }))
+        .showComment,
+    ).toBe(false);
     expect(roomViewModel(base({ phase: LIVE })).showComment).toBe(true);
     expect(
       roomViewModel(base({ role: "producer", phase: LIVE })).dockSeat,

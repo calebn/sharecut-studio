@@ -234,7 +234,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
     columns,
     listeners,
     dockSeat: role,
-    showComment: phase.kind !== "waiting",
+    showComment: phase.kind !== "waiting" && phase.kind !== "countdown",
     railOpen,
     sheetOpen,
     notesOpen: railOpen || sheetOpen,
