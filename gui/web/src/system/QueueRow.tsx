@@ -23,7 +23,7 @@ export type QueueRowProps = {
   /** A comment row shows who wrote it instead of the kind glyph. */
   author?: { name: string; colorIndex?: number };
   unread?: boolean;
-  /** The full text for a snippet the row clips. Shown as the row button's tooltip; the button's name already reads the whole snippet. */
+  /** The full text of a snippet the row clips, shown as the row button's tooltip. */
   fullText?: string;
   /** Host and producers only: a lock after the snippet, named in the row. */
   restricted?: boolean;

@@ -95,7 +95,7 @@ describe("NotesRail", () => {
     ).toBeInTheDocument();
   });
 
-  it("gives the full note text as the row button's title and name, not an inner span", () => {
+  it("gives the full note text as the row button's title, not an inner span", () => {
     setup();
     const row = screen.getByRole("button", { name: /Keep the laugh/ });
     expect(row).toHaveAttribute("title", "Keep the laugh");
