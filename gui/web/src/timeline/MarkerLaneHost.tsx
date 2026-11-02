@@ -246,9 +246,12 @@ export function MarkerLaneHost({
       if (!move) return;
       const delta =
         move.origin.kind === "chapter"
-          ? Math.max(
-              0,
-              Math.round((move.origin.start + drag.delta) * 10) / 10,
+          ? Math.min(
+              Math.max(
+                0,
+                Math.round((move.origin.start + drag.delta) * 10) / 10,
+              ),
+              Math.max(0, Math.floor(move.duration * 10) / 10),
             ) - move.origin.start
           : drag.delta;
       const next = { ...move, delta };

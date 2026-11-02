@@ -96,7 +96,6 @@ export type MarkerLaneProps = {
     seconds: number,
     nudge: MarkerNudge,
   ) => void;
-  /** Release and ordinary blur commit; Escape, invalidation and unmount cancel. */
   onNudgeEnd?: (id: string, grip: MarkerGrip, committed: boolean) => void;
   /** A double-click on empty lane. The host then passes `adding`. */
   onAdd?: (seconds: number) => void;
