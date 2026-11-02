@@ -264,7 +264,7 @@ function TrackColumnView({
       >
         {/*
           Pointer-only chrome; keyboard uses the well / Mod+Shift+A.
-          Same pattern as .lane-seek / .envelope-hit: a div (not button) so
+          Same pattern as .lane-seek: a div (not button) so
           Lighthouse target-size ignores this full-bleed hit area. Do not
           restore a hidden button or a title that names a second deselect control.
         */}
