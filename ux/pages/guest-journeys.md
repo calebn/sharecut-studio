@@ -494,11 +494,11 @@ flowchart TD
 3. Host Start does not wait on the producer.
 4. During REC/PAUSED they see the tiles and pill and **Hearing the room.**
    Press **M** for a Marker comment, or type a note — the host and producer see
-   all live comments; other guests do not.
+   all live comments; other guests see their own notes and every marker, and other notes only if the host turned on Guests see notes.
 5. If the host drops, they reconnect — they are not recording.
 
 **Success:** Talent sees the producer among the people in the room; the producer never appears
-as a recorded track. Live comments from the producer are visible to the host
-and stay hidden from guests until landing.
+as a recorded track. Live comments from the producer are visible to the host.
+Guests see the producer's markers, but not the producer's text notes unless the host turns on Guests see notes.
 
 ---
