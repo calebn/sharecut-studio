@@ -69,7 +69,11 @@ def kit_list_cmd(as_json: bool = typer.Option(False, "--json")) -> None:
         if row.get("damaged"):
             typer.echo(f"{row['id']}  DAMAGED  v{row['version']}  {row['problem']}")
             continue
-        gap = f"  {row['missing']} segments missing" if row["missing"] else ""
+        gap = (
+            f"  {row['missing']} {'segment' if row['missing'] == 1 else 'segments'} missing"
+            if row["missing"]
+            else ""
+        )
         typer.echo(f"{row['id']}  v{row['version']}  {row['entries']} segments  {row['name']}{gap}")
 
 

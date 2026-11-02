@@ -278,7 +278,7 @@ def _kit_library_checks() -> list[DoctorCheck]:
             checks.append(
                 DoctorCheck(
                     "warn",
-                    f"kit {kit.id} (v{kit.version}): {len(missing)} of its segments are not in "
+                    f"kit {kit.id} (v{kit.version}): {len(missing)} of its segments {'is' if len(missing) == 1 else 'are'} not in "
                     f"the library: {names}{f' and {more} more' if more > 0 else ''}",
                     err=True,
                     extra="  Fix: import the segments (or the kit's .sharecutkit file) again, "
