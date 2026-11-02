@@ -387,7 +387,10 @@ export function DeliverStage({
         setClips(liveClips.current);
       }}
       onPlay={onPlayClip}
-      onApprove={(id) => setClips((now) => approveClip(now, id))}
+      onApprove={(id) => {
+        liveClips.current = approveClip(liveClips.current, id);
+        setClips(liveClips.current);
+      }}
       onRemove={removeClipWithUndo}
       onOpenInEdit={onOpenClipInEdit}
       onFind={onFindClips}

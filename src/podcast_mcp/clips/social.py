@@ -374,7 +374,8 @@ def update_social_clip_details(
     """Set a clip's title and/or approval; ``None`` leaves that field as it is.
 
     An empty title clears it. Approving also clears ``review_required``, as
-    ``approve_social_clips`` does; unapproving leaves ``review_required`` as it was.
+    ``approve_social_clips`` does; unapproving sets it, putting the clip back in
+    review so the default export leaves it out.
     """
     if title is None and approved is None:
         raise CodedValueError("set a title or an approval to change", code="invalid_clip_details")
@@ -383,8 +384,7 @@ def update_social_clip_details(
         changes["title_suggestion"] = _clean_clip_title(title)
     if approved is not None:
         changes["approved"] = approved
-        if approved:
-            changes["review_required"] = False
+        changes["review_required"] = not approved
     for i, clip in enumerate(project.social_clip_candidates):
         if clip.id != clip_id:
             continue

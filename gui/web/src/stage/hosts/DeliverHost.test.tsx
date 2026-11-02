@@ -984,6 +984,14 @@ describe("Deliver host refused-save banner", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("shows a refused clip title or approval save, as it is a Deliver command", async () => {
+    seed(refusedAt(later(), { type: "UpdateSocialClipDetails" }));
+    render(<DeliverStage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save your changes",
+    );
+  });
+
   it("stays quiet for a refused save the person already acknowledged", async () => {
     const at = later();
     seed(refusedAt(at));
@@ -1042,6 +1050,32 @@ describe("Deliver host clip titles and approvals", () => {
     expect(sent()).toEqual([
       ["UpdateSocialClipDetails", { id: "s1", title: "" }],
     ]);
+  });
+
+  it("clears a title to the project's Untitled clip, with no second save", async () => {
+    render(<DeliverStage />);
+    await userEvent.clear(titleField());
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(
+        useDawStore.getState().project?.social_clips[0]?.title_suggestion,
+      ).toBeNull(),
+    );
+    await act(async () => requestHostDrain(PATH));
+    expect(wire.post).toHaveBeenCalledOnce();
+    expect(sent()).toEqual([
+      ["UpdateSocialClipDetails", { id: "s1", title: "" }],
+    ]);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("discards a title typed and sent away with Escape, and sends nothing", async () => {
+    const view = render(<DeliverStage />);
+    await userEvent.type(titleField(), "zzz{Escape}");
+    expect(screen.getByDisplayValue("A line")).toBeInTheDocument();
+    await userEvent.tab();
+    view.unmount();
+    expect(wire.post).not.toHaveBeenCalled();
   });
 
   it("sends nothing for a title put back to what it was", async () => {
