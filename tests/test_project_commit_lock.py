@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import multiprocessing as mp
 import sys
+import traceback
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -304,19 +305,45 @@ def _child_notify(path) -> None:
     notify_document_changed(path)
 
 
-def _child_submit_comments(path, client_id, start, count) -> None:
+def _child_submit_comments(path, client_id, start, count, failures=None) -> None:
     svc = DocumentSyncService.open(path)
     start.wait(60)
     for seq in range(1, count + 1):
-        svc.submit(
-            DocumentCommand(
-                type="AddComment",
-                payload={"body": f"{client_id}-{seq}", "author": client_id, "timeline_start": 1.0},
-                client_id=client_id,
-                role="viewer",
-                client_seq=seq,
+        try:
+            svc.submit(
+                DocumentCommand(
+                    type="AddComment",
+                    payload={
+                        "body": f"{client_id}-{seq}",
+                        "author": client_id,
+                        "timeline_start": 1.0,
+                    },
+                    client_id=client_id,
+                    role="viewer",
+                    client_seq=seq,
+                )
             )
-        )
+        except Exception as exc:
+            if failures is not None:
+                failures.put(_failure_report(client_id, seq, exc))
+            raise
+
+
+def _failure_report(client_id: str, seq: int, exc: BaseException) -> str:
+    """What a failed submit knew: a lock timeout's wait and holder tell contention (a wait
+    near the timeout) from a broken re-entrant acquire (a wait near zero)."""
+    contention = getattr(exc, "contention", None)
+    chain = []
+    link: BaseException | None = exc
+    while link is not None and len(chain) < 6:
+        chain.append(type(link).__name__)
+        link = link.__cause__ or link.__context__
+    return (
+        f"{client_id} submit {seq}: {' <- '.join(chain)}; "
+        f"waited={getattr(contention, 'waited_seconds', None)} "
+        f"holder_pid={getattr(contention, 'holder_pid', None)}\n"
+        + "".join(traceback.format_exception(exc))
+    )
 
 
 def test_mutate_takes_the_lock_before_running_the_mutation(minimal_project, monkeypatch):
@@ -382,17 +409,23 @@ def test_stale_workspace_keeps_a_commit_from_another_process(minimal_project):
 
 
 def test_document_commands_from_two_processes_keep_every_edit(minimal_project):
-    start = _CTX.Event()
+    start, failures = _CTX.Event(), _CTX.Queue()
     children = [
-        _CTX.Process(target=_child_submit_comments, args=(str(minimal_project), cid, start, 5))
+        _CTX.Process(
+            target=_child_submit_comments, args=(str(minimal_project), cid, start, 5, failures)
+        )
         for cid in ("a", "b")
     ]
     for child in children:
         child.start()
     start.set()
-    for child in children:
-        assert reap(child, 120), "a submitting child hung and was killed"
-        assert child.exitcode == 0
+    exited = [reap(child, 120) for child in children]
+    reports = []
+    while not failures.empty():
+        reports.append(failures.get(timeout=5))
+    detail = "\n".join(reports)
+    assert all(exited), f"a submitting child hung and was killed\n{detail}"
+    assert [child.exitcode for child in children] == [0, 0], detail
     project = load_project(minimal_project)
     bodies = {c.body for c in project.comments}
     assert len(project.comments) == 10
