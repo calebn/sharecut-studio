@@ -447,9 +447,11 @@ def slip_clip_to_shift(
     source range slips by the delta between the current and target shift. A head that
     would land before the file start trims the clip instead (the timeline start moves
     later and the source start clamps to 0); a tail past ``media_duration`` clamps too.
-    Returns ``None`` when the slip would leave the clip with no audio.
+    Returns ``None`` when the slip would leave the clip with no audio. A clip with a timing
+    map slips by its shift at ``source_start``; its steps stay in source time and the caller
+    revalidates them against the new range.
     """
-    delta = target_shift - clip_source_to_timeline_shift(clip)
+    delta = target_shift - shift_at(clip, clip.source_start)
     src_start = clip.source_start - delta
     src_end = clip.source_end - delta
     tl_start = clip.timeline_start
