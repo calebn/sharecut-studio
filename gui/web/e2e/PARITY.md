@@ -19,7 +19,7 @@ Use with Playwright phone smoke (`e2e/sharecut.mobile.spec.ts`) and manual share
 ## Guest `suggest` / `edit`
 
 - [ ] Pending approve/reject or suggest cut per capability
-- [ ] Hear before and Hear after (A and B) on the pending sheet's Action bar, Seek to start under More (guest: Hear only)
+- [ ] Hear before and Hear after (A and B) on the pending sheet's Action bar, Seek to start under More (a Viewer link: Hear only, no Seek)
 
 ## Tablet
 
