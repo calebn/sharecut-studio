@@ -1,5 +1,6 @@
 /** Frontend UX command ids — not SyncCommand / DocumentCommand wire types. */
 
+import type { StageId } from "../types/stage";
 import type { CommandContext } from "./context";
 
 export type CommandCategory =
@@ -45,7 +46,8 @@ export type ContextPredicateId =
   | "following"
   | "recordStageActive"
   | "canUndo"
-  | "canRedo";
+  | "canRedo"
+  | `stageAllowed:${StageId}`;
 
 export type ExecuteResult =
   | { status: "ok" }

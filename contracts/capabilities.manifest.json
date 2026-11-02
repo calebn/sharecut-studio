@@ -854,7 +854,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "stageAllowed:record"
       ],
       "surfaces": {
         "command": "stage.record",
@@ -878,7 +878,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "stageAllowed:prepare"
       ],
       "surfaces": {
         "command": "stage.prepare",
@@ -901,7 +901,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "stageAllowed:edit"
       ],
       "surfaces": {
         "command": "stage.edit",
@@ -924,7 +924,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "stageAllowed:review"
       ],
       "surfaces": {
         "command": "stage.review",
@@ -947,7 +947,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "stageAllowed:deliver"
       ],
       "surfaces": {
         "command": "stage.deliver",
@@ -970,7 +970,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "canEditMix"
       ],
       "surfaces": {
         "command": "edit.history",
