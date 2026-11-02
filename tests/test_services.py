@@ -675,12 +675,12 @@ def test_episode_service_empty_set_meta_remove(minimal_project, sample_wav):
     ws = ProjectWorkspace.open(minimal_project)
     svc = EpisodeService(ws)
     out = svc.add_empty_track("narrator", label="Narrator", speaker="Narrator")
-    assert out["track_id"] == "narrator"
+    assert out.track_id == "narrator"
     assert ws.project.track_by_id("narrator").media is None
     assert clips_for_track(ws.project, "narrator") == []
 
     media = svc.set_track_media("narrator", str(sample_wav))
-    assert media["duration_sec"] and media["duration_sec"] > 0
+    assert media.duration_sec and media.duration_sec > 0
     assert len(clips_for_track(ws.project, "narrator")) == 1
     from podcast_mcp.engines.waveform_pyramid import read_meta, wait_pyramid_jobs
 
@@ -689,11 +689,11 @@ def test_episode_service_empty_set_meta_remove(minimal_project, sample_wav):
     assert read_meta(pyramid).total_frames > 0
 
     meta = svc.set_track_meta("narrator", label="Voiceover", role="sfx")
-    assert meta["label"] == "Voiceover"
-    assert meta["role"] == "sfx"
+    assert meta.label == "Voiceover"
+    assert meta.role == "sfx"
 
     removed = svc.remove_track("narrator")
-    assert removed["removed"] is True
+    assert removed.removed is True
     assert ws.project.track_by_id("narrator") is None
     assert clips_for_track(ws.project, "narrator") == []
 
@@ -707,15 +707,15 @@ def test_episode_service_reorder_track(minimal_project):
     assert [t.id for t in ws.project.tracks] == ["a", "b", "c"]
 
     out = svc.reorder_track("c", 0)
-    assert out == {"track_id": "c", "index": 0, "track_ids": ["c", "a", "b"]}
+    assert out.model_dump() == {"track_id": "c", "index": 0, "track_ids": ["c", "a", "b"]}
 
     out = svc.reorder_track("b", 1)
-    assert out["track_ids"] == ["c", "b", "a"]
-    assert out["index"] == 1
+    assert out.track_ids == ["c", "b", "a"]
+    assert out.index == 1
 
     out = svc.reorder_track("a", 99)
-    assert out["track_ids"] == ["c", "b", "a"]
-    assert out["index"] == 2
+    assert out.track_ids == ["c", "b", "a"]
+    assert out.index == 2
 
 
 def test_episode_service_add_empty_duplicate_raises(minimal_project):
