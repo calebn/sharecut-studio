@@ -209,9 +209,10 @@ def test_hole_tone_is_laid_out_from_the_right_pieces_source_position(tmp_path: P
     with _pool((5.0, 6.2)):
         fills = _fills(clip, project)
     tiles = tile_span(5.0, 6.2, 2.0, seed_sec=7.3)
-    assert [(f.src_start, f.src_end) for f in fills] == pytest.approx(
-        [(t.source_start - t.reach_in, t.source_start + t.length + t.reach_out) for t in tiles]
-    )
+    assert [(f.src_start, f.src_end) for f in fills] == [
+        pytest.approx((t.source_start - t.reach_in, t.source_start + t.length + t.reach_out))
+        for t in tiles
+    ]
     unseeded = tile_span(5.0, 6.2, 2.0, seed_sec=0.0)
     assert [t.source_start for t in tiles] != pytest.approx([t.source_start for t in unseeded])
 
@@ -238,7 +239,7 @@ def test_hole_fill_asks_for_a_pick_near_the_right_piece_and_avoids_skipped_sourc
     assert calls[0]["near_sec"] == pytest.approx(1.0)
     assert calls[0]["near_source_id"] == clip.source_id
     assert calls[0]["duration_sec"] == pytest.approx(0.2)
-    assert [tuple(span) for span in calls[0]["avoid"]] == pytest.approx([(2.0, 2.1)])
+    assert [tuple(span) for span in calls[0]["avoid"]] == [pytest.approx((2.0, 2.1))]
 
 
 def test_a_pooled_sample_overlapping_skipped_source_is_not_played(tmp_path: Path) -> None:

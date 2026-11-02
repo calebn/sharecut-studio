@@ -99,9 +99,9 @@ def _render(project: EpisodeProject, tmp_path: Path) -> np.ndarray:
 
 def test_pieces_expand_to_the_geometry_of_the_four_clips() -> None:
     clips, holes = expand_timed_clips([_mapped()])
-    assert [(c.source_start, c.source_end, c.timeline_start) for c in clips] == pytest.approx(
-        _PIECES
-    )
+    assert [(c.source_start, c.source_end, c.timeline_start) for c in clips] == [
+        pytest.approx(piece) for piece in _PIECES
+    ]
     assert sorted(holes) == [0, 2]
     assert all(c.id == "lane" and c.timing is None for c in clips)
 
