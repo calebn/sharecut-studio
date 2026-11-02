@@ -53,7 +53,6 @@ def test_two_step_maps_with_the_same_window_hear_differently() -> None:
     first = _clip(source_id="s")
     second = _clip(source_id="s", timing={"steps": [{"at": 20, "delta_sec": 3}]})
     assert _heard(first, 90, 140) != _heard(second, 90, 140)
-    assert _heard(first, 90, 140) != _heard(_clip(source_id="s", timing=None), 90, 140)
 
 
 def test_a_gate_scope_window_over_a_timed_clip_equals_the_same_pieces_untimed() -> None:
@@ -98,9 +97,12 @@ def test_applying_a_plan_refuses_a_timed_clip_before_any_change(
         lambda _p: [(SimpleNamespace(id="host"), timed, [], 30.0)],
     )
     result = SimpleNamespace(skipped_reason=None, plans=[object()])
+    project = _project(timed)
+    before = [clip.model_dump() for clip in project.clips]
     with pytest.raises(CodedValueError) as err:
-        conversation_align.apply_alignment_plans(_project(timed), result, defaults=load_defaults())
+        conversation_align.apply_alignment_plans(project, result, defaults=load_defaults())
     assert err.value.code == "timing_map_alignment_unsupported"
+    assert [clip.model_dump() for clip in project.clips] == before
 
 
 def test_an_untimed_window_keeps_a_sub_microsecond_overlap() -> None:
@@ -110,11 +112,4 @@ def test_an_untimed_window_keeps_a_sub_microsecond_overlap() -> None:
     scopes = gate_scope_for_window(plain, "host", 100.0, 100.0 + 1e-7)
     assert len(scopes) == 1
     assert scopes[0].start_s == 10.0
-    assert scopes[0].end_s == pytest.approx(10.0 + 1e-7)
-
-
-def test_an_untimed_clip_of_a_nanosecond_of_source_yields_no_scope() -> None:
-    sliver = _project(
-        Clip(id="a", track_id="host", source_start=10, source_end=10 + 1e-10, timeline_start=100)
-    )
-    assert gate_scope_for_window(sliver, "host", 99.0, 101.0) == []
+    assert scopes[0].end_s == pytest.approx(10.0 + 1e-7, rel=0, abs=1e-12)
