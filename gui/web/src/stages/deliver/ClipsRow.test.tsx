@@ -41,6 +41,12 @@ describe("ClipsRow editable", () => {
 });
 
 describe("ClipsRow commitTitles", () => {
+  it("caps a title at 200 characters", () => {
+    renderRow({ commitTitles: true });
+    const [first] = screen.getAllByRole("textbox", { name: /^Title of/ });
+    expect(first).toHaveAttribute("maxlength", "200");
+  });
+
   it("reports a retitle on every keystroke by default", async () => {
     const onRetitle = vi.fn();
     renderRow({ onRetitle });
