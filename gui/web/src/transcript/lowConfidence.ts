@@ -7,11 +7,14 @@ import {
   wordsForUtterance,
 } from "../utils/transcript";
 
-/** The server's flag (`analysis.unsure_word_confidence`, suppressed words excluded) drives the Annotate underline, WORD inspector note, walkthrough stops and Review. */
+/**
+ * The server's flag (`analysis.unsure_word_confidence`, suppressed words excluded) drives the Annotate underline, WORD inspector note, walkthrough stops and Review.
+ * A suppressed word is never a stop, even inside an utterance that also has unsure words, so the walkthrough cannot count one the server status leaves out.
+ */
 export function isLowConfidenceWord(
-  w: Pick<TranscriptWordView, "unsure">,
+  w: Pick<TranscriptWordView, "unsure" | "suppressed">,
 ): boolean {
-  return w.unsure === true;
+  return w.unsure === true && w.suppressed !== true;
 }
 
 /** One stop of the low-confidence walkthrough (#634). */
