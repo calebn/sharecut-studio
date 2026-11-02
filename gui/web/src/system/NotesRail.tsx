@@ -101,8 +101,11 @@ export function NotesRail({
                         {noteSnippet(item)}
                       </>
                     ) : (
-                      <span title={noteSnippet(item)}>{noteSnippet(item)}</span>
+                      noteSnippet(item)
                     )
+                  }
+                  fullText={
+                    item.kind === "marker" ? undefined : noteSnippet(item)
                   }
                   time={item.time ?? undefined}
                   restricted={isRestrictedNote(item)}

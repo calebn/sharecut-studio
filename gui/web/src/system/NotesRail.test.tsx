@@ -95,9 +95,20 @@ describe("NotesRail", () => {
     ).toBeInTheDocument();
   });
 
-  it("gives the full note text as the snippet's title", () => {
+  it("gives the full note text as the row button's title and name, not an inner span", () => {
     setup();
-    expect(screen.getByTitle("Keep the laugh")).toBeInTheDocument();
+    const row = screen.getByRole("button", { name: /Keep the laugh/ });
+    expect(row).toHaveAttribute("title", "Keep the laugh");
+    expect(screen.getByTitle("Keep the laugh")).toBe(row);
+  });
+
+  it("gives a marker row no title", () => {
+    setup();
+    const markers = screen
+      .getAllByRole("button")
+      .filter((b) => /Marker/.test(b.textContent ?? ""));
+    expect(markers.length).toBeGreaterThan(0);
+    for (const m of markers) expect(m).not.toHaveAttribute("title");
   });
 
   it("shows the empty line when a guest sees nothing", () => {
