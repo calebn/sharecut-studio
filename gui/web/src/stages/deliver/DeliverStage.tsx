@@ -415,7 +415,7 @@ export function DeliverStage({
               files={files}
               state={sharedState}
               dock={phone}
-              transcriptKind={transcript?.preview.kind}
+              hasTranscriptSection={Boolean(transcript)}
               options={
                 exportOptions && {
                   ...exportOptions,

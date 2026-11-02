@@ -30,6 +30,7 @@ const meta: Meta<typeof EpisodeFile> = {
   render: (args) => <Controlled {...args} />,
   args: {
     settings: SETTINGS,
+    hasTranscriptSection: false,
     total: TOTAL,
     saveTo: "Field Notes/export",
     exportState: NEVER,
@@ -51,7 +52,7 @@ const meta: Meta<typeof EpisodeFile> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Format chips with a size estimate, loudness (set only here), Whole episode or Part with In and Out, the save folder, and the one filled button. Captions and the transcript are written with every export, so there is no switch for them.\n\n**Motion.** Animations come later: the progress bar uses `--motion-panel`.",
+          "Format chips with a size estimate, loudness (set only here), Whole episode or Part with In and Out, the save folder, and the one filled button. Available captions and transcript are included with every audio export. The note points to more formats only when the host includes a Transcript section, and stays unchanged while its preview loads.\n\n**Motion.** Animations come later: the progress bar uses `--motion-panel`.",
       },
     },
   },

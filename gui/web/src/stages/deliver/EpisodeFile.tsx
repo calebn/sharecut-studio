@@ -22,16 +22,6 @@ import {
 } from "./deliverLogic";
 import { ExportButton } from "./ExportButton";
 import { ExportedFiles } from "./ExportedFiles";
-import type { TranscriptPreviewState } from "./transcriptLogic";
-
-function transcriptNote(
-  kind: TranscriptPreviewState["kind"] | undefined,
-): string | null {
-  if (kind === "ready")
-    return "The transcript is written with every export. Choose more files in Transcript below.";
-  if (kind === "none") return null;
-  return "Captions and transcript are written with every export.";
-}
 
 type Props = {
   settings: EpisodeSettings;
@@ -46,7 +36,7 @@ type Props = {
   /** The Export button lives in the phone dock instead of here. */
   dock?: boolean;
   options?: ExportOptions;
-  transcriptKind?: TranscriptPreviewState["kind"];
+  hasTranscriptSection: boolean;
   onSettings: (next: EpisodeSettings) => void;
   /** Without it the Saves to line is not shown. */
   onChangeFolder?: () => void;
@@ -64,14 +54,16 @@ export function EpisodeFile({
   state = "ready",
   dock = false,
   options = {},
-  transcriptKind,
+  hasTranscriptSection,
   onSettings,
   onChangeFolder,
   onExport,
   onGetModel,
   onCancel,
 }: Props) {
-  const note = transcriptNote(transcriptKind);
+  const note =
+    "Available captions and transcript are included with every audio export." +
+    (hasTranscriptSection ? " Choose more files in Transcript below." : "");
   const wavNote = useId();
   const gatePanel = useRef<HTMLDivElement>(null);
   const runningBlock = useRef<HTMLDivElement>(null);
@@ -149,7 +141,7 @@ export function EpisodeFile({
           message={`Export settings did not load: ${options.settingsError}. Export uses this project's saved formats.`}
         />
       ) : null}
-      {note ? <p className="dv-note">{note}</p> : null}
+      <p className="dv-note">{note}</p>
 
       {options.loudnessNote ? (
         <p className="dv-note">
