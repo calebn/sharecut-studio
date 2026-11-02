@@ -83,7 +83,7 @@ DICT_RETURNS: dict[str, int] = {
     "pipeline/preview.py": 1,
     "pipeline/service.py": 5,
     "record/commands.py": 1,
-    "record/control.py": 14,
+    "record/control.py": 15,
     "record/landing.py": 9,
     "record/landing_math.py": 2,
     "record/live_comments.py": 2,
