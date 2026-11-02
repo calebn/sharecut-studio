@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import threading
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -104,6 +105,7 @@ class WordAligner:
         self._local_source = local_source
         # Built on the first align() without engine=, then reused (one aligner per run).
         self._default_engine: FFmpegEngine | None = None
+        self._default_engine_lock = threading.Lock()
 
     @classmethod
     def load(
@@ -167,9 +169,10 @@ class WordAligner:
     ) -> WordAlignResult:
         start = time.perf_counter()
         if engine is None:
-            if self._default_engine is None:
-                self._default_engine = FFmpegEngine()
-            engine = self._default_engine
+            with self._default_engine_lock:
+                if self._default_engine is None:
+                    self._default_engine = FFmpegEngine()
+                engine = self._default_engine
         chunks = engine.stream_mono_f32(audio_path, sample_rate=SAMPLE_RATE_WAV2VEC2)
         with contextlib.closing(SequentialWindowReader(chunks, SAMPLE_RATE_WAV2VEC2)) as reader:
             placed, stats = place_spans_stream(
