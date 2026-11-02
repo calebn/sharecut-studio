@@ -190,12 +190,42 @@ describe("TimelineChooser", () => {
     );
     show({ hits: many });
     expect(chips()).toHaveLength(5);
+    expect(chips().map((c) => c.getAttribute("aria-label"))).toEqual(
+      [0, 1, 2, 3, 4].map((i) => `Chapter, 00:0${i}.000`),
+    );
     expect(
       screen.getByRole("menu", { name: "Targets here, showing 5 of 7" }),
     ).toBeVisible();
     expect(announce).toHaveBeenCalledWith("7 targets here, showing 5 of 7", {
       toast: false,
     });
+  });
+
+  it("keeps the selected target and one of each kind before a second of one kind", () => {
+    const kinds = [
+      "trim-in",
+      "trim-out",
+      "fade-in",
+      "fade-out",
+      "roll",
+      "comment",
+      "chapter",
+    ] as const;
+    const many = kinds.map((kind, i) =>
+      hit(target(hitTargetProps(kind, `k${i}`, i)), {
+        kind,
+        x: i * 10,
+        selected: kind === "comment",
+      }),
+    );
+    show({ hits: many });
+    expect(chips().map((c) => c.getAttribute("aria-label"))).toEqual([
+      "Clip, Trim start at 00:00.000",
+      "Clip, Trim end at 00:01.000",
+      "Seam, Roll at 00:04.000",
+      "Comment, 00:05.000, selected",
+      "Chapter, 00:06.000",
+    ]);
   });
 
   it("commits a keyboard click as a virtual pick of the chip's hit index", () => {
@@ -226,7 +256,7 @@ describe("TimelineChooser", () => {
     expect(fireEvent.pointerDown(layer as Element)).toBe(true);
   });
 
-  it("lets the router's lift pick win: a pick commits once", () => {
+  it("commits once when the same chip is activated twice", () => {
     show();
     const chip = chipFor(/Trim start/);
     fireEvent.click(chip, { detail: 0 });

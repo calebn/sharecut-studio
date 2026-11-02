@@ -127,11 +127,13 @@ describe("TargetChooser chips", () => {
     ).toBeVisible();
   });
 
-  it("uses the data-target-id attribute, and never the legacy router's chooser or create attributes", () => {
+  it("uses the data-target-id attribute, and never the create menu's attribute", () => {
     expect(TARGET_ID_ATTR).toBe("data-target-id");
     render(<TargetChooser {...props()} />);
     const menu = screen.getByRole("menu");
-    expect(menu.querySelector("[data-chooser-item]")).toBeNull();
+    expect(menu.querySelectorAll("[data-target-id]")).toHaveLength(
+      chips().length,
+    );
     expect(menu.querySelector("[data-create-item]")).toBeNull();
   });
 

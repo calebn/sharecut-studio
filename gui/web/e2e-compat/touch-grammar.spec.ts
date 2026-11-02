@@ -1138,7 +1138,7 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
     lanes,
     commands: commands.map((c) => ({ type: c.type, payload: c.payload })),
   });
-  expect(chips.some((label) => label?.includes("Roll"))).toBe(true);
+  expect(chips.some((label) => /^Seam, Roll at /.test(label ?? ""))).toBe(true);
   // The trimmed start sheds time on the reference lane: its later clip (50 s)
   // moves back by that much.
   const [moved] = lanes[TRACK].arrows;
