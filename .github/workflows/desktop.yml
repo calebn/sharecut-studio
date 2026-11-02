@@ -6,6 +6,7 @@ name: desktop
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "**"
       - "!contracts/bootstrap-assets.schema.json"
@@ -31,7 +32,7 @@ concurrency:
 
 jobs:
   changes:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -51,7 +52,7 @@ jobs:
 
   web-dist:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-web != '1') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-web != '1') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -75,7 +76,7 @@ jobs:
   # Same script as `make test-desktop` / scripts/desktop/check_desktop.sh (clippy/tests --lib only).
   desktop-scaffold:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-cargo != '1') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-cargo != '1') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -90,7 +91,7 @@ jobs:
   # Full NSIS packaging remains in release-desktop-build.yml.
   desktop-windows-check:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-cargo != '1') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-cargo != '1') }}
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -113,7 +114,7 @@ jobs:
   # file IDs, junction checks, open-file rename blocking and seek + read without pread.
   pinned-media-windows:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-pinned != '1') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-pinned != '1') }}
     runs-on: windows-latest
     timeout-minutes: 20
     strategy:
@@ -145,7 +146,7 @@ jobs:
 
   ffmpeg-resolver-windows:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-resolver != '1') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-resolver != '1') }}
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -173,7 +174,7 @@ jobs:
   # docs/persistence.md's Inventory row for review publication).
   project-commit-lock-windows:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-lock != '1') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-lock != '1') }}
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -194,7 +195,7 @@ jobs:
 
   ffmpeg-native-payload:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-payload != '1') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-payload != '1') }}
     strategy:
       fail-fast: false
       matrix:
@@ -234,7 +235,7 @@ jobs:
 
   ffmpeg-linux-newer-host:
     needs: [changes, ffmpeg-native-payload]
-    if: ${{ !cancelled() && ((needs.changes.result != 'success' || needs.changes.outputs.skip-native-payload != '1') && needs.ffmpeg-native-payload.result == 'success') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && ((needs.changes.result != 'success' || needs.changes.outputs.skip-native-payload != '1') && needs.ffmpeg-native-payload.result == 'success') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

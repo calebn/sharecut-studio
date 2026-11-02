@@ -13,6 +13,7 @@ on:
       - "gui/web/**"
       - ".github/workflows/storybook.yml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "gui/web/**"
       - ".github/workflows/storybook.yml"
@@ -27,6 +28,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

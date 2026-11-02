@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
   # Nightly full run: every browser suite on both engines and the coverage floor,
   # whatever the day's PRs skipped.
@@ -22,6 +23,7 @@ concurrency:
 
 jobs:
   changes:
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -39,6 +41,7 @@ jobs:
         uses: ./.github/actions/ci-plan
 
   pytest:
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -232,7 +235,7 @@ jobs:
   # required repository merge checks.
   pytest-python-floor:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.release-only != '1') }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.release-only != '1') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -327,7 +330,7 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     needs: [changes, frontend-suite]
-    if: always()
+    if: ${{ always() && github.event.pull_request.draft != true }}
     steps:
       - name: Require the plan and the planned frontend suite to succeed
         shell: bash
@@ -462,7 +465,7 @@ jobs:
   frontend-e2e:
     runs-on: ubuntu-latest
     needs: [changes, frontend-e2e-suites]
-    if: always()
+    if: ${{ always() && github.event.pull_request.draft != true }}
     steps:
       - name: Require the plan and every planned browser suite to succeed
         shell: bash
