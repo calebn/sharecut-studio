@@ -114,6 +114,9 @@ export function useHostRoom(
   const dropped = useRecordHostStore((s) => s.dropped);
   const transportError = useRecordHostStore((s) => s.transportError);
   const setTransportError = useRecordHostStore((s) => s.setTransportError);
+  const [guestsSeeNotesError, setGuestsSeeNotesError] = useState<string | null>(
+    null,
+  );
   const sink = useRecordHostStore((s) => s.keeperSink);
   const sinkError = useRecordHostStore((s) => s.keeperStorageError);
   const state = snapshot?.state;
@@ -237,15 +240,16 @@ export function useHostRoom(
       return;
     }
     setTransportBusy(true);
-    setTransportError(null);
+    setGuestsSeeNotesError(null);
     void submitHostRecordTransport("SetGuestsSeeNotes", { enabled })
-      .catch((err: unknown) => setTransportError(errorMessage(err)))
+      .catch((err: unknown) => setGuestsSeeNotesError(errorMessage(err)))
       .finally(() => setTransportBusy(false));
   };
 
   useEffect(
     () => () => {
       setTransportError(null);
+      setGuestsSeeNotesError(null);
     },
     [projectPath, setTransportError],
   );
@@ -384,6 +388,7 @@ export function useHostRoom(
     endSession: { ...endSession, gate: end },
     doneNotice,
     transportBusy,
+    guestsSeeNotesError,
     setGuestsSeeNotes,
     runCommand,
     sink,

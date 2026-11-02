@@ -20,7 +20,7 @@ export type RecordMoreSheetProps = {
   onInvite: () => void;
   guestsSeeNotes: boolean;
   onGuestsSeeNotesChange: (enabled: boolean) => void;
-  error?: string | null;
+  guestsSeeNotesError?: string | null;
   onDevices: () => void;
   /** Absent once the end is pending or being sent. */
   onEndSession?: () => void;
@@ -44,7 +44,7 @@ export function RecordMoreSheet({
   onInvite,
   guestsSeeNotes,
   onGuestsSeeNotesChange,
-  error,
+  guestsSeeNotesError,
   onDevices,
   onEndSession,
   endReason,
@@ -109,8 +109,13 @@ export function RecordMoreSheet({
         <ToggleButton
           pressed={guestsSeeNotes}
           aria-describedby={busy ? undefined : helpId}
-          disabledReason={busy ? BUSY_REASON : undefined}
-          onClick={() => onGuestsSeeNotesChange(!guestsSeeNotes)}
+          aria-disabled={busy || undefined}
+          title={busy ? BUSY_REASON : undefined}
+          onClick={() => {
+            if (!busy) {
+              onGuestsSeeNotesChange(!guestsSeeNotes);
+            }
+          }}
         >
           Guests see notes
         </ToggleButton>
@@ -118,11 +123,11 @@ export function RecordMoreSheet({
           Off: guests see their own notes and everyone’s markers. On: they also
           see other people’s notes.
         </p>
-        {error ? (
-          <p className="stage-host-note" role="status">
-            {error}
-          </p>
-        ) : null}
+        <div role="status">
+          {guestsSeeNotesError ? (
+            <p className="inline-error pipeline-error">{guestsSeeNotesError}</p>
+          ) : null}
+        </div>
         <Button onClick={onDevices}>Devices…</Button>
         <Button onClick={onInvite}>Invite and links…</Button>
         {onEndSession ? (
