@@ -641,6 +641,9 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
               .join(", ")}
           </DefItem>
         ) : null}
+        {clip.timing_summary ? (
+          <DefItem label="Timing">{clip.timing_summary}</DefItem>
+        ) : null}
       </DefinitionList>
       {canStructural ? (
         <section className="clip-destructive-controls" aria-label="Delete clip">

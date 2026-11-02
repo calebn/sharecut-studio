@@ -51,6 +51,40 @@ export const PlacementInputError: Story = {
     await userEvent.clear(canvas.getByLabelText("Timeline start (seconds)"));
   },
 };
+const timedClip = {
+  ...clip,
+  timeline_end: clip.timeline_end + 0.12,
+  timing_steps: 2,
+  timing_summary: "2 corrections, largest 120 ms",
+  timing: {
+    steps: [
+      { at: clip.source_start + 1, delta_sec: 0.12 },
+      { at: clip.source_start + 2, delta_sec: -0.05 },
+    ],
+    method: "bleed_lag",
+    micro_fade_ms: 10,
+  },
+};
+const timedProject = {
+  ...project,
+  clips: {
+    ...project.clips,
+    tracks: {
+      ...project.clips.tracks,
+      [MIRA]: [timedClip, ...project.clips.tracks[MIRA].slice(1)],
+    },
+  },
+};
+export const TimedClip: Story = {
+  render: () => <ClipInspector clip={timedClip} />,
+  parameters: {
+    episode: {
+      project: timedProject,
+      role: "editor",
+      selection: selections.clip,
+    },
+  },
+};
 export const PlacementViewer: Story = {
   parameters: {
     episode: { project, role: "viewer", selection: selections.clip },
