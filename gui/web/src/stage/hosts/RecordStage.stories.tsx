@@ -290,6 +290,27 @@ export const MoreSheet: Story = {
   },
 };
 
+export const MoreSheetGuestsSeeNotes: Story = {
+  parameters: withRoom(
+    room({
+      state: "lobby",
+      take_index: -1,
+      recording_ms: 0,
+      guests_see_notes: true,
+    }),
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: "More" }));
+    const dialog = await within(document.body).findByRole("dialog", {
+      name: "More",
+    });
+    await expect(
+      within(dialog).getByRole("button", { name: "Guests see notes" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  },
+};
+
 export const EndSessionDisabled: Story = {
   parameters: withRoom(
     room({ state: "recording", take_index: 0, recording_ms: 5_000 }),

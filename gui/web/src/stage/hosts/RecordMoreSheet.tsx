@@ -1,7 +1,7 @@
 import { type ComponentProps, useState } from "react";
 import { type LandGate, STOP_CONFIRM_COPY, UploadStatus } from "../../record";
 import { Sheet } from "../../system/Sheet";
-import { Button, InlineConfirm } from "../../ui";
+import { Button, InlineConfirm, ToggleButton } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 
 export type RecordMoreSheetProps = {
@@ -18,6 +18,8 @@ export type RecordMoreSheetProps = {
   onResumeUpload: () => void;
   removedInvite: boolean;
   onInvite: () => void;
+  guestsSeeNotes: boolean;
+  onGuestsSeeNotesChange: (enabled: boolean) => void;
   onDevices: () => void;
   /** Absent once the end is pending or being sent. */
   onEndSession?: () => void;
@@ -39,6 +41,8 @@ export function RecordMoreSheet({
   onResumeUpload,
   removedInvite,
   onInvite,
+  guestsSeeNotes,
+  onGuestsSeeNotesChange,
   onDevices,
   onEndSession,
   endReason,
@@ -99,6 +103,17 @@ export function RecordMoreSheet({
             lease.
           </p>
         ) : null}
+        <ToggleButton
+          pressed={guestsSeeNotes}
+          disabledReason={busy ? BUSY_REASON : undefined}
+          onClick={() => onGuestsSeeNotesChange(!guestsSeeNotes)}
+        >
+          Guests see notes
+        </ToggleButton>
+        <p className="stage-host-note">
+          Off: guests see their own notes and everyone’s markers. On: they also
+          see other people’s notes.
+        </p>
         <Button onClick={onDevices}>Devices…</Button>
         <Button onClick={onInvite}>Invite and links…</Button>
         {onEndSession ? (

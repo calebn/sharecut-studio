@@ -36,6 +36,7 @@ import {
 } from "../../test/fixtures";
 import { seedPendingKeeper } from "../../test/keepers";
 import { stubViewportShell } from "../../test/viewportShell";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import { RecordStage } from "./RecordStage";
 
 const { exec, roomTone } = vi.hoisted(() => ({
@@ -1347,6 +1348,83 @@ describe("Record stage capture and storage", () => {
       within(dialog).getByRole("button", { name: "Invite and links…" }),
     );
     expect(exec).toHaveBeenCalledWith("share.manage", {}, { skipWhen: true });
+  });
+});
+
+describe("Record stage Guests see notes", () => {
+  const row = (dialog: HTMLElement) =>
+    within(dialog).getByRole("button", { name: "Guests see notes" });
+
+  it("reflects the snapshot setting", async () => {
+    setRoom({ guests_see_notes: true });
+    mount();
+    expect(row(await openMore())).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("is off when the snapshot carries no setting", async () => {
+    setRoom();
+    mount();
+    const dialog = await openMore();
+    expect(row(dialog)).toHaveAttribute("aria-pressed", "false");
+    expect(
+      within(dialog).getByText(/Off: guests see their own notes/),
+    ).toBeVisible();
+  });
+
+  it("sends the opposite value and shows the returned snapshot", async () => {
+    setRoom({ guests_see_notes: false });
+    postTransport.mockImplementation(
+      async (type: string, payload: { enabled: boolean }) => {
+        setRoom({ guests_see_notes: payload.enabled });
+        return type;
+      },
+    );
+    mount();
+    const dialog = await openMore();
+    await userEvent.click(row(dialog));
+    expect(postTransport).toHaveBeenCalledWith("SetGuestsSeeNotes", {
+      enabled: true,
+    });
+    await waitFor(() =>
+      expect(row(dialog)).toHaveAttribute("aria-pressed", "true"),
+    );
+    await userEvent.click(row(dialog));
+    expect(postTransport).toHaveBeenLastCalledWith("SetGuestsSeeNotes", {
+      enabled: false,
+    });
+    await waitFor(() =>
+      expect(row(dialog)).toHaveAttribute("aria-pressed", "false"),
+    );
+  });
+
+  it("is disabled while a host command is in flight", async () => {
+    setRoom();
+    let finish: () => void = () => undefined;
+    postTransport.mockImplementation(
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    );
+    mount();
+    const dialog = await openMore();
+    await userEvent.click(row(dialog));
+    await waitFor(() =>
+      expect(row(dialog)).toHaveAccessibleDescription(BUSY_REASON),
+    );
+    await userEvent.click(row(dialog));
+    expect(postTransport).toHaveBeenCalledTimes(1);
+    finish();
+    await waitFor(() =>
+      expect(row(dialog)).not.toHaveAccessibleDescription(BUSY_REASON),
+    );
+  });
+
+  it("shows a failed post and keeps the old value", async () => {
+    setRoom({ guests_see_notes: false });
+    postTransport.mockRejectedValue(new Error("Room unreachable"));
+    mount();
+    const dialog = await openMore();
+    await userEvent.click(row(dialog));
+    expect(await screen.findByText(/Room unreachable/)).toBeVisible();
+    expect(row(dialog)).toHaveAttribute("aria-pressed", "false");
   });
 });
 
