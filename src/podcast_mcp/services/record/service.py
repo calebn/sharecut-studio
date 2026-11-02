@@ -241,45 +241,28 @@ def _is_marker_comment(row: dict[str, Any]) -> bool:
     return str(row.get("body") or "").strip() == _MARKER_BODY
 
 
-def _filter_live_comments_for_guest(
-    obj: Any, participant_id: str, *, guests_see_notes: bool = False
-) -> Any:
-    """A guest keeps their own comments and every marker; others' notes only when the host allows.
-
-    The setting is read from the snapshot that travels with the comments: the dict
-    itself (a bare snapshot) or its ``snapshot`` child (an event). Missing means off.
-    """
+def _filter_live_comments_for_guest(obj: Any, participant_id: str) -> Any:
     if isinstance(obj, dict):
-        own_flag = obj.get("guests_see_notes")
-        nested = obj.get("snapshot")
-        if isinstance(own_flag, bool):
-            guests_see_notes = own_flag
-        elif isinstance(nested, dict) and isinstance(nested.get("guests_see_notes"), bool):
-            guests_see_notes = nested["guests_see_notes"]
         out = {
-            key: _filter_live_comments_for_guest(
-                value, participant_id, guests_see_notes=guests_see_notes
-            )
+            key: _filter_live_comments_for_guest(value, participant_id)
             for key, value in obj.items()
         }
         comments = out.get("comments")
         if isinstance(comments, list):
+            sees_notes = obj.get("guests_see_notes") is True
             out["comments"] = [
                 row
                 for row in comments
                 if isinstance(row, dict)
                 and (
-                    guests_see_notes
+                    sees_notes
                     or str(row.get("author") or "") == participant_id
                     or _is_marker_comment(row)
                 )
             ]
         return out
     if isinstance(obj, list):
-        return [
-            _filter_live_comments_for_guest(item, participant_id, guests_see_notes=guests_see_notes)
-            for item in obj
-        ]
+        return [_filter_live_comments_for_guest(item, participant_id) for item in obj]
     return obj
 
 

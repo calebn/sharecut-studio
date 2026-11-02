@@ -111,3 +111,19 @@ def test_guest_without_comments_sees_only_markers_when_off() -> None:
 @pytest.mark.parametrize("role", ["host", "producer"])
 def test_host_and_producer_see_everything_with_setting_off(role: str) -> None:
     assert _visible(role, "p_x", flag=False) == ["own", "note", "marker", "spaced"]
+
+
+def test_setting_applies_only_to_the_snapshot_that_carries_it() -> None:
+    event = {
+        "type": "Applied",
+        "snapshot": {"guests_see_notes": True, "comments": [dict(c) for c in COMMENTS]},
+        "history": [{"snapshot": {"comments": [dict(c) for c in COMMENTS]}}],
+    }
+    out = filter_record_event_for_guest(event, participant_id="p_me", role="guest")
+    assert out is not None
+    assert [c["id"] for c in out["snapshot"]["comments"]] == ["own", "note", "marker", "spaced"]
+    assert [c["id"] for c in out["history"][0]["snapshot"]["comments"]] == [
+        "own",
+        "marker",
+        "spaced",
+    ]
