@@ -5382,7 +5382,10 @@ describe("host export options", () => {
         blockedReason: "Saving your changes first.",
       },
     });
-    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    const again = screen.getByRole("button", { name: "Try again" });
+    expect(again).toBeDisabled();
+    expect(again).toHaveAccessibleDescription("Saving your changes first.");
+    await userEvent.click(again);
     expect(onExportAgain).not.toHaveBeenCalled();
     expect(all.onExport).not.toHaveBeenCalled();
     expect(screen.getByText("Export failed")).toBeInTheDocument();
