@@ -85,7 +85,7 @@ describe("ReviewQueue", () => {
 
   it("says how many stay for one-by-one when nothing can be cut together", () => {
     const { container, getByText } = renderItems(
-      fillers.map((i) => ({ ...i, oneByOne: true })),
+      fillers.map((i) => ({ ...i, unsure: true })),
     );
     expect(container.querySelector(".rv-bulk")).toBeNull();
     expect(
@@ -96,7 +96,7 @@ describe("ReviewQueue", () => {
   it("keeps the one-by-one line from a guest, who decides nothing", () => {
     const { queryByText } = render(
       <ReviewQueue
-        items={fillers.map((i) => ({ ...i, oneByOne: true }))}
+        items={fillers.map((i) => ({ ...i, unsure: true }))}
         content={reviewContent}
         selectedId={null}
         filter="all"

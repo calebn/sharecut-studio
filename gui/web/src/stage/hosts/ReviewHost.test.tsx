@@ -551,28 +551,44 @@ describe("Review host decisions", () => {
     expect(screen.getByRole("button", { name: "Cut all 3" })).toBeEnabled();
   });
 
-  it("offers Cut all for real-shape review-required fillers, keeps join-risk ones out, and sends skip_unsure", async () => {
-    const real = {
-      review_required: true,
-      harsh: false,
-      listen_one_by_one: false,
-      join_risk: null,
-    };
-    mount([
-      edit("f1", "filler", 10, real),
-      edit("f2", "filler", 20, real),
-      edit("f3", "filler", 30, {
-        ...real,
-        join_risk: { verdict: "review" } as never,
-      }),
-    ]);
-    expect(screen.getByText("1 to decide one by one")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "Cut all 2" }));
+  const risky = {
+    review_required: true,
+    harsh: true,
+    listen_one_by_one: false,
+    join_risk: null,
+  };
+  const riskyGroup = () => [
+    edit("f1", "filler", 10, risky),
+    edit("f2", "filler", 20, { ...risky, listen_one_by_one: true }),
+    edit("f3", "filler", 30, {
+      ...risky,
+      join_risk: { verdict: "review" } as never,
+    }),
+  ];
+
+  it("offers Cut all for harsh, listen-one-by-one and join-risk fillers alike, and sends skip_unsure", async () => {
+    mount(riskyGroup());
+    expect(screen.queryByText(/to decide one by one/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
     await undoButton();
     expect(sent("ApproveEdits")[0].payload).toEqual({
-      ids: ["f1", "f2"],
+      ids: ["f1", "f2", "f3"],
       hold_blocked: true,
       skip_unsure: true,
+    });
+  });
+
+  it("routes a group with risky members through the Cut anyway confirm while the check is open", async () => {
+    server.status = "pending";
+    mount(riskyGroup());
+    await checks();
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
+    expect(await cutAnyway()).toBeVisible();
+    expect(sent("ApproveEdits")).toHaveLength(0);
+    await userEvent.click(await cutAnyway());
+    await waitFor(() => expect(sent("ApproveEdits")).toHaveLength(1));
+    expect(sent("ApproveEdits")[0].payload).toMatchObject({
+      ids: ["f1", "f2", "f3"],
     });
   });
 

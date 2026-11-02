@@ -112,20 +112,21 @@ describe("bulk eligibility", () => {
   const bulkIds = (items: ReviewItem[]) =>
     groupQueue(items)[0]?.bulk?.ids ?? [];
 
-  it("leaves out one-by-one and leave-alone items", () => {
+  it("leaves out unsure, blocked and leave-alone items", () => {
     const ids = bulkIds([
       item({ id: "a" }),
-      item({ id: "b", oneByOne: true }),
+      item({ id: "b", unsure: true }),
       item({ id: "c", suggested: "leave" }),
       item({ id: "d", suggested: "cut" }),
+      item({ id: "e", blocked: true }),
     ]);
     expect(ids).toEqual(["a", "d"]);
   });
 
-  it("counts only one-by-one items as held, not keep or lower", () => {
+  it("counts unsure and blocked items as held, not keep or lower", () => {
     const group = groupQueue([
       item({ id: "a" }),
-      item({ id: "b", oneByOne: true }),
+      item({ id: "b", blocked: true }),
       item({ id: "c", unsure: true }),
       item({ id: "d", suggested: "leave" }),
       item({ id: "e", suggested: "lower" }),
@@ -137,11 +138,10 @@ describe("bulk eligibility", () => {
   it("counts a blocked row, which still takes Keep, but not a host-only one", () => {
     const group = groupQueue([
       item({ id: "a" }),
-      item({ id: "b", oneByOne: true }),
-      item({ id: "c", blocked: true }),
-      item({ id: "d", blocked: true, hostOnly: true }),
+      item({ id: "b", blocked: true }),
+      item({ id: "c", blocked: true, hostOnly: true }),
     ])[0];
-    expect(group?.held).toBe(2);
+    expect(group?.held).toBe(1);
   });
 
   it("gives other suggestions a group but no group verb", () => {
