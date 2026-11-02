@@ -96,7 +96,7 @@ Select on timeline or list
 |-------|-----------|----------------|---------|
 | **A Edit point** | Drag handles on cut overlay; click pending/applied band | Range (source + timeline), reason, confidence; Approve / Reject; source MUTE Restore or Open History; Ask thread | Current / Suggested / A/B rendered around the pending band |
 | **B Join / fade** | Select a clip or join glyph / diamond | Fade in and Fade out fields with nudges, incoming transition mode and length | Play across join |
-| **C FX** | Track header FX badge → chain list | Per-effect bypass + params; reorder later | FX vs Raw audition; bypass honored in render |
+| **C FX** | Track inspector FX chain list (the header carries no FX badge) | Per-effect bypass + params; reorder later | FX vs Raw audition; bypass honored in render |
 | **D Transcript** | Double-click word or focus + F2 → inline edit | Word text, confidence, suppressed chip | Play word / utterance |
 | **E Envelope** | Drag points on the Volume envelope layer | Selected-point time/value | Live gain when cheap; else mark stale |
 
