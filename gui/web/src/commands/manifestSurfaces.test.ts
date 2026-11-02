@@ -40,7 +40,7 @@ type RenderKind = "CommandButton" | "CommandMenuItem" | "label";
  * file renders needs at least one of the file's ids in its `gui` row.
  */
 const FILE_SURFACES: Record<string, string[]> = {
-  "inspector/views/ClipInspector.tsx": ["clipInspector"],
+  "stage/edit/clipSections.tsx": ["clipInspector"],
   "stage/frame/HistoryControls.tsx": ["historyPanel"],
   "inspector/views/TrackInspector.tsx": ["trackInspector"],
   "stage/edit/EditCornerView.tsx": ["editCorner"],

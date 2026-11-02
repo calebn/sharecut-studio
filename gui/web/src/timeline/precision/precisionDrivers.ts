@@ -48,7 +48,7 @@ export function registerPrecisionDriver(
   };
 }
 
-function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
+export function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
   let token: symbol | null = null;
   let origin: ProjectView | null = null;
   let path = "";

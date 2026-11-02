@@ -163,7 +163,10 @@ export const InspectorOnClip: Story = {
       name: "Inspector",
     });
     await expect(
-      within(card).getByRole("heading", { name: "Mira clip", level: 2 }),
+      within(card).getByRole("heading", {
+        name: /^Mira · \d\d:\d\d\.\d{3} to \d\d:\d\d\.\d{3}$/,
+        level: 2,
+      }),
     ).toBeVisible();
     await expect(card).toBeVisible();
     await expect(

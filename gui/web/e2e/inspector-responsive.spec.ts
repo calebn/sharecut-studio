@@ -119,7 +119,9 @@ async function openClip(page: Page, receipts: InteractionReceipt[]) {
   await page.screenshot();
   await page.mouse.click(geometry.point.x, geometry.point.y);
   await inspectSelection(page);
-  await expect(page.locator(".modifier-badge")).toHaveText("Clip");
+  await expect(
+    page.getByRole("spinbutton", { name: "Source start", exact: true }),
+  ).toBeVisible();
 }
 
 for (const {
@@ -304,7 +306,7 @@ for (const {
             if (await close.count())
               await pointerControl(page, close, receipts);
             await openClip(page, receipts);
-            for (const label of ["Fade in ms", "Fade out ms"]) {
+            for (const label of ["Fade in", "Fade out"]) {
               await exposeControl(
                 page,
                 page.getByLabel(label, { exact: true }),
