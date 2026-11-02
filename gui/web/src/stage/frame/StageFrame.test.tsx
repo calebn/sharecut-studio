@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
@@ -168,6 +168,12 @@ describe("StageFrame stage switching", () => {
 });
 
 describe("StageFrame roles", () => {
+  afterEach(() => {
+    for (const role of ["viewer", "commenter", "editor"]) {
+      localStorage.removeItem(`sharecut.roleHintSeen.${role}`);
+    }
+  });
+
   it("shows an Editor link Edit, Review and Deliver", () => {
     useDawStore.setState({ guestMode: "edit" });
     mount();
@@ -217,6 +223,18 @@ describe("StageFrame roles", () => {
       screen.queryByText("You can comment and suggest cuts. The host decides."),
     ).toBeNull();
     localStorage.removeItem("sharecut.roleHintSeen.commenter");
+  });
+
+  it("explains a Viewer link and remembers only the viewer role", async () => {
+    useDawStore.setState({ guestMode: "view", stage: "review" });
+    mount();
+    expect(
+      screen.getByText("You can listen along. The host decides."),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    expect(localStorage.getItem("sharecut.roleHintSeen.viewer")).toBe("1");
+    expect(localStorage.getItem("sharecut.roleHintSeen.commenter")).toBeNull();
+    expect(localStorage.getItem("sharecut.roleHintSeen.editor")).toBeNull();
   });
 
   it("shows the hint when the guest role arrives after the first render", () => {
