@@ -1825,16 +1825,19 @@ describe("overlay Cut and Keep", () => {
   }
 
   it.each([
-    ["a cut suggestion", { suggested_action: "cut" as const }],
-    ["a shorten suggestion", { suggested_action: "shorten" as const }],
-    ["a lower suggestion", { suggested_action: "lower" as const }],
-  ])("names the buttons Cut and Keep for %s", async (_name, extra) => {
-    mount({ ...edit, ...extra });
-    expect(await screen.findByRole("button", { name: "Cut" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Keep" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
-  });
+    ["a cut suggestion", "cut" as const, "Cut"],
+    ["a shorten suggestion", "shorten" as const, "Shorten"],
+    ["a lower suggestion", "lower" as const, "Lower"],
+  ])(
+    "names the buttons as the bar does, and Keep, for %s",
+    async (_name, action, label) => {
+      mount({ ...edit, suggested_action: action });
+      expect(await screen.findByRole("button", { name: label })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Keep" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+    },
+  );
 
   it.each([
     ["a split", { type: "split", suggested_action: "cut" as const }],
@@ -1887,7 +1890,9 @@ describe("overlay Cut and Keep", () => {
 
   it("Cut on a shorten suggestion applies its own action, as the Action bar's Cut does", async () => {
     mount({ ...edit, suggested_action: "shorten" });
-    await userEvent.click(await screen.findByRole("button", { name: "Cut" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Shorten" }),
+    );
     await waitFor(() =>
       expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
         path,
@@ -1940,5 +1945,21 @@ describe("overlay Cut and Keep", () => {
     );
     expect(submitQueuedDocumentCommand).not.toHaveBeenCalled();
     release();
+  });
+
+  it("shows a failed shorten Cut once, in the status line, not again in the overlay", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockRejectedValue(
+      new Error("The host said no"),
+    );
+    mount({ ...edit, suggested_action: "shorten" });
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Shorten" }),
+    );
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "The host said no",
+      ),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
