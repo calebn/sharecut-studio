@@ -124,7 +124,9 @@ function footprint(
  * glyph do. Positions are held to the lane plus `CLAMP_PX`, but culling and
  * folding use the true footprint. Chapter labels leave room for point-pin
  * targets. Reach beside a chip uses its measured button and allocated input
- * bounds; other neighbours share half the gap.
+ * bounds; other neighbours share half the gap. Every size scales with
+ * `rootFontPx / 16` because the drawing is rem-sized: at a larger root a
+ * 16 px layout would let a neighbour's reach cover a pin's glyph.
  */
 export function layoutMarkers(
   markers: readonly LaneMarker[],

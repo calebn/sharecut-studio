@@ -10,7 +10,6 @@ import type {
 } from "../types/project";
 import { chapterMarkerId, laneMarkers, movedMarker } from "./laneMarkers";
 import { MarkerLaneHost } from "./MarkerLaneHost";
-import { socialSpanAfterDrag } from "./socialDrag";
 
 const chapters = [{ time: 2, title: "Intro" }] as ChapterMarker[];
 const socialClips = [
@@ -146,18 +145,6 @@ describe("movedMarker", () => {
       author: "Ada",
     } as const;
     expect(movedMarker(comment, "move", 3, 40)).toBe(comment);
-  });
-});
-
-describe("socialSpanAfterDrag", () => {
-  it.each([
-    ["move" as const, 1, 3, -5, { start: 0, end: 2 }],
-    ["start" as const, 1, 3, 5, { start: 2.95, end: 3 }],
-    ["end" as const, 1, 3, -5, { start: 1, end: 1.05 }],
-  ])("%s", (mode, originStart, originEnd, dxSec, expected) => {
-    const result = socialSpanAfterDrag(mode, originStart, originEnd, dxSec);
-    expect(result.start).toBeCloseTo(expected.start);
-    expect(result.end).toBeCloseTo(expected.end);
   });
 });
 

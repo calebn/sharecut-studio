@@ -114,18 +114,37 @@ describe("marker target measurement", () => {
     render(lane());
     const chip = screen.getByRole("button", { name: "2 more markers" });
     document.documentElement.style.fontSize = "20px";
-    act(() => FakeResizeObserver.of(chip).fire());
+    act(() => {
+      FakeResizeObserver.of(chip).fire();
+      FakeResizeObserver.of(
+        document.querySelector<HTMLElement>(".sys-markers-rem")!,
+      ).fire();
+    });
     expect(reach(chip.closest<HTMLElement>(".sys-marker")!)).toBe("0px 0px");
     expect(reach(dee())).toBe("-12.99px -15.33px");
     document.documentElement.style.fontSize = "16px";
     chipWidth = 40;
-    act(() => FakeResizeObserver.of(chip).fire());
+    act(() => {
+      FakeResizeObserver.of(chip).fire();
+      FakeResizeObserver.of(
+        document.querySelector<HTMLElement>(".sys-markers-rem")!,
+      ).fire();
+    });
     expect(reach(chip.closest<HTMLElement>(".sys-marker")!)).toBe("0px -5px");
     expect(reach(dee())).toBe("-14px -14px");
     chipWidth = 32.40625;
     act(() => FakeResizeObserver.of(chip).fire());
     expect(reach(chip.closest<HTMLElement>(".sys-marker")!)).toBe("0px -9px");
     expect(reach(dee())).toBe("-14px -14px");
+  });
+
+  it("lays a lane without chips out again when the root font size changes", () => {
+    const { container } = render(lane(markers.slice(3)));
+    expect(reach(dee())).toBe("-14px -14px");
+    const probe = container.querySelector<HTMLElement>(".sys-markers-rem")!;
+    document.documentElement.style.fontSize = "32px";
+    act(() => FakeResizeObserver.of(probe).fire());
+    expect(reach(dee())).toBe("-28px -9.33px");
   });
 
   it("discards removed chip metrics before the same IDs can return", () => {
