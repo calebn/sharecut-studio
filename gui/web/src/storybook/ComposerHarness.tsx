@@ -40,7 +40,14 @@ export function ComposerHarness({
       }}
       name={
         initialName
-          ? { ...initialName, value: name, onChange: setName }
+          ? {
+              ...initialName,
+              value: name,
+              onChange: (value) => {
+                initialName.onChange(value);
+                setName(value);
+              },
+            }
           : undefined
       }
     />
