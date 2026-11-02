@@ -816,7 +816,10 @@ def _spans_and_borrow(
 
 
 def _stem_leaf_bounds(
-    parts: tuple, index: int, grid: TrackGrid | None, src: Path
+    parts: tuple[list, list, list[float], list[float]],
+    index: int,
+    grid: TrackGrid | None,
+    src: Path,
 ) -> tuple[float, float]:
     """The source range clip ``index`` plays in the whole stem, borrowed blends included."""
     spans, cells, _, borrow = parts
@@ -835,18 +838,15 @@ def _stem_leaf_bounds(
 
 def _before_window(
     clip: Clip, grid: TrackGrid | None, window: tuple[float, float] | None, origin_frame: int
-) -> dict[str, float]:
-    """The ``_PreparedClip`` fields for a clip a window leaves out because it ends before it."""
+) -> float | None:
+    """Where a clip ends, in seconds from the window start, when the window leaves it out
+    because it ends before the window; None otherwise."""
     if window is None:
-        return {}
+        return None
     if grid is not None:
         last = grid.frame(clip.timeline_end)
-        return (
-            {"before_window_end": (last - origin_frame) / grid.rate} if last <= origin_frame else {}
-        )
-    if clip.timeline_end <= window[0]:
-        return {"before_window_end": clip.timeline_end - window[0]}
-    return {}
+        return (last - origin_frame) / grid.rate if last <= origin_frame else None
+    return clip.timeline_end - window[0] if clip.timeline_end <= window[0] else None
 
 
 def placed_track_audio(
@@ -882,7 +882,7 @@ def placed_track_audio(
                     clip,
                     None,
                     piece=pieces[index],
-                    **_before_window(clip, grid, window, origin_frame),
+                    before_window_end=_before_window(clip, grid, window, origin_frame),
                 )
             )
             continue
