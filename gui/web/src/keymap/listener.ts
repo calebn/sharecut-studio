@@ -9,7 +9,7 @@ import {
   ignoresKeyRepeat,
   matchKeymapCommands,
 } from "./registry";
-import { isButtonActivation, isTypingTarget } from "./typing";
+import { isButtonActivation, isScrubValue, isTypingTarget } from "./typing";
 
 /**
  * Sole window-level ShareCut Studio shortcut listener (governance choke-point).
@@ -45,7 +45,11 @@ export function useDawKeymapListener(): void {
       if (handedOn?.length === 0) {
         return;
       }
-      if (isTypingTarget(e.target) || isButtonActivation(e)) {
+      if (
+        isTypingTarget(e.target) ||
+        (e.key !== "Escape" && isScrubValue(e.target)) ||
+        isButtonActivation(e)
+      ) {
         return;
       }
       const matches = matchKeymapCommands(e).filter(

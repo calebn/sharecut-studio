@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasCommandModifier, isButtonActivation } from "./typing";
+import { hasCommandModifier, isButtonActivation, isScrubValue } from "./typing";
 
 const mods = (
   m: Partial<{
@@ -54,5 +54,15 @@ describe("hasCommandModifier", () => {
 
   it("does not treat Shift as a command modifier", () => {
     expect(hasCommandModifier(mods({ shiftKey: true }))).toBe(false);
+  });
+});
+
+describe("isScrubValue", () => {
+  it("matches a spinbutton span and nothing else", () => {
+    const span = document.createElement("span");
+    span.setAttribute("role", "spinbutton");
+    expect(isScrubValue(span)).toBe(true);
+    expect(isScrubValue(document.createElement("button"))).toBe(false);
+    expect(isScrubValue(null)).toBe(false);
   });
 });
