@@ -18,6 +18,8 @@ _NON_FILLER_REASONS = (
     "repetition:word:the",
     "restart:partial:so",
     "manual",
+    "filler",
+    "fillers",
 )
 
 
