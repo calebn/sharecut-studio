@@ -194,9 +194,6 @@ export function SessionTargetChip(props: SessionTargetChipProps) {
             entry.pick();
           }}
         >
-          <span className="sys-target-check">
-            {entry.checked ? <SystemIcon name="check" size={14} /> : null}
-          </span>
           {entry.label}
         </MenuItem>
       ))}

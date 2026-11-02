@@ -32,7 +32,7 @@ const meta: Meta<typeof SessionTargetChip> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'Where a session goes in the episode, in words. Before the first take it is a menu: "Starts the episode" or "At the end". After it, the chip is locked: a lock icon and "Set when the first take landed" in the text, not a control and not a tab stop. The text wraps and is never cut off.\n\n**Motion.** The menu drops in through `ui/Menu`. Nothing else moves.',
+          'Where a session goes in the episode: a placement glyph and the words. Before the first take it is a menu whose entries are radio items (the current choice is announced): "At the start" or "At the end", plus the playhead and selection entries on the host. A loaded, empty project reads "Starts the episode" for its end target. After it, the chip is locked: a lock icon and "Set when the first take landed" in the text, not a control and not a tab stop. The text wraps and is never cut off.\n\n**Motion.** The menu drops in through `ui/Menu`. Nothing else moves.',
       },
     },
   },
