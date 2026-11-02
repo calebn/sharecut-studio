@@ -124,10 +124,10 @@ describe("reviewEntriesOf", () => {
     expect(order.map((i) => i.id)).toEqual(["edit:p", "edit:u"]);
   });
 
-  it("follows the server flag listen_one_by_one === true, holds non-pass join risk, not harsh ones", () => {
+  it("follows the server flag listen_one_by_one === true, holds non-pass join risk, not the harsh flag", () => {
     const real = {
       review_required: true,
-      harsh: true,
+      harsh: false,
       listen_one_by_one: false,
       join_risk: null,
     };

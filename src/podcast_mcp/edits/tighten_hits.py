@@ -1,7 +1,9 @@
 """Tighten hits: which pending decisions are tighten proposals, which are harsh, and which
 are listened to one at a time.
 
-The rules behind ``pending_edits[].harsh`` and ``pending_edits[].listen_one_by_one``. Studio
+The rules behind ``pending_edits[].harsh`` and ``pending_edits[].listen_one_by_one``. ``harsh``
+means only a real harsh-join risk (reason carries ``:risky`` or ``:join_review``); needing review
+is a separate fact (``review_required``) with many causes and does not make a hit harsh. Studio
 reads ``listen_one_by_one`` from the server and holds no rule of its own; no Studio surface
 reads ``harsh`` now that the harsh-only filter is gone. Apply suggested actions does not filter on
 them: the server applies each sound's own action and names what stays pending.
@@ -52,10 +54,12 @@ def join_risk_from_decision(decision: EditDecision) -> dict[str, Any] | None:
 
 
 def is_harsh_tighten_hit(decision: EditDecision) -> bool:
-    """A tighten hit that needs review or carries a join risk; informational, no Studio filter uses it."""
-    return is_tighten_reason(decision.reason) and (
-        decision.review_required or join_risk_from_decision(decision) is not None
-    )
+    """A tighten hit with a real harsh-join risk (``:risky`` / ``:join_review`` reason).
+
+    ``review_required`` alone does not make a hit harsh: review has many causes (unsure words,
+    acoustic holds, held pauses). Informational; no Studio surface reads it.
+    """
+    return join_risk_from_decision(decision) is not None
 
 
 def is_listen_one_by_one_hit(decision: EditDecision) -> bool:

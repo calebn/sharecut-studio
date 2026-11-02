@@ -551,10 +551,10 @@ describe("Review host decisions", () => {
     expect(screen.getByRole("button", { name: "Cut all 3" })).toBeEnabled();
   });
 
-  it("offers Cut all for real-shape harsh fillers, keeps join-risk ones out, and sends skip_unsure", async () => {
+  it("offers Cut all for real-shape review-required fillers, keeps join-risk ones out, and sends skip_unsure", async () => {
     const real = {
       review_required: true,
-      harsh: true,
+      harsh: false,
       listen_one_by_one: false,
       join_risk: null,
     };

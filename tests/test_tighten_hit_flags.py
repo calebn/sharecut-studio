@@ -52,12 +52,12 @@ HITS = [
 ]
 
 
-def test_harsh_is_review_or_join_risk_on_tighten_hits_only() -> None:
+def test_harsh_is_join_risk_on_tighten_hits_only() -> None:
     assert {d.id: is_harsh_tighten_hit(d) for d in HITS} == {
         "safe": False,
         "risky": True,
         "join": True,
-        "review": True,
+        "review": False,
         "nl": False,
     }
     assert is_harsh_tighten_hit(_decision("nl-review", "nl:topic", review=True)) is False
@@ -70,7 +70,7 @@ def test_a_pause_trim_that_stays_for_review_is_listened_to_one_by_one_and_never_
 
     assert not is_harsh_tighten_hit(auto)
     assert not is_listen_one_by_one_hit(auto)
-    assert is_harsh_tighten_hit(held)
+    assert not is_harsh_tighten_hit(held)
     assert is_listen_one_by_one_hit(held)
     assert [d.id for d in HITS if is_listen_one_by_one_hit(d)] == ["join"]
 
@@ -110,7 +110,7 @@ def test_studio_view_carries_the_same_harsh_and_listen_one_by_one_flags(
         "safe": False,
         "risky": True,
         "join": True,
-        "review": True,
+        "review": False,
         "nl": False,
     }
     assert {r["id"]: r["listen_one_by_one"] for r in rows} == {
