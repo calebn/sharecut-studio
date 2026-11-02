@@ -31,6 +31,7 @@ import {
   ApiError,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../../utils/apiError";
+import { COMMENT_NAME_MAX } from "../../utils/commentAuthor";
 import { pendingEditTimingFieldId } from "../../utils/pendingEditTimingField";
 import { PendingEditBody } from "./PendingEditBody";
 
@@ -501,6 +502,52 @@ describe("PendingEditBody", () => {
         editDecisionId: "ed1",
       }),
     );
+  });
+
+  it("posts the Ask with Enter and keeps the name field visible", async () => {
+    const user = userEvent.setup();
+    createComment.mockResolvedValue(
+      sampleComment({ edit_decision_id: "ed1", body: "Why?" }),
+    );
+    render(<PendingEditBody edit={sessionCut} />);
+    expect(screen.getByRole("textbox", { name: "Your name" })).toBeTruthy();
+    await user.type(
+      screen.getByPlaceholderText("Ask for more context before deciding…"),
+      "Why?{Enter}",
+    );
+    expect(createComment).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      expect.objectContaining({ body: "Why?", editDecisionId: "ed1" }),
+    );
+  });
+
+  it("limits the Ask name to the server's cap", async () => {
+    const user = userEvent.setup();
+    render(<PendingEditBody edit={sessionCut} />);
+    const name = screen.getByRole("textbox", { name: "Your name" });
+    await user.clear(name);
+    await user.type(name, "x".repeat(COMMENT_NAME_MAX + 20));
+    expect((name as HTMLInputElement).value).toHaveLength(COMMENT_NAME_MAX);
+  });
+
+  it("shows the Ask thread as a system card with Reply compose", () => {
+    const comment = sampleComment({
+      edit_decision_id: "ed1",
+      body: "Why this cut?",
+    });
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/p.json",
+        minimalProject({ pending_edits: [sessionCut], comments: [comment] }),
+      );
+    render(<PendingEditBody edit={sessionCut} />);
+    const region = screen.getByRole("region", { name: "Ask about this edit" });
+    expect(within(region).getByText("Why this cut?")).toBeTruthy();
+    expect(
+      region.querySelector(".pending-ask-list > .sys-comment"),
+    ).not.toBeNull();
+    expect(within(region).getByRole("button", { name: "Reply" })).toBeTruthy();
   });
 
   it("resolves and reopens a linked Ask thread through the command", async () => {

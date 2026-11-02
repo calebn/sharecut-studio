@@ -10,7 +10,7 @@ test("keeps desktop feedback above the Player after resizing a side composer", a
     await openSuggestedPendingEdit(page, projectPath);
     await expect(page.getByRole("dialog", { name: "Inspector" })).toBeVisible();
     await expect(page.locator("input:focus, textarea:focus")).toHaveCount(0);
-    const composer = page.locator(".pending-ask-thread .comment-compose");
+    const composer = page.locator(".pending-ask-thread .sys-composer");
     await composer.scrollIntoViewIfNeeded();
     const textarea = composer.locator("textarea");
     const settled = async () => {

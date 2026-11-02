@@ -10,12 +10,13 @@ import {
   pendingEditBaseline,
 } from "../../api/documentEdits";
 import { registerPendingDecider } from "../../commands/pendingDecision";
-import { CommentCard, CommentCompose, useCommentActions } from "../../comments";
+import { useCommentActions } from "../../comments";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import {
   REFINE_GATE_GUI_MESSAGE,
   TranscriptRefineRecovery,
 } from "../../inspector/TranscriptRefineRecovery";
+import { commentCardOf } from "../hosts/commentCardData";
 import { useQueuedReviewNotice } from "../../inspector/useQueuedReviewNotice";
 import { decisionKindOf } from "../../review/reviewItems";
 import {
@@ -28,6 +29,8 @@ import {
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import { CommentCard } from "../../system/CommentCard";
+import { Composer } from "../../system/Composer";
 import { KIND_META } from "../../system/decisionKinds";
 import { ScrubField } from "../../system/ScrubField";
 import { SystemIcon } from "../../system/SystemIcon";
@@ -41,6 +44,7 @@ import {
   InlineError,
 } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
+import { limitCommentName } from "../../utils/commentAuthor";
 import {
   errorMessage,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
@@ -188,6 +192,7 @@ export function PendingEditBody({
     setError: setThreadError,
     resolve,
     reply,
+    toggleAction,
   } = useCommentActions({ role, author, setAuthor });
 
   const thread = useMemo(
@@ -858,16 +863,26 @@ export function PendingEditBody({
         >
           <h3>Ask</h3>
           {thread ? (
-            <ul className="pending-ask-list">
+            <div className="pending-ask-list">
               <CommentCard
-                comment={thread}
-                guestShare={!canApply}
-                showResolve={canApply}
-                showReply={false}
-                showActions={canApply}
-                onResolve={(resolved) => void resolve(thread, resolved)}
+                comment={commentCardOf(
+                  thread,
+                  thread.resolved,
+                  project?.timeline_duration_sec ?? Number.NaN,
+                )}
+                onResolve={
+                  canApply
+                    ? (resolved) => void resolve(thread, resolved)
+                    : undefined
+                }
+                onToggleAction={
+                  canApply
+                    ? (actionId, done) =>
+                        void toggleAction(thread, actionId, done)
+                    : undefined
+                }
               />
-            </ul>
+            </div>
           ) : (
             <p className="inspector-body">
               Hear Suggested, then approve, reject, or ask a question in this
@@ -875,17 +890,19 @@ export function PendingEditBody({
             </p>
           )}
           {(thread ? mayReply : mayAsk) ? (
-            <CommentCompose
+            <Composer
               body={askBody}
               onBodyChange={setAskBody}
-              busy={busy || threadBusy}
+              onSubmit={() => void postAsk()}
+              state={busy || threadBusy ? "posting" : "idle"}
               submitLabel={thread ? "Reply" : "Ask"}
-              bodyPlaceholder={
+              placeholder={
                 thread ? "Reply…" : "Ask for more context before deciding…"
               }
-              onSubmit={() => void postAsk()}
-              author={author}
-              onAuthorChange={setAuthor}
+              name={{
+                value: author,
+                onChange: (v) => setAuthor(limitCommentName(v)),
+              }}
             />
           ) : null}
         </section>
