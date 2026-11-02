@@ -223,6 +223,51 @@ describe("ClipInspector mute regions", () => {
   });
 });
 
+describe("ClipInspector timing", () => {
+  const timed: ClipRow = {
+    ...clip,
+    timeline_end: 2.12,
+    timing_steps: 2,
+    timing_summary: "2 corrections, largest 120 ms",
+    timing: {
+      steps: [
+        { at: 0.5, delta_sec: 0.12 },
+        { at: 1.5, delta_sec: -0.05 },
+      ],
+      method: "bleed_lag",
+      micro_fade_ms: 10,
+    },
+  };
+
+  it("shows the server's summary as a read-only line and has no axe violations", async () => {
+    hydrateClipProject(sampleTrack({ speaker: "Host" }), timed);
+    const { container } = render(<ClipInspector clip={timed} />);
+    const term = screen.getByText("Timing");
+    const value = screen.getByText("2 corrections, largest 120 ms");
+    expect(value).toBeVisible();
+    expect(value.querySelector("button, input, select, a")).toBeNull();
+    expect(term.querySelector("button, input, select, a")).toBeNull();
+    await expectNoA11yViolations(container);
+  });
+
+  it("says 1 correction in the singular", () => {
+    const single = {
+      ...timed,
+      timing_steps: 1,
+      timing_summary: "1 correction",
+    };
+    hydrateClipProject(sampleTrack({ speaker: "Host" }), single);
+    render(<ClipInspector clip={single} />);
+    expect(screen.getByText("1 correction")).toBeVisible();
+  });
+
+  it("hides the line for an untimed clip", () => {
+    hydrateClipProject(sampleTrack({ speaker: "Host" }), clip);
+    render(<ClipInspector clip={clip} />);
+    expect(screen.queryByText("Timing")).toBeNull();
+  });
+});
+
 describe("ClipInspector fades", () => {
   beforeEach(() => {
     vi.mocked(setClipFade).mockReset().mockResolvedValue(null);
