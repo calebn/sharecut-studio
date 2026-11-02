@@ -11,6 +11,7 @@ import {
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { documentActivityBusy } from "../state/documentSendOrder";
+import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
 import type { StageId } from "../types/stage";
 import { splitSpeakersBlocker } from "../utils/speakerSplit";
 import { focusedClipHandleKind } from "./focusedClipHandle";
@@ -35,6 +36,8 @@ export type CommandContext = {
   /** Host or a guest with the comment capability: may add comments. */
   canComment: boolean;
   canManageProjects: boolean;
+  /** Stages the open link's role may enter (all five for the host). */
+  allowedStages: readonly StageId[];
   hasProject: boolean;
   canUndo: boolean;
   canRedo: boolean;
@@ -110,6 +113,7 @@ export function buildCommandContext(): CommandContext {
     ),
     canComment: canComment(s.projectPath, s.guestMode, s.shareCapabilities),
     canManageProjects: canManageProjects(s.projectPath),
+    allowedStages: stagesForRole(stageRoleOf(s.guestMode)),
     hasProject: s.project != null,
     canUndo:
       s.guestMode != null ||
@@ -233,6 +237,17 @@ export function evaluateWhen(
       return ctx.canRedo
         ? { ok: true }
         : { ok: false, reason: "Nothing to redo" };
+    case "stageAllowed:record":
+    case "stageAllowed:prepare":
+    case "stageAllowed:edit":
+    case "stageAllowed:review":
+    case "stageAllowed:deliver": {
+      if (!ctx.hasProject) return { ok: false, reason: "No project loaded" };
+      const stage = when.slice("stageAllowed:".length) as StageId;
+      return ctx.allowedStages.includes(stage)
+        ? { ok: true }
+        : { ok: false, reason: "Not available on this link" };
+    }
     case "hasProject":
       return ctx.hasProject
         ? { ok: true }
