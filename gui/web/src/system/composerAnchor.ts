@@ -9,7 +9,7 @@ export type ComposerAnchor =
   | ({ kind: "pinned" } & AnchorSpan)
   | { kind: "episode" };
 
-export type AnchorIntent = "pin" | "here" | "episode";
+export type AnchorIntent = "pin" | "follow" | "here" | "episode";
 export type Playhead = { seconds: number; selection?: TimeRange };
 
 const pinnedAt = ({ seconds, selection }: Playhead): ComposerAnchor =>
@@ -32,6 +32,10 @@ export function nextAnchor(
       return anchor.kind === "follow"
         ? { kind: "pinned", start: anchor.seconds }
         : anchor;
+    case "follow":
+      return anchor.kind === "follow"
+        ? anchor
+        : { kind: "follow", seconds: playhead.seconds };
     case "here":
       return pinnedAt(playhead);
     case "episode":

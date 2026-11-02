@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { stubMatchMedia } from "../test/matchMedia";
 import { Composer, type ComposerProps } from "./Composer";
+import { type ComposerAnchor, nextAnchor } from "./composerAnchor";
 import { composerBlock } from "./composerBlock";
 
 function Harness(props: Partial<ComposerProps> & { start?: string }) {
@@ -458,6 +459,136 @@ describe("Composer", () => {
         screen.queryByRole("button", { name: "Make it a whole-episode note" }),
       ).toBeNull();
       expect(screen.getByText("18:36")).toBeVisible();
+    });
+
+    describe("typing pins, and emptying the field undoes only that pin", () => {
+      const STAMP = { seconds: 1116 };
+      // Applies intents as a host does, so the chip state round-trips.
+      function Live({ initial }: { initial: ComposerAnchor }) {
+        const [anchor, setAnchor] = useState(initial);
+        return (
+          <Harness
+            anchor={anchor}
+            onAnchor={(intent) =>
+              setAnchor((a) => nextAnchor(a, intent, STAMP))
+            }
+          />
+        );
+      }
+      const pinnedChip = () =>
+        screen.queryByRole("button", { name: /^Pinned/ });
+      const chipName = /^Pinned|follows the playhead/;
+
+      it("returns to follow when typing pinned the chip and the field is emptied", async () => {
+        render(<Live initial={{ kind: "follow", seconds: 1116 }} />);
+        await userEvent.type(field(), "ab");
+        expect(pinnedChip()).toBeInTheDocument();
+        await userEvent.keyboard("{Backspace}");
+        expect(pinnedChip()).toBeInTheDocument();
+        await userEvent.keyboard("{Backspace}");
+        expect(pinnedChip()).toBeNull();
+        expect(
+          screen.getByRole("button", { name: /follows the playhead/ }),
+        ).toBeVisible();
+      });
+
+      it("asks for follow exactly once, on the change that empties the field", async () => {
+        const onAnchor = vi.fn();
+        const { rerender } = render(
+          <Harness
+            anchor={{ kind: "follow", seconds: 5 }}
+            onAnchor={onAnchor}
+          />,
+        );
+        await userEvent.type(field(), "a");
+        rerender(
+          <Harness anchor={{ kind: "pinned", start: 5 }} onAnchor={onAnchor} />,
+        );
+        await userEvent.type(field(), "{Backspace}");
+        expect(onAnchor.mock.calls).toEqual([["pin"], ["follow"]]);
+      });
+
+      it("returns to follow after cut or select-all-delete", async () => {
+        render(<Live initial={{ kind: "follow", seconds: 1116 }} />);
+        await userEvent.type(field(), "hello");
+        await userEvent.keyboard("{Control>}a{/Control}{Delete}");
+        expect(pinnedChip()).toBeNull();
+        await userEvent.type(field(), "x");
+        expect(pinnedChip()).toBeInTheDocument();
+        fireEvent.change(field(), { target: { value: "" } });
+        expect(pinnedChip()).toBeNull();
+      });
+
+      it("handles a paste followed by backspace to empty", async () => {
+        render(<Live initial={{ kind: "follow", seconds: 1116 }} />);
+        await userEvent.click(field());
+        await userEvent.paste("x");
+        expect(pinnedChip()).toBeInTheDocument();
+        await userEvent.keyboard("{Backspace}");
+        expect(pinnedChip()).toBeNull();
+      });
+
+      it("keeps a pin the person made on the chip, even after typing and emptying", async () => {
+        render(<Live initial={{ kind: "follow", seconds: 1116 }} />);
+        await userEvent.click(
+          screen.getByRole("button", { name: /follows the playhead/ }),
+        );
+        expect(pinnedChip()).toBeInTheDocument();
+        await userEvent.type(field(), "ab{Backspace}{Backspace}");
+        expect(field()).toHaveValue("");
+        expect(pinnedChip()).toBeInTheDocument();
+      });
+
+      it("keeps a pin the person made on the chip after typing already pinned it", async () => {
+        render(<Live initial={{ kind: "follow", seconds: 1116 }} />);
+        await userEvent.type(field(), "a");
+        await userEvent.click(screen.getByRole("button", { name: chipName }));
+        await userEvent.keyboard("{Backspace}");
+        // The chip click re-pinned at the playhead; emptying leaves it.
+        await userEvent.click(field());
+        await userEvent.keyboard("{Backspace}");
+        expect(pinnedChip()).toBeInTheDocument();
+      });
+
+      it("does not touch an anchor that was pinned before any typing", async () => {
+        const onAnchor = vi.fn();
+        render(
+          <Harness
+            start="ab"
+            anchor={{ kind: "pinned", start: 18 }}
+            onAnchor={onAnchor}
+          />,
+        );
+        await userEvent.type(field(), "{Backspace}{Backspace}");
+        expect(field()).toHaveValue("");
+        expect(onAnchor).not.toHaveBeenCalled();
+      });
+
+      it("makes no onAnchor call when there is no anchor or no onAnchor", async () => {
+        const onAnchor = vi.fn();
+        render(<Harness start="ab" onAnchor={onAnchor} />);
+        await userEvent.type(field(), "{Backspace}{Backspace}");
+        expect(onAnchor).not.toHaveBeenCalled();
+      });
+
+      it("treats whitespace as text: only the empty string unpins", async () => {
+        const onAnchor = vi.fn();
+        const { rerender } = render(
+          <Harness
+            anchor={{ kind: "follow", seconds: 5 }}
+            onAnchor={onAnchor}
+          />,
+        );
+        await userEvent.type(field(), " ");
+        rerender(
+          <Harness anchor={{ kind: "pinned", start: 5 }} onAnchor={onAnchor} />,
+        );
+        await userEvent.type(field(), "x{Backspace}");
+        expect(field()).toHaveValue(" ");
+        expect(onAnchor.mock.calls).toEqual([["pin"]]);
+        await userEvent.type(field(), "{Backspace}");
+        expect(onAnchor.mock.calls).toEqual([["pin"], ["follow"]]);
+      });
     });
 
     it("has no chip when there is no anchor", () => {

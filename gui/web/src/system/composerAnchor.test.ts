@@ -69,6 +69,14 @@ describe("nextAnchor", () => {
     ],
     ["follow + episode", follow, "episode", playhead, episode],
     ["pinned + episode", pinned, "episode", playhead, episode],
+    [
+      "pinned + follow",
+      pinned,
+      "follow",
+      playhead,
+      { kind: "follow", seconds: 1116.4 },
+    ],
+    ["follow + follow", follow, "follow", playhead, follow],
     ["episode + episode", episode, "episode", playhead, episode],
   ])("%s", (_name, anchor, intent, at, expected) => {
     expect(nextAnchor(anchor, intent, at)).toEqual(expected);

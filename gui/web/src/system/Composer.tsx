@@ -76,7 +76,8 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
 
 /**
  * The comment field. The anchor chip leads inside the field and pins on the
- * first keystroke, so the comment lands where the person started to type. On a
+ * first keystroke, so the comment lands where the person started to type; if
+ * that typing was the only pin and the field is emptied, the chip follows again. On a
  * fine pointer Enter posts, Shift+Enter adds a line and Cmd or Ctrl+Enter also
  * posts. On a coarse pointer Return adds a line and the arrow posts.
  *
@@ -100,6 +101,8 @@ export function Composer(props: ComposerProps) {
     inputRef,
   } = props;
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  // True while the pin came from typing alone; any chip intent makes it the person's.
+  const typedPin = useRef(false);
   const setBodyRef = useCallback(
     (node: HTMLTextAreaElement | null) => {
       bodyRef.current = node;
@@ -181,7 +184,14 @@ export function Composer(props: ComposerProps) {
         {anchor ? (
           <AnchorChip
             anchor={anchor}
-            onAnchor={posting ? undefined : onAnchor}
+            onAnchor={
+              posting || !onAnchor
+                ? undefined
+                : (intent) => {
+                    typedPin.current = false;
+                    onAnchor(intent);
+                  }
+            }
             focusFallback={bodyRef}
           />
         ) : null}
@@ -196,7 +206,17 @@ export function Composer(props: ComposerProps) {
           readOnly={posting}
           ref={setBodyRef}
           onChange={(event) => {
-            if (anchor?.kind === "follow") onAnchor?.("pin");
+            if (anchor?.kind === "follow" && onAnchor) {
+              typedPin.current = true;
+              onAnchor("pin");
+            } else if (
+              event.target.value === "" &&
+              typedPin.current &&
+              anchor?.kind === "pinned"
+            ) {
+              typedPin.current = false;
+              onAnchor?.("follow");
+            }
             onBodyChange(event.target.value);
           }}
           onKeyDown={onBodyKeyDown}

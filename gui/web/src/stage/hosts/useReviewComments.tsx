@@ -24,6 +24,7 @@ import {
   commentRole,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import type { CommentDraft } from "../../state/types";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import { InlineError } from "../../ui";
@@ -266,10 +267,22 @@ export function useReviewComments(guest: boolean) {
     }
   };
 
+  // The draft the first keystroke made. Emptying the field drops it (the chip
+  // follows the playhead again) unless C, a range or the chip replaced it.
+  const typedDraft = useRef<CommentDraft | null>(null);
   const type = (value: string) => {
     const state = useDawStore.getState();
-    if (value && !state.commentDraft)
-      state.setCommentDraft(resolveCommentAnchor(state).draft);
+    if (value && !state.commentDraft) {
+      typedDraft.current = resolveCommentAnchor(state).draft;
+      state.setCommentDraft(typedDraft.current);
+    } else if (
+      !value &&
+      typedDraft.current &&
+      typedDraft.current === state.commentDraft
+    ) {
+      state.setCommentDraft(null);
+    }
+    if (!value) typedDraft.current = null;
     setBody(value);
   };
 

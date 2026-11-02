@@ -243,6 +243,31 @@ describe("Review queue for a guest", () => {
       expect(screen.queryByRole("button", { name: label })).toBeNull();
   });
 
+  it("pins the guest's chip on typing and lets it follow again when the field is emptied", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    render(<ReviewHost guestShare />);
+    await user.type(field(), "ab");
+    expect(useDawStore.getState().commentDraft).not.toBeNull();
+    await user.type(field(), "{Backspace}");
+    expect(useDawStore.getState().commentDraft).not.toBeNull();
+    await user.type(field(), "{Backspace}");
+    expect(useDawStore.getState().commentDraft).toBeNull();
+    expect(field()).toBeVisible();
+  });
+
+  it("keeps a draft that was set before typing when the field is emptied", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    useDawStore.setState({ commentDraft: { startSec: 7, endSec: null } });
+    render(<ReviewHost guestShare />);
+    await user.type(field(), "a{Backspace}");
+    expect(useDawStore.getState().commentDraft).toEqual({
+      startSec: 7,
+      endSec: null,
+    });
+  });
+
   it("posts a blank name as Guest and keeps no saved name", async () => {
     const user = userEvent.setup();
     join("comment");
