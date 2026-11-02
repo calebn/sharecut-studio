@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import threading
-import time
 from pathlib import Path
 
 import numpy as np
@@ -35,13 +34,18 @@ def _three_speakers(tmp_path: Path) -> EpisodeProject:
 
 
 def _slow_decode(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
-    """Every recording decode for a floor, slowed so that two decodes of one file overlap."""
+    """Every recording decode for a floor, held until a second decode starts, so two decodes overlap."""
     calls: list[Path] = []
     real = room_tone.held_mono_full
+    overlapped = threading.Event()
+    lock = threading.Lock()
 
     def slow(path: Path, **kwargs):
-        calls.append(path)
-        time.sleep(0.4)
+        with lock:
+            calls.append(path)
+            if len(calls) > 1:
+                overlapped.set()
+        overlapped.wait(timeout=0.5)
         return real(path, **kwargs)
 
     monkeypatch.setattr(room_tone, "held_mono_full", slow)
