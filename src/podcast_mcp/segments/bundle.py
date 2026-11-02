@@ -84,6 +84,7 @@ def _checked_entries(
     name_ok: Callable[[str], bool] | None = None,
     json_names: Sequence[str] = (SEGMENT_JSON,),
     prefix: str = "segment",
+    ratio_floor: int = _RATIO_FLOOR,
 ) -> dict[str, zipfile.ZipInfo]:
     """The entries of ``archive`` once every header is checked; nothing is read yet.
 
@@ -118,10 +119,7 @@ def _checked_entries(
         )
         if info.file_size > limit:
             raise _invalid(f"The bundle entry {name} is larger than {limit} bytes.", code)
-        if (
-            info.file_size > _RATIO_FLOOR
-            and info.file_size > max(info.compress_size, 1) * MAX_RATIO
-        ):
+        if info.file_size > ratio_floor and info.file_size > max(info.compress_size, 1) * MAX_RATIO:
             raise _invalid(
                 f"The bundle entry {name} is compressed far more than audio can be.", code
             )
