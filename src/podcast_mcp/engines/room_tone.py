@@ -98,10 +98,6 @@ MAX_CANDIDATES = 16
 # nearest such candidate is taken at once. Otherwise the candidates are ranked by how far the
 # loudest peer rises above its floor, quietest first.
 PEER_QUIET_DB = 3.0
-# Ranking stops once this many samples pass: each one costs a read of every peer's file, and
-# the nearest few already hold the quietest peer a nearby window offers. A long quiet run adds
-# windows at other offsets only while its windows are measured above PEER_QUIET_DB, and they
-# count toward this limit.
 MAX_RANKED = 4
 # A bed is checked in windows this long, hopping by half: a burst of speech in a long
 # bed must not be averaged away by the steady room around it. A usable run shorter than
@@ -889,11 +885,7 @@ def _pick_sample(
     for order, run in enumerate(runs[:MAX_CANDIDATES]):
         best_excess = math.inf
         for index, window in enumerate(_window_offsets(run, near_sec, duration_sec)):
-            if index and (
-                clear is None
-                or not PEER_QUIET_DB < best_excess < math.inf
-                or len(passed) >= MAX_RANKED
-            ):
+            if index and (not PEER_QUIET_DB < best_excess < math.inf or len(passed) >= MAX_RANKED):
                 break
             sample = _measure(track, window)
             if sample is None:
@@ -926,8 +918,8 @@ def _pick_sample(
 
 
 def _window_offsets(run: Span, near_sec: float, duration_sec: float) -> list[Span]:
-    """The window nearest ``near_sec`` first, then the start, middle and end of a run long
-    enough to hold a window that does not overlap half of one already listed."""
+    """The window nearest ``near_sec``, then the run's start, middle and end windows, each
+    kept only if it sits at least half a window from every window already listed."""
     first = _window_nearest(run, near_sec, duration_sec)
     length = first[1] - first[0]
     windows = [first]

@@ -1221,7 +1221,7 @@ def test_a_peer_voice_that_lines_up_after_the_ingest_shift_is_not_room_tone(
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
     assert fill is not None
-    assert fill.end_s + 2.0 <= 7.0 or fill.start_s + 2.0 >= 9.0
+    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
 
 
 def test_a_peer_voice_that_only_lines_up_at_the_same_raw_second_is_not_evidence(
@@ -1265,7 +1265,7 @@ def test_ingest_entries_relate_the_files_whatever_the_first_clips_are_placed_at(
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
     assert fill is not None
-    assert fill.end_s <= 5.0 or fill.start_s >= 7.0
+    assert (fill.start_s, fill.end_s) == pytest.approx((1.95, 2.45))
 
 
 def _host_clips(project: EpisodeProject, ids: tuple[str, ...], shift: float) -> None:
@@ -1706,7 +1706,7 @@ def test_a_nearer_window_under_a_loud_peer_loses_to_a_farther_one_where_the_peer
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
     assert fill is not None
-    assert fill.end_s <= 5.0 or fill.start_s >= 8.0
+    assert (fill.start_s, fill.end_s) == pytest.approx((9.5, 10.0))
 
 
 def test_with_no_window_where_the_peer_is_quiet_the_quietest_peer_wins_over_the_nearest(
@@ -1733,7 +1733,7 @@ def test_a_peer_file_that_does_not_cover_a_window_ranks_it_after_one_it_covers(
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
     assert fill is not None
-    assert fill.end_s <= 5.0
+    assert (fill.start_s, fill.end_s) == pytest.approx((1.65, 2.15))
 
 
 def test_ranking_reads_only_the_nearest_few_windows_a_peer_is_loud_over(
