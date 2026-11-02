@@ -68,6 +68,8 @@ describe("findMatches", () => {
     });
     const turns = [side("host:a:7", 0, "one"), side("guest:b:0", 1, "thanks")];
     expect(findMatches(turns, "one thanks", false)).toEqual([]);
+    const sources = [side("host:a:7", 0, "one"), side("host:b:0", 1, "thanks")];
+    expect(findMatches(sources, "one thanks", false)).toEqual([]);
     const same = [side("host:a:7", 0, "one"), side("host:a:8", 1, "thanks")];
     expect(findMatches(same, "one thanks", false)).toEqual([
       { start: 0, end: 1 },
