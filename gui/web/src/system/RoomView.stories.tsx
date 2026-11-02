@@ -9,6 +9,7 @@ import { openDialogByLauncher } from "../test/storyDialog";
 import type { NoteItem } from "./notesRailModel";
 import { RoomView } from "./RoomView";
 import type { RoomPerson } from "./roomViewModel";
+import { SessionTargetChip } from "./SessionTargetChip";
 
 // Fixtures for every story below. Stubbed state only: nothing here is wired.
 const MAYA = { name: "Maya Okafor", colorIndex: 0 };
@@ -619,6 +620,43 @@ export const HostEmbedded: Story = {
     await expect(canvas.queryByRole("main")).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("tab", { name: "Takes" }));
     await expect(canvas.getByText("Takes list goes here.")).toBeVisible();
+  },
+};
+
+export const HostEmbeddedPhoneWideTarget: Story = {
+  args: {
+    ...phone,
+    seat: "host",
+    embedded: true,
+    people: [MAYA_YOU, JON_YOU],
+    selfName: "Maya Okafor",
+    sessionName: "Session 3",
+    target: (
+      <SessionTargetChip
+        target={{ kind: "replace", fromSec: 724, toSec: 1049 }}
+        session="Session 3"
+      />
+    ),
+    takes: <p className="sys-takes-empty">Takes list goes here.</p>,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The embedded header at 360 px with the widest target, "Replaces 12:04-17:29". The session label keeps a readable width and the chip drops to its own row beside the status pill instead of squeezing the label to a few pixels.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const label = canvasElement.querySelector<HTMLElement>(
+      ".sys-room-view-session",
+    );
+    await expect(label).not.toBeNull();
+    await expect(label?.textContent).toBe("Session 3");
+    // Not cut: the whole label is on screen.
+    await expect(label?.scrollWidth).toBeLessThanOrEqual(
+      (label?.clientWidth ?? 0) + 1,
+    );
   },
 };
 
