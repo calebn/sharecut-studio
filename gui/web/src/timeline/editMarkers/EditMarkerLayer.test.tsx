@@ -78,6 +78,22 @@ describe("EditMarkerLayer glyphs", () => {
     expect(useDawStore.getState().openJoinId).toBeNull();
   });
 
+  it("leaves the selection alone while a join change is saving", () => {
+    useDawStore.setState({ joinMutationInFlight: true });
+    const { left, right } = pair("s", 2, "cut");
+    const onSelectJoin = vi.fn();
+    render(
+      <EditMarkerLayer
+        plan={planOf([left, right], 50)}
+        onZoomChip={vi.fn()}
+        onSelectJoin={onSelectJoin}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /join at 0:02\.0$/ }));
+    expect(onSelectJoin).not.toHaveBeenCalled();
+    expect(useDawStore.getState().openJoinId).toBeNull();
+  });
+
   it.each([
     ["cut", "M6 1V11", "Cut"],
     ["fade", "M1 2L6 10L11 2", "Fade"],
