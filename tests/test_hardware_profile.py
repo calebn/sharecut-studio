@@ -329,6 +329,7 @@ def _linux_ram(monkeypatch, tmp_path: Path, cgroup: dict[str, str] | None = None
     monkeypatch.setattr(hardware.sys, "platform", "linux")
     monkeypatch.setattr(hardware, "_MEMINFO", meminfo)
     monkeypatch.setattr(hardware, "_CGROUP_ROOT", root)
+    monkeypatch.setattr(hardware, "_SELF_CGROUP", tmp_path / "no_self_cgroup")
 
 
 def test_linux_available_ram_reads_memavailable_without_a_cgroup(monkeypatch, tmp_path) -> None:
@@ -393,6 +394,43 @@ def test_linux_available_ram_falls_back_to_the_root_when_the_own_cgroup_is_unrea
         monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
     )
     _self_cgroup(monkeypatch, tmp_path, line)
+    assert hardware.available_ram_bytes() == 3_000_000_000
+
+
+def test_linux_available_ram_uses_the_tightest_limit_when_the_leaf_is_looser(
+    monkeypatch, tmp_path
+) -> None:
+    _linux_ram(
+        monkeypatch,
+        tmp_path,
+        {
+            "work/memory.max": "1500000000\n",
+            "work/memory.current": "1400000000\n",
+            "work/job/memory.max": "4000000000\n",
+            "work/job/memory.current": "1000000000\n",
+        },
+    )
+    _self_cgroup(monkeypatch, tmp_path, "0::/work/job\n")
+    assert hardware.available_ram_bytes() == 100_000_000
+
+
+def test_linux_available_ram_falls_back_to_the_root_when_the_own_cgroup_file_is_missing(
+    monkeypatch, tmp_path
+) -> None:
+    _linux_ram(
+        monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
+    )
+    assert not hardware._SELF_CGROUP.exists()
+    assert hardware.available_ram_bytes() == 3_000_000_000
+
+
+def test_linux_available_ram_falls_back_to_the_root_when_the_own_cgroup_is_not_ascii(
+    monkeypatch, tmp_path
+) -> None:
+    _linux_ram(
+        monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
+    )
+    hardware._SELF_CGROUP.write_bytes(b"0::/caf\xc3\xa9\n")
     assert hardware.available_ram_bytes() == 3_000_000_000
 
 
