@@ -330,6 +330,16 @@ describe("MarkerLaneHost", () => {
     expect(onMoveChapter.mock.calls[0][1]).toBeCloseTo(16.7, 5);
   });
 
+  it("keeps a chapter dragged past an off-grid episode end on the 0.1 s grid (#2960)", async () => {
+    const { onMoveChapter } = setup({ duration: 40.06 });
+    const chapter = screen.getByRole("button", { name: /^Chapter Intro,/ });
+    fireEvent.pointerDown(chapter, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(chapter, { pointerId: 1, clientX: 1500 });
+    fireEvent.pointerUp(chapter, { pointerId: 1, clientX: 1500 });
+    await waitFor(() => expect(onMoveChapter).toHaveBeenCalled());
+    expect(onMoveChapter.mock.calls[0][1]).toBeCloseTo(40, 5);
+  });
+
   it("previews the chapter on the snapped grid and treats a drop back on the origin as no move (#2960)", async () => {
     const { onMoveChapter } = setup({ zoomPxPerSec: 100 });
     const chapter = () =>
