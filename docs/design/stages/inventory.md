@@ -313,7 +313,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-ENVELOPE | Add, drag, set exact envelope points | Create here > Add volume point; drag point; Apply | OVL-ENVELOPE, INS-ENVELOPE | Enter/Space on point | yes |
 | INT-MUTE-SOLO | Mute and solo tracks, clear solo | Header buttons; M / S | CMP-TRACK-HEADERS, CMP-SOLO-CHIP, CMP-TRACK-MIX | M, S | yes (header) |
 | INT-FADER | Set track volume; reset to 0 dB | Fader; double-click reset | CMP-TRACK-FADER | none | yes |
-| INT-REORDER | Reorder tracks by drag or menu | Drag the track header (fine pointer only; there is no handle); Menu > Media Move up/down | CMP-TRACK-HEADERS | Shift+↑/↓ | partial (drag covered by TrackColumn.test.tsx, no story) |
+| INT-REORDER | Reorder tracks by drag or menu | Drag the track header (fine pointer only; there is no handle); Menu > Media Move up/down | CMP-TRACK-HEADERS | Shift+↑/↓ | yes static (Reordering story; drag in TrackColumn.test.tsx) |
 | INT-ZOOM | Zoom in/out, fit session, fit track height, track height, waveform amplitude | Zoom buttons; View menu; Ctrl/Meta wheel; pinch | CMP-TOOLRAIL, MENU-VIEW | =, -, \\, Alt+=, Alt+-, Shift+↑/↓ | partial |
 | INT-PINCH | Pinch to zoom keeps time under fingers | Two-touch pinch on timeline | CMP-TIMELINE | pinch | NONE |
 | INT-PAN | Pan timeline | Wheel, drag scrollbar; phone: swipe | CMP-TIMELINE | none | NONE |
