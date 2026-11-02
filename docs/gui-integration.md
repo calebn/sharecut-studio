@@ -313,7 +313,7 @@ itself on scroll, window resize, and any size change of the region, the card,
 the compact sheet, the marker lane, or the bottom panel, so a comment that
 grows the marker lane or a Script divider drag moves it without a scroll. While the
 tablet's regular inspector sheet is open, the card stays out of the canvas
-(the sheet covers it) and the Action bar's Cut and Keep (or the sheet's own Approve and Reject where the bar does not offer them) carry the review.
+(the sheet covers it) and the Action bar's Cut and Keep carry the review, and the sheet's own Approve and Reject appear for a split, an exact range, a suggestion with no accept action or a comment-linked pending edit. The bar's verb follows the suggestion's accept action alone, so for a split or exact range that carries one the bar still shows it (and approves the edit) while the sheet and card say Approve and Reject.
 The card keeps the same portal host across relocation, preserving recovery
 drafts and busy/error state. Relocation restores the currently focused control
 only if it was inside the card; body and external control focus stay unchanged.
