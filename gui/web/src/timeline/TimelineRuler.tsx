@@ -71,7 +71,13 @@ export const TimelineRuler = memo(function TimelineRuler({
   const bands = useSessionBands();
   // The tint is the system Ruler's; the pills are buttons in a sibling layer.
   const tints = useMemo(
-    () => bands.map((b) => ({ start: b.start, end: b.end, label: "" })),
+    () =>
+      bands.map((b) => ({
+        id: b.sessionId,
+        start: b.start,
+        end: b.end,
+        label: "",
+      })),
     [bands],
   );
   return (

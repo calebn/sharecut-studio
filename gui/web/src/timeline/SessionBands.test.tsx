@@ -4,6 +4,7 @@ import { loadHostRecordSessions } from "../api";
 import { seekTransport } from "../commands/seek";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import type { HistoryEntryId } from "../types/project";
 import {
   RECORDED_SESSIONS_RESPONSE,
   recordedSessionsProject,
@@ -43,6 +44,24 @@ function hydrate(guest = false) {
     );
 }
 
+function advanceHistory(headId: string) {
+  act(() =>
+    useDawStore.setState((s) =>
+      s.project
+        ? {
+            project: {
+              ...s.project,
+              history: {
+                ...s.project.history,
+                head_id: headId as HistoryEntryId,
+              },
+            },
+          }
+        : s,
+    ),
+  );
+}
+
 const pill = (name: RegExp) => screen.findByRole("button", { name });
 
 beforeEach(() => {
@@ -60,16 +79,29 @@ describe("session bands on the Edit ruler", () => {
   it("draws an S<n> pill per session, named in full", async () => {
     hydrate();
     render(<Ruler />);
-    expect(await pill(/^Session 1, select its clips$/)).toHaveTextContent("S1");
+    expect(await pill(/^S1, Session 1: select its clips$/)).toHaveTextContent(
+      "S1",
+    );
     expect(
-      await pill(/^Session 2 - Pickups, select its clips$/),
+      await pill(/^S2, Session 2 - Pickups: select its clips$/),
     ).toHaveTextContent("S2");
+  });
+
+  it("names each pill starting with its visible text", async () => {
+    hydrate();
+    render(<Ruler />);
+    for (const button of await screen.findAllByRole("button", {
+      name: /^S\d/,
+    })) {
+      const name = button.getAttribute("aria-label") ?? "";
+      expect(name.startsWith(button.textContent ?? "?")).toBe(true);
+    }
   });
 
   it("pressing a pill selects the session's clips and seeks to its start, not through the ruler", async () => {
     hydrate();
     render(<Ruler />);
-    const s2 = await pill(/^Session 2/);
+    const s2 = await pill(/^S2,/);
     fireEvent.pointerDown(s2);
     fireEvent.click(s2);
     const selection = useDawStore.getState().selection;
@@ -81,12 +113,18 @@ describe("session bands on the Edit ruler", () => {
       .filter((c) => c.source_id?.startsWith("rec-s2-"))
       .map((c) => c.id);
     expect([...ids].sort()).toEqual(expected.sort());
-    expect(seekTransport).toHaveBeenCalledTimes(1);
+    const s2Start = Math.min(
+      ...Object.values(tracks)
+        .flat()
+        .filter((c) => c.source_id?.startsWith("rec-s2-"))
+        .map((c) => c.timeline_start),
+    );
+    expect(seekTransport).toHaveBeenCalledExactlyOnceWith(s2Start);
     expect(onSeek).not.toHaveBeenCalled();
-    expect(s2).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /^Session 1/ })).toHaveAttribute(
-      "aria-pressed",
-      "false",
+    expect(s2).toHaveAttribute("aria-current", "true");
+    expect(s2).not.toHaveAttribute("aria-pressed");
+    expect(screen.getByRole("button", { name: /^S1,/ })).not.toHaveAttribute(
+      "aria-current",
     );
   });
 
@@ -109,10 +147,77 @@ describe("session bands on the Edit ruler", () => {
     ).toBeVisible();
   });
 
+  it("refetches when the history head changes and shows the new name", async () => {
+    hydrate();
+    render(<Ruler />);
+    await pill(/^S2, Session 2 - Pickups:/);
+    vi.mocked(loadHostRecordSessions).mockResolvedValue([
+      RECORDED_SESSIONS_RESPONSE.sessions[0],
+      { ...RECORDED_SESSIONS_RESPONSE.sessions[1], name: "Retakes" },
+    ]);
+    advanceHistory("h2");
+    expect(await pill(/^S2, Session 2 - Retakes:/)).toBeVisible();
+    expect(loadHostRecordSessions).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the pills while a refetch is pending", async () => {
+    hydrate();
+    render(<Ruler />);
+    await pill(/^S2,/);
+    vi.mocked(loadHostRecordSessions).mockReturnValue(new Promise(() => {}));
+    advanceHistory("h2");
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: /^S2,/ })).toBeVisible();
+  });
+
+  it("keeps the last good pills when a refetch fails", async () => {
+    hydrate();
+    render(<Ruler />);
+    await pill(/^S2,/);
+    vi.mocked(loadHostRecordSessions).mockRejectedValue(new Error("down"));
+    advanceHistory("h2");
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: /^S2,/ })).toBeVisible();
+  });
+
+  it("stacks a pill that starts inside an earlier band to the right of it", async () => {
+    const project = recordedSessionsProject();
+    const first = Object.values(project.clips.tracks)[0][0];
+    const tracks = {
+      ...project.clips.tracks,
+      nested: [
+        {
+          ...first,
+          id: "nested",
+          source_id: "rec-s3-0-x",
+          timeline_start: first.timeline_start + 1,
+          timeline_end: first.timeline_start + 5,
+        },
+      ],
+    };
+    useDawStore.getState().hydrate(project.project_path, {
+      ...project,
+      clips: { ...project.clips, tracks },
+    });
+    vi.mocked(loadHostRecordSessions).mockResolvedValue([
+      ...RECORDED_SESSIONS_RESPONSE.sessions,
+      {
+        ...RECORDED_SESSIONS_RESPONSE.sessions[0],
+        session_id: "s3",
+        number: 3,
+      },
+    ]);
+    render(<Ruler />);
+    const stack = async (re: RegExp) =>
+      (await pill(re)).style.getPropertyValue("--session-stack");
+    expect(await stack(/^S1,/)).toBe("0");
+    expect(await stack(/^S3,/)).toBe("1");
+  });
+
   it("has no axe violations", async () => {
     hydrate();
     const { container } = render(<Ruler />);
-    await pill(/^Session 1/);
+    await pill(/^S1,/);
     await expectNoA11yViolations(container);
   });
 });

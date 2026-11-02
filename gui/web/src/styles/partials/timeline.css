@@ -1304,9 +1304,13 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
 .timeline-session-pill {
   position: absolute;
   inset-block-end: var(--space-1);
-  inset-inline-start: var(--session-x);
+  inset-inline-start: calc(
+    var(--session-x) +
+    var(--session-stack, 0) *
+    2.25rem
+  );
+  min-inline-size: 1.5rem;
   max-inline-size: var(--session-w);
-  overflow: hidden;
   padding: 0 var(--space-1);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-xl);
@@ -1315,19 +1319,30 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   font-size: var(--font-size-micro);
   font-weight: 600;
   line-height: 0.875rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   pointer-events: auto;
   cursor: pointer;
 }
 
-/* A coarse pointer gets a 44 px target without a taller pill. */
+.timeline-session-pill-text {
+  display: block;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A coarse pointer gets a 44 px wide target the height of the ruler row (the row
+   is 24 px and clips anything taller). */
 @media (pointer: coarse) {
+  .timeline-session-pill {
+    min-inline-size: 2.75rem;
+  }
+
   .timeline-session-pill::after {
     content: "";
     position: absolute;
-    inset-block: -0.75rem;
-    inset-inline: -0.5rem;
+    inset-block: calc(var(--space-1) * -1);
+    inset-inline: 0;
   }
 }
 
@@ -1335,6 +1350,17 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   border-color: var(--color-selection);
   outline: var(--focus-ring-width) solid var(--color-selection);
   outline-offset: var(--focus-ring-offset);
+}
+
+@media (forced-colors: active) {
+  .timeline-ruler .sys-ruler-session {
+    box-sizing: border-box;
+    border-inline: 1px solid var(--color-border);
+  }
+
+  .timeline-session-pill[data-selected] {
+    border-width: var(--focus-ring-width);
+  }
 }
 
 /* The row keeps the lanes' px height at any root size. */

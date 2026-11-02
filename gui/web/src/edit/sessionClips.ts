@@ -1,8 +1,15 @@
 import type { ClipRow } from "../types/project";
 
+const RECORD_SOURCE_ROOT = "rec-";
+
 /** `rec-<session_id>-`, the source prefix every clip of a landed session carries (`landing_math.record_source_prefix`). */
 export function recordSourcePrefix(sessionId: string): string {
-  return `rec-${sessionId}-`;
+  return `${RECORD_SOURCE_ROOT}${sessionId}-`;
+}
+
+/** True for a clip any record session landed. */
+export function isRecordClip(clip: { source_id?: string | null }): boolean {
+  return (clip.source_id ?? "").startsWith(RECORD_SOURCE_ROOT);
 }
 
 export type SessionClipSet = {
@@ -67,6 +74,9 @@ export function sessionHandoff(
   if (!set) {
     return null;
   }
-  const { endSec: _end, ...handoff } = set;
-  return handoff;
+  return {
+    startSec: set.startSec,
+    primary: set.primary,
+    clipIds: set.clipIds,
+  };
 }

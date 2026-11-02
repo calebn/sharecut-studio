@@ -282,7 +282,7 @@ Alerts are a priority-ordered list derived from this state, not separate notice 
 ### OVL-RECORDING · Provisional take band and needle
 - **Today:** no shot of it. Code: a band and a needle on the timeline from the take origin to now.
 - **Fate:** restyle.
-- **Spec:** in Edit while a take records, the band draws at the session target position (end of the episode for an append; the replace range for a pickup) in the session colour with a label "Recording · Take 2" at its left edge. The needle is the record red. After landing, the band becomes the session band on the Timeline ruler (design-system I11, not a bracket in the marker lane).
+- **Spec:** in Edit while a take records, the band draws at the session target position (end of the episode for an append; the replace range for a pickup) in the session colour with a label "Recording · Take 2" at its left edge. The needle is the record red. After landing, the band becomes the session band on the Timeline ruler (design-system I11, not a bracket in the marker lane). Built: the landed session band on the ruler. Not built: this live band and its label.
 - **Shared elements used:** session band on the Timeline ruler (Edit spec).
 - **Story to build:** `Timeline/RecordingOverlay` › `AppendAtEnd`, `Pickup`, `Paused`, `Phone`.
 
