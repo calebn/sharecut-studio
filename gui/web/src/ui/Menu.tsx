@@ -231,6 +231,11 @@ type MenuItemProps = DisabledReasonProps & {
   ariaDescription?: string;
   /** Trailing value, decorative: the label already carries it. */
   detail?: string;
+  /**
+   * One choice of several: the item becomes a `menuitemradio` and says whether
+   * it is the chosen one. Leave it out for a plain action.
+   */
+  checked?: boolean;
   /** Marks the item a sliding finger is over (lift to pick it). */
   over?: boolean;
   onPointerDown?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -258,6 +263,7 @@ export function MenuItem({
   description,
   ariaDescription,
   detail,
+  checked,
   over,
   onPointerDown,
   dataAttrs,
@@ -291,7 +297,8 @@ export function MenuItem({
     <>
       <button
         type="button"
-        role="menuitem"
+        role={checked === undefined ? "menuitem" : "menuitemradio"}
+        aria-checked={checked}
         tabIndex={-1}
         className={classes}
         title={reason ?? title ?? ariaDescription}

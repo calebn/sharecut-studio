@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { SessionTargetChip } from "./SessionTargetChip";
+import { SessionTargetChip, type SessionTargetView } from "./SessionTargetChip";
 
 describe("SessionTargetChip", () => {
   it("opens a menu before the first take and picks a target", async () => {
@@ -15,9 +15,52 @@ describe("SessionTargetChip", () => {
     expect(
       screen.getByRole("menu", { name: "Where this session goes" }),
     ).toBeVisible();
-    await userEvent.click(screen.getByRole("menuitem", { name: "At the end" }));
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: "At the end" }),
+    );
     expect(onTarget).toHaveBeenCalledWith("end");
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+  });
+
+  it("draws a decorative placement glyph for each kind", () => {
+    const glyph = (view: SessionTargetView) => {
+      const { container, unmount } = render(
+        <SessionTargetChip target={view} />,
+      );
+      const svgs = [...container.querySelectorAll("svg")];
+      unmount();
+      return svgs.map((svg) => [
+        svg.getAttribute("class")?.match(/lucide-[a-z0-9-]+/)?.[0],
+        svg.getAttribute("aria-hidden"),
+      ]);
+    };
+    const hidden = "true";
+    expect(glyph({ kind: "end", afterSec: 3130 })).toEqual([
+      ["lucide-arrow-right-to-line", hidden],
+      ["lucide-chevron-down", hidden],
+    ]);
+    expect(glyph({ kind: "start" })[0]).toEqual([
+      "lucide-arrow-left-to-line",
+      hidden,
+    ]);
+    expect(glyph({ kind: "insert", atSec: 724 })[0]).toEqual([
+      "lucide-between-horizontal-start",
+      hidden,
+    ]);
+    expect(glyph({ kind: "replace", fromSec: 1, toSec: 2 })[0]).toEqual([
+      "lucide-replace",
+      hidden,
+    ]);
+  });
+
+  it("keeps only the lock glyph when locked", () => {
+    const { container } = render(
+      <SessionTargetChip target={{ kind: "insert", atSec: 724 }} locked />,
+    );
+    const names = [...container.querySelectorAll("svg")].map(
+      (svg) => svg.getAttribute("class")?.match(/lucide-[a-z0-9-]+/)?.[0],
+    );
+    expect(names).toEqual(["lucide-lock"]);
   });
 
   it("names the trigger by its subject and contains its visible text", () => {
@@ -35,7 +78,7 @@ describe("SessionTargetChip", () => {
       }),
     );
     expect(
-      screen.getAllByRole("menuitem").map((item) => item.textContent),
+      screen.getAllByRole("menuitemradio").map((item) => item.textContent),
     ).toEqual(["Starts the episode", "At the end"]);
   });
 
@@ -54,7 +97,7 @@ describe("SessionTargetChip", () => {
     const open = async (name: string) =>
       userEvent.click(screen.getByRole("button", { name }));
     const items = () =>
-      screen.getAllByRole("menuitem").map((item) => item.textContent);
+      screen.getAllByRole("menuitemradio").map((item) => item.textContent);
 
     it("words the trigger and offers only end and start without Edit state", async () => {
       render(<SessionTargetChip target={{ kind: "end", afterSec: 3130 }} />);
@@ -81,7 +124,7 @@ describe("SessionTargetChip", () => {
         "Replace selection",
       ]);
       await userEvent.click(
-        screen.getByRole("menuitem", { name: "Replace selection" }),
+        screen.getByRole("menuitemradio", { name: "Replace selection" }),
       );
       expect(onChange).toHaveBeenCalledWith({
         kind: "replace",
@@ -101,9 +144,41 @@ describe("SessionTargetChip", () => {
       );
       await open("Where this session goes: Starts the episode");
       await userEvent.click(
-        screen.getByRole("menuitem", { name: "At the end" }),
+        screen.getByRole("menuitemradio", { name: "At the end" }),
       );
       expect(onChange).toHaveBeenCalledWith({ kind: "end", afterSec: 3130 });
+    });
+
+    it("says which entry is chosen", async () => {
+      render(
+        <SessionTargetChip
+          target={{ kind: "insert", atSec: 724 }}
+          playheadSec={724}
+          endAfterSec={3130}
+        />,
+      );
+      await open("Where this session goes: Inserts at 12:04");
+      const checked = screen
+        .getAllByRole("menuitemradio")
+        .filter((item) => item.getAttribute("aria-checked") === "true");
+      expect(checked.map((item) => item.textContent)).toEqual([
+        "At the playhead (12:04)",
+      ]);
+    });
+
+    it("reads an end with no clip to follow as the start of the episode", async () => {
+      render(<SessionTargetChip target={{ kind: "end" }} />);
+      const trigger = screen.getByRole("button", {
+        name: "Where this session goes: Starts the episode",
+      });
+      expect(trigger.querySelector("svg.lucide-arrow-left-to-line")).not.toBe(
+        null,
+      );
+      await userEvent.click(trigger);
+      // The pick is still the end: the first clip will follow it.
+      expect(
+        screen.getByRole("menuitemradio", { name: "At the end" }),
+      ).toBeChecked();
     });
 
     it("locks with the wording of the target", () => {
