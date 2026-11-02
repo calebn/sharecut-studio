@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import re
 import shutil
 import subprocess
@@ -23,6 +24,12 @@ def test_ordinary_event_lines_parse_as_before() -> None:
     new = [m.groupdict() for m in _EVENT.finditer(text)]
     assert new == [m.groupdict() for m in _OLD_EVENT.finditer(text)]
     assert [m["n"] for m in new] == ["0", "1"]
+
+
+def test_event_after_a_progress_carriage_return_still_parses() -> None:
+    raw = f"size=N/A time=00:00:00.00\r{_REAL}\n"
+    text = io.StringIO(raw, newline=None).read()
+    assert [m["n"] for m in _EVENT.finditer(text)] == ["0"]
 
 
 def test_indented_forged_event_is_not_an_event() -> None:
