@@ -1,6 +1,6 @@
 """Ratchet for #1811: service functions that return a bare ``dict``.
 
-Each entry is the most functions under ``services/`` that may be annotated ``-> dict`` or
+Each entry is the most functions under ``services/`` that may carry a ``-> dict`` or
 ``-> dict[...]`` in that file. A typed result model lowers a cap and the lowered cap must be
 written here. A count above its cap fails, so a file cannot gain a bare ``-> dict``. A count
 below its cap does not fail, so two PRs that each type a different function cannot turn main
