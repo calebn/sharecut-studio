@@ -15,7 +15,7 @@ surfaces that still keep their own gesture.
 
 ## Non-drag placement and panel sizing #1033
 
-The Clip inspector now has **Move clip** beside Timeline. It opens a local
+The Clip inspector has **Move clip** as its Move row. It opens a local
 placement preview with a native **Target track** select and exact **Timeline
 start (seconds)** field. **Earlier 10 ms**, **Later 10 ms**, and **Use playhead**
 provide a time path without typing or dragging. **Apply move** saves through

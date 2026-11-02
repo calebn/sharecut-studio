@@ -143,9 +143,11 @@ export function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
         }
       } catch (error) {
         revert(from, shown, owner);
-        store.announceStatus(`${name} not saved: ${errorMessage(error)}`, {
-          tone: "error",
-        });
+        // A refusal for a project that is no longer open is not news in this one.
+        if (useDawStore.getState().projectPath === path)
+          store.announceStatus(`${name} not saved: ${errorMessage(error)}`, {
+            tone: "error",
+          });
       }
     },
     cancel() {

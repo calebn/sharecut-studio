@@ -362,7 +362,7 @@ the empty state, not a separate discovery task.
   still need to adopt it.
 - A stale fade gesture says "This clip changed. Nothing was saved. Adjust the
   fade again." Timeline handles and phone nudges use the visible announcement;
-  Clip Inspector shows the error inline. Repeat the gesture against current values.
+  Clip Inspector fades announce it the same way ("Fade in not saved: ..."; trim, join and Ripple delete errors show in the sheet). Repeat the gesture against current values.
 - A server that never answers says what happened to the work. A save
   waiting on it says "The server didn't answer. Nothing was saved." The
   Adjust boundary dialog saves nothing while it loads, so a hung load says
