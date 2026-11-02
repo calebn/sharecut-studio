@@ -346,32 +346,6 @@ test("at 390x844 by default, one finger dragging a selected clip's trim end save
   });
 });
 
-// The pending-cut detent the legacy drag held at ("At the pending remove") is
-// not in the system Envelope, whose drag has no soft boundaries (#2294 S7b W3b).
-test.fixme("an armed drag holds at a soft boundary, and saves there", async ({
-  page,
-  context,
-  browserName,
-}, info) => {
-  await open(page);
-  const finger = await newFinger(context, page, browserName);
-  const from = await centerOf(page, envC);
-  // The pending remove starting at 20 s is a soft boundary on this track.
-  const pending = await visiblePoint(page, `${lane} [data-pending-id]`, 0, 0.5);
-  if (!pending) throw new Error("pending cut not in view");
-  await hold(page, finger, from);
-  await finger.slide({ x: pending.x + 6, y: from.y }, 12, 24);
-  await expect(page.locator(".detent-mark")).toBeVisible();
-  await expect(page.locator(".detent-mark-caption")).toHaveText(
-    "At the pending remove",
-  );
-  await frame(page, info, `grammar-detent-${browserName}`);
-  await finger.up();
-  await expect
-    .poll(async () => (await points(page)).find((p) => p.id === "env-c")?.time)
-    .toBeCloseTo(20, 3);
-});
-
 type ClipMove = { clip_id: string; timeline_start: number; track_id: string };
 
 /** On the moved clip's body, clear of its edge handles' 22 px finger reach. */
