@@ -947,3 +947,61 @@ def test_the_kit_tool_is_in_the_timebase_registry() -> None:
     from podcast_mcp.util.tool_timebase import TOOL_TIMEBASE
 
     assert TOOL_TIMEBASE["kit_save_tool"] == "timeline"
+
+
+@pytest.mark.parametrize("changed", [False, True])
+@pytest.mark.parametrize("version", [None, 1])
+def test_cli_import_refuses_duplicate_member_identity_before_library_writes(
+    tmp_path: Path,
+    library: tuple[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    changed: bool,
+    version: int | None,
+) -> None:
+    _, bundle = _export(tmp_path, library)
+
+    def duplicate(members: dict[str, bytes]) -> dict[str, bytes]:
+        kit = json.loads(members["kit.json"])
+        kit["entries"][0]["version"] = version
+        members["kit.json"] = json.dumps(kit).encode()
+        for name, data in list(members.items()):
+            if name.startswith("seg01__"):
+                members[name.replace("seg01__", "seg03__")] = data
+        if changed:
+            segment = json.loads(members["seg03__segment.json"])
+            segment["fader_db"] = -9.0
+            members["seg03__segment.json"] = json.dumps(segment).encode()
+        return _regen(members)
+
+    ambiguous = _tampered(bundle, tmp_path / "duplicate.sharecutkit", duplicate)
+    destination = tmp_path / "destination"
+    monkeypatch.setenv("PODCAST_CONFIG_DIR", str(destination))
+
+    refused = runner.invoke(app, ["kit", "import", str(ambiguous), "--json"])
+
+    assert _code(refused) == "kit_bundle_invalid"
+    assert not destination.exists()
+
+
+def test_import_preserves_repeated_entries_for_one_shared_member(tmp_path: Path) -> None:
+    segment = _save(tmp_path, "Shared Intro")
+    kit = KitFile(
+        id=kit_id_for("Shared Kit"),
+        name="Shared Kit",
+        entries=[
+            KitEntry(segment_id=segment.id, version=1, at="start"),
+            KitEntry(segment_id=segment.id, version=1, at="end"),
+            KitEntry(segment_id=segment.id, at=3),
+        ],
+    )
+    KitStore().add(kit)
+    bundle = export_kit(KitStore(), SegmentStore(), kit.id, tmp_path / "shared.sharecutkit")
+    kits, segments = _fresh(tmp_path, "shared-destination")
+
+    first = import_kit_bundle(kits, segments, bundle)
+    again = import_kit_bundle(kits, segments, bundle)
+
+    assert len(first.segments) == 1
+    assert kits.get(kit.id).entries == kit.entries
+    assert again.kit.status == "unchanged"
+    assert [result.status for result in again.segments] == ["unchanged"]
