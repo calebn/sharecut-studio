@@ -23,7 +23,6 @@ from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.project.history import rollback as rollback_mod
 from podcast_mcp.project.history.manager import (
-    record_and_commit,
     snapshot_from_project,
     write_snapshot,
 )
@@ -391,14 +390,13 @@ def test_status_current_label(minimal_project):
 
 
 def _record_committed(path, label):
-    store = ProjectStore(path)
-    return record_and_commit(store, store.load(), label, force=True)
+    return ProjectWorkspace.open(path).record_snapshot(label, force=True)
 
 
-def test_record_and_commit(minimal_project):
-    entry = _record_committed(minimal_project, "via helper")
+def test_record_snapshot_commits_the_entry(minimal_project):
+    summary = _record_committed(minimal_project, "via helper")
     proj = load_project(minimal_project)
-    assert proj.history.entries[-1].id == entry.id
+    assert summary == f"{proj.history.entries[-1].id}: via helper"
 
 
 def test_status_without_entries(minimal_project):
@@ -567,8 +565,7 @@ def test_failed_first_mutation_keeps_an_index_another_writer_committed(minimal_p
     proj = load_project(minimal_project)
 
     def other_writer_commits_then_fail(_p):
-        store = ProjectStore(minimal_project)
-        record_and_commit(store, store.load(), "other writer", force=True)
+        _record_committed(minimal_project, "other writer")
         raise RuntimeError("boom")
 
     with pytest.raises(RuntimeError, match="boom"):
@@ -636,7 +633,7 @@ def test_snapshot_file_uses_the_shared_layout(minimal_project):
     assert history_snapshot_path(history_index_path(proj), entry.id).is_file()
 
 
-def test_record_and_commit_rolls_back_when_the_commit_fails(minimal_project, monkeypatch):
+def test_record_snapshot_rolls_back_when_the_commit_fails(minimal_project, monkeypatch):
     import json
 
     from podcast_mcp.models import load_project
@@ -657,7 +654,7 @@ def test_record_and_commit_rolls_back_when_the_commit_fails(minimal_project, mon
     assert history_snapshot_ids(index_path) == ids_before
 
 
-def test_record_and_commit_rolls_back_when_the_index_write_fails(minimal_project, monkeypatch):
+def test_record_snapshot_rolls_back_when_the_index_write_fails(minimal_project, monkeypatch):
     import json
 
     from podcast_mcp.models import load_project
