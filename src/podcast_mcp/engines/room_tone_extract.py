@@ -21,8 +21,10 @@ writes files, and the caller registers the result under the project lock.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import logging
+import os
 import re
 import uuid
 from dataclasses import dataclass
@@ -46,8 +48,8 @@ from podcast_mcp.engines.room_tone import (
     track_floor,
 )
 from podcast_mcp.models import EpisodeProject, RoomToneOrigin
-from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, rms_db
+from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.project_state import file_stamp
 from podcast_mcp.util.tracks import track_audio_path
 from podcast_mcp.util.workspace_paths import resolve_under_workspace, workspace_relpath
@@ -55,9 +57,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace, workspace_
 log = logging.getLogger(__name__)
 
 EXTRACT_DIR = "raw/room-tone-extracted"
-# Bumped when the pick or its checks change, so an older bed is told apart from a fresh one.
-EXTRACTOR_REV = 1
-# Longest bed cut. A pad takes the piece it needs, so a few seconds of steady room is plenty.
+EXTRACTOR_REV = 2
 BED_TARGET_SEC = 8.0
 
 
@@ -74,11 +74,26 @@ class ExtractedBed:
 
 
 def extract_key(
-    track_id: str, size: int, mtime_ns: int, start: float, end: float, extractor_rev: int
+    track_id: str, source_path: str, media_sha256: str, start: float, end: float, extractor_rev: int
 ) -> str:
     """Names one extraction: the same track audio, range and extractor give the same key."""
-    raw = f"{track_id}|{size}|{mtime_ns}|{start:.6f}|{end:.6f}|{extractor_rev}"
+    raw = f"{track_id}|{source_path}|{media_sha256}|{start:.6f}|{end:.6f}|{extractor_rev}"
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def source_matches(project: EpisodeProject, track_id: str, origin: RoomToneOrigin) -> bool:
+    """Whether the current original media still matches the planned provenance."""
+    try:
+        path = track_audio_path(project, track_id)
+        before = file_stamp(path)
+        return (
+            workspace_relpath(project, path) == origin.source_path
+            and (before.size, before.mtime_ns) == (origin.media_size, origin.media_mtime_ns)
+            and sha256_file(path) == origin.media_sha256
+            and file_stamp(path) == before
+        )
+    except (OSError, ValueError):
+        return False
 
 
 def extracted_rel(track_id: str, key: str) -> str:
@@ -89,8 +104,8 @@ def extracted_rel(track_id: str, key: str) -> str:
 def plan_extracted_bed(project: EpisodeProject, track_id: str) -> ExtractedBed | SampleAbsent:
     """Pick, cut and validate a bed from ``track_id``'s own audio, or say why there is none.
 
-    Reads the project and writes the bed file (once; an identical earlier extraction is reused),
-    and changes nothing else. The track's recorded or assigned bed is not consulted: whether
+    Reads the project and verifies a fresh excerpt against any existing canonical bed.
+    Publishes the canonical file only when absent, and changes nothing else. The track's recorded or assigned bed is not consulted: whether
     this track may take an extracted bed is the caller's rule.
     """
     track = project.track_by_id(track_id)
@@ -103,9 +118,13 @@ def plan_extracted_bed(project: EpisodeProject, track_id: str) -> ExtractedBed |
     path = track_audio_path(project, track_id)
     try:
         stamp = file_stamp(path)
+        media_sha = sha256_file(path)
+        if file_stamp(path) != stamp:
+            return SampleAbsent("unreadable_file")
     except OSError:
         return SampleAbsent("missing_media")
-    read = track_floor(path)
+    source_path = workspace_relpath(project, path)
+    read = track_floor(path, content_sha256=media_sha)
     if isinstance(read, Unmeasured):
         return SampleAbsent(read.cause)
     if isinstance(read, DigitalSilence):
@@ -126,24 +145,28 @@ def plan_extracted_bed(project: EpisodeProject, track_id: str) -> ExtractedBed |
         return picked
     sample = picked.sample
     start, end = round(sample.start, 3), round(sample.end, 3)
-    key = extract_key(track_id, stamp.size, stamp.mtime_ns, start, end, EXTRACTOR_REV)
+    key = extract_key(track_id, source_path, media_sha, start, end, EXTRACTOR_REV)
     rel = extracted_rel(track_id, key)
     try:
         dest = resolve_under_workspace(project, rel)
-        if not dest.is_file():
-            _write_excerpt(path, dest, start, end)
+        sha = _write_excerpt(path, dest, start, end)
+        if sha is None:
+            return SampleAbsent("bed_changed")
         written = _validate_written(dest)
         if isinstance(written, SampleAbsent):
             return written
-        if file_stamp(path).content != stamp.content:
+        if file_stamp(path) != stamp or sha256_file(path) != media_sha:
             return SampleAbsent("unreadable_file")
         duration_sec, sample_rate, channels = written
-        sha = hashlib.sha256(dest.read_bytes()).hexdigest()
+        if sha256_file(dest) != sha:
+            return SampleAbsent("bed_changed")
     except Exception:
         log.warning("room tone extraction for %s failed", track_id, exc_info=True)
         return SampleAbsent("unreadable_file")
     origin = RoomToneOrigin(
         source_id=None,
+        source_path=source_path,
+        media_sha256=media_sha,
         source_start=start,
         source_end=end,
         media_size=stamp.size,
@@ -165,21 +188,33 @@ def plan_extracted_bed(project: EpisodeProject, track_id: str) -> ExtractedBed |
     )
 
 
-def _write_excerpt(source: Path, dest: Path, start: float, end: float) -> None:
-    """Copy ``[start, end]`` of ``source`` at its own rate into ``dest``, atomically."""
+def _write_excerpt(source: Path, dest: Path, start: float, end: float) -> str | None:
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     temp = dest.with_name(f".{dest.stem}.{uuid.uuid4().hex[:8]}.partial.wav")
     try:
         FFmpegEngine().extract_segment(source, temp, start, end)
-        publish_completed_file(temp, dest)
+        sha = sha256_file(temp)
+        with temp.open("rb") as handle:
+            os.fsync(handle.fileno())
+        try:
+            os.link(temp, dest)
+        except FileExistsError:
+            return sha if sha256_file(dest) == sha else None
+        if os.name == "posix":
+            with contextlib.suppress(OSError):
+                descriptor = os.open(dest.parent, os.O_RDONLY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+        return sha
     finally:
         temp.unlink(missing_ok=True)
 
 
 def _validate_written(dest: Path) -> tuple[float, int, int] | SampleAbsent:
-    """The written file's duration, rate and channels when it would render as a usable bed."""
     from podcast_mcp.util.project_state import file_revision
     from podcast_mcp.util.wav import open_wav
 

@@ -2283,6 +2283,10 @@
             "media_mtime_ns": {
               "type": "integer"
             },
+            "media_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
             "media_size": {
               "minimum": 0,
               "type": "integer"
@@ -2301,6 +2305,9 @@
                 }
               ],
               "default": null
+            },
+            "source_path": {
+              "type": "string"
             },
             "source_start": {
               "minimum": 0,
@@ -2321,6 +2328,8 @@
           "required": [
             "source_start",
             "source_end",
+            "source_path",
+            "media_sha256",
             "media_size",
             "media_mtime_ns",
             "extractor_rev",
@@ -6032,6 +6041,10 @@
             "media_mtime_ns": {
               "type": "integer"
             },
+            "media_sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
             "media_size": {
               "minimum": 0,
               "type": "integer"
@@ -6050,6 +6063,9 @@
                 }
               ],
               "default": null
+            },
+            "source_path": {
+              "type": "string"
             },
             "source_start": {
               "minimum": 0,
@@ -6070,6 +6086,8 @@
           "required": [
             "source_start",
             "source_end",
+            "source_path",
+            "media_sha256",
             "media_size",
             "media_mtime_ns",
             "extractor_rev",
