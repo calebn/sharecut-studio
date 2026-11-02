@@ -58,3 +58,36 @@ describe("inspectorHeading for a track selection", () => {
     ).toBe("2 tracks");
   });
 });
+
+describe("inspectorHeading for a clip", () => {
+  it("keeps the range when the selection names another lane than the clip is on", () => {
+    const withClip = minimalProject({
+      tracks: [sampleTrack({ id: "host", speaker: "Mira" })],
+      clips: {
+        tracks: {
+          host: [
+            {
+              id: "c1",
+              track_id: "host",
+              source_start: 0,
+              source_end: 2,
+              timeline_start: 4,
+              timeline_end: 6,
+              fade_in_ms: 0,
+              fade_out_ms: 0,
+              join_in_mode: "fade",
+              source_id: null,
+              source_duration_sec: null,
+              recording_key: null,
+            },
+          ],
+        },
+        clip_count: 1,
+      },
+    });
+    expect(
+      inspectorHeading({ kind: "clip", id: "c1", trackId: "stale" }, withClip)
+        .name,
+    ).toBe("Mira · 00:04.000 to 00:06.000");
+  });
+});

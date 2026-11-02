@@ -38,3 +38,12 @@ export function hasCommandModifier(e: {
 }): boolean {
   return e.metaKey || e.ctrlKey || e.altKey;
 }
+
+/**
+ * A Scrub field's value is a focusable span, not an input, so it owns its keys
+ * the way a text field does: the window keymap must not run Split, Mute or
+ * Undo from it. Escape is left to the keymap so it still closes the sheet.
+ */
+export function isScrubValue(el: EventTarget | null): boolean {
+  return el instanceof HTMLElement && el.matches('[role="spinbutton"]');
+}

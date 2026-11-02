@@ -657,3 +657,36 @@ it("says why a refused edit did nothing, in the live region", async () => {
     "Move the playhead onto the clip to split it",
   );
 });
+
+it("leaves Split, Undo and the playhead keys to a focused Scrub field, but not Escape", async () => {
+  render(
+    <>
+      <KeymapHost />
+      <span role="spinbutton" tabIndex={0} aria-label="Fade in" />
+    </>,
+  );
+  const field = screen.getByRole("spinbutton", { name: "Fade in" });
+  const press = async (init: KeyboardEventInit) => {
+    await act(async () => {
+      fireEvent.keyDown(field, { bubbles: true, cancelable: true, ...init });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  };
+  await press({ key: "s", code: "KeyS" });
+  await press({ key: "z", code: "KeyZ", ctrlKey: true });
+  await press({ key: " ", code: "Space" });
+  await press({ key: "ArrowRight", code: "ArrowRight" });
+  await press({ key: "Home", code: "Home" });
+  expect(execute).not.toHaveBeenCalled();
+  act(() =>
+    useDawStore.setState({
+      selection: { kind: "clip", id: "c1", trackId: "host" },
+    }),
+  );
+  await press({ key: "Escape", code: "Escape" });
+  expect(execute).toHaveBeenCalledWith(
+    "edit.clearSelection",
+    expect.anything(),
+    expect.anything(),
+  );
+});
