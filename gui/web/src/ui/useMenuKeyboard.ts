@@ -156,7 +156,7 @@ export function useMenuKeyboard({
       const active = document.activeElement;
       const focusLost =
         !active || active === document.body || !active.isConnected;
-      if (focusLost && restore?.isConnected) {
+      if (focusLost && restore?.isConnected && !restore.closest("[inert]")) {
         restore.focus();
       }
     };

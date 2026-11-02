@@ -551,7 +551,7 @@ describe("BottomSheet", () => {
     });
   });
 
-  it("peeks as a strip, expands one size up with named actions, and stows without losing focus", async () => {
+  it("peeks as a strip, expands one size up with named actions, and stows without keeping focus inside the inert sheet", async () => {
     const user = userEvent.setup();
     function Strip({ stowed }: { stowed: boolean }) {
       const [expanded, setExpanded] = useState(false);
@@ -589,7 +589,7 @@ describe("BottomSheet", () => {
     collapse.focus();
     rerender(<Strip stowed />);
     expect(dialog.closest(".bottom-sheet-root")).toHaveClass("is-stowed");
-    expect(collapse).toHaveFocus();
+    expect(collapse).not.toHaveFocus();
     rerender(<Strip stowed={false} />);
     expect(dialog.closest(".bottom-sheet-root")).not.toHaveClass("is-stowed");
     await user.click(collapse);
