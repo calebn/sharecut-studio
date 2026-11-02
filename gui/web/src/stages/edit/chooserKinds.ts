@@ -7,6 +7,8 @@ export type ChooserKind =
   | "comment"
   | "suggestion"
   | "envelope-point"
+  | "chapter"
+  | "social-clip"
   | "word";
 
 /** The attribute the host reads to find the chip under a sliding finger. */
@@ -18,6 +20,8 @@ export const KIND_ICONS: Record<ChooserKind, SystemIconName> = {
   comment: "message-square",
   suggestion: "wand-sparkles",
   "envelope-point": "spline",
+  chapter: "flag",
+  "social-clip": "brackets",
   word: "text-cursor-input",
 };
 
@@ -27,5 +31,7 @@ export const KIND_NAMES: Record<ChooserKind, string> = {
   comment: "Comment",
   suggestion: "Suggestion",
   "envelope-point": "Envelope point",
+  chapter: "Chapter",
+  "social-clip": "Social clip",
   word: "Word",
 };

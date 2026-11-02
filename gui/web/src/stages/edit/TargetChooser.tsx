@@ -13,7 +13,7 @@ import { CHOOSER_MAX_CHIPS, layoutChips } from "./chooserMath";
 import type { Bounds, Point } from "./createMenuLayout";
 
 export type ChooserTarget = {
-  /** Stable across pages; `over` and `onPick` speak in ids, never indices. */
+  /** `over` and `onPick` speak in ids, never indices. */
   id: string;
   kind: ChooserKind;
   /** Picks the ring's colour from the eight presence colours. */

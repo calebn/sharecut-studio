@@ -1,11 +1,9 @@
 /**
  * Where the target chooser's chips sit for a held point (spec-edit
  * POP-CHOOSER): a shallow fan above the press point, below it near the top of
- * the box, and swung away from a side edge. A copy of the placement rules of
- * the legacy `timeline/chooserLayout.ts` with the spec's numbers (the legacy
- * file stays until the wiring slice retires it; nothing here imports
- * `timeline/`). Every number is in the leaf's own coordinates: the host
- * converts, and pages the targets (at most five are drawn).
+ * the box, and swung away from a side edge. Nothing here imports `timeline/`.
+ * Every number is in the leaf's own coordinates: the host converts, and keeps
+ * the five best-ranked targets.
  */
 import type { Bounds, Point } from "./createMenuLayout";
 
@@ -30,7 +28,7 @@ export const CHOOSER_ROOM_PX = 48;
  * edge gutter, so the caption's centre clamps at 136 px from a side.
  */
 export const CHOOSER_CAPTION_HALF_PX = 120;
-/** The most chips drawn at once; a longer list is paged by the host. */
+/** The most chips drawn at once; the host keeps the best-ranked. */
 export const CHOOSER_MAX_CHIPS = 5;
 
 type ChipPlacement = "above" | "below";
