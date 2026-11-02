@@ -670,22 +670,8 @@ describe("seamTickAtJoin", () => {
 
   it("picks the nearest seam when two sit within the tolerance", () => {
     const ticks = [tick("a", 2), tick("b", 2.0167)];
-    expect(
-      seamTickAtJoin(ticks, { kind: "join-cut", sec: 2.0167 })?.recordId,
-    ).toBe("b");
-    expect(seamTickAtJoin(ticks, { kind: "join-cut", sec: 2 })?.recordId).toBe(
-      "a",
-    );
-  });
-
-  it("finds nothing for a join that is not a cut", () => {
-    const ticks = [tick("a", 2)];
-    expect(
-      seamTickAtJoin(ticks, { kind: "join-fade", sec: 2 }),
-    ).toBeUndefined();
-    expect(
-      seamTickAtJoin(ticks, { kind: "join-crossfade", sec: 2 }),
-    ).toBeUndefined();
+    expect(seamTickAtJoin(ticks, { sec: 2.0167 })?.recordId).toBe("b");
+    expect(seamTickAtJoin(ticks, { sec: 2 })?.recordId).toBe("a");
   });
 
   it("skips edge and mute ticks and anything past the tolerance", () => {
@@ -694,6 +680,6 @@ describe("seamTickAtJoin", () => {
       tick("mute", 2, { mute: true }),
       tick("far", 2.05),
     ];
-    expect(seamTickAtJoin(ticks, { kind: "join-cut", sec: 2 })).toBeUndefined();
+    expect(seamTickAtJoin(ticks, { sec: 2 })).toBeUndefined();
   });
 });

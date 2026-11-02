@@ -427,9 +427,8 @@ const SEAM_MATCH_SEC = 0.02;
 
 export function seamTickAtJoin(
   ticks: readonly AppliedTick[],
-  join: { kind: string; sec: number },
+  join: { sec: number },
 ): AppliedTick | undefined {
-  if (join.kind !== "join-cut") return undefined;
   let best: AppliedTick | undefined;
   let bestGap = SEAM_MATCH_SEC;
   for (const tick of ticks) {
