@@ -59,4 +59,31 @@ describe("layoutPills", () => {
   it("skips a band that is outside the window", () => {
     expect(layoutPills([band(1, 100, 120)], px10, 500)).toEqual([]);
   });
+
+  it.each([16, 32])(
+    "never overlaps or passes the right edge at a %i px root",
+    (rootPx) => {
+      const bands = [
+        band(1, 0, 1),
+        band(2, 1, 2),
+        band(3, 2, 3),
+        band(4, 47, 48),
+      ];
+      const placed = layoutPills(bands, px10, 500, rootPx);
+      expect(placed.length).toBeGreaterThan(0);
+      for (const [i, p] of placed.entries()) {
+        expect(p.width).toBe(pillWidthPx(p.band.label, rootPx));
+        expect(p.left + p.width).toBeLessThanOrEqual(500);
+        if (i > 0) {
+          expect(p.left).toBeGreaterThanOrEqual(
+            placed[i - 1].left + placed[i - 1].width,
+          );
+        }
+      }
+    },
+  );
+
+  it("makes pills twice as wide at twice the root font", () => {
+    expect(pillWidthPx("S2", 32)).toBe(pillWidthPx("S2", 16) * 2);
+  });
 });

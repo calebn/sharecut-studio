@@ -7,7 +7,6 @@ export function recordSourcePrefix(sessionId: string): string {
   return `${RECORD_SOURCE_ROOT}${sessionId}-`;
 }
 
-/** True for a clip any record session landed. */
 export function isRecordClip(clip: { source_id?: string | null }): boolean {
   return (clip.source_id ?? "").startsWith(RECORD_SOURCE_ROOT);
 }
@@ -17,9 +16,7 @@ export type SessionClipSet = {
   startSec: number;
   /** Latest `timeline_end`: a gap between takes stays inside the extent. */
   endSec: number;
-  /** The start-most clip, the selection's primary. */
   primary: { id: string; trackId: string };
-  /** Every clip of the session, in timeline order. */
   clipIds: string[];
 };
 

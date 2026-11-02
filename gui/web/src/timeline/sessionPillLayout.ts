@@ -6,9 +6,11 @@ const PILL_PAD_PX = 12;
 const PILL_CHAR_PX = 7;
 const PILL_GAP_PX = 2;
 
-/** The pill's width in px, figured from its label: border, padding and the micro font's glyphs. */
-export function pillWidthPx(label: string): number {
-  return PILL_PAD_PX + PILL_CHAR_PX * label.length;
+const REM_PX = 16;
+
+/** The pill's width in px, figured from its label (border, padding and the micro font's glyphs at a 16 px root) and scaled by the root font size, since its padding and font are rem. */
+export function pillWidthPx(label: string, rootPx: number = REM_PX): number {
+  return ((PILL_PAD_PX + PILL_CHAR_PX * label.length) * rootPx) / REM_PX;
 }
 
 /**
@@ -22,6 +24,7 @@ export function layoutPills(
   bands: readonly SessionBand[],
   xOf: (seconds: number) => number,
   width: number,
+  rootPx: number = REM_PX,
 ): PillPlacement[] {
   const placed: PillPlacement[] = [];
   let right = Number.NEGATIVE_INFINITY;
@@ -29,12 +32,10 @@ export function layoutPills(
     const from = Math.max(0, xOf(band.start));
     const to = Math.min(width, xOf(band.end));
     if (to <= from) continue;
-    const pillWidth = pillWidthPx(band.label);
-    const left = Math.min(
-      Math.max(from, right + PILL_GAP_PX),
-      width - pillWidth,
-    );
-    if (left < 0 || left < right + PILL_GAP_PX) continue;
+    const pillWidth = pillWidthPx(band.label, rootPx);
+    const gap = (PILL_GAP_PX * rootPx) / REM_PX;
+    const left = Math.min(Math.max(from, right + gap), width - pillWidth);
+    if (left < 0 || left < right + gap) continue;
     placed.push({ band, left, width: pillWidth });
     right = left + pillWidth;
   }
