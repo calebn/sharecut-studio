@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from podcast_mcp.config.defaults import bounded_float
 from podcast_mcp.edits.tighten_reasons import (
+    FILLER_REASON_PREFIX,
     PAUSE_REASON_PREFIX,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -183,7 +184,7 @@ def _collect_filler_candidates(
                         track_id=track_id,
                         start=words[start_i].start,
                         end=words[end_i].end,
-                        reason=f"filler:{token}",
+                        reason=f"{FILLER_REASON_PREFIX}{token}",
                         cut_kind="filler",
                         filler_confidence=_span_confidence(words, start_i, end_i),
                     )
