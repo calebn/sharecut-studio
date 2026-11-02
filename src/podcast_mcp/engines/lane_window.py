@@ -19,7 +19,7 @@ from podcast_mcp.engines.mute_regions import (
 )
 from podcast_mcp.engines.sample_grid import Piece, lay_out
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
-from podcast_mcp.models import Clip, EpisodeProject, Track
+from podcast_mcp.models import Clip, ClipMuteRegion, EpisodeProject, Track
 from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
@@ -87,7 +87,11 @@ def lane_clip_placements(project: EpisodeProject, track: Track) -> list[tuple[Cl
                 timeline_start=0.0,
             )
         ]
-    return [(clip, _clip_placement(project, track, clip, ignored, sample_rates)) for clip in clips]
+    return [
+        (clip, placement)
+        for clip in clips
+        for placement in _clip_placements(project, track, clip, ignored, sample_rates)
+    ]
 
 
 def lane_placements(project: EpisodeProject, track: Track) -> list[Placement]:
@@ -121,32 +125,49 @@ def primary_media(project: EpisodeProject, track: Track) -> Path | None:
         return None
 
 
-def _clip_placement(
+def _clip_placements(
     project: EpisodeProject,
     track: Track,
     clip: Clip,
     ignored: IgnoredWordRegions,
     sample_rates: dict[Path, int | None],
-) -> Placement:
+) -> list[Placement]:
+    """One placement per constant-shift piece the clip plays as (one for an untimed clip)."""
     try:
         media: Path | None = resolve_clip_audio_path(project, track, clip)
     except (OSError, ValueError):
         media = None
     ignored_regions = ignored.for_clip(clip)
+    return [
+        _piece_placement(
+            clip, track, media, ignored_regions, sample_rates, src_start, src_end, tl_start
+        )
+        for src_start, src_end, tl_start in clip.virtual_pieces()
+    ]
+
+
+def _piece_placement(
+    clip: Clip,
+    track: Track,
+    media: Path | None,
+    ignored_regions: Sequence[ClipMuteRegion],
+    sample_rates: dict[Path, int | None],
+    src_start: float,
+    src_end: float,
+    tl_start: float,
+) -> Placement:
     excluded: list[tuple[float, float]] = []
-    envelopes = mute_spans_for_source_window(
-        clip, clip.source_start, clip.source_end, ignored_regions
-    )
+    envelopes = mute_spans_for_source_window(clip, src_start, src_end, ignored_regions)
     if envelopes:
         if media is not None and media not in sample_rates:
             info = probe_media(media)
             sample_rates[media] = info.sample_rate if info is not None else None
         rate = sample_rates.get(media) if media is not None else None
         if rate is None:
-            excluded = [(clip.source_start, clip.source_end)]
+            excluded = [(src_start, src_end)]
         else:
             samples = sample_mute_envelopes(
-                envelopes, clip.source_end - clip.source_start, rate, source_start=clip.source_start
+                envelopes, src_end - src_start, rate, source_start=src_start
             )
             for index, sample in enumerate(samples):
                 first, last = sample.silent_span()
@@ -156,18 +177,18 @@ def _clip_placement(
                     excluded.append((first / rate, last / rate))
     bounded = tuple(
         merge_intervals(
-            (max(lo, clip.source_start), min(hi, clip.source_end))
+            (max(lo, src_start), min(hi, src_end))
             for lo, hi in excluded
-            if hi > clip.source_start and lo < clip.source_end
+            if hi > src_start and lo < src_end
         )
     )
     return Placement(
         track.id,
         clip.source_id,
         media,
-        clip.timeline_start,
-        clip.timeline_end,
-        clip.source_start,
+        tl_start,
+        tl_start + (src_end - src_start),
+        src_start,
         bounded,
     )
 

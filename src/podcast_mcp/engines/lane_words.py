@@ -102,9 +102,10 @@ def lane_transcripts(project: EpisodeProject, track_id: str) -> list[LaneTranscr
     for key, transcript in transcripts.items():
         placed_ids = tuple(source_ids[key])
         placements = tuple(
-            _Placement(c.source_start, c.source_end, c.timeline_start - c.source_start)
+            _Placement(src_a, src_b, tl_a - src_a)
             for c in project.clips
             if c.track_id == track_id and c.source_id in placed_ids
+            for src_a, src_b, tl_a in c.virtual_pieces()
         )
         out.append(LaneTranscript(transcript, placed_ids, placements))
     return out

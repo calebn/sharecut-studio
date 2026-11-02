@@ -367,6 +367,7 @@ def extract_clips_in_timeline_range(
         if src_bounds is None:
             continue
         src_start, src_end = src_bounds
+        timing = None if clip.timing is None else clip.timing.sliced(src_start, src_end)
         extracted.append(
             Clip(
                 id=new_clip_id(),
@@ -385,6 +386,7 @@ def extract_clips_in_timeline_range(
                 bleed_restore=clip.bleed_restore.model_copy(deep=True)
                 if clip.bleed_restore
                 else None,
+                timing=timing,
             )
         )
     return extracted

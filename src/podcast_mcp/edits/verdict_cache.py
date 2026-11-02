@@ -454,6 +454,9 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
     start, end = max(clip.timeline_start, lo), min(clip.timeline_end, hi)
     offset = clip.timeline_start - clip.source_start
     opens, closes = clip.timeline_start >= lo, clip.timeline_end <= hi
+    timing = (
+        [] if clip.timing is None else [[[step.at, step.delta_sec] for step in clip.timing.steps]]
+    )
     return [
         clip.track_id,
         clip.source_id,
@@ -468,6 +471,7 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
         [r.model_dump(mode="json") for r in clip.mute_regions],
         [r.model_dump(mode="json") for r in clip.off_speaker_mute_regions],
         clip.bleed_restore.model_dump(mode="json") if clip.bleed_restore else None,
+        *timing,
     ]
 
 
