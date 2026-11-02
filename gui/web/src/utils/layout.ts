@@ -8,10 +8,10 @@
  */
 export const LANE_HEIGHT = 72;
 export const RULER_HEIGHT = 24;
-/** One marker row (chapters, social clips, or comments). */
+/** One marker row: the marker lane (chapters, social clips and comments) or the clipping row. */
 export const MARKER_ROW_HEIGHT = 24;
-/** Chapters + social + comments rows. */
-export const MARKER_LANE_HEIGHT = 3 * MARKER_ROW_HEIGHT;
+/** The marker lane and the clipping row. */
+export const MARKER_LANE_HEIGHT = 2 * MARKER_ROW_HEIGHT;
 /** Tallest a lane grows when few tracks fill the stage. */
 export const MAX_FIT_LANE_HEIGHT = 240;
 /**

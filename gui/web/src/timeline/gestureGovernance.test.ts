@@ -82,7 +82,6 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
 
 /** Arrow keys outside the command bus's focused-handle commands, and why. */
 const ARROW_ALLOWLIST: Record<string, string> = {
-  "timeline/MarkerLaneView.tsx": "swallows keys while a marker drag is live",
   "timeline/ClipBlock.tsx": "swallows keys while a clip body drag is live",
   "timeline/useClipEdgeHandles.ts":
     "the focused handle's key release saves the run edit.setClipFade and edit.trimClipEdge stepped",

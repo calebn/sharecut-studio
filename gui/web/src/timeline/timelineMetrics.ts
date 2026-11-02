@@ -200,20 +200,26 @@ export function markerRows(input: {
 }
 
 /**
- * Marker lane height: one row per visible row, and one quiet row when empty,
- * except on a short touch screen (#1077), where an empty lane gives its row
- * to the tracks.
+ * Whether the system marker lane (chapters, social clips and comments) takes
+ * its row: always, except on a short touch screen (#1077) with nothing marked,
+ * where an empty lane gives its row to the tracks.
  */
+export function markerLaneRow(
+  rows: MarkerRows,
+  fit: LaneFit = { kind: "pointer" },
+): boolean {
+  return (
+    fit.kind !== "touchShort" || rows.chapters || rows.social || rows.comments
+  );
+}
+
+/** Marker lane height: the marker lane's row, plus one when clipping flags show. */
 export function markerLaneHeight(
   rows: MarkerRows,
   fit: LaneFit = { kind: "pointer" },
 ): number {
-  const count = [
-    rows.chapters,
-    rows.social,
-    rows.comments,
-    rows.clipping,
-  ].filter(Boolean).length;
-  const quietRows = fit.kind === "touchShort" ? 0 : 1;
-  return Math.max(quietRows, count) * MARKER_ROW_HEIGHT;
+  return (
+    (Number(markerLaneRow(rows, fit)) + Number(rows.clipping)) *
+    MARKER_ROW_HEIGHT
+  );
 }

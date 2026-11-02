@@ -27,7 +27,7 @@ const DOCUMENTED_EXCEPTIONS = [
   ".track-headers-well",
   ".sys-script-word",
   ".sys-script-time",
-  ".comment-marker.pin",
+  ".sys-marker-hit",
   ".pending-hit",
   ".pending-handle",
 ];

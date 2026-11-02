@@ -78,7 +78,7 @@ export const FROZEN: readonly (readonly [string, readonly string[]])[] = [
   ["--z-command-palette", ["80"]],
   ["--lane-height", ["72px"]],
   ["--ruler-height", ["24px"]],
-  ["--marker-lane-height", ["72px"]],
+  ["--marker-lane-height", ["48px"]],
   ["--clip-inset-top", ["12px"]],
   ["--clip-inset-bottom", ["8px"]],
   ["--join-hit-min", ["calc(2 * var(--clip-inset-top))"]],
