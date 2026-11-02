@@ -587,9 +587,10 @@ def ensure_room_tone_pools(project: EpisodeProject, track_ids: Sequence[str]) ->
         except Exception:
             log.debug("room tone pool not recorded for %s", track_id, exc_info=True)
 
-    if len(wanted) > 1 and any(_needs_pool(project, track_id) for track_id in wanted):
+    if len(wanted) > 1:
         try:
-            _warm_floors(project)
+            if any(_needs_pool(project, track_id) for track_id in wanted):
+                _warm_floors(project)
         except Exception:
             log.debug("room tone floors not measured together", exc_info=True)
     run_parallel(wanted, record)
