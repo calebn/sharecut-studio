@@ -518,7 +518,7 @@ Use this when auditing mocks:
 - [ ] Header, Stage bar and Player bar fit on ≤720px width  
 - [ ] Phone Review has no Fit control  
 - [ ] Sheet Close + no stacking  
-- [x] Player-first footer on every modifier (pending: Current / Suggested / A/B) 
+- [x] Player-first footer on every modifier (pending: Current / Suggested / A/B, only on a sheet with no Action bar; otherwise Hear before / Hear after on the bar) 
 - [ ] Guest capability chrome  
 - [x] Record lobby / room / full / declined (`/rec/{token}`); full-quality recording + mix-minus shipped  
 - [ ] Empty comments / no transcript / no pending  
