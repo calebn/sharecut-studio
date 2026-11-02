@@ -1,6 +1,13 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
@@ -241,6 +248,99 @@ describe("Review queue for a guest", () => {
     expect(field()).toBeVisible();
     for (const label of [/Resolve/, /^Cut/, /^Keep/, /Find more/])
       expect(screen.queryByRole("button", { name: label })).toBeNull();
+  });
+
+  it("pins the guest's chip on typing and lets it follow again when the field is emptied", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    render(<ReviewHost guestShare />);
+    await user.type(field(), "ab");
+    expect(useDawStore.getState().commentDraft).not.toBeNull();
+    await user.type(field(), "{Backspace}");
+    expect(useDawStore.getState().commentDraft).not.toBeNull();
+    await user.type(field(), "{Backspace}");
+    expect(useDawStore.getState().commentDraft).toBeNull();
+    expect(field()).toBeVisible();
+  });
+
+  it("keeps a draft that was set before typing when the field is emptied", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    useDawStore.setState({ commentDraft: { startSec: 7, endSec: null } });
+    render(<ReviewHost guestShare />);
+    await user.type(field(), "a{Backspace}");
+    expect(useDawStore.getState().commentDraft).toEqual({
+      startSec: 7,
+      endSec: null,
+    });
+  });
+
+  it("keeps a time set by C or a range when it replaced the typed draft", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    render(<ReviewHost guestShare />);
+    await user.type(field(), "ab");
+    const replacement = { startSec: 9, endSec: null };
+    act(() => useDawStore.setState({ commentDraft: replacement }));
+    await user.type(field(), "c");
+    await user.clear(field());
+    expect(useDawStore.getState().commentDraft).toBe(replacement);
+  });
+
+  it("treats whitespace as text, so it does not return the time to follow", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    render(<ReviewHost guestShare />);
+    await user.type(field(), "a");
+    const typed = useDawStore.getState().commentDraft;
+    fireEvent.change(field(), { target: { value: "  " } });
+    expect(useDawStore.getState().commentDraft).toBe(typed);
+  });
+
+  it("returns to the selected range, not the playhead, when a range was selected", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    useDawStore.setState({
+      selection: {
+        kind: "range",
+        target: {
+          kind: "exact_range",
+          intervals: [{ start: 3, end: 5 }],
+          track_ids: ["host"],
+          clips: [],
+          media_seals: {},
+        },
+      },
+    });
+    render(<ReviewHost guestShare />);
+    await user.type(field(), "a");
+    expect(useDawStore.getState().commentDraft).toMatchObject({
+      startSec: 3,
+      endSec: 5,
+    });
+    await user.clear(field());
+    const s = useDawStore.getState();
+    expect(s.commentDraft).toBeNull();
+    expect(resolveCommentAnchor(s)).toMatchObject({
+      source: "selection",
+      draft: { startSec: 3, endSec: 5 },
+    });
+  });
+
+  it("does not unpin on the empty value an IME composition passes through", () => {
+    join("comment");
+    render(<ReviewHost guestShare />);
+    fireEvent.change(field(), { target: { value: "a" } });
+    const typed = useDawStore.getState().commentDraft;
+    expect(typed).not.toBeNull();
+    fireEvent.input(field(), {
+      target: { value: "" },
+      isComposing: true,
+    });
+    expect(useDawStore.getState().commentDraft).toBe(typed);
+    fireEvent.change(field(), { target: { value: "b" } });
+    fireEvent.change(field(), { target: { value: "" } });
+    expect(useDawStore.getState().commentDraft).toBeNull();
   });
 
   it("posts a blank name as Guest and keeps no saved name", async () => {

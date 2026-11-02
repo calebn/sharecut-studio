@@ -399,7 +399,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/DecisionCard`: Filler, Pause, Sound, Pickup, Comment, Check, Adjusting, CompactInEdit, CompactEmpty, CompactLoading, CompactError, Phone, PhoneSwipe. Built (S8b, #2294): `layout="compact"` (CompactInEdit, CompactComment, CompactGuest, CompactEmpty, CompactLoading, CompactError); not yet placed in an Edit Sheet.
 
 **25. Composer**
-- One field with a leading time chip, which pins when typing starts or takes the selection. Tap the chip to re-anchor, or clear it to make a whole-episode note.
+- One field with a leading time chip, which pins when typing starts or takes the selection. Tap the chip to re-anchor, or clear it to make a whole-episode note. In the guest review dock, typing the first character pins the time to where the playhead was and clearing the field returns it to following the playhead; a time set by **C**, Comment here or a range command stays, and a selected range keeps showing as the time. Undo (Ctrl+Z) after clearing restores the text and pins again at the playhead as it is now.
 - A send arrow sits inside the field. Enter posts and Shift+Enter adds a line. On a coarse pointer, Return adds a line; Cmd or Ctrl+Enter posts on either pointer type. Holding a submit key does not request another post until a fresh press.
 - On a guest's first post, a name line appears above. Enter in the name moves focus to the comment without posting. Keeping Enter held after that move does not post the comment; release it and press a submit shortcut to post.
 - Optional visibility chip (Record, open-questions Q6).
