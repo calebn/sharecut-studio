@@ -126,9 +126,8 @@ function TrackColumnView({
     pointerKind: s.pointerKind,
   }));
   const breakdown = useStaleRenderBreakdown(project);
-  const mayReorder =
-    canIngestMedia(projectPath, guestMode, shareCapabilities) &&
-    pointerKind === "fine";
+  const mayReorder = canIngestMedia(projectPath, guestMode, shareCapabilities);
+  const mayDragReorder = mayReorder && pointerKind === "fine";
   const mayMix = canEditMix(projectPath, guestMode, shareCapabilities);
   const deselectTip = capabilityTooltip("daw.track.deselectAll");
   const [dragTrackId, setDragTrackId] = useState<string | null>(null);
@@ -186,10 +185,10 @@ function TrackColumnView({
     () => ({
       form,
       mayMix,
-      onDragStart: mayReorder ? onDragStart : undefined,
+      onDragStart: mayDragReorder ? onDragStart : undefined,
       onDragEnd: mayReorder ? clearReorderUi : undefined,
     }),
-    [form, mayMix, mayReorder, onDragStart, clearReorderUi],
+    [form, mayMix, mayReorder, mayDragReorder, onDragStart, clearReorderUi],
   );
 
   const staleByTrack = useMemo(() => {
