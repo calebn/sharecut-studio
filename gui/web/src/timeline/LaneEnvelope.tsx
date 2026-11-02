@@ -81,7 +81,7 @@ export const LaneEnvelope = memo(function LaneEnvelope({
     [envelopes, trackId],
   );
   const base = useMemo(() => toLeafPoints(stored), [stored]);
-  const edits = useEnvelopeEdits(trackId, stored, readOnly);
+  const edits = useEnvelopeEdits(trackId, stored, readOnly, projectEpoch);
   const { preview } = edits;
   const points = useMemo(
     () => (preview ? withPreview(base, preview) : base),

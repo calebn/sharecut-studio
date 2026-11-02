@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addEnvelopePointAt,
+  ENVELOPE_UPDATING,
   envelopeSaveInFlight,
+  holdEnvelopeSettling,
   removeEnvelopePoint,
   setEnvelopePoint,
 } from "../commands/envelopes";
@@ -15,7 +17,6 @@ import { useTimelineGestureHold } from "./timelineMetrics";
 
 /** How long a saved point is held for the store to follow before a save that changed nothing lets go. */
 const SETTLE_MS = 1000;
-const UPDATING = "Wait for the volume envelope to update";
 const SAVING = "Wait for the volume envelope to finish saving";
 
 const liveStored = (trackId: string, id: string): AutomationPoint | undefined =>
@@ -24,9 +25,32 @@ const liveStored = (trackId: string, id: string): AutomationPoint | undefined =>
     trackId,
   )?.points.find((p) => p.id === id);
 
-function refuse(result: { status: string; reason?: string }) {
-  if (result.status === "disabled" && result.reason)
-    useDawStore.getState().announceStatus(result.reason, { tone: "error" });
+function refuse(
+  result: { status: string; reason?: string },
+  /** The announcement count before the command ran: a command that already told the refusal is not told again. */
+  toldBefore?: number,
+) {
+  if (result.status !== "disabled" || !result.reason) return;
+  const live = useDawStore.getState();
+  if (
+    toldBefore !== undefined &&
+    live.statusAnnouncementSeq !== toldBefore &&
+    live.statusAnnouncement.includes(result.reason)
+  )
+    return;
+  live.announceStatus(result.reason, { tone: "error" });
+}
+
+/** Tells why a save cannot start: it is running, or the store has yet to follow the last one. */
+function wait(trackId: string) {
+  useDawStore
+    .getState()
+    .announceStatus(
+      envelopeSaveInFlight(trackId) ? SAVING : ENVELOPE_UPDATING,
+      {
+        tone: "error",
+      },
+    );
 }
 
 /**
@@ -45,6 +69,8 @@ export function useEnvelopeEdits(
   /** The points as stored: the preview is dropped when they change after a save. */
   stored: readonly AutomationPoint[],
   readOnly: boolean,
+  /** A new project epoch remounts the leaf, so a gesture in progress can never end: drop it. */
+  epoch: number,
 ) {
   const hold = useTimelineGestureHold();
   const [preview, setPreviewState] = useState<PointPreview | null>(null);
@@ -59,6 +85,7 @@ export function useEnvelopeEdits(
   const storedRef = useRef(stored);
   const alive = useRef(true);
   const idle = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const unsettle = useRef<(() => void) | null>(null);
 
   const setPreview = useCallback((next: PointPreview | null) => {
     previewRef.current = next;
@@ -71,9 +98,19 @@ export function useEnvelopeEdits(
   const drop = useCallback(() => {
     clearTimeout(idle.current);
     saved.current = null;
+    unsettle.current?.();
+    unsettle.current = null;
     letGo();
     setPreview(null);
   }, [letGo, setPreview]);
+  const epochSeen = useRef(epoch);
+  useEffect(() => {
+    if (epochSeen.current === epoch) return;
+    epochSeen.current = epoch;
+    dragging.current = false;
+    last.current = null;
+    drop();
+  }, [epoch, drop]);
 
   useEffect(() => {
     storedRef.current = stored;
@@ -86,6 +123,8 @@ export function useEnvelopeEdits(
       clearTimeout(idle.current);
       saved.current = null;
       previewRef.current = null;
+      unsettle.current?.();
+      unsettle.current = null;
       release.current?.();
       release.current = null;
     };
@@ -101,8 +140,9 @@ export function useEnvelopeEdits(
       saved.current = { stored: storedRef.current, settled: false };
       if (held) release.current = held;
       const result = await setEnvelopePoint(trackId, id, edit);
-      if (!alive.current) return;
+      // A refusal is told even when the lane went away meanwhile (a 409 after an unmount).
       refuse(result);
+      if (!alive.current) return;
       const pending = saved.current;
       if (result.status !== "ok" || !pending) {
         drop();
@@ -112,6 +152,7 @@ export function useEnvelopeEdits(
       // later: settle now, and drop the preview once the points have changed
       // (the effect above), or after a pause if the save changed nothing.
       pending.settled = true;
+      unsettle.current = holdEnvelopeSettling(trackId);
       letGo();
       if (pending.stored !== storedRef.current) {
         drop();
@@ -218,11 +259,7 @@ export function useEnvelopeEdits(
     (id: string) => {
       if (saved.current || envelopeSaveInFlight(trackId)) {
         // In flight, the save is running; in the window after it, the store has yet to hold the saved point.
-        useDawStore
-          .getState()
-          .announceStatus(envelopeSaveInFlight(trackId) ? SAVING : UPDATING, {
-            tone: "error",
-          });
+        wait(trackId);
         return;
       }
       void removeEnvelopePoint(trackId, id).then((result) => {
@@ -235,8 +272,15 @@ export function useEnvelopeEdits(
 
   const onAdd = useCallback(
     (time: number, db: number) => {
-      if (dragging.current || previewRef.current) return;
-      void addEnvelopePointAt(trackId, time, dbToGain(db)).then(refuse);
+      if (dragging.current) return;
+      if (previewRef.current || saved.current) {
+        wait(trackId);
+        return;
+      }
+      const toldBefore = useDawStore.getState().statusAnnouncementSeq;
+      void addEnvelopePointAt(trackId, time, dbToGain(db)).then((result) =>
+        refuse(result, toldBefore),
+      );
     },
     [trackId],
   );

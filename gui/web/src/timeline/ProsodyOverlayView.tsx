@@ -4,7 +4,7 @@ import { energyTopPct, inPxRange, prosodyStatusLabel } from "./prosodyGeometry";
 export interface ProsodyOverlayViewProps {
   track: ProsodyOverlayTrack;
   zoomPxPerSec: number;
-  /** Visible px range of the lane (chunk-culled like EnvelopeOverlayView). */
+  /** Visible px range of the lane (chunk-culled). */
   x0: number;
   x1: number;
 }
