@@ -49,15 +49,16 @@ def test_raw_e2e_seed_keeps_track_state_on_first_envelope_save(tmp_path: Path) -
     before = data["timeline"]["tracks"]
 
     workspace = ProjectWorkspace.open(project_path)
-    PipelineService(workspace).set_envelope(
-        "reference",
-        [
-            {"id": "start", "time": 0.0, "value": 1.0},
-            {"id": "middle", "time": 30.0, "value": 1.0},
-            {"id": "end", "time": 60.0, "value": 1.0},
-        ],
-    )
+    points = [
+        {"id": "start", "time": 0.0, "value": 1.0},
+        {"id": "middle", "time": 30.0, "value": 1.0},
+        {"id": "end", "time": 60.0, "value": 1.0},
+    ]
+    assert PipelineService(workspace).set_envelope("reference", points) == 3
 
     saved = json.loads(project_path.read_text())
     assert fixture.read_bytes() == original
+    assert saved["mix"]["automation_envelopes"] == [
+        {"track_id": "reference", "parameter": "volume", "points": points}
+    ]
     assert saved["timeline"]["tracks"] == before
