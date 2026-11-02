@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import wave
 from pathlib import Path
 
@@ -480,3 +481,75 @@ def test_placing_an_extracted_bed_on_an_unknown_track_is_a_coded_refusal(tmp_pat
         )
 
     assert refusal.value.code == "track_not_found"
+
+
+@pytest.mark.parametrize("change", ["path", "bytes"])
+def test_same_stat_source_changes_get_a_new_bed(tmp_path: Path, change: str) -> None:
+    service, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    first = service.extract_room_tone_bed(track_id="host")
+    source = tmp_path / "raw/host.wav"
+    stamp = source.stat()
+    replacement = tmp_path / "raw/replacement.wav" if change == "path" else source
+    _write_wav(replacement, _host_audio(((1.0, 1.5),)))
+    os.utime(replacement, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+    assert replacement.stat().st_size == stamp.st_size
+    if change == "path":
+        ws.project.tracks[0].media.path = "raw/replacement.wav"
+        ws.save()
+
+    second = service.extract_room_tone_bed(track_id="host")
+
+    assert second["extracted"] is True
+    assert second["path"] != first["path"]
+    assert ws.project.tracks[0].room_tone_origin.source_start < 2.0
+    assert (tmp_path / first["path"]).is_file()
+
+
+@pytest.mark.parametrize("damage", ["clean_replacement", "truncated", "silence"])
+def test_a_changed_extracted_bed_is_reported_without_blessing_it(
+    tmp_path: Path, damage: str
+) -> None:
+    service, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    first = service.extract_room_tone_bed(track_id="host")
+    bed = tmp_path / first["path"]
+    if damage == "truncated":
+        bed.write_bytes(bed.read_bytes()[:64])
+    else:
+        audio = _noise(-70.0, seed=9) if damage == "clean_replacement" else np.zeros(SR * 4)
+        _write_wav(bed, audio)
+    before = ws.project.model_dump_json()
+    damaged = bed.read_bytes()
+
+    result = service.extract_room_tone_bed(track_id="host")
+
+    assert result == {"track_id": "host", "extracted": False, "reason": "bed_changed"}
+    assert ws.project.model_dump_json() == before
+    assert bed.read_bytes() == damaged
+
+
+@pytest.mark.parametrize("change", ["source_path", "source_bytes", "bed_missing", "bed_bytes"])
+def test_changed_assets_between_plan_and_registration_are_refused(
+    tmp_path: Path, change: str
+) -> None:
+    _service_instance, ws = _service(tmp_path, _host_audio(SPEECH_THEN_ROOM))
+    plan = plan_extracted_bed(ws.project, "host")
+    assert isinstance(plan, ExtractedBed)
+    source = tmp_path / "raw/host.wav"
+    stamp = source.stat()
+    if change.startswith("source"):
+        replacement = tmp_path / "raw/replacement.wav" if change == "source_path" else source
+        _write_wav(replacement, _host_audio(((1.0, 1.5),)))
+        os.utime(replacement, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+        if change == "source_path":
+            ws.project.tracks[0].media.path = "raw/replacement.wav"
+    elif change == "bed_missing":
+        plan.path.unlink()
+    else:
+        _write_wav(plan.path, _noise(-70.0, seed=9))
+    before = ws.project.model_dump_json()
+
+    result = RoomToneBedService._register(ws.project, "host", plan)
+
+    assert result["extracted"] is False
+    assert result["reason"] == ("source_changed" if change.startswith("source") else "bed_changed")
+    assert ws.project.model_dump_json() == before
