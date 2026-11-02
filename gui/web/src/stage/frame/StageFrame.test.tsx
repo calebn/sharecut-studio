@@ -200,6 +200,30 @@ describe("StageFrame roles", () => {
     expect(screen.queryByRole("button", { name: "Hear options" })).toBeNull();
   });
 
+  it("explains a guest's role once, until it is dismissed in this browser", async () => {
+    localStorage.removeItem("sharecut.roleHintSeen.commenter");
+    useDawStore.setState({ guestMode: "comment", stage: "review" });
+    const first = mount();
+    expect(
+      screen.getByText("You can comment and suggest cuts. The host decides."),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    expect(
+      screen.queryByText("You can comment and suggest cuts. The host decides."),
+    ).toBeNull();
+    first.unmount();
+    mount();
+    expect(
+      screen.queryByText("You can comment and suggest cuts. The host decides."),
+    ).toBeNull();
+    localStorage.removeItem("sharecut.roleHintSeen.commenter");
+  });
+
+  it("shows a host no role hint", () => {
+    mount();
+    expect(screen.queryByText(/The host decides/)).toBeNull();
+  });
+
   it("puts the phone tab bar under the stage on a phone", () => {
     stubMatchMedia(true);
     mount();
