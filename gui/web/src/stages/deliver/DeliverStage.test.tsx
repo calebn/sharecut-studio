@@ -5222,11 +5222,7 @@ describe("host export options", () => {
 
   it("scrolls the running export into view on the phone when it starts, not when it is already running", () => {
     const scroll = vi.fn();
-    Object.defineProperty(Element.prototype, "scrollIntoView", {
-      configurable: true,
-      writable: true,
-      value: scroll,
-    });
+    Element.prototype.scrollIntoView = scroll;
     try {
       const running = {
         phase: "running" as const,
@@ -5251,11 +5247,7 @@ describe("host export options", () => {
 
   it("leaves the scroll alone on a desktop, where the section is already in view", () => {
     const scroll = vi.fn();
-    Object.defineProperty(Element.prototype, "scrollIntoView", {
-      configurable: true,
-      writable: true,
-      value: scroll,
-    });
+    Element.prototype.scrollIntoView = scroll;
     try {
       const view = render(<DeliverStage {...props()} />);
       view.rerender(
