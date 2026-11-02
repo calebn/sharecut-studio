@@ -282,9 +282,10 @@ def test_interrupt_keeps_the_run_state_of_the_jobs_that_ran(engine, monkeypatch)
     monkeypatch.setattr(transcribe_pool, "cpu_budget", lambda: 8)
     release = threading.Event()
     absorbed: list[dict[str, list]] = []
+    started: list[str] = []
 
     def body(self: TranscriptionEngine, job: TranscribeJob) -> None:
-        self._run_state_probe = job.track_id  # type: ignore[attr-defined]
+        started.append(job.track_id)
         assert release.wait(WAIT)
 
     class Interrupting(transcribe_pool.ThreadPoolExecutor):
@@ -302,7 +303,7 @@ def test_interrupt_keeps_the_run_state_of_the_jobs_that_ran(engine, monkeypatch)
     _fake(monkeypatch, body)
     with pytest.raises(KeyboardInterrupt):
         _run(engine, _jobs(8))
-    assert absorbed and all(entry == {"ran": [1]} for entry in absorbed)
+    assert absorbed == [{"ran": [1]}] * len(started)
 
 
 def test_concurrent_tracks_keep_their_own_progress_row_and_heartbeat(engine, monkeypatch):
