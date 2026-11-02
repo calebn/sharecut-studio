@@ -116,6 +116,48 @@ describe("lowConfidenceStops", () => {
     ]);
   });
 
+  it("skips a suppressed word inside a mixed utterance but keeps its neighbours", () => {
+    const utts: CombinedUtterance[] = [
+      u({
+        track_id: "host",
+        text: "so um well",
+        words: [
+          {
+            text: "so",
+            start: 0,
+            end: 0.2,
+            word_index: 0,
+            confidence: 0.4,
+            unsure: true,
+          },
+          {
+            text: "um",
+            start: 0.2,
+            end: 0.4,
+            word_index: 1,
+            confidence: 0.3,
+            unsure: true,
+            suppressed: true,
+          },
+          {
+            text: "well",
+            start: 0.4,
+            end: 0.6,
+            word_index: 2,
+            confidence: 0.4,
+            unsure: true,
+          },
+        ],
+      }),
+    ];
+    expect(
+      lowConfidenceStops(utts, true, true).map((s) => [s.text, s.order]),
+    ).toEqual([
+      ["so", 0],
+      ["well", 2],
+    ]);
+  });
+
   it("numbers hidden cut-away words too, so order is stable across Show cut away", () => {
     const utts: CombinedUtterance[] = [
       u({
