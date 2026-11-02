@@ -82,10 +82,8 @@ def run_jobs_concurrently(
         # KeyboardInterrupt lands in the wait above: drop the queued jobs, let running ones
         # end, and absorb their run state as the serial path's engine already holds it.
         stop.set()
-        try:
-            pool.shutdown(wait=True, cancel_futures=True)
-        finally:
-            absorb()
+        pool.shutdown(wait=True, cancel_futures=True)
+        absorb()
         raise
     absorb()
     results: list[T] = []
