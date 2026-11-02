@@ -100,6 +100,8 @@ export function MarkerLaneHost({
 }: MarkerLaneHostProps) {
   const [preview, setPreview] = useState<HeldMove | null>(null);
   const held = useRef<HeldMove | null>(null);
+  /** A chapter's id is its time, so a re-grab before its save settles would start from a stale origin. */
+  const saving = useRef(new Set<string>());
   const [adding, setAdding] = useState<{ at: number } | null>(null);
   const addable = onAddChapter != null && !readOnly;
   const onAdd = useCallback(
@@ -173,6 +175,7 @@ export function MarkerLaneHost({
 
   const commit = useCallback(
     async (move: HeldMove) => {
+      saving.current.add(move.origin.id);
       try {
         const source = latest.current.authoritativeMarkers.find(
           (marker) => marker.id === move.origin.id,
@@ -202,6 +205,7 @@ export function MarkerLaneHost({
           await onMoveSocial?.(next.id, next.start, next.end);
         }
       } finally {
+        saving.current.delete(move.origin.id);
         setPreview((current) => (current === move ? null : current));
       }
     },
@@ -227,6 +231,7 @@ export function MarkerLaneHost({
     );
     if (
       !origin ||
+      (origin.kind === "chapter" && saving.current.has(id)) ||
       origin.kind === "comment" ||
       latest.current.readOnly ||
       latest.current.duration <= 0
