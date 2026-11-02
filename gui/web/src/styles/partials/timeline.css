@@ -992,23 +992,6 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   border-block-start-color: var(--color-mark-mute);
 }
 
-/* A cut or edge is a Seam diamond on the lane's top edge; the layer stays
-   click-through and only the diamond and a fold chip take the pointer. */
-.applied-seam {
-  position: absolute;
-  top: 0;
-  translate: -50% 0;
-  pointer-events: auto;
-}
-
-.applied-edit-layer .edit-chip {
-  pointer-events: auto;
-}
-
-.applied-edit-layer .edit-chip--static {
-  pointer-events: none;
-}
-
 .applied-tick.selected {
   outline: var(--focus-ring-width) solid var(--color-warning);
 }

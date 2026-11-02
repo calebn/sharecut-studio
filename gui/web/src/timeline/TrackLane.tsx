@@ -38,6 +38,7 @@ import { originTrackId } from "../utils/timebase";
 import { sessionSecOf } from "../utils/zoom";
 import { clipMediaRef } from "../waveform/mediaRef";
 import { useLaneWaveformStatus } from "../waveform/statusStore";
+import { AppliedEditOverlay } from "./AppliedEditOverlay";
 import { BleedAttenuationOverlay } from "./BleedAttenuationOverlay";
 import { ClipBlock } from "./ClipBlock";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
@@ -54,9 +55,7 @@ import { laneColor } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { ProsodyOverlay } from "./ProsodyOverlay";
 import { RippleArrow } from "./RippleArrow";
-import { SeamMarks } from "./SeamMarks";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
-import type { PlacedSeamChip } from "./seamPlan";
 import { timelineTestIds } from "./selectors";
 import type { RangeGesture } from "./useRangeGesture";
 
@@ -99,7 +98,6 @@ interface TrackLaneProps {
   onSelectBleed?: (trackId: string, clipId: string, key: string) => void;
   onSelectTrack: (trackId: string) => void;
   onSelectPending: (trackId: string, id: string) => void;
-  onSelectApplied: (trackId: string, id: string) => void;
   canMoveClips?: boolean;
   selectedClipIds?: readonly string[];
   previewStartById?: Readonly<Record<string, number>>;
@@ -139,7 +137,6 @@ export function TrackLaneView({
   onSelectBleed,
   onSelectTrack,
   onSelectPending,
-  onSelectApplied,
   canMoveClips = false,
   selectedClipIds = EMPTY_ARR,
   previewStartById = EMPTY_OBJ,
@@ -234,18 +231,6 @@ export function TrackLaneView({
   const selectTrack = useCallback(
     () => onSelectTrack(trackId),
     [onSelectTrack, trackId],
-  );
-  const selectApplied = useCallback(
-    (id: string) => onSelectApplied(trackId, id),
-    [onSelectApplied, trackId],
-  );
-  const onZoomSeamChip = useCallback(
-    (chip: PlacedSeamChip) => {
-      if (chip.zoomTo != null) {
-        zoomToSpan(chip.startSec, chip.endSec, chip.zoomTo);
-      }
-    },
-    [zoomToSpan],
   );
   const selectPending = useCallback(
     (id: string) => onSelectPending(trackId, id),
@@ -532,15 +517,12 @@ export function TrackLaneView({
         )}
         {showEdits && (
           <>
-            <SeamMarks
+            <AppliedEditOverlay
               records={appliedRecords}
               clips={clips}
               trackId={track.id}
               zoomPxPerSec={zoomPxPerSec}
-              sessionSec={sessionSec}
               selectedId={selection?.kind === "applied" ? selection.id : null}
-              onSelect={selectApplied}
-              onZoomChip={onZoomSeamChip}
             />
             <PendingEditOverlay
               edits={pendingEdits}
