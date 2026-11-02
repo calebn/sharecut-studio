@@ -5,6 +5,7 @@ import { selectedClipIdsOf } from "../state/selection";
 import { xAtTime } from "../system/rulerMath";
 import { bandSelected, type SessionBand } from "./sessionBands";
 import { layoutPills } from "./sessionPillLayout";
+import { useRootFontPx } from "./useRootFontPx";
 
 type Props = {
   bands: readonly SessionBand[];
@@ -27,6 +28,7 @@ export const SessionBandLayer = memo(function SessionBandLayer({
   width,
   pxPerSecond,
 }: Props) {
+  const rootPx = useRootFontPx();
   const selectedIds = selectedClipIdsOf(useDawStore((s) => s.selection));
   const select = useCallback((band: SessionBand) => {
     void seekTransport(band.start);
@@ -41,6 +43,7 @@ export const SessionBandLayer = memo(function SessionBandLayer({
     bands,
     (seconds) => xAtTime(seconds, start, pxPerSecond),
     width,
+    rootPx,
   );
   return (
     <div className="timeline-ruler-sessions">

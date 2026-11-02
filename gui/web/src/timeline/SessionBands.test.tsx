@@ -9,6 +9,7 @@ import {
   RECORDED_SESSIONS_RESPONSE,
   recordedSessionsProject,
 } from "./sessionBandsFixture";
+import { pillWidthPx } from "./sessionPillLayout";
 import { TimelineRuler } from "./TimelineRuler";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -179,11 +180,27 @@ describe("session bands on the Edit ruler", () => {
     expect(screen.getByRole("button", { name: /^S2,/ })).toBeVisible();
   });
 
+  it("spaces pills by the root font size", async () => {
+    document.documentElement.style.fontSize = "32px";
+    try {
+      hydrate();
+      render(<Ruler />);
+      const lefts = (
+        await screen.findAllByRole("button", { name: /^S\d,/ })
+      ).map((b) => Number.parseFloat(b.style.insetInlineStart));
+      expect(lefts.length).toBeGreaterThan(1);
+      expect(lefts[1]).toBeGreaterThanOrEqual(lefts[0] + pillWidthPx("S1", 32));
+    } finally {
+      document.documentElement.style.fontSize = "";
+    }
+  });
+
   it("fetches once for a burst of history changes", async () => {
     hydrate();
     render(<Ruler />);
     await pill(/^S2,/);
     advanceHistory("h2");
+    await new Promise((r) => setTimeout(r, 100));
     advanceHistory("h3");
     await new Promise((r) => setTimeout(r, 450));
     expect(loadHostRecordSessions).toHaveBeenCalledTimes(2);
