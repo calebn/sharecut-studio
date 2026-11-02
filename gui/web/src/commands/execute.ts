@@ -7,6 +7,7 @@ import {
   evaluateWhen,
 } from "./context";
 import type { CommandHandler, ExecuteResult } from "./types";
+import { markUserStageSwitch } from "./userStageSwitch";
 
 const handlers = new Map<string, CommandHandler>();
 
@@ -46,6 +47,7 @@ export async function execute(
       return { status: "disabled", reason: gate.reason };
     }
   }
+  if (id.startsWith("stage.")) markUserStageSwitch();
   const result = await handler(args, ctx);
   if (def.breaksFollow && result.status === "ok" && !isProgrammaticUi()) {
     useDawStore.getState().stopFollow("local");
