@@ -262,8 +262,9 @@ before its whole-mix trim. `tests/audition_eval.py::inject_hum_span` sums at uni
 its docstring).
 
 `MIX_SEMANTICS_REV` is part of `mix_render_hash` and composed-play cache keys.
-The completed-summary fix advances it to revision 3, so revision 2 premixes and
-composed playback rebuild. Per-track stems remain reusable.
+The completed-summary fix advanced it to revision 3. Revision 4 re-mixes premixes cached
+with trim 0.0 from an unmeasured peak; earlier revisions' premixes and composed playback
+rebuild. Per-track stems remain reusable.
 
 The ceiling is part of the hash too, so a pipeline run with a different `mix.premix_peak_ceiling_db` re-mixes. `premix.hash` also records the ceiling on its own line, then the trim the whole mix got. A window mixed from segments measures only its own peak, so both pending preview sides mix at the trim the whole mix gets (`PlayService.mix_trim_db`): the recorded one while the premix is fresh, otherwise one measured from the current stems with the same `peak_trim_db`. A fader or mute change re-measures the peak; it never re-mixes the premix. Render status and review publish have no run config, so they compare the premix against the ceiling it was mixed under. A volume, mute, or mix-rule change makes that hash stale. A changed stem for any included track also makes the premix stale, including music, intro, outro, and sound effects. A muted track is excluded until it is unmuted.
 
