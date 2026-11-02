@@ -34,7 +34,8 @@ from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.process import run
 from podcast_mcp.util.wav import open_wav
 
-# Line-anchored: FFmpeg indents tag text in its metadata dump, so a forged tag is no event.
+# Line-anchored: FFmpeg indents multi-line tag values in its metadata dump, so a forged
+# value is no event. Readers must use text mode: a progress \r ends the line before an event.
 _EVENT = re.compile(
     r"^\[ashowinfo@restore_(?P<name>\w+) @ [^]]+\] n:(?P<n>\d+) "
     r"pts:[^ ]+ pts_time:[^ ]+ fmt:(?P<fmt>\w+) channels:\d+ "
