@@ -215,9 +215,10 @@ describe("ScriptPane mouse drag", () => {
     const { body, onSelect, onCaret, rerender } = setup();
     drag(stop(12), 12, 14);
     fireEvent.pointerUp(body, { ...MOUSE, ...centre(14) });
-    const calls = { onCaret, onSelect };
     rerender(<ScriptPane turns={SCRIPT_TURNS} onCaret={onCaret} />);
-    rerender(<ScriptPane turns={SCRIPT_TURNS} {...calls} />);
+    rerender(
+      <ScriptPane turns={SCRIPT_TURNS} onCaret={onCaret} onSelect={onSelect} />,
+    );
     onSelect.mockClear();
     onCaret.mockClear();
     fireEvent.click(stop(20), { detail: 1 });
