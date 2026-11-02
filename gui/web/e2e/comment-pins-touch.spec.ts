@@ -168,12 +168,12 @@ test("pins on one spot count themselves and the chooser picks each comment", asy
   for (const author of [...STACKED].reverse()) {
     const at = await settledCentre(p, "Ada");
     await touch(cdp, "touchStart", [at]);
-    const chip = p.getByRole("menuitemradio", {
-      name: `Comment by ${author} at 00:05.000`,
+    const chip = p.getByRole("menuitem", {
+      name: `Comment, ${author} at 00:05.000`,
     });
     await expect(chip).toBeVisible();
     await touch(cdp, "touchEnd");
-    // The chips fly out from the finger; take the box once it holds still.
+    // Take the box once the fan holds still.
     let last = "";
     await expect
       .poll(async () => {
@@ -188,7 +188,7 @@ test("pins on one spot count themselves and the chooser picks each comment", asy
       { x: box.x + box.width / 2, y: box.y + box.height / 2 },
     ]);
     await touch(cdp, "touchEnd");
-    await expect(p.locator(".target-chooser:not(.is-closing)")).toHaveCount(0);
+    await expect(p.locator(".edit-target-chooser")).toHaveCount(0);
     await expect.poll(() => selectedPins(p)).toEqual([`Comment by ${author}`]);
   }
   await p.close();

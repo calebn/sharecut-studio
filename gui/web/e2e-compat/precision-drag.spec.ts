@@ -304,7 +304,7 @@ test("jog: a ripple over the guest's speech applies as one manual trim", async (
   const chooser = page.getByRole("menu", { name: "Targets here" });
   await expect(chooser).toBeVisible();
   const chip = await centerOfLocator(
-    chooser.getByRole("menuitemradio", { name: /^Trim start/ }),
+    chooser.getByRole("menuitem", { name: /Trim start/ }),
   );
   await finger.slide(chip, 6, 30);
   await page.waitForTimeout(HOLD_MS);
@@ -341,10 +341,12 @@ test("jog: a ripple over the guest's speech applies as one manual trim", async (
   });
   expect(trims().map((c) => c.payload.mode)).toEqual(["ripple"]);
   expect(starts.slice(0, 3)).toEqual([0, 10, 40]);
-  // The edge follows the finger: 6 steps of pps px is 6.0 to 6.2 s at this
-  // zoom, so the clip starts at 50 minus that (a paused playhead near the edge
-  // can stop it a little earlier, so the bound does not depend on where it is).
-  expect(starts[3]).toBeGreaterThan(43.5);
+  // The edge follows the finger: 6 steps of pps px is 6.0 to 6.7 s at this
+  // zoom (the grab leaves from where the finger settled on the chip, a few px
+  // off its centre), so the clip starts at 50 minus that (a paused playhead
+  // near the edge can stop it a little earlier, so the bound does not depend on
+  // where it is).
+  expect(starts[3]).toBeGreaterThan(43);
   expect(starts[3]).toBeLessThan(50);
 });
 

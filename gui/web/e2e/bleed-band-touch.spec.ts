@@ -61,7 +61,8 @@ test.afterEach(async ({ page }) => {
 
 const picks = (page: Page) =>
   page.locator('[data-hit-kind="bleed-attenuation"]');
-const chooserItems = (page: Page) => page.getByRole("menuitemradio");
+const chooserItems = (page: Page) =>
+  page.locator(".edit-target-chooser").getByRole("menuitem");
 // The create menu is a menu, or on the phone shell a bottom Sheet.
 const createMenu = (page: Page) =>
   page.getByRole("menu").or(page.getByRole("dialog", { name: /^Create at / }));
@@ -133,9 +134,9 @@ async function refreshBands(page: Page): Promise<void> {
 }
 
 async function chooserLabels(page: Page): Promise<string[]> {
-  return page
-    .getByRole("menuitemradio")
-    .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label") ?? ""));
+  return chooserItems(page).evaluateAll((els) =>
+    els.map((el) => el.getAttribute("aria-label") ?? ""),
+  );
 }
 
 async function settle(read: () => Promise<unknown>): Promise<void> {
@@ -229,10 +230,13 @@ for (const viewport of VIEWPORTS) {
     await holdPastLongPress(page);
     await expect
       .poll(() => chooserLabels(page))
-      .toEqual(["Roll at 00:10.000", "Automatic audio reduction at 00:10.000"]);
+      .toEqual([
+        "Seam, Roll at 00:10.000",
+        "Suggestion, Automatic audio reduction at 00:10.000",
+      ]);
     await touch(cdp, "touchEnd");
-    const band = page.getByRole("menuitemradio", {
-      name: "Automatic audio reduction at 00:10.000",
+    const band = page.getByRole("menuitem", {
+      name: "Suggestion, Automatic audio reduction at 00:10.000",
     });
     await settle(() => band.boundingBox());
     await touch(cdp, "touchStart", [centre(await boxOf(band))]);
@@ -313,7 +317,10 @@ for (const viewport of VIEWPORTS) {
     await touch(cdp, "touchStart", [overBand]);
     await expect
       .poll(() => chooserLabels(page))
-      .toEqual(["Roll at 00:10.000", "Automatic audio reduction at 00:10.000"]);
+      .toEqual([
+        "Seam, Roll at 00:10.000",
+        "Suggestion, Automatic audio reduction at 00:10.000",
+      ]);
     await touch(cdp, "touchEnd");
     await page.keyboard.press("Escape");
     await expect(chooserItems(page)).toHaveCount(0);
@@ -321,10 +328,10 @@ for (const viewport of VIEWPORTS) {
     await touch(cdp, "touchStart", [centre(await boxOf(pin(page)))]);
     await expect
       .poll(() => chooserLabels(page))
-      .toEqual(["Join at 00:10.000", "Comment by Ada at 00:10.000"]);
+      .toEqual(["Seam, Join at 00:10.000", "Comment, Ada at 00:10.000"]);
     await touch(cdp, "touchEnd");
-    const comment = page.getByRole("menuitemradio", {
-      name: "Comment by Ada at 00:10.000",
+    const comment = page.getByRole("menuitem", {
+      name: "Comment, Ada at 00:10.000",
     });
     await settle(() => comment.boundingBox());
     await touch(cdp, "touchStart", [centre(await boxOf(comment))]);
