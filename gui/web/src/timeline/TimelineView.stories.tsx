@@ -4,6 +4,10 @@ import { TrackColumn } from "../stage/edit/TrackColumn";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { selections } from "../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../test/withEpisode";
+import {
+  RECORDED_SESSIONS_RESPONSE,
+  recordedSessionsProject,
+} from "./sessionBandsFixture";
 import { TimelineView } from "./TimelineView";
 
 const meta: Meta<typeof TimelineView> = {
@@ -86,4 +90,57 @@ export const Loading: Story = {
 export const PhoneFixedPlayhead: Story = {
   args: { fixedPlayhead: true, headerSlot: undefined },
   parameters: { framePhone: true },
+};
+
+const recordedEpisode = { project: recordedSessionsProject() };
+
+export const WithRecordedSessions: Story = {
+  parameters: {
+    episode: {
+      ...recordedEpisode,
+      responses: { "/api/record/sessions": RECORDED_SESSIONS_RESPONSE },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("button", { name: "Mira" }),
+    ).toBeVisible();
+    // The pills need a measured ruler window, which jsdom has not; SessionBands.test.tsx presses them.
+  },
+};
+
+export const SessionsLoading: Story = {
+  parameters: {
+    episode: { ...recordedEpisode, hang: ["/api/record/sessions"] },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("button", { name: "Mira" }),
+    ).toBeVisible();
+    await expect(canvas.queryByText("S1")).toBeNull();
+  },
+};
+
+export const SessionsError: Story = {
+  parameters: { episode: recordedEpisode },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("button", { name: "Mira" }),
+    ).toBeVisible();
+    await expect(canvas.queryByText("S1")).toBeNull();
+  },
+};
+
+export const GuestNoSessions: Story = {
+  parameters: { episode: { ...recordedEpisode, role: "viewer" } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("button", { name: "Mira" }),
+    ).toBeVisible();
+    await expect(canvas.queryByText("S1")).toBeNull();
+  },
 };

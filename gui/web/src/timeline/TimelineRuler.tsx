@@ -1,10 +1,12 @@
-import { memo, useCallback, useRef } from "react";
+import { memo, useCallback, useMemo, useRef } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
 import { Ruler } from "../system/Ruler";
 import { Playhead } from "./Playhead";
+import { SessionBandLayer } from "./SessionBandLayer";
 import { timelineTestIds } from "./selectors";
 import { useRulerWindow } from "./useRulerWindow";
+import { useSessionBands } from "./useSessionBands";
 
 type TimelineRulerProps = {
   /** The canvas width in px: the ruler never reaches past it. */
@@ -66,6 +68,12 @@ export const TimelineRuler = memo(function TimelineRuler({
     },
     [onSeek],
   );
+  const bands = useSessionBands();
+  // The tint is the system Ruler's; the pills are buttons in a sibling layer.
+  const tints = useMemo(
+    () => bands.map((b) => ({ start: b.start, end: b.end, label: "" })),
+    [bands],
+  );
   return (
     <div className="timeline-ruler">
       <div className="timeline-ruler-window" style={{ insetInlineStart: left }}>
@@ -76,6 +84,7 @@ export const TimelineRuler = memo(function TimelineRuler({
           duration={sessionSec}
           playhead={playhead}
           hidePlayhead
+          sessions={tints}
           anchorProps={ANCHOR}
           onSeek={onSeek}
           onFit={onFit}
@@ -83,6 +92,14 @@ export const TimelineRuler = memo(function TimelineRuler({
           onScrub={scrub}
           onScrubEnd={scrubEnd}
         />
+        {bands.length > 0 ? (
+          <SessionBandLayer
+            bands={bands}
+            start={left / zoomPxPerSec}
+            width={width}
+            pxPerSecond={zoomPxPerSec}
+          />
+        ) : null}
       </div>
       {fixedPlayhead ? null : <Playhead height="100%" />}
     </div>

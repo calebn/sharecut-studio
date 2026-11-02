@@ -243,6 +243,14 @@ describe("Ruler drawing", () => {
     ]);
   });
 
+  it("draws the tint only, with no pill, for a session with an empty label", () => {
+    const { container } = setup({
+      sessions: [{ start: 600, end: 607, label: "" }],
+    });
+    expect(container.querySelectorAll(".sys-ruler-session")).toHaveLength(1);
+    expect(container.querySelector(".sys-ruler-pill")).toBeNull();
+  });
+
   it("draws neither a playhead nor a handle that is off the window", () => {
     const { container } = setup({
       playhead: 100,

@@ -37,6 +37,7 @@ import {
 export type RulerEdge = "start" | "end";
 type RulerGrip = "scrub" | RulerEdge;
 
+/** An empty `label` draws the tint only: a host that makes the pill a button draws it over the ruler itself. */
 export type RulerSession = TimeRange & { label: string };
 
 type RulerDrag = GrabMove & {
@@ -430,7 +431,9 @@ export const Ruler = memo(function Ruler({
                 } as CSSProperties
               }
             >
-              <span className="sys-ruler-pill">{session.label}</span>
+              {session.label ? (
+                <span className="sys-ruler-pill">{session.label}</span>
+              ) : null}
             </span>
           );
         })}
