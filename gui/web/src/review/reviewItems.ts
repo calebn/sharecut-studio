@@ -245,9 +245,6 @@ function entryOf(edit: PendingEditView): ReviewEntry {
       at,
       savedSeconds,
       suggested,
-      oneByOne:
-        edit.listen_one_by_one === true ||
-        (!!edit.join_risk && edit.join_risk.verdict !== "pass"),
       ...(first ? { unsure: true } : {}),
     },
     content: {

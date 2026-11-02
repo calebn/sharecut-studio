@@ -21,7 +21,6 @@ export type ReviewItem = {
   /** Only the host can settle it, so a guest sees it held with no verb. */
   hostOnly?: boolean;
   suggested?: "cut" | "shorten" | "lower" | "leave";
-  oneByOne?: boolean;
   /** The refine check: the only one that Cut anyway and the last unsure word resolve. */
   transcript?: boolean;
   result?: ReviewResult;
@@ -41,7 +40,7 @@ export type ReviewGroup = {
   items: readonly ReviewItem[];
   /** Null when the kind has no bulk verb or nothing in it may be bulk-applied. */
   bulk: BulkAction | null;
-  /** Items in the group that stay for one-by-one decisions. */
+  /** Items in the group that stay for individual decisions (unsure, blocked). */
   held: number;
 };
 
@@ -93,13 +92,17 @@ function groupVerbOf(items: readonly ReviewItem[]): VerbId {
 
 const isDecided = (item: ReviewItem) => item.result !== undefined;
 
-/** Unsure words, blocked cuts, one-by-one and leave-alone items are never bulk-applied. */
+/**
+ * Unsure words (a word decision), blocked cuts (the server refuses them) and
+ * leave-alone items are never bulk-applied. Cut quality does not matter: harsh,
+ * join-risk and listen-one-by-one items group like the rest, since edits are
+ * non-destructive and can be fixed up afterwards.
+ */
 function bulkEligible(item: ReviewItem): boolean {
   return (
     QUEUE_KIND[item.kind].bulk &&
     !item.unsure &&
     !item.blocked &&
-    !item.oneByOne &&
     itemVerb(item) !== "keep" &&
     itemVerb(item) !== "lower" &&
     !isDecided(item)

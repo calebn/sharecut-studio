@@ -124,20 +124,14 @@ describe("reviewEntriesOf", () => {
     expect(order.map((i) => i.id)).toEqual(["edit:p", "edit:u"]);
   });
 
-  it("follows the server flag listen_one_by_one === true, holds non-pass join risk, not the harsh flag", () => {
-    const real = {
+  it("carries no one-by-one flag: risky and harsh cuts group like the rest", () => {
+    const risky = itemOf({
       review_required: true,
-      harsh: false,
-      listen_one_by_one: false,
-      join_risk: null,
-    };
-    expect(itemOf(real).oneByOne).toBe(false);
-    expect(itemOf({ ...real, listen_one_by_one: true }).oneByOne).toBe(true);
-    const join_risk = { verdict: "review" } as never;
-    expect(itemOf({ ...real, join_risk }).oneByOne).toBe(true);
-    const pass = { verdict: "pass" } as never;
-    expect(itemOf({ ...real, join_risk: pass }).oneByOne).toBe(false);
-    expect(itemOf({ harsh: false }).oneByOne).toBe(false);
+      harsh: true,
+      listen_one_by_one: true,
+      join_risk: { verdict: "review" } as never,
+    });
+    expect(risky).not.toHaveProperty("oneByOne");
   });
 
   it("passes the table action through", () => {
@@ -156,7 +150,6 @@ describe("reviewEntriesOf", () => {
       at: 2,
       savedSeconds: 1,
       suggested: undefined,
-      oneByOne: false,
     });
   });
 
