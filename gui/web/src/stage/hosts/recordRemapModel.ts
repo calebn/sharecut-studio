@@ -1,10 +1,13 @@
 import { allClipsFromTracks, type ClipMoveItem } from "../../edit/clipMove";
+import { recordSourcePrefix } from "../../edit/sessionClips";
 import type { ClipRow } from "../../types/project";
 
-/** `rec-<session_id>-`, the source prefix every clip of a landed session carries (`landing_math.record_source_prefix`). */
-export function recordSourcePrefix(sessionId: string): string {
-  return `rec-${sessionId}-`;
-}
+// The session-clip helpers live in `edit/` so the Edit ruler can use them too; Record keeps importing them from here.
+export {
+  recordSourcePrefix,
+  type SessionHandoff,
+  sessionHandoff,
+} from "../../edit/sessionClips";
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -71,46 +74,4 @@ export function sessionClipSignature(
     .map((clip) => `${clip.id}:${clip.track_id}`)
     .sort()
     .join("|");
-}
-
-export type SessionHandoff = {
-  /** Earliest `timeline_start` among the session's clips, where Edit opens. */
-  startSec: number;
-  /** The start-most clip, the selection's primary. */
-  primary: { id: string; trackId: string };
-  /** Every clip of the session, in timeline order. */
-  clipIds: string[];
-};
-
-/**
- * What "Edit Session N" needs: the session's clips found by the same source
- * prefix as the remap (every participant, every take). Null when none are on
- * the timeline, so a session that has not landed gets no hand-off.
- */
-export function sessionHandoff(
-  tracks: Record<string, ClipRow[]> | undefined,
-  sessionId: string,
-): SessionHandoff | null {
-  const prefix = recordSourcePrefix(sessionId);
-  const found: { id: string; trackId: string; start: number }[] = [];
-  for (const [trackId, list] of Object.entries(tracks ?? {})) {
-    for (const clip of list) {
-      if ((clip.source_id ?? "").startsWith(prefix)) {
-        found.push({
-          id: clip.id,
-          trackId: clip.track_id || trackId,
-          start: clip.timeline_start,
-        });
-      }
-    }
-  }
-  if (found.length === 0) {
-    return null;
-  }
-  found.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
-  return {
-    startSec: found[0].start,
-    primary: { id: found[0].id, trackId: found[0].trackId },
-    clipIds: found.map((c) => c.id),
-  };
 }

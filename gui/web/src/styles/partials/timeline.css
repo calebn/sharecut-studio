@@ -1293,6 +1293,50 @@ html[data-shell="phone"] .comment-marker.pin.selected::before {
   inline-size: fit-content;
 }
 
+/* The session pills sit over the ruler's own tint at the same px. The layer takes
+   no pointer, so the ruler keeps seeking and scrubbing; only a pill does. */
+.timeline-ruler-sessions {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.timeline-session-pill {
+  position: absolute;
+  inset-block-end: var(--space-1);
+  inset-inline-start: var(--session-x);
+  max-inline-size: var(--session-w);
+  overflow: hidden;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-micro);
+  font-weight: 600;
+  line-height: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* A coarse pointer gets a 44 px target without a taller pill. */
+@media (pointer: coarse) {
+  .timeline-session-pill::after {
+    content: "";
+    position: absolute;
+    inset-block: -0.75rem;
+    inset-inline: -0.5rem;
+  }
+}
+
+.timeline-session-pill[data-selected] {
+  border-color: var(--color-selection);
+  outline: var(--focus-ring-width) solid var(--color-selection);
+  outline-offset: var(--focus-ring-offset);
+}
+
 /* The row keeps the lanes' px height at any root size. */
 .timeline-ruler .sys-ruler {
   block-size: var(--ruler-height);
