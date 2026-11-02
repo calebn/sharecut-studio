@@ -5,6 +5,12 @@ import { registerCommand } from "./execute";
 import { hostProjectGate } from "./host";
 import type { ExecuteResult } from "./types";
 
+/**
+ * `edit.addChapter` is single-flight through the store's `chapterAddPending`
+ * flag, not a module ref, so a control remounting mid-add still sees it
+ * pending; a settled add whose project has since changed (hydrate bumps
+ * `projectEpoch`) must not select, announce or clear the new project's flag.
+ */
 export function registerChapterCommands(): void {
   registerCommand(
     "edit.addChapter",
