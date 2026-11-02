@@ -414,7 +414,7 @@ def test_reproposal_keeps_an_ask_thread_on_its_hit(tmp_path: Path) -> None:
         (d.id, d.start, d.end, d.reason) for d in first
     ]
     view = build_project_view(ws)
-    (attached,) = [row for row in view.pending_edits if row["id"] == thread["edit_decision_id"]]
+    (attached,) = [row for row in view.pending_edits if row["id"] == thread.edit_decision_id]
     assert (attached["reason"], attached["source_start"], attached["source_end"]) == (
         "pause:2.00s:solo",
         2.0,

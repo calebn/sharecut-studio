@@ -274,20 +274,20 @@ def test_document_sync_apply_paths(minimal_project):
     comment = CommentService(ws).add(body="doc", author="a", timeline_start=1.0)
     svc = DocumentSyncService.open(minimal_project)
 
-    svc._apply(_cmd("UpdateComment", {"comment_id": comment["id"], "body": "upd"}))
+    svc._apply(_cmd("UpdateComment", {"comment_id": comment.id, "body": "upd"}))
     svc._apply(
         _cmd(
             "ResolveComment",
-            {"comment_id": comment["id"], "by": "a", "resolved": True},
+            {"comment_id": comment.id, "by": "a", "resolved": True},
         )
     )
     svc._apply(
         _cmd(
             "AddReply",
-            {"comment_id": comment["id"], "body": "r", "author": "b"},
+            {"comment_id": comment.id, "body": "r", "author": "b"},
         )
     )
-    action = svc._apply(_cmd("AddAction", {"comment_id": comment["id"], "text": "todo"}))
+    action = svc._apply(_cmd("AddAction", {"comment_id": comment.id, "text": "todo"}))
     # SetActionDone if action id available
     action_id = None
     if isinstance(action, dict):
@@ -301,7 +301,7 @@ def test_document_sync_apply_paths(minimal_project):
             _cmd(
                 "SetActionDone",
                 {
-                    "comment_id": comment["id"],
+                    "comment_id": comment.id,
                     "action_id": action_id,
                     "done": True,
                     "by": "a",

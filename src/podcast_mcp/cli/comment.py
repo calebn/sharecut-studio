@@ -41,7 +41,7 @@ def comment_add_cmd(
     except (ValueError, KeyError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(comment, indent=2))
+    typer.echo(json.dumps(comment.model_dump(), indent=2))
 
 
 @comment_app.command("list")
@@ -57,7 +57,7 @@ def comment_list_cmd(
         include_resolved=include_resolved,
         open_actions_only=open_actions,
     )
-    typer.echo(json.dumps(rows, indent=2))
+    typer.echo(json.dumps([r.model_dump() for r in rows], indent=2))
 
 
 @comment_app.command("get")
@@ -71,7 +71,7 @@ def comment_get_cmd(
     except KeyError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(comment, indent=2))
+    typer.echo(json.dumps(comment.model_dump(), indent=2))
 
 
 @comment_app.command("update")
@@ -96,7 +96,7 @@ def comment_update_cmd(
     except (ValueError, KeyError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(comment, indent=2))
+    typer.echo(json.dumps(comment.model_dump(), indent=2))
 
 
 @comment_app.command("add-action")
@@ -111,7 +111,7 @@ def comment_add_action_cmd(
     except (ValueError, KeyError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(result, indent=2))
+    typer.echo(json.dumps(result.model_dump(), indent=2))
 
 
 @comment_app.command("reply")
@@ -127,7 +127,7 @@ def comment_reply_cmd(
     except (ValueError, KeyError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(result, indent=2))
+    typer.echo(json.dumps(result.model_dump(), indent=2))
 
 
 @comment_app.command("resolve")
@@ -143,7 +143,7 @@ def comment_resolve_cmd(
     except (ValueError, KeyError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(comment, indent=2))
+    typer.echo(json.dumps(comment.model_dump(), indent=2))
 
 
 @comment_app.command("done")
@@ -160,7 +160,7 @@ def comment_done_cmd(
     except (ValueError, KeyError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(result, indent=2))
+    typer.echo(json.dumps(result.model_dump(), indent=2))
 
 
 @comment_app.command("delete")
@@ -174,4 +174,4 @@ def comment_delete_cmd(
     except KeyError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(result, indent=2))
+    typer.echo(json.dumps(result.model_dump(), indent=2))

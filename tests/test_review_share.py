@@ -148,8 +148,8 @@ def test_guest_action_done_http_twin(minimal_project, sample_wav, tmp_workspace,
         timeline_start=2.0,
         action_texts=["Normalize"],
     )
-    cid = comment["id"]
-    aid = comment["action_items"][0]["id"]
+    cid = comment.id
+    aid = comment.action_items[0].id
 
     client = TestClient(create_app())
     done = client.post(
