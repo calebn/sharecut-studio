@@ -29,7 +29,9 @@ export type ComposerState = "idle" | "posting" | "offline";
  */
 export type ComposerProps = {
   body: string;
-  onBodyChange: (value: string) => void;
+  /** `composing` is true while an IME composition is active, when a transient
+   *  empty value is not the person clearing the field. */
+  onBodyChange: (value: string, composing?: boolean) => void;
   /** Fires only when Post can fire. The caller clears `body` once the send is
    *  accepted, not before. A send failure shows on the CommentCard, never here. */
   onSubmit: () => void;
@@ -197,7 +199,10 @@ export function Composer(props: ComposerProps) {
           ref={setBodyRef}
           onChange={(event) => {
             if (anchor?.kind === "follow") onAnchor?.("pin");
-            onBodyChange(event.target.value);
+            onBodyChange(
+              event.target.value,
+              (event.nativeEvent as InputEvent).isComposing,
+            );
           }}
           onKeyDown={onBodyKeyDown}
         />

@@ -29,6 +29,16 @@ afterEach(() => {
 });
 
 describe("Composer", () => {
+  it("tells the caller when a body change happens during an IME composition", () => {
+    const onBodyChange = vi.fn();
+    render(<Harness onBodyChange={onBodyChange} start="a" />);
+    fireEvent.input(field(), { target: { value: "" }, isComposing: true });
+    fireEvent.change(field(), { target: { value: "b" } });
+    expect(onBodyChange).toHaveBeenNthCalledWith(1, "", true);
+    expect(onBodyChange.mock.calls[1]?.[0]).toBe("b");
+    expect(onBodyChange.mock.calls[1]?.[1]).toBeFalsy();
+  });
+
   it("calls onEscape from the name, the comment, the chip and Post, but not during an IME composition", async () => {
     const onEscape = vi.fn();
     render(
