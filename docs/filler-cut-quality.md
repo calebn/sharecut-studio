@@ -920,11 +920,11 @@ Default action by kind:
 | --- | --- | --- |
 | False start or abandoned word | Cut | |
 | Hard filler (`um`, `uh`) | Cut | The filler rules above apply. The editor keeps some for rhythm. |
-| Mouth click or smack in a gap | Cut | |
-| Breath | Leave | A long breath between sentences may be suggested as Shorten. A breath next to a cut can still go with it (**Breath co-removal**), and no edge falls inside a breath. |
+| Mouth click or smack in a gap | Cut | Target only: no detector produces it yet, so it has no row in the policy table (`edits/cut_policy.py`). |
+| Breath | Leave | Target only: no detector proposes breaths, so there is no policy-table row. A long breath between sentences may be suggested as Shorten. A breath next to a cut can still go with it (**Breath co-removal**), and no edge falls inside a breath. |
 | Laugh | Leave | When it overlaps another speaker's words on another track, Lower on the laughing track for the overlap. |
-| Backchannel (`mm-hmm`) | Leave | Lower when it covers another speaker, as for a laugh. |
-| Playful vocal phrase | Leave | |
+| Backchannel (`mm-hmm`) | Leave | Target only: backchannels are never proposed (they are counted as `backchannel:{phrase}` skips), so there is no policy-table row. Lower when it covers another speaker, as for a laugh. |
+| Playful vocal phrase | Leave | Target only: no detector produces it yet, so there is no policy-table row. |
 | Possible missed word | Leave | An acoustic span the project's Whisper hears, alone, as a word. Detection is by listening, not by shape (§ Key parameters reference, "A possible missed word is flagged"). A real word is never cut by a default action. |
 
 The rules that follow from it:
@@ -982,8 +982,9 @@ The rules that follow from it:
    for the defaults, never targets to tune a threshold against.
 
 Shipped today: the labels "Likely laugh" (#1365) and "Possible missed word" (#1062), not the table. Hard fillers, backchannels and acoustic gap
-runs behave as described elsewhere in this doc. #1434 builds the table and its
-checks; until it lands, this block records the target.
+runs behave as described elsewhere in this doc. The table of kinds that are
+produced today is `_SOUND_ACTIONS` in `edits/cut_policy.py`; rows marked "Target only"
+above have no producer and no row.
 
 ## Mute vs cut
 
