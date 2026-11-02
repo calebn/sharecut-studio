@@ -123,19 +123,19 @@ describe("roomViewModel tiles", () => {
     expect(full.tiles).toHaveLength(5);
   });
 
-  it("turns a declined or left guest's tile into an Invite slot for the host", () => {
-    const model = roomViewModel(
-      base({
-        role: "host",
-        people: [
-          host({ you: true }),
-          guest(JON, { presence: "declined" }),
-          guest(ANNEKE, { presence: "left" }),
-          guest(JOSS),
-        ],
-      }),
-    );
-    expect(model.tiles.map((tile) => tile.kind)).toEqual([
+  it("turns a declined guest's tile, and a guest who left before the take, into an Invite slot for the host", () => {
+    const people = [
+      host({ you: true }),
+      guest(JON, { presence: "declined" }),
+      guest(ANNEKE, { presence: "left" }),
+      guest(JOSS),
+    ];
+    const kinds = (phase: RoomPhase) =>
+      roomViewModel(base({ role: "host", people, phase })).tiles.map(
+        (tile) => tile.kind,
+      );
+    expect(kinds(WAITING)).toEqual(["person", "person", "invite", "invite"]);
+    expect(kinds({ kind: "countdown", secondsLeft: 3 })).toEqual([
       "person",
       "person",
       "invite",
@@ -143,8 +143,26 @@ describe("roomViewModel tiles", () => {
     ]);
   });
 
-  it("keeps a declined guest's tile for the guest and for a host who cannot invite", () => {
-    const people = [host(), guest(JON, { presence: "declined", you: true })];
+  it("keeps a guest's tile when they drop during or after a take, but frees a declined one", () => {
+    const people = [
+      host({ you: true }),
+      guest(JON, { presence: "declined" }),
+      guest(ANNEKE, { presence: "left" }),
+    ];
+    for (const phase of [LIVE, { kind: "saved" } as const]) {
+      const tiles = roomViewModel(base({ role: "host", people, phase })).tiles;
+      expect(tiles.map((tile) => tile.kind)).toEqual([
+        "person",
+        "person",
+        "invite",
+        "invite",
+      ]);
+      expect(tiles[1]?.key).toContain("Anneke");
+    }
+  });
+
+  it("keeps a declined guest's tile for a guest viewer and for a host who cannot invite", () => {
+    const people = [host(), guest(JON, { presence: "declined" })];
     expect(
       roomViewModel(base({ role: "guest", people })).tiles.map((t) => t.kind),
     ).toEqual(["person", "person"]);

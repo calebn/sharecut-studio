@@ -91,9 +91,15 @@ const RECORDED_CAP = 4;
 /** Producers listen; everyone else is recorded. */
 const isRecorded = (person: RoomPerson) => person.role !== "producer";
 
-/** A guest who declined or left frees their place for the host to invite someone else. */
-const isGone = (person: RoomPerson) =>
-  !person.you && (person.presence === "declined" || person.presence === "left");
+/**
+ * For a host who can invite: a guest who declined frees their place, and so does one who
+ * left before the take, but a guest who drops during or after a take keeps their tile.
+ */
+const isGone = (person: RoomPerson, phase: RoomPhase) =>
+  !person.you &&
+  (person.presence === "declined" ||
+    (person.presence === "left" &&
+      (phase.kind === "waiting" || phase.kind === "countdown")));
 
 /** The id when the caller has one; otherwise role and name, which collide for two guests called "Guest". */
 const personKey = (entry: RoomPerson) =>
@@ -188,7 +194,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
 
   const hostInvites = role === "host" && input.invite !== false;
   const recorded = people.filter(
-    (person) => isRecorded(person) && !(hostInvites && isGone(person)),
+    (person) => isRecorded(person) && !(hostInvites && isGone(person, phase)),
   );
   // The host leads with their own tile everywhere; a guest only on the phone.
   const ordered =
