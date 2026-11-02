@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { pendingCutWords, pendingOffersCut } from "../commands/pendingDecision";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
 import {
@@ -277,6 +278,8 @@ function PendingEditRegion({
   const pointerKind = useDawStore((state) => state.pointerKind);
 
   const isSplit = edit.type === "split";
+  const offersCut = pendingOffersCut(edit);
+  const cutWords = pendingCutWords(edit);
   const originClips = useMemo(
     () => clipsForOriginTrack(clipsByTrack, edit.track_id),
     [clipsByTrack, edit.track_id],
@@ -1079,7 +1082,7 @@ function PendingEditRegion({
                   }
                   onClick={() => void runReviewAction("approve")}
                 >
-                  Approve
+                  {offersCut ? cutWords.label : "Approve"}
                 </Button>
                 <Button
                   variant="danger"
@@ -1093,7 +1096,7 @@ function PendingEditRegion({
                   }
                   onClick={() => void runReviewAction("reject")}
                 >
-                  Reject
+                  {offersCut ? "Keep" : "Reject"}
                 </Button>
               </div>
             ) : null}
@@ -1104,7 +1107,13 @@ function PendingEditRegion({
             ) : null}
             {actionState.kind === "busy" ? (
               <span role="status">
-                {actionState.action === "approve" ? "Approving…" : "Rejecting…"}
+                {actionState.action === "approve"
+                  ? offersCut
+                    ? cutWords.busy
+                    : "Approving…"
+                  : offersCut
+                    ? "Keeping…"
+                    : "Rejecting…"}
               </span>
             ) : null}
             {gesture.kind === "settling" ? (

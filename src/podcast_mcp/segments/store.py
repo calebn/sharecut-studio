@@ -86,8 +86,11 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def verify_media(segment: SegmentFile, directory: Path) -> None:
-    """Raise ``segment_hash_mismatch`` unless every file the segment names is there and unchanged."""
+def verify_media(segment: SegmentFile, directory: Path, *, hash_content: bool = True) -> None:
+    """Raise ``segment_hash_mismatch`` unless every file the segment names is there and unchanged.
+
+    ``hash_content=False`` is the cheap pass: the file is there and has the recorded size.
+    """
     for name, entry in segment.media.items():
         path = directory / name
         if path.is_symlink() or not path.is_file():
@@ -95,7 +98,9 @@ def verify_media(segment: SegmentFile, directory: Path) -> None:
                 f"The segment {segment.name!r} is missing its audio file {name}.",
                 code="segment_hash_mismatch",
             )
-        if path.stat().st_size != entry.bytes or sha256_file(path) != entry.sha256:
+        if path.stat().st_size != entry.bytes or (
+            hash_content and sha256_file(path) != entry.sha256
+        ):
             raise CodedValueError(
                 f"The audio file {name} of segment {segment.name!r} does not match its recorded hash.",
                 code="segment_hash_mismatch",
@@ -171,7 +176,22 @@ class SegmentStore:
     def _unknown(segment_id: str) -> CodedValueError:
         return CodedValueError(f"There is no segment called {segment_id}.", code="segment_unknown")
 
-    def _read(self, folder: Path, *, verify: bool = True) -> SegmentFile:
+    def resolve_version(self, segment_id: str, version: int | None = None) -> int:
+        """The version number ``get(segment_id, version)`` would read, without reading it.
+
+        Raises ``segment_unknown`` for an unknown id or a version that is not stored, and
+        ``segment_version_invalid`` for a version below 1 or not a whole number.
+        """
+        if version is not None and (
+            isinstance(version, bool) or not isinstance(version, int) or version < 1
+        ):
+            raise CodedValueError(
+                f"{version!r} is not a segment version. Use a whole number from 1.",
+                code="segment_version_invalid",
+            )
+        return int(self.path(segment_id, version).name[1:])
+
+    def _read(self, folder: Path, *, verify: bool = True, hash_content: bool = True) -> SegmentFile:
         raw = read_capped(
             folder / SEGMENT_JSON,
             MAX_SEGMENT_JSON_BYTES,
@@ -188,23 +208,34 @@ class SegmentStore:
                 code="segment_unreadable",
             )
         if verify:
-            verify_media(segment, folder)
+            verify_media(segment, folder, hash_content=hash_content)
         return segment
 
     def get(self, segment_id: str, version: int | None = None) -> SegmentFile:
         return self._read(self.path(segment_id, version))
 
-    def scan(self) -> Listing:
-        """The newest version of every segment, and the ones that could not be read."""
+    def scan(self, *, deep: bool = True) -> Listing:
+        """The newest version of every segment, and the ones that could not be read.
+
+        ``deep=False`` skips hashing the audio: a segment is damaged when ``segment.json``
+        does not parse or a file is missing or has the wrong size. A segment removed while
+        the scan runs is left out, not reported.
+        """
         found: list[SegmentFile] = []
         damaged: list[DamagedSegment] = []
         for segment_id in self._ids():
-            versions = self._versions(segment_id)
+            try:
+                versions = self._versions(segment_id)
+            except OSError:
+                continue
             if not versions:
                 continue
+            folder = self.directory / segment_id / f"v{versions[-1]}"
             try:
-                found.append(self._read(self.directory / segment_id / f"v{versions[-1]}"))
+                found.append(self._read(folder, hash_content=deep))
             except CodedValueError as exc:
+                if not folder.exists():
+                    continue
                 damaged.append(DamagedSegment(segment_id, versions[-1], str(exc), exc.code))
         return Listing(found, damaged)
 

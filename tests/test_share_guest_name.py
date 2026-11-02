@@ -163,8 +163,8 @@ def test_action_done_label_is_a_display_name_too(minimal_project, sample_wav, tm
     comment = CommentService(sws).add(
         body="Fix levels", author="guest", timeline_start=2.0, action_texts=["Normalize"]
     )
-    cid = comment["id"]
-    aid = comment["action_items"][0]["id"]
+    cid = comment.id
+    aid = comment.action_items[0].id
     client = TestClient(create_app())
     path = f"/api/review/{share['token']}/comments/{cid}/actions/{aid}/done"
     done = client.post(path, json={"done": True, "by": "  Host "})

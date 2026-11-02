@@ -910,6 +910,7 @@ class TranscriptionEngine:
         window_ratios: list[object] = []
         with resolve_progress_task(progress_task_id, f"Transcribing {label}", total=total) as task:
             for segment in segments:
+                raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
                 before = len(words)
                 if segment.words:
                     for w in segment.words:

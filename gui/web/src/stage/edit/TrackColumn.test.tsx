@@ -457,6 +457,17 @@ describe("TrackColumn reorder", () => {
     fireEvent(row, at(createEvent.drop(row, { dataTransfer: dt }), y));
   }
 
+  it("makes headers draggable for a fine pointer and not for touch (#2963)", () => {
+    mount();
+    const headers = () =>
+      [...document.querySelectorAll(".sys-track")] as HTMLElement[];
+    expect(headers().every((h) => h.draggable)).toBe(true);
+    act(() => useDawStore.getState().setPointerKind("coarse"));
+    expect(headers().every((h) => !h.draggable)).toBe(true);
+    act(() => useDawStore.getState().setPointerKind("fine"));
+    expect(headers().every((h) => h.draggable)).toBe(true);
+  });
+
   it("lifts the dragged header, draws the drop line on the header under it and moves the track on drop", () => {
     mount();
     const dt = dataTransfer();

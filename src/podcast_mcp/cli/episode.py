@@ -43,7 +43,7 @@ def track_reorder(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     out = EpisodeService(ws).reorder_track(id, index)
-    typer.echo(json.dumps(out))
+    typer.echo(json.dumps(out.model_dump()))
 
 
 @episode_app.command("set-track-volume")
@@ -55,7 +55,7 @@ def track_set_volume(
     ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EpisodeService(ws).set_track_volume(id, db)))
+    typer.echo(json.dumps(EpisodeService(ws).set_track_volume(id, db).model_dump()))
 
 
 @episode_app.command("set-track-mute")
@@ -65,7 +65,7 @@ def track_set_mute(
     muted: bool = typer.Option(True, "--muted/--unmuted", help="Saved mix mute"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EpisodeService(ws).set_track_mute(id, muted)))
+    typer.echo(json.dumps(EpisodeService(ws).set_track_mute(id, muted).model_dump()))
 
 
 @episode_app.command("mark-streams-current")
@@ -73,7 +73,7 @@ def mark_streams_current(
     project: Path = typer.Option(..., "--project", help="episode.sharecut"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EpisodeService(ws).mark_streams_current()))
+    typer.echo(json.dumps(EpisodeService(ws).mark_streams_current().model_dump()))
 
 
 def transcribe_cmd(

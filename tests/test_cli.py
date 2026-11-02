@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.main import app
 from podcast_mcp.project.io import RETIRED_PROJECT_FILENAME
 from podcast_mcp.services.document import HistoryService
+from podcast_mcp.services.document.episode_results import TrackReorderedResult
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError
 
@@ -72,7 +73,9 @@ def test_episode_reorder_track_reports_service_result(tmp_path):
     project = ws / "episode.sharecut"
 
     with patch("podcast_mcp.cli.episode.EpisodeService") as service:
-        service.return_value.reorder_track.return_value = {"id": "guest", "index": 0}
+        service.return_value.reorder_track.return_value = TrackReorderedResult(
+            track_id="guest", index=0, track_ids=["guest"]
+        )
         result = runner.invoke(
             app,
             [
@@ -88,7 +91,7 @@ def test_episode_reorder_track_reports_service_result(tmp_path):
         )
 
     assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"id": "guest", "index": 0}
+    assert json.loads(result.stdout) == {"track_id": "guest", "index": 0, "track_ids": ["guest"]}
     service.return_value.reorder_track.assert_called_once_with("guest", 0)
 
 

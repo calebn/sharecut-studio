@@ -17,6 +17,7 @@ import { hitTargetProps } from "../hitTargets";
 import {
   chipCount,
   chipLabel,
+  type JoinMark,
   joinPopoverId,
   type LanePlan,
   type PlacedChip,
@@ -26,6 +27,7 @@ import {
 interface EditMarkerLayerProps {
   plan: LanePlan;
   onZoomChip: (chip: PlacedChip) => void;
+  onSelectJoin?: (mark: JoinMark) => void;
 }
 
 type Track = (id: string) => {
@@ -179,7 +181,11 @@ function Glyph({
   );
 }
 
-export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
+export function EditMarkerLayer({
+  plan,
+  onZoomChip,
+  onSelectJoin,
+}: EditMarkerLayerProps) {
   const { openJoinId, setOpenJoinId } = useDaw((s) => ({
     openJoinId: s.openJoinId,
     setOpenJoinId: s.setOpenJoinId,
@@ -278,7 +284,12 @@ export function EditMarkerLayer({ plan, onZoomChip }: EditMarkerLayerProps) {
             key={item.symbol.mark.id}
             symbol={item.symbol}
             open={openJoinId === item.symbol.mark.clipId}
-            onClick={() => toggle(item.symbol.mark.clipId)}
+            onClick={() => {
+              if (!useDawStore.getState().joinMutationInFlight) {
+                onSelectJoin?.(item.symbol.mark);
+              }
+              toggle(item.symbol.mark.clipId);
+            }}
             register={register}
             track={track}
             epoch={epoch}

@@ -321,3 +321,11 @@ button.sys-comment-main:hover {
   gap: var(--space-1);
   margin-inline-start: auto;
 }
+
+/* After the base rules so the floor wins at equal specificity. */
+@media (pointer: coarse) {
+  button.sys-comment-main,
+  .sys-comment-action {
+    min-block-size: var(--touch-min);
+  }
+}

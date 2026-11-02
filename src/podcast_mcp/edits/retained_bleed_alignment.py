@@ -4,8 +4,8 @@ import hashlib
 import json
 import math
 import wave
-from collections.abc import Iterator
-from dataclasses import dataclass
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 from uuid import NAMESPACE_URL, uuid5
@@ -86,6 +86,11 @@ class AlignmentPlan:
     fingerprint: str
     proposals: tuple[PhraseAlignmentProposal, ...] = ()
     skipped: tuple[dict[str, str], ...] = ()
+    windows: dict[str, float] = field(default_factory=dict)
+
+
+def _footprint_sec(proposal: PhraseAlignmentProposal, windows: Mapping[str, float]) -> float:
+    return windows.get(proposal.decision_id, proposal.source_end - proposal.source_start)
 
 
 def _fingerprint(project: EpisodeProject, *, defaults: EffectiveConfig) -> str:
@@ -447,6 +452,7 @@ def plan_retained_bleed_alignment(
     extent = max(clip.timeline_end for clip in project.clips)
     timeline = SessionTimeline(project)
     proposals: list[PhraseAlignmentProposal] = []
+    windows: dict[str, float] = {}
     skipped: list[dict[str, str]] = []
     seen: set[tuple[str, str | None, float, float]] = set()
     completed: set[tuple[str, str, float, float, float]] = set()
@@ -460,10 +466,12 @@ def plan_retained_bleed_alignment(
             skipped.append(row)
 
     def finish() -> AlignmentPlan:
-        safe, conflicts = _safe_batch_proposals(tuple(proposals))
+        safe, conflicts = _safe_batch_proposals(tuple(proposals), windows)
         for tid, reason in conflicts:
             skip(tid, reason)
-        return AlignmentPlan(_fingerprint(project, defaults=defaults), safe, tuple(skipped))
+        return AlignmentPlan(
+            _fingerprint(project, defaults=defaults), safe, tuple(skipped), windows
+        )
 
     def phrases_for(direct_id: str) -> tuple[list[_OwnPhrase], HalfOpenIntervalIndex]:
         if direct_id not in phrase_indexes:
@@ -759,6 +767,8 @@ def plan_retained_bleed_alignment(
             tuple(sorted(reference_peers)),
             media_key,
         )
+        if clip.timing is not None:
+            windows[proposal.decision_id] = old_end - old_start
         completed.add(geometry)
         return proposal
 
@@ -794,7 +804,9 @@ def plan_retained_bleed_alignment(
 
 def _safe_batch_proposals(
     proposals: tuple[PhraseAlignmentProposal, ...],
+    windows: Mapping[str, float] | None = None,
 ) -> tuple[tuple[PhraseAlignmentProposal, ...], tuple[tuple[str, str], ...]]:
+    windows = windows or {}
     conflicts: set[int] = set()
     reasons: set[tuple[str, str]] = set()
     margin = _INTERNAL_FADE_MS / 1000
@@ -802,8 +814,7 @@ def _safe_batch_proposals(
         (
             min(proposal.previous_timeline_start, proposal.timeline_start) - margin,
             max(proposal.previous_timeline_start, proposal.timeline_start)
-            + proposal.source_end
-            - proposal.source_start
+            + _footprint_sec(proposal, windows)
             + margin,
         )
         for proposal in proposals
@@ -815,9 +826,7 @@ def _safe_batch_proposals(
                 conflicts.update((ordinal, other))
                 reasons.add((proposal.direct_track_id, "conflicting_phrase_corrections"))
         reference_start = proposal.timeline_start - margin
-        reference_end = (
-            proposal.timeline_start + proposal.source_end - proposal.source_start + margin
-        )
+        reference_end = proposal.timeline_start + _footprint_sec(proposal, windows) + margin
         references = set(proposal.reference_track_ids) | {proposal.bleed_track_id}
         for other in index.overlapping_ordinals(reference_start, reference_end):
             if other != ordinal and proposals[other].direct_track_id in references:
@@ -839,7 +848,7 @@ def apply_retained_bleed_alignment(
             "retained-bleed alignment plan is stale. Plan the alignment again.",
             code="retained_bleed_plan_stale",
         )
-    proposals, conflicts = _safe_batch_proposals(plan.proposals)
+    proposals, conflicts = _safe_batch_proposals(plan.proposals, plan.windows)
     skipped = list(plan.skipped)
     for tid, reason in conflicts:
         row = {"track_id": tid, "reason": reason}
@@ -851,7 +860,7 @@ def apply_retained_bleed_alignment(
     results: list[dict[str, Any]] = []
     for proposal in proposals:
         lo = proposal.previous_timeline_start
-        hi = lo + proposal.source_end - proposal.source_start
+        hi = lo + _footprint_sec(proposal, plan.windows)
         for boundary in (lo, hi):
             for clip in working.clips:
                 if (

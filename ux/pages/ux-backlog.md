@@ -117,7 +117,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 |---|------|--------------------|
 | 1 | Open the Commenter share; leave one comment | Comment posts without coaching; &lt; 5 min |
 | 2 | Open ShareCut Studio guest; say what you can do | Mentions banner / listen / suggest correctly |
-| 3 | Find and audition a pending cut (host phone) | Reaches Play around without Impact confusion |
+| 3 | Find and audition a pending cut (host phone) | Reaches Hear after (Play around on a sheet with no Action bar) without Impact confusion |
 | 4 | (Optional) Simulate offline conflict → Needs attention | Notices banner; can dismiss |
 
 **Debrief prompts:** What words confused you? Where did you look first? Would you trust approving a cut here?

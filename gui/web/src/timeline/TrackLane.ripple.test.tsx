@@ -93,8 +93,8 @@ function renderLane(hostClips: ClipRow[] = [first, later]) {
           envelopes={[]}
           appliedRecords={[]}
           pendingEdits={[]}
-          onSelectTrack={vi.fn()}
           onSelectPending={vi.fn()}
+          onSelectApplied={vi.fn()}
           onSeek={vi.fn()}
           onSelectClip={vi.fn()}
         />

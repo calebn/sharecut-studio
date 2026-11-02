@@ -22,6 +22,7 @@ if TYPE_CHECKING:
         submit_host_command_result,
         submit_host_document_command,
         submit_paste_segment,
+        submit_segment_insert,
     )
     from podcast_mcp.services.document_sync.payloads import (
         COMMENT_BODY_MAX,
@@ -98,6 +99,7 @@ __all__ = [
     "submit_host_command_result",
     "submit_host_document_command",
     "submit_paste_segment",
+    "submit_segment_insert",
     "validate_payload",
 ]
 
@@ -142,6 +144,7 @@ _MODULE_BY_NAME = {
     "submit_host_command_result": "host_submit",
     "submit_host_document_command": "host_submit",
     "submit_paste_segment": "host_submit",
+    "submit_segment_insert": "host_submit",
     "validate_payload": "payloads",
 }
 

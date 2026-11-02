@@ -8,15 +8,19 @@ from typing import Any, TypeVar
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, EpisodeProject, project_not_found
-from podcast_mcp.project.history import HistoryManager, run_mutation
-from podcast_mcp.project.history.manager import record_and_commit
+from podcast_mcp.project.history import HistoryManager, HistoryStatus, run_mutation
 from podcast_mcp.project.history.rollback import (
     HistoryRollbackPolicy,
     RollbackOutcome,
     rolled_back_on_failure,
     take_history_checkpoint,
 )
-from podcast_mcp.project.io import adopt_retired_entry_file, open_project
+from podcast_mcp.project.io import (
+    RETIRED_PROJECT_FILENAME,
+    adopt_retired_entry_file,
+    open_project,
+    resolve_project_path,
+)
 from podcast_mcp.project.merge import (
     HISTORY_LINEAGE_CONFLICT,
     RERUN_ADVICE,
@@ -44,6 +48,16 @@ log = logging.getLogger(__name__)
 MERGED_HISTORY_LABEL = "after merging concurrent edits"
 
 
+def _read_in_place(project_path: Path | str) -> Path:
+    """The file that holds the project: the entry file, else the retired one. Never renames."""
+    entry = resolve_project_path(project_path)
+    if entry.name == EPISODE_PROJECT_FILENAME and not entry.exists():
+        retired = entry.with_name(RETIRED_PROJECT_FILENAME)
+        if retired.is_file():
+            return retired
+    return entry
+
+
 class ProjectWorkspace:
     def __init__(self, path: Path, project: EpisodeProject) -> None:
         self.path = path
@@ -54,13 +68,18 @@ class ProjectWorkspace:
         self._transaction_depth = 0
 
     @classmethod
-    def open(cls, project_path: Path | str) -> ProjectWorkspace:
-        path = adopt_retired_entry_file(project_path)
+    def open(cls, project_path: Path | str, *, adopt: bool = True) -> ProjectWorkspace:
+        """Open the project at ``project_path``.
+
+        ``adopt=False`` is for read-only callers: a workspace still holding the retired
+        entry file is read where it is, not renamed to ``episode.sharecut``.
+        """
+        path = adopt_retired_entry_file(project_path) if adopt else _read_in_place(project_path)
         try:
             before = file_revision(path)
         except FileNotFoundError as exc:
             raise project_not_found(path) from exc
-        _, project = open_project(path)
+        project = open_project(path)[1] if adopt else ProjectStore(path).load()
         ws = cls(path, project)
         signature = file_revision(path)
         if signature == before:
@@ -276,6 +295,30 @@ class ProjectWorkspace:
     def history(self) -> HistoryManager:
         return HistoryManager(self._store)
 
+    def undo(self, *, expected_head_id: str | None = None) -> HistoryStatus:
+        """Step back one history entry and commit it (``expected_head_id`` as ``apply_undo``)."""
+        return self._move_history(
+            lambda mgr, project: mgr.apply_undo(project, expected_head_id=expected_head_id)
+        )
+
+    def redo(self, *, expected_head_id: str | None = None) -> HistoryStatus:
+        """Step forward one history entry and commit it."""
+        return self._move_history(
+            lambda mgr, project: mgr.apply_redo(project, expected_head_id=expected_head_id)
+        )
+
+    def goto(self, index: int) -> HistoryStatus:
+        """Move to history entry ``index`` and commit it."""
+        return self._move_history(lambda mgr, project: mgr.apply_goto(project, index))
+
+    def _move_history(
+        self, apply: Callable[[HistoryManager, EpisodeProject], HistoryStatus]
+    ) -> HistoryStatus:
+        with self.transaction() as project:
+            status = apply(self.history(), project)
+            self.save()
+            return status
+
     def _adopt_saved(self, project: EpisodeProject) -> None:
         if project is not self.project:
             adopt_project_state(self.project, project)
@@ -306,6 +349,7 @@ class ProjectWorkspace:
                     label_before,
                     label_after,
                     fn,
+                    commit=self._store.commit,
                     defaults=self.effective_config(),
                     operation=operation,
                     params=params,
@@ -322,7 +366,15 @@ class ProjectWorkspace:
         """Record ``label`` as a history entry and commit it; a failure rolls the entry back."""
         with self.transaction():
             try:
-                entry = record_and_commit(self._store, self.project, label, force=force)
+                # record() and the store's commit take project_commit_lock again inside this
+                # hold; that nests only because both locks are re-entrant per thread
+                # (tests/test_project_commit_lock.py::test_lock_is_reentrant_and_shared_per_workspace).
+                with project_commit_lock(self.project):
+                    checkpoint = take_history_checkpoint(self._store, self.project)
+                    with rolled_back_on_failure(self.project, checkpoint):
+                        entry = HistoryManager(self._store).record(self.project, label, force=force)
+                        checkpoint.start_commit(self.project)
+                        self._store.commit(self.project)
             except BaseException:
                 # A failed commit may still have replaced the file; re-read before trusting it.
                 self._loaded_file_signature = None

@@ -17,6 +17,7 @@ from podcast_mcp.edits.filler_pacing import (
 from podcast_mcp.edits.peer_copy_lag import PeerCopyLags
 from podcast_mcp.edits.shared_pause import PauseClaim, shared_pause_twins
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
+from podcast_mcp.edits.tighten_reasons import is_pause_reason
 from podcast_mcp.engines.mute_regions import (
     muted_source_spans,
     source_span_is_muted,
@@ -225,9 +226,7 @@ def _apply_analyzed_cut(
 
     decision = _decision_for_analyzed(result)
     require_source_remove(project, decision, heard_pause_sec=result.pause_sec)
-    if decision.review_required and (
-        (decision.reason or "").startswith("pause:") or result.peers_speaking
-    ):
+    if decision.review_required and (is_pause_reason(decision.reason) or result.peers_speaking):
         record_suggested_cut_speech(project, decision, defaults=defaults)
     project.edit_decisions.append(decision)
     return decision

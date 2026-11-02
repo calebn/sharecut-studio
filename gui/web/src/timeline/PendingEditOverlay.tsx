@@ -1,5 +1,11 @@
 import { useCallback } from "react";
 import { approveEdits, rejectEdits, updatePendingEdit } from "../api";
+import { applyPendingSuggestion } from "../commands/editVerbs";
+import {
+  decideThroughSheet,
+  pendingOffersCut,
+  sheetBusyReason,
+} from "../commands/pendingDecision";
 import {
   canRetimePendingEdit,
   canReviewPendingEdit,
@@ -100,6 +106,23 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
       throw new Error(
         "You do not have permission to review this pending edit.",
       );
+    }
+    if (pendingOffersCut(current)) {
+      // Cut and Keep here are the Action bar's. A shorten or lower Cut applies the suggestion's own
+      // action (approving would cut it whole); the rest go through the open sheet when it shows
+      // this edit, so its busy gate, Still sending notice and refine recovery apply once.
+      if (action === "approve" && current.suggested_action !== "cut") {
+        const busy = sheetBusyReason(editId);
+        if (busy) throw new Error(busy);
+        // A failure is announced in the status line by the apply itself; it is not thrown again.
+        await applyPendingSuggestion();
+        return { queued: false };
+      }
+      const sheet = await decideThroughSheet(editId, action);
+      if (sheet) {
+        if (sheet.status === "disabled") throw new Error(sheet.reason);
+        return { queued: false };
+      }
     }
     const capture = capturePendingReview(action, capturedPath, current);
     const result =

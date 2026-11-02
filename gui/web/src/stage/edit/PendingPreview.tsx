@@ -3,12 +3,9 @@ import {
   canPlayPendingPreview,
   pendingPreviewBlockReason,
   playPendingPreview,
-  releasePendingPreview,
-  warmPendingPreview,
 } from "../../audio/pendingPreview";
 import { seekTransport } from "../../commands/seek";
 import { useDawStore } from "../../state/dawStore";
-import { useDaw } from "../../state/useDaw";
 import type { PendingEditView } from "../../types/project";
 import { InspectorSeekFooterView } from "../../ui/InspectorSeekFooterView";
 import type { PreviewMode } from "../../utils/playRange";
@@ -35,7 +32,11 @@ function useElapsedSec(active: boolean): number | null {
   return sec;
 }
 
-/** Seek plus the server-rendered Current / Suggested / A/B listen for one pending edit. */
+/**
+ * Seek plus the server-rendered Current / Suggested / A/B listen for one pending edit, for a sheet
+ * with no Action bar (the bar's Hear, A/B and Seek replace it). Warming and releasing the
+ * previews is `usePendingEditWarm`'s, not this footer's.
+ */
 export function PendingPreview({
   edit,
   projectPath,
@@ -56,24 +57,6 @@ export function PendingPreview({
   const canPlay = useDawStore((state) =>
     canPlayPendingPreview(state, projectPath),
   );
-  useEffect(() => () => releasePendingPreview(edit.id), [edit.id]);
-  const { tracks, clips, effects, envelopes } = useDaw((state) => ({
-    tracks: state.project?.tracks,
-    clips: state.project?.clips,
-    effects: state.project?.effects_by_track,
-    envelopes: state.project?.envelopes,
-  }));
-  // Warm again once a fader, mute, effect or edit has settled: the cached renders
-  // and the mix headroom belong to the mix they were made from.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the mix inputs are the triggers
-  useEffect(() => {
-    if (!canPlay) return;
-    const timer = setTimeout(
-      () => void warmPendingPreview(projectPath, edit.id),
-      1500,
-    );
-    return () => clearTimeout(timer);
-  }, [canPlay, projectPath, edit.id, tracks, clips, effects, envelopes]);
   const busySec = useElapsedSec(busy);
   const blocked = pendingPreviewBlockReason(edit, mode, canPlay);
   const play = async () => {

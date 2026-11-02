@@ -37,10 +37,10 @@ saved media; that visual-only pan leaves playback position and saved-media seek
 bounds unchanged, including while you pinch to zoom or leave Timeline and return. An explicit seek returns to
 normal playback follow. Stop clears the preview, and landing shows the finalized clips.
 
-A playback meter beneath each track's initials shows its output peak. The clip
-light stays lit after playback stops. This indicator leaves the initials free
-for opening track details. To reset it, tap the track's initials, then choose
-**Clear clip light** in the track inspector. With reduced motion enabled, the
+The ring around each track's avatar follows its live output level. A clipped
+track keeps a danger ring and badge on its avatar after playback stops. The
+avatar stays free for opening track details. To reset the light, tap the
+track's avatar, then choose **Clear clip light** in the track inspector. With reduced motion enabled, the
 meter bar stays still while clip detection continues.
 
 Joins stay visible at any zoom as a small marker at the top of the lane: `|` cut, `╲╱` fade, `✕` crossfade. When you zoom in far enough that a crossfade draws as a real overlap, its marker shrinks to a small tag so the shape reads, and past 24 px of overlap a label such as "Crossfade 120 ms" appears beside it when there is room. On a phone held upright most joins sit closer than 24 px, so they fold into a count; tap it to zoom until they separate, then tap a marker to edit its join. Applied edits stay thin, untappable ticks.
@@ -50,11 +50,19 @@ actions above or below the lane; they stay clear of the edge controls, and a
 narrow region does not make the timeline wider. In a dense set of cuts, point
 to or keyboard-focus one small region to see its label without labels stacking
 over each other. When the compact inspector is open, the same review actions
-dock in its pinned header, with Approve and Reject on the timeline action card
+dock in its pinned header, with Cut and Keep (Approve and Reject for a split, an exact range or a suggestion with no accept action) on the timeline action card
 while the inspector body scrolls. A suggestion that has an accept action shows
-Cut and Keep on the Action bar (the dock on a phone); without one, and for a
-split, an exact range, a comment-linked pending edit or the peek sheet, Approve
-and Reject stay in the sheet. Elsewhere the card stays beside the selected region and follows the
+Cut and Keep on the Action bar (the dock on a phone), and where the sheet has
+that bar it drops its own Approve and Reject buttons when the edit is not a split
+or an exact range.
+The timeline card says Cut and Keep for those same edits. For a split, an
+exact range, a suggestion with no accept action and a comment-linked pending
+edit, Approve and Reject stay in the sheet and on the card. Where the phone sheet has no
+bar dock (the compact drawer, and the full sheet at a tight height) a cut
+suggestion shows Cut and Keep on the docked card and Approve and Reject in the
+sheet body for the same edit (the bar's
+verb follows the accept action alone, so a split or exact range that carries one
+still shows it on the bar, as it did before). The peek strip's body shows no verbs, but the card docks into the strip's chrome and shows them. Elsewhere the card stays beside the selected region and follows the
 timeline when the marker lane or the bottom panel changes size.
 On the matching track, you can drag a cut's outer start or end edge while the
 other edge stays in place. The moving edge follows nearby waveform ticks and
@@ -159,7 +167,7 @@ Tap outside a confirmation sheet to dismiss it. Hear original sits in the player
 |---------|--------------|
 | **Two-finger tap** | Optional ShareCut shortcut for Undo |
 | **Pinch** | Zoom the timeline in/out |
-| **Long-press** | Open the selection sheet for a comment or track, or correct a transcript word (hosts). In Select mode, hold a word and drag across more to select a range; Range actions also add or drop a word at either end. On the timeline, a long press arms a target so it can be dragged (on a clip's body, the clip, which then slides in time), or on empty space opens a menu to split here, add a comment or a chapter, (host) record here, add a volume point on a lane, or paste |
+| **Long-press** | Open the selection sheet for a comment, or correct a transcript word (hosts). In Select mode, hold a word and drag across more to select a range; Range actions also add or drop a word at either end. On the timeline, a long press arms a target so it can be dragged (on a clip's body, the clip, which then slides in time), or on empty space opens a menu to split here, add a comment or a chapter, (host) record here, add a volume point on a lane, or paste |
 | **Double-tap word** | Open word correction (hosts) in the sheet; the transcript hint says so on touch; closing it returns to your previous mode (touch keeps the sheet rather than desktop's inline editor so the keyboard has room) |
 
 A full list is in the app: **Commands and shortcuts → Gestures** (tap the search button in the header).

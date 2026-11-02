@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -595,3 +597,61 @@ def test_two_exports_at_once_do_not_share_a_staging_folder(tmp_path, monkeypatch
     (wav,) = [e["wav"] for e in export_social_clips(proj, {"social_clips": {"padding_ms": 0}})]
 
     assert Path(wav).read_bytes() == b"outer"
+
+
+def test_an_export_sweeps_only_day_old_staging_folders_of_its_own_shape(tmp_path, monkeypatch):
+    def render(_src, out, _start, _end):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"wav")
+        return out
+
+    proj = _one_approved_clip(tmp_path, monkeypatch, render)
+    clips_dir = proj.export_dir() / "clips"
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    stale, fresh = clips_dir / ".writing-abcd1234", clips_dir / ".writing-wxyz9876"
+    users = clips_dir / ".writing-notes"
+    for folder in (stale, fresh, users):
+        folder.mkdir()
+    two_days_ago = time.time() - 2 * 24 * 3600
+    os.utime(stale, (two_days_ago, two_days_ago))
+    os.utime(users, (two_days_ago, two_days_ago))
+
+    export_social_clips(proj, {"social_clips": {"padding_ms": 0}})
+
+    assert not stale.exists()
+    assert fresh.exists()
+    assert users.exists()
+
+
+def test_a_clip_id_cannot_steer_the_file_name_out_of_the_clips_folder(tmp_path, monkeypatch):
+    def render(_src, out, _start, _end):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"wav")
+        return out
+
+    proj = _one_approved_clip(tmp_path, monkeypatch, render)
+    proj.social_clip_candidates[0].id = "../../evil id"
+
+    (exported,) = export_social_clips(proj, {"social_clips": {"padding_ms": 0}})
+
+    clips_dir = proj.export_dir() / "clips"
+    assert Path(exported["wav"]).parent == clips_dir
+    assert Path(exported["json"]).parent == clips_dir
+    assert ".." not in Path(exported["wav"]).name
+    assert " " not in Path(exported["wav"]).name
+
+
+def test_two_clips_whose_ids_reduce_to_one_file_name_stop_the_export(tmp_path, monkeypatch):
+    def render(_src, out, _start, _end):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"wav")
+        return out
+
+    proj = _one_approved_clip(tmp_path, monkeypatch, render)
+    first = proj.social_clip_candidates[0]
+    first.id = "a b"
+    second = first.model_copy(update={"id": "a-b"})
+    proj.social_clip_candidates.append(second)
+
+    with pytest.raises(ValueError, match="share the file name"):
+        export_social_clips(proj, {"social_clips": {"padding_ms": 0}}, ids=["a b", "a-b"])

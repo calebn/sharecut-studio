@@ -27,6 +27,11 @@ describe("isLowConfidenceWord", () => {
     expect(isLowConfidenceWord({ unsure: false })).toBe(false);
     expect(isLowConfidenceWord({})).toBe(false);
   });
+
+  it("never counts a suppressed word", () => {
+    expect(isLowConfidenceWord({ unsure: true, suppressed: true })).toBe(false);
+    expect(isLowConfidenceWord({ unsure: true, suppressed: false })).toBe(true);
+  });
 });
 
 describe("lowConfidenceStops", () => {
@@ -113,6 +118,48 @@ describe("lowConfidenceStops", () => {
     ];
     expect(lowConfidenceStops(utts, true, true)).toEqual<LowConfidenceStop[]>([
       { trackId: "host", wordIndex: 0, text: "so", seekSec: null, order: 1 },
+    ]);
+  });
+
+  it("skips a suppressed word inside a mixed utterance but keeps its neighbours", () => {
+    const utts: CombinedUtterance[] = [
+      u({
+        track_id: "host",
+        text: "so um well",
+        words: [
+          {
+            text: "so",
+            start: 0,
+            end: 0.2,
+            word_index: 0,
+            confidence: 0.4,
+            unsure: true,
+          },
+          {
+            text: "um",
+            start: 0.2,
+            end: 0.4,
+            word_index: 1,
+            confidence: 0.3,
+            unsure: true,
+            suppressed: true,
+          },
+          {
+            text: "well",
+            start: 0.4,
+            end: 0.6,
+            word_index: 2,
+            confidence: 0.4,
+            unsure: true,
+          },
+        ],
+      }),
+    ];
+    expect(
+      lowConfidenceStops(utts, true, true).map((s) => [s.text, s.order]),
+    ).toEqual([
+      ["so", 0],
+      ["well", 2],
     ]);
   });
 

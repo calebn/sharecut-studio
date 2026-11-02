@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import contextlib
 import multiprocessing as mp
+import os
+import queue
 import sys
+import threading
+import time
+import traceback
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -82,12 +87,10 @@ def _child_failed_publish(project_path, publishing, may_clean, cleaned) -> None:
 
 def _child_goto(project_path, index, blocked, result) -> None:
     """Adopt the failing publication's uncommitted index, then jump to its last entry."""
-    store = ProjectStore(Path(project_path))
-    project = store.load()
-    mgr = HistoryManager(ProjectStore(Path(project_path)))
+    ws = ProjectWorkspace.open(Path(project_path))
     try:
-        with observe_failed_commit_lock_attempt(project, blocked):
-            mgr.goto(project, index)
+        with observe_failed_commit_lock_attempt(ws.project, blocked):
+            ws.goto(index)
         result.put("ok")
     except Exception as exc:
         result.put(type(exc).__name__)
@@ -304,19 +307,63 @@ def _child_notify(path) -> None:
     notify_document_changed(path)
 
 
-def _child_submit_comments(path, client_id, start, count) -> None:
-    svc = DocumentSyncService.open(path)
-    start.wait(60)
-    for seq in range(1, count + 1):
-        svc.submit(
-            DocumentCommand(
-                type="AddComment",
-                payload={"body": f"{client_id}-{seq}", "author": client_id, "timeline_start": 1.0},
-                client_id=client_id,
-                role="viewer",
-                client_seq=seq,
+def _child_submit_comments(path, client_id, start, count, reports) -> None:
+    began = submit_began = time.monotonic()
+    seq = 0
+    try:
+        svc = DocumentSyncService.open(path)
+        start.wait(60)
+        for seq in range(1, count + 1):
+            submit_began = time.monotonic()
+            reports.put(f"{client_id} submitting {seq} at +{submit_began - began:.1f}s")
+            svc.submit(
+                DocumentCommand(
+                    type="AddComment",
+                    payload={
+                        "body": f"{client_id}-{seq}",
+                        "author": client_id,
+                        "timeline_start": 1.0,
+                    },
+                    client_id=client_id,
+                    role="viewer",
+                    client_seq=seq,
+                )
             )
-        )
+    except BaseException as exc:
+        reports.put(_failure_report(client_id, seq, exc, time.monotonic() - submit_began))
+        raise
+
+
+def _failure_report(client_id, seq, exc, submit_sec) -> str:
+    """Why a submit failed. The seconds it ran before failing tell a 30 s lock timeout
+    (contention) from a fail-fast near zero (a broken re-entrant acquire); a bare
+    ``filelock.Timeout`` has no ``contention``, and its ``holder_pid`` is None off Linux."""
+    return (
+        f"{client_id} submit {seq} FAILED after {submit_sec:.1f}s "
+        f"pid={os.getpid()} thread={threading.get_ident()} {type(exc).__name__} "
+        f"contention={getattr(exc, 'contention', None)}\n"
+        + "".join(traceback.format_exception(exc))
+    )
+
+
+def _join_with_reports(children, reports, timeout):
+    """Join ``children`` while draining ``reports`` (a full pipe would stall a child), then
+    return ``(all exited on their own, report lines)``."""
+    lines: list[str] = []
+    deadline = time.monotonic() + timeout
+
+    def drain(wait: float) -> None:
+        while True:
+            try:
+                lines.append(reports.get(timeout=wait))
+            except queue.Empty:
+                return
+
+    while any(c.is_alive() for c in children) and time.monotonic() < deadline:
+        drain(0.5)
+    exited = [reap(child, 0) for child in children]
+    drain(1)
+    return all(exited), lines
 
 
 def test_mutate_takes_the_lock_before_running_the_mutation(minimal_project, monkeypatch):
@@ -382,17 +429,20 @@ def test_stale_workspace_keeps_a_commit_from_another_process(minimal_project):
 
 
 def test_document_commands_from_two_processes_keep_every_edit(minimal_project):
-    start = _CTX.Event()
+    start, reports = _CTX.Event(), _CTX.Queue()
     children = [
-        _CTX.Process(target=_child_submit_comments, args=(str(minimal_project), cid, start, 5))
+        _CTX.Process(
+            target=_child_submit_comments, args=(str(minimal_project), cid, start, 5, reports)
+        )
         for cid in ("a", "b")
     ]
     for child in children:
         child.start()
     start.set()
-    for child in children:
-        assert reap(child, 120), "a submitting child hung and was killed"
-        assert child.exitcode == 0
+    exited, lines = _join_with_reports(children, reports, 120)
+    detail = "\n".join(lines)
+    assert exited, f"a submitting child hung and was killed\n{detail}"
+    assert [child.exitcode for child in children] == [0, 0], detail
     project = load_project(minimal_project)
     bodies = {c.body for c in project.comments}
     assert len(project.comments) == 10

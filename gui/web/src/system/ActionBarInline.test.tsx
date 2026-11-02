@@ -1,7 +1,11 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { ActionBarInline, type ActionBarInlineProps } from "./ActionBarInline";
+import {
+  ActionBarInline,
+  type ActionBarInlineProps,
+  ActionPrompt,
+} from "./ActionBarInline";
 
 const handlers = () => ({
   onKeep: vi.fn(),
@@ -66,5 +70,32 @@ describe("ActionBarInline", () => {
   it("keeps Comment in a read-only phone dock", () => {
     show({ readOnly: true, form: "dock" });
     expect(buttons()).toEqual(["Comment"]);
+  });
+});
+
+describe("ActionPrompt note", () => {
+  const open = async () => {
+    const onConfirm = vi.fn();
+    render(<ActionPrompt verb="cut" onConfirm={onConfirm} />);
+    await userEvent.click(screen.getByRole("button", { name: "Add a note" }));
+    return {
+      onConfirm,
+      note: screen.getByRole("textbox", { name: "Your reason" }),
+    };
+  };
+
+  it("confirms once on Enter and ignores a held Enter", async () => {
+    const { onConfirm, note } = await open();
+    expect(fireEvent.keyDown(note, { key: "Enter", repeat: true })).toBe(false);
+    expect(onConfirm).not.toHaveBeenCalled();
+    fireEvent.keyDown(note, { key: "Enter" });
+    expect(onConfirm).toHaveBeenCalledOnce();
+  });
+
+  it("does not confirm during an IME composition", async () => {
+    const { onConfirm, note } = await open();
+    fireEvent.keyDown(note, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(note, { key: "Enter", keyCode: 229 });
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 });

@@ -317,9 +317,9 @@ def test_implicit_inspection_is_read_only_and_restore_materializes_selected_lane
     result = restore_clip_bleed(workspace, target)
     assert [c.id for c in workspace.project.clips] == ["clip_host_full"]
     manager = HistoryManager(ProjectStore(workspace.path))
-    manager.undo(workspace.project, expected_head_id=result["history_head_id"])
+    manager.apply_undo(workspace.project, expected_head_id=result["history_head_id"])
     assert workspace.project.clips == []
-    manager.redo(workspace.project, expected_head_id=workspace.project.history.head_id())
+    manager.apply_redo(workspace.project, expected_head_id=workspace.project.history.head_id())
     assert [c.id for c in workspace.project.clips] == ["clip_host_full"]
 
 
@@ -437,7 +437,7 @@ def test_restore_changes_only_selected_choice_and_preserves_metadata_through_rel
     with pytest.raises(BleedRestoreChangedError):
         restore_clip_bleed(workspace, target)
     assert len(calls) == 1
-    HistoryManager(ProjectStore(workspace.path)).undo(
+    HistoryManager(ProjectStore(workspace.path)).apply_undo(
         workspace.project, expected_head_id=result["history_head_id"]
     )
     assert workspace.project.clips == before.clips

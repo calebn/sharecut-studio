@@ -1464,6 +1464,7 @@ def plan_conversation_alignment(
         cancel_check = None
 
     units = dialogue_align_units(project)
+    _refuse_timed_units(units)
     if len(units) < 2:
         return AlignResult(
             skipped_reason="skipped (<2 dialogue clips)", large_move_sec=large_move_sec
@@ -2087,12 +2088,23 @@ def _split_at_steps(
     return lane, pieces
 
 
+def _refuse_timed_units(units: Sequence[Any]) -> None:
+    timed = next((clip for _t, clip, _tok, _d in units if clip.timing is not None), None)
+    if timed is not None:
+        raise CodedValueError(
+            f"clip {timed.id!r} has a timing map, and alignment re-times whole clips. "
+            "Align tracks does not support it yet; remove the timing map first.",
+            code="timing_map_alignment_unsupported",
+        )
+
+
 def apply_alignment_plans(
     project: EpisodeProject, result: AlignResult, *, defaults: EffectiveConfig
 ) -> int:
     """Mutate clips + meta.ingest_alignment. Returns number of clips updated."""
     if result.skipped_reason or not result.plans:
         return 0
+    _refuse_timed_units(dialogue_align_units(project))
     by_key = {(p.track_id, p.clip_id): p for p in result.plans}
     updated = 0
     align_meta: dict[str, SpeakerIngestAlignment] = dict(project.meta.ingest_alignment or {})

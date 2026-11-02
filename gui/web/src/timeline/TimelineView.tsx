@@ -753,11 +753,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     },
     [setSelection],
   );
-  const onSelectTrack = useStableCallback((trackId: string) => {
-    setSelection({ kind: "track", trackId });
-  });
   const onSelectPending = useStableCallback((trackId: string, id: string) =>
     setSelection({ kind: "pending", id, trackId }),
+  );
+  const onSelectApplied = useStableCallback((trackId: string, id: string) =>
+    setSelection({ kind: "applied", id, trackId }),
   );
   const onClipMovePreview = useStableCallback(
     (clipId: string, info: ClipMovePointerInfo) => {
@@ -1100,13 +1100,13 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                             }
                             onSelectBleed={onSelectBleed}
                             onSelectClip={onSelectClip}
-                            onSelectTrack={onSelectTrack}
                             staleWholeTrack={Boolean(
                               showStaleInv && fallbackWhole.has(track.id),
                             )}
                             showStaleInvalidations={showStaleInv}
                             staleInvalidations={staleInvalidations}
                             onSelectPending={onSelectPending}
+                            onSelectApplied={onSelectApplied}
                             prosody={prosodyByTrack.get(track.id) ?? null}
                           />
                         );

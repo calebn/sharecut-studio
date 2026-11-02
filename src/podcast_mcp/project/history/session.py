@@ -69,6 +69,7 @@ def run_mutation(
     label_after: str,
     mutate: Callable[[EpisodeProject], T],
     *,
+    commit: Callable[[EpisodeProject], object],
     defaults: EffectiveConfig,
     operation: str | None = None,
     params: dict | None = None,
@@ -81,6 +82,7 @@ def run_mutation(
             label_before,
             label_after,
             mutate,
+            commit=commit,
             defaults=defaults,
             operation=operation,
             params=params,
@@ -95,6 +97,7 @@ def _run_mutation_locked(
     label_after: str,
     mutate: Callable[[EpisodeProject], T],
     *,
+    commit: Callable[[EpisodeProject], object],
     defaults: EffectiveConfig,
     operation: str | None,
     params: dict | None,
@@ -135,7 +138,7 @@ def _run_mutation_locked(
         with project_commit_lock(project):
             mgr.record(project, label_after, operation=operation, params=stamp_params(params))
             checkpoint.start_commit(project)
-            store.commit(project)
+            commit(project)
     return result
 
 

@@ -23,7 +23,6 @@ from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.project.history import rollback as rollback_mod
 from podcast_mcp.project.history.manager import (
-    record_and_commit,
     snapshot_from_project,
     write_snapshot,
 )
@@ -39,6 +38,12 @@ from podcast_mcp.project.store import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util import atomic_file
 from podcast_mcp.util.atomic_json import write_json_atomic
+
+
+def _run(path, project, *args, **kwargs):
+    """``run_mutation`` over a store at ``path``, committing through that store."""
+    store = ProjectStore(path)
+    return run_mutation(store, project, *args, commit=store.commit, **kwargs)
 
 
 @pytest.mark.parametrize("writer", ["history_manager", "project_store"])
@@ -135,15 +140,15 @@ def test_undo_redo_edit_decisions(minimal_project):
     mgr.record(proj, "with edit")
     save_project(proj, minimal_project)
 
-    proj = load_project(minimal_project)
-    status = mgr.undo(proj)
+    ws = ProjectWorkspace.open(minimal_project)
+    status = ws.undo()
     assert status.cursor == 0
-    assert len(proj.edit_decisions) == 0
+    assert len(ws.project.edit_decisions) == 0
 
-    proj = load_project(minimal_project)
-    status = mgr.redo(proj)
+    ws = ProjectWorkspace.open(minimal_project)
+    status = ws.redo()
     assert status.cursor == 1
-    assert len(proj.edit_decisions) == 1
+    assert len(ws.project.edit_decisions) == 1
 
     proj = load_project(minimal_project)
     proj.edit_decisions.clear()
@@ -164,7 +169,7 @@ def test_undo_at_start_raises(minimal_project):
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
     with pytest.raises(ValueError, match="Nothing to undo"):
-        mgr.undo(proj)
+        mgr.apply_undo(proj)
 
 
 def test_undo_restores_social_clip_candidates(minimal_project):
@@ -187,7 +192,7 @@ def test_undo_restores_social_clip_candidates(minimal_project):
     save_project(proj, minimal_project)
 
     proj = load_project(minimal_project)
-    mgr.undo(proj)
+    mgr.apply_undo(proj)
     assert proj.social_clip_candidates == []
 
 
@@ -250,11 +255,11 @@ def test_undo_restores_progress_cursor_captured_with_an_edit(minimal_project):
     save_project(proj, minimal_project)
 
     restored = load_project(minimal_project)
-    mgr.undo(restored)
+    mgr.apply_undo(restored)
     assert restored.comments == []
     assert restored.render.last_completed_step == "before edit"
 
-    mgr.redo(restored)
+    mgr.apply_redo(restored)
     assert len(restored.comments) == 1
     assert restored.render.last_completed_step == "after edit"
 
@@ -280,7 +285,7 @@ def test_record_truncates_redo_branch(minimal_project):
     save_project(proj, minimal_project)
 
     proj = load_project(minimal_project)
-    mgr.undo(proj)
+    mgr.apply_undo(proj)
     save_project(proj, minimal_project)
 
     proj = load_project(minimal_project)
@@ -311,7 +316,7 @@ def test_redo_at_end_raises(minimal_project):
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
     with pytest.raises(ValueError, match="Nothing to redo"):
-        mgr.redo(proj)
+        mgr.apply_redo(proj)
 
 
 def test_goto_history_index(minimal_project):
@@ -335,7 +340,7 @@ def test_goto_history_index(minimal_project):
     save_project(proj, minimal_project)
 
     proj = load_project(minimal_project)
-    status = mgr.goto(proj, 0)
+    status = mgr.apply_goto(proj, 0)
     assert status.cursor == 0
     assert status.current_label == "start"
     assert len(proj.edit_decisions) == 0
@@ -348,7 +353,7 @@ def test_goto_out_of_range(minimal_project):
     save_project(proj, minimal_project)
     proj = load_project(minimal_project)
     with pytest.raises(ValueError, match="out of range"):
-        mgr.goto(proj, 5)
+        mgr.apply_goto(proj, 5)
 
 
 def test_load_index_from_disk(minimal_project):
@@ -391,14 +396,13 @@ def test_status_current_label(minimal_project):
 
 
 def _record_committed(path, label):
-    store = ProjectStore(path)
-    return record_and_commit(store, store.load(), label, force=True)
+    return ProjectWorkspace.open(path).record_snapshot(label, force=True)
 
 
-def test_record_and_commit(minimal_project):
-    entry = _record_committed(minimal_project, "via helper")
+def test_record_snapshot_commits_the_entry(minimal_project):
+    summary = _record_committed(minimal_project, "via helper")
     proj = load_project(minimal_project)
-    assert proj.history.entries[-1].id == entry.id
+    assert summary == f"{proj.history.entries[-1].id}: via helper"
 
 
 def test_status_without_entries(minimal_project):
@@ -511,8 +515,8 @@ def test_unlocked_rollback_does_not_adopt_an_index_a_dead_commit_left_ahead(
     monkeypatch.setattr(HistoryManager, "_save_index", save_index)
     monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
     with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="boom"):
-        run_mutation(
-            ProjectStore(minimal_project),
+        _run(
+            minimal_project,
             proj,
             "before add comment",
             "after add comment",
@@ -543,8 +547,8 @@ def test_unlocked_rollback_keeps_empty_history_when_the_saved_project_is_unreada
     monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
     monkeypatch.setattr(rollback_mod, "load_project", unreadable)
     with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="boom"):
-        run_mutation(
-            ProjectStore(minimal_project),
+        _run(
+            minimal_project,
             proj,
             "before add comment",
             "after add comment",
@@ -567,13 +571,12 @@ def test_failed_first_mutation_keeps_an_index_another_writer_committed(minimal_p
     proj = load_project(minimal_project)
 
     def other_writer_commits_then_fail(_p):
-        store = ProjectStore(minimal_project)
-        record_and_commit(store, store.load(), "other writer", force=True)
+        _record_committed(minimal_project, "other writer")
         raise RuntimeError("boom")
 
     with pytest.raises(RuntimeError, match="boom"):
-        run_mutation(
-            ProjectStore(minimal_project),
+        _run(
+            minimal_project,
             proj,
             "before",
             "after",
@@ -636,7 +639,7 @@ def test_snapshot_file_uses_the_shared_layout(minimal_project):
     assert history_snapshot_path(history_index_path(proj), entry.id).is_file()
 
 
-def test_record_and_commit_rolls_back_when_the_commit_fails(minimal_project, monkeypatch):
+def test_record_snapshot_rolls_back_when_the_commit_fails(minimal_project, monkeypatch):
     import json
 
     from podcast_mcp.models import load_project
@@ -657,7 +660,7 @@ def test_record_and_commit_rolls_back_when_the_commit_fails(minimal_project, mon
     assert history_snapshot_ids(index_path) == ids_before
 
 
-def test_record_and_commit_rolls_back_when_the_index_write_fails(minimal_project, monkeypatch):
+def test_record_snapshot_rolls_back_when_the_index_write_fails(minimal_project, monkeypatch):
     import json
 
     from podcast_mcp.models import load_project

@@ -83,6 +83,20 @@ describe("ScriptHost Find", () => {
     expect(bar()).toHaveTextContent("2 of 2");
   });
 
+  it("says the same count again when Enter steps onto the only hit", async () => {
+    await openFind();
+    await userEvent.type(findField(), "maya");
+    const spoken = () =>
+      screen
+        .getAllByRole("status")
+        .map((region) => region.textContent)
+        .find((text) => text?.includes("1 of 1"));
+    const before = spoken();
+    await userEvent.keyboard("{Enter}");
+    expect(spoken()).not.toBe(before);
+    expect(spoken()?.trim()).toBe("1 of 1");
+  });
+
   it("closes on Escape and gives focus back to the Find button", async () => {
     await openFind();
     await userEvent.keyboard("{Escape}");

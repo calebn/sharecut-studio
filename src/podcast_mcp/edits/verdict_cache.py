@@ -48,6 +48,7 @@ from podcast_mcp.edits.cut_placement import (
 )
 from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import SourceExtent, _chosen_on_timeline
+from podcast_mcp.edits.tighten_reasons import is_pause_reason
 from podcast_mcp.models import ClipJoinMode
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.fingerprint import file_stamp
@@ -164,7 +165,7 @@ def _digest(payload: Any) -> str:
 
 
 def _is_pause(edit: EditDecision) -> bool:
-    return (edit.reason or "").startswith("pause:")
+    return is_pause_reason(edit.reason)
 
 
 def _held_pause_span(
@@ -454,7 +455,7 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
     start, end = max(clip.timeline_start, lo), min(clip.timeline_end, hi)
     offset = clip.timeline_start - clip.source_start
     opens, closes = clip.timeline_start >= lo, clip.timeline_end <= hi
-    return [
+    heard = [
         clip.track_id,
         clip.source_id,
         offset,
@@ -469,6 +470,10 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
         [r.model_dump(mode="json") for r in clip.off_speaker_mute_regions],
         clip.bleed_restore.model_dump(mode="json") if clip.bleed_restore else None,
     ]
+    timing = getattr(clip, "timing", None)
+    if timing is not None:
+        heard.append(timing.model_dump(mode="json"))
+    return heard
 
 
 def _words_near(project: EpisodeProject) -> Callable[[str, str | None, float, float], Any]:

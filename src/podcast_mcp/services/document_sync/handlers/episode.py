@@ -34,48 +34,62 @@ def add_track(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     role = str(p.get("role") or "dialogue")
     label = str(p["label"]) if p.get("label") is not None else None
     speaker = str(p["speaker"]) if p.get("speaker") is not None else None
-    return EpisodeService(ws).add_empty_track(
-        track_id,
-        role=role,
-        speaker=speaker,
-        label=label,
+    return (
+        EpisodeService(ws)
+        .add_empty_track(
+            track_id,
+            role=role,
+            speaker=speaker,
+            label=label,
+        )
+        .model_dump()
     )
 
 
 def rename_project(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EpisodeService(ws).rename_project(str(p["name"]))
+    return EpisodeService(ws).rename_project(str(p["name"])).model_dump()
 
 
 def set_record_session_name(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EpisodeService(ws).set_record_session_name(str(p["session_id"]), str(p["name"]))
+    return (
+        EpisodeService(ws)
+        .set_record_session_name(str(p["session_id"]), str(p["name"]))
+        .model_dump()
+    )
 
 
 def set_track_media(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     track_id = str(p["track_id"])
     candidate = resolve_workspace_raw_audio(Path(ws.project.workspace_dir), str(p["rel_path"]))
-    return EpisodeService(ws).set_track_media(track_id, str(candidate))
+    return EpisodeService(ws).set_track_media(track_id, str(candidate)).model_dump()
 
 
 def set_track_meta(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EpisodeService(ws).set_track_meta(
-        str(p["track_id"]),
-        label=str(p["label"]) if p.get("label") is not None else None,
-        role=str(p["role"]) if p.get("role") is not None else None,
-        speaker=str(p["speaker"]) if p.get("speaker") is not None else None,
+    return (
+        EpisodeService(ws)
+        .set_track_meta(
+            str(p["track_id"]),
+            label=str(p["label"]) if p.get("label") is not None else None,
+            role=str(p["role"]) if p.get("role") is not None else None,
+            speaker=str(p["speaker"]) if p.get("speaker") is not None else None,
+        )
+        .model_dump()
     )
 
 
 def set_track_volume(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EpisodeService(ws).set_track_volume(str(p["track_id"]), float(p["fader_db"]))
+    return (
+        EpisodeService(ws).set_track_volume(str(p["track_id"]), float(p["fader_db"])).model_dump()
+    )
 
 
 def set_track_mute(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EpisodeService(ws).set_track_mute(str(p["track_id"]), bool(p["muted"]))
+    return EpisodeService(ws).set_track_mute(str(p["track_id"]), bool(p["muted"])).model_dump()
 
 
 def remove_track(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EpisodeService(ws).remove_track(str(p["track_id"]))
+    return EpisodeService(ws).remove_track(str(p["track_id"])).model_dump()
 
 
 def reorder_track(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EpisodeService(ws).reorder_track(str(p["track_id"]), int(p["index"]))
+    return EpisodeService(ws).reorder_track(str(p["track_id"]), int(p["index"])).model_dump()

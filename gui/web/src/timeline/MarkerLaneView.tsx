@@ -56,6 +56,9 @@ export interface MarkerLaneViewProps {
   onMoveSocial?: (id: string, start: number, end: number) => void;
 }
 
+const snapChapterTime = (time: number) =>
+  Math.max(0, Math.round(time * 10) / 10);
+
 export function MarkerLaneView({
   chapters,
   socialClips,
@@ -251,8 +254,7 @@ export function MarkerLaneView({
                     return;
                   }
                   const dx = e.clientX - chapterDrag.current.startX;
-                  const nextTime = Math.max(
-                    0,
+                  const nextTime = snapChapterTime(
                     chapterDrag.current.originTime + dx / zoomPxPerSec,
                   );
                   const left = `${nextTime * zoomPxPerSec - MARKER_HALF}px`;
@@ -274,7 +276,9 @@ export function MarkerLaneView({
                     finishChapter(true);
                     return;
                   }
-                  const nextTime = Math.max(0, originTime + dx / zoomPxPerSec);
+                  const nextTime = snapChapterTime(
+                    originTime + dx / zoomPxPerSec,
+                  );
                   finishChapter(nextTime === originTime);
                   if (nextTime !== originTime)
                     onMoveChapter?.({ time, title }, nextTime);

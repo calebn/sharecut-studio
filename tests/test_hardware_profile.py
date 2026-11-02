@@ -329,6 +329,7 @@ def _linux_ram(monkeypatch, tmp_path: Path, cgroup: dict[str, str] | None = None
     monkeypatch.setattr(hardware.sys, "platform", "linux")
     monkeypatch.setattr(hardware, "_MEMINFO", meminfo)
     monkeypatch.setattr(hardware, "_CGROUP_ROOT", root)
+    monkeypatch.setattr(hardware, "_SELF_CGROUP", tmp_path / "no_self_cgroup")
 
 
 def test_linux_available_ram_reads_memavailable_without_a_cgroup(monkeypatch, tmp_path) -> None:
@@ -341,6 +342,119 @@ def test_linux_available_ram_is_capped_by_the_cgroup_v2_limit(monkeypatch, tmp_p
         monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
     )
     assert hardware.available_ram_bytes() == 3_000_000_000
+
+
+def _self_cgroup(monkeypatch, tmp_path: Path, line: str) -> None:
+    path = tmp_path / "self_cgroup"
+    path.write_text(line)
+    monkeypatch.setattr(hardware, "_SELF_CGROUP", path)
+
+
+def test_linux_available_ram_is_capped_by_a_nested_cgroup_below_an_unlimited_root(
+    monkeypatch, tmp_path
+) -> None:
+    _linux_ram(
+        monkeypatch,
+        tmp_path,
+        {
+            "memory.max": "max\n",
+            "memory.current": "9000000000\n",
+            "work/memory.max": "8000000000\n",
+            "work/memory.current": "1000000000\n",
+            "work/job/memory.max": "4000000000\n",
+            "work/job/memory.current": "3500000000\n",
+        },
+    )
+    _self_cgroup(monkeypatch, tmp_path, "0::/work/job\n")
+    assert hardware.available_ram_bytes() == 500_000_000
+
+
+def test_linux_available_ram_is_capped_by_a_tighter_parent_of_an_unlimited_leaf(
+    monkeypatch, tmp_path
+) -> None:
+    _linux_ram(
+        monkeypatch,
+        tmp_path,
+        {
+            "work/memory.max": "2000000000\n",
+            "work/memory.current": "1000000000\n",
+            "work/job/memory.max": "max\n",
+            "work/job/memory.current": "100000000\n",
+        },
+    )
+    _self_cgroup(monkeypatch, tmp_path, "0::/work/job\n")
+    assert hardware.available_ram_bytes() == 1_000_000_000
+
+
+@pytest.mark.parametrize("line", ["", "garbage\n", "1:memory:/work\n", "0::/../escape\n"])
+def test_linux_available_ram_falls_back_to_the_root_when_the_own_cgroup_is_unreadable(
+    monkeypatch, tmp_path, line
+) -> None:
+    _linux_ram(
+        monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
+    )
+    _self_cgroup(monkeypatch, tmp_path, line)
+    assert hardware.available_ram_bytes() == 3_000_000_000
+
+
+def test_linux_available_ram_uses_the_tightest_limit_when_the_leaf_is_looser(
+    monkeypatch, tmp_path
+) -> None:
+    _linux_ram(
+        monkeypatch,
+        tmp_path,
+        {
+            "work/memory.max": "1500000000\n",
+            "work/memory.current": "1400000000\n",
+            "work/job/memory.max": "4000000000\n",
+            "work/job/memory.current": "1000000000\n",
+        },
+    )
+    _self_cgroup(monkeypatch, tmp_path, "0::/work/job\n")
+    assert hardware.available_ram_bytes() == 100_000_000
+
+
+def test_linux_available_ram_falls_back_to_the_root_when_the_own_cgroup_file_is_missing(
+    monkeypatch, tmp_path
+) -> None:
+    _linux_ram(
+        monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
+    )
+    assert not hardware._SELF_CGROUP.exists()
+    assert hardware.available_ram_bytes() == 3_000_000_000
+
+
+def test_linux_available_ram_falls_back_to_the_root_when_the_own_cgroup_is_not_ascii(
+    monkeypatch, tmp_path
+) -> None:
+    _linux_ram(
+        monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
+    )
+    hardware._SELF_CGROUP.write_bytes(b"0::/caf\xc3\xa9\n")
+    assert hardware.available_ram_bytes() == 3_000_000_000
+
+
+def test_macos_physical_cores_go_through_the_process_runner(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def run(cmd, **_kw):
+        calls.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, "10\n", "")
+
+    monkeypatch.setattr(hardware.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(hardware.process, "run", run)
+    assert hardware._physical_cores() == 10
+    assert calls == [["sysctl", "-n", "hw.physicalcpu"]]
+
+
+def test_nvidia_smi_defaults_to_the_process_runner(monkeypatch) -> None:
+    monkeypatch.setattr(hardware.shutil, "which", lambda _name: "/usr/bin/nvidia-smi")
+    monkeypatch.setattr(
+        hardware.process,
+        "run",
+        lambda cmd, **_kw: subprocess.CompletedProcess(cmd, 0, "RTX, 8000, 540.1\n", ""),
+    )
+    assert hardware._nvidia_smi() == CudaDevice("RTX", 8000, "540.1")
 
 
 def test_linux_available_ram_is_capped_by_the_cgroup_v1_limit(monkeypatch, tmp_path) -> None:

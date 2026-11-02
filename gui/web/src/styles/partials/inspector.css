@@ -117,8 +117,6 @@
     block-size: var(--touch-min);
   }
 
-  .pending-source-time-field,
-  .pending-source-time-apply,
   .pending-cut-suggestion .ui-control,
   .clip-destructive-controls .ui-control,
   .modifier-footer-actions .ui-control {
@@ -144,8 +142,6 @@ html[data-shell="phone"] .inspector dd select {
   block-size: var(--touch-min);
 }
 
-html[data-shell="phone"] .pending-source-time-field,
-html[data-shell="phone"] .pending-source-time-apply,
 html[data-shell="phone"] .pending-cut-suggestion .ui-control,
 html[data-shell="phone"] .clip-destructive-controls .ui-control,
 html[data-shell="phone"] .modifier-footer-actions .ui-control {
@@ -267,20 +263,17 @@ html[data-shell="phone"]
   flex-basis: 100%;
 }
 
-.pending-ask-thread {
+.edit-ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   margin-top: var(--space-4);
   min-height: 0;
 }
 
-.pending-ask-thread h3 {
-  margin: 0 0 var(--space-3);
+.edit-ask h3 {
+  margin: 0;
   font-size: var(--font-size-body);
-}
-
-.pending-ask-list {
-  list-style: none;
-  margin: 0 0 var(--space-3);
-  padding: 0;
 }
 
 .nudge-fields {
@@ -450,12 +443,16 @@ html[data-shell="phone"]
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding-block-start: var(--space-5);
+  margin-block-start: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .pending-cut-suggestion h3 {
   margin: 0;
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
 }
 
 .envelope-workspace {

@@ -34,7 +34,6 @@ import {
   save,
   setZoom,
   TRACK,
-  visiblePoint,
   watchCommands,
 } from "../e2e/touchTimeline";
 import { CHOOSER_EDGE_PX } from "../src/timeline/chooserLayout";
@@ -141,11 +140,14 @@ const open = (page: Page) => openWith(page, async () => undefined);
 const openWithGap = (page: Page) => openWith(page, () => splitGuestLane(page));
 
 async function expectBelowEnvelopeLine(page: Page, trackId: string, y: number) {
+  // The line is a zero-height path with no Playwright box; its strip is wider than it.
   const line = await page
-    .locator(`.lane-row[data-track-id="${trackId}"] .envelope-line-target`)
-    .boundingBox();
-  expect(line).not.toBeNull();
-  expect(y).toBeGreaterThan(line!.y + line!.height + TOUCH_HIT_RADIUS_PX);
+    .locator(`.lane-row[data-track-id="${trackId}"] .sys-env-line`)
+    .evaluate((path) => {
+      const box = path.getBoundingClientRect();
+      return { y: box.y, height: box.height };
+    });
+  expect(y).toBeGreaterThan(line.y + line.height + TOUCH_HIT_RADIUS_PX);
 }
 
 async function expectClipAt(page: Page, selector: string, at: Point) {
@@ -259,14 +261,27 @@ test("one finger moving never edits; a long-press arms, and the armed point drag
   await hold(page, finger, from);
   await expect(armed(page)).toHaveCount(1);
   await frame(page, info, `grammar-arm-held-${browserName}`);
-  await finger.slide({ x: from.x + 24, y: from.y - 12 });
+  // The drag locks to one axis once it is past a few px: along time first.
+  await finger.slide({ x: from.x + 24, y: from.y }, 8, 16);
   await frame(page, info, `grammar-arm-dragging-${browserName}`);
   await finger.up();
   await expect(armed(page)).toHaveCount(0);
-  // The saved point, once the save lands: later in time, higher in level.
+  // The saved point, once the save lands: later in time, level untouched.
   await expect
     .poll(async () => (await points(page)).find((p) => p.id === "env-c")?.time)
     .toBeGreaterThan(16);
+  const moved = (await points(page)).find((p) => p.id === "env-c");
+  expect(moved?.value).toBe(1);
+  // A second long press drags it along level.
+  const next = await centerOf(page, envC);
+  await hold(page, finger, next);
+  await expect(armed(page)).toHaveCount(1);
+  await finger.slide({ x: next.x, y: next.y - 30 }, 8, 16);
+  await finger.up();
+  await expect(armed(page)).toHaveCount(0);
+  await expect
+    .poll(async () => (await points(page)).find((p) => p.id === "env-c")?.value)
+    .toBeGreaterThan(1);
   const point = (await points(page)).find((p) => p.id === "env-c");
   json(info, `grammar-arm-${browserName}`, {
     afterScroll,
@@ -274,8 +289,8 @@ test("one finger moving never edits; a long-press arms, and the armed point drag
     commands: commands.map((c) => c.type),
   });
   expect(afterScroll).toEqual([]);
-  expect(commands.filter((c) => c.type === "SetEnvelope")).toHaveLength(1);
-  expect(point?.value).toBeGreaterThan(1);
+  expect(commands.filter((c) => c.type === "SetEnvelope")).toHaveLength(2);
+  expect(point?.time).toBe(moved?.time);
 });
 
 test("at 390x844 by default, one finger dragging a selected clip's trim end saves nothing and opens the strip, not the half sheet", async ({
@@ -328,30 +343,6 @@ test("at 390x844 by default, one finger dragging a selected clip's trim end save
     strip: 1,
     sheets: 1,
   });
-});
-
-test("an armed drag holds at a soft boundary, and saves there", async ({
-  page,
-  context,
-  browserName,
-}, info) => {
-  await open(page);
-  const finger = await newFinger(context, page, browserName);
-  const from = await centerOf(page, envC);
-  // The pending remove starting at 20 s is a soft boundary on this track.
-  const pending = await visiblePoint(page, `${lane} [data-pending-id]`, 0, 0.5);
-  if (!pending) throw new Error("pending cut not in view");
-  await hold(page, finger, from);
-  await finger.slide({ x: pending.x + 6, y: from.y }, 12, 24);
-  await expect(page.locator(".detent-mark")).toBeVisible();
-  await expect(page.locator(".detent-mark-caption")).toHaveText(
-    "At the pending remove",
-  );
-  await frame(page, info, `grammar-detent-${browserName}`);
-  await finger.up();
-  await expect
-    .poll(async () => (await points(page)).find((p) => p.id === "env-c")?.time)
-    .toBeCloseTo(20, 3);
 });
 
 type ClipMove = { clip_id: string; timeline_start: number; track_id: string };

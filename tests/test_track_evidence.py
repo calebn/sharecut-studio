@@ -484,6 +484,7 @@ UNREAD_FIELDS = {
     ("SourceAudio", "source_id"),
     ("SourceAudio", "reach_in"),
     ("SourceAudio", "reach_out"),
+    ("SourceAudio", "piece"),
 }
 
 

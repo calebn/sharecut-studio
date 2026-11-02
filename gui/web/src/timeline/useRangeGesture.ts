@@ -144,7 +144,7 @@ export function useRangeGesture(
       if (
         (button && !button.matches(".clip-hit")) ||
         target.closest(
-          "input,.trim-handle,.fade-corner,.join-seam,.envelope-overlay,.pending-overlay,.applied-tick",
+          "input,.trim-handle,.fade-corner,.join-seam,.sys-env,.pending-overlay,.applied-tick",
         )
       )
         return;

@@ -68,9 +68,9 @@ const STARTS: Record<string, (page: Page) => Promise<Point | null>> = {
     return box ? { x: box.x + box.w / 2, y: box.y + box.h * 0.75 } : null;
   },
   "lone envelope point": (page) =>
-    centerOf(page, `${lane} circle[aria-label^="Envelope point 3 "]`),
+    centerOf(page, `${lane} [role="slider"][aria-label="Envelope point 3"]`),
   "crowded envelope point": (page) =>
-    centerOf(page, `${lane} circle[aria-label^="Envelope point 2 "]`),
+    centerOf(page, `${lane} [role="slider"][aria-label="Envelope point 2"]`),
   "join glyph": (page) => centerOf(page, `${lane} .edit-mark >> nth=-1`),
   "pending region": (page) =>
     centerOf(page, `${lane} .pending-overlay .pending-hit`),
@@ -178,7 +178,7 @@ test("a tap still selects or opens what it lands on", async ({
             ? after.selectedClips.length === 1
             : start === "join glyph"
               ? after.openJoin != null
-              : after.pressedPoint?.startsWith("Envelope point 3 ") === true,
+              : after.pressedPoint === "Envelope point 3",
         after,
       });
       await p.close();

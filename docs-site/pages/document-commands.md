@@ -60,7 +60,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `FadeJoins` | — | `dry_run` (boolean \| null), `fade_ms` (integer \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `FillRoomTone` | — | `end_sec` (number \| null), `speaker` (string \| null), `start_sec` (number \| null), `track_id` (string \| null) |
 | `InsertGap` | `at_time` (number) | `duration_sec` (number) |
-| `InsertSegment` | `at` (number), `segment_id` (string) | `version` (integer \| null) |
+| `InsertSegment` | `at` (number \| start \| end), `segment_id` (string) | `version` (integer \| null) |
 | `MoveByText` | `destination_query` (string), `source_query` (string) | `position` (string) |
 | `MoveClips` | `clips` (array[object]) | — |
 | `MoveSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |

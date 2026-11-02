@@ -1809,7 +1809,7 @@ def share_add_comment(
         ),
     )
     notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
-    return comment
+    return comment.model_dump()
 
 
 def share_add_reply(
@@ -1829,7 +1829,7 @@ def share_add_reply(
         ),
     )
     notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
-    return result
+    return result.model_dump()
 
 
 def share_set_action_done(
@@ -1858,7 +1858,7 @@ def share_set_action_done(
         ),
     )
     notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
-    return result
+    return result.model_dump()
 
 
 def share_allows_mcp(token: str) -> bool:

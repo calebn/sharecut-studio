@@ -15,6 +15,7 @@ import {
   showEnvelope,
 } from "./envelopeCreationEvidence";
 import { type InteractionReceipt, test } from "./interactionEvidence";
+import { pointCentre } from "./lifecycleAudit";
 import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
@@ -46,7 +47,7 @@ async function projectHistoryShortcut(
   const close = pointSheet(page).getByRole("button", { name: "Close" });
   const target = (await close.count())
     ? close
-    : page.getByRole("slider", { name: "Envelope level" }).first();
+    : page.getByRole("button", { name: /^Select .* clip at / }).first();
   await expect(target).toBeEnabled();
   await target.focus();
   await expect(target).toBeFocused();
@@ -56,7 +57,7 @@ async function projectHistoryShortcut(
       key,
       target: (await close.count())
         ? "enabled Close button (focused, not activated)"
-        : "Envelope level slider (focused, no point sheet open)",
+        : "clip button (focused, not activated, no point sheet open)",
       reason:
         "A Scrub field's text input owns typing shortcuts; project history requires a non-typing target.",
     },
@@ -136,16 +137,16 @@ for (const core of [
               exact: true,
             });
             await expect(hideLayer).toHaveAttribute("aria-pressed", "true");
-            const unity = page.locator(".envelope-overlay").first();
+            const unity = page.getByTestId("timeline-envelope").first();
             await expect(unity).toBeVisible();
-            await expect(unity.locator("polyline")).toHaveAttribute(
-              "points",
+            await expect(unity.locator(".sys-env-line")).toHaveAttribute(
+              "d",
               /\S/,
             );
-            await expect(unity.locator("circle")).toHaveCount(0);
+            await expect(unity.getByRole("slider")).toHaveCount(0);
             await hideLayer.click();
             await expect(showLayer).toHaveAttribute("aria-pressed", "false");
-            await expect(page.locator(".envelope-overlay")).toHaveCount(0);
+            await expect(page.getByTestId("timeline-envelope")).toHaveCount(0);
             expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
             expect(observer.commands).toEqual([]);
             await showLayer.click();
@@ -485,6 +486,129 @@ for (const profile of profiles) {
     });
   });
 }
+
+test.describe("volume envelope point gestures", () => {
+  test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
+  test("Escape and cancel restore, a nudge and Delete save once", async ({
+    page,
+    receipts,
+  }) => {
+    await withShareableProject(
+      async (projectPath) => {
+        const track = envelopeTrack(projectPath);
+        const saves: string[] = [];
+        page.on("request", (request) => {
+          if (
+            request.method() === "POST" &&
+            request.url().includes("/api/document/command") &&
+            (request.postDataJSON() as { type?: string }).type === "SetEnvelope"
+          )
+            saves.push(request.url());
+        });
+        await openEnvelope(page, projectPath, "light", receipts);
+        await savedAt(page, () => addEnvelopePoint(page));
+        const second = page.getByRole("slider", {
+          name: "Envelope point 2",
+          exact: true,
+        });
+        await expect(second).toBeVisible();
+        const added = envelopeSnapshot(projectPath, track.id);
+        const savesBefore = saves.length;
+        const origin = await pointCentre(second);
+        const grab = async () => {
+          const box = await second.boundingBox();
+          if (!box) throw new Error("The point has no geometry");
+          const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+          await page.mouse.move(at.x, at.y);
+          await page.mouse.down();
+          await page.mouse.move(at.x + 40, at.y, { steps: 4 });
+          await expect
+            .poll(async () => (await pointCentre(second)).cx)
+            .toBeGreaterThan(origin.cx + 30);
+        };
+        // Escape ends the drag: the point returns and nothing saves.
+        await grab();
+        await page.keyboard.press("Escape");
+        await expect.poll(() => pointCentre(second)).toEqual(origin);
+        await page.mouse.up();
+        await settle(page);
+        // A cancelled pointer does the same.
+        await grab();
+        await page
+          .locator(".sys-env")
+          .first()
+          .dispatchEvent("pointercancel", { pointerId: 1, bubbles: true });
+        await expect.poll(() => pointCentre(second)).toEqual(origin);
+        await page.mouse.up();
+        await settle(page);
+        expect(saves).toHaveLength(savesBefore);
+        expect(envelopeSnapshot(projectPath, track.id)).toEqual(added);
+        // Held arrows move the point and save once, on release.
+        await second.focus();
+        await page.keyboard.press("Enter");
+        const nudged = await savedAt(page, async () => {
+          for (let held = 0; held < 3; held += 1)
+            await page.keyboard.down("ArrowRight");
+          await page.keyboard.up("ArrowRight");
+        });
+        expect(saves).toHaveLength(savesBefore + 1);
+        expect(nudged.command.payload.points?.[1]?.time).toBeCloseTo(30.03, 2);
+        // Delete removes the selected point (a refusal inside the short settle window retries).
+        await expect(async () => {
+          await second.focus();
+          await page.keyboard.press("Delete");
+          await expect
+            .poll(() => envelopeSnapshot(projectPath, track.id).points, {
+              timeout: 2_000,
+            })
+            .toHaveLength(2);
+        }).toPass({ timeout: 15_000 });
+        expect(saves).toHaveLength(savesBefore + 2);
+      },
+      undefined,
+      emptyEnvelopeProject,
+    );
+  });
+});
+
+test.describe("volume envelope line strip", () => {
+  test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
+  test("a drag along the line adds nothing; a click adds one point", async ({
+    page,
+    receipts,
+  }) => {
+    await withShareableProject(
+      async (projectPath) => {
+        const track = envelopeTrack(projectPath);
+        await openEnvelope(page, projectPath, "light", receipts);
+        await savedAt(page, () => addEnvelopePoint(page));
+        const before = envelopeSnapshot(projectPath, track.id);
+        const line = await page
+          .locator(".sys-env-line")
+          .first()
+          .evaluate((path) => {
+            const box = path.getBoundingClientRect();
+            return { x: box.left, y: box.top + box.height / 2, w: box.width };
+          });
+        const from = { x: line.x + line.w * 0.3, y: line.y };
+        await page.mouse.move(from.x, from.y);
+        await page.mouse.down();
+        await page.mouse.move(from.x + 120, from.y, { steps: 6 });
+        await page.mouse.up();
+        await settle(page);
+        expect(envelopeSnapshot(projectPath, track.id)).toEqual(before);
+        const added = await savedAt(page, async () => {
+          await page.mouse.click(line.x + line.w * 0.7, line.y);
+        });
+        expect(added.command.payload.points).toHaveLength(
+          before.points.length + 1,
+        );
+      },
+      undefined,
+      emptyEnvelopeProject,
+    );
+  });
+});
 
 test.describe("host envelope playback", () => {
   test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
