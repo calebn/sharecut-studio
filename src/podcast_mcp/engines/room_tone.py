@@ -100,7 +100,9 @@ MAX_CANDIDATES = 16
 # loudest peer rises above its floor, quietest first.
 PEER_QUIET_DB = 3.0
 # Ranking stops once this many samples pass: each one costs a read of every peer's file, and
-# the nearest few already hold the quietest peer a nearby window offers.
+# the nearest few already hold the quietest peer a nearby window offers. A long quiet run adds
+# windows at other offsets only while its windows are measured above PEER_QUIET_DB, and they
+# count toward this limit.
 MAX_RANKED = 4
 # A bed is checked in windows this long, hopping by half: a burst of speech in a long
 # bed must not be averaged away by the steady room around it. A usable run shorter than
@@ -861,8 +863,10 @@ def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span]
     peer's file shifted by the difference of their ingest alignments.
 
     The answer is None for a window a peer's voice follows, else how many dB the loudest peer
-    rises above its floor there (0 with no peers; infinite when a peer's file does not cover
-    the window, which is no evidence either way and so ranks last).
+    that covers the window rises above its floor there (0 with no peers; infinite when no
+    peer's file covers it, which is no evidence either way and so ranks last). A peer whose
+    file ends before the window is left out of the maximum, so one short file does not sink a
+    window the others show to be quiet.
     """
     own_path = track_audio_path(project, track_id)
     own_shift = _ingest_shift(project, track_id)
@@ -889,26 +893,25 @@ def _no_foreign_voice(project: EpisodeProject, track_id: str) -> Callable[[Span]
         except Exception as exc:
             log.warning("room tone window %.2f-%.2f unreadable: %s", span[0], span[1], exc)
             return None
-        excess = 0.0
+        covered: list[float] = []
         for path, floor_db, offset in others:
             if span[0] + offset < 0:
-                excess = math.inf
                 continue
             try:
                 theirs = envelope(path, (span[0] + offset, span[1] + offset))
             except Exception as exc:
                 # A recording that ends before the window has no voice there to bleed in.
                 log.debug("room tone window %.2f-%.2f not on %s: %s", span[0], span[1], path, exc)
-                excess = math.inf
                 continue
             if not theirs.size:
-                excess = math.inf
                 continue
             peak = float(np.max(theirs)) - floor_db
             if peak > FLOOR_BAND_DB and _follows(own, theirs):
                 return None
-            excess = max(excess, peak)
-        return excess
+            covered.append(peak)
+        if others and not covered:
+            return math.inf
+        return max(covered, default=0.0)
 
     return clear
 
@@ -926,7 +929,9 @@ def _pick_sample(
 
     Quiet runs are tried nearest first. The first passing sample whose peers all sit at their
     floor (``PEER_QUIET_DB``) is taken at once; with none, the passing sample under the quietest
-    peer wins, the nearer run breaking ties.
+    peer wins, the nearer run breaking ties. A run long enough to hold more than one window is
+    tried at its start, middle and end too while its nearest window sits above the peers' floor,
+    because a faint bleed burst can lie in one part of a long run and not the rest.
     """
     need = min(duration_sec, min_sec)
     if not track.runs:
@@ -942,26 +947,35 @@ def _pick_sample(
     unreadable = 0
     passed: list[tuple[float, int, Sample]] = []
     for order, run in enumerate(runs[:MAX_CANDIDATES]):
-        sample = _measure(track, _window_nearest(run, near_sec, duration_sec))
-        if sample is None:
-            unreadable += 1
-            continue
-        failed = rejection(sample, track)
-        excess = 0.0
-        if failed is None and clear is not None:
-            heard = clear((sample.start, sample.end))
-            if heard is None:
-                failed = "other_voice"
-            else:
-                excess = heard
-        if failed is None:
-            if excess <= PEER_QUIET_DB:
-                return OwnQuietSample(sample)
-            passed.append((excess, order, sample))
-            if len(passed) >= MAX_RANKED:
+        best_excess = math.inf
+        for index, window in enumerate(_window_offsets(run, near_sec, duration_sec)):
+            if index and (
+                clear is None
+                or not PEER_QUIET_DB < best_excess < math.inf
+                or len(passed) >= MAX_RANKED
+            ):
                 break
-        elif failed not in rejected:
-            rejected.append(failed)
+            sample = _measure(track, window)
+            if sample is None:
+                unreadable += 1
+                continue
+            failed = rejection(sample, track)
+            excess = 0.0
+            if failed is None and clear is not None:
+                heard = clear((sample.start, sample.end))
+                if heard is None:
+                    failed = "other_voice"
+                else:
+                    excess = heard
+            if failed is None:
+                if excess <= PEER_QUIET_DB:
+                    return OwnQuietSample(sample)
+                best_excess = min(best_excess, excess)
+                passed.append((excess, order, sample))
+            elif failed not in rejected:
+                rejected.append(failed)
+        if len(passed) >= MAX_RANKED:
+            break
     if passed:
         return OwnQuietSample(min(passed, key=lambda x: x[:2])[2])
     if len(runs) > MAX_CANDIDATES:
@@ -969,6 +983,19 @@ def _pick_sample(
     if rejected:
         return SampleAbsent("rejected", tuple(rejected), unreadable)
     return SampleAbsent("window_unreadable", unreadable_windows=unreadable)
+
+
+def _window_offsets(run: Span, near_sec: float, duration_sec: float) -> list[Span]:
+    """The window nearest ``near_sec`` first, then the start, middle and end of a run long
+    enough to hold a window that does not overlap half of one already listed."""
+    first = _window_nearest(run, near_sec, duration_sec)
+    length = first[1] - first[0]
+    windows = [first]
+    for centre in (run[0] + length / 2.0, (run[0] + run[1]) / 2.0, run[1] - length / 2.0):
+        window = _window_nearest(run, centre, duration_sec)
+        if all(abs(window[0] - kept[0]) >= length / 2.0 for kept in windows):
+            windows.append(window)
+    return windows
 
 
 def _window_nearest(run: Span, near_sec: float, duration_sec: float) -> Span:
@@ -1027,7 +1054,7 @@ def track_floor(path: Path) -> FloorRead:
         return Unmeasured("unreadable_file", path)
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=64)
 def _track_floor(path: Path, revision: FileRevision) -> FloorRead:
     """Decode ``path`` once per file revision into its floor, speech level and quiet runs.
 

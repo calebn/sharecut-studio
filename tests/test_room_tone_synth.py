@@ -301,6 +301,25 @@ def test_an_error_while_synthesising_keeps_the_recorded_tiling(
     assert not any(s.id.startswith(SYNTH_ID_PREFIX) for s in project.sources)
 
 
+@pytest.mark.parametrize("stage", ["measure_noise_psd", "_steady", "_tonal"])
+def test_an_error_while_analysing_the_basis_keeps_the_recorded_tiling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stage: str
+) -> None:
+    project = _project_with_bed(tmp_path, _bed(8.0))
+    room_tone_synth._analyse.cache_clear()
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise ValueError("bad spectrum")
+
+    monkeypatch.setattr(room_tone_synth, stage, fail)
+
+    picked = _pick(project, 20.0)
+
+    assert not isinstance(picked, SynthSample)
+    assert not any(s.id.startswith(SYNTH_ID_PREFIX) for s in project.sources)
+    room_tone_synth._analyse.cache_clear()
+
+
 def test_a_mute_region_with_fades_is_one_tile(tmp_path: Path) -> None:
     from podcast_mcp.engines.room_tone_tiles import tile_span
 
