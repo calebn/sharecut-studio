@@ -103,10 +103,10 @@ class HistoryService:
         """Undo the head entry. ``expected_head_id`` refuses with ``StaleHistoryError``
         (``history_stale``) unless that entry is still the head, so an edit that landed
         after the caller looked is never the one reverted. An Approve all pass that asked Cut
-        anyway comes back whole (``HistoryManager.undo``)."""
+        anyway comes back whole (``HistoryManager.apply_undo``)."""
         return self._move(
             "undo",
-            lambda project: self._mgr.undo(project, expected_head_id=expected_head_id),
+            lambda project: self._mgr.apply_undo(project, expected_head_id=expected_head_id),
             rerender=rerender,
         )
 
@@ -114,12 +114,14 @@ class HistoryService:
         """Redo the next entry, guarded by ``expected_head_id`` like ``undo``."""
         return self._move(
             "redo",
-            lambda project: self._mgr.redo(project, expected_head_id=expected_head_id),
+            lambda project: self._mgr.apply_redo(project, expected_head_id=expected_head_id),
             rerender=rerender,
         )
 
     def goto(self, index: int, *, rerender: bool = False) -> dict:
-        return self._move("goto", lambda project: self._mgr.goto(project, index), rerender=rerender)
+        return self._move(
+            "goto", lambda project: self._mgr.apply_goto(project, index), rerender=rerender
+        )
 
     def _move(
         self, action: str, move: Callable[[EpisodeProject], object], *, rerender: bool

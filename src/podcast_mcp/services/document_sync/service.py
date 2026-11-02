@@ -285,7 +285,7 @@ def log_if_saved_command_dropped(project: EpisodeProject, command_id: str) -> No
 
     Invariant (#575): every handler commits the same in-memory ``ws.project`` the record
     was set on (ws.mutate / run_mutation / ProjectStore.commit, ws.save,
-    record_and_commit, HistoryManager undo/redo, save_merged). A handler that commits a
+    record_and_commit, ProjectWorkspace.undo/redo/goto, save_merged). A handler that commits a
     copy or replaces ``ws.project`` drops the record without an error. This logs rather
     than raises: raising would fail an edit that is already saved and skip its journal row.
     """

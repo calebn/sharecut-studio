@@ -8,7 +8,7 @@ from typing import Any, TypeVar
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, EpisodeProject, project_not_found
-from podcast_mcp.project.history import HistoryManager, run_mutation
+from podcast_mcp.project.history import HistoryManager, HistoryStatus, run_mutation
 from podcast_mcp.project.history.manager import record_and_commit
 from podcast_mcp.project.history.rollback import (
     HistoryRollbackPolicy,
@@ -275,6 +275,30 @@ class ProjectWorkspace:
 
     def history(self) -> HistoryManager:
         return HistoryManager(self._store)
+
+    def undo(self, *, expected_head_id: str | None = None) -> HistoryStatus:
+        """Step back one history entry and commit it (``expected_head_id`` as ``apply_undo``)."""
+        return self._move_history(
+            lambda mgr, project: mgr.apply_undo(project, expected_head_id=expected_head_id)
+        )
+
+    def redo(self, *, expected_head_id: str | None = None) -> HistoryStatus:
+        """Step forward one history entry and commit it."""
+        return self._move_history(
+            lambda mgr, project: mgr.apply_redo(project, expected_head_id=expected_head_id)
+        )
+
+    def goto(self, index: int) -> HistoryStatus:
+        """Move to history entry ``index`` and commit it."""
+        return self._move_history(lambda mgr, project: mgr.apply_goto(project, index))
+
+    def _move_history(
+        self, apply: Callable[[HistoryManager, EpisodeProject], HistoryStatus]
+    ) -> HistoryStatus:
+        with self.transaction() as project:
+            status = apply(self.history(), project)
+            self.save()
+            return status
 
     def _adopt_saved(self, project: EpisodeProject) -> None:
         if project is not self.project:

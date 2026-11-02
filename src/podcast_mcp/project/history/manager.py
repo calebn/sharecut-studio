@@ -130,26 +130,30 @@ class HistoryManager:
                 project, label, force=force, operation=operation, params=params, snapshot=snapshot
             )
 
-    def undo(
+    def apply_undo(
         self, project: EpisodeProject, *, expected_head_id: str | None = None
     ) -> HistoryStatus:
-        """Step back one entry; with ``expected_head_id``, only while that entry is the head."""
+        """Step back one entry in memory and the history index; with ``expected_head_id``, only
+        while that entry is the head. Does not commit: ``ProjectWorkspace.undo`` or the caller does."""
         with project_commit_lock(project):
             return self._undo_locked(project, expected_head_id)
 
-    def redo(
+    def apply_redo(
         self, project: EpisodeProject, *, expected_head_id: str | None = None
     ) -> HistoryStatus:
-        """Step forward one entry; with ``expected_head_id``, only while that entry is the head."""
+        """Step forward one entry in memory and the history index; with ``expected_head_id``, only
+        while that entry is the head. Does not commit."""
         with project_commit_lock(project):
             return self._redo_locked(project, expected_head_id)
 
-    def goto(self, project: EpisodeProject, index: int) -> HistoryStatus:
+    def apply_goto(self, project: EpisodeProject, index: int) -> HistoryStatus:
+        """Move the cursor to ``index`` in memory and the history index. Does not commit."""
         with project_commit_lock(project):
             return self._goto_locked(project, index)
 
-    # record/undo/redo/goto above take project_commit_lock; each ``_X_locked`` body
-    # runs while that lock is held. Call the public methods, not these.
+    # record/apply_undo/apply_redo/apply_goto above take project_commit_lock; each ``_X_locked``
+    # body runs while that lock is held. Call the public methods, not these. The apply_* moves
+    # never commit the project file: ProjectWorkspace.undo/redo/goto (or the caller) does.
     def _record_locked(
         self,
         project: EpisodeProject,
@@ -199,7 +203,6 @@ class HistoryManager:
         apply_snapshot_to_project(project, self._read_snapshot(project, entry))
         project.history = history
         self._save_index(project)
-        self._store.commit(project)
         return self.status(project)
 
     def _redo_locked(self, project: EpisodeProject, expected_head_id: str | None) -> HistoryStatus:
@@ -212,7 +215,6 @@ class HistoryManager:
         apply_snapshot_to_project(project, self._read_snapshot(project, entry))
         project.history = history
         self._save_index(project)
-        self._store.commit(project)
         return self.status(project)
 
     def _goto_locked(self, project: EpisodeProject, index: int) -> HistoryStatus:
@@ -224,7 +226,6 @@ class HistoryManager:
         apply_snapshot_to_project(project, self._read_snapshot(project, entry))
         project.history = history
         self._save_index(project)
-        self._store.commit(project)
         return self.status(project)
 
     def tip_entry_index(self, project: EpisodeProject, operation: str) -> int | None:

@@ -8,9 +8,9 @@ _STORE_COMMIT = re.compile(r"\b_?store\.commit\(")
 _SAVE_PROJECT = re.compile(r"\bsave_project\(")
 _STORE_CTOR = re.compile(r"\bProjectStore\(")
 
-# ProjectWorkspace is the committer. The history modules commit the undo/redo and
-# mutation entries through the store the workspace hands them; each shrinks when the
-# history seam moves behind it.
+# ProjectWorkspace is the committer. Undo/redo/goto no longer commit (HistoryManager.apply_*
+# leave that to the workspace). manager.py stays only through record_and_commit, and
+# session.py through run_mutation, until slice 4 moves them.
 _COMMITTERS = {
     "project/history/manager.py",
     "project/history/session.py",
@@ -45,3 +45,27 @@ def test_only_the_store_calls_save_project() -> None:
 
 def test_only_the_workspace_constructs_the_store_for_history() -> None:
     assert _sources(_STORE_CTOR) == {"services/app/workspace.py"} | _STORE_CTOR_OUT_OF_SCOPE
+
+
+def test_history_apply_moves_never_commit() -> None:
+    import ast
+
+    path = _SRC / "project/history/manager.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    bodies = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and (
+            node.name.startswith("apply_")
+            or node.name in {"_undo_locked", "_redo_locked", "_goto_locked"}
+        )
+    ]
+    assert {b.name for b in bodies} >= {"apply_undo", "apply_redo", "apply_goto"}
+    for body in bodies:
+        calls = [
+            n.func.attr
+            for n in ast.walk(body)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        ]
+        assert "commit" not in calls, body.name

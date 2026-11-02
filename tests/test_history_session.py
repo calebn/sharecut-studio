@@ -218,7 +218,7 @@ def test_failed_mutation_keeps_the_redo_branch(minimal_project):
         lambda p: p.edit_decisions.append(_decision("one")),
         defaults=load_defaults(),
     )
-    mgr.undo(proj)
+    mgr.apply_undo(proj)
     proj.edit_decisions.append(_decision("unrecorded"))
 
     def fail(_p):

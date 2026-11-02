@@ -52,7 +52,7 @@ def test_apply_transcript_cleanup_records_undo_step(tmp_path) -> None:
     assert status.can_undo
     assert any("transcript cleanup" in e.label for e in mgr.list_entries(proj))
 
-    mgr.undo(proj)
+    mgr.apply_undo(proj)
     save_project(proj, ws.path)
     restored = load_project(ws.path)
     assert restored.transcripts[0].words[0].text == "teh"

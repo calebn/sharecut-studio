@@ -82,12 +82,10 @@ def _child_failed_publish(project_path, publishing, may_clean, cleaned) -> None:
 
 def _child_goto(project_path, index, blocked, result) -> None:
     """Adopt the failing publication's uncommitted index, then jump to its last entry."""
-    store = ProjectStore(Path(project_path))
-    project = store.load()
-    mgr = HistoryManager(ProjectStore(Path(project_path)))
+    ws = ProjectWorkspace.open(Path(project_path))
     try:
-        with observe_failed_commit_lock_attempt(project, blocked):
-            mgr.goto(project, index)
+        with observe_failed_commit_lock_attempt(ws.project, blocked):
+            ws.goto(index)
         result.put("ok")
     except Exception as exc:
         result.put(type(exc).__name__)
