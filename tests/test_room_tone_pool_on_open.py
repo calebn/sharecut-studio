@@ -12,6 +12,7 @@ from podcast_mcp.engines import room_tone
 from podcast_mcp.engines.room_tone import room_tone_span
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.batch_scope import batch_scope, unscoped
+from podcast_mcp.util.process import current_niceness
 from podcast_mcp.util.project_state import project_state_lock
 from test_room_tone import _host_audio, _noise
 from test_room_tone import _project as _room_project
@@ -30,7 +31,8 @@ def _two_speakers(tmp_path: Path) -> EpisodeProject:
 
 
 def _on_pool_thread() -> bool:
-    return threading.current_thread().name.startswith("room-tone-pool-")
+    """On the pool thread or one of its workers: both run at the pool's lowered priority."""
+    return current_niceness() > 0
 
 
 class _Block:
