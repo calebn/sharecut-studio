@@ -93,24 +93,26 @@ function footprint(
   marker: LaneMarker,
   start: number,
   pxPerSecond: number,
+  unit: number,
 ): Footprint {
+  const glyph = MARKER_GLYPH_PX * unit;
   const x0 = xAtTime(marker.start, start, pxPerSecond);
   const x1 = xAtTime(markerEnd(marker), start, pxPerSecond);
   switch (marker.kind) {
     case "chapter":
-      return { marker, l: x0, r: x0 + MARKER_GLYPH_PX, x0, x1 };
+      return { marker, l: x0, r: x0 + glyph, x0, x1 };
     case "comment":
       return isRange(marker)
-        ? { marker, l: x0, r: Math.max(x1, x0 + MARKER_GLYPH_PX), x0, x1 }
+        ? { marker, l: x0, r: Math.max(x1, x0 + glyph), x0, x1 }
         : {
             marker,
-            l: x0 - MARKER_GLYPH_PX / 2,
-            r: x0 + MARKER_GLYPH_PX / 2,
+            l: x0 - glyph / 2,
+            r: x0 + glyph / 2,
             x0,
             x1: x0,
           };
     case "clip":
-      return { marker, l: x0, r: Math.max(x1, x0 + MARKER_GLYPH_PX), x0, x1 };
+      return { marker, l: x0, r: Math.max(x1, x0 + glyph), x0, x1 };
   }
 }
 
@@ -131,9 +133,18 @@ export function layoutMarkers(
   width: number,
   pinnedId?: string,
   stackButtons?: ReadonlyMap<string, StackButtonMetrics>,
+  rootFontPx = 16,
 ): PlacedItem[] {
+  const unit = rootFontPx / 16;
+  const glyph = MARKER_GLYPH_PX * unit;
+  const bracketPx = BRACKET_PX * unit;
+  const chipGap = STACK_CHIP_GAP_PX * unit;
+  const chipWidth = STACK_CHIP_PX * unit;
+  const reachMax = MARKER_REACH_PX * unit;
   const held = (x: number) => clamp(x, -CLAMP_PX, width + CLAMP_PX);
-  const all = markers.map((marker) => footprint(marker, start, pxPerSecond));
+  const all = markers.map((marker) =>
+    footprint(marker, start, pxPerSecond, unit),
+  );
   const pinned = all.find((foot) => foot.marker.id === pinnedId);
   const feet = all
     .filter((foot) => foot !== pinned)
@@ -146,9 +157,7 @@ export function layoutMarkers(
     if (last) {
       const reach =
         last.head.l +
-        (last.rest.length > 0
-          ? MARKER_GLYPH_PX + STACK_CHIP_GAP_PX + STACK_CHIP_PX
-          : MARKER_GLYPH_PX);
+        (last.rest.length > 0 ? glyph + chipGap + chipWidth : glyph);
       if (foot.l < reach) {
         last.rest.push(foot);
         continue;
@@ -158,7 +167,7 @@ export function layoutMarkers(
       ({ head }) =>
         head.marker.kind === "clip" &&
         foot.l < head.x1 &&
-        foot.l + MARKER_GLYPH_PX > head.x1 - BRACKET_PX,
+        foot.l + glyph > head.x1 - bracketPx,
     );
     if (bracket) bracket.rest.push(foot);
     else groups.push({ head: foot, rest: [] });
@@ -204,12 +213,12 @@ export function layoutMarkers(
     end: number,
   ) =>
     Math.max(
-      head.l + MARKER_GLYPH_PX,
+      head.l + glyph,
       end -
         (head.marker.kind === "chapter" &&
         next?.marker.kind === "comment" &&
         !isRange(next.marker)
-          ? 2 * MARKER_REACH_PX
+          ? 2 * reachMax
           : 0),
     );
   groups.forEach(({ head, rest }, index) => {
@@ -223,10 +232,10 @@ export function layoutMarkers(
       groups[index + 1]?.head.l ?? width,
       pinned && pinned.l > head.l ? pinned.l : width,
     );
-    const chipLeft = head.l + MARKER_GLYPH_PX + STACK_CHIP_GAP_PX;
+    const chipLeft = head.l + glyph + chipGap;
     const titleEnd =
       rest.length > 0
-        ? Math.max(head.l + MARKER_GLYPH_PX, chipLeft)
+        ? Math.max(head.l + glyph, chipLeft)
         : chapterLimit(head, next, nextLeft);
     items.push(place(head, titleEnd, rest.length > 0));
     if (rest.length > 0) {
@@ -236,8 +245,8 @@ export function layoutMarkers(
           .sort((a, b) => a.l - b.l || a.marker.id.localeCompare(b.marker.id))
           .map((foot) => foot.marker),
         l: chipLeft,
-        r: chipLeft + STACK_CHIP_PX,
-        glyphEnd: head.l + MARKER_GLYPH_PX,
+        r: chipLeft + chipWidth,
+        glyphEnd: head.l + glyph,
       });
     }
   });
@@ -272,8 +281,8 @@ export function layoutMarkers(
         gapAfter = Math.min(gapAfter, other.l - item.r);
       }
     });
-    const reachStart = clamp(gapBefore / 2, 0, MARKER_REACH_PX);
-    const reachEnd = clamp(gapAfter / 2, 0, MARKER_REACH_PX);
+    const reachStart = clamp(gapBefore / 2, 0, reachMax);
+    const reachEnd = clamp(gapAfter / 2, 0, reachMax);
     if (item.type === "stack") {
       return {
         type: "stack",
@@ -318,22 +327,18 @@ export function layoutMarkers(
         reachStart = Math.min(
           reachStart,
           clamp(
-            item.left - point.right - MARKER_REACH_PX + size.borderStart,
+            item.left - point.right - reachMax + size.borderStart,
             0,
-            MARKER_REACH_PX,
+            reachMax,
           ),
         );
       } else if (point.left >= item.right) {
         reachEnd = Math.min(
           reachEnd,
           clamp(
-            point.left -
-              MARKER_REACH_PX -
-              item.left -
-              size.width +
-              size.borderEnd,
+            point.left - reachMax - item.left - size.width + size.borderEnd,
             0,
-            MARKER_REACH_PX,
+            reachMax,
           ),
         );
       }
@@ -348,8 +353,8 @@ export function layoutMarkers(
     ) {
       return item;
     }
-    let reachStart = clamp(item.left / 2, 0, MARKER_REACH_PX);
-    let reachEnd = clamp((width - item.right) / 2, 0, MARKER_REACH_PX);
+    let reachStart = clamp(item.left / 2, 0, reachMax);
+    let reachEnd = clamp((width - item.right) / 2, 0, reachMax);
     for (const other of stacks) {
       if (other === item) continue;
       const size = other.type === "stack" ? sizeOf(other) : undefined;
@@ -360,14 +365,14 @@ export function layoutMarkers(
             size.width -
             Math.max(0, other.reachEnd - size.borderEnd)
           : (item.left - other.right) / 2;
-        reachStart = Math.min(reachStart, clamp(available, 0, MARKER_REACH_PX));
+        reachStart = Math.min(reachStart, clamp(available, 0, reachMax));
       } else if (other.left >= item.right) {
         const available = size
           ? other.left -
             Math.max(0, other.reachStart - size.borderStart) -
             item.right
           : (other.left - item.right) / 2;
-        reachEnd = Math.min(reachEnd, clamp(available, 0, MARKER_REACH_PX));
+        reachEnd = Math.min(reachEnd, clamp(available, 0, reachMax));
       }
     }
     return { ...item, reachStart, reachEnd };

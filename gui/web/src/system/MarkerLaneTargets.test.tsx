@@ -115,10 +115,8 @@ describe("marker target measurement", () => {
     const chip = screen.getByRole("button", { name: "2 more markers" });
     document.documentElement.style.fontSize = "20px";
     act(() => FakeResizeObserver.of(chip).fire());
-    expect(reach(chip.closest<HTMLElement>(".sys-marker")!)).toBe(
-      "0px -4.49px",
-    );
-    expect(reach(dee())).toBe("-14px -14px");
+    expect(reach(chip.closest<HTMLElement>(".sys-marker")!)).toBe("0px 0px");
+    expect(reach(dee())).toBe("-12.99px -15.33px");
     document.documentElement.style.fontSize = "16px";
     chipWidth = 40;
     act(() => FakeResizeObserver.of(chip).fire());
