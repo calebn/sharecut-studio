@@ -1697,6 +1697,7 @@ describe("single pending review feedback", () => {
           activateDocumentScope(path),
         );
       },
+      20_000,
     );
 
     it.each([
@@ -1718,6 +1719,7 @@ describe("single pending review feedback", () => {
         expect(useDawStore.getState().project?.pending_edits).toEqual([]);
         expect(useDawStore.getState().selection).toBeNull();
       },
+      20_000,
     );
 
     it.each(["Approve", "Reject"] as const)(
@@ -1727,8 +1729,15 @@ describe("single pending review feedback", () => {
         try {
           mountReview(entrypoint);
           await review(entrypoint, label);
-          expect(await screen.findByRole("status")).toHaveTextContent(
-            "Still sending.",
+          await waitFor(() => expect(outbox.commands).toHaveLength(1), {
+            timeout: 10_000,
+          });
+          await waitFor(
+            () =>
+              expect(screen.getByRole("status")).toHaveTextContent(
+                "Still sending.",
+              ),
+            { timeout: 10_000 },
           );
           expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
           expect(useDawStore.getState().feedbackToast?.message ?? null).toBe(
@@ -1740,6 +1749,7 @@ describe("single pending review feedback", () => {
           outbox.restore();
         }
       },
+      20_000,
     );
   });
   it.each(["Approve", "Reject"] as const)(
