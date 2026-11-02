@@ -313,11 +313,12 @@ def test_an_error_while_analysing_the_basis_keeps_the_recorded_tiling(
 
     monkeypatch.setattr(room_tone_synth, stage, fail)
 
-    picked = _pick(project, 20.0)
-
-    assert not isinstance(picked, SynthSample)
-    assert not any(s.id.startswith(SYNTH_ID_PREFIX) for s in project.sources)
-    room_tone_synth._analyse.cache_clear()
+    try:
+        picked = _pick(project, 20.0)
+        assert not isinstance(picked, SynthSample)
+        assert not any(s.id.startswith(SYNTH_ID_PREFIX) for s in project.sources)
+    finally:
+        room_tone_synth._analyse.cache_clear()
 
 
 def test_a_mute_region_with_fades_is_one_tile(tmp_path: Path) -> None:
