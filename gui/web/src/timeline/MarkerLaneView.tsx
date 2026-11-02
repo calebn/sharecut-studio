@@ -274,7 +274,10 @@ export function MarkerLaneView({
                     finishChapter(true);
                     return;
                   }
-                  const nextTime = Math.max(0, originTime + dx / zoomPxPerSec);
+                  const nextTime = Math.max(
+                    0,
+                    Math.round((originTime + dx / zoomPxPerSec) * 10) / 10,
+                  );
                   finishChapter(nextTime === originTime);
                   if (nextTime !== originTime)
                     onMoveChapter?.({ time, title }, nextTime);

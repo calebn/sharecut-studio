@@ -166,6 +166,20 @@ describe("MarkerLane", () => {
     },
   );
 
+  it("saves a pointer-dragged chapter on the same 0.1 s grid as keyboard nudges (#2960)", async () => {
+    vi.mocked(updateChapter).mockClear();
+    const { container } = renderLane(
+      { chapters: true, social: false, comments: false, clipping: false },
+      3,
+    );
+    const marker = container.querySelector(".chapter-marker")!;
+    fireEvent.pointerDown(marker, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(marker, { pointerId: 1, clientX: 144 });
+    fireEvent.pointerUp(marker, { pointerId: 1, clientX: 144 });
+    await waitFor(() => expect(updateChapter).toHaveBeenCalled());
+    expect(vi.mocked(updateChapter).mock.calls[0]![3]).toBe(16.7);
+  });
+
   it("centers point markers with the row height constant", () => {
     const { container } = renderLane({
       chapters: true,
