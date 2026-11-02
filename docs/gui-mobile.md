@@ -728,9 +728,10 @@ is a 6% wash), the dark theme a dark well; the empty project
 offers a gridded drop stage as the import target.
 Track headers use their lane's clip color at the leading edge. Playback lighting
 only animates when reduced motion is not requested.
-Their horizontal playback meters remain visible in compact lanes and in the
-phone rail beneath the avatar. Wide headers retain a separate **Clear clip light** button. The narrow identity
-rail shows a passive clipping indicator; open track details to use the labeled
+The avatar's ring follows each track's live playback level, and a clipped track
+shows a danger ring and badge on the avatar in every header form. **Clear clip
+light** lives in the track details, not on the header. The narrow identity
+rail shows that passive clipping indicator; open track details to use the labeled
 **Clear clip light** action with its shared touch-target floor. The identity target
 remains free of the meter's reset hit area. Reduced motion keeps the bar and peak
 marker still while the clip light can latch. Pause and Stop

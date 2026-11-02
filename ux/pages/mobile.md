@@ -37,10 +37,10 @@ saved media; that visual-only pan leaves playback position and saved-media seek
 bounds unchanged, including while you pinch to zoom or leave Timeline and return. An explicit seek returns to
 normal playback follow. Stop clears the preview, and landing shows the finalized clips.
 
-A playback meter beneath each track's initials shows its output peak. The clip
-light stays lit after playback stops. This indicator leaves the initials free
-for opening track details. To reset it, tap the track's initials, then choose
-**Clear clip light** in the track inspector. With reduced motion enabled, the
+The ring around each track's avatar follows its live output level. A clipped
+track keeps a danger ring and badge on its avatar after playback stops. The
+avatar stays free for opening track details. To reset the light, tap the
+track's avatar, then choose **Clear clip light** in the track inspector. With reduced motion enabled, the
 meter bar stays still while clip detection continues.
 
 Joins stay visible at any zoom as a small marker at the top of the lane: `|` cut, `╲╱` fade, `✕` crossfade. When you zoom in far enough that a crossfade draws as a real overlap, its marker shrinks to a small tag so the shape reads, and past 24 px of overlap a label such as "Crossfade 120 ms" appears beside it when there is room. On a phone held upright most joins sit closer than 24 px, so they fold into a count; tap it to zoom until they separate, then tap a marker to edit its join. Applied edits stay thin, untappable ticks.
