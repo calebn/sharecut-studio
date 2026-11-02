@@ -464,6 +464,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **33. Person picker**
 - A row or list of Person avatars with names, a check on the current one, and Fix text to rename.
+- `apply` chooses when a press picks. `change` (default) is a native radio group where arrows pick, as in the Record card. `activate` is for a pick that applies at once and may close the picker (the speaker popover): arrows only move the focus ring, and click, Space or Enter picks.
 - Used: POP-SPEAKER, the INS-TRACK Person row, the INS-CLIP Track row, Session group track mapping, Source card speaker.
 - Replaces: speaker popover (edit), track mapping menus (record).
 - Story: `System/PersonPicker`.

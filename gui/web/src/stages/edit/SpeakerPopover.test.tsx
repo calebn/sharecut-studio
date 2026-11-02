@@ -145,6 +145,20 @@ describe("SpeakerPopover", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
+  it("closes once when Esc closes it while a move is pending", async () => {
+    const user = userEvent.setup();
+    let answer: (reason: string | undefined) => void = () => undefined;
+    const { onPick, onClose } = setup();
+    onPick.mockImplementationOnce(
+      () => new Promise<string | undefined>((resolve) => (answer = resolve)),
+    );
+    await opened();
+    await user.keyboard("{ArrowDown}{Enter}{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await act(async () => answer(undefined));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("closes on Esc and puts focus back on the margin name", async () => {
     const user = userEvent.setup();
     const { onClose } = setup();
