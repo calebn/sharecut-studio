@@ -250,6 +250,38 @@ export const PrivateToHost: Story = {
   },
 };
 
+// A guest only ever receives what the room's "Guests see notes" setting allows:
+// off, their own notes plus every marker; on, other people's notes too.
+export const GuestViewerNotesHidden: Story = {
+  args: { items: [MARKER_ROSA, NOTE_MAYA], viewer: "guest" },
+  render: (args) => <LiveRail {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: /Jon's mic drops out here/ }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByText("Can we keep the laugh in this take?"),
+    ).toBeNull();
+  },
+};
+
+export const GuestViewerNotesShown: Story = {
+  args: { items: [MARKER_ROSA, NOTE_MAYA, NOTE_ROSA], viewer: "guest" },
+  render: (args) => <LiveRail {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: /Jon's mic drops out here/ }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", {
+        name: /Can we keep the laugh in this take/,
+      }),
+    ).toBeVisible();
+  },
+};
+
 function PhoneRail({
   startAt,
   ...args

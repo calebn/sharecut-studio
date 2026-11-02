@@ -498,7 +498,7 @@ flowchart TD
 5. If the host drops, they reconnect — they are not recording.
 
 **Success:** Talent sees the producer among the people in the room; the producer never appears
-as a recorded track. Live comments from the producer are visible to the host
-and stay hidden from guests until landing.
+as a recorded track. Live comments from the producer are visible to the host.
+Guests see the producer's markers, but not the producer's text notes unless the host turns on Guests see notes.
 
 ---

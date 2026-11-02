@@ -57,7 +57,8 @@ Category SOTA is **Riverside / Zencastr / SquadCast / Descript Rooms**, not Zoom
 - While recording: a persistent **status pill** (`m:ss · Take N`) in the room header and on the host Record stage, plus a start notification. PAUSED, saving and local capture failure remain distinct text states and alerts.
 - **Live timestamped notes** are table stakes: Riverside markers (`M` key →
   dots on the editor timeline), Zencastr Footnotes (host-only), Descript Rooms
-  Editor Comments (host/co-host/producer; private from guests; land in the
+  Editor Comments (host/co-host/producer; guests see markers and their own
+  notes, and other people's notes only if the host allows it; land in the
   project).
 - **Non-recorded producer** is the premium tier at all three: Descript Control
   Room (hears all, silent unless push-to-talk, can start/stop, leaves comments;
@@ -240,7 +241,10 @@ read as landed, so no warning appears; `podcast record land` stages it again.
 
 Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
 (live notes — **same create path as review comments**, kind-scoped ACL: guests
-see only their own until landing). Later: `control` (start/stop/pause), `talk`
+see every marker and their own notes until landing, plus other people's text
+notes when the host turns on the room setting `guests_see_notes`, set with the
+host-only `SetGuestsSeeNotes` command from the Record More sheet; off by
+default, reset to off for each new room, producers cannot change it yet). Later: `control` (start/stop/pause), `talk`
 (producer push-to-talk), `video`. Roles are a **kind-scoped** map
 (`RECORD_ROLE_PRESETS` in `share_capabilities.py` / `contracts/caps.json`), not
 keys stuffed into review `REVIEW_ROLE_CAPABILITIES`: **guest** = `join monitor comment`;

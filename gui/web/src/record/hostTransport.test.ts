@@ -89,6 +89,35 @@ describe("submitHostRecordTransport", () => {
     expect(useRecordHostStore.getState().snapshot?.state).toBe("recording");
   });
 
+  it("posts SetGuestsSeeNotes without invalidating an in-flight Start", async () => {
+    const snap = {
+      session_id: "room1",
+      state: "lobby",
+      take_index: 0,
+      recording_ms: 0,
+      start_blockers: [],
+      participants: [],
+      caps: { recorded: 4, producers: 2 },
+    };
+    let finishStart: (value: unknown) => void = () => undefined;
+    postHost.mockImplementationOnce(
+      () => new Promise((resolve) => (finishStart = resolve)),
+    );
+    const start = submitHostRecordTransport("Start");
+    await vi.waitFor(() => expect(postHost).toHaveBeenCalledTimes(1));
+    postHost.mockResolvedValueOnce({ ...snap, guests_see_notes: true });
+    await submitHostRecordTransport("SetGuestsSeeNotes", { enabled: true });
+    expect(useRecordHostStore.getState().snapshot?.guests_see_notes).toBe(true);
+    finishStart({ ...snap, state: "recording" });
+    await start;
+    expect(postHost).toHaveBeenLastCalledWith(
+      "/tmp/p.json",
+      "SetGuestsSeeNotes",
+      { enabled: true },
+    );
+    expect(useRecordHostStore.getState().snapshot?.state).toBe("recording");
+  });
+
   it("posts Start and stores the returned snapshot", async () => {
     postHost.mockResolvedValue({
       session_id: "room1",
