@@ -51,7 +51,7 @@ if TYPE_CHECKING:
         HistoryListResult,
         PopulatedHistoryDiffResult,
     )
-    from podcast_mcp.services.document.kit_apply import submit_kit_apply
+    from podcast_mcp.services.document.kit_apply import KitApplyReport, submit_kit_apply
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
     from podcast_mcp.services.document.play_pending import (
         PENDING_PREVIEW_PAD_DEFAULT_SEC,
@@ -61,6 +61,7 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.segment_capture import parse_range, save_segment
     from podcast_mcp.services.document.segment_insert import (
+        SegmentInsertReport,
         insert_saved_segment,
         preview_segment_insert,
         preview_segment_insert_on,
@@ -101,11 +102,13 @@ __all__ = [
     "HistoryDiffResult",
     "HistoryListResult",
     "HistoryService",
+    "KitApplyReport",
     "PendingPreviewSpan",
     "PlayRequest",
     "PlayService",
     "PopulatedHistoryDiffResult",
     "RollBoundaryTarget",
+    "SegmentInsertReport",
     "ServedFile",
     "SessionSuggestionService",
     "TimelineService",
@@ -179,6 +182,8 @@ _MODULE_BY_NAME = {
     "parse_range": "segment_capture",
     "preview_segment_insert": "segment_insert",
     "preview_segment_insert_on": "segment_insert",
+    "SegmentInsertReport": "segment_insert",
+    "KitApplyReport": "kit_apply",
     "save_segment": "segment_capture",
     "SessionSuggestionService": "session_suggestion",
     "TimelineService": "timeline",

@@ -6,6 +6,7 @@ via ``scripts/export_document_command_schema.py`` → ``schemas/document-command
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
@@ -728,7 +729,7 @@ class InsertSegmentPayload(BaseModel):
     at: float | Literal["start", "end"]
 
 
-def _coerce_insert_segment(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+def _coerce_insert_segment(payload: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
     """Parse ``at`` and ``version`` with the segment error codes, before pydantic sees them."""
     if not isinstance(payload, dict):
         return payload
@@ -1661,10 +1662,11 @@ def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[
         raise CodedValueError(
             f"unknown document command: {command_type}", code="document_command_unknown"
         )
+    raw: Mapping[str, Any] | None = payload
     if command_type == "InsertSegment":
-        payload = _coerce_insert_segment(payload)
+        raw = _coerce_insert_segment(payload)
     try:
-        validated = model.model_validate(payload or {})
+        validated = model.model_validate(raw or {})
     except ValidationError as exc:
         if command_type not in _CODED_PAYLOAD_TYPES:
             raise

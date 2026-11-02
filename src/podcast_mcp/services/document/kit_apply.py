@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+
+from pydantic import BaseModel
 
 from podcast_mcp.edits.segment_insert import timeline_end
 from podcast_mcp.models import EpisodeProject
@@ -20,13 +23,31 @@ def _end(project: EpisodeProject) -> float:
     return float(timeline_end(project))
 
 
+class KitApplyReport(BaseModel):
+    """What applying a kit did (``dry_run`` false) or would do (true); ``wire()`` is the JSON."""
+
+    kit_id: str
+    kit_version: int
+    timeline_duration_before_sec: float
+    timeline_duration_after_sec: float
+    dry_run: bool
+    entries: list[dict[str, Any]]
+    undo_steps: int | None = None
+
+    def wire(self) -> Mapping[str, Any]:
+        data = self.model_dump()
+        if self.undo_steps is None:
+            data.pop("undo_steps")
+        return data
+
+
 def submit_kit_apply(
     project_path: str | Path,
     kit_id: str,
     *,
     dry_run: bool = False,
     client_id: str = "mcp-agent",
-) -> dict[str, Any]:
+) -> KitApplyReport:
     """Apply a show kit to an episode, one ``InsertSegment`` per entry, in the kit's order.
 
     Refused before the first write: an unknown kit, a segment or pinned version missing from
@@ -62,15 +83,16 @@ def submit_kit_apply(
             )
         except CodedError as exc:
             raise _entry_error(exc, position, len(resolved), item.entry.label(), 0) from exc
-        previews.append({"position": position, "note": item.entry.note, **report})
-    summary: dict[str, Any] = {
-        "kit_id": kit.id,
-        "kit_version": kit.version,
-        "timeline_duration_before_sec": before,
-        "timeline_duration_after_sec": _end(trial),
-    }
+        previews.append({"position": position, "note": item.entry.note, **report.wire()})
     if dry_run:
-        return {**summary, "dry_run": True, "entries": previews}
+        return KitApplyReport(
+            kit_id=kit.id,
+            kit_version=kit.version,
+            timeline_duration_before_sec=before,
+            timeline_duration_after_sec=_end(trial),
+            dry_run=True,
+            entries=previews,
+        )
     applied: list[dict[str, Any]] = []
     for position, item in enumerate(resolved, start=1):
         try:
@@ -85,15 +107,17 @@ def submit_kit_apply(
             raise _entry_error(
                 exc, position, len(resolved), item.entry.label(), len(applied)
             ) from exc
-        applied.append({"position": position, "note": item.entry.note, **result})
+        applied.append({"position": position, "note": item.entry.note, **result.wire()})
     final = ProjectWorkspace.open(project_path, adopt=False)
-    return {
-        **summary,
-        "timeline_duration_after_sec": _end(final.project),
-        "dry_run": False,
-        "entries": applied,
-        "undo_steps": len(applied),
-    }
+    return KitApplyReport(
+        kit_id=kit.id,
+        kit_version=kit.version,
+        timeline_duration_before_sec=before,
+        timeline_duration_after_sec=_end(final.project),
+        dry_run=False,
+        entries=applied,
+        undo_steps=len(applied),
+    )
 
 
 def _entry_error(
