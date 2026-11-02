@@ -349,6 +349,7 @@ class ProjectWorkspace:
                     label_before,
                     label_after,
                     fn,
+                    commit=self._store.commit,
                     defaults=self.effective_config(),
                     operation=operation,
                     params=params,
