@@ -589,7 +589,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 
 - **Today:** INS-WORD--desktop-light.png. Interaction cost: five large buttons (Add word before/after, Drop first/last, Ignore).
 - **Fate:** replace with NEW: Selection handles.
-- **Spec:** text selection shows 2 px accent caret handles at both ends with 12 px knobs (44 px touch hit). Drag to extend or shrink by word. Keyboard: Shift+←/→ extends by word; Alt+Shift+→ shrinks from the start and Alt+Shift+← grows it at the start (design-system 13). The handles are pointer-only and not tab stops. Ignore becomes Mute (More).
+- **Spec:** text selection shows 2 px accent caret handles at both ends with 12 px knobs (44 px touch hit). Drag to extend or shrink by word. Keyboard: Shift+←/→ extends by word; Alt+Shift+→ shrinks from the start and Alt+Shift+← grows it at the start (design-system 13). Esc during a handle drag puts back the selection the grip took. The handles are pointer-only and not tab stops. Ignore becomes Mute (More).
 - **Story to build:** `Edit/ScriptPane` story `SelectionHandles`.
 
 ### CMP-EDITBOUNDARY · Edit boundary mark

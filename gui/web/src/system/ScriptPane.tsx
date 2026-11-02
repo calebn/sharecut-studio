@@ -453,7 +453,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const findButton = useRef<HTMLButtonElement>(null);
     const layoutCache = useRef<Measured | null>(null);
     const [dragging, setDragging] = useState(false);
-    /** The words a handle drag started from, put back by Esc; null once Esc cancelled the drag. */
+    /** The words a handle drag started from, put back by Esc. Null when the grip was taken with no words selected, or once Esc cancelled the drag; either way the rest of the drag is ignored. */
     const grabbed = useRef<WordsSelection | null>(null);
     const [spoken, setSpoken] = useState("");
     const hadSelection = useRef(false);
