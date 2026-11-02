@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -369,6 +370,20 @@ _STAGING_PREFIX = ".writing-"
 ``.wav`` suffix the export listing goes by, so a half-written clip could be listed and served."""
 
 
+_STALE_STAGING_SECONDS = 24 * 3600
+
+
+def _sweep_stale_staging(out_dir: Path) -> None:
+    """Remove staging folders a killed export left behind; a day-old one cannot be live."""
+    cutoff = time.time() - _STALE_STAGING_SECONDS
+    for leftover in out_dir.glob(f"{_STAGING_PREFIX}*"):
+        try:
+            if leftover.is_dir() and leftover.stat().st_mtime < cutoff:
+                shutil.rmtree(leftover, ignore_errors=True)
+        except OSError:
+            continue
+
+
 def export_social_clips(
     project: EpisodeProject,
     defaults: dict[str, Any],
@@ -382,6 +397,7 @@ def export_social_clips(
         raise ValueError("No audio source found; run pipeline mix or export first")
     out_dir = project.export_dir() / "clips"
     out_dir.mkdir(parents=True, exist_ok=True)
+    _sweep_stale_staging(out_dir)
     staging = Path(tempfile.mkdtemp(prefix=_STAGING_PREFIX, dir=out_dir))
     engine = FFmpegEngine()
     exported: list[dict[str, str]] = []
@@ -396,8 +412,9 @@ def export_social_clips(
             start = max(0.0, clip.start - padding)
             end = clip.end + padding
             slug = re.sub(r"[^a-z0-9]+", "-", (clip.title_suggestion or clip.id).lower())[:40]
-            wav_out = out_dir / f"{slug}_{clip.id}.wav"
-            json_out = out_dir / f"{slug}_{clip.id}.json"
+            stem = f"{slug}_{re.sub(r'[^A-Za-z0-9_-]+', '-', clip.id)}"
+            wav_out = out_dir / f"{stem}.wav"
+            json_out = out_dir / f"{stem}.json"
             staged = staging / wav_out.name
             engine.extract_segment(src, staged, start, end)
             publish_completed_file(staged, wav_out)
