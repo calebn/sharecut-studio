@@ -113,6 +113,12 @@ from podcast_mcp.mcp.tools.ingest import (  # noqa: E402, F401
     ingest_verify_alignment_tool,
     play_compare_tool,
 )
+from podcast_mcp.mcp.tools.kits import (  # noqa: E402, F401
+    kit_apply_tool,
+    kit_list_tool,
+    kit_save_tool,
+    kit_show_tool,
+)
 from podcast_mcp.mcp.tools.pipeline import (  # noqa: E402, F401
     bounce_audio_tool,
     export_audio_tool,

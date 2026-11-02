@@ -1,6 +1,6 @@
 # Segments
 
-A segment is a reusable piece of audio: an intro, an outro, a sponsor read or a sting. It is the audio, how its clips sit relative to each other, a level, a lane role and a ducking flag, plus an optional chapter title and transcript. The library keeps segments per user, so any episode on this machine can use them. This is issue #1777: slice 1 is the library, its file format, the `.sharecutseg` file and the `podcast segment` commands; slice 2 is Insert, which puts a saved segment on an episode's timeline (see [Insert](#insert)); slice 3 is the headless surface: the host MCP tools, `--at start|end` and `--dry-run` on insert, and a `podcast doctor` check (see [Host MCP tools](#host-mcp-tools)). Saving, listing, exporting and importing change no episode project.
+A segment is a reusable piece of audio: an intro, an outro, a sponsor read or a sting. It is the audio, how its clips sit relative to each other, a level, a lane role and a ducking flag, plus an optional chapter title and transcript. The library keeps segments per user, so any episode on this machine can use them. This is issue #1777: slice 1 is the library, its file format, the `.sharecutseg` file and the `podcast segment` commands; slice 2 is Insert, which puts a saved segment on an episode's timeline (see [Insert](#insert)); slice 3 is the headless surface: the host MCP tools, `--at start|end` and `--dry-run` on insert, and a `podcast doctor` check (see [Host MCP tools](#host-mcp-tools)); slice 4 is the show kit, a saved list of segments that an episode applies in one step (see [Show kit](#show-kit)). Saving, listing, exporting and importing change no episode project.
 
 ## Copy, not link
 
@@ -93,6 +93,48 @@ Four tools mirror the CLI for a host agent: `segment_list_tool`, `segment_show_t
 
 `segment_insert_tool` submits `InsertSegment` on the document plane as `mcp:host`, so the edit is journaled, reaches an open Studio tab and is one undo step. It is applied, not held as a pending proposal: pending proposals in this codebase are `EditDecision` records of type remove, mute or split, which the host approves or rejects, and an insert that opens time and adds tracks and sources has no such record. Call it with `dry_run=true` first. The report holds `timeline_duration_before_sec` and `timeline_duration_after_sec`, `clips_moved`, `clips_added` (split halves included), `chapters_moved`, `chapter_added`, `comments_moved`, `pending_edits_moved`, `tracks_added` and the lane to track map. It is computed on a copy of the project with the library audio hash-checked and probed in place (read-only), so a file shorter than its layout is refused as the real insert refuses it (`segment_media_invalid`), and nothing is written, journaled or added to `raw/`. The project is read where it is: a workspace still under its retired entry-file name (see `project-format.md`) is not renamed by a dry run, `segment_save_tool` or `podcast segment save`. The real insert result carries `dry_run: false`. A `time_range` such as `0:00-1:15` takes minutes and seconds below 60 and at most 24 hours (`segment_range_invalid`).
 
+## Show kit
+
+A kit is an ordered list of library segments with where each goes, for example an intro at the start and an outro at the end. A new episode applies it in one command. The kit is offered, never applied by itself: nothing in the app applies a kit unless someone runs `kit apply` or calls `kit_apply_tool`. Inserting at `start` ripples later audio, as every insert does.
+
+**Where it lives.** `PODCAST_CONFIG_DIR/kits/` (default `~/.config/podcast_mcp/kits/`), beside the segment library, with the same conventions: `<id>/v<N>/kit.json`, an id that is the name's slug plus eight hex digits of the exact name's sha256, a version assigned by the store, a version staged in a hidden folder and landed by one rename under `.kits.lock`. The same name with other entries is the next version; the same entries are `unchanged`; an earlier version is never overwritten. A kit holds no audio, only segment ids.
+
+**`kit.json`.**
+
+| Field | Meaning |
+|---|---|
+| `schema_version` | `1`. Any other value is refused with `kit_schema_unsupported`. |
+| `id`, `name`, `version` | Identity, as for a segment. |
+| `entries` | 1 to 32, in the order they are applied. Each: `segment_id`, `version` (a whole number pins that segment version; `null` means the newest when the kit is applied), `at` (`start`, `end` or seconds, read by `segments/position.py` like `--at`, never negative) and an optional `note`. |
+
+Unknown fields are refused (`kit_invalid`). The content hash covers the entries only, so a rename is a new kit (a new id), the same as for segments.
+
+**Commands.**
+
+| Command | What it does |
+|---|---|
+| `podcast kit save NAME -s SEGMENT[@VERSION][:AT] ... [--json]` | Save a kit. `AT` is `start` (the default), `end` or a second. Every segment, and every pinned version, must be in the library (`kit_segment_missing` names each one that is not). |
+| `podcast kit list [--json]` | The newest version of each kit, with how many of its segments are missing from the library. A kit whose newest version cannot be read is listed `DAMAGED`. |
+| `podcast kit show ID [--json]` | The entries in order, with whether each segment is present. |
+| `podcast kit remove ID` | Delete a kit and all its versions. Its segments stay. |
+| `podcast kit export ID -o FILE` | Write the newest version and the segment versions it uses to a `.sharecutkit` file. |
+| `podcast kit import FILE [--on-conflict skip\|new-version] [--json]` | Add the file's missing segments and its kit to the library. |
+| `podcast kit apply ID PROJECT [--dry-run] [--json]` | Apply every entry to an episode (see below). |
+
+**`.sharecutkit`.** A zip of `kit.json`, `MANIFEST.sha256` and, for each segment version the kit uses, that segment's `segment.json` and audio as flat entries named `segNN__<file>` (a segment version used by two entries is stored once; the issue's "segments plus the layout" is `kit.json`). An import runs the `.sharecutseg` checks, with the entry cap raised from 64 to 512 so a kit of up to 32 segments fits: plain entry names only (the only shape is `kit.json`, the manifest or `segNN__name`), no repeats ignoring case, no symlinks, sizes against the headers and while reading, 2 GiB unpacked, `kit.json` and each `segment.json` at most 1 MiB, no file over 100:1 compression once it is over 1 MiB, a manifest that lists exactly the files, every hash matching, each segment folder holding exactly the audio its `segment.json` names, and every kit entry naming a segment (and version) that is in the file. Nothing reaches the library until all of that holds. Errors: `kit_bundle_invalid`, `kit_bundle_unsupported`, `kit_hash_mismatch`, `kit_schema_unsupported`, `kit_invalid` (`kit.json` is not a kit), `kit_write_failed`, plus `kit_unknown`, `kit_busy`, `kit_unreadable`, `kit_name_invalid`, `kit_segment_missing` and `kit_on_conflict_invalid`. Like `.sharecutseg`, the manifest is an integrity check, not a signature.
+
+**Import.** Each segment goes through the library's own dedupe (`added`, `unchanged` or `new_version`; the same audio under another name returns the existing id). A pinned `version` in the file is rewritten to the version the segment has in this library, because version numbers belong to a library. The kit is then stored under `--on-conflict`: `new-version` (the default) stores it as the next version when a kit of that id has other entries, `skip` leaves the existing kit as it is and reports `skipped`; the file's segments are still added, since they never overwrite anything. Importing the same file again changes nothing (every status is `unchanged`).
+
+**Apply.** `podcast kit apply ID PROJECT` (and `kit_apply_tool`) first refuses, before anything is written: an unknown kit (`kit_unknown`); every entry whose segment or pinned version is not in the library, all named in one `kit_segment_missing` message; a segment whose audio changed (`segment_hash_mismatch`); and any entry's own refusal, found by running the whole kit on a copy of the project (`segment_position_out_of_range`, `segment_media_invalid`; the message says which entry and that nothing was changed). Then each entry is an `InsertSegment` document command, in order, as `podcast segment insert` sends it, each with the version it resolved to. `start` and `end` are read when that entry runs, so `end` is the end of the timeline after the earlier entries have rippled (an intro at `start` and an outro at `end` on an 8 s episode with a 2 s intro and 2 s outro lands the outro at 10 s, ending at 12 s). Seconds are read the same way, on the timeline as the earlier entries left it. The result lists every entry's insert, the duration before and after, and `undo_steps`.
+
+**Undo.** There is no compound document command, so a kit is one undo step per entry: undoing a three-entry kit takes three undos. A compound command would need a new payload, share-role handling and generated schemas for little gain at this size; it is listed under [Not built yet](#not-built-yet). A failure after the first write (a full disk, a lock timeout) stops the apply, names the entry, and leaves the earlier entries applied, each its own undo step; the pre-checks make that rare.
+
+**`--dry-run`.** Runs the same chain on a copy, entry by entry, so each report accounts for the ripples of the entries before it, and writes nothing: no journal row, no history step, no audio in `raw/`, and a project still under its retired entry-file name is not renamed. The project is read with `ProjectWorkspace.open(adopt=False)`.
+
+**Host MCP tools.** `kit_list_tool`, `kit_show_tool`, `kit_save_tool` (`name`, `entries` as `{segment_id, at, version?, note?}`) and `kit_apply_tool` (`project_path`, `kit_id`, `dry_run`) call the same functions as the CLI (`segments/kit_summary.py`, `submit_kit_apply` in `services/document_sync/host_submit.py`), so the codes are the same. They are host only: none is on the guest allowlist, and `InsertSegment` stays out of every share role's commands.
+
+**Doctor.** `podcast doctor` warns for each kit (newest version) whose segments are missing from the library, naming up to five of them, and for a kit that cannot be read. It reads only `kit.json` files and segment folder names, so it stays cheap; the fix line says to import the segments or the kit's `.sharecutkit` file again.
+
 ## Doctor
 
 `podcast doctor` checks the newest version of each segment in the library by looking at `segment.json` and each audio file's presence and size, without reading the audio, so the support bundle (which runs the same checks) stays cheap. `podcast doctor --deep` also hashes the audio. It prints a `[warn]` line for each damaged segment (at most five, then a count of the rest). The fix line is the same text `podcast segment list` prints: import the segment again, which stores a new version and keeps the older ones; `podcast segment remove ID` is named only when the segment has no older version, because it deletes every version. A segment removed while doctor runs is left out. An absent or intact library prints nothing. A damaged segment does not fail doctor. Older versions are not checked.
@@ -101,7 +143,8 @@ Four tools mirror the CLI for a host agent: `segment_list_tool`, `segment_show_t
 
 - Ducking under dialogue, and detecting that a segment changed since it was inserted (`segment_ref` is recorded for it).
 - A Studio or HTTP surface, and a capabilities-manifest entry for the library.
-- Multi-segment kits (`.sharecutkit`).
+- A Studio or HTTP surface for kits (the offer to apply a kit to a new episode) and a compound document command that makes a whole kit one undo step.
+- `podcast segment export ID... -o FILE.sharecutkit` and `segment import FILE.sharecutkit` (the kit commands do this, see below).
 - Capturing a transcript or a chapter title.
 - Setting `duck_under_dialogue` or `chapter_title` (no command writes them yet).
 - Per-clip gain and mute-region data beyond what is rendered into the audio.
@@ -117,3 +160,6 @@ Settled with slice 2, each with its reason.
 - **Trust is integrity only, with no signature.** Segments move between people as files the user chooses to import; a signature needs a key story that does not exist yet. Insert re-checks the hash on its own copy.
 - **`capture.py` moved to `services/document/segment_capture.py`.** It imports engines and the workspace service, and `services/` is where the new Insert code lives.
 - **Dedupe compares FLAC bytes and stays that way.** A different ffmpeg build making a new version is harmless, since each version has its own content hash and a `segment_ref` points at one version.
+- **A kit names segments, it does not contain them.** The library stays the one home of audio, so editing a segment (a new version) reaches every kit that names it by id, and a pinned `version` is the way to freeze one. A bundle copies the audio in so a kit travels on its own.
+- **Kit conflicts mirror segment versions.** There is no overwrite: the same name with other entries is the next version, and `--on-conflict skip` exists for the person who wants their own list kept.
+- **One undo step per entry.** A compound `ApplyKit` document command was weighed and left out: it would add a payload, a capability row, share-role tests and generated schemas, and the per-entry steps are each journaled, visible in History and individually undoable.
