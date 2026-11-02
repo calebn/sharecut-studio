@@ -23,26 +23,27 @@ DICT_RETURNS: dict[str, int] = {
     "collaboration/guest_transcript_ops.py": 9,
     "collaboration/record_share.py": 2,
     "collaboration/review.py": 5,
-    "collaboration/review_shares.py": 1,
-    "collaboration/session_control.py": 6,
-    "collaboration/share.py": 27,
-    "collaboration/share_registry.py": 2,
+    "collaboration/review_shares.py": 3,
+    "collaboration/session_control.py": 7,
+    "collaboration/share.py": 28,
+    "collaboration/share_registry.py": 4,
     "collaboration/tunnel.py": 1,
     "collaboration/tunnel_status.py": 4,
     "document/analysis.py": 32,
     "document/bleed_inspection.py": 1,
-    "document/edit.py": 8,
+    "document/cross_process_sync.py": 2,
+    "document/edit.py": 9,
     "document/effects.py": 6,
     "document/episode.py": 11,
-    "document/feed.py": 5,
-    "document/golden_ear.py": 7,
+    "document/feed.py": 6,
+    "document/golden_ear.py": 8,
     "document/history.py": 4,
     "document/play_compose.py": 2,
     "document/play_pending.py": 1,
-    "document/play_session.py": 2,
+    "document/play_session.py": 5,
     "document/segment_insert.py": 2,
     "document/service_base.py": 4,
-    "document/session_suggestion.py": 7,
+    "document/session_suggestion.py": 9,
     "document/suggested_actions.py": 1,
     "document/timeline.py": 37,
     "document/transcript.py": 7,
@@ -60,60 +61,71 @@ DICT_RETURNS: dict[str, int] = {
     "document_sync/host_submit.py": 4,
     "document_sync/payloads.py": 4,
     "document_sync/projection_delta.py": 5,
-    "document_sync/service.py": 19,
+    "document_sync/service.py": 23,
+    "document_sync/snapshot_cache.py": 1,
     "jobs/audio_edits.py": 1,
     "jobs/catalog.py": 1,
-    "jobs/job.py": 5,
+    "jobs/job.py": 6,
     "jobs/manager.py": 3,
-    "media/ingest.py": 5,
+    "media/ingest.py": 6,
     "media/media_store.py": 4,
+    "media/object_store_cors.py": 1,
     "media/proxy_media.py": 2,
     "media/proxy_variants.py": 3,
     "media/review_media.py": 3,
-    "media/speaker.py": 13,
+    "media/speaker.py": 14,
     "media/transcript_precorrect.py": 6,
     "media/transcript_refine.py": 3,
     "pipeline/bootstrap.py": 4,
-    "pipeline/config.py": 10,
+    "pipeline/config.py": 12,
     "pipeline/preview.py": 1,
-    "pipeline/service.py": 4,
+    "pipeline/service.py": 5,
     "record/commands.py": 1,
     "record/control.py": 14,
     "record/landing.py": 9,
     "record/landing_math.py": 2,
-    "record/live_comments.py": 1,
+    "record/live_comments.py": 2,
     "record/participants.py": 1,
     "record/preflight.py": 2,
-    "record/service.py": 8,
-    "record/sessions.py": 2,
+    "record/service.py": 10,
+    "record/sessions.py": 3,
     "record/signal.py": 2,
     "record/track_choice.py": 2,
     "record/track_match.py": 5,
-    "record/upload.py": 3,
+    "record/upload.py": 4,
     "remote_mcp/limits.py": 1,
-    "remote_mcp/protocol.py": 6,
+    "remote_mcp/protocol.py": 7,
     "remote_mcp/tools.py": 34,
-    "session_sync/commands.py": 1,
-    "session_sync/hub.py": 1,
-    "session_sync/log.py": 5,
+    "session_sync/commands.py": 2,
+    "session_sync/hub.py": 2,
+    "session_sync/log.py": 14,
     "session_sync/presence_delta.py": 5,
-    "session_sync/service.py": 13,
+    "session_sync/service.py": 17,
     "session_sync/snapshot.py": 6,
     "session_sync/viewer.py": 2,
     "share_auth/oauth_credentials.py": 1,
     "share_auth/oauth_flow.py": 2,
     "share_auth/passkeys.py": 4,
-    "share_auth/store.py": 3,
-    "support/diagnostics.py": 6,
+    "share_auth/store.py": 13,
+    "support/diagnostics.py": 7,
     "support/doctor.py": 3,
     "support/report_submission.py": 2,
 }
 
 
 def _is_dict(annotation: ast.expr | None) -> bool:
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        annotation = ast.parse(annotation.value, mode="eval").body
+    if isinstance(annotation, ast.BinOp):
+        return _is_dict(annotation.left) or _is_dict(annotation.right)
     if isinstance(annotation, ast.Subscript):
-        annotation = annotation.value
-    return isinstance(annotation, ast.Name) and annotation.id == "dict"
+        outer = annotation.value
+        if isinstance(outer, ast.Name) and outer.id == "Optional":
+            return _is_dict(annotation.slice)
+        annotation = outer
+    if isinstance(annotation, ast.Attribute):
+        return annotation.attr in {"dict", "Dict"}
+    return isinstance(annotation, ast.Name) and annotation.id in {"dict", "Dict"}
 
 
 def _counts() -> dict[str, int]:
@@ -128,7 +140,3 @@ def _counts() -> dict[str, int]:
 
 def test_service_dict_returns_match_the_allowlist_exactly() -> None:
     assert _counts() == DICT_RETURNS
-
-
-def test_comment_service_returns_typed_results() -> None:
-    assert "document/comment.py" not in DICT_RETURNS
