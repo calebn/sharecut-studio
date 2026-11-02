@@ -18,6 +18,20 @@ export function pendingOffersCut(
   );
 }
 
+/** The accept verb's words for an edit that offers Cut: the bar's own label and its busy text. */
+export function pendingCutWords(
+  edit: Pick<PendingEditView, "suggested_action">,
+): { label: string; busy: string } {
+  switch (edit.suggested_action) {
+    case "shorten":
+      return { label: "Shorten", busy: "Shortening…" };
+    case "lower":
+      return { label: "Lower", busy: "Lowering…" };
+    default:
+      return { label: "Cut", busy: "Cutting…" };
+  }
+}
+
 type PendingDecider = (action: "approve" | "reject") => Promise<string | null>;
 
 let current: {

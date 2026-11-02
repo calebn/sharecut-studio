@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { pendingOffersCut } from "../commands/pendingDecision";
+import { pendingCutWords, pendingOffersCut } from "../commands/pendingDecision";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
 import {
@@ -279,6 +279,7 @@ function PendingEditRegion({
 
   const isSplit = edit.type === "split";
   const offersCut = pendingOffersCut(edit);
+  const cutWords = pendingCutWords(edit);
   const originClips = useMemo(
     () => clipsForOriginTrack(clipsByTrack, edit.track_id),
     [clipsByTrack, edit.track_id],
@@ -1081,7 +1082,7 @@ function PendingEditRegion({
                   }
                   onClick={() => void runReviewAction("approve")}
                 >
-                  {offersCut ? "Cut" : "Approve"}
+                  {offersCut ? cutWords.label : "Approve"}
                 </Button>
                 <Button
                   variant="danger"
@@ -1108,7 +1109,7 @@ function PendingEditRegion({
               <span role="status">
                 {actionState.action === "approve"
                   ? offersCut
-                    ? "Cutting…"
+                    ? cutWords.busy
                     : "Approving…"
                   : offersCut
                     ? "Keeping…"

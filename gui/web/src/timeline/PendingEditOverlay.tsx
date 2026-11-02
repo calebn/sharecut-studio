@@ -4,6 +4,7 @@ import { applyPendingSuggestion } from "../commands/editVerbs";
 import {
   decideThroughSheet,
   pendingOffersCut,
+  sheetBusyReason,
 } from "../commands/pendingDecision";
 import {
   canRetimePendingEdit,
@@ -111,8 +112,10 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
       // action (approving would cut it whole); the rest go through the open sheet when it shows
       // this edit, so its busy gate, Still sending notice and refine recovery apply once.
       if (action === "approve" && current.suggested_action !== "cut") {
-        const applied = await applyPendingSuggestion();
-        if (applied.status === "disabled") throw new Error(applied.reason);
+        const busy = sheetBusyReason(editId);
+        if (busy) throw new Error(busy);
+        // A failure is announced in the status line by the apply itself; it is not thrown again.
+        await applyPendingSuggestion();
         return { queued: false };
       }
       const sheet = await decideThroughSheet(editId, action);
