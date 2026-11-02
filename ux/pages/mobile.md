@@ -52,10 +52,13 @@ to or keyboard-focus one small region to see its label without labels stacking
 over each other. When the compact inspector is open, the same review actions
 dock in its pinned header, with Cut and Keep (Approve and Reject for a split, an exact range or a suggestion with no accept action) on the timeline action card
 while the inspector body scrolls. A suggestion that has an accept action shows
-Cut and Keep on the Action bar (the dock on a phone). The sheet and the
-timeline card show Cut and Keep only when the edit is not a split or an exact
-range; for those, for a suggestion with no accept action and for a
-comment-linked pending edit, Approve and Reject stay in the sheet (the bar's
+Cut and Keep on the Action bar (the dock on a phone), and the sheet drops its
+own Approve and Reject buttons when the edit is not a split or an exact range.
+The timeline card says Cut and Keep for those same edits. For a split, an
+exact range, a suggestion with no accept action and a comment-linked pending
+edit, Approve and Reject stay in the sheet and on the card. On the phone's
+compact drawer (no dock) a cut suggestion shows Cut and Keep on the pinned card
+and Approve and Reject in the sheet body (the bar's
 verb follows the accept action alone, so a split or exact range that carries one
 still shows it on the bar, as it did before). The peek sheet shows no verbs. Elsewhere the card stays beside the selected region and follows the
 timeline when the marker lane or the bottom panel changes size.
