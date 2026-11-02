@@ -22,7 +22,7 @@ export type ReviewEntry = {
   readonly content: ReviewContent;
 };
 
-export const KIND_OF: Readonly<Record<PendingKind, DecisionKind>> = {
+const KIND_OF: Readonly<Record<PendingKind, DecisionKind>> = {
   filler: "filler",
   pause: "pause",
   repeat: "repeat",

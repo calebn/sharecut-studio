@@ -45,7 +45,7 @@ import {
   type WordTarget,
   wordIdOf,
 } from "../../review/reviewItems";
-import { landPlan, verbOf } from "../../review/reviewQueueModel";
+import { itemVerb, landPlan } from "../../review/reviewQueueModel";
 import { useReviewSession } from "../../review/reviewSession";
 import {
   canReviewPendingEdit,
@@ -339,7 +339,7 @@ export function useReviewQueue(guestShare = false) {
     }
     if (intent.result === "kept") return rejectEdits(path, ids);
     const item = session.props.items.find((i) => i.id === intent.ids[0]);
-    if (ids.length === 1 && item && verbOf(item) === "lower") {
+    if (ids.length === 1 && item && itemVerb(item) === "lower") {
       const { held, loweredToLeave, ...rest } = await applySuggestedActions(
         path,
         ids,
