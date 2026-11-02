@@ -26,6 +26,7 @@ async function geometry(page: Page) {
       scrollTop: scroller.scrollTop,
       clipTop: box.top + scroller.clientTop,
       clipBottom: box.top + scroller.clientTop + scroller.clientHeight,
+      viewportWidth: innerWidth,
       viewportHeight: innerHeight,
       focus: {
         tag: document.activeElement?.tagName,
@@ -176,6 +177,8 @@ export async function exerciseBounceHydration(
       let failure: string | null = null;
       let primaryError: unknown;
       let breakpointViewportChanged = false;
+      let failureCaptureViewport: ReturnType<Page["viewportSize"]> = null;
+      let transitionCaptureViewport: ReturnType<Page["viewportSize"]> = null;
       let breakpointControl: Awaited<
         ReturnType<Locator["elementHandle"]>
       > | null = null;
@@ -465,8 +468,10 @@ export async function exerciseBounceHydration(
           ).toEqual(selectedFormats);
           expect(previewRequests).toBe(1);
           expect(bounceRequests).toBe(1);
+          transitionCaptureViewport = page.viewportSize();
           phases.push({
             phase: "transcript-breakpoint-existing-stage-focus-recovery",
+            captureViewport: transitionCaptureViewport,
             oppositeWidth,
             selectedFormats,
             geometry: await geometry(page),
@@ -510,6 +515,7 @@ export async function exerciseBounceHydration(
         }
         if (failure) {
           try {
+            failureCaptureViewport = page.viewportSize();
             await page.screenshot({
               path: path.join(folder, `${stem}-failure.png`),
             });
@@ -549,6 +555,9 @@ export async function exerciseBounceHydration(
           project: info.project.name,
           retry: info.retry,
           width,
+          profileViewport: { width, height: 844 },
+          failureCaptureViewport,
+          transitionCaptureViewport,
           theme,
           reducedMotion,
           departure,
