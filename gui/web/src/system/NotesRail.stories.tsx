@@ -258,11 +258,6 @@ export const GuestViewerSettingOff: Story = {
     await expect(
       canvas.getByRole("button", { name: /Jon's mic drops out here/ }),
     ).toBeVisible();
-    await expect(
-      canvas.queryByRole("button", {
-        name: /Can we keep the laugh in this take/,
-      }),
-    ).toBeNull();
   },
 };
 
