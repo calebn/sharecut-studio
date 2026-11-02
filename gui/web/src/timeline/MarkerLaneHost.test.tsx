@@ -362,6 +362,27 @@ describe("MarkerLaneHost", () => {
     expect(onMoveChapter).not.toHaveBeenCalled();
   });
 
+  it("ignores a second grab of a chapter while its save is pending", async () => {
+    let settle: () => void = () => undefined;
+    const pending = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const { onMoveChapter } = setup({ zoomPxPerSec: 10 });
+    onMoveChapter.mockReturnValue(pending);
+    const chapter = () =>
+      screen.getByRole("button", { name: /^Chapter Intro,/ });
+    fireEvent.pointerDown(chapter(), { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(chapter(), { pointerId: 1, clientX: 150 });
+    fireEvent.pointerUp(chapter(), { pointerId: 1, clientX: 150 });
+    await waitFor(() => expect(onMoveChapter).toHaveBeenCalledTimes(1));
+    fireEvent.pointerDown(chapter(), { pointerId: 2, clientX: 150 });
+    fireEvent.pointerMove(chapter(), { pointerId: 2, clientX: 250 });
+    fireEvent.pointerUp(chapter(), { pointerId: 2, clientX: 250 });
+    expect(onMoveChapter).toHaveBeenCalledTimes(1);
+    expect(chapter().getAttribute("aria-label")).toMatch(/7/);
+    settle();
+  });
+
   it("previews the chapter on the snapped grid and treats a drop back on the origin as no move (#2960)", async () => {
     const { onMoveChapter } = setup({ zoomPxPerSec: 100 });
     const chapter = () =>
