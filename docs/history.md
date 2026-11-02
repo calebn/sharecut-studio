@@ -224,7 +224,7 @@ index cannot identify a change: at the 400-entry limit, pruning keeps the cursor
 while each new edit replaces the entry there, and an undo followed by a new edit lands on
 the same index again.
 
-`HistoryManager.undo` / `redo` (`expected_head_id=`) compare the expected head with the
+`HistoryManager.apply_undo` / `apply_redo` (`expected_head_id=`) compare the expected head with the
 head under `project_commit_lock`, after adopting the index, and raise
 `StaleHistoryError` (a `CodedError`, code `history_stale`) before anything moves when
 another entry has become the head. Every caller goes through that one check
