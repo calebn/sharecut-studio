@@ -1252,6 +1252,12 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             data-selecting={selecting ? "" : undefined}
             ref={bodyRef}
             onCopy={(event) => {
+              if (
+                event.target instanceof Element &&
+                event.target.closest("input, textarea")
+              ) {
+                return;
+              }
               const text = selectionText(
                 live.current.turns,
                 live.current.selection,
