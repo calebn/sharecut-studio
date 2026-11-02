@@ -657,7 +657,8 @@ Passes 0–8: History Undo/Redo, pending Approve/Reject (bulk + nudge), applied 
    ticks and clamps inside its matching source clip while preserving the other
    edge. Timeline commits use the exact displayed bounds. A clipped or
    ambiguous source endpoint disables that affected edge; another eligible
-   outer edge remains adjustable. Selection exposes Approve/Reject beside the
+   outer edge remains adjustable. Selection exposes Cut/Keep (Approve/Reject for a split, an exact
+   range or a suggestion with no accept action) beside the
    region; narrow labels and actions are anchored in a viewport overlay so they
    do not widen timeline scroll or cover the handles. The action panel stays
    above sticky track headers and below sheets. It scrolls when its contents
