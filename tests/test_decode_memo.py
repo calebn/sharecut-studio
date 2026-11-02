@@ -1282,12 +1282,12 @@ def test_a_dying_worker_does_not_leave_the_flag_or_the_claim_stuck(
     def die(key: object, entry: object) -> None:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(memo, "_spill_entry", die)
-    spilling.now += decode_memo.DEFAULT_IDLE_S
-    with pytest.raises(RuntimeError):
-        memo._release_if_idle()
-    assert not memo._worker_running and not memo._spilling
-    del memo._spill_entry  # the instance patch only
+    with monkeypatch.context() as patch:  # the instance patch only
+        patch.setattr(memo, "_spill_entry", die)
+        spilling.now += decode_memo.DEFAULT_IDLE_S
+        with pytest.raises(RuntimeError):
+            memo._release_if_idle()
+        assert not memo._worker_running and not memo._spilling
     memo._demote_pending()  # the next demoter is not locked out
     assert memo.spilled_count() == 1
 
