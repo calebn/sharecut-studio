@@ -81,7 +81,10 @@ export function movedMarker(
     delta,
   );
   if (marker.kind === "chapter")
-    return { ...marker, start: marker.start + bounded };
+    return {
+      ...marker,
+      start: Math.round((marker.start + bounded) * 1000) / 1000,
+    };
   return {
     ...marker,
     start: marker.start + (grip === "end" ? 0 : bounded),

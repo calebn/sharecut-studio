@@ -225,7 +225,12 @@ export function MarkerLaneHost({
     const origin = latest.current.authoritativeMarkers.find(
       (marker) => marker.id === id,
     );
-    if (!origin || origin.kind === "comment" || latest.current.readOnly)
+    if (
+      !origin ||
+      origin.kind === "comment" ||
+      latest.current.readOnly ||
+      latest.current.duration <= 0
+    )
       return null;
     const move: HeldMove = {
       origin,
