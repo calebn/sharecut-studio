@@ -285,7 +285,9 @@ export function EditMarkerLayer({
             symbol={item.symbol}
             open={openJoinId === item.symbol.mark.clipId}
             onClick={() => {
-              onSelectJoin?.(item.symbol.mark);
+              if (!useDawStore.getState().joinMutationInFlight) {
+                onSelectJoin?.(item.symbol.mark);
+              }
               toggle(item.symbol.mark.clipId);
             }}
             register={register}
