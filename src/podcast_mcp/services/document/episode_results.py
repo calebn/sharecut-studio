@@ -13,7 +13,7 @@ class ProjectRenamedResult(_EpisodeResult):
 
 class RecordSessionRenamedResult(_EpisodeResult):
     session_id: str
-    name: str
+    name: str | None
 
 
 class EmptyTrackAddedResult(_EpisodeResult):
