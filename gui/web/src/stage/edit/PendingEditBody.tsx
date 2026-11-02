@@ -9,7 +9,10 @@ import {
   type PendingEditBaseline,
   pendingEditBaseline,
 } from "../../api/documentEdits";
-import { registerPendingDecider } from "../../commands/pendingDecision";
+import {
+  pendingOffersCut,
+  registerPendingDecider,
+} from "../../commands/pendingDecision";
 import { CommentCard, CommentCompose, useCommentActions } from "../../comments";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import {
@@ -62,6 +65,7 @@ import type { PreviewMode } from "../../utils/playRange";
 import { formatTimeMs, parseTimecode } from "../../utils/time";
 import { PendingPreview } from "./PendingPreview";
 import { usePendingCutSuggestion } from "./usePendingCutSuggestion";
+import { usePendingEditWarm } from "./usePendingEditWarm";
 
 function signedMilliseconds(value: number): string {
   return `${value >= 0 ? "+" : ""}${Number(value.toFixed(3))} ms`;
@@ -95,6 +99,18 @@ type TimingCapture = Readonly<{
 
 function sourceTime(value: number | null): string {
   return value === null ? "Unavailable" : formatTimeMs(value);
+}
+
+/** Warms and releases this edit's previews without re-rendering the body on mix changes. */
+function PendingWarm({
+  projectPath,
+  editId,
+}: {
+  projectPath: string;
+  editId: string;
+}) {
+  usePendingEditWarm(projectPath, editId, true);
+  return null;
 }
 
 export function PendingEditBody({
@@ -569,12 +585,7 @@ export function PendingEditBody({
   const kindLine = [kindMeta.label, speaker, length]
     .filter(Boolean)
     .join(" · ");
-  const barHasVerbs =
-    verbsOnBar &&
-    !edit.exact_range &&
-    !isSplit &&
-    edit.suggested_action != null &&
-    edit.suggested_action !== "leave";
+  const barHasVerbs = verbsOnBar && pendingOffersCut(edit);
   const primaryActions =
     !barHasVerbs && (canApply || edit.exact_range)
       ? [
@@ -896,6 +907,9 @@ export function PendingEditBody({
         </div>
       ) : null}
       {tlStart != null ? (
+        <PendingWarm projectPath={projectPath} editId={edit.id} />
+      ) : null}
+      {tlStart != null && !verbsOnBar ? (
         <footer className="modifier-footer">
           <PendingPreview
             edit={edit}

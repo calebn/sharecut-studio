@@ -15,6 +15,7 @@ import {
   _resetHistoryMovesForTests,
   registerHistoryCommands,
 } from "../commands/history";
+import { registerPendingDecider } from "../commands/pendingDecision";
 import { executePointerCommand } from "../commands/pointer";
 import { registerDawCommands } from "../commands/register";
 import { applyDocumentResult } from "../document/applyDocumentUpdate";
@@ -1777,4 +1778,167 @@ describe("single pending review feedback", () => {
       }
     },
   );
+});
+
+describe("overlay Cut and Keep", () => {
+  const path = "/tmp/p.json";
+  const overlayProps = (target: PendingEditView) => ({
+    edits: [target],
+    trackId: "host",
+    zoomPxPerSec: 10,
+    timelineWidthPx: 1000,
+    selectedId: target.id,
+    onSelect: vi.fn(),
+  });
+
+  beforeEach(() => {
+    clearRegisteredCommands();
+    resetDocumentAuthority();
+    vi.mocked(submitQueuedDocumentCommand)
+      .mockReset()
+      .mockResolvedValue({
+        history_head_id: "h",
+        command: { payload: { result: { count: 1, summary: "Applied" } } },
+        snapshot: {
+          server_seq: 1,
+          project: minimalProject({ pending_edits: [] }),
+        },
+      } as never);
+    useDawStore
+      .getState()
+      .hydrate(path, minimalProject({ pending_edits: [edit] }));
+    activateDocumentScope(path);
+    useDawStore.setState({
+      selection: { kind: "pending", id: edit.id, trackId: "host" },
+      statusAnnouncement: "",
+    });
+  });
+
+  function mount(target: PendingEditView) {
+    useDawStore
+      .getState()
+      .hydrate(path, minimalProject({ pending_edits: [target] }));
+    useDawStore.setState({
+      selection: { kind: "pending", id: target.id, trackId: "host" },
+    });
+    render(<PendingEditOverlay {...overlayProps(target)} />);
+  }
+
+  it.each([
+    ["a cut suggestion", { suggested_action: "cut" as const }],
+    ["a shorten suggestion", { suggested_action: "shorten" as const }],
+    ["a lower suggestion", { suggested_action: "lower" as const }],
+  ])("names the buttons Cut and Keep for %s", async (_name, extra) => {
+    mount({ ...edit, ...extra });
+    expect(await screen.findByRole("button", { name: "Cut" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Keep" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
+  });
+
+  it.each([
+    ["a split", { type: "split", suggested_action: "cut" as const }],
+    ["a suggestion to leave alone", { suggested_action: "leave" as const }],
+    ["a suggestion with no action", { suggested_action: null }],
+    [
+      "an exact range proposal",
+      {
+        suggested_action: "cut" as const,
+        exact_range: {
+          intervals: [{ start: 0, end: 2 }],
+          clips: [],
+          track_ids: ["host"],
+        } as never,
+      },
+    ],
+  ])("keeps Approve and Reject for %s", async (_name, extra) => {
+    mount({ ...edit, ...extra });
+    expect(
+      await screen.findByRole("button", { name: "Approve" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
+  });
+
+  it("Cut approves a cut suggestion and Keep rejects it", async () => {
+    mount({ ...edit, suggested_action: "cut" });
+    await userEvent.click(await screen.findByRole("button", { name: "Cut" }));
+    await waitFor(() =>
+      expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+        path,
+        "ApproveEdits",
+        { ids: [edit.id] },
+        { refineRecoveryInline: true },
+      ),
+    );
+    cleanup();
+    vi.mocked(submitQueuedDocumentCommand).mockClear();
+    mount({ ...edit, suggested_action: "cut" });
+    await userEvent.click(await screen.findByRole("button", { name: "Keep" }));
+    await waitFor(() =>
+      expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+        path,
+        "RejectEdits",
+        { ids: [edit.id] },
+        undefined,
+      ),
+    );
+  });
+
+  it("Cut on a shorten suggestion applies its own action, as the Action bar's Cut does", async () => {
+    mount({ ...edit, suggested_action: "shorten" });
+    await userEvent.click(await screen.findByRole("button", { name: "Cut" }));
+    await waitFor(() =>
+      expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+        path,
+        "ApplySuggestedActions",
+        { ids: [edit.id] },
+        undefined,
+      ),
+    );
+    expect(submitQueuedDocumentCommand).not.toHaveBeenCalledWith(
+      path,
+      "ApproveEdits",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("runs Cut through the open sheet when it shows this edit", async () => {
+    const cutEdit = { ...edit, suggested_action: "cut" as const };
+    mount(cutEdit);
+    useDawStore.setState({
+      selection: { kind: "pending", id: edit.id, trackId: "host" },
+    });
+    render(<PendingEditBody edit={cutEdit} verbsOnBar />);
+    await waitFor(() =>
+      expect(screen.queryByText("Checking queued timing…")).toBeNull(),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Cut" }));
+    await waitFor(() =>
+      expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+        path,
+        "ApproveEdits",
+        { ids: [edit.id] },
+        { refineRecoveryInline: true },
+      ),
+    );
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the busy reason in the overlay when the sheet's timing is still queued", async () => {
+    const cutEdit = { ...edit, suggested_action: "cut" as const };
+    mount(cutEdit);
+    const release = registerPendingDecider(
+      edit.id,
+      async () => "Checking queued timing…",
+      () => "Checking queued timing…",
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Cut" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Checking queued timing…",
+    );
+    expect(submitQueuedDocumentCommand).not.toHaveBeenCalled();
+    release();
+  });
 });

@@ -13,6 +13,10 @@ import {
   pendingEditBaseline,
 } from "../../api/documentEdits";
 import { hostFetch } from "../../api/documentTransport";
+import {
+  playPendingPreview,
+  warmPendingPreview,
+} from "../../audio/pendingPreview";
 import { executePointerCommand } from "../../commands/pointer";
 import { registerDawCommands } from "../../commands/register";
 import { shareProjectKey } from "../../shareMode";
@@ -256,6 +260,28 @@ describe("PendingEditBody", () => {
     expect(screen.getByRole("heading", { name: "Ask" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy();
     await expectNoA11yViolations(container);
+  });
+
+  it("warms the previews with no footer where the Action bar plays them, and stops them on unmount", async () => {
+    URL.createObjectURL = vi.fn(() => "blob:suggested");
+    URL.revokeObjectURL = vi.fn();
+    vi.mocked(hostFetch).mockResolvedValue(wavResponse(1.5));
+    const { unmount } = render(
+      <PendingEditBody edit={sessionCut} verbsOnBar />,
+    );
+    expect(screen.queryByRole("group", { name: "Preview mode" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Play around" })).toBeNull();
+    await waitFor(
+      () =>
+        expect(warmPendingPreview).toHaveBeenCalledWith("/tmp/p.json", "ed1"),
+      { timeout: 3000 },
+    );
+    await playPendingPreview("/tmp/p.json", "ed1", "suggested");
+    await waitFor(() =>
+      expect(useDawStore.getState().sourcePreview).not.toBeNull(),
+    );
+    unmount();
+    expect(useDawStore.getState().sourcePreview).toBeNull();
   });
 
   it("adds timing steps and disables both while a source draft is dirty", async () => {

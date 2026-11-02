@@ -154,21 +154,55 @@ async function hearVerb(facts: EditFacts): Promise<ExecuteResult> {
       return facts.span
         ? playSpan(facts.span.start, facts.span.start + MARKER_HEAR_SEC, 0)
         : disabled("Nothing to hear here");
+    case "suggestion":
+      return hearSide(facts, null);
     default:
       return disabled("Nothing to hear here");
   }
 }
 
+/**
+ * Plays the server-rendered preview of the selected suggestion. `null` is plain Hear (the only
+ * hear a read-only guest's bar has): the suggested side, or the current side where the server
+ * cannot render a suggested one.
+ */
 async function hearSide(
   facts: EditFacts,
-  mode: "current" | "suggested",
+  side: "current" | "suggested" | null,
 ): Promise<ExecuteResult> {
   const s = useDawStore.getState();
   if (facts.kind !== "suggestion" || s.selection?.kind !== "pending")
     return disabled("Select a suggestion to hear it");
-  const outcome = await playPendingPreview(s.projectPath, s.selection.id, mode);
+  const id = s.selection.id;
+  const mode =
+    side ??
+    (s.project?.pending_edits.find((e) => e.id === id)?.suggest_reason
+      ? "current"
+      : "suggested");
+  const outcome = await playPendingPreview(s.projectPath, id, mode);
   if (outcome.status === "ok" || outcome.status === "superseded") return OK;
   return disabled(outcome.reason);
+}
+
+/** Moves the playhead to the start of the selected suggestion. */
+async function seekPending(facts: EditFacts): Promise<ExecuteResult> {
+  const s = useDawStore.getState();
+  if (facts.kind !== "suggestion" || s.selection?.kind !== "pending")
+    return disabled("Select a suggestion to seek to it");
+  const id = s.selection.id;
+  const edit = s.project?.pending_edits.find((e) => e.id === id);
+  const at = edit ? (edit.timeline_start ?? edit.source_start) : null;
+  if (at == null)
+    return disabled("This suggestion has no place on the timeline");
+  return seekTransport(at);
+}
+
+/**
+ * The bar's Cut for a shorten or lower suggestion, for the timeline overlay bar to share: applies
+ * the suggestion's own action behind the open sheet's busy gate, with the same announcements.
+ */
+export function applyPendingSuggestion(): Promise<ExecuteResult> {
+  return decidePending("suggested");
 }
 
 async function decidePending(
@@ -452,6 +486,8 @@ async function dispatch(
   switch (id) {
     case "hear":
       return hearVerb(facts);
+    case "seek":
+      return seekPending(facts);
     case "hearBefore":
       return hearSide(facts, "current");
     case "hearAfter":
@@ -546,6 +582,7 @@ const WIRED_MORE: ReadonlySet<string> = new Set([
   "moveToSpeaker",
   "fillRoomTone",
   "adjustBounds",
+  "seek",
   "fade",
   "moveToTrack",
 ]);
