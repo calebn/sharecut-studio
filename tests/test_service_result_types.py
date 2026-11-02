@@ -140,3 +140,27 @@ def _counts() -> dict[str, int]:
 
 def test_service_dict_returns_match_the_allowlist_exactly() -> None:
     assert _counts() == DICT_RETURNS
+
+
+def _annotation(text: str) -> ast.expr:
+    function = ast.parse(f"def f() -> {text}: ...").body[0]
+    assert isinstance(function, ast.FunctionDef)
+    assert function.returns is not None
+    return function.returns
+
+
+def test_the_ratchet_recognises_every_bare_dict_spelling() -> None:
+    flagged = [
+        "dict",
+        "dict[str, Any]",
+        "Dict[str, int]",
+        "builtins.dict",
+        "typing.Dict[str, int]",
+        "Optional[dict[str, Any]]",
+        "dict | None",
+        "None | dict",
+        "'dict[str, Any]'",
+    ]
+    ignored = ["str", "list[dict]", "Model", "None", "Mapping[str, Any]"]
+    assert all(_is_dict(_annotation(text)) for text in flagged)
+    assert not any(_is_dict(_annotation(text)) for text in ignored)
