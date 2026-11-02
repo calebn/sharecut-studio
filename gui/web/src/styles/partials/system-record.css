@@ -655,7 +655,6 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   min-block-size: 2.5rem;
-  padding-block: var(--space-2);
 }
 
 .sys-room-view-session {
