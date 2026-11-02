@@ -18,7 +18,7 @@ from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -40,6 +40,7 @@ from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.engines.play_audit import probe_wav_duration_sec
 from podcast_mcp.engines.ranges import merge_timeline_ranges
 from podcast_mcp.engines.session_timeline import (
+    MIN_SLIP_SEC,
     SessionTimeline,
     clip_media_key,
     same_source_timeline_overlaps,
@@ -64,7 +65,13 @@ from podcast_mcp.models import (
     TrackRole,
     TranscriptWord,
 )
-from podcast_mcp.models.clip_timing import ClipTiming, QuietSpan, TimingStep
+from podcast_mcp.models.clip_timing import (
+    MAX_TIMING_STEPS,
+    MIN_STEP_GAP_SEC,
+    ClipTiming,
+    QuietSpan,
+    TimingStep,
+)
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import db_to_amplitude
@@ -609,6 +616,22 @@ def _lock_plan(
 def _base_shift(clip: Clip) -> float:
     """Timeline-minus-source shift at the clip's first source second (its only one when untimed)."""
     return shift_at(clip, clip.source_start)
+
+
+def _lane_shift(clips: Iterable[Clip]) -> float:
+    """Length-weighted mean timeline-minus-source shift over the clips' virtual pieces."""
+    pieces = [piece for clip in clips for piece in clip.virtual_pieces()]
+    return float(
+        np.average(
+            [timeline_a - source_a for source_a, _b, timeline_a in pieces],
+            weights=[source_b - source_a for source_a, source_b, _t in pieces],
+        )
+    )
+
+
+def _played_shift(clip: Clip) -> float:
+    """The shift a bleed measurement sees: the clip's base shift, or its pieces' mean when timed."""
+    return _base_shift(clip) if clip.timing is None else _lane_shift([clip])
 
 
 def _reference_shift(ref_clips: list[Clip]) -> float:
@@ -1660,10 +1683,16 @@ def _linear_view(clip: Clip) -> Clip:
     return clip.model_copy(update={"timing": None, "source_end": clip.source_start + window})
 
 
-def _timed_geometry(
+class _Placement(NamedTuple):
+    geometry: tuple[float, float, float]
+    timing: ClipTiming | None
+    offset_sec: float
+
+
+def _timed_placement(
     clip: Clip, plan: ClipAlignPlan, ref_shift: float, media_dur: float
-) -> tuple[float, float, float] | None:
-    """Geometry for a clip that carries or gets a timing map; ``plan`` takes the steps that fit.
+) -> _Placement | None:
+    """Placement for a clip that carries or gets a timing map, with the steps that fit.
 
     The timeline window is kept (the source end gives back the steps' total delta). A step the
     slipped range no longer holds is dropped, and one passed at the head folds into the shift.
@@ -1686,17 +1715,15 @@ def _timed_geometry(
         geometry = slip_clip_to_shift(view, target, media_duration=media_dur)
     if geometry is None:
         return None
-    plan.timing = timing
-    plan.offset_sec = target - ref_shift
     stored = (clip.source_start, clip.source_end, clip.timeline_start)
     if clip.timing is not None and all(
         abs(a - b) <= 1e-9 for a, b in zip(geometry, stored, strict=True)
     ):
-        return stored
-    return geometry
+        geometry = stored
+    return _Placement(geometry, timing, target - ref_shift)
 
 
-def _planned_geometry(
+def _planned_placement(
     project: EpisodeProject,
     track: Track,
     clip: Clip,
@@ -1705,7 +1732,7 @@ def _planned_geometry(
     media_readers: collections.Counter[str],
     ref_clips: list[Clip],
     media_dur: float,
-) -> tuple[float, float, float] | None:
+) -> _Placement | None:
     ref_shift = _reference_shift_at(clip, ref_clips)
     untimed = clip.timing is None and plan.timing is None
     if (
@@ -1725,12 +1752,39 @@ def _planned_geometry(
         # held clips with existing placement (including a prior nudge), and
         # guests whose rebased offset is zero keep their placement. A virgin
         # identity hold is rebased onto the reference lead-in once.
-        return clip.source_start, clip.source_end, clip.timeline_start
+        geometry = clip.source_start, clip.source_end, clip.timeline_start
+        return _Placement(geometry, plan.timing, plan.offset_sec)
     if not untimed:
-        return _timed_geometry(clip, plan, ref_shift, media_dur)
+        return _timed_placement(clip, plan, ref_shift, media_dur)
+    target = plan.offset_sec + ref_shift
+    planned: tuple[float, float, float] | None
     if _is_whole_file_clip(project, track, clip, media_readers, media_dur):
-        return offset_to_clip_geometry(plan.offset_sec + ref_shift, media_duration=media_dur)
-    return slip_clip_to_shift(clip, plan.offset_sec + ref_shift, media_duration=media_dur)
+        planned = offset_to_clip_geometry(target, media_duration=media_dur)
+    else:
+        planned = slip_clip_to_shift(clip, target, media_duration=media_dur)
+    return None if planned is None else _Placement(planned, None, plan.offset_sec)
+
+
+def _planned_geometry(
+    project: EpisodeProject,
+    track: Track,
+    clip: Clip,
+    plan: ClipAlignPlan,
+    *,
+    media_readers: collections.Counter[str],
+    ref_clips: list[Clip],
+    media_dur: float,
+) -> tuple[float, float, float] | None:
+    placement = _planned_placement(
+        project,
+        track,
+        clip,
+        plan,
+        media_readers=media_readers,
+        ref_clips=ref_clips,
+        media_dur=media_dur,
+    )
+    return None if placement is None else placement.geometry
 
 
 def _planned_moves(
@@ -1833,7 +1887,7 @@ def _bleed_latency_stage(
             continue
         key = (track.id, clip.id)
         plan = offsets[key]
-        current = _base_shift(clip) - _reference_shift_at(clip, ref_clips)
+        current = _played_shift(clip) - _reference_shift_at(clip, ref_clips)
         steps = lanes.get(track.id)
         if steps and plan.method != "manual":
             offsets[key] = _piecewise_plan(
@@ -1900,17 +1954,11 @@ def _lane_media(
         sample_rate=SILENCE_RATE,
         **grid,
     )
-    pieces = [piece for clip in clips for piece in clip.virtual_pieces()]
     return _LaneMedia(
         source=level_envelope_db(sources[path] * gain, sample_rate=LATENCY_RATE, **grid),
         heard=heard,
         heard_peak=heard_peak,
-        shift_sec=float(
-            np.average(
-                [timeline_a - source_a for source_a, _b, timeline_a in pieces],
-                weights=[source_b - source_a for source_a, source_b, _t in pieces],
-            )
-        ),
+        shift_sec=_lane_shift(clips),
     )
 
 
@@ -2067,42 +2115,58 @@ def _steps_note(steps: bleed_lag_segments.LagSteps) -> str:
 
 def _timing_for(
     clip: Clip, segments: Sequence[bleed_lag_segments.LagSegment], evidence: str
-) -> tuple[ClipTiming | None, float]:
-    """The clip's timing map and base shift (shift at its first piece) from a lane's segments.
+) -> tuple[ClipTiming | None, float, str | None]:
+    """The clip's timing map, base shift (shift at its first piece) and why it cannot be timed.
 
     A step sits at ``mid + delta/2`` of the quiet span for both signs, and its delta is
     against the last kept segment's shift. A segment whose quiet span is not inside the
-    clip's source range, or whose step does not fit the span, adds no step.
+    clip's linear window adds no step. A step that does not fit its span, more steps than a
+    render takes, or a clip with Bleed Restore regions, return no timing and the reason.
     """
+    view = _linear_view(clip)
+    starts = [segment.start_sec for segment in segments]
+    middle = (view.source_start + view.source_end) / 2
+    fallback = segments[max(bisect_right(starts, middle) - 1, 0)].shift_sec
     steps: list[TimingStep] = []
     base: float | None = None
     last = 0.0
     for before, segment in itertools.pairwise(segments):
         quiet = segment.gap_sec
-        if quiet is None or not clip.source_start < quiet[0] or not quiet[1] < clip.source_end:
+        if quiet is None or not view.source_start < quiet[0] or not quiet[1] < view.source_end:
             continue
-        previous = before.shift_sec if base is None else last
-        delta = segment.shift_sec - previous
+        delta = segment.shift_sec - (before.shift_sec if base is None else last)
+        if abs(delta) < MIN_STEP_GAP_SEC:
+            continue
         try:
             step = TimingStep(
                 at=segment.start_sec + delta / 2,
                 delta_sec=delta,
                 quiet=QuietSpan(start_s=quiet[0], end_s=quiet[1]),
             )
-        except ValueError:
-            continue
+        except ValueError as exc:
+            return None, fallback, f"clip {clip.id!r} step at {segment.start_sec:.2f}s: {exc}"
         if base is None:
             base = before.shift_sec
         steps.append(step)
         last = segment.shift_sec
-    if base is not None:
-        try:
-            return ClipTiming(steps=steps, evidence=evidence), base
-        except ValueError:
-            pass
-    starts = [segment.start_sec for segment in segments]
-    middle = (clip.source_start + clip.source_end) / 2
-    return None, segments[max(bisect_right(starts, middle) - 1, 0)].shift_sec
+    if base is None:
+        return None, fallback, None
+    if len(steps) > MAX_TIMING_STEPS:
+        return (
+            None,
+            fallback,
+            f"clip {clip.id!r} would need {len(steps)} steps (at most {MAX_TIMING_STEPS})",
+        )
+    if clip.bleed_restore is not None and clip.bleed_restore.regions:
+        return (
+            None,
+            fallback,
+            f"clip {clip.id!r} has Bleed Restore regions, which a timing map does not support",
+        )
+    try:
+        return ClipTiming(steps=steps, evidence=evidence), base, None
+    except ValueError as exc:
+        return None, fallback, f"clip {clip.id!r} steps: {exc}"
 
 
 def _timed_range(
@@ -2112,26 +2176,37 @@ def _timed_range(
 
     ``slipped`` is the linear window slipped to the base shift without the media tail clamp.
     The source end gives back the steps' total delta (so the timeline end holds), then clamps
-    to ``media_dur``. A step the final range no longer holds strictly inside is dropped;
-    ``head_delta`` is the delta of the dropped steps at or before the start, which the
-    caller folds into the base shift. None when no audio is left or the steps do not fit.
+    to ``media_dur``. A step the final range no longer holds is dropped: its ``at`` or skipped
+    span outside, or its quiet span not inside the window ``(source_start, source_end + total
+    delta)`` that a rerun sees. ``head_delta`` is the delta of the steps at or before the start
+    (or whose quiet span starts there), which the caller folds into the base shift. None when
+    less than ``MIN_SLIP_SEC`` of audio is left or the steps do not fit.
     """
     source_start, view_end, timeline_start = slipped
-    head = [step for step in timing.steps if step.at <= source_start]
-    steps = [step for step in timing.steps if step.at > source_start]
+
+    def at_head(step: TimingStep) -> bool:
+        return step.at <= source_start or (
+            step.quiet is not None and step.quiet.start_s <= source_start
+        )
+
+    head = [step for step in timing.steps if at_head(step)]
+    steps = [step for step in timing.steps if not at_head(step)]
     while True:
-        source_end = view_end - math.fsum(step.delta_sec for step in steps)
+        total = math.fsum(step.delta_sec for step in steps)
+        source_end = view_end - total
         if media_dur > 0:
             source_end = min(source_end, media_dur)
         fits = [
             step
             for step in steps
-            if step.at < source_end and step.at + max(0.0, -step.delta_sec) <= source_end + 1e-6
+            if step.at < source_end
+            and step.at + max(0.0, -step.delta_sec) <= source_end + 1e-6
+            and (step.quiet is None or step.quiet.end_s < source_end + total)
         ]
         if len(fits) == len(steps):
             break
         steps = fits
-    if source_end <= source_start:
+    if source_end - source_start < MIN_SLIP_SEC:
         return None
     kept = timing.model_copy(update={"steps": steps}) if steps else None
     try:
@@ -2171,8 +2246,16 @@ def _piecewise_plan(
     (within the deadband) is kept where it sits.
     """
     note = _steps_note(lane)
-    timing, shift = _timing_for(clip, lane.segments, note)
+    timing, shift, problem = _timing_for(clip, lane.segments, note)
     current = _base_shift(clip)
+    if problem:
+        return replace(
+            plan,
+            offset_sec=current - ref_shift,
+            method=BLEED_LAG_KEPT_METHOD,
+            detail=f"{note}; kept instead of {plan.method}",
+            skipped_reason=f"{problem}; track left unchanged",
+        )
     if _same_steps(timing, clip.timing) and abs(shift - current) <= settings.deadband_sec:
         return replace(
             plan,
@@ -2223,14 +2306,14 @@ def apply_alignment_plans(
             clips = [clip]
 
         media_readers = collections.Counter(clip_media_key(project, c) for c in clips)
-        staged: list[tuple[Clip, ClipAlignPlan, tuple[float, float, float] | None]] = []
+        staged: list[tuple[Clip, ClipAlignPlan, _Placement | None]] = []
         skip: str | None = None
         for clip in clips:
             plan = by_key.get((track.id, clip.id))
             if plan is None:
                 continue
             media_dur = clip_media_duration(project, track, clip)
-            geom = _planned_geometry(
+            placed = _planned_placement(
                 project,
                 track,
                 clip,
@@ -2239,12 +2322,12 @@ def apply_alignment_plans(
                 ref_clips=ref_clips,
                 media_dur=media_dur,
             )
-            if geom is None and skip is None:
+            if placed is None and skip is None:
                 skip = (
                     f"clip {clip.id!r} would leave its source file after the "
                     f"{plan.offset_sec:+.1f}s shift"
                 )
-            staged.append((clip, plan, geom))
+            staged.append((clip, plan, placed))
 
         if not staged:
             continue
@@ -2255,11 +2338,13 @@ def apply_alignment_plans(
                 tuple(sorted(zip(s.track_ids, s.clip_ids, strict=True)))
                 for s in same_source_timeline_overlaps(project)
             }
-            for clip, plan, geom in staged:
-                assert geom is not None
-                clip.source_start, clip.source_end, clip.timeline_start = geom
+            for clip, plan, placed in staged:
+                assert placed is not None
+                clip.source_start, clip.source_end, clip.timeline_start = placed.geometry
                 if plan.method == BLEED_LAG_METHOD:
-                    clip.timing = plan.timing
+                    clip.timing = (
+                        placed.timing.model_copy(deep=True) if placed.timing is not None else None
+                    )
             new_stacks = [
                 s
                 for s in same_source_timeline_overlaps(project)
@@ -2276,7 +2361,9 @@ def apply_alignment_plans(
                 plan.skipped_reason = f"{skip}; track left unchanged"
             continue
 
-        for clip, plan, _geom in staged:
+        for clip, plan, placed in staged:
+            assert placed is not None
+            plan.timing, plan.offset_sec = placed.timing, placed.offset_sec
             updated += 1
             if plan.method == "manual":
                 continue  # keep the manifest's pinned meta entry

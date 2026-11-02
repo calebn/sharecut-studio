@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from bisect import bisect_right
 from collections.abc import Callable
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -12,8 +13,10 @@ import pytest
 import bleed_helpers as bh
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.conversation_align import (
+    _lane_shift,
     _timing_for,
     align_artifact_path,
+    apply_alignment_plans,
     plan_conversation_alignment,
 )
 from podcast_mcp.engines.bleed_lag_segments import (
@@ -348,7 +351,7 @@ def test_lag_segment_units_are_lane_source_time() -> None:
             source_end=240.0,
             timeline_start=timeline_start,
         )
-        timing, _base = _timing_for(clip, found.segments, "")
+        timing, _base, _problem = _timing_for(clip, found.segments, "")
         assert timing is not None
         steps.append(timing.steps[0].at)
 
@@ -611,7 +614,7 @@ def test_rerun_finds_the_same_pieces_wherever_the_first_piece_sits(tmp_path) -> 
     assert [entry.label for entry in ws.project.history.entries] == labels
 
 
-def test_drifting_lane_is_flagged_and_not_split(tmp_path) -> None:
+def test_drifting_lane_is_flagged_and_not_stepped(tmp_path) -> None:
     audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
     index = np.arange(audio["audra"].size)
     late = (0.02 + 0.12 * index / index.size) * bh.RATE
@@ -626,7 +629,7 @@ def test_drifting_lane_is_flagged_and_not_split(tmp_path) -> None:
 
 
 @pytest.mark.parametrize(("late", "step_at"), [(0.155, 121.59), (0.2, 121.59)])
-def test_a_long_step_is_split_not_read_as_drift_or_scatter(
+def test_a_long_step_is_stepped_not_read_as_drift_or_scatter(
     tmp_path, late: float, step_at: float
 ) -> None:
     # Audra's latency steps from 120 ms to ``late`` in her 21 s pause and stays there for
@@ -662,3 +665,39 @@ def test_manifest_pin_proposes_one_shift_and_keeps_the_clip_whole(
         if p.track_id == "audra"
     ]
     assert audra == [("manual", 0.0, -0.12, None)]
+
+
+def _audra(ws: ProjectWorkspace) -> Clip:
+    return next(c for c in ws.project.clips if c.track_id == "audra")
+
+
+def _rerun_without_steps(ws: ProjectWorkspace) -> None:
+    with patch("podcast_mcp.edits.conversation_align._stepped_lanes", return_value={}):
+        result = plan_conversation_alignment(ws.project, defaults=load_defaults())
+    apply_alignment_plans(ws.project, result, defaults=load_defaults())
+
+
+def test_a_rerun_with_no_steps_leaves_an_aligned_timed_lane_alone(
+    stepped: ProjectWorkspace,
+) -> None:
+    PipelineService(stepped).run(only_step="align_tracks", unattended=True)
+    before = _audra(stepped).model_dump()
+
+    _rerun_without_steps(stepped)
+
+    assert _audra(stepped).model_dump() == before
+
+
+def test_a_rerun_with_no_steps_clears_the_timing_of_a_lane_it_moves(
+    stepped: ProjectWorkspace,
+) -> None:
+    PipelineService(stepped).run(only_step="align_tracks", unattended=True)
+    clip = _audra(stepped)
+    mean = _lane_shift([clip])
+    clip.timeline_start += 0.15
+
+    _rerun_without_steps(stepped)
+
+    clip = _audra(stepped)
+    assert clip.timing is None
+    assert clip.timeline_start - clip.source_start == pytest.approx(mean, abs=0.005)

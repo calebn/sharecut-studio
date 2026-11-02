@@ -65,13 +65,13 @@ enforced-by:
 - tests/test_bleed_latency.py::test_loudspeaker_loop_on_one_pair_is_proposed_never_applied
 - tests/test_bleed_latency.py::test_conflicting_pairs_flag_the_track_instead_of_shifting_it
 - tests/test_bleed_latency.py::test_align_tracks_shifts_a_held_late_track_and_undo_restores
-- tests/test_bleed_lag_segments.py::test_a_long_step_is_split_not_read_as_drift_or_scatter
+- tests/test_bleed_lag_segments.py::test_a_long_step_is_stepped_not_read_as_drift_or_scatter
 - docs-sync: decision-alignment
 -->
 
-Equal-length files share one container clock, not one latency. Each recorder track reaches that clock after its own capture and network delay. On the lab Zoom tape, Audra's track trails her bleed on Caleb's mic by 143 ms, so the mix carried an early copy of her voice under the direct one. The last `align_tracks` stage measures each lane's lag behind its own bleed on the other mics, for every ordered pair, from level envelopes in 30 s windows. It then solves one latency per lane across all pairs (weighted least squares, reference at 0). A `hold` or scored lane moves by its latency (method `bleed_lag`) only when its direct track trails its own copy, which only latency explains, and its pairs agree within `align.bleed_lag_tolerance_sec` (40 ms). A copy that arrives after the direct sound can be a loudspeaker loop or monitoring, so the bleed never moves a lane solved only from later copies, on one pair or several, even with `--realign`; it gets the shift as a proposal. Direction is judged where the lane sits before the run, not at a scorer's planned move. A lane whose pairs conflict, or whose lag drifts across the episode, is flagged in the step summary and left in place. Drift is a trend inside the stretches between steps; a lag that steps and holds for a long stretch is split into pieces instead (#1090). A manifest-pinned lane keeps its placement and gets the shift as a proposed `candidate_offset_sec`. A lane already within `align.bleed_lag_deadband_sec` (20 ms) of its corrected placement does not move, so re-runs are no-ops.
+Equal-length files share one container clock, not one latency. Each recorder track reaches that clock after its own capture and network delay. On the lab Zoom tape, Audra's track trails her bleed on Caleb's mic by 143 ms, so the mix carried an early copy of her voice under the direct one. The last `align_tracks` stage measures each lane's lag behind its own bleed on the other mics, for every ordered pair, from level envelopes in 30 s windows. It then solves one latency per lane across all pairs (weighted least squares, reference at 0). A `hold` or scored lane moves by its latency (method `bleed_lag`) only when its direct track trails its own copy, which only latency explains, and its pairs agree within `align.bleed_lag_tolerance_sec` (40 ms). A copy that arrives after the direct sound can be a loudspeaker loop or monitoring, so the bleed never moves a lane solved only from later copies, on one pair or several, even with `--realign`; it gets the shift as a proposal. Direction is judged where the lane sits before the run, not at a scorer's planned move. A lane whose pairs conflict, or whose lag drifts across the episode, is flagged in the step summary and left in place. Drift is a trend inside the stretches between steps; a lag that steps and holds for a long stretch is stepped in its silences instead (#1090, #2860). A manifest-pinned lane keeps its placement and gets the shift as a proposed `candidate_offset_sec`. A lane already within `align.bleed_lag_deadband_sec` (20 ms) of its corrected placement does not move, so re-runs are no-ops.
 
-#### Decision: Split a lane at its silences now; a timing map later
+#### Decision: Step a lane at its silences with a timing map
 
 <!-- decision
 id: D-align-piecewise-at-silences
@@ -89,7 +89,7 @@ evidence:
 - #1090 lab: 31 steps (36 before), 15 s windows over the deadband 3 of 82 (7), none more than 10 ms worse, loudest skipped or repeated sample -58.4 dBFS (-50.3)
 enforced-by:
 - tests/test_bleed_lag_segments.py::test_align_tracks_steps_the_lane_in_the_silence_and_undo_restores
-- tests/test_bleed_lag_segments.py::test_drifting_lane_is_flagged_and_not_split
+- tests/test_bleed_lag_segments.py::test_drifting_lane_is_flagged_and_not_stepped
 - tests/test_bleed_lag_segments.py::test_manifest_pin_proposes_one_shift_and_keeps_the_clip_whole
 - tests/test_bleed_lag_segments.py::test_a_step_is_judged_against_its_merged_neighbours
 - tests/test_bleed_lag_segments.py::test_a_short_clear_stretch_keeps_its_own_lag

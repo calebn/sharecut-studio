@@ -11,7 +11,9 @@ from podcast_mcp.edits.conversation_align import (
     AlignResult,
     ClipAlignPlan,
     _base_shift,
+    _lane_shift,
     _piecewise_plan,
+    _played_shift,
     _timed_range,
     _timing_for,
     alignment_fingerprint,
@@ -22,8 +24,17 @@ from podcast_mcp.edits.conversation_align import (
 from podcast_mcp.engines.bleed_lag_segments import LagSegment, LagSteps
 from podcast_mcp.engines.bleed_latency import LatencySettings
 from podcast_mcp.engines.session_timeline import slip_clip_to_shift
-from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, ProjectMeta, Track, TrackRole
-from podcast_mcp.models.clip_timing import ClipTiming
+from podcast_mcp.models import (
+    Clip,
+    ClipBleedRestore,
+    EpisodeProject,
+    MediaAsset,
+    ProjectMeta,
+    Track,
+    TrackRole,
+)
+from podcast_mcp.models.clip_timing import MAX_TIMING_STEPS, ClipTiming
+from podcast_mcp.models.episode import SourceSpan
 
 
 def _segment(start: float, shift: float, gap: tuple[float, float] | None = None) -> LagSegment:
@@ -57,7 +68,7 @@ def test_slip_clip_to_shift_slips_a_timed_clip_by_its_first_shift() -> None:
 def test_the_step_sits_at_mid_plus_half_its_delta_for_both_signs(delta: float, at: float) -> None:
     segments = [_segment(0.0, -0.12), _segment(100.0, -0.12 + delta, (98.0, 102.0))]
 
-    timing, base = _timing_for(_clip(), segments, "note")
+    timing, base, _problem = _timing_for(_clip(), segments, "note")
 
     assert timing is not None
     assert base == -0.12
@@ -66,38 +77,118 @@ def test_the_step_sits_at_mid_plus_half_its_delta_for_both_signs(delta: float, a
     assert (timing.method, timing.evidence) == ("bleed_lag", "note")
 
 
-def test_a_dropped_step_makes_the_next_delta_relative_to_the_last_kept_shift() -> None:
+def test_a_gap_less_segment_makes_the_next_delta_relative_to_the_last_kept_shift() -> None:
     segments = [
         _segment(0.0, -0.10),
         _segment(60.0, -0.20, None),
         _segment(120.0, -0.30, (118.0, 122.0)),
     ]
 
-    timing, base = _timing_for(_clip(), segments, "")
+    timing, base, _problem = _timing_for(_clip(), segments, "")
 
     assert timing is not None
     assert base == -0.20
     assert [round(s.delta_sec, 9) for s in timing.steps] == [-0.10]
 
 
-def test_a_quiet_span_outside_the_clip_or_too_short_for_its_step_adds_no_step() -> None:
+def test_a_quiet_span_outside_the_clip_adds_no_step() -> None:
     segments = [
         _segment(0.0, 0.0),
         _segment(5.0, -0.5, (4.9, 5.1)),
-        _segment(100.0, -1.0, (99.9, 100.1)),
         _segment(300.0, -1.5, (299.0, 301.0)),
     ]
 
-    timing, base = _timing_for(_clip(10.0, 240.0), segments, "")
+    assert _timing_for(_clip(10.0, 240.0), segments, "") == (None, -0.5, None)
 
-    assert [(timing, base)] == [(None, -1.0)]
+
+def test_a_step_too_big_for_its_quiet_span_is_reported_not_dropped() -> None:
+    segments = [_segment(0.0, 0.0), _segment(100.0, -1.0, (99.9, 100.1))]
+
+    timing, _base, problem = _timing_for(_clip(), segments, "")
+
+    assert timing is None
+    assert problem is not None and "step at 100.00s" in problem
+
+
+def test_the_chain_of_kept_dropped_kept_steps_reads_each_delta_from_the_last_kept_shift() -> None:
+    segments = [
+        _segment(0.0, -0.10),
+        _segment(60.0, -0.20, (58.0, 62.0)),
+        _segment(120.0, -0.30, None),
+        _segment(180.0, -0.50, (178.0, 182.0)),
+    ]
+
+    timing, base, problem = _timing_for(_clip(), segments, "")
+
+    assert problem is None and timing is not None and base == -0.10
+    assert [round(s.delta_sec, 9) for s in timing.steps] == [-0.10, -0.30]
+
+
+def _chain(count: int) -> list[LagSegment]:
+    return [_segment(0.0, 0.0)] + [
+        _segment(10.0 * (i + 1), -0.01 * (i + 1), (10.0 * (i + 1) - 1.0, 10.0 * (i + 1) + 1.0))
+        for i in range(count)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("count", "refused"), [(MAX_TIMING_STEPS, False), (MAX_TIMING_STEPS + 1, True)]
+)
+def test_a_lane_over_the_render_step_cap_is_not_timed(count: int, refused: bool) -> None:
+    timing, _base, problem = _timing_for(_clip(0.0, 3000.0), _chain(count), "")
+
+    assert (timing is None, problem is not None) == (refused, refused)
+    if timing is not None:
+        assert len(timing.steps) == MAX_TIMING_STEPS
+
+
+def test_a_clip_with_bleed_restore_regions_is_not_timed() -> None:
+    restore = ClipBleedRestore(
+        source_sha256="0" * 64, regions=[SourceSpan(start_s=10.0, end_s=11.0)]
+    )
+    segments = [_segment(0.0, -0.12), _segment(100.0, -0.2, (98.0, 102.0))]
+
+    timing, _base, problem = _timing_for(_clip(bleed_restore=restore), segments, "")
+
+    assert timing is None and problem is not None and "Bleed Restore" in problem
+
+
+def test_a_quiet_span_inside_the_window_a_rerun_sees_is_the_same_on_both_runs() -> None:
+    segments = [
+        _segment(0.0, 0.0),
+        _segment(100.0, 0.1, (98.0, 102.0)),
+        _segment(239.0, 0.3, (238.5, 239.9)),
+    ]
+    first, _base, _ = _timing_for(_clip(0.0, 240.0), segments, "")
+    assert first is not None
+    placed = _timed_range((0.0, 240.0, 0.0), first, 0.0)
+    assert placed is not None and placed[3] is not None
+    rerun = _clip(placed[0], placed[1], placed[2], timing=placed[3])
+
+    again, _base, _ = _timing_for(rerun, segments, "")
+
+    assert again is not None
+    assert [s.at for s in again.steps] == [s.at for s in placed[3].steps]
+
+
+def test_a_quiet_span_that_straddles_the_final_window_is_dropped_by_the_range() -> None:
+    timing = _timed(
+        {"at": 100.0, "delta_sec": 0.3, "quiet": {"start_s": 99.0, "end_s": 101.0}},
+        {"at": 239.7, "delta_sec": 0.1, "quiet": {"start_s": 239.5, "end_s": 239.8}},
+    )
+
+    out = _timed_range((0.0, 240.0, 0.0), timing, 0.0)
+
+    assert out is not None and out[3] is not None
+    assert [s.at for s in out[3].steps] == [100.0]
+    assert out[1] == pytest.approx(239.7)
 
 
 def test_a_clip_with_no_step_takes_the_shift_of_the_segment_at_its_middle() -> None:
     segments = [_segment(0.0, -0.1), _segment(100.0, -0.3, (99.0, 101.0))]
 
-    assert _timing_for(_clip(0.0, 80.0), segments, "") == (None, -0.1)
-    assert _timing_for(_clip(120.0, 200.0), segments, "") == (None, -0.3)
+    assert _timing_for(_clip(0.0, 80.0), segments, "") == (None, -0.1, None)
+    assert _timing_for(_clip(120.0, 200.0), segments, "") == (None, -0.3, None)
 
 
 def test_the_source_end_gives_back_the_total_delta() -> None:
@@ -167,6 +258,17 @@ def test_snapshot_and_restore_carry_the_timing(tmp_path: Path) -> None:
     assert clip.timeline_start == 0.0
     assert clip.timing is not None
     assert snap[0][5].steps[0].delta_sec == 0.2
+
+
+def test_a_snapshot_does_not_follow_an_in_place_timing_edit(tmp_path: Path) -> None:
+    clip = _clip(timing=_timed({"at": 100, "delta_sec": 0.2}))
+    project = _project(tmp_path, clip)
+    snap = snapshot_clip_geometry(project)
+
+    clip.timing.steps[0].delta_sec = 0.9
+    restore_clip_geometry(project, snap)
+
+    assert clip.timing.steps[0].delta_sec == 0.2
 
 
 def test_the_fingerprint_changes_with_a_timing_edit_and_not_for_an_untimed_clip(
@@ -326,3 +428,65 @@ def test_a_legacy_piece_whose_edge_cuts_the_quiet_span_gets_no_timing() -> None:
     left, right = _clip(0.12, 182.65, 0.0), _clip(182.85, 240.0, 182.65)
 
     assert [_timing_for(piece, segments, "")[0] for piece in (left, right)] == [None, None]
+
+
+def test_a_step_exactly_at_the_slipped_start_folds_into_the_base_shift() -> None:
+    out = _timed_range((1.0, 200.0, 0.0), _timed({"at": 1.0, "delta_sec": 0.5}), 0.0)
+
+    assert out is not None and out[3] is None and out[4] == 0.5
+
+
+def test_a_hole_step_whose_quiet_span_straddles_the_slipped_start_folds_in() -> None:
+    timing = _timed({"at": 5.0, "delta_sec": 0.3, "quiet": {"start_s": 4.9, "end_s": 5.2}})
+
+    out = _timed_range((5.1, 200.0, 0.0), timing, 0.0)
+
+    assert out is not None and out[3] is None and out[4] == 0.3
+
+
+def test_the_final_range_needs_the_minimum_slip_after_the_media_clamp() -> None:
+    assert _timed_range((0.0, 240.0, 0.0), _timed({"at": 100.0, "delta_sec": 0.1}), 0.005) is None
+
+
+def test_a_skipped_lane_keeps_its_plan_and_a_placed_one_gets_a_copy(tmp_path: Path) -> None:
+    gone = _lane(tmp_path / "a", _clip(0.0, 5.0, 0.0), media=5.0)
+    plan = ClipAlignPlan("t", "c", -9.0, "bleed_lag", timing=_timed({"at": 2.0, "delta_sec": 0.1}))
+    original = plan.timing
+    _apply(gone, plan)
+    assert plan.skipped_reason and plan.timing is original and plan.offset_sec == -9.0
+
+    placed = _lane(tmp_path / "b")
+    plan = ClipAlignPlan("t", "c", -0.12, "bleed_lag", timing=_skip_step())
+    _apply(placed, plan)
+    assert placed.clips[0].timing == plan.timing
+    assert placed.clips[0].timing is not plan.timing
+
+
+def test_a_plan_that_is_not_bleed_lag_leaves_a_timed_clip_alone_whatever_its_offset(
+    tmp_path: Path,
+) -> None:
+    timed = _clip(0.12, 240.0, 0.0, timing=_skip_step())
+    project = _lane(tmp_path, timed)
+    before = timed.model_dump()
+
+    _apply(project, ClipAlignPlan("t", "c", -0.5, "gap"))
+
+    assert project.clips[0].model_dump() == before
+
+
+def test_the_lane_shift_is_the_length_weighted_mean_over_the_pieces() -> None:
+    clip = _clip(0.0, 240.0, 0.0, timing=_timed({"at": 100.0, "delta_sec": 0.2}))
+
+    assert _lane_shift([clip]) == pytest.approx((100.0 * 0.0 + 140.0 * 0.2) / 240.0)
+    assert _played_shift(clip) == _lane_shift([clip])
+    assert _played_shift(_clip(3.0, 9.0, 5.0)) == 2.0
+
+
+def test_a_lane_that_cannot_be_timed_is_left_where_it_is_with_the_reason() -> None:
+    lane = LagSteps(segments=tuple(_chain(MAX_TIMING_STEPS + 1)), step_cost=0.5)
+    base = ClipAlignPlan("t", "c", 0.0, "hold")
+
+    plan = _piecewise_plan(base, _clip(0.0, 3000.0), lane, 0.0, LatencySettings())
+
+    assert (plan.method, plan.timing) == ("bleed_lag_kept", None)
+    assert plan.skipped_reason and "track left unchanged" in plan.skipped_reason
