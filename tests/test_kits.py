@@ -30,7 +30,8 @@ from podcast_mcp.segments.kit_bundle import export_kit, import_kit_bundle
 from podcast_mcp.segments.kit_summary import resolve_kit, save_kit
 from podcast_mcp.segments.model import SEGMENT_JSON, MediaEntry, segment_json
 from podcast_mcp.segments.store import SegmentStore, sha256_file
-from podcast_mcp.services.document_sync import DocumentSyncService, submit_kit_apply
+from podcast_mcp.services.document import submit_kit_apply
+from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.util.coded_error import CodedValueError
 from test_segments_insert import _flac, _layout, _save, project  # noqa: F401
 
@@ -731,3 +732,218 @@ def test_doctor_warns_about_a_kit_whose_segments_are_missing(library: tuple[str,
         "kit_invalid" in c.message or "kit.json" in c.message
         for c in doctor_module._kit_library_checks()
     )
+
+
+# ---- review fixes -----------------------------------------------------------------------
+
+
+def _regen(members: dict[str, bytes]) -> dict[str, bytes]:
+    import hashlib
+
+    members.pop("MANIFEST.sha256", None)
+    members["MANIFEST.sha256"] = "".join(
+        f"{hashlib.sha256(d).hexdigest()}  {n}\n" for n, d in members.items()
+    ).encode()
+    return members
+
+
+def test_import_refuses_a_member_no_kit_entry_names_and_writes_nothing(
+    tmp_path: Path, library: tuple[str, str]
+) -> None:
+    _, bundle = _export(tmp_path, library)
+
+    def drop_second_entry(m: dict[str, bytes]) -> dict[str, bytes]:
+        data = json.loads(m["kit.json"])
+        data["entries"] = data["entries"][:1]
+        return _regen({**m, "kit.json": json.dumps(data).encode()})
+
+    assert (
+        _import_code(tmp_path, _tampered(bundle, tmp_path / "s.sharecutkit", drop_second_entry))
+        == "kit_bundle_invalid"
+    )
+
+
+def test_import_reads_kit_and_manifest_before_it_unpacks_any_audio(
+    tmp_path: Path, library: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.segments import kit_bundle
+
+    _, bundle = _export(tmp_path, library)
+
+    def ghost(m: dict[str, bytes]) -> dict[str, bytes]:
+        data = json.loads(m["kit.json"])
+        data["entries"][0]["segment_id"] = "ghost-12345678"
+        return _regen({**m, "kit.json": json.dumps(data).encode()})
+
+    def no_unpack(*_args: object, **_kwargs: object) -> int:
+        raise AssertionError("audio was unpacked before the kit was checked")
+
+    monkeypatch.setattr(kit_bundle, "_unpack", no_unpack)
+    assert (
+        _import_code(tmp_path, _tampered(bundle, tmp_path / "g.sharecutkit", ghost))
+        == "kit_bundle_invalid"
+    )
+    bad_hash = _tampered(
+        bundle, tmp_path / "h.sharecutkit", lambda m: {**m, "kit.json": m["kit.json"] + b" "}
+    )
+    assert _import_code(tmp_path, bad_hash) == "kit_hash_mismatch"
+
+
+def test_import_applies_the_ratio_check_from_64_kib_and_caps_files_per_segment(
+    tmp_path: Path, library: tuple[str, str]
+) -> None:
+    _, bundle = _export(tmp_path, library)
+    bomb = tmp_path / "small-bomb.sharecutkit"
+    with (
+        zipfile.ZipFile(bundle) as source,
+        zipfile.ZipFile(bomb, "w", zipfile.ZIP_DEFLATED) as target,
+    ):
+        for info in source.infolist():
+            target.writestr(info.filename, source.read(info))
+        target.writestr("seg01__zeros.flac", bytes(256 * 1024))
+    assert _import_code(tmp_path, bomb) == "kit_bundle_invalid"
+
+    crowded = _tampered(
+        bundle,
+        tmp_path / "crowded.sharecutkit",
+        lambda m: _regen({**m, **{f"seg01__f{i}.flac": b"x" for i in range(9)}}),
+    )
+    assert _import_code(tmp_path, crowded) == "kit_bundle_invalid"
+
+
+def test_a_later_bad_member_leaves_the_library_untouched(
+    tmp_path: Path, library: tuple[str, str]
+) -> None:
+    _, bundle = _export(tmp_path, library)
+
+    def wrong_member_id(m: dict[str, bytes]) -> dict[str, bytes]:
+        data = json.loads(m["seg02__segment.json"])
+        data["id"] = "other-1a2b3c4d"
+        return _regen({**m, "seg02__segment.json": json.dumps(data).encode()})
+
+    # _import_code asserts the victim library and kit store are empty afterwards.
+    assert (
+        _import_code(tmp_path, _tampered(bundle, tmp_path / "w.sharecutkit", wrong_member_id))
+        == "kit_bundle_invalid"
+    )
+
+
+def test_import_says_lock_and_write_failures_in_kit_codes(
+    tmp_path: Path, library: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, bundle = _export(tmp_path, library)
+    kits, segments = _fresh(tmp_path, "busy")
+    for segment_code, kit_code in (
+        ("segment_busy", "kit_busy"),
+        ("segment_write_failed", "kit_write_failed"),
+    ):
+
+        def refuse(*_a: object, _c: str = segment_code, **_k: object) -> None:
+            raise CodedValueError("no", code=_c)
+
+        monkeypatch.setattr(segments, "add", refuse)
+        with pytest.raises(CodedValueError) as err:
+            import_kit_bundle(kits, segments, bundle)
+        assert err.value.code == kit_code
+
+
+def test_apply_failure_after_the_first_write_names_the_entry_and_the_count(
+    project: str, library: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.document import kit_apply
+    from podcast_mcp.util.write_failure import ProjectWriteFailedError
+
+    kit = _show_kit(library)
+    real = kit_apply.submit_segment_insert
+    calls: list[int] = []
+
+    def flaky(*args: object, **kwargs: object) -> dict:
+        calls.append(1)
+        if len(calls) == 2:
+            raise ProjectWriteFailedError("The disk is full.", status=507)
+        return real(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(kit_apply, "submit_segment_insert", flaky)
+    with pytest.raises(Exception) as err:
+        submit_kit_apply(project, kit.id)
+    assert err.value.code == "project_write_failed"  # type: ignore[attr-defined]
+    text = str(err.value)
+    assert "Kit entry 2 of 2" in text and "disk is full" in text
+    assert "1 earlier entry was already applied" in text
+    assert len(DocumentSyncService.open(project).store.commands_after(0)) == 1
+
+
+def test_saving_an_older_list_again_is_a_new_version(library: tuple[str, str]) -> None:
+    intro, outro = library
+    kits, segments = KitStore(), SegmentStore()
+    a = [KitEntry(segment_id=intro, at="start")]
+    b = [KitEntry(segment_id=outro, at="end")]
+    assert save_kit(kits, segments, "Flip", a).version == 1
+    assert save_kit(kits, segments, "Flip", b).version == 2
+    again = save_kit(kits, segments, "Flip", a)
+    assert (again.status, again.version) == ("new_version", 3)
+    assert save_kit(kits, segments, "Flip", a).status == "unchanged"
+
+
+def test_kit_name_and_note_are_capped_and_a_name_clash_is_refused(library: tuple[str, str]) -> None:
+    intro, _ = library
+    with pytest.raises(CodedValueError) as err:
+        save_kit(KitStore(), SegmentStore(), "x" * 201, [KitEntry(segment_id=intro, at=1)])
+    assert err.value.code == "kit_invalid"
+    with pytest.raises(CodedValueError) as err:
+        kit_tools.kit_save_tool("K", [{"segment_id": intro, "at": 1, "note": "n" * 501}])
+    assert err.value.code == "kit_invalid"
+    KitStore().add(_kit("Same", (intro, 1)))
+    clash = KitFile(id=kit_id_for("Same"), name=" Same", entries=[KitEntry(segment_id=intro, at=2)])
+    with pytest.raises(CodedValueError) as err:
+        KitStore().add(clash)
+    assert err.value.code == "kit_invalid"
+
+
+def test_member_names_take_ascii_digits_only(tmp_path: Path, library: tuple[str, str]) -> None:
+    _, bundle = _export(tmp_path, library)
+    odd = _tampered(
+        bundle,
+        tmp_path / "odd.sharecutkit",
+        lambda m: _regen({**m, "seg\u0660\u0661__a.flac": b"x"}),
+    )
+    assert _import_code(tmp_path, odd) == "kit_bundle_invalid"
+
+
+def test_cli_and_tool_refuse_the_same_entries_with_the_same_codes(library: tuple[str, str]) -> None:
+    intro, _ = library
+    cases = [
+        (
+            f"{intro}@x",
+            {"segment_id": intro, "at": "start", "version": "x"},
+            "segment_version_invalid",
+        ),
+        (
+            f"{intro}@0",
+            {"segment_id": intro, "at": "start", "version": 0},
+            "segment_version_invalid",
+        ),
+        (
+            f"{intro}@1.5",
+            {"segment_id": intro, "at": "start", "version": 1.5},
+            "segment_version_invalid",
+        ),
+        (f"{intro}:soon", {"segment_id": intro, "at": "soon"}, "kit_invalid"),
+        (f"{intro}:-1", {"segment_id": intro, "at": -1}, "kit_invalid"),
+        ("BAD ID", {"segment_id": "BAD ID", "at": "start"}, "kit_invalid"),
+    ]
+    for spec, entry, code in cases:
+        cli = runner.invoke(app, ["kit", "save", "K", "-s", spec])
+        assert _code(cli) == code, spec
+        with pytest.raises(CodedValueError) as err:
+            kit_tools.kit_save_tool("K", [entry])
+        assert err.value.code == code, spec
+    with pytest.raises(CodedValueError) as err:
+        kit_tools.kit_save_tool("K", [{"segment_id": intro, "at": 1, "colour": "red"}])
+    assert err.value.code == "kit_invalid"
+
+
+def test_the_kit_tool_is_in_the_timebase_registry() -> None:
+    from podcast_mcp.util.tool_timebase import TOOL_TIMEBASE
+
+    assert TOOL_TIMEBASE["kit_save_tool"] == "timeline"

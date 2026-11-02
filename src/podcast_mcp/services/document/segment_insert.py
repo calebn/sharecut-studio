@@ -164,14 +164,10 @@ def preview_segment_insert_on(
 
     Returns the report and the project as it would be after the insert, so a kit's dry run
     can feed one entry's result to the next. ``ws`` only supplies the config defaults.
-    """
-    """What :func:`insert_saved_segment` would move, computed on a copy; nothing is written.
-
-    ``at`` is read the same way as for an insert. The library audio is hash-checked and probed
-    in place (read-only) as the copy would be, so a file shorter than its layout is refused
-    here too; nothing is copied into the project. Reports the new duration, the clips, chapters, comments and pending edits that move, and
-    the tracks the segment would add. Same errors as an insert, bar the copy
-    failing.
+    Nothing is written. ``at`` is read as for an insert. The library audio is hash-checked and
+    probed in place, so audio shorter than its layout is refused as an insert refuses it. The
+    report holds the new duration and what would move; same errors as an insert, bar the
+    copy failing.
     """
     library = store or SegmentStore()
     segment = library.get(segment_id, version)
