@@ -267,7 +267,7 @@ def gate_scope_for_window(
     clips = SessionTimeline(project).lane_clip_spans(track_id)
     for span in clips:
         lo, hi = max(start, float(span.timeline_start)), min(end, float(span.timeline_end))
-        if hi > lo + 1e-9:
+        if hi > lo + 1e-9 and float(span.source_end) > float(span.source_start) + 1e-9:
             start_s = float(span.source_start) + (lo - float(span.timeline_start))
             scopes.append(
                 TranscriptGateScope(
