@@ -72,10 +72,9 @@ def open_sqlite(
     """Open *target* in WAL mode with a busy timeout of *busy_timeout_ms*.
 
     The WAL switch can return busy without invoking the busy handler, so it runs
-    with the handler off (``timeout=0``) and ``ensure_wal`` retries it every
+    with the handler off (``timeout=0``) and ``retry_transient`` retries it every
     *wal_retry_sec* for up to *wal_timeout_sec*, on a fresh connection after a readonly
-    answer; the busy timeout is set after it
-    for the store's own statements. ``setup`` (a store's idempotent schema) runs
+    answer; the busy timeout is set after it for the store's own statements. ``setup`` (a store's idempotent schema) runs
     inside that same bounded retry, because the first write after a concurrent first
     open can answer busy or transiently readonly just like the switch (#1932).
     ``verify`` runs after the connect and after the WAL switch and setup so a store

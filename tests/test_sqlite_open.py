@@ -135,13 +135,12 @@ def test_open_sqlite_retries_the_setup_with_the_wal_switch_on_a_transient_readon
 def test_open_sqlite_retries_a_persistent_readonly_answer_on_a_fresh_connection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A connection can stay readonly for the whole retry window while a new one succeeds."""
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
     seen: list[sqlite3.Connection] = []
 
     def setup(connection: sqlite3.Connection) -> None:
         seen.append(connection)
-        if connection is seen[0]:
+        if len(seen) == 1:
             exc = sqlite3.OperationalError("attempt to write a readonly database")
             exc.sqlite_errorcode = sqlite3.SQLITE_READONLY  # type: ignore[attr-defined]
             raise exc

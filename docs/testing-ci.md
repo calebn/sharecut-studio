@@ -850,8 +850,9 @@ full release receipt is valid.
 For a concurrent registry initialization failure, inspect the first child-process
 traceback before the parent's queue timeout. A terminal `retry_transient` failure
 adds a note to the original SQLite `OperationalError` with `sqlite_errorcode`,
-`sqlite_errorname`, `sqlite_version`, `attempts`, `elapsed_sec`, and
-`terminal_reason`. `not_transient` means the existing classifier rejected that
+`sqlite_errorname`, `sqlite_version`, `attempts`, `reopens` (fresh connections opened after a readonly
+answer), `elapsed_sec`, and `terminal_reason`. A failed reopen adds its own note,
+"reopen after attempt N ... raised". `not_transient` means the existing classifier rejected that
 attempt; `deadline` means a qualifying error reached the retry deadline.
 The code and name describe the terminal attempt and are `None` when unavailable.
 Elapsed time includes the work in each attempt and the retry sleeps, so a SQLite
