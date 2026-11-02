@@ -74,7 +74,7 @@ export type RoomViewProps = {
   notesDisabledReason?: string;
   /**
    * Whether the Everyone toggle shows. Defaults on for the host and off for a
-   * producer, whose notes carry no visibility on the wire until #2419 adds it.
+   * producer, whose notes carry no visibility on the wire.
    */
   noteVisibility?: boolean;
   /** The Session target chip, shown in the header beside the status pill. */
