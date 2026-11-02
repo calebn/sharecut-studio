@@ -112,3 +112,9 @@ def test_to_json_list_dispatch_does_not_depend_on_the_first_item():
         {"name": "c", "value": 3},
     ]
     assert to_json([]) == "[]"
+
+
+def test_to_json_encodes_models_in_a_list_that_starts_with_a_plain_item():
+    out = json.loads(to_json([{"raw": 1}, SampleModel(name="b", value=2)]))
+
+    assert out == [{"raw": 1}, {"name": "b", "value": 2}]
