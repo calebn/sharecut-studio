@@ -1929,11 +1929,25 @@ test("System/MarkerLane only a selected marker moves under one finger, and a tap
   await page.touchscreen.tap(jokeBox.x + jokeBox.width / 2, jokeBox.y + 12);
   await expect(joke).toHaveAttribute("aria-pressed", "true");
   const before = await name(joke);
-  await swipe(
-    cdp,
-    { x: jokeBox.x + jokeBox.width / 2, y: jokeBox.y + 12 },
-    { dx: -72, dy: 0 },
-  );
+  const grabX = jokeBox.x + jokeBox.width / 2;
+  const grabY = jokeBox.y + 12;
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: grabX, y: grabY }],
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [{ x: grabX - 12, y: grabY }],
+  });
+  await frames(page);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [{ x: grabX - 72, y: grabY }],
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
   await frames(page);
   expect(before).toMatch(/0:30\.0 to 0:42\.0/);
   expect(await name(joke)).toMatch(/0:20\.0 to 0:32\.0/);
