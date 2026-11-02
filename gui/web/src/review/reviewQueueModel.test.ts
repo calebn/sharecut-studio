@@ -297,10 +297,11 @@ describe("landing a comment pick", () => {
   });
 
   it("resets a filter that hides comments to All", () => {
-    expect(landPlan(items, "comment:open", "suggestions").resetFilter).toBe(
-      true,
-    );
-    expect(landPlan(items, "comment:open", "checks").resetFilter).toBe(true);
+    for (const filter of ["suggestions", "checks"] as const)
+      expect(landPlan(items, "comment:open", filter)).toEqual({
+        select: true,
+        resetFilter: true,
+      });
   });
 
   it("leaves a decided comment alone, even under a hiding filter", () => {
@@ -314,6 +315,10 @@ describe("landing a comment pick", () => {
     expect(landPlan(items, "comment:new", "all")).toEqual({
       select: true,
       resetFilter: false,
+    });
+    expect(landPlan(items, "comment:new", "suggestions")).toEqual({
+      select: true,
+      resetFilter: true,
     });
   });
 });

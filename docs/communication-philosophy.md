@@ -720,10 +720,9 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   reach the 44 px target on touch. Track lock stays out of scope: it was a
   product gap, not an established violation.
 - 2026-10-12 Comment field and comment time (#1338). Commenting needs no mode
-  or ruler first: the Post arrow (once "Post comment") enables on text, the
-  comment lands at the "at 0:12" comment time, and the "Click the ruler" hint
-  is gone. The ruler tooltip and Comment mode title say "tap or drag the
-  ruler" for touch.
+  or ruler first: Post comment enables on text, the comment lands at the
+  "at 0:12" comment time, and the "Click the ruler" hint is gone. The ruler
+  tooltip and Comment mode title say "tap or drag the ruler" for touch.
 - 2026-10-13 Phone comment field (#1338 round 2). Posting from the phone Listen
   dock closes the keyboard so the guest goes back to listening; tablet and
   desktop keep the field focused for the next comment.
