@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.ripple import ripple_track_ids
 from podcast_mcp.edits.session_air import GeometricPause, MeasuredPause
+from podcast_mcp.edits.tighten_reasons import is_pause_reason
 from podcast_mcp.engines.clips_ops import uses_crossfade_join
 from podcast_mcp.engines.mute_regions import IgnoredWordRegions
 from podcast_mcp.engines.room_tone import room_tone_source_id
@@ -132,7 +133,7 @@ def inspect_source_remove_placement(
         )
     if not (math.isfinite(edit.start) and math.isfinite(edit.end) and 0 <= edit.start < edit.end):
         return CutScopeHold(edit.id, (), "source_geometry")
-    pause = edit.type == EditDecisionType.REMOVE and (edit.reason or "").startswith("pause:")
+    pause = edit.type == EditDecisionType.REMOVE and is_pause_reason(edit.reason)
     if pause and edit.scope == "track":
         return CutScopeHold(edit.id, (), "stored_track_pause")
     timeline = SessionTimeline(project)

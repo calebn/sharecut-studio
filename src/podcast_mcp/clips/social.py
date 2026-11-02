@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits.tighten_reasons import is_filler_reason
 from podcast_mcp.edits.transcript_search import ensure_combined_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import premix_path
@@ -164,10 +165,7 @@ def _score_utterance(
     filler_hits = sum(
         1
         for e in project.edit_decisions
-        if e.track_id == track_id
-        and e.start < end
-        and e.end > start
-        and (e.reason or "").startswith("filler:")
+        if e.track_id == track_id and e.start < end and e.end > start and is_filler_reason(e.reason)
     )
     if filler_hits > 2:
         score -= 0.2

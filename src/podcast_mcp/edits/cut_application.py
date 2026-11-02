@@ -63,6 +63,7 @@ from podcast_mcp.edits.source_removals import (
     record_suggested_cut_speech,
 )
 from podcast_mcp.edits.suggested_actions import SuggestedActionsResult, record_sound_action
+from podcast_mcp.edits.tighten_reasons import is_pause_reason
 from podcast_mcp.edits.timeline_ops import (
     _write_punch_delete,
     _write_punch_delete_clips,
@@ -378,7 +379,7 @@ def _apply_replace_gap_pad(
         return []
     pad_start_sec = (
         tl_start
-        if exact_seam or (edit.reason or "").startswith("pause:")
+        if exact_seam or is_pause_reason(edit.reason)
         else _nearest_ripple_join_time(project, tl_start)
     )
     if filler_pad_mode(defaults=defaults) == "room_tone":
@@ -771,7 +772,7 @@ def _check_source_remove(
         pause = observation.pause if isinstance(observation.pause, cut_safety.HeldPause) else None
         actual = (
             edit.model_copy(update={"replace_gap_sec": None})
-            if (edit.reason or "").startswith("pause:") and not manual
+            if is_pause_reason(edit.reason) and not manual
             else edit
         )
         result = _write_source_remove(
@@ -1502,7 +1503,7 @@ def apply_prefix_edits(
             [
                 e
                 for e in working.edit_decisions
-                if e.id in remove_ids - held and not (e.reason or "").startswith("pause:")
+                if e.id in remove_ids - held and not is_pause_reason(e.reason)
             ],
             defaults=defaults,
         )
