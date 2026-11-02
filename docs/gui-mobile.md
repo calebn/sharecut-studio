@@ -646,7 +646,7 @@ Lane identity is a sticky gutter beside the waveforms (same scroller; `headerSlo
 | Pane inline-size | `--header-width` | Header chrome |
 |------------------|------------------|---------------|
 | `< 30rem`, and the phone shell | `3.5rem` | Avatar-only header: the 28 px avatar with its level ring and the lane color; the name stays the select button's accessible name; speaker or track identity moves onto clip labels; no grip (Menu → Move track up/down) |
-| else | `10.5rem` (root token) | Default header: avatar, name, and Mute and Solo icons, with the Scrub field for the saved volume off touch |
+| else | `10.5rem` (root token) | Default header: avatar, name, Mute and Solo icons and the Scrub field for the saved volume (the field is hidden in a lane shorter than 4rem) |
 
 Headers stay `flex-wrap: nowrap` beside the time Reel — Sidebar’s wrap-when-narrow would stack identity above lanes (the bug we avoid). Shell mount (phone four-mode vs tablet/desktop) still uses `useViewportClass`; only rail width and mixer chrome follow the container.
 
