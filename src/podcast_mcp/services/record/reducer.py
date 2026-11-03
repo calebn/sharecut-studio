@@ -134,7 +134,9 @@ def _join(snap: RecordSnapshot, cmd: RecordCommand, *, now_wall_ms: int) -> Reco
         existing.display_name = display_name
     if cmd.role == "host":
         existing.participant_id = existing.participant_id or HOST_PARTICIPANT_ID
-        existing.consented = True
+        # The host may have turned their own mic off; a reconnect keeps that choice.
+        if existing.consented is None:
+            existing.consented = True
         if existing.consented_wall_ms is None:
             existing.consented_wall_ms = now_wall_ms
         snap.host_last_beat_wall_ms = now_wall_ms

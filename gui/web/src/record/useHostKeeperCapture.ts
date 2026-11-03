@@ -3,6 +3,7 @@ import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { readLocal, writeLocal } from "../utils/storage";
 import { prepareHostKeeperStorage } from "./hostKeeperStorage";
+import { hostRecordsMic } from "./hostRecording";
 import { useRecordHostStore } from "./hostStore";
 import { sendRecordHostCommand } from "./hostWire";
 import type { TakeClipping } from "./keeper/clipRegions";
@@ -55,7 +56,7 @@ export function useHostKeeperCapture(enabled = true): {
   }, [projectPath, setSnapshot]);
 
   const share = isShareProjectKey(projectPath);
-  const hostOn = enabled && !share;
+  const hostOn = enabled && !share && hostRecordsMic(snapshot);
   const keeperLive =
     snapshot?.state === "recording" || snapshot?.state === "paused";
   const micLive = hostOn && !!snapshot;

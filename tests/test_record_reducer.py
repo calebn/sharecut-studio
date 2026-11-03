@@ -1067,3 +1067,46 @@ def test_set_target_is_host_only_in_the_command_catalog() -> None:
     with pytest.raises(RecordAuthzError):
         authorize_record_command(role="guest", capabilities=["join"], command_type="SetTarget")
     authorize_record_command(role="host", capabilities=[], command_type="SetTarget")
+
+
+def test_host_can_turn_their_own_mic_off_and_a_reconnect_keeps_it() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=3), now_wall_ms=2
+    )
+    snap = apply_record_command(
+        snap,
+        _cmd("Consent", role="host", pid="p_host", payload={"accepted": False}, seq=4),
+        now_wall_ms=3,
+    )
+    snap = apply_record_command(
+        snap, _cmd("Leave", role="host", pid="p_host", seq=5), now_wall_ms=4
+    )
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=5, seq=6)
+    host = find_participant(snap, "p_host")
+    assert host is not None and host.consented is False
+    assert start_blockers(snap) == []
+    out = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=10)
+    assert out.takes[0].consented_participant_ids == ["p_g"]
+
+
+def test_host_with_their_mic_off_and_no_accepting_guest_cannot_start() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = apply_record_command(
+        snap,
+        _cmd("Consent", role="host", pid="p_host", payload={"accepted": False}, seq=2),
+        now_wall_ms=1,
+    )
+    with pytest.raises(RecordStateError, match="nobody has accepted recording"):
+        apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=2)
+
+
+def test_a_new_host_join_still_starts_with_their_mic_on() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=1, seq=2)
+    host = find_participant(snap, "p_host")
+    assert host is not None and host.consented is True

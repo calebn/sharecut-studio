@@ -1311,6 +1311,17 @@ describe("Record stage capture and storage", () => {
       state: "stopped",
       take_index: 0,
       participants: [hostPerson()],
+      takes: [
+        {
+          take_index: 0,
+          session_start_wall_ms: 0,
+          session_start_iso: "2026-01-01T00:00:00Z",
+          stopped_wall_ms: 5,
+          consented_participant_ids: ["p_host"],
+          pauses: [],
+          segment_reports: {},
+        },
+      ],
     });
     mount({ micStatus: "denied" });
     expect(
@@ -1348,6 +1359,50 @@ describe("Record stage capture and storage", () => {
       within(dialog).getByRole("button", { name: "Invite and links…" }),
     );
     expect(exec).toHaveBeenCalledWith("share.manage", {}, { skipWhen: true });
+  });
+});
+
+describe("Record stage Record my mic", () => {
+  const row = (dialog: HTMLElement) =>
+    within(dialog).getByRole("button", { name: "Record my mic" });
+  const hostRow = (consented: boolean) =>
+    recordParticipant({
+      participant_id: "p_host",
+      role: "host",
+      display_name: "Host",
+      consented,
+    });
+
+  it("is on by default and sends the opposite value", async () => {
+    setRoom({ state: "lobby", participants: [hostRow(true)] });
+    postTransport.mockResolvedValue(undefined);
+    mount();
+    const dialog = await openMore();
+    expect(row(dialog)).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(row(dialog));
+    expect(postTransport).toHaveBeenCalledWith("Consent", { accepted: false });
+  });
+
+  it("reads off once the host declined, and turns back on", async () => {
+    setRoom({ state: "lobby", participants: [hostRow(false)] });
+    postTransport.mockResolvedValue(undefined);
+    mount();
+    const dialog = await openMore();
+    expect(row(dialog)).toHaveAttribute("aria-pressed", "false");
+    expect(within(dialog).getByText(/Start needs a guest/)).toBeVisible();
+    await userEvent.click(row(dialog));
+    expect(postTransport).toHaveBeenCalledWith("Consent", { accepted: true });
+  });
+
+  it("is locked while a take runs", async () => {
+    setRoom({ state: "recording", participants: [hostRow(true)] });
+    mount();
+    const dialog = await openMore();
+    expect(row(dialog)).toHaveAccessibleDescription(
+      "Stop the take to change this.",
+    );
+    await userEvent.click(row(dialog));
+    expect(postTransport).not.toHaveBeenCalled();
   });
 });
 

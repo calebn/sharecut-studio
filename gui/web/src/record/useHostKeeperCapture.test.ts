@@ -115,6 +115,29 @@ describe("useHostKeeperCapture", () => {
     expect(mic.mock.calls.every(([enabled]) => enabled === true)).toBe(true);
   });
 
+  it("opens no mic and no keeper while the host has turned their own mic off", () => {
+    withStream(openStream());
+    useRecordHostStore.getState().setSnapshot(
+      recordSnapshot({
+        session_id: "room1",
+        participants: [
+          recordParticipant({
+            participant_id: "p_host",
+            role: "host",
+            display_name: "Host",
+            consented: false,
+          }),
+        ],
+      }),
+    );
+    renderHook(() => useHostKeeperCapture());
+    expect(mic).toHaveBeenLastCalledWith(false, "", expect.anything());
+    expect(useRecordHostStore.getState().micLive).toBe(false);
+    expect(keeper).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false, participantId: null }),
+    );
+  });
+
   it("does not publish a live mic when the open was denied or failed", () => {
     withStream(null, "Permission denied");
     renderHook(() => useHostKeeperCapture());

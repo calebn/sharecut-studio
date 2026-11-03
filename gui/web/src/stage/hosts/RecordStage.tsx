@@ -474,6 +474,13 @@ function RecordStageBody({
       guestsSeeNotes={snapshot.guests_see_notes === true}
       onGuestsSeeNotesChange={room.setGuestsSeeNotes}
       guestsSeeNotesError={room.guestsSeeNotesError}
+      micOn={room.micOn}
+      onMicChange={room.setMicOn}
+      micReason={
+        state === "recording" || state === "paused"
+          ? "Stop the take to change this."
+          : undefined
+      }
       onDevices={() => {
         setMoreOpen(false);
         setDeviceOpen(true);
