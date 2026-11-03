@@ -155,7 +155,6 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Opened with / or ? or the header `search`.
 - Used: DLG-PALETTE, DLG-GESTURES, the DLG-HELP "Shortcuts" row.
 - Replaces: palette (edit), the rdp Help "Shortcuts and gestures" row and the ? = Help key.
-- Story: `System/Palette`.
 
 ### Selection and action
 

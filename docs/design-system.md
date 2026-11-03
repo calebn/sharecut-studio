@@ -359,7 +359,7 @@ Player bar and banners. `Stages/Edit/Workspace`,
 Edit stage, and `Stages/Record`, `Prepare`, `Review` and `Deliver` each have a
 host story with empty, loading, error, phone and guest states. The system
 parts live in `System/` (`AppHeader`, `StageBar`, `Player`, `Sheet`, `Menu`,
-`Palette`, `Toast`, `StatusRow`, `SaveIndicator`). The views own navigation,
+`Toast`, `StatusRow`, `SaveIndicator`). The views own navigation,
 pressed states, guest visibility and layout classes; the adapters keep DAW
 selectors, command dispatch, presence and focus bindings, gestures and sheet
 eligibility. Hydrated stories share one store, so the Frame story never takes
