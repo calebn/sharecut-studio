@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { resetFeaturesCache } from "./extensions/features";
@@ -31,6 +31,7 @@ describe("App review route", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     window.history.pushState({}, "", "/");
@@ -237,7 +238,7 @@ describe("App review route", () => {
     expect(offline.clear).not.toHaveBeenCalled();
   });
 
-  it("shows a Retry cover for an unreachable host with no saved copy", async () => {
+  it("shows a Try now cover for an unreachable host with no saved copy", async () => {
     window.history.pushState({}, "", "/r/asleep");
     offline.load.mockResolvedValue(undefined);
     let reachable = false;
@@ -265,12 +266,89 @@ describe("App review route", () => {
     );
     render(<App />);
     expect(
-      await screen.findByRole("heading", { name: "The host is offline" }),
+      await screen.findByRole("heading", {
+        name: "The host's computer is asleep",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/computer may be asleep or offline/)).toBeVisible();
+    expect(
+      screen.getByText("This page tries again every 30 seconds."),
+    ).toBeVisible();
+    expect(screen.getByRole("main")).toHaveFocus();
     reachable = true;
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    fireEvent.click(screen.getByRole("button", { name: "Try now" }));
     expect(await screen.findByText("Cached guest studio")).toBeInTheDocument();
+  });
+
+  it.each([
+    [503, "host offline"],
+    [504, "host timed out"],
+  ])(
+    "treats a relay %i as an asleep host and Try now retries",
+    async (status, detail) => {
+      window.history.pushState({}, "", "/r/relay");
+      offline.load.mockResolvedValue(undefined);
+      let calls = 0;
+      stubBootstrapFailure(() => {
+        calls += 1;
+        return new Response(JSON.stringify({ detail }), { status });
+      });
+      render(<App />);
+      expect(
+        await screen.findByRole("heading", {
+          name: "The host's computer is asleep",
+        }),
+      ).toBeInTheDocument();
+      const before = calls;
+      fireEvent.click(screen.getByRole("button", { name: "Try now" }));
+      await vi.waitFor(() => expect(calls).toBeGreaterThan(before));
+    },
+  );
+
+  it.each([[500], [429]])(
+    "shows This link did not load with Retry for a %i",
+    async (status) => {
+      window.history.pushState({}, "", "/r/failing");
+      offline.load.mockResolvedValue(undefined);
+      let calls = 0;
+      stubBootstrapFailure(() => {
+        calls += 1;
+        return new Response(JSON.stringify({ detail: "x" }), { status });
+      });
+      render(<App />);
+      expect(
+        await screen.findByRole("heading", { name: "This link did not load" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("main")).toHaveFocus();
+      const before = calls;
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      await vi.waitFor(() => expect(calls).toBeGreaterThan(before));
+    },
+  );
+
+  it("retries an asleep host on its own every 30 seconds", async () => {
+    window.history.pushState({}, "", "/r/auto");
+    offline.load.mockResolvedValue(undefined);
+    let calls = 0;
+    stubBootstrapFailure(() => {
+      calls += 1;
+      return new Response(JSON.stringify({ detail: "host offline" }), {
+        status: 503,
+      });
+    });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<App />);
+    await screen.findByRole("heading", {
+      name: "The host's computer is asleep",
+    });
+    const before = calls;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29_000);
+    });
+    expect(calls).toBe(before);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(calls).toBeGreaterThan(before);
   });
 
   it.each([
