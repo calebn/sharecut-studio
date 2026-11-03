@@ -177,6 +177,11 @@
   }
 }
 
+.rv-speakers .ui-segmented {
+  flex-wrap: wrap;
+  max-inline-size: 100%;
+}
+
 .rv-speakers .ui-segmented > .ui-control {
   min-width: 0;
 }
