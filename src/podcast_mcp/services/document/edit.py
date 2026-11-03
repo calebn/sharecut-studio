@@ -41,11 +41,6 @@ from podcast_mcp.edits.decisions import (
     require_pending_edit_baseline,
     update_pending_edit,
 )
-from podcast_mcp.edits.edit_log import (
-    list_applied_edits,
-    require_applied_edit_restore,
-    revert_applied_edit,
-)
 from podcast_mcp.edits.edit_reasons import (
     GUEST_SUGGEST_REASON,
     NL_RANGE_REASON,
@@ -89,6 +84,7 @@ from .boundary import (
     TrimBoundaryTarget,
     boundary_context,
 )
+from .edit_restore import applied_edits_with_restore, revert_applied
 
 log = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -607,16 +603,8 @@ class EditService(CutMutatingService):
                 },
             )
 
-    def revert_applied(self, record_id: str) -> dict:
-        with self.ws.transaction() as project:
-            require_applied_edit_restore(project, record_id)
-            return self.ws.mutate(
-                "before revert applied edit",
-                "after revert applied edit",
-                lambda p: revert_applied_edit(p, record_id, defaults=self.ws.effective_config()),
-                operation="revert_applied_edit",
-                params={"id": record_id},
-            )
+    def revert_applied(self, ids: list[str], dry_run: bool = False) -> dict:
+        return revert_applied(self.ws, ids, dry_run).model_dump()
 
     def impact_report(self, *, markdown: bool = False) -> str | dict:
         report = edit_impact_report(self.ws.project)
@@ -796,16 +784,14 @@ class EditService(CutMutatingService):
         timeline_start: float | None = None,
         timeline_end: float | None = None,
     ) -> dict:
-        records = list_applied_edits(
-            self.ws.project,
-            track_id=track_id,
-            timeline_start=timeline_start,
-            timeline_end=timeline_end,
+        return dict(
+            applied_edits_with_restore(
+                self.ws,
+                track_id=track_id,
+                timeline_start=timeline_start,
+                timeline_end=timeline_end,
+            )
         )
-        return {
-            "count": len(records),
-            "records": [r.model_dump() for r in records],
-        }
 
     def render_status(self) -> dict:
         return render_status_report(self.ws.project, defaults=self.ws.effective_config())

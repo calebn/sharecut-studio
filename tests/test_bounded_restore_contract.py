@@ -8,11 +8,7 @@ from fastapi.testclient import TestClient
 from mcp.client import Client
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.edits.edit_log import (
-    LocalRestoreRequiresHistory,
-    require_applied_edit_restore,
-    revert_applied_edit,
-)
+from podcast_mcp.edits.edit_log import apply_restores, plan_restores
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.engines.session_timeline import origin_track_id_for_clip
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
@@ -28,6 +24,7 @@ from podcast_mcp.models import (
     TrackRole,
     Transcript,
     TranscriptWord,
+    UnmuteSource,
     load_project,
     save_project,
 )
@@ -35,15 +32,10 @@ from podcast_mcp.models.episode import SourceRecording
 from podcast_mcp.project.store import history_index_path, history_snapshot_ids
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
+from restore_helpers import assert_history_only_conflict
 from source_review_helpers import _cut, _project
 
 pytestmark = pytest.mark.refine_gate
-
-RESTORE_MESSAGE = (
-    "This edit cannot be restored individually. Use History Undo to restore the whole action. "
-    "History Undo also undoes the other edits in that action. "
-    "You may need to undo later actions first."
-)
 
 
 def _editable(project):
@@ -150,11 +142,8 @@ def test_local_remove_restore_refuses_before_mutation_with_history_undo_guidance
     before = _state(ws)
     head = HistoryService(ws).status().head_id
 
-    with pytest.raises(ValueError) as refused:
-        EditService(ws).revert_applied(ws.project.editorial.edit_log[0].id)
-
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == RESTORE_MESSAGE
+    record_id = ws.project.editorial.edit_log[0].id
+    assert_history_only_conflict(EditService(ws).revert_applied([record_id]), record_id)
     _assert_unchanged(ws, before)
     assert HistoryService(ws).status().head_id == head
     HistoryService(ws).undo(expected_head_id=head)
@@ -180,12 +169,10 @@ def test_document_http_restore_refusal_and_explicit_guarded_undo(tmp_path):
     before = _state(ws)
     head = HistoryService(ws).status().head_id
     with TestClient(create_app()) as client:
-        refused = _post(
-            client, ws, "RestoreAppliedEdit", {"id": ws.project.editorial.edit_log[0].id}, 1
-        )
-        assert refused.status_code == 400
-        assert refused.headers["X-Sharecut-Error-Code"] == "local_restore_requires_history"
-        assert refused.json() == {"detail": RESTORE_MESSAGE}
+        record_id = ws.project.editorial.edit_log[0].id
+        refused = _post(client, ws, "RestoreAppliedEdit", {"ids": [record_id]}, 1)
+        assert refused.status_code == 200
+        assert_history_only_conflict(refused.json()["command"]["payload"]["result"], record_id)
         _assert_unchanged(ws, before)
         undone = _post(client, ws, "UndoHistory", {"expected_head_id": head}, 2)
         assert undone.status_code == 200
@@ -193,14 +180,9 @@ def test_document_http_restore_refusal_and_explicit_guarded_undo(tmp_path):
     _assert_parked_recovered(ws, original, tmp_path)
 
 
-def _mcp_refusal(result):
-    assert result.is_error is True
-    assert [part.text for part in result.content] == [RESTORE_MESSAGE]
-    assert result.structured_content == {
-        "ok": False,
-        "error": RESTORE_MESSAGE,
-        "error_code": "local_restore_requires_history",
-    }
+def _mcp_refusal(result, record_id):
+    assert result.is_error is False
+    assert_history_only_conflict(json.loads(result.content[0].text), record_id)
 
 
 @pytest.mark.asyncio
@@ -211,9 +193,9 @@ async def test_owner_mcp_restore_refusal_and_explicit_guarded_undo(tmp_path):
     async with Client(mcp_server.mcp) as client:
         result = await client.call_tool(
             "revert_applied_edit_tool",
-            {"project_path": str(ws.path), "record_id": ws.project.editorial.edit_log[0].id},
+            {"project_path": str(ws.path), "record_ids": [ws.project.editorial.edit_log[0].id]},
         )
-        _mcp_refusal(result)
+        _mcp_refusal(result, ws.project.editorial.edit_log[0].id)
         _assert_unchanged(ws, before)
         undone = await client.call_tool(
             "history_undo", {"project_path": str(ws.path), "expected_head_id": head}
@@ -248,22 +230,19 @@ async def test_exact_range_restore_uses_same_coded_refusal(tmp_path, delivery):
     before = _state(ws)
     head = HistoryService(ws).status().head_id
     if delivery == "service":
-        with pytest.raises(ValueError) as refused:
-            service.revert_applied(record.id)
-        assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-        assert str(refused.value) == RESTORE_MESSAGE
+        assert_history_only_conflict(service.revert_applied([record.id]), record.id)
     elif delivery == "http":
         with TestClient(create_app()) as client:
-            refused = _post(client, ws, "RestoreAppliedEdit", {"id": record.id}, 1)
-        assert refused.status_code == 400
-        assert refused.headers["X-Sharecut-Error-Code"] == "local_restore_requires_history"
-        assert refused.json() == {"detail": RESTORE_MESSAGE}
+            refused = _post(client, ws, "RestoreAppliedEdit", {"ids": [record.id]}, 1)
+        assert refused.status_code == 200
+        assert_history_only_conflict(refused.json()["command"]["payload"]["result"], record.id)
     else:
         async with Client(mcp_server.mcp) as client:
             result = await client.call_tool(
-                "revert_applied_edit_tool", {"project_path": str(ws.path), "record_id": record.id}
+                "revert_applied_edit_tool",
+                {"project_path": str(ws.path), "record_ids": [record.id]},
             )
-        _mcp_refusal(result)
+        _mcp_refusal(result, record.id)
     _assert_unchanged(ws, before)
     HistoryService(ws).undo(expected_head_id=head)
     assert _editable(ws.project) == original
@@ -363,10 +342,9 @@ def test_guarded_history_undo_restores_all_peer_occurrences(tmp_path, peer_shape
         (2, 6),
     ]
     before = _state(ws)
-    with pytest.raises(ValueError) as refused:
-        EditService(ws).revert_applied(ws.project.editorial.edit_log[0].id)
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == RESTORE_MESSAGE
+    record_id = ws.project.editorial.edit_log[0].id
+    refused = EditService(ws).revert_applied([record_id])
+    assert_history_only_conflict(refused, record_id)
     _assert_unchanged(ws, before)
     HistoryService(ws).undo(expected_head_id=HistoryService(ws).status().head_id)
     assert _editable(ws.project) == original
@@ -401,10 +379,9 @@ def test_later_action_requires_undo_of_actual_current_head_first(tmp_path):
     current = _state(ws)
     current_head = HistoryService(ws).status().head_id
     assert current_head != cut_head
-    with pytest.raises(ValueError) as refused:
-        EditService(ws).revert_applied(ws.project.editorial.edit_log[0].id)
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == RESTORE_MESSAGE
+    record_id = ws.project.editorial.edit_log[0].id
+    refused = EditService(ws).revert_applied([record_id])
+    assert_history_only_conflict(refused, record_id)
     _assert_unchanged(ws, current)
     with pytest.raises(ValueError) as stale:
         HistoryService(ws).undo(expected_head_id=cut_head)
@@ -439,23 +416,25 @@ async def test_mute_restore_keeps_local_positive_workflow(tmp_path, delivery):
     original_clip = project.clips[0].model_dump(mode="json")
     assert EditService(ws).approve(["mute"]) == 1
     assert len(ws.project.clips[0].mute_regions) == 1
-    assert ws.project.editorial.edit_log[0].params["mute"] is True
+    assert ws.project.editorial.edit_log[0].inverse.kind == "unmute"
     record_id = ws.project.editorial.edit_log[0].id
     if delivery == "service":
-        result = EditService(ws).revert_applied(record_id)
-        assert result["operation"] == "revert_applied_edit"
+        result = EditService(ws).revert_applied([record_id])
+        assert result["status"] == "restored"
+        assert result["summary"]["operation"] == "revert_applied_edit"
     elif delivery == "http":
         with TestClient(create_app()) as client:
-            result = _post(client, ws, "RestoreAppliedEdit", {"id": record_id}, 1)
+            result = _post(client, ws, "RestoreAppliedEdit", {"ids": [record_id]}, 1)
         assert result.status_code == 200
-        assert result.json()["command"]["payload"]["result"]["operation"] == "revert_applied_edit"
+        assert result.json()["command"]["payload"]["result"]["status"] == "restored"
     else:
         async with Client(mcp_server.mcp) as client:
             result = await client.call_tool(
-                "revert_applied_edit_tool", {"project_path": str(ws.path), "record_id": record_id}
+                "revert_applied_edit_tool",
+                {"project_path": str(ws.path), "record_ids": [record_id]},
             )
         assert result.is_error is False
-        assert json.loads(result.content[0].text)["operation"] == "revert_applied_edit"
+        assert json.loads(result.content[0].text)["status"] == "restored"
     saved = load_project(ws.path)
     assert saved.clips[0].model_dump(mode="json") == original_clip
     assert saved.timeline.duration_sec == 6
@@ -463,107 +442,7 @@ async def test_mute_restore_keeps_local_positive_workflow(tmp_path, delivery):
     assert saved.edit_decisions == []
 
 
-@pytest.mark.parametrize(
-    "location,bounds",
-    [
-        (location, bounds)
-        for bounds in [
-            (float("nan"), 2),
-            (1, float("nan")),
-            (float("inf"), 2),
-            (1, float("inf")),
-            (float("-inf"), 2),
-            (1, float("-inf")),
-            (-1, 2),
-            (1, -2),
-            (1, 1),
-            (2, 1),
-        ]
-        for location in ("top", "override")
-    ]
-    + [
-        ("top", (1, None)),
-        ("override", ("bad", 2)),
-        ("override", (1, None)),
-        ("override", ({}, 2)),
-        ("override", (1, 10**400)),
-        ("override", (True, 2)),
-    ],
-)
-def test_restore_rejects_invalid_source_bounds(tmp_path, location, bounds):
-    project = _project(tmp_path)
-    record = AppliedEditRecord(
-        id="invalid-bounds",
-        applied_at="2026-01-01T00:00:00+00:00",
-        operation="approve_edits",
-        track_ids=["host"],
-        source_start=1,
-        source_end=2,
-        params={"mute": True, "per_track_source": {"host": [1, 2]}},
-    )
-    if location == "top":
-        record.source_start, record.source_end = bounds
-    else:
-        record.params["per_track_source"]["host"] = bounds
-    project.editorial.edit_log = [record]
-    before = project.model_dump_json()
-    for restore in (require_applied_edit_restore, revert_applied_edit):
-        with pytest.raises(LocalRestoreRequiresHistory) as refused:
-            if restore is revert_applied_edit:
-                restore(project, record.id, defaults=load_defaults())
-            else:
-                restore(project, record.id)
-        assert refused.value.code == "local_restore_requires_history"
-        assert str(refused.value) == RESTORE_MESSAGE
-        assert project.model_dump_json() == before
-
-
-@pytest.mark.parametrize(
-    "mapping",
-    [
-        None,
-        [],
-        "bad",
-        1,
-        {"host": None},
-        {"host": "12"},
-        {"host": [1]},
-        {"host": [1, 2, 3]},
-        {"host": {"start": 1, "end": 2}},
-        {"host": [1, 2], "unused": ["NaN", 2]},
-        {"host": [1, 2], "unused": "bad"},
-    ],
-)
-def test_restore_rejects_complete_malformed_mapping(tmp_path, mapping, monkeypatch):
-    project = _project(tmp_path)
-    project.editorial.edit_log = [
-        AppliedEditRecord(
-            id="invalid-mapping",
-            applied_at="2026-01-01T00:00:00+00:00",
-            operation="approve_edits",
-            track_ids=["host"],
-            source_start=1,
-            source_end=2,
-            params={"mute": True, "per_track_source": mapping},
-        )
-    ]
-    project.clips[0].mute_regions = [ClipMuteRegion(start_s=1, end_s=2)]
-    before = project.model_dump_json()
-
-    def unexpected_subtraction(*_args):
-        pytest.fail("invalid complete plan reached subtraction")
-
-    monkeypatch.setattr("podcast_mcp.edits.edit_log.subtract_source_mute", unexpected_subtraction)
-    with pytest.raises(LocalRestoreRequiresHistory) as refused:
-        revert_applied_edit(project, "invalid-mapping", defaults=load_defaults())
-    assert str(refused.value) == RESTORE_MESSAGE
-    assert project.model_dump_json() == before
-
-
-@pytest.mark.parametrize(
-    "params", [{}, {"per_track_source": {}}, {"per_track_source": {"host": ("1", "2")}}]
-)
-def test_restore_removes_only_bounded_intersection(tmp_path, params):
+def test_restore_removes_only_bounded_intersection(tmp_path):
     project = _project(tmp_path)
     fill = RoomToneFill(start_s=5, end_s=5.5)
     region = ClipMuteRegion(start_s=0.5, end_s=2.5, fill=fill, fade_out_ms=7, fade_in_ms=9)
@@ -582,11 +461,13 @@ def test_restore_removes_only_bounded_intersection(tmp_path, params):
             track_ids=["host"],
             source_start=1,
             source_end=2,
-            params={"mute": True, **params},
+            params={"mute": True},
+            inverse=UnmuteSource(spans=[{"track_id": "host", "start": 1, "end": 2}]),
         )
     ]
-    assert require_applied_edit_restore(project, "bounded") is project.editorial.edit_log[0]
-    result = revert_applied_edit(project, "bounded", defaults=load_defaults())
+    plans, conflicts = plan_restores(project, ["bounded"])
+    assert conflicts == []
+    result = apply_restores(project, plans, defaults=load_defaults())
     assert result["operation"] == "revert_applied_edit"
     assert project.clips[0].mute_regions == [
         region.model_copy(update={"end_s": 1}),
@@ -600,66 +481,3 @@ def test_restore_removes_only_bounded_intersection(tmp_path, params):
     ) == geometry
     assert project.timeline.duration_sec == 6
     assert project.editorial.edit_log == []
-
-
-def test_persisted_invalid_later_track_refuses_before_history(tmp_path, monkeypatch):
-    project = _project(tmp_path)
-    guest = project.tracks[0].model_copy(update={"id": "guest", "label": "Guest"})
-    guest.media = guest.media.model_copy(update={"path": "raw/guest.wav"})
-    project.tracks.append(guest)
-    (project.workspace_path() / "raw" / "guest.wav").write_bytes(
-        (project.workspace_path() / "raw" / "host.wav").read_bytes()
-    )
-    project.clips.append(project.clips[0].model_copy(update={"id": "guest", "track_id": "guest"}))
-    mute = _cut("mute", 1, 2, reason="filler:um")
-    mute.type = EditDecisionType.MUTE
-    project.edit_decisions = [mute]
-    project.transcripts = [
-        Transcript(track_id="host", words=[TranscriptWord(text="um", start=1.2, end=1.6)])
-    ]
-    REFINE_GATE.mark_done(
-        project, notes="Known synthetic transcript fixture; no real-project acceptance"
-    )
-    ws = ProjectWorkspace.open(save_project(project))
-    assert EditService(ws).approve(["mute"]) == 1
-    record = ws.project.editorial.edit_log[0]
-    record.track_ids = ["host", "guest"]
-    record.params["per_track_source"] = {"host": [1, 2], "guest": ["NaN", 2]}
-    for clip in ws.project.clips:
-        clip.mute_regions = [
-            ClipMuteRegion(
-                start_s=0.5,
-                end_s=2.5,
-                fill=RoomToneFill(start_s=5, end_s=5.5),
-                fade_out_ms=7,
-                fade_in_ms=9,
-            ),
-            ClipMuteRegion(start_s=4, end_s=5, fade_out_ms=3, fade_in_ms=4),
-        ]
-    ws.project.render.last_completed_step = "render_tracks"
-    ws.project.render.artifacts.premix = "artifacts/premix.wav"
-    ws.project.render.last_reconciliation_hash = "preserved-render-hash"
-    ws.save()
-    (tmp_path / "artifacts" / "premix.wav").write_bytes(b"preserved-premix")
-    (tmp_path / "artifacts" / "host.renderhash").write_bytes(b"preserved-sidecar")
-    ws = ProjectWorkspace.open(ws.path)
-    before_memory = ws.project.model_dump_json()
-    before_files = {
-        p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
-    }
-    assert any(str(p).startswith("history/snapshots/") for p in before_files)
-    assert any(str(p).startswith("transcripts/") for p in before_files)
-
-    def unexpected_mutation(*_args, **_kwargs):
-        pytest.fail("invalid complete plan started workspace mutation/history")
-
-    monkeypatch.setattr(ws, "mutate", unexpected_mutation)
-    with pytest.raises(LocalRestoreRequiresHistory) as refused:
-        EditService(ws).revert_applied(record.id)
-    assert refused.value.code == "local_restore_requires_history"
-    assert str(refused.value) == RESTORE_MESSAGE
-    assert ws.project.model_dump_json() == before_memory
-    assert load_project(ws.path).model_dump_json() == before_memory
-    assert {
-        p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
-    } == before_files

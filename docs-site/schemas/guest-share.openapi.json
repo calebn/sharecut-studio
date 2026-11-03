@@ -6713,14 +6713,24 @@
         "type": "object"
       },
       "RestoreAppliedEditPayload": {
+        "additionalProperties": false,
         "properties": {
-          "id": {
-            "title": "Id",
-            "type": "string"
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
           }
         },
         "required": [
-          "id"
+          "ids"
         ],
         "title": "RestoreAppliedEditPayload",
         "type": "object"

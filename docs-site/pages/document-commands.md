@@ -75,7 +75,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `ReorderTrack` | `index` (integer), `track_id` (string) | — |
 | `ReplaceTranscriptMatches` | `preview_token` (string), `replacement` (string), `search` (string) | `match_case` (boolean) |
 | `ResolveComment` | `by` (string), `comment_id` (string) | `resolved` (boolean) |
-| `RestoreAppliedEdit` | `id` (string) | — |
+| `RestoreAppliedEdit` | `ids` (array[string]) | `dry_run` (boolean) |
 | `RestoreClipBleed` | `target` (object) | — |
 | `RippleDeleteText` | `query` (string) | `override_audio_checks` (boolean), `use_inaudible_opt` (boolean \| null) |
 | `RollClipJoin` | `delta_sec` (number), `expected_token` (string), `left_clip_id` (string), `right_clip_id` (string) | — |

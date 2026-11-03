@@ -7,11 +7,11 @@ import json
 import logging
 import sqlite3
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 from uuid import uuid4
 
 from podcast_mcp.edits.audio_check_override import OVERRIDE_FLAG, audio_check_override
@@ -19,6 +19,7 @@ from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError
 from podcast_mcp.edits.clip_fades import ClipFadeChangedError
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.decisions import PendingEditChangedError
+from podcast_mcp.edits.edit_log import RestoreResult
 from podcast_mcp.edits.range_target import RangeChangedError
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
@@ -210,6 +211,35 @@ def _stored_asks(row: dict[str, Any]) -> dict[str, Any]:
     result = (row.get("payload") or {}).get("result")
     ask = result.get("needs_confirmation") if isinstance(result, dict) else None
     return {"needs_confirmation": ask} if ask is not None else {}
+
+
+def dry_run_result(ws: ProjectWorkspace, command: DocumentCommand) -> RestoreResult | None:
+    """What ``command`` returns without changing anything, or None when it is a real edit.
+
+    A dry run, and a Restore that plans to a conflict, read the project and write nothing,
+    so neither leaves a journal row or advances ``server_seq``.
+    """
+    if command.type == "RestoreAppliedEdit":
+        from podcast_mcp.services.document import EditService
+
+        planned = RestoreResult.model_validate(
+            EditService(ws).revert_applied(command.payload["ids"], dry_run=True)
+        )
+        if command.payload.get("dry_run") or planned.status == "conflict":
+            return planned
+    return None
+
+
+class RestoreConflictsAsk(TypedDict, total=False):
+    restore_conflicts: list[dict[str, Any]]
+
+
+def _restore_conflicts(command: DocumentCommand, result: Mapping[str, Any]) -> RestoreConflictsAsk:
+    """The conflicts of a refused Restore at the top of the reply, which a guest's
+    sanitized ``command`` no longer carries."""
+    if command.type == "RestoreAppliedEdit" and result.get("status") == "conflict":
+        return {"restore_conflicts": result["conflicts"]}
+    return {}
 
 
 def _journal_server_seq(store: SyncStore) -> int:
@@ -588,6 +618,39 @@ class DocumentSyncService:
         # the project lock (30 s, then filelock.Timeout), not on sqlite's busy timeout; a
         # busy sqlite lock that escapes anyway maps to the same 503 / project_busy in the
         # routes.
+        # A non-dry command whose command_id is already journaled is a retry: it skips the
+        # plan and takes the stored result below. A dry run keeps no row, so it always plans.
+        is_retry = (
+            command.type == "RestoreAppliedEdit"
+            and not command.payload.get("dry_run")
+            and existing_document_command(self.store, command) is not None
+        )
+        planned = None if is_retry else dry_run_result(self.ws, command)
+        if planned is not None:
+            planned_result = planned.model_dump()
+            seq = _journal_server_seq(self.store)
+            reply: dict[str, Any] = {
+                "ok": True,
+                "type": "Applied",
+                "command": {
+                    "command_id": command.command_id,
+                    "client_id": command.client_id,
+                    "client_seq": command.client_seq,
+                    "role": command.role,
+                    "type": command.type,
+                    "payload": {**command.payload, "result": planned_result},
+                    "server_seq": seq,
+                },
+                "server_seq": seq,
+                **_restore_conflicts(command, planned_result),
+            }
+            if command.payload.get("dry_run"):
+                reply["dry_run"] = True
+            if audience == "guest":
+                from podcast_mcp.services.collaboration import sanitize_guest_document_event
+
+                return sanitize_guest_document_event(reply)
+            return reply
         with self._journal_write_lock() as store:
             # The file this command applies on top of, after transaction() adopted any
             # outside write; clients chain it to the last file they received (#657).
@@ -681,6 +744,7 @@ class DocumentSyncService:
         # guest) gets the confirmation to show, beside the sanitized event.
         confirmation = result_payload.get("needs_confirmation")
         asks = {"needs_confirmation": confirmation} if confirmation is not None else {}
+        asks.update(_restore_conflicts(command, result_payload))
         # The entry this command left at the head, read under the same lock as the apply:
         # a toast offers Undo for exactly this change, and the client's next own history
         # move expects it. Null when history did not move. The id is opaque, so guests

@@ -275,14 +275,13 @@ def test_update_pending_and_revert_mcp_tools(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         "podcast_mcp.mcp.tools.edits.EditService.revert_applied",
-        lambda self, record_id: {"operation": "revert_applied_edit", "id": record_id},
+        lambda self, ids, dry_run=False: {"status": "restored", "summary": {"ids": ids}},
     )
     updated = json.loads(mcp_server.update_pending_edit_tool(path, "e1", 0.25, 0.55, snap=False))
     assert updated["operation"] == "update_pending_edit"
     assert updated["edit"]["start"] == 0.25
-    reverted = json.loads(mcp_server.revert_applied_edit_tool(path, "alog_1"))
-    assert reverted["operation"] == "revert_applied_edit"
-    assert reverted["id"] == "alog_1"
+    reverted = json.loads(mcp_server.revert_applied_edit_tool(path, ["alog_1"]))
+    assert reverted == {"status": "restored", "summary": {"ids": ["alog_1"]}}
 
 
 def test_mcp_update_and_revert_mute(tmp_path):
@@ -308,10 +307,10 @@ def test_mcp_update_and_revert_mute(tmp_path):
     with patch.object(
         EditService,
         "revert_applied",
-        lambda self, record_id: {"operation": "revert_applied_edit", "id": record_id},
+        lambda self, ids, dry_run=False: {"status": "restored", "summary": {"ids": ids}},
     ):
-        reverted = json.loads(mcp_server.revert_applied_edit_tool(path, "alog_1"))
-    assert reverted["operation"] == "revert_applied_edit"
+        reverted = json.loads(mcp_server.revert_applied_edit_tool(path, ["alog_1"]))
+    assert reverted["status"] == "restored"
     with patch.object(TimelineService, "join_label", return_value={"ok": True}):
         labeled = json.loads(
             mcp_server.join_label_tool(path, join_sec=1.0, verdict="pass", track_id="host")
