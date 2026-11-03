@@ -336,12 +336,46 @@ def test_a_host_only_spec_has_no_guest_role_and_a_propose_only_one_is_a_commente
         spec(host_only_reason=" ")
 
 
+def test_a_spec_needs_exactly_one_of_a_guest_role_a_host_only_reason_or_the_comments_family() -> (
+    None
+):
+    base = COMMANDS["DeleteChapter"]
+
+    def spec(**role: Any) -> CommandSpec:
+        return CommandSpec(
+            payload=base.payload,
+            handler=base.handler,
+            gui=GUI_SENT,
+            mcp=GUI_SENT,
+            cli=GUI_SENT,
+            **role,
+        )
+
+    with pytest.raises(CodedValueError, match="exactly one"):
+        spec()
+    with pytest.raises(CodedValueError, match="exactly one"):
+        spec(host_only_reason="x", family="comments")
+    assert spec(guest=ReviewRole.EDITOR).guest is ReviewRole.EDITOR
+    assert spec(host_only_reason="x").host_only_reason == "x"
+    assert spec(family="comments").family == "comments"
+
+
 def test_a_command_type_missing_from_the_registry_fails_the_completeness_check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     short = {t: s for t, s in COMMANDS.items() if t != "RenameProject"}
     monkeypatch.setattr(registry, "COMMANDS", short)
     with pytest.raises(RuntimeError, match=r"missing .*RenameProject"):
+        registry._check_complete()
+
+
+def test_a_payload_model_without_a_registry_spec_fails_the_completeness_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        registry.p, "PAYLOAD_MODELS", {**registry.p.PAYLOAD_MODELS, "Invented": BaseModel}
+    )
+    with pytest.raises(RuntimeError, match=r"payload.*Invented"):
         registry._check_complete()
 
 
@@ -379,6 +413,9 @@ def test_the_registry_check_is_two_sided() -> None:
 
 
 def test_types_the_gui_never_sends_are_unaudited_for_agents_and_that_list_only_shrinks() -> None:
+    assert len(UNAUDITED_TYPES) <= 29, (
+        "UNAUDITED_TYPES may only shrink; audit a type, do not add one"
+    )
     assert sorted(t for t, s in COMMANDS.items() if s.gui is NO_GUI_SENDER) == UNAUDITED_TYPES
     assert sorted(t for t, s in COMMANDS.items() if s.mcp is UNAUDITED) == UNAUDITED_TYPES
     assert sorted(t for t, s in COMMANDS.items() if s.cli is UNAUDITED) == UNAUDITED_TYPES

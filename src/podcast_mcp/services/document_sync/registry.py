@@ -136,6 +136,16 @@ class CommandSpec:
             raise CodedValueError(
                 "only a Commenter-level command can be propose-only", code="command_spec_invalid"
             )
+        grants = (
+            self.guest is not None,
+            self.host_only_reason is not None,
+            self.family == "comments",
+        )
+        if sum(grants) != 1:
+            raise CodedValueError(
+                "a command needs exactly one of a guest role, a host-only reason or the comments family",
+                code="command_spec_invalid",
+            )
         if self.family == "comments" and self.guest is not None:
             raise CodedValueError(
                 "comment commands take the comment path, not a document role",
@@ -145,10 +155,7 @@ class CommandSpec:
 
 GUI_SENT = named("gui/web/src")
 NO_GUI_SENDER = exempt("the GUI sends no such command; agents and batch tools do")
-UNAUDITED = gap(
-    "not audited: edit-surface.json listed only GUI-sent commands, "
-    "so this type's MCP and CLI twins are unrecorded (#3115 slice 3)"
-)
+UNAUDITED = gap("not audited: this type has no GUI sender, so its MCP and CLI twins are unrecorded")
 
 COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
     {
@@ -262,7 +269,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=named("revert_applied_edit_tool"),
-            cli=gap("Found by this contract (#3114): revert_applied_edit_tool has no CLI twin"),
+            cli=gap("revert_applied_edit_tool has no CLI twin"),
         ),
         "RestoreClipBleed": CommandSpec(
             payload=p.RestoreClipBleedPayload,
@@ -278,7 +285,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=named("set_clip_fade_tool"),
-            cli=gap("Audit B: daw.edit.setClipFade has MCP only"),
+            cli=gap("daw.edit.setClipFade has MCP only"),
         ),
         "TrimClipEdge": CommandSpec(
             payload=p.TrimClipEdgePayload,
@@ -456,7 +463,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             family="transcript",
             gui=GUI_SENT,
             mcp=named("set_words_ignored_tool"),
-            cli=gap("Audit B: daw.transcript.ignore has MCP only"),
+            cli=gap("daw.transcript.ignore has MCP only"),
         ),
         "SetTranscriptWordTiming": CommandSpec(
             payload=p.SetTranscriptWordTimingPayload,
@@ -480,8 +487,8 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=markers.update_chapter,
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
-            mcp=gap("Audit A: retitling or moving a chapter has no agent twin"),
-            cli=gap("Audit A: retitling or moving a chapter has no agent twin"),
+            mcp=gap("retitling or moving a chapter has no agent twin"),
+            cli=gap("retitling or moving a chapter has no agent twin"),
         ),
         "DeleteChapter": CommandSpec(
             payload=p.DeleteChapterPayload,
@@ -513,10 +520,10 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=gap(
-                "Audit A: a hand-placed social clip has no agent twin; propose_social_clips_tool only proposes"
+                "a hand-placed social clip has no agent twin; propose_social_clips_tool only proposes"
             ),
             cli=gap(
-                "Audit A: a hand-placed social clip has no agent twin; propose_social_clips_tool only proposes"
+                "a hand-placed social clip has no agent twin; propose_social_clips_tool only proposes"
             ),
         ),
         "UpdateSocialClip": CommandSpec(
@@ -524,16 +531,16 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=markers.update_social_clip,
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
-            mcp=gap("Audit A: trimming a social clip has no agent twin"),
-            cli=gap("Audit A: trimming a social clip has no agent twin"),
+            mcp=gap("trimming a social clip has no agent twin"),
+            cli=gap("trimming a social clip has no agent twin"),
         ),
         "UpdateSocialClipDetails": CommandSpec(
             payload=p.UpdateSocialClipDetailsPayload,
             handler=markers.update_social_clip_details,
             host_only_reason="approving a clip decides what exports, so a share link never retitles or approves one",
             gui=GUI_SENT,
-            mcp=gap("Audit A: editing a social clip's title and details has no agent twin"),
-            cli=gap("Audit A: editing a social clip's title and details has no agent twin"),
+            mcp=gap("editing a social clip's title and details has no agent twin"),
+            cli=gap("editing a social clip's title and details has no agent twin"),
         ),
         "DeleteSocialClip": CommandSpec(
             payload=p.DeleteSocialClipPayload,
@@ -541,10 +548,10 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=gap(
-                "Audit A: no tool deletes a social clip; reject_social_clips_tool changes a proposal's state, not the clip"
+                "no tool deletes a social clip; reject_social_clips_tool changes a proposal's state, not the clip"
             ),
             cli=gap(
-                "Audit A: no tool deletes a social clip; reject_social_clips_tool changes a proposal's state, not the clip"
+                "no tool deletes a social clip; reject_social_clips_tool changes a proposal's state, not the clip"
             ),
         ),
         "SetEnvelope": CommandSpec(
@@ -553,7 +560,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=named("set_envelope"),
-            cli=gap("Audit B: daw.envelope.addPoint has MCP only"),
+            cli=gap("daw.envelope.addPoint has MCP only"),
         ),
         "EditSelectedRange": CommandSpec(
             payload=p.EditSelectedRangePayload,
@@ -615,7 +622,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             family="structural",
             gui=GUI_SENT,
             mcp=named("split_clip_tool"),
-            cli=gap("Audit B: daw.edit.split and daw.edit.bladeCut have MCP only"),
+            cli=gap("daw.edit.split and daw.edit.bladeCut have MCP only"),
         ),
         "DeleteClip": CommandSpec(
             payload=p.DeleteClipPayload,
@@ -666,7 +673,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=named("fill_with_room_tone_tool"),
-            cli=gap("Audit B: daw.range.fillRoomTone has MCP only"),
+            cli=gap("daw.range.fillRoomTone has MCP only"),
         ),
         "ApplyAutoEdits": CommandSpec(
             payload=p.ApplyAutoEditsPayload,
@@ -769,16 +776,16 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=episode.rename_project,
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
-            mcp=gap("Audit A: PR 2676 shipped the GUI rename with no MCP or CLI tool"),
-            cli=gap("Audit A: PR 2676 shipped the GUI rename with no MCP or CLI tool"),
+            mcp=gap("the GUI rename shipped with no MCP or CLI tool"),
+            cli=gap("the GUI rename shipped with no MCP or CLI tool"),
         ),
         "SetRecordSessionName": CommandSpec(
             payload=p.SetRecordSessionNamePayload,
             handler=episode.set_record_session_name,
             host_only_reason="naming a record session edits who the host recorded with",
             gui=GUI_SENT,
-            mcp=gap("Audit A: PR 2797 shipped the record-session rename with no MCP or CLI tool"),
-            cli=gap("Audit A: PR 2797 shipped the record-session rename with no MCP or CLI tool"),
+            mcp=gap("the record-session rename shipped with no MCP or CLI tool"),
+            cli=gap("the record-session rename shipped with no MCP or CLI tool"),
         ),
         "AcceptSessionSuggestion": CommandSpec(
             payload=p.AcceptSessionSuggestionPayload,
@@ -820,7 +827,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=named("track_set_media_tool"),
-            cli=gap("Audit B: daw.media.import has MCP only"),
+            cli=gap("daw.media.import has MCP only"),
         ),
         "SetTrackMeta": CommandSpec(
             payload=p.SetTrackMetaPayload,
@@ -829,7 +836,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             gui=GUI_SENT,
             mcp=named("track_set_meta_tool"),
             cli=gap(
-                "Audit A: track_set_meta_tool calls EpisodeService directly and no CLI sets a track's label, role or speaker"
+                "track_set_meta_tool calls EpisodeService directly and no CLI sets a track's label, role or speaker"
             ),
         ),
         "SetTrackFader": CommandSpec(
@@ -854,7 +861,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=named("track_remove_tool"),
-            cli=gap("Audit B: daw.track.remove has MCP only"),
+            cli=gap("daw.track.remove has MCP only"),
         ),
         "ReorderTrack": CommandSpec(
             payload=p.ReorderTrackPayload,
@@ -874,6 +881,12 @@ def _check_complete() -> None:
         raise RuntimeError(
             "document command registry out of sync with DocumentCommandType: "
             f"missing {sorted(types - set(COMMANDS))}, extra {sorted(set(COMMANDS) - types)}"
+        )
+    if set(p.PAYLOAD_MODELS) != set(COMMANDS):
+        raise RuntimeError(
+            "payload models out of sync with the document command registry: "
+            f"payload without a spec {sorted(set(p.PAYLOAD_MODELS) - set(COMMANDS))}, "
+            f"spec without a payload {sorted(set(COMMANDS) - set(p.PAYLOAD_MODELS))}"
         )
     wrong = sorted(t for t, s in COMMANDS.items() if p.PAYLOAD_MODELS.get(t) is not s.payload)
     if wrong:

@@ -215,7 +215,7 @@ def test_gui_document_command_types_come_from_non_test_gui_sources() -> None:
     assert "Heartbeat" not in sent and "ApplyEditPlan" not in sent
 
 
-def test_edit_surface_file_matches_the_gui_and_passes_the_checker() -> None:
+def test_edit_surface_built_from_the_registry_covers_the_gui_types_and_passes_the_checker() -> None:
     mod = load_script("check_capabilities_manifest")
     data = mod.edit_surface_data()
     schema_types = mod._schema_command_types()
