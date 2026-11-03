@@ -1637,6 +1637,7 @@ describe("TimelineView render isolation", () => {
           source_end: 5,
           reason: null,
           params: {},
+          restore: { state: "history_only" },
         },
       ],
     };

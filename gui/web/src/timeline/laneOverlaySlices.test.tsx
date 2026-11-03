@@ -25,6 +25,7 @@ function record(id: string, trackIds: string[]): AppliedEditRecord {
     source_end: 1,
     reason: null,
     params: {},
+    restore: { state: "history_only" },
   };
 }
 
