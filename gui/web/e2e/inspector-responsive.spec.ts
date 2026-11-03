@@ -165,7 +165,9 @@ for (const {
               "before-visible-pointer-entry",
             );
             await pointerControl(page, identity, receipts, true);
-            const trackInspector = page.locator(".modifier-inspector");
+            const trackInspector = page.getByRole("dialog", {
+              name: "Inspector",
+            });
             for (const name of [`Mute ${track.label}`, `Solo ${track.label}`]) {
               await exposeControl(
                 page,
@@ -173,24 +175,16 @@ for (const {
                 receipts,
               );
             }
-            await exposeControl(
-              page,
-              trackInspector.getByRole("slider", {
-                name: `Volume ${track.label}`,
-                exact: true,
-              }),
-              receipts,
-            );
-            const resetVolume = trackInspector.getByRole("button", {
-              name: "Reset volume to 0 dB",
+            const trackLevel = trackInspector.getByRole("spinbutton", {
+              name: "Level",
               exact: true,
             });
-            await exposeControl(page, resetVolume, receipts);
+            await exposeControl(page, trackLevel, receipts);
             await captureInspector(
               page,
               info,
               receipts,
-              "track-volume-reset-full-control",
+              "track-level-full-control",
             );
             const clearClip = trackInspector.getByRole("button", {
               name: `Clear clip light for ${track.label}`,
@@ -198,7 +192,13 @@ for (const {
             });
             await exposeControl(page, clearClip, receipts);
             const controlFonts = await Promise.all(
-              [clearClip, resetVolume].map((control) =>
+              [
+                clearClip,
+                trackInspector.getByRole("button", {
+                  name: "Show volume envelope",
+                  exact: true,
+                }),
+              ].map((control) =>
                 control.evaluate(
                   (element) => getComputedStyle(element).fontSize,
                 ),
@@ -219,7 +219,7 @@ for (const {
               receipts,
               "track-clear-clip-full-control",
             );
-            for (const name of ["Track label", "Track speaker", "Track role"]) {
+            for (const name of ["Name", "Speaker", "Role"]) {
               await exposeControl(
                 page,
                 trackInspector.getByLabel(name, { exact: true }),

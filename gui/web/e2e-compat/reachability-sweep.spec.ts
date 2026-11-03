@@ -233,7 +233,7 @@ async function sweepCell(
   const trigger = page.locator(".sys-track-main").first();
   await trigger.focus();
   await trigger.press("Enter");
-  const surface = sheet ? SHEET : "aside.inspector";
+  const surface = SHEET;
   await expect(page.locator(surface)).toBeVisible();
   await settle(page);
   found["track surface"] = await reachFailures(page, {
@@ -241,10 +241,8 @@ async function sweepCell(
     dense: DENSE,
     sizeExempt: SIZE_EXEMPT,
   });
-  if (sheet) {
-    await page.locator(SHEET).getByRole("button", { name: "Close" }).click();
-    await expect(page.locator(SHEET)).toHaveCount(0);
-  }
+  await page.locator(SHEET).getByRole("button", { name: "Close" }).click();
+  await expect(page.locator(SHEET)).toHaveCount(0);
 
   found["clip surface"] = await clipSurface(page, sheet);
 
@@ -371,7 +369,7 @@ async function sweepSeededTrack(
     const trigger = page.locator(".sys-track-main").first();
     await trigger.focus();
     await trigger.press("Enter");
-    const surface = cell.width <= 1194 ? SHEET : "aside.inspector";
+    const surface = SHEET;
     await expect(page.locator(surface)).toBeVisible();
     await expect(
       page.getByRole("checkbox", { name: /^Bypass / }).first(),

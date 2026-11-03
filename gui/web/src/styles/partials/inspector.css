@@ -284,6 +284,43 @@ html[data-shell="phone"]
   min-inline-size: 0;
 }
 
+.track-sheet-field {
+  inline-size: 100%;
+  min-block-size: var(--control-height);
+}
+
+select.track-sheet-field {
+  block-size: var(--control-height);
+}
+
+.track-sheet-bypass {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-caption);
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .track-sheet-field,
+  .track-sheet-bypass {
+    min-block-size: var(--touch-min);
+  }
+
+  select.track-sheet-field {
+    block-size: var(--touch-min);
+  }
+}
+
+html[data-shell="phone"] .track-sheet-field,
+html[data-shell="phone"] .track-sheet-bypass {
+  min-block-size: var(--touch-min);
+}
+
+html[data-shell="phone"] select.track-sheet-field {
+  block-size: var(--touch-min);
+}
+
 .inspector-body {
   white-space: pre-wrap;
   margin: var(--space-3) 0;

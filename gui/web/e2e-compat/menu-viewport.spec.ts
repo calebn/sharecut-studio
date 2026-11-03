@@ -54,7 +54,7 @@ for (const mode of ["native", "fallback"] as const) {
       });
     }
 
-    async function checkTrackActions(
+    async function checkSmoothAllJoins(
       page: Page,
       width: number,
       detent: "half" | "full",
@@ -73,11 +73,11 @@ for (const mode of ["native", "fallback"] as const) {
           await expect(grip).toHaveAttribute("aria-valuetext", "Full height");
         }
 
-        await sheet.getByRole("button", { name: "Track actions" }).tap();
-        const menu = page.getByRole("menu", { name: "Track actions" });
-        await expect(menu).toBeVisible();
+        const smooth = sheet.getByRole("button", { name: "Smooth all joins" });
+        await smooth.scrollIntoViewIfNeeded();
+        await expect(smooth).toBeVisible();
 
-        const box = await menu.boundingBox();
+        const box = await smooth.boundingBox();
         const viewport = await viewportBox(page);
         const where = `${width} wide, ${detent} detent`;
         expect(box, where).not.toBeNull();
@@ -89,20 +89,13 @@ for (const mode of ["native", "fallback"] as const) {
         expect(box!.y + box!.height, where).toBeLessThanOrEqual(
           viewport.top + viewport.height,
         );
-
-        const first = menu.getByRole("menuitem").first();
-        await expect(first).toHaveAccessibleName("Smooth all joins");
-        const itemBox = await first.boundingBox();
-        expect(itemBox!.height).toBeGreaterThanOrEqual(44);
+        expect(box!.height, where).toBeGreaterThanOrEqual(44);
         const topmost = await page.evaluate(
           ({ x, y }) => {
             const hit = document.elementFromPoint(x, y);
-            return hit?.closest('[role="menuitem"]')?.textContent ?? null;
+            return hit?.closest("button")?.textContent ?? null;
           },
-          {
-            x: itemBox!.x + itemBox!.width / 2,
-            y: itemBox!.y + itemBox!.height / 2,
-          },
+          { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 },
         );
         expect(topmost, where).toBe("Smooth all joins");
 
@@ -111,18 +104,17 @@ for (const mode of ["native", "fallback"] as const) {
             request.method() === "POST" &&
             (request.postData() ?? "").includes("ApplyFadeRecommendations"),
         );
-        await first.tap();
+        await smooth.tap();
         await applied;
-        await expect(menu).toHaveCount(0);
       });
     }
 
-    test("Track actions opens inside a 390 and a 393 wide phone viewport in both detents and its first item works", async ({
+    test("Smooth all joins in the track sheet stays inside a 390 and a 393 wide phone viewport in both detents and works", async ({
       page,
     }) => {
       for (const width of [390, 393]) {
         for (const detent of ["half", "full"] as const) {
-          await checkTrackActions(page, width, detent);
+          await checkSmoothAllJoins(page, width, detent);
         }
       }
     });
