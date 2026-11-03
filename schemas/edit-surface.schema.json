@@ -3,7 +3,7 @@
   "$id": "https://sharecut.studio/schemas/edit-surface.schema.json",
   "title": "Edit surface",
   "type": "object",
-  "required": ["api_version", "commands", "manifest_rows_without_cli", "manifest_rows_without_mcp"],
+  "required": ["api_version", "manifest_rows_without_cli", "manifest_rows_without_mcp"],
   "additionalProperties": false,
   "properties": {
     "api_version": { "type": "integer", "const": 1 },
