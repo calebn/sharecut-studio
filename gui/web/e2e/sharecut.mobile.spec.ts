@@ -55,6 +55,7 @@ async function expectInspectorFooterTouchTargets(page: Page) {
     sheet.getByRole("button", { name: "Replace audio…" }),
     sheet.getByRole("button", { name: "Remove track", exact: true }),
     sheet.getByRole("button", { name: "Smooth all joins" }),
+    ...(await sheet.getByRole("button", { name: /^Split speakers/ }).all()),
   ];
   for (const control of all) {
     await control.scrollIntoViewIfNeeded();

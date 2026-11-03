@@ -51,7 +51,7 @@ test.describe("feedback host Close", () => {
       await details.focus();
       await details.press("Enter");
       await page
-        .locator(".modifier-inspector")
+        .getByRole("dialog", { name: "Inspector" })
         .getByRole("button", { name: "Remove track", exact: true })
         .click();
       const commands = watchCommands(page);
