@@ -1102,6 +1102,53 @@ describe("Deliver host clip titles and approvals", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("unapproves an approved clip with one command", async () => {
+    server.held.social_clips = [APPROVED];
+    useDawStore
+      .getState()
+      .setProject(projectAt("h1", { social_clips: [APPROVED] }));
+    render(<DeliverStage />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Unapprove A line" }),
+    );
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()).toEqual([
+      ["UpdateSocialClipDetails", { id: "s1", approved: false }],
+    ]);
+    await waitFor(() =>
+      expect(useDawStore.getState().project?.social_clips[0]?.approved).toBe(
+        false,
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "Approve A line" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("queues an unapprove while the server is busy, and sends once it can", async () => {
+    network.mode = "down";
+    server.held.social_clips = [APPROVED];
+    useDawStore
+      .getState()
+      .setProject(projectAt("h1", { social_clips: [APPROVED] }));
+    render(<DeliverStage />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Unapprove A line" }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Not saved yet",
+    );
+    expect(wire.rows).toHaveLength(1);
+    network.mode = "up";
+    await act(async () => requestHostDrain(PATH));
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    expect(useDawStore.getState().project?.social_clips[0]?.approved).toBe(
+      false,
+    );
+    expect(wire.rows).toHaveLength(0);
+  });
+
   it("says it is waiting when the server is busy, and sends once it can", async () => {
     network.mode = "down";
     render(<DeliverStage />);
