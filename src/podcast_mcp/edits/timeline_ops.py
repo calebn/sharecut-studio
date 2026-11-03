@@ -21,6 +21,7 @@ from podcast_mcp.edits.inaudible_cuts import (
     recommend_micro_fades,
 )
 from podcast_mcp.edits.join_modes import clamp_clip_fades
+from podcast_mcp.edits.reinsert import capture_anchors, capture_seams
 from podcast_mcp.edits.ripple import (
     RippleRemoval,
     TrackExtent,
@@ -98,6 +99,7 @@ from podcast_mcp.models import (
     CutSpeech,
     EditMode,
     EpisodeProject,
+    ReinsertClips,
     RoomToneFill,
 )
 from podcast_mcp.util.change_summary import change_summary
@@ -181,6 +183,16 @@ def plan_ripple_delete(
     )
 
 
+@dataclass(frozen=True)
+class RippledSpan:
+    """One span a ripple removed: its seam clocks and, when restorable, how to put it back."""
+
+    start: float
+    end: float
+    per_track_source: dict[str, list[float]]
+    inverse: ReinsertClips | None
+
+
 def _write_ripple_delete(
     project: EpisodeProject,
     removal: RippleRemoval,
@@ -191,22 +203,28 @@ def _write_ripple_delete(
     defaults: EffectiveConfig,
     remap_anchors: bool = True,
     rebuild: bool = True,
+    restorable: bool = True,
+    spans_out: list[RippledSpan] | None = None,
 ) -> dict:
     """Ripple-remove ``removal`` on every :func:`ripple_track_ids` track.
 
     Spans apply latest first, each with its transcript archive, comment remap and
-    (with ``record_log``) one applied-edit record. The returned change summary echoes
-    the first span's ``timeline_start``/``timeline_end`` and ``per_track_source``
-    (``{track_id: [pre, post]}`` seam clocks from :func:`seam_source_by_track`), even
-    with ``record_log=False``: approve/prefix removals archive them from this report.
-    Add the key to any schema or typed output built over it. ``remap_anchors=False`` leaves
-    comments and chapters where they are and ``rebuild=False`` leaves the combined transcript
-    for the caller to rebuild.
+    (with ``record_log``) one applied-edit record carrying its :class:`ReinsertClips`
+    inverse. ``spans_out`` receives every span in timeline order with the same inverse,
+    so a caller that archives on its own (``record_log=False``) writes one record per
+    span. The returned change summary echoes the first span's ``timeline_start``/
+    ``timeline_end`` and ``per_track_source`` (``{track_id: [pre, post]}`` seam clocks
+    from :func:`seam_source_by_track`). Add the key to any schema or typed output built
+    over it. ``remap_anchors=False`` leaves comments and chapters where they are and
+    ``rebuild=False`` leaves the combined transcript for the caller to rebuild; that
+    caller owns the anchors, so the cut has no inverse unless ``restorable`` and
+    ``remap_anchors`` both hold.
     """
     tracks = ripple_track_ids(project, removal.edited_track_ids)
-    seams: list[dict[str, list[float]]] = []
+    done: list[RippledSpan] = []
     for start, end in reversed(removal.spans):
         bounds = [(start, end)]
+        comments, chapters = project.review.comments, project.editorial.chapters
         clips_before = ripple_remove_clips(project, bounds, tracks, defaults=defaults)
         apply_batch_transcript_removes(
             project, bounds, clips_before, rebuild=rebuild, defaults=defaults
@@ -214,7 +232,16 @@ def _write_ripple_delete(
         if remap_anchors:
             remap_review_anchors_for_cuts(project, bounds)
         per_track_source = seam_source_by_track(clips_before, start, end)
-        seams.append(per_track_source)
+        inverse = None
+        if restorable and remap_anchors:
+            seams, edges = capture_seams(clips_before, project, start, end, defaults=defaults)
+            inverse = ReinsertClips(
+                duration_sec=end - start,
+                tracks=seams,
+                anchors=capture_anchors(comments, chapters, start, end),
+                edges=edges,
+            )
+        done.append(RippledSpan(start, end, per_track_source, inverse))
         if record_log:
             archive_timeline_op(
                 project,
@@ -227,19 +254,23 @@ def _write_ripple_delete(
                     "per_track_source": per_track_source,
                     **cut_speech_params(cut_speech),
                 },
+                inverse=inverse,
             )
     update_timeline_duration(project)
-    first_start, first_end = removal.spans[0]
+    spans = done[::-1]
+    first = spans[0]
+    if spans_out is not None:
+        spans_out.extend(spans)
     return change_summary(
         project,
         operation="ripple_delete",
         affected_tracks=tracks,
         **{
             **(params or {}),
-            "timeline_start": first_start,
-            "timeline_end": first_end,
-            "span_count": len(removal.spans),
-            "per_track_source": seams[-1],
+            "timeline_start": first.start,
+            "timeline_end": first.end,
+            "span_count": len(spans),
+            "per_track_source": first.per_track_source,
             **cut_speech_params(cut_speech),
         },
     )
@@ -640,7 +671,12 @@ def _write_ripple_delete_clips(
     """Ripple-delete the selected clips' spans on every :func:`ripple_track_ids` track."""
     track_ids = sorted({c.track_id for c in _clips_by_id(project, clip_ids)})
     report = _write_ripple_delete(
-        project, removal, record_log=False, cut_speech=cut_speech, defaults=defaults
+        project,
+        removal,
+        record_log=False,
+        cut_speech=cut_speech,
+        defaults=defaults,
+        restorable=False,
     )
     if record_log:
         archive_timeline_op(

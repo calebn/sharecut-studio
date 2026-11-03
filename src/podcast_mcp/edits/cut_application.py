@@ -5,8 +5,8 @@ import math
 import subprocess
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import ExitStack
-from dataclasses import dataclass
-from typing import Any, TypeVar, cast
+from dataclasses import dataclass, replace
+from typing import Any, NamedTuple, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -55,6 +55,7 @@ from podcast_mcp.edits.decisions import (
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.join_modes import cap_fade_ms
+from podcast_mcp.edits.reinsert import PadEdges, edge_fade, pad_record
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
 from podcast_mcp.edits.source_removals import (
     STALE_REASON,
@@ -69,6 +70,7 @@ from podcast_mcp.edits.tighten_reasons import (
     is_pause_reason,
 )
 from podcast_mcp.edits.timeline_ops import (
+    RippledSpan,
     _write_punch_delete,
     _write_punch_delete_clips,
     _write_punch_delete_range,
@@ -368,6 +370,11 @@ def _nearest_ripple_join_time(project: EpisodeProject, near_sec: float) -> float
     return best if best is not None and best_dist < 0.1 else near_sec
 
 
+class _PadWrite(NamedTuple):
+    samples: list[dict]
+    pad: PadEdges | None
+
+
 def _apply_replace_gap_pad(
     project: EpisodeProject,
     edit: EditDecision,
@@ -377,17 +384,18 @@ def _apply_replace_gap_pad(
     source_audio_caches: Mapping[str, TrackAudioCache] | None = None,
     effects: list[cut_effects.PadEffect],
     defaults: EffectiveConfig,
-) -> list[dict]:
+) -> _PadWrite:
     gap = edit.replace_gap_sec
     if gap is None or gap <= 0:
-        return []
+        return _PadWrite([], None)
     if getattr(edit, "scope", "session") == "track":
-        return []
+        return _PadWrite([], None)
     pad_start_sec = (
         tl_start
         if exact_seam or is_pause_reason(edit.reason)
         else _nearest_ripple_join_time(project, tl_start)
     )
+    before_ids = {clip.id for clip in project.clips}
     if filler_pad_mode(defaults=defaults) == "room_tone":
         plan = room_tone_pad(
             project,
@@ -396,7 +404,6 @@ def _apply_replace_gap_pad(
             avoid=pending_pad_source_spans(project, edit),
             defaults=defaults,
         )
-        before_ids = {clip.id for clip in project.clips}
         report = insert_bound_room_tone_pad(project, plan, defaults=defaults)
         effect = cut_effects.PadEffect(
             edit.id,
@@ -409,28 +416,47 @@ def _apply_replace_gap_pad(
     else:
         insert_gap(project, pad_start_sec, gap, defaults=defaults)
         samples = []
+    pad_end_sec = pad_start_sec + gap
+    fills = [
+        clip.id
+        for clip in project.clips
+        if clip.id not in before_ids
+        and clip.timeline_start >= pad_start_sec - 1e-6
+        and clip.timeline_end <= pad_end_sec + 1e-6
+    ]
+    left_edge = [
+        clip
+        for tid in dialogue_track_ids(project)
+        for clip in clips_for_track(project, tid)
+        if abs(clip.timeline_end - pad_start_sec) <= _PAD_EDGE_MATCH_SEC
+    ]
+    right_edge = [
+        clip
+        for tid in dialogue_track_ids(project)
+        for clip in clips_for_track(project, tid)
+        if abs(clip.timeline_start - pad_end_sec) <= _PAD_EDGE_MATCH_SEC
+    ]
+    recorded = PadEdges(
+        pad_record(sec=gap, offset_from_seam=pad_start_sec - tl_start, room_tone_clip_ids=fills),
+        [*(edge_fade(c, "out") for c in left_edge), *(edge_fade(c, "in") for c in right_edge)],
+    )
     left_pad_fade_out_ms = pre_pad_fade_out_ms(defaults)
-    for tid in dialogue_track_ids(project):
-        for clip in clips_for_track(project, tid):
-            if abs(clip.timeline_end - pad_start_sec) <= _PAD_EDGE_MATCH_SEC:
-                clip.fade_out_ms = left_pad_fade_out_ms
-    right_pad_edge_sec = pad_start_sec + gap
-    for tid in dialogue_track_ids(project):
-        for clip in clips_for_track(project, tid):
-            if abs(clip.timeline_start - right_pad_edge_sec) <= _PAD_EDGE_MATCH_SEC:
-                cache = (source_audio_caches or {}).get(tid)
-                right_pad_fade_in_ms = recommend_post_pad_fade_in_ms(
-                    project,
-                    tid,
-                    clip.source_start,
-                    next_burst_sec=edit.next_burst_sec,
-                    defaults=defaults,
-                    audio_cache=cache,
-                )
-                if right_pad_fade_in_ms > 0:
-                    clip.fade_in_ms = max(int(clip.fade_in_ms), right_pad_fade_in_ms)
-                    clip.join_in_mode = ClipJoinMode.FADE
-    return samples
+    for clip in left_edge:
+        clip.fade_out_ms = left_pad_fade_out_ms
+    for clip in right_edge:
+        cache = (source_audio_caches or {}).get(clip.track_id)
+        right_pad_fade_in_ms = recommend_post_pad_fade_in_ms(
+            project,
+            clip.track_id,
+            clip.source_start,
+            next_burst_sec=edit.next_burst_sec,
+            defaults=defaults,
+            audio_cache=cache,
+        )
+        if right_pad_fade_in_ms > 0:
+            clip.fade_in_ms = max(int(clip.fade_in_ms), right_pad_fade_in_ms)
+            clip.join_in_mode = ClipJoinMode.FADE
+    return _PadWrite(samples, recorded)
 
 
 _M = TypeVar("_M", bound=BaseModel)
@@ -531,11 +557,22 @@ def _cut_copy(project: EpisodeProject) -> EpisodeProject:
     )
 
 
-_Decided = (
-    tuple[EpisodeProject, tuple[float, float, list[str], dict]]
-    | CutSpeechConfirmation
-    | CutScopeHold
-)
+class SourceRemoved(NamedTuple):
+    """What a source removal wrote: the first span, its tracks and params, and every span's cut."""
+
+    timeline_start: float
+    timeline_end: float
+    track_ids: list[str]
+    params: dict
+    cuts: list[RippledSpan]
+
+    @property
+    def cut(self) -> tuple:
+        """The part a cached verdict must reproduce; the cuts carry ids minted per run."""
+        return tuple(self[:4])
+
+
+_Decided = tuple[EpisodeProject, SourceRemoved] | CutSpeechConfirmation | CutScopeHold
 
 
 def _apply_source_remove(
@@ -726,7 +763,7 @@ def precompute_verdicts(
                 continue
             working = applied[0]
             measured.clear()
-            timeline.applied(applied[1][0])
+            timeline.applied(applied[1].timeline_start)
     return checked
 
 
@@ -745,12 +782,7 @@ def _check_source_remove(
     key: str | None,
     cached: verdict_cache.CachedVerdict | None,
     verify: verdict_cache.CachedVerdict | None = None,
-) -> (
-    tuple[EpisodeProject, tuple[float, float, list[str], dict]]
-    | CutSpeechConfirmation
-    | CutScopeHold
-    | None
-):
+) -> tuple[EpisodeProject, SourceRemoved] | CutSpeechConfirmation | CutScopeHold | None:
     """One full check and write; with ``cached``, reuse its observation and skip the check.
 
     Returns ``None`` only for a reused check whose written cut differs from the recorded one.
@@ -795,7 +827,7 @@ def _check_source_remove(
             pads=pads,
             defaults=defaults,
         )
-        written = verdict_cache.written_digest(result)
+        written = verdict_cache.written_digest(result.cut)
         padded = verdict_cache.pads_digest(pads)
         if cached is not None and (written, padded) != (cached.written, cached.pads):
             return None
@@ -858,7 +890,7 @@ def _write_source_remove(
     record_log: bool,
     pads: list[cut_effects.PadEffect],
     defaults: EffectiveConfig,
-) -> tuple[float, float, list[str], dict]:
+) -> SourceRemoved:
     scope = edit.scope or "session"
     tl_start, tl_end = map(float, span)
     pause = prepared_pause is not None
@@ -885,7 +917,7 @@ def _write_source_remove(
         report = _write_punch_delete(
             project, edit.track_id, tl_start, tl_end, record_log=record_log, defaults=defaults
         )
-        return (
+        return SourceRemoved(
             tl_start,
             tl_end,
             [edit.track_id],
@@ -898,8 +930,10 @@ def _write_source_remove(
                 "source_end": actual.end,
                 **({"source_id": edit.source_id} if edit.source_timeline_span is not None else {}),
             },
+            [RippledSpan(tl_start, tl_end, report["per_track_source"], None)],
         )
     assert removal is not None
+    spans: list[RippledSpan] = []
     report = _write_ripple_delete(
         project,
         removal,
@@ -907,11 +941,12 @@ def _write_source_remove(
         record_log=record_log,
         params={"use_inaudible_opt": consumed_inaudible_opt},
         defaults=defaults,
+        spans_out=spans,
     )
     tl_start, tl_end = report["timeline_start"], report["timeline_end"]
     per_track = report["per_track_source"]
     track_ids = list(per_track.keys()) or dialogue_track_ids(project) or [edit.track_id]
-    samples = _apply_replace_gap_pad(
+    samples, pad = _apply_replace_gap_pad(
         project,
         actual,
         tl_start,
@@ -932,7 +967,16 @@ def _write_source_remove(
         else:
             clip.fade_in_ms = edge.milliseconds
             clip.join_in_mode = ClipJoinMode.FADE
-    return (
+    first = spans[0]
+    cuts = [first, *spans[1:]]
+    if pad is not None and first.inverse is not None:
+        cuts[0] = replace(
+            first,
+            inverse=first.inverse.model_copy(
+                update={"pad": pad.pad, "edges": [*first.inverse.edges, *pad.edges]}
+            ),
+        )
+    return SourceRemoved(
         tl_start,
         tl_end,
         track_ids,
@@ -970,6 +1014,7 @@ def _write_source_remove(
             ),
             **cut_speech_params(speech),
         },
+        cuts,
     )
 
 
@@ -1298,17 +1343,21 @@ def approve_edits(
                 continue
             project, report = applied
             measured.clear()
-            tl_start, tl_end, track_ids, params = report
+            tl_start, track_ids, params, cuts = (
+                report.timeline_start,
+                report.track_ids,
+                report.params,
+                report.cuts,
+            )
             if not track_ids:
                 continue
-            archive_decision(
+            archive_removal(
                 project,
                 edit,
                 operation="approve_edits",
-                timeline_start=tl_start,
-                timeline_end=tl_end,
                 track_ids=track_ids,
                 params=params,
+                cuts=cuts,
             )
             receipts = cut_effects.complete_effect_receipts(previous, project, [edit])
             if receipts:
@@ -1395,6 +1444,32 @@ def approve_edits(
     return before - len(project.edit_decisions)
 
 
+def archive_removal(
+    project: EpisodeProject,
+    edit: EditDecision,
+    *,
+    operation: str,
+    track_ids: list[str],
+    params: dict,
+    cuts: Sequence[RippledSpan],
+) -> None:
+    """One applied-edit record per removed span, each with the inverse that puts it back.
+
+    The latest span is written first, as :func:`_write_ripple_delete` writes its own.
+    """
+    for span in reversed(cuts):
+        archive_decision(
+            project,
+            edit,
+            operation=operation,
+            timeline_start=span.start,
+            timeline_end=span.end,
+            track_ids=track_ids,
+            params={**params, "per_track_source": span.per_track_source},
+            inverse=span.inverse,
+        )
+
+
 def _apply_auto_removes(
     project: EpisodeProject,
     removes: list[EditDecision],
@@ -1424,21 +1499,20 @@ def _apply_auto_removes(
             batch.pop(edit.id)
             continue
         project, report = applied
-        tl_start, tl_end, track_ids, params = report
+        track_ids, params, cuts = report.track_ids, report.params, report.cuts
         if not track_ids:
             continue
         edit.start = params["source_start"]
         edit.end = params["source_end"]
         edit.crossfade_ms = params.get("crossfade_ms", edit.crossfade_ms)
         edit.replace_gap_sec = params["replace_gap_sec"]
-        archive_decision(
+        archive_removal(
             project,
             edit,
             operation="apply_prefix_edits",
-            timeline_start=tl_start,
-            timeline_end=tl_end,
             track_ids=track_ids,
             params={**params, "config_key": config_key},
+            cuts=cuts,
         )
         if cut_effects.complete_effect_receipts(previous, project, [edit]):
             held.add(edit.id)
