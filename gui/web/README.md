@@ -125,12 +125,10 @@ many, long-name, saved/implied mute, read-only, loading, and empty fixtures.
 `TrackMix` owns one non-hot selector and projects rows outside it; the view owns
 only list composition and shared control presentation.
 
-`Templates/TrackFader` uses the production `TrackFaderView` shared with the
-inspector and compact Mix rows. Controlled fixtures cover Reset and focus return, read-only saved
-volume, stale Balance, non-dialogue tracks, and a 360px frame. The view keeps
-range drafts and their output notes together. The live `TrackFader` adapter
-retains capability checks and dispatches native-change commits through
-`track.setVolume`; stories use local saved dB state and callback spies.
+`Templates/TrackFader` uses the production `TrackFaderView` of the compact Mix
+rows. Controlled fixtures cover double-click reset, read-only saved volume and a
+360px frame. The view keeps range drafts and their output together; stories use
+local saved dB state and callback spies.
 `Templates/InspectorSeekFooter` shows the production `InspectorSeekFooterView`
 shared by the modifier inspectors: seek and play actions, seek-only footers,
 preview modes with a blocked-skip reason, and a 360px footer. The live

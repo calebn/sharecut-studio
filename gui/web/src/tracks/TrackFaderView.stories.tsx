@@ -50,31 +50,18 @@ const meta: Meta<typeof TrackFaderView> = {
     trackLabel: "Mira voice",
     savedDb: -3,
     access: { kind: "edit", onCommit: fn() },
-    presentation: {
-      kind: "detailed",
-      stagingDb: -2,
-      balance: { state: "current", measuredLufs: -24.5, ungated: false },
-    },
+    presentation: { kind: "compact", descriptionId: "fader-story-note" },
   },
 };
 export default meta;
 type Story = StoryObj<typeof TrackFaderView>;
-export const Detailed: Story = {
+export const Compact: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const slider = canvas.getByRole("slider", { name: "Volume Mira voice" });
     await expect(slider).toHaveValue("-3");
-    await expect(
-      canvas.getByText("Staging gain −2.0 dB; plays at −5.0 dB"),
-    ).toBeVisible();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Reset volume to 0 dB" }),
-    );
+    await userEvent.dblClick(slider);
     await expect(slider).toHaveValue("0");
-    await expect(slider).toHaveFocus();
-    await expect(
-      canvas.getByRole("button", { name: "Reset volume to 0 dB" }),
-    ).toBeDisabled();
     if (args.access.kind === "edit")
       await expect(args.access.onCommit).toHaveBeenCalledWith(0);
   },
@@ -86,32 +73,7 @@ export const ReadOnly: Story = {
     await expect(
       canvas.getByRole("slider", { name: "Volume Mira voice" }),
     ).toBeDisabled();
-    await expect(canvas.getByRole("slider")).toHaveAccessibleDescription(
-      /^Only the host and editors can change the volume\./,
-    );
     await expect(canvas.getByRole("status")).toHaveTextContent("−3.0 dB");
-  },
-};
-export const StaleBalance: Story = {
-  args: {
-    presentation: {
-      kind: "detailed",
-      stagingDb: -2,
-      balance: { state: "stale", measuredLufs: -24.5, ungated: true },
-    },
-  },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText("Balance stale · -24.5 LUFS · ungated"),
-    ).toBeVisible();
-  },
-};
-export const NonDialogue: Story = {
-  args: { presentation: { kind: "detailed", stagingDb: 0, balance: null } },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText("Staging gain 0.0 dB; plays at −3.0 dB"),
-    ).toBeVisible();
   },
 };
 export const PhoneWidth: Story = {

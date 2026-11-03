@@ -1,6 +1,5 @@
 import { type ReactNode, useId } from "react";
 import { useCommitRange } from "../hooks/useCommitRange";
-import { Button } from "../ui/Button";
 import {
   FADER_MAX_DB,
   FADER_MIN_DB,
@@ -13,28 +12,12 @@ export type FaderAccess =
   | { kind: "edit"; onCommit: (db: number) => void }
   | { kind: "read-only"; onCommit?: never };
 
-export type BalancePresentation = Readonly<{
-  state: "not-measured" | "stale" | "current";
-  measuredLufs: number | null;
-  ungated: boolean;
-}>;
-
-export type FaderPresentation =
-  | {
-      kind: "compact";
-      descriptionId: string;
-      /** Staging gain, so the fader can tell `playsAt` the track's base gain. */
-      stagingDb?: number;
-      /** Renders the plays-at line from the base gain (staging plus the fader). */
-      playsAt?: (baseDb: number) => ReactNode;
-    }
-  | {
-      kind: "detailed";
-      stagingDb: number;
-      /** Volume envelope gain at the playhead; undefined without an envelope. */
-      envelopeDb?: number;
-      balance: BalancePresentation | null;
-    };
+export type FaderPresentation = {
+  kind: "compact";
+  descriptionId: string;
+  stagingDb?: number;
+  playsAt?: (baseDb: number) => ReactNode;
+};
 
 export type TrackFaderViewProps = {
   trackLabel: string;
@@ -61,7 +44,6 @@ export function TrackFaderView({
   const { value } = range;
   const reset = () => range.commitValue(0);
   const id = useId();
-  const noteId = `${id}-note`;
   const input = (
     <input
       id={id}
@@ -75,9 +57,7 @@ export function TrackFaderView({
       title={
         editable ? "Saved volume. Double-click to reset to 0 dB" : undefined
       }
-      aria-describedby={
-        presentation.kind === "compact" ? presentation.descriptionId : noteId
-      }
+      aria-describedby={presentation.descriptionId}
       aria-valuetext={formatGainDb(value)}
       onDoubleClick={() => {
         if (editable) {
@@ -87,70 +67,19 @@ export function TrackFaderView({
       {...range.inputProps}
     />
   );
-  if (presentation.kind === "compact") {
-    const { playsAt, stagingDb: compactStagingDb } = presentation;
-    return (
-      <div className="track-fader track-fader--compact">
-        {input}
-        {playsAt?.(
-          trackOutputGainDb({
-            gain_db: compactStagingDb ?? 0,
-            fader_db: value,
-          }),
-        )}
-        <output htmlFor={id} className="track-fader-value">
-          {formatGainDb(value)}
-        </output>
-      </div>
-    );
-  }
-  const { stagingDb, envelopeDb, balance } = presentation;
-
+  const { playsAt, stagingDb } = presentation;
   return (
-    <div className="track-fader">
-      <label htmlFor={id} className="track-fader-label">
-        Volume
-      </label>
+    <div className="track-fader track-fader--compact">
       {input}
-      <span className="track-fader-end">
-        <output htmlFor={id} className="track-fader-value">
-          {formatGainDb(value)}
-        </output>
-        {editable ? (
-          <Button
-            aria-label="Reset volume to 0 dB"
-            disabledReason={
-              value === 0 ? "Volume is already at 0 dB." : undefined
-            }
-            onClick={() => {
-              reset();
-              range.input?.focus();
-            }}
-          >
-            Reset
-          </Button>
-        ) : null}
-      </span>
-      <p id={noteId} className="track-fader-note">
-        {editable ? "" : "Only the host and editors can change the volume. "}
-        Staging gain {formatGainDb(stagingDb)}; plays at{" "}
-        {formatGainDb(
-          trackOutputGainDb({ gain_db: stagingDb, fader_db: value }) +
-            (envelopeDb ?? 0),
-        )}
-        {envelopeDb === undefined
-          ? ""
-          : ` with the volume envelope at ${formatGainDb(envelopeDb)} at the playhead`}
-      </p>
-      {balance ? (
-        <p className="track-fader-note">
-          Balance{" "}
-          {balance.state === "not-measured" ? "not measured" : balance.state}
-          {balance.measuredLufs == null
-            ? ""
-            : ` · ${balance.measuredLufs.toFixed(1)} LUFS${balance.ungated ? " · ungated" : ""}`}
-        </p>
-      ) : null}
+      {playsAt?.(
+        trackOutputGainDb({
+          gain_db: stagingDb ?? 0,
+          fader_db: value,
+        }),
+      )}
+      <output htmlFor={id} className="track-fader-value">
+        {formatGainDb(value)}
+      </output>
     </div>
   );
 }
