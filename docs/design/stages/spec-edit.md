@@ -683,14 +683,14 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Today:** INS-CHAPTER--desktop-light.png. Interaction cost: Title field and Time field with Apply.
 - **Fate:** restyle; editing is direct on the marker.
 - **Spec:** select chapter: action bar Hear (from here), Fix text (rename inline on the marker), Remove. Inspect: Title field, Time Scrub field. Dragging the flag moves it.
-- **Story to build:** `Edit/InspectorSheet` story `Chapter`.
+- **Built (#2294 W3b3c):** a selected chapter opens as Inspector sheet sections (`stage/edit/chapterSections.tsx`; stories `Stages/Edit/MarkerInspector` `Chapter`, `ChapterPhone`, `ChapterReadOnly`, over the hydrated episode). The heading is "Chapter". Rows: **Title** (text, saved on blur or Enter; an empty title is refused with an alert), **Time** (a Scrub field in seconds, 0 or more, one save per commit), **Seek**, and **Delete**. Title and Time save through `updateChapter` on the chapter's old time and title, and the selection follows the new identity. A Viewer or edit-share link sees the title and time read-only and no Delete. Delete keeps the legacy gate (not a share key), which is the same gate as the Action bar's Remove verb (`canManageProjects`), so the two agree. The Action bar already carries Hear and Remove for a chapter, so the sheet's Delete duplicates Remove. Not built: Fix text inline on the marker.
 
 ### INS-SOCIAL · Social clip
 
 - **Today:** INS-SOCIAL--desktop-light.png. Interaction cost: two time fields and Apply. Language: "Score 0.77", "Approved no", "Review required".
 - **Fate:** restyle; export of clips is in Deliver.
 - **Spec:** action bar: Hear, Fix text (title), Comment, Remove. Inspect: Title, Start/End Scrub fields, Quality as a 5-dot meter. Bracket edges drag on the marker lane.
-- **Story to build:** `Edit/InspectorSheet` story `SocialClip`.
+- **Built (#2294 W3b3c):** a selected social clip opens as Inspector sheet sections (`stage/edit/socialSections.tsx`; stories `Stages/Edit/MarkerInspector` `SocialClip`, `SocialClipPhone`, `SocialClipReadOnly`). The heading is "Social clip". Rows: **Title**, **Track**, **Start** and **End** (Scrub fields in seconds, each saved once per commit through `updateSocialClip`; an end that is not after the start is refused with an alert), **Score**, **Approved**, **Review**, **Seek to start** and **Delete** (not a share key, as before). A Viewer or edit-share link sees the range read-only and no Delete. Not built: an editable Title (no save path from the sheet; Deliver edits it), the Quality 5-dot meter (Score stays a number), and the social verbs on the Action bar (Hear, Fix text, Comment, Remove: the social verb set is still Inspect only, so Delete stays in the sheet).
 
 ### INS-COMMENT · Comment
 
