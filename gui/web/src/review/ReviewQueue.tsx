@@ -27,6 +27,7 @@ import {
   type ReviewGroup,
   type ReviewItem,
   resultText,
+  speakersOf,
 } from "./reviewQueueModel";
 
 export type ReviewContent = {
@@ -75,6 +76,8 @@ export type ReviewQueueProps = {
   content: (item: ReviewItem) => ReviewContent;
   selectedId: string | null;
   filter: ReviewFilter;
+  /** The person whose edits show; absent or null for everyone. */
+  speaker?: string | null;
   /** The pipeline job finding suggestions, or the error of the one that failed. */
   job?: QueueJob;
   bulkRunning?: BulkProgress;
@@ -84,6 +87,8 @@ export type ReviewQueueProps = {
   canDecide?: boolean;
   state?: "ready" | "loading" | "error";
   onFilter: (filter: ReviewFilter) => void;
+  /** Without it the queue shows no speaker chips. */
+  onSpeaker?: (speaker: string | null) => void;
   onSelect: (id: string) => void;
   onVerb?: (id: string) => void;
   onKeep?: (id: string) => void;
@@ -208,12 +213,14 @@ export function ReviewQueue({
   content,
   selectedId,
   filter,
+  speaker = null,
   job,
   bulkRunning,
   guest = false,
   canDecide = !guest,
   state = "ready",
   onFilter,
+  onSpeaker,
   onSelect,
   onVerb,
   onKeep,
@@ -224,8 +231,9 @@ export function ReviewQueue({
   onRetry,
 }: ReviewQueueProps) {
   const [showDecided, setShowDecided] = useState(false);
-  const counts = filterCounts(items);
-  const shown = filterItems(items, filter);
+  const counts = filterCounts(items, speaker);
+  const shown = filterItems(items, filter, speaker);
+  const people = canDecide && onSpeaker ? speakersOf(items) : [];
   const groups = groupQueue(shown);
   const lowRisk = canDecide && !bulkRunning ? lowRiskBulk(shown) : null;
   const lowRiskLabel = lowRisk
@@ -295,6 +303,32 @@ export function ReviewQueue({
           />
         )}
       </div>
+      {people.length > 0 && onSpeaker ? (
+        <div className="rv-filter rv-speakers">
+          <SegmentedControl label="Speaker">
+            <ToggleButton
+              quiet
+              pressed={speaker === null}
+              onClick={() => onSpeaker(null)}
+            >
+              <span>Everyone</span>
+            </ToggleButton>
+            {people.map((chip) => (
+              <ToggleButton
+                key={chip.id}
+                quiet
+                pressed={speaker === chip.id}
+                aria-label={`${chip.label}, ${chip.open}`}
+                title={chip.label}
+                onClick={() => onSpeaker(chip.id)}
+              >
+                <span>{chip.label}</span>
+                <span className="sys-mono">{chip.open}</span>
+              </ToggleButton>
+            ))}
+          </SegmentedControl>
+        </div>
+      ) : null}
     </header>
   );
 

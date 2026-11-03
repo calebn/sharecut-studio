@@ -229,7 +229,10 @@ function riskOf(edit: PendingEditView): ReviewItem["risk"] | null {
 
 const SUGGESTED = ["cut", "shorten", "lower", "leave"] as const;
 
-function entryOf(edit: PendingEditView): ReviewEntry {
+function entryOf(
+  edit: PendingEditView,
+  tracks: readonly Pick<TrackView, "id" | "label">[],
+): ReviewEntry {
   const at = Number.isFinite(edit.timeline_start)
     ? (edit.timeline_start as number)
     : Number.POSITIVE_INFINITY;
@@ -249,6 +252,13 @@ function entryOf(edit: PendingEditView): ReviewEntry {
   const words = edit.unsure_words ?? [];
   const first = words[0];
   const risk = riskOf(edit);
+  const speaker = edit.track_id
+    ? {
+        id: edit.track_id,
+        label:
+          tracks.find((t) => t.id === edit.track_id)?.label ?? edit.track_id,
+      }
+    : null;
   return {
     item: {
       id: reviewIdOf(edit.id),
@@ -257,6 +267,7 @@ function entryOf(edit: PendingEditView): ReviewEntry {
       savedSeconds,
       suggested,
       ...(risk ? { risk } : {}),
+      ...(speaker ? { speaker } : {}),
       ...(first ? { unsure: true } : {}),
     },
     content: {
@@ -328,7 +339,9 @@ const needsReview = (e: PendingEditView) => !e.applied && e.review_required;
 
 export const reviewEntriesOf = (
   pending: readonly PendingEditView[],
-): ReviewEntry[] => pending.filter(needsReview).map(entryOf);
+  tracks: readonly Pick<TrackView, "id" | "label">[] = [],
+): ReviewEntry[] =>
+  pending.filter(needsReview).map((edit) => entryOf(edit, tracks));
 
 /** `guest` leaves out the cuts over an unsure word, which only the host decides. */
 export const reviewCountOf = (

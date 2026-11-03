@@ -25,6 +25,7 @@ const start = (selectedId: string | null = "a"): ReviewSession => ({
   decided: new Map(),
   selectedId,
   filter: "all",
+  speaker: null,
   looksRight: new Set(),
 });
 
@@ -293,5 +294,38 @@ describe("useReviewSession", () => {
     expect(result.current.props.content(decided as ReviewItem).card.title).toBe(
       "a",
     );
+  });
+});
+
+describe("speaker filter", () => {
+  const host = { id: "host", label: "Host" };
+  const guest = { id: "guest", label: "Guest" };
+  const two = [
+    entry("a", 1, { speaker: host }),
+    entry("b", 2, { speaker: guest }),
+  ];
+
+  it("keeps the speaker while both people still have edits", () => {
+    const s = reviewSession(start(), { type: "speaker", speaker: "guest" });
+    expect(reviewSession(s, { type: "observed", open: two }).speaker).toBe(
+      "guest",
+    );
+  });
+
+  it("drops the speaker when that person has no edits left", () => {
+    const s = reviewSession(start(), { type: "speaker", speaker: "guest" });
+    const next = reviewSession(s, { type: "observed", open: [two[0]!] });
+    expect(next.speaker).toBeNull();
+  });
+
+  it("decides the next item inside the chosen person's edits", () => {
+    const open = [
+      entry("a", 1, { speaker: host }),
+      entry("b", 2, { speaker: guest }),
+      entry("c", 3, { speaker: host }),
+    ];
+    const items = open.map((e) => e.item);
+    const plan = planDecision(items, ["a"], "applied", { speaker: "host" });
+    expect(plan.selectedId).toBe("c");
   });
 });

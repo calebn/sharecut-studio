@@ -176,3 +176,14 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.rv-speakers .ui-segmented > .ui-control {
+  min-width: 0;
+}
+
+.rv-speakers .ui-segmented > .ui-control > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 10ch;
+}

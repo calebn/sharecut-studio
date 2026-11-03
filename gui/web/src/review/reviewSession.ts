@@ -10,7 +10,7 @@ import { type DecisionPlan, planDecision, stepUndecided } from "./advance";
 import type { ReviewContent } from "./ReviewQueue";
 import type { ReviewIntent } from "./ReviewStage";
 import type { ReviewEntry } from "./reviewItems";
-import type { ReviewFilter } from "./reviewQueueModel";
+import { type ReviewFilter, speakersOf } from "./reviewQueueModel";
 
 type DecidedEntry = {
   readonly entry: ReviewEntry;
@@ -21,6 +21,8 @@ export type ReviewSession = {
   readonly decided: ReadonlyMap<string, DecidedEntry>;
   readonly selectedId: string | null;
   readonly filter: ReviewFilter;
+  /** The person whose edits show; null for everyone. */
+  readonly speaker: string | null;
   readonly looksRight: ReadonlySet<string>;
 };
 
@@ -29,6 +31,7 @@ export type SessionStageProps = ReturnType<typeof useReviewSession>["props"];
 export type SessionAction =
   | { type: "select"; id: string | null }
   | { type: "filter"; filter: ReviewFilter }
+  | { type: "speaker"; speaker: string | null }
   | { type: "looksRight"; id: string }
   | { type: "decided"; plan: DecisionPlan; snapshot: readonly ReviewEntry[] }
   | {
@@ -81,10 +84,16 @@ function observe(s: ReviewSession, open: readonly ReviewEntry[]) {
     };
   }
   const items = mergeOpen(open, base.decided).map((e) => e.item);
+  // A person who has no edits left, or the last two people becoming one, ends the filter.
+  const speaker = speakersOf(items).some((chip) => chip.id === s.speaker)
+    ? s.speaker
+    : null;
   const selectedId = items.some((i) => i.id === s.selectedId)
     ? s.selectedId
-    : stepUndecided(items, null, "forward", s.filter);
-  return selectedId === s.selectedId ? base : { ...base, selectedId };
+    : stepUndecided(items, null, "forward", s.filter, speaker);
+  return selectedId === s.selectedId && speaker === s.speaker
+    ? base
+    : { ...base, selectedId, speaker };
 }
 
 export function reviewSession(
@@ -96,6 +105,8 @@ export function reviewSession(
       return { ...s, selectedId: a.id };
     case "filter":
       return { ...s, filter: a.filter };
+    case "speaker":
+      return { ...s, speaker: a.speaker };
     case "looksRight":
       return { ...s, looksRight: new Set(s.looksRight).add(a.id) };
     case "decided": {
@@ -148,6 +159,7 @@ export function useReviewSession(
     return {
       decided: new Map(),
       filter,
+      speaker: null,
       looksRight: new Set(),
       selectedId:
         init.selectedId ?? stepUndecided(items, null, "forward", filter),
@@ -178,9 +190,12 @@ export function useReviewSession(
       content,
       selectedId: s.selectedId,
       filter: s.filter,
+      speaker: s.speaker,
       looksRight: s.looksRight,
       onSelect: (id: string | null) => dispatch({ type: "select", id }),
       onFilter: (filter: ReviewFilter) => dispatch({ type: "filter", filter }),
+      onSpeaker: (speaker: string | null) =>
+        dispatch({ type: "speaker", speaker }),
       onLooksRight: (id: string) => dispatch({ type: "looksRight", id }),
     },
     decide: ({ ids, result, waive }: ReviewIntent): DecisionPlan | null => {
@@ -193,6 +208,7 @@ export function useReviewSession(
       if (fresh.length === 0) return null;
       const plan = planDecision(view, fresh, result, {
         filter: s.filter,
+        speaker: s.speaker,
         waive: !!waive,
       });
       for (const id of plan.decidedIds) claimed.current.add(id);

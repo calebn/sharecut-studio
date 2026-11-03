@@ -51,9 +51,12 @@ export type ReviewStageProps = {
   content: (item: ReviewItem) => ReviewContent;
   selectedId: string | null;
   filter: ReviewFilter;
+  /** The person whose edits show; absent or null for everyone. */
+  speaker?: string | null;
   looksRight: ReadonlySet<string>;
   onSelect: (id: string | null) => void;
   onFilter: (filter: ReviewFilter) => void;
+  onSpeaker?: (speaker: string | null) => void;
   onLooksRight: (id: string) => void;
   /** A promise that resolves to false says the decision failed. */
   onDecide: (intent: ReviewIntent) => void | Promise<boolean | void>;
@@ -102,9 +105,11 @@ export function ReviewStage({
   content,
   selectedId,
   filter,
+  speaker = null,
   looksRight,
   onSelect,
   onFilter,
+  onSpeaker,
   onLooksRight,
   onDecide,
   duration,
@@ -164,7 +169,7 @@ export function ReviewStage({
     );
 
   const step = (direction: "forward" | "backward") =>
-    onSelect(stepUndecided(items, selectedId, direction, filter));
+    onSelect(stepUndecided(items, selectedId, direction, filter, speaker));
 
   /** Why Accept would refuse the take a pickup has chosen, if it would. */
   const takeRefusal = (item: ReviewItem) => {
@@ -374,12 +379,14 @@ export function ReviewStage({
       content={content}
       selectedId={selectedId}
       filter={filter}
+      speaker={speaker}
       job={job}
       bulkRunning={bulkRunning}
       guest={guest}
       canDecide={canDecide}
       state={state}
       onFilter={onFilter}
+      onSpeaker={onSpeaker}
       onSelect={(id) => {
         onSelect(id);
         setSheetOpen(false);

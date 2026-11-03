@@ -23,6 +23,8 @@ export type ReviewItem = {
   suggested?: "cut" | "shorten" | "lower" | "leave";
   /** Why the cut needs a listen before it goes ahead; absent for a clean cut with no flags. Higher `rank` is riskier. */
   risk?: { rank: 1 | 2 | 3; reason: string };
+  /** Whose audio the edit changes; absent for comments, checks and sessions. */
+  speaker?: { id: string; label: string };
   /** The refine check: the only one that Cut anyway and the last unsure word resolve. */
   transcript?: boolean;
   result?: ReviewResult;
@@ -185,13 +187,35 @@ export function fullOrder(items: readonly ReviewItem[]): ReviewItem[] {
   );
 }
 
+/** `speaker` narrows edits to one person's; items with no speaker stay visible. */
 export function filterItems(
   items: readonly ReviewItem[],
   filter: ReviewFilter,
+  speaker: string | null = null,
 ): ReviewItem[] {
-  return filter === "all"
-    ? [...items]
-    : items.filter((item) => QUEUE_KIND[item.kind].filter === filter);
+  return items.filter(
+    (item) =>
+      (filter === "all" || QUEUE_KIND[item.kind].filter === filter) &&
+      (speaker === null || !item.speaker || item.speaker.id === speaker),
+  );
+}
+
+export type SpeakerChip = { id: string; label: string; open: number };
+
+/** The people with edits in the queue, in order of first appearance; fewer than two means no filter is worth showing. */
+export function speakersOf(items: readonly ReviewItem[]): SpeakerChip[] {
+  const found = new Map<string, SpeakerChip>();
+  for (const item of items) {
+    if (!item.speaker) continue;
+    const chip = found.get(item.speaker.id) ?? {
+      id: item.speaker.id,
+      label: item.speaker.label,
+      open: 0,
+    };
+    if (!isDecided(item)) chip.open += 1;
+    found.set(chip.id, chip);
+  }
+  return found.size < 2 ? [] : [...found.values()];
 }
 
 export const kindInFilter = (kind: DecisionKind, filter: ReviewFilter) =>
@@ -211,8 +235,13 @@ export function landPlan(
 
 export function filterCounts(
   items: readonly ReviewItem[],
+  speaker: string | null = null,
 ): Record<ReviewFilter, number> {
-  const open = items.filter((item) => !isDecided(item));
+  const open = filterItems(
+    items.filter((item) => !isDecided(item)),
+    "all",
+    speaker,
+  );
   return {
     all: open.length,
     suggestions: filterItems(open, "suggestions").length,
