@@ -99,6 +99,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "transcript/TranscriptWordbar.tsx",
   // Enter in the Text field applies the word fix.
   "stage/edit/WordFix.tsx",
+  // Enter in the chapter Title field commits the retitle, which Apply used to do.
+  "stage/edit/chapterSections.tsx",
   // The separator pattern: arrows resize the Script pane, Enter resets it.
   "stage/edit/ScriptDivider.tsx",
   "tracks/TrackMuteSoloButtonsView.tsx",
