@@ -6,7 +6,6 @@ import {
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
 import type { FeedView, WriteRequest } from "../../types/feedView";
-import { FeedLive } from "./feedLiveStoryHost";
 import { FeedSection } from "./FeedSection";
 import {
   AGENT_PIN,
@@ -21,6 +20,7 @@ import {
   STALE,
   UNREADABLE,
 } from "./feedFixture";
+import { FeedLive } from "./feedLiveStoryHost";
 
 const meta: Meta<typeof FeedSection> = {
   title: "Stages/Deliver/Podcast listing",
