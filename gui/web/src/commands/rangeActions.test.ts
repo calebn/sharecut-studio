@@ -279,6 +279,7 @@ describe("fill range with room tone", () => {
   beforeEach(() => {
     useDawStore.setState({
       project: gapProject,
+      stage: "edit",
       selection: { kind: "range", target: gapTarget },
     });
   });

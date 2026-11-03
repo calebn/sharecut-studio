@@ -68,21 +68,23 @@ function measureFit(frame: HTMLElement): FrameFitSizes {
   const tabs = frame.querySelector<HTMLElement>(".stage-frame-tabs");
   const tabsAlign = tabs?.style.alignSelf ?? "";
   if (tabs) tabs.style.alignSelf = "start";
-  const sizes = {
-    frameHeight: frame.getBoundingClientRect().height,
-    headerHeight: height(".stage-frame-header"),
-    playerHeight: height(".stage-frame-player"),
-    tabsHeight: height(".stage-frame-tabs"),
-    rowsHeight: height(".phone-edit-bar") + height(".edit-dock"),
-    lanesMin: tokenHeightPx(frame, "--stage-stacked-lanes-min"),
-    laneAreaHeight: height(
-      ".edit-workspace .edit-timeline-col, .phone-edit-lanes",
-    ),
-    cornerHeight: height(".edit-workspace .edit-corner"),
-  };
-  if (tabs) tabs.style.alignSelf = tabsAlign;
-  if (folded) root.dataset[FOLD_ATTRIBUTE] = "";
-  return sizes;
+  try {
+    return {
+      frameHeight: frame.getBoundingClientRect().height,
+      headerHeight: height(".stage-frame-header"),
+      playerHeight: height(".stage-frame-player"),
+      tabsHeight: height(".stage-frame-tabs"),
+      rowsHeight: height(".phone-edit-bar") + height(".edit-dock"),
+      lanesMin: tokenHeightPx(frame, "--stage-stacked-lanes-min"),
+      laneAreaHeight: height(
+        ".edit-workspace .edit-timeline-col, .phone-edit-lanes",
+      ),
+      cornerHeight: height(".edit-workspace .edit-corner"),
+    };
+  } finally {
+    if (tabs) tabs.style.alignSelf = tabsAlign;
+    if (folded) root.dataset[FOLD_ATTRIBUTE] = "";
+  }
 }
 
 /**

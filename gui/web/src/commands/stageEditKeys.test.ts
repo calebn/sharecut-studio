@@ -142,3 +142,30 @@ describe("track keys follow the stage", () => {
     },
   );
 });
+
+describe("range edits follow the stage", () => {
+  const RANGE_EDITS = [
+    "range.cut",
+    "range.mute",
+    "range.fillRoomTone",
+  ] as const;
+
+  it("run on Edit", () => {
+    const ctx = buildCommandContext();
+    for (const id of RANGE_EDITS)
+      expect(evaluateWhen(COMMANDS[id].when, ctx).ok, id).toBe(true);
+  });
+
+  it.each(["prepare", "review", "deliver", "record"] as StageId[])(
+    "are off on %s, where a surviving range selection must not change the timeline",
+    (stage) => {
+      useDawStore.setState({ stage });
+      const ctx = buildCommandContext();
+      for (const id of RANGE_EDITS)
+        expect(
+          evaluateWhen(COMMANDS[id].when, ctx),
+          `${id} on ${stage}`,
+        ).toEqual({ ok: false, reason: "Open Edit to change the timeline" });
+    },
+  );
+});
