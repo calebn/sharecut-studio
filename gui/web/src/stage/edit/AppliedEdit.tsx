@@ -28,13 +28,7 @@ export function AppliedEdit({ rec }: { rec: AppliedEditRecord }) {
   );
   const { busy, error, run } = useProjectMutation();
   const mayRestore = canApplyPass12(projectPath, guestMode, shareCapabilities);
-  const hasSourceClocks =
-    rec.source_start != null &&
-    rec.source_end != null &&
-    rec.source_end > rec.source_start &&
-    rec.track_ids.length > 0;
-  const mute = rec.params?.mute === true && !("exact_range" in rec.params);
-  const canRestore = mayRestore && mute && hasSourceClocks;
+  const canRestore = mayRestore && rec.restore.state === "ready";
   const restore = () =>
     run(async () => {
       await restoreAppliedEdit(projectPath, rec.id);
@@ -79,7 +73,7 @@ export function AppliedEdit({ rec }: { rec: AppliedEditRecord }) {
           <DefItem label="Restore">
             {!mayRestore
               ? "Restore is unavailable with your current access."
-              : `${mute ? "This mute has no valid source clocks." : "This edit cannot be restored individually."} ${HISTORY_NOTE}`}
+              : `${rec.restore.state === "blocked" ? rec.restore.message : "This edit cannot be restored individually."} ${HISTORY_NOTE}`}
           </DefItem>
         ) : null}
         {rec.boundary_mode ? (

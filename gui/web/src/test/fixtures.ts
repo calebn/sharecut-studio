@@ -125,6 +125,7 @@ export function appliedEditRecord(
     source_end: 3,
     reason: "Shorten the pause",
     params: {},
+    restore: { state: "history_only" },
     ...overrides,
   };
 }

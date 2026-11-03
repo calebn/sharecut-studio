@@ -33,11 +33,11 @@ describe("applied edit sheet content", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
   });
 
-  it("restores a host mute with source clocks and clears a removed selection", async () => {
+  it("restores a ready record and clears a removed selection", async () => {
     const user = userEvent.setup();
     useDawStore.getState().setSelection({ kind: "applied", id: "edit-1" });
     const { container } = render(
-      <AppliedEdit rec={appliedEditRecord({ params: { mute: true } })} />,
+      <AppliedEdit rec={appliedEditRecord({ restore: { state: "ready" } })} />,
     );
     await expectNoA11yViolations(container);
     await user.click(screen.getByRole("button", { name: "Restore" }));
@@ -45,10 +45,17 @@ describe("applied edit sheet content", () => {
     expect(useDawStore.getState().selection).toBeNull();
   });
 
-  it("explains missing clocks to an owner who can use History", () => {
+  it("explains a blocked restore to an owner who can use History", () => {
     render(
       <AppliedEdit
-        rec={appliedEditRecord({ source_start: null, params: { mute: true } })}
+        rec={appliedEditRecord({
+          restore: {
+            state: "blocked",
+            code: "track_missing",
+            message: "Track mira-voice is no longer in the project.",
+            blocked_by: [],
+          },
+        })}
       />,
     );
     expect(
@@ -56,7 +63,7 @@ describe("applied edit sheet content", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByText(
-        "This mute has no valid source clocks. Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first.",
+        "Track mira-voice is no longer in the project. Use History Undo to restore the whole action. History Undo also undoes the other edits in that action. You may need to undo later actions first.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/current access/)).not.toBeInTheDocument();
@@ -73,7 +80,9 @@ describe("applied edit sheet content", () => {
         .getState()
         .hydrate("share:token", minimalProject(), "view", capabilities);
       const { container } = render(
-        <AppliedEdit rec={appliedEditRecord({ params: { mute: true } })} />,
+        <AppliedEdit
+          rec={appliedEditRecord({ restore: { state: "ready" } })}
+        />,
       );
       expect(
         screen.queryByRole("button", { name: "Restore" }),
@@ -94,7 +103,9 @@ describe("applied edit sheet content", () => {
       .getState()
       .hydrate("share:token", minimalProject(), "view", ["edit"]);
     const user = userEvent.setup();
-    render(<AppliedEdit rec={appliedEditRecord({ params: { mute: true } })} />);
+    render(
+      <AppliedEdit rec={appliedEditRecord({ restore: { state: "ready" } })} />,
+    );
     await user.click(screen.getByRole("button", { name: "Restore" }));
     expect(restoreAppliedEdit).toHaveBeenCalledWith("share:token", "edit-1");
     expect(screen.queryByText(/current access/)).not.toBeInTheDocument();
@@ -108,7 +119,7 @@ describe("applied edit sheet content", () => {
       operation: "edit_selected_range",
       params: { exact_range: {}, mute: true },
     },
-  ])("directs a cut to whole-action History Undo for %j", async (record) => {
+  ])("directs a history-only record to History Undo for %j", async (record) => {
     const user = userEvent.setup();
     const { container } = render(
       <AppliedEdit rec={appliedEditRecord(record)} />,
@@ -128,12 +139,12 @@ describe("applied edit sheet content", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("allows a source mute without timeline clocks", async () => {
+  it("restores a ready record without timeline clocks", async () => {
     const user = userEvent.setup();
     render(
       <AppliedEdit
         rec={appliedEditRecord({
-          params: { mute: true },
+          restore: { state: "ready" },
           timeline_start: null,
           timeline_end: null,
         })}
@@ -150,7 +161,9 @@ describe("applied edit sheet content", () => {
     );
     useDawStore.getState().setSelection({ kind: "applied", id: "edit-1" });
     const user = userEvent.setup();
-    render(<AppliedEdit rec={appliedEditRecord({ params: { mute: true } })} />);
+    render(
+      <AppliedEdit rec={appliedEditRecord({ restore: { state: "ready" } })} />,
+    );
     await user.click(screen.getByRole("button", { name: "Restore" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Restore failed",
@@ -164,7 +177,7 @@ describe("applied edit sheet content", () => {
   it("builds the sheet content for the selected record and says when it is gone", () => {
     const project = minimalProject();
     project.applied_edits.records = [
-      appliedEditRecord({ params: { mute: true } }),
+      appliedEditRecord({ restore: { state: "ready" } }),
     ];
     useDawStore.getState().hydrate("/tmp/p.json", project);
     useDawStore.getState().setSelection({ kind: "applied", id: "edit-1" });

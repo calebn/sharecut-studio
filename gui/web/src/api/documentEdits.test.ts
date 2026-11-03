@@ -26,6 +26,7 @@ import {
   correctTranscriptWord,
   loadPendingCutSuggestion,
   moveClips,
+  restoreAppliedEdit,
   selectSessionTakeCommand,
   setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
@@ -37,6 +38,34 @@ import { loadDocumentState } from "./project";
 
 beforeEach(() => {
   vi.mocked(submitQueuedDocumentCommand).mockClear();
+});
+
+describe("restoreAppliedEdit", () => {
+  it("sends the id list and a real run", async () => {
+    await restoreAppliedEdit("/tmp/ep", "alog_1");
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "RestoreAppliedEdit",
+      { ids: ["alog_1"], dry_run: false },
+      undefined,
+    );
+  });
+
+  it("throws the first conflict message and does not treat it as restored", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
+      command: {
+        payload: {
+          result: {
+            status: "conflict",
+            conflicts: [{ code: "track_missing", message: "Track gone." }],
+          },
+        },
+      },
+    });
+    await expect(restoreAppliedEdit("/tmp/ep", "alog_1")).rejects.toThrow(
+      "Track gone.",
+    );
+  });
 });
 
 describe("correctTranscriptWord", () => {

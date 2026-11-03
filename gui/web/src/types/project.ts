@@ -205,6 +205,17 @@ export interface PendingEditView {
   why?: string | null;
 }
 
+/** What the server says Restore can do for one applied edit; clients never derive it. */
+export type RestoreState =
+  | { state: "ready" }
+  | {
+      state: "blocked";
+      code: string;
+      message: string;
+      blocked_by: string[];
+    }
+  | { state: "history_only" };
+
 export interface AppliedEditRecord {
   id: string;
   applied_at: string;
@@ -219,6 +230,8 @@ export interface AppliedEditRecord {
   crossfade_ms?: number | null;
   cut_confidence?: number | null;
   params: Record<string, unknown>;
+  inverse?: { kind: string } | null;
+  restore: RestoreState;
 }
 
 export interface ChapterMarker {
