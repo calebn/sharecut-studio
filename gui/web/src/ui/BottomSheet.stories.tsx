@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { ModifierInspector } from "../inspector/ModifierInspector";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
 import {
@@ -8,6 +7,7 @@ import {
   inspectorSheetStoryDecorator,
 } from "../test/inspectorSheetDecorator";
 import { openDialogByLauncher } from "../test/storyDialog";
+import { InlineError } from "./InlineError";
 import { BottomSheet, Button } from "./index";
 
 const meta: Meta<typeof BottomSheet> = {
@@ -141,22 +141,30 @@ export const InspectorEnlargedTextShortLandscape: Story = {
   ...enlargedLandscapeSheet,
   decorators: [inspectorSheetStoryDecorator],
   render: () => (
-    <ModifierInspector
-      badge="Clip"
-      title="A long selected clip name"
-      subtitle="Timeline clip details"
-      error="The clip changed while editing. Review its latest values and try again."
-      primaryActions={[{ label: "Done", onClick: () => {} }]}
-    >
-      <p>
-        The entire inspector, including its heading, fields, error and actions,
-        shares one ordinary scroll area.
-      </p>
-      <label>
-        Time on timeline
-        <input type="number" defaultValue="2" />
-      </label>
-      <Button>Save changes</Button>
-    </ModifierInspector>
+    <aside className="inspector modifier-inspector">
+      <header className="modifier-header">
+        <div className="modifier-titles">
+          <h2>A long selected clip name</h2>
+          <p className="modifier-subtitle">Timeline clip details</p>
+        </div>
+      </header>
+      <div className="modifier-primary-actions">
+        <Button>Done</Button>
+      </div>
+      <div className="modifier-body">
+        <p>
+          The entire inspector, including its heading, fields, error and
+          actions, shares one ordinary scroll area.
+        </p>
+        <label>
+          Time on timeline
+          <input type="number" defaultValue="2" />
+        </label>
+        <Button>Save changes</Button>
+      </div>
+      <div className="modifier-error">
+        <InlineError message="The clip changed while editing. Review its latest values and try again." />
+      </div>
+    </aside>
   ),
 };
