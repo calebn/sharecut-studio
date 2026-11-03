@@ -156,6 +156,16 @@ async function openReferenceDetails(page: Page) {
   await expect(clearClip(page)).toBeVisible();
 }
 
+/** The track details are a sheet over the shell; close it before the next viewport so the header's Tools button is reachable. */
+async function closeTrackDetails(page: Page) {
+  const close = page
+    .getByRole("dialog")
+    .filter({ has: clearClip(page) })
+    .getByRole("button", { name: "Close", exact: true });
+  await close.click();
+  await expect(clearClip(page)).toBeHidden();
+}
+
 test("real premix exposes per-track peaks, clipping, and responsive controls", async ({
   browser,
 }, testInfo) => {
@@ -226,6 +236,7 @@ test("real premix exposes per-track peaks, clipping, and responsive controls", a
           await host.screenshot({
             path: testInfo.outputPath(`playback-meters-${viewport.name}.png`),
           });
+          await closeTrackDetails(host);
         }
       },
       undefined,
