@@ -1577,7 +1577,7 @@ _CODED_PAYLOAD_TYPES = frozenset(
 )
 
 
-def _coded_payload_error(command_type: str, exc: ValidationError) -> CodedValueError:
+def coded_payload_error(command_type: str, exc: ValidationError) -> CodedValueError:
     errors = exc.errors(include_input=False, include_url=False, include_context=False)
     if (
         command_type == "SetBleedAlignmentMode"
@@ -1608,7 +1608,7 @@ def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[
     except ValidationError as exc:
         if command_type not in _CODED_PAYLOAD_TYPES:
             raise
-        raise _coded_payload_error(command_type, exc) from exc
+        raise coded_payload_error(command_type, exc) from exc
     out = validated.model_dump(mode="python")
     if "extracts" in out and isinstance(out["extracts"], list):
         out["extracts"] = [

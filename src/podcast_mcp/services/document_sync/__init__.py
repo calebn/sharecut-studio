@@ -17,6 +17,11 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document_sync.errors import DocumentConflictError
     from podcast_mcp.services.document_sync.external_apply import apply_external_document_edit
+    from podcast_mcp.services.document_sync.generic import (
+        describe_document_commands,
+        document_command_schema,
+        submit_generic_document_command,
+    )
     from podcast_mcp.services.document_sync.host_submit import (
         host_command_result,
         submit_host_command_result,
@@ -84,8 +89,10 @@ __all__ = [
     "after_agent_mutation",
     "apply_external_document_edit",
     "command_context_for_role",
+    "describe_document_commands",
     "document_command_from_body",
     "document_command_json_schema",
+    "document_command_schema",
     "document_command_types_for_caps",
     "document_db_path",
     "document_hub_key",
@@ -104,6 +111,7 @@ __all__ = [
     "notify_document_changed",
     "parse_document_command",
     "parse_view_projection",
+    "submit_generic_document_command",
     "submit_host_command_result",
     "submit_host_document_command",
     "submit_paste_segment",
@@ -132,7 +140,9 @@ _MODULE_BY_NAME = {
     "WordTimingTargetPayload": "payloads",
     "after_agent_mutation": "service",
     "apply_external_document_edit": "external_apply",
+    "describe_document_commands": "generic",
     "document_command_from_body": "payloads",
+    "document_command_schema": "generic",
     "document_command_json_schema": "payloads",
     "document_command_types_for_caps": "capabilities",
     "document_db_path": "service",
@@ -152,6 +162,7 @@ _MODULE_BY_NAME = {
     "notify_document_changed": "service",
     "parse_document_command": "payloads",
     "parse_view_projection": "projection_types",
+    "submit_generic_document_command": "generic",
     "submit_host_command_result": "host_submit",
     "submit_host_document_command": "host_submit",
     "submit_paste_segment": "host_submit",
