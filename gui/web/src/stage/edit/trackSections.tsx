@@ -20,23 +20,21 @@ import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import { TrackMuteSoloButtons } from "../../tracks/TrackMuteSoloButtons";
 import { TrackPlaybackMeter } from "../../tracks/TrackPlaybackMeter";
-import { useVolumeEnvelopeDb } from "../../tracks/useVolumeEnvelopeDb";
-import type { Selection, TrackView } from "../../types/project";
+import type { Selection } from "../../types/project";
 import { Button, CommandButton, InspectorSeekFooterView } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import {
   FADER_MAX_DB,
   FADER_MIN_DB,
   FADER_STEP_DB,
-  formatGainDb,
   trackFaderDb,
-  trackOutputGainDb,
 } from "../../utils/audio";
 import { GUESTS_HEAR_FULL_MIX } from "../../utils/auditionModes";
 import { formatEffectParams } from "../../utils/effectParams";
 import { playTimelineRange } from "../../utils/playRange";
 import { splitSpeakersBlocker } from "../../utils/speakerSplit";
 import { note } from "./sheetNote";
+import { TrackLevelNote } from "./TrackLevelNote";
 
 const ROLES = ["dialogue", "music", "sfx", "intro", "outro"] as const;
 
@@ -44,46 +42,6 @@ function stemText(fresh: boolean | null | undefined): string {
   if (fresh === true) return "Up to date";
   if (fresh === false) return "Out of date";
   return "Unknown";
-}
-
-function LevelNote({
-  track,
-  editable,
-}: {
-  track: TrackView;
-  editable: boolean;
-}) {
-  const envelopeDb = useVolumeEnvelopeDb(track.id);
-  const fader = trackFaderDb(track);
-  const balance = track.role === "dialogue" ? track : null;
-  return (
-    <>
-      <p className="sys-inspector-note">
-        {editable ? "" : "Only the host and editors can change the volume. "}
-        Staging gain {formatGainDb(track.gain_db)}; plays at{" "}
-        {formatGainDb(
-          trackOutputGainDb({ gain_db: track.gain_db, fader_db: fader }) +
-            (envelopeDb ?? 0),
-        )}
-        {envelopeDb === undefined
-          ? ""
-          : ` with the volume envelope at ${formatGainDb(envelopeDb)} at the playhead`}
-      </p>
-      {balance ? (
-        <p className="sys-inspector-note">
-          Balance{" "}
-          {balance.balance_stale == null
-            ? "not measured"
-            : balance.balance_stale
-              ? "stale"
-              : "current"}
-          {balance.balance_measured_lufs == null
-            ? ""
-            : ` · ${balance.balance_measured_lufs.toFixed(1)} LUFS${balance.balance_ungated ? " · ungated" : ""}`}
-        </p>
-      ) : null}
-    </>
-  );
 }
 
 export function useTrackSections(
@@ -274,7 +232,7 @@ export function useTrackSections(
         },
         {
           id: "levelNote",
-          control: <LevelNote track={track} editable={mixEditable} />,
+          control: <TrackLevelNote track={track} editable={mixEditable} />,
         },
         {
           id: "mix",
