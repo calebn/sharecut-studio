@@ -32,8 +32,11 @@
             "type": "object",
             "required": ["reason"],
             "additionalProperties": false,
-            "properties": { "reason": { "type": "string", "minLength": 1 } },
-            "description": "Allowed only while mcp or cli is empty. A gap on a fully covered type fails the check."
+            "properties": {
+              "reason": { "type": "string", "minLength": 1 },
+              "partial": { "type": "boolean", "description": "True when mcp and cli are both set but one covers only some actions of the command; the stale-gap check is skipped." }
+            },
+            "description": "Allowed only while mcp or cli is empty, or with partial true. A gap on a fully covered type fails the check."
           },
           "exempt": {
             "type": "object",

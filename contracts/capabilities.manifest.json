@@ -2123,8 +2123,7 @@
         "mcp": [
           "track_add_empty_tool",
           "track_add"
-        ],
-        "cli": "podcast episode add-track"
+        ]
       },
       "omit": {},
       "tooltip": "New track",
