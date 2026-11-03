@@ -611,7 +611,14 @@ class DocumentSyncService:
         # the project lock (30 s, then filelock.Timeout), not on sqlite's busy timeout; a
         # busy sqlite lock that escapes anyway maps to the same 503 / project_busy in the
         # routes.
-        planned = dry_run_result(self.ws, command)
+        # A non-dry command whose command_id is already journaled is a retry: it skips the
+        # plan and takes the stored result below. A dry run keeps no row, so it always plans.
+        is_retry = (
+            command.type == "RestoreAppliedEdit"
+            and not command.payload.get("dry_run")
+            and existing_document_command(self.store, command) is not None
+        )
+        planned = None if is_retry else dry_run_result(self.ws, command)
         if planned is not None:
             seq = _journal_server_seq(self.store)
             reply: dict[str, Any] = {

@@ -370,3 +370,67 @@ def test_conflict_leaves_no_journal_row_and_no_server_seq(tmp_path, surface):
     assert result["status"] == "conflict"
     assert len(_journal_rows(ws)) == rows
     assert (_disk_and_history(ws), _post_state(ws)) == before
+
+
+def _web_restore(ws, ids, *, command_id, dry_run=False, client_seq=None):
+    with TestClient(create_app()) as client:
+        reply = client.post(
+            f"/api/document/command?path={quote(str(ws.path))}",
+            json={
+                "type": "RestoreAppliedEdit",
+                "payload": {"ids": ids, "dry_run": dry_run},
+                "client_id": "retry",
+                "client_seq": client_seq,
+                "command_id": command_id,
+            },
+        )
+    assert reply.status_code == 200, reply.text
+    return reply.json()
+
+
+def _cli_restore(ws, ids, *, command_id, dry_run=False):
+    args = ["restore-edit", "--project", str(ws.path), "--json", "--command-id", command_id]
+    for record_id in ids:
+        args += ["--id", record_id]
+    if dry_run:
+        args.append("--dry-run")
+    result = CliRunner().invoke(edit_app, args)
+    assert result.exit_code == 0, result.output
+    return json.loads(result.stdout)
+
+
+def test_retrying_a_succeeded_restore_on_the_web_returns_the_stored_result(tmp_path):
+    ws = _mute_workspace(tmp_path)
+    record_id = ws.project.editorial.edit_log[0].id
+    first = _web_restore(ws, [record_id], command_id="web-retry")
+    assert first["command"]["payload"]["result"]["status"] == "restored"
+    rows, after = len(_journal_rows(ws)), _post_state(ws)
+    retry = _web_restore(ws, [record_id], command_id="web-retry")
+    assert retry["idempotent"] is True
+    assert retry["command"]["payload"]["result"] == first["command"]["payload"]["result"]
+    assert "restore_conflicts" not in retry
+    assert (len(_journal_rows(ws)), _post_state(ws)) == (rows, after)
+
+
+def test_retrying_a_succeeded_restore_from_the_cli_returns_the_stored_result(tmp_path):
+    ws = _mute_workspace(tmp_path)
+    record_id = ws.project.editorial.edit_log[0].id
+    first = _cli_restore(ws, [record_id], command_id="cli-retry")
+    assert first["status"] == "restored"
+    rows, after = len(_journal_rows(ws)), _post_state(ws)
+    assert _cli_restore(ws, [record_id], command_id="cli-retry") == first
+    assert (len(_journal_rows(ws)), _post_state(ws)) == (rows, after)
+
+
+def test_dry_run_with_a_reused_command_id_plans_afresh_and_writes_nothing(tmp_path):
+    ws = _mute_workspace(tmp_path)
+    record_id = ws.project.editorial.edit_log[0].id
+    rows = len(_journal_rows(ws))
+    for _ in range(2):
+        reply = _web_restore(ws, [record_id], command_id="dry-reuse", dry_run=True)
+        assert reply["dry_run"] is True
+        assert reply["command"]["payload"]["result"]["status"] == "planned"
+    assert len(_journal_rows(ws)) == rows
+    applied = _web_restore(ws, [record_id], command_id="dry-reuse")
+    assert applied["command"]["payload"]["result"]["status"] == "restored"
+    assert len(_journal_rows(ws)) == rows + 1
