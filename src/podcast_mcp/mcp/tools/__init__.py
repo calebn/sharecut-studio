@@ -6,6 +6,7 @@ from podcast_mcp.mcp.tools import (
     align,
     clips,
     comments,
+    document,
     edits,
     episode,
     feed,
@@ -34,6 +35,7 @@ def register_all(mcp: MCPServer) -> None:
     timeline.register(mcp)
     clips.register(mcp)
     comments.register(mcp)
+    document.register(mcp)
     feed.register(mcp)
     review.register_core(mcp)
     pipeline.register(mcp)

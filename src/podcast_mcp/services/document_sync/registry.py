@@ -112,7 +112,9 @@ class CommandSpec:
     ``guest`` is the least review role that may submit it; ``None`` means no share role runs it
     through the document gate. ``editor_applies`` is False for a command an Editor only
     proposes. ``host_only_reason`` marks a host-only command and says why. ``family`` groups
-    commands that share a projection or a guest path.
+    commands that share a projection or a guest path. ``generic_refusal`` says why
+    ``submit_document_command_tool`` and ``podcast doc submit`` refuse the type (the named tool
+    does something a bare submit cannot); ``None`` means the generic surfaces accept it.
     """
 
     payload: type[BaseModel]
@@ -124,6 +126,7 @@ class CommandSpec:
     editor_applies: bool = True
     host_only_reason: str | None = None
     family: Family | None = None
+    generic_refusal: str | None = None
 
     def __post_init__(self) -> None:
         if self.host_only_reason is not None and not self.host_only_reason.strip():
@@ -131,6 +134,10 @@ class CommandSpec:
         if self.host_only_reason and self.guest is not None:
             raise CodedValueError(
                 "a host-only command has no guest role", code="command_spec_invalid"
+            )
+        if self.generic_refusal is not None and not self.generic_refusal.strip():
+            raise CodedValueError(
+                "a refusal of generic submission needs a reason", code="command_spec_invalid"
             )
         if not self.editor_applies and self.guest is not ReviewRole.COMMENTER:
             raise CodedValueError(
@@ -691,6 +698,10 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
         "InsertSegment": CommandSpec(
             payload=p.InsertSegmentPayload,
             handler=edits.insert_segment,
+            generic_refusal=(
+                "it pins the segment version and has a dry-run preview that journals nothing; "
+                "use segment_insert_tool or podcast segment insert"
+            ),
             host_only_reason="reads the host's own segment library, which a share link never reaches",
             gui=NO_GUI_SENDER,
             mcp=named("segment_insert_tool"),
