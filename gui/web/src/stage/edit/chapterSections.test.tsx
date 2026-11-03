@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { deleteChapter, updateChapter } from "../../api";
+import { updateChapter } from "../../api";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -10,7 +10,6 @@ import { SectionsBody } from "./SectionsBody";
 
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
-  deleteChapter: vi.fn(async () => undefined),
   updateChapter: vi.fn(async () => undefined),
 }));
 
@@ -129,14 +128,6 @@ describe("chapter content", () => {
     expect(title).toHaveValue("Interview");
   });
 
-  it("deletes the chapter and clears the selection", async () => {
-    const user = userEvent.setup();
-    open();
-    await user.click(screen.getByRole("button", { name: "Delete" }));
-    expect(deleteChapter).toHaveBeenCalledWith("/tmp/p.json", 5, "Opening");
-    expect(useDawStore.getState().selection).toBeNull();
-  });
-
   it("keeps chapter mutation unavailable on shares, including edit shares", async () => {
     const { container } = open("share");
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -145,9 +136,7 @@ describe("chapter content", () => {
       "aria-readonly",
       "true",
     );
-    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
     expect(updateChapter).not.toHaveBeenCalled();
-    expect(deleteChapter).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);
   });
 });

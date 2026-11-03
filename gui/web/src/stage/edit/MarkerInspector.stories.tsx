@@ -95,7 +95,7 @@ const meta: Meta = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The live chapter and social clip bodies (`useChapterSections`, `useSocialSections`) in an Inspector card, read from the hydrated episode: Title is a text field saved on blur or Enter, Time, Start and End are Scrub fields that save once per commit, and Delete keeps its host-only gate. A Viewer link sees the same values read-only.",
+          "The live chapter and social clip bodies (`useChapterSections`, `useSocialSections`) in an Inspector card, read from the hydrated episode: Title is a text field saved on blur or Enter, Time, Start and End are Scrub fields that save once per commit, and a social clip's Delete keeps its host-only gate (a chapter is removed from the Action bar). A Viewer link sees the same values read-only.",
       },
     },
   },
@@ -113,7 +113,6 @@ export const Chapter: Story = {
     await expect(
       canvas.getByRole("spinbutton", { name: "Time" }),
     ).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Delete" })).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Apply" })).toBeNull();
   },
 };
@@ -137,7 +136,6 @@ export const ChapterReadOnly: Story = {
       await canvas.findByRole("spinbutton", { name: "Time" }),
     ).toHaveAttribute("aria-readonly", "true");
     await expect(canvas.queryByRole("textbox", { name: "Title" })).toBeNull();
-    await expect(canvas.queryByRole("button", { name: "Delete" })).toBeNull();
   },
 };
 
