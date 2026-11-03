@@ -89,7 +89,7 @@ check it composed, then check it in a real screen.
 
 | Group | Title | Contents |
 | ----- | ----- | -------- |
-| **System** | `System/<Element>` | Shared Frame and cross-stage elements (App header, Stage bar, Player, Palette, Sheet, Toast, Cover and so on), props in and UI out, no store |
+| **System** | `System/<Element>` | Shared Frame and cross-stage elements (App header, Stage bar, Player, Sheet, Toast, Cover and so on), props in and UI out, no store |
 | **Stages** | `Stages/<Stage>/<Surface>` | One stage's compositions. Stage is one of Home, Record, Prepare, Edit, Review, Deliver or Guest |
 
 Frame elements live under `System/`, so `Frame` is not a Stage title. A System
