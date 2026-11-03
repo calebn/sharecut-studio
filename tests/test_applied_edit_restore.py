@@ -349,7 +349,7 @@ def test_a_lower_record_records_only_what_it_wrote_and_never_reopens_a_hard_mute
     lo_spans = [(s.start, s.end) for s in record.inverse.spans]
     assert lo_spans == [(pytest.approx(hard[0][1]), pytest.approx(4.0))]
 
-    plans, conflicts = plan_restores(project, [record.id])
+    plans, conflicts = plan_restores(project, [record.id], defaults=ws.effective_config())
     assert conflicts == []
     apply_restores(project, plans, defaults=ws.effective_config())
     assert [(r.start_s, r.end_s) for c in project.clips for r in c.mute_regions] == hard
@@ -372,7 +372,7 @@ def test_restore_after_the_muted_clip_is_gone_is_a_conflict_not_an_empty_step(tm
 @pytest.mark.parametrize("dry_run", [False, True])
 @pytest.mark.parametrize("surface", SURFACES)
 def test_history_only_record_is_conflict_data_on_every_surface(tmp_path, surface, dry_run):
-    ws = _ripple_workspace(tmp_path)
+    ws = _trim_workspace(tmp_path)
     record_id = ws.project.editorial.edit_log[0].id
     rows = len(_journal_rows(ws))
     before = (_disk_and_history(ws), _post_state(ws))
@@ -402,7 +402,7 @@ def _guest_submit(ws, ids, *, dry_run):
 
 @pytest.mark.parametrize("dry_run", [False, True])
 def test_guest_reply_hides_command_payload_and_still_reports_the_conflict(tmp_path, dry_run):
-    ws = _ripple_workspace(tmp_path)
+    ws = _trim_workspace(tmp_path)
     record_id = ws.project.editorial.edit_log[0].id
     reply = _guest_submit(ws, [record_id], dry_run=dry_run)
     assert reply["command"] == {"type": "RestoreAppliedEdit"}
@@ -418,7 +418,7 @@ def test_guest_dry_run_plan_reply_hides_command_payload(tmp_path):
 
 @pytest.mark.parametrize("surface", SURFACES)
 def test_conflict_leaves_no_journal_row_and_no_server_seq(tmp_path, surface):
-    ws = _ripple_workspace(tmp_path)
+    ws = _trim_workspace(tmp_path)
     record_id = ws.project.editorial.edit_log[0].id
     rows = len(_journal_rows(ws))
     before = (_disk_and_history(ws), _post_state(ws))
@@ -490,3 +490,20 @@ def test_dry_run_with_a_reused_command_id_plans_afresh_and_writes_nothing(tmp_pa
     applied = _web_restore(ws, [record_id], command_id="dry-reuse")
     assert applied["command"]["payload"]["result"]["status"] == "restored"
     assert len(_journal_rows(ws)) == rows + 1
+
+
+def test_retrying_a_succeeded_ripple_restore_returns_the_stored_result(tmp_path):
+    for surface, restore in (("web", _web_restore), ("cli", _cli_restore)):
+        ws = _ripple_workspace(tmp_path, surface)
+        record_id = ws.project.editorial.edit_log[0].id
+        first = restore(ws, [record_id], command_id=f"{surface}-ripple-retry")
+        rows, after = len(_journal_rows(ws)), _post_state(ws)
+        retry = restore(ws, [record_id], command_id=f"{surface}-ripple-retry")
+        if surface == "web":
+            assert first["command"]["payload"]["result"]["status"] == "restored"
+            assert retry["idempotent"] is True
+            assert retry["command"]["payload"]["result"] == first["command"]["payload"]["result"]
+        else:
+            assert first["status"] == "restored"
+            assert retry == first
+        assert (len(_journal_rows(ws)), _post_state(ws)) == (rows, after)
