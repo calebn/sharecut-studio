@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits.reinsert import SeamConflict, apply_reinsert, locate_seam
 from podcast_mcp.engines.clips_ops import (
     clips_for_track,
     update_timeline_duration,
@@ -22,6 +23,7 @@ from podcast_mcp.models import (
     Clip,
     EditDecision,
     EpisodeProject,
+    ReinsertClips,
     UnmuteSource,
     UnmuteSpan,
 )
@@ -90,6 +92,7 @@ def archive_timeline_op(
     source_end: float | None = None,
     reason: str | None = None,
     params: dict[str, Any] | None = None,
+    inverse: AppliedEditInverse | None = None,
 ) -> AppliedEditRecord:
     record = AppliedEditRecord(
         id=_new_log_id(),
@@ -102,6 +105,7 @@ def archive_timeline_op(
         timeline_end=timeline_end,
         reason=reason,
         params=params or {},
+        inverse=inverse,
     )
     project.editorial.edit_log.append(record)
     return record
@@ -186,7 +190,10 @@ class RestorePlan:
 @dataclass(frozen=True)
 class _Restorer:
     plan: Callable[[EpisodeProject, AppliedEditRecord, Any, frozenset[str]], RestoreConflict | None]
-    apply: Callable[[EpisodeProject, Any, Sequence[AppliedEditRecord]], None]
+    apply: Callable[
+        [EpisodeProject, AppliedEditRecord, Any, EffectiveConfig, Sequence[AppliedEditRecord]], None
+    ]
+    track_ids: Callable[[AppliedEditRecord, Any], tuple[str, ...]]
 
 
 def _unmute_spans(record: AppliedEditRecord) -> list[UnmuteSpan]:
@@ -247,7 +254,11 @@ def _plan_unmute(
 
 
 def _apply_unmute(
-    project: EpisodeProject, inverse: UnmuteSource, kept: Sequence[AppliedEditRecord]
+    project: EpisodeProject,
+    _record: AppliedEditRecord,
+    inverse: UnmuteSource,
+    _defaults: EffectiveConfig,
+    kept: Sequence[AppliedEditRecord],
 ) -> None:
     """Subtract the spans the record wrote, except what a record that stays still claims."""
     for span in inverse.spans:
@@ -259,7 +270,38 @@ def _apply_unmute(
                 subtract_source_mute(clip, lo, hi)
 
 
-_RESTORERS: dict[str, _Restorer] = {"unmute": _Restorer(_plan_unmute, _apply_unmute)}
+def _plan_reinsert(
+    project: EpisodeProject,
+    record: AppliedEditRecord,
+    inverse: ReinsertClips,
+    _batch: frozenset[str],
+) -> RestoreConflict | None:
+    located = locate_seam(project, record, inverse)
+    if isinstance(located, SeamConflict):
+        return RestoreConflict(
+            code=located.code,
+            record_id=record.id,
+            message=located.message,
+            track_id=located.track_id,
+            blocked_by=list(located.blocked_by),
+        )
+    return None
+
+
+_RESTORERS: dict[str, _Restorer] = {
+    "unmute": _Restorer(
+        _plan_unmute,
+        _apply_unmute,
+        lambda _record, inverse: tuple(dict.fromkeys(s.track_id for s in inverse.spans)),
+    ),
+    "reinsert_clips": _Restorer(
+        _plan_reinsert,
+        lambda project, record, inverse, defaults, _kept: apply_reinsert(
+            project, record, inverse, defaults=defaults
+        ),
+        lambda record, _inverse: tuple(record.track_ids),
+    ),
+}
 
 
 def plan_restore(
@@ -273,10 +315,11 @@ def plan_restore(
             record_id=record.id,
             message=LOCAL_RESTORE_MESSAGE,
         )
-    conflict = _RESTORERS[inverse.kind].plan(project, record, inverse, batch | {record.id})
+    restorer = _RESTORERS[inverse.kind]
+    conflict = restorer.plan(project, record, inverse, batch | {record.id})
     if conflict is not None:
         return conflict
-    return RestorePlan(record.id, tuple(dict.fromkeys(s.track_id for s in inverse.spans)))
+    return RestorePlan(record.id, restorer.track_ids(record, inverse))
 
 
 def restore_state(project: EpisodeProject, record: AppliedEditRecord) -> RestoreState:
@@ -291,30 +334,66 @@ def restore_state(project: EpisodeProject, record: AppliedEditRecord) -> Restore
     return RestoreState(state="ready")
 
 
+def _restore_one(
+    project: EpisodeProject,
+    record: AppliedEditRecord,
+    done: frozenset[str],
+    defaults: EffectiveConfig,
+) -> None:
+    """Apply one inverse and drop its record; ``done`` is every id the batch restores."""
+    if record.inverse is None:
+        raise CodedValueError(
+            f"applied edit {record.id} has no inverse to apply",
+            code="restore_without_inverse",
+        )
+    kept = [r for r in project.editorial.edit_log if r.id not in done]
+    _RESTORERS[record.inverse.kind].apply(project, record, record.inverse, defaults, kept)
+    project.editorial.edit_log = [r for r in project.editorial.edit_log if r.id != record.id]
+
+
 def plan_restores(
-    project: EpisodeProject, ids: Sequence[str]
+    project: EpisodeProject, ids: Sequence[str], *, defaults: EffectiveConfig
 ) -> tuple[list[RestorePlan], list[RestoreConflict]]:
+    """Plan ``ids`` in an order that works, a record that blocks another restoring first.
+
+    Several ids are planned on a scratch copy, applying each as it becomes ready, so a
+    record blocked only by another in the set is still ready. No partial result: any
+    record left blocked, or unknown, is a conflict and nothing restores.
+    """
     by_id = {r.id: r for r in project.editorial.edit_log}
     batch = frozenset(ids)
+    unique = list(dict.fromkeys(ids))
+    conflicts = [
+        RestoreConflict(
+            code="applied_edit_not_found",
+            record_id=record_id,
+            message=f"Applied edit {record_id} is not in this project.",
+        )
+        for record_id in unique
+        if record_id not in by_id
+    ]
+    pending = [record_id for record_id in unique if record_id in by_id]
+    scratch = project if len(pending) == 1 else project.model_copy(deep=True)
     plans: list[RestorePlan] = []
-    conflicts: list[RestoreConflict] = []
-    for record_id in dict.fromkeys(ids):
-        record = by_id.get(record_id)
-        if record is None:
-            conflicts.append(
-                RestoreConflict(
-                    code="applied_edit_not_found",
-                    record_id=record_id,
-                    message=f"Applied edit {record_id} is not in this project.",
-                )
-            )
-            continue
-        planned = plan_restore(project, record, batch)
-        if isinstance(planned, RestoreConflict):
-            conflicts.append(planned)
-        else:
+    blocked: dict[str, RestoreConflict] = {}
+    while pending:
+        progressed = False
+        for record_id in list(pending):
+            record = next(r for r in scratch.editorial.edit_log if r.id == record_id)
+            planned = plan_restore(scratch, record, batch)
+            if isinstance(planned, RestoreConflict):
+                blocked[record_id] = planned
+                continue
+            blocked.pop(record_id, None)
             plans.append(planned)
-    return plans, conflicts
+            pending.remove(record_id)
+            progressed = True
+            if scratch is not project:
+                _restore_one(scratch, record, batch, defaults)
+        if not progressed:
+            conflicts.extend(blocked[record_id] for record_id in pending)
+            break
+    return ([], conflicts) if conflicts else (plans, [])
 
 
 def planned_summary(plans: Sequence[RestorePlan]) -> dict[str, Any]:
@@ -329,17 +408,10 @@ def planned_summary(plans: Sequence[RestorePlan]) -> dict[str, Any]:
 def apply_restores(
     project: EpisodeProject, plans: Sequence[RestorePlan], *, defaults: EffectiveConfig
 ) -> dict[str, Any]:
-    done = {p.record_id for p in plans}
-    kept = [r for r in project.editorial.edit_log if r.id not in done]
-    for record in project.editorial.edit_log:
-        if record.id in done:
-            if record.inverse is None:
-                raise CodedValueError(
-                    f"applied edit {record.id} has no inverse to apply",
-                    code="restore_without_inverse",
-                )
-            _RESTORERS[record.inverse.kind].apply(project, record.inverse, kept)
-    project.editorial.edit_log = kept
+    done = frozenset(p.record_id for p in plans)
+    for plan in plans:
+        record = next(r for r in project.editorial.edit_log if r.id == plan.record_id)
+        _restore_one(project, record, done, defaults)
     rebuild_combined(project, defaults=defaults)
     update_timeline_duration(project)
     summary = planned_summary(plans)

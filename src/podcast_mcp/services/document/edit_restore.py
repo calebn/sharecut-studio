@@ -21,7 +21,7 @@ class AppliedEditsWithRestore(TypedDict):
 def revert_applied(ws: ProjectWorkspace, ids: list[str], dry_run: bool = False) -> RestoreResult:
     """Restore applied edits as one History step; conflicts come back as data."""
     with ws.transaction() as project:
-        plans, conflicts = plan_restores(project, ids)
+        plans, conflicts = plan_restores(project, ids, defaults=ws.effective_config())
         if conflicts:
             return RestoreResult(status="conflict", conflicts=conflicts)
         if dry_run:

@@ -50,7 +50,6 @@ from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.util import project_state
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import RenderBusyError
-from restore_helpers import assert_history_only_conflict
 from sqlite_helpers import FailingConnection
 from sync_helpers import _foreign_document_write, _hub_delivery_fence
 
@@ -358,7 +357,7 @@ def test_document_reject_and_approve_edits(minimal_project, ten_second_silence_w
     assert "d-approve" not in ids
 
 
-def test_document_update_pending_restore_refusal_and_guarded_undo(
+def test_document_update_pending_then_restore_the_applied_cut(
     minimal_project, ten_second_silence_wav
 ):
     (Path(minimal_project).parent / "raw" / "host.wav").write_bytes(
@@ -422,10 +421,7 @@ def test_document_update_pending_restore_refusal_and_guarded_undo(
     assert len(ws2.project.editorial.edit_log) == 1
     rid = ws2.project.editorial.edit_log[0].id
 
-    before = ws2.project.model_dump(mode="json")
-    disk = Path(minimal_project).read_bytes()
-    head = HistoryService(ws2).status().head_id
-    refused = svc.submit(
+    restored = svc.submit(
         DocumentCommand(
             type="RestoreAppliedEdit",
             payload={"ids": [rid]},
@@ -434,27 +430,17 @@ def test_document_update_pending_restore_refusal_and_guarded_undo(
             client_seq=3,
         )
     )
-    assert refused["ok"]
-    assert_history_only_conflict(refused["command"]["payload"]["result"], rid)
-    assert Path(minimal_project).read_bytes() == disk
-    assert ProjectWorkspace.open(minimal_project).project.model_dump(mode="json") == before
-    undone = svc.submit(
-        DocumentCommand(
-            type="UndoHistory",
-            payload={"expected_head_id": head},
-            client_id="c1",
-            role="viewer",
-            client_seq=4,
-        )
-    )
-    assert undone["ok"]
+    assert restored["ok"]
+    assert restored["command"]["payload"]["result"]["status"] == "restored"
     ws3 = ProjectWorkspace.open(minimal_project)
     assert ws3.project.editorial.edit_log == []
-    assert [(c.id, c.source_start, c.source_end, c.timeline_start) for c in ws3.project.clips] == [
-        ("c1", 0, 10, 0)
+    assert [(c.source_start, c.source_end, c.timeline_start) for c in ws3.project.clips] == [
+        (0, 2.1, 0),
+        (2.1, 3.9, 2.1),
+        (3.9, 10, 3.9),
     ]
-    assert [(e.id, e.start, e.end) for e in ws3.project.edit_decisions] == [("d1", 2.1, 3.9)]
-    assert HistoryService(ws3).status().can_redo is True
+    assert [(e.id, e.start, e.end) for e in ws3.project.edit_decisions] == []
+    assert HistoryService(ws3).status().can_undo is True
 
 
 def test_document_set_clip_fade_join_and_recommendations(minimal_project):

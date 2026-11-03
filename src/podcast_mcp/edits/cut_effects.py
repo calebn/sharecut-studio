@@ -565,9 +565,9 @@ def complete_effect_receipts(
             if row.params.get("per_track_source") != expected:
                 bad.update(ids)
     written_by_edit = {
-        edit.id: written[0]
+        edit.id: min(written, key=lambda row: row.timeline_start or 0.0)
         for edit in accepted
-        if len(written := [row for row in new_rows if edit.id in row.decision_ids]) == 1
+        if (written := [row for row in new_rows if edit.id in row.decision_ids])
     }
     for edit in accepted:
         if edit.exact_range is not None and edit.type not in (
@@ -577,10 +577,10 @@ def complete_effect_receipts(
             bad.add(edit.id)
         previous = [row for row in old if edit.id in row.decision_ids]
         written = [row for row in rows[len(old) :] if edit.id in row.decision_ids]
-        if previous or len(written) != 1:
+        if previous or not written:
             bad.add(edit.id)
             continue
-        row = written[0]
+        row = min(written, key=lambda r: r.timeline_start or 0.0)
         if edit.exact_range is None and (
             row.source_start != edit.start or row.source_end != edit.end
         ):

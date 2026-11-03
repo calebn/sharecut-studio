@@ -270,29 +270,6 @@ def _assert_restore_requires_history(project, record_id):
     assert project.model_dump(mode="json") == before
 
 
-def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
-    from podcast_mcp.edits.edit_log import list_applied_edits
-    from podcast_mcp.edits.timeline_ops import move_clips
-    from podcast_mcp.engines.clips_ops import clips_for_track
-
-    p = _project_with_moved_clip()
-    move_clips(
-        p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}], defaults=load_defaults()
-    )
-    ripple_cut(p, 10.0, 21.0, use_inaudible_opt=False)
-    record = list_applied_edits(p)[-1]
-    record.source_start = 10.0
-    record.source_end = 21.0
-    before = [c.model_dump() for c in clips_for_track(p, "host")]
-    # [15, 33] is 18 s of source for an 11 s hole.
-    _assert_restore_requires_history(p, record.id)
-    assert [c.model_dump() for c in clips_for_track(p, "host")] == before
-    assert record in p.editorial.edit_log
-    # pre > post (moved material later in source than the clip after the cut).
-    record.params["per_track_source"] = {"host": [33.0, 15.0]}
-    _assert_restore_requires_history(p, record.id)
-
-
 def test_revert_refuses_a_punch_whose_seam_does_not_span_the_hole() -> None:
     from podcast_mcp.edits.edit_log import list_applied_edits
     from podcast_mcp.edits.timeline_ops import _write_punch_delete, move_clips
@@ -384,10 +361,10 @@ def test_punch_restore_refuses_and_history_undo_restores_the_whole_action(
     assert p.editorial.edit_log == []
 
 
-def test_revert_refuses_a_session_cut_across_a_late_joining_track() -> None:
+def test_restore_brings_back_a_session_cut_across_a_late_joining_track() -> None:
     import pytest
 
-    from podcast_mcp.edits.edit_log import list_applied_edits
+    from podcast_mcp.edits.edit_log import apply_restores, list_applied_edits, plan_restores
     from podcast_mcp.engines.clips_ops import clips_for_track
 
     p = _project_with_two_clips()
@@ -405,19 +382,29 @@ def test_revert_refuses_a_session_cut_across_a_late_joining_track() -> None:
         # Guest recorder joined 3 s late.
         Clip(id="g", track_id="guest", source_start=0.0, source_end=8.0, timeline_start=3.0),
     ]
+
+    def spans() -> dict[str, list[tuple[float, float, float]]]:
+        return {
+            tid: [(c.source_start, c.source_end, c.timeline_start) for c in clips_for_track(p, tid)]
+            for tid in ("host", "guest")
+        }
+
+    before = spans()
     ripple_cut(p, 1.0, 5.0, use_inaudible_opt=False)
     record = list_applied_edits(p)[-1]
     assert record.params["per_track_source"] == {
         "host": [pytest.approx(1.0), pytest.approx(5.0)],
         "guest": [pytest.approx(0.0), pytest.approx(2.0)],
     }
-    record.source_start = 1.0
-    record.source_end = 5.0
-    before = {tid: [c.model_dump() for c in clips_for_track(p, tid)] for tid in ("host", "guest")}
-    _assert_restore_requires_history(p, record.id)
-    after = {tid: [c.model_dump() for c in clips_for_track(p, tid)] for tid in ("host", "guest")}
-    assert after == before
-    assert record in p.editorial.edit_log
+    assert spans() != before
+
+    plans, conflicts = plan_restores(p, [record.id], defaults=load_defaults())
+    assert conflicts == []
+    apply_restores(p, plans, defaults=load_defaults())
+
+    merged = {tid: [(rows[0][0], rows[-1][1], rows[0][2])] for tid, rows in spans().items()}
+    assert merged == before
+    assert p.editorial.edit_log == []
 
 
 def test_applied_edit_source_clocks_still_bind_after_chained_edits() -> None:

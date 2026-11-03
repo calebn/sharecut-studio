@@ -13,12 +13,13 @@ from source_review_helpers import _cut, _hole, _project
 pytestmark = pytest.mark.refine_gate
 
 
-def test_remove_restore_refuses_before_recording_any_history(tmp_path, monkeypatch):
+def test_history_only_restore_refuses_before_recording_any_history(tmp_path, monkeypatch):
     project = _project(tmp_path)
-    project.edit_decisions = [_cut("cut", reason="filler:um")]
     REFINE_GATE.mark_done(project, notes="Known synthetic fixture; no real-project acceptance")
     ws = ProjectWorkspace.open(save_project(project))
-    assert EditService(ws).approve(["cut"]) == 1
+    service = EditService(ws)
+    target = service.selected_range_target(1, 2, ["host"])
+    service.edit_selected_range(target, "cut", propose=False, reason="nl:range", action_id="exact")
     before = ws.project.model_dump(mode="json")
     disk = ws.path.read_bytes()
 
@@ -33,7 +34,7 @@ def test_remove_restore_refuses_before_recording_any_history(tmp_path, monkeypat
     assert ws.path.read_bytes() == disk
     assert [
         (c.source_start, c.source_end, c.timeline_start) for c in load_project(ws.path).clips
-    ] == [(0, 1, 0), (2, 6, 1)]
+    ] == [(0, 1, 0), (2, 6, 2)]
 
 
 def test_manual_group_cannot_connect_across_an_intervening_review_barrier(tmp_path):

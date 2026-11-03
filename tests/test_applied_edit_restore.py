@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from urllib.parse import quote
 
 import pytest
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.edit import edit_app
+from podcast_mcp.edits.edit_log import archive_timeline_op
 from podcast_mcp.edits.transcript_refine_status import REFINE_GATE
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp import server as mcp_server
@@ -38,12 +40,26 @@ def _mute_workspace(root, name="p"):
     return ws
 
 
-def _ripple_workspace(root):
-    project = _project(root / "ripple")
+def _ripple_workspace(root, name="ripple"):
+    project = _project(root / name)
     project.edit_decisions = [_cut("cut", reason="filler:um")]
     REFINE_GATE.mark_done(project, notes="Known synthetic fixture; no real-project acceptance")
     ws = ProjectWorkspace.open(save_project(project))
     assert EditService(ws).approve(["cut"]) == 1
+    return ws
+
+
+def _trim_workspace(root):
+    """A record no inverse can undo: a trim is History-only."""
+    ws = _ripple_workspace(root)
+    ws.mutate(
+        "before trim",
+        "after trim",
+        lambda p: (
+            setattr(p.editorial, "edit_log", [])
+            or archive_timeline_op(p, operation="trim_clip_edge", track_ids=["host"])
+        ),
+    )
     return ws
 
 
@@ -162,27 +178,67 @@ def test_cli_exits_2_on_conflict(tmp_path):
     assert json.loads(result.stdout)["conflicts"][0]["code"] == "applied_edit_not_found"
 
 
-def test_mute_reports_ready_and_ripple_reports_history_only(tmp_path):
-    mute_ws = _mute_workspace(tmp_path)
-    ripple_ws = _ripple_workspace(tmp_path)
-    mute = EditService(mute_ws).list_applied_edits()["records"][0]
-    ripple = EditService(ripple_ws).list_applied_edits()["records"][0]
-    assert mute["restore"] == {"state": "ready", "code": None, "message": None, "blocked_by": []}
-    assert ripple["restore"]["state"] == "history_only"
-    assert ripple["inverse"] is None
-    listed = CliRunner().invoke(edit_app, ["applied", "--project", str(ripple_ws.path), "--json"])
+def test_mute_and_ripple_report_ready_and_a_trim_reports_history_only(tmp_path):
+    mute = EditService(_mute_workspace(tmp_path)).list_applied_edits()["records"][0]
+    ripple = EditService(_ripple_workspace(tmp_path)).list_applied_edits()["records"][0]
+    trim_ws = _trim_workspace(tmp_path)
+    trim = EditService(trim_ws).list_applied_edits()["records"][0]
+    ready = {"state": "ready", "code": None, "message": None, "blocked_by": []}
+    assert mute["restore"] == ready
+    assert ripple["restore"] == ready
+    assert ripple["inverse"]["kind"] == "reinsert_clips"
+    assert trim["restore"]["state"] == "history_only"
+    assert trim["inverse"] is None
+    listed = CliRunner().invoke(edit_app, ["applied", "--project", str(trim_ws.path), "--json"])
     assert listed.exit_code == 0
     assert json.loads(listed.stdout)["records"][0]["restore"]["state"] == "history_only"
 
 
 def test_cli_exits_2_for_a_history_only_record(tmp_path):
-    ws = _ripple_workspace(tmp_path)
+    ws = _trim_workspace(tmp_path)
     result = CliRunner().invoke(
         edit_app,
         ["restore-edit", "--project", str(ws.path), "--id", ws.project.editorial.edit_log[0].id],
     )
     assert result.exit_code == 2
     assert "History Undo" in result.output
+
+
+def test_one_ripple_record_restores_identically_on_web_mcp_and_cli(tmp_path):
+    outcomes = {}
+    for surface in SURFACES:
+        ws = _ripple_workspace(tmp_path, surface)
+        record = ws.project.editorial.edit_log[0]
+        assert record.inverse is not None and record.inverse.kind == "reinsert_clips"
+        result = _restore(surface, ws, [record.id])
+        outcomes[surface] = (
+            json.dumps(result, sort_keys=True).replace(record.id, "REC"),
+            re.sub(r"clip_[0-9a-f]{8}", "CLIP", _post_state(ws).replace(record.id, "REC")),
+        )
+    web = json.loads(outcomes["web"][1])
+    assert json.loads(outcomes["web"][0])["status"] == "restored"
+    assert web["editorial"]["edit_log"] == []
+    assert web["duration"] == 6
+    assert [(c["source_start"], c["source_end"], c["timeline_start"]) for c in web["clips"]] == [
+        (0, 1, 0),
+        (1, 2, 1),
+        (2, 6, 2),
+    ]
+    assert outcomes["mcp"] == outcomes["web"]
+    assert outcomes["cli"] == outcomes["web"]
+
+
+@pytest.mark.parametrize("surface", SURFACES)
+def test_dry_run_of_a_ripple_record_writes_nothing(tmp_path, surface):
+    ws = _ripple_workspace(tmp_path)
+    record_id = ws.project.editorial.edit_log[0].id
+    head = HistoryService(ws).status().head_id
+    before = (_disk_and_history(ws), _post_state(ws))
+    result = _restore(surface, ws, [record_id], dry_run=True)
+    assert result["status"] == "planned"
+    assert result["summary"]["ids"] == [record_id]
+    assert (_disk_and_history(ws), _post_state(ws)) == before
+    assert HistoryService(ws).status().head_id == head
 
 
 def test_viewer_is_denied_on_web_mcp_and_cli(tmp_path, monkeypatch):

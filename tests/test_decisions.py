@@ -47,7 +47,7 @@ from podcast_mcp.project.history.manager import snapshot_from_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
 from podcast_mcp.util.coded_error import CodedValueError
-from restore_helpers import HISTORY_ONLY_MESSAGE, assert_history_only_conflict
+from restore_helpers import HISTORY_ONLY_MESSAGE
 from ripple_helpers import ripple_cut, trim
 
 
@@ -311,21 +311,13 @@ def _assert_remove_restore_refused(project, record_id):
     assert project.model_dump(mode="json") == before
 
 
-def _refuse_restore_then_undo(ws, original):
-    before = ws.project.model_dump(mode="json")
-    disk = ws.path.read_bytes()
+def _undo_restores(ws, original):
     head = HistoryService(ws).status().head_id
-    record_id = ws.project.editorial.edit_log[-1].id
-    refused = EditService(ws).revert_applied([record_id])
-    assert_history_only_conflict(refused, record_id)
-    assert ws.project.model_dump(mode="json") == before
-    assert ws.path.read_bytes() == disk
-    assert HistoryService(ws).status().head_id == head
     HistoryService(ws).undo(expected_head_id=head)
     assert snapshot_from_project(ws.project).model_dump(mode="json") == original
 
 
-def test_remove_restore_refuses_and_history_undo_restores_clip(tmp_path):
+def test_history_undo_restores_a_removed_clip(tmp_path):
     proj = _project_with_clip(tmp_path)
     proj.edit_decisions = [
         EditDecision(
@@ -342,7 +334,7 @@ def test_remove_restore_refuses_and_history_undo_restores_clip(tmp_path):
     original = snapshot_from_project(ws.project).model_dump(mode="json")
     assert EditService(ws).approve(["a"]) == 1
     assert [(c.source_start, c.source_end) for c in ws.project.clips] == [(0, 2), (4, 10)]
-    _refuse_restore_then_undo(ws, original)
+    _undo_restores(ws, original)
     assert [(c.id, c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips] == [
         ("c1", 0, 10, 0)
     ]
@@ -363,7 +355,7 @@ def test_remove_restore_requires_history_without_source_clocks(tmp_path):
     _assert_remove_restore_refused(proj, "alog_x")
 
 
-def test_remove_restore_refuses_and_history_undo_keeps_multitrack_aligned(tmp_path):
+def test_history_undo_keeps_multitrack_aligned(tmp_path):
     proj = _two_track_project(tmp_path)
     proj.edit_decisions = [
         EditDecision(
@@ -382,7 +374,7 @@ def test_remove_restore_refuses_and_history_undo_keeps_multitrack_aligned(tmp_pa
     record = ws.project.editorial.edit_log[0]
     assert record.track_ids == ["host", "guest"]
     assert "per_track_source" in record.params
-    _refuse_restore_then_undo(ws, original)
+    _undo_restores(ws, original)
     assert [
         (c.track_id, c.source_start, c.source_end, c.timeline_start) for c in ws.project.clips
     ] == [("host", 0, 10, 0), ("guest", 0, 10, 0)]
@@ -682,7 +674,7 @@ def test_apply_prefix_edits_archives_the_settled_cut_range(
     assert record.timeline_end == pytest.approx(2.5)
     pre, post = record.params["per_track_source"]["host"]
     assert post - pre == pytest.approx(record.timeline_end - record.timeline_start)
-    _refuse_restore_then_undo(ws, original)
+    _undo_restores(ws, original)
     assert proj.timeline.duration_sec == pytest.approx(10.0)
 
 
@@ -1126,7 +1118,7 @@ def test_impact_drops_a_cut_after_guarded_history_undo(tmp_path):
     ws = _saved_restore_workspace(proj, tmp_path)
     original = snapshot_from_project(ws.project).model_dump(mode="json")
     assert EditService(ws).approve(["a"]) == 1
-    _refuse_restore_then_undo(ws, original)
+    _undo_restores(ws, original)
     assert _impact(ws.project) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 1}
 
 

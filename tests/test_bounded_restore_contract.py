@@ -137,19 +137,6 @@ def _assert_parked_recovered(ws, original, tmp_path):
     assert saved.editorial.edit_log == []
 
 
-def test_local_remove_restore_refuses_before_mutation_with_history_undo_guidance(tmp_path):
-    ws, original = _approved_parked(tmp_path)
-    before = _state(ws)
-    head = HistoryService(ws).status().head_id
-
-    record_id = ws.project.editorial.edit_log[0].id
-    assert_history_only_conflict(EditService(ws).revert_applied([record_id]), record_id)
-    _assert_unchanged(ws, before)
-    assert HistoryService(ws).status().head_id == head
-    HistoryService(ws).undo(expected_head_id=head)
-    _assert_parked_recovered(ws, original, tmp_path)
-
-
 def test_guarded_history_undo_recovers_original_parked_snapshot(tmp_path):
     ws, original = _approved_parked(tmp_path)
     result = HistoryService(ws).undo(expected_head_id=HistoryService(ws).status().head_id)
@@ -164,17 +151,11 @@ def _post(client, ws, kind, payload, seq):
     )
 
 
-def test_document_http_restore_refusal_and_explicit_guarded_undo(tmp_path):
+def test_document_http_explicit_guarded_undo(tmp_path):
     ws, original = _approved_parked(tmp_path)
-    before = _state(ws)
     head = HistoryService(ws).status().head_id
     with TestClient(create_app()) as client:
-        record_id = ws.project.editorial.edit_log[0].id
-        refused = _post(client, ws, "RestoreAppliedEdit", {"ids": [record_id]}, 1)
-        assert refused.status_code == 200
-        assert_history_only_conflict(refused.json()["command"]["payload"]["result"], record_id)
-        _assert_unchanged(ws, before)
-        undone = _post(client, ws, "UndoHistory", {"expected_head_id": head}, 2)
+        undone = _post(client, ws, "UndoHistory", {"expected_head_id": head}, 1)
         assert undone.status_code == 200
     ws.reload()
     _assert_parked_recovered(ws, original, tmp_path)
@@ -186,17 +167,10 @@ def _mcp_refusal(result, record_id):
 
 
 @pytest.mark.asyncio
-async def test_owner_mcp_restore_refusal_and_explicit_guarded_undo(tmp_path):
+async def test_owner_mcp_explicit_guarded_undo(tmp_path):
     ws, original = _approved_parked(tmp_path)
-    before = _state(ws)
     head = HistoryService(ws).status().head_id
     async with Client(mcp_server.mcp) as client:
-        result = await client.call_tool(
-            "revert_applied_edit_tool",
-            {"project_path": str(ws.path), "record_ids": [ws.project.editorial.edit_log[0].id]},
-        )
-        _mcp_refusal(result, ws.project.editorial.edit_log[0].id)
-        _assert_unchanged(ws, before)
         undone = await client.call_tool(
             "history_undo", {"project_path": str(ws.path), "expected_head_id": head}
         )
@@ -341,11 +315,6 @@ def test_guarded_history_undo_restores_all_peer_occurrences(tmp_path, peer_shape
         (0, 1),
         (2, 6),
     ]
-    before = _state(ws)
-    record_id = ws.project.editorial.edit_log[0].id
-    refused = EditService(ws).revert_applied([record_id])
-    assert_history_only_conflict(refused, record_id)
-    _assert_unchanged(ws, before)
     HistoryService(ws).undo(expected_head_id=HistoryService(ws).status().head_id)
     assert _editable(ws.project) == original
     saved = load_project(ws.path)
@@ -379,10 +348,6 @@ def test_later_action_requires_undo_of_actual_current_head_first(tmp_path):
     current = _state(ws)
     current_head = HistoryService(ws).status().head_id
     assert current_head != cut_head
-    record_id = ws.project.editorial.edit_log[0].id
-    refused = EditService(ws).revert_applied([record_id])
-    assert_history_only_conflict(refused, record_id)
-    _assert_unchanged(ws, current)
     with pytest.raises(ValueError) as stale:
         HistoryService(ws).undo(expected_head_id=cut_head)
     assert getattr(stale.value, "code", None) == "history_stale"
@@ -465,7 +430,7 @@ def test_restore_removes_only_bounded_intersection(tmp_path):
             inverse=UnmuteSource(spans=[{"track_id": "host", "start": 1, "end": 2}]),
         )
     ]
-    plans, conflicts = plan_restores(project, ["bounded"])
+    plans, conflicts = plan_restores(project, ["bounded"], defaults=load_defaults())
     assert conflicts == []
     result = apply_restores(project, plans, defaults=load_defaults())
     assert result["operation"] == "revert_applied_edit"
