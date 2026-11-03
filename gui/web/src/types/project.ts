@@ -185,7 +185,7 @@ export interface PendingEditView {
   /** Why the server cannot render Suggested / A/B (splits, off-timeline edits); null when it can. */
   suggest_reason: string | null;
   join_risk?: PendingJoinRisk | null;
-  /** Server-computed (`edits/tighten_hits.is_harsh_tighten_hit`): true only for a harsh-join risk, not for review_required; no Studio surface reads it. */
+  /** Server-computed (`edits/tighten_hits.is_harsh_tighten_hit`): true only for a harsh-join risk, not for review_required; the Review queue reads it as its top risk flag. */
   harsh: boolean;
   /** Server-computed (`edits/tighten_hits.is_listen_one_by_one_hit`): Apply suggested actions leaves it pending and names it. */
   listen_one_by_one?: boolean;
