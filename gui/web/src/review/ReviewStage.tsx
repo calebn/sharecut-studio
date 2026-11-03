@@ -390,6 +390,10 @@ export function ReviewStage({
         bulk(group.bulk?.ids);
         setSheetOpen(false);
       }}
+      onBulkIds={(ids) => {
+        bulk(ids);
+        setSheetOpen(false);
+      }}
       onFindMore={onFindMore}
       findMoreDisabled={bulkRunning ? BUSY_REASON : findMoreDisabled}
       onRetry={onRetry}

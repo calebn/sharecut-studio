@@ -21,6 +21,8 @@ export type ReviewItem = {
   /** Only the host can settle it, so a guest sees it held with no verb. */
   hostOnly?: boolean;
   suggested?: "cut" | "shorten" | "lower" | "leave";
+  /** Why the cut needs a listen before it goes ahead; absent for a clean cut with no flags. Higher `rank` is riskier. */
+  risk?: { rank: 1 | 2 | 3; reason: string };
   /** The refine check: the only one that Cut anyway and the last unsure word resolve. */
   transcript?: boolean;
   result?: ReviewResult;
@@ -28,7 +30,7 @@ export type ReviewItem = {
 
 export type ReviewFilter = "all" | "suggestions" | "comments" | "checks";
 
-type BulkAction = {
+export type BulkAction = {
   verb: VerbId;
   ids: readonly string[];
   savedSeconds: number;
@@ -112,6 +114,10 @@ function bulkEligible(item: ReviewItem): boolean {
 const byTime = (a: ReviewItem, b: ReviewItem) =>
   a.at - b.at || a.id.localeCompare(b.id);
 
+/** Riskiest first inside a group, then by time. */
+const byRisk = (a: ReviewItem, b: ReviewItem) =>
+  (b.risk?.rank ?? 0) - (a.risk?.rank ?? 0) || byTime(a, b);
+
 const sumSaved = (items: readonly ReviewItem[]) =>
   items.reduce((sum, item) => sum + item.savedSeconds, 0);
 
@@ -120,7 +126,7 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
   return KIND_ORDER.flatMap((kind) => {
     const inKind = items
       .filter((item) => item.kind === kind && !isDecided(item))
-      .sort(byTime);
+      .sort(byRisk);
     if (inKind.length === 0) return [];
     const eligible = inKind.filter(bulkEligible);
     return [
@@ -148,6 +154,23 @@ export function groupQueue(items: readonly ReviewItem[]): ReviewGroup[] {
       },
     ];
   });
+}
+
+/**
+ * The one batch across every kind that needs no listen: eligible for a bulk verb,
+ * no join risk, a clean cut and no flags. Null when there is none, or when every
+ * eligible item is clean, since the group verbs then already cover it.
+ */
+export function lowRiskBulk(items: readonly ReviewItem[]): BulkAction | null {
+  const eligible = items.filter(bulkEligible);
+  const clean = eligible.filter((item) => !item.risk).sort(byTime);
+  return clean.length === 0 || clean.length === eligible.length
+    ? null
+    : {
+        verb: groupVerbOf(clean),
+        ids: clean.map((item) => item.id),
+        savedSeconds: sumSaved(clean),
+      };
 }
 
 export function decidedItems(items: readonly ReviewItem[]): ReviewItem[] {
