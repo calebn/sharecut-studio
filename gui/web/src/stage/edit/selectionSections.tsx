@@ -6,6 +6,7 @@ import { useClipSections } from "./clipSections";
 import { useCommentSections } from "./commentSections";
 import { usePendingSections } from "./pendingSections";
 import { rangeSection } from "./rangeSection";
+import { useTrackSections } from "./trackSections";
 import { useWordSections } from "./wordSections";
 
 export function useSelectionSections(
@@ -19,8 +20,9 @@ export function useSelectionSections(
   const clip = useClipSections(selection);
   const comment = useCommentSections(selection);
   const pending = usePendingSections(selection, barShown);
+  const track = useTrackSections(selection);
   if (word) return word;
-  const rest = applied ?? bleed ?? clip ?? comment ?? pending;
+  const rest = applied ?? bleed ?? clip ?? comment ?? pending ?? track;
   if (!rest) return null;
   return rangeActionsInSheet ? [rangeSection, ...rest] : rest;
 }

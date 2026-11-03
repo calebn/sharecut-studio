@@ -23,7 +23,6 @@ import {
 } from "./relatedRows";
 import { ChapterInspector } from "./views/ChapterInspector";
 import { SocialClipInspector } from "./views/SocialClipInspector";
-import { TrackInspector } from "./views/TrackInspector";
 
 export type SelectionKind = NonNullable<Selection>["kind"];
 type SelectionOf<K extends SelectionKind> = Extract<
@@ -75,19 +74,6 @@ const noRelated = () => [];
 const noMore = () => [];
 /** A kind with no peek strip and no Related or More commands. */
 const plain = { peek: noPeek, related: noRelated, more: noMore } as const;
-
-const trackBody = (sel: { trackId: string }, { project }: SurfaceContext) => {
-  const track = project.tracks.find((t) => t.id === sel.trackId);
-  return track ? (
-    <TrackInspector
-      key={track.id}
-      track={track}
-      effects={project.effects_by_track[sel.trackId] ?? []}
-    />
-  ) : (
-    notFound("Track not found")
-  );
-};
 
 const rangeSurface = {
   ...plain,
@@ -144,7 +130,9 @@ export const SELECTION_SURFACES: {
     ...plain,
     screens: ANYWHERE,
     more: moreMoveTrack,
-    body: trackBody,
+    body: (_sel, { placement }) => (
+      <SectionsBody withRange={placement === "sheet"} />
+    ),
   },
   chapter: {
     ...plain,
@@ -183,7 +171,13 @@ export const SELECTION_SURFACES: {
       );
     },
   },
-  envelope: { ...plain, screens: ANYWHERE, body: trackBody },
+  envelope: {
+    ...plain,
+    screens: ANYWHERE,
+    body: (_sel, { placement }) => (
+      <SectionsBody withRange={placement === "sheet"} />
+    ),
+  },
   envelopePoint: {
     ...plain,
     screens: ANYWHERE,
