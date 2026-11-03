@@ -54,8 +54,11 @@ Native Poteto owns the pickup procedure and review-evidence assessment.
    If another claim wins, mark yours `released=lost-race` and stop.
    Do not remove the winner's labels.
 4. Move your active stage through `pipeline:planning`, `pipeline:implementing`,
-   `pipeline:review`, and `pipeline:merging`. Mirror the stage on the PR.
-   Refresh your claim comment at each stage and before its six-hour lease expires.
+   `pipeline:review`, and `pipeline:merging`. Mirror the first three stages on
+   the PR. Keep the PR at `pipeline:review` while the issue and claim reach merging. After
+   the standalone predicate passes and all other handoff gates pass, move the PR
+   to `pipeline:merging`. Refresh your claim comment at each stage and before its
+   six-hour lease expires.
 
 ## Release on every exit
 
