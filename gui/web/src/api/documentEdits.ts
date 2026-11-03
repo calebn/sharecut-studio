@@ -406,19 +406,20 @@ export async function restoreAppliedEdit(
   const command = reply.command;
   const payload = isSuggestionRecord(command) ? command.payload : null;
   const result = isSuggestionRecord(payload) ? payload.result : null;
+  const resultConflicted =
+    isSuggestionRecord(result) && result.status === "conflict";
+  if (reply.restore_conflicts === undefined && !resultConflicted) return;
   const conflicts = Array.isArray(reply.restore_conflicts)
     ? reply.restore_conflicts
-    : isSuggestionRecord(result) && result.status === "conflict"
+    : isSuggestionRecord(result)
       ? result.conflicts
       : undefined;
-  if (conflicts !== undefined) {
-    const [first] = Array.isArray(conflicts) ? conflicts : [];
-    throw new Error(
-      isSuggestionRecord(first) && typeof first.message === "string"
-        ? first.message
-        : "This edit cannot be restored right now.",
-    );
-  }
+  const [first] = Array.isArray(conflicts) ? conflicts : [];
+  throw new Error(
+    isSuggestionRecord(first) && typeof first.message === "string"
+      ? first.message
+      : "This edit cannot be restored right now.",
+  );
 }
 
 export type ClipFadeBaseline = Readonly<{
