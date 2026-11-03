@@ -1,8 +1,4 @@
-"""Generic agent reach: any document command, derived from the registry (#3115 slice 3).
-
-The generic tool and the CLI submit through ``submit_host_document_command``, the path the
-named tools use, so the edit is a typed journal row, one history step, undoable and host only.
-"""
+"""The generic tool and CLI submit any registry type through the named tools' journal path."""
 
 from __future__ import annotations
 

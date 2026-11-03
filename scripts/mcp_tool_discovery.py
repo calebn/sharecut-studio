@@ -6,7 +6,6 @@ from typing import Any, cast
 
 
 def discover_mcp_tool_names() -> set[str]:
-    """Every tool ``register_all`` mounts, so a new tool module cannot be missed here."""
     from podcast_mcp.mcp.tools import register_all
 
     class FakeMcp:

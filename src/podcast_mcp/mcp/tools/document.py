@@ -51,6 +51,5 @@ def submit_document_command_tool(
 
 
 def register(mcp: MCPServer) -> None:
-    """Register the generic document command tools. Host only: no guest allowlist lists them."""
     mcp.tool()(document_command_schema_tool)
     mcp.tool()(submit_document_command_tool)
