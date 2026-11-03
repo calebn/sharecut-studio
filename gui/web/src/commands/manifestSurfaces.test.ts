@@ -42,7 +42,7 @@ type RenderKind = "CommandButton" | "CommandMenuItem" | "label";
 const FILE_SURFACES: Record<string, string[]> = {
   "stage/edit/clipSections.tsx": ["clipInspector"],
   "stage/frame/HistoryControls.tsx": ["historyPanel"],
-  "inspector/views/TrackInspector.tsx": ["trackInspector"],
+  "stage/edit/trackSections.tsx": ["trackInspector"],
   "stage/edit/EditCornerView.tsx": ["editCorner"],
   "stage/edit/PlusMenu.tsx": ["editPlusMenu"],
   "stage/edit/ViewSheet.tsx": ["viewSheet"],
