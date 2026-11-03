@@ -217,7 +217,7 @@ def test_gui_document_command_types_come_from_non_test_gui_sources() -> None:
 
 def test_edit_surface_file_matches_the_gui_and_passes_the_checker() -> None:
     mod = load_script("check_capabilities_manifest")
-    data = json.loads((ROOT / "contracts" / "edit-surface.json").read_text())
+    data = mod.edit_surface_data()
     schema_types = mod._schema_command_types()
     gui = mod.gui_document_command_types(schema_types)
     assert gui <= set(data["commands"])
@@ -404,7 +404,7 @@ def _pin_errors(data: dict) -> list[str]:
 
 
 def _edit_surface_data() -> dict:
-    return json.loads((ROOT / "contracts" / "edit-surface.json").read_text())
+    return load_script("check_capabilities_manifest").edit_surface_data()
 
 
 def test_edit_surface_gaps_and_exempts_are_pinned() -> None:

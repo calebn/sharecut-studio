@@ -8,135 +8,32 @@ runs none. ``policy`` asks these predicates whether a guest applies or proposes.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from podcast_mcp.engines.effect_filters import validate_effect_params
 from podcast_mcp.services.collaboration import ReviewRole, review_role_for_capabilities
+from podcast_mcp.services.document_sync.registry import COMMANDS, CommandSpec, commands_in_family
 from podcast_mcp.util.coded_error import CodedPermissionError, CodedValueError
 
+
+def _commands(keep: Callable[[CommandSpec], bool]) -> frozenset[str]:
+    return frozenset(t for t, spec in COMMANDS.items() if keep(spec))
+
+
 # Structural ops share one command type; policy chooses apply vs propose.
-STRUCTURAL_COMMANDS: frozenset[str] = frozenset(
-    {
-        "SplitAtTime",
-        "DeleteClip",
-    }
-)
+STRUCTURAL_COMMANDS: frozenset[str] = commands_in_family("structural")
 
 # Editor apply set (Pass 1-2 and structural edits).
-EDIT_COMMANDS: frozenset[str] = frozenset(
-    {
-        "EditSelectedRange",
-        "ApproveEdits",
-        "RejectEdits",
-        "ApplySuggestedActions",
-        "UpdatePendingEdit",
-        "RestoreAppliedEdit",
-        "SetClipFade",
-        "TrimClipEdge",
-        "RollClipJoin",
-        "SetJoinMode",
-        "SetClipJoin",
-        "ApplyFadeRecommendations",
-        "SetEffectBypass",
-        "UndoHistory",
-        "RedoHistory",
-        "DuplicateSegment",
-        "MoveSegment",
-        "MoveClips",
-        "PasteSegment",
-        "FillRoomTone",
-        "CutRange",
-        "AddTrack",
-        "SetTrackMedia",
-        "SetTrackMeta",
-        "SetTrackFader",
-        "SetTrackMute",
-        "RemoveTrack",
-        "ReorderTrack",
-        # Editors change volume envelopes as the host does (owner, #1051).
-        "SetEnvelope",
-        # Editors write the episode's podcast listing; show settings stay with the host.
-        "SetFeedField",
-        "ClearFeedField",
-        "CorrectTranscriptWord",
-        "CorrectTranscriptPhrase",
-        "ReplaceTranscriptMatches",
-        "ApplyTranscriptCleanup",
-        "VerifyTranscript",
-        "ReconcileTranscript",
-        "SetTranscriptWordSuppressed",
-        "SetTranscriptWordAutomatic",
-        "SetTranscriptWordsIgnored",
-        "SetTranscriptWordTiming",
-        "AddChapter",
-        "UpdateChapter",
-        "DeleteChapter",
-        "AddSocialClip",
-        "UpdateSocialClip",
-        "DeleteSocialClip",
-        "AddEffect",
-        "RemoveEffect",
-        "SuppressBleed",
-        "SuppressLowAudibility",
-        "SetBleedAlignmentMode",
-        "RestoreClipBleed",
-        "StageTimeRangeCut",
-        "StageTextMatchCut",
-        "StageUtteranceCut",
-        "StageWordsCut",
-        "MoveByText",
-        "RippleDeleteText",
-        "InsertGap",
-        "ApplyAutoEdits",
-        "ProposeTighten",
-        "ApplyEditPlan",
-        "ShortenWordGaps",
-        "StripSilence",
-        "FadeJoins",
-        "CrossfadeJoins",
-        "ApplyFadeRecommendationList",
-        "RenameProject",
-        *STRUCTURAL_COMMANDS,
-    }
-)
+EDIT_COMMANDS: frozenset[str] = _commands(lambda s: s.guest is not None and s.editor_applies)
 
-COMMENT_COMMANDS: frozenset[str] = frozenset(
-    {
-        "AddComment",
-        "UpdateComment",
-        "ResolveComment",
-        "DeleteComment",
-        "AddReply",
-        "SetActionDone",
-        "AddAction",
-    }
-)
+COMMENT_COMMANDS: frozenset[str] = commands_in_family("comments")
 
-# Naming a record session and deciding a staged one are the host's: a share link never edits
-# who the host recorded with, nor places or discards a recording. Inserting a segment reads the
-# host's own segment library, which a share link never reaches. Approving a clip decides what
-# exports, so a share link never retitles or approves one (it can still add, trim and remove).
-HOST_ONLY_DOCUMENT_COMMANDS: frozenset[str] = frozenset(
-    {
-        "UpdateSocialClipDetails",
-        "SetRecordSessionName",
-        "AcceptSessionSuggestion",
-        "SkipSessionSuggestion",
-        "SelectSessionTake",
-        "InsertSegment",
-    }
-)
+# Host-only: see each spec's ``host_only_reason`` in the registry.
+HOST_ONLY_DOCUMENT_COMMANDS: frozenset[str] = _commands(lambda s: s.host_only_reason is not None)
 
 # Commenter suggest set: structural commands and selected ranges propose.
-SUGGEST_COMMANDS: frozenset[str] = frozenset(
-    {
-        "EditSelectedRange",
-        "SuggestPendingEdit",
-        "UpdatePendingEdit",
-        *STRUCTURAL_COMMANDS,
-    }
-)
+SUGGEST_COMMANDS: frozenset[str] = _commands(lambda s: s.guest is ReviewRole.COMMENTER)
 
 ROLE_DOCUMENT_COMMANDS: Mapping[ReviewRole, frozenset[str]] = {
     ReviewRole.VIEWER: frozenset(),

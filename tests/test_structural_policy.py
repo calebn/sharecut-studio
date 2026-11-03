@@ -292,7 +292,7 @@ def test_delete_clips_empty_raises(minimal_project, dialogue_wav):
 
 
 def test_delete_clip_handler_requires_ids(minimal_project, dialogue_wav):
-    from podcast_mcp.services.document_sync.handlers import apply_command
+    from podcast_mcp.services.document_sync.registry import apply_command
 
     ws = _seed_dialogue_clips(minimal_project, dialogue_wav)
     with pytest.raises(ValueError, match="clip_id"):

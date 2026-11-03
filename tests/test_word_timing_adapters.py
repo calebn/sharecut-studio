@@ -250,16 +250,16 @@ def test_audio_source_containment_and_host_denial(timing_workspace, tmp_path, mo
 
 
 def test_transcript_handlers_have_disjoint_complete_projections():
-    from podcast_mcp.services.document_sync.handlers.transcript import HANDLERS
     from podcast_mcp.services.document_sync.projection_types import ViewProjection
     from podcast_mcp.services.document_sync.projections import (
         TRANSCRIPT_AUDIO_COMMANDS,
         TRANSCRIPT_WORD_COMMANDS,
         projection_for_command,
     )
+    from podcast_mcp.services.document_sync.registry import commands_in_family
 
     assert not TRANSCRIPT_AUDIO_COMMANDS & TRANSCRIPT_WORD_COMMANDS
-    assert HANDLERS.keys() == TRANSCRIPT_AUDIO_COMMANDS | TRANSCRIPT_WORD_COMMANDS
+    assert commands_in_family("transcript") == TRANSCRIPT_AUDIO_COMMANDS | TRANSCRIPT_WORD_COMMANDS
     assert projection_for_command("SetTranscriptWordTiming") == ViewProjection.TRANSCRIPT_AUDIO
     assert projection_for_command("SetTranscriptWordsIgnored") == ViewProjection.TRANSCRIPT_AUDIO
     assert projection_for_command("CorrectTranscriptWord") == ViewProjection.DETAIL

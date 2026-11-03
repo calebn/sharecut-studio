@@ -14,8 +14,8 @@ from podcast_mcp.services.document_sync.capabilities import (
     authorize_document_command,
     document_command_types_for_caps,
 )
-from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.payloads import DOCUMENT_COMMAND_ADAPTER
+from podcast_mcp.services.document_sync.registry import apply_command
 from podcast_mcp.util.coded_error import CodedValueError
 from test_record_replace_accept import SID, _seed_two_speakers, _stage_replace, _words
 from test_record_staging import INSERT, _everything, _seed, _seed_timeline, _stage, _suggestion

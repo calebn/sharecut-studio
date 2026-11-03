@@ -17,8 +17,8 @@ from podcast_mcp.services.document_sync.capabilities import (
     SUGGEST_COMMANDS,
     document_command_types_for_caps,
 )
-from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.payloads import DOCUMENT_COMMAND_ADAPTER
+from podcast_mcp.services.document_sync.registry import apply_command
 from podcast_mcp.util.coded_error import CodedValueError
 
 

@@ -7,7 +7,7 @@ via ``scripts/export_document_command_schema.py`` → ``schemas/document-command
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, get_args
 from uuid import uuid4
 
 from pydantic import (
@@ -1556,94 +1556,19 @@ def parse_document_command(
     return document_command_from_body(body)
 
 
+def _payload_models() -> dict[str, type[BaseModel]]:
+    """Each command type's payload model, read off the discriminated envelope union."""
+    union = get_args(DocumentCommandBody)[0]
+    return {
+        get_args(member.model_fields["type"].annotation)[0]: member.model_fields[
+            "payload"
+        ].annotation
+        for member in get_args(union)
+    }
+
+
 # Payload-only adapters for host MCP helpers that already know the type.
-_PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
-    "AddComment": AddCommentPayload,
-    "UpdateComment": UpdateCommentPayload,
-    "ResolveComment": ResolveCommentPayload,
-    "DeleteComment": DeleteCommentPayload,
-    "AddReply": AddReplyPayload,
-    "SetActionDone": SetActionDonePayload,
-    "AddAction": AddActionPayload,
-    "UndoHistory": UndoHistoryPayload,
-    "RedoHistory": RedoHistoryPayload,
-    "ApproveEdits": ApproveEditsPayload,
-    "RejectEdits": RejectEditsPayload,
-    "ApplySuggestedActions": ApplySuggestedActionsPayload,
-    "UpdatePendingEdit": UpdatePendingEditPayload,
-    "RestoreAppliedEdit": RestoreAppliedEditPayload,
-    "RestoreClipBleed": RestoreClipBleedPayload,
-    "SetClipFade": SetClipFadePayload,
-    "TrimClipEdge": TrimClipEdgePayload,
-    "RollClipJoin": RollClipJoinPayload,
-    "SetJoinMode": SetJoinModePayload,
-    "SetClipJoin": SetClipJoinPayload,
-    "ApplyFadeRecommendations": ApplyFadeRecommendationsPayload,
-    "ApplyFadeRecommendationList": ApplyFadeRecommendationListPayload,
-    "SetEffectBypass": SetEffectBypassPayload,
-    "AddEffect": AddEffectPayload,
-    "ReconcileTranscript": ReconcileTranscriptPayload,
-    "SuppressBleed": SuppressBleedPayload,
-    "SuppressLowAudibility": SuppressLowAudibilityPayload,
-    "SetBleedAlignmentMode": SetBleedAlignmentModePayload,
-    "RemoveEffect": RemoveEffectPayload,
-    "ReplaceTranscriptMatches": ReplaceTranscriptMatchesPayload,
-    "CorrectTranscriptWord": CorrectTranscriptWordPayload,
-    "ApplyTranscriptCleanup": ApplyTranscriptCleanupPayload,
-    "VerifyTranscript": VerifyTranscriptPayload,
-    "CorrectTranscriptPhrase": CorrectTranscriptPhrasePayload,
-    "SetTranscriptWordSuppressed": SetTranscriptWordSuppressedPayload,
-    "SetTranscriptWordAutomatic": SetTranscriptWordAutomaticPayload,
-    "SetTranscriptWordsIgnored": SetTranscriptWordsIgnoredPayload,
-    "SetTranscriptWordTiming": SetTranscriptWordTimingPayload,
-    "AddChapter": AddChapterPayload,
-    "UpdateChapter": UpdateChapterPayload,
-    "DeleteChapter": DeleteChapterPayload,
-    "SetFeedField": SetFeedFieldPayload,
-    "ClearFeedField": ClearFeedFieldPayload,
-    "AddSocialClip": AddSocialClipPayload,
-    "UpdateSocialClip": UpdateSocialClipPayload,
-    "UpdateSocialClipDetails": UpdateSocialClipDetailsPayload,
-    "DeleteSocialClip": DeleteSocialClipPayload,
-    "SetEnvelope": SetEnvelopePayload,
-    "EditSelectedRange": EditSelectedRangePayload,
-    "SuggestPendingEdit": SuggestPendingEditPayload,
-    "StageTimeRangeCut": StageTimeRangeCutPayload,
-    "StageTextMatchCut": StageTextMatchCutPayload,
-    "StageUtteranceCut": StageUtteranceCutPayload,
-    "StageWordsCut": StageWordsCutPayload,
-    "SplitAtTime": SplitAtTimePayload,
-    "DeleteClip": DeleteClipPayload,
-    "DuplicateSegment": DuplicateSegmentPayload,
-    "MoveSegment": MoveSegmentPayload,
-    "InsertGap": InsertGapPayload,
-    "InsertSegment": InsertSegmentPayload,
-    "FillRoomTone": FillRoomTonePayload,
-    "ApplyAutoEdits": ApplyAutoEditsPayload,
-    "ProposeTighten": ProposeTightenPayload,
-    "ApplyEditPlan": ApplyEditPlanPayload,
-    "ShortenWordGaps": ShortenWordGapsPayload,
-    "StripSilence": StripSilencePayload,
-    "FadeJoins": FadeJoinsPayload,
-    "CrossfadeJoins": CrossfadeJoinsPayload,
-    "MoveByText": MoveByTextPayload,
-    "MoveClips": MoveClipsPayload,
-    "PasteSegment": PasteSegmentPayload,
-    "CutRange": CutRangePayload,
-    "RippleDeleteText": RippleDeleteTextPayload,
-    "RenameProject": RenameProjectPayload,
-    "SetRecordSessionName": SetRecordSessionNamePayload,
-    "AcceptSessionSuggestion": AcceptSessionSuggestionPayload,
-    "SkipSessionSuggestion": SkipSessionSuggestionPayload,
-    "SelectSessionTake": SelectSessionTakePayload,
-    "AddTrack": AddTrackPayload,
-    "SetTrackMedia": SetTrackMediaPayload,
-    "SetTrackMeta": SetTrackMetaPayload,
-    "SetTrackFader": SetTrackFaderPayload,
-    "SetTrackMute": SetTrackMutePayload,
-    "RemoveTrack": RemoveTrackPayload,
-    "ReorderTrack": ReorderTrackPayload,
-}
+PAYLOAD_MODELS: dict[str, type[BaseModel]] = _payload_models()
 
 
 _CODED_PAYLOAD_TYPES = frozenset(
@@ -1678,7 +1603,7 @@ def _coded_payload_error(command_type: str, exc: ValidationError) -> CodedValueE
 
 def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[str, Any]:
     """Validate a payload dict for a known command type; return dumped dict."""
-    model = _PAYLOAD_BY_TYPE.get(command_type)
+    model = PAYLOAD_MODELS.get(command_type)
     if model is None:
         raise CodedValueError(
             f"unknown document command: {command_type}", code="document_command_unknown"
