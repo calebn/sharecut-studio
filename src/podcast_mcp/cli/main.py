@@ -7,6 +7,7 @@ from podcast_mcp.cli import (
     clips,
     comment,
     config_cmd,
+    doc,
     edit,
     episode,
     feed,
@@ -81,6 +82,7 @@ app.add_typer(transcript_cmd.transcript_app, name="transcript")
 app.add_typer(speaker.speaker_app, name="speaker")
 app.add_typer(clips.clips_app, name="clips")
 app.add_typer(comment.comment_app, name="comment")
+app.add_typer(doc.doc_app, name="doc")
 app.add_typer(feed.feed_app, name="feed")
 app.add_typer(review.review_app, name="review")
 app.add_typer(segment.segment_app, name="segment")
