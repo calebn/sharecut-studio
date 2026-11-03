@@ -297,7 +297,8 @@ select.track-sheet-field {
 
 @media (pointer: coarse) {
   .track-sheet-field,
-  .track-sheet-bypass {
+  .track-sheet-bypass,
+  .track-sheet-action {
     min-block-size: var(--touch-min);
   }
 
@@ -307,7 +308,8 @@ select.track-sheet-field {
 }
 
 html[data-shell="phone"] .track-sheet-field,
-html[data-shell="phone"] .track-sheet-bypass {
+html[data-shell="phone"] .track-sheet-bypass,
+html[data-shell="phone"] .track-sheet-action {
   min-block-size: var(--touch-min);
 }
 
