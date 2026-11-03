@@ -211,19 +211,20 @@ for (const [index, viewport] of VIEWPORTS.entries()) {
           .getByRole("button", { name: new RegExp(`^Chapter ${title},`) })
           .click();
         await inspectSelection(page);
-        const inspector = page.locator(".modifier-inspector");
+        const inspector = page.getByRole("dialog").filter({
+          has: page.getByRole("heading", { name: "Chapter", exact: true }),
+        });
         await expect(
-          inspector.getByRole("heading", { name: title, exact: true }),
+          inspector.getByRole("heading", { name: "Chapter", exact: true }),
         ).toBeVisible();
         await expect(
-          inspector.getByRole("textbox", { name: "Chapter title" }),
+          inspector.getByRole("textbox", { name: "Title" }),
         ).toHaveValue(title);
         await expect(
-          inspector.getByRole("spinbutton", { name: "Chapter time" }),
-        ).toHaveValue("22");
-        await expectTextFits(inspector.locator(".modifier-header"));
+          inspector.getByRole("spinbutton", { name: "Time" }),
+        ).toHaveAttribute("aria-valuenow", "22");
         await expectTextFits(inspector);
-        await expectEditorAxeClean(page, ".modifier-inspector");
+        await expectEditorAxeClean(page, '[role="dialog"]');
       } finally {
         await postDocumentCommand(
           page,
