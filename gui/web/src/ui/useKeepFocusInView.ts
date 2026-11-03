@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import { useResizeObserver } from "../ui/useResizeObserver";
+import { useResizeObserver } from "./useResizeObserver";
 
 type Snapshot = { fromEnd: number; focusShown: boolean };
 

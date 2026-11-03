@@ -8,6 +8,7 @@ import { Icon } from "./Icon";
 import { SheetHostPlacement } from "./sheetHost";
 import { useDialogModal } from "./useDialogModal";
 import { useDrawerSwipe } from "./useDrawerSwipe";
+import { useKeepFocusInView } from "./useKeepFocusInView";
 import { useSheetHost } from "./useSheetHost";
 
 /** `peek`: a content-height strip; `half` and `full`: fixed shares of the slot. */
@@ -114,6 +115,8 @@ export function BottomSheet({
   const hasDrawer = drawer != null;
   const host = useSheetHost();
   useKeyboardInset(open);
+  // Rotating or resizing the screen shrinks the body; a field that was in view stays in view.
+  const keepFocusInView = useKeepFocusInView();
   // A focused control is scrolled clear of the pinned header, which WebKit
   // does not do for a field it counts as partly in view.
   useEffect(() => {
@@ -252,7 +255,7 @@ export function BottomSheet({
           </div>
         </div>
       </div>
-      <div className="bottom-sheet-body">
+      <div className="bottom-sheet-body" ref={keepFocusInView}>
         {bodyHeader}
         {children}
       </div>
