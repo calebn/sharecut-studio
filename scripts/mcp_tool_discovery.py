@@ -2,28 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 
 def discover_mcp_tool_names() -> set[str]:
-    from podcast_mcp.mcp.tools import (
-        align,
-        clips,
-        comments,
-        edits,
-        episode,
-        feed,
-        gui,
-        history,
-        ingest,
-        models,
-        pipeline,
-        play,
-        record,
-        review,
-        session,
-        speaker,
-        timeline,
-        transcript,
-    )
+    """Every tool ``register_all`` mounts, so a new tool module cannot be missed here."""
+    from podcast_mcp.mcp.tools import register_all
 
     class FakeMcp:
         def __init__(self) -> None:
@@ -39,32 +23,6 @@ def discover_mcp_tool_names() -> set[str]:
         def add_tool(self, fn, name=None, **kwargs):
             self.tools.append(name or fn.__name__)
 
-    # review splits core vs share tools (share mounts via the collaboration
-    # extension) - same split as register_all / extensions/collaboration.py.
-    registrars = (
-        episode.register,
-        transcript.register,
-        edits.register,
-        timeline.register,
-        clips.register,
-        comments.register,
-        feed.register,
-        review.register_core,
-        review.register_share,
-        pipeline.register,
-        models.register,
-        history.register,
-        play.register,
-        record.register,
-        session.register,
-        ingest.register,
-        speaker.register,
-        gui.register,
-        align.register,
-    )
-    names: set[str] = set()
-    for register in registrars:
-        fake = FakeMcp()
-        register(fake)
-        names.update(fake.tools)
-    return names
+    fake = FakeMcp()
+    register_all(cast(Any, fake))
+    return set(fake.tools)

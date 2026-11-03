@@ -2604,6 +2604,52 @@
       }
     },
     {
+      "id": "agent.segments",
+      "label": "Segment library",
+      "effect": "project",
+      "service": "SegmentStore",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "segment_list_tool",
+          "segment_show_tool",
+          "segment_save_tool",
+          "segment_insert_tool"
+        ],
+        "cli": "podcast segment"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.kits",
+      "label": "Kits",
+      "effect": "project",
+      "service": "kit apply",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "kit_list_tool",
+          "kit_show_tool",
+          "kit_save_tool",
+          "kit_apply_tool"
+        ],
+        "cli": "podcast kit"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
       "id": "daw.transcript.correct",
       "label": "Correct transcript",
       "effect": "project",
