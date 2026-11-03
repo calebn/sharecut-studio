@@ -1,9 +1,4 @@
-"""``podcast doc``: list, describe and submit any document command by type.
-
-The twin of the host MCP tools ``document_command_schema_tool`` and
-``submit_document_command_tool``: the same service functions, so a CLI submit is the same typed
-journal row, history step and undo as the tool's.
-"""
+"""``podcast doc``: the CLI twin of the generic document command MCP tools."""
 
 from __future__ import annotations
 
@@ -29,7 +24,6 @@ def _fail(exc: Exception) -> typer.Exit:
 
 
 def _read_payload(raw: str) -> dict[str, Any]:
-    """The JSON object in ``raw``, or in the file named by ``@path``."""
     text = raw
     if raw.startswith("@"):
         try:

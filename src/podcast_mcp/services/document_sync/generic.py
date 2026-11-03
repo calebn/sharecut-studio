@@ -1,15 +1,7 @@
 """Submit any document command by type, and describe the types, from the registry.
 
-The host MCP tool ``submit_document_command_tool`` and ``podcast doc submit`` call
-``submit_generic_document_command``. It validates the payload against the registry's payload
-model, then goes through ``submit_host_document_command``: the same typed command, journal row,
-history step and fanout as every named tool, so it is undoable and never reaches a guest (it
-has no capability list, and no ``guest_`` tool wraps it). The submit already journals and fans
-out, so nothing here calls ``notify_after_mutation``; that decorator is for tools that mutate
-without submitting.
-
-A type whose spec sets ``generic_refusal`` is refused, because its named tool does work a bare
-submit cannot (``InsertSegment`` pins a version and previews).
+Submits go through ``submit_host_document_command``, so they journal, fan out and undo like the
+named tools and never reach a guest. A type whose spec sets ``generic_refusal`` is refused.
 """
 
 from __future__ import annotations
