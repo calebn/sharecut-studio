@@ -319,11 +319,7 @@ export function useTrackSections(
           ? [
               {
                 id: "error",
-                control: (
-                  <p className="sys-inspector-note" role="alert">
-                    {error}
-                  </p>
-                ),
+                control: note(error, "alert"),
               },
             ]
           : []),

@@ -1,13 +1,13 @@
 import { type KeyboardEvent, useEffect, useState } from "react";
-import { deleteChapter, updateChapter } from "../../api";
+import { updateChapter } from "../../api";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import type { Selection } from "../../types/project";
-import { Button, InspectorSeekFooter } from "../../ui";
-import { BUSY_REASON } from "../../ui/disabledReason";
+import { InspectorSeekFooter } from "../../ui";
+import { note } from "./sheetNote";
 
 export function useChapterSections(
   selection: Selection,
@@ -47,13 +47,6 @@ export function useChapterSections(
       return;
     }
     void save(time, next);
-  };
-
-  const remove = async () => {
-    await run(async () => {
-      await deleteChapter(projectPath, time, title);
-      setSelection(null);
-    });
   };
 
   return [
@@ -100,11 +93,7 @@ export function useChapterSections(
           ? [
               {
                 id: "error",
-                control: (
-                  <p className="sys-inspector-note" role="alert">
-                    {error}
-                  </p>
-                ),
+                control: note(error, "alert"),
               },
             ]
           : []),
@@ -119,23 +108,6 @@ export function useChapterSections(
             />
           ),
         },
-        ...(editable
-          ? [
-              {
-                id: "remove",
-                control: (
-                  <Button
-                    variant="danger"
-                    className="track-sheet-action"
-                    disabledReason={busy ? BUSY_REASON : undefined}
-                    onClick={() => void remove()}
-                  >
-                    Delete
-                  </Button>
-                ),
-              },
-            ]
-          : []),
       ],
     },
   ];

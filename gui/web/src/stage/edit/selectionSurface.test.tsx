@@ -222,8 +222,8 @@ const REACH: Record<SelectionKind, Reach[]> = {
     { role: "button", name: "Move track down" },
   ],
   chapter: [
-    { role: "button", name: "Delete" },
     { role: "spinbutton", name: "Time" },
+    { role: "button", name: "Seek" },
   ],
   social: [
     { role: "spinbutton", name: "End" },
