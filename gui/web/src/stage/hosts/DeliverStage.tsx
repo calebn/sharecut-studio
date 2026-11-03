@@ -38,6 +38,7 @@ import { StatusRow } from "../../system/StatusRow";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
 import { Button } from "../../ui";
 import { useCommand } from "../../ui/useCommand";
+import { mediaSignature } from "../../waveform/mediaRef";
 import type { LoadFailure } from "../frame/LoadFailureBanner";
 import { useStageScroll } from "../useStageScroll";
 import { useBounceFlow } from "./bounceFlowContext";
@@ -72,6 +73,7 @@ import { HostBody } from "./HostBody";
 import { hostStateOf } from "./hostModels";
 import { useShareFlow } from "./shareFlowContext";
 import { hostFileAccess, useDeliverFiles } from "./useDeliverFiles";
+import { useEpisodePeaks } from "./useEpisodePeaks";
 import { useTranscriptFlow } from "./useTranscriptFlow";
 import { useTunnelStatus } from "./useTunnelStatus";
 
@@ -247,6 +249,11 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const clipWords = useMemo(
     () => clipWordsOf(transcriptUtterances),
     [transcriptUtterances],
+  );
+  const peaks = useEpisodePeaks(
+    state === "ready" ? projectPath : null,
+    project?.timeline_duration_sec ?? 0,
+    `${project?.history.head_id}|${mediaSignature(project)}`,
   );
   const transcriptFlow = useTranscriptFlow({
     projectPath,
@@ -551,6 +558,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           files={files}
           getPlayheadSec={() => useDawStore.getState().playheadSec}
           words={clipWords}
+          peaks={peaks}
           layout={shell === "phone" ? "phone" : "desktop"}
           showLink={false}
           showPlayer={false}
