@@ -341,4 +341,13 @@ describe("speaker filter", () => {
     expect(next.selectedId).toBe("b");
     expect(next.speaker).toBeNull();
   });
+
+  it("ends the filter once that person has decided every edit, so the others come up", () => {
+    const decidedHost = entry("a", 1, { speaker: host, result: "applied" });
+    const open = [decidedHost, two[1]!];
+    const s = { ...start(null), speaker: "host" };
+    const next = reviewSession(s, { type: "observed", open });
+    expect(next.speaker).toBeNull();
+    expect(next.selectedId).toBe("b");
+  });
 });
