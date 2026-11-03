@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import type { CommandContext } from "../commands/context";
-import { seekTransport } from "../commands/seek";
 import { EnvelopePointBody } from "../stage/edit/EnvelopePointBody";
 import { PendingEditBody } from "../stage/edit/PendingEditBody";
 import { SectionsBody } from "../stage/edit/SectionsBody";
@@ -21,8 +20,6 @@ import {
   relatedCopy,
   relatedCopyWord,
 } from "./relatedRows";
-import { ChapterInspector } from "./views/ChapterInspector";
-import { SocialClipInspector } from "./views/SocialClipInspector";
 
 export type SelectionKind = NonNullable<Selection>["kind"];
 type SelectionOf<K extends SelectionKind> = Extract<
@@ -138,22 +135,16 @@ export const SELECTION_SURFACES: {
     ...plain,
     screens: ANYWHERE,
     peek: peekChapter,
-    body: (sel) => <ChapterInspector title={sel.id} time={sel.time} />,
+    body: (_sel, { placement }) => (
+      <SectionsBody withRange={placement === "sheet"} />
+    ),
   },
   social: {
     ...plain,
     screens: ANYWHERE,
-    body: (sel, { project }) => {
-      const clip = (project.social_clips ?? []).find((c) => c.id === sel.id);
-      return clip ? (
-        <SocialClipInspector
-          clip={clip}
-          onSeek={(sec) => void seekTransport(sec)}
-        />
-      ) : (
-        notFound("Social clip not found")
-      );
-    },
+    body: (_sel, { placement }) => (
+      <SectionsBody withRange={placement === "sheet"} />
+    ),
   },
   comment: {
     ...plain,

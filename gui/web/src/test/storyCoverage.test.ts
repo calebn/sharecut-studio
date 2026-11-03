@@ -31,12 +31,12 @@ const COVERED: Record<string, string[]> = {
   "INS-WORD": ["System/InspectorSheet", "System/ScrubField"],
   "INS-COMMENT": ["System/InspectorSheet"],
   "INS-SOCIAL": [
-    "Templates/Editor · Inspector · Social clip",
+    "Stages/Edit/MarkerInspector",
     "System/ScrubField",
     "System/Marker",
   ],
   "INS-CHAPTER": [
-    "Templates/Editor · Inspector · Chapter",
+    "Stages/Edit/MarkerInspector",
     "System/ScrubField",
     "System/Marker",
   ],

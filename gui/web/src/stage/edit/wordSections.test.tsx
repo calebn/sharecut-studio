@@ -1396,7 +1396,9 @@ describe("which sections a transcript range gets", () => {
   });
 
   it("leaves other kinds to their own bodies", () => {
-    expect(ids({ kind: "chapter", id: "c", time: 1 })).toBeNull();
+    expect(
+      ids({ kind: "envelopePoint", trackId: "host", pointId: "e1" }),
+    ).toBeNull();
   });
 });
 

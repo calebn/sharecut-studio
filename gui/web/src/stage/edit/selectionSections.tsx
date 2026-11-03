@@ -2,10 +2,12 @@ import type { InspectorSection } from "../../system/InspectorSheet";
 import type { Selection } from "../../types/project";
 import { useAppliedSections } from "./appliedSections";
 import { useBleedSections } from "./bleedSections";
+import { useChapterSections } from "./chapterSections";
 import { useClipSections } from "./clipSections";
 import { useCommentSections } from "./commentSections";
 import { usePendingSections } from "./pendingSections";
 import { rangeSection } from "./rangeSection";
+import { useSocialSections } from "./socialSections";
 import { useTrackSections } from "./trackSections";
 import { useWordSections } from "./wordSections";
 
@@ -21,8 +23,18 @@ export function useSelectionSections(
   const comment = useCommentSections(selection);
   const pending = usePendingSections(selection, barShown);
   const track = useTrackSections(selection);
+  const chapter = useChapterSections(selection);
+  const social = useSocialSections(selection);
   if (word) return word;
-  const rest = applied ?? bleed ?? clip ?? comment ?? pending ?? track;
+  const rest =
+    applied ??
+    bleed ??
+    clip ??
+    comment ??
+    pending ??
+    track ??
+    chapter ??
+    social;
   if (!rest) return null;
   return rangeActionsInSheet ? [rangeSection, ...rest] : rest;
 }
