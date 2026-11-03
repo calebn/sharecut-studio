@@ -351,6 +351,8 @@ The existing service path avoids that new lock contract in this sweep.
 | --- | --- | --- |
 | `inspect-clip-bleed` | None | Read or analysis only. |
 | `restore-clip-bleed` | Typed `RestoreClipBleed` | One command row; no external notification. |
+| `applied` | None | Read or analysis only. |
+| `restore-edit` | Typed `RestoreAppliedEdit` | One command row; no external notification. A `--dry-run`, and a Restore that plans to a conflict, journal no row and write no project change. |
 | `search` | None | Read or analysis only. |
 | `cut-range` | External | Preserve waveform planning and staging semantics outside the journal write lock. |
 | `cut-text` | External | Preserve created count, lookup metadata, and waveform planning. |
@@ -529,7 +531,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `UndoHistory`, `RedoHistory` | `HistoryService` | optional `rerender`; required `expected_head_id`, the history head the client saw (`root` before any entry; refused as invalid when missing, 409 `history_stale` unless it is still the head; [history.md § Guarded undo and redo](history.md#guarded-undo-and-redo-expected-head)) |
 | `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; `hold_blocked` reports held cuts instead of refusing the batch; `skip_unsure` (bulk guard) leaves every cut that covers an unsure word pending as `held` with reason `unsure_word`, forced on for a guest's multi-edit approve ([gui-integration.md § Unsure words](gui-integration.md#unsure-words)); trusted interactive context, or `override_audio_checks` from a caller that may run the command, overrides the acoustic holds (not the unsure hold) |
 | `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?`, `expected?` (saved track/type/clock/bounds) |
-| `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (ordinary source MUTE log id). Clip removals and exact ranges refuse with `local_restore_requires_history`; choose guarded `UndoHistory` for the whole action |
+| `RestoreAppliedEdit` | `EditService.revert_applied` | `ids` (applied-edit log ids), `dry_run` (default false). Returns `RestoreResult{status: restored\|planned\|conflict, conflicts, summary}`. One History step for all ids; `dry_run` and conflicts write nothing: no History step, no journal row, no `server_seq` advance. Records without an `inverse` (`restore.state: history_only`) return a `local_restore_requires_history` conflict; choose guarded `UndoHistory` for the whole action. A retry of a succeeded Restore with the same `command_id` returns the stored result (`idempotent: true`) before any plan. The reply also carries the conflicts at the top level as `restore_conflicts`, because a guest's `command` is reduced to its type |
 | `SetClipFade` | `TimelineService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
 | `TrimClipEdge` | `TimelineService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, `mode` (`ripple` \| `gap`), required `expected_token` from a boundary context minted for that mode |
 | `RollClipJoin` | `TimelineService.roll_clip_join` | `left_clip_id`, `right_clip_id`, `delta_sec`, required `expected_token` from boundary context. The clips must abut (`clips_abut`); across a gap the command is refused, HTTP 400 with `X-Sharecut-Error-Code: roll_needs_abutting_clips`, before the token is checked |
