@@ -161,8 +161,6 @@ def get_applied_edit(project: EpisodeProject, record_id: str) -> AppliedEditReco
 
 
 class RestoreConflict(BaseModel):
-    """Why one record cannot be restored now. Returned as data so agents read the blocker."""
-
     code: str
     record_id: str
     message: str
@@ -171,8 +169,6 @@ class RestoreConflict(BaseModel):
 
 
 class RestoreState(BaseModel):
-    """What the server says a record's Restore can do. Every surface reads this and none re-derives it."""
-
     state: Literal["ready", "blocked", "history_only"]
     code: str | None = None
     message: str | None = None
@@ -224,7 +220,6 @@ _RESTORERS: dict[str, _Restorer] = {"unmute": _Restorer(_plan_unmute, _apply_unm
 def plan_restore(
     project: EpisodeProject, record: AppliedEditRecord
 ) -> RestorePlan | RestoreConflict:
-    """Check that ``record`` can be undone alone. Raises for a record with no inverse."""
     inverse = record.inverse
     if inverse is None:
         raise LocalRestoreRequiresHistory(record.id)
@@ -248,7 +243,6 @@ def restore_state(project: EpisodeProject, record: AppliedEditRecord) -> Restore
 def plan_restores(
     project: EpisodeProject, ids: Sequence[str]
 ) -> tuple[list[RestorePlan], list[RestoreConflict]]:
-    """Plan every id and collect every conflict. A history-only record raises."""
     by_id = {r.id: r for r in project.editorial.edit_log}
     plans: list[RestorePlan] = []
     conflicts: list[RestoreConflict] = []
@@ -283,7 +277,6 @@ def planned_summary(plans: Sequence[RestorePlan]) -> dict[str, Any]:
 def apply_restores(
     project: EpisodeProject, plans: Sequence[RestorePlan], *, defaults: EffectiveConfig
 ) -> dict[str, Any]:
-    """Apply planned restores, then rebuild the transcript once."""
     done = {p.record_id for p in plans}
     for record in project.editorial.edit_log:
         if record.id in done:

@@ -611,11 +611,7 @@ class EditService(CutMutatingService):
             )
 
     def revert_applied(self, ids: list[str], dry_run: bool = False) -> dict:
-        """Restore applied edits together, as one History step. ``dry_run`` writes nothing.
-
-        Conflicts come back as data. A record with no inverse raises
-        ``local_restore_requires_history`` before anything is recorded.
-        """
+        """Restore applied edits as one History step; conflicts come back as data."""
         with self.ws.transaction() as project:
             plans, conflicts = plan_restores(project, ids)
             if conflicts:

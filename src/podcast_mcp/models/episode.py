@@ -801,7 +801,6 @@ class UnmuteSource(BaseModel):
     spans: list[UnmuteSpan] = Field(min_length=1)
 
 
-# One variant today. A second variant makes this a union discriminated on ``kind``.
 AppliedEditInverse = UnmuteSource
 
 
@@ -820,7 +819,6 @@ class AppliedEditRecord(BaseModel):
     boundary_mode: str | None = None
     cut_confidence: float | None = None
     params: dict[str, Any] = Field(default_factory=dict)
-    # What undoes this record alone. None: History Undo is the only way back.
     inverse: AppliedEditInverse | None = None
 
 

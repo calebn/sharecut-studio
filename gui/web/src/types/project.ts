@@ -205,7 +205,6 @@ export interface PendingEditView {
   why?: string | null;
 }
 
-/** What the server says Restore can do for one applied edit; clients never derive it. */
 export type RestoreState =
   | { state: "ready" }
   | {

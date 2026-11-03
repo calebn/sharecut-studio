@@ -513,9 +513,7 @@ def revert_applied_edit_tool(
 ) -> str:
     """Restore applied edits as one History step; ``dry_run`` plans without writing.
 
-    Returns a RestoreResult: ``status`` restored, planned or conflict, with each conflict's
-    ``code`` and ``blocked_by``. Records with ``restore.state`` history_only (list_applied_edits_tool)
-    are not restorable here; use ``history_undo``.
+    Returns a RestoreResult. Records with ``restore.state`` history_only need ``history_undo``.
     """
     return to_json(
         submit_host_command_result(
