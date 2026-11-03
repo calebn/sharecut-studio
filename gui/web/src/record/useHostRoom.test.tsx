@@ -34,6 +34,13 @@ vi.mock("./hostKeeperStorage", () => ({
 }));
 
 import { useDawStore } from "../state/dawStore";
+import { useRecordUpload } from "./upload/useRecordUpload";
+
+vi.mock("./upload/useRecordUpload", async (importActual) => {
+  const actual =
+    await importActual<typeof import("./upload/useRecordUpload")>();
+  return { ...actual, useRecordUpload: vi.fn(actual.useRecordUpload) };
+});
 
 const host = recordParticipant({
   participant_id: "p_host",
@@ -136,6 +143,41 @@ describe("useHostRoom", () => {
     expect(result.current.micLossNeedsAttention).toBe(true);
     rerender({ lost: false });
     expect(result.current.micLossNeedsAttention).toBe(false);
+    await act(async () => undefined);
+  });
+
+  it("owes host files only for takes the host mic joined", async () => {
+    const take = (ids: string[]) => ({
+      take_index: 1,
+      session_start_wall_ms: 0,
+      session_start_iso: "2026-01-01T00:00:00Z",
+      stopped_wall_ms: 5,
+      consented_participant_ids: ids,
+      pauses: [],
+      segment_reports: {},
+    });
+    const expected = () =>
+      vi.mocked(useRecordUpload).mock.lastCall?.[0].captureExpected;
+    useRecordHostStore.setState({
+      snapshot: recordSnapshot({
+        state: "stopped",
+        take_index: 1,
+        participants: [host],
+        takes: [take(["p_g"])],
+      }),
+    });
+    const { rerender } = renderHook(() => useHostRoom());
+    expect(expected()).toBe(false);
+    useRecordHostStore.setState({
+      snapshot: recordSnapshot({
+        state: "stopped",
+        take_index: 1,
+        participants: [host],
+        takes: [take(["p_host", "p_g"])],
+      }),
+    });
+    rerender();
+    expect(expected()).toBe(true);
     await act(async () => undefined);
   });
 

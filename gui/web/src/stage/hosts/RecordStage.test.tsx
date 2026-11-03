@@ -1311,6 +1311,17 @@ describe("Record stage capture and storage", () => {
       state: "stopped",
       take_index: 0,
       participants: [hostPerson()],
+      takes: [
+        {
+          take_index: 0,
+          session_start_wall_ms: 0,
+          session_start_iso: "2026-01-01T00:00:00Z",
+          stopped_wall_ms: 5,
+          consented_participant_ids: ["p_host"],
+          pauses: [],
+          segment_reports: {},
+        },
+      ],
     });
     mount({ micStatus: "denied" });
     expect(

@@ -30,6 +30,7 @@ import {
 import { HOST_PARTICIPANT_ID } from "./roomPeople";
 import {
   captureAttention,
+  findCurrentTake,
   hostReconnectPauseCopyFromSnapshot,
   recordSourceId,
   shouldApplyRecordSnapshot,
@@ -163,6 +164,13 @@ export function useHostRoom(
     finalizing: keeperFinalizing,
     error: keeperError ?? null,
   });
+  // The host's files are owed only for takes the host's mic joined, not takes recorded with it off.
+  const currentTake = snapshot ? findCurrentTake(snapshot) : undefined;
+  const hostInCurrentTake =
+    host != null &&
+    (currentTake?.consented_participant_ids ?? []).includes(
+      HOST_PARTICIPANT_ID,
+    );
   const upload = useRecordUpload({
     enabled: !!snapshot,
     roomState: snapshot?.state,
@@ -172,7 +180,7 @@ export function useHostRoom(
     participantId: "p_host",
     transport: uploadTransport,
     sink,
-    captureExpected: (snapshot?.take_index ?? -1) >= 0 && host != null && micOn,
+    captureExpected: hostInCurrentTake,
     retryNonce: uploadRetryNonce,
   });
   const keeperActions = useKeeperRecoveryActions({
