@@ -10,7 +10,7 @@
     "description": { "type": "string" },
     "commands": {
       "type": "object",
-      "description": "One entry per document command type the GUI sends, keyed by the type name in schemas/document-commands.schema.json.",
+      "description": "One entry per document command type the GUI sends, keyed by the type name in schemas/document-commands.schema.json. Not stored in contracts/edit-surface.json: scripts/check_capabilities_manifest.py builds it from the CommandSpec decisions in the document command registry and validates the result here.",
       "additionalProperties": {
         "type": "object",
         "required": ["mcp", "cli"],

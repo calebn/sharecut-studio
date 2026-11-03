@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
-
-Handler = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
 
 
 def add_comment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
@@ -82,14 +79,3 @@ def set_action_done(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 def add_action(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return CommentService(ws).add_action(p["comment_id"], p["text"]).model_dump()
-
-
-HANDLERS: dict[str, Handler] = {
-    "AddComment": add_comment,
-    "UpdateComment": update_comment,
-    "ResolveComment": resolve_comment,
-    "DeleteComment": delete_comment,
-    "AddReply": add_reply,
-    "SetActionDone": set_action_done,
-    "AddAction": add_action,
-}

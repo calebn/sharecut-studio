@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.comment import comment_app
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document_sync.handlers.comments import HANDLERS
+from podcast_mcp.services.document_sync.registry import COMMANDS
 
 
 def _cli(project, *args: str) -> Any:
@@ -63,7 +63,7 @@ def test_comment_cli_prints_plain_json_for_every_command(minimal_project):
 def test_comment_sync_handlers_return_plain_dicts(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
 
-    added = HANDLERS["AddComment"](
+    added = COMMANDS["AddComment"].handler(
         ws,
         {"body": "Hello", "author": "a", "timeline_start": 1.0, "action_texts": ["Fix"]},
     )
@@ -71,28 +71,28 @@ def test_comment_sync_handlers_return_plain_dicts(minimal_project):
     cid = added["id"]
     aid = added["action_items"][0]["id"]
 
-    updated = HANDLERS["UpdateComment"](ws, {"comment_id": cid, "body": "Upd"})
+    updated = COMMANDS["UpdateComment"].handler(ws, {"comment_id": cid, "body": "Upd"})
     assert isinstance(updated, dict)
     assert updated["body"] == "Upd"
 
-    resolved = HANDLERS["ResolveComment"](ws, {"comment_id": cid, "by": "a"})
+    resolved = COMMANDS["ResolveComment"].handler(ws, {"comment_id": cid, "by": "a"})
     assert isinstance(resolved, dict)
     assert resolved["resolved"] is True
 
-    reply = HANDLERS["AddReply"](ws, {"comment_id": cid, "body": "r", "author": "a"})
+    reply = COMMANDS["AddReply"].handler(ws, {"comment_id": cid, "body": "r", "author": "a"})
     assert isinstance(reply, dict)
     assert reply["comment_id"] == cid
     assert reply["reply"]["body"] == "r"
 
-    new_action = HANDLERS["AddAction"](ws, {"comment_id": cid, "text": "More"})
+    new_action = COMMANDS["AddAction"].handler(ws, {"comment_id": cid, "text": "More"})
     assert isinstance(new_action, dict)
     assert new_action["comment_id"] == cid
     assert new_action["action_item"]["text"] == "More"
 
-    done = HANDLERS["SetActionDone"](ws, {"comment_id": cid, "action_id": aid, "by": "a"})
+    done = COMMANDS["SetActionDone"].handler(ws, {"comment_id": cid, "action_id": aid, "by": "a"})
     assert isinstance(done, dict)
     assert done["comment_id"] == cid
     assert done["action_item"]["done"] is True
 
-    deleted = HANDLERS["DeleteComment"](ws, {"comment_id": cid})
+    deleted = COMMANDS["DeleteComment"].handler(ws, {"comment_id": cid})
     assert deleted == {"deleted": True, "id": cid}

@@ -714,13 +714,17 @@
     {
       "id": "capability-registration",
       "when": "Capability registration (GUI / keys / MCP / CLI / skills)",
-      "update": "`contracts/capabilities.manifest.json`, `contracts/edit-surface.json` (a document command the GUI sends), `docs/entry-points.md`, live catalog https://docs.sharecut.studio/#/capabilities (regen with `make schema-export`); `make generated-check` / pre-commit `capabilities-manifest`",
+      "update": "`contracts/capabilities.manifest.json`, the document command registry (a command's `CommandSpec` gui/mcp/cli decisions, see `docs/entry-points.md`), `contracts/edit-surface.json` (project rows without a twin), `docs/entry-points.md`, live catalog https://docs.sharecut.studio/#/capabilities (regen with `make schema-export`); `make generated-check` / pre-commit `capabilities-manifest`",
       "docs": [
         "contracts/capabilities.manifest.json",
         "contracts/edit-surface.json",
         "docs/entry-points.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/services/document_sync/registry.py"
+        ]
+      }
     },
     {
       "id": "sharecut-studio-shortcut-cheatsheet",

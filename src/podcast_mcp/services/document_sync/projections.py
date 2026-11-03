@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from podcast_mcp.services.document_sync.handlers.comments import HANDLERS as COMMENT_HANDLERS
-from podcast_mcp.services.document_sync.handlers.transcript import HANDLERS as TRANSCRIPT_HANDLERS
 from podcast_mcp.services.document_sync.projection_types import ViewProjection
+from podcast_mcp.services.document_sync.registry import commands_in_family
 
-COMMENT_COMMANDS: frozenset[str] = frozenset(COMMENT_HANDLERS)
+COMMENT_COMMANDS: frozenset[str] = commands_in_family("comments")
 
 TRACK_SLICE_COMMANDS: frozenset[str] = frozenset(
     {
@@ -18,7 +17,7 @@ TRANSCRIPT_AUDIO_COMMANDS: frozenset[str] = frozenset(
     {"SetTranscriptWordsIgnored", "SetTranscriptWordTiming"}
 )
 TRANSCRIPT_WORD_COMMANDS: frozenset[str] = (
-    frozenset(TRANSCRIPT_HANDLERS) - TRANSCRIPT_AUDIO_COMMANDS
+    commands_in_family("transcript") - TRANSCRIPT_AUDIO_COMMANDS
 )
 
 CLIP_SLICE_COMMANDS: frozenset[str] = frozenset(

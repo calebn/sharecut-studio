@@ -24,10 +24,3 @@ def skip_session_suggestion(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str
 
 def select_session_take(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return SessionSuggestionService(ws).select_take(str(p["suggestion_id"]), int(p["take_index"]))
-
-
-HANDLERS = {
-    "AcceptSessionSuggestion": accept_session_suggestion,
-    "SkipSessionSuggestion": skip_session_suggestion,
-    "SelectSessionTake": select_session_take,
-}

@@ -427,11 +427,41 @@ def _needs_twins(cap: dict) -> bool:
     )
 
 
+def registry_errors(gui_types: set[str], schema_types: set[str]) -> list[str]:
+    """Each document command type has one registry entry, and its GUI decision agrees with the GUI sources."""
+    from podcast_mcp.services.document_sync import COMMANDS, gui_named_types
+
+    errors = [
+        f"registry: {t} is in schemas/document-commands.schema.json but has no registry entry"
+        for t in sorted(schema_types - set(COMMANDS))
+    ]
+    errors.extend(
+        f"registry: {t} is not a type in schemas/document-commands.schema.json"
+        for t in sorted(set(COMMANDS) - schema_types)
+    )
+    named_types = gui_named_types()
+    for t in sorted(COMMANDS):
+        sent, named = t in gui_types, t in named_types
+        if sent and not named:
+            errors.append(f"registry: GUI sends {t} but its gui decision is not named(...)")
+        elif named and not sent:
+            errors.append(f"registry: {t} gui is named(...) but no GUI source sends it; exempt it")
+    return errors
+
+
+def edit_surface_data() -> dict:
+    """contracts/edit-surface.json plus the per-command decisions the registry holds."""
+    from podcast_mcp.services.document_sync import edit_surface_commands
+
+    data = json.loads(EDIT_SURFACE.read_text(encoding="utf-8"))
+    return {**data, "commands": edit_surface_commands()}
+
+
 def _edit_surface_file_errors(caps: list[dict], live_mcp: set[str], cli_root: Any) -> list[str]:
-    """Schema-validate contracts/edit-surface.json, then run the per-command and row rules."""
+    """Check the registry against the GUI, then run the per-command and row rules on its decisions."""
     if not EDIT_SURFACE.is_file():
         return [f"missing {EDIT_SURFACE.relative_to(ROOT)}"]
-    data = json.loads(EDIT_SURFACE.read_text(encoding="utf-8"))
+    data = edit_surface_data()
     try:
         import jsonschema  # type: ignore
 
@@ -441,9 +471,9 @@ def _edit_surface_file_errors(caps: list[dict], live_mcp: set[str], cli_root: An
     except Exception as exc:
         return [f"edit-surface schema: {exc}"]
     schema_types = _schema_command_types()
-    errors = edit_surface_errors(
-        data, gui_document_command_types(schema_types), schema_types, live_mcp, cli_root
-    )
+    gui_types = gui_document_command_types(schema_types)
+    errors = registry_errors(gui_types, schema_types)
+    errors.extend(edit_surface_errors(data, gui_types, schema_types, live_mcp, cli_root))
     errors.extend(
         manifest_twin_errors(
             caps, data["manifest_rows_without_cli"], data["manifest_rows_without_mcp"]

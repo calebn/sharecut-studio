@@ -43,8 +43,8 @@ from podcast_mcp.services.document_sync.errors import (
     DocumentConflictError,
     DocumentSequenceConflictError,
 )
-from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.payloads import parse_document_command, validate_payload
+from podcast_mcp.services.document_sync.registry import apply_command
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.util import project_state
@@ -3125,19 +3125,17 @@ def test_document_server_seq_reads_the_cached_store_when_the_file_check_fails(
 
 
 def test_a_handler_that_drops_the_saved_command_is_logged(minimal_project, caplog):
-    from podcast_mcp.services.document_sync.handlers import HANDLERS
+    real = apply_command
 
-    real = HANDLERS["AddComment"]
-
-    def dropping(ws, payload):
-        result = real(ws, payload)
+    def dropping(ws, command_type, payload):
+        result = real(ws, command_type, payload)
         ws.project.document_sync.last_command = None
         return result
 
     svc = DocumentSyncService.open(minimal_project)
     logger = "podcast_mcp.services.document_sync.service"
     with (
-        patch.dict(HANDLERS, {"AddComment": dropping}),
+        patch("podcast_mcp.services.document_sync.service.apply_command", dropping),
         caplog.at_level(logging.ERROR, logger=logger),
     ):
         assert svc.submit(_comment("x"))["ok"]

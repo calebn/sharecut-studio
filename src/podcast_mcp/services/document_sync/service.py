@@ -37,12 +37,12 @@ from podcast_mcp.services.document_sync.errors import (
     DocumentSequenceConflictError,
     names_missing_target,
 )
-from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.projection_delta import diff_projection
 from podcast_mcp.services.document_sync.projection_types import (
     ViewProjection,
     parse_view_projection,
 )
+from podcast_mcp.services.document_sync.registry import apply_command
 from podcast_mcp.services.document_sync.snapshot_cache import (
     SnapshotKey,
     file_certificate,

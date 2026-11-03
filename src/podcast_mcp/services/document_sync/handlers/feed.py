@@ -14,6 +14,3 @@ def set_feed_field(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 def clear_feed_field(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return FeedService(ws).clear_field(str(p["key"]))
-
-
-HANDLERS = {"SetFeedField": set_feed_field, "ClearFeedField": clear_feed_field}

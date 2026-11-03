@@ -10,7 +10,7 @@ from podcast_mcp.cli.episode import episode_app
 from podcast_mcp.mcp.tools import episode as tools
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EpisodeService
-from podcast_mcp.services.document_sync.handlers import apply_command
+from podcast_mcp.services.document_sync.registry import apply_command
 
 
 def _keys(result: dict) -> list[str]:

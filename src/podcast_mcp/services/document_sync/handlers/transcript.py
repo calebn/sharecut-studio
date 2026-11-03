@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import TranscriptService
-
-Handler = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
 
 
 def _expected_text(p: dict[str, Any]) -> str | None:
@@ -116,16 +113,3 @@ def apply_transcript_cleanup(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[st
 def verify_transcript(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     verified = TranscriptService(ws).verify_transcript(str(p["track_id"]), list(p["corrections"]))
     return {"verified": verified}
-
-
-HANDLERS: dict[str, Handler] = {
-    "SetTranscriptWordTiming": set_transcript_word_timing,
-    "ReplaceTranscriptMatches": replace_transcript_matches,
-    "CorrectTranscriptWord": correct_transcript_word,
-    "ApplyTranscriptCleanup": apply_transcript_cleanup,
-    "VerifyTranscript": verify_transcript,
-    "CorrectTranscriptPhrase": correct_transcript_phrase,
-    "SetTranscriptWordSuppressed": set_transcript_word_suppressed,
-    "SetTranscriptWordAutomatic": set_transcript_word_automatic,
-    "SetTranscriptWordsIgnored": set_transcript_words_ignored,
-}

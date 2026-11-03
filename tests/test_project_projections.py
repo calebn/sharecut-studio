@@ -387,10 +387,17 @@ def test_transcript_command_applied_uses_detail_delta(minimal_project) -> None:
 
 
 def test_projection_for_command() -> None:
-    from podcast_mcp.services.document_sync.handlers.comments import HANDLERS as COMMENT_HANDLERS
     from podcast_mcp.services.document_sync.projections import COMMENT_COMMANDS
 
-    assert frozenset(COMMENT_HANDLERS) == COMMENT_COMMANDS
+    assert {
+        "AddComment",
+        "UpdateComment",
+        "ResolveComment",
+        "DeleteComment",
+        "AddReply",
+        "SetActionDone",
+        "AddAction",
+    } == COMMENT_COMMANDS
     assert projection_for_command("AddComment") is ViewProjection.COMMENTS
     assert projection_for_command("AddReply") is ViewProjection.COMMENTS
     assert projection_for_command("SetTrackMeta") is ViewProjection.SHELL
@@ -412,15 +419,15 @@ def test_projection_for_command() -> None:
     assert projection_for_command("SetTranscriptWordSuppressed") is ViewProjection.DETAIL
     assert projection_for_command("SetTranscriptWordAutomatic") is ViewProjection.DETAIL
     assert projection_for_command("SetTranscriptWordsIgnored") is ViewProjection.TRANSCRIPT_AUDIO
-    from podcast_mcp.services.document_sync.handlers.transcript import HANDLERS
     from podcast_mcp.services.document_sync.projections import (
         TRANSCRIPT_AUDIO_COMMANDS,
         TRANSCRIPT_WORD_COMMANDS,
     )
+    from podcast_mcp.services.document_sync.registry import commands_in_family
 
     assert projection_for_command("SetTranscriptWordTiming") is ViewProjection.TRANSCRIPT_AUDIO
     assert TRANSCRIPT_AUDIO_COMMANDS.isdisjoint(TRANSCRIPT_WORD_COMMANDS)
-    assert frozenset(HANDLERS) == TRANSCRIPT_WORD_COMMANDS | TRANSCRIPT_AUDIO_COMMANDS
+    assert commands_in_family("transcript") == TRANSCRIPT_WORD_COMMANDS | TRANSCRIPT_AUDIO_COMMANDS
 
 
 def test_http_project_default_is_shell(minimal_project) -> None:

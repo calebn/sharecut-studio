@@ -43,6 +43,11 @@ if TYPE_CHECKING:
         ViewProjection,
         parse_view_projection,
     )
+    from podcast_mcp.services.document_sync.registry import (
+        COMMANDS,
+        edit_surface_commands,
+        gui_named_types,
+    )
     from podcast_mcp.services.document_sync.service import (
         DocumentSyncService,
         after_agent_mutation,
@@ -59,6 +64,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.document_sync.snapshot_cache import file_certificate
 
 __all__ = [
+    "COMMANDS",
     "COMMENT_BODY_MAX",
     "DEFAULT_SHORTEN_GAP_SEC",
     "DEFAULT_STRIP_MIN_DURATION_SEC",
@@ -88,7 +94,9 @@ __all__ = [
     "document_submit_lock",
     "dump_projection_locked",
     "edit_commands_allowed",
+    "edit_surface_commands",
     "file_certificate",
+    "gui_named_types",
     "host_command_result",
     "host_document_event",
     "list_delta",
@@ -104,6 +112,7 @@ __all__ = [
 ]
 
 _MODULE_BY_NAME = {
+    "COMMANDS": "registry",
     "COMMENT_BODY_MAX": "payloads",
     "DEFAULT_SHORTEN_GAP_SEC": "payloads",
     "DEFAULT_STRIP_MIN_DURATION_SEC": "payloads",
@@ -133,6 +142,8 @@ _MODULE_BY_NAME = {
     "document_submit_lock": "service",
     "dump_projection_locked": "service",
     "edit_commands_allowed": "capabilities",
+    "edit_surface_commands": "registry",
+    "gui_named_types": "registry",
     "file_certificate": "snapshot_cache",
     "host_command_result": "host_submit",
     "host_document_event": "service",

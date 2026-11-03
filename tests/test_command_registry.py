@@ -7,15 +7,35 @@ built cannot change who may run what or which handler runs.
 
 from __future__ import annotations
 
-from typing import get_args
+from dataclasses import replace
+from typing import Any, get_args
 
 import pytest
+from pydantic import BaseModel
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import ReviewRole
 from podcast_mcp.services.document_sync import capabilities as caps
+from podcast_mcp.services.document_sync import registry
 from podcast_mcp.services.document_sync.commands import DocumentCommandType
-from podcast_mcp.services.document_sync.handlers import HANDLERS
-from podcast_mcp.services.document_sync.payloads import _PAYLOAD_BY_TYPE
+from podcast_mcp.services.document_sync.payloads import validate_payload
+from podcast_mcp.services.document_sync.registry import (
+    COMMANDS,
+    GUI_SENT,
+    NO_GUI_SENDER,
+    UNAUDITED,
+    CommandSpec,
+    Exempt,
+    Gap,
+    Named,
+    apply_command,
+    edit_surface_commands,
+    exempt,
+    gap,
+    named,
+)
+from podcast_mcp.util.coded_error import CodedValueError
+from script_loader import load_script
 
 # type: (payload model, handler as module.function, guest access)
 # guest access: host (host-only), comment (comment path, in no role set), commenter (proposes
@@ -217,8 +237,8 @@ def test_snapshot_covers_every_command_type() -> None:
 @pytest.mark.parametrize("command_type", sorted(SNAPSHOT))
 def test_command_type_payload_handler_and_access(command_type: str) -> None:
     payload, handler, access = SNAPSHOT[command_type]
-    assert _PAYLOAD_BY_TYPE[command_type].__name__ == payload
-    assert _handler_name(HANDLERS[command_type]) == handler
+    assert COMMANDS[command_type].payload.__name__ == payload
+    assert _handler_name(COMMANDS[command_type].handler) == handler
     assert _access(command_type) == access
 
 
@@ -237,3 +257,148 @@ def test_role_sets_are_exactly_the_snapshot() -> None:
     assert caps.ROLE_DOCUMENT_COMMANDS[ReviewRole.EDITOR] == (
         caps.EDIT_COMMANDS | caps.SUGGEST_COMMANDS
     )
+
+
+UNAUDITED_TYPES = [
+    "AddAction",
+    "AddEffect",
+    "ApplyAutoEdits",
+    "ApplyEditPlan",
+    "ApplyFadeRecommendationList",
+    "ApplyTranscriptCleanup",
+    "CrossfadeJoins",
+    "CutRange",
+    "DeleteComment",
+    "FadeJoins",
+    "InsertGap",
+    "InsertSegment",
+    "MoveByText",
+    "ProposeTighten",
+    "ReconcileTranscript",
+    "RemoveEffect",
+    "RippleDeleteText",
+    "SetBleedAlignmentMode",
+    "SetJoinMode",
+    "ShortenWordGaps",
+    "StageTextMatchCut",
+    "StageTimeRangeCut",
+    "StageUtteranceCut",
+    "StageWordsCut",
+    "StripSilence",
+    "SuggestPendingEdit",
+    "SuppressBleed",
+    "SuppressLowAudibility",
+    "VerifyTranscript",
+]
+
+
+def _checker():
+    return load_script("check_capabilities_manifest")
+
+
+def test_every_spec_decides_gui_mcp_and_cli() -> None:
+    for command_type, spec in COMMANDS.items():
+        for surface in ("gui", "mcp", "cli"):
+            assert isinstance(getattr(spec, surface), Named | Exempt | Gap), (command_type, surface)
+
+
+def test_a_spec_without_a_surface_decision_does_not_construct() -> None:
+    base = COMMANDS["DeleteChapter"]
+    with pytest.raises(TypeError):
+        CommandSpec(payload=base.payload, handler=base.handler, gui=GUI_SENT, mcp=named("x"))  # type: ignore[call-arg]
+    with pytest.raises(CodedValueError):
+        named()
+    with pytest.raises(CodedValueError):
+        exempt("  ")
+    with pytest.raises(CodedValueError):
+        gap("")
+    with pytest.raises(CodedValueError):
+        gap("covers part", partial=True)
+
+
+def test_a_host_only_spec_has_no_guest_role_and_a_propose_only_one_is_a_commenter() -> None:
+    base = COMMANDS["DeleteChapter"]
+
+    def spec(**role: Any) -> CommandSpec:
+        return CommandSpec(
+            payload=base.payload,
+            handler=base.handler,
+            gui=GUI_SENT,
+            mcp=GUI_SENT,
+            cli=GUI_SENT,
+            **role,
+        )
+
+    with pytest.raises(CodedValueError):
+        spec(guest=ReviewRole.EDITOR, host_only_reason="x")
+    with pytest.raises(CodedValueError):
+        spec(guest=ReviewRole.EDITOR, editor_applies=False)
+    with pytest.raises(CodedValueError):
+        spec(host_only_reason=" ")
+
+
+def test_a_command_type_missing_from_the_registry_fails_the_completeness_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    short = {t: s for t, s in COMMANDS.items() if t != "RenameProject"}
+    monkeypatch.setattr(registry, "COMMANDS", short)
+    with pytest.raises(RuntimeError, match=r"missing .*RenameProject"):
+        registry._check_complete()
+
+
+def test_a_registry_payload_that_differs_from_payloads_fails_the_completeness_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    swapped = {**COMMANDS, "AddChapter": replace(COMMANDS["AddChapter"], payload=BaseModel)}
+    monkeypatch.setattr(registry, "COMMANDS", swapped)
+    with pytest.raises(RuntimeError, match="AddChapter"):
+        registry._check_complete()
+
+
+def test_the_registry_agrees_with_the_gui_sources_and_the_exported_schema() -> None:
+    mod = _checker()
+    schema_types = mod._schema_command_types()
+    assert mod.registry_errors(mod.gui_document_command_types(schema_types), schema_types) == []
+
+
+def test_the_registry_check_is_two_sided() -> None:
+    mod = _checker()
+    schema_types = mod._schema_command_types()
+    gui = mod.gui_document_command_types(schema_types)
+    assert mod.registry_errors(gui | {"AddEffect"}, schema_types) == [
+        "registry: GUI sends AddEffect but its gui decision is not named(...)"
+    ]
+    assert mod.registry_errors(gui - {"AddChapter"}, schema_types) == [
+        "registry: AddChapter gui is named(...) but no GUI source sends it; exempt it"
+    ]
+    assert mod.registry_errors(gui, schema_types - {"AddChapter"}) == [
+        "registry: AddChapter is not a type in schemas/document-commands.schema.json"
+    ]
+    assert mod.registry_errors(gui, schema_types | {"Invented"}) == [
+        "registry: Invented is in schemas/document-commands.schema.json but has no registry entry"
+    ]
+
+
+def test_types_the_gui_never_sends_are_unaudited_for_agents_and_that_list_only_shrinks() -> None:
+    assert sorted(t for t, s in COMMANDS.items() if s.gui is NO_GUI_SENDER) == UNAUDITED_TYPES
+    assert sorted(t for t, s in COMMANDS.items() if s.mcp is UNAUDITED) == UNAUDITED_TYPES
+    assert sorted(t for t, s in COMMANDS.items() if s.cli is UNAUDITED) == UNAUDITED_TYPES
+
+
+def test_the_edit_surface_view_lists_exactly_the_gui_sent_types() -> None:
+    view = edit_surface_commands()
+    assert set(view) == set(COMMANDS) - set(UNAUDITED_TYPES)
+    assert view["AddTrack"]["cli"] == []
+    assert view["AddTrack"]["gap"]["reason"].startswith("No CLI creates an empty track")
+    assert view["EditSelectedRange"]["gap"]["partial"] is True
+    assert view["EditSelectedRange"]["cli"] == ["podcast edit propose-range-cut"]
+
+
+def test_an_unknown_command_type_is_refused_by_dispatch_and_validation(minimal_project) -> None:
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(CodedValueError) as dispatch:
+        apply_command(ws, "NotACommand", {})
+    assert dispatch.value.code == "document_command_unknown"
+    with pytest.raises(CodedValueError) as validate:
+        validate_payload("NotACommand", {})
+    assert validate.value.code == "document_command_unknown"

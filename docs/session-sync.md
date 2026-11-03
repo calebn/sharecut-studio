@@ -488,7 +488,14 @@ An explicit `client_seq` (>= 1) plus `client_id` names one edit (#377).
 
 ### Document command types
 
-Handlers live in `services/document_sync/handlers/` (registry in `__init__.py`).
+Every command type has one `CommandSpec` in `services/document_sync/registry.py`: its payload
+model, handler, least guest role (`guest`, `editor_applies`, `host_only_reason`), projection
+`family`, and a required decision for each of the GUI, MCP and CLI surfaces (`named(...)`,
+`exempt(reason)` or `gap(reason)`). Handlers live in `services/document_sync/handlers/`.
+`registry.apply_command` dispatches by it, `payloads.validate_payload` reads the models
+`payloads.py` owns, and the role sets in `capabilities.py` are derived from it. A type without an
+entry, or an entry whose payload differs from `payloads.py`, fails at import
+(`DocumentCommandType` in `commands.py` stays the static key and is checked against the registry).
 **Payload schemas** are Pydantic models in `services/document_sync/payloads.py`
 (discriminated on `type`). Published JSON Schema:
 [`schemas/document-commands.schema.json`](../schemas/document-commands.schema.json)
@@ -505,6 +512,7 @@ models before `DocumentSyncService.submit`.
 | Layer | Where it lives | How it stays in sync |
 |-------|----------------|----------------------|
 | Code models | `services/document_sync/payloads.py` | Edit here first |
+| Command registry | `services/document_sync/registry.py` | One `CommandSpec` per type; import fails when it and `DocumentCommandType` or `payloads.py` disagree; `tests/test_command_registry.py` pins payload, handler and guest role per type |
 | Checked-in schema | `schemas/document-commands.schema.json` | `make schema-export`; stale → `make generated-check` / pre-commit `document-command-schema` / `make ci` fail |
 | Public docs catalog | `docs-site/pages/document-commands.md` + `docs-site/schemas/` | Same `make schema-export` / `make generated-check`; operators publish the generated pack from their deployment repository. |
 | Live OpenAPI | Host GUI `GET /openapi.json` (`POST /api/document/command`); disable with `PODCAST_GUI_OPENAPI=0` | Generated from the same Pydantic models; `tests/test_document_command_boundary.py` asserts `oneOf` command set matches the published schema |
@@ -585,7 +593,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 
 **Speech review:** a programmatic rippling `TrimClipEdge`, `DeleteClip`, `CutRange` or `ApproveEdits` may hold when it cuts other speech. A `needs_confirmation` result carries the review message and measured `speech` (removed spans, per-track words and sound spans); a mapped peer hold uses the structured cut-hold error. Both leave the project unchanged. Studio's trusted interactive route supplies transient human application intent when a person explicitly approves. Any other caller that may run the command (CLI, host MCP, a guest MCP with the Editor capability) sets `override_audio_checks: true` in the payload to skip the audio-quality and cut-position checks for that call; the History entry and applied edits record the actor and surface (`audio_check_override`). Structural checks still apply to interactive approval.
 
-REST `/api/comments*` still mutates via `CommentService` and best-effort notifies the document hub (`notify_comments_changed` → `COMMENTS` projection). New GUI mutations (history, edits, transcript, envelopes, markers) use the document command path only. Host: `POST /api/document/command`. Guest shares: `POST /api/review/{token}/daw/document/command` with `authorize_document_command` (`ROLE_DOCUMENT_COMMANDS` in `services/document_sync/capabilities.py`: Commenters get the suggest set, Editors the edit set; `policy.py` chooses apply vs propose). **Remote MCP** guests use the same allowlists via `guest_submit_document_command` ([host-online-relay.md](host-online-relay.md) § Remote MCP). Authz: same `authorize_client` as session WS for host (strict mode + token for non-loopback); relayed share traffic is refused.
+REST `/api/comments*` still mutates via `CommentService` and best-effort notifies the document hub (`notify_comments_changed` → `COMMENTS` projection). New GUI mutations (history, edits, transcript, envelopes, markers) use the document command path only. Host: `POST /api/document/command`. Guest shares: `POST /api/review/{token}/daw/document/command` with `authorize_document_command` (`ROLE_DOCUMENT_COMMANDS` in `services/document_sync/capabilities.py`, derived from each `CommandSpec.guest` in `registry.py`: Commenters get the suggest set, Editors the edit set; `policy.py` chooses apply vs propose). **Remote MCP** guests use the same allowlists via `guest_submit_document_command` ([host-online-relay.md](host-online-relay.md) § Remote MCP). Authz: same `authorize_client` as session WS for host (strict mode + token for non-loopback); relayed share traffic is refused.
 
 Host document-plane connection snapshots run in worker threads so project parsing does not block the socket event loop. Document ingress remains HTTP-only. Session, document and recording output share one serialized writer on `/api/host/ws`. `GET /api/project/meta`'s `document_server_seq` reads `document.db` directly (stat + one journal row) and does not parse the project at all, unlike the WS snapshot path above. `ProjectWorkspace.reload()` checks the project file's mtime, size, and file identity under the existing submit lock; it reuses the loaded project when unchanged and reads it again after an external write. Workspace save/mutate paths invalidate that signature after committing, so the next reload reads a fresh file before caching it.
 
