@@ -909,7 +909,7 @@ def apply_command(
     return spec.handler(ws, payload)
 
 
-def edit_surface_commands() -> dict[str, dict[str, Any]]:
+def edit_surface_commands() -> Mapping[str, Mapping[str, Any]]:
     """The GUI-sent commands in the shape ``scripts/check_capabilities_manifest.py`` checks."""
     view: dict[str, dict[str, Any]] = {}
     for command_type in sorted(gui_named_types()):

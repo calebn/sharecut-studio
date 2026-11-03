@@ -1556,19 +1556,12 @@ def parse_document_command(
     return document_command_from_body(body)
 
 
-def _payload_models() -> dict[str, type[BaseModel]]:
-    """Each command type's payload model, read off the discriminated envelope union."""
-    union = get_args(DocumentCommandBody)[0]
-    return {
-        get_args(member.model_fields["type"].annotation)[0]: member.model_fields[
-            "payload"
-        ].annotation
-        for member in get_args(union)
-    }
-
-
-# Payload-only adapters for host MCP helpers that already know the type.
-PAYLOAD_MODELS: dict[str, type[BaseModel]] = _payload_models()
+# Each command type's payload model, read off the discriminated envelope union. Host MCP and CLI
+# helpers that already know the type validate through it, and the command registry must agree.
+PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
+    get_args(member.model_fields["type"].annotation)[0]: member.model_fields["payload"].annotation
+    for member in get_args(get_args(DocumentCommandBody)[0])
+}
 
 
 _CODED_PAYLOAD_TYPES = frozenset(
