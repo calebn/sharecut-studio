@@ -3,6 +3,96 @@
   "schemas": {
     "serialization": {
       "$defs": {
+        "AnchorBefore": {
+          "properties": {
+            "chapter": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ChapterMarker"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "comment": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TimelineComment"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "index": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "enum": [
+                "comment",
+                "chapter"
+              ],
+              "type": "string"
+            },
+            "post_end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "post_start": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "index",
+            "start"
+          ],
+          "type": "object"
+        },
         "AppliedEditRecord": {
           "properties": {
             "applied_at": {
@@ -53,7 +143,21 @@
             "inverse": {
               "anyOf": [
                 {
-                  "$ref": "#/$defs/UnmuteSource"
+                  "discriminator": {
+                    "mapping": {
+                      "reinsert_clips": "#/$defs/ReinsertClips",
+                      "unmute": "#/$defs/UnmuteSource"
+                    },
+                    "propertyName": "kind"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/UnmuteSource"
+                    },
+                    {
+                      "$ref": "#/$defs/ReinsertClips"
+                    }
+                  ]
                 },
                 {
                   "type": "null"
@@ -729,6 +833,56 @@
               "default": null
             }
           },
+          "type": "object"
+        },
+        "EdgeFade": {
+          "properties": {
+            "fade_ms": {
+              "type": "integer"
+            },
+            "join_in_mode": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ClipJoinMode"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "side": {
+              "enum": [
+                "out",
+                "in"
+              ],
+              "type": "string"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_sec": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id",
+            "side",
+            "source_sec",
+            "fade_ms"
+          ],
           "type": "object"
         },
         "EditDecision": {
@@ -1906,6 +2060,82 @@
           ],
           "type": "object"
         },
+        "ReinsertClips": {
+          "properties": {
+            "anchors": {
+              "items": {
+                "$ref": "#/$defs/AnchorBefore"
+              },
+              "type": "array"
+            },
+            "duration_sec": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "edges": {
+              "items": {
+                "$ref": "#/$defs/EdgeFade"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "reinsert_clips",
+              "default": "reinsert_clips",
+              "type": "string"
+            },
+            "pad": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ReinsertPad"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "tracks": {
+              "items": {
+                "$ref": "#/$defs/TrackSeam"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "duration_sec"
+          ],
+          "type": "object"
+        },
+        "ReinsertPad": {
+          "properties": {
+            "clip_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "enum": [
+                "room_tone",
+                "silence"
+              ],
+              "type": "string"
+            },
+            "offset_from_seam": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "sec": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "sec"
+          ],
+          "type": "object"
+        },
         "RenderArtifacts": {
           "properties": {
             "mastered": {
@@ -2743,6 +2973,29 @@
           ],
           "type": "object"
         },
+        "SourceEdge": {
+          "properties": {
+            "sec": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "sec"
+          ],
+          "type": "object"
+        },
         "SourceRecording": {
           "properties": {
             "channels": {
@@ -3436,6 +3689,45 @@
             "outro"
           ],
           "type": "string"
+        },
+        "TrackSeam": {
+          "properties": {
+            "post": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceEdge"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "pre": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceEdge"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "removed": {
+              "items": {
+                "$ref": "#/$defs/Clip"
+              },
+              "type": "array"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id"
+          ],
+          "type": "object"
         },
         "Transcript": {
           "properties": {
@@ -3824,6 +4116,96 @@
     },
     "validation": {
       "$defs": {
+        "AnchorBefore": {
+          "properties": {
+            "chapter": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ChapterMarker"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "comment": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TimelineComment"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "index": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "enum": [
+                "comment",
+                "chapter"
+              ],
+              "type": "string"
+            },
+            "post_end": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "post_start": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "index",
+            "start"
+          ],
+          "type": "object"
+        },
         "AppliedEditRecord": {
           "properties": {
             "applied_at": {
@@ -3874,7 +4256,21 @@
             "inverse": {
               "anyOf": [
                 {
-                  "$ref": "#/$defs/UnmuteSource"
+                  "discriminator": {
+                    "mapping": {
+                      "reinsert_clips": "#/$defs/ReinsertClips",
+                      "unmute": "#/$defs/UnmuteSource"
+                    },
+                    "propertyName": "kind"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/UnmuteSource"
+                    },
+                    {
+                      "$ref": "#/$defs/ReinsertClips"
+                    }
+                  ]
                 },
                 {
                   "type": "null"
@@ -4550,6 +4946,56 @@
               "default": null
             }
           },
+          "type": "object"
+        },
+        "EdgeFade": {
+          "properties": {
+            "fade_ms": {
+              "type": "integer"
+            },
+            "join_in_mode": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ClipJoinMode"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "side": {
+              "enum": [
+                "out",
+                "in"
+              ],
+              "type": "string"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "source_sec": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id",
+            "side",
+            "source_sec",
+            "fade_ms"
+          ],
           "type": "object"
         },
         "EditDecision": {
@@ -5727,6 +6173,82 @@
           ],
           "type": "object"
         },
+        "ReinsertClips": {
+          "properties": {
+            "anchors": {
+              "items": {
+                "$ref": "#/$defs/AnchorBefore"
+              },
+              "type": "array"
+            },
+            "duration_sec": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "edges": {
+              "items": {
+                "$ref": "#/$defs/EdgeFade"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "reinsert_clips",
+              "default": "reinsert_clips",
+              "type": "string"
+            },
+            "pad": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ReinsertPad"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "tracks": {
+              "items": {
+                "$ref": "#/$defs/TrackSeam"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "duration_sec"
+          ],
+          "type": "object"
+        },
+        "ReinsertPad": {
+          "properties": {
+            "clip_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "enum": [
+                "room_tone",
+                "silence"
+              ],
+              "type": "string"
+            },
+            "offset_from_seam": {
+              "default": 0.0,
+              "type": "number"
+            },
+            "sec": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "sec"
+          ],
+          "type": "object"
+        },
         "RenderArtifacts": {
           "properties": {
             "mastered": {
@@ -6564,6 +7086,29 @@
           ],
           "type": "object"
         },
+        "SourceEdge": {
+          "properties": {
+            "sec": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          },
+          "required": [
+            "sec"
+          ],
+          "type": "object"
+        },
         "SourceRecording": {
           "properties": {
             "channels": {
@@ -7258,6 +7803,45 @@
           ],
           "type": "string"
         },
+        "TrackSeam": {
+          "properties": {
+            "post": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceEdge"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "pre": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceEdge"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "removed": {
+              "items": {
+                "$ref": "#/$defs/Clip"
+              },
+              "type": "array"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id"
+          ],
+          "type": "object"
+        },
         "Transcript": {
           "properties": {
             "alignment_score_method": {
@@ -7645,6 +8229,7 @@
     }
   },
   "unknown_fields": {
+    "AnchorBefore": "ignore",
     "AppliedEditRecord": "ignore",
     "ArchivedTranscriptWord": "ignore",
     "AutomationEnvelope": "ignore",
@@ -7665,6 +8250,7 @@
     "CutSpeechTrack": "ignore",
     "CutSpeechWord": "ignore",
     "DocumentSyncSection": "ignore",
+    "EdgeFade": "ignore",
     "EditDecision": "ignore",
     "EditorialSection": "ignore",
     "EpisodeProject": "ignore",
@@ -7691,6 +8277,8 @@
     "QuietSpan": "ignore",
     "RangeInterval": "forbid",
     "RecordSessionRecord": "ignore",
+    "ReinsertClips": "ignore",
+    "ReinsertPad": "ignore",
     "RenderArtifacts": "ignore",
     "RenderInvalidation": "ignore",
     "RenderSection": "ignore",
@@ -7707,6 +8295,7 @@
     "SocialSection": "ignore",
     "SoundActionRecord": "ignore",
     "SourceClippingRegion": "ignore",
+    "SourceEdge": "ignore",
     "SourceRecording": "ignore",
     "SourceSpan": "ignore",
     "SpeakerIngestAlignment": "ignore",
@@ -7720,6 +8309,7 @@
     "TimingStep": "ignore",
     "Track": "ignore",
     "TrackProxy": "ignore",
+    "TrackSeam": "ignore",
     "Transcript": "ignore",
     "TranscriptGateScope": "ignore",
     "TranscriptWord": "ignore",

@@ -12,6 +12,14 @@ SHARED_FIELDS: dict[str, str] = {
         "applied_at boundary_mode crossfade_ms cut_confidence decision_ids id inverse operation "
         "params reason source_end source_start timeline_end timeline_start track_ids"
     ),
+    "AnchorBefore": ("chapter comment end id index kind post_end post_start start"),
+    "EdgeFade": ("fade_ms join_in_mode side source_id source_sec track_id"),
+    "ReinsertClips": ("anchors duration_sec edges kind pad tracks"),
+    "ReinsertPad": ("clip_ids kind offset_from_seam sec"),
+    "SourceEdge": ("sec source_id"),
+    "TrackSeam": ("post pre removed track_id"),
+    "UnmuteSource": ("kind spans"),
+    "UnmuteSpan": ("end source_id start track_id"),
     "ArchivedTranscriptWord": ("ordinal word"),
     "AutomationEnvelope": ("parameter points track_id"),
     "AutomationPoint": ("id time value"),
@@ -74,8 +82,6 @@ SHARED_FIELDS: dict[str, str] = {
     "SavedDocumentCommand": (
         "base_server_seq causation_id client_id client_seq command_id payload role type"
     ),
-    "UnmuteSource": ("kind spans"),
-    "UnmuteSpan": ("end source_id start track_id"),
     "TimingStep": ("at delta_sec quiet"),
     "SegmentRef": ("content_sha256 segment_id version"),
     "SessionSuggestion": (
