@@ -803,7 +803,6 @@ def tool_input_schema(name: str) -> dict[str, Any]:
             },
             "required": ["comment_id", "action_id"],
         },
-        "guest_submit_document_command": document_command_json_schema(),
         "guest_render_preview_job": {
             "type": "object",
             "properties": {"job_id": {"type": "string"}},
@@ -821,6 +820,8 @@ def tool_input_schema(name: str) -> dict[str, Any]:
             "required": ["filename", "data_base64"],
         },
     }
+    if name == "guest_submit_document_command":
+        return document_command_json_schema()
     model = _request_model(name)
     if model is not None:
         return model.model_json_schema()
