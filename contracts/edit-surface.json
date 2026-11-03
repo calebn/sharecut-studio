@@ -46,9 +46,10 @@
         "track_add",
         "track_add_empty_tool"
       ],
-      "cli": [
-        "podcast episode add-track"
-      ]
+      "cli": [],
+      "gap": {
+        "reason": "No CLI creates an empty track; podcast episode add-track imports media, which is a different edit (daw.track.add)"
+      }
     },
     "ApplyFadeRecommendations": {
       "mcp": [
@@ -138,7 +139,11 @@
       ],
       "cli": [
         "podcast edit propose-range-cut"
-      ]
+      ],
+      "gap": {
+        "reason": "The GUI sends action cut or mute; the CLI covers cut only, so mute has no CLI (daw.range.mute)",
+        "partial": true
+      }
     },
     "FillRoomTone": {
       "mcp": [
@@ -468,7 +473,8 @@
     "daw.envelope.addPoint",
     "daw.edit.setClipFade",
     "daw.range.mute",
-    "daw.range.fillRoomTone"
+    "daw.range.fillRoomTone",
+    "daw.track.add"
   ],
   "manifest_rows_without_mcp": [
     "daw.share.manage"

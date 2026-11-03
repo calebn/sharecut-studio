@@ -268,6 +268,11 @@ def test_gap_on_a_fully_covered_command_is_stale() -> None:
     ]
 
 
+def test_partial_gap_on_a_covered_command_is_not_stale() -> None:
+    entry = {**COVERED, "gap": {"reason": "cli covers cut only", "partial": True}}
+    assert _edit_surface_errors({"DeleteChapter": entry}) == []
+
+
 def test_gap_with_a_missing_surface_passes() -> None:
     gap = {"mcp": [], "cli": [], "gap": {"reason": "no agent twin yet"}}
     assert _edit_surface_errors({"UpdateChapter": gap}) == []
@@ -328,3 +333,98 @@ def test_row_with_an_approved_agent_reason_is_not_asked_for_twins() -> None:
     mod = load_script("check_capabilities_manifest")
     keep = _gui_row("daw.edit.keep", {}, {"agent_reason": "Undo covers it"})
     assert mod.manifest_twin_errors([keep], [], []) == []
+
+
+PINNED_GAP_TYPES = {
+    "AddSocialClip",
+    "AddTrack",
+    "ApplyFadeRecommendations",
+    "DeleteSocialClip",
+    "DuplicateSegment",
+    "EditSelectedRange",
+    "FillRoomTone",
+    "RemoveTrack",
+    "RenameProject",
+    "RestoreAppliedEdit",
+    "SetClipFade",
+    "SetEffectBypass",
+    "SetEnvelope",
+    "SetRecordSessionName",
+    "SetTrackMedia",
+    "SetTrackMeta",
+    "SetTranscriptWordsIgnored",
+    "SplitAtTime",
+    "UpdateChapter",
+    "UpdatePendingEdit",
+    "UpdateSocialClip",
+    "UpdateSocialClipDetails",
+}
+PINNED_ROWS_WITHOUT_CLI = {
+    "daw.edit.bladeCut",
+    "daw.edit.split",
+    "daw.track.remove",
+    "daw.media.import",
+    "daw.transcript.ignore",
+    "daw.envelope.addPoint",
+    "daw.edit.setClipFade",
+    "daw.range.mute",
+    "daw.range.fillRoomTone",
+    "daw.track.add",
+}
+PINNED_ROWS_WITHOUT_MCP = {"daw.share.manage"}
+PIN_HELP = (
+    "A new entry needs owner approval (Caleb) and a change to this pinned list. "
+    "A closed gap must be removed from the list."
+)
+
+
+def _pin_errors(data: dict) -> list[str]:
+    commands = data["commands"]
+    found = {
+        "gap": {n for n, e in commands.items() if e.get("gap")},
+        "exempt": {n for n, e in commands.items() if e.get("exempt")},
+        "manifest_rows_without_cli": set(data["manifest_rows_without_cli"]),
+        "manifest_rows_without_mcp": set(data["manifest_rows_without_mcp"]),
+    }
+    pinned = {
+        "gap": PINNED_GAP_TYPES,
+        "exempt": set(),
+        "manifest_rows_without_cli": PINNED_ROWS_WITHOUT_CLI,
+        "manifest_rows_without_mcp": PINNED_ROWS_WITHOUT_MCP,
+    }
+    errors = []
+    for kind, names in found.items():
+        for name in sorted(names - pinned[kind]):
+            errors.append(
+                f"{kind} {name} is not pinned. A new entry needs owner approval (Caleb) and a pinned-list change."
+            )
+        for name in sorted(pinned[kind] - names):
+            errors.append(f"{kind} {name} is pinned but closed. Remove it from the pinned list.")
+    return errors
+
+
+def _edit_surface_data() -> dict:
+    return json.loads((ROOT / "contracts" / "edit-surface.json").read_text())
+
+
+def test_edit_surface_gaps_and_exempts_are_pinned() -> None:
+    assert _pin_errors(_edit_surface_data()) == [], PIN_HELP
+
+
+def test_new_gap_exempt_or_listing_fails_the_pin() -> None:
+    data = _edit_surface_data()
+    data["commands"]["SetTrackFader"] = {"mcp": [], "cli": [], "gap": {"reason": "later"}}
+    data["commands"]["DeleteChapter"] = {"exempt": {"reason": "session-only"}}
+    data["manifest_rows_without_cli"].append("daw.new.row")
+    data["manifest_rows_without_mcp"].append("daw.other.row")
+    errors = _pin_errors(data)
+    assert len(errors) == 4
+    assert all("owner approval (Caleb)" in e for e in errors)
+    assert any(e.startswith("exempt DeleteChapter") for e in errors)
+
+
+def test_closed_gap_must_leave_the_pin() -> None:
+    data = _edit_surface_data()
+    del data["commands"]["AddTrack"]["gap"]
+    errors = _pin_errors(data)
+    assert len(errors) == 1 and "Remove it" in errors[0]

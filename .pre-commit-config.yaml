@@ -31,7 +31,7 @@ repos:
         entry: bash -c 'python3 scripts/check_capabilities_manifest.py && python3 scripts/export_capabilities_docs.py --check'
         language: system
         pass_filenames: false
-        files: ^(contracts/capabilities\.manifest\.json|contracts/edit-surface\.json|schemas/capabilities\.manifest\.schema\.json|schemas/edit-surface\.schema\.json|schemas/document-commands\.schema\.json|gui/web/src/api/|scripts/check_capabilities_manifest\.py|scripts/export_capabilities_docs\.py|docs-site/pages/capabilities\.md|docs-site/schemas/capabilities\.manifest\.schema\.json|gui/web/src/commands/catalog\.ts|gui/web/src/keymap/registry\.ts|src/podcast_mcp/mcp/tools/|\.agents/skills/)
+        files: ^(contracts/capabilities\.manifest\.json|contracts/edit-surface\.json|schemas/capabilities\.manifest\.schema\.json|schemas/edit-surface\.schema\.json|schemas/document-commands\.schema\.json|gui/web/src/|scripts/check_capabilities_manifest\.py|scripts/export_capabilities_docs\.py|docs-site/pages/capabilities\.md|docs-site/schemas/capabilities\.manifest\.schema\.json|gui/web/src/commands/catalog\.ts|gui/web/src/keymap/registry\.ts|src/podcast_mcp/mcp/tools/|\.agents/skills/)
       - id: progress-compliance
         name: Progress framework compliance (warn mode)
         entry: bash -c 'PODCAST_PROGRESS_COMPLIANCE=warn python3 scripts/check_progress.py'

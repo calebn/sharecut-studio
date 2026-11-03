@@ -372,7 +372,7 @@ def edit_surface_errors(
             errors.append(f"edit-surface: {name} is both exempt and a gap")
         elif exempt:
             continue
-        elif gap and mcp and cli:
+        elif gap and mcp and cli and not gap.get("partial"):
             errors.append(f"edit-surface: {name} has both mcp and cli, so drop its stale gap")
         elif not gap:
             errors.extend(
