@@ -426,8 +426,6 @@ def test_collect_gate_counts_each_rest_review_comment_thread_as_unresolved(
 
 
 def test_current_required_checks_exclude_manual_and_historical_runs(monkeypatch: Any) -> None:
-    """Historical failures do not override current eligible success."""
-
     def fake_gh(*args: str) -> Any:
         path = args[1]
         if path.endswith("actions/workflows/test.yml"):
@@ -436,9 +434,12 @@ def test_current_required_checks_exclude_manual_and_historical_runs(monkeypatch:
             return {"id": 20, "path": ".github/workflows/secret-scan.yml"}
         if "/runs?" in path:
             workflow = 10 if "/10/" in path else 20
-            runs = [_eligible_run(workflow)]
+            runs = [_eligible_run(workflow, number=2)]
             if workflow == 10:
-                runs += [_eligible_run(10, run_id=99, number=99, event="workflow_dispatch")]
+                runs += [
+                    _eligible_run(10, run_id=5),
+                    _eligible_run(10, run_id=99, number=99, event="workflow_dispatch"),
+                ]
             return [{"total_count": len(runs), "workflow_runs": runs}]
         if "/attempts/" in path:
             run_id = int(path.split("/runs/")[1].split("/")[0])
@@ -460,13 +461,8 @@ def test_current_required_checks_exclude_manual_and_historical_runs(monkeypatch:
                 "check_suite": {"id": 100 if check_id < 200 else 200},
                 "app": {"id": 15368},
             }
-        if "/check-runs?" in path:
-            return _rest_check_pages(
-                [_rest_check_run(name) for name in gate.REQUIRED_CHECKS]
-                + [_rest_check_run("pytest", conclusion="skipped")]
-            )
         if "/actions/runs/" in path:
-            return _eligible_run(int(path.rsplit("/", 1)[1]))
+            return _eligible_run(int(path.rsplit("/", 1)[1]), number=2)
         raise AssertionError(path)
 
     monkeypatch.setattr(gate, "gh_json", fake_gh)
@@ -530,13 +526,16 @@ def _job(run_id: int, name: str, index: int) -> dict[str, Any]:
         "race",
         "newer_pending",
         "attempt",
+        "late_attempt",
+        "late_run",
     ],
 )
 def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> None:
     scans = 0
+    checks_read = 0
 
     def fake_gh(*args: str) -> Any:
-        nonlocal scans
+        nonlocal scans, checks_read
         path = args[1]
         if path.endswith("actions/workflows/test.yml"):
             return {"id": 10, "path": ".github/workflows/test.yml"}
@@ -547,6 +546,10 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
             if workflow == 10:
                 scans += 1
             runs = [_eligible_run(workflow)]
+            if workflow == 10 and defect == "late_attempt" and checks_read >= 8:
+                runs[0]["run_attempt"] = 2
+            if workflow == 10 and defect == "late_run" and checks_read >= 8:
+                runs.append(_eligible_run(10, run_id=30, number=2))
             if workflow == 10:
                 runs.append(_eligible_run(10, run_id=99, number=99, event="workflow_dispatch"))
             if workflow == 10 and (defect == "newer_pending" or (defect == "race" and scans > 1)):
@@ -572,6 +575,7 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
                 jobs[0].update(status="in_progress", conclusion=None)
             return [{"total_count": len(jobs) + (defect == "truncated"), "jobs": jobs}]
         if "/check-runs/" in path:
+            checks_read += 1
             check_id = int(path.rsplit("/", 1)[1])
             names = {
                 101: "pytest",
@@ -598,12 +602,31 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
             }
         if "/actions/runs/" in path:
             run = int(path.rsplit("/", 1)[1])
-            return _eligible_run(10, run_id=30, number=2) if run == 30 else _eligible_run(run)
+            if run == 30:
+                return _eligible_run(10, run_id=30, number=2)
+            if run == 99:
+                return _eligible_run(10, run_id=99, number=99, event="workflow_dispatch")
+            detail = _eligible_run(run)
+            if run == 10 and defect == "late_attempt" and checks_read >= 8:
+                detail["run_attempt"] = 2
+            return detail
         raise AssertionError(path)
 
     monkeypatch.setattr(gate, "gh_json", fake_gh)
-    try:
+    expected = {
+        "missing": "required job missing or ambiguous",
+        "duplicate": "required job missing or ambiguous",
+        "wrong_head": "required job source mismatch",
+        "wrong_app": "required check source or state mismatch",
+        "truncated": "pagination incomplete",
+        "race": "required check evidence changed",
+        "attempt": "required job source mismatch",
+        "late_attempt": "workflow run or required check evidence changed",
+        "late_run": "workflow run or required check evidence changed",
+    }
+    if defect in expected:
+        with pytest.raises(RuntimeError, match=expected[defect]):
+            gate.collect_required_checks("owner/repo", 252, SHA)
+    else:
         checks = gate.collect_required_checks("owner/repo", 252, SHA)
-    except RuntimeError:
-        return
-    assert any(row["state"] != "SUCCESS" for row in checks)
+        assert any(row["state"] != "SUCCESS" for row in checks)
