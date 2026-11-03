@@ -1,3 +1,4 @@
+import { someoneAccepted } from "./hostRecording";
 import {
   LOCAL_KEEPER_PENDING_COPY,
   type RecordRoomState,
@@ -31,6 +32,8 @@ export type LocalStartReadiness = {
   /** Why the storage preflight failed, if it did. */
   storageError: string | null;
   capturingRoomTone: boolean;
+  /** The host's own mic is off: this device has no storage or room tone to wait for. Absent counts as on. */
+  hostMicOff?: boolean;
 };
 
 /**
@@ -50,6 +53,15 @@ export function startBlockerItems(
             text: `Waiting for ${blocker.display_name || "a guest"} to accept recording.`,
           },
   );
+  if (local.hostMicOff) {
+    if (items.length === 0 && !someoneAccepted(snapshot)) {
+      items.push({
+        key: "nobody_recording",
+        text: "Your mic is off. Start is available when a guest has accepted.",
+      });
+    }
+    return items;
+  }
   if (local.storageError) {
     items.push({ key: "storage", text: local.storageError });
   } else if (!local.storageReady) {

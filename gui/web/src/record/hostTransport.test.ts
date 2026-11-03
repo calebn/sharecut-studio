@@ -63,6 +63,50 @@ describe("submitHostRecordTransport", () => {
     expect(useRecordHostStore.getState().snapshot?.state).toBe("recording");
   });
 
+  it("posts Consent and shows the snapshot it returns", async () => {
+    const snap = {
+      session_id: "room1",
+      state: "lobby",
+      take_index: -1,
+      recording_ms: 0,
+      start_blockers: [],
+      participants: [],
+      caps: { recorded: 4, producers: 2 },
+    };
+    postHost.mockResolvedValueOnce(snap);
+    await submitHostRecordTransport("Consent", { accepted: false });
+    expect(postHost).toHaveBeenCalledWith("/tmp/p.json", "Consent", {
+      accepted: false,
+    });
+    expect(useRecordHostStore.getState().snapshot?.session_id).toBe("room1");
+  });
+
+  it("starts without preparing this device's storage when the host mic is off", async () => {
+    const host = {
+      participant_id: "p_host",
+      role: "host",
+      display_name: "Host",
+      connected: true,
+      consented: false,
+      muted: false,
+      headphones_ack: true,
+    };
+    const snap = {
+      session_id: "room1",
+      state: "lobby",
+      take_index: -1,
+      recording_ms: 0,
+      start_blockers: [],
+      participants: [host],
+      caps: { recorded: 4, producers: 2 },
+    };
+    useRecordHostStore.getState().setSnapshot(snap as never);
+    postHost.mockResolvedValueOnce({ ...snap, state: "recording" });
+    await submitHostRecordTransport("Start");
+    expect(prepareStorage).not.toHaveBeenCalled();
+    expect(postHost).toHaveBeenCalledWith("/tmp/p.json", "Start", {});
+  });
+
   it("posts SetTarget without invalidating an in-flight Start", async () => {
     const snap = {
       session_id: "room1",

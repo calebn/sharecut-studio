@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recordSnapshot } from "../test/fixtures";
+import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { endGate, landGate, startBlockerItems } from "./hostControls";
 
 const ready = {
@@ -53,6 +53,47 @@ describe("startBlockerItems", () => {
     expect(
       startBlockerItems(recordSnapshot({ start_blockers: [] }), ready),
     ).toEqual([]);
+  });
+});
+
+describe("startBlockerItems with the host mic off", () => {
+  const off = { ...ready, storageReady: false, hostMicOff: true };
+  const host = recordParticipant({
+    participant_id: "p_host",
+    role: "host",
+    consented: false,
+  });
+
+  it("ignores this device's storage and room tone, and waits for a guest who has accepted", () => {
+    const snap = recordSnapshot({ start_blockers: [], participants: [host] });
+    expect(
+      startBlockerItems(snap, { ...off, capturingRoomTone: true }),
+    ).toEqual([
+      {
+        key: "nobody_recording",
+        text: "Your mic is off. Start is available when a guest has accepted.",
+      },
+    ]);
+  });
+
+  it("has no blocker once a guest has accepted", () => {
+    const snap = recordSnapshot({
+      start_blockers: [],
+      participants: [host, recordParticipant()],
+    });
+    expect(startBlockerItems(snap, off)).toEqual([]);
+  });
+
+  it("keeps the server's own blockers and does not add a second one", () => {
+    const snap = recordSnapshot({
+      start_blockers: [
+        { code: "consent_pending", participant_id: "p_g", display_name: "Ava" },
+      ],
+      participants: [host, recordParticipant({ consented: null })],
+    });
+    expect(startBlockerItems(snap, off).map((item) => item.key)).toEqual([
+      "consent:p_g",
+    ]);
   });
 });
 

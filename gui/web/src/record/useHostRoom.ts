@@ -16,6 +16,7 @@ import {
   prepareHostKeeperStorage,
   retryHostKeeperStorage,
 } from "./hostKeeperStorage";
+import { hostRecordsMic } from "./hostRecording";
 import { useRecordHostStore } from "./hostStore";
 import { submitHostRecordTransport } from "./hostTransport";
 import { sendRecordHostCommand } from "./hostWire";
@@ -133,6 +134,7 @@ export function useHostRoom(
   const host = snapshot?.participants.find(
     (person) => person.participant_id === "p_host",
   );
+  const micOn = hostRecordsMic(snapshot);
   const hasRemovedParticipant =
     snapshot?.participants.some((person) => person.removed) ?? false;
   const liveComments = useRecordLiveComments({
@@ -170,7 +172,7 @@ export function useHostRoom(
     participantId: "p_host",
     transport: uploadTransport,
     sink,
-    captureExpected: (snapshot?.take_index ?? -1) >= 0 && host != null,
+    captureExpected: (snapshot?.take_index ?? -1) >= 0 && host != null && micOn,
     retryNonce: uploadRetryNonce,
   });
   const keeperActions = useKeeperRecoveryActions({
@@ -183,7 +185,9 @@ export function useHostRoom(
     onRecovered: () => setUploadRetryNonce((value) => value + 1),
   });
   const roomToneEnabled =
-    !!snapshot && (snapshot.state === "lobby" || snapshot.state === "stopped");
+    !!snapshot &&
+    micOn &&
+    (snapshot.state === "lobby" || snapshot.state === "stopped");
   const roomTone = useRoomToneCapture({
     enabled: roomToneEnabled,
     canUpload: roomToneEnabled,
@@ -200,6 +204,7 @@ export function useHostRoom(
         storageReady: sink !== null,
         storageError: sinkError,
         capturingRoomTone: roomTone.status === "capturing",
+        hostMicOff: !micOn,
       })
     : [];
   const startBlocked =
@@ -233,6 +238,17 @@ export function useHostRoom(
       .finally(() => {
         setTransportBusy(false);
       });
+  };
+
+  const setMicOn = (on: boolean) => {
+    if (transportBusy || state === "recording" || state === "paused") {
+      return;
+    }
+    setTransportBusy(true);
+    setTransportError(null);
+    void submitHostRecordTransport("Consent", { accepted: on })
+      .catch((err: unknown) => setTransportError(errorMessage(err)))
+      .finally(() => setTransportBusy(false));
   };
 
   const setGuestsSeeNotes = (enabled: boolean) => {
@@ -390,6 +406,8 @@ export function useHostRoom(
     transportBusy,
     guestsSeeNotesError,
     setGuestsSeeNotes,
+    micOn,
+    setMicOn,
     runCommand,
     sink,
     sinkError,
