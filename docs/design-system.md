@@ -455,7 +455,7 @@ dispatches the track commands; `Stages/Edit/TrackColumn` shows that host from th
 episode fixture in the desktop, tablet and 360px phone shells, with selected,
 saved/listen/implied mute, solo, stem out of date, playing, clipped, loading and
 Shift-arrow reorder states. `TrackMuteSoloButtonsView` remains in the track
-inspector and the Mix sheet until the track inspector is rebuilt; catalog stories
+inspector and the Mix sheet; catalog stories
 do not mount that store or simulate command execution.
 
 `Stages/Edit/Corner` and `Templates/CommandPalette` follow the same split.
