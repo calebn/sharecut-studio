@@ -202,7 +202,7 @@ export function filterItems(
 
 export type SpeakerChip = { id: string; label: string; open: number };
 
-/** The people with edits in the queue, in order of first appearance; fewer than two means no filter is worth showing. */
+/** The people with an open edit, in order of first appearance; fewer than two means no filter is worth showing. */
 export function speakersOf(items: readonly ReviewItem[]): SpeakerChip[] {
   const found = new Map<string, SpeakerChip>();
   for (const item of items) {
@@ -215,7 +215,8 @@ export function speakersOf(items: readonly ReviewItem[]): SpeakerChip[] {
     if (!isDecided(item)) chip.open += 1;
     found.set(chip.id, chip);
   }
-  return found.size < 2 ? [] : [...found.values()];
+  const people = [...found.values()].filter((chip) => chip.open > 0);
+  return people.length < 2 ? [] : people;
 }
 
 export const kindInFilter = (kind: DecisionKind, filter: ReviewFilter) =>

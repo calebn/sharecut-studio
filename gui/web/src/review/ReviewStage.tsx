@@ -24,6 +24,7 @@ import {
 } from "./ReviewQueue";
 import { stageActionFor } from "./reviewKeys";
 import {
+  filterItems,
   fullOrder,
   groupQueue,
   holdsGateKind,
@@ -230,8 +231,9 @@ export function ReviewStage({
   };
   const applyGroup = () =>
     bulk(
-      groupQueue(items).find((g) => g.items.some((i) => i.id === selectedId))
-        ?.bulk?.ids,
+      groupQueue(filterItems(items, filter, speaker)).find((g) =>
+        g.items.some((i) => i.id === selectedId),
+      )?.bulk?.ids,
     );
 
   const confirmAnyway = (note?: string) => {
@@ -386,7 +388,15 @@ export function ReviewStage({
       canDecide={canDecide}
       state={state}
       onFilter={onFilter}
-      onSpeaker={onSpeaker}
+      onSpeaker={
+        onSpeaker &&
+        ((next) => {
+          onSpeaker(next);
+          const open = items.find((i) => i.id === selectedId);
+          if (next !== null && open?.speaker && open.speaker.id !== next)
+            onSelect(stepUndecided(items, null, "forward", filter, next));
+        })
+      }
       onSelect={(id) => {
         onSelect(id);
         setSheetOpen(false);

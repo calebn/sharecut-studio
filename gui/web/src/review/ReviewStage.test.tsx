@@ -51,6 +51,50 @@ describe("ReviewStage", () => {
     expect(decided()).toBe(before);
   });
 
+  it("applies the group with Shift+Enter only for the chosen speaker", async () => {
+    const host = { id: "host", label: "Host" };
+    const guest = { id: "guest", label: "Guest" };
+    const who: Record<string, typeof host> = {
+      f1: host,
+      f2: guest,
+      f4: host,
+      p1: host,
+      p2: guest,
+    };
+    const onDecide = vi.fn();
+    const { press } = setup({
+      onDecide,
+      initialItems: QUEUE_WITHOUT_CHECKS.map((i) =>
+        who[i.id] ? { ...i, speaker: who[i.id] } : i,
+      ),
+    });
+    await userEvent.click(screen.getByRole("button", { name: /^Host, / }));
+    press("Enter", { shiftKey: true });
+    const [intent] = onDecide.mock.calls[0] ?? [];
+    expect(intent.ids).toEqual(["f1", "f4"]);
+  });
+
+  it("moves the selection off a row the chosen speaker hides", async () => {
+    const host = { id: "host", label: "Host" };
+    const guest = { id: "guest", label: "Guest" };
+    const { container } = setup({
+      initialItems: QUEUE_WITHOUT_CHECKS.map((i) =>
+        i.id === "f1"
+          ? { ...i, speaker: guest }
+          : i.id === "f2" || i.id === "f4"
+            ? { ...i, speaker: host }
+            : i,
+      ),
+    });
+    const now = () =>
+      container.querySelector('[aria-current="true"]')?.textContent ?? "";
+    const before = now();
+    expect(before).not.toBe("");
+    await userEvent.click(screen.getByRole("button", { name: /^Host, / }));
+    expect(now()).not.toBe("");
+    expect(now()).not.toBe(before);
+  });
+
   it("does not decide again while a key is held", () => {
     const { decided, press } = setup();
     press("Enter");
