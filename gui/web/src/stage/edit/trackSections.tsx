@@ -210,6 +210,7 @@ export function useTrackSections(
                 label: "Name",
                 control: (
                   <input
+                    className="track-sheet-field"
                     aria-label="Name"
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}
@@ -222,6 +223,7 @@ export function useTrackSections(
                 label: "Speaker",
                 control: (
                   <input
+                    className="track-sheet-field"
                     aria-label="Speaker"
                     value={speaker}
                     onChange={(e) => setSpeaker(e.target.value)}
@@ -234,6 +236,7 @@ export function useTrackSections(
                 label: "Role",
                 control: (
                   <select
+                    className="track-sheet-field"
                     aria-label="Role"
                     value={role}
                     onChange={(e) => {
@@ -388,7 +391,7 @@ export function useTrackSections(
                       </p>
                     ) : null}
                     {editable ? (
-                      <label>
+                      <label className="track-sheet-bypass">
                         <input
                           type="checkbox"
                           checked={bypassed}
@@ -404,7 +407,7 @@ export function useTrackSections(
                               ),
                             )
                           }
-                        />{" "}
+                        />
                         Bypass
                       </label>
                     ) : (
