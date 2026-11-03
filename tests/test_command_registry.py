@@ -1,8 +1,7 @@
 """Characterization of the document command tables: payload model, handler and guest role per type.
 
-The snapshot below was taken from the hand-kept tables before they were derived from one
-registry (#3115 slice 2). It must keep passing unchanged, so a refactor of how the tables are
-built cannot change who may run what or which handler runs.
+The snapshot was taken before the tables derived from the registry and must keep passing
+unchanged.
 """
 
 from __future__ import annotations

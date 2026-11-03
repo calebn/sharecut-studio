@@ -1,22 +1,17 @@
 """One registry of document commands: payload, handler, guest access and surface decisions.
 
-Every document command type has exactly one ``CommandSpec`` here. The tables that used to be
-kept by hand next to it derive from it: the handler dispatch (``apply_command``), the payload
-validation in ``payloads.validate_payload`` (which reads the models ``payloads`` owns), and the
-guest role sets in ``capabilities``. Adding a command is a payload model in ``payloads``, a handler,
-and one entry below; an entry that names no decision for the GUI, MCP and CLI surfaces does not
+Every document command type has exactly one ``CommandSpec``. Handler dispatch (``apply_command``),
+payload validation (``payloads.validate_payload``) and the guest role sets in ``capabilities``
+derive from it. An entry that names no decision for the GUI, MCP and CLI surfaces does not
 construct, and a type with no entry fails at import.
 
-Surface decisions say where a person or agent can reach the edit:
-
-- ``named(...)`` lists the sender or the tools that perform it (GUI source, MCP tool names,
+- ``named(...)`` lists the sender or the tools that perform the edit (GUI source, MCP tool names,
   ``podcast ...`` commands). ``scripts/check_capabilities_manifest.py`` resolves each name.
 - ``exempt(reason)`` records that the surface deliberately has no twin.
 - ``gap(reason, ...)`` records a missing twin. The pinned list in
   ``tests/test_capabilities_manifest.py`` only shrinks.
 
-Imports: this module sits above ``payloads`` and ``handlers`` and below ``capabilities`` and
-``service``. Nothing it imports may import it back.
+This module sits above ``payloads`` and ``handlers`` and below ``capabilities`` and ``service``.
 """
 
 from __future__ import annotations
@@ -874,7 +869,6 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
 
 
 def _check_complete() -> None:
-    """Fail at import when the registry and the types or payload models disagree."""
     types = set(get_args(DocumentCommandType))
     if set(COMMANDS) != types:
         raise RuntimeError(
@@ -894,7 +888,6 @@ def commands_in_family(family: Family) -> frozenset[str]:
 
 
 def gui_named_types() -> frozenset[str]:
-    """Command types whose GUI decision says the GUI sends them."""
     return frozenset(t for t, s in COMMANDS.items() if isinstance(s.gui, Named))
 
 

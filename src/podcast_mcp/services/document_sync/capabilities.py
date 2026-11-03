@@ -29,7 +29,6 @@ EDIT_COMMANDS: frozenset[str] = _commands(lambda s: s.guest is not None and s.ed
 
 COMMENT_COMMANDS: frozenset[str] = commands_in_family("comments")
 
-# Host-only: see each spec's ``host_only_reason`` in the registry.
 HOST_ONLY_DOCUMENT_COMMANDS: frozenset[str] = _commands(lambda s: s.host_only_reason is not None)
 
 # Commenter suggest set: structural commands and selected ranges propose.
