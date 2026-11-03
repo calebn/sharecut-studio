@@ -113,6 +113,8 @@ from podcast_mcp.models import (
     EditMode,
     EpisodeProject,
     SourceRecording,
+    UnmuteSource,
+    UnmuteSpan,
 )
 from podcast_mcp.models.episode import (
     EditorialSection,
@@ -1038,7 +1040,9 @@ def _apply_mute_edit(
     *,
     application_intent: CutIntent = CutIntent.PROGRAMMATIC,
     defaults: EffectiveConfig,
-) -> tuple[EpisodeProject, tuple[float, float, list[str], dict]] | CutScopeHold:
+) -> (
+    tuple[EpisodeProject, tuple[float, float, list[str], dict, UnmuteSource | None]] | CutScopeHold
+):
     """Mute ``edit``'s source span in place, with the fill and fades a ripple pad gets.
 
     The region spans the edit plus its fades, so the edit itself is silent: the clip
@@ -1073,6 +1077,7 @@ def _apply_mute_edit(
     tl_start, tl_end = map(float, observed.span)
     span = (max(0.0, edit.start - fade_out / 1000), edit.end + fade_in / 1000)
     written = False
+    muted_source_id: str | None = None
     for clip in clips_for_track(project, edit.track_id):
         if clip.source_id not in project.equivalent_source_ids(edit.track_id, edit.source_id):
             continue
@@ -1087,6 +1092,7 @@ def _apply_mute_edit(
         )
         if add_source_mute(clip, region):
             written = True
+            muted_source_id = muted_source_id or clip.source_id
     track_ids = [edit.track_id] if written else []
     ids = frozenset({edit.id})
     held = _completed_holds(
@@ -1112,6 +1118,18 @@ def _apply_mute_edit(
             # What reverting subtracts: the muted region, fades included.
             "per_track_source": {edit.track_id: list(span)} if written else {},
         },
+        UnmuteSource(
+            spans=[
+                UnmuteSpan(
+                    track_id=edit.track_id,
+                    source_id=muted_source_id,
+                    start=span[0],
+                    end=span[1],
+                )
+            ]
+        )
+        if written
+        else None,
     )
 
 
@@ -1194,8 +1212,8 @@ def approve_edits(
         if isinstance(muted, CutScopeHold):
             held.append(muted)
             continue
-        project, report = muted
-        tl_start, tl_end, track_ids, params = report
+        project, mute_report = muted
+        tl_start, tl_end, track_ids, params, inverse = mute_report
         if not track_ids:
             continue
         archive_decision(
@@ -1206,6 +1224,7 @@ def approve_edits(
             timeline_end=tl_end,
             track_ids=track_ids,
             params=params,
+            inverse=inverse,
         )
         receipts = cut_effects.complete_effect_receipts(previous, project, [edit])
         if receipts:
@@ -1471,8 +1490,8 @@ def apply_prefix_edits(
         if isinstance(muted, CutScopeHold):
             held_mutes.add(edit.id)
             continue
-        project, report = muted
-        tl_start, tl_end, track_ids, params = report
+        project, mute_report = muted
+        tl_start, tl_end, track_ids, params, inverse = mute_report
         if not track_ids:
             continue
         params = {**params, "config_key": config_key}
@@ -1484,6 +1503,7 @@ def apply_prefix_edits(
             timeline_end=tl_end,
             track_ids=track_ids,
             params=params,
+            inverse=inverse,
         )
         if cut_effects.complete_effect_receipts(previous, project, [edit]):
             held_mutes.add(edit.id)
@@ -1746,7 +1766,7 @@ def apply_lower(
         cut_safety.PeerObservations(None, None),
         None,
     )
-    written = False
+    written_spans: list[tuple[float, float]] = []
     for clip in clips_for_track(project, decision.track_id):
         if clip.source_id not in project.equivalent_source_ids(
             decision.track_id, decision.source_id
@@ -1767,8 +1787,9 @@ def apply_lower(
                 fade_in_ms=LOWER_FADE_MS,
                 gain_db=db,
             )
-            written = add_source_mute(clip, region) or written
-    if not written:
+            if add_source_mute(clip, region) and (lo, hi) not in written_spans:
+                written_spans.append((lo, hi))
+    if not written_spans:
         return False
     archive_decision(
         project,
@@ -1784,6 +1805,17 @@ def apply_lower(
             "lowered_db": db,
             "per_track_source": {decision.track_id: [decision.start, decision.end]},
         },
+        inverse=UnmuteSource(
+            spans=[
+                UnmuteSpan(
+                    track_id=decision.track_id,
+                    source_id=decision.source_id,
+                    start=lo,
+                    end=hi,
+                )
+                for lo, hi in written_spans
+            ]
+        ),
     )
     ids = frozenset({decision.id})
     held = _completed_holds(

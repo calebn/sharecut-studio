@@ -791,7 +791,29 @@
         "crossfade_ms": { "type": ["integer", "null"] },
         "boundary_mode": { "type": ["string", "null"] },
         "cut_confidence": { "type": ["number", "null"] },
-        "params": { "type": "object" }
+        "params": { "type": "object" },
+        "inverse": {
+          "oneOf": [{ "$ref": "#/$defs/UnmuteSource" }, { "type": "null" }],
+          "default": null
+        }
+      }
+    },
+    "UnmuteSource": {
+      "type": "object",
+      "required": ["spans"],
+      "properties": {
+        "kind": { "const": "unmute", "default": "unmute" },
+        "spans": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/UnmuteSpan" } }
+      }
+    },
+    "UnmuteSpan": {
+      "type": "object",
+      "required": ["track_id", "start", "end"],
+      "properties": {
+        "track_id": { "type": "string" },
+        "source_id": { "type": ["string", "null"], "default": null },
+        "start": { "type": "number", "minimum": 0 },
+        "end": { "type": "number", "minimum": 0 }
       }
     },
     "TranscriptsSection": {

@@ -50,6 +50,17 @@
             "id": {
               "type": "string"
             },
+            "inverse": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/UnmuteSource"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "operation": {
               "type": "string"
             },
@@ -3734,6 +3745,58 @@
               "type": "array"
             }
           },
+          "type": "object"
+        },
+        "UnmuteSource": {
+          "properties": {
+            "kind": {
+              "const": "unmute",
+              "default": "unmute",
+              "type": "string"
+            },
+            "spans": {
+              "items": {
+                "$ref": "#/$defs/UnmuteSpan"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "spans"
+          ],
+          "type": "object"
+        },
+        "UnmuteSpan": {
+          "properties": {
+            "end": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id",
+            "start",
+            "end"
+          ],
           "type": "object"
         }
       },
@@ -3808,6 +3871,17 @@
             "id": {
               "type": "string"
             },
+            "inverse": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/UnmuteSource"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
             "operation": {
               "type": "string"
             },
@@ -7492,6 +7566,58 @@
               "type": "array"
             }
           },
+          "type": "object"
+        },
+        "UnmuteSource": {
+          "properties": {
+            "kind": {
+              "const": "unmute",
+              "default": "unmute",
+              "type": "string"
+            },
+            "spans": {
+              "items": {
+                "$ref": "#/$defs/UnmuteSpan"
+              },
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "spans"
+          ],
+          "type": "object"
+        },
+        "UnmuteSpan": {
+          "properties": {
+            "end": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "source_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "start": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id",
+            "start",
+            "end"
+          ],
           "type": "object"
         }
       },
@@ -7597,6 +7723,8 @@
     "Transcript": "ignore",
     "TranscriptGateScope": "ignore",
     "TranscriptWord": "ignore",
-    "TranscriptsSection": "ignore"
+    "TranscriptsSection": "ignore",
+    "UnmuteSource": "ignore",
+    "UnmuteSpan": "ignore"
   }
 }
