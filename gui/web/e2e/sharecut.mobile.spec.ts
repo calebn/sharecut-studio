@@ -50,18 +50,11 @@ async function expectInspectorFooterTouchTargets(page: Page) {
     page.getByRole("button", { name: "Remove track", exact: true }),
   ).toBeVisible();
   const sheet = page.getByRole("dialog", { name: "Inspector" });
-  const coarse = await page.evaluate(
-    () => matchMedia("(pointer: coarse)").matches,
-  );
   const all = [
     ...(await controls.all()),
-    ...(coarse
-      ? [
-          sheet.getByRole("button", { name: "Replace audio…" }),
-          sheet.getByRole("button", { name: "Remove track", exact: true }),
-          sheet.getByRole("button", { name: "Smooth all joins" }),
-        ]
-      : []),
+    sheet.getByRole("button", { name: "Replace audio…" }),
+    sheet.getByRole("button", { name: "Remove track", exact: true }),
+    sheet.getByRole("button", { name: "Smooth all joins" }),
   ];
   for (const control of all) {
     await control.scrollIntoViewIfNeeded();

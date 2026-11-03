@@ -325,6 +325,7 @@ export function useTrackSections(
                 id: "audio",
                 control: (
                   <Button
+                    className="track-sheet-action"
                     disabledReason={busyReason}
                     onClick={() => void importAudio()}
                   >
@@ -339,6 +340,7 @@ export function useTrackSections(
                       control: (
                         <CommandButton
                           commandId="track.splitSpeakers"
+                          className="track-sheet-action"
                           args={{ trackId: track.id }}
                           disabledReason={
                             busyReason ?? splitBlocker ?? undefined
@@ -430,6 +432,7 @@ export function useTrackSections(
                 id: "smooth",
                 control: (
                   <Button
+                    className="track-sheet-action"
                     title="Apply the recommended fade at every join on this track"
                     disabledReason={busyReason}
                     onClick={() =>
@@ -465,6 +468,7 @@ export function useTrackSections(
                     commandId="track.remove"
                     args={{ trackId: track.id }}
                     variant="danger"
+                    className="track-sheet-action"
                     disabledReason={busyReason}
                   />
                 ),
