@@ -328,4 +328,17 @@ describe("speaker filter", () => {
     const plan = planDecision(items, ["a"], "applied", { speaker: "host" });
     expect(plan.selectedId).toBe("c");
   });
+
+  it("ends the filter when a restored decision belongs to someone it hides", () => {
+    const back = entry("b", 2, { speaker: guest });
+    const decided = new Map([["b", { entry: back, left: true }]]);
+    const s = {
+      ...start(),
+      speaker: "host",
+      decided,
+    };
+    const next = reviewSession(s, { type: "observed", open: two });
+    expect(next.selectedId).toBe("b");
+    expect(next.speaker).toBeNull();
+  });
 });
