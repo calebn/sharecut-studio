@@ -14,6 +14,7 @@ import {
   progressLine,
   type ReviewItem,
   resultText,
+  speakersOf,
 } from "./reviewQueueModel";
 
 const item = (over: Partial<ReviewItem>): ReviewItem => ({
@@ -371,5 +372,38 @@ describe("confidence tiers", () => {
   it("offers no batch when nothing is clean or everything is", () => {
     expect(lowRiskBulk([risky("r", 1)])).toBeNull();
     expect(lowRiskBulk([item({ id: "a" }), item({ id: "b" })])).toBeNull();
+  });
+});
+
+describe("speaker filter", () => {
+  const host = { id: "host", label: "Host" };
+  const guest = { id: "guest", label: "Guest" };
+  const items = [
+    item({ id: "a", speaker: host }),
+    item({ id: "b", speaker: guest }),
+    item({ id: "c", speaker: guest, result: "applied" }),
+    item({ id: "n", kind: "comment", savedSeconds: 0 }),
+  ];
+
+  it("shows one person's edits and leaves comments and checks in view", () => {
+    expect(filterItems(items, "all", "guest").map((i) => i.id)).toEqual([
+      "b",
+      "c",
+      "n",
+    ]);
+    expect(filterItems(items, "all").length).toBe(4);
+  });
+
+  it("counts only the open items of that person", () => {
+    expect(filterCounts(items, "guest").all).toBe(2);
+    expect(filterCounts(items).all).toBe(3);
+  });
+
+  it("lists people in order of first appearance with their open counts, and none for one person", () => {
+    expect(speakersOf(items)).toEqual([
+      { ...host, open: 1 },
+      { ...guest, open: 1 },
+    ]);
+    expect(speakersOf([items[0]!, items[3]!])).toEqual([]);
   });
 });

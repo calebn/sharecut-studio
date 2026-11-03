@@ -185,29 +185,31 @@ export function useReviewQueue(guestShare = false) {
     [guest, pending, utterances],
   );
   const open = useMemo<ReviewEntry[]>(() => {
-    const entries = reviewEntriesOf(pending ?? []).map(({ item, content }) => {
-      if (guest && item.unsure)
-        return {
-          item: { ...item, blocked: true, hostOnly: true },
-          content: {
-            ...content,
-            card: { ...content.card, why: HOST_CHECKS_WORD },
-          },
-        };
-      const why = held.get(item.id)?.reason;
-      return why === undefined || (why === UNSURE_REASON && !item.unsure)
-        ? { item, content }
-        : {
-            item:
-              why === UNSURE_REASON
-                ? { ...item, unsure: true }
-                : { ...item, blocked: true },
+    const entries = reviewEntriesOf(pending ?? [], tracks ?? []).map(
+      ({ item, content }) => {
+        if (guest && item.unsure)
+          return {
+            item: { ...item, blocked: true, hostOnly: true },
             content: {
               ...content,
-              card: { ...content.card, why: heldReasonText(why) },
+              card: { ...content.card, why: HOST_CHECKS_WORD },
             },
           };
-    });
+        const why = held.get(item.id)?.reason;
+        return why === undefined || (why === UNSURE_REASON && !item.unsure)
+          ? { item, content }
+          : {
+              item:
+                why === UNSURE_REASON
+                  ? { ...item, unsure: true }
+                  : { ...item, blocked: true },
+              content: {
+                ...content,
+                card: { ...content.card, why: heldReasonText(why) },
+              },
+            };
+      },
+    );
     const check = status && checkEntryOf(status);
     const pickups = sessionEntriesOf(
       sessions ?? [],

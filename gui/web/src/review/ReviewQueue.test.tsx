@@ -250,6 +250,47 @@ describe("ReviewQueue", () => {
     expect(getByRole("button", { name: /all 2$/ })).toBeInTheDocument();
   });
 
+  it("filters by speaker only when two people have edits", () => {
+    const onSpeaker = vi.fn();
+    const edits = [
+      {
+        id: "a",
+        kind: "filler" as const,
+        at: 1,
+        savedSeconds: 0.4,
+        speaker: { id: "host", label: "Host" },
+      },
+      {
+        id: "b",
+        kind: "filler" as const,
+        at: 2,
+        savedSeconds: 0.4,
+        speaker: { id: "guest", label: "Guest" },
+      },
+    ];
+    const view = (items: typeof edits, speaker: string | null = null) => (
+      <ReviewQueue
+        items={items}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        speaker={speaker}
+        onFilter={vi.fn()}
+        onSpeaker={onSpeaker}
+        onSelect={vi.fn()}
+      />
+    );
+    const { rerender } = render(view(edits));
+    fireEvent.click(screen.getByRole("button", { name: "Guest, 1" }));
+    expect(onSpeaker).toHaveBeenCalledWith("guest");
+    fireEvent.click(screen.getByRole("button", { name: "Everyone" }));
+    expect(onSpeaker).toHaveBeenLastCalledWith(null);
+    rerender(view(edits, "guest"));
+    expect(screen.getByRole("button", { name: "All, 1" })).toBeInTheDocument();
+    rerender(view([edits[0]!]));
+    expect(screen.queryByRole("button", { name: "Everyone" })).toBeNull();
+  });
+
   it("describes the disabled Find more by a visible note", () => {
     const { getByRole, getByText } = render(
       <ReviewQueue

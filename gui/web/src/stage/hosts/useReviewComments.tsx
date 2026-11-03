@@ -43,6 +43,7 @@ import { commentCardOf } from "./commentCardData";
 export type CommentNav = {
   items: readonly ReviewItem[];
   filter: ReviewFilter;
+  speaker?: string | null;
   /** The selection now, not when the key was pressed. */
   selected: () => string | null;
   onSelect: (id: string | null) => void;
@@ -158,6 +159,7 @@ export function useReviewComments(guest: boolean) {
             itemId,
             "forward",
             nav.filter,
+            nav.speaker ?? null,
           )
         : null;
     if (nav && resolved) nav.onSelect(next);

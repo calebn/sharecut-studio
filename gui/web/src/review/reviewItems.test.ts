@@ -58,6 +58,20 @@ describe("kind of a pending edit", () => {
   );
 });
 
+describe("speaker of an edit", () => {
+  it("names the track's label, or the id when the track is unknown", () => {
+    const [known, unknown] = reviewEntriesOf(
+      [
+        pendingEditView({ id: "a", track_id: "t1" }),
+        pendingEditView({ id: "b", track_id: "t9" }),
+      ],
+      [{ id: "t1", label: "Host" }],
+    );
+    expect(known?.item.speaker).toEqual({ id: "t1", label: "Host" });
+    expect(unknown?.item.speaker).toEqual({ id: "t9", label: "t9" });
+  });
+});
+
 describe("reviewEntriesOf", () => {
   it("lists only edits that are not applied and need review", () => {
     const entries = reviewEntriesOf([
@@ -169,6 +183,7 @@ describe("reviewEntriesOf", () => {
       at: 2,
       savedSeconds: 1,
       suggested: undefined,
+      speaker: { id: "mira-voice", label: "mira-voice" },
     });
   });
 

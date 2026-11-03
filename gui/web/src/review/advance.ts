@@ -19,8 +19,11 @@ export function stepUndecided(
   id: string | null,
   direction: Direction,
   filter: ReviewFilter = "all",
+  speaker: string | null = null,
 ): string | null {
-  const visible = new Set(filterItems(items, filter).map((item) => item.id));
+  const visible = new Set(
+    filterItems(items, filter, speaker).map((item) => item.id),
+  );
   const order = fullOrder(items);
   const at = order.findIndex((item) => item.id === id);
   const walk =
@@ -47,6 +50,7 @@ export type DecisionPlan = {
 
 type PlanOptions = {
   filter?: ReviewFilter;
+  speaker?: string | null;
   /** Cut anyway: the transcript check counts as checked. */
   waive?: boolean;
 };
@@ -63,7 +67,7 @@ export function planDecision(
   items: readonly ReviewItem[],
   ids: readonly string[],
   result: ReviewResult,
-  { filter = "all", waive = false }: PlanOptions = {},
+  { filter = "all", speaker = null, waive = false }: PlanOptions = {},
 ): DecisionPlan {
   const settled = new Set(ids);
   const wordsLeft = openOf(items, "unsure-word").some(
@@ -87,7 +91,13 @@ export function planDecision(
     .find((item) => ids.includes(item.id));
   return {
     items: next,
-    selectedId: stepUndecided(next, last?.id ?? null, "forward", filter),
+    selectedId: stepUndecided(
+      next,
+      last?.id ?? null,
+      "forward",
+      filter,
+      speaker,
+    ),
     decidedIds,
     message: decisionMessage(items, ids, result),
   };
