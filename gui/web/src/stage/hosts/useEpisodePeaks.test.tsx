@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { shareProjectKey } from "../../shareMode";
 import { useEpisodePeaks } from "./useEpisodePeaks";
 
 const READY = {
@@ -102,6 +103,49 @@ describe("useEpisodePeaks", () => {
     const calls = route({ format_version: 1, media: {} });
     renderHook(() => useEpisodePeaks(null, 4, "h1"));
     renderHook(() => useEpisodePeaks("/p.json", 0, "h1"));
+    await settle();
+    expect(calls).toEqual([]);
+  });
+  it("skips a stem with no levels and keeps the others", async () => {
+    route({
+      format_version: 1,
+      media: {
+        "stem:t1": READY,
+        "stem:t2": { ...READY, levels: [] },
+      },
+    });
+    const { result } = renderHook(() => useEpisodePeaks("/p.json", 4, "h1"));
+    await settle();
+    expect(result.current).toHaveLength(1024);
+  });
+
+  it("keeps the peaks of a stem when another stem's tiles fail", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (url.includes("/api/waveform/status"))
+          return Response.json({
+            format_version: 1,
+            media: {
+              "stem:t1": READY,
+              "stem:t2": { ...READY, key: "ffffffffffffffffffff" },
+            },
+          });
+        if (url.includes("ffffffffffffffffffff"))
+          return new Response("gone", { status: 404 });
+        return new Response(Int16Array.from([-8000, 16000, 1]).buffer);
+      }),
+    );
+    const { result } = renderHook(() => useEpisodePeaks("/p.json", 4, "h1"));
+    await settle();
+    expect(result.current).toHaveLength(1024);
+    expect(Math.max(...result.current)).toBe(1);
+  });
+
+  it("does not load for a share link", async () => {
+    const calls = route({ format_version: 1, media: {} });
+    renderHook(() => useEpisodePeaks(shareProjectKey("abc"), 4, "h1"));
     await settle();
     expect(calls).toEqual([]);
   });

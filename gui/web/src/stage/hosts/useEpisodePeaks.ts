@@ -4,6 +4,7 @@ import {
   loadWaveformTiles,
   WaveformFetchError,
 } from "../../api";
+import { isShareProjectKey } from "../../shareMode";
 import { MAX_TILES_PER_REQUEST } from "../../utils/timelineZoom.generated";
 import { levelTileCount } from "../../waveform/pyramidMath";
 import { isReady, type ReadyEntry } from "../../waveform/types";
@@ -60,12 +61,15 @@ export function useEpisodePeaks(
   // biome-ignore lint/correctness/useExhaustiveDependencies: `revision` is the reload trigger.
   useEffect(() => {
     setPeaks(NONE);
-    if (!projectPath || !(totalSec > 0)) return;
+    if (!projectPath || isShareProjectKey(projectPath) || !(totalSec > 0))
+      return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = async (retry: boolean) => {
       const wait = (ms: number) => {
-        if (retry) timer = setTimeout(() => void load(false), ms);
+        if (!retry) return;
+        clearTimeout(timer);
+        timer = setTimeout(() => void load(false), ms);
       };
       try {
         const status = await loadWaveformStatus(
@@ -74,10 +78,12 @@ export function useEpisodePeaks(
           controller.signal,
         );
         const entries = Object.entries(status.media);
-        const ready = entries.filter(([, e]) => isReady(e));
+        const ready = entries.filter(
+          ([, e]) => isReady(e) && e.levels.length > 0,
+        );
         if (entries.some(([, e]) => e.status === "generating"))
           wait(DEFAULT_RETRY_MS);
-        const sets = await Promise.all(
+        const settled = await Promise.allSettled(
           ready.map(([ref, e]) =>
             stemPeaks(
               projectPath,
@@ -88,7 +94,15 @@ export function useEpisodePeaks(
             ),
           ),
         );
-        if (!controller.signal.aborted) setPeaks(mixPeaks(sets));
+        if (controller.signal.aborted) return;
+        const rejected = settled.find((r) => r.status === "rejected");
+        if (rejected && settled.every((r) => r.status === "rejected"))
+          throw rejected.reason;
+        setPeaks(
+          mixPeaks(
+            settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
+          ),
+        );
       } catch (err) {
         if (controller.signal.aborted) return;
         if (
