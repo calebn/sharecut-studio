@@ -1011,8 +1011,7 @@
           "src/podcast_mcp/services/remote_mcp/progress.py",
           "scripts/check_progress.py",
           "schemas/progress-exemptions.schema.json",
-          "schemas/progress-richness.schema.json",
-          "gui/web/src/ui/StaleProgressCopy.tsx"
+          "schemas/progress-richness.schema.json"
         ]
       }
     },
