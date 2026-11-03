@@ -151,7 +151,7 @@ test("an open confirm holds Mod+Z, so nothing is undone behind it, and Escape re
       if (isHistoryMove(response)) moves.push(response);
     });
     await trackHeaderButton(page, "guest").dispatchEvent("click");
-    const inspector = page.locator(".modifier-inspector");
+    const inspector = page.getByRole("dialog", { name: "Inspector" });
     await expect(inspector).toBeVisible();
     const remove = inspector.getByRole("button", { name: "Remove track" });
     await remove.click();

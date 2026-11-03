@@ -354,7 +354,7 @@ describe("track content", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("no write");
   });
 
-  it("smooths every join on the track from the More section", async () => {
+  it("smooths every join on the track from the Tools section", async () => {
     const user = userEvent.setup();
     open();
     await user.click(screen.getByRole("button", { name: "Smooth all joins" }));
