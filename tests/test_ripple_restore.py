@@ -8,6 +8,7 @@ from podcast_mcp.edits.cut_application import apply_prefix_edits
 from podcast_mcp.edits.timeline_ops import insert_gap
 from podcast_mcp.models import EpisodeProject, load_project
 from podcast_mcp.services.document import EditService
+from ripple_helpers import ripple_cut
 from ripple_restore_helpers import build, cut, workspace
 
 pytestmark = pytest.mark.refine_gate
@@ -235,3 +236,94 @@ def test_a_pad_edited_after_the_cut_blocks_restore(tmp_path, monkeypatch):
     [state] = [r["restore"] for r in EditService(ws).list_applied_edits()["records"]]
 
     assert (state["state"], state["code"]) == ("blocked", "pad_changed")
+
+
+def test_a_cut_that_overlaps_the_earlier_seam_blocks_it_and_names_the_overlapping_cut(
+    tmp_path, monkeypatch
+):
+    project = build(tmp_path)
+    project.edit_decisions = [cut("a", 2.0, 2.9)]
+    ws = workspace(project, monkeypatch, tmp_path, pad_mode="silence")
+    before = _state(ws.project)
+    assert EditService(ws).approve(["a"]) == 1
+    ws.mutate("before range", "after range", lambda p: ripple_cut(p, 1.5, 2.5))
+    a, b = (r.id for r in ws.project.editorial.edit_log)
+    stuck = _state(ws.project)
+
+    result = EditService(ws).revert_applied([a])
+
+    assert result["status"] == "conflict"
+    assert [(c["code"], c["blocked_by"]) for c in result["conflicts"]] == [("seam_gone", [b])]
+    assert _state(load_project(ws.path)) == stuck
+    assert EditService(ws).revert_applied([a, b])["status"] == "restored"
+    assert _state(load_project(ws.path)) == before
+
+
+def test_a_batch_with_one_blocked_record_restores_nothing(tmp_path, monkeypatch):
+    project = build(tmp_path)
+    project.edit_decisions = [cut("a", 2.0, 2.9), cut("b", 1.0, 2.0), cut("c", 8.0, 8.8)]
+    ws = workspace(project, monkeypatch, tmp_path, pad_mode="silence")
+    for edit_id in ("a", "b", "c"):
+        assert EditService(ws).approve([edit_id]) == 1
+    a, b, c = (r.id for r in ws.project.editorial.edit_log)
+    stuck = _state(ws.project)
+
+    result = EditService(ws).revert_applied([c, a])
+
+    assert result["status"] == "conflict"
+    assert [(x["record_id"], x["blocked_by"]) for x in result["conflicts"]] == [(a, [b])]
+    assert _state(ws.project) == stuck
+    assert _state(load_project(ws.path)) == stuck
+    assert [r.id for r in ws.project.editorial.edit_log] == [a, b, c]
+
+
+def test_restoring_a_record_twice_is_a_not_found_conflict_that_writes_nothing(
+    tmp_path, monkeypatch
+):
+    project = build(tmp_path)
+    project.edit_decisions = [cut("c", 1.0, 1.9)]
+    ws = workspace(project, monkeypatch, tmp_path, pad_mode="silence")
+    assert EditService(ws).approve(["c"]) == 1
+    [record] = ws.project.editorial.edit_log
+    assert EditService(ws).revert_applied([record.id])["status"] == "restored"
+    restored = _state(load_project(ws.path))
+
+    again = EditService(ws).revert_applied([record.id])
+
+    assert [(c["code"], c["record_id"]) for c in again["conflicts"]] == [
+        ("applied_edit_not_found", record.id)
+    ]
+    assert _state(load_project(ws.path)) == restored
+
+
+def test_a_record_whose_clips_were_deleted_is_blocked_and_restore_writes_nothing(
+    tmp_path, monkeypatch
+):
+    project = build(tmp_path)
+    project.edit_decisions = [cut("c", 1.0, 1.9)]
+    ws = workspace(project, monkeypatch, tmp_path, pad_mode="silence")
+    assert EditService(ws).approve(["c"]) == 1
+    [record] = ws.project.editorial.edit_log
+    ws.mutate("before wipe", "after wipe", lambda p: setattr(p, "clips", []))
+    stuck = _state(ws.project)
+
+    [state] = [r["restore"] for r in EditService(ws).list_applied_edits()["records"]]
+    result = EditService(ws).revert_applied([record.id])
+
+    assert state["state"] == "blocked"
+    assert result["status"] == "conflict"
+    assert _state(load_project(ws.path)) == stuck
+
+
+def test_a_dry_run_of_several_ripple_records_leaves_the_project_untouched(tmp_path, monkeypatch):
+    ws, _before, a, b = _two_adjacent_cuts(tmp_path, monkeypatch)
+    memory = _state(ws.project)
+    log = [r.model_dump_json() for r in ws.project.editorial.edit_log]
+
+    result = EditService(ws).revert_applied([a, b], dry_run=True)
+
+    assert result["status"] == "planned"
+    assert result["summary"]["ids"] == [b, a]
+    assert _state(ws.project) == memory
+    assert [r.model_dump_json() for r in ws.project.editorial.edit_log] == log
+    assert _state(load_project(ws.path)) == memory
