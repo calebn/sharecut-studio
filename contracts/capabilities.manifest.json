@@ -2242,7 +2242,11 @@
           "propose_edits",
           "apply_edits"
         ],
-        "cli": "podcast edit",
+        "cli": [
+          "podcast edit",
+          "podcast edit applied",
+          "podcast edit restore-edit"
+        ],
         "skill": "podcast-edit-natural-language"
       },
       "omit": {

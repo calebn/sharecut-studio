@@ -345,7 +345,6 @@ PINNED_GAP_TYPES = {
     "FillRoomTone",
     "RemoveTrack",
     "RenameProject",
-    "RestoreAppliedEdit",
     "SetClipFade",
     "SetEffectBypass",
     "SetEnvelope",
