@@ -8,6 +8,7 @@ import { GuestVersionNotice } from "./GuestVersionNotice";
 import { HomeScreenHint } from "./HomeScreenHint";
 import { JobModelBanner } from "./JobModelBanner";
 import { type LoadFailure, LoadFailureBanner } from "./LoadFailureBanner";
+import { SavedCopyNotice } from "./SavedCopyNotice";
 
 /** The notices under the header, in one fixed order. */
 export function BannerStack({
@@ -20,6 +21,8 @@ export function BannerStack({
   loadFailure?: LoadFailure | null;
 }) {
   const guestMode = useDaw((s) => s.guestMode);
+  // The offline fallback opens a cached project with no capabilities from the host.
+  const savedCopy = useDaw((s) => guestShare && s.shareCapabilities === null);
   return (
     <>
       <LoadFailureBanner failure={loadFailure} />
@@ -30,6 +33,7 @@ export function BannerStack({
           </div>
         ) : null}
       </Slot>
+      {savedCopy ? <SavedCopyNotice /> : null}
       {guestShare ? <GuestVersionNotice /> : null}
       <GuestAttentionBanner host={attentionHost} />
       <JobModelBanner guestShare={guestShare} />

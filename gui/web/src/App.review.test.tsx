@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { resetFeaturesCache } from "./extensions/features";
@@ -66,11 +66,11 @@ describe("App review route", () => {
     expect(
       await screen.findByText("This link does not open the project."),
     ).toBeInTheDocument();
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("This link does not open the project.");
-    expect(alert).toHaveTextContent(
-      "Ask the person who shared it for a new link.",
-    );
+    expect(
+      screen.getByRole("region", {
+        name: "This link does not open the project.",
+      }),
+    ).toHaveTextContent("Ask the person who shared it for a new link.");
     expect(
       fetchMock.mock.calls.some((call) =>
         urlOf(call[0] as RequestInfo | URL).endsWith("/audio"),
@@ -106,9 +106,11 @@ describe("App review route", () => {
     expect(
       await screen.findByText("This link is invalid or has ended."),
     ).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Ask the host for a new link.",
-    );
+    expect(
+      screen.getByRole("region", {
+        name: "This link is invalid or has ended.",
+      }),
+    ).toHaveTextContent("Ask the host for a new link.");
   });
 
   it("drops a cached snapshot and shows the cover for a revoked link", async () => {
@@ -233,6 +235,42 @@ describe("App review route", () => {
       screen.queryByText("This link is invalid or has ended."),
     ).not.toBeInTheDocument();
     expect(offline.clear).not.toHaveBeenCalled();
+  });
+
+  it("shows a Retry cover for an unreachable host with no saved copy", async () => {
+    window.history.pushState({}, "", "/r/asleep");
+    offline.load.mockResolvedValue(undefined);
+    let reachable = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = urlOf(input);
+        if (url.includes("/features")) {
+          return new Response(
+            JSON.stringify({
+              api_version: 1,
+              features: ["share.ui.routes", "share.ui.banner", "share.ui.menu"],
+            }),
+            { status: 200 },
+          );
+        }
+        if (!reachable) {
+          throw new TypeError("Failed to fetch");
+        }
+        return new Response(
+          JSON.stringify({ capabilities: ["view"], meta: { name: "Episode" } }),
+          { status: 200 },
+        );
+      }),
+    );
+    render(<App />);
+    expect(
+      await screen.findByRole("heading", { name: "The host is offline" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/computer may be asleep or offline/)).toBeVisible();
+    reachable = true;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Cached guest studio")).toBeInTheDocument();
   });
 
   it.each([

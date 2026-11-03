@@ -14,6 +14,7 @@ import { isShareProjectKey, shareProjectKey } from "./shareMode";
 import { parseShareRoute } from "./shareRoute";
 import { HomeScreen } from "./stages/home/HomeScreen";
 import { DawProvider } from "./state/store";
+import { Cover } from "./system/Cover";
 import type { ProjectView } from "./types/project";
 import { ErrorScreen, LoadingScreen } from "./ui";
 
@@ -64,7 +65,9 @@ function AppInner() {
   const [error, setError] = useState<{
     message: string;
     hint?: string;
+    cover?: "bad-link" | "offline" | "failed";
   } | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [shareBootstrapping, setShareBootstrapping] = useState(
     Boolean(reviewToken),
   );
@@ -105,6 +108,7 @@ function AppInner() {
             setError({
               message: "This link does not open the project.",
               hint: "Ask the person who shared it for a new link.",
+              cover: "bad-link",
             });
             return;
           }
@@ -127,6 +131,7 @@ function AppInner() {
             setError({
               message: "This link is invalid or has ended.",
               hint: "Ask the host for a new link.",
+              cover: "bad-link",
             });
             return;
           }
@@ -141,7 +146,11 @@ function AppInner() {
             setError(null);
             return;
           }
-          setError({ message: errorMessage(e) });
+          const unreachable = !(e instanceof ApiError) || e.status === null;
+          setError({
+            message: errorMessage(e),
+            cover: unreachable ? "offline" : "failed",
+          });
         } finally {
           if (!cancelled) {
             setShareBootstrapping(false);
@@ -161,10 +170,37 @@ function AppInner() {
     guestToken,
     featuresReady,
     shareRoutesEnabled,
+    attempt,
   ]);
 
   if (!featuresReady || (Boolean(reviewToken) && shareBootstrapping)) {
     return <LoadingScreen label="Loading project…" />;
+  }
+  if (error?.cover === "bad-link") {
+    return (
+      <main>
+        <Cover size="page" glyph="octagon-alert" title={error.message}>
+          {error.hint}
+        </Cover>
+      </main>
+    );
+  }
+  if (error?.cover === "offline" || error?.cover === "failed") {
+    const offline = error.cover === "offline";
+    return (
+      <main>
+        <Cover
+          size="page"
+          glyph={offline ? "cloud-off" : "triangle-alert"}
+          title={offline ? "The host is offline" : "This link did not load"}
+          primary={{ label: "Retry", onClick: () => setAttempt((n) => n + 1) }}
+        >
+          {offline
+            ? "The host's computer may be asleep or offline. Try again in a moment."
+            : error.message}
+        </Cover>
+      </main>
+    );
   }
   if (error) {
     return <ErrorScreen message={error.message} hint={error.hint} />;

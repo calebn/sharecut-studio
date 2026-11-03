@@ -1,17 +1,4 @@
-import { stagesForRole } from "../../state/stageRoutes";
-import type { StageId } from "../../types/stage";
-import { ROLE_HINT_TEXT } from "../../utils/roleHint";
-
 export type GuestRole = "viewer" | "commenter" | "editor";
-
-/** The stages the Review page itself can show: Deliver is its own host-mounted page, so it is not a tab here. */
-export function guestStages(role: GuestRole): readonly StageId[] | null {
-  return role === "editor"
-    ? stagesForRole(role).filter((stage) => stage !== "deliver")
-    : null;
-}
-
-export const ROLE_HINT: Record<GuestRole, string> = ROLE_HINT_TEXT;
 
 export function lastStartedWordAt(
   wordStarts: readonly number[],
