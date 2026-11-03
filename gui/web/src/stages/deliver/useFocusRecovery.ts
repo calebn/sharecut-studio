@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 type Lost = {
   el: Element;
   key: string | null;
+  then: string | null;
   list: string | null;
   index: number;
 };
@@ -11,8 +12,9 @@ const FOCUSABLE = "input, button, [tabindex]";
 
 /**
  * Keeps keyboard focus inside the stage when the focused control goes away or
- * disables. It lands on an element with the same `data-focus-key`, else the item
- * now at the same place in the same `data-focus-list`, else the stage root.
+ * disables. It lands on an element with the same `data-focus-key`, else the one
+ * named by its `data-focus-then`, else the item now at the same place in the
+ * same `data-focus-list`, else the stage root.
  */
 export function useFocusRecovery(root: HTMLElement | null): void {
   const last = useRef<Lost | null>(null);
@@ -28,6 +30,9 @@ export function useFocusRecovery(root: HTMLElement | null): void {
         el,
         key:
           el.closest("[data-focus-key]")?.getAttribute("data-focus-key") ??
+          null,
+        then:
+          el.closest("[data-focus-then]")?.getAttribute("data-focus-then") ??
           null,
         list: list?.getAttribute("data-focus-list") ?? null,
         index: item && list ? [...list.children].indexOf(item) : 0,
@@ -48,11 +53,13 @@ export function useFocusRecovery(root: HTMLElement | null): void {
       !active || active === root.ownerDocument.body || active === lost.el;
     if (!gone || !stranded) return;
     last.current = null;
-    const byKey = lost.key
-      ? ([...root.querySelectorAll<HTMLElement>("[data-focus-key]")].find(
-          (el) => el.getAttribute("data-focus-key") === lost.key,
-        ) ?? null)
-      : null;
+    const keyed = [...root.querySelectorAll<HTMLElement>("[data-focus-key]")];
+    const named = (key: string | null) =>
+      key
+        ? (keyed.find((el) => el.getAttribute("data-focus-key") === key) ??
+          null)
+        : null;
+    const byKey = named(lost.key) ?? named(lost.then);
     if (byKey) return byKey.focus({ preventScroll: true });
     const list = lost.list
       ? ([...root.querySelectorAll("[data-focus-list]")].find(
