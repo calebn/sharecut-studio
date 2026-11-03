@@ -1,0 +1,144 @@
+import { useEffect } from "react";
+import { deleteSocialClip, updateSocialClip } from "../../api";
+import { useProjectMutation } from "../../hooks/useProjectMutation";
+import { isShareProjectKey } from "../../shareMode";
+import { useDaw } from "../../state/useDaw";
+import type { InspectorSection } from "../../system/InspectorSheet";
+import { ScrubField } from "../../system/ScrubField";
+import type { Selection } from "../../types/project";
+import { Button, InspectorSeekFooter } from "../../ui";
+import { BUSY_REASON } from "../../ui/disabledReason";
+import { note } from "./sheetNote";
+
+const END_BEFORE_START = "End must be greater than start";
+
+export function useSocialSections(
+  selection: Selection,
+): readonly InspectorSection[] | null {
+  const { project, projectPath, setSelection } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    setSelection: s.setSelection,
+  }));
+  const { busy, error, setError, run } = useProjectMutation();
+  const id = selection?.kind === "social" ? selection.id : null;
+  const clip = (project?.social_clips ?? []).find((c) => c.id === id);
+  useEffect(() => {
+    setError(null);
+  }, [id, clip?.start, clip?.end, setError]);
+  if (id === null) return null;
+  if (!clip)
+    return [
+      {
+        id: "gone",
+        rows: [{ id: "gone", control: note("Social clip not found") }],
+      },
+    ];
+
+  const editable = !isShareProjectKey(projectPath);
+
+  const save = async (start: number, end: number) => {
+    if (start === clip.start && end === clip.end) return;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      setError(END_BEFORE_START);
+      return;
+    }
+    await run(async () => {
+      await updateSocialClip(projectPath, clip.id, start, end);
+    });
+  };
+
+  const remove = async () => {
+    await run(async () => {
+      await deleteSocialClip(projectPath, clip.id);
+      setSelection(null);
+    });
+  };
+
+  const edge = (which: "start" | "end") => (
+    <ScrubField
+      label={which === "start" ? "Start" : "End"}
+      value={clip[which]}
+      unit="s"
+      step={0.01}
+      decimals={2}
+      min={0}
+      skipUnchanged
+      readOnly={!editable || busy}
+      onCommit={(next) =>
+        void save(
+          which === "start" ? next : clip.start,
+          which === "end" ? next : clip.end,
+        )
+      }
+    />
+  );
+
+  return [
+    {
+      id: "social",
+      rows: [
+        {
+          id: "title",
+          label: "Title",
+          control: clip.title_suggestion ?? clip.id,
+        },
+        { id: "track", label: "Track", control: clip.track_id },
+        { id: "start", label: "Start", control: edge("start") },
+        { id: "end", label: "End", control: edge("end") },
+        { id: "score", label: "Score", control: clip.score.toFixed(2) },
+        {
+          id: "approved",
+          label: "Approved",
+          control: clip.approved ? "yes" : "no",
+        },
+        {
+          id: "review",
+          label: "Review",
+          control: clip.review_required ? "required" : "no",
+        },
+        ...(error
+          ? [
+              {
+                id: "error",
+                control: (
+                  <p className="sys-inspector-note" role="alert">
+                    {error}
+                  </p>
+                ),
+              },
+            ]
+          : []),
+        {
+          id: "seek",
+          control: (
+            <InspectorSeekFooter
+              seekSec={clip.start}
+              playStart={clip.start}
+              playEnd={clip.end}
+              seekLabel="Seek to start"
+              showPlay={false}
+            />
+          ),
+        },
+        ...(editable
+          ? [
+              {
+                id: "remove",
+                control: (
+                  <Button
+                    variant="danger"
+                    className="track-sheet-action"
+                    disabledReason={busy ? BUSY_REASON : undefined}
+                    onClick={() => void remove()}
+                  >
+                    Delete
+                  </Button>
+                ),
+              },
+            ]
+          : []),
+      ],
+    },
+  ];
+}
