@@ -442,3 +442,95 @@ def test_collect_gate_counts_each_rest_review_comment_thread_as_unresolved(
     monkeypatch.setattr(gate, "gh_json", _graphql_forbidden_rest(review_pages=review_pages))
     verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
     assert "2 unresolved review thread(s)" in verdict["blockers"]
+
+
+def test_current_required_checks_exclude_manual_and_historical_runs(monkeypatch: Any) -> None:
+    """Historical failures do not override current eligible success."""
+
+    def fake_gh(*args: str) -> Any:
+        path = args[1]
+        if path.endswith("actions/workflows/test.yml"):
+            return {"id": 10, "path": ".github/workflows/test.yml"}
+        if path.endswith("actions/workflows/secret-scan.yml"):
+            return {"id": 20, "path": ".github/workflows/secret-scan.yml"}
+        if "/runs?" in path:
+            workflow = 10 if "/10/" in path else 20
+            runs = [_eligible_run(workflow)]
+            if workflow == 10:
+                runs += [_eligible_run(10, run_id=99, number=99, event="workflow_dispatch")]
+            return [{"total_count": len(runs), "workflow_runs": runs}]
+        if "/attempts/" in path:
+            run_id = int(path.split("/runs/")[1].split("/")[0])
+            names = ["pytest", "frontend", "frontend-e2e"] if run_id == 10 else ["gitleaks-history"]
+            jobs = [_job(run_id, name, i) for i, name in enumerate(names, 1)]
+            return [{"total_count": len(jobs), "jobs": jobs}]
+        if "/check-runs/" in path:
+            check_id = int(path.rsplit("/", 1)[1])
+            name = {101: "pytest", 102: "frontend", 103: "frontend-e2e", 201: "gitleaks-history"}[
+                check_id
+            ]
+            result = "success"
+            return {
+                "id": check_id,
+                "name": name,
+                "head_sha": SHA,
+                "status": "completed",
+                "conclusion": result,
+                "check_suite": {"id": 100 if check_id < 200 else 200},
+                "app": {"id": 15368},
+            }
+        if "/check-runs?" in path:
+            return _rest_check_pages(
+                [_rest_check_run(name) for name in gate.REQUIRED_CHECKS]
+                + [_rest_check_run("pytest", conclusion="skipped")]
+            )
+        if "/actions/runs/" in path:
+            return _eligible_run(int(path.rsplit("/", 1)[1]))
+        raise AssertionError(path)
+
+    monkeypatch.setattr(gate, "gh_json", fake_gh)
+    monkeypatch.setattr(gate, "rest_fetch_pull", lambda *_: _rest_pr())
+    monkeypatch.setattr(gate, "collect_review_threads", lambda *_: [])
+    monkeypatch.setattr(gate, "rest_fetch_issue", lambda *_: _rest_issue())
+    fresh = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+    monkeypatch.setattr(gate, "issue_comments", lambda *_: [_claim(heartbeat=fresh)])
+    verdict = gate.collect_gate("owner/repo", 252, 251, TOKEN, 0, 6)
+    assert verdict == {"mergeable": True, "head_sha": SHA, "blockers": []}
+
+
+def _eligible_run(
+    workflow: int, *, run_id: int | None = None, number: int = 1, event: str = "pull_request"
+) -> dict[str, Any]:
+    return {
+        "id": run_id or workflow,
+        "run_number": number,
+        "run_attempt": 1,
+        "workflow_id": workflow,
+        "path": f".github/workflows/{'test.yml' if workflow == 10 else 'secret-scan.yml'}",
+        "event": event,
+        "head_sha": SHA,
+        "check_suite_id": workflow * 10,
+        "repository": {"full_name": "owner/repo"},
+        "head_repository": {"full_name": "owner/repo"},
+        "pull_requests": [
+            {
+                "number": 252,
+                "head": {"sha": SHA, "repo": {"id": 1}},
+                "base": {"ref": "main", "repo": {"id": 1}},
+            }
+        ],
+    }
+
+
+def _job(run_id: int, name: str, index: int) -> dict[str, Any]:
+    check_id = run_id * 10 + index
+    return {
+        "id": check_id,
+        "name": name,
+        "run_id": run_id,
+        "run_attempt": 1,
+        "head_sha": SHA,
+        "check_run_url": f"https://api.github.com/repos/owner/repo/check-runs/{check_id}",
+        "status": "completed",
+        "conclusion": "success",
+    }
