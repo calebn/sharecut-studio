@@ -443,11 +443,11 @@ shortcut hints. Pure views never read the keymap registry.
 The phone shell's `MoreMix` story opens and closes the production Mix sheet.
 
 `Templates/TrackFader` renders the props-only `TrackFaderView` used by the
-live inspector and compact Mix rows. Its controlled fixtures cover Reset with focus return,
+compact Mix rows. Its controlled fixtures cover Reset with focus return,
 read-only volume, stale Balance, non-dialogue tracks, and a 360px frame.
 The view owns `useCommitRange`, draft dB output, staging/output notes, and
-unique input associations. `TrackFader` retains capability checks and dispatches
-committed values through the existing `track.setVolume` command.
+unique input associations. The track Inspector's Level is a Scrub field and writes
+through `track.setVolume`.
 
 `System/TrackHeader` is the track header (element 16). The Edit stage mounts it
 through the host `stage/edit/TrackColumn.tsx`, which reads the DAW store and

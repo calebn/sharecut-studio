@@ -254,7 +254,7 @@ Hear original’s menu (Full mix / Without mix processing / Original) is on ever
 ├─ ▶ 12:34   Hear original ────────────┤
 ├─ Record │ Prepare │ Edit │ Review │ Deliver ─┤
 │ ┌ sheet: track / Pending cut ── X ┐ │
-│ │ Track: M/S/Volume + Track actions │ │
+│ │ Track: Name/Level/M/S + Tools     │ │
 │ │ Clip: paired fades / transition │ │
 │ │ Pending: Snap to silence + review │ │
 │ └────────────────────────────────┘ │
