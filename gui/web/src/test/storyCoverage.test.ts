@@ -40,7 +40,7 @@ const COVERED: Record<string, string[]> = {
     "System/ScrubField",
     "System/Marker",
   ],
-  "INS-TRACK": ["Templates/Editor · Inspector · Track", "System/ScrubField"],
+  "INS-TRACK": ["Stages/Edit/TrackInspector", "System/ScrubField"],
   "INS-APPLIED": ["System/InspectorSheet", "System/Seam"],
   "INS-PENDING": [
     "System/InspectorSheet",
