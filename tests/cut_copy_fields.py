@@ -9,7 +9,7 @@ from __future__ import annotations
 
 SHARED_FIELDS: dict[str, str] = {
     "AppliedEditRecord": (
-        "applied_at boundary_mode crossfade_ms cut_confidence decision_ids id operation "
+        "applied_at boundary_mode crossfade_ms cut_confidence decision_ids id inverse operation "
         "params reason source_end source_start timeline_end timeline_start track_ids"
     ),
     "ArchivedTranscriptWord": ("ordinal word"),
@@ -74,6 +74,8 @@ SHARED_FIELDS: dict[str, str] = {
     "SavedDocumentCommand": (
         "base_server_seq causation_id client_id client_seq command_id payload role type"
     ),
+    "UnmuteSource": ("kind spans"),
+    "UnmuteSpan": ("end source_id start track_id"),
     "TimingStep": ("at delta_sec quiet"),
     "SegmentRef": ("content_sha256 segment_id version"),
     "SessionSuggestion": (
