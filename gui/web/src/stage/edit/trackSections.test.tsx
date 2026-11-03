@@ -258,6 +258,31 @@ describe("track content", () => {
     expect(await screen.findByRole("alert")).toBeVisible();
   });
 
+  it("notes the staging gain, what the track plays at and the balance state", () => {
+    const view = open({
+      ...hostTrack,
+      role: "dialogue",
+      gain_db: -2,
+      fader_db: -3,
+      balance_stale: true,
+      balance_measured_lufs: -24.5,
+      balance_ungated: true,
+    });
+    expect(
+      screen.getByText("Staging gain −2.0 dB; plays at −5.0 dB"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Balance stale · -24.5 LUFS · ungated"),
+    ).toBeVisible();
+    view.unmount();
+    open({ ...hostTrack, role: "music", gain_db: 0, fader_db: -3 }, [], "view");
+    expect(
+      screen.getByText(
+        "Only the host and editors can change the volume. Staging gain 0.0 dB; plays at −3.0 dB",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/^Balance/)).toBeNull();
+  });
   it("reads Mute and Solo from the shared buttons", () => {
     open();
     expect(screen.getByRole("button", { name: /^Mute/ })).toBeVisible();

@@ -181,14 +181,6 @@ html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
   gap: var(--space-1);
 }
 
-html[data-shell="phone"] .modifier-footer-actions > .ui-menu-root > .ui-control,
-html[data-shell="phone"]
-  .modifier-footer-actions
-  .ui-menu-panel
-  :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]) {
-  min-block-size: var(--touch-min);
-}
-
 .pending-snap-option {
   display: inline-flex;
   align-items: center;
@@ -206,24 +198,8 @@ html[data-shell="phone"]
   gap: var(--space-1) var(--space-3);
 }
 
-.track-fader-label,
 .track-fader-value {
   font-size: var(--font-size-small);
-}
-
-.track-fader-end {
-  display: flex;
-  flex-wrap: wrap;
-  max-inline-size: 100%;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.track-fader-end .ui-control {
-  min-block-size: var(--touch-min);
-}
-
-.track-fader-value {
   min-inline-size: 4.5rem;
   text-align: end;
   font-variant-numeric: tabular-nums;
@@ -234,17 +210,6 @@ html[data-shell="phone"]
   min-inline-size: 0;
   inline-size: 100%;
   min-block-size: var(--touch-min);
-}
-
-.track-fader-note,
-.track-sheet-gain {
-  margin: 0;
-  font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
-}
-
-.track-fader-note {
-  flex-basis: 100%;
 }
 
 .edit-ask {
