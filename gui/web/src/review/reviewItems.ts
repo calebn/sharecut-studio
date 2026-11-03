@@ -217,6 +217,16 @@ export type WordTarget = {
 export const wordIdOf = (track: string, source: string | null, index: number) =>
   `word:${track}:${source ?? ""}:${index}`;
 
+/** Why a cut needs a listen, from the server's flags; null for a clean cut. */
+function riskOf(edit: PendingEditView): ReviewItem["risk"] | null {
+  const verdict = edit.join_risk?.verdict;
+  if (edit.harsh || verdict === "fail")
+    return { rank: 3, reason: "Join may be audible" };
+  if (verdict === "review") return { rank: 2, reason: "Join needs a listen" };
+  if (edit.listen_one_by_one) return { rank: 1, reason: "Listen first" };
+  return null;
+}
+
 const SUGGESTED = ["cut", "shorten", "lower", "leave"] as const;
 
 function entryOf(edit: PendingEditView): ReviewEntry {
@@ -238,6 +248,7 @@ function entryOf(edit: PendingEditView): ReviewEntry {
   const time = Number.isFinite(at) ? formatTimeShort(at) : "Unplaced";
   const words = edit.unsure_words ?? [];
   const first = words[0];
+  const risk = riskOf(edit);
   return {
     item: {
       id: reviewIdOf(edit.id),
@@ -245,13 +256,17 @@ function entryOf(edit: PendingEditView): ReviewEntry {
       at,
       savedSeconds,
       suggested,
+      ...(risk ? { risk } : {}),
       ...(first ? { unsure: true } : {}),
     },
     content: {
       row: {
         snippet: title,
         time,
-        value: savedSeconds > 0 ? formatSeconds(savedSeconds) : undefined,
+        value:
+          [risk?.reason, savedSeconds > 0 ? formatSeconds(savedSeconds) : null]
+            .filter(Boolean)
+            .join(" · ") || undefined,
       },
       card: {
         title,

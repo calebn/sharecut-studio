@@ -21,6 +21,7 @@ import {
   filterItems,
   groupQueue,
   kindInFilter,
+  lowRiskBulk,
   progressLine,
   type ReviewFilter,
   type ReviewGroup,
@@ -87,6 +88,8 @@ export type ReviewQueueProps = {
   onVerb?: (id: string) => void;
   onKeep?: (id: string) => void;
   onBulk?: (group: ReviewGroup) => void;
+  /** The top row's batch: every kind's clean cuts at once. */
+  onBulkIds?: (ids: readonly string[]) => void;
   onFindMore?: () => void;
   /** Why Find more cannot start now. */
   findMoreDisabled?: string;
@@ -215,6 +218,7 @@ export function ReviewQueue({
   onVerb,
   onKeep,
   onBulk,
+  onBulkIds,
   onFindMore,
   findMoreDisabled,
   onRetry,
@@ -223,6 +227,11 @@ export function ReviewQueue({
   const counts = filterCounts(items);
   const shown = filterItems(items, filter);
   const groups = groupQueue(shown);
+  const lowRisk = canDecide && !bulkRunning ? lowRiskBulk(shown) : null;
+  const lowRiskVerb = lowRisk ? verbOf(lowRisk.verb) : null;
+  const lowRiskLabel = lowRisk
+    ? `Approve ${lowRisk.ids.length} low-risk ${lowRisk.ids.length === 1 ? "edit" : "edits"}`
+    : "";
   const decided = decidedItems(shown);
   // The group has left the queue; the row follows the filter that showed it.
   const cuttingAlone =
@@ -318,6 +327,28 @@ export function ReviewQueue({
           }
           progress={job.progress}
         />
+      ) : null}
+      {lowRisk && lowRiskVerb?.icon ? (
+        <section className="rv-group" aria-label="Low-risk edits">
+          <div className="rv-group-head">
+            <SystemIcon name={iconOf("approve")} size={16} />
+            <span className="rv-group-name">Low risk</span>
+            <span className="sys-mono rv-group-count">
+              {lowRisk.ids.length}
+            </span>
+            <span className="sys-mono">
+              {formatSeconds(lowRisk.savedSeconds)}
+            </span>
+            <Button
+              className="rv-bulk"
+              onClick={() => onBulkIds?.(lowRisk.ids)}
+              title={`${lowRiskLabel}${hintOf(verbOf("applyAll"))}`}
+            >
+              <SystemIcon name={iconOf("approve")} size={14} />
+              {lowRiskLabel}
+            </Button>
+          </div>
+        </section>
       ) : null}
       {cuttingAlone ? (
         <section className="rv-group" aria-label="Cutting" aria-busy>

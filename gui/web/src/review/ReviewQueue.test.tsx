@@ -221,6 +221,35 @@ describe("ReviewQueue", () => {
     expect(queryByText("Cutting 4…")).not.toBeNull();
   });
 
+  it("puts one Approve row on top for the clean cuts when some cuts need a listen", () => {
+    const onBulkIds = vi.fn();
+    const items = [
+      { id: "a", kind: "filler" as const, at: 1, savedSeconds: 0.4 },
+      { id: "b", kind: "pause" as const, at: 2, savedSeconds: 0.6 },
+      {
+        id: "c",
+        kind: "pause" as const,
+        at: 3,
+        savedSeconds: 0.5,
+        risk: { rank: 3 as const, reason: "Join may be audible" },
+      },
+    ];
+    const { getByRole } = render(
+      <ReviewQueue
+        items={items}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+        onBulkIds={onBulkIds}
+      />,
+    );
+    fireEvent.click(getByRole("button", { name: "Approve 2 low-risk edits" }));
+    expect(onBulkIds).toHaveBeenCalledWith(["a", "b"]);
+    expect(getByRole("button", { name: /all 2$/ })).toBeInTheDocument();
+  });
+
   it("describes the disabled Find more by a visible note", () => {
     const { getByRole, getByText } = render(
       <ReviewQueue
