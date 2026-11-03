@@ -88,7 +88,9 @@ function observe(s: ReviewSession, open: readonly ReviewEntry[]) {
   }
   const items = mergeOpen(open, base.decided).map((e) => e.item);
   // A person who has no edits left, or the last two people becoming one, ends the filter.
-  const speaker = speakersOf(items).some((chip) => chip.id === s.speaker)
+  const speaker = speakersOf(items).some(
+    (chip) => chip.id === s.speaker && chip.open > 0,
+  )
     ? s.speaker
     : null;
   const selectedId = items.some((i) => i.id === s.selectedId)
