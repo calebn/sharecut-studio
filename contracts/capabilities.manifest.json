@@ -2654,6 +2654,26 @@
       }
     },
     {
+      "id": "agent.document",
+      "label": "Generic document commands",
+      "effect": "project",
+      "service": "document_sync registry",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "document_command_schema_tool",
+          "submit_document_command_tool"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
       "id": "daw.transcript.correct",
       "label": "Correct transcript",
       "effect": "project",
