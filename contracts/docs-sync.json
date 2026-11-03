@@ -714,7 +714,7 @@
     {
       "id": "capability-registration",
       "when": "Capability registration (GUI / keys / MCP / CLI / skills)",
-      "update": "`contracts/capabilities.manifest.json`, the document command registry (a command's `CommandSpec` gui/mcp/cli decisions, see `docs/entry-points.md`), `contracts/edit-surface.json` (project rows without a twin), `docs/entry-points.md`, live catalog https://docs.sharecut.studio/#/capabilities (regen with `make schema-export`); `make generated-check` / pre-commit `capabilities-manifest`",
+      "update": "`contracts/capabilities.manifest.json`, the document command registry (a command's `CommandSpec` gui/mcp/cli decisions, see `docs/entry-points.md`), `contracts/edit-surface.json` (project rows without a twin), `docs/entry-points.md` (a command with no named tool needs none: `submit_document_command_tool` and `podcast doc submit` reach it), live catalog https://docs.sharecut.studio/#/capabilities (regen with `make schema-export`); `make generated-check` / pre-commit `capabilities-manifest`",
       "docs": [
         "contracts/capabilities.manifest.json",
         "contracts/edit-surface.json",
