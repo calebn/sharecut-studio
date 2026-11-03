@@ -40,15 +40,6 @@
   align-items: flex-start;
 }
 
-.modifier-badge {
-  flex: 0 0 auto;
-  font-size: var(--font-size-micro);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-text-secondary);
-}
-
 .modifier-titles h2 {
   margin: 0;
   overflow-wrap: anywhere;
