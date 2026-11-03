@@ -42,9 +42,12 @@ from podcast_mcp.edits.decisions import (
     update_pending_edit,
 )
 from podcast_mcp.edits.edit_log import (
+    RestoreResult,
+    apply_restores,
     list_applied_edits,
-    require_applied_edit_restore,
-    revert_applied_edit,
+    plan_restores,
+    planned_summary,
+    restore_state,
 )
 from podcast_mcp.edits.edit_reasons import (
     GUEST_SUGGEST_REASON,
@@ -607,16 +610,26 @@ class EditService(CutMutatingService):
                 },
             )
 
-    def revert_applied(self, record_id: str) -> dict:
+    def revert_applied(self, ids: list[str], dry_run: bool = False) -> dict:
+        """Restore applied edits together, as one History step. ``dry_run`` writes nothing.
+
+        Conflicts come back as data. A record with no inverse raises
+        ``local_restore_requires_history`` before anything is recorded.
+        """
         with self.ws.transaction() as project:
-            require_applied_edit_restore(project, record_id)
-            return self.ws.mutate(
-                "before revert applied edit",
-                "after revert applied edit",
-                lambda p: revert_applied_edit(p, record_id, defaults=self.ws.effective_config()),
+            plans, conflicts = plan_restores(project, ids)
+            if conflicts:
+                return RestoreResult(status="conflict", conflicts=conflicts).model_dump()
+            if dry_run:
+                return RestoreResult(status="planned", summary=planned_summary(plans)).model_dump()
+            summary = self.ws.mutate(
+                "before revert applied edits",
+                "after revert applied edits",
+                lambda p: apply_restores(p, plans, defaults=self.ws.effective_config()),
                 operation="revert_applied_edit",
-                params={"id": record_id},
+                params={"ids": ids},
             )
+            return RestoreResult(status="restored", summary=summary).model_dump()
 
     def impact_report(self, *, markdown: bool = False) -> str | dict:
         report = edit_impact_report(self.ws.project)
@@ -804,7 +817,10 @@ class EditService(CutMutatingService):
         )
         return {
             "count": len(records),
-            "records": [r.model_dump() for r in records],
+            "records": [
+                {**r.model_dump(), "restore": restore_state(self.ws.project, r).model_dump()}
+                for r in records
+            ],
         }
 
     def render_status(self) -> dict:

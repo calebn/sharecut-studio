@@ -258,7 +258,10 @@ class UpdatePendingEditPayload(BaseModel):
 
 
 class RestoreAppliedEditPayload(BaseModel):
-    id: str
+    model_config = {"extra": "forbid"}
+
+    ids: list[str] = Field(min_length=1)
+    dry_run: bool = False
 
 
 class RestoreClipBleedPayload(BaseModel):

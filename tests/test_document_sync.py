@@ -428,7 +428,7 @@ def test_document_update_pending_restore_refusal_and_guarded_undo(
         svc.submit(
             DocumentCommand(
                 type="RestoreAppliedEdit",
-                payload={"id": rid},
+                payload={"ids": [rid]},
                 client_id="c1",
                 role="viewer",
                 client_seq=3,

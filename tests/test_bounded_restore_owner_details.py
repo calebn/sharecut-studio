@@ -26,7 +26,7 @@ def test_remove_restore_refuses_before_recording_any_history(tmp_path, monkeypat
 
     monkeypatch.setattr(HistoryManager, "record", history_must_not_start)
     with pytest.raises(ValueError) as refused:
-        EditService(ws).revert_applied(ws.project.editorial.edit_log[0].id)
+        EditService(ws).revert_applied([ws.project.editorial.edit_log[0].id])
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert str(refused.value) == (
         "This edit cannot be restored individually. Use History Undo to restore the whole action. "

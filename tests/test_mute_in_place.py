@@ -1140,8 +1140,9 @@ def test_revert_mute_subtracts_regions_without_ripple(tmp_path, sample_wav):
     record = project.editorial.edit_log[0]
     path = Path(project.workspace_dir) / "episode.sharecut"
     save_project(project, path)
-    reverted = json.loads(mcp_server.revert_applied_edit_tool(str(path), record.id))
-    assert reverted["operation"] == "revert_applied_edit"
+    reverted = json.loads(mcp_server.revert_applied_edit_tool(str(path), [record.id]))
+    assert reverted["status"] == "restored"
+    assert reverted["summary"]["operation"] == "revert_applied_edit"
     loaded = load_project(path)
     host = next(c for c in loaded.clips if c.track_id == "host")
     guest = next(c for c in loaded.clips if c.track_id == "guest")
@@ -1387,79 +1388,38 @@ def test_run_mutation_restores_mute_on_failure(tmp_path, sample_wav):
     assert after == before
 
 
-def test_revert_mute_error_paths_and_per_track_source(tmp_path):
-    from podcast_mcp.edits.edit_log import revert_applied_edit
-    from podcast_mcp.models import AppliedEditRecord
+def test_unmute_inverse_rejects_invalid_spans_and_missing_tracks():
+    import pytest
+    from pydantic import ValidationError
+
+    from podcast_mcp.edits.edit_log import RestoreConflict, plan_restore, restore_state
+    from podcast_mcp.models import AppliedEditRecord, UnmuteSource
+
+    for bad in (
+        {"track_id": "host", "start": 0.9, "end": 0.8},
+        {"track_id": "host", "start": 0.5, "end": 0.5},
+        {"track_id": "host", "start": -1, "end": 0.5},
+        {"track_id": "host", "start": 0.1, "end": float("inf")},
+    ):
+        with pytest.raises(ValidationError):
+            UnmuteSource(spans=[bad])
+    with pytest.raises(ValidationError):
+        UnmuteSource(spans=[])
 
     project = EpisodeProject.create("p", "/tmp/ws")
     project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
-    project.clips = [
-        Clip(id="host-main", track_id="host", source_start=0, source_end=1, timeline_start=0)
-    ]
-    add_source_mute(project.clips[0], ClipMuteRegion(start_s=0.4, end_s=0.7))
-    project.editorial.edit_log = [
-        AppliedEditRecord(
-            id="bad",
-            applied_at="2026-01-01T00:00:00+00:00",
-            operation="approve_edits",
-            track_ids=["host"],
-            params={"mute": True},
-        )
-    ]
-    before = project.model_dump(mode="json")
-    with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, "bad", defaults=load_defaults())
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == (
-        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
-        "History Undo also undoes the other edits in that action. "
-        "You may need to undo later actions first."
+    record = AppliedEditRecord(
+        id="gone",
+        applied_at="2026-01-01T00:00:00+00:00",
+        operation="approve_edits",
+        track_ids=["guest"],
+        inverse=UnmuteSource(spans=[{"track_id": "guest", "start": 0.4, "end": 0.7}]),
     )
-    assert project.model_dump(mode="json") == before
-    rec = project.editorial.edit_log[0]
-    rec.source_start = 0.5
-    rec.source_end = 0.5
-    before = project.model_dump(mode="json")
-    with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, "bad", defaults=load_defaults())
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == (
-        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
-        "History Undo also undoes the other edits in that action. "
-        "You may need to undo later actions first."
-    )
-    assert project.model_dump(mode="json") == before
-    rec.source_start = 0.4
-    rec.source_end = 0.7
-    rec.params = {"mute": True, "per_track_source": {"host": [0.9, 0.8]}}
-    before = project.model_dump_json()
-    with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, "bad", defaults=load_defaults())
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert project.model_dump_json() == before
-    host = next(c for c in project.clips if c.track_id == "host")
-    assert host.mute_regions
-    add_source_mute(host, ClipMuteRegion(start_s=0.4, end_s=0.7))
-    project.editorial.edit_log = [
-        AppliedEditRecord(
-            id="ok",
-            applied_at="2026-01-01T00:00:00+00:00",
-            operation="approve_edits",
-            track_ids=["host"],
-            source_start=0.4,
-            source_end=0.7,
-            params={"mute": True, "per_track_source": {"host": [0.4, 0.7], "x": "skip"}},
-        )
-    ]
-    before = project.model_dump_json()
-    with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, "ok", defaults=load_defaults())
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert project.model_dump_json() == before
-    project.editorial.edit_log[0].params["per_track_source"].pop("x")
-    revert_applied_edit(project, "ok", defaults=load_defaults())
-    host = next(c for c in project.clips if c.track_id == "host")
-    assert host.mute_regions == []
+    plan = plan_restore(project, record)
+    assert isinstance(plan, RestoreConflict)
+    assert plan.code == "track_missing"
+    state = restore_state(project, record)
+    assert (state.state, state.code) == ("blocked", "track_missing")
 
 
 def test_paste_skips_invalid_mute_region_entries():

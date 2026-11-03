@@ -15,7 +15,7 @@ from podcast_mcp.edits.decisions import (
     unplayed_pending_ids,
     update_pending_edit,
 )
-from podcast_mcp.edits.edit_log import revert_applied_edit
+from podcast_mcp.edits.edit_log import plan_restore
 from podcast_mcp.edits.range_edits import edit_selected_range
 from podcast_mcp.edits.range_target import build_range_target
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
@@ -302,7 +302,7 @@ def _saved_restore_workspace(project, tmp_path):
 def _assert_remove_restore_refused(project, record_id):
     before = project.model_dump(mode="json")
     with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, record_id, defaults=load_defaults())
+        plan_restore(project, next(r for r in project.editorial.edit_log if r.id == record_id))
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert str(refused.value) == (
         "This edit cannot be restored individually. Use History Undo to restore the whole action. "
@@ -317,7 +317,7 @@ def _refuse_restore_then_undo(ws, original):
     disk = ws.path.read_bytes()
     head = HistoryService(ws).status().head_id
     with pytest.raises(ValueError) as refused:
-        EditService(ws).revert_applied(ws.project.editorial.edit_log[-1].id)
+        EditService(ws).revert_applied([ws.project.editorial.edit_log[-1].id])
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert str(refused.value) == (
         "This edit cannot be restored individually. Use History Undo to restore the whole action. "

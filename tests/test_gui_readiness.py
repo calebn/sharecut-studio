@@ -259,11 +259,11 @@ def test_punch_across_a_moved_clip_records_the_seam() -> None:
 def _assert_restore_requires_history(project, record_id):
     import pytest
 
-    from podcast_mcp.edits.edit_log import revert_applied_edit
+    from podcast_mcp.edits.edit_log import plan_restore
 
     before = project.model_dump(mode="json")
     with pytest.raises(ValueError) as refused:
-        revert_applied_edit(project, record_id, defaults=load_defaults())
+        plan_restore(project, next(r for r in project.editorial.edit_log if r.id == record_id))
     assert getattr(refused.value, "code", None) == "local_restore_requires_history"
     assert str(refused.value) == (
         "This edit cannot be restored individually. Use History Undo to restore the whole action. "

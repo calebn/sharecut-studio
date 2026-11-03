@@ -508,10 +508,19 @@ def update_pending_edit_tool(
     return to_json({"operation": "update_pending_edit", "edit": result["edit"]})
 
 
-def revert_applied_edit_tool(project_path: str, record_id: str) -> str:
-    """Restore an ordinary source mute; clip removals require whole-action History Undo."""
+def revert_applied_edit_tool(
+    project_path: str, record_ids: list[str], dry_run: bool = False
+) -> str:
+    """Restore applied edits as one History step; ``dry_run`` plans without writing.
+
+    Returns a RestoreResult: ``status`` restored, planned or conflict, with each conflict's
+    ``code`` and ``blocked_by``. Records with ``restore.state`` history_only (list_applied_edits_tool)
+    are not restorable here; use ``history_undo``.
+    """
     return to_json(
-        submit_host_command_result(project_path, "RestoreAppliedEdit", {"id": record_id})
+        submit_host_command_result(
+            project_path, "RestoreAppliedEdit", {"ids": record_ids, "dry_run": dry_run}
+        )
     )
 
 

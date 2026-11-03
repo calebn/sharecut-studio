@@ -779,6 +779,32 @@ class EditDecision(BaseModel):
     boundary_intent: CutIntent = CutIntent.PROGRAMMATIC
 
 
+class UnmuteSpan(BaseModel):
+    """One track's source-media span an applied mute silenced, fades included."""
+
+    track_id: str
+    source_id: str | None = None
+    start: float = Field(ge=0, allow_inf_nan=False)
+    end: float = Field(ge=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def _end_after_start(self) -> UnmuteSpan:
+        if self.end <= self.start:
+            raise ValueError("end must be greater than start")
+        return self
+
+
+class UnmuteSource(BaseModel):
+    """Inverse of a mute: subtract these spans from the tracks' ``mute_regions``."""
+
+    kind: Literal["unmute"] = "unmute"
+    spans: list[UnmuteSpan] = Field(min_length=1)
+
+
+# One variant today. A second variant makes this a union discriminated on ``kind``.
+AppliedEditInverse = UnmuteSource
+
+
 class AppliedEditRecord(BaseModel):
     id: str
     applied_at: str
@@ -794,6 +820,8 @@ class AppliedEditRecord(BaseModel):
     boundary_mode: str | None = None
     cut_confidence: float | None = None
     params: dict[str, Any] = Field(default_factory=dict)
+    # What undoes this record alone. None: History Undo is the only way back.
+    inverse: AppliedEditInverse | None = None
 
 
 class SocialClipCandidate(BaseModel):
