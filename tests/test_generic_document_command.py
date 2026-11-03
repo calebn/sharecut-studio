@@ -10,7 +10,9 @@ import json
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from podcast_mcp.cli.main import app
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.mcp.tools import document as mcp_document
 from podcast_mcp.mcp.tools import history as mcp_history
@@ -25,6 +27,8 @@ from podcast_mcp.services.document_sync import (
 from podcast_mcp.services.remote_mcp.allowlist import ALL_GUEST_TOOLS
 from podcast_mcp.services.remote_mcp.tools import TOOL_HANDLERS
 from podcast_mcp.util.coded_error import CodedValueError
+
+runner = CliRunner()
 
 REFUSED = {"InsertSegment"}
 
@@ -190,3 +194,75 @@ def test_the_generic_tools_are_registered_on_the_server() -> None:
     rec = Recorder()
     register_all(rec)  # type: ignore[arg-type]
     assert {"submit_document_command_tool", "document_command_schema_tool"} <= set(rec.names)
+
+
+def test_cli_list_and_schema_match_the_service() -> None:
+    listed = runner.invoke(app, ["doc", "list"])
+    assert listed.exit_code == 0, listed.output
+    assert {row["type"] for row in json.loads(listed.output)["commands"]} == set(COMMANDS)
+    one = runner.invoke(app, ["doc", "schema", "AddChapter"])
+    assert one.exit_code == 0, one.output
+    assert json.loads(one.output) == document_command_schema("AddChapter").model_dump()
+    bad = runner.invoke(app, ["doc", "schema", "Nope"])
+    assert bad.exit_code != 0
+
+
+def test_cli_submit_matches_the_mcp_tool_row_for_row(tmp_path: Path) -> None:
+    mcp_path = mcp_server.episode_create(str(tmp_path / "mcp"))
+    cli_path = mcp_server.episode_create(str(tmp_path / "cli"))
+    payload = {"time": 3.0, "title": "Same"}
+    mcp_document.submit_document_command_tool(mcp_path, "AddChapter", payload)
+    result = runner.invoke(
+        app,
+        ["doc", "submit", "AddChapter", "--project", cli_path, "--payload", json.dumps(payload)],
+    )
+    assert result.exit_code == 0, result.output
+    out = json.loads(result.output)
+    assert out["type"] == "AddChapter" and out["result"]["title"] == "Same"
+    assert [r["type"] for r in _journal(cli_path)] == [r["type"] for r in _journal(mcp_path)]
+    assert json.loads(mcp_timeline.list_chapters_tool(cli_path)) == json.loads(
+        mcp_timeline.list_chapters_tool(mcp_path)
+    )
+    assert _journal(cli_path)[-1]["client_id"] == "cli:host"
+    assert _history(cli_path)["can_undo"] is True
+
+
+def test_cli_submit_reads_a_payload_file(tmp_path: Path) -> None:
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    body = tmp_path / "chapter.json"
+    body.write_text(json.dumps({"time": 4.0, "title": "From file"}))
+    result = runner.invoke(
+        app, ["doc", "submit", "AddChapter", "--project", path, "--payload", f"@{body}"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(mcp_timeline.list_chapters_tool(path))[0]["title"] == "From file"
+
+
+@pytest.mark.parametrize(
+    ("args", "fragment"),
+    [
+        (["--payload", "{not json"], "JSON"),
+        (["--payload", "[1]"], "object"),
+        (["--payload", '{"time": 1.0}'], "title"),
+        (["--payload", "@/nonexistent/payload.json"], "payload"),
+    ],
+)
+def test_cli_submit_refuses_a_bad_payload_and_journals_nothing(
+    tmp_path: Path, args: list[str], fragment: str
+) -> None:
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    result = runner.invoke(app, ["doc", "submit", "AddChapter", "--project", path, *args])
+    assert result.exit_code != 0
+    assert fragment in result.output
+    assert _journal(path) == []
+
+
+def test_cli_submit_refuses_a_type_with_preview_semantics(tmp_path: Path) -> None:
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    result = runner.invoke(
+        app,
+        ["doc", "submit", "InsertSegment", "--project", path, "--payload", '{"segment_id": "x"}'],
+    )
+    assert result.exit_code != 0
+    assert "podcast segment insert" in result.output
+    assert _journal(path) == []
