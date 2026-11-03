@@ -1342,12 +1342,19 @@ function frames(page: import("@playwright/test").Page) {
   );
 }
 
-/** A one-finger swipe by real touch events; `end` false leaves the finger down. */
+/**
+ * A one-finger swipe by real touch events. Chrome coalesces moves that arrive
+ * within one frame, so under load the first moves can merge and a drag that
+ * counts from where it passed the touch slop starts later than it does on a
+ * quiet machine; pass `page` to let each of the first three moves land in its
+ * own frame.
+ */
 async function swipe(
   cdp: import("@playwright/test").CDPSession,
   from: { x: number; y: number },
   by: { dx: number; dy: number },
   steps = 12,
+  page?: import("@playwright/test").Page,
 ) {
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchStart",
@@ -1363,6 +1370,7 @@ async function swipe(
         },
       ],
     });
+    if (page && step <= 3) await frames(page);
   }
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchEnd",
@@ -1635,6 +1643,8 @@ test("System/Ruler under a coarse pointer a touch drag on a handle resizes the s
     cdp,
     { x: box.x + box.width / 2, y: box.y + 12 },
     { dx: 48, dy: 0 },
+    12,
+    page,
   );
   await frames(page);
   await expect(end).toHaveAttribute("aria-valuenow", "611.5");
@@ -2322,6 +2332,8 @@ test("System/MarkerLane after a touch drag the next Enter on another marker sele
     cdp,
     { x: box.x + box.width / 2, y: box.y + 12 },
     { dx: -72, dy: 0 },
+    12,
+    page,
   );
   await frames(page);
   await expect(joke).toHaveAttribute("aria-label", /0:20\.0 to 0:32\.0/);
