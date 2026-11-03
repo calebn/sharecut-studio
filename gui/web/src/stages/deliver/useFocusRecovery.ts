@@ -12,9 +12,9 @@ const FOCUSABLE = "input, button, [tabindex]";
 
 /**
  * Keeps keyboard focus inside the stage when the focused control goes away or
- * disables. It lands on an element with the same `data-focus-key`, else the one named by its
- * `data-focus-then`, else the item
- * now at the same place in the same `data-focus-list`, else the stage root.
+ * disables. It lands on an element with the same `data-focus-key`, else the one
+ * named by its `data-focus-then`, else the item now at the same place in the
+ * same `data-focus-list`, else the stage root.
  */
 export function useFocusRecovery(root: HTMLElement | null): void {
   const last = useRef<Lost | null>(null);
