@@ -9,6 +9,7 @@ import {
   groupQueue,
   itemVerb,
   landPlan,
+  lowRiskBulk,
   progressLine,
   type ReviewItem,
   resultText,
@@ -320,5 +321,41 @@ describe("landing a comment pick", () => {
       select: true,
       resetFilter: true,
     });
+  });
+});
+
+describe("confidence tiers", () => {
+  const risky = (id: string, rank: 1 | 2 | 3, at = 0) =>
+    item({ id, at, risk: { rank, reason: "r" } });
+
+  it("lists each group riskiest first, then by time", () => {
+    const [group] = groupQueue([
+      item({ id: "clean", at: 1 }),
+      risky("mild", 1, 2),
+      risky("harsh", 3, 9),
+      risky("join", 2, 5),
+    ]);
+    expect(group?.items.map((i) => i.id)).toEqual([
+      "harsh",
+      "join",
+      "mild",
+      "clean",
+    ]);
+  });
+
+  it("batches the clean cuts of every kind in time order", () => {
+    const batch = lowRiskBulk([
+      item({ id: "p", kind: "pause", at: 9 }),
+      item({ id: "f", kind: "filler", at: 3 }),
+      risky("r", 2),
+      item({ id: "u", unsure: true }),
+    ]);
+    expect(batch?.ids).toEqual(["f", "p"]);
+    expect(batch?.savedSeconds).toBeCloseTo(1);
+  });
+
+  it("offers no batch when nothing is clean or everything is", () => {
+    expect(lowRiskBulk([risky("r", 1)])).toBeNull();
+    expect(lowRiskBulk([item({ id: "a" }), item({ id: "b" })])).toBeNull();
   });
 });

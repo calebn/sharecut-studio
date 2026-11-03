@@ -134,6 +134,25 @@ describe("reviewEntriesOf", () => {
     expect(risky).not.toHaveProperty("oneByOne");
   });
 
+  it("names why a cut needs a listen, riskiest flag first, and leaves clean cuts unflagged", () => {
+    const risk = (over: Parameters<typeof itemOf>[0]) => itemOf(over).risk;
+    expect(risk({})).toBeUndefined();
+    expect(risk({ join_risk: { verdict: "pass" } })).toBeUndefined();
+    expect(risk({ listen_one_by_one: true })).toEqual({
+      rank: 1,
+      reason: "Listen first",
+    });
+    expect(risk({ join_risk: { verdict: "review" } })).toEqual({
+      rank: 2,
+      reason: "Join needs a listen",
+    });
+    expect(risk({ harsh: true, join_risk: { verdict: "review" } })).toEqual({
+      rank: 3,
+      reason: "Join may be audible",
+    });
+    expect(risk({ join_risk: { verdict: "fail" } })?.rank).toBe(3);
+  });
+
   it("passes the table action through", () => {
     expect(itemOf({ suggested_action: "leave" }).suggested).toBe("leave");
   });
