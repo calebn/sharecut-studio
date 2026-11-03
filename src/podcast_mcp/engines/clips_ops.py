@@ -309,6 +309,35 @@ def remove_timeline_range_from_clips(
     return sorted(out, key=lambda c: c.timeline_start)
 
 
+def slice_timeline_range_from_clips(
+    clips: list[Clip],
+    timeline_start: float,
+    timeline_end: float,
+    *,
+    defaults: EffectiveConfig,
+) -> list[Clip]:
+    """Copies of the material :func:`remove_timeline_range_from_clips` takes out of the range.
+
+    A clip that crosses an edge is split exactly as the removal splits it. Timeline starts are
+    relative to ``timeline_start``, so the slice can be placed at any seam.
+    """
+    out: list[Clip] = []
+    for clip in clips:
+        if clip_clear_of_range(clip, timeline_start, timeline_end):
+            continue
+        working = clip
+        if working.timeline_start < timeline_start - SPAN_EPS_S:
+            _, working = split_clip_at(working, timeline_start, defaults=defaults)
+        if working.timeline_end > timeline_end + 1e-9:
+            working, _ = split_clip_at(working, timeline_end, defaults=defaults)
+        out.append(
+            working.model_copy(
+                deep=True, update={"timeline_start": working.timeline_start - timeline_start}
+            )
+        )
+    return sorted(out, key=lambda c: c.timeline_start)
+
+
 def punch_timeline_range_from_clips(
     clips: list[Clip],
     timeline_start: float,

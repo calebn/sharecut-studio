@@ -793,9 +793,86 @@
         "cut_confidence": { "type": ["number", "null"] },
         "params": { "type": "object" },
         "inverse": {
-          "oneOf": [{ "$ref": "#/$defs/UnmuteSource" }, { "type": "null" }],
+          "oneOf": [
+            { "$ref": "#/$defs/UnmuteSource" },
+            { "$ref": "#/$defs/ReinsertClips" },
+            { "type": "null" }
+          ],
           "default": null
         }
+      }
+    },
+    "SourceEdge": {
+      "type": "object",
+      "required": ["sec"],
+      "properties": {
+        "source_id": { "type": ["string", "null"], "default": null },
+        "sec": { "type": "number", "minimum": 0 }
+      }
+    },
+    "EdgeFade": {
+      "type": "object",
+      "required": ["track_id", "side", "source_sec", "fade_ms"],
+      "properties": {
+        "track_id": { "type": "string" },
+        "side": { "enum": ["out", "in"] },
+        "source_id": { "type": ["string", "null"], "default": null },
+        "source_sec": { "type": "number", "minimum": 0 },
+        "fade_ms": { "type": "integer" },
+        "join_in_mode": { "enum": ["fade", "crossfade", "cut", null], "default": null }
+      }
+    },
+    "TrackSeam": {
+      "type": "object",
+      "required": ["track_id"],
+      "properties": {
+        "track_id": { "type": "string" },
+        "pre": { "oneOf": [{ "$ref": "#/$defs/SourceEdge" }, { "type": "null" }], "default": null },
+        "post": { "oneOf": [{ "$ref": "#/$defs/SourceEdge" }, { "type": "null" }], "default": null },
+        "removed": { "type": "array", "items": { "$ref": "#/$defs/Clip" }, "default": [] }
+      }
+    },
+    "ReinsertPad": {
+      "type": "object",
+      "required": ["kind", "sec"],
+      "properties": {
+        "kind": { "enum": ["room_tone", "silence"] },
+        "sec": { "type": "number", "exclusiveMinimum": 0 },
+        "clip_ids": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "offset_from_seam": { "type": "number", "default": 0 }
+      }
+    },
+    "AnchorBefore": {
+      "type": "object",
+      "required": ["kind", "index", "start"],
+      "properties": {
+        "kind": { "enum": ["comment", "chapter"] },
+        "id": { "type": ["string", "null"], "default": null },
+        "index": { "type": "integer", "minimum": 0 },
+        "start": { "type": "number" },
+        "end": { "type": ["number", "null"], "default": null },
+        "post_start": { "type": ["number", "null"], "default": null },
+        "post_end": { "type": ["number", "null"], "default": null },
+        "comment": {
+          "oneOf": [{ "$ref": "#/$defs/TimelineComment" }, { "type": "null" }],
+          "default": null
+        },
+        "chapter": {
+          "oneOf": [{ "$ref": "#/$defs/ChapterMarker" }, { "type": "null" }],
+          "default": null
+        }
+      }
+    },
+    "ReinsertClips": {
+      "type": "object",
+      "required": ["duration_sec"],
+      "properties": {
+        "kind": { "const": "reinsert_clips", "default": "reinsert_clips" },
+        "duration_sec": { "type": "number", "exclusiveMinimum": 0 },
+        "tracks": { "type": "array", "items": { "$ref": "#/$defs/TrackSeam" }, "default": [] },
+        "anchors": { "type": "array", "items": { "$ref": "#/$defs/AnchorBefore" }, "default": [] },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/EdgeFade" }, "default": [] },
+        "pad": { "oneOf": [{ "$ref": "#/$defs/ReinsertPad" }, { "type": "null" }], "default": null }
       }
     },
     "UnmuteSource": {

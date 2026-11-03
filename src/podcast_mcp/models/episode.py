@@ -779,6 +779,116 @@ class EditDecision(BaseModel):
     boundary_intent: CutIntent = CutIntent.PROGRAMMATIC
 
 
+class CommentActionItem(BaseModel):
+    id: str
+    text: str
+    done: bool = False
+    completed_at: str | None = None
+    completed_by: str | None = None
+
+
+class CommentReply(BaseModel):
+    """Flat reply under a timeline comment (v1; no nested parent_reply_id)."""
+
+    id: str
+    body: str
+    author: str
+    created_at: str
+
+
+class TimelineComment(BaseModel):
+    """Review feedback anchored to the session/timeline clock."""
+
+    id: str
+    body: str
+    author: str
+    created_at: str
+    updated_at: str | None = None
+    timeline_start: float
+    timeline_end: float | None = None
+    timeline_spans: list[RangeInterval] = Field(default_factory=list, max_length=1000)
+    track_ids: list[str] = Field(default_factory=list)
+    action_items: list[CommentActionItem] = Field(default_factory=list)
+    replies: list[CommentReply] = Field(default_factory=list)
+    resolved: bool = False
+    resolved_at: str | None = None
+    resolved_by: str | None = None
+    review_version_id: str | None = None
+    # At most one thread per pending EditDecision (unique among comments).
+    edit_decision_id: str | None = None
+
+
+class SourceEdge(BaseModel):
+    """A clip edge by its source clock, which later ripples never move."""
+
+    source_id: str | None = None
+    sec: float = Field(ge=0, allow_inf_nan=False)
+
+
+class EdgeFade(BaseModel):
+    """Fade state of one clip edge, located by source clock: ``out`` is a clip's end, ``in`` its start."""
+
+    track_id: str
+    side: Literal["out", "in"]
+    source_id: str | None = None
+    source_sec: float = Field(ge=0, allow_inf_nan=False)
+    fade_ms: int
+    join_in_mode: ClipJoinMode | None = None
+
+
+class TrackSeam(BaseModel):
+    """One track at a ripple cut: the clips it lost and the source edges that now meet.
+
+    ``pre`` is the source clock where the clip left of the seam ends and ``post`` where the
+    clip right of it starts. A side is None when no clip met the seam there (track start or
+    end, or a hole). ``removed`` is the material that left, timeline starts relative to the cut.
+    """
+
+    track_id: str
+    pre: SourceEdge | None = None
+    post: SourceEdge | None = None
+    removed: list[Clip] = Field(default_factory=list)
+
+
+class ReinsertPad(BaseModel):
+    """The replace-gap pad a cut inserted ``offset_from_seam`` seconds from its seam."""
+
+    kind: Literal["room_tone", "silence"]
+    sec: float = Field(gt=0, allow_inf_nan=False)
+    clip_ids: list[str] = Field(default_factory=list)
+    offset_from_seam: float = Field(default=0.0, allow_inf_nan=False)
+
+
+class AnchorBefore(BaseModel):
+    """A comment or chapter the cut dropped or moved, by seam-relative times.
+
+    ``start``/``end`` are the pre-cut times relative to the cut start. ``post_start`` and
+    ``post_end`` are where the cut left it, None for ``post_start`` when it was dropped.
+    ``item`` holds the pre-cut object (times relative) so a dropped anchor can return.
+    """
+
+    kind: Literal["comment", "chapter"]
+    id: str | None = None
+    index: int = Field(ge=0)
+    start: float = Field(allow_inf_nan=False)
+    end: float | None = None
+    post_start: float | None = None
+    post_end: float | None = None
+    comment: TimelineComment | None = None
+    chapter: ChapterMarker | None = None
+
+
+class ReinsertClips(BaseModel):
+    """Inverse of a ripple cut: open the span again and put the removed material back."""
+
+    kind: Literal["reinsert_clips"] = "reinsert_clips"
+    duration_sec: float = Field(gt=0, allow_inf_nan=False)
+    tracks: list[TrackSeam] = Field(default_factory=list)
+    anchors: list[AnchorBefore] = Field(default_factory=list)
+    edges: list[EdgeFade] = Field(default_factory=list)
+    pad: ReinsertPad | None = None
+
+
 class UnmuteSpan(BaseModel):
     """One track's source-media span an applied mute silenced, fades included."""
 
@@ -801,7 +911,7 @@ class UnmuteSource(BaseModel):
     spans: list[UnmuteSpan] = Field(min_length=1)
 
 
-AppliedEditInverse = UnmuteSource
+AppliedEditInverse = Annotated[UnmuteSource | ReinsertClips, Field(discriminator="kind")]
 
 
 class AppliedEditRecord(BaseModel):
@@ -1190,45 +1300,6 @@ class RenderSection(BaseModel):
 
 class SocialSection(BaseModel):
     clip_candidates: list[SocialClipCandidate] = Field(default_factory=list)
-
-
-class CommentActionItem(BaseModel):
-    id: str
-    text: str
-    done: bool = False
-    completed_at: str | None = None
-    completed_by: str | None = None
-
-
-class CommentReply(BaseModel):
-    """Flat reply under a timeline comment (v1; no nested parent_reply_id)."""
-
-    id: str
-    body: str
-    author: str
-    created_at: str
-
-
-class TimelineComment(BaseModel):
-    """Review feedback anchored to the session/timeline clock."""
-
-    id: str
-    body: str
-    author: str
-    created_at: str
-    updated_at: str | None = None
-    timeline_start: float
-    timeline_end: float | None = None
-    timeline_spans: list[RangeInterval] = Field(default_factory=list, max_length=1000)
-    track_ids: list[str] = Field(default_factory=list)
-    action_items: list[CommentActionItem] = Field(default_factory=list)
-    replies: list[CommentReply] = Field(default_factory=list)
-    resolved: bool = False
-    resolved_at: str | None = None
-    resolved_by: str | None = None
-    review_version_id: str | None = None
-    # At most one thread per pending EditDecision (unique among comments).
-    edit_decision_id: str | None = None
 
 
 class ReviewMixVersion(BaseModel):
