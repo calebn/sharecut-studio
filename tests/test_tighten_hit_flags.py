@@ -63,6 +63,29 @@ def test_harsh_is_join_risk_on_tighten_hits_only() -> None:
     assert is_harsh_tighten_hit(_decision("nl-review", "nl:topic", review=True)) is False
 
 
+@pytest.mark.parametrize(
+    ("reason", "harsh"),
+    [
+        ("filler:um:risky", True),
+        ("pause:0.8s:join_review", True),
+        ("pause:0.8s:solo:risky", True),
+        ("repetition:word:the:risky", True),
+        ("restart:partial:wen:join_review", True),
+        # A spoken word that equals a flag name is the reason's own field, not a flag.
+        ("filler:risky", False),
+        ("filler:join_review", False),
+        ("repetition:word:risky", False),
+        ("restart:partial:risky", False),
+        ("restart:phrase:so risky", False),
+        # Flags must be whole segments.
+        ("filler:um:riskyish", False),
+        ("filler:um:not_risky", False),
+    ],
+)
+def test_harsh_reads_flag_segments_not_substrings(reason: str, harsh: bool) -> None:
+    assert is_harsh_tighten_hit(_decision("d", reason)) is harsh
+
+
 def test_a_pause_trim_that_stays_for_review_is_listened_to_one_by_one_and_never_eligible() -> None:
     # One that passed the checks that keep a filler from review is applied like a filler.
     auto = _decision("auto", "pause:1.10s:solo", review=False)

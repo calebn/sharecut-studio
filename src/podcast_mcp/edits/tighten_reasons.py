@@ -18,6 +18,7 @@ ACOUSTIC_KIND_FLAGS: tuple[str, ...] = (LIKELY_LAUGH_FLAG, POSSIBLE_WORD_FLAG)
 REPETITION_REASON_PREFIX = "repetition:"
 RESTART_REASON_PREFIX = "restart:"
 RESTART_PARTIAL_REASON_PREFIX = f"{RESTART_REASON_PREFIX}partial:"
+RESTART_PHRASE_REASON_PREFIX = f"{RESTART_REASON_PREFIX}phrase:"
 PAUSE_REASON_PREFIX = "pause:"
 FILLER_REASON_PREFIX = "filler:"
 REPEATED_WORD_REASON_PREFIX = f"{REPETITION_REASON_PREFIX}word:"
@@ -68,6 +69,24 @@ def repeated_word(reason: str | None) -> str | None:
             break
         parts.append(part)
     return ":".join(parts) or None
+
+
+def reason_flags(reason: str | None) -> frozenset[str]:
+    """The review flags (``risky``, ``join_review``, ...) a tighten reason carries as suffixes.
+
+    Only segments after the reason's own fields count, so a spoken word that equals a flag name
+    (``filler:risky``, ``restart:partial:risky``, ``repetition:word:risky``) is not a flag.
+    """
+    text = reason or ""
+    parts = text.split(":")
+    if text.startswith(REPEATED_WORD_REASON_PREFIX):
+        word = repeated_word(text)
+        start = len(parts) if word is None else 2 + word.count(":") + 1
+    elif text.startswith((RESTART_PARTIAL_REASON_PREFIX, RESTART_PHRASE_REASON_PREFIX)):
+        start = 3
+    else:
+        start = 2
+    return frozenset(part for part in parts[start:] if part in _REASON_FLAGS)
 
 
 def is_acoustic_filler_reason(reason: str | None) -> bool:
