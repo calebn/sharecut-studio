@@ -299,6 +299,9 @@ def collect_required_checks(repo: str, pr: int, sha: str) -> list[dict[str, str]
             or _attempt_checks(repo, sha, latest, names) != evidence
         ):
             raise RuntimeError("required check evidence changed during collection")
+    for workflow_id, path, run, _, _ in selections:
+        if _run_identity(_selected_run(repo, pr, sha, workflow_id, path)) != _run_identity(run):
+            raise RuntimeError("workflow run or required check evidence changed during collection")
     return [row for _, _, _, _, evidence in selections for row in evidence]
 
 

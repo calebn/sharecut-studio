@@ -528,6 +528,16 @@ def _job(run_id: int, name: str, index: int) -> dict[str, Any]:
         "attempt",
         "late_attempt",
         "late_run",
+        "missing_event",
+        "wrong_workflow",
+        "missing_pr",
+        "wrong_repo",
+        "wrong_suite",
+        "wrong_check_id",
+        "wrong_url",
+        "equal_sequence",
+        "changed_check",
+        "current_attempt_failure",
     ],
 )
 def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> None:
@@ -546,6 +556,18 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
             if workflow == 10:
                 scans += 1
             runs = [_eligible_run(workflow)]
+            if workflow == 10 and defect == "missing_event":
+                del runs[0]["event"]
+            if workflow == 10 and defect == "wrong_workflow":
+                runs[0]["workflow_id"] = 20
+            if workflow == 10 and defect == "missing_pr":
+                runs[0]["pull_requests"] = []
+            if workflow == 10 and defect == "wrong_repo":
+                runs[0]["repository"]["id"] = 2
+            if workflow == 10 and defect == "equal_sequence":
+                runs.append(_eligible_run(10, run_id=30))
+            if workflow == 10 and defect == "current_attempt_failure":
+                runs[0]["run_attempt"] = 2
             if workflow == 10 and defect == "late_attempt" and checks_read >= 8:
                 runs[0]["run_attempt"] = 2
             if workflow == 10 and defect == "late_run" and checks_read >= 8:
@@ -558,13 +580,25 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
         if "/attempts/" in path:
             run = int(path.split("/runs/")[1].split("/")[0])
             names = (
-                ["pytest", "frontend", "frontend-e2e"] if run in (10, 30) else ["gitleaks-history"]
+                ["pytest", "frontend", "frontend-e2e"]
+                if run in (10, 30, 99)
+                else ["gitleaks-history"]
             )
             jobs = [_job(run, name, index) for index, name in enumerate(names, 1)]
             if run == 10 and defect == "missing":
                 jobs.pop()
             if run == 10 and defect == "duplicate":
                 jobs.append({**jobs[0], "id": 999})
+            if run == 10 and defect == "current_attempt_failure" and "/attempts/2/" in path:
+                for job in jobs:
+                    job["run_attempt"] = 2
+                    job["id"] += 1000
+                    job["check_run_url"] = (
+                        f"https://api.github.com/repos/owner/repo/check-runs/{job['id']}"
+                    )
+                jobs[0]["conclusion"] = "failure"
+            if run == 10 and defect == "wrong_url":
+                jobs[0]["check_run_url"] = "https://example.com/check-runs/101"
             if run == 10 and defect == "attempt":
                 jobs[0]["run_attempt"] = 2
             if run == 10 and defect == "wrong_head":
@@ -585,19 +619,31 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
                 301: "pytest",
                 302: "frontend",
                 303: "frontend-e2e",
+                991: "pytest",
+                992: "frontend",
+                993: "frontend-e2e",
+                1101: "pytest",
+                1102: "frontend",
+                1103: "frontend-e2e",
             }
             status, conclusion = "completed", "success"
-            if check_id == 101 and defect == "failure":
+            if check_id == 101 and defect == "changed_check" and checks_read > 4:
+                conclusion = "failure"
+            if (check_id == 101 and defect == "failure") or (
+                check_id == 1101 and defect == "current_attempt_failure"
+            ):
                 conclusion = "failure"
             if (check_id == 101 and defect == "pending") or check_id == 301:
                 status, conclusion = "in_progress", None
             return {
-                "id": check_id,
+                "id": 999 if defect == "wrong_check_id" else check_id,
                 "name": names[check_id],
                 "head_sha": SHA,
                 "status": status,
                 "conclusion": conclusion,
-                "check_suite": {"id": 200 if check_id == 201 else 100},
+                "check_suite": {
+                    "id": 999 if defect == "wrong_suite" else (200 if check_id == 201 else 100)
+                },
                 "app": {"id": 1 if defect == "wrong_app" else 15368},
             }
         if "/actions/runs/" in path:
@@ -607,7 +653,10 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
             if run == 99:
                 return _eligible_run(10, run_id=99, number=99, event="workflow_dispatch")
             detail = _eligible_run(run)
-            if run == 10 and defect == "late_attempt" and checks_read >= 8:
+            if run == 10 and (
+                defect == "current_attempt_failure"
+                or (defect == "late_attempt" and checks_read >= 8)
+            ):
                 detail["run_attempt"] = 2
             return detail
         raise AssertionError(path)
@@ -623,6 +672,15 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
         "attempt": "required job source mismatch",
         "late_attempt": "workflow run or required check evidence changed",
         "late_run": "workflow run or required check evidence changed",
+        "missing_event": "workflow run event missing",
+        "wrong_workflow": "workflow run source mismatch",
+        "missing_pr": "workflow run PR association missing",
+        "wrong_repo": "workflow run PR source mismatch",
+        "wrong_suite": "required check source or state mismatch",
+        "wrong_check_id": "required check source or state mismatch",
+        "wrong_url": "invalid check URL",
+        "equal_sequence": "ambiguous eligible run",
+        "changed_check": "required check source or state mismatch",
     }
     if defect in expected:
         with pytest.raises(RuntimeError, match=expected[defect]):
@@ -630,3 +688,74 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
     else:
         checks = gate.collect_required_checks("owner/repo", 252, SHA)
         assert any(row["state"] != "SUCCESS" for row in checks)
+
+
+@pytest.mark.parametrize(
+    "pages",
+    [
+        [{"total_count": 2, "jobs": [{"id": 1}]}, {"total_count": 3, "jobs": [{"id": 2}]}],
+        [{"total_count": 2, "jobs": [{"id": 1}]}, {"total_count": 2, "jobs": [{"id": 1}]}],
+        [{"total_count": True, "jobs": []}],
+        [{"total_count": 1000, "jobs": []}],
+    ],
+)
+def test_job_pagination_rejects_ambiguous_collections(monkeypatch: Any, pages: Any) -> None:
+    monkeypatch.setattr(gate, "gh_json", lambda *_: pages)
+    with pytest.raises(RuntimeError, match="jobs"):
+        gate._complete_pages("owner/repo", "jobs", "jobs")
+
+
+def test_job_pagination_accepts_complete_multiple_pages(monkeypatch: Any) -> None:
+    pages = [{"total_count": 2, "jobs": [{"id": 1}]}, {"total_count": 2, "jobs": [{"id": 2}]}]
+    monkeypatch.setattr(gate, "gh_json", lambda *_: pages)
+    assert gate._complete_pages("owner/repo", "jobs", "jobs") == [{"id": 1}, {"id": 2}]
+
+
+@pytest.mark.parametrize("case", ["blocked", "api_error", "pass"])
+def test_cli_receipt_guards_merge_stand_in(
+    monkeypatch: Any, capsys: Any, tmp_path: Any, case: str
+) -> None:
+    monkeypatch.setattr(
+        gate.sys,
+        "argv",
+        [
+            "poteto_issue_gate.py",
+            "--repo",
+            "owner/repo",
+            "--pr",
+            "252",
+            "--issue",
+            "251",
+            "--claim-token",
+            TOKEN,
+            "--wont-do",
+            "0",
+        ],
+    )
+
+    def collect(*_args: Any) -> dict[str, Any]:
+        if case == "api_error":
+            raise RuntimeError("HTTP 503")
+        if case == "blocked":
+            return {
+                "mergeable": False,
+                "head_sha": SHA,
+                "blockers": ["required check not successful"],
+            }
+        return {"mergeable": True, "head_sha": SHA, "blockers": []}
+
+    monkeypatch.setattr(gate, "collect_gate", collect)
+    status = gate.main()
+    receipt = json.loads(capsys.readouterr().out)
+    marker = tmp_path / "merge-stand-in"
+    if (
+        status == 0
+        and receipt.get("mergeable") is True
+        and receipt.get("head_sha") == SHA
+        and receipt.get("blockers") == []
+    ):
+        marker.write_text("invoked")
+    assert marker.exists() is (case == "pass")
+    if case == "api_error":
+        assert receipt == {"mergeable": False, "head_sha": None, "blockers": ["HTTP 503"]}
+    assert status == (0 if case == "pass" else 1)
