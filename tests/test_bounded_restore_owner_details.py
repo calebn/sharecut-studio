@@ -7,6 +7,7 @@ from podcast_mcp.models import EditDecisionType, load_project, save_project
 from podcast_mcp.project.history.manager import HistoryManager, snapshot_from_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
+from restore_helpers import assert_history_only_conflict
 from source_review_helpers import _cut, _hole, _project
 
 pytestmark = pytest.mark.refine_gate
@@ -25,14 +26,9 @@ def test_remove_restore_refuses_before_recording_any_history(tmp_path, monkeypat
         raise AssertionError("Restore attempted to record history before refusing")
 
     monkeypatch.setattr(HistoryManager, "record", history_must_not_start)
-    with pytest.raises(ValueError) as refused:
-        EditService(ws).revert_applied([ws.project.editorial.edit_log[0].id])
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == (
-        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
-        "History Undo also undoes the other edits in that action. "
-        "You may need to undo later actions first."
-    )
+    record_id = ws.project.editorial.edit_log[0].id
+    refused = EditService(ws).revert_applied([record_id])
+    assert_history_only_conflict(refused, record_id)
     assert ws.project.model_dump(mode="json") == before
     assert ws.path.read_bytes() == disk
     assert [

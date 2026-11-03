@@ -32,15 +32,10 @@ from podcast_mcp.models.episode import SourceRecording
 from podcast_mcp.project.store import history_index_path, history_snapshot_ids
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
+from restore_helpers import assert_history_only_conflict
 from source_review_helpers import _cut, _project
 
 pytestmark = pytest.mark.refine_gate
-
-RESTORE_MESSAGE = (
-    "This edit cannot be restored individually. Use History Undo to restore the whole action. "
-    "History Undo also undoes the other edits in that action. "
-    "You may need to undo later actions first."
-)
 
 
 def _editable(project):
@@ -147,11 +142,8 @@ def test_local_remove_restore_refuses_before_mutation_with_history_undo_guidance
     before = _state(ws)
     head = HistoryService(ws).status().head_id
 
-    with pytest.raises(ValueError) as refused:
-        EditService(ws).revert_applied([ws.project.editorial.edit_log[0].id])
-
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == RESTORE_MESSAGE
+    record_id = ws.project.editorial.edit_log[0].id
+    assert_history_only_conflict(EditService(ws).revert_applied([record_id]), record_id)
     _assert_unchanged(ws, before)
     assert HistoryService(ws).status().head_id == head
     HistoryService(ws).undo(expected_head_id=head)
@@ -177,12 +169,10 @@ def test_document_http_restore_refusal_and_explicit_guarded_undo(tmp_path):
     before = _state(ws)
     head = HistoryService(ws).status().head_id
     with TestClient(create_app()) as client:
-        refused = _post(
-            client, ws, "RestoreAppliedEdit", {"ids": [ws.project.editorial.edit_log[0].id]}, 1
-        )
-        assert refused.status_code == 400
-        assert refused.headers["X-Sharecut-Error-Code"] == "local_restore_requires_history"
-        assert refused.json() == {"detail": RESTORE_MESSAGE}
+        record_id = ws.project.editorial.edit_log[0].id
+        refused = _post(client, ws, "RestoreAppliedEdit", {"ids": [record_id]}, 1)
+        assert refused.status_code == 200
+        assert_history_only_conflict(refused.json()["command"]["payload"]["result"], record_id)
         _assert_unchanged(ws, before)
         undone = _post(client, ws, "UndoHistory", {"expected_head_id": head}, 2)
         assert undone.status_code == 200
@@ -190,14 +180,9 @@ def test_document_http_restore_refusal_and_explicit_guarded_undo(tmp_path):
     _assert_parked_recovered(ws, original, tmp_path)
 
 
-def _mcp_refusal(result):
-    assert result.is_error is True
-    assert [part.text for part in result.content] == [RESTORE_MESSAGE]
-    assert result.structured_content == {
-        "ok": False,
-        "error": RESTORE_MESSAGE,
-        "error_code": "local_restore_requires_history",
-    }
+def _mcp_refusal(result, record_id):
+    assert result.is_error is False
+    assert_history_only_conflict(json.loads(result.content[0].text), record_id)
 
 
 @pytest.mark.asyncio
@@ -210,7 +195,7 @@ async def test_owner_mcp_restore_refusal_and_explicit_guarded_undo(tmp_path):
             "revert_applied_edit_tool",
             {"project_path": str(ws.path), "record_ids": [ws.project.editorial.edit_log[0].id]},
         )
-        _mcp_refusal(result)
+        _mcp_refusal(result, ws.project.editorial.edit_log[0].id)
         _assert_unchanged(ws, before)
         undone = await client.call_tool(
             "history_undo", {"project_path": str(ws.path), "expected_head_id": head}
@@ -245,23 +230,19 @@ async def test_exact_range_restore_uses_same_coded_refusal(tmp_path, delivery):
     before = _state(ws)
     head = HistoryService(ws).status().head_id
     if delivery == "service":
-        with pytest.raises(ValueError) as refused:
-            service.revert_applied([record.id])
-        assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-        assert str(refused.value) == RESTORE_MESSAGE
+        assert_history_only_conflict(service.revert_applied([record.id]), record.id)
     elif delivery == "http":
         with TestClient(create_app()) as client:
             refused = _post(client, ws, "RestoreAppliedEdit", {"ids": [record.id]}, 1)
-        assert refused.status_code == 400
-        assert refused.headers["X-Sharecut-Error-Code"] == "local_restore_requires_history"
-        assert refused.json() == {"detail": RESTORE_MESSAGE}
+        assert refused.status_code == 200
+        assert_history_only_conflict(refused.json()["command"]["payload"]["result"], record.id)
     else:
         async with Client(mcp_server.mcp) as client:
             result = await client.call_tool(
                 "revert_applied_edit_tool",
                 {"project_path": str(ws.path), "record_ids": [record.id]},
             )
-        _mcp_refusal(result)
+        _mcp_refusal(result, record.id)
     _assert_unchanged(ws, before)
     HistoryService(ws).undo(expected_head_id=head)
     assert _editable(ws.project) == original
@@ -361,10 +342,9 @@ def test_guarded_history_undo_restores_all_peer_occurrences(tmp_path, peer_shape
         (2, 6),
     ]
     before = _state(ws)
-    with pytest.raises(ValueError) as refused:
-        EditService(ws).revert_applied([ws.project.editorial.edit_log[0].id])
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == RESTORE_MESSAGE
+    record_id = ws.project.editorial.edit_log[0].id
+    refused = EditService(ws).revert_applied([record_id])
+    assert_history_only_conflict(refused, record_id)
     _assert_unchanged(ws, before)
     HistoryService(ws).undo(expected_head_id=HistoryService(ws).status().head_id)
     assert _editable(ws.project) == original
@@ -399,10 +379,9 @@ def test_later_action_requires_undo_of_actual_current_head_first(tmp_path):
     current = _state(ws)
     current_head = HistoryService(ws).status().head_id
     assert current_head != cut_head
-    with pytest.raises(ValueError) as refused:
-        EditService(ws).revert_applied([ws.project.editorial.edit_log[0].id])
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == RESTORE_MESSAGE
+    record_id = ws.project.editorial.edit_log[0].id
+    refused = EditService(ws).revert_applied([record_id])
+    assert_history_only_conflict(refused, record_id)
     _assert_unchanged(ws, current)
     with pytest.raises(ValueError) as stale:
         HistoryService(ws).undo(expected_head_id=cut_head)

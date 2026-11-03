@@ -1766,7 +1766,7 @@ def apply_lower(
         cut_safety.PeerObservations(None, None),
         None,
     )
-    written = False
+    written_spans: list[tuple[float, float]] = []
     for clip in clips_for_track(project, decision.track_id):
         if clip.source_id not in project.equivalent_source_ids(
             decision.track_id, decision.source_id
@@ -1787,8 +1787,9 @@ def apply_lower(
                 fade_in_ms=LOWER_FADE_MS,
                 gain_db=db,
             )
-            written = add_source_mute(clip, region) or written
-    if not written:
+            if add_source_mute(clip, region) and (lo, hi) not in written_spans:
+                written_spans.append((lo, hi))
+    if not written_spans:
         return False
     archive_decision(
         project,
@@ -1809,9 +1810,10 @@ def apply_lower(
                 UnmuteSpan(
                     track_id=decision.track_id,
                     source_id=decision.source_id,
-                    start=decision.start,
-                    end=decision.end,
+                    start=lo,
+                    end=hi,
                 )
+                for lo, hi in written_spans
             ]
         ),
     )

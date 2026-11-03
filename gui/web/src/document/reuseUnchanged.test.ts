@@ -451,6 +451,36 @@ describe("reuseUnchanged", () => {
     expect(out.applied_edits.records).toBe(prev.applied_edits.records);
   });
 
+  it("replaces an applied record whose restore state changed and reuses one whose restore is equal", () => {
+    const ready: AppliedEditRecord["restore"] = { state: "ready" };
+    const blocked: AppliedEditRecord["restore"] = {
+      state: "blocked",
+      code: "overlapped_by_later",
+      message: "A later edit mutes some of the same audio.",
+      blocked_by: ["ar2"],
+    };
+    const prev = minimalProject({
+      applied_edits: {
+        count: 2,
+        records: [
+          appliedRecord("ar1", { restore: ready }),
+          appliedRecord("ar2", { restore: ready }),
+        ],
+      },
+    });
+    const next = fresh(prev);
+    next.applied_edits = {
+      count: 2,
+      records: [
+        appliedRecord("ar1", { restore: blocked }),
+        appliedRecord("ar2", { restore: ready }),
+      ],
+    };
+    const out = reuseUnchanged(prev, next);
+    expect(out.applied_edits.records[0].restore).toEqual(blocked);
+    expect(out.applied_edits.records[1]).toBe(prev.applied_edits.records[1]);
+  });
+
   it("does not reuse an applied record whose params changed", () => {
     const prev = minimalProject({
       applied_edits: {

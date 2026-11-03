@@ -47,6 +47,7 @@ from podcast_mcp.project.history.manager import snapshot_from_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
 from podcast_mcp.util.coded_error import CodedValueError
+from restore_helpers import HISTORY_ONLY_MESSAGE, assert_history_only_conflict
 from ripple_helpers import ripple_cut, trim
 
 
@@ -301,14 +302,12 @@ def _saved_restore_workspace(project, tmp_path):
 
 def _assert_remove_restore_refused(project, record_id):
     before = project.model_dump(mode="json")
-    with pytest.raises(ValueError) as refused:
-        plan_restore(project, next(r for r in project.editorial.edit_log if r.id == record_id))
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == (
-        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
-        "History Undo also undoes the other edits in that action. "
-        "You may need to undo later actions first."
+    refused = plan_restore(
+        project, next(r for r in project.editorial.edit_log if r.id == record_id)
     )
+    assert refused.code == "local_restore_requires_history"
+    assert refused.record_id == record_id
+    assert refused.message == HISTORY_ONLY_MESSAGE
     assert project.model_dump(mode="json") == before
 
 
@@ -316,14 +315,9 @@ def _refuse_restore_then_undo(ws, original):
     before = ws.project.model_dump(mode="json")
     disk = ws.path.read_bytes()
     head = HistoryService(ws).status().head_id
-    with pytest.raises(ValueError) as refused:
-        EditService(ws).revert_applied([ws.project.editorial.edit_log[-1].id])
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == (
-        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
-        "History Undo also undoes the other edits in that action. "
-        "You may need to undo later actions first."
-    )
+    record_id = ws.project.editorial.edit_log[-1].id
+    refused = EditService(ws).revert_applied([record_id])
+    assert_history_only_conflict(refused, record_id)
     assert ws.project.model_dump(mode="json") == before
     assert ws.path.read_bytes() == disk
     assert HistoryService(ws).status().head_id == head

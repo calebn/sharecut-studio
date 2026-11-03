@@ -212,6 +212,18 @@ def _stored_asks(row: dict[str, Any]) -> dict[str, Any]:
     return {"needs_confirmation": ask} if ask is not None else {}
 
 
+def dry_run_result(ws: ProjectWorkspace, command: DocumentCommand) -> dict[str, Any] | None:
+    """What ``command`` would return when it only plans, or None when it is a real edit.
+
+    Reads the project and writes nothing, so a dry run leaves no journal row.
+    """
+    if command.type == "RestoreAppliedEdit" and command.payload.get("dry_run"):
+        from podcast_mcp.services.document import EditService
+
+        return EditService(ws).revert_applied(command.payload["ids"], dry_run=True)
+    return None
+
+
 def _journal_server_seq(store: SyncStore) -> int:
     return int((store.get_snapshot() or {}).get("server_seq") or 0)
 
@@ -588,6 +600,24 @@ class DocumentSyncService:
         # the project lock (30 s, then filelock.Timeout), not on sqlite's busy timeout; a
         # busy sqlite lock that escapes anyway maps to the same 503 / project_busy in the
         # routes.
+        planned = dry_run_result(self.ws, command)
+        if planned is not None:
+            seq = _journal_server_seq(self.store)
+            return {
+                "ok": True,
+                "type": "Applied",
+                "dry_run": True,
+                "command": {
+                    "command_id": command.command_id,
+                    "client_id": command.client_id,
+                    "client_seq": command.client_seq,
+                    "role": command.role,
+                    "type": command.type,
+                    "payload": {**command.payload, "result": planned},
+                    "server_seq": seq,
+                },
+                "server_seq": seq,
+            }
         with self._journal_write_lock() as store:
             # The file this command applies on top of, after transaction() adopted any
             # outside write; clients chain it to the last file they received (#657).

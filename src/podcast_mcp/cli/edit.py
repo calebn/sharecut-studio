@@ -96,7 +96,6 @@ def restore_edit_cmd(
     ),
 ) -> None:
     """Restore applied edits as one History step. Exit 0 ok, 2 conflict, 3 forbidden."""
-    from podcast_mcp.edits.edit_log import LocalRestoreRequiresHistory
     from podcast_mcp.services.document_sync import host_command_result, submit_host_document_command
 
     try:
@@ -110,9 +109,6 @@ def restore_edit_cmd(
     except PermissionError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(3) from exc
-    except LocalRestoreRequiresHistory as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(2) from exc
     result = host_command_result(reply)
     if as_json:
         typer.echo(json.dumps(result, indent=2))

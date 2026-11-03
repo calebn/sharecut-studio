@@ -47,7 +47,7 @@ def _ripple_workspace(root):
     return ws
 
 
-def _restore(surface, ws, ids, *, dry_run=False):
+def _restore(surface, ws, ids, *, dry_run=False, cli_exit=0):
     """RestoreResult JSON from one surface."""
     if surface == "web":
         with TestClient(create_app()) as client:
@@ -70,8 +70,8 @@ def _restore(surface, ws, ids, *, dry_run=False):
     if dry_run:
         args.append("--dry-run")
     result = CliRunner().invoke(edit_app, args)
-    assert result.exit_code == 0, result.output
-    return json.loads(result.output)
+    assert result.exit_code == cli_exit, result.output
+    return json.loads(result.stdout)
 
 
 def _post_state(ws):
@@ -213,3 +213,119 @@ def test_viewer_is_denied_on_web_mcp_and_cli(tmp_path, monkeypatch):
     )
     assert result.exit_code == 3
     assert (_disk_and_history(ws), _post_state(ws)) == before
+
+
+def _journal_rows(ws):
+    return DocumentSyncService.open(ws.path).store.commands_after(0)
+
+
+def _regions(ws):
+    return [
+        [(round(r.start_s, 3), round(r.end_s, 3), r.gain_db) for r in c.mute_regions]
+        for c in load_project(ws.path).clips
+    ]
+
+
+def _two_overlapping_mutes(root):
+    project = _project(root)
+    first, second = _cut("m1", 1, 2, reason="filler:um"), _cut("m2", 1.9, 3, reason="filler:um")
+    for mute in (first, second):
+        mute.type = EditDecisionType.MUTE
+    project.edit_decisions = [first, second]
+    REFINE_GATE.mark_done(project, notes="Known synthetic fixture; no real-project acceptance")
+    ws = ProjectWorkspace.open(save_project(project))
+    assert EditService(ws).approve(["m1"]) == 1
+    assert EditService(ws).approve(["m2"]) == 1
+    return ws
+
+
+@pytest.mark.parametrize("surface", SURFACES)
+def test_dry_run_adds_no_journal_row(tmp_path, surface):
+    ws = _mute_workspace(tmp_path)
+    rows = len(_journal_rows(ws))
+    result = _restore(surface, ws, [ws.project.editorial.edit_log[0].id], dry_run=True)
+    assert result["status"] == "planned"
+    assert len(_journal_rows(ws)) == rows
+
+
+def test_restoring_the_earlier_of_two_overlapping_mutes_is_a_typed_conflict(tmp_path):
+    ws = _two_overlapping_mutes(tmp_path)
+    first, second = (r.id for r in ws.project.editorial.edit_log)
+    before = (_disk_and_history(ws), _regions(ws))
+    result = EditService(ws).revert_applied([first])
+    assert result["status"] == "conflict"
+    assert [(c["code"], c["record_id"], c["blocked_by"]) for c in result["conflicts"]] == [
+        ("overlapped_by_later", first, [second])
+    ]
+    listed = {r["id"]: r["restore"] for r in EditService(ws).list_applied_edits()["records"]}
+    assert listed[first]["state"] == "blocked"
+    assert listed[first]["code"] == "overlapped_by_later"
+    assert listed[second]["state"] == "ready"
+    assert (_disk_and_history(ws), _regions(ws)) == before
+
+
+def test_restoring_the_later_mute_keeps_the_earlier_mutes_audio_silent(tmp_path):
+    ws = _two_overlapping_mutes(tmp_path)
+    first, second = (r.id for r in ws.project.editorial.edit_log)
+    assert EditService(ws).revert_applied([second])["status"] == "restored"
+    regions = load_project(ws.path).clips[0].mute_regions
+    assert [(r.start_s, r.end_s) for r in regions] == [(pytest.approx(0.995), pytest.approx(2.015))]
+    assert [r.id for r in load_project(ws.path).editorial.edit_log] == [first]
+
+
+def test_restoring_both_overlapping_mutes_together_clears_them(tmp_path):
+    ws = _two_overlapping_mutes(tmp_path)
+    ids = [r.id for r in ws.project.editorial.edit_log]
+    assert EditService(ws).revert_applied(ids)["status"] == "restored"
+    assert _regions(ws) == [[]]
+
+
+def test_a_lower_record_records_only_what_it_wrote_and_never_reopens_a_hard_mute(tmp_path):
+    from podcast_mcp.edits.cut_application import apply_lower
+    from podcast_mcp.edits.edit_log import apply_restores, plan_restores
+
+    ws = _mute_workspace(tmp_path)
+    project = ws.project.model_copy(deep=True)
+    hard = [(r.start_s, r.end_s) for c in project.clips for r in c.mute_regions]
+    lower = _cut("lo", 1.5, 4, reason="sound:laugh")
+    assert apply_lower(project, lower, defaults=ws.effective_config())
+    record = project.editorial.edit_log[-1]
+    lo_spans = [(s.start, s.end) for s in record.inverse.spans]
+    assert lo_spans == [(pytest.approx(hard[0][1]), pytest.approx(4.0))]
+
+    plans, conflicts = plan_restores(project, [record.id])
+    assert conflicts == []
+    apply_restores(project, plans, defaults=ws.effective_config())
+    assert [(r.start_s, r.end_s) for c in project.clips for r in c.mute_regions] == hard
+
+
+def test_restore_after_the_muted_clip_is_gone_is_a_conflict_not_an_empty_step(tmp_path):
+    ws = _mute_workspace(tmp_path)
+    record_id = ws.project.editorial.edit_log[0].id
+    ws.mutate("before drop", "after drop", lambda p: setattr(p, "clips", []))
+    before = _disk_and_history(ws)
+    listed = EditService(ws).list_applied_edits()["records"][0]["restore"]
+    assert listed["state"] == "blocked"
+    assert listed["code"] == "span_not_present"
+    result = EditService(ws).revert_applied([record_id])
+    assert result["status"] == "conflict"
+    assert [c["code"] for c in result["conflicts"]] == ["span_not_present"]
+    assert _disk_and_history(ws) == before
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+@pytest.mark.parametrize("surface", SURFACES)
+def test_history_only_record_is_conflict_data_on_every_surface(tmp_path, surface, dry_run):
+    ws = _ripple_workspace(tmp_path)
+    record_id = ws.project.editorial.edit_log[0].id
+    rows = len(_journal_rows(ws))
+    before = (_disk_and_history(ws), _post_state(ws))
+    result = _restore(surface, ws, [record_id, "alog_missing"], dry_run=dry_run, cli_exit=2)
+    assert result["status"] == "conflict"
+    assert sorted((c["code"], c["record_id"]) for c in result["conflicts"]) == [
+        ("applied_edit_not_found", "alog_missing"),
+        ("local_restore_requires_history", record_id),
+    ]
+    assert (_disk_and_history(ws), _post_state(ws)) == before
+    if dry_run:
+        assert len(_journal_rows(ws)) == rows
