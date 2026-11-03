@@ -20,6 +20,7 @@ from podcast_mcp.edits.tighten_reasons import (
     RESTART_PARTIAL_REASON_PREFIX,
     is_pause_reason,
     pause_gap_sec,
+    reason_flags,
     repeated_word,
 )
 from podcast_mcp.models import EditDecision
@@ -41,9 +42,10 @@ def join_risk_from_decision(decision: EditDecision) -> dict[str, Any] | None:
     reason = decision.reason or ""
     if not is_tighten_reason(reason):
         return None
-    if ":risky" in reason:
+    flags = reason_flags(reason)
+    if "risky" in flags:
         return {"verdict": "review", "label": "risky", "source": "reason", "risk": None}
-    if ":join_review" in reason:
+    if "join_review" in flags:
         return {
             "verdict": "review",
             "label": "join_review",
@@ -57,7 +59,7 @@ def is_harsh_tighten_hit(decision: EditDecision) -> bool:
     """A tighten hit with a real harsh-join risk (``:risky`` / ``:join_review`` reason).
 
     ``review_required`` alone does not make a hit harsh: review has many causes (unsure words,
-    acoustic holds, held pauses). Informational; no Studio surface reads it.
+    acoustic holds, held pauses). The Review queue reads it as its top risk flag.
     """
     return join_risk_from_decision(decision) is not None
 
