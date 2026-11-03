@@ -71,6 +71,14 @@ def test_gate_qualifies_before_pr_handoff_label() -> None:
     assert verdict == {"mergeable": True, "head_sha": SHA, "blockers": []}
 
 
+def test_gate_rejects_missing_or_conflicting_pr_stages() -> None:
+    for labels in ([], [{"name": "pipeline:review"}, {"name": "pipeline:merging"}]):
+        pr = _pr()
+        pr["labels"] = labels
+        verdict = gate.evaluate_gate(pr, pr, _checks(), [], 0, _issue(), [_claim()], TOKEN, NOW, 6)
+        assert not verdict["mergeable"]
+
+
 def test_gate_still_requires_issue_merging_stage_before_handoff() -> None:
     pr = _pr()
     pr["labels"] = [{"name": "pipeline:review"}]
@@ -166,7 +174,8 @@ def test_claim_gate_respects_earliest_live_claim_and_expiry() -> None:
 def test_claim_gate_requires_stage_labels() -> None:
     blockers = gate.claim_blockers({"labels": []}, {"labels": []}, [_claim()], TOKEN, NOW, 6)
     assert "issue is missing in-progress label" in blockers
-    assert "issue or PR is missing pipeline:merging label" in blockers
+    assert "issue is missing pipeline:merging label" in blockers
+    assert "PR must have exactly one review or merging stage" in blockers
 
     planning = _claim()
     planning["body"] = planning["body"].replace("stage=merging", "stage=planning")
@@ -218,6 +227,7 @@ def test_gate_collection_rechecks_head_after_network_reads(monkeypatch: Any) -> 
         raise RuntimeError(GRAPHQL_403)
 
     monkeypatch.setattr(gate, "gh_json", fake_gh_json)
+    monkeypatch.setattr(gate, "collect_required_checks", lambda *_: _checks())
     verdict = gate.collect_gate("calebn/sharecut-studio", 252, 200, TOKEN, 0, 6)
     assert not verdict["mergeable"]
     assert "head moved during gate collection" in verdict["blockers"]
@@ -346,6 +356,7 @@ def _assert_graphql_403_uses_rest(monkeypatch: Any, stderr: str) -> None:
     monkeypatch.setattr(
         gate.subprocess, "run", _gh_run_through_json(inner, graphql_stderr=stderr, calls=calls)
     )
+    monkeypatch.setattr(gate, "collect_required_checks", lambda *_: _checks())
     verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
     assert verdict["head_sha"] == SHA
     assert verdict["mergeable"] is False
@@ -387,49 +398,18 @@ def test_collect_gate_resolved_graphql_threads_match_trunk_when_rest_comments_re
             review_pages=[rest_comments],
         ),
     )
+    monkeypatch.setattr(gate, "collect_required_checks", lambda *_: _checks())
     verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
     assert verdict == {"mergeable": True, "head_sha": SHA, "blockers": []}
 
 
-def test_flatten_check_run_pages_aborts_when_rows_miss_total_count() -> None:
-    first = [_rest_check_run(name) for name in gate.REQUIRED_CHECKS]
-    with pytest.raises(RuntimeError, match="total_count"):
-        gate.flatten_check_run_pages([{"total_count": 5, "check_runs": first}])
-
-
-def test_flatten_check_run_pages_aborts_on_non_dict_rows() -> None:
-    with pytest.raises(RuntimeError, match="not an object"):
-        gate.flatten_check_run_pages([{"total_count": 1, "check_runs": ["bad"]}])
-
-
-def test_collect_gate_incomplete_check_run_pages_are_not_mergeable(monkeypatch: Any) -> None:
-    first = [_rest_check_run(name) for name in gate.REQUIRED_CHECKS]
-    monkeypatch.setattr(
-        gate,
-        "gh_json",
-        _graphql_forbidden_rest(check_pages=[{"total_count": 5, "check_runs": first}]),
-    )
-    with pytest.raises(RuntimeError, match="total_count"):
-        gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
-
-
-def test_collect_gate_paginates_rest_check_runs_and_blocks_pending(
-    monkeypatch: Any,
-) -> None:
-    first = [_rest_check_run("pytest"), _rest_check_run("frontend")]
-    second = [
-        _rest_check_run("frontend-e2e"),
-        _rest_check_run("gitleaks-history", status="in_progress", conclusion=None),
-    ]
-    monkeypatch.setattr(
-        gate,
-        "gh_json",
-        _graphql_forbidden_rest(check_pages=_rest_check_pages(first, second)),
-    )
-    verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
-    assert verdict["head_sha"] == SHA
-    assert "required check not successful: gitleaks-history" in verdict["blockers"]
-    assert "missing required check: frontend-e2e" not in verdict["blockers"]
+def test_collection_rejects_incomplete_or_malformed_pages(monkeypatch: Any) -> None:
+    monkeypatch.setattr(gate, "gh_json", lambda *_: [{"total_count": 2, "jobs": [{"id": 1}]}])
+    with pytest.raises(RuntimeError, match="pagination"):
+        gate._complete_pages("owner/repo", "jobs", "jobs")
+    monkeypatch.setattr(gate, "gh_json", lambda *_: [{"total_count": 1, "jobs": ["bad"]}])
+    with pytest.raises(RuntimeError, match="invalid"):
+        gate._complete_pages("owner/repo", "jobs", "jobs")
 
 
 def test_collect_gate_counts_each_rest_review_comment_thread_as_unresolved(
@@ -440,6 +420,7 @@ def test_collect_gate_counts_each_rest_review_comment_thread_as_unresolved(
         [{"id": 11, "in_reply_to_id": 10}, {"id": 20, "in_reply_to_id": None}],
     ]
     monkeypatch.setattr(gate, "gh_json", _graphql_forbidden_rest(review_pages=review_pages))
+    monkeypatch.setattr(gate, "collect_required_checks", lambda *_: _checks())
     verdict = gate.collect_gate("calebn/sharecut-studio", 252, 251, TOKEN, 0, 6)
     assert "2 unresolved review thread(s)" in verdict["blockers"]
 
@@ -510,8 +491,8 @@ def _eligible_run(
         "event": event,
         "head_sha": SHA,
         "check_suite_id": workflow * 10,
-        "repository": {"full_name": "owner/repo"},
-        "head_repository": {"full_name": "owner/repo"},
+        "repository": {"full_name": "owner/repo", "id": 1},
+        "head_repository": {"full_name": "owner/repo", "id": 1},
         "pull_requests": [
             {
                 "number": 252,
@@ -534,3 +515,95 @@ def _job(run_id: int, name: str, index: int) -> dict[str, Any]:
         "status": "completed",
         "conclusion": "success",
     }
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "failure",
+        "pending",
+        "missing",
+        "duplicate",
+        "wrong_head",
+        "wrong_app",
+        "truncated",
+        "race",
+        "newer_pending",
+        "attempt",
+    ],
+)
+def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> None:
+    scans = 0
+
+    def fake_gh(*args: str) -> Any:
+        nonlocal scans
+        path = args[1]
+        if path.endswith("actions/workflows/test.yml"):
+            return {"id": 10, "path": ".github/workflows/test.yml"}
+        if path.endswith("actions/workflows/secret-scan.yml"):
+            return {"id": 20, "path": ".github/workflows/secret-scan.yml"}
+        if "/runs?" in path:
+            workflow = 10 if "/10/" in path else 20
+            if workflow == 10:
+                scans += 1
+            runs = [_eligible_run(workflow)]
+            if workflow == 10:
+                runs.append(_eligible_run(10, run_id=99, number=99, event="workflow_dispatch"))
+            if workflow == 10 and (defect == "newer_pending" or (defect == "race" and scans > 1)):
+                runs.append(_eligible_run(10, run_id=30, number=2))
+            return [{"total_count": len(runs), "workflow_runs": runs}]
+        if "/attempts/" in path:
+            run = int(path.split("/runs/")[1].split("/")[0])
+            names = (
+                ["pytest", "frontend", "frontend-e2e"] if run in (10, 30) else ["gitleaks-history"]
+            )
+            jobs = [_job(run, name, index) for index, name in enumerate(names, 1)]
+            if run == 10 and defect == "missing":
+                jobs.pop()
+            if run == 10 and defect == "duplicate":
+                jobs.append({**jobs[0], "id": 999})
+            if run == 10 and defect == "attempt":
+                jobs[0]["run_attempt"] = 2
+            if run == 10 and defect == "wrong_head":
+                jobs[0]["head_sha"] = NEXT_SHA
+            if run == 10 and defect == "failure":
+                jobs[0]["conclusion"] = "failure"
+            if (run == 10 and defect == "pending") or run == 30:
+                jobs[0].update(status="in_progress", conclusion=None)
+            return [{"total_count": len(jobs) + (defect == "truncated"), "jobs": jobs}]
+        if "/check-runs/" in path:
+            check_id = int(path.rsplit("/", 1)[1])
+            names = {
+                101: "pytest",
+                102: "frontend",
+                103: "frontend-e2e",
+                201: "gitleaks-history",
+                301: "pytest",
+                302: "frontend",
+                303: "frontend-e2e",
+            }
+            status, conclusion = "completed", "success"
+            if check_id == 101 and defect == "failure":
+                conclusion = "failure"
+            if (check_id == 101 and defect == "pending") or check_id == 301:
+                status, conclusion = "in_progress", None
+            return {
+                "id": check_id,
+                "name": names[check_id],
+                "head_sha": SHA,
+                "status": status,
+                "conclusion": conclusion,
+                "check_suite": {"id": 200 if check_id == 201 else 100},
+                "app": {"id": 1 if defect == "wrong_app" else 15368},
+            }
+        if "/actions/runs/" in path:
+            run = int(path.rsplit("/", 1)[1])
+            return _eligible_run(10, run_id=30, number=2) if run == 30 else _eligible_run(run)
+        raise AssertionError(path)
+
+    monkeypatch.setattr(gate, "gh_json", fake_gh)
+    try:
+        checks = gate.collect_required_checks("owner/repo", 252, SHA)
+    except RuntimeError:
+        return
+    assert any(row["state"] != "SUCCESS" for row in checks)

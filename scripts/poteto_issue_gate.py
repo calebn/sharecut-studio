@@ -10,6 +10,7 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Final
+from urllib.parse import urlparse
 
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -28,7 +29,6 @@ CLOSES_ISSUE = re.compile(r"(?im)^\s*(?:fixes|closes|resolves)\s+#(\d+)\s*$")
 PART_OF_ISSUE = re.compile(r"(?im)^\s*part\s+of\s+#(\d+)\s*$")
 _RESOURCE_NOT_ACCESSIBLE = "Resource not accessible by integration"
 
-_CHECK_RUNS_PER_PAGE: Final = "100"
 _REVIEW_COMMENTS_PER_PAGE: Final = "100"
 
 
@@ -53,18 +53,6 @@ def rest_fetch_pull(repo: str, pr_number: int) -> dict[str, Any]:
     if not isinstance(wire, dict):
         raise RuntimeError("pull request response was not an object")
     return wire
-
-
-def rest_fetch_check_run_pages(repo: str, head_sha: str) -> list[dict[str, Any]]:
-    pages = gh_json(
-        "api",
-        _api_path(repo, f"commits/{head_sha}/check-runs?per_page={_CHECK_RUNS_PER_PAGE}"),
-        "--paginate",
-        "--slurp",
-    )
-    if not isinstance(pages, list) or any(not isinstance(page, dict) for page in pages):
-        raise RuntimeError("check runs response was not a list of pages")
-    return pages
 
 
 def rest_fetch_review_comment_pages(repo: str, pr_number: int) -> list[list[dict[str, Any]]]:
@@ -114,39 +102,204 @@ def adapt_rest_pull(wire: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def adapt_check_run_to_gate_row(run: dict[str, Any]) -> dict[str, str]:
-    name = run.get("name")
-    if not isinstance(name, str):
-        raise RuntimeError("check run name missing")
-    status = run.get("status")
-    conclusion = run.get("conclusion")
-    state = "SUCCESS" if status == "completed" and conclusion == "success" else "FAILURE"
-    return {"name": name, "state": state}
+def _positive_int(value: Any) -> bool:
+    return type(value) is int and value > 0
 
 
-def flatten_check_run_pages(pages: list[dict[str, Any]]) -> list[dict[str, str]]:
-    rows: list[dict[str, str]] = []
-    expected_total: int | None = None
+def _complete_pages(repo: str, path: str, key: str) -> list[dict[str, Any]]:
+    pages = gh_json("api", _api_path(repo, path), "--paginate", "--slurp")
+    if not isinstance(pages, list) or not pages:
+        raise RuntimeError(f"{key} pages missing")
+    rows: list[dict[str, Any]] = []
+    total: int | None = None
     for page in pages:
-        check_runs = page.get("check_runs")
-        if not isinstance(check_runs, list):
-            raise RuntimeError("check runs page missing check_runs")
-        total_count = page.get("total_count")
-        if not isinstance(total_count, int):
-            raise RuntimeError("check runs page missing total_count")
-        if expected_total is None:
-            expected_total = total_count
-        elif total_count != expected_total:
-            raise RuntimeError("check run pages disagree on total_count")
-        for run in check_runs:
-            if not isinstance(run, dict):
-                raise RuntimeError("check run entry is not an object")
-            rows.append(adapt_check_run_to_gate_row(run))
-    if expected_total is not None and len(rows) != expected_total:
-        raise RuntimeError(
-            f"flattened {len(rows)} check run(s) but total_count is {expected_total}"
-        )
+        if not isinstance(page, dict) or type(page.get("total_count")) is not int:
+            raise RuntimeError(f"{key} page missing total_count")
+        count = page["total_count"]
+        if count < 0 or count >= 1000 or (total is not None and count != total):
+            raise RuntimeError(f"{key} total_count invalid or capped")
+        total = count
+        entries = page.get(key)
+        if not isinstance(entries, list) or any(not isinstance(row, dict) for row in entries):
+            raise RuntimeError(f"{key} page invalid")
+        rows.extend(entries)
+    ids = [row.get("id") for row in rows]
+    if len(rows) != total or any(not _positive_int(i) for i in ids) or len(set(ids)) != len(ids):
+        raise RuntimeError(f"{key} pagination incomplete or duplicate")
     return rows
+
+
+def _eligible_runs(
+    repo: str, pr: int, sha: str, workflow_id: int, path: str
+) -> list[dict[str, Any]]:
+    rows = _complete_pages(
+        repo,
+        f"actions/workflows/{workflow_id}/runs?event=pull_request&head_sha={sha}&per_page=100",
+        "workflow_runs",
+    )
+    eligible = []
+    for row in rows:
+        if not isinstance(row.get("event"), str):
+            raise RuntimeError("workflow run event missing")
+        if row["event"] != "pull_request":
+            continue
+        if (
+            row.get("head_sha") != sha
+            or row.get("workflow_id") != workflow_id
+            or row.get("path") != path
+        ):
+            raise RuntimeError("workflow run source mismatch")
+        repository = row.get("repository") or {}
+        head_repository = row.get("head_repository") or {}
+        prs = row.get("pull_requests")
+        if repository.get("full_name", "").lower() != repo.lower() or not isinstance(prs, list):
+            raise RuntimeError("workflow run repository or PR missing")
+        matches = [item for item in prs if isinstance(item, dict) and item.get("number") == pr]
+        if not matches:
+            if not prs:
+                raise RuntimeError("workflow run PR association missing")
+            continue
+        if len(matches) != 1:
+            raise RuntimeError("workflow run PR association ambiguous")
+        association = matches[0]
+        head = association.get("head") or {}
+        base = association.get("base") or {}
+        if (
+            head.get("sha") != sha
+            or base.get("ref") != "main"
+            or not _positive_int(repository.get("id"))
+            or not _positive_int(head_repository.get("id"))
+            or (base.get("repo") or {}).get("id") != repository.get("id")
+            or (head.get("repo") or {}).get("id") != head_repository.get("id")
+        ):
+            raise RuntimeError("workflow run PR source mismatch")
+        if not all(
+            _positive_int(row.get(k)) for k in ("id", "run_number", "run_attempt", "check_suite_id")
+        ):
+            raise RuntimeError("workflow run identity incomplete")
+        eligible.append(row)
+    return eligible
+
+
+def _run_identity(row: dict[str, Any]) -> tuple[Any, ...]:
+    return tuple(
+        row.get(key)
+        for key in (
+            "id",
+            "run_number",
+            "run_attempt",
+            "workflow_id",
+            "path",
+            "event",
+            "head_sha",
+            "check_suite_id",
+        )
+    )
+
+
+def _selected_run(repo: str, pr: int, sha: str, workflow_id: int, path: str) -> dict[str, Any]:
+    rows = _eligible_runs(repo, pr, sha, workflow_id, path)
+    if not rows:
+        raise RuntimeError(f"no eligible run for {path}")
+    latest = max(row["run_number"] for row in rows)
+    selected = [row for row in rows if row["run_number"] == latest]
+    if len(selected) != 1:
+        raise RuntimeError(f"ambiguous eligible run for {path}")
+    run = selected[0]
+    detail = gh_json("api", _api_path(repo, f"actions/runs/{run['id']}"))
+    if not isinstance(detail, dict) or _run_identity(detail) != _run_identity(run):
+        raise RuntimeError("workflow run changed during collection")
+    return run
+
+
+def _attempt_checks(
+    repo: str, sha: str, run: dict[str, Any], names: list[str]
+) -> list[dict[str, str]]:
+    run_id, attempt = run["id"], run["run_attempt"]
+    jobs = _complete_pages(
+        repo, f"actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100", "jobs"
+    )
+    observations = []
+    for name in names:
+        matches = [job for job in jobs if job.get("name") == name]
+        if len(matches) != 1:
+            raise RuntimeError(f"required job missing or ambiguous: {name}")
+        job = matches[0]
+        if (
+            job.get("run_id") != run_id
+            or job.get("run_attempt") != attempt
+            or job.get("head_sha") != sha
+        ):
+            raise RuntimeError(f"required job source mismatch: {name}")
+        url = urlparse(job.get("check_run_url") or "")
+        prefix = f"/repos/{repo}/check-runs/"
+        if (
+            url.scheme != "https"
+            or url.netloc != "api.github.com"
+            or url.query
+            or url.fragment
+            or not url.path.startswith(prefix)
+            or not url.path[len(prefix) :].isdigit()
+        ):
+            raise RuntimeError(f"invalid check URL: {name}")
+        check_id = int(url.path[len(prefix) :])
+        if not _positive_int(check_id):
+            raise RuntimeError(f"invalid check URL: {name}")
+        check = gh_json("api", _api_path(repo, f"check-runs/{check_id}"))
+        if (
+            not isinstance(check, dict)
+            or check.get("id") != check_id
+            or check.get("name") != name
+            or check.get("head_sha") != sha
+            or (check.get("check_suite") or {}).get("id") != run["check_suite_id"]
+            or (check.get("app") or {}).get("id") != 15368
+            or check.get("status") != job.get("status")
+            or check.get("conclusion") != job.get("conclusion")
+        ):
+            raise RuntimeError(f"required check source or state mismatch: {name}")
+        state = (
+            "SUCCESS"
+            if check.get("status") == "completed" and check.get("conclusion") == "success"
+            else "FAILURE"
+        )
+        observations.append(
+            {
+                "name": name,
+                "state": state,
+                "job_id": str(job["id"]),
+                "check_id": str(check_id),
+                "status": str(check.get("status")),
+                "conclusion": str(check.get("conclusion")),
+            }
+        )
+    return observations
+
+
+def collect_required_checks(repo: str, pr: int, sha: str) -> list[dict[str, str]]:
+    if not HEAD_SHA.fullmatch(sha):
+        raise RuntimeError("invalid head SHA")
+    selections = []
+    for workflow in dict.fromkeys(check.workflow for check in _REQUIRED):
+        info = gh_json("api", _api_path(repo, f"actions/workflows/{workflow}"))
+        path = f".github/workflows/{workflow}"
+        if (
+            not isinstance(info, dict)
+            or not _positive_int(info.get("id"))
+            or info.get("path") != path
+        ):
+            raise RuntimeError(f"invalid workflow identity: {workflow}")
+        run = _selected_run(repo, pr, sha, info["id"], path)
+        names = [check.name for check in _REQUIRED if check.workflow == workflow]
+        evidence = _attempt_checks(repo, sha, run, names)
+        selections.append((info["id"], path, run, names, evidence))
+    for workflow_id, path, run, names, evidence in selections:
+        latest = _selected_run(repo, pr, sha, workflow_id, path)
+        if (
+            _run_identity(latest) != _run_identity(run)
+            or _attempt_checks(repo, sha, latest, names) != evidence
+        ):
+            raise RuntimeError("required check evidence changed during collection")
+    return [row for _, _, _, _, evidence in selections for row in evidence]
 
 
 def _thread_root_id(comment_id: int, by_id: dict[int, dict[str, Any]]) -> int:
@@ -238,8 +391,16 @@ def claim_blockers(
     pr_labels = {label.get("name") for label in pr.get("labels", [])}
     if "in-progress" not in issue_labels:
         blockers.append("issue is missing in-progress label")
-    if "pipeline:merging" not in issue_labels or "pipeline:merging" not in pr_labels:
-        blockers.append("issue or PR is missing pipeline:merging label")
+    if "pipeline:merging" not in issue_labels:
+        blockers.append("issue is missing pipeline:merging label")
+    stages = pr_labels & {
+        "pipeline:planning",
+        "pipeline:implementing",
+        "pipeline:review",
+        "pipeline:merging",
+    }
+    if stages not in ({"pipeline:review"}, {"pipeline:merging"}):
+        blockers.append("PR must have exactly one review or merging stage")
 
     live: list[tuple[str, int, str, str]] = []
     for comment in comments:
@@ -325,7 +486,7 @@ def collect_gate(
 ) -> dict[str, Any]:
     before = adapt_rest_pull(rest_fetch_pull(repo, pr_number))
     head_sha = before["headRefOid"]
-    checks = flatten_check_run_pages(rest_fetch_check_run_pages(repo, head_sha))
+    checks = collect_required_checks(repo, pr_number, head_sha)
     threads = collect_review_threads(repo, pr_number)
     issue = rest_fetch_issue(repo, issue_number)
     comments = issue_comments(repo, issue_number)
@@ -368,7 +529,7 @@ def main() -> int:
         verdict = collect_gate(
             args.repo, args.pr, args.issue, args.claim_token, args.wont_do, args.stale_hours
         )
-    except (KeyError, TypeError, OSError, RuntimeError) as exc:
+    except (AttributeError, KeyError, TypeError, ValueError, OSError, RuntimeError) as exc:
         verdict = {"mergeable": False, "head_sha": None, "blockers": [str(exc)]}
     print(json.dumps(verdict, indent=2))
     return 0 if verdict["mergeable"] else 1

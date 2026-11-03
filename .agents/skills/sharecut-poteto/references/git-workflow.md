@@ -50,12 +50,20 @@ immediately before an authorized merge from the provisioned worktree:
 ```
 
 The helper fails closed on required checks, a moved head, a base other than `main`,
-an ambiguous issue link, a missing or lost live claim, missing merging stage labels,
+an ambiguous issue link, a missing or lost live claim, missing issue merging or PR review/merging stage,
 holds, unresolved review threads, won't-do items, or an unmergeable PR.
 Its JSON result is an additional predicate, not the native independent verdict.
 
-Collection uses GitHub REST for the pull request, check runs, issue, and issue
-comments. Review threads prefer GraphQL `reviewThreads` when GraphQL returns HTTP
+The issue and live claim must be at merging. Keep exactly one PR stage,
+`pipeline:review`, while qualifying. Publish `pipeline:merging` only after the
+standalone predicate and all other handoff gates pass. Run the predicate again
+immediately before an authorized merge.
+
+Collection uses GitHub REST for the pull request, workflow runs, attempt jobs,
+check runs, issue, and issue comments. For each required workflow, it selects
+the latest eligible PR run for the exact head and checks its current attempt.
+Missing, ambiguous, changed, or incomplete evidence blocks qualification.
+Review threads prefer GraphQL `reviewThreads` when GraphQL returns HTTP
 200. When GraphQL returns 403 (`Resource not accessible by integration`), threads
 fall back to `GET .../pulls/{n}/comments` grouped by walking `in_reply_to_id` to a
 thread root. That REST path is fail-closed: each group counts as unresolved because
