@@ -13,6 +13,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "contracts" / "capabilities.manifest.json"
 SCHEMA = ROOT / "schemas" / "capabilities.manifest.schema.json"
+EDIT_SURFACE = ROOT / "contracts" / "edit-surface.json"
+EDIT_SURFACE_SCHEMA = ROOT / "schemas" / "edit-surface.schema.json"
+DOCUMENT_COMMAND_SCHEMA = ROOT / "schemas" / "document-commands.schema.json"
+GUI_SRC = ROOT / "gui" / "web" / "src"
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -317,6 +321,150 @@ def agent_parity_errors(cap: dict) -> list[str]:
     return []
 
 
+_NOT_GUI_SOURCE = re.compile(r"\.(test|spec|stories|generated)\.|\.d\.ts$|(^|/)(test|__tests__)/")
+_GUI_COMMAND_REF = re.compile(r'DocumentCommand\.(\w+)|\btype:\s*"([A-Z]\w*)"')
+
+
+def _schema_command_types() -> list[str]:
+    """Every document command type, from the discriminator of the exported command schema."""
+    schema = json.loads(DOCUMENT_COMMAND_SCHEMA.read_text(encoding="utf-8"))
+    return sorted(schema["discriminator"]["mapping"])
+
+
+def gui_document_command_types(schema_types: set[str]) -> set[str]:
+    """Document command types the GUI sends, scanned from its non-test, non-generated sources.
+
+    A source names a type as ``DocumentCommand.<Type>`` or ``type: "<Type>"``. Only names that
+    are document command types count, so other ``type: "…"`` literals are ignored.
+    """
+    sent: set[str] = set()
+    for path in sorted(GUI_SRC.rglob("*.ts*")):
+        if path.suffix not in {".ts", ".tsx"} or _NOT_GUI_SOURCE.search(path.as_posix()):
+            continue
+        for ref, literal in _GUI_COMMAND_REF.findall(path.read_text(encoding="utf-8")):
+            sent.add(ref or literal)
+    return sent & schema_types
+
+
+def edit_surface_errors(
+    data: dict, gui_types: set[str], schema_types: set[str], live_mcp: set[str], cli_root: Any
+) -> list[str]:
+    """Parity per document command: contracts/edit-surface.json against the GUI and the agents.
+
+    Every type the GUI sends has an entry. An entry names MCP tools and CLI commands that
+    resolve, and has both unless it records a gap (or is exempt as not a project edit). A gap
+    on a covered type is stale, so the gaps only shrink.
+    """
+    commands: dict[str, dict] = data.get("commands") or {}
+    errors = [
+        f"edit-surface: GUI sends {t} but contracts/edit-surface.json does not list it"
+        for t in sorted(gui_types - set(commands))
+    ]
+    for name in sorted(commands):
+        entry = commands[name]
+        if name not in schema_types:
+            errors.append(
+                f"edit-surface: {name} is not a type in schemas/document-commands.schema.json"
+            )
+        mcp, cli = entry.get("mcp") or [], entry.get("cli") or []
+        errors.extend(
+            f"edit-surface: {name} mcp {tool!r} is not a registered tool"
+            for tool in mcp
+            if tool not in live_mcp
+        )
+        for cmd in cli:
+            problem = _cli_entry_error(cmd, cli_root)
+            if problem:
+                errors.append(f"edit-surface: {name} cli {cmd!r} {problem}")
+        gap, exempt = entry.get("gap"), entry.get("exempt")
+        if gap and exempt:
+            errors.append(f"edit-surface: {name} is both exempt and a gap")
+        elif exempt:
+            continue
+        elif gap and mcp and cli:
+            errors.append(f"edit-surface: {name} has both mcp and cli, so drop its stale gap")
+        elif not gap:
+            errors.extend(
+                f"edit-surface: {name} has no {surface} and no gap"
+                for surface, names in (("mcp", mcp), ("cli", cli))
+                if not names
+            )
+    return errors
+
+
+def manifest_twin_errors(
+    caps: list[dict], without_cli: list[str], without_mcp: list[str]
+) -> list[str]:
+    """A project row with a GUI surface needs MCP and CLI, or is listed as lacking one.
+
+    A row with an owner-approved ``omit.agent_reason`` is exempt. A listed row that is no
+    longer lacking the surface (or is gone) fails, so the lists only shrink.
+    """
+    rows = {c["id"]: c for c in caps}
+    errors: list[str] = []
+    for surface, listed in (("cli", without_cli), ("mcp", without_mcp)):
+        for cid, cap in sorted(rows.items()):
+            if not _needs_twins(cap):
+                continue
+            if not (cap.get("surfaces") or {}).get(surface) and cid not in listed:
+                errors.append(
+                    f"edit-surface: {cid} is a project GUI row with no {surface}; add one or "
+                    f"list it in manifest_rows_without_{surface}"
+                )
+        for cid in sorted(listed):
+            listed_cap = rows.get(cid)
+            if listed_cap is None:
+                errors.append(
+                    f"edit-surface: manifest_rows_without_{surface} lists {cid} "
+                    "but no such manifest row exists"
+                )
+            elif not _needs_twins(listed_cap):
+                errors.append(
+                    f"edit-surface: manifest_rows_without_{surface} lists {cid} "
+                    "but it is not a project GUI row"
+                )
+            elif (listed_cap.get("surfaces") or {}).get(surface):
+                errors.append(
+                    f"edit-surface: manifest_rows_without_{surface} lists {cid} "
+                    f"but its {surface} surface is set, so drop it"
+                )
+    return errors
+
+
+def _needs_twins(cap: dict) -> bool:
+    reason = ((cap.get("omit") or {}).get("agent_reason") or "").strip()
+    return (
+        cap.get("effect") == "project"
+        and bool((cap.get("surfaces") or {}).get("gui"))
+        and not reason
+    )
+
+
+def _edit_surface_file_errors(caps: list[dict], live_mcp: set[str], cli_root: Any) -> list[str]:
+    """Schema-validate contracts/edit-surface.json, then run the per-command and row rules."""
+    if not EDIT_SURFACE.is_file():
+        return [f"missing {EDIT_SURFACE.relative_to(ROOT)}"]
+    data = json.loads(EDIT_SURFACE.read_text(encoding="utf-8"))
+    try:
+        import jsonschema  # type: ignore
+
+        jsonschema.validate(data, json.loads(EDIT_SURFACE_SCHEMA.read_text(encoding="utf-8")))
+    except ImportError:
+        pass
+    except Exception as exc:
+        return [f"edit-surface schema: {exc}"]
+    schema_types = set(_schema_command_types())
+    errors = edit_surface_errors(
+        data, gui_document_command_types(schema_types), schema_types, live_mcp, cli_root
+    )
+    errors.extend(
+        manifest_twin_errors(
+            caps, data["manifest_rows_without_cli"], data["manifest_rows_without_mcp"]
+        )
+    )
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
     if not MANIFEST.is_file():
@@ -419,6 +567,8 @@ def main() -> int:
         errors.append(f"skill missing from manifest/hub_skills: {sk}")
     for sk in sorted(hub_skills - live_skills):
         errors.append(f"hub_skills entry not found: {sk}")
+
+    errors.extend(_edit_surface_file_errors(caps, live_mcp, cli_root))
 
     if errors:
         print(f"capabilities-check: {len(errors)} issue(s)", file=sys.stderr)

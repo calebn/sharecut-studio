@@ -190,3 +190,141 @@ def test_touch_column_names_only_contract_gestures_on_command_rows() -> None:
         "daw.unknown: unknown touch gesture 'wiggle'",
         "agent.touch: surfaces.touch requires surfaces.command",
     ]
+
+
+EDIT_TOOLS = {"remove_chapter_tool", "track_set_meta_tool"}
+EDIT_TYPES = {"DeleteChapter", "SetTrackMeta", "UpdateChapter"}
+COVERED = {"mcp": ["remove_chapter_tool"], "cli": ["podcast edit remove-chapter"]}
+
+
+def _edit_surface_errors(commands: dict, gui: set[str] | None = None) -> list[str]:
+    mod = load_script("check_capabilities_manifest")
+    return mod.edit_surface_errors(
+        {"commands": commands},
+        gui if gui is not None else set(commands),
+        EDIT_TYPES,
+        EDIT_TOOLS,
+        mod._cli_root(),
+    )
+
+
+def test_gui_document_command_types_come_from_non_test_gui_sources() -> None:
+    mod = load_script("check_capabilities_manifest")
+    sent = mod.gui_document_command_types(set(mod._schema_command_types()))
+    assert {"UpdateChapter", "DeleteChapter", "SetTrackMeta", "RenameProject"} <= sent
+    assert "Heartbeat" not in sent and "ApplyEditPlan" not in sent
+
+
+def test_edit_surface_file_matches_the_gui_and_passes_the_checker() -> None:
+    mod = load_script("check_capabilities_manifest")
+    data = json.loads((ROOT / "contracts" / "edit-surface.json").read_text())
+    schema_types = set(mod._schema_command_types())
+    gui = mod.gui_document_command_types(schema_types)
+    assert gui <= set(data["commands"])
+    assert mod.edit_surface_errors(data, gui, schema_types, mod._mcp_tools(), mod._cli_root()) == []
+
+
+def test_covered_command_with_mcp_and_cli_passes() -> None:
+    assert _edit_surface_errors({"DeleteChapter": COVERED}) == []
+
+
+def test_gui_sent_type_missing_from_the_file_is_an_error() -> None:
+    assert _edit_surface_errors({"DeleteChapter": COVERED}, {"DeleteChapter", "UpdateChapter"}) == [
+        "edit-surface: GUI sends UpdateChapter but contracts/edit-surface.json does not list it"
+    ]
+
+
+def test_unregistered_mcp_name_is_an_error() -> None:
+    entry = {"mcp": ["no_such_tool"], "cli": COVERED["cli"]}
+    assert _edit_surface_errors({"DeleteChapter": entry}) == [
+        "edit-surface: DeleteChapter mcp 'no_such_tool' is not a registered tool"
+    ]
+
+
+def test_unresolved_cli_entry_is_an_error() -> None:
+    entry = {"mcp": COVERED["mcp"], "cli": ["podcast edit no-such-cmd"]}
+    assert _edit_surface_errors({"DeleteChapter": entry}) == [
+        "edit-surface: DeleteChapter cli 'podcast edit no-such-cmd' "
+        "has no command `podcast edit no-such-cmd`"
+    ]
+
+
+def test_missing_surface_without_a_gap_is_an_error() -> None:
+    assert _edit_surface_errors(
+        {
+            "DeleteChapter": {"mcp": COVERED["mcp"], "cli": []},
+            "SetTrackMeta": {"mcp": [], "cli": COVERED["cli"]},
+        }
+    ) == [
+        "edit-surface: DeleteChapter has no cli and no gap",
+        "edit-surface: SetTrackMeta has no mcp and no gap",
+    ]
+
+
+def test_gap_on_a_fully_covered_command_is_stale() -> None:
+    entry = {**COVERED, "gap": {"reason": "was missing"}}
+    assert _edit_surface_errors({"DeleteChapter": entry}) == [
+        "edit-surface: DeleteChapter has both mcp and cli, so drop its stale gap"
+    ]
+
+
+def test_gap_with_a_missing_surface_passes() -> None:
+    gap = {"mcp": [], "cli": [], "gap": {"reason": "no agent twin yet"}}
+    assert _edit_surface_errors({"UpdateChapter": gap}) == []
+
+
+def test_exempt_type_needs_no_surface_and_no_gap() -> None:
+    entry = {"mcp": [], "cli": [], "exempt": {"reason": "Session-only"}}
+    assert _edit_surface_errors({"UpdateChapter": entry}) == []
+    both = {"mcp": [], "cli": [], "exempt": {"reason": "x"}, "gap": {"reason": "y"}}
+    assert _edit_surface_errors({"UpdateChapter": both}) == [
+        "edit-surface: UpdateChapter is both exempt and a gap"
+    ]
+
+
+def test_type_missing_from_the_document_command_schema_is_an_error() -> None:
+    assert _edit_surface_errors({"DeleteChapter": COVERED, "NoSuchCommand": COVERED}) == [
+        "edit-surface: NoSuchCommand is not a type in schemas/document-commands.schema.json"
+    ]
+
+
+def _gui_row(row_id: str, surfaces: dict, omit: dict | None = None) -> dict:
+    row = _row("project", {"gui": ["button"], "command": "x", **surfaces}, omit)
+    row["id"] = row_id
+    return row
+
+
+def test_project_gui_row_needs_mcp_and_cli_unless_listed() -> None:
+    mod = load_script("check_capabilities_manifest")
+    both = _gui_row("daw.a", {"mcp": ["a_tool"], "cli": "podcast a"})
+    no_cli = _gui_row("daw.b", {"mcp": ["b_tool"]})
+    no_mcp = _gui_row("daw.c", {"cli": "podcast c"})
+    assert mod.manifest_twin_errors([both, no_cli, no_mcp], [], []) == [
+        "edit-surface: daw.b is a project GUI row with no cli; add one or list it in "
+        "manifest_rows_without_cli",
+        "edit-surface: daw.c is a project GUI row with no mcp; add one or list it in "
+        "manifest_rows_without_mcp",
+    ]
+    assert mod.manifest_twin_errors([both, no_cli, no_mcp], ["daw.b"], ["daw.c"]) == []
+
+
+def test_listed_manifest_row_that_gained_its_surface_is_stale() -> None:
+    mod = load_script("check_capabilities_manifest")
+    both = _gui_row("daw.a", {"mcp": ["a_tool"], "cli": "podcast a"})
+    session = _row("session", {"gui": ["x"], "command": "s"})
+    session["id"] = "daw.s"
+    errors = mod.manifest_twin_errors([both, session], ["daw.a", "daw.s", "daw.gone"], ["daw.a"])
+    assert errors == [
+        "edit-surface: manifest_rows_without_cli lists daw.a but its cli surface is set, "
+        "so drop it",
+        "edit-surface: manifest_rows_without_cli lists daw.gone but no such manifest row exists",
+        "edit-surface: manifest_rows_without_cli lists daw.s but it is not a project GUI row",
+        "edit-surface: manifest_rows_without_mcp lists daw.a but its mcp surface is set, "
+        "so drop it",
+    ]
+
+
+def test_row_with_an_approved_agent_reason_is_not_asked_for_twins() -> None:
+    mod = load_script("check_capabilities_manifest")
+    keep = _gui_row("daw.edit.keep", {}, {"agent_reason": "Undo covers it"})
+    assert mod.manifest_twin_errors([keep], [], []) == []
