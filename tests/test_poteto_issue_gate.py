@@ -538,6 +538,10 @@ def _job(run_id: int, name: str, index: int) -> dict[str, Any]:
         "equal_sequence",
         "changed_check",
         "current_attempt_failure",
+        "current_attempt_pending",
+        "current_attempt_success",
+        "older_rerun_newer_pending",
+        "consistent_transition",
     ],
 )
 def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> None:
@@ -566,7 +570,12 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
                 runs[0]["repository"]["id"] = 2
             if workflow == 10 and defect == "equal_sequence":
                 runs.append(_eligible_run(10, run_id=30))
-            if workflow == 10 and defect == "current_attempt_failure":
+            if workflow == 10 and defect in (
+                "current_attempt_failure",
+                "current_attempt_pending",
+                "current_attempt_success",
+                "older_rerun_newer_pending",
+            ):
                 runs[0]["run_attempt"] = 2
             if workflow == 10 and defect == "late_attempt" and checks_read >= 8:
                 runs[0]["run_attempt"] = 2
@@ -574,7 +583,10 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
                 runs.append(_eligible_run(10, run_id=30, number=2))
             if workflow == 10:
                 runs.append(_eligible_run(10, run_id=99, number=99, event="workflow_dispatch"))
-            if workflow == 10 and (defect == "newer_pending" or (defect == "race" and scans > 1)):
+            if workflow == 10 and (
+                defect in ("newer_pending", "older_rerun_newer_pending")
+                or (defect == "race" and scans > 1)
+            ):
                 runs.append(_eligible_run(10, run_id=30, number=2))
             return [{"total_count": len(runs), "workflow_runs": runs}]
         if "/attempts/" in path:
@@ -589,13 +601,32 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
                 jobs.pop()
             if run == 10 and defect == "duplicate":
                 jobs.append({**jobs[0], "id": 999})
-            if run == 10 and defect == "current_attempt_failure" and "/attempts/2/" in path:
+            if (
+                run == 10
+                and defect
+                in (
+                    "current_attempt_failure",
+                    "current_attempt_pending",
+                    "current_attempt_success",
+                    "older_rerun_newer_pending",
+                )
+                and "/attempts/2/" in path
+            ):
                 for job in jobs:
                     job["run_attempt"] = 2
                     job["id"] += 1000
                     job["check_run_url"] = (
                         f"https://api.github.com/repos/owner/repo/check-runs/{job['id']}"
                     )
+                if defect in ("current_attempt_failure", "current_attempt_success"):
+                    jobs[0]["conclusion"] = (
+                        "failure" if defect == "current_attempt_failure" else "success"
+                    )
+                if defect == "current_attempt_pending":
+                    jobs[0].update(status="in_progress", conclusion=None)
+            if run == 10 and defect == "current_attempt_success" and "/attempts/1/" in path:
+                jobs[0]["conclusion"] = "failure"
+            if run == 10 and defect == "consistent_transition" and checks_read >= 4:
                 jobs[0]["conclusion"] = "failure"
             if run == 10 and defect == "wrong_url":
                 jobs[0]["check_run_url"] = "https://example.com/check-runs/101"
@@ -627,13 +658,21 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
                 1103: "frontend-e2e",
             }
             status, conclusion = "completed", "success"
-            if check_id == 101 and defect == "changed_check" and checks_read > 4:
+            if (
+                check_id == 101
+                and defect in ("changed_check", "consistent_transition")
+                and checks_read > 4
+            ):
                 conclusion = "failure"
-            if (check_id == 101 and defect == "failure") or (
+            if (check_id == 101 and defect in ("failure", "current_attempt_success")) or (
                 check_id == 1101 and defect == "current_attempt_failure"
             ):
                 conclusion = "failure"
-            if (check_id == 101 and defect == "pending") or check_id == 301:
+            if (
+                (check_id == 101 and defect == "pending")
+                or (check_id == 1101 and defect == "current_attempt_pending")
+                or check_id == 301
+            ):
                 status, conclusion = "in_progress", None
             return {
                 "id": 999 if defect == "wrong_check_id" else check_id,
@@ -654,7 +693,13 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
                 return _eligible_run(10, run_id=99, number=99, event="workflow_dispatch")
             detail = _eligible_run(run)
             if run == 10 and (
-                defect == "current_attempt_failure"
+                defect
+                in (
+                    "current_attempt_failure",
+                    "current_attempt_pending",
+                    "current_attempt_success",
+                    "older_rerun_newer_pending",
+                )
                 or (defect == "late_attempt" and checks_read >= 8)
             ):
                 detail["run_attempt"] = 2
@@ -681,13 +726,17 @@ def test_required_check_evidence_fails_closed(monkeypatch: Any, defect: str) -> 
         "wrong_url": "invalid check URL",
         "equal_sequence": "ambiguous eligible run",
         "changed_check": "required check source or state mismatch",
+        "consistent_transition": "required check evidence changed",
     }
     if defect in expected:
         with pytest.raises(RuntimeError, match=expected[defect]):
             gate.collect_required_checks("owner/repo", 252, SHA)
     else:
         checks = gate.collect_required_checks("owner/repo", 252, SHA)
-        assert any(row["state"] != "SUCCESS" for row in checks)
+        if defect == "current_attempt_success":
+            assert all(row["state"] == "SUCCESS" for row in checks)
+        else:
+            assert any(row["state"] != "SUCCESS" for row in checks)
 
 
 @pytest.mark.parametrize(
