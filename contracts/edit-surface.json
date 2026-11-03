@@ -2,16 +2,8 @@
   "api_version": 1,
   "description": "The manifest project rows that lack an MCP tool or a CLI command. The per-command decisions (which MCP tools and CLI commands perform each document command the GUI sends, or the gap that says why one is missing) live on each CommandSpec in src/podcast_mcp/services/document_sync/registry.py. scripts/check_capabilities_manifest.py fails when a command type has no registry entry, when the GUI sends a type its entry does not name, when a name does not resolve, and when a gap is stale, so gaps only shrink. Add an edit: see docs/entry-points.md item 4.",
   "manifest_rows_without_cli": [
-    "daw.edit.bladeCut",
-    "daw.edit.split",
-    "daw.track.remove",
     "daw.media.import",
-    "daw.transcript.ignore",
-    "daw.envelope.addPoint",
-    "daw.edit.setClipFade",
-    "daw.range.mute",
-    "daw.range.fillRoomTone",
-    "daw.track.add"
+    "daw.range.mute"
   ],
   "manifest_rows_without_mcp": [
     "daw.share.manage"

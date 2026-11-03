@@ -381,17 +381,17 @@ def test_the_registry_check_is_two_sided() -> None:
 AUDITED_TWINS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "AddAction": (("add_comment_action_tool",), ("podcast comment add-action",)),
     "DeleteComment": (("delete_comment_tool",), ("podcast comment delete",)),
-    "AddEffect": (("add_effect_tool",), ()),
-    "RemoveEffect": (("remove_effect_tool",), ()),
+    "AddEffect": (("add_effect_tool",), ("podcast doc submit",)),
+    "RemoveEffect": (("remove_effect_tool",), ("podcast doc submit",)),
     "ApplyAutoEdits": (("apply_edits",), ("podcast apply-edits",)),
     "ProposeTighten": (("propose_edits",), ("podcast propose-edits",)),
-    "ApplyEditPlan": (("apply_edit_plan_tool",), ()),
-    "ApplyFadeRecommendationList": (("apply_fade_recommendations_tool",), ()),
+    "ApplyEditPlan": (("apply_edit_plan_tool",), ("podcast doc submit",)),
+    "ApplyFadeRecommendationList": (("apply_fade_recommendations_tool",), ("podcast doc submit",)),
     "ApplyTranscriptCleanup": (
         ("apply_transcript_cleanup_tool",),
         ("podcast transcript cleanup-batch",),
     ),
-    "VerifyTranscript": (("verify_transcript_tool",), ()),
+    "VerifyTranscript": (("verify_transcript_tool",), ("podcast doc submit",)),
     "ReconcileTranscript": (
         ("reconcile_transcript_tool",),
         ("podcast edit reconcile-transcript",),
@@ -410,16 +410,16 @@ AUDITED_TWINS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "StageTimeRangeCut": (("cut_time_range_tool",), ("podcast edit cut-range",)),
     "StageTextMatchCut": (("cut_text_match_tool",), ("podcast edit cut-text",)),
     "StageUtteranceCut": (("cut_utterance_tool",), ("podcast edit cut-utterance",)),
-    "StageWordsCut": (("cut_words_tool",), ()),
+    "StageWordsCut": (("cut_words_tool",), ("podcast doc submit",)),
     "StripSilence": (("strip_silence_tool",), ("podcast edit strip-silence",)),
     "ShortenWordGaps": (("shorten_gaps_tool",), ("podcast edit shorten-gaps",)),
     "FadeJoins": (("fade_joins_tool",), ("podcast edit fade-joins",)),
     "CrossfadeJoins": (("crossfade_joins_tool",), ("podcast edit crossfade-joins",)),
-    "SetJoinMode": (("set_join_mode_tool",), ()),
+    "SetJoinMode": (("set_join_mode_tool",), ("podcast doc submit",)),
     "InsertGap": (("insert_gap_tool",), ("podcast edit insert-gap",)),
     "InsertSegment": (("segment_insert_tool",), ("podcast segment insert",)),
     "MoveByText": (("move_by_text_tool",), ("podcast edit move",)),
-    "SuggestPendingEdit": ((), ()),
+    "SuggestPendingEdit": (("submit_document_command_tool",), ("podcast doc submit",)),
 }
 
 
@@ -429,10 +429,7 @@ def test_an_audited_type_records_the_twins_that_submit_it(command_type: str) -> 
     spec = COMMANDS[command_type]
     assert spec.gui is NO_GUI_SENDER
     for decision, names in ((spec.mcp, mcp), (spec.cli, cli)):
-        if names:
-            assert decision == named(*names)
-        else:
-            assert isinstance(decision, Gap) and decision.reason and not decision.names
+        assert decision == named(*names)
 
 
 def test_no_audit_placeholder_is_left() -> None:
@@ -443,39 +440,83 @@ def test_no_audit_placeholder_is_left() -> None:
                 assert "not audited" not in decision.reason, command_type
 
 
-def test_a_social_clip_delete_has_an_mcp_twin_and_only_the_cli_is_missing() -> None:
+def test_a_social_clip_delete_has_an_mcp_twin_and_the_cli_reaches_it_generically() -> None:
     spec = COMMANDS["DeleteSocialClip"]
     assert spec.mcp == named("reject_social_clips_tool")
-    assert isinstance(spec.cli, Gap) and "podcast clips has no reject" in spec.cli.reason
+    assert spec.cli == named("podcast doc submit")
 
 
-def test_social_clip_details_are_a_partial_gap_covered_by_approve() -> None:
-    spec = COMMANDS["UpdateSocialClipDetails"]
-    for decision, twin in (
-        (spec.mcp, "approve_social_clips_tool"),
-        (spec.cli, "podcast clips approve"),
-    ):
-        assert isinstance(decision, Gap) and decision.partial and decision.names == (twin,)
+GENERIC_MCP = "submit_document_command_tool"
+GENERIC_CLI = "podcast doc submit"
+KEPT_GAPS = {"EditSelectedRange", "SetTrackMedia"}
+
+
+def test_generic_reach_closes_every_gap_whose_only_problem_was_no_named_tool() -> None:
+    remaining = {
+        t
+        for t, s in COMMANDS.items()
+        if any(isinstance(getattr(s, x), Gap) for x in ("mcp", "cli"))
+    }
+    assert remaining == KEPT_GAPS
+
+
+def test_a_type_that_names_the_generic_surface_is_one_the_generic_tool_accepts() -> None:
+    for command_type, spec in COMMANDS.items():
+        for decision, generic in ((spec.mcp, GENERIC_MCP), (spec.cli, GENERIC_CLI)):
+            if isinstance(decision, Named | Gap) and generic in decision.names:
+                assert spec.generic_refusal is None, command_type
 
 
 @pytest.mark.parametrize(
-    ("command_type", "variant"),
+    ("command_type", "mcp", "cli"),
     [
-        ("AddComment", "timeline_spans"),
-        ("DeleteChapter", "same title"),
-        ("UpdatePendingEdit", "track_ids"),
+        ("SplitAtTime", ("split_clip_tool",), (GENERIC_CLI,)),
+        ("RemoveTrack", ("track_remove_tool",), (GENERIC_CLI,)),
+        ("AddTrack", ("track_add_empty_tool",), (GENERIC_CLI,)),
+        ("SetClipFade", ("set_clip_fade_tool",), (GENERIC_CLI,)),
+        ("SetEnvelope", ("set_envelope",), (GENERIC_CLI,)),
+        ("FillRoomTone", ("fill_with_room_tone_tool",), (GENERIC_CLI,)),
+        ("SetTranscriptWordsIgnored", ("set_words_ignored_tool",), (GENERIC_CLI,)),
+        ("RenameProject", (GENERIC_MCP,), (GENERIC_CLI,)),
+        ("SetRecordSessionName", (GENERIC_MCP,), (GENERIC_CLI,)),
+        ("UpdateChapter", (GENERIC_MCP,), (GENERIC_CLI,)),
+        ("AddSocialClip", (GENERIC_MCP,), (GENERIC_CLI,)),
+        ("UpdateSocialClip", (GENERIC_MCP,), (GENERIC_CLI,)),
+        ("SuggestPendingEdit", (GENERIC_MCP,), (GENERIC_CLI,)),
+        ("ApplyFadeRecommendations", (GENERIC_MCP,), (GENERIC_CLI,)),
+        ("AddComment", ("add_comment_tool", GENERIC_MCP), ("podcast comment add", GENERIC_CLI)),
+        (
+            "DeleteChapter",
+            ("remove_chapter_tool", GENERIC_MCP),
+            ("podcast edit remove-chapter", GENERIC_CLI),
+        ),
+        (
+            "UpdatePendingEdit",
+            ("update_pending_edit_tool", GENERIC_MCP),
+            (GENERIC_CLI,),
+        ),
+        (
+            "UpdateSocialClipDetails",
+            ("approve_social_clips_tool", GENERIC_MCP),
+            ("podcast clips approve", GENERIC_CLI),
+        ),
     ],
 )
-def test_a_variant_the_named_twins_cannot_express_is_a_partial_gap(
-    command_type: str, variant: str
+def test_a_closed_gap_names_the_generic_surface(
+    command_type: str, mcp: tuple[str, ...], cli: tuple[str, ...]
 ) -> None:
     spec = COMMANDS[command_type]
-    for decision in (spec.mcp, spec.cli):
-        if isinstance(decision, Gap) and decision.partial:
-            assert variant in decision.reason
-            break
-    else:
-        pytest.fail(f"{command_type} records no partial gap for {variant}")
+    assert spec.mcp == named(*mcp)
+    assert spec.cli == named(*cli)
+
+
+def test_the_gaps_that_stay_say_what_the_generic_path_cannot_do() -> None:
+    mute = COMMANDS["EditSelectedRange"].cli
+    assert isinstance(mute, Gap) and mute.partial
+    assert GENERIC_CLI in mute.names and "propos" in mute.reason
+    media = COMMANDS["SetTrackMedia"].cli
+    assert isinstance(media, Gap) and media.partial
+    assert media.names == (GENERIC_CLI,) and "raw/" in media.reason
 
 
 def test_add_track_names_only_the_tool_that_adds_an_empty_track() -> None:
@@ -485,10 +526,13 @@ def test_add_track_names_only_the_tool_that_adds_an_empty_track() -> None:
 def test_the_edit_surface_view_lists_every_type_so_the_checker_resolves_all_names() -> None:
     view = edit_surface_commands()
     assert set(view) == set(COMMANDS)
-    assert view["AddTrack"]["cli"] == []
-    assert view["AddTrack"]["gap"]["reason"].startswith("No CLI creates an empty track")
+    assert view["AddTrack"]["cli"] == ["podcast doc submit"]
+    assert "gap" not in view["AddTrack"]
     assert view["EditSelectedRange"]["gap"]["partial"] is True
-    assert view["EditSelectedRange"]["cli"] == ["podcast edit propose-range-cut"]
+    assert view["EditSelectedRange"]["cli"] == [
+        "podcast edit propose-range-cut",
+        "podcast doc submit",
+    ]
     assert view["DeleteComment"]["mcp"] == ["delete_comment_tool"]
 
 

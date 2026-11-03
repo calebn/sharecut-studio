@@ -336,49 +336,12 @@ def test_row_with_an_approved_agent_reason_is_not_asked_for_twins() -> None:
 
 
 PINNED_GAP_TYPES = {
-    "AddComment",
-    "AddEffect",
-    "AddSocialClip",
-    "AddTrack",
-    "ApplyEditPlan",
-    "ApplyFadeRecommendationList",
-    "ApplyFadeRecommendations",
-    "DeleteChapter",
-    "DeleteSocialClip",
-    "DuplicateSegment",
     "EditSelectedRange",
-    "FillRoomTone",
-    "RemoveEffect",
-    "RemoveTrack",
-    "RenameProject",
-    "SetClipFade",
-    "SetEffectBypass",
-    "SetEnvelope",
-    "SetJoinMode",
-    "SetRecordSessionName",
     "SetTrackMedia",
-    "SetTrackMeta",
-    "SetTranscriptWordsIgnored",
-    "SplitAtTime",
-    "StageWordsCut",
-    "SuggestPendingEdit",
-    "UpdateChapter",
-    "UpdatePendingEdit",
-    "UpdateSocialClip",
-    "UpdateSocialClipDetails",
-    "VerifyTranscript",
 }
 PINNED_ROWS_WITHOUT_CLI = {
-    "daw.edit.bladeCut",
-    "daw.edit.split",
-    "daw.track.remove",
-    "daw.media.import",
-    "daw.transcript.ignore",
-    "daw.envelope.addPoint",
-    "daw.edit.setClipFade",
     "daw.range.mute",
-    "daw.range.fillRoomTone",
-    "daw.track.add",
+    "daw.media.import",
 }
 PINNED_ROWS_WITHOUT_MCP = {"daw.share.manage"}
 PIN_HELP = (
@@ -434,6 +397,32 @@ def test_new_gap_exempt_or_listing_fails_the_pin() -> None:
 
 def test_closed_gap_must_leave_the_pin() -> None:
     data = _edit_surface_data()
-    del data["commands"]["AddTrack"]["gap"]
+    del data["commands"]["SetTrackMedia"]["gap"]
     errors = _pin_errors(data)
     assert len(errors) == 1 and "Remove it" in errors[0]
+
+
+GENERIC_CLI_ROWS = {
+    "daw.edit.bladeCut",
+    "daw.edit.split",
+    "daw.track.remove",
+    "daw.track.add",
+    "daw.transcript.ignore",
+    "daw.envelope.addPoint",
+    "daw.edit.setClipFade",
+    "daw.range.fillRoomTone",
+}
+
+
+def test_manifest_rows_name_the_generic_cli_only_where_it_performs_the_gui_edit() -> None:
+    data = json.loads((ROOT / "contracts" / "capabilities.manifest.json").read_text())
+    rows = {
+        cap["id"]
+        for cap in data["capabilities"]
+        if "podcast doc submit" in _as_names(cap.get("surfaces", {}).get("cli"))
+    }
+    assert rows == GENERIC_CLI_ROWS
+
+
+def _as_names(value: object) -> list[str]:
+    return [value] if isinstance(value, str) else list(value or [])

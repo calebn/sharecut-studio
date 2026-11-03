@@ -17,6 +17,7 @@ from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.mcp.tools import document as mcp_document
 from podcast_mcp.mcp.tools import history as mcp_history
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
+from podcast_mcp.models import load_project
 from podcast_mcp.services.document_sync import (
     COMMANDS,
     DocumentSyncService,
@@ -266,3 +267,25 @@ def test_cli_submit_refuses_a_type_with_preview_semantics(tmp_path: Path) -> Non
     assert result.exit_code != 0
     assert "podcast segment insert" in result.output
     assert _journal(path) == []
+
+
+def test_generic_submits_perform_the_edits_the_gui_sends_with_the_same_payloads(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    from test_agent_document import _seed
+
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed(path, sample_wav)
+
+    mcp_document.submit_document_command_tool(
+        path, "SplitAtTime", {"at_time": 2.0, "track_ids": ["host"]}
+    )
+    assert sorted(c.timeline_start for c in load_project(Path(path)).clips) == [0.0, 2.0]
+
+    mcp_document.submit_document_command_tool(path, "AddTrack", {"track_id": "music"})
+    assert {t.id for t in load_project(Path(path)).tracks} == {"host", "music"}
+
+    mcp_document.submit_document_command_tool(path, "RemoveTrack", {"track_id": "music"})
+    assert {t.id for t in load_project(Path(path)).tracks} == {"host"}
+
+    assert [r["type"] for r in _journal(path)] == ["SplitAtTime", "AddTrack", "RemoveTrack"]

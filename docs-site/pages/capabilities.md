@@ -42,9 +42,9 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Nudge playhead forward | session | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — | — |
 | Go to start | session | `navigation.goToStart` | `Home` | — | — | — | — | — | — | — |
 | Go to end | session | `navigation.goToEnd` | `End` | — | — | — | — | — | — | — |
-| Split at playhead | project | `edit.bladeCut` | `Mod+K` | `long-press-empty` | `timeline`, `timeline.createMenu` | `split_clip_tool` | — | — | — | time · none |
+| Split at playhead | project | `edit.bladeCut` | `Mod+K` | `long-press-empty` | `timeline`, `timeline.createMenu` | `split_clip_tool` | `podcast doc submit` | — | — | time · none |
 | Cut selection | project | `edit.delete` | `Backspace` | — | `clipInspector`, `actionBar` | `delete_clips_tool` | `podcast edit delete-clips` | — | — | none · none |
-| Remove track | project | `track.remove` | `Backspace` | — | `trackInspector` | `track_remove_tool` | — | — | — | none · none |
+| Remove track | project | `track.remove` | `Backspace` | — | `trackInspector` | `track_remove_tool` | `podcast doc submit` | — | — | none · none |
 | Split speakers… | project | `track.splitSpeakers` | — (opens Prepare at the track's split prompt, which asks for the speaker count; reached from the track inspector and the command palette) | — | `SourceCard`, `trackInspector` | `speaker_split_tool` | `podcast speaker split` | `podcast-speaker-attribution` | — | none · none |
 | Reorder track | project | `track.reorder` | — (drag headers or move up/down keys) | — | `trackHeader` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | anchor · none |
 | Move track up | project | `track.moveUp` | `ArrowUp` | — | `trackInspector` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
@@ -99,33 +99,33 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | New project… | project | `project.new` | `Mod+N` | — | — | `episode_create` | `podcast episode init` | — | yes | none · none |
 | Open project… | session | `project.open` | — (Mod+O is All projects (project.home); open from the palette or Home) | — | — | — | — | — | yes | none · none |
 | All projects | session | `project.home` | `Mod+O` | — | `projectMenu` | — | — | — | yes | none · none |
-| New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `trackLane`, `editPlusMenu` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
+| New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `trackLane`, `editPlusMenu` | `track_add_empty_tool`, `track_add` | `podcast doc submit` | — | — | none · none |
 | Import audio… | project | `media.import` | `Mod+I` | — | `drop`, `editPlusMenu` | `track_set_media_tool` | — | — | — | none · none |
 | Adjust word timing | project | `transcript.adjustTiming` | — (Native range controls and numeric fields in the word inspector) | — | `transcript.wordbar` | `set_word_timing_tool` | `podcast transcript set-word-timing` | — | — | anchor · none |
 | Edit focused transcript word | project | `transcript.editWordInline` | `F2` | `double-tap` | — | `correct_transcript_tool` | `podcast transcript correct` | — | — | anchor · none |
 | Extend transcript range | view | `transcript.extendRange` | — (Range action buttons are keyboard operable; no industry-standard key) | `long-press-arm-drag` | `rangeActions.words` | — | — | — | — | anchor · look |
-| Ignore / restore transcript words | project | `transcript.ignoreWords` | — (no industry-standard key (#649)) | — | `transcript.ignore`, `transcript.restoreIgnored`, `inspector.word.ignore`, `rangeActions.words` | `set_words_ignored_tool` | — | — | — | anchor · look |
+| Ignore / restore transcript words | project | `transcript.ignoreWords` | — (no industry-standard key (#649)) | — | `transcript.ignore`, `transcript.restoreIgnored`, `inspector.word.ignore`, `rangeActions.words` | `set_words_ignored_tool` | `podcast doc submit` | — | — | anchor · look |
 | Show cut away | view | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | — | `transcript.showCutAway` | — | — | — | — | none · none |
 | Trim clip edge | project | `edit.trimClipEdge` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
 | Move clips | project | `edit.moveClips` | — (Move clip inspector controls or pointer clip-body drag; arrow keys stay playhead nudge) | `long-press-arm-drag` | `timeline.clip.body`, `clipInspector` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
 | Add chapter at playhead | project | `edit.addChapter` | `Shift+C` | `long-press-empty` | `timeline.createMenu`, `editPlusMenu`, `actionBar` | `add_chapter_tool` | `podcast edit add-chapter` | — | yes | none · none |
-| Add envelope point | project | `envelope.addPoint` | — (create menu; Shift+F10 or the Menu key on a lane opens it from the keyboard) | `long-press-empty` | `timeline.createMenu` | `set_envelope` | — | — | — | time · none |
+| Add envelope point | project | `envelope.addPoint` | — (create menu; Shift+F10 or the Menu key on a lane opens it from the keyboard) | `long-press-empty` | `timeline.createMenu` | `set_envelope` | `podcast doc submit` | — | — | time · none |
 | Record here | view | `record.here` | — (not industry-standard; the Create menu and the Action bar verb) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · look |
 | Add comment | view | `comment.draftAt` | `C` | `long-press-empty` | `timeline.createMenu`, `actionBar` | — | — | — | — | time · none |
 | Restore original audio | project | `edit.restoreClipBleed` | — (Select a region in the Auto reduction inspector; no default shortcut) | — | `restoreClipBleed` | `restore_clip_bleed_tool` | `podcast edit restore-clip-bleed` | — | yes | none · none |
 | Roll clip join | project | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `long-press-arm-drag` | `timeline.clip.joinDiamond`, `transcript.editBoundary` | `roll_clip_join_tool` | `podcast edit roll-join` | — | — | time · none |
-| Set clip fade | project | `edit.setClipFade` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.fadeHandle` | `set_clip_fade_tool` | — | — | — | time · none |
+| Set clip fade | project | `edit.setClipFade` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.fadeHandle` | `set_clip_fade_tool` | `podcast doc submit` | — | — | time · none |
 | Set clip join | project | `edit.setClipJoin` | — (inspector select and join glyph popover; no industry-standard key) | — | `inspector.clip.joinMode`, `timeline.join.badge` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
 | Find and replace transcript | project | `transcript.findReplace` | — (toolbar and command palette; no shortcut yet) | — | `transcript.findReplace` | `find_replace_transcript_tool` | `podcast transcript find-replace` | — | yes | none · none |
 | Play range | session | `range.play` | — (Context action with explicit range selection) | — | `actionBar` | — | — | — | — | none · none |
 | Cut selected range | project | `range.cut` | — (Context action with explicit range selection) | — | `actionBar` | `propose_range_cut_tool` | `podcast edit propose-range-cut` | — | — | none · none |
 | Mute selected range | project | `range.mute` | — (Context action with explicit range selection) | — | `actionBar` | `propose_range_mute_tool` | — | — | — | none · none |
-| Fill range with room tone | project | `range.fillRoomTone` | — (Context action with explicit range selection) | — | `actionBar` | `fill_with_room_tone_tool` | — | — | — | none · none |
+| Fill range with room tone | project | `range.fillRoomTone` | — (Context action with explicit range selection) | — | `actionBar` | `fill_with_room_tone_tool` | `podcast doc submit` | — | — | none · none |
 | Move to speaker | project | `range.moveSpeakerLane` | — (Context action with explicit range selection on one split lane) | — | `actionBar` | `speaker_move_lane_span_tool` | `podcast speaker move-lane-span` | `podcast-speaker-attribution` | — | none · none |
 | Comment on range | project | `range.comment` | — (Context action with explicit range selection) | — | `actionBar` | `add_comment_tool` | `podcast comment add` | — | — | none · none |
 | Bounce selected range | project | `range.bounce` | — (Context action with explicit range selection) | — | `actionBar` | `bounce_audio_tool` | `podcast pipeline bounce` | — | — | none · none |
 | Select a range | view | `range.arm` | — (Context action with explicit range selection) | — | `editCorner` | — | — | — | — | none · none |
-| Split | project | `edit.split` | `S` | — | `actionBar` | `split_clip_tool` | — | — | — | time · none |
+| Split | project | `edit.split` | `S` | — | `actionBar` | `split_clip_tool` | `podcast doc submit` | — | — | time · none |
 | Hear | session | `edit.hear` | `Shift+Space` | — | `actionBar` | — | — | — | — | none · none |
 | Hear before | session | `edit.hearBefore` | `A` | — | `actionBar` | — | — | — | — | none · none |
 | Hear after | session | `edit.hearAfter` | `B` | — | `actionBar` | — | — | — | — | none · none |

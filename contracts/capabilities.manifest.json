@@ -343,7 +343,8 @@
         ],
         "touch": [
           "long-press-empty"
-        ]
+        ],
+        "cli": "podcast doc submit"
       },
       "omit": {},
       "tooltip": "Split at the playhead, or Alt-click at the pointer",
@@ -397,7 +398,8 @@
         "keyboard": "Backspace",
         "mcp": [
           "track_remove_tool"
-        ]
+        ],
+        "cli": "podcast doc submit"
       },
       "omit": {},
       "tooltip": "Remove track",
@@ -2123,7 +2125,8 @@
         "mcp": [
           "track_add_empty_tool",
           "track_add"
-        ]
+        ],
+        "cli": "podcast doc submit"
       },
       "omit": {},
       "tooltip": "New track",
@@ -2806,7 +2809,8 @@
         ],
         "mcp": [
           "set_words_ignored_tool"
-        ]
+        ],
+        "cli": "podcast doc submit"
       },
       "omit": {
         "keyboard_reason": "no industry-standard key (#649)"
@@ -2960,7 +2964,8 @@
         ],
         "mcp": [
           "set_envelope"
-        ]
+        ],
+        "cli": "podcast doc submit"
       },
       "omit": {
         "keyboard_reason": "create menu; Shift+F10 or the Menu key on a lane opens it from the keyboard"
@@ -3107,7 +3112,8 @@
         "touch": [
           "long-press-arm-drag",
           "hold-nudge"
-        ]
+        ],
+        "cli": "podcast doc submit"
       },
       "omit": {},
       "presence": {
@@ -3268,7 +3274,8 @@
         ],
         "gui": [
           "actionBar"
-        ]
+        ],
+        "cli": "podcast doc submit"
       },
       "omit": {
         "keyboard_reason": "Context action with explicit range selection"
@@ -3405,7 +3412,8 @@
         "keyboard": "S",
         "mcp": [
           "split_clip_tool"
-        ]
+        ],
+        "cli": "podcast doc submit"
       },
       "omit": {},
       "tooltip": "Split at the playhead, or at both edges of the selected words or range (S)",
