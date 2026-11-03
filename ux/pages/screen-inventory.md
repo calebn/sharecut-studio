@@ -199,6 +199,8 @@ error inline; timeline handles and phone nudges show the same recovery in a toas
 
 A selected word and an applied edit (a cut) open in the Inspector sheet. The word shows its confidence, Suppressed and Ignored state, the Text and End index fix, Suppress, Ignore and Return to automatic, and its timing; the cut shows its facts with Restore or Open History. A share link sees neither the word fix nor its actions.
 
+A selected chapter or social clip opens in the same sheet. A chapter shows **Title** (saved when you leave the field or press Enter; an empty title is refused) and **Time** (drag, arrow keys or type a number; each change saves once), a seek button and **Delete**. A social clip shows its title, track, **Start** and **End** (each saves once; an end that is not after the start is refused), score, approved and review state, **Seek to start** and **Delete**. There is no Apply button. A share link, including an edit share, sees the values read-only and no Delete. A failed save stays in the sheet as an alert.
+
 A selected automatic reduction (from the clip's Inspect automatic audio reduction button or its Timeline overlay) opens in the same sheet: the plan, rendered-audio and saved-choice facts, the regions in the clip, **Restore original audio**, **Refresh regions** and **Undo Restore**. A share link reads that the project host alone can inspect and restore it.
 
 A selected comment with no pending edit behind it opens the same sheet: a Time button that seeks, the author, status and tracks, the comment text, action items, replies, a **Reply** field and **Resolve** (or **Reopen**). A share link without reply permission has no Reply field, and a share link never sees Resolve.
