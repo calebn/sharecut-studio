@@ -155,7 +155,6 @@ class CommandSpec:
 
 GUI_SENT = named("gui/web/src")
 NO_GUI_SENDER = exempt("the GUI sends no such command; agents and batch tools do")
-UNAUDITED = gap("not audited: this type has no GUI sender, so its MCP and CLI twins are unrecorded")
 
 COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
     {
@@ -164,8 +163,16 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=comments.add_comment,
             family="comments",
             gui=GUI_SENT,
-            mcp=named("add_comment_tool"),
-            cli=named("podcast comment add"),
+            mcp=gap(
+                "add_comment_tool has no timeline_spans, so a multi-interval comment anchor has no twin",
+                "add_comment_tool",
+                partial=True,
+            ),
+            cli=gap(
+                "podcast comment add has no timeline_spans, so a multi-interval comment anchor has no twin",
+                "podcast comment add",
+                partial=True,
+            ),
         ),
         "UpdateComment": CommandSpec(
             payload=p.UpdateCommentPayload,
@@ -188,8 +195,8 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=comments.delete_comment,
             family="comments",
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("delete_comment_tool"),
+            cli=named("podcast comment delete"),
         ),
         "AddReply": CommandSpec(
             payload=p.AddReplyPayload,
@@ -212,8 +219,8 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=comments.add_action,
             family="comments",
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("add_comment_action_tool"),
+            cli=named("podcast comment add-action"),
         ),
         "UndoHistory": CommandSpec(
             payload=p.UndoHistoryPayload,
@@ -260,7 +267,11 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=edits.update_pending_edit,
             guest=ReviewRole.COMMENTER,
             gui=GUI_SENT,
-            mcp=named("update_pending_edit_tool"),
+            mcp=gap(
+                "update_pending_edit_tool sends no track_ids and no baseline, so re-laning a pending edit has no twin",
+                "update_pending_edit_tool",
+                partial=True,
+            ),
             cli=gap("Found by this contract: update_pending_edit_tool has no CLI twin"),
         ),
         "RestoreAppliedEdit": CommandSpec(
@@ -308,8 +319,8 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=edits.set_join_mode,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("set_join_mode_tool"),
+            cli=gap("No CLI sets one clip's join-in mode; set-clip-join sets a pair"),
         ),
         "SetClipJoin": CommandSpec(
             payload=p.SetClipJoinPayload,
@@ -326,7 +337,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             gui=GUI_SENT,
             mcp=named("apply_fade_recommendations_tool"),
             cli=gap(
-                "No CLI applies fade recommendations; podcast edit recommend-fades only lists them"
+                "No CLI applies fade recommendations; podcast edit recommend-fades only lists them. The MCP twin applies a caller-supplied list (ApplyFadeRecommendationList), not one call per track"
             ),
         ),
         "ApplyFadeRecommendationList": CommandSpec(
@@ -334,8 +345,8 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=edits.apply_fade_recommendation_list,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("apply_fade_recommendations_tool"),
+            cli=gap("No CLI applies a caller-supplied fade recommendation list"),
         ),
         "SetEffectBypass": CommandSpec(
             payload=p.SetEffectBypassPayload,
@@ -350,48 +361,48 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=edits.add_effect,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("add_effect_tool"),
+            cli=gap("No CLI adds an effect to a track"),
         ),
         "ReconcileTranscript": CommandSpec(
             payload=p.ReconcileTranscriptPayload,
             handler=edits.reconcile_transcript,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("reconcile_transcript_tool"),
+            cli=named("podcast edit reconcile-transcript"),
         ),
         "SuppressBleed": CommandSpec(
             payload=p.SuppressBleedPayload,
             handler=edits.suppress_bleed,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("apply_bleed_suppression_tool"),
+            cli=named("podcast edit suppress-bleed"),
         ),
         "SuppressLowAudibility": CommandSpec(
             payload=p.SuppressLowAudibilityPayload,
             handler=edits.suppress_low_audibility,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("apply_low_audibility_suppression_tool"),
+            cli=named("podcast edit suppress-low-audibility"),
         ),
         "SetBleedAlignmentMode": CommandSpec(
             payload=p.SetBleedAlignmentModePayload,
             handler=edits.set_bleed_alignment_mode,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("set_retained_bleed_alignment_mode_tool"),
+            cli=named("podcast edit bleed-alignment-choice"),
         ),
         "RemoveEffect": CommandSpec(
             payload=p.RemoveEffectPayload,
             handler=edits.remove_effect,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("remove_effect_tool"),
+            cli=gap("No CLI removes an effect from a track"),
         ),
         "ReplaceTranscriptMatches": CommandSpec(
             payload=p.ReplaceTranscriptMatchesPayload,
@@ -417,8 +428,8 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             family="transcript",
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("apply_transcript_cleanup_tool"),
+            cli=named("podcast transcript cleanup-batch"),
         ),
         "VerifyTranscript": CommandSpec(
             payload=p.VerifyTranscriptPayload,
@@ -426,8 +437,8 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             family="transcript",
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("verify_transcript_tool"),
+            cli=gap("No CLI verifies transcript words with corrections"),
         ),
         "CorrectTranscriptPhrase": CommandSpec(
             payload=p.CorrectTranscriptPhrasePayload,
@@ -495,8 +506,16 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=markers.delete_chapter,
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
-            mcp=named("remove_chapter_tool"),
-            cli=named("podcast edit remove-chapter"),
+            mcp=gap(
+                "remove_chapter_tool deletes every chapter with a title, so one of two same title chapters at different times has no twin",
+                "remove_chapter_tool",
+                partial=True,
+            ),
+            cli=gap(
+                "podcast edit remove-chapter deletes every chapter with a title, so one of two same title chapters at different times has no twin",
+                "podcast edit remove-chapter",
+                partial=True,
+            ),
         ),
         "SetFeedField": CommandSpec(
             payload=p.SetFeedFieldPayload,
@@ -539,19 +558,25 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=markers.update_social_clip_details,
             host_only_reason="approving a clip decides what exports, so a share link never retitles or approves one",
             gui=GUI_SENT,
-            mcp=gap("editing a social clip's title and details has no agent twin"),
-            cli=gap("editing a social clip's title and details has no agent twin"),
+            mcp=gap(
+                "approve_social_clips_tool sets approved; retitling and unapproving have no twin",
+                "approve_social_clips_tool",
+                partial=True,
+            ),
+            cli=gap(
+                "podcast clips approve sets approved; retitling and unapproving have no twin",
+                "podcast clips approve",
+                partial=True,
+            ),
         ),
         "DeleteSocialClip": CommandSpec(
             payload=p.DeleteSocialClipPayload,
             handler=markers.delete_social_clip,
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
-            mcp=gap(
-                "no tool deletes a social clip; reject_social_clips_tool changes a proposal's state, not the clip"
-            ),
+            mcp=named("reject_social_clips_tool"),
             cli=gap(
-                "no tool deletes a social clip; reject_social_clips_tool changes a proposal's state, not the clip"
+                "reject_social_clips_tool deletes the clip through ClipService.reject; podcast clips has no reject"
             ),
         ),
         "SetEnvelope": CommandSpec(
@@ -580,40 +605,44 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.COMMENTER,
             editor_applies=False,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=gap(
+                "No MCP tool suggests a pending edit; propose_range_cut_tool and the cut_* tools stage proposals through other commands"
+            ),
+            cli=gap(
+                "No CLI suggests a pending edit; the cut-* commands stage proposals through other commands"
+            ),
         ),
         "StageTimeRangeCut": CommandSpec(
             payload=p.StageTimeRangeCutPayload,
             handler=edits.stage_time_range_cut,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("cut_time_range_tool"),
+            cli=named("podcast edit cut-range"),
         ),
         "StageTextMatchCut": CommandSpec(
             payload=p.StageTextMatchCutPayload,
             handler=edits.stage_text_match_cut,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("cut_text_match_tool"),
+            cli=named("podcast edit cut-text"),
         ),
         "StageUtteranceCut": CommandSpec(
             payload=p.StageUtteranceCutPayload,
             handler=edits.stage_utterance_cut,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("cut_utterance_tool"),
+            cli=named("podcast edit cut-utterance"),
         ),
         "StageWordsCut": CommandSpec(
             payload=p.StageWordsCutPayload,
             handler=edits.stage_words_cut,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("cut_words_tool"),
+            cli=gap("No CLI stages a cut by word-index range"),
         ),
         "SplitAtTime": CommandSpec(
             payload=p.SplitAtTimePayload,
@@ -656,16 +685,16 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=edits.insert_gap,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("insert_gap_tool"),
+            cli=named("podcast edit insert-gap"),
         ),
         "InsertSegment": CommandSpec(
             payload=p.InsertSegmentPayload,
             handler=edits.insert_segment,
             host_only_reason="reads the host's own segment library, which a share link never reaches",
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("segment_insert_tool"),
+            cli=named("podcast segment insert"),
         ),
         "FillRoomTone": CommandSpec(
             payload=p.FillRoomTonePayload,
@@ -680,64 +709,64 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=edits.apply_auto_edits,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("apply_edits"),
+            cli=named("podcast apply-edits"),
         ),
         "ProposeTighten": CommandSpec(
             payload=p.ProposeTightenPayload,
             handler=edits.propose_tighten,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("propose_edits"),
+            cli=named("podcast propose-edits"),
         ),
         "ApplyEditPlan": CommandSpec(
             payload=p.ApplyEditPlanPayload,
             handler=edits.apply_edit_plan,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("apply_edit_plan_tool"),
+            cli=gap("No CLI stages cuts from an edit-plan list"),
         ),
         "ShortenWordGaps": CommandSpec(
             payload=p.ShortenWordGapsPayload,
             handler=edits.shorten_word_gaps,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("shorten_gaps_tool"),
+            cli=named("podcast edit shorten-gaps"),
         ),
         "StripSilence": CommandSpec(
             payload=p.StripSilencePayload,
             handler=edits.strip_silence,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("strip_silence_tool"),
+            cli=named("podcast edit strip-silence"),
         ),
         "FadeJoins": CommandSpec(
             payload=p.FadeJoinsPayload,
             handler=edits.fade_joins,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("fade_joins_tool"),
+            cli=named("podcast edit fade-joins"),
         ),
         "CrossfadeJoins": CommandSpec(
             payload=p.CrossfadeJoinsPayload,
             handler=edits.crossfade_joins,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("crossfade_joins_tool"),
+            cli=named("podcast edit crossfade-joins"),
         ),
         "MoveByText": CommandSpec(
             payload=p.MoveByTextPayload,
             handler=edits.move_by_text,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("move_by_text_tool"),
+            cli=named("podcast edit move"),
         ),
         "MoveClips": CommandSpec(
             payload=p.MoveClipsPayload,
@@ -760,16 +789,16 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=edits.cut_range,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("ripple_delete_tool"),
+            cli=named("podcast edit ripple-delete"),
         ),
         "RippleDeleteText": CommandSpec(
             payload=p.RippleDeleteTextPayload,
             handler=edits.ripple_delete_text,
             guest=ReviewRole.EDITOR,
             gui=NO_GUI_SENDER,
-            mcp=UNAUDITED,
-            cli=UNAUDITED,
+            mcp=named("ripple_delete_text_tool"),
+            cli=named("podcast edit ripple-delete"),
         ),
         "RenameProject": CommandSpec(
             payload=p.RenameProjectPayload,
@@ -816,7 +845,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             handler=episode.add_track,
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
-            mcp=named("track_add", "track_add_empty_tool"),
+            mcp=named("track_add_empty_tool"),
             cli=gap(
                 "No CLI creates an empty track; podcast episode add-track imports media, which is a different edit (daw.track.add)"
             ),
@@ -916,9 +945,9 @@ def apply_command(
 
 
 def edit_surface_commands() -> Mapping[str, Mapping[str, Any]]:
-    """The GUI-sent commands in the shape ``scripts/check_capabilities_manifest.py`` checks."""
+    """Every command's MCP and CLI decisions in the shape ``scripts/check_capabilities_manifest.py`` checks."""
     view: dict[str, dict[str, Any]] = {}
-    for command_type in sorted(gui_named_types()):
+    for command_type in sorted(COMMANDS):
         spec = COMMANDS[command_type]
         entry: dict[str, Any] = {"mcp": [], "cli": []}
         for surface in ("mcp", "cli"):

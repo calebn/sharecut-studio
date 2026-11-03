@@ -336,28 +336,38 @@ def test_row_with_an_approved_agent_reason_is_not_asked_for_twins() -> None:
 
 
 PINNED_GAP_TYPES = {
+    "AddComment",
+    "AddEffect",
     "AddSocialClip",
     "AddTrack",
+    "ApplyEditPlan",
+    "ApplyFadeRecommendationList",
     "ApplyFadeRecommendations",
+    "DeleteChapter",
     "DeleteSocialClip",
     "DuplicateSegment",
     "EditSelectedRange",
     "FillRoomTone",
+    "RemoveEffect",
     "RemoveTrack",
     "RenameProject",
     "RestoreAppliedEdit",
     "SetClipFade",
     "SetEffectBypass",
     "SetEnvelope",
+    "SetJoinMode",
     "SetRecordSessionName",
     "SetTrackMedia",
     "SetTrackMeta",
     "SetTranscriptWordsIgnored",
     "SplitAtTime",
+    "StageWordsCut",
+    "SuggestPendingEdit",
     "UpdateChapter",
     "UpdatePendingEdit",
     "UpdateSocialClip",
     "UpdateSocialClipDetails",
+    "VerifyTranscript",
 }
 PINNED_ROWS_WITHOUT_CLI = {
     "daw.edit.bladeCut",
@@ -414,13 +424,13 @@ def test_edit_surface_gaps_and_exempts_are_pinned() -> None:
 def test_new_gap_exempt_or_listing_fails_the_pin() -> None:
     data = _edit_surface_data()
     data["commands"]["SetTrackFader"] = {"mcp": [], "cli": [], "gap": {"reason": "later"}}
-    data["commands"]["DeleteChapter"] = {"exempt": {"reason": "session-only"}}
+    data["commands"]["AddChapter"] = {"exempt": {"reason": "session-only"}}
     data["manifest_rows_without_cli"].append("daw.new.row")
     data["manifest_rows_without_mcp"].append("daw.other.row")
     errors = _pin_errors(data)
     assert len(errors) == 4
     assert all("owner approval (Caleb)" in e for e in errors)
-    assert any(e.startswith("exempt DeleteChapter") for e in errors)
+    assert any(e.startswith("exempt AddChapter") for e in errors)
 
 
 def test_closed_gap_must_leave_the_pin() -> None:

@@ -22,7 +22,6 @@ from podcast_mcp.services.document_sync.registry import (
     COMMANDS,
     GUI_SENT,
     NO_GUI_SENDER,
-    UNAUDITED,
     CommandSpec,
     Exempt,
     Gap,
@@ -258,39 +257,6 @@ def test_role_sets_are_exactly_the_snapshot() -> None:
     )
 
 
-UNAUDITED_TYPES = [
-    "AddAction",
-    "AddEffect",
-    "ApplyAutoEdits",
-    "ApplyEditPlan",
-    "ApplyFadeRecommendationList",
-    "ApplyTranscriptCleanup",
-    "CrossfadeJoins",
-    "CutRange",
-    "DeleteComment",
-    "FadeJoins",
-    "InsertGap",
-    "InsertSegment",
-    "MoveByText",
-    "ProposeTighten",
-    "ReconcileTranscript",
-    "RemoveEffect",
-    "RippleDeleteText",
-    "SetBleedAlignmentMode",
-    "SetJoinMode",
-    "ShortenWordGaps",
-    "StageTextMatchCut",
-    "StageTimeRangeCut",
-    "StageUtteranceCut",
-    "StageWordsCut",
-    "StripSilence",
-    "SuggestPendingEdit",
-    "SuppressBleed",
-    "SuppressLowAudibility",
-    "VerifyTranscript",
-]
-
-
 def _checker():
     return load_script("check_capabilities_manifest")
 
@@ -412,22 +378,118 @@ def test_the_registry_check_is_two_sided() -> None:
     ]
 
 
-def test_types_the_gui_never_sends_are_unaudited_for_agents_and_that_list_only_shrinks() -> None:
-    assert len(UNAUDITED_TYPES) <= 29, (
-        "UNAUDITED_TYPES may only shrink; audit a type, do not add one"
-    )
-    assert sorted(t for t, s in COMMANDS.items() if s.gui is NO_GUI_SENDER) == UNAUDITED_TYPES
-    assert sorted(t for t, s in COMMANDS.items() if s.mcp is UNAUDITED) == UNAUDITED_TYPES
-    assert sorted(t for t, s in COMMANDS.items() if s.cli is UNAUDITED) == UNAUDITED_TYPES
+AUDITED_TWINS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "AddAction": (("add_comment_action_tool",), ("podcast comment add-action",)),
+    "DeleteComment": (("delete_comment_tool",), ("podcast comment delete",)),
+    "AddEffect": (("add_effect_tool",), ()),
+    "RemoveEffect": (("remove_effect_tool",), ()),
+    "ApplyAutoEdits": (("apply_edits",), ("podcast apply-edits",)),
+    "ProposeTighten": (("propose_edits",), ("podcast propose-edits",)),
+    "ApplyEditPlan": (("apply_edit_plan_tool",), ()),
+    "ApplyFadeRecommendationList": (("apply_fade_recommendations_tool",), ()),
+    "ApplyTranscriptCleanup": (
+        ("apply_transcript_cleanup_tool",),
+        ("podcast transcript cleanup-batch",),
+    ),
+    "VerifyTranscript": (("verify_transcript_tool",), ()),
+    "ReconcileTranscript": (
+        ("reconcile_transcript_tool",),
+        ("podcast edit reconcile-transcript",),
+    ),
+    "SuppressBleed": (("apply_bleed_suppression_tool",), ("podcast edit suppress-bleed",)),
+    "SuppressLowAudibility": (
+        ("apply_low_audibility_suppression_tool",),
+        ("podcast edit suppress-low-audibility",),
+    ),
+    "SetBleedAlignmentMode": (
+        ("set_retained_bleed_alignment_mode_tool",),
+        ("podcast edit bleed-alignment-choice",),
+    ),
+    "CutRange": (("ripple_delete_tool",), ("podcast edit ripple-delete",)),
+    "RippleDeleteText": (("ripple_delete_text_tool",), ("podcast edit ripple-delete",)),
+    "StageTimeRangeCut": (("cut_time_range_tool",), ("podcast edit cut-range",)),
+    "StageTextMatchCut": (("cut_text_match_tool",), ("podcast edit cut-text",)),
+    "StageUtteranceCut": (("cut_utterance_tool",), ("podcast edit cut-utterance",)),
+    "StageWordsCut": (("cut_words_tool",), ()),
+    "StripSilence": (("strip_silence_tool",), ("podcast edit strip-silence",)),
+    "ShortenWordGaps": (("shorten_gaps_tool",), ("podcast edit shorten-gaps",)),
+    "FadeJoins": (("fade_joins_tool",), ("podcast edit fade-joins",)),
+    "CrossfadeJoins": (("crossfade_joins_tool",), ("podcast edit crossfade-joins",)),
+    "SetJoinMode": (("set_join_mode_tool",), ()),
+    "InsertGap": (("insert_gap_tool",), ("podcast edit insert-gap",)),
+    "InsertSegment": (("segment_insert_tool",), ("podcast segment insert",)),
+    "MoveByText": (("move_by_text_tool",), ("podcast edit move",)),
+    "SuggestPendingEdit": ((), ()),
+}
 
 
-def test_the_edit_surface_view_lists_exactly_the_gui_sent_types() -> None:
+@pytest.mark.parametrize("command_type", sorted(AUDITED_TWINS))
+def test_an_audited_type_records_the_twins_that_submit_it(command_type: str) -> None:
+    mcp, cli = AUDITED_TWINS[command_type]
+    spec = COMMANDS[command_type]
+    assert spec.gui is NO_GUI_SENDER
+    for decision, names in ((spec.mcp, mcp), (spec.cli, cli)):
+        if names:
+            assert decision == named(*names)
+        else:
+            assert isinstance(decision, Gap) and decision.reason and not decision.names
+
+
+def test_no_audit_placeholder_is_left() -> None:
+    assert not hasattr(registry, "UNAUDITED")
+    for command_type, spec in COMMANDS.items():
+        for decision in (spec.gui, spec.mcp, spec.cli):
+            if isinstance(decision, Gap):
+                assert "not audited" not in decision.reason, command_type
+
+
+def test_a_social_clip_delete_has_an_mcp_twin_and_only_the_cli_is_missing() -> None:
+    spec = COMMANDS["DeleteSocialClip"]
+    assert spec.mcp == named("reject_social_clips_tool")
+    assert isinstance(spec.cli, Gap) and "podcast clips has no reject" in spec.cli.reason
+
+
+def test_social_clip_details_are_a_partial_gap_covered_by_approve() -> None:
+    spec = COMMANDS["UpdateSocialClipDetails"]
+    for decision, twin in (
+        (spec.mcp, "approve_social_clips_tool"),
+        (spec.cli, "podcast clips approve"),
+    ):
+        assert isinstance(decision, Gap) and decision.partial and decision.names == (twin,)
+
+
+@pytest.mark.parametrize(
+    ("command_type", "variant"),
+    [
+        ("AddComment", "timeline_spans"),
+        ("DeleteChapter", "same title"),
+        ("UpdatePendingEdit", "track_ids"),
+    ],
+)
+def test_a_variant_the_named_twins_cannot_express_is_a_partial_gap(
+    command_type: str, variant: str
+) -> None:
+    spec = COMMANDS[command_type]
+    for decision in (spec.mcp, spec.cli):
+        if isinstance(decision, Gap) and decision.partial:
+            assert variant in decision.reason
+            break
+    else:
+        pytest.fail(f"{command_type} records no partial gap for {variant}")
+
+
+def test_add_track_names_only_the_tool_that_adds_an_empty_track() -> None:
+    assert COMMANDS["AddTrack"].mcp == named("track_add_empty_tool")
+
+
+def test_the_edit_surface_view_lists_every_type_so_the_checker_resolves_all_names() -> None:
     view = edit_surface_commands()
-    assert set(view) == set(COMMANDS) - set(UNAUDITED_TYPES)
+    assert set(view) == set(COMMANDS)
     assert view["AddTrack"]["cli"] == []
     assert view["AddTrack"]["gap"]["reason"].startswith("No CLI creates an empty track")
     assert view["EditSelectedRange"]["gap"]["partial"] is True
     assert view["EditSelectedRange"]["cli"] == ["podcast edit propose-range-cut"]
+    assert view["DeleteComment"]["mcp"] == ["delete_comment_tool"]
 
 
 def test_an_unknown_command_type_is_refused_by_dispatch_and_validation(minimal_project) -> None:
