@@ -470,7 +470,7 @@ Podcast MCP treats **all editable project state** as undoable unless explicitly 
    keep per-step canonical commits for pipeline crash resume. The project store skips
    unchanged mirror writes and trims old undo history toward 400 snapshots without
    removing redo entries.
-5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist. Individual Restore only supports ordinary source MUTE archives. Clip removals and exact ranges return the `local_restore_requires_history` conflict before history starts. Whole-action History Undo also undoes other edits in the action and may require undoing later actions first. Restore plans every id (including overlap and presence checks) before history or subtraction. Do not recreate recordings from archive clocks or perform a hidden Undo.
+5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist. Individual Restore supports records with a typed `inverse`: ordinary source MUTE archives and auto-applied ripple cuts (`ReinsertClips`, conflicts as data with `blocked_by`). Trims, moves, `ripple_delete_clips` and exact ranges return the `local_restore_requires_history` conflict before history starts. Whole-action History Undo also undoes other edits in the action and may require undoing later actions first. Restore plans every id (including overlap and presence checks) before history or subtraction. Do not recreate recordings from archive clocks or perform a hidden Undo.
 
 GUI clip moves return the entry from their own command reply as
 `HistoryEntryId | null`. Pass that value to `announceStatus` for nearby Undo.
