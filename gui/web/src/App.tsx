@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { loadReviewBootstrap } from "./api";
 import { ApiError, errorMessage } from "./utils/apiError";
 import "./styles/daw.css";
@@ -72,6 +72,22 @@ function AppInner() {
     Boolean(reviewToken),
   );
 
+  const coverRef = useRef<HTMLElement>(null);
+  const coverKind = error?.cover;
+
+  useEffect(() => {
+    if (coverKind === "offline") {
+      const timer = window.setTimeout(() => setAttempt((n) => n + 1), 30_000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [coverKind, attempt]);
+
+  useEffect(() => {
+    if (coverKind) {
+      coverRef.current?.focus();
+    }
+  }, [coverKind]);
+
   useEffect(() => {
     if (!featuresReady) {
       return;
@@ -136,6 +152,9 @@ function AppInner() {
             return;
           }
           const cached = await loadOfflineSnapshot(reviewToken);
+          if (cancelled) {
+            return;
+          }
           const cachedProject = cached?.project as ProjectView | undefined;
           if (cachedProject && typeof cachedProject === "object") {
             setShareKey(shareProjectKey(reviewToken));
@@ -146,7 +165,12 @@ function AppInner() {
             setError(null);
             return;
           }
-          const unreachable = !(e instanceof ApiError) || e.status === null;
+          const unreachable =
+            !(e instanceof ApiError) ||
+            e.status === null ||
+            e.status === 502 ||
+            e.status === 503 ||
+            e.status === 504;
           setError({
             message: errorMessage(e),
             cover: unreachable ? "offline" : "failed",
@@ -178,7 +202,7 @@ function AppInner() {
   }
   if (error?.cover === "bad-link") {
     return (
-      <main>
+      <main ref={coverRef} tabIndex={-1}>
         <Cover size="page" glyph="octagon-alert" title={error.message}>
           {error.hint}
         </Cover>
@@ -188,16 +212,19 @@ function AppInner() {
   if (error?.cover === "offline" || error?.cover === "failed") {
     const offline = error.cover === "offline";
     return (
-      <main>
+      <main ref={coverRef} tabIndex={-1}>
         <Cover
           size="page"
           glyph={offline ? "cloud-off" : "triangle-alert"}
-          title={offline ? "The host is offline" : "This link did not load"}
-          primary={{ label: "Retry", onClick: () => setAttempt((n) => n + 1) }}
+          title={
+            offline ? "The host's computer is asleep" : "This link did not load"
+          }
+          primary={{
+            label: offline ? "Try now" : "Retry",
+            onClick: () => setAttempt((n) => n + 1),
+          }}
         >
-          {offline
-            ? "The host's computer may be asleep or offline. Try again in a moment."
-            : error.message}
+          {offline ? "This page tries again every 30 seconds." : error.message}
         </Cover>
       </main>
     );

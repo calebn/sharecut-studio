@@ -443,7 +443,7 @@ flowchart LR
 | Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Stages gated by role (a Commenter link is Review alone). Mode **banner** at top. |
 | Any capability set without `view` (API only, no role mints one) | **Cover** | "This link does not open the project." with "Ask the person who shared it for a new link." beneath it. |
 
-A dead, revoked or no-`view` link, and a host that cannot be reached with no saved copy, each show a full-page cover instead of the studio: the link covers say what is wrong and "Ask the host for a new link."; "The host is offline" says the host's computer may be asleep or offline and offers **Retry**. When the host is unreachable but this browser holds a saved copy, the studio opens read-only under a notice: "The host is offline. You are viewing a saved copy, so it is read-only."
+A dead, revoked or no-`view` link, and a host that cannot be reached with no saved copy, each show a full-page cover instead of the studio: the link covers say what is wrong and "Ask the host for a new link."; "The host's computer is asleep" (a down host, or a 502, 503 or 504 from the relay) says "This page tries again every 30 seconds." and offers **Try now**; any other load failure, such as a 429 or 500, shows "This link did not load" with **Retry**. The cover takes focus when it appears. When the host cannot be reached but this browser holds a saved copy, the studio opens read-only under a notice: "Showing a saved copy because the host can't be reached. It is read-only."
 
 Step flows: [Guest journeys](#/journeys).
 

@@ -22,8 +22,8 @@ function mount(shareCapabilities: string[] | null) {
 describe("saved copy notice", () => {
   it("says a guest without capabilities is viewing a read-only saved copy", () => {
     mount(null);
-    expect(screen.getByText(/You are viewing a saved copy/)).toHaveTextContent(
-      "The host is offline.",
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Showing a saved copy because the host can't be reached. It is read-only.",
     );
   });
 
