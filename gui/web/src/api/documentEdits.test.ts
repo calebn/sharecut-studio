@@ -66,6 +66,18 @@ describe("restoreAppliedEdit", () => {
       "Track gone.",
     );
   });
+
+  it("throws a conflict a guest reply carries only at the top level", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
+      command: { type: "RestoreAppliedEdit" },
+      restore_conflicts: [
+        { code: "overlapped_by_later", message: "A later mute overlaps." },
+      ],
+    });
+    await expect(restoreAppliedEdit("/tmp/ep", "alog_1")).rejects.toThrow(
+      "A later mute overlaps.",
+    );
+  });
 });
 
 describe("correctTranscriptWord", () => {

@@ -2245,7 +2245,7 @@
         "cli": [
           "podcast edit",
           "podcast edit applied",
-          "podcast edit restore-edit --dry-run"
+          "podcast edit restore-edit"
         ],
         "skill": "podcast-edit-natural-language"
       },

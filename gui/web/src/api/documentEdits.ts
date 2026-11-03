@@ -401,11 +401,18 @@ export async function restoreAppliedEdit(
     DocumentCommand.RestoreAppliedEdit,
     { ids: [id], dry_run: false },
   );
+  // A guest's reply drops the command payload, so the server also sends the
+  // conflicts at the top level.
   const command = reply.command;
   const payload = isSuggestionRecord(command) ? command.payload : null;
   const result = isSuggestionRecord(payload) ? payload.result : null;
-  if (isSuggestionRecord(result) && result.status === "conflict") {
-    const [first] = Array.isArray(result.conflicts) ? result.conflicts : [];
+  const conflicts = Array.isArray(reply.restore_conflicts)
+    ? reply.restore_conflicts
+    : isSuggestionRecord(result) && result.status === "conflict"
+      ? result.conflicts
+      : undefined;
+  if (conflicts !== undefined) {
+    const [first] = Array.isArray(conflicts) ? conflicts : [];
     throw new Error(
       isSuggestionRecord(first) && typeof first.message === "string"
         ? first.message

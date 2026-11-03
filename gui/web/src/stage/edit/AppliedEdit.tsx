@@ -26,12 +26,18 @@ export function AppliedEdit({ rec }: { rec: AppliedEditRecord }) {
       setSelection: s.setSelection,
     }),
   );
-  const { busy, error, run } = useProjectMutation();
+  const { busy, error, run, refresh } = useProjectMutation();
   const mayRestore = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const canRestore = mayRestore && rec.restore.state === "ready";
   const restore = () =>
     run(async () => {
-      await restoreAppliedEdit(projectPath, rec.id);
+      try {
+        await restoreAppliedEdit(projectPath, rec.id);
+      } catch (e) {
+        // The server's view of this record moved; re-project so Restore is not stale.
+        await refresh().catch(() => undefined);
+        throw e;
+      }
       const next = useDawStore.getState().project;
       if (!next?.applied_edits.records.some((r) => r.id === rec.id))
         setSelection(null);

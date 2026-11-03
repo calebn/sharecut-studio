@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { restoreAppliedEdit } from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { refreshDocumentProject } from "../../document/applyDocumentUpdate";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
@@ -14,6 +15,9 @@ import {
 import { AppliedEdit } from "./AppliedEdit";
 import { SectionsBody } from "./SectionsBody";
 
+vi.mock("../../document/applyDocumentUpdate", () => ({
+  refreshDocumentProject: vi.fn(async () => ({})),
+}));
 vi.mock("../../api", () => ({
   restoreAppliedEdit: vi.fn(async () => undefined),
 }));
@@ -172,6 +176,17 @@ describe("applied edit sheet content", () => {
       kind: "applied",
       id: "edit-1",
     });
+  });
+
+  it("re-reads the project after a restore conflict so a stale ready button does not stay", async () => {
+    vi.mocked(restoreAppliedEdit).mockRejectedValueOnce(new Error("Blocked."));
+    const user = userEvent.setup();
+    render(
+      <AppliedEdit rec={appliedEditRecord({ restore: { state: "ready" } })} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Blocked.");
+    expect(refreshDocumentProject).toHaveBeenCalledWith("/tmp/p.json");
   });
 
   it("builds the sheet content for the selected record and says when it is gone", () => {

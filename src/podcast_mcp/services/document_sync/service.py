@@ -213,15 +213,26 @@ def _stored_asks(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def dry_run_result(ws: ProjectWorkspace, command: DocumentCommand) -> dict[str, Any] | None:
-    """What ``command`` would return when it only plans, or None when it is a real edit.
+    """What ``command`` returns without changing anything, or None when it is a real edit.
 
-    Reads the project and writes nothing, so a dry run leaves no journal row.
+    A dry run, and a Restore that plans to a conflict, read the project and write nothing,
+    so neither leaves a journal row or advances ``server_seq``.
     """
-    if command.type == "RestoreAppliedEdit" and command.payload.get("dry_run"):
+    if command.type == "RestoreAppliedEdit":
         from podcast_mcp.services.document import EditService
 
-        return EditService(ws).revert_applied(command.payload["ids"], dry_run=True)
+        planned = EditService(ws).revert_applied(command.payload["ids"], dry_run=True)
+        if command.payload.get("dry_run") or planned["status"] == "conflict":
+            return planned
     return None
+
+
+def _restore_conflicts(command: DocumentCommand, result: dict[str, Any]) -> dict[str, Any]:
+    """The conflicts of a refused Restore at the top of the reply, which a guest's
+    sanitized ``command`` no longer carries."""
+    if command.type == "RestoreAppliedEdit" and result.get("status") == "conflict":
+        return {"restore_conflicts": result["conflicts"]}
+    return {}
 
 
 def _journal_server_seq(store: SyncStore) -> int:
@@ -603,10 +614,9 @@ class DocumentSyncService:
         planned = dry_run_result(self.ws, command)
         if planned is not None:
             seq = _journal_server_seq(self.store)
-            return {
+            reply: dict[str, Any] = {
                 "ok": True,
                 "type": "Applied",
-                "dry_run": True,
                 "command": {
                     "command_id": command.command_id,
                     "client_id": command.client_id,
@@ -617,7 +627,15 @@ class DocumentSyncService:
                     "server_seq": seq,
                 },
                 "server_seq": seq,
+                **_restore_conflicts(command, planned),
             }
+            if command.payload.get("dry_run"):
+                reply["dry_run"] = True
+            if audience == "guest":
+                from podcast_mcp.services.collaboration import sanitize_guest_document_event
+
+                return sanitize_guest_document_event(reply)
+            return reply
         with self._journal_write_lock() as store:
             # The file this command applies on top of, after transaction() adopted any
             # outside write; clients chain it to the last file they received (#657).
@@ -711,6 +729,7 @@ class DocumentSyncService:
         # guest) gets the confirmation to show, beside the sanitized event.
         confirmation = result_payload.get("needs_confirmation")
         asks = {"needs_confirmation": confirmation} if confirmation is not None else {}
+        asks.update(_restore_conflicts(command, result_payload))
         # The entry this command left at the head, read under the same lock as the apply:
         # a toast offers Undo for exactly this change, and the client's next own history
         # move expects it. Null when history did not move. The id is opaque, so guests

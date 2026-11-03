@@ -329,3 +329,44 @@ def test_history_only_record_is_conflict_data_on_every_surface(tmp_path, surface
     assert (_disk_and_history(ws), _post_state(ws)) == before
     if dry_run:
         assert len(_journal_rows(ws)) == rows
+
+
+def _guest_submit(ws, ids, *, dry_run):
+    command = DocumentCommand(
+        type="RestoreAppliedEdit",
+        payload={"ids": ids, "dry_run": dry_run},
+        client_id="guest",
+        client_seq=None,
+        role="guest",
+    )
+    return DocumentSyncService.open(ws.path).submit(
+        command, capabilities=capabilities_for_role("editor"), audience="guest"
+    )
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_guest_reply_hides_command_payload_and_still_reports_the_conflict(tmp_path, dry_run):
+    ws = _ripple_workspace(tmp_path)
+    record_id = ws.project.editorial.edit_log[0].id
+    reply = _guest_submit(ws, [record_id], dry_run=dry_run)
+    assert reply["command"] == {"type": "RestoreAppliedEdit"}
+    assert [c["code"] for c in reply["restore_conflicts"]] == ["local_restore_requires_history"]
+
+
+def test_guest_dry_run_plan_reply_hides_command_payload(tmp_path):
+    ws = _mute_workspace(tmp_path)
+    reply = _guest_submit(ws, [ws.project.editorial.edit_log[0].id], dry_run=True)
+    assert reply["command"] == {"type": "RestoreAppliedEdit"}
+    assert "restore_conflicts" not in reply
+
+
+@pytest.mark.parametrize("surface", SURFACES)
+def test_conflict_leaves_no_journal_row_and_no_server_seq(tmp_path, surface):
+    ws = _ripple_workspace(tmp_path)
+    record_id = ws.project.editorial.edit_log[0].id
+    rows = len(_journal_rows(ws))
+    before = (_disk_and_history(ws), _post_state(ws))
+    result = _restore(surface, ws, [record_id], cli_exit=2)
+    assert result["status"] == "conflict"
+    assert len(_journal_rows(ws)) == rows
+    assert (_disk_and_history(ws), _post_state(ws)) == before
