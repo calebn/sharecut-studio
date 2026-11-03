@@ -4,7 +4,13 @@ import { expect, fn, screen, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
 import { ClipsRow } from "./ClipsRow";
 import { CLIPS, PEAKS, TOTAL, WORDS } from "./deliverFixture";
-import { approveClip, type Clip, removeClip, trimClip } from "./deliverLogic";
+import {
+  approveClip,
+  type Clip,
+  removeClip,
+  trimClip,
+  unapproveClip,
+} from "./deliverLogic";
 
 function Live(props: React.ComponentProps<typeof ClipsRow>) {
   const [clips, setClips] = useState<readonly Clip[]>(props.clips);
@@ -13,6 +19,7 @@ function Live(props: React.ComponentProps<typeof ClipsRow>) {
       {...props}
       clips={clips}
       onApprove={(id) => setClips(approveClip(clips, id))}
+      onUnapprove={(id) => setClips(unapproveClip(clips, id))}
       onRemove={(id) => setClips(removeClip(clips, id))}
       onTrim={(id, edge, at) =>
         setClips(trimClip(clips, id, edge, at, props.total))
@@ -146,6 +153,23 @@ export const Approved: Story = {
     const view = within(canvasElement);
     await expect(view.getAllByText("Approved")).toHaveLength(3);
     await expect(view.queryByRole("button", { name: /^Approve/ })).toBeNull();
+    await expect(
+      view.getAllByRole("button", { name: /^Unapprove / }),
+    ).toHaveLength(3);
+  },
+};
+
+export const UnapproveClip: Story = {
+  args: { clips: CLIPS.map((clip) => ({ ...clip, approved: true })) },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await userEvent.click(
+      view.getAllByRole("button", { name: /^Unapprove / })[0] as HTMLElement,
+    );
+    await expect(view.getAllByText("Approved")).toHaveLength(2);
+    await expect(
+      view.getAllByRole("button", { name: /^Approve / }),
+    ).toHaveLength(1);
   },
 };
 

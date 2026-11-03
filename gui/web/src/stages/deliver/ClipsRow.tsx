@@ -40,6 +40,8 @@ type Props = {
   onTrim: (id: string, edge: "start" | "end", at: number) => void;
   onPlay: (id: string) => void;
   onApprove: (id: string) => void;
+  /** Puts an approved clip back to unapproved. Only offered while `editable`. */
+  onUnapprove?: (id: string) => void;
   onRemove: (id: string) => void;
   onOpenInEdit: (id: string) => void;
   onFind: () => void;
@@ -115,6 +117,7 @@ export function ClipsRow({
   onTrim,
   onPlay,
   onApprove,
+  onUnapprove,
   onRemove,
   onOpenInEdit,
   onFind,
@@ -253,14 +256,26 @@ export function ClipsRow({
                 </div>
                 <div className="dv-clip-actions">
                   {clip.approved ? (
-                    <span
-                      className="dv-clip-approved"
-                      tabIndex={-1}
-                      data-focus-key={`clip:${clip.id}:approve`}
-                    >
-                      <SystemIcon name={iconOf("approve")} size={14} />
-                      Approved
-                    </span>
+                    <>
+                      <span
+                        className="dv-clip-approved"
+                        tabIndex={-1}
+                        data-focus-key={`clip:${clip.id}:approve`}
+                      >
+                        <SystemIcon name={iconOf("approve")} size={14} />
+                        Approved
+                      </span>
+                      {editable && onUnapprove ? (
+                        <Button
+                          data-focus-key={`clip:${clip.id}:unapprove`}
+                          data-focus-then={`clip:${clip.id}:approve`}
+                          aria-label={`Unapprove ${name}`}
+                          onClick={() => onUnapprove(clip.id)}
+                        >
+                          Unapprove
+                        </Button>
+                      ) : null}
+                    </>
                   ) : editable ? (
                     <Button
                       data-focus-key={`clip:${clip.id}:approve`}

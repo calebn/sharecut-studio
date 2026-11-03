@@ -40,6 +40,34 @@ describe("ClipsRow editable", () => {
   });
 });
 
+describe("ClipsRow Unapprove", () => {
+  const approved = CLIPS.map((c) => ({ ...c, approved: true }));
+
+  it("is offered on an approved clip when editable and reports the id", async () => {
+    const onUnapprove = vi.fn();
+    renderRow({ clips: approved, onUnapprove });
+    const buttons = screen.getAllByRole("button", { name: /^Unapprove / });
+    expect(buttons).toHaveLength(approved.length);
+    await userEvent.click(buttons[0] as HTMLElement);
+    expect(onUnapprove).toHaveBeenCalledWith(approved[0]?.id);
+  });
+
+  it("is left out when not editable", () => {
+    renderRow({ clips: approved, onUnapprove: vi.fn(), editable: false });
+    expect(screen.queryAllByRole("button", { name: /^Unapprove / })).toEqual(
+      [],
+    );
+  });
+
+  it("is left out on a clip that is not approved", () => {
+    const pending = CLIPS.map((c) => ({ ...c, approved: false }));
+    renderRow({ clips: pending, onUnapprove: vi.fn() });
+    expect(screen.queryAllByRole("button", { name: /^Unapprove / })).toEqual(
+      [],
+    );
+  });
+});
+
 describe("ClipsRow commitTitles", () => {
   it("caps a title at 200 characters", () => {
     renderRow({ commitTitles: true });
