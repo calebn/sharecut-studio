@@ -269,7 +269,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             guest=ReviewRole.EDITOR,
             gui=GUI_SENT,
             mcp=named("revert_applied_edit_tool"),
-            cli=gap("revert_applied_edit_tool has no CLI twin"),
+            cli=named("podcast edit restore-edit"),
         ),
         "RestoreClipBleed": CommandSpec(
             payload=p.RestoreClipBleedPayload,

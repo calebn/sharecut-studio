@@ -70,6 +70,56 @@ def restore_clip_bleed_cmd(
     typer.echo(json.dumps(host_command_result(reply), indent=2))
 
 
+@edit_app.command("applied")
+def applied_edits_cmd(
+    project: Path = typer.Option(..., "--project"),
+    track: str | None = typer.Option(None, "--track"),
+    as_json: bool = typer.Option(False, "--json", help="Emit the records as JSON"),
+) -> None:
+    """List applied edits with the server's Restore state for each."""
+    listing = EditService(ProjectWorkspace.open(project)).list_applied_edits(track_id=track)
+    if as_json:
+        typer.echo(json.dumps(listing, indent=2, default=str))
+        return
+    for record in listing["records"]:
+        typer.echo(f"{record['id']}\t{record['operation']}\t{record['restore']['state']}")
+
+
+@edit_app.command("restore-edit")
+def restore_edit_cmd(
+    project: Path = typer.Option(..., "--project"),
+    ids: list[str] = typer.Option(..., "--id", help="Applied edit id. Repeat for several."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Plan the Restore and write nothing."),
+    as_json: bool = typer.Option(False, "--json", help="Emit the RestoreResult as JSON"),
+    command_id: str | None = typer.Option(
+        None, "--command-id", help="Reuse this ID to retry the same submitted Restore."
+    ),
+) -> None:
+    """Restore applied edits as one History step. Exit 0 ok, 2 conflict, 3 forbidden."""
+    from podcast_mcp.services.document_sync import host_command_result, submit_host_document_command
+
+    try:
+        reply = submit_host_document_command(
+            project,
+            "RestoreAppliedEdit",
+            {"ids": ids, "dry_run": dry_run},
+            client_id="cli:host",
+            command_id=command_id,
+        )
+    except PermissionError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(3) from exc
+    result = host_command_result(reply)
+    if as_json:
+        typer.echo(json.dumps(result, indent=2))
+    else:
+        typer.echo(f"{result['status']}: {', '.join(ids)}")
+        for conflict in result["conflicts"]:
+            typer.echo(f"  {conflict['code']}: {conflict['message']}", err=True)
+    if result["status"] == "conflict":
+        raise typer.Exit(2)
+
+
 def propose_edits_cmd(
     project: Path = typer.Option(..., "--project"),
     edit_mode: str | None = typer.Option(
