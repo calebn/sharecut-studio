@@ -166,7 +166,6 @@ class CommandSpec:
 
 GENERIC_MCP = "submit_document_command_tool"
 GENERIC_CLI = "podcast doc submit"
-"""The generic surfaces: any type with no ``generic_refusal`` is reachable through them."""
 
 GUI_SENT = named("gui/web/src")
 NO_GUI_SENDER = exempt("the GUI sends no such command; agents and batch tools do")
