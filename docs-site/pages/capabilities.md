@@ -99,7 +99,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | New project… | project | `project.new` | `Mod+N` | — | — | `episode_create` | `podcast episode init` | — | yes | none · none |
 | Open project… | session | `project.open` | — (Mod+O is All projects (project.home); open from the palette or Home) | — | — | — | — | — | yes | none · none |
 | All projects | session | `project.home` | `Mod+O` | — | `projectMenu` | — | — | — | yes | none · none |
-| New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `trackLane`, `editPlusMenu` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
+| New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `trackLane`, `editPlusMenu` | `track_add_empty_tool`, `track_add` | `podcast episode add-track` | — | — | none · none |
 | Import audio… | project | `media.import` | `Mod+I` | — | `drop`, `editPlusMenu` | `track_set_media_tool` | — | — | — | none · none |
 | Adjust word timing | project | `transcript.adjustTiming` | — (Native range controls and numeric fields in the word inspector) | — | `transcript.wordbar` | `set_word_timing_tool` | `podcast transcript set-word-timing` | — | — | anchor · none |
 | Edit focused transcript word | project | `transcript.editWordInline` | `F2` | `double-tap` | — | `correct_transcript_tool` | `podcast transcript correct` | — | — | anchor · none |
@@ -112,7 +112,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Add envelope point | project | `envelope.addPoint` | — (create menu; Shift+F10 or the Menu key on a lane opens it from the keyboard) | `long-press-empty` | `timeline.createMenu` | `set_envelope` | — | — | — | time · none |
 | Record here | view | `record.here` | — (not industry-standard; the Create menu and the Action bar verb) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · look |
 | Add comment | view | `comment.draftAt` | `C` | `long-press-empty` | `timeline.createMenu`, `actionBar` | — | — | — | — | time · none |
-| Restore original audio | project | `edit.restoreClipBleed` | — (Select a region in the Auto reduction inspector; no default shortcut) | — | `restoreClipBleed` | `restore_clip_bleed_tool` | — | — | yes | none · none |
+| Restore original audio | project | `edit.restoreClipBleed` | — (Select a region in the Auto reduction inspector; no default shortcut) | — | `restoreClipBleed` | `restore_clip_bleed_tool` | `podcast edit restore-clip-bleed` | — | yes | none · none |
 | Roll clip join | project | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `long-press-arm-drag` | `timeline.clip.joinDiamond`, `transcript.editBoundary` | `roll_clip_join_tool` | `podcast edit roll-join` | — | — | time · none |
 | Set clip fade | project | `edit.setClipFade` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.fadeHandle` | `set_clip_fade_tool` | — | — | — | time · none |
 | Set clip join | project | `edit.setClipJoin` | — (inspector select and join glyph popover; no industry-standard key) | — | `inspector.clip.joinMode`, `timeline.join.badge` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |

@@ -2123,7 +2123,8 @@
         "mcp": [
           "track_add_empty_tool",
           "track_add"
-        ]
+        ],
+        "cli": "podcast episode add-track"
       },
       "omit": {},
       "tooltip": "New track",
@@ -2968,6 +2969,7 @@
         "mcp": [
           "restore_clip_bleed_tool"
         ],
+        "cli": "podcast edit restore-clip-bleed",
         "gui": [
           "restoreClipBleed"
         ]
