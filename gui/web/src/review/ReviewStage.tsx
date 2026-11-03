@@ -231,7 +231,7 @@ export function ReviewStage({
   };
   const applyGroup = () =>
     bulk(
-      groupQueue(filterItems(items, filter, speaker)).find((g) =>
+      groupQueue(filterItems(items, "all", speaker)).find((g) =>
         g.items.some((i) => i.id === selectedId),
       )?.bulk?.ids,
     );
@@ -253,7 +253,9 @@ export function ReviewStage({
   };
 
   const checkWords = () => {
-    const target = openOf(items, "unsure-word")[0] ?? openOf(items, "check")[0];
+    const visible = filterItems(items, "all", speaker);
+    const target =
+      openOf(visible, "unsure-word")[0] ?? openOf(visible, "check")[0];
     onSelect(target?.id ?? selectedId);
   };
 
@@ -391,6 +393,7 @@ export function ReviewStage({
       onSpeaker={
         onSpeaker &&
         ((next) => {
+          setPending(null);
           onSpeaker(next);
           const open = items.find((i) => i.id === selectedId);
           if (next !== null && open?.speaker && open.speaker.id !== next)

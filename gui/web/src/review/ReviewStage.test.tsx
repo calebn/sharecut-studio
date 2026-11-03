@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { reviewContent } from "../storybook/reviewContent";
@@ -158,6 +158,30 @@ describe("ReviewStage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
     await userEvent.click(screen.getByRole("button", { name: "Cut anyway" }));
     expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+  });
+
+  it("closes an armed Cut anyway prompt when the speaker changes under a speakerless selection", async () => {
+    const host = { id: "host", label: "Host" };
+    const guest = { id: "guest", label: "Guest" };
+    const who: Record<string, typeof host> = {
+      f1: host,
+      f2: guest,
+      f4: host,
+      p2: guest,
+    };
+    const onDecide = vi.fn();
+    setup({
+      onDecide,
+      initialSelectedId: "p1",
+      initialItems: QUEUE_ITEMS.map((i) =>
+        who[i.id] ? { ...i, speaker: who[i.id] } : i,
+      ),
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Cut all 3" }));
+    expect(screen.getByRole("button", { name: "Cut anyway" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: /^Host, / }));
+    expect(screen.queryByRole("button", { name: "Cut anyway" })).toBeNull();
+    expect(onDecide).not.toHaveBeenCalled();
   });
 
   it("closes the prompt when a refresh decides its items", () => {

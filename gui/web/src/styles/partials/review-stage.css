@@ -179,6 +179,8 @@
 
 .rv-speakers .ui-segmented {
   flex-wrap: wrap;
+  block-size: auto;
+  min-block-size: 2rem;
   max-inline-size: 100%;
 }
 
