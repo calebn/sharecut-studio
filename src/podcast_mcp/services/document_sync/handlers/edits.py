@@ -101,7 +101,7 @@ def update_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
 
 
 def restore_applied_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return EditService(ws).revert_applied(p["id"])
+    return EditService(ws).revert_applied(p["ids"], dry_run=bool(p.get("dry_run", False)))
 
 
 def restore_clip_bleed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

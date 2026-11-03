@@ -50,6 +50,7 @@ from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.util import project_state
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import RenderBusyError
+from restore_helpers import assert_history_only_conflict
 from sqlite_helpers import FailingConnection
 from sync_helpers import _foreign_document_write, _hub_delivery_fence
 
@@ -424,22 +425,17 @@ def test_document_update_pending_restore_refusal_and_guarded_undo(
     before = ws2.project.model_dump(mode="json")
     disk = Path(minimal_project).read_bytes()
     head = HistoryService(ws2).status().head_id
-    with pytest.raises(ValueError) as refused:
-        svc.submit(
-            DocumentCommand(
-                type="RestoreAppliedEdit",
-                payload={"id": rid},
-                client_id="c1",
-                role="viewer",
-                client_seq=3,
-            )
+    refused = svc.submit(
+        DocumentCommand(
+            type="RestoreAppliedEdit",
+            payload={"ids": [rid]},
+            client_id="c1",
+            role="viewer",
+            client_seq=3,
         )
-    assert getattr(refused.value, "code", None) == "local_restore_requires_history"
-    assert str(refused.value) == (
-        "This edit cannot be restored individually. Use History Undo to restore the whole action. "
-        "History Undo also undoes the other edits in that action. "
-        "You may need to undo later actions first."
     )
+    assert refused["ok"]
+    assert_history_only_conflict(refused["command"]["payload"]["result"], rid)
     assert Path(minimal_project).read_bytes() == disk
     assert ProjectWorkspace.open(minimal_project).project.model_dump(mode="json") == before
     undone = svc.submit(
