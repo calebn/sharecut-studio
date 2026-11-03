@@ -31,6 +31,7 @@ import {
   restoreClip,
   retimeChapter,
   trimClip,
+  unapproveClip,
   validSelection,
 } from "./deliverLogic";
 
@@ -181,6 +182,13 @@ describe("export contract", () => {
     );
     expect(stale(now({}, approveClip(CLIPS, "k1")))).toBe(true);
     expect(stale(now({ formats: ["wav", "mp3"] }))).toBe(false);
+  });
+
+  it("unapproveClip clears approval on one clip only", () => {
+    const on = approveClip(approveClip(CLIPS, "k1"), "k2");
+    const off = unapproveClip(on, "k1");
+    expect(off.find((c) => c.id === "k1")?.approved).toBe(false);
+    expect(off.find((c) => c.id === "k2")?.approved).toBe(true);
   });
 
   it("goes stale when an approved clip or a chapter changes, and only then", () => {

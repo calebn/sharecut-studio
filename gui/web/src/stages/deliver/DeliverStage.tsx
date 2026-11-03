@@ -36,6 +36,7 @@ import {
   retitleClip,
   type TimeSpan,
   trimClip,
+  unapproveClip,
   validSelection,
 } from "./deliverLogic";
 import { EpisodeFile } from "./EpisodeFile";
@@ -389,6 +390,10 @@ export function DeliverStage({
       onPlay={onPlayClip}
       onApprove={(id) => {
         liveClips.current = approveClip(liveClips.current, id);
+        setClips(liveClips.current);
+      }}
+      onUnapprove={(id) => {
+        liveClips.current = unapproveClip(liveClips.current, id);
         setClips(liveClips.current);
       }}
       onRemove={removeClipWithUndo}

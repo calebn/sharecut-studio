@@ -466,6 +466,10 @@ export function approveClip(clips: readonly Clip[], id: string): Clip[] {
   return clips.map((c) => (c.id === id ? { ...c, approved: true } : c));
 }
 
+export function unapproveClip(clips: readonly Clip[], id: string): Clip[] {
+  return clips.map((c) => (c.id === id ? { ...c, approved: false } : c));
+}
+
 export function removeClip(clips: readonly Clip[], id: string): Clip[] {
   return clips.filter((c) => c.id !== id);
 }
