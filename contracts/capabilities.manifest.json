@@ -2662,7 +2662,8 @@
         "mcp": [
           "document_command_schema_tool",
           "submit_document_command_tool"
-        ]
+        ],
+        "cli": "podcast doc"
       },
       "omit": {
         "keyboard_reason": "agent-primary workflow",

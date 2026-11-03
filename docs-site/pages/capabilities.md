@@ -169,7 +169,7 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | Open ShareCut Studio GUI | session | `open_gui_tool` | `podcast gui` | `podcast-open-gui` | yes |
 | Segment library | project | `segment_list_tool`, `segment_show_tool`, `segment_save_tool`, `segment_insert_tool` | `podcast segment` | — | yes |
 | Kits | project | `kit_list_tool`, `kit_show_tool`, `kit_save_tool`, `kit_apply_tool` | `podcast kit` | — | yes |
-| Generic document commands | project | `document_command_schema_tool`, `submit_document_command_tool` | — | — | yes |
+| Generic document commands | project | `document_command_schema_tool`, `submit_document_command_tool` | `podcast doc` | — | yes |
 | Correct transcript | project | `correct_transcript_tool`, `correct_transcript_phrase_tool` | `podcast transcript correct` | — | — |
 | Read podcast listing | view | `feed_read` | `podcast feed show` | `podcast-rss-feed` | — |
 | Edit podcast listing | project | `feed_set`, `feed_unset` | `podcast feed set` | `podcast-rss-feed` | — |
