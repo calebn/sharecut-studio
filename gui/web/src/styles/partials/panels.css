@@ -390,11 +390,6 @@ button.history-row {
   color: var(--color-text-secondary);
 }
 
-.pipeline-stale {
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
 .pipeline-bar {
   flex-shrink: 0;
   height: 0.5rem;
