@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import type { FeedView, WriteRequest } from "../../types/feedView";
-import { FeedLive } from "./FeedLive";
+import { FeedLive } from "./feedLiveStoryHost";
 import { FeedSection } from "./FeedSection";
 import {
   AGENT_PIN,
