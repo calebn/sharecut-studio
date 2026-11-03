@@ -156,7 +156,6 @@ async function openReferenceDetails(page: Page) {
   await expect(clearClip(page)).toBeVisible();
 }
 
-/** The track details are a sheet over the shell; close it before the next viewport so the header's Tools button is reachable. */
 async function closeTrackDetails(page: Page) {
   const close = page
     .getByRole("dialog")
