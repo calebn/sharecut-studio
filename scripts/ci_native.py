@@ -130,6 +130,7 @@ NATIVE_WORKLOADS = (
 
 NATIVE_CONTRACTS: dict[str, frozenset[NativeFamily]] = {
     "bootstrap-assets.json": PYTHON_NATIVE,
+    "edit-surface.json": PYTHON_NATIVE,
     "ffmpeg-artifacts.json": PAYLOAD_NATIVE,
     "ffmpeg-build.json": PYTHON_NATIVE | PAYLOAD_NATIVE,
     "join-length-limits.json": PYTHON_NATIVE,

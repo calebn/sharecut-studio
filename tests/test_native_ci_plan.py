@@ -276,6 +276,7 @@ def test_contract_inventory_is_explicit_and_unknown_additions_run_full() -> None
     }
     assert {name for name, consumers in native.NATIVE_CONTRACTS.items() if consumers} == {
         "bootstrap-assets.json",
+        "edit-surface.json",
         "ffmpeg-artifacts.json",
         "ffmpeg-build.json",
         "join-length-limits.json",
