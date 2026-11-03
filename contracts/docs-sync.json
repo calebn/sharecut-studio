@@ -714,9 +714,10 @@
     {
       "id": "capability-registration",
       "when": "Capability registration (GUI / keys / MCP / CLI / skills)",
-      "update": "`contracts/capabilities.manifest.json`, `docs/entry-points.md`, live catalog https://docs.sharecut.studio/#/capabilities (regen with `make schema-export`); `make generated-check` / pre-commit `capabilities-manifest`",
+      "update": "`contracts/capabilities.manifest.json`, `contracts/edit-surface.json` (a document command the GUI sends), `docs/entry-points.md`, live catalog https://docs.sharecut.studio/#/capabilities (regen with `make schema-export`); `make generated-check` / pre-commit `capabilities-manifest`",
       "docs": [
         "contracts/capabilities.manifest.json",
+        "contracts/edit-surface.json",
         "docs/entry-points.md"
       ],
       "advisory": null
