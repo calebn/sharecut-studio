@@ -2339,7 +2339,10 @@ test("System/MarkerLane after a touch drag the next Enter on another marker sele
   // A drag counts from where the finger passes the touch slop, and under load
   // that is a move or two later, so it lands at 0:20 or 0:21; the test is
   // about what the next Enter does, not about the exact second.
-  await expect(joke).toHaveAttribute("aria-label", /0:2[01]\.0 to 0:3[23]\.0/);
+  await expect(joke).toHaveAttribute(
+    "aria-label",
+    /0:20\.0 to 0:32\.0|0:21\.0 to 0:33\.0/,
+  );
   const open1 = page.getByRole("button", { name: /^Chapter Cold open/ });
   await open1.focus();
   await page.keyboard.press("Enter");
