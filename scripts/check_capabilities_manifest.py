@@ -325,20 +325,16 @@ _NOT_GUI_SOURCE = re.compile(r"\.(test|spec|stories|generated)\.|\.d\.ts$|(^|/)(
 _GUI_COMMAND_REF = re.compile(r'DocumentCommand\.(\w+)|\btype:\s*"([A-Z]\w*)"')
 
 
-def _schema_command_types() -> list[str]:
-    """Every document command type, from the discriminator of the exported command schema."""
+def _schema_command_types() -> set[str]:
+    """Every document command type in the exported command schema."""
     schema = json.loads(DOCUMENT_COMMAND_SCHEMA.read_text(encoding="utf-8"))
-    return sorted(schema["discriminator"]["mapping"])
+    return set(schema["discriminator"]["mapping"])
 
 
 def gui_document_command_types(schema_types: set[str]) -> set[str]:
-    """Document command types the GUI sends, scanned from its non-test, non-generated sources.
-
-    A source names a type as ``DocumentCommand.<Type>`` or ``type: "<Type>"``. Only names that
-    are document command types count, so other ``type: "…"`` literals are ignored.
-    """
+    """Document command types named as ``DocumentCommand.<Type>`` or ``type: "<Type>"`` in GUI sources."""
     sent: set[str] = set()
-    for path in sorted(GUI_SRC.rglob("*.ts*")):
+    for path in GUI_SRC.rglob("*.ts*"):
         if path.suffix not in {".ts", ".tsx"} or _NOT_GUI_SOURCE.search(path.as_posix()):
             continue
         for ref, literal in _GUI_COMMAND_REF.findall(path.read_text(encoding="utf-8")):
@@ -349,12 +345,7 @@ def gui_document_command_types(schema_types: set[str]) -> set[str]:
 def edit_surface_errors(
     data: dict, gui_types: set[str], schema_types: set[str], live_mcp: set[str], cli_root: Any
 ) -> list[str]:
-    """Parity per document command: contracts/edit-surface.json against the GUI and the agents.
-
-    Every type the GUI sends has an entry. An entry names MCP tools and CLI commands that
-    resolve, and has both unless it records a gap (or is exempt as not a project edit). A gap
-    on a covered type is stale, so the gaps only shrink.
-    """
+    """Each GUI-sent command type has an edit-surface entry with resolving MCP and CLI twins, a gap or an exemption."""
     commands: dict[str, dict] = data.get("commands") or {}
     errors = [
         f"edit-surface: GUI sends {t} but contracts/edit-surface.json does not list it"
@@ -395,11 +386,7 @@ def edit_surface_errors(
 def manifest_twin_errors(
     caps: list[dict], without_cli: list[str], without_mcp: list[str]
 ) -> list[str]:
-    """A project row with a GUI surface needs MCP and CLI, or is listed as lacking one.
-
-    A row with an owner-approved ``omit.agent_reason`` is exempt. A listed row that is no
-    longer lacking the surface (or is gone) fails, so the lists only shrink.
-    """
+    """A project GUI row needs MCP and CLI or a listing; a stale listing fails."""
     rows = {c["id"]: c for c in caps}
     errors: list[str] = []
     for surface, listed in (("cli", without_cli), ("mcp", without_mcp)):
@@ -453,7 +440,7 @@ def _edit_surface_file_errors(caps: list[dict], live_mcp: set[str], cli_root: An
         pass
     except Exception as exc:
         return [f"edit-surface schema: {exc}"]
-    schema_types = set(_schema_command_types())
+    schema_types = _schema_command_types()
     errors = edit_surface_errors(
         data, gui_document_command_types(schema_types), schema_types, live_mcp, cli_root
     )

@@ -210,7 +210,7 @@ def _edit_surface_errors(commands: dict, gui: set[str] | None = None) -> list[st
 
 def test_gui_document_command_types_come_from_non_test_gui_sources() -> None:
     mod = load_script("check_capabilities_manifest")
-    sent = mod.gui_document_command_types(set(mod._schema_command_types()))
+    sent = mod.gui_document_command_types(mod._schema_command_types())
     assert {"UpdateChapter", "DeleteChapter", "SetTrackMeta", "RenameProject"} <= sent
     assert "Heartbeat" not in sent and "ApplyEditPlan" not in sent
 
@@ -218,7 +218,7 @@ def test_gui_document_command_types_come_from_non_test_gui_sources() -> None:
 def test_edit_surface_file_matches_the_gui_and_passes_the_checker() -> None:
     mod = load_script("check_capabilities_manifest")
     data = json.loads((ROOT / "contracts" / "edit-surface.json").read_text())
-    schema_types = set(mod._schema_command_types())
+    schema_types = mod._schema_command_types()
     gui = mod.gui_document_command_types(schema_types)
     assert gui <= set(data["commands"])
     assert mod.edit_surface_errors(data, gui, schema_types, mod._mcp_tools(), mod._cli_root()) == []
