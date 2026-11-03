@@ -275,14 +275,14 @@ test("a dialog floats on the overlay rung over a dark scrim", async ({
   await openProject(page, e2eProjectPath);
   await trackHeaderButton(page, "reference").focus();
   await page.keyboard.press("Enter");
-  await expect(page.locator(".inspector")).toBeVisible();
+  await expect(page.locator(".sys-inspector")).toBeVisible();
   // The dialog covers the Inspector: read its raised surface in each theme
   // first.
   const raisedBy: Record<string, string> = {};
   for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme);
     raisedBy[theme] = await page
-      .locator(".inspector")
+      .locator(".sys-inspector")
       .evaluate((element) => getComputedStyle(element).backgroundColor);
   }
   await openProjectDialog(page, "palette");

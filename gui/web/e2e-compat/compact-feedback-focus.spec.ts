@@ -41,7 +41,7 @@ async function focusCompactToastAction(page: Page, name: "Undo" | "Dismiss") {
   await rememberInspectorDetent(page, "peek");
   await openAt(page, SIZES.portrait);
   await trackHeaderButton(page, "reference").click();
-  await expect(page.locator(".modifier-inspector")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Inspector" })).toBeVisible();
   const close = page
     .locator(".bottom-sheet-header, .sys-inspector-header")
     .getByRole("button", { name: "Close", exact: true });

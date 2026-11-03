@@ -135,7 +135,9 @@ for (const width of [600, 636]) {
       test.setTimeout(60_000);
       await openAt(page, { width, height: 360 });
       await trackHeaderButton(page, "reference").click();
-      await expect(page.locator(".modifier-inspector")).toBeVisible();
+      await expect(
+        page.getByRole("dialog", { name: "Inspector" }),
+      ).toBeVisible();
       const savedOrder = async () => {
         const response = await page.request.get(
           `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`,
