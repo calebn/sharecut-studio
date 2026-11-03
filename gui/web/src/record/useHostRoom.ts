@@ -16,6 +16,7 @@ import {
   prepareHostKeeperStorage,
   retryHostKeeperStorage,
 } from "./hostKeeperStorage";
+import { hostRecordsMic } from "./hostRecording";
 import { useRecordHostStore } from "./hostStore";
 import { submitHostRecordTransport } from "./hostTransport";
 import { sendRecordHostCommand } from "./hostWire";
@@ -29,6 +30,7 @@ import {
 import { HOST_PARTICIPANT_ID } from "./roomPeople";
 import {
   captureAttention,
+  findCurrentTake,
   hostReconnectPauseCopyFromSnapshot,
   recordSourceId,
   shouldApplyRecordSnapshot,
@@ -133,6 +135,7 @@ export function useHostRoom(
   const host = snapshot?.participants.find(
     (person) => person.participant_id === "p_host",
   );
+  const micOn = hostRecordsMic(snapshot);
   const hasRemovedParticipant =
     snapshot?.participants.some((person) => person.removed) ?? false;
   const liveComments = useRecordLiveComments({
@@ -161,6 +164,13 @@ export function useHostRoom(
     finalizing: keeperFinalizing,
     error: keeperError ?? null,
   });
+  // The host's files are owed only for takes the host's mic joined, not takes recorded with it off.
+  const currentTake = snapshot ? findCurrentTake(snapshot) : undefined;
+  const hostInCurrentTake =
+    host != null &&
+    (currentTake?.consented_participant_ids ?? []).includes(
+      HOST_PARTICIPANT_ID,
+    );
   const upload = useRecordUpload({
     enabled: !!snapshot,
     roomState: snapshot?.state,
@@ -170,7 +180,7 @@ export function useHostRoom(
     participantId: "p_host",
     transport: uploadTransport,
     sink,
-    captureExpected: (snapshot?.take_index ?? -1) >= 0 && host != null,
+    captureExpected: hostInCurrentTake,
     retryNonce: uploadRetryNonce,
   });
   const keeperActions = useKeeperRecoveryActions({
@@ -183,7 +193,9 @@ export function useHostRoom(
     onRecovered: () => setUploadRetryNonce((value) => value + 1),
   });
   const roomToneEnabled =
-    !!snapshot && (snapshot.state === "lobby" || snapshot.state === "stopped");
+    !!snapshot &&
+    micOn &&
+    (snapshot.state === "lobby" || snapshot.state === "stopped");
   const roomTone = useRoomToneCapture({
     enabled: roomToneEnabled,
     canUpload: roomToneEnabled,
@@ -200,6 +212,7 @@ export function useHostRoom(
         storageReady: sink !== null,
         storageError: sinkError,
         capturingRoomTone: roomTone.status === "capturing",
+        hostMicOff: !micOn,
       })
     : [];
   const startBlocked =
@@ -233,6 +246,17 @@ export function useHostRoom(
       .finally(() => {
         setTransportBusy(false);
       });
+  };
+
+  const setMicOn = (on: boolean) => {
+    if (transportBusy || state === "recording" || state === "paused") {
+      return;
+    }
+    setTransportBusy(true);
+    setTransportError(null);
+    void submitHostRecordTransport("Consent", { accepted: on })
+      .catch((err: unknown) => setTransportError(errorMessage(err)))
+      .finally(() => setTransportBusy(false));
   };
 
   const setGuestsSeeNotes = (enabled: boolean) => {
@@ -390,6 +414,8 @@ export function useHostRoom(
     transportBusy,
     guestsSeeNotesError,
     setGuestsSeeNotes,
+    micOn,
+    setMicOn,
     runCommand,
     sink,
     sinkError,

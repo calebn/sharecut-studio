@@ -22,6 +22,11 @@ export type RecordMoreSheetProps = {
   onGuestsSeeNotesChange: (enabled: boolean) => void;
   guestsSeeNotesError?: string | null;
   onDevices: () => void;
+  /** The host's own mic is part of the session. */
+  micOn: boolean;
+  onMicChange: (on: boolean) => void;
+  /** Why the mic switch cannot change now, such as a running take. */
+  micReason?: string;
   /** Absent once the end is pending or being sent. */
   onEndSession?: () => void;
   /** Why End session cannot start yet. */
@@ -46,11 +51,15 @@ export function RecordMoreSheet({
   onGuestsSeeNotesChange,
   guestsSeeNotesError,
   onDevices,
+  micOn,
+  onMicChange,
+  micReason,
   onEndSession,
   endReason,
 }: RecordMoreSheetProps) {
   const [confirming, setConfirming] = useState(false);
   const helpId = useId();
+  const micHelpId = useId();
   return (
     <Sheet
       form="centered"
@@ -128,6 +137,25 @@ export function RecordMoreSheet({
             <p className="inline-error pipeline-error">{guestsSeeNotesError}</p>
           ) : null}
         </div>
+        <ToggleButton
+          pressed={micOn}
+          aria-describedby={micHelpId}
+          aria-disabled={busy || micReason !== undefined || undefined}
+          title={micReason ?? (busy ? BUSY_REASON : undefined)}
+          onClick={() => {
+            if (!busy && micReason === undefined) {
+              onMicChange(!micOn);
+            }
+          }}
+        >
+          Record my mic
+        </ToggleButton>
+        <p id={micHelpId} className="stage-host-note">
+          {micReason ??
+            (micOn
+              ? "On: your mic is recorded with everyone else."
+              : "Off: you run the session without recording your own mic. Start needs a guest to have accepted.")}
+        </p>
         <Button onClick={onDevices}>Devices…</Button>
         <Button onClick={onInvite}>Invite and links…</Button>
         {onEndSession ? (

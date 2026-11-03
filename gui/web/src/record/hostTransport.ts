@@ -2,6 +2,7 @@ import { loadHostRecordState, postHostRecordCommand } from "../api";
 import { publishDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
 import { useDawStore } from "../state/dawStore";
 import { prepareHostKeeperStorage } from "./hostKeeperStorage";
+import { hostRecordsMic } from "./hostRecording";
 import { useRecordHostStore } from "./hostStore";
 
 const EXPECTED: Record<string, string> = {
@@ -24,7 +25,8 @@ export async function submitHostRecordTransport(
   if (
     commandType === "RoomToneCountdown" ||
     commandType === "SetTarget" ||
-    commandType === "SetGuestsSeeNotes"
+    commandType === "SetGuestsSeeNotes" ||
+    commandType === "Consent"
   ) {
     useRecordHostStore
       .getState()
@@ -33,7 +35,9 @@ export async function submitHostRecordTransport(
   }
   const token = ++transportEpoch;
   if (commandType === "Start") {
-    await prepareHostKeeperStorage();
+    if (hostRecordsMic(useRecordHostStore.getState().snapshot)) {
+      await prepareHostKeeperStorage();
+    }
     if (token !== transportEpoch) {
       return;
     }

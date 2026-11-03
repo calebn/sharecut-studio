@@ -1591,7 +1591,7 @@ rows; clients word them, and a refused Start reads "cannot start: nobody has
 joined the room", "cannot start: Ava has not accepted recording" or, when
 every live recorded person declined (no blocker row), "cannot start: nobody has
 accepted recording";
-room caps 4 recorded / 2 producers; host Join auto-consents as `p_host`; no host
+room caps 4 recorded / 2 producers; host Join auto-consents as `p_host` (the host may later send `Consent {accepted: false}` to run the session without their own mic: they leave the take roster, the client opens no mic, storage check or room tone, and a reconnect Join keeps the choice); no host
 admit step. Each take's `consented_participant_ids` roster (set at Start,
 updated by a mid-take Join and record / Not now) gates that take's guest keeper uploads
 server-side, independent of the participant's live `consented` flag.
