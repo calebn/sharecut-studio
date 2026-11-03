@@ -177,11 +177,11 @@ export function decidedItems(items: readonly ReviewItem[]): ReviewItem[] {
   return items.filter(isDecided).sort(byTime);
 }
 
-/** Every id in queue order, decided ones included, so a decided item keeps its place. */
+/** Every id in queue order (kind, riskiest first, then time), decided ones included, so a decided item keeps its place. */
 export function fullOrder(items: readonly ReviewItem[]): ReviewItem[] {
   return [...items].sort(
     (a, b) =>
-      KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || byTime(a, b),
+      KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || byRisk(a, b),
   );
 }
 

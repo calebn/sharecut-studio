@@ -228,7 +228,6 @@ export function ReviewQueue({
   const shown = filterItems(items, filter);
   const groups = groupQueue(shown);
   const lowRisk = canDecide && !bulkRunning ? lowRiskBulk(shown) : null;
-  const lowRiskVerb = lowRisk ? verbOf(lowRisk.verb) : null;
   const lowRiskLabel = lowRisk
     ? `Approve ${lowRisk.ids.length} low-risk ${lowRisk.ids.length === 1 ? "edit" : "edits"}`
     : "";
@@ -328,7 +327,7 @@ export function ReviewQueue({
           progress={job.progress}
         />
       ) : null}
-      {lowRisk && lowRiskVerb?.icon ? (
+      {lowRisk ? (
         <section className="rv-group" aria-label="Low-risk edits">
           <div className="rv-group-head">
             <SystemIcon name={iconOf("approve")} size={16} />

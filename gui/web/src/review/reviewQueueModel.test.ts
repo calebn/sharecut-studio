@@ -6,6 +6,7 @@ import {
   decisionMessage,
   filterCounts,
   filterItems,
+  fullOrder,
   groupQueue,
   itemVerb,
   landPlan,
@@ -341,6 +342,19 @@ describe("confidence tiers", () => {
       "mild",
       "clean",
     ]);
+  });
+
+  it("steps through the queue in the order it is drawn, riskiest first", () => {
+    const items = [
+      item({ id: "clean", at: 1 }),
+      risky("harsh", 3, 9),
+      item({ id: "pause", kind: "pause", at: 0 }),
+    ];
+    expect(fullOrder(items).map((i) => i.id)).toEqual(
+      groupQueue(items)
+        .flatMap((g) => g.items)
+        .map((i) => i.id),
+    );
   });
 
   it("batches the clean cuts of every kind in time order", () => {
