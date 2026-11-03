@@ -77,8 +77,11 @@ function observe(s: ReviewSession, open: readonly ReviewEntry[]) {
   const base = back.length || gone.length ? { ...s, decided } : s;
   const first = back[0];
   if (first) {
+    const owner = first.entry.item.speaker?.id;
     return {
       ...base,
+      // A restored row from someone the filter hides ends the filter, so it is not selected out of sight.
+      speaker: owner && s.speaker && owner !== s.speaker ? null : s.speaker,
       selectedId: idOf(first),
       looksRight: without(s.looksRight, back.map(idOf)),
     };
