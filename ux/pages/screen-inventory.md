@@ -433,7 +433,7 @@ Every review role (Viewer, Commenter, Editor) holds `view`, so every role opens 
 flowchart LR
   shareLink["Review link /r/token"] --> hasView{Has view?}
   hasView -->|yes, every role| dawGuest[ShareCut Studio guest]
-  hasView -->|no, API-only share| noPage[Error: link does not open the project]
+  hasView -->|no, API-only share| noPage[Cover: link does not open the project]
 ```
 
 ### Which surface?
@@ -441,7 +441,9 @@ flowchart LR
 | Share setup | Surface | What the guest sees |
 |-------------|---------|---------------------|
 | Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Stages gated by role (a Commenter link is Review alone). Mode **banner** at top. |
-| Any capability set without `view` (API only, no role mints one) | **Error screen** | "This link does not open the project." with "Ask the person who shared it for a new link." beneath it in muted text. |
+| Any capability set without `view` (API only, no role mints one) | **Cover** | "This link does not open the project." with "Ask the person who shared it for a new link." beneath it. |
+
+A dead, revoked or no-`view` link, and a host that cannot be reached with no saved copy, each show a full-page cover instead of the studio: the link covers say what is wrong and "Ask the host for a new link."; "The host is offline" says the host's computer may be asleep or offline and offers **Retry**. When the host is unreachable but this browser holds a saved copy, the studio opens read-only under a notice: "The host is offline. You are viewing a saved copy, so it is read-only."
 
 Step flows: [Guest journeys](#/journeys).
 
