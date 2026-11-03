@@ -64,6 +64,22 @@ def test_gate_accepts_verified_open_pr() -> None:
     assert verdict == {"mergeable": True, "head_sha": SHA, "blockers": []}
 
 
+def test_gate_qualifies_before_pr_handoff_label() -> None:
+    pr = _pr()
+    pr["labels"] = [{"name": "pipeline:review"}]
+    verdict = gate.evaluate_gate(pr, pr, _checks(), [], 0, _issue(), [_claim()], TOKEN, NOW, 6)
+    assert verdict == {"mergeable": True, "head_sha": SHA, "blockers": []}
+
+
+def test_gate_still_requires_issue_merging_stage_before_handoff() -> None:
+    pr = _pr()
+    pr["labels"] = [{"name": "pipeline:review"}]
+    issue = _issue()
+    issue["labels"] = [{"name": "in-progress"}]
+    verdict = gate.evaluate_gate(pr, pr, _checks(), [], 0, issue, [_claim()], TOKEN, NOW, 6)
+    assert not verdict["mergeable"]
+
+
 def test_gate_accepts_nonfinal_part_without_closing_issue() -> None:
     part = _pr()
     part["body"] = "Part of #251\nRelated #252"
