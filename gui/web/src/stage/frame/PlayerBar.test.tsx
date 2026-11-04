@@ -21,6 +21,7 @@ beforeEach(() => {
   useDawStore.setState({
     auditionMode: "mix",
     guestMode: null,
+    shareCapabilities: null,
     audioError: null,
   });
 });
