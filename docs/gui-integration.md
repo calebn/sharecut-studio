@@ -346,7 +346,7 @@ explicit lanes share this path. Failed/stale actions retain selection with a
 readable reason; in-flight mutations block duplicates. Play uses the owned
 transport preview; Bounce captures a detached target with ordinary configuration.
 
-The Inspector opens only for a selected object. Pending edits with no place on the timeline (cut-away audio) get no mark on the timeline; a
+The Inspector opens only on Inspect, for a selected object. Pending edits with no place on the timeline (cut-away audio) get no mark on the timeline; a
 review-required one appears in the Review Queue as the last row of its group, and every
 review-required pending item remains selectable there. The Player bar's mix status holds the single mix freshness
 cue (**Mix out of date**, which hosts never have to click).
