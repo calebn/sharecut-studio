@@ -256,6 +256,29 @@ export const LiveLinks: Story = {
   },
 };
 
+export const LongLink: Story = {
+  args: {
+    options: {
+      ...meta.args?.options,
+      rows: [
+        hostShareRow({
+          token: "sample-long-link",
+          url: `http://127.0.0.1:8765/r/${"long-link-".repeat(24)}`,
+        }),
+      ],
+    } as ShareOptions,
+  },
+  play: async ({ canvasElement }) => {
+    const view = within(canvasElement);
+    await expect(
+      view.getByRole("button", { name: "Copy Commenter link" }),
+    ).toBeVisible();
+    await expect(
+      view.getByRole("button", { name: "Stop sharing" }),
+    ).toBeVisible();
+  },
+};
+
 export const JustCreated: Story = {
   args: {
     options: {

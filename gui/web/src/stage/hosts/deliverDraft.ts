@@ -76,6 +76,6 @@ function subscribe(listener: () => void) {
 
 export function useDeliverDraft(path: string | null): DeliverDraft {
   return useSyncExternalStore(subscribe, () =>
-    path ? (entries.get(path)?.draft ?? EMPTY) : EMPTY,
+    path ? entryFor(path).draft : EMPTY,
   );
 }

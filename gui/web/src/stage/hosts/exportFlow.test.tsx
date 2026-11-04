@@ -543,6 +543,23 @@ describe("the export flow over the server's routes", () => {
       expect(flow.run).toEqual({ kind: "idle" });
     });
 
+    it("changes nothing when the decline lands after the project changed", async () => {
+      await startAndNeedModel();
+      await waitFor(() => expect(flow.gate.prompt).not.toBeNull());
+      const before = useDawStore.getState().feedbackToast;
+
+      act(() =>
+        useDawStore.setState({ projectPath: "/tmp/other.project.json" }),
+      );
+      await waitFor(() => expect(flow.gate.prompt).toBeNull());
+      await act(async () => {});
+      expect(flow.run).toEqual({ kind: "idle" });
+      expect(flow.gate.declined).toBeNull();
+      expect(flow.request).toBeNull();
+      expect(useDawStore.getState().feedbackToast).toBe(before);
+      expect(useDawStore.getState().pendingJobResults).toEqual({});
+    });
+
     it("does not loop when the same model is still missing after the download", async () => {
       await startAndNeedModel();
       await waitFor(() => expect(flow.gate.prompt).not.toBeNull());

@@ -1,9 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TunnelState } from "../../types/tunnel";
-import { useTunnelStatus } from "./useTunnelStatus";
-
-const TUNNEL_STATUS_POLL_MS = 5000;
+import { TUNNEL_STATUS_POLL_MS, useTunnelStatus } from "./useTunnelStatus";
 
 function reply(state: TunnelState) {
   return {

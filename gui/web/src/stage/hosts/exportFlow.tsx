@@ -64,8 +64,6 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
   settingsRef.current = settings;
   const settingsErrorRef = useRef(settingsError);
   settingsErrorRef.current = settingsError;
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
 
   useEffect(() => {
     setRun({ kind: "idle" });
@@ -114,7 +112,6 @@ export function ExportFlowProvider({ children }: { children: ReactNode }) {
       const current = settingsRef.current;
       const formats = current ? selectedFormats(current, keys) : null;
       if (current && formats?.length === 0 && !current.wav) return;
-      selectedRef.current = keys;
       setSelected(keys);
       setRequest(asked);
       const scope = projectScopedSignal(path);
