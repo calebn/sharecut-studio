@@ -721,11 +721,13 @@ describe("ScriptPane header", () => {
     expect(screen.queryByRole("button", { name: /unsure/ })).toBeNull();
   });
 
-  it("marks a guest as read only", () => {
-    const { rerender } = render(<ScriptPane {...props({ guest: "viewer" })} />);
-    expect(screen.getByText("Read only")).toBeInTheDocument();
-    rerender(<ScriptPane {...props({ guest: "commenter" })} />);
-    expect(screen.getByText("Read only · you can comment")).toBeInTheDocument();
+  it.each([
+    ["viewer", "Read only"],
+    ["commenter", "Read only · you can comment"],
+    ["suggester", "You can comment and suggest edits"],
+  ] as const)("labels a %s guest %j", (guest, label) => {
+    render(<ScriptPane {...props({ guest })} />);
+    expect(screen.getByText(label)).toBeInTheDocument();
   });
 });
 

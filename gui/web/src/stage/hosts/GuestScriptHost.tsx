@@ -8,6 +8,7 @@ import { GuestScript } from "../../stages/guest/GuestScript";
 import { lastStartedWordAt } from "../../stages/guest/guestLogic";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
+import { scriptGuestOf } from "../edit/script/scriptGuest";
 import { useScriptSelection } from "../edit/script/useScriptSelection";
 import {
   guestScriptModelOf,
@@ -31,7 +32,8 @@ function GuestScriptHostAdapter() {
   const role = stageRoleOf(guestMode);
   const script = useMemo(() => guestScriptOf(utterances), [utterances]);
   const { turns, wordStarts, words, empty } = script;
-  const mayRange = rangeEditMode(projectPath, capabilities) !== "none";
+  const rangeMode = rangeEditMode(projectPath, capabilities);
+  const mayRange = rangeMode !== "none";
   const model = useMemo(() => guestScriptModelOf(script), [script]);
   const range = useScriptSelection(model, mayRange, NOOP);
   const positionKey = useDawStore(
@@ -62,7 +64,7 @@ function GuestScriptHostAdapter() {
   return (
     <div className="stage-host-guest-script">
       <GuestScript
-        access={role}
+        guest={scriptGuestOf(projectPath, guestMode, rangeMode)}
         layout={shell === "phone" ? "phone" : "desktop"}
         turns={turns}
         wordStarts={wordStarts}

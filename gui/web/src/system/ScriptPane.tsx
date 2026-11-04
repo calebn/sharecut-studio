@@ -131,6 +131,14 @@ export type ScriptPaneHandle = {
  * selection when it changes (once, on release, while a grip is dragged),
  * says "Selection cleared" when it clears, and speaks `findStatus`.
  */
+export type ScriptGuest = "viewer" | "commenter" | "suggester";
+
+export const GUEST_SCRIPT_LABEL: Record<ScriptGuest, string> = {
+  viewer: "Read only",
+  commenter: "Read only · you can comment",
+  suggester: "You can comment and suggest edits",
+};
+
 export type ScriptPaneProps = {
   turns: readonly ScriptTurn[];
   status?: ScriptStatus;
@@ -172,8 +180,8 @@ export type ScriptPaneProps = {
   findBar?: ReactNode;
   /** Draw the two grips on a words selection. On whenever `onSelect` is given. */
   handles?: boolean;
-  /** A guest reads, selects and comments. Fixing and cutting are not offered. */
-  guest?: "viewer" | "commenter";
+  /** Names what the guest's link may do in the header. It gates nothing: the callbacks do. */
+  guest?: ScriptGuest;
   /** The chip's count when `turns` is only a window of the transcript. */
   unsureCount?: number;
   /** The caret moved: a click, or a plain arrow, Home or End. It sits before word `before`. */
@@ -1212,9 +1220,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
             </div>
             {guest ? (
               <span className="sys-script-guest">
-                {guest === "commenter"
-                  ? "Read only · you can comment"
-                  : "Read only"}
+                {GUEST_SCRIPT_LABEL[guest]}
               </span>
             ) : null}
             <div className="sys-script-notice">

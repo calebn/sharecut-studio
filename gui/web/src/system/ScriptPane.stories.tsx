@@ -351,10 +351,10 @@ export const Loading: Story = {
   args: { turns: [], status: { kind: "loading", elapsedMs: 1000 } },
 };
 
-export const GuestCommenter: Story = {
+export const GuestSuggester: Story = {
   ...live,
   args: {
-    guest: "commenter",
+    guest: "suggester",
     selection: { kind: "words", anchor: 12, head: 14 },
     turns: patchWords(SCRIPT_TURNS, {
       ...spanPatch(46, 48, { mark: suggestedMark("sugg-1") }),
@@ -362,7 +362,7 @@ export const GuestCommenter: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText("Read only · you can comment"),
+      within(canvasElement).getByText("You can comment and suggest edits"),
     ).toBeVisible();
   },
 };

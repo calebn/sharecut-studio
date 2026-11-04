@@ -180,6 +180,11 @@ export const GuestCommenter: Story = {
   parameters: { episode: { project: episode(), role: "commenter" } },
   play: async (context) => {
     await guestPlay(context, false);
+    await expect(
+      within(context.canvasElement).getByText(
+        "You can comment and suggest edits",
+      ),
+    ).toBeVisible();
     await userEvent.click(
       await word(within(context.canvasElement), /^Welcome/),
     );

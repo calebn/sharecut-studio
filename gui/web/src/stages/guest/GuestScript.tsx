@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Cover } from "../../system/Cover";
-import { ScriptPane, type ScriptPaneHandle } from "../../system/ScriptPane";
+import {
+  type ScriptGuest,
+  ScriptPane,
+  type ScriptPaneHandle,
+} from "../../system/ScriptPane";
 import type {
   ScriptSelection,
   ScriptTurn,
   WordsSelection,
 } from "../../system/scriptPieces";
-import {
-  GUEST_EMPTY_COPY,
-  type GuestEmpty,
-  type GuestRole,
-} from "./guestLogic";
+import { GUEST_EMPTY_COPY, type GuestEmpty } from "./guestLogic";
 
 export type GuestScriptProps = {
-  access: GuestRole;
+  guest?: ScriptGuest;
   layout: "desktop" | "phone";
   turns: readonly ScriptTurn[];
   wordStarts: readonly number[];
@@ -29,7 +29,7 @@ export type GuestScriptProps = {
 };
 
 export function GuestScript({
-  access,
+  guest,
   layout,
   turns,
   wordStarts,
@@ -62,7 +62,7 @@ export function GuestScript({
       ref={pane}
       turns={turns}
       layout={layout}
-      guest={access === "viewer" ? "viewer" : "commenter"}
+      guest={guest}
       playing={playing}
       playheadWord={playheadWord}
       following={following}
