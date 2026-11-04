@@ -274,7 +274,7 @@ class WriteGrantKind(StrEnum):
 
 
 class UnscopedProjectWriteError(RuntimeError):
-    """A project save ran with no active write grant while the guard is strict."""
+    pass
 
 
 @dataclass(frozen=True)
@@ -292,11 +292,6 @@ _warned_callers: set[str] = set()
 
 @contextmanager
 def write_grant(kind: WriteGrantKind) -> Iterator[WriteGrant]:
-    """Mark the commits made inside this context (and contexts copied from it) as granted.
-
-    The grant lives in a ``ContextVar``: ``asyncio`` tasks and ``copy_context().run`` carry
-    it, a bare ``threading.Thread`` or ``ThreadPoolExecutor.submit`` does not.
-    """
     grant = WriteGrant(kind)
     token = _WRITE_GRANT.set(grant)
     try:
@@ -310,12 +305,10 @@ def active_write_grant() -> WriteGrant | None:
 
 
 def write_guard_mode() -> str:
-    """``warn`` (production) logs and counts an unscoped save; ``strict`` (tests) raises."""
     return _guard_mode
 
 
 def write_counts() -> dict[str, int]:
-    """Commits seen per grant kind, plus ``unscoped``; the legacy kinds are the migration metric."""
     with _COUNTS_LOCK:
         return dict(_write_counts)
 
