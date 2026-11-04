@@ -461,7 +461,7 @@ the pass, not once at its end); a polite, screen-reader-only live region speaks 
 each chunk (`SaveAnnouncer`, mounted by the guest room for its own save lines and by the host stage). The visible list, the "N of M chunks" line,
 and the host roster sit outside every other live region, so a moving count is never read twice; saving outcomes without
 counts (failed, saved and landed, waiting to land) are their own `role="status"` lines (`UploadStatus`). Resume on the **same `/rec/` token** inside a **7-day recovery window**.
-A pending segment is never uploaded automatically; the stopped panel offers
+A pending segment is never uploaded automatically; the More sheet offers
 **Recover partial take** only for a validated readable segment, alongside
 **Download full-quality recording** for every failure mode.
 A stalled or zero-sample keeper remains in OPFS for a single ZIP download
@@ -495,7 +495,7 @@ write), never allows a delete and never marks a missing WAV as reclaimed. Unland
 remain available for recovery.
 This local completion check still wins if a host status row unexpectedly says
 `file_ack` and `landed` for a pending segment: that row cannot authorize
-deleting the local WAV or hide its recovery action from the stopped panel.
+deleting the local WAV or hide its recovery action from the More sheet.
 
 A WAV that is absent but has a complete marker is **reclaimed**, not lost
 (`missingKeeperWavState` in `keeper/store.ts`): upload treats it as done even
@@ -663,8 +663,8 @@ errors never fall back. A successful
 reacquisition opens the next segment at the current recording-clock offset,
 extrapolated from the last room snapshot when the stream changes. Keeper gate
 transitions are applied in order so a quick reconnect cannot skip the
-loss/segment close. The host record dialog reopens if necessary and stays open
-while the microphone is lost. A normal unmount or application stop removes the
+loss/segment close. The host sees the lost-microphone alert in the room and, off the Record
+stage, the Record tab badge, until the microphone is back. A normal unmount or application stop removes the
 listener before stopping tracks and does not show the warning.
 
 **Silent PCM watchdog.** A live track can still deliver nothing (a suspended
@@ -1481,7 +1481,7 @@ the lost span. A stopped, incomplete local `.wav` remains in OPFS for recovery
 with only its pending `complete: false` `.json`; it is never given a file ACK,
 landed, or reclaimed until **Recover partial take** finalizes it. Once all
 complete segments are acknowledged, that retained partial no longer traps the
-guest Leave button or host dialog. Repeated errors remain visible and do not
+guest Leave button or the host's More sheet. Repeated errors remain visible and do not
 silently discard or count queued samples.
 Host and guest upload polling treats capture as unsettled while a keeper Stop
 or stream-loss finalization is pending; it does not mark a pending WAV

@@ -26,7 +26,6 @@ import {
   type SessionTarget,
   StorageHeadroomWarning,
   takeInputs,
-  useHostRoom,
   useHostRoomContext,
   useInputPeakDb,
   useLastEndedSession,
@@ -558,18 +557,12 @@ function RecordStageBody({
   );
 }
 
-function StandaloneRecordStage(props: RecordStageProps) {
-  const room = useHostRoom({}, { hydrate: true });
-  return <RecordStageBody room={room} {...props} />;
-}
-
 function RecordStageAdapter(props: RecordStageProps) {
   const room = useHostRoomContext();
-  return room ? (
-    <RecordStageBody room={room} {...props} />
-  ) : (
-    <StandaloneRecordStage {...props} />
-  );
+  if (!room) {
+    throw new Error("RecordStage needs a HostRoomProvider above it");
+  }
+  return <RecordStageBody room={room} {...props} />;
 }
 
 export const RecordStage = memo(RecordStageAdapter);

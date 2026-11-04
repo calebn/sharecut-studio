@@ -267,6 +267,19 @@ describe("RoomView", () => {
     });
   });
 
+  it("keeps an unsent note draft when the rail switches to Takes and back", async () => {
+    renderRoom({
+      seat: "producer",
+      people: [HOST, ROSA],
+      takes: <p>Take 1 saved</p>,
+    });
+    await userEvent.type(screen.getByLabelText("Add a note"), "Cut the intro");
+    await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+    expect(screen.getByText("Take 1 saved")).toBeVisible();
+    await userEvent.click(screen.getByRole("tab", { name: "Notes" }));
+    expect(screen.getByLabelText("Add a note")).toHaveValue("Cut the intro");
+  });
+
   it("the dock shows the seat's controls and hides Comment while waiting", () => {
     const { rerender } = render(
       <RoomView

@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ReactNode } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { HostRoomProvider } from "../../record/hostRoomContext";
+import { useHostRoom } from "../../record/useHostRoom";
 import {
   portaledOverlayParameters,
   studioViewports,
@@ -10,6 +13,11 @@ import { recordParticipant, recordSnapshot } from "../../test/fixtures";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import { StageFrame } from "../frame/StageFrame";
 import { StageHost, type StageHostProps } from "./StageHost";
+
+function HostRoom({ children }: { children: ReactNode }) {
+  const room = useHostRoom({}, { hydrate: true });
+  return <HostRoomProvider value={room}>{children}</HostRoomProvider>;
+}
 
 const meta: Meta<StageHostProps> = {
   title: "Stages/Record/Host",
@@ -24,7 +32,9 @@ const meta: Meta<StageHostProps> = {
     withEpisode,
     (Story) => (
       <div data-daw-app-chrome>
-        <Story />
+        <HostRoom>
+          <Story />
+        </HostRoom>
       </div>
     ),
   ],

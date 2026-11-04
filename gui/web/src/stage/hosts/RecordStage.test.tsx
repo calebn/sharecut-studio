@@ -10,6 +10,7 @@ import {
 } from "../../api";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { useDawKeymapListener } from "../../keymap/listener";
 import { HostRoomProvider } from "../../record/hostRoomContext";
 import { useRecordHostStore } from "../../record/hostStore";
 import {
@@ -147,10 +148,16 @@ const lobby = recordSnapshot({
   start_blockers: [],
 });
 
+function KeymapProbe() {
+  useDawKeymapListener();
+  return null;
+}
+
 function Harness({ capture = {} }: { capture?: HostRoomCapture }) {
   const room = useHostRoom(capture, { hydrate: true });
   return (
     <HostRoomProvider value={room}>
+      <KeymapProbe />
       <main>
         <RecordStage />
       </main>
@@ -863,6 +870,24 @@ describe("Record stage", () => {
       await waitFor(() => expect(record()).toBeVisible());
       expect(screen.queryByText(/^Session \d+$/)).not.toBeInTheDocument();
     });
+  });
+
+  it("drops a marker on M during a take, but not while the More sheet is open", async () => {
+    setRoom({
+      participants: [hostPerson(), avaGuest()],
+      state: "recording",
+      take_index: 0,
+      recording_ms: 5_000,
+    });
+    mount();
+    await screen.findByRole("button", { name: "More" });
+    const markerRuns = () =>
+      exec.mock.calls.filter((call: unknown[]) => call[0] === "record.marker");
+    await userEvent.keyboard("m");
+    await waitFor(() => expect(markerRuns()).toHaveLength(1));
+    await openMore();
+    await userEvent.keyboard("m");
+    expect(markerRuns()).toHaveLength(1);
   });
 
   it("drops a stale room once the server says it has ended", async () => {
