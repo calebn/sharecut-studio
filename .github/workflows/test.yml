@@ -30,6 +30,7 @@ jobs:
       gui: ${{ steps.plan.outputs.gui }}
       e2e-matrix: ${{ steps.plan.outputs.e2e-matrix }}
       release-only: ${{ steps.plan.outputs.release-only }}
+      pytest: ${{ steps.plan.outputs.pytest }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -40,12 +41,10 @@ jobs:
         id: plan
         uses: ./.github/actions/ci-plan
 
-  pytest:
+  pytest-quality:
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      COVERAGE_CORE: ctrace
+    timeout-minutes: 30
     steps:
       - name: Use runner temporary storage
         run: |
@@ -57,11 +56,6 @@ jobs:
         with:
           fetch-depth: 0 # docs-sync needs the PR merge base and its commit messages
 
-      # Planned in-job, not from `changes`, so this required check never skips.
-      - name: Plan the pytest scope
-        id: plan
-        uses: ./.github/actions/ci-plan
-
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
@@ -69,13 +63,6 @@ jobs:
           cache-dependency-path: |
             pyproject.toml
             uv.lock
-
-      - uses: actions/setup-node@v7 # tests run workflow JS predicates under node
-        with:
-          node-version: "24"
-
-      - name: Install FFmpeg
-        uses: ./.github/actions/setup-ffmpeg
 
       - name: Install package and dev deps
         uses: ./.github/actions/install-locked-python
@@ -111,6 +98,68 @@ jobs:
           python scripts/project_compat.py check --base "$COMPAT_BASE"
           pytest -q --no-cov tests/test_project_compat.py
 
+      - name: Docs-sync gate (PR diff)
+        # Stdlib-only script; runs without the pip install above. Only pull_request has a
+        # base/head to diff — a push to main has nothing to gate against.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        run: >-
+          python3 scripts/docs_sync.py check --range
+          "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+
+      - name: Conventional Commit subjects (PR commits)
+        # Stdlib-only. release-please reads these to pick the next version, and an
+        # unparseable subject is silently skipped, so a malformed one fails here instead.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        run: >-
+          python3 scripts/check_conventional_commits.py
+          "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+  pytest-shard:
+    name: pytest-shard (${{ matrix.shard }})
+    needs: changes
+    if: needs.changes.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.changes.outputs.pytest == 'full' && '[1,2,3,4]' || '[1]') }}
+    env:
+      COVERAGE_CORE: ctrace
+      PYTEST_SHARD_INDEX: ${{ matrix.shard }}
+      PYTEST_SHARD_COUNT: ${{ needs.changes.outputs.pytest == 'full' && 4 || 1 }}
+      PYTEST_SCOPE: ${{ needs.changes.outputs.pytest }}
+    steps:
+      - name: Use runner temporary storage
+        run: |
+          umask 077
+          tmpdir="$(mktemp -d /var/tmp/sharecut-ci.XXXXXX)"
+          printf 'TMPDIR=%s\n' "$tmpdir" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # tests read git history
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            uv.lock
+
+      - uses: actions/setup-node@v7 # tests run workflow JS predicates under node
+        with:
+          node-version: "24"
+
+      - name: Install FFmpeg
+        uses: ./.github/actions/setup-ffmpeg
+
+      - name: Install package and dev deps
+        uses: ./.github/actions/install-locked-python
+        with:
+          extras: dev gui relay prosody
+
       - name: Record pytest run context
         env:
           VALIDATED_COMPAT_BASE: ${{ inputs.compatibility-base || github.event.pull_request.base.sha || github.event.before || github.sha }}
@@ -122,7 +171,8 @@ jobs:
             printf 'Run attempt: %s\n' "$GITHUB_RUN_ATTEMPT"
             printf 'Event: %s\n' "$GITHUB_EVENT_NAME"
             printf 'GITHUB_SHA: %s\n' "$GITHUB_SHA"
-            printf 'Pytest scope: %s\n' "${{ steps.plan.outputs.pytest }}"
+            printf 'Pytest scope: %s\n' "$PYTEST_SCOPE"
+            printf 'Shard: %s/%s\n' "$PYTEST_SHARD_INDEX" "$PYTEST_SHARD_COUNT"
             printf 'Checkout SHA: %s\n' "$(git rev-parse HEAD)"
             printf 'Compatibility base: %s\n' "$VALIDATED_COMPAT_BASE"
             printf 'TMPDIR: %s\n' "$TMPDIR"
@@ -155,24 +205,24 @@ jobs:
               print(f"{package}: {version(package)}")
           PY
             ffmpeg -version
-            printf 'Pytest invocation: pytest -n auto -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log\n'
+            printf 'Pytest invocation: pytest -n auto -m "not e2e_slow and not e2e_real" --cov-fail-under=0 --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log\n'
             printf 'Worker policy: -n auto; tests/conftest.py caps automatic workers at four.\n'
-            printf 'Coverage provenance: pyproject.toml pytest addopts collect coverage and write coverage.xml; coverage report --fail-under=95 is a separate gate.\n'
+            printf 'Coverage provenance: pyproject.toml pytest addopts collect coverage; this shard gates nothing (--cov-fail-under=0) and its TOTAL is partial; the pytest job combines the shards and enforces coverage report --fail-under=95.\n'
           } > test-results/context.txt
 
       - name: Run tests with coverage gate
-        if: steps.plan.outputs.pytest == 'full'
+        if: env.PYTEST_SCOPE == 'full'
         # Exclude HF-backed / nightly tiers (e2e_slow, e2e_real); keep fast e2e for coverage.
         # Per-test --timeout=60 comes from pyproject addopts (pytest-timeout).
-        # xdist can leave pytest exit 0 even when --cov-fail-under fails; enforce via coverage.
+        # A shard sees a quarter of the suite, so it records coverage and gates nothing;
+        # the pytest job combines the shard files and enforces the floor.
         run: |
           set -o pipefail
-          pytest -n auto -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log
-          coverage report --fail-under=95
+          COVERAGE_FILE=cov/shard-$PYTEST_SHARD_INDEX pytest -n auto -m "not e2e_slow and not e2e_real" --cov-fail-under=0 --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml | tee test-results/pytest.log
 
       - name: Run the tests that read gui/web
         # A web-only PR cannot move Python coverage; main and nightly keep the floor.
-        if: steps.plan.outputs.pytest == 'web'
+        if: env.PYTEST_SCOPE == 'web'
         run: |
           set -o pipefail
           web_tests="$(python3 scripts/ci_plan.py subset-tests web)"
@@ -180,55 +230,111 @@ jobs:
 
       - name: Run the tests that read docs
         # A docs-only PR touches no Python; main and nightly keep the full suite.
-        if: steps.plan.outputs.pytest == 'docs'
+        if: env.PYTEST_SCOPE == 'docs'
         run: |
           set -o pipefail
           docs_tests="$(python3 scripts/ci_plan.py subset-tests docs)"
           pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $docs_tests | tee test-results/pytest.log
 
       - name: Run release policy and planner tests
-        if: steps.plan.outputs.pytest == 'release'
+        if: env.PYTEST_SCOPE == 'release'
         run: |
           set -o pipefail
           python3 scripts/version_policy.py
           release_tests="$(python3 scripts/ci_plan.py subset-tests release)"
           pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $release_tests | tee test-results/pytest.log
 
-      - name: Docs-sync gate (PR diff)
-        # Stdlib-only script; runs without the pip install above. Only pull_request has a
-        # base/head to diff — a push to main has nothing to gate against.
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        run: >-
-          python3 scripts/docs_sync.py check --range
-          "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
-
-      - name: Conventional Commit subjects (PR commits)
-        # Stdlib-only. release-please reads these to pick the next version, and an
-        # unparseable subject is silently skipped, so a malformed one fails here instead.
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        run: >-
-          python3 scripts/check_conventional_commits.py
-          "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
-
-      - name: Summarize Python tests
-        if: always()
-        continue-on-error: true
-        run: python3 scripts/test_area_summary.py junit --area python --report test-results/pytest.xml
-
-      - name: Upload coverage.xml
-        if: always() && steps.plan.outputs.pytest == 'full'
+      - name: Upload coverage data
+        if: always() && env.PYTEST_SCOPE == 'full'
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-xml
-          path: coverage.xml
+          name: pytest-coverage-${{ matrix.shard }}
+          path: cov/
+          include-hidden-files: false
+          if-no-files-found: error
+          overwrite: true
 
       - name: Upload pytest reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pytest-reports
+          name: pytest-reports-${{ matrix.shard }}
           path: test-results/
           retention-days: 7
+          overwrite: true
+
+  pytest:
+    needs: [changes, pytest-quality, pytest-shard]
+    if: ${{ always() && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require the plan, quality and every planned shard to succeed
+        env:
+          PLAN: ${{ needs.changes.result }}
+          SCOPE: ${{ needs.changes.outputs.pytest }}
+          QUALITY: ${{ needs.pytest-quality.result }}
+          SHARDS: ${{ needs.pytest-shard.result }}
+        run: |
+          case "$PLAN:$SCOPE:$QUALITY:$SHARDS" in
+            success:full:success:success | success:web:success:success | success:docs:success:success | success:release:success:success) exit 0 ;;
+            *)
+              printf 'Invalid plan or pytest result: %s/%s/%s/%s\n' "$PLAN" "$SCOPE" "$QUALITY" "$SHARDS" >&2
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/checkout@v7
+        if: always()
+
+      - name: Download pytest reports
+        if: always()
+        uses: actions/download-artifact@v8
+        with:
+          pattern: pytest-reports-*
+          path: test-results/
+
+      - name: Summarize Python tests
+        if: always()
+        continue-on-error: true
+        run: |
+          for report in test-results/pytest-reports-*/pytest.xml; do
+            dir="${report%/pytest.xml}"
+            python3 scripts/test_area_summary.py junit --area python --report "$report" --label "shard ${dir##*-}"
+          done
+
+      - uses: actions/setup-python@v7
+        if: needs.changes.outputs.pytest == 'full'
+        with:
+          python-version: "3.14"
+
+      - name: Install the locked coverage version
+        if: needs.changes.outputs.pytest == 'full'
+        run: |
+          pip install uv
+          pip install "$(uv export --locked --no-emit-project --no-hashes --extra dev | grep '^coverage==')"
+
+      - name: Download coverage data
+        if: needs.changes.outputs.pytest == 'full'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: pytest-coverage-*
+          path: cov/
+          merge-multiple: true
+
+      - name: Combine coverage and enforce the floor
+        if: needs.changes.outputs.pytest == 'full'
+        run: |
+          coverage combine cov/shard-*
+          coverage report --fail-under=95
+          coverage xml -o coverage.xml
+
+      - name: Upload coverage.xml
+        if: always() && needs.changes.outputs.pytest == 'full'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-xml
+          path: coverage.xml
 
   # requires-python is >=3.11 but the full suite runs on 3.14. This runs the tests that pin the
   # 3.11 `wave` gap (WAVE_FORMAT_EXTENSIBLE, #1183) on the floor. Advisory: not in the

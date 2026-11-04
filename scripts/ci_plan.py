@@ -217,8 +217,8 @@ REQUIRED_CHECKS: tuple[RequiredCheck, ...] = (
         "pytest",
         "test.yml",
         "pytest",
-        "Lint, format, types, project compatibility, commit lint, version policy, the Python suite with the "
-        "95% coverage floor and the docs-sync gate. Plans its own scope, so it never skips.",
+        "Aggregates pytest-quality and 4 pytest-shard jobs; combines shard coverage for the 95% floor. "
+        "Fails unless the plan and every planned job succeed.",
         ("lint-py", "format-py-check", "typecheck", "generated-check", "docs-sync", "test"),
     ),
     RequiredCheck(
