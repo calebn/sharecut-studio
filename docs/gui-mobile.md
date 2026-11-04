@@ -697,7 +697,7 @@ The frame grid uses named rows (`header / banners / alerts / body inspector / pl
 
 ## Player bar and Edit corner
 
-The transport bar, status bar and tool rail are gone (#2292), and the Edit tool strip followed in #2294 (W1a): touch has no Alt, so the Split verb for touch arrives with the action bar in W1b; W1b adds the visible Split button, the S key and the create menu's Split here. Alt-click Split is mouse only. Their jobs moved
+The transport bar, status bar and tool rail are gone (#2292), and the Edit tool strip followed in #2294 (W1a): touch has no Alt, so touch splits with the action bar's visible Split button, the S key and the create menu's Split here. Alt-click Split is mouse only. Their jobs moved
 to three places, on every shell; there is no narrow or collapsed variant to
 test any more.
 
