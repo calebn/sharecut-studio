@@ -1211,7 +1211,7 @@ describe("Deliver host clip titles and approvals", () => {
 });
 
 describe("Deliver host Find clips", () => {
-  it("proposes through the document command and shows the new clips without deleting the old ones", async () => {
+  it("proposes through the document command and shows the clips it returns, sending no deletes", async () => {
     render(<DeliverStage />);
     await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
     await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
@@ -1242,7 +1242,7 @@ describe("Deliver host Find clips", () => {
     );
   });
 
-  it("says the clips were not saved when the proposal is refused", async () => {
+  it("keeps the existing clips when the proposal is refused", async () => {
     network.mode = "refusing";
     render(<DeliverStage />);
     await userEvent.click(screen.getByRole("button", { name: "Find clips" }));

@@ -415,7 +415,7 @@ def test_propose_applies_edge_penalty_and_filler_dense(tmp_path):
     assert "filler_dense" in clips[0].reasons
 
 
-def test_propose_extend_existing_and_list_filters(tmp_path):
+def test_propose_keeps_approved_and_list_filters(tmp_path):
     proj = EpisodeProject.create("t", str(tmp_path))
     proj.combined_transcript = CombinedTranscript(
         utterances=[

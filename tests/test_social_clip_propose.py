@@ -61,7 +61,8 @@ def test_a_rerun_keeps_manual_clips(tmp_path):
     proj = _project(tmp_path)
     proj.timeline.tracks = [Track(id="host", label="host")]
     manual = add_manual_social_clip(proj, track_id="host", start=100.0, end=120.0)
-    propose_social_clips(proj, DEFAULTS)
+    proposed = propose_social_clips(proj, DEFAULTS)
+    assert proposed
     assert manual in proj.social_clip_candidates
     assert all(
         c is manual or c.end <= 100.0 or c.start >= 120.0 for c in proj.social_clip_candidates
