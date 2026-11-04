@@ -285,3 +285,128 @@ def test_generic_submits_perform_the_edits_the_gui_sends_with_the_same_payloads(
     assert {t.id for t in load_project(Path(path)).tracks} == {"host"}
 
     assert [r["type"] for r in _journal(path)] == ["SplitAtTime", "AddTrack", "RemoveTrack"]
+
+
+def test_the_cli_reads_the_envelope_baseline_that_a_generic_set_envelope_needs(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    from test_agent_document import _seed
+
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed(path, sample_wav)
+
+    def listed() -> list[dict]:
+        result = runner.invoke(app, ["edit", "list-envelope", "--project", path, "--track", "host"])
+        assert result.exit_code == 0, result.output
+        return json.loads(result.output)["points"]
+
+    assert listed() == []
+    first = {"track_id": "host", "points": [{"time": 1.0, "value": 0.5}], "expected_points": []}
+    done = runner.invoke(
+        app, ["doc", "submit", "SetEnvelope", "--project", path, "--payload", json.dumps(first)]
+    )
+    assert done.exit_code == 0, done.output
+    baseline = listed()
+    assert [(p["time"], p["value"]) for p in baseline] == [(1.0, 0.5)]
+    assert all(p["id"] for p in baseline)
+
+    second = {
+        "track_id": "host",
+        "points": [{"time": 2.0, "value": 0.25}],
+        "expected_points": baseline,
+    }
+    done = runner.invoke(
+        app, ["doc", "submit", "SetEnvelope", "--project", path, "--payload", json.dumps(second)]
+    )
+    assert done.exit_code == 0, done.output
+    assert [(p["time"], p["value"]) for p in listed()] == [(2.0, 0.25)]
+
+
+def test_the_cli_lists_social_clip_ids_that_a_generic_update_and_delete_need(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    from test_agent_document import _seed
+
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed(path, sample_wav)
+    mcp_document.submit_document_command_tool(
+        path, "AddSocialClip", {"track_id": "host", "start": 1.0, "end": 3.0, "title": "Intro"}
+    )
+
+    def listed() -> list[dict]:
+        result = runner.invoke(app, ["clips", "list", "--project", path])
+        assert result.exit_code == 0, result.output
+        return json.loads(result.output)
+
+    (clip,) = listed()
+    assert (clip["start"], clip["end"], clip["title"], clip["status"]) == (
+        1.0,
+        3.0,
+        "Intro",
+        "pending",
+    )
+    update = {"id": clip["id"], "start": 1.5, "end": 3.5}
+    done = runner.invoke(
+        app,
+        ["doc", "submit", "UpdateSocialClip", "--project", path, "--payload", json.dumps(update)],
+    )
+    assert done.exit_code == 0, done.output
+    assert [(c["start"], c["end"]) for c in listed()] == [(1.5, 3.5)]
+
+    done = runner.invoke(
+        app,
+        [
+            "doc",
+            "submit",
+            "DeleteSocialClip",
+            "--project",
+            path,
+            "--payload",
+            json.dumps({"id": clip["id"]}),
+        ],
+    )
+    assert done.exit_code == 0, done.output
+    assert listed() == []
+
+
+def test_a_reused_command_id_with_another_edit_is_refused(tmp_path: Path, sample_wav: Path) -> None:
+    from test_agent_document import _seed
+
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed(path, sample_wav)
+    mcp_document.submit_document_command_tool(
+        path, "AddTrack", {"track_id": "music"}, command_id="retry-1"
+    )
+    again = json.loads(
+        mcp_document.submit_document_command_tool(
+            path, "AddTrack", {"track_id": "music"}, command_id="retry-1"
+        )
+    )
+    assert again["command_id"] == "retry-1"
+    with pytest.raises(Exception, match="command_id already names a different edit"):
+        mcp_document.submit_document_command_tool(
+            path, "AddTrack", {"track_id": "other"}, command_id="retry-1"
+        )
+    with pytest.raises(Exception, match="command_id already names a different edit"):
+        mcp_document.submit_document_command_tool(
+            path, "RemoveTrack", {"track_id": "music"}, command_id="retry-1"
+        )
+    assert [r["type"] for r in _journal(path)] == ["AddTrack"]
+
+
+@pytest.mark.parametrize(
+    ("command_type", "field", "words"),
+    [
+        ("TrimClipEdge", "expected_token", ("trim_clip_edge_tool", "podcast edit trim-clip")),
+        ("SetClipFade", "expected", ("podcast edit list-clips", "fade_in_ms")),
+        ("SetEnvelope", "expected_points", ("podcast edit list-envelope", "set_envelope")),
+    ],
+)
+def test_a_baseline_field_says_how_to_read_it(
+    command_type: str, field: str, words: tuple[str, ...]
+) -> None:
+    description = document_command_schema(command_type).payload_schema["properties"][field][
+        "description"
+    ]
+    for word in words:
+        assert word in description
