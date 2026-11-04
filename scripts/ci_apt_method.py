@@ -20,6 +20,7 @@ from ci_apt_acquisition import AptSignedMetadata, FetchPlan, HashedObject, acqui
 METHOD = "sharecut-https"
 CANONICAL = ("archive.ubuntu.com", "security.ubuntu.com")
 SECONDARY = "https://mirrors.edge.kernel.org/ubuntu/"
+UNSUPPORTED_LAYOUT_EXIT = 3
 MAXIMUM_METADATA = 10 * 1024 * 1024
 MAXIMUM_MESSAGE = 64 * 1024
 MAXIMUM_FIELDS = 128
@@ -244,6 +245,10 @@ def owned_target(path: Path) -> None:
             raise ValueError("configuration file must be owned without other writers")
 
 
+class UnsupportedLayout(ValueError):
+    """The runner image's apt sources are not a layout this module knows how to bound."""
+
+
 def rewrite_sources(source: str) -> str:
     uri_lines = re.findall(r"^URIs:[ \t]+(.+)$", source, re.M)
     allowed = {"mirror+file:/etc/apt/apt-mirrors.txt"}
@@ -254,7 +259,16 @@ def rewrite_sources(source: str) -> str:
             for slash in ("", "/")
         )
     if not uri_lines or any(uri not in allowed for line in uri_lines for uri in line.split()):
-        raise ValueError("unsupported Ubuntu source layout")
+        seen = sorted(
+            {
+                uri
+                if re.fullmatch(r"(?:https?|mirror\+file)://?[A-Za-z0-9./:_-]{1,120}", uri)
+                else "<redacted>"
+                for line in uri_lines[:8]
+                for uri in line.split()[:8]
+            }
+        )
+        raise UnsupportedLayout("unsupported Ubuntu source layout " + json.dumps(seen))
     suites = re.findall(r"^Suites:[ \t]+(.+)$", source, re.M)
     components = re.findall(r"^Components:[ \t]+(.+)$", source, re.M)
     if not suites or any(suite not in SUITES for line in suites for suite in line.split()):
@@ -313,7 +327,13 @@ def configure(
 
 if __name__ == "__main__":
     if sys.argv[1:] == ["configure"]:
-        configure()
+        try:
+            configure()
+        except UnsupportedLayout as error:
+            # A new runner image must not turn every browser shard red: stay on the image's
+            # own mirrors, which is how the job ran before this hardening, and say so.
+            print(f"::warning::bounded Ubuntu acquisition not applied: {error}", file=sys.stderr)
+            raise SystemExit(UNSUPPORTED_LAYOUT_EXIT) from error
     elif not sys.argv[1:]:
         raise SystemExit(run_method())
     else:

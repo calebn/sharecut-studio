@@ -266,6 +266,14 @@ def test_apt_identity_and_security_route_are_preserved(api):
     )
 
 
+def test_an_unknown_layout_is_reported_with_its_public_uris_and_the_exit_code(api):
+    _, method = api
+    source = "URIs: http://eu-1.ec2.archive.ubuntu.com/ubuntu/ https://x y\nSuites: resolute\n"
+    with pytest.raises(method.UnsupportedLayout, match=r"eu-1\.ec2\.archive\.ubuntu\.com"):
+        method.rewrite_sources(source)
+    assert method.UNSUPPORTED_LAYOUT_EXIT == 3
+
+
 @pytest.mark.parametrize(
     "message",
     [

@@ -16,7 +16,8 @@ def test_browser_setup_installs_locked_dependencies_with_bounded_transport() -> 
     policy = policies[0]
     install = next(step for step in steps if "playwright install" in step.get("run", ""))
     assert steps.index(policy) < steps.index(install)
-    assert policy["run"] == "sudo /usr/bin/python3 scripts/ci_apt_method.py configure"
+    assert "sudo /usr/bin/python3 scripts/ci_apt_method.py configure || rc=$?" in policy["run"]
+    assert '[ "$rc" -ne 3 ]' in policy["run"]
     assert not policy.get("if") and not policy.get("continue-on-error")
     assert "npm ci" in install["run"]
     assert "npx playwright install --with-deps ${{ matrix.browser }}" in install["run"]

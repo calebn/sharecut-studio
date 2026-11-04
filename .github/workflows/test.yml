@@ -392,7 +392,12 @@ jobs:
           extras: gui
 
       - name: Configure bounded Ubuntu acquisition
-        run: sudo /usr/bin/python3 scripts/ci_apt_method.py configure
+        run: |
+          # Exit 3 = a runner image whose apt sources this module does not recognise: keep the
+          # image's own mirrors (the warning names the layout) instead of failing every shard.
+          rc=0
+          sudo /usr/bin/python3 scripts/ci_apt_method.py configure || rc=$?
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then exit "$rc"; fi
 
       - name: Install frontend deps and browser engines
         timeout-minutes: 10
