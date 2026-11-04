@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Cover } from "../../system/Cover";
 import { ScriptPane, type ScriptPaneHandle } from "../../system/ScriptPane";
-import type { ScriptTurn } from "../../system/scriptPieces";
+import type {
+  ScriptSelection,
+  ScriptTurn,
+  WordsSelection,
+} from "../../system/scriptPieces";
 import {
   GUEST_EMPTY_COPY,
   type GuestEmpty,
@@ -18,6 +22,10 @@ export type GuestScriptProps = {
   empty?: GuestEmpty;
   onSeek: (seconds: number) => void;
   onUserScroll?: () => void;
+  /** Given with `onSelect` to a guest who may suggest edits; left out, the pane only reads. */
+  selection?: ScriptSelection | null;
+  onSelect?: (selection: WordsSelection) => void;
+  onClearSelection?: () => void;
 };
 
 export function GuestScript({
@@ -30,6 +38,9 @@ export function GuestScript({
   empty = "none",
   onSeek,
   onUserScroll,
+  selection,
+  onSelect,
+  onClearSelection,
 }: GuestScriptProps) {
   const [following, setFollowing] = useState(true);
   const pane = useRef<ScriptPaneHandle>(null);
@@ -55,6 +66,9 @@ export function GuestScript({
       playing={playing}
       playheadWord={playheadWord}
       following={following}
+      selection={selection}
+      onSelect={onSelect}
+      onClearSelection={onClearSelection}
       onSeek={(index) => {
         const start = wordStarts[index];
         if (start !== undefined) onSeek(start);

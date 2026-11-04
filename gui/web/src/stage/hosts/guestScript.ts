@@ -6,11 +6,15 @@ import type {
 } from "../../types/project";
 import { formatTimeShort } from "../../utils/time";
 import { isWordActive, wordSeekSec } from "../../utils/transcript";
+import type { ScriptModel, ScriptWordRef } from "../edit/script/scriptModel";
+import { wordKey } from "../edit/script/scriptModel";
 
 export type GuestScriptModel = {
   turns: ScriptTurn[];
   wordStarts: number[];
   words: TranscriptWordView[];
+  refs: ScriptWordRef[];
+  times: ({ start: number; end: number } | null)[];
   empty: GuestEmpty;
 };
 
@@ -58,6 +62,8 @@ export function guestScriptOf(
   const taken = new Set<string>();
   const wordStarts: number[] = [];
   const words: TranscriptWordView[] = [];
+  const refs: ScriptWordRef[] = [];
+  const times: GuestScriptModel["times"] = [];
   let heardUntil: number | null = null;
   for (const { utterance, heard, first } of spoken) {
     const speaker = utterance.speaker;
@@ -70,6 +76,15 @@ export function guestScriptOf(
       const index = wordStarts.length;
       wordStarts.push(item.start);
       words.push(item.word);
+      refs.push({
+        trackId: utterance.track_id,
+        sourceId: utterance.source_id ?? null,
+        wordIndex: item.word.word_index ?? null,
+      });
+      times.push({
+        start: item.word.timeline_start ?? item.start,
+        end: item.word.timeline_end ?? item.start,
+      });
       return { index, key: item.key, text: item.text };
     });
     const base = `${utterance.track_id}@${first}`;
@@ -98,7 +113,7 @@ export function guestScriptOf(
         : anyCut
           ? "cut"
           : "untimed";
-  return { turns, wordStarts, words, empty };
+  return { turns, wordStarts, words, refs, times, empty };
 }
 
 export function playingWordsAt(
@@ -110,4 +125,27 @@ export function playingWordsAt(
     if (isWordActive(word, seconds)) playing.push(index);
   });
   return playing;
+}
+
+/** The pane's selection model over the guest's heard words: nothing is cut here. */
+export function guestScriptModelOf(g: GuestScriptModel): ScriptModel {
+  const first = new Map<string, number>();
+  const last = new Map<string, number>();
+  g.refs.forEach((ref, index) => {
+    if (ref.wordIndex === null) return;
+    const key = wordKey(ref);
+    if (!first.has(key)) first.set(key, index);
+    last.set(key, index);
+  });
+  return {
+    turns: g.turns,
+    refs: g.refs,
+    indexOf: (ref, side = "first") =>
+      ref.wordIndex === null
+        ? undefined
+        : (side === "first" ? first : last).get(wordKey(ref)),
+    seekSecOf: (index) => g.wordStarts[index] ?? null,
+    timeOf: (index) => g.times[index] ?? null,
+    isCut: () => false,
+  };
 }
