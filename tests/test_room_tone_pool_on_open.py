@@ -219,6 +219,168 @@ def test_a_failed_thread_start_leaves_no_pending_key_and_a_later_schedule_queues
     assert room_tone.read_room_tone_pool(live, "host") is not None
 
 
+def _assert_preparation_can_retry(
+    live: EpisodeProject, foreign: room_tone.PoolKey, track_ids: tuple[str, ...] = ("host", "guest")
+) -> None:
+    assert set(room_tone._PENDING_POOLS) == {foreign}
+    acquired: list[bool] = []
+
+    def probe() -> None:
+        lock = project_state_lock(live)
+        got = lock.acquire(blocking=False)
+        acquired.append(got)
+        if got:
+            lock.release()
+
+    thread = threading.Thread(target=probe)
+    thread.start()
+    thread.join(10)
+    assert not thread.is_alive()
+    assert acquired == [True]
+    assert room_tone.schedule_room_tone_pools(live) == len(track_ids)
+    _join_pools()
+    assert set(room_tone._PENDING_POOLS) == {foreign}
+    for track_id in track_ids:
+        assert room_tone.read_room_tone_pool(live, track_id)
+
+
+def _foreign_pending(tmp_path: Path) -> room_tone.PoolKey:
+    foreign = room_tone._pool_key(_two_speakers(tmp_path / "foreign"), "host")
+    assert foreign is not None
+    room_tone._PENDING_POOLS.add(foreign)
+    return foreign
+
+
+@pytest.mark.parametrize("failure", [KeyboardInterrupt, SystemExit, RuntimeError])
+@pytest.mark.parametrize("owned", [False, True])
+def test_failed_pool_snapshot_releases_only_its_claims_and_can_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: type[BaseException], owned: bool
+) -> None:
+    live = _two_speakers(tmp_path / "live")
+    foreign = _foreign_pending(tmp_path)
+    error = failure("snapshot interrupted")
+
+    def fail_snapshot(*args, **kwargs):
+        raise error
+
+    with monkeypatch.context() as fault:
+        fault.setattr(EpisodeProject, "model_copy", fail_snapshot)
+        if isinstance(error, Exception):
+            assert room_tone.schedule_room_tone_pools(live, owned=owned) == 0
+        else:
+            with pytest.raises(failure) as caught:
+                room_tone.schedule_room_tone_pools(live, owned=owned)
+            assert caught.value is error
+
+    _assert_preparation_can_retry(live, foreign)
+
+
+def test_interrupted_preparation_preserves_an_already_pending_requested_track(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _two_speakers(tmp_path)
+    pending = room_tone._pool_key(live, "host")
+    assert pending is not None
+    room_tone._PENDING_POOLS.add(pending)
+
+    def fail_snapshot(*args, **kwargs):
+        raise KeyboardInterrupt("snapshot interrupted")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(EpisodeProject, "model_copy", fail_snapshot)
+        with pytest.raises(KeyboardInterrupt):
+            room_tone.schedule_room_tone_pools(live)
+
+    _assert_preparation_can_retry(live, pending, ("guest",))
+    assert room_tone.read_room_tone_pool(live, "host") is None
+
+
+@pytest.mark.parametrize("failure", [KeyboardInterrupt, SystemExit])
+@pytest.mark.parametrize("point", ["pending", "registered"])
+def test_interrupted_pool_claim_releases_only_its_claims_and_can_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: type[BaseException], point: str
+) -> None:
+    live = _two_speakers(tmp_path / "live")
+    error = failure("claim interrupted")
+
+    class InterruptedPending(set):
+        interrupt = False
+
+        def add(self, key):
+            super().add(key)
+            if self.interrupt:
+                self.interrupt = False
+                raise error
+
+    real_claim = room_tone._claim_pool
+
+    def fail_registered(*args, **kwargs):
+        real_claim(*args, **kwargs)
+        raise error
+
+    if point == "pending":
+        pending = InterruptedPending()
+        monkeypatch.setattr(room_tone, "_PENDING_POOLS", pending)
+    foreign = _foreign_pending(tmp_path)
+    if point == "pending":
+        pending.interrupt = True
+    with monkeypatch.context() as fault:
+        if point == "registered":
+            fault.setattr(room_tone, "_claim_pool", fail_registered)
+        with pytest.raises(failure) as caught:
+            room_tone.schedule_room_tone_pools(live)
+        assert caught.value is error
+    _assert_preparation_can_retry(live, foreign)
+
+
+@pytest.mark.parametrize("failure", [KeyboardInterrupt, RuntimeError])
+def test_failed_pool_thread_construction_releases_claims_and_can_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: type[BaseException]
+) -> None:
+    live = _two_speakers(tmp_path / "live")
+    foreign = _foreign_pending(tmp_path)
+    error = failure("thread construction failed")
+
+    def fail_thread(*args, **kwargs):
+        raise error
+
+    with monkeypatch.context() as fault:
+        fault.setattr(room_tone.threading, "Thread", fail_thread)
+        if isinstance(error, Exception):
+            assert room_tone.schedule_room_tone_pools(live) == 0
+        else:
+            with pytest.raises(failure) as caught:
+                room_tone.schedule_room_tone_pools(live)
+            assert caught.value is error
+
+    _assert_preparation_can_retry(live, foreign)
+
+
+def test_interrupted_project_lock_release_releases_pool_claims_and_can_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _two_speakers(tmp_path / "live")
+    foreign = _foreign_pending(tmp_path)
+    lock = project_state_lock(live)
+    error = KeyboardInterrupt("lock release interrupted")
+
+    class InterruptedRelease:
+        def acquire(self, **kwargs):
+            return lock.acquire(**kwargs)
+
+        def release(self):
+            lock.release()
+            raise error
+
+    with monkeypatch.context() as fault:
+        fault.setattr(room_tone, "project_state_lock", lambda project: InterruptedRelease())
+        with pytest.raises(KeyboardInterrupt) as caught:
+            room_tone.schedule_room_tone_pools(live)
+        assert caught.value is error
+
+    _assert_preparation_can_retry(live, foreign)
+
+
 def test_a_track_that_cannot_be_recorded_is_not_retried_until_the_memo_expires(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
