@@ -137,11 +137,10 @@
 }
 
 /* A guest on a phone keeps the comment field in reach: it sits last in the card
-   and sticks to the bottom of the scrolling stage, above the Player and the
-   safe area the frame already pads. */
+   and sticks to the bottom of the host panel, the real scroller, so .rv-main must
+   not clip it. The Player and the safe area the frame pads sit below the panel. */
 .rv-stage[data-layout="phone"]:has(.rv-compose[data-docked]) .rv-main {
-  min-block-size: 0;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .rv-stage[data-layout="phone"] .rv-compose[data-docked] {
