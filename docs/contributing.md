@@ -258,7 +258,7 @@ checks to report `SUCCESS` on the exact head:
 <!-- ci-plan:required-checks -->
 | Required check | Workflow | What it covers | Local mirror |
 |---|---|---|---|
-| `pytest` | `test.yml` | Lint, format, types, project compatibility, commit lint, version policy, the Python suite with the 95% coverage floor and the docs-sync gate. Plans its own scope, so it never skips. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
+| `pytest` | `test.yml` | Aggregates pytest-quality and 4 pytest-shard jobs; combines shard coverage for the 95% floor. Fails unless the plan and every planned job succeed. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
 | `frontend` | `test.yml` | Aggregate over the planner and `frontend-suite` (lint, format, types, Vitest with axe, build). Succeeds when the plan orders the workload and it passes, or the plan orders none and it skipped. | `make test-web` |
 | `frontend-e2e` | `test.yml` | Aggregate over the planner and the Playwright shards (`frontend-e2e-suites`), with the same fail-closed contract as `frontend`. | `make test-web-e2e` |
 | `gitleaks-history` | `secret-scan.yml` | Secret scan over the full git history. Runs on every PR. | none (CI only) |

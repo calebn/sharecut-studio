@@ -8,7 +8,7 @@ make test        # coverage gate + parallel; excludes e2e_slow / e2e_real
 .venv/bin/pytest -n auto -m "not e2e_slow and not e2e_real"
 ```
 
-The required `pytest` job uses Python 3.14 and coverage 7.16.2 with CTracer. `pyproject.toml` collects line and branch coverage for `podcast_mcp` and `podcast_relay` with a 95% floor; the independent `coverage report --fail-under=95` gate also remains required. See [CI runtime](testing-ci.md#python-test-runtime).
+The required `pytest` check aggregates `pytest-quality` and four `pytest-shard` jobs. Shards use Python 3.14 and coverage 7.16.2 with CTracer. `pyproject.toml` collects line and branch coverage for `podcast_mcp` and `podcast_relay` with a 95% floor. Each shard runs with `--cov-fail-under=0`, and the `pytest` job runs `coverage combine` and the independent `coverage report --fail-under=95` gate over the shard files. See [CI runtime](testing-ci.md#python-test-runtime).
 
 Pause observation and finite-effect controls live in `tests/test_pause_observation_effects.py`. They use real native caches and source WAVs to distinguish a clean kept-word collar from attached breath, low-band activity and a placement-clipped sound. Saved-splice checks bind actual archive footprints and preserve whole kept sound PCM at `2/32768`. Disabled observation checks room-read state independently. These synthetic controls do not qualify real VAD or owner listening. Run them with `.venv/bin/python -m pytest -q --no-cov tests/test_pause_observation_effects.py` beside the frozen pause suites and prior source-placement controls.
 
@@ -39,7 +39,7 @@ browser matrix dimension by the distinct failure it can catch. Keep broad
 exploratory sweeps and deliberate faults in PR evidence unless a case protects
 a distinct important regression.
 
-`make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in parallel with a `frontend-suite` job for ShareCut Studio (`gui/web`).
+`make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in four shards, in parallel with a `frontend-suite` job for ShareCut Studio (`gui/web`). **Sharding.** `tests/conftest.py` keeps the tests whose node id hashes (`zlib.crc32`) to shard `PYTEST_SHARD_INDEX` of `PYTEST_SHARD_COUNT`. With neither variable set every test runs. A partial or out-of-range pair is a usage error. To reproduce shard 2 locally, run `PYTEST_SHARD_INDEX=2 PYTEST_SHARD_COUNT=4 COVERAGE_FILE=cov/shard-2 .venv/bin/pytest -n auto -m "not e2e_slow and not e2e_real" --cov-fail-under=0`. After running every shard, `coverage combine cov/shard-*` and `coverage report --fail-under=95` give the whole-suite total.
 
 Hang protection: `pytest-timeout` (`--timeout=60` in `pyproject.toml` addopts) and job `timeout-minutes` on the GitHub Actions workflow. Nested guest+tunnel WebSocket tests use a live uvicorn server because Starlette `TestClient` nested sockets can deadlock. Enter socket contexts before handshake and explicitly close test-owned SQLite resources; see [ownership and Python runtime checks](testing-ci.md#python-test-runtime).
 
@@ -60,11 +60,11 @@ Coverage reports:
 
 ### Pytest CI reports
 
-The required `pytest` job uploads `pytest-reports` for seven days. It contains
+Each `pytest-shard` job uploads `pytest-reports-<shard>` for seven days. It contains
 `pytest.log`, the native pytest terminal output; `pytest.xml`, JUnit XML with
 per-testcase durations; and `context.txt`, which records the Actions run, commit,
 Python and test-tool versions, FFmpeg version, worker invocation, marker filter, and
-coverage gate provenance. The pytest command also prints up to 100 phases that
+coverage gate provenance; the shard's coverage total is partial. The pytest command also prints up to 100 phases that
 took at least 0.1 seconds with `--durations=100 --durations-min=0.1`.
 
 These measurements answer different questions. Pytest phase durations report
@@ -89,7 +89,7 @@ report appears as unavailable, and the summary does not change the test result.
 
 ## Project and history compatibility
 
-The required `pytest` job always runs `scripts/project_compat.py check` and
+The required `pytest` check always runs, through `pytest-quality`, `scripts/project_compat.py check` and
 `tests/test_project_compat.py` before the full, web, or docs test selection.
 Its trusted base is the PR base SHA, the previous push SHA, or the checked-out
 SHA for scheduled and manual runs. The check cannot be skipped by a docs-only
@@ -299,7 +299,7 @@ The required checks, rendered from `REQUIRED_CHECKS` in `scripts/ci_plan.py` (`p
 <!-- ci-plan:required-checks -->
 | Required check | Workflow | What it covers | Local mirror |
 |---|---|---|---|
-| `pytest` | `test.yml` | Lint, format, types, project compatibility, commit lint, version policy, the Python suite with the 95% coverage floor and the docs-sync gate. Plans its own scope, so it never skips. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
+| `pytest` | `test.yml` | Aggregates pytest-quality and 4 pytest-shard jobs; combines shard coverage for the 95% floor. Fails unless the plan and every planned job succeed. | `make lint-py` `make format-py-check` `make typecheck` `make generated-check` `make docs-sync` `make test` |
 | `frontend` | `test.yml` | Aggregate over the planner and `frontend-suite` (lint, format, types, Vitest with axe, build). Succeeds when the plan orders the workload and it passes, or the plan orders none and it skipped. | `make test-web` |
 | `frontend-e2e` | `test.yml` | Aggregate over the planner and the Playwright shards (`frontend-e2e-suites`), with the same fail-closed contract as `frontend`. | `make test-web-e2e` |
 | `gitleaks-history` | `secret-scan.yml` | Secret scan over the full git history. Runs on every PR. | none (CI only) |
@@ -324,9 +324,9 @@ missing contexts, arbitrary `SKIPPED` checks, API errors, and moved heads.
 
 Regressions in skipped areas surface on the next retained `main` push run or nightly run. Check the nightly `test` run before trusting `main`.
 
-The `pytest` job's final step, on pull requests only, runs `scripts/docs_sync.py check --range` over the PR's base/head SHAs — the docs-sync gate from [AGENTS.md § Docs in sync](../AGENTS.md#docs-in-sync). It needs the job's `actions/checkout` at `fetch-depth: 0` (the merge base and commit trailers, not just the head commit). Run the same check locally with `make docs-sync` before opening a PR; the `docs-sync` pre-commit hook runs it on staged files but only warns.
+The `pytest-quality` job's docs-sync step, on pull requests only, runs `scripts/docs_sync.py check --range` over the PR's base/head SHAs — the docs-sync gate from [AGENTS.md § Docs in sync](../AGENTS.md#docs-in-sync). It needs the job's `actions/checkout` at `fetch-depth: 0` (the merge base and commit trailers, not just the head commit). Run the same check locally with `make docs-sync` before opening a PR; the `docs-sync` pre-commit hook runs it on staged files but only warns.
 
-The `pytest` job also runs `actions/setup-node`, so Python tests that invoke Node have the runtime available in CI.
+The `pytest-shard` jobs also run `actions/setup-node`, so Python tests that invoke Node have the runtime available in CI.
 
 The path-filtered `.github/workflows/release-wheel.yml` builds the web assets, then the sdist and wheel, installs the wheel into a clean venv, and runs `scripts/check_wheel_web_build.py --podcast`. Changes under `contracts/` and `.agents/defaults/` also trigger this workflow because those directories are force-included in the wheel as `podcast_mcp/contracts` and `podcast_mcp/defaults`. It fails unless the wheel ships `index.html` plus every file it references, the installed package loads its contracts and its default YAMLs (an install without them reads an empty pipeline config), and the installed `podcast gui` serves that `index.html` at `/`. The source archive excludes installed frontend dependencies, including hardlinked files under `gui/web/node_modules`. CI inspects archive members and rejects generated dependency trees or hardlinks. `tests/test_wheel_web_build.py` covers the build hook in the ordinary `pytest` job without npm ([setup.md § Web build in wheels](setup.md#web-build-in-wheels)).
 
@@ -334,7 +334,7 @@ The `extras-import` workflow (on `pyproject.toml` changes, `workflow_dispatch`, 
 
 ### CI dependency downloads
 
-The `pytest` and browser matrix jobs acquire the catalog-pinned prebuilt pair
+The `pytest-shard` and browser matrix jobs acquire the catalog-pinned prebuilt pair
 through `.github/actions/setup-ffmpeg`. Sidecar builds use the same importer.
 Ordinary consumer workflows have no source producer or compiler setup. The
 production target catalog pins each hosted archive and original producer manifest.

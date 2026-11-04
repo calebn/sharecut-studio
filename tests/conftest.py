@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import zlib
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,6 +54,33 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
     """Cap only ``-n auto``; explicit ``-n N`` values remain untouched."""
     del config
     return automatic_xdist_workers(os.cpu_count())
+
+
+def shard_of(nodeid: str, count: int) -> int:
+    return zlib.crc32(nodeid.encode()) % count + 1
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Keep this shard's tests when CI sets ``PYTEST_SHARD_INDEX`` and ``PYTEST_SHARD_COUNT``."""
+    raw_index = os.environ.get("PYTEST_SHARD_INDEX")
+    raw_count = os.environ.get("PYTEST_SHARD_COUNT")
+    if raw_index is None and raw_count is None:
+        return
+    try:
+        index, count = int(raw_index or ""), int(raw_count or "")
+    except ValueError:
+        index = count = 0
+    if not 1 <= index <= count:
+        raise pytest.UsageError(
+            f"PYTEST_SHARD_INDEX={raw_index!r} and PYTEST_SHARD_COUNT={raw_count!r} "
+            "must be integers with 1 <= index <= count"
+        )
+    kept: list[pytest.Item] = []
+    dropped: list[pytest.Item] = []
+    for item in items:
+        (kept if shard_of(item.nodeid, count) == index else dropped).append(item)
+    config.hook.pytest_deselected(items=dropped)
+    items[:] = kept
 
 
 def _make_windows_test_directory_private(path: Path) -> None:

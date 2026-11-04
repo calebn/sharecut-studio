@@ -172,6 +172,7 @@ strict_equality = true
 [tool.coverage.run]
 source = ["podcast_mcp", "podcast_relay"]
 branch = true
+relative_files = true
 omit = [
     # Protocol-only module (no runtime bodies).
     "**/podcast_mcp/extensions/spi.py",
