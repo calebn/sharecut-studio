@@ -10,7 +10,7 @@ import {
   commentPostedStatus,
   usePostComment,
 } from "../../comments/usePostComment";
-import { useShortViewport } from "../../hooks/useShortViewport";
+import { useShortLayoutViewport } from "../../hooks/useShortLayoutViewport";
 import { stepUndecided } from "../../review/advance";
 import {
   commentEntriesOf,
@@ -74,7 +74,7 @@ export function useReviewComments(guest: boolean) {
   const mayReply = canReply(projectPath, guestMode, capabilities);
   const mayAction = canSetAction(projectPath, capabilities);
   const showComposer = mayComment && (guest || commentDraft !== null);
-  const short = useShortViewport();
+  const short = useShortLayoutViewport();
   const docked = shell === "phone" && guest && !short;
   const duration = project?.timeline_duration_sec ?? Number.NaN;
   const comments = project?.comments;
