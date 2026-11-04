@@ -35,6 +35,7 @@ const WHEN_HINTS: Record<string, string> = {
   timelineFocused: "Timeline focused",
   canSuggestStructural: "Structural edits allowed",
   hasProject: "Project loaded",
+  editStageOrRangeSuggest: "Edit stage, or a link that suggests edits",
   "stageAllowed:record": "Project loaded, host only",
   "stageAllowed:prepare": "Project loaded, host only",
   "stageAllowed:edit": "Project loaded, host or editor link",

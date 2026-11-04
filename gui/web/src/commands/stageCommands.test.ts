@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { rangeEditMode } from "../shareMode";
+import { paletteCommands } from "../stage/dialogs/commandPaletteRows";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { STAGE_IDS } from "../types/stage";
 import { COMMANDS } from "./catalog";
+import { buildCommandContext, evaluateWhen } from "./context";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
@@ -111,4 +114,73 @@ describe("stage commands", () => {
         r.reason === "Open Edit to change the timeline",
     ).toBe(false);
   });
+  const STAGE_REASON = "Open Edit to change the timeline";
+  const SUGGESTABLE = ["range.cut", "range.mute"] as const;
+  const ROLES = {
+    commenter: ["comment", ["suggest", "comment", "view"]],
+    editor: ["edit", ["edit", "suggest", "comment", "view"]],
+    commentOnly: ["comment", ["comment", "view"]],
+    viewer: ["view", ["view"]],
+    noCaps: ["comment", null],
+  } as const;
+  function as(role: keyof typeof ROLES, stage: (typeof STAGE_IDS)[number]) {
+    const [guestMode, shareCapabilities] = ROLES[role];
+    useDawStore.setState({
+      projectPath: "share:tok",
+      guestMode,
+      shareCapabilities: shareCapabilities ? [...shareCapabilities] : null,
+      stage,
+    });
+    return buildCommandContext();
+  }
+  const rowReason = (id: string) =>
+    paletteCommands(buildCommandContext()).find((r) => r.id === id)
+      ?.disabledReason;
+
+  it.each(SUGGESTABLE)(
+    "%s is enabled for a suggest-only link on Review",
+    (id) => {
+      const ctx = as("commenter", "review");
+      expect(evaluateWhen(COMMANDS[id].when, ctx)).toEqual({ ok: true });
+      expect(rowReason(id)).toBeNull();
+    },
+  );
+
+  it.each(
+    RANGE_EDITS.flatMap((id) =>
+      (["review", "deliver"] as const).map((st) => [id, st] as const),
+    ),
+  )("%s stays stage-disabled for an Editor link on %s", (id, stage) => {
+    as("editor", stage);
+    expect(rowReason(id)).toBe(STAGE_REASON);
+  });
+
+  it.each(RANGE_EDITS)("%s is enabled for an Editor link on Edit", (id) => {
+    as("editor", "edit");
+    expect(rowReason(id)).toBeNull();
+  });
+
+  it("keeps fillRoomTone on the Edit stage for a suggest-only link", () => {
+    as("commenter", "review");
+    expect(rowReason("range.fillRoomTone")).toBe(STAGE_REASON);
+  });
+
+  it.each(["commentOnly", "viewer", "noCaps"] as const)(
+    "range.cut stays disabled for %s on Review",
+    (role) => {
+      as(role, "review");
+      expect(rowReason("range.cut")).toBe(STAGE_REASON);
+    },
+  );
+
+  it.each(Object.keys(ROLES) as (keyof typeof ROLES)[])(
+    "range.cut off Edit matches rangeEditMode suggest for %s",
+    (role) => {
+      const ctx = as(role, "review");
+      const [, caps] = ROLES[role];
+      expect(evaluateWhen(COMMANDS["range.cut"].when, ctx).ok).toBe(
+        rangeEditMode("share:tok", caps ? [...caps] : null) === "suggest",
+      );
+    },
+  );
 });

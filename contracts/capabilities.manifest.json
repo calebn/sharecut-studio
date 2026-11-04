@@ -3213,7 +3213,7 @@
       "service": "EditService.edit_selected_range",
       "industry_standard_key": false,
       "gates": [
-        "editStage"
+        "editStageOrRangeSuggest"
       ],
       "surfaces": {
         "command": "range.cut",
@@ -3241,7 +3241,7 @@
       "service": "EditService.edit_selected_range",
       "industry_standard_key": false,
       "gates": [
-        "editStage"
+        "editStageOrRangeSuggest"
       ],
       "surfaces": {
         "command": "range.mute",

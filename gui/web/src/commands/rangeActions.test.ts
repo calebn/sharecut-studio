@@ -130,6 +130,30 @@ describe("shared range action policy and commands", () => {
       ]);
     },
   );
+  it("lets a suggest-only commenter on Review propose a cut from the palette gate", async () => {
+    useDawStore.setState({
+      projectPath: "share:token",
+      guestMode: "comment",
+      shareCapabilities: ["suggest", "comment", "view"],
+      stage: "review",
+    });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Applied" });
+    expect(await execute("range.cut")).toEqual({ status: "ok" });
+    expect(submitDocumentCommand).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(submitDocumentCommand).mock.calls[0][1]).toBe(
+      "EditSelectedRange",
+    );
+  });
+  it("keeps fillRoomTone disabled for a suggest-only commenter on Review", async () => {
+    useDawStore.setState({
+      projectPath: "share:token",
+      guestMode: "comment",
+      shareCapabilities: ["suggest", "comment", "view"],
+      stage: "review",
+    });
+    expect((await execute("range.fillRoomTone")).status).toBe("disabled");
+    expect(submitDocumentCommand).not.toHaveBeenCalled();
+  });
   it.each(["cut", "mute"] as const)(
     "dispatches one sealed %s command",
     async (action) => {

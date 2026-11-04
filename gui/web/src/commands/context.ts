@@ -8,6 +8,8 @@ import {
   canManageProjects,
   canRefreshMix,
   canSuggestStructural,
+  type RangeEditMode,
+  rangeEditMode,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { documentActivityBusy } from "../state/documentSendOrder";
@@ -27,6 +29,8 @@ export type CommandContext = {
   editorFocused: boolean;
   canSuggestStructural: boolean;
   canApplyPass12: boolean;
+  /** What a selected range does here; mirrors shareMode.rangeEditMode / server resolve_range_mode. */
+  rangeEditMode: RangeEditMode;
   canRefreshMix: boolean;
   canIngestMedia: boolean;
   /** Host or Editor: may change the saved mix (volume, mute). */
@@ -90,6 +94,7 @@ export function buildCommandContext(): CommandContext {
       s.guestMode,
       s.shareCapabilities,
     ),
+    rangeEditMode: rangeEditMode(s.projectPath, s.shareCapabilities),
     canApplyPass12: canApplyPass12(
       s.projectPath,
       s.guestMode,
@@ -201,6 +206,13 @@ export function evaluateWhen(
         return { ok: false, reason: "No project loaded" };
       }
       return ctx.stage === "edit"
+        ? { ok: true }
+        : { ok: false, reason: "Open Edit to change the timeline" };
+    case "editStageOrRangeSuggest":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
+      return ctx.stage === "edit" || ctx.rangeEditMode === "suggest"
         ? { ok: true }
         : { ok: false, reason: "Open Edit to change the timeline" };
     case "editStageStructural":
