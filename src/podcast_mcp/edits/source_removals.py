@@ -42,6 +42,9 @@ _EDGE_FINDINGS = {
     "join_continuity": "the join would be audible",
     "review_required": "the join needs a listen",
     "audio_unavailable": "the audio could not be read",
+    "late_mpeg_audio": (
+        "a recording starts late in an MPEG stream; re-encode it and re-add it as a track"
+    ),
     "mid_word": "the cut lands inside a word",
     "breath_edge": "the cut lands on a breath",
 }
