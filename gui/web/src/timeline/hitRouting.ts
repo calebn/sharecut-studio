@@ -294,7 +294,7 @@ type Phase =
       pointerId: number;
       /** The finger that is down, if any, against the chips. */
       finger: ChipFinger;
-      /** Rest-to-grab and settle timers for `finger`. */
+      /** The settle timer for `finger`. */
       timers: ReturnType<typeof setTimeout>[];
     }
   | {
