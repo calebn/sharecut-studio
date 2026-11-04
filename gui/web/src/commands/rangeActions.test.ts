@@ -54,6 +54,7 @@ beforeEach(() => {
     guestMode: null,
     shareCapabilities: null,
     projectEpoch: 1,
+    stage: "edit",
     selection: { kind: "range", target },
     rangeBusy: false,
     joinMutationInFlight: false,

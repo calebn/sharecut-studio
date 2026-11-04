@@ -81,6 +81,24 @@ describe("stage commands", () => {
     expect((await execute("edit.history")).status).toBe("disabled");
   });
 
+  it.each(["range.cut", "range.mute", "range.fillRoomTone"])(
+    "%s changes the timeline only on the Edit stage",
+    async (id) => {
+      for (const stage of ["record", "prepare", "review", "deliver"] as const) {
+        useDawStore.setState({ stage });
+        expect(await execute(id)).toEqual({
+          status: "disabled",
+          reason: "Open Edit to change the timeline",
+        });
+      }
+      useDawStore.setState({ stage: "edit" });
+      expect(await execute(id)).not.toEqual({
+        status: "disabled",
+        reason: "Open Edit to change the timeline",
+      });
+    },
+  );
+
   it("keeps Mod+1 to Mod+4 on layout.* and Mod+O on project.open for now", () => {
     expect(COMMANDS["project.home"]).toBeDefined();
     expect(COMMANDS["project.open"]).toBeDefined();
