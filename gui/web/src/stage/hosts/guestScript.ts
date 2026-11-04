@@ -81,10 +81,11 @@ export function guestScriptOf(
         sourceId: utterance.source_id ?? null,
         wordIndex: item.word.word_index ?? null,
       });
-      times.push({
-        start: item.word.timeline_start ?? item.start,
-        end: item.word.timeline_end ?? item.start,
-      });
+      times.push(
+        item.word.timeline_end == null
+          ? null
+          : { start: item.start, end: item.word.timeline_end },
+      );
       return { index, key: item.key, text: item.text };
     });
     const base = `${utterance.track_id}@${first}`;

@@ -2,15 +2,30 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { rangeActionDescriptors } from "../../commands/rangeActions";
+import { submitDocumentCommand } from "../../api/documentEdits";
+import {
+  rangeActionDescriptors,
+  runRangeAction,
+} from "../../commands/rangeActions";
+import { getClipboard, setClipboard } from "../../edit/clipboard";
 import { resolveSelectionRange } from "../../edit/rangeSelection";
+import { SHORT_VIEWPORT_MQ } from "../../hooks/useShortViewport";
 import { useDawStore } from "../../state/dawStore";
-import { COMMENTER_CAPABILITIES, clipRow } from "../../test/fixtures";
+import {
+  COMMENTER_CAPABILITIES,
+  clipRow,
+  EDITOR_CAPABILITIES,
+  VIEWER_CAPABILITIES,
+} from "../../test/fixtures";
 import { seedScript } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import { BottomSheet } from "../../ui/BottomSheet";
 import { GuestScriptHost } from "./GuestScriptHost";
 
+vi.mock("../../api/documentEdits", async (orig) => ({
+  ...(await orig<typeof import("../../api/documentEdits")>()),
+  submitDocumentCommand: vi.fn(),
+}));
 const seekTransport = vi.hoisted(() => vi.fn());
 vi.mock("../../commands/seek", () => ({ seekTransport }));
 
@@ -98,6 +113,8 @@ const as = (guestMode: "view" | "comment", shareCapabilities: string[]) =>
   });
 
 beforeEach(() => {
+  vi.mocked(submitDocumentCommand).mockReset();
+  setClipboard(null);
   stubViewportShell("desktop");
   seekTransport.mockReset();
   layout();
@@ -145,11 +162,8 @@ describe("GuestScriptHost range selection", () => {
       expect(selection.target.track_ids.sort()).toEqual(["guest", "host"]);
   });
 
-  it.each([
-    ["a viewer", "view", ["play", "view"]],
-    ["a comment-only guest", "comment", ["play", "view", "comment"]],
-  ] as const)("%s's drag leaves the selection empty", (_, mode, caps) => {
-    as(mode, [...caps]);
+  it("a viewer's drag leaves the selection empty", () => {
+    as("view", VIEWER_CAPABILITIES);
     render(<GuestScriptHost />);
     drag(0, 3);
     expect(useDawStore.getState().selection).toBeNull();
@@ -222,5 +236,81 @@ describe("GuestScriptHost range selection", () => {
       key: "Escape",
     });
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("a commenter's drag then Cut sends a suggestion and clears the selection", async () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    vi.mocked(submitDocumentCommand).mockResolvedValue({} as never);
+    render(<GuestScriptHost />);
+    drag(0, 3);
+    const target = resolveSelectionRange(
+      useDawStore.getState().project!,
+      useDawStore.getState().selection,
+    ).targets[0];
+    expect(await runRangeAction("cut")).toEqual({ status: "ok" });
+    expect(submitDocumentCommand).toHaveBeenCalledExactlyOnceWith(
+      "share:abc",
+      "EditSelectedRange",
+      { action: "cut", target },
+    );
+    expect(getClipboard()).toBeNull();
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+
+  it("an editor's drag selects and Cut applies directly, as rangeActions defines", async () => {
+    as("edit", EDITOR_CAPABILITIES);
+    vi.mocked(submitDocumentCommand).mockResolvedValue({
+      type: "Applied",
+    } as never);
+    render(<GuestScriptHost />);
+    drag(0, 3);
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "transcriptRange",
+      startWordIndex: 0,
+      endWordIndex: 3,
+    });
+    const state = useDawStore.getState();
+    const [target] = resolveSelectionRange(
+      state.project!,
+      state.selection,
+    ).targets;
+    const cut = rangeActionDescriptors(state, target ?? null).find(
+      (d) => d.action === "cut",
+    );
+    expect(cut).toMatchObject({ label: "Cut", reason: null });
+    expect(await runRangeAction("cut")).toEqual({ status: "ok" });
+    expect(getClipboard()?.mode).toBe("cut");
+  });
+
+  it("drops a stored word selection when the Script hides on a short window", () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    const listeners = new Set<() => void>();
+    let short = false;
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      get matches() {
+        return short && query === SHORT_VIEWPORT_MQ;
+      },
+      media: query,
+      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    }));
+    render(<GuestScriptHost />);
+    drag(0, 3);
+    expect(useDawStore.getState().selection).not.toBeNull();
+    act(() => {
+      short = true;
+      listeners.forEach((fn) => fn());
+    });
+    expect(useDawStore.getState().selection).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("drops a stored selection when the link stops being able to suggest", () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    render(<GuestScriptHost />);
+    drag(0, 3);
+    expect(useDawStore.getState().selection).not.toBeNull();
+    act(() => useDawStore.setState({ shareCapabilities: VIEWER_CAPABILITIES }));
+    expect(useDawStore.getState().selection).toBeNull();
   });
 });

@@ -333,6 +333,15 @@ export const COMMENTER_CAPABILITIES: string[] = [
   "suggest",
 ];
 
+/** A Viewer review link's capabilities. */
+export const VIEWER_CAPABILITIES: string[] = ["play", "view"];
+
+/** An Editor review link's capabilities. */
+export const EDITOR_CAPABILITIES: string[] = [
+  ...COMMENTER_CAPABILITIES,
+  "edit",
+];
+
 /** A fictional live review share row (never a real token or relay URL). */
 export function hostShareRow(
   overrides: Partial<HostShareRow> = {},

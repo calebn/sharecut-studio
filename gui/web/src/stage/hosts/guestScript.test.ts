@@ -270,6 +270,19 @@ describe("guestScriptModelOf", () => {
     ]);
   });
 
+  it("gives a word with no timeline end no time, never a zero-length one", () => {
+    const g = guestScriptOf([
+      utterance("Maya", [
+        { ...indexed("a", 1, 0), timeline_end: null },
+        indexed("b", 2, 1),
+      ]),
+    ]);
+    const model = guestScriptModelOf(g);
+    expect(model.timeOf(0)).toBeNull();
+    expect(model.timeOf(1)).toEqual({ start: 2, end: 2.5 });
+    expect(model.seekSecOf(0)).toBe(1);
+  });
+
   it("round-trips a word through indexOf and reads seek, time and cut", () => {
     const g = guestScriptOf([
       utterance("Maya", [indexed("a", 1, 4), indexed("b", 2, 5)]),
