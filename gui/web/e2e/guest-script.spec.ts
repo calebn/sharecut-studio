@@ -16,7 +16,7 @@ const SIZES = [
 ] as const;
 
 for (const size of SIZES) {
-  test(`a Commenter link ${size.script ? "shows" : "hides"} the read-only Script and keeps the composer in view at ${size.width}x${size.height}`, async ({
+  test(`a Commenter link ${size.script ? "shows" : "hides"} the Script and keeps the composer in view at ${size.width}x${size.height}`, async ({
     browser,
   }) => {
     await withShareableProject(async (projectPath) => {
@@ -36,7 +36,9 @@ for (const size of SIZES) {
           const script = guest.locator(".stage-host-guest-script");
           if (size.script) {
             await expect(script).toBeVisible();
-            await expect(script).toContainText("Read only");
+            await expect(script).toContainText(
+              "You can comment and suggest edits",
+            );
             await expect(script).toBeInViewport();
           } else {
             await expect(script).toHaveCount(0);
@@ -215,7 +217,9 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
         const capture = async (name: string, shown: boolean, scale = 1) => {
           await expect(script).toHaveCount(shown ? 1 : 0);
           if (shown) {
-            await expect(script).toContainText("Read only");
+            await expect(script).toContainText(
+              "You can comment and suggest edits",
+            );
             await nativeTabTo(word);
             await expect
               .poll(async () => (await observe()).word?.visibleWidth ?? 0)

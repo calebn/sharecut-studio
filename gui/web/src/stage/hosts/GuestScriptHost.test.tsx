@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SHORT_VIEWPORT_MQ } from "../../hooks/useShortViewport";
 import { useDawStore } from "../../state/dawStore";
 import { CENTER, NEAREST, probeScript } from "../../system/scriptScrollProbe";
-import { minimalProject } from "../../test/fixtures";
+import {
+  COMMENTER_CAPABILITIES,
+  EDITOR_CAPABILITIES,
+  minimalProject,
+} from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { CombinedUtterance } from "../../types/project";
 import { GuestScriptHost } from "./GuestScriptHost";
@@ -59,7 +63,16 @@ function as(
   useDawStore
     .getState()
     .hydrate("share:abc", minimalProject({ transcript: { utterances } }));
-  useDawStore.setState({ guestMode: mode, playheadSec });
+  useDawStore.setState({
+    guestMode: mode,
+    playheadSec,
+    shareCapabilities:
+      mode === "edit"
+        ? EDITOR_CAPABILITIES
+        : mode === "comment"
+          ? COMMENTER_CAPABILITIES
+          : ["play", "view"],
+  });
 }
 
 beforeEach(() => {
@@ -98,12 +111,13 @@ describe("GuestScriptHost", () => {
 
   it.each([
     ["view", "Read only"],
-    ["comment", "Read only · you can comment"],
-    ["edit", "Read only · you can comment"],
+    ["comment", "You can comment and suggest edits"],
+    ["edit", null],
   ] as const)("a %s link reads the heard words, labelled %j", (mode, label) => {
     as(mode, 0);
     render(<GuestScriptHost />);
-    expect(screen.getByText(label)).toBeInTheDocument();
+    if (label) expect(screen.getByText(label)).toBeInTheDocument();
+    else expect(screen.queryByText(/Read only|suggest edits/)).toBeNull();
     expect(screen.getByRole("button", { name: "Welcome" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "back" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "cut" })).toBeNull();

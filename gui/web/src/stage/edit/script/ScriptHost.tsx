@@ -10,6 +10,7 @@ import { useDawStore } from "../../../state/dawStore";
 import { ScriptPane, type ScriptPaneHandle } from "../../../system/ScriptPane";
 import type { ScriptStatus } from "../../../system/scriptPieces";
 import { ScriptJoin } from "./ScriptJoin";
+import { scriptGuestOf } from "./scriptGuest";
 import { useScriptCarets } from "./useScriptCarets";
 import { useScriptFind } from "./useScriptFind";
 import { useScriptFixText } from "./useScriptFixText";
@@ -34,18 +35,6 @@ export type ScriptHostProps = {
   /** The empty state's "Transcribe this episode". */
   onTranscribe?: () => void;
 };
-
-function guestLabel(
-  projectPath: string,
-  guestMode: string | null,
-  mode: ReturnType<typeof rangeEditMode>,
-): "viewer" | "commenter" | undefined {
-  if (!isShareProjectKey(projectPath) && guestMode === null) return undefined;
-  if (guestMode === "view") return "viewer";
-  if (guestMode === "comment") return "commenter";
-  if (mode === "edit") return undefined;
-  return mode === "suggest" ? "commenter" : "viewer";
-}
 
 /**
  * The Script: the project's transcript read, selected, fixed and searched
@@ -129,7 +118,7 @@ export function ScriptHost({
         renderEditor={fix.renderEditor}
         showCutText={showCut}
         following={playback.following}
-        guest={guestLabel(projectPath, guestMode, mode)}
+        guest={scriptGuestOf(projectPath, guestMode, mode)}
         unsureCount={unsure.length}
         findBar={
           find.open ? (

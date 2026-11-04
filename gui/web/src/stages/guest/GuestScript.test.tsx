@@ -10,7 +10,7 @@ function setup(props: Partial<GuestScriptProps> = {}) {
   const onSeek = vi.fn();
   render(
     <GuestScript
-      access="commenter"
+      guest="suggester"
       layout="desktop"
       turns={SCRIPT_TURNS}
       wordStarts={WORD_STARTS}
@@ -23,10 +23,10 @@ function setup(props: Partial<GuestScriptProps> = {}) {
 }
 
 describe("GuestScript", () => {
-  it("labels a viewer and a commenter differently", () => {
+  it("passes the guest label through to the pane", () => {
     const { unmount } = render(
       <GuestScript
-        access="viewer"
+        guest="viewer"
         layout="desktop"
         turns={SCRIPT_TURNS}
         wordStarts={WORD_STARTS}
@@ -37,7 +37,9 @@ describe("GuestScript", () => {
     expect(screen.getByText("Read only")).toBeInTheDocument();
     unmount();
     setup();
-    expect(screen.getByText("Read only · you can comment")).toBeInTheDocument();
+    expect(
+      screen.getByText("You can comment and suggest edits"),
+    ).toBeInTheDocument();
   });
 
   it("reads only without selection props: no selected state", () => {
@@ -146,7 +148,7 @@ describe("GuestScript", () => {
     try {
       const view = render(
         <GuestScript
-          access="commenter"
+          guest="suggester"
           layout="desktop"
           turns={SCRIPT_TURNS}
           wordStarts={WORD_STARTS}
@@ -162,7 +164,7 @@ describe("GuestScript", () => {
       body.scrollTop = 0;
       view.rerender(
         <GuestScript
-          access="commenter"
+          guest="suggester"
           layout="desktop"
           turns={SCRIPT_TURNS}
           wordStarts={WORD_STARTS}
@@ -175,7 +177,7 @@ describe("GuestScript", () => {
       body.scrollTop = 500;
       view.rerender(
         <GuestScript
-          access="commenter"
+          guest="suggester"
           layout="desktop"
           turns={SCRIPT_TURNS}
           wordStarts={WORD_STARTS}
@@ -197,7 +199,7 @@ describe("GuestScript", () => {
   it("tells a guest when every word is cut, and when there is no transcript", () => {
     const { unmount } = render(
       <GuestScript
-        access="viewer"
+        guest="viewer"
         layout="desktop"
         turns={[]}
         wordStarts={[]}
@@ -226,7 +228,7 @@ describe("GuestScript following", () => {
   const view = (props: Partial<GuestScriptProps> = {}) => {
     const rendered = (extra: Partial<GuestScriptProps>) => (
       <GuestScript
-        access="commenter"
+        guest="suggester"
         layout="desktop"
         turns={SCRIPT_TURNS}
         wordStarts={WORD_STARTS}
@@ -310,7 +312,7 @@ describe("GuestScript following", () => {
     (empty, text) => {
       render(
         <GuestScript
-          access="viewer"
+          guest="viewer"
           layout="desktop"
           turns={[]}
           wordStarts={[]}

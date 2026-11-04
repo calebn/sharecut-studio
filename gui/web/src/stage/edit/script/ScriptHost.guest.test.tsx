@@ -69,7 +69,9 @@ describe("ScriptHost guest matrix", () => {
       shareCapabilities: COMMENTER_CAPABILITIES,
     });
     render(<ScriptHost />);
-    expect(screen.getByText("Read only · you can comment")).toBeInTheDocument();
+    expect(
+      screen.getByText("You can comment and suggest edits"),
+    ).toBeInTheDocument();
     await userEvent.click(word("back"));
     expect(useDawStore.getState().selection).toMatchObject({
       kind: "transcriptRange",
@@ -82,6 +84,18 @@ describe("ScriptHost guest matrix", () => {
     );
     expect(screen.getByRole("search")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Show replace" })).toBeNull();
+  });
+
+  it("labels a comment-only link read only, and selects nothing", async () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "comment",
+      shareCapabilities: ["play", "view", "comment", "reply"],
+    });
+    render(<ScriptHost />);
+    expect(screen.getByText("Read only · you can comment")).toBeInTheDocument();
+    await userEvent.click(word("back"));
+    expect(useDawStore.getState().selection).toBeNull();
   });
 
   it("lets an edit-share guest select and rename speakers, but not fix text or replace", async () => {
