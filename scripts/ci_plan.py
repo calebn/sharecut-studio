@@ -5,10 +5,11 @@ Usage:
   python3 scripts/ci_plan.py plan --event pull_request --base <sha> --head <sha>
   python3 scripts/ci_plan.py plan --event push          # main, nightly, dispatch: everything
   python3 scripts/ci_plan.py subset-tests web|docs      # pytest files that read that scope
+  python3 scripts/ci_plan.py subset-tests python --base <sha> --head <sha>  # import-graph selection
   python3 scripts/ci_plan.py required-checks [--check]   # the required-checks table in the docs
 
 `plan` prints `key=value` lines for `$GITHUB_OUTPUT`: `gui` (run Vitest and the
-browser suites), `pytest` (`full`, `web`, `docs` or `release`), `release-only`
+browser suites), `pytest` (`full`, `web`, `docs`, `python` or `release`), `release-only`
 (digit `1` proves a release update), `e2e-matrix` (the browser jobs), and seven
 `skip-native-*` proofs from `ci_native` (digit `1` skips a native family; `0` runs it).
 `REQUIRED_CHECKS` is the one list of required status contexts: `required-checks` renders
@@ -36,6 +37,7 @@ if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ci_native import NativeSelection, select_native
+from ci_pytest_select import is_eligible, select_tests
 from path_vocab import Glob
 from version_policy import problems
 
@@ -92,6 +94,14 @@ SUBSETS: dict[SubsetName, Subset] = {
         DOCS_READER_RE,
     ),
 }
+
+
+def python_covers(changed: Sequence[str]) -> bool:
+    """Python source or tests changed, and every other path is one a subset already owns."""
+    owned = tuple(glob for subset in SUBSETS.values() for glob in subset.owns)
+    return any(is_eligible(path) for path in changed) and all(
+        is_eligible(path) or any(glob.matches(path) for glob in owned) for path in changed
+    )
 
 
 class Scope(Enum):
@@ -152,6 +162,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("scripts/ci_plan.py", Scope.GUI),
         ("scripts/docs_sync.py", Scope.GUI),
         ("scripts/path_vocab.py", Scope.GUI),
+        ("scripts/ci_pytest_select.py", Scope.GUI),
         ("scripts/export_capabilities_copy.py", Scope.GUI),
         ("scripts/export_timeline_zoom.py", Scope.GUI),
         ("scripts/export_limit_contracts.py", Scope.GUI),
@@ -559,7 +570,7 @@ def classify_release(
 @dataclass(frozen=True)
 class CiPlan:
     gui: bool
-    pytest: Literal["full", "web", "docs", "release"]
+    pytest: Literal["full", "web", "docs", "python", "release"]
     e2e: tuple[E2eJob, ...]
     release_only: bool = False
     native: NativeSelection = field(default_factory=NativeSelection)
@@ -596,8 +607,9 @@ def plan(
     if isinstance(release, FullRelease) or (head_ref or "").startswith("release-please"):
         return CiPlan(gui=True, pytest="full", e2e=(*main_shards(), *pr_compat()))
     gui = not changed or any(scope_of(path) is Scope.GUI for path in changed)
-    scope: Literal["full", "web", "docs"] = next(
-        (name for name, subset in SUBSETS.items() if subset.covers(changed)), "full"
+    scope: Literal["full", "web", "docs", "python"] = next(
+        (name for name, subset in SUBSETS.items() if subset.covers(changed)),
+        "python" if python_covers(changed) else "full",
     )
     return CiPlan(
         gui=gui,
@@ -641,6 +653,15 @@ def subset_tests(scope: Literal["web", "docs", "release"], root: Path = ROOT) ->
     return sorted(selected)
 
 
+def python_tests(changed: Sequence[str], root: Path = ROOT) -> list[str]:
+    """Pytest files for a `python` plan: the import-graph reach plus the readers of owned paths."""
+    selected = set(select_tests(changed, root))
+    for name, subset in SUBSETS.items():
+        if any(glob.matches(path) for path in changed for glob in subset.owns):
+            selected |= set(subset_tests(name, root))
+    return sorted(selected)
+
+
 def changed_files(base: str, head: str, root: Path = ROOT) -> list[str]:
     """Paths changed on *head* since its merge base with *base*."""
     out = subprocess.run(
@@ -671,7 +692,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan_cmd.add_argument("--base-repository")
     plan_cmd.add_argument("--base-ref")
     subset_cmd = sub.add_parser("subset-tests")
-    subset_cmd.add_argument("scope", choices=[*sorted(SUBSETS), "release"])
+    subset_cmd.add_argument("scope", choices=[*sorted(SUBSETS), "python", "release"])
+    subset_cmd.add_argument("--base")
+    subset_cmd.add_argument("--head")
     required_cmd = sub.add_parser("required-checks")
     required_cmd.add_argument("--check", action="store_true", help="fail instead of writing")
     args = parser.parse_args(argv)
@@ -684,7 +707,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1 if stale and args.check else 0
 
     if args.command == "subset-tests":
-        _print_lines(subset_tests(args.scope))
+        if args.scope == "python":
+            _print_lines(python_tests(changed_files(args.base, args.head)))
+        else:
+            _print_lines(subset_tests(args.scope))
         return 0
     changed: list[str] = []
     release: ReleaseProof | FullRelease | None = None

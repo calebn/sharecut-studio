@@ -47,6 +47,7 @@ GUI_PATTERNS = [
     "scripts/ci_plan.py",
     "scripts/docs_sync.py",
     "scripts/path_vocab.py",
+    "scripts/ci_pytest_select.py",
     "scripts/export_capabilities_copy.py",
     "scripts/export_timeline_zoom.py",
     "scripts/export_limit_contracts.py",
@@ -113,20 +114,30 @@ def test_an_unclassified_path_runs_the_browser_suites(path: str) -> None:
         (["docs/setup.md", "README.md"], False, "docs", []),
         (["ux/pages/brand.md", "AGENTS.md", "ROADMAP.md"], False, "docs", []),
         (["docs-site/index.html", ".agents/skills/podcast-setup/SKILL.md"], False, "docs", []),
-        (["docs/setup.md", "src/podcast_mcp/edits/cuts.py"], False, "full", []),
+        (["docs/setup.md", "src/podcast_mcp/edits/cuts.py"], False, "python", []),
         ([".agents/defaults/pipeline.yaml"], True, "full", PR_E2E),
         ([".agents/rules/gui-styling.md"], False, "full", []),
         ([".cursor/rules/pstack-models.mdc"], False, "full", []),
         (["config/distribution.dev.json"], True, "full", PR_E2E),
         (["tests/fixtures/document_delta/insert.json"], True, "full", PR_E2E),
-        (["src/podcast_mcp/engines/bleed_gate.py", "tests/test_bleed_gate.py"], False, "full", []),
-        (["src/podcast_mcp/edits/cuts.py"], False, "full", []),
+        (
+            ["src/podcast_mcp/engines/bleed_gate.py", "tests/test_bleed_gate.py"],
+            False,
+            "python",
+            [],
+        ),
+        (["src/podcast_mcp/edits/cuts.py"], False, "python", []),
+        (["src/podcast_mcp/edits/cuts.py", "gui/web/src/App.tsx"], True, "python", PR_E2E),
+        (["src/podcast_mcp/edits/cuts.py", "src/podcast_mcp/edits/cuts.json"], False, "full", []),
+        (["src/podcast_relay/app.py"], False, "python", []),
+        (["tests/conftest.py"], False, "full", []),
+        (["pyproject.toml", "src/podcast_mcp/edits/cuts.py"], True, "full", PR_E2E),
         (["gui/web/src/App.tsx", "gui/web/e2e/recordRoom.ts"], True, "web", PR_E2E),
         (["gui/web/src/App.tsx", "docs/gui-integration.md"], True, "full", PR_E2E),
         (["docs/daw-shortcuts.md"], True, "docs", PR_E2E),
-        (["src/podcast_mcp/services/play.py"], True, "full", PR_E2E),
-        (["src/podcast_mcp/project/io.py"], True, "full", PR_E2E),
-        (["src/podcast_mcp/config/defaults.py"], True, "full", PR_E2E),
+        (["src/podcast_mcp/services/play.py"], True, "python", PR_E2E),
+        (["src/podcast_mcp/project/io.py"], True, "python", PR_E2E),
+        (["src/podcast_mcp/config/defaults.py"], True, "python", PR_E2E),
         (["contracts/test-wait-allowlist.json"], False, "full", []),
         (["contracts/test-wait-allowlist.json", "tests/test_test_waits.py"], False, "full", []),
         (["contracts/test-wait-allowlist.json", "gui/web/src/App.tsx"], True, "full", PR_E2E),
@@ -338,6 +349,10 @@ def test_pytest_job_plans_in_job_and_gates_coverage_on_full_runs() -> None:
     assert docs["if"] == "steps.plan.outputs.pytest == 'docs'"
     assert '"$(python3 scripts/ci_plan.py subset-tests docs)"' in docs["run"]
     assert "--no-cov" in docs["run"]
+    python = by_name["Run the tests a Python change can reach"]
+    assert python["if"] == "steps.plan.outputs.pytest == 'python'"
+    assert "scripts/ci_plan.py subset-tests python --base" in python["run"]
+    assert "--no-cov" in python["run"]
     docs_sync = by_name["Docs-sync gate (PR diff)"]
     assert "pytest" not in docs_sync["if"]
 

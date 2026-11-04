@@ -186,6 +186,20 @@ jobs:
           docs_tests="$(python3 scripts/ci_plan.py subset-tests docs)"
           pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $docs_tests | tee test-results/pytest.log
 
+      - name: Run the tests a Python change can reach
+        # Import-graph selection (scripts/ci_pytest_select.py); main and nightly keep the
+        # full suite and the coverage floor.
+        if: steps.plan.outputs.pytest == 'python'
+        run: |
+          set -o pipefail
+          python_tests="$(python3 scripts/ci_plan.py subset-tests python --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}")"
+          if [ -z "$python_tests" ]; then
+            echo "No test file reaches the changed files."
+            exit 0
+          fi
+          printf '%s\n' "$python_tests"
+          pytest -n auto --no-cov -m "not e2e_slow and not e2e_real" --durations=100 --durations-min=0.1 --junitxml=test-results/pytest.xml $python_tests | tee test-results/pytest.log
+
       - name: Run release policy and planner tests
         if: steps.plan.outputs.pytest == 'release'
         run: |
