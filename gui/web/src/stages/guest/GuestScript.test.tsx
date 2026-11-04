@@ -68,6 +68,27 @@ describe("GuestScript", () => {
     });
   });
 
+  it("Enter on a selected word seeks to the selection's start, and on another word seeks and selects it", () => {
+    const onSelect = vi.fn();
+    const { onSeek } = setup({
+      selection: { kind: "words", anchor: 2, head: 3 },
+      onSelect,
+      onClearSelection: vi.fn(),
+    });
+    const stop = (n: number) =>
+      document.querySelector(`[data-stop="${n}"]`) as HTMLElement;
+    fireEvent.keyDown(stop(3), { key: "Enter" });
+    expect(onSeek).toHaveBeenCalledExactlyOnceWith(WORD_STARTS[2]);
+    onSeek.mockClear();
+    fireEvent.keyDown(stop(5), { key: "Enter" });
+    expect(onSeek).toHaveBeenCalledExactlyOnceWith(WORD_STARTS[5]);
+    expect(onSelect).toHaveBeenCalledWith({
+      kind: "words",
+      anchor: 5,
+      head: 5,
+    });
+  });
+
   it("marks the playing words", () => {
     setup({ playing: [1, 3] });
     expect(document.querySelectorAll("[data-playing]")).toHaveLength(2);

@@ -197,6 +197,25 @@ describe("GuestScriptHost range selection", () => {
     });
   });
 
+  it("a click on another word re-selects it, and Shift-click extends from the first", async () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    render(<GuestScriptHost />);
+    await userEvent.click(screen.getByRole("button", { name: "back" }));
+    await userEvent.click(screen.getByRole("button", { name: "show" }));
+    expect(useDawStore.getState().selection).toMatchObject({
+      startWordIndex: 4,
+      endWordIndex: 4,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "friends" }), {
+      shiftKey: true,
+      detail: 1,
+    });
+    expect(useDawStore.getState().selection).toMatchObject({
+      startWordIndex: 4,
+      endWordIndex: 5,
+    });
+  });
+
   it("Escape clears the selection and a click on a word selects again", async () => {
     as("comment", COMMENTER_CAPABILITIES);
     render(<GuestScriptHost />);
