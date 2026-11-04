@@ -123,6 +123,7 @@ test_mcp_extra.py
 test_mcp_nl.py
 test_mcp_timeline.py
 test_mcp_timeline_extended.py
+test_mcp_tool_errors.py
 test_mcp_tools.py
 test_media_store.py
 test_merge_bleed_lag_pieces.py
