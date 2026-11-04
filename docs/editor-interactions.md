@@ -98,7 +98,7 @@ inside the existing painted range hit its overlay in the browser audit and did
 not admit the replacement drag. Escape (which first closes an open Inspector, then clears the selection) and numeric range controls remain
 available; the test does not change that overlay hit policy.
 
-First clip selection can open an inspector and change fitted timeline geometry.
+Opening the Inspector (Inspect, not a selection alone) can change fitted timeline geometry.
 The native recovery check starts without preselection or forced clip focus, records
 that settled layout before moving, and compares cancellation to that origin.
 
