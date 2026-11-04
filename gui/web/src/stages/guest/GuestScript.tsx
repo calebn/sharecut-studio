@@ -68,6 +68,15 @@ export function GuestScript({
       following={following}
       selection={selection}
       onSelect={onSelect}
+      onPrimary={
+        onSelect && selection?.kind === "words"
+          ? () => {
+              const start =
+                wordStarts[Math.min(selection.anchor, selection.head)];
+              if (start !== undefined) onSeek(start);
+            }
+          : undefined
+      }
       onClearSelection={onClearSelection}
       onSeek={(index) => {
         const start = wordStarts[index];
