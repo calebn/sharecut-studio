@@ -393,6 +393,15 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "agent.gui": {
     label: "Open ShareCut Studio GUI",
   },
+  "agent.segments": {
+    label: "Segment library",
+  },
+  "agent.kits": {
+    label: "Kits",
+  },
+  "agent.document": {
+    label: "Generic document commands",
+  },
   "daw.transcript.correct": {
     label: "Correct transcript",
     tooltip:
