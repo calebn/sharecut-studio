@@ -539,7 +539,7 @@ For the host, the words More menu shows **Restore ignored words** only when ever
 - **Touch:** see SCR-PHONE-TEXT.
 - **States:** loading (skeleton lines), transcribing (lines appear progressively; untranscribed time shows as a grey "Not transcribed yet · 12:00 to 52:10" row), no transcript (empty state "Transcribe this episode" button that starts the job), stale ("Transcript out of date · Update" notice), guest (select, Hear and Comment only; Fix text and Cut hidden for Viewer and Commenter; Commenter's Cut creates a suggestion).
 - **Shared elements used:** NEW: Script pane, Action bar, Suggestion, NEW: Seam (as boundary pill), NEW: Selection handles.
-- **Story to build:** `Edit/ScriptPane` stories `Reading`, `Playing`, `WordsSelected`, `WithCuts`, `ShowCutText`, `WithSuggestions`, `LowConfidence`, `Transcribing`, `NoTranscript`, `OutOfDate`, `GuestCommenter`, `Phone`.
+- **Story to build:** `Edit/ScriptPane` stories `Reading`, `Playing`, `WordsSelected`, `WithCuts`, `ShowCutText`, `WithSuggestions`, `LowConfidence`, `Transcribing`, `NoTranscript`, `OutOfDate`, `GuestSuggester`, `Phone`.
 
 ### CMP-TURN · Speaker turn
 
