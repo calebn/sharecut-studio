@@ -74,6 +74,55 @@ describe("PlayerBar", () => {
     expect(screen.queryByRole("button", { name: "Hear options" })).toBeNull();
   });
 
+  describe("suggestion ticks", () => {
+    // The strip shows once the bar is expanded.
+    const ticks = () => {
+      fireEvent.click(screen.getByRole("button", { name: /Expand player/ }));
+      return document.querySelectorAll(".sys-overview-tick--suggestion").length;
+    };
+    const withEdits = (path: string, guestMode: "edit" | "comment" | null) => {
+      const base = minimalProject({ timeline_duration_sec: 100 });
+      const edit = (id: string, start: number | null) =>
+        ({
+          ...(base.pending_edits?.[0] ?? {}),
+          id,
+          timeline_start: start,
+          timeline_end: start === null ? null : start + 2,
+          timeline_spans: [],
+        }) as never;
+      useDawStore.getState().hydrate(path, {
+        ...base,
+        pending_edits: [
+          edit("a", 10),
+          edit("b", 10),
+          edit("c", 50),
+          edit("d", null),
+        ],
+      });
+      useDawStore.setState({
+        guestMode,
+        shareCapabilities:
+          guestMode === "edit" ? ["comment", "edit"] : ["comment"],
+      });
+    };
+
+    it("marks each suggestion's time for an Editor guest, once per time", () => {
+      withEdits("share:player-ticks-token", "edit");
+      render(<PlayerBar />);
+      expect(ticks()).toBe(2);
+    });
+
+    it("shows none to a Commenter guest or the host", () => {
+      withEdits("share:player-ticks-token", "comment");
+      const { unmount } = render(<PlayerBar />);
+      expect(ticks()).toBe(0);
+      unmount();
+      withEdits("/tmp/player-bar/episode.sharecut", null);
+      render(<PlayerBar />);
+      expect(ticks()).toBe(0);
+    });
+  });
+
   describe("Comment", () => {
     const comment = () => screen.queryByRole("button", { name: "Comment" });
 

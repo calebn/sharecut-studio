@@ -61,7 +61,15 @@ export function playerTicks(
   chapters: readonly PlayerChapter[],
   commentTimes: readonly number[],
   durationSec: number,
+  suggestionTimes: readonly number[] = [],
 ): OverviewTick[] {
+  const suggestions: OverviewTick[] =
+    durationSec > 0
+      ? [...new Set(suggestionTimes)].map((time) => ({
+          at: Math.min(1, Math.max(0, time / durationSec)),
+          kind: "suggestion",
+        }))
+      : [];
   const comments: OverviewTick[] =
     durationSec > 0
       ? commentTimes.map((time) => ({
@@ -75,5 +83,6 @@ export function playerTicks(
       kind: "chapter" as const,
     })),
     ...comments,
+    ...suggestions,
   ];
 }

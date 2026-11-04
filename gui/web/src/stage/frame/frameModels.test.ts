@@ -145,5 +145,10 @@ describe("player model", () => {
       { at: 0.5, kind: "chapter" },
       { at: 0.25, kind: "comment" },
     ]);
+    expect(playerTicks([], [], 60, [15, 90])).toEqual([
+      { at: 0.25, kind: "suggestion" },
+      { at: 1, kind: "suggestion" },
+    ]);
+    expect(playerTicks([], [], 0, [15])).toEqual([]);
   });
 });

@@ -4,7 +4,12 @@ import { seekTransport } from "../../commands/seek";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { rosterDisplayName } from "../../presence/colors";
 import { rosterEntry } from "../../presence/roster";
-import { canComment, guestHearsMixOnly } from "../../shareMode";
+import {
+  canComment,
+  canReviewPendingEdit,
+  guestHearsMixOnly,
+  isShareProjectKey,
+} from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { transportAvailability } from "../../state/transportAvailability";
 import { useDaw } from "../../state/useDaw";
@@ -92,14 +97,25 @@ export function usePlayerProps(
     [sortedMarkers, duration],
   );
   const comments = project?.comments;
+  // An Editor guest decides the host's suggestions, so they see where they
+  // fall; a Commenter or the host reads them on the Review stage instead.
+  const pendingEdits = project?.pending_edits;
+  const suggestionsShown =
+    isShareProjectKey(projectPath) &&
+    canReviewPendingEdit(projectPath, shareCapabilities);
   const ticks = useMemo(
     () =>
       playerTicks(
         chapters,
         (comments ?? NONE).map((c) => c.timeline_start),
         duration,
+        suggestionsShown
+          ? (pendingEdits ?? NONE).flatMap((e) =>
+              e.timeline_start === null ? [] : [e.timeline_start],
+            )
+          : NONE,
       ),
-    [chapters, comments, duration],
+    [chapters, comments, duration, suggestionsShown, pendingEdits],
   );
 
   const clock = transportTimecode(playheadSec, duration);
