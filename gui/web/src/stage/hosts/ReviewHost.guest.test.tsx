@@ -430,6 +430,35 @@ describe("Review queue for a guest", () => {
     });
   });
 
+  describe("comment field docking", () => {
+    const docked = () =>
+      document.querySelector(".rv-compose")?.hasAttribute("data-docked");
+
+    it("docks the field for a Commenter on a phone", () => {
+      stubViewportShell("phone");
+      join("comment");
+      render(<ReviewHost guestShare />);
+      expect(docked()).toBe(true);
+    });
+
+    it("leaves it in the card on a desktop", () => {
+      join("comment");
+      render(<ReviewHost guestShare />);
+      expect(docked()).toBe(false);
+    });
+
+    it("leaves a host's field undocked on a phone", () => {
+      stubViewportShell("phone");
+      useDawStore.getState().hydrate("/p", minimalProject());
+      useDawStore.setState({
+        stage: "review",
+        commentDraft: { startSec: 1, endSec: null },
+      });
+      render(<ReviewHost />);
+      expect(docked()).toBe(false);
+    });
+  });
+
   it("is axe-clean with the field and a comment", async () => {
     join("comment");
     const { container } = render(<ReviewHost guestShare />);
