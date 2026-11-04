@@ -79,20 +79,6 @@ export function guestHearsMixOnly(guestMode: string | null): boolean {
   return guestMode != null;
 }
 
-/** Label for the guest share banner (not always read-only). */
-export function guestShareBannerLabel(guestMode: string | null): string {
-  switch (guestMode) {
-    case "edit":
-      return "Shared edit view · You can add tracks and audio";
-    case "view":
-      return "Shared read-only view";
-    case "comment":
-      return "Shared comment view · You can comment and suggest edits";
-    default:
-      return "Shared view";
-  }
-}
-
 /** Host (non-share) or an Editor (``edit``) may apply Pass 1–2 mutations. */
 export function canApplyPass12(
   projectPath: string,

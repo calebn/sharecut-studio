@@ -638,7 +638,7 @@ Undo, host repeated-copy Cut/Mute, phone armed clip-body selection, orphan edit
 reachability after inspector collapse, and desktop/phone action-surface axe.
 
 The Commenter scenarios mint a Commenter link through `POST /api/shares` with
-`role: "commenter"`. They check the guest banner, an unapplied proposal, denied
+`role: "commenter"`. They check the header Role chip, an unapplied proposal, denied
 approval, Suggested audio playback, host review in the Review queue, and the guest's
 refreshed clip geometry after approval. The Editor scenario remains separate
 because an Editor applies instead of proposing.

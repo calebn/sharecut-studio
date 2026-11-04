@@ -432,7 +432,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 
 **29. Coach tip**
 - A one-line hint anchored to an element, shown once at the moment of first need, dismissed by any action.
-- Used: DLG-GESTURES, CMP-RAIL-PEEK, the BAN-GUEST-ROLE first-visit hint, the Review keyboard footer hints, "Solo is just for your ears".
+- Used: DLG-GESTURES, CMP-RAIL-PEEK, the guest header Role chip's first-visit hint, the Review keyboard footer hints, "Solo is just for your ears".
 - Story: `System/CoachTip`.
 
 **30. Cover.** The one "nothing to show here" layout.

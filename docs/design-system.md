@@ -382,7 +382,7 @@ decorator and the `episodeBeforeEach` hook (`src/test/withEpisode.tsx`), which
 a story file sets together on its meta, the way `stage/edit/ClipInspector.stories.tsx`
 does. From `parameters.episode` they take the role (the host opens the project
 by path, a guest opens `share:episode` with that role's capabilities), the
-feature ids the server offers (the role's defaults, so the guest banner and the
+feature ids the server offers (the role's defaults, so the Role chip and the
 Share item render), the selection, extra store fields and canned JSON for
 requests, matched by exact path or `METHOD /path`. `beforeEach` registers the
 app commands and replaces `fetch` and `WebSocket` with offline stubs before the

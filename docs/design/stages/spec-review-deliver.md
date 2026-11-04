@@ -430,8 +430,8 @@ One icon per verb, everywhere (principle 10, 11). Labels stay as accessible name
 
 ### BAN-GUEST-ROLE · Guest role banner
 
-- **Today:** `BAN-GUEST-ROLE--*`, `BAN-GUEST-ROLE-EDITOR--*`, `BAN-GUEST-ROLE-VIEWER--*`. Two full-width text rows above the transport, about 56 px of permanent prose.
-- **Fate:** replace with the Role chip in the guest header.
+- **Was:** `BAN-GUEST-ROLE--*`, `BAN-GUEST-ROLE-EDITOR--*`, `BAN-GUEST-ROLE-VIEWER--*`. Two full-width text rows above the transport, about 56 px of permanent prose. Removed.
+- **Fate:** replaced by the Role chip in the guest header.
 - **Spec:** see Guest Review. Tapping the Role chip opens a popover with one sentence ("You can comment and suggest cuts. The host decides.") shown automatically on a visit until it is dismissed (the close button or a press on the chip), once per browser and role, anchored to the chip.
 - **Shared elements used:** Role chip, popover.
 - **Story to build:** `Stages/Review/Guest` `FirstVisitRoleHint`.

@@ -206,6 +206,16 @@ describe("StageFrame roles", () => {
     expect(screen.queryByRole("button", { name: "Hear options" })).toBeNull();
   });
 
+  it.each([
+    ["view", "Viewer: can listen"],
+    ["comment", "Commenter: can comment"],
+    ["edit", "Editor: can edit"],
+  ])("states a %s link's role in the header", (guestMode, name) => {
+    useDawStore.setState({ guestMode, stage: "review" });
+    mount();
+    expect(screen.getByRole("img", { name })).toBeInTheDocument();
+  });
+
   it("explains a guest's role once, until it is dismissed in this browser", async () => {
     localStorage.removeItem("sharecut.roleHintSeen.commenter");
     useDawStore.setState({ guestMode: "comment", stage: "review" });
