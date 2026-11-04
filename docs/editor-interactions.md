@@ -95,7 +95,7 @@ selection and its seek remain available after a canceled drag; preview restorati
 is measured before release and durable state remains unchanged afterward.
 The previous-range replacement check starts in exposed clip body: an offset
 inside the existing painted range hit its overlay in the browser audit and did
-not admit the replacement drag. Escape (which clears the selection) and numeric range controls remain
+not admit the replacement drag. Escape (which first closes an open Inspector, then clears the selection) and numeric range controls remain
 available; the test does not change that overlay hit policy.
 
 First clip selection can open an inspector and change fitted timeline geometry.
