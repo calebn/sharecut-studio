@@ -243,10 +243,11 @@ def _segment_library_checks(*, deep: bool = False) -> list[DoctorCheck]:
     ]
     if len(damaged) > MAX_DAMAGED_SEGMENTS_LISTED:
         more = len(damaged) - MAX_DAMAGED_SEGMENTS_LISTED
+        command = "podcast segment list --deep" if deep else "podcast segment list"
         checks.append(
             DoctorCheck(
                 "warn",
-                f"{more} more damaged segments; `podcast segment list` shows all of them",
+                f"{more} more damaged segments; `{command}` shows all of them",
                 err=True,
             )
         )

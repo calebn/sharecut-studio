@@ -34,9 +34,9 @@ def show_segment(store: SegmentStore, segment_id: str) -> dict[str, Any]:
     return segment_detail(segment, list(store.versions(segment_id)))
 
 
-def library_rows(store: SegmentStore) -> list[dict[str, Any]]:
+def library_rows(store: SegmentStore, *, deep: bool = True) -> list[dict[str, Any]]:
     """The newest version of each segment, then a ``damaged`` row for each unreadable one."""
-    listing = store.scan()
+    listing = store.scan(deep=deep)
     rows = [segment_detail(s, list(store.versions(s.id))) for s in listing.segments]
     rows += [
         {"id": d.id, "damaged": True, "version": d.version, "problem": d.problem, "code": d.code}
