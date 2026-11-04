@@ -13,7 +13,10 @@ def propose_social_clips_tool(
     platform: str | None = None,
     max_clips: int | None = None,
 ) -> str:
-    """Propose short-form social clips for a platform, limited to max_clips."""
+    """Propose short-form social clips for a platform, limited to max_clips.
+
+    A rerun keeps approved and manually added clips and replaces the rest.
+    """
     ws = ProjectWorkspace.open(project_path)
     clips = ClipService(ws).propose(platform=platform, max_clips=max_clips)
     return to_json([c.model_dump() for c in clips])

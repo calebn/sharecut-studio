@@ -1223,7 +1223,7 @@ describe("Deliver host Find clips", () => {
 
   it("reads unavailable with the reason while it runs, then recovers", async () => {
     let release: () => void = () => {};
-    wire.post.mockImplementationOnce(
+    wire.post.mockImplementation(
       (_path: string, body: Parameters<typeof answer>[0]) =>
         new Promise((resolve) => {
           release = () => resolve(answer(body));
@@ -1231,9 +1231,14 @@ describe("Deliver host Find clips", () => {
     );
     render(<DeliverStage />);
     await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
-    const busy = await screen.findByRole("button", { name: /Find clips/ });
-    expect(busy).toBeDisabled();
-    expect(busy).toHaveAttribute("title", "Finding clips…");
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Find clips/ })).toBeDisabled(),
+    );
+    expect(screen.getByRole("button", { name: /Find clips/ })).toHaveAttribute(
+      "title",
+      "Finding clips…",
+    );
     release();
     await waitFor(() =>
       expect(
@@ -1247,6 +1252,11 @@ describe("Deliver host Find clips", () => {
     render(<DeliverStage />);
     await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
     await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Find clips" }),
+      ).not.toBeDisabled(),
+    );
     expect(await screen.findByDisplayValue("A line")).toBeInTheDocument();
   });
 });

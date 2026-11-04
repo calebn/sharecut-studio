@@ -69,6 +69,24 @@ def test_a_rerun_keeps_manual_clips(tmp_path):
     )
 
 
+def test_a_kept_clip_on_another_track_does_not_block_a_proposal(tmp_path):
+    proj = _project(tmp_path)
+    proj.timeline.tracks = [Track(id="host", label="host"), Track(id="guest", label="guest")]
+    other = add_manual_social_clip(proj, track_id="guest", start=100.0, end=120.0)
+    propose_social_clips(proj, DEFAULTS)
+    assert other in proj.social_clip_candidates
+    assert any(c.track_id == "host" and c.start == 100.0 for c in proj.social_clip_candidates)
+
+
+def test_a_kept_clip_touching_a_candidate_is_not_an_overlap(tmp_path):
+    proj = _project(tmp_path)
+    proj.timeline.tracks = [Track(id="host", label="host")]
+    edge = add_manual_social_clip(proj, track_id="host", start=80.0, end=100.0)
+    propose_social_clips(proj, DEFAULTS)
+    assert edge in proj.social_clip_candidates
+    assert any(c.track_id == "host" and c.start == 100.0 for c in proj.social_clip_candidates)
+
+
 def test_unapproved_candidates_are_replaced(tmp_path):
     proj = _project(tmp_path)
     first = propose_social_clips(proj, DEFAULTS)
@@ -115,6 +133,38 @@ def test_the_command_proposes_as_one_undo_step(ws):
     assert after == out["ids"]
     HistoryService(ws).undo()
     assert ws.project.social_clip_candidates == []
+
+
+@pytest.fixture
+def busy_ws(ws):
+    ws.project.combined_transcript = _project_transcript()
+    save_project(ws.project)
+    ws.reload()
+    return ws
+
+
+def _project_transcript() -> CombinedTranscript:
+    return CombinedTranscript(
+        utterances=[
+            _utt(0.0, "What if we tried this approach today?"),
+            _utt(100.0, "Why does this work? Here is the secret in 3 steps."),
+            _utt(200.0, "Is this the mistake nobody talks about?"),
+        ]
+    )
+
+
+def test_the_command_forwards_max_clips(busy_ws):
+    out = apply_command(busy_ws, CMD, {"max_clips": 1})
+    assert out["proposed"] == 1
+    assert len(out["ids"]) == 1
+
+
+def test_the_service_forwards_replace_existing(busy_ws):
+    first = ClipService(busy_ws).propose()
+    ClipService(busy_ws).approve([first[0].id])
+    ClipService(busy_ws).propose(replace_existing="all")
+    busy_ws.reload()
+    assert not any(c.approved for c in busy_ws.project.social_clip_candidates)
 
 
 def test_the_command_and_the_service_share_the_keep_rule(ws):
