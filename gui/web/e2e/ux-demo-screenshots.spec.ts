@@ -122,7 +122,7 @@ test.describe("UX demo screenshots", () => {
     await expect(phone.locator(".stage-frame--guest")).toBeVisible({
       timeout: 30_000,
     });
-    await expect(phone.locator(".guest-banner")).toBeVisible();
+    await expect(phone.locator(".sys-role")).toBeVisible();
     await expectLoadedDemo(phone);
     await phone.screenshot({
       path: path.join(screensDir, "guest-sharecut-phone.png"),
@@ -137,7 +137,7 @@ test.describe("UX demo screenshots", () => {
     await expect(desktop.locator(".stage-frame--guest")).toBeVisible({
       timeout: 30_000,
     });
-    await expect(desktop.locator(".guest-banner")).toBeVisible();
+    await expect(desktop.locator(".sys-role")).toBeVisible();
     await expectLoadedDemo(desktop);
     await expectLoadedTimeline(desktop);
     await expect(desktop.locator(".sys-script-word").first()).toBeVisible();

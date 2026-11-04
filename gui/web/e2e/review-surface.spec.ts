@@ -9,9 +9,6 @@ import {
 import { goToStage, selectCommentCard } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
-const COMMENTER_BANNER =
-  "Shared comment view · You can comment and suggest edits";
-
 async function expectNoHorizontalScroll(guest: Page, width: number) {
   await expect
     .poll(() => guest.evaluate(() => document.documentElement.scrollWidth))
@@ -38,7 +35,7 @@ for (const theme of ["light", "dark"] as const) {
           const token = await createReviewShare(host, projectPath, "commenter");
           await openGuestShare(guest, token);
           await expect(
-            guest.getByText(COMMENTER_BANNER, { exact: true }),
+            guest.getByRole("img", { name: "Commenter: can comment" }),
           ).toBeVisible();
 
           const body = `Commenter feedback in ${theme}`;
@@ -86,7 +83,7 @@ for (const theme of ["light", "dark"] as const) {
           const token = await createReviewShare(host, projectPath, "commenter");
           await openGuestShare(guest, token);
           await expect(
-            guest.getByText(COMMENTER_BANNER, { exact: true }),
+            guest.getByRole("img", { name: "Commenter: can comment" }),
           ).toBeVisible();
           await expect(
             guest.getByRole("dialog", { name: "Inspector" }),

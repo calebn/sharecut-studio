@@ -32,12 +32,12 @@ test.describe("overlay with follow banner", () => {
   }
 });
 
-test.describe("overlay with guest and follow banners", () => {
+test.describe("overlay with guest header and follow banner", () => {
   for (const viewport of [
     { width: 1280, height: 715 },
     { width: 390, height: 844 },
   ]) {
-    test(`menu last item stays reachable with stacked banners at ${viewport.width}x${viewport.height}`, async ({
+    test(`menu last item stays reachable with the guest header and follow banner at ${viewport.width}x${viewport.height}`, async ({
       browser,
     }) => {
       await withShareableProject(async (projectPath) => {
@@ -49,13 +49,13 @@ test.describe("overlay with guest and follow banners", () => {
             await openHostShare(host, projectPath);
             const token = await createReviewShare(host, projectPath);
             await openGuestShare(guest, token);
-            await expect(guest.locator(".guest-banner")).toBeVisible();
+            await expect(guest.locator(".sys-role")).toBeVisible();
 
-            // Stack the follow banner under the guest banner. Phone uses the
+            // Stack the follow banner under the guest header. Phone uses the
             // People menu while desktop keeps Follow controls in the avatar stack.
             await followUntilBannerVisible(guest);
             await expect(guest.locator(".follow-banner")).toBeVisible();
-            await expect(guest.locator(".guest-banner")).toBeVisible();
+            await expect(guest.locator(".sys-role")).toBeVisible();
 
             // A shared link has no Project menu; the People menu is its menu.
             await expectMenuLastItemReachable(guest, openPeopleMenu);

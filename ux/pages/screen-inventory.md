@@ -462,11 +462,11 @@ Step flows: [Guest journeys](#/journeys).
 
 ### ShareCut Studio guest chrome (when `view` is granted)
 
-| Banner string | Role (`guest_mode`) |
+| Header Role chip (accessible name) | Role (`guest_mode`) |
 |---------------|--------------|
-| *Shared edit view · You can add tracks and audio* | Editor (`edit`) |
-| *Shared comment view · You can comment and suggest edits* | Commenter (`comment`) |
-| *Shared read-only view* | Viewer (`view`; listen + inspect, not “no audio”) |
+| *Editor: can edit* | Editor (`edit`) |
+| *Commenter: can comment* | Commenter (`comment`) |
+| *Viewer: can listen* | Viewer (`view`; listen + inspect, not “no audio”) |
 
 **Comment field on a phone:** on the phone layout only (a landscape phone wider than 767 px uses the tablet shell and is not docked), a Commenter's Review comment field (with its "at 0:12" chip) comes last in the card and stays docked at the bottom of the panel, above the Player, while the card scrolls (on a viewport 480 px tall or shorter, such as a landscape phone, it is not docked and stays at the top of the card as on a tablet; an on-screen keyboard or a pinch zoom does not change this); on a tablet, a desktop and for the host it stays at the top of the card.
 

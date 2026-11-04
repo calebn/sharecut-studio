@@ -12,7 +12,6 @@ import {
   canSuggestStructural,
   commentRole,
   guestHearsMixOnly,
-  guestShareBannerLabel,
   hasShareCapability,
   isShareProjectKey,
   shareProjectKey,
@@ -101,17 +100,6 @@ describe("shareMode", () => {
     expect(guestHearsMixOnly("view")).toBe(true);
     expect(guestHearsMixOnly("edit")).toBe(true);
     expect(guestHearsMixOnly("comment")).toBe(true);
-  });
-
-  it("labels the guest banner by mode", () => {
-    expect(guestShareBannerLabel("edit")).toBe(
-      "Shared edit view · You can add tracks and audio",
-    );
-    expect(guestShareBannerLabel("view")).toBe("Shared read-only view");
-    expect(guestShareBannerLabel("comment")).toBe(
-      "Shared comment view · You can comment and suggest edits",
-    );
-    expect(guestShareBannerLabel(null)).toBe("Shared view");
   });
 
   it("gates refresh mix to host or Docs Editor", () => {

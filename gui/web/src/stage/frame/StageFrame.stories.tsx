@@ -231,9 +231,7 @@ export const GuestEditor: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      await canvas.findByText(
-        "Shared edit view · You can add tracks and audio",
-      ),
+      await canvas.findByRole("img", { name: "Editor: can edit" }),
     ).toBeVisible();
     await expect(
       within(stageTabs(canvasElement)).getAllByRole("tab"),
@@ -248,7 +246,7 @@ export const GuestViewer: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      await canvas.findByText("Shared read-only view"),
+      await canvas.findByRole("img", { name: "Viewer: can listen" }),
     ).toBeVisible();
     await expect(canvas.queryByRole("tablist", { name: "Stages" })).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Invite" })).toBeNull();
