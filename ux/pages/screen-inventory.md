@@ -468,6 +468,8 @@ Step flows: [Guest journeys](#/journeys).
 | *Shared comment view · You can comment and suggest edits* | Commenter (`comment`) |
 | *Shared read-only view* | Viewer (`view`; listen + inspect, not “no audio”) |
 
+**Comment field on a phone:** a Commenter's Review comment field (with its "at 0:12" chip) stays docked at the bottom of the stage, above the Player and the safe area, while the queue scrolls; on a desktop and for the host it stays in the card.
+
 **Approve in the queue:** an Editor decides the suggested cuts in the Review queue with **Cut** and **Keep** (the Review badge counts them); Find more, unsure-word Fix and Resolve stay host-only. Approve and Reject also work from the Timeline overlay, and as Cut and Keep from the Action bar.
 
 **Playback:** prefer **proxy media** (short MP3 listen chunks, often via CDN) so ordinary listen does not pull long host WAVs through the tunnel. Fallback to WAV when proxies are unavailable.
