@@ -10,7 +10,6 @@ import {
   commentPostedStatus,
   usePostComment,
 } from "../../comments/usePostComment";
-import { useViewportClass } from "../../hooks/useViewportClass";
 import { stepUndecided } from "../../review/advance";
 import {
   commentEntriesOf,
@@ -60,20 +59,21 @@ export type CommentNav = {
  * and Undo.
  */
 export function useReviewComments(guest: boolean) {
-  const { project, projectPath, commentDraft, guestMode, capabilities } =
+  const { project, projectPath, commentDraft, guestMode, capabilities, shell } =
     useDaw((s) => ({
       project: s.project,
       projectPath: s.projectPath,
       commentDraft: s.commentDraft,
       guestMode: s.guestMode,
       capabilities: s.shareCapabilities,
+      shell: s.shellBreakpoint,
     }));
   const role = commentRole(projectPath, guestMode, guest);
   const mayComment = canComment(projectPath, guestMode, capabilities);
   const mayReply = canReply(projectPath, guestMode, capabilities);
   const mayAction = canSetAction(projectPath, capabilities);
   const showComposer = mayComment && (guest || commentDraft !== null);
-  const docked = useViewportClass() === "phone" && guest;
+  const docked = shell === "phone" && guest;
   const duration = project?.timeline_duration_sec ?? Number.NaN;
   const comments = project?.comments;
   const [flipped, setFlipped] = useState<ReadonlyMap<string, boolean>>(

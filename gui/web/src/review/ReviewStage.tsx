@@ -436,7 +436,7 @@ export function ReviewStage({
           queue
         )}
         <div className="rv-card">
-          {composer}
+          {!(phone && guest) && composer}
           <DecisionCard
             key={selected?.id ?? "none"}
             kind={selected?.kind ?? "filler"}
@@ -514,6 +514,7 @@ export function ReviewStage({
               onComment ? () => selected && onComment(selected.id) : undefined
             }
           />
+          {phone && guest && composer}
         </div>
       </div>
       <div className="rv-foot">
