@@ -378,9 +378,15 @@ def test_the_registry_check_is_two_sided() -> None:
     ]
 
 
+GENERIC_MCP = "submit_document_command_tool"
+GENERIC_CLI = "podcast doc submit"
+
 AUDITED_TWINS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
-    "AddAction": (("add_comment_action_tool",), ("podcast comment add-action",)),
-    "DeleteComment": (("delete_comment_tool",), ("podcast comment delete",)),
+    "AddAction": (
+        ("add_comment_action_tool", GENERIC_MCP),
+        ("podcast comment add-action",),
+    ),
+    "DeleteComment": (("delete_comment_tool", GENERIC_MCP), ("podcast comment delete",)),
     "AddEffect": (("add_effect_tool",), ("podcast doc submit",)),
     "RemoveEffect": (("remove_effect_tool",), ("podcast doc submit",)),
     "ApplyAutoEdits": (("apply_edits",), ("podcast apply-edits",)),
@@ -442,12 +448,10 @@ def test_no_audit_placeholder_is_left() -> None:
 
 def test_a_social_clip_delete_has_an_mcp_twin_and_the_cli_reaches_it_generically() -> None:
     spec = COMMANDS["DeleteSocialClip"]
-    assert spec.mcp == named("reject_social_clips_tool")
-    assert spec.cli == named("podcast doc submit")
+    assert spec.mcp == named("reject_social_clips_tool", GENERIC_MCP)
+    assert spec.cli == named("podcast clips list", "podcast doc submit")
 
 
-GENERIC_MCP = "submit_document_command_tool"
-GENERIC_CLI = "podcast doc submit"
 KEPT_GAPS = {"EditSelectedRange", "SetTrackMedia"}
 
 
@@ -471,17 +475,18 @@ def test_a_type_that_names_the_generic_surface_is_one_the_generic_tool_accepts()
     ("command_type", "mcp", "cli"),
     [
         ("SplitAtTime", ("split_clip_tool",), (GENERIC_CLI,)),
-        ("RemoveTrack", ("track_remove_tool",), (GENERIC_CLI,)),
-        ("AddTrack", ("track_add_empty_tool",), (GENERIC_CLI,)),
+        ("RemoveTrack", ("track_remove_tool", GENERIC_MCP), (GENERIC_CLI,)),
+        ("AddTrack", ("track_add_empty_tool", GENERIC_MCP), (GENERIC_CLI,)),
+        ("SetTrackMeta", ("track_set_meta_tool", GENERIC_MCP), (GENERIC_CLI,)),
         ("SetClipFade", ("set_clip_fade_tool",), (GENERIC_CLI,)),
-        ("SetEnvelope", ("set_envelope",), (GENERIC_CLI,)),
+        ("SetEnvelope", ("set_envelope",), ("podcast edit list-envelope", GENERIC_CLI)),
         ("FillRoomTone", ("fill_with_room_tone_tool",), (GENERIC_CLI,)),
         ("SetTranscriptWordsIgnored", ("set_words_ignored_tool",), (GENERIC_CLI,)),
         ("RenameProject", (GENERIC_MCP,), (GENERIC_CLI,)),
         ("SetRecordSessionName", (GENERIC_MCP,), (GENERIC_CLI,)),
         ("UpdateChapter", (GENERIC_MCP,), (GENERIC_CLI,)),
         ("AddSocialClip", (GENERIC_MCP,), (GENERIC_CLI,)),
-        ("UpdateSocialClip", (GENERIC_MCP,), (GENERIC_CLI,)),
+        ("UpdateSocialClip", (GENERIC_MCP,), ("podcast clips list", GENERIC_CLI)),
         ("SuggestPendingEdit", (GENERIC_MCP,), (GENERIC_CLI,)),
         ("ApplyFadeRecommendations", (GENERIC_MCP,), (GENERIC_CLI,)),
         ("AddComment", ("add_comment_tool", GENERIC_MCP), ("podcast comment add", GENERIC_CLI)),
@@ -498,7 +503,7 @@ def test_a_type_that_names_the_generic_surface_is_one_the_generic_tool_accepts()
         (
             "UpdateSocialClipDetails",
             ("approve_social_clips_tool", GENERIC_MCP),
-            ("podcast clips approve", GENERIC_CLI),
+            ("podcast clips approve", "podcast clips list", GENERIC_CLI),
         ),
     ],
 )
@@ -519,21 +524,22 @@ def test_the_gaps_that_stay_say_what_the_generic_path_cannot_do() -> None:
     assert media.names == (GENERIC_CLI,) and "raw/" in media.reason
 
 
-def test_add_track_names_only_the_tool_that_adds_an_empty_track() -> None:
-    assert COMMANDS["AddTrack"].mcp == named("track_add_empty_tool")
+def test_add_track_names_only_the_tool_that_adds_an_empty_track_besides_the_generic_one() -> None:
+    assert COMMANDS["AddTrack"].mcp == named("track_add_empty_tool", GENERIC_MCP)
 
 
 def test_the_edit_surface_view_lists_every_type_so_the_checker_resolves_all_names() -> None:
     view = edit_surface_commands()
     assert set(view) == set(COMMANDS)
     assert view["AddTrack"]["cli"] == ["podcast doc submit"]
+    assert view["SetEnvelope"]["cli"] == ["podcast edit list-envelope", "podcast doc submit"]
     assert "gap" not in view["AddTrack"]
     assert view["EditSelectedRange"]["gap"]["partial"] is True
     assert view["EditSelectedRange"]["cli"] == [
         "podcast edit propose-range-cut",
         "podcast doc submit",
     ]
-    assert view["DeleteComment"]["mcp"] == ["delete_comment_tool"]
+    assert view["DeleteComment"]["mcp"] == ["delete_comment_tool", GENERIC_MCP]
 
 
 def test_an_unknown_command_type_is_refused_by_dispatch_and_validation(minimal_project) -> None:

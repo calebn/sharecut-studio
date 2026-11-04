@@ -22,6 +22,29 @@ def clips_propose_cmd(
     typer.echo(f"Proposed {len(clips)} social clip(s).")
 
 
+@clips_app.command("list")
+def clips_list_cmd(
+    project: Path = typer.Option(..., "--project"),
+    approved: bool | None = typer.Option(
+        None, "--approved/--pending", help="Only approved clips, or only pending ones"
+    ),
+) -> None:
+    """Print the clips as JSON with the ids that `clips approve` and `doc submit` take."""
+    ws = ProjectWorkspace.open(project)
+    rows = [
+        {
+            "id": c.id,
+            "track_id": c.track_id,
+            "start": c.start,
+            "end": c.end,
+            "title": c.title_suggestion,
+            "status": "approved" if c.approved else "pending",
+        }
+        for c in ClipService(ws).list(approved=approved)
+    ]
+    typer.echo(json.dumps(rows, indent=2))
+
+
 @clips_app.command("report")
 def clips_report_cmd(
     project: Path = typer.Option(..., "--project"),

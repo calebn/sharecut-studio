@@ -276,7 +276,8 @@ class SetClipFadePayload(BaseModel):
     fade_out_ms: int
     expected: ClipFadeBaseline = Field(
         description="Both saved fades captured when the edit began. A changed pair "
-        "returns clip_fade_changed without changing fades, history, or the journal."
+        "returns clip_fade_changed without changing fades, history, or the journal. Read the "
+        "clip's current {fade_in_ms, fade_out_ms} with podcast edit list-clips."
     )
 
 
@@ -285,7 +286,11 @@ class TrimClipEdgePayload(BaseModel):
     edge: Literal["in", "out"]
     source_sec: float = Field(allow_inf_nan=False)
     mode: EditModeField
-    expected_token: str = Field(min_length=1)
+    expected_token: str = Field(
+        min_length=1,
+        description="The boundary revision token of this edge. Only trim_clip_edge_tool and "
+        "podcast edit trim-clip mint it, so use one of them rather than a bare submit.",
+    )
     override_audio_checks: bool = Field(
         default=False,
         description=OVERRIDE_DESCRIPTION,
@@ -602,8 +607,13 @@ class DeleteSocialClipPayload(BaseModel):
 class SetEnvelopePayload(BaseModel):
     track_id: str
     points: list[EnvelopePoint] = Field(default_factory=list, max_length=ENVELOPE_POINTS_MAX)
-    # Echo the server's current volume points verbatim (exact float compare).
-    expected_points: list[ExpectedEnvelopePoint] = Field(max_length=ENVELOPE_POINTS_MAX)
+    expected_points: list[ExpectedEnvelopePoint] = Field(
+        max_length=ENVELOPE_POINTS_MAX,
+        description="The track's current volume points as [{id, time, value}], echoed verbatim "
+        "(floats compare exactly); a changed envelope is a conflict. Read them with podcast "
+        "edit list-envelope --project P --track T (the set_envelope tool reads them for you), "
+        "or send [] for a track with no envelope.",
+    )
 
     @field_validator("expected_points")
     @classmethod
