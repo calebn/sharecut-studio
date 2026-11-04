@@ -193,9 +193,12 @@ for (const size of SIZES.filter(
       const row = page.locator(".sys-queue-row--decided").first();
       await expect(row).toBeVisible();
       const exceptions = DOCUMENTED_EXCEPTIONS.join(", ");
+      const scope = ".rv-group[aria-label='Decided']";
+      await expect(page.locator(scope)).toHaveCount(1);
       expect(
-        await undersized(page, exceptions, ".rv-group[aria-label='Decided']"),
-      ).toEqual([]);
+        await page.locator(`${scope} .sys-queue-row--decided`).count(),
+      ).toBeGreaterThan(0);
+      expect(await undersized(page, exceptions, scope)).toEqual([]);
       const box = (await row.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(FLOOR_PX);
     });

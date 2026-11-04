@@ -38,7 +38,10 @@ export function disabledAttrs(reason: string | undefined) {
  * `aria-describedby`. Place `note` beside the control and spread
  * `describedBy` onto it. Both are absent when there is no reason.
  */
-export function useDisabledReasonNote(reason: string | null | undefined): {
+export function useDisabledReasonNote(
+  reason: string | null | undefined,
+  className = "export-dialog-note",
+): {
   note: ReactNode;
   describedBy: { "aria-describedby": string } | Record<string, never>;
 } {
@@ -47,7 +50,7 @@ export function useDisabledReasonNote(reason: string | null | undefined): {
   if (text === undefined) return { note: null, describedBy: {} };
   return {
     note: (
-      <p id={id} className="export-dialog-note">
+      <p id={id} className={className}>
         {text}
       </p>
     ),

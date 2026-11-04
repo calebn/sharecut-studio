@@ -11,12 +11,6 @@ type HarnessProps = Partial<ComposerProps> & { start?: string };
 /** The playhead every story shares: 12:04. */
 const STORY_PLAYHEAD: Playhead = { seconds: 724 };
 
-/**
- * A Composer that owns its text and anchor and applies `nextAnchor` against a
- * fixed playhead, as the Review host does. The chip follows the playhead until
- * the first keystroke pins it; emptying a typed pin follows again, and so does a
- * post, whichever anchor the story started from.
- */
 export function ComposerHarness({
   start = "",
   anchor: initialAnchor = idleAnchor(STORY_PLAYHEAD),

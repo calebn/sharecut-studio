@@ -99,7 +99,7 @@ export const AllBadges: Story = {
       canvas.getByRole("tab", { name: "Deliver Failed" }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("tab", { name: "Record 2, Waiting to send" }),
+      canvas.getByRole("tab", { name: "Record 2, Offline" }),
     ).toBeVisible();
   },
   render: () => (

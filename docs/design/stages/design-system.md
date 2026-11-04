@@ -711,8 +711,8 @@ The same glyphs are used in Status rows, badges, the Save indicator, tiles and p
 | Not yet | hollow `circle` |
 | Needs you | amber `triangle-alert` (an 8 px amber dot in badges) |
 | Failed | red `octagon-alert` |
-| Offline | amber `cloud-off` |
-| Waiting to send (a queued comment or queue row) | amber `clock` |
+| Offline (the connection or room is down) | amber `cloud-off`, named "Offline" |
+| Waiting to send (a queued comment or queue row) | amber `clock`, named "Waiting to send" |
 | Live | record-red dot and clock |
 
 ### 4.7 The one primary-button rule
