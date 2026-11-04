@@ -714,7 +714,7 @@
 
 .sys-room-view-title {
   flex: 1 1 0;
-  min-inline-size: 4rem;
+  min-inline-size: 0;
   margin: 0;
   overflow: hidden;
   font-size: var(--font-size-ui);

@@ -3520,6 +3520,14 @@ test("Stages/Record/Room HostLive keeps the status pill and every tile reachable
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "32px";
   });
+  const header = page.locator(".sys-room-view-header").first();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "16px";
+  });
+  expect((await header.boundingBox())?.height ?? 0).toBeLessThanOrEqual(56);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "32px";
+  });
   const pill = page.locator(".sys-room-view-header .sys-pill").first();
   await expect(pill).toBeVisible();
   const pillBox = await pill.boundingBox();
