@@ -45,6 +45,8 @@ type Props = {
   onRemove: (id: string) => void;
   onOpenInEdit: (id: string) => void;
   onFind: () => void;
+  /** True while Find clips runs. */
+  finding?: boolean;
   onTrimGesture?: (active: boolean) => void;
   /** False shows a clip's title as text and leaves out Approve. */
   editable?: boolean;
@@ -121,6 +123,7 @@ export function ClipsRow({
   onRemove,
   onOpenInEdit,
   onFind,
+  finding = false,
   onTrimGesture,
   editable = true,
   commitTitles = false,
@@ -141,7 +144,11 @@ export function ClipsRow({
     "clip",
   );
   const find = (
-    <Button variant="link" onClick={onFind}>
+    <Button
+      variant="link"
+      disabledReason={finding ? "Finding clips…" : undefined}
+      onClick={onFind}
+    >
       Find clips
     </Button>
   );

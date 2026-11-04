@@ -156,6 +156,17 @@ function serve(type: string, p: Record<string, number | string | boolean>) {
           }
         : c,
     );
+  } else if (type === "ProposeSocialClips") {
+    held.social_clips = [
+      ...held.social_clips.filter((c) => c.approved),
+      {
+        ...CLIP,
+        id: "s9",
+        title_suggestion: "A new idea",
+        start: 200,
+        end: 230,
+      },
+    ];
   } else if (type === "DeleteSocialClip") {
     held.social_clips = held.social_clips.filter((c) => c.id !== p.id);
   }
@@ -1196,5 +1207,46 @@ describe("Deliver host clip titles and approvals", () => {
     expect(sent()).toEqual([
       ["UpdateSocialClipDetails", { id: "s1", title: "A line two" }],
     ]);
+  });
+});
+
+describe("Deliver host Find clips", () => {
+  it("proposes through the document command and shows the new clips without deleting the old ones", async () => {
+    render(<DeliverStage />);
+    await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(sent()).toEqual([["ProposeSocialClips", {}]]);
+    expect(await screen.findByDisplayValue("A new idea")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("A line")).toBeNull();
+    expect(sent()).toEqual([["ProposeSocialClips", {}]]);
+  });
+
+  it("reads unavailable with the reason while it runs, then recovers", async () => {
+    let release: () => void = () => {};
+    wire.post.mockImplementationOnce(
+      (_path: string, body: Parameters<typeof answer>[0]) =>
+        new Promise((resolve) => {
+          release = () => resolve(answer(body));
+        }),
+    );
+    render(<DeliverStage />);
+    await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
+    const busy = await screen.findByRole("button", { name: /Find clips/ });
+    expect(busy).toBeDisabled();
+    expect(busy).toHaveAttribute("title", "Finding clips…");
+    release();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Find clips" }),
+      ).not.toBeDisabled(),
+    );
+  });
+
+  it("says the clips were not saved when the proposal is refused", async () => {
+    network.mode = "refusing";
+    render(<DeliverStage />);
+    await userEvent.click(screen.getByRole("button", { name: "Find clips" }));
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    expect(await screen.findByDisplayValue("A line")).toBeInTheDocument();
   });
 });

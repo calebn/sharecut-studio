@@ -97,3 +97,15 @@ describe("ClipsRow commitTitles", () => {
     expect(onRetitle).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("ClipsRow Find clips", () => {
+  it("reads unavailable with the reason while it runs and does not report a click", async () => {
+    const onFind = vi.fn();
+    renderRow({ finding: true, onFind });
+    const find = screen.getByRole("button", { name: "Find clips" });
+    expect(find).toBeDisabled();
+    expect(find).toHaveAttribute("title", "Finding clips…");
+    await userEvent.click(find);
+    expect(onFind).not.toHaveBeenCalled();
+  });
+});
