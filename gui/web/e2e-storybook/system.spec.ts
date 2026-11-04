@@ -3517,9 +3517,6 @@ test("Stages/Record/Room HostLive keeps the status pill and every tile reachable
   page,
 }) => {
   await open(page, "stages-record-room--host-live", 360);
-  await page.evaluate(() => {
-    document.documentElement.style.fontSize = "32px";
-  });
   const header = page.locator(".sys-room-view-header").first();
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "16px";
