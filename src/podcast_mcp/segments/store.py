@@ -98,9 +98,12 @@ def verify_media(segment: SegmentFile, directory: Path, *, hash_content: bool = 
                 f"The segment {segment.name!r} is missing its audio file {name}.",
                 code="segment_hash_mismatch",
             )
-        if path.stat().st_size != entry.bytes or (
-            hash_content and sha256_file(path) != entry.sha256
-        ):
+        if path.stat().st_size != entry.bytes:
+            raise CodedValueError(
+                f"The audio file {name} of segment {segment.name!r} does not match its recorded size.",
+                code="segment_hash_mismatch",
+            )
+        if hash_content and sha256_file(path) != entry.sha256:
             raise CodedValueError(
                 f"The audio file {name} of segment {segment.name!r} does not match its recorded hash.",
                 code="segment_hash_mismatch",

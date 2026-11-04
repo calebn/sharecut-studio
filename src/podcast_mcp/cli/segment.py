@@ -74,13 +74,16 @@ def segment_save_cmd(
 
 
 @segment_app.command("list")
-def segment_list_cmd(as_json: bool = typer.Option(False, "--json")) -> None:
+def segment_list_cmd(
+    as_json: bool = typer.Option(False, "--json"),
+    deep: bool = typer.Option(False, "--deep", help="Also verify audio content hashes"),
+) -> None:
     """List the segments in the library, newest version of each."""
     store = SegmentStore()
     if as_json:
-        typer.echo(_json(library_rows(store)))
+        typer.echo(_json(library_rows(store, deep=deep)))
         return
-    listing = store.scan()
+    listing = store.scan(deep=deep)
     if not listing.segments and not listing.damaged:
         typer.echo("No segments yet. Save one with `podcast segment save`.")
     for segment in listing.segments:

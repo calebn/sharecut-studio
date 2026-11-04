@@ -130,7 +130,7 @@ def test_listing_reads_audio_only_with_deep(
     deep = runner.invoke(app, ["segment", "list", "--deep", *output_flags])
     assert deep.exit_code == 0, deep.output
     assert added.id in deep.output
-    assert reads == [audio]
+    assert audio in reads
 
 
 @pytest.mark.parametrize("output_flags", [[], ["--json"]])

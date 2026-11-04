@@ -42,7 +42,7 @@ Unknown fields are refused. `content_sha256` is a hash of the sorted media hashe
 | Command | What it does |
 |---|---|
 | `podcast segment save -p PROJECT --name NAME [--kind K] (--clips c1,c2 \| --range 0:00-0:22) [--role R] [--json]` | Cut the clips, or every clip overlapping the timeline range (trimmed to it), into the library as FLAC. Offsets count from the earliest selected clip, so a range that starts in silence loses its lead-in. The role and fader come from the first clip's track. A range that cuts a clip in the middle drops the fade and crossfade at the cut. Clips that overlap on one track get separate lanes. Without `--kind`: a selection starting in the first 120 s is an `intro`, one ending in the last 120 s of the timeline an `outro`, else `other`. The audio is each clip's source window with its mute regions and ignored words baked in, as the episode renders them. It is not the full episode render: track gain, the processing chain and the transcript gate are not applied, and clip fades and joins are stored in the layout, not in the audio (an insert applies them). Clips with room-tone fills, off-speaker mutes or bleed restore are refused with `segment_render_unsupported`, because the episode would sound different. Clips under 10 ms are refused with `segment_clip_too_short`. |
-| `podcast segment list [--json]` | The newest version of each segment. List reports damage for the newest version of each segment; an older damaged version is not shown. A segment whose newest version is damaged is listed as `DAMAGED` (in `--json`, as `{"id", "version", "damaged": true, "problem", "code"}`), never hidden. |
+| `podcast segment list [--deep] [--json]` | The newest version of each segment. Checks the manifest and audio file presence and size without reading audio content. `--deep` also verifies audio hashes and detects same-size content changes. Damage found by these checks is listed as `DAMAGED` (in `--json`, as `{"id", "version", "damaged": true, "problem", "code"}`), never hidden. Older versions are not checked. |
 | `podcast segment show ID [--json]` | Layout, level and versions of one segment. |
 | `podcast segment remove ID` | Delete a segment and all its versions, damaged or not. |
 | `podcast segment export ID -o FILE` | Write the newest version to a `.sharecutseg` file. |
@@ -50,6 +50,8 @@ Unknown fields are refused. `content_sha256` is a hash of the sorted media hashe
 | `podcast segment insert PROJECT SEGMENT --at start\|end\|SEC [--version N] [--dry-run] [--json]` | Insert a segment into an episode (see [Insert](#insert)). `--dry-run` reports what would move and changes nothing. |
 
 `save` and `import` print one of `Saved`, `Saved a new version of` or `Already in the library`; with `--json` they print `{"status": "added" | "new_version" | "unchanged", "id", "version"}`. Failures print `Error: <message> (code <code>)` and exit 1.
+
+The list command uses the same cheap checks with text and JSON output. `show`, import, export and insert still verify audio hashes. The host MCP `segment_list_tool` also verifies audio hashes.
 
 ## Conflict rules
 
