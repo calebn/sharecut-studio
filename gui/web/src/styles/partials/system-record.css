@@ -656,7 +656,6 @@
 /* A wide target (Replaces 12:04-17:29) wraps under the label at phone width
    instead of squeezing it. */
 .sys-room-view-header--embedded {
-  flex-wrap: wrap;
   justify-content: flex-end;
   min-block-size: 2.5rem;
 }

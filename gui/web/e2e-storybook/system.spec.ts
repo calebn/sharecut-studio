@@ -3534,6 +3534,22 @@ test("Stages/Record/Room HostLive keeps the status pill and every tile reachable
   if (!pillBox) throw new Error("status pill did not render");
   expect(pillBox.x).toBeGreaterThanOrEqual(0);
   expect(pillBox.x + pillBox.width).toBeLessThanOrEqual(360.5);
+  await page
+    .locator(".sys-room-view")
+    .first()
+    .evaluate((el) => {
+      (el as HTMLElement).style.blockSize = "560px";
+      (el as HTMLElement).style.maxBlockSize = "560px";
+    });
+  const stageScrolls = await page
+    .locator(".sys-room-view-stage")
+    .first()
+    .evaluate(
+      (el) =>
+        getComputedStyle(el).overflowY === "auto" &&
+        el.scrollHeight > el.clientHeight,
+    );
+  expect(stageScrolls).toBe(true);
   const tiles = page.locator(".sys-room-view-grid > *");
   const count = await tiles.count();
   expect(count).toBeGreaterThan(1);
@@ -3545,8 +3561,8 @@ test("Stages/Record/Room HostLive keeps the status pill and every tile reachable
       const frame = stage?.getBoundingClientRect();
       return (
         !!frame &&
-        tile.top >= frame.top - 1 &&
-        tile.bottom <= frame.bottom + 1 &&
+        tile.bottom > frame.top + 1 &&
+        tile.top < frame.bottom - 1 &&
         tile.right <= frame.right + 1
       );
     });
