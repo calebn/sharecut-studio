@@ -246,9 +246,11 @@ export function useReviewComments(guest: boolean) {
   };
 
   const droppedDraft = useRef<CommentDraft | null>(null);
+  useEffect(() => {
+    if (commentDraft) droppedDraft.current = null;
+  }, [commentDraft]);
   const open = () => {
     const state = useDawStore.getState();
-    droppedDraft.current = null;
     if (state.commentDraft) composeRef.current?.focus();
     else state.setCommentDraft(resolveCommentAnchor(state).draft);
   };

@@ -395,6 +395,37 @@ describe("Review queue for a guest", () => {
     expect(useDawStore.getState().commentDraft).toBe(typed);
   });
 
+  it("does not restore the dropped pin on redo", () => {
+    join("comment");
+    useDawStore.setState({ playheadSec: 12 });
+    render(<ReviewHost guestShare />);
+    fireEvent.change(field(), { target: { value: "a" } });
+    fireEvent.change(field(), { target: { value: "" } });
+    act(() => useDawStore.setState({ playheadSec: 90 }));
+    fireEvent.input(field(), {
+      target: { value: "a" },
+      inputType: "historyRedo",
+    });
+    expect(useDawStore.getState().commentDraft?.startSec).toBe(90);
+  });
+
+  it("does not bring a stale time back after any other path set and cleared a draft", () => {
+    join("comment");
+    useDawStore.setState({ playheadSec: 12 });
+    render(<ReviewHost guestShare />);
+    fireEvent.change(field(), { target: { value: "a" } });
+    fireEvent.change(field(), { target: { value: "" } });
+    act(() =>
+      useDawStore.setState({ commentDraft: { startSec: 40, endSec: null } }),
+    );
+    act(() => useDawStore.setState({ commentDraft: null, playheadSec: 90 }));
+    fireEvent.input(field(), {
+      target: { value: "a" },
+      inputType: "historyUndo",
+    });
+    expect(useDawStore.getState().commentDraft?.startSec).toBe(90);
+  });
+
   it("does not bring a stale time back by undo after C set a new draft", () => {
     join("comment");
     useDawStore.setState({ playheadSec: 12 });
