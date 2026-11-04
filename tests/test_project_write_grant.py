@@ -186,3 +186,26 @@ def test_unscoped_ok_module_list_names_only_existing_modules() -> None:
     tests_dir = Path(__file__).parent
     missing = sorted(m for m in unscoped_ok_modules() if not (tests_dir / m).is_file())
     assert missing == []
+
+
+def test_unscoped_ok_module_list_never_grows_past_origin_main() -> None:
+    import subprocess
+
+    from conftest import unscoped_ok_modules
+
+    repo = Path(__file__).parent.parent
+    shown = subprocess.run(
+        ["git", "show", "origin/main:tests/unscoped_ok_modules.txt"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if shown.returncode != 0:
+        pytest.skip("origin/main has no unscoped_ok_modules.txt yet")
+    base = {
+        line.strip()
+        for line in shown.stdout.splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+    assert sorted(unscoped_ok_modules() - base) == []
