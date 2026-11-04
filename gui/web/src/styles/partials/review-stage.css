@@ -229,3 +229,21 @@
   white-space: nowrap;
   vertical-align: bottom;
 }
+
+.rv-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.rv-action-row {
+  display: flex;
+  gap: var(--space-1);
+  inline-size: 100%;
+}
+
+.rv-action-input {
+  flex: 1;
+  min-inline-size: 0;
+}
