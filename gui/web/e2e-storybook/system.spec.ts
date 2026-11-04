@@ -3479,3 +3479,33 @@ test("Stages/Edit/Timeline an envelope point stands at the x its time gives in t
   );
   expect(owner).toBe(false);
 });
+
+for (const [label, rootPx] of [
+  ["16px", 16],
+  ["32px", 32],
+] as const) {
+  test(`Stages/Record/Room HostLive keeps every dock control reachable at 360px with ${label} text`, async ({
+    page,
+  }) => {
+    await open(page, "stages-record-room--host-live", 360);
+    await page.evaluate((px) => {
+      document.documentElement.style.fontSize = `${px}px`;
+    }, rootPx);
+    const names = ["Mute", "Comment", "Stop take", "Pause take", "More"];
+    for (const name of names) {
+      const button = page.getByRole("button", { name, exact: true });
+      await button.scrollIntoViewIfNeeded();
+      await expect(button).toBeVisible();
+      const box = await button.boundingBox();
+      if (!box) throw new Error(`${name} did not render`);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(360);
+    }
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+}
