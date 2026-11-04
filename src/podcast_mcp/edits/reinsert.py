@@ -366,6 +366,8 @@ def apply_reinsert(
                     defaults=defaults,
                 ),
             )
+        # The cut moved anchors with the pad; they go back to the clock the cut recorded them on.
+        shift_review_anchors_for_insert(project, pad_start + inverse.pad.sec, -inverse.pad.sec)
     ripple_insert_clips(project, at, inverse.duration_sec, ripple, defaults=defaults)
     used = {c.id for c in project.clips}
     for seam in inverse.tracks:

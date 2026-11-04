@@ -1726,7 +1726,7 @@ def insert_bound_room_tone_pad(
 ) -> dict:
     """Insert one common gap and tile exactly the samples already measured."""
     at_time, duration_sec = pad.at_time, pad.seconds
-    insert_gap(project, at_time, duration_sec, defaults=defaults)
+    insert_gap(project, at_time, duration_sec, defaults=defaults, shift_anchors=True)
     inserted: list[Clip] = []
     for lane in pad.lanes:
         if not isinstance(lane, LaneSample):
