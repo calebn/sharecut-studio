@@ -117,8 +117,14 @@ describe("stage commands", () => {
   const STAGE_REASON = "Open Edit to change the timeline";
   const SUGGESTABLE = ["range.cut", "range.mute"] as const;
   const ROLES = {
-    commenter: ["comment", ["suggest", "comment", "view"]],
-    editor: ["edit", ["edit", "suggest", "comment", "view"]],
+    commenter: [
+      "comment",
+      ["play", "view", "comment", "reply", "action", "suggest"],
+    ],
+    editor: [
+      "edit",
+      ["play", "view", "comment", "reply", "action", "suggest", "edit"],
+    ],
     commentOnly: ["comment", ["comment", "view"]],
     viewer: ["view", ["view"]],
     noCaps: ["comment", null],
@@ -173,14 +179,17 @@ describe("stage commands", () => {
     },
   );
 
-  it.each(Object.keys(ROLES) as (keyof typeof ROLES)[])(
-    "range.cut off Edit matches rangeEditMode suggest for %s",
-    (role) => {
-      const ctx = as(role, "review");
-      const [, caps] = ROLES[role];
-      expect(evaluateWhen(COMMANDS["range.cut"].when, ctx).ok).toBe(
-        rangeEditMode("share:tok", caps ? [...caps] : null) === "suggest",
-      );
-    },
-  );
+  it.each(
+    ["range.cut", "range.mute"].flatMap((id) =>
+      (Object.keys(ROLES) as (keyof typeof ROLES)[]).map(
+        (role) => [id, role] as const,
+      ),
+    ),
+  )("%s off Edit matches rangeEditMode suggest for %s", (id, role) => {
+    const ctx = as(role, "review");
+    const [, caps] = ROLES[role];
+    expect(evaluateWhen(COMMANDS[id].when, ctx).ok).toBe(
+      rangeEditMode("share:tok", caps ? [...caps] : null) === "suggest",
+    );
+  });
 });

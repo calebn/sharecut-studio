@@ -134,7 +134,14 @@ describe("shared range action policy and commands", () => {
     useDawStore.setState({
       projectPath: "share:token",
       guestMode: "comment",
-      shareCapabilities: ["suggest", "comment", "view"],
+      shareCapabilities: [
+        "play",
+        "view",
+        "comment",
+        "reply",
+        "action",
+        "suggest",
+      ],
       stage: "review",
     });
     vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Applied" });
@@ -148,7 +155,14 @@ describe("shared range action policy and commands", () => {
     useDawStore.setState({
       projectPath: "share:token",
       guestMode: "comment",
-      shareCapabilities: ["suggest", "comment", "view"],
+      shareCapabilities: [
+        "play",
+        "view",
+        "comment",
+        "reply",
+        "action",
+        "suggest",
+      ],
       stage: "review",
     });
     expect((await execute("range.fillRoomTone")).status).toBe("disabled");
