@@ -879,7 +879,7 @@ trim, roll, pending edges, chapters and the crossfade end, `xy` for envelope poi
 for joins and pending split flags, which only take taps. A move runs along `x`
 when it is at least twice as wide as it is tall (within about 27° of
 horizontal). An off-axis move past the slop disarms the chip. Resting
-`LONG_PRESS_MS` on a chip still grabs, whatever the axis. No drag magnifier
+on a chip never grabs, whatever the axis. No drag magnifier
 exists yet, so a grab from a chip has none.
 
 ### Compact inspector (#1051 round 3)
