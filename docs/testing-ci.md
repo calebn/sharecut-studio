@@ -88,8 +88,11 @@ when it matches a bounded ASCII HTTP or HTTPS DNS hostname with `/ubuntu` or
 `/ubuntu/`, optional numeric `priority:` metadata of up to six digits, and bounded
 spaces or tabs. Every other rejected entry is fully replaced with `<redacted>`.
 This diagnostic does not admit additional mirrors or fix an unsupported layout.
-The method supports the current Ubuntu resolute runner archive layout and fails
-setup for an unsupported layout.
+The method supports the current Ubuntu resolute runner archive layout. For an
+unrecognised apt sources layout the step prints a warning annotation naming the
+public URIs, redacting any other token, writes nothing and leaves stock apt in
+place. A mirror, suite, component, ownership or prerequisite problem still fails
+setup.
 
 This provides bounded origin fallback for the remaining apt acquisition failure
 class in [#2117](https://github.com/calebn/sharecut-studio/issues/2117).
