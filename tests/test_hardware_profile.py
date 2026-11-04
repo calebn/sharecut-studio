@@ -477,6 +477,7 @@ def test_linux_available_ram_is_capped_by_the_cgroup_v1_limit(monkeypatch, tmp_p
         ("9223372036854771712", "0", "1500000000", "1400000000", 100_000_000),
         ("4000000000", "1000000000", "1500000000", "1400000000", 100_000_000),
         ("1000", "2000", "9223372036854771712", "0", 0),
+        ("0", "0", "9223372036854771712", "0", 0),
     ],
 )
 def test_linux_available_ram_respects_nested_v1_memory_membership(
@@ -499,15 +500,18 @@ def test_linux_available_ram_respects_nested_v1_memory_membership(
 
 
 @pytest.mark.parametrize("v2_directory", ["", "unified/"])
+@pytest.mark.parametrize("v2_leaf_limit", ["1000000000", "max"])
 @pytest.mark.parametrize("v1_room", [0, 100_000_000, 900_000_000])
 def test_linux_available_ram_uses_the_minimum_across_hybrid_memory_layouts(
-    monkeypatch, tmp_path, v2_directory, v1_room
+    monkeypatch, tmp_path, v2_directory, v2_leaf_limit, v1_room
 ) -> None:
     _linux_ram(
         monkeypatch,
         tmp_path,
         {
-            f"{v2_directory}work/job/memory.max": "1000000000",
+            f"{v2_directory}work/memory.max": "1000000000",
+            f"{v2_directory}work/memory.current": "500000000",
+            f"{v2_directory}work/job/memory.max": v2_leaf_limit,
             f"{v2_directory}work/job/memory.current": "500000000",
             "memory/work/job/memory.limit_in_bytes": str(1_000_000_000 + v1_room),
             "memory/work/job/memory.usage_in_bytes": "1000000000",
