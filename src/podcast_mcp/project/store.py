@@ -3,11 +3,16 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Collection, Iterable
+import sys
+import threading
+from collections import Counter
+from collections.abc import Collection, Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from podcast_mcp.models import (
     EpisodeProject,
@@ -262,6 +267,94 @@ def history_index_adoptable(
     return False
 
 
+class WriteGrantKind(StrEnum):
+    DISPATCHER = "dispatcher"
+    LEGACY_CLI = "legacy_cli"
+    LEGACY_MCP = "legacy_mcp"
+
+
+class UnscopedProjectWriteError(RuntimeError):
+    """A project save ran with no active write grant while the guard is strict."""
+
+
+@dataclass(frozen=True)
+class WriteGrant:
+    kind: WriteGrantKind
+
+
+_WRITE_GRANT: ContextVar[WriteGrant | None] = ContextVar("project_write_grant", default=None)
+_guard_mode: Literal["warn", "strict"] = "warn"
+_UNSCOPED = "unscoped"
+_COUNTS_LOCK = threading.Lock()
+_write_counts: Counter[str] = Counter()
+_warned_callers: set[str] = set()
+
+
+@contextmanager
+def write_grant(kind: WriteGrantKind) -> Iterator[WriteGrant]:
+    """Mark the commits made inside this context (and contexts copied from it) as granted.
+
+    The grant lives in a ``ContextVar``: ``asyncio`` tasks and ``copy_context().run`` carry
+    it, a bare ``threading.Thread`` or ``ThreadPoolExecutor.submit`` does not.
+    """
+    grant = WriteGrant(kind)
+    token = _WRITE_GRANT.set(grant)
+    try:
+        yield grant
+    finally:
+        _WRITE_GRANT.reset(token)
+
+
+def active_write_grant() -> WriteGrant | None:
+    return _WRITE_GRANT.get()
+
+
+def write_guard_mode() -> str:
+    """``warn`` (production) logs and counts an unscoped save; ``strict`` (tests) raises."""
+    return _guard_mode
+
+
+def write_counts() -> dict[str, int]:
+    """Commits seen per grant kind, plus ``unscoped``; the legacy kinds are the migration metric."""
+    with _COUNTS_LOCK:
+        return dict(_write_counts)
+
+
+def reset_write_counts_for_tests() -> None:
+    with _COUNTS_LOCK:
+        _write_counts.clear()
+        _warned_callers.clear()
+
+
+def _commit_caller() -> str:
+    frame = sys._getframe(1)
+    while frame is not None and frame.f_code.co_filename == __file__:
+        frame = frame.f_back  # type: ignore[assignment]
+    if frame is None:
+        return "unknown"
+    return f"{frame.f_globals.get('__name__', '?')}:{frame.f_code.co_name}:{frame.f_lineno}"
+
+
+def _check_write_grant(project_path: Path) -> None:
+    grant = _WRITE_GRANT.get()
+    if grant is not None:
+        with _COUNTS_LOCK:
+            _write_counts[grant.kind.value] += 1
+        return
+    caller = _commit_caller()
+    with _COUNTS_LOCK:
+        _write_counts[_UNSCOPED] += 1
+        first = caller not in _warned_callers
+        _warned_callers.add(caller)
+    if write_guard_mode() == "strict":
+        raise UnscopedProjectWriteError(
+            f"unscoped project write to {project_path} from {caller}: wrap it in the document "
+            "dispatcher or a legacy write grant"
+        )
+    if first:
+        log.warning("unscoped_project_write caller=%s path=%s", caller, project_path)
+
+
 class ProjectStore:
     """Single API for loading and committing episode.sharecut."""
 
@@ -308,6 +401,7 @@ class ProjectStore:
         return self.project_path, project_signature, history_signature
 
     def commit(self, project: EpisodeProject) -> Path:
+        _check_write_grant(self.project_path)
         with project_commit_lock(project):
             try:
                 self.adopt_history_index(project)

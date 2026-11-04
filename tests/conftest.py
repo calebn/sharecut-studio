@@ -60,6 +60,20 @@ def shard_of(nodeid: str, count: int) -> int:
     return zlib.crc32(nodeid.encode()) % count + 1
 
 
+_UNSCOPED_OK_MODULES = Path(__file__).with_name("unscoped_ok_modules.txt")
+
+
+def unscoped_ok_modules() -> frozenset[str]:
+    """Test modules that save projects outside a write grant, as paths relative to tests/."""
+    lines = _UNSCOPED_OK_MODULES.read_text(encoding="utf-8").splitlines()
+    return frozenset(line.strip() for line in lines if line.strip() and not line.startswith("#"))
+
+
+def pytest_itemcollected(item: pytest.Item) -> None:
+    if item.path.parent == Path(__file__).parent and item.path.name in unscoped_ok_modules():
+        item.add_marker(pytest.mark.unscoped_ok)
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     raw_index = os.environ.get("PYTEST_SHARD_INDEX")
     raw_count = os.environ.get("PYTEST_SHARD_COUNT")
@@ -80,6 +94,16 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         (kept if shard_of(item.nodeid, count) == index else dropped).append(item)
     config.hook.pytest_deselected(items=dropped)
     items[:] = kept
+
+
+def pytest_terminal_summary(terminalreporter: Any, config: pytest.Config) -> None:
+    del config
+    unscoped = terminalreporter.stats.get("passed", []) + terminalreporter.stats.get("failed", [])
+    count = sum(1 for report in unscoped if "unscoped_ok" in report.keywords)
+    if count:
+        terminalreporter.write_line(
+            f"unscoped_ok: {count} tests ran with the write guard in warn mode"
+        )
 
 
 def _make_windows_test_directory_private(path: Path) -> None:
@@ -113,6 +137,24 @@ def _object_store_config_parent(tmp_path_factory: pytest.TempPathFactory) -> Pat
     parent = tmp_path_factory.mktemp("no_host_object_store")
     _make_windows_test_directory_private(parent)
     return parent
+
+
+@pytest.fixture(autouse=True)
+def _strict_project_write_guard(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    """Run the project write guard strict: a save outside a write grant raises.
+
+    A direct-service unit test that legitimately saves outside the dispatcher opts out
+    with ``@pytest.mark.unscoped_ok``; the session summary counts those tests so the
+    list can only shrink as writers migrate.
+    """
+    from podcast_mcp.project import store
+
+    store.reset_write_counts_for_tests()
+    if request.node.get_closest_marker("unscoped_ok") is None:
+        monkeypatch.setattr(store, "_guard_mode", "strict")
+    yield
 
 
 @pytest.fixture(autouse=True)

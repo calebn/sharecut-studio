@@ -25,7 +25,7 @@ from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
 from podcast_mcp.project.history import StaleHistoryError
-from podcast_mcp.project.store import commit_landed
+from podcast_mcp.project.store import WriteGrantKind, commit_landed, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryListResult, HistoryService
 from podcast_mcp.services.document_sync.commands import (
@@ -999,14 +999,15 @@ class DocumentSyncService:
             base_server_seq=_journal_server_seq(store),
         )
         try:
-            result = self._apply(
-                command,
-                capabilities=capabilities,
-                range_policy=range_policy,
-                structural_mode=structural_mode,
-                author=author,
-                trusted_context=trusted_context,
-            )
+            with write_grant(WriteGrantKind.DISPATCHER):
+                result = self._apply(
+                    command,
+                    capabilities=capabilities,
+                    range_policy=range_policy,
+                    structural_mode=structural_mode,
+                    author=author,
+                    trusted_context=trusted_context,
+                )
         except BaseException:
             # A failed history render calls discard_changes; re-read the (possibly
             # reverted) in-memory project before deciding whether the commit landed.

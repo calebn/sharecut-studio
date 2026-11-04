@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from podcast_mcp.project.merge import project_merge_data
+from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync.service import after_agent_mutation
 
@@ -17,7 +18,7 @@ def apply_external_document_edit(ws: ProjectWorkspace, apply: Callable[[], T]) -
     or audio jobs that already notify.
     Publication remains best effort after project ownership ends.
     """
-    with ws.transaction():
+    with write_grant(WriteGrantKind.LEGACY_CLI), ws.transaction():
         before = project_merge_data(ws.project)
         result = apply()
         changed = before != project_merge_data(ws.project)

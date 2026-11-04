@@ -128,6 +128,7 @@ markers = [
     "e2e_real: nightly fixtures (AMI bleed, benchmark regression, real speech)",
     "slow: benchmark or long-running tighten tests",
     "extras_install: builds a clean venv per optional extra (opt-in via PODCAST_CHECK_EXTRAS=1)",
+    "unscoped_ok: saves a project outside a write grant (direct-service test); counted, shrink-only",
     "refine_gate: exercises transcript refine hard gate (disables test default mode=off)",
 ]
 addopts = [
