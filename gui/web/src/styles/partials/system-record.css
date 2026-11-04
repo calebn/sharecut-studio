@@ -647,6 +647,8 @@
   flex: none;
   align-items: center;
   gap: var(--space-3);
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
   min-block-size: 3rem;
   padding-inline: var(--space-5);
   border-block-end: 1px solid var(--color-border-subtle);
@@ -712,8 +714,8 @@
 }
 
 .sys-room-view-title {
-  flex: 1 1 auto;
-  min-inline-size: 0;
+  flex: 1 1 0;
+  min-inline-size: 4rem;
   margin: 0;
   overflow: hidden;
   font-size: var(--font-size-ui);
@@ -742,7 +744,8 @@
   min-inline-size: 0;
   min-block-size: 0;
   padding: var(--space-5);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .sys-room-view-grid {

@@ -3512,3 +3512,36 @@ for (const [label, rootPx] of [
     expect(clipped).toBe(0);
   });
 }
+
+test("Stages/Record/Room HostLive keeps the status pill and every tile reachable at 360px with 32px text", async ({
+  page,
+}) => {
+  await open(page, "stages-record-room--host-live", 360);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "32px";
+  });
+  const pill = page.locator(".sys-room-view-header .sys-pill").first();
+  await expect(pill).toBeVisible();
+  const pillBox = await pill.boundingBox();
+  if (!pillBox) throw new Error("status pill did not render");
+  expect(pillBox.x).toBeGreaterThanOrEqual(0);
+  expect(pillBox.x + pillBox.width).toBeLessThanOrEqual(360.5);
+  const tiles = page.locator(".sys-room-view-grid > *");
+  const count = await tiles.count();
+  expect(count).toBeGreaterThan(1);
+  for (let i = 0; i < count; i += 1) {
+    await tiles.nth(i).scrollIntoViewIfNeeded();
+    const inside = await tiles.nth(i).evaluate((el) => {
+      const tile = el.getBoundingClientRect();
+      const stage = el.closest(".sys-room-view-stage");
+      const frame = stage?.getBoundingClientRect();
+      return (
+        !!frame &&
+        tile.top >= frame.top - 1 &&
+        tile.bottom <= frame.bottom + 1 &&
+        tile.right <= frame.right + 1
+      );
+    });
+    expect(inside).toBe(true);
+  }
+});
