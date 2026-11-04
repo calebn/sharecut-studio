@@ -13,6 +13,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, TypeVar
 
+from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import after_agent_mutation
 
@@ -30,7 +31,8 @@ def notify_after_mutation(fn: F) -> F:
 
     @wraps(fn)
     def wrapper(project_path: str, *args: Any, **kwargs: Any):
-        result = fn(project_path, *args, **kwargs)
+        with write_grant(WriteGrantKind.LEGACY_MCP):
+            result = fn(project_path, *args, **kwargs)
         agent_mutated(project_path)
         return result
 
