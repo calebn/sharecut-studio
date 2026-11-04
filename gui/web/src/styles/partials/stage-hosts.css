@@ -89,7 +89,8 @@
 .stage-host--record {
   gap: 0;
   padding: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .stage-host--record > .sys-room-view {
