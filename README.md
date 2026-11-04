@@ -47,7 +47,7 @@ Notes (verified in a disposable Linux Docker image):
 - A bare `podcast bootstrap` installs Whisper and RNNoise; `--component all` also installs the word aligner and the speaker model. `podcast bootstrap --component word-aligner` installs just the aligner; once downloaded, precise word boundaries (`transcribe.forced_alignment.enabled`, English) turn on by default; until then they stay unavailable and the pipeline reports word times as Whisper-only (Studio: download it next to the Pipeline tab's Precise word boundaries field).
 - Without `uv`: `python3 -m venv .venv && .venv/bin/pip install -e ".[all]"` then the same bootstrap/doctor steps.
 
-Detail: [docs/setup.md § Maximal install](docs/setup.md#maximal-install-all-extras).
+Detail: [docs/setup.md § Maximal install](docs/setup.md#maximal-install-all-extras). Operators can use the [read-only public mirror check](docs/setup.md#check-a-public-bootstrap-mirror) to verify bootstrap object availability without downloading payloads.
 
 The frontend CI suite uses a [locked exporter dependency group](docs/setup.md#frontend-exporter-dependencies) for its four generated-file checks. Browser suites keep the full GUI environment.
 

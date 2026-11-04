@@ -211,6 +211,58 @@ shasum -a 256 /tmp/pin-check/config.json /tmp/pin-check/model.bin /tmp/pin-check
 
 Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so RNNoise tries CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are only used for assets with a `sha256` pin; RNNoise is pinned, so the CDN is tried first and falls back to the commit-pinned GitHub URL on a miss. To re-pin RNNoise, run `curl -L <url> | tee f | shasum -a 256; wc -c f`, then update `url`, `sha256` and `size_bytes` together. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights (the catalog sizes at their pinned revisions). The word aligner is not in the manifest and always downloads from upstream.
 
+
+#### Check a public bootstrap mirror
+
+Operators can check availability without downloading model payloads or writing a
+mirror tree. Supply the public HTTPS base explicitly. The example hostname is a
+placeholder; replace it with the operator's public base.
+
+```sh
+uv run python scripts/check_bootstrap_mirror.py --base-url https://mirror.example.test/bootstrap
+```
+
+The checker reads `contracts/bootstrap-assets.json`, or `--manifest /tmp/assets.json`.
+It checks every entry with a `cdn_prefix` and fails if none remain. HTTP entries use
+that prefix and their filename, or the upstream URL's basename when no filename is
+specified. The checker never requests an HTTP asset's upstream URL.
+
+For each declared Hugging Face repository and revision it sends an anonymous GET
+to the fixed `huggingface.co/api/models/.../revision/...` metadata endpoint. It
+requires a resolved commit SHA and the complete nonempty sibling list, including
+README and metadata files. Each JSON input is capped at 256 KiB and the complete
+plan at 64 objects. It validates every local field before metadata requests and
+resolves the entire inventory before any CDN HEAD. It prints resolved SHA receipts
+and each asset's encoded mirror path, HTTP status or safe error category.
+
+Only metadata uses GET. Each CDN object receives one HEAD, with no response body
+read, retries, GET fallback, or redirects. A redirect is unverifiable and fails.
+All 2xx statuses establish availability at check time only. They do not establish
+hashes, byte integrity, or agreement with a resolved repository revision. A 403 or
+405 means access is unavailable to this check; it does not prove an object is
+absent. DNS names are checked syntactically and against the shared blocked-host
+policy; the checker does not resolve them to prove that every DNS address is public.
+
+The command does not consult the production private profile, Hugging Face tokens,
+netrc, application Authorization headers or cookies. It preserves inherited managed
+proxy and CA routing. `--timeout` is a positive finite socket timeout of at most
+60 seconds, with a 10-second default. It is not a hard total deadline for DNS or
+all requests. There are no upload, download-output, or production configuration
+options.
+
+Exit 0 means the full inventory was available. Exit 1 means at least one CDN
+object was unavailable. Exit 2 means the arguments or inventory were invalid or
+unresolved; no CDN HEAD requests occur in that case. Unknown kinds, malformed or
+oversized metadata, duplicate paths and unavailable metadata all fail closed.
+
+The checked-in manifest's two Hugging Face repositories do not match the runtime
+Whisper pin repositories. The checker uses the declared repositories directly and
+never substitutes a runtime pin. On 2026-11-04 the declared turbo repository's
+anonymous metadata endpoint returned HTTP 401, so the full checked-in inventory
+was unresolved. That outcome does not establish mirror readiness. RNNoise CDN
+upload remains operator work under [#2016](https://github.com/calebn/sharecut-studio/issues/2016);
+this command changes neither uploads nor runtime pins and upstream fallbacks.
+
 ```bash
 podcast bootstrap                     # the recommended models: whisper and rnnoise
 podcast bootstrap --component all     # every model in the table, including word-aligner and speaker-ecapa
