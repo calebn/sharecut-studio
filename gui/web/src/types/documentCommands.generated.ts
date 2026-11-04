@@ -35,6 +35,7 @@ export type DocumentCommandType =
   | "MoveClips"
   | "MoveSegment"
   | "PasteSegment"
+  | "ProposeSocialClips"
   | "ProposeTighten"
   | "ReconcileTranscript"
   | "RedoHistory"
@@ -123,6 +124,7 @@ export const DocumentCommand = {
   MoveClips: "MoveClips",
   MoveSegment: "MoveSegment",
   PasteSegment: "PasteSegment",
+  ProposeSocialClips: "ProposeSocialClips",
   ProposeTighten: "ProposeTighten",
   ReconcileTranscript: "ReconcileTranscript",
   RedoHistory: "RedoHistory",

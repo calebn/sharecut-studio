@@ -38,6 +38,14 @@ def add_social_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return clip.model_dump()
 
 
+def propose_social_clips(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    clips = ClipService(ws).propose(
+        platform=str(p["platform"]) if p.get("platform") is not None else None,
+        max_clips=int(p["max_clips"]) if p.get("max_clips") is not None else None,
+    )
+    return {"proposed": len(clips), "ids": [c.id for c in clips]}
+
+
 def update_social_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     clip = ClipService(ws).update_times(
         str(p["id"]),

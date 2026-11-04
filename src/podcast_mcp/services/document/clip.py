@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import builtins
 from collections.abc import Sequence
+from typing import Literal
 
 from podcast_mcp.clips import (
     add_manual_social_clip,
@@ -29,6 +30,7 @@ class ClipService:
         *,
         platform: str | None = None,
         max_clips: int | None = None,
+        replace_existing: Literal["unapproved", "all"] = "unapproved",
     ) -> list[SocialClipCandidate]:
         # Energy scoring reads only each track's own ``track:<id>`` pyramid. Build
         # missing ones inline (a no-op when ready) so the ranking never depends on
@@ -38,7 +40,13 @@ class ClipService:
         )
 
         def mutate(p) -> list[SocialClipCandidate]:
-            return propose_social_clips(p, self._defaults, platform=platform, max_clips=max_clips)
+            return propose_social_clips(
+                p,
+                self._defaults,
+                platform=platform,
+                max_clips=max_clips,
+                replace_existing=replace_existing,
+            )
 
         return self.ws.mutate(
             "before propose social clips",

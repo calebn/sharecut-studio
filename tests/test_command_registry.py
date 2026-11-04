@@ -140,6 +140,11 @@ SNAPSHOT: dict[str, tuple[str, str, str]] = {
     "ClearFeedField": ("ClearFeedFieldPayload", "feed.clear_feed_field", "editor"),
     "AddSocialClip": ("AddSocialClipPayload", "markers.add_social_clip", "editor"),
     "UpdateSocialClip": ("UpdateSocialClipPayload", "markers.update_social_clip", "editor"),
+    "ProposeSocialClips": (
+        "ProposeSocialClipsPayload",
+        "markers.propose_social_clips",
+        "host",
+    ),
     "UpdateSocialClipDetails": (
         "UpdateSocialClipDetailsPayload",
         "markers.update_social_clip_details",
@@ -229,7 +234,7 @@ def _access(command_type: str) -> str:
 
 def test_snapshot_covers_every_command_type() -> None:
     assert set(SNAPSHOT) == set(get_args(DocumentCommandType))
-    assert len(SNAPSHOT) == 85
+    assert len(SNAPSHOT) == 86
 
 
 @pytest.mark.parametrize("command_type", sorted(SNAPSHOT))
