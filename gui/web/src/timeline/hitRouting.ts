@@ -24,9 +24,9 @@
  *   where it is, with a brief detent at each soft boundary (`dragDetent.ts`),
  *   and lifting commits it.
  * The chooser's chips commit a pick the same way, or arm by replaying the
- * press and forwarding the drag, on the real target. A finger on a chip arms
- * it by resting there, or by sliding along the target's drag axis once the
- * chip is armed (`chipGesture.ts`).
+ * press and forwarding the drag, on the real target. A finger on a chip grabs
+ * it only by sliding along the target's drag axis once the chip is armed;
+ * resting never grabs (`chipGesture.ts`).
  *
  * Pinch never edits: the moment a second finger lands after one that began on
  * the timeline, on a chooser chip, on a create item, on the drawer or on an
@@ -43,7 +43,6 @@ import {
   CHIP_SETTLE_MS,
   GHOST_CLICK_MS,
   HANDLE_DRAG_MIN_PX,
-  LONG_PRESS_MS,
   TOUCH_SLOP_PX,
 } from "../hooks/gestureConstants";
 import { TARGET_ID_ATTR } from "../stages/edit/chooserKinds";
@@ -158,10 +157,7 @@ export interface ChooserView {
   hits: readonly ResolvedHit[];
   /** The opening finger is still down: lifting on a chip picks it. */
   fingerDown: boolean;
-  /**
-   * The chip under that finger: a hit index, or none. Resting
-   * `LONG_PRESS_MS` on a chip grabs its target.
-   */
+  /** The chip under that finger: a hit index, or none. */
   over: number | null;
   /** The chip under the finger is armed: a slide along its axis drags it. */
   armed: boolean;
@@ -589,12 +585,12 @@ export function attachHitRouting(
       router.choose(index, source.pointerType);
       return;
     }
-    // Chooser chip rest-to-grab uses the touch grammar (ripple readout, cut-speech
+    // A chooser chip grab uses the touch grammar (ripple readout, cut-speech
     // dialog, xy envelope drag), not Auto precision (#1184).
     grab(element, source, candidate, anchor, at, { usePrecision: false });
   };
-  /** The open chooser's finger is now `finger`; a new anchor restarts its timers. */
-  const setFinger = (finger: ChipFinger, source: PointerEvent) => {
+  /** The open chooser's finger is now `finger`; a new anchor restarts its timer. */
+  const setFinger = (finger: ChipFinger) => {
     if (phase.kind !== "open") return;
     const open = phase;
     const prev = open.finger;
@@ -610,12 +606,6 @@ export function attachHitRouting(
       open.finger.anchor === anchor
         ? open.finger
         : null;
-    open.timers.push(
-      setTimeout(() => {
-        const f = current();
-        if (f) grabChip(f.index, source, f.rest ?? f.last);
-      }, LONG_PRESS_MS),
-    );
     if (!finger.pressed) {
       open.timers.push(
         setTimeout(() => {
@@ -642,7 +632,7 @@ export function attachHitRouting(
       if (over === null) return;
       stop(event);
       phase.pointerId = event.pointerId;
-      setFinger(pressChip(over, at, Date.now()), event);
+      setFinger(pressChip(over, at, Date.now()));
       phase.view = { ...phase.view, fingerDown: true, over, armed: true };
       emit(phase.view);
       return;
@@ -756,7 +746,7 @@ export function attachHitRouting(
           grabChip(step.finger.index, event, step.finger.rest, at);
           return;
         }
-        setFinger(step.finger, event);
+        setFinger(step.finger);
         const armed = over !== null && isArmed(step.finger, now);
         if (over !== phase.view.over || armed !== phase.view.armed) {
           phase.view = { ...phase.view, over, armed };
@@ -841,7 +831,7 @@ export function attachHitRouting(
         }
         if (event.pointerId !== phase.pointerId) return;
         stop(event);
-        setFinger(AWAY, event);
+        setFinger(AWAY);
         const over = itemAt(at);
         if (over !== null) {
           router.choose(over, event.pointerType);

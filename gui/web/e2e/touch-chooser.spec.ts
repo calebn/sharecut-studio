@@ -456,7 +456,7 @@ test("a right click on the dimmed timeline closes the fan and selects nothing un
   }
 });
 
-test("resting on a chip grabs its target and keeps dragging", async ({
+test("resting on a chip never grabs it; a slide along the axis does", async ({
   page,
 }, info) => {
   const cdp = await page.context().newCDPSession(page);
@@ -483,10 +483,12 @@ test("resting on a chip grabs its target and keeps dragging", async ({
     .locator(".edit-target-chooser-caption")
     .textContent();
   await shot(info, page, "phone-resting-on-chip-dark");
-  await page.waitForTimeout(LONG_PRESS_MS / 2 + 150);
-  const closedOnGrab = (await chooser(page).count()) === 0;
+  await page.waitForTimeout(LONG_PRESS_MS + 150);
+  const openAfterRest = (await chooser(page).count()) === 1;
+  expect(commands.some((c) => c.type === "SetEnvelope")).toBe(false);
   await touch(cdp, "touchMove", [{ x: onChip.x, y: onChip.y - 10 }]);
   await touch(cdp, "touchMove", [{ x: onChip.x, y: onChip.y - 20 }]);
+  await expect(chooser(page)).toHaveCount(0);
   await touch(cdp, "touchEnd");
   await expect
     .poll(() => commands.some((c) => c.type === "SetEnvelope"))
@@ -501,13 +503,13 @@ test("resting on a chip grabs its target and keeps dragging", async ({
   const pxPerSec = Math.round((await rulerWidthPx(page)) / SESSION_SEC);
   json(info, "grab", {
     caption,
-    closedOnGrab,
+    openAfterRest,
     pxPerSec,
     commands,
     envEdge: edge,
   });
   expect(caption).toMatch(/^0\.80× at /);
-  expect(closedOnGrab).toBe(true);
+  expect(openAfterRest).toBe(true);
   // Grabbed from the chip 56 px away, the point keeps its time (to a pixel)
   // and rises with the 20 px drag instead of jumping to the finger.
   expect(Math.abs((edge?.time ?? 0) - 10)).toBeLessThan(1 / pxPerSec);

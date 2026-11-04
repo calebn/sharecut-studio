@@ -368,8 +368,8 @@ const CHIP_CASES: Record<
       await page.waitForTimeout(600);
     },
   },
-  "rested a long press, then dragged off the axis (fallback)": {
-    moves: true,
+  "rested a long press, then dragged off the axis (no grab)": {
+    moves: false,
     async run(page, finger) {
       await holdOpen(page, finger);
       const chip = await centerOfBox(trimChip(page));
@@ -456,13 +456,13 @@ test("chip: slid on and lifted without moving", ({
     info,
   ));
 
-test("chip: rested a long press, then dragged off the axis (fallback)", ({
+test("chip: rested a long press, then dragged off the axis (no grab)", ({
   page,
   context,
   browserName,
 }, info) =>
   chipCase(
-    "rested a long press, then dragged off the axis (fallback)",
+    "rested a long press, then dragged off the axis (no grab)",
     { page, context, browserName },
     info,
   ));
