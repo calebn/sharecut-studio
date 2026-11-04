@@ -40,7 +40,7 @@ def test_doctor_reports_a_segment_whose_audio_changed(tmp_path: Path) -> None:
     assert len(checks) == 1
     assert checks[0].status == "warn"
     assert segment.id in checks[0].message
-    assert "does not match its recorded hash" in checks[0].message
+    assert "does not match its recorded size" in checks[0].message
     assert segment.id in (checks[0].extra or "")
     report = run_doctor_checks()
     assert report.passed
@@ -59,6 +59,21 @@ def test_doctor_caps_the_damaged_segments_it_lists(tmp_path: Path) -> None:
 
     assert len(messages) == MAX_DAMAGED_SEGMENTS_LISTED + 1
     assert "2 more damaged segments" in messages[-1]
+
+
+def test_deep_doctor_overflow_points_to_deep_listing(tmp_path: Path) -> None:
+    from segment_helpers import make_segment_dir
+
+    store = SegmentStore()
+    for index in range(MAX_DAMAGED_SEGMENTS_LISTED + 1):
+        added = store.add(make_segment_dir(tmp_path / str(index), name=f"Intro {index}"))
+        (store.path(added.id) / "clip-01.flac").write_bytes(b"fLaC-onX")
+
+    assert _segment_messages() == []
+    messages = _segment_messages(deep=True)
+    assert len(messages) == MAX_DAMAGED_SEGMENTS_LISTED + 1
+    assert "1 more damaged segments" in messages[-1]
+    assert "`podcast segment list --deep`" in messages[-1]
 
 
 @pytest.fixture(autouse=True)
