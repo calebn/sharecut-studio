@@ -20,7 +20,7 @@ description: >-
 2. Prefer listenable audio: `artifacts/premix.wav` or `export/{name}.wav`. `{name}`
    is a portable sanitized export stem; e.g. `My Episode: Part 1/2` is
    `My_Episode_Part_1_2.wav` (never a nested export path).
-3. `propose_social_clips_tool` with optional `platform` (`tiktok`, `reels`, `linkedin`, `youtube_shorts`) — adjusts max duration via `.agents/defaults/pipeline.yaml`.
+3. `propose_social_clips_tool` with optional `platform` (`tiktok`, `reels`, `linkedin`, `youtube_shorts`) — adjusts max duration via `.agents/defaults/pipeline.yaml`. A rerun keeps approved and manually added clips and replaces the rest, so approve the ones you want before rerunning.
 4. `social_clip_report_tool` — present top candidates with score, timestamps, title/caption suggestions.
 5. User picks clips → `approve_social_clips_tool` with `ids` (a list of clip ids).
 6. `export_social_clips_tool` → `export/clips/*.wav` + sidecar JSON per clip.
