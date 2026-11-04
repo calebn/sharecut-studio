@@ -45,6 +45,7 @@ from podcast_mcp.edits.edit_reasons import (
     GUEST_SUGGEST_REASON,
     NL_RANGE_REASON,
 )
+from podcast_mcp.edits.envelopes import volume_envelope_baseline
 from podcast_mcp.edits.join_continuity import (
     assess_existing_join,
 )
@@ -262,6 +263,9 @@ class EditService(CutMutatingService):
 
     def list_decision_rows(self, **filters: Any) -> list[dict[str, Any]]:
         return [e.model_dump() | review_fields(e.reason) for e in self.list_decisions(**filters)]
+
+    def envelope_points(self, track_id: str) -> list[dict[str, Any]]:
+        return volume_envelope_baseline(self.ws.project, track_id)
 
     def edit_selected_range(
         self,
