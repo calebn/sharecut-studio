@@ -7,7 +7,10 @@
   min-inline-size: 0;
 }
 
-.sys-composer > .export-dialog-note {
+.sys-composer-note {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
   font-size: var(--font-size-small);
   text-align: end;
 }
@@ -129,6 +132,13 @@ button.sys-composer-chip {
 
 .sys-composer-clear:hover {
   background: var(--color-hover);
+}
+
+.ui-control.sys-composer-submit:disabled {
+  opacity: 1;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-sunken);
+  border-color: var(--color-border);
 }
 
 .sys-composer-submit {

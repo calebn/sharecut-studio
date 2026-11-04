@@ -1,7 +1,7 @@
 import { BUSY_REASON } from "../ui/disabledReason";
 import type { ComposerProps } from "./Composer";
 
-const WRITE_REASON = "Write a comment to post.";
+export const WRITE_REASON = "Write a comment to post.";
 
 /** Why the submit is off, or undefined when it can fire. */
 export function composerBlock(

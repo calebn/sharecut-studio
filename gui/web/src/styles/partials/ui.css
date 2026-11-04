@@ -325,9 +325,7 @@ button.pill.pill--action:focus-visible {
 
 .ui-control:disabled,
 .ui-control[aria-disabled="true"] {
-  color: var(--color-text-secondary);
-  background: var(--color-bg-sunken);
-  border-color: var(--color-border);
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
