@@ -132,7 +132,15 @@ describe("PlayerBar", () => {
       pendingEditView({
         id: "f",
         timeline_start: 55,
-        unsure_words: [{ text: "um", start: 55, end: 56 }],
+        unsure_words: [
+          {
+            track_id: "host",
+            source_id: null,
+            word_index: 0,
+            text: "um",
+            confidence: 0.3,
+          },
+        ],
       }),
       pendingEditView({ id: "g", timeline_start: null }),
     ];
