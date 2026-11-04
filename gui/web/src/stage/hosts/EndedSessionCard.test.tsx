@@ -147,6 +147,54 @@ describe("EndedSessionCard", () => {
     });
   });
 
+  describe("Review pickup", () => {
+    const staged: Partial<RecordSessionSummary> = {
+      landed: false,
+      number: null,
+      target_kind: "replace",
+    };
+    const pickup = (
+      over: Partial<RecordSessionSummary> = staged,
+      props: Partial<React.ComponentProps<typeof EndedSessionCard>> = {},
+    ) => {
+      const onReviewPickup = vi.fn();
+      const view = render(
+        <EndedSessionCard
+          session={{ ...base, ...over }}
+          trackNames={names}
+          onReviewPickup={onReviewPickup}
+          {...props}
+        />,
+      );
+      return { onReviewPickup, ...view };
+    };
+
+    it("offers Review pickup as the primary action and calls back", async () => {
+      const { onReviewPickup, baseElement } = pickup();
+      const button = screen.getByRole("button", { name: "Review pickup" });
+      expect(button).toHaveClass("primary");
+      expect(button).not.toHaveAttribute("aria-label");
+      await expectNoA11yViolations(baseElement);
+      await userEvent.click(button);
+      expect(onReviewPickup).toHaveBeenCalledTimes(1);
+    });
+
+    it("takes precedence over Edit Session N", () => {
+      pickup({}, { hasClips: true, onEdit: vi.fn() });
+      expect(
+        screen.getByRole("button", { name: "Review pickup" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Edit Session/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("is absent without the handler", () => {
+      pickup(staged, { onReviewPickup: undefined });
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+  });
+
   describe("track menu", () => {
     const tracks = [
       { id: "t1", label: "Ava" },

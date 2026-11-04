@@ -67,6 +67,12 @@ export interface StageSliceState {
    */
   pendingRecordTarget: PendingRecordTarget | null;
   /**
+   * The Review item the Record card's Review pickup asked to open on. The
+   * Review queue reads it once when it mounts, then clears it. Leaving for any
+   * stage but Review and a project switch drop it. Memory only.
+   */
+  pendingReviewItem: string | null;
+  /**
    * The words under the Session target chip while the room's target is the
    * Replace over this span. Set when the pending target is sent, cleared when
    * the host picks a different target, leaves Record or changes project.
@@ -80,6 +86,7 @@ export interface StageSliceState {
    */
   openStage: (stage: StageId, options?: StageOpenOptions) => void;
   setPendingRecordTarget: (target: PendingRecordTarget | null) => void;
+  setPendingReviewItem: (id: string | null) => void;
   setRecordScript: (script: RecordScript | null) => void;
   setReviewSection: (section: ReviewSection) => void;
   setEditSurface: (surface: EditSurface) => void;
@@ -100,6 +107,7 @@ export function stageProjectInitial(guestMode: string | null = null) {
     openSheet: null as StageSheet | null,
     landingSettled: false,
     pendingRecordTarget: null as PendingRecordTarget | null,
+    pendingReviewItem: null as string | null,
     recordScript: null as RecordScript | null,
   };
 }
@@ -127,6 +135,7 @@ export const createStageSlice: StateCreator<
         ...(next === "record"
           ? {}
           : { pendingRecordTarget: null, recordScript: null }),
+        ...(next === "review" ? {} : { pendingReviewItem: null }),
         stage: next,
         reviewSection: section,
         openSheet: sheet,
@@ -165,6 +174,7 @@ export const createStageSlice: StateCreator<
     openStage,
     setPendingRecordTarget: (pendingRecordTarget) =>
       set({ pendingRecordTarget }),
+    setPendingReviewItem: (pendingReviewItem) => set({ pendingReviewItem }),
     setRecordScript: (recordScript) => set({ recordScript }),
     setReviewSection: (reviewSection) => set({ reviewSection }),
     setEditSurface: (editSurface) => set({ editSurface }),

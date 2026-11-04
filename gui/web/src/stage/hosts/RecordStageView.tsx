@@ -35,6 +35,7 @@ export type RecordStageViewProps = {
   onRemap?: EndedSessionCardProps["onRemap"];
   onNewTrack?: EndedSessionCardProps["onNewTrack"];
   onEdit?: EndedSessionCardProps["onEdit"];
+  onReviewPickup?: EndedSessionCardProps["onReviewPickup"];
   onRename?: EndedSessionCardProps["onRename"];
   hasClips?: boolean;
   notices: readonly RecordNotice[];
@@ -63,6 +64,7 @@ function EmptyRoom({
   onRemap,
   onNewTrack,
   onEdit,
+  onReviewPickup,
   onRename,
   hasClips,
   busy,
@@ -81,6 +83,7 @@ function EmptyRoom({
   | "onRemap"
   | "onNewTrack"
   | "onEdit"
+  | "onReviewPickup"
   | "onRename"
   | "hasClips"
   | "busy"
@@ -107,6 +110,7 @@ function EmptyRoom({
             onRemap={onRemap}
             onNewTrack={onNewTrack}
             onEdit={onEdit}
+            onReviewPickup={onReviewPickup}
             onRename={onRename}
             hasClips={hasClips}
           />
@@ -185,6 +189,7 @@ export function RecordStageView({
   onRemap,
   onNewTrack,
   onEdit,
+  onReviewPickup,
   onRename,
   hasClips,
   notices,
@@ -229,6 +234,7 @@ export function RecordStageView({
           onRemap={onRemap}
           onNewTrack={onNewTrack}
           onEdit={onEdit}
+          onReviewPickup={onReviewPickup}
           onRename={onRename}
           hasClips={hasClips}
           busy={busy}

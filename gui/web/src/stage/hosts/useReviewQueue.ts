@@ -240,7 +240,13 @@ export function useReviewQueue(guestShare = false) {
     askedPickups,
     takeDetails,
   ]);
-  const session = useReviewSession(open);
+  const pickup = useDawStore((s) => s.pendingReviewItem);
+  const session = useReviewSession(open, { selectedId: pickup ?? undefined });
+  useEffect(() => {
+    if (pickup) {
+      useDawStore.getState().setPendingReviewItem(null);
+    }
+  }, [pickup]);
   const { revert } = session;
   const select = useStableCallback(session.props.onSelect);
   const selected = useStableCallback(() => session.props.selectedId);

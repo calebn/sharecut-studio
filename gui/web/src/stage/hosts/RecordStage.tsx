@@ -34,6 +34,7 @@ import {
   useRoomToneAnnouncement,
   useSheetMic,
 } from "../../record";
+import { sessionItemId } from "../../review/reviewItems";
 import { useDawStore } from "../../state/dawStore";
 import { DeviceSheet } from "../../system/DeviceSheet";
 import type { RoomViewProps } from "../../system/RoomView";
@@ -248,6 +249,24 @@ function RecordStageBody({
       trackId: handoff.primary.trackId,
       ids: handoff.clipIds,
     });
+  };
+  const pickup = useMemo(
+    () =>
+      lastSession
+        ? ((project?.session_suggestions ?? []).find(
+            (s) => s.session_id === lastSession.session_id,
+          ) ?? null)
+        : null,
+    [lastSession, project?.session_suggestions],
+  );
+  const reviewPickup = async (suggestionId: string) => {
+    useDawStore.getState().setPendingReviewItem(sessionItemId(suggestionId));
+    const opened = await executePointerCommand("stage.review", {
+      section: "queue",
+    });
+    if (opened.status !== "ok") {
+      useDawStore.getState().setPendingReviewItem(null);
+    }
   };
   const trackNames = useMemo(
     () => new Map((project?.tracks ?? []).map((t) => [t.id, t.label])),
@@ -543,6 +562,7 @@ function RecordStageBody({
       onRemap={(participantId, trackId) => void remap(participantId, trackId)}
       onNewTrack={(participantId) => void newTrack(participantId)}
       onEdit={() => void editSession()}
+      onReviewPickup={pickup ? () => void reviewPickup(pickup.id) : undefined}
       onRename={(name) => void rename(name)}
       hasClips={handoff !== null}
       storage={

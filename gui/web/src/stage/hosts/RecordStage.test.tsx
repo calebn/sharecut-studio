@@ -34,6 +34,7 @@ import {
   minimalProject,
   recordParticipant,
   recordSnapshot,
+  sessionSuggestionView,
 } from "../../test/fixtures";
 import { seedPendingKeeper } from "../../test/keepers";
 import { stubViewportShell } from "../../test/viewportShell";
@@ -583,6 +584,73 @@ describe("Record stage", () => {
       expect(
         screen.queryByRole("button", { name: /^Edit session/i }),
       ).not.toBeInTheDocument();
+    });
+
+    describe("Review pickup", () => {
+      const staged = { landed: false, number: null, target_kind: "insert" };
+      const suggested = (sessionId: string) => {
+        useDawStore.getState().hydrate("/tmp/p.json", {
+          ...minimalProject(),
+          session_suggestions: [
+            sessionSuggestionView({ id: "ss-9", session_id: sessionId }),
+          ],
+        });
+      };
+
+      it("opens Review on the session's pickup instead of Edit", async () => {
+        suggested("old");
+        withAva(staged);
+        mount();
+        expect(
+          screen.queryByRole("button", { name: /^Edit session/i }),
+        ).not.toBeInTheDocument();
+        await userEvent.click(
+          await screen.findByRole("button", { name: "Review pickup" }),
+        );
+        expect(useDawStore.getState().pendingReviewItem).toBe("session:ss-9");
+        expect(exec).toHaveBeenCalledWith(
+          "stage.review",
+          { section: "queue" },
+          { skipWhen: true },
+        );
+      });
+
+      it("clears the request when Review does not open", async () => {
+        suggested("old");
+        withAva(staged);
+        exec.mockImplementationOnce(async () => ({
+          status: "disabled" as never,
+        }));
+        mount();
+        await userEvent.click(
+          await screen.findByRole("button", { name: "Review pickup" }),
+        );
+        await waitFor(() =>
+          expect(useDawStore.getState().pendingReviewItem).toBeNull(),
+        );
+      });
+
+      it("ignores a suggestion for another session", async () => {
+        suggested("other");
+        withAva(staged);
+        mount();
+        await screen.findByRole("region", { name: /^Last session/ });
+        expect(
+          screen.queryByRole("button", { name: "Review pickup" }),
+        ).not.toBeInTheDocument();
+      });
+
+      it("shows Edit when no suggestion is pending", async () => {
+        handoffProject();
+        withAva();
+        mount();
+        expect(
+          await screen.findByRole("button", { name: "Edit Session 1" }),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Review pickup" }),
+        ).not.toBeInTheDocument();
+      });
     });
 
     it("New track makes a track named for the person, then moves their clips there keeping starts", async () => {
