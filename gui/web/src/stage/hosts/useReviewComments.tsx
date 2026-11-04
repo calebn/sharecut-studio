@@ -38,7 +38,8 @@ import {
   savedGuestName,
   sessionDisplayName,
 } from "../../utils/commentAuthor";
-import { ActionItemsField, filledActions } from "./ActionItemsField";
+import { ActionItemsField } from "./ActionItemsField";
+import { filledActions } from "./actionItems";
 import { ComposeAnchor } from "./ComposeAnchor";
 import { commentCardOf } from "./commentCardData";
 import { TrackScope } from "./TrackScope";
