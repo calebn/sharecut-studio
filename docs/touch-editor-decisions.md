@@ -785,11 +785,10 @@ and a 10 px slop, after the iOS and Android long-press defaults it cites.
   (cut to 16 characters), and the selected target's ends ", selected".
 - **Commit.** Lifting on a chip replays a tap on its target at the target's own
   position and focuses it. A slide along the target's drag axis grabs it at
-  once (see [Drag from a chip](#drag-from-a-chip-1051-round-3)); resting the
-  long press, within the slop, still grabs as a fallback. Nothing on screen
-  shows either any more: the fan has no closing ring, chevrons or hint line, so
-  a rest of about 500 ms on a chip turns a pick into a grab without warning. A
-  grab replays the press on the target and forwards the rest of the drag offset
+  once (see [Drag from a chip](#drag-from-a-chip-1051-round-3)). Resting on a
+  chip never grabs, however long (Caleb, 2026-11-04: pausing to read the fan
+  must not change what lifting does), so the fan needs no closing ring or
+  hint line. A grab replays the press on the target and forwards the rest of the drag offset
   by the chip-to-target distance, so the target moves without jumping to the
   finger. Chips take taps on click, so touch, mouse, keyboard and
   assistive-technology presses pick.
@@ -824,7 +823,7 @@ The chooser has no motion: it appears and disappears at once, with or without
 reduced motion, and a chip under the finger scales without a transition.
 
 Open question for physical testing: whether the platform hold (500 ms) feels
-slow for the chooser and the rest-to-grab. The scroll-first rule replaced
+slow for the chooser. The scroll-first rule replaced
 select-on-press for every timeline touch, so a touch dragged across a clip no
 longer selects it on the way (the #1051 round-two repro on `main`).
 
@@ -1324,7 +1323,7 @@ enforced-by:
 
 On the phone shell only (`daw-shell--phone`), a direct long press arms a fade
 or trim handle on the timeline. Envelope points, pending start/end handles,
-and every chooser chip rest-to-grab keep the existing touch grammar drag (no
+and every chooser chip grab keep the existing touch grammar drag (no
 jog pad). `decidePrecision` chooses **direct** drag (with pointer ballistics:
 slower finger motion moves finer steps) when one step is at least 4 px on
 screen, or when the target and its neighbours are wider than a finger;

@@ -608,9 +608,9 @@ describe("touch input grammar", () => {
     press(fade, "pointerdown", 204, 117);
     router.longPress();
     press(fade, "pointermove", 236, 53);
-    vi.advanceTimersByTime(LONG_PRESS_MS);
-    press(fade, "pointermove", 246, 53);
-    press(fade, "pointerup", 246, 53);
+    vi.advanceTimersByTime(CHIP_SETTLE_MS);
+    press(fade, "pointermove", 250, 53);
+    press(fade, "pointerup", 250, 53);
     vi.runAllTimers();
     chip.remove();
     const clicked = vi.fn();
@@ -623,7 +623,7 @@ describe("touch input grammar", () => {
     expect(clicked).toHaveBeenCalledOnce();
   });
 
-  it("marks a rested-on chip, then grabs it after a long press and drags from the target", () => {
+  it("never grabs a chip the finger only rests on, however long", () => {
     const { fade } = edgeCluster();
     const chip = document.createElement("button");
     chip.setAttribute(TARGET_ID_ATTR, "1");
@@ -634,19 +634,9 @@ describe("touch input grammar", () => {
     router.longPress();
     press(fade, "pointermove", 236, 53);
     expect(views.at(-1)?.over).toBe(1);
-    vi.advanceTimersByTime(LONG_PRESS_MS - 1);
+    vi.advanceTimersByTime(LONG_PRESS_MS * 4);
     expect(log).toEqual([]);
-    vi.advanceTimersByTime(1);
-    press(fade, "pointermove", 246, 53);
-    press(fade, "pointerup", 246, 53);
-    vi.runAllTimers();
-
-    expect(views.at(-1)).toBeNull();
-    expect(log).toEqual([
-      "fade:pointerdown@206,112",
-      "fade:pointermove@216,112",
-      "fade:pointerup@216,112",
-    ]);
+    expect(views.at(-1)).toMatchObject({ over: 1, fingerDown: true });
     chip.remove();
   });
 
