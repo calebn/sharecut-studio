@@ -31,6 +31,8 @@ pushes to `main`, nightly and on `workflow_dispatch`. On pull requests the
 `changes` job skips what the diff cannot reach (see
 [§ Which jobs a run needs](testing.md#which-jobs-a-run-needs)). **All required checks must pass** (including Playwright axe) for a green build:
 
+**Runner minutes.** The four `pytest-shard` jobs and `pytest-quality` each install the project, so a full run uses about five Python jobs at once against the Actions concurrency quota.
+
 | Job | What |
 |-----|------|
 | `changes` | Not a required check. Runs `scripts/ci_plan.py plan` and hands `frontend-suite` and the browser matrix their plan; both required frontend aggregates fail when it does not succeed. |

@@ -61,7 +61,6 @@ def shard_of(nodeid: str, count: int) -> int:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Keep this shard's tests when CI sets ``PYTEST_SHARD_INDEX`` and ``PYTEST_SHARD_COUNT``."""
     raw_index = os.environ.get("PYTEST_SHARD_INDEX")
     raw_count = os.environ.get("PYTEST_SHARD_COUNT")
     if raw_index is None and raw_count is None:
