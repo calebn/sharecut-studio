@@ -4,7 +4,7 @@ Propose short highlight clips from combined transcripts and export WAV + JSON si
 
 ## MCP
 
-- `propose_social_clips_tool` — heuristic ranking (hooks, energy, duration, sentence-like starts; mid-utterance chunks are demoted). Energy comes from each track's own waveform pyramid (`track:<id>`), which is built inline first when missing, so the first propose call on large, freshly imported media can take a few seconds.
+- `propose_social_clips_tool` (also `podcast clips propose` and the Deliver stage's Find clips, the host-only `ProposeSocialClips` command) — a rerun keeps approved and manually added clips and replaces the other candidates; new proposals skip any span overlapping a kept clip on the same track, and `max_clips` counts new proposals only. Heuristic ranking (hooks, energy, duration, sentence-like starts; mid-utterance chunks are demoted). Energy comes from each track's own waveform pyramid (`track:<id>`), which is built inline first when missing, so the first propose call on large, freshly imported media can take a few seconds.
 - `social_clip_report_tool` — markdown summary
 - `approve_social_clips_tool` / `reject_social_clips_tool`
 - `export_social_clips_tool` — audio only. Each export renders its clips in a private staging folder inside `export/clips/` and replaces each WAV and its JSON sidecar atomically, so a download or listing never sees a half-written clip, and a failed render keeps the previous file. The next export removes a staging folder a killed export left behind once it is a day old (only folders named like the ones an export makes). A clip id is reduced to letters, digits, `_` and `-` in the file name, and two clips whose ids reduce to the same name stop the export.
