@@ -861,6 +861,7 @@
 
 .sys-room-view[data-width="phone-landscape"] .sys-room-view-dock > .sys-dock {
   flex-direction: column;
+  flex-wrap: nowrap;
   gap: var(--space-3);
   min-block-size: 0;
   padding: var(--space-3) var(--space-4);
@@ -873,6 +874,7 @@
 
 .sys-room-view[data-width="phone-landscape"] .sys-dock-center {
   flex-direction: column;
+  flex-wrap: nowrap;
   gap: var(--space-1);
 }
 
