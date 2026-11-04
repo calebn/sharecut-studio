@@ -134,6 +134,7 @@ NATIVE_CONTRACTS: dict[str, frozenset[NativeFamily]] = {
     "ffmpeg-artifacts.json": PAYLOAD_NATIVE,
     "ffmpeg-build.json": PYTHON_NATIVE | PAYLOAD_NATIVE,
     "join-length-limits.json": PYTHON_NATIVE,
+    "project-writers.json": PYTHON_NATIVE,
     "ripple-scope.json": PYTHON_NATIVE,
     "timeline-zoom.json": PYTHON_NATIVE,
     "trim-edge-limits.json": PYTHON_NATIVE,

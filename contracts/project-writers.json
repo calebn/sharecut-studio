@@ -1,0 +1,278 @@
+[
+  {
+    "module": "cli/comment.py",
+    "primitive": "CommentService.write",
+    "count": 7,
+    "reason": "CLI comment commands call CommentService writes directly"
+  },
+  {
+    "module": "cli/edit.py",
+    "primitive": "apply_external_document_edit",
+    "count": 22,
+    "reason": "CLI edit commands call service writes inside the legacy external-edit wrapper"
+  },
+  {
+    "module": "gui/routes/comments.py",
+    "primitive": "CommentService.write",
+    "count": 6,
+    "reason": "GUI comment routes call CommentService writes directly"
+  },
+  {
+    "module": "mcp/tools/clips.py",
+    "primitive": "notify_after_mutation",
+    "count": 4,
+    "reason": "MCP tools call service writes and notify after the fact through the legacy wrapper"
+  },
+  {
+    "module": "mcp/tools/comments.py",
+    "primitive": "CommentService.write",
+    "count": 7,
+    "reason": "MCP comment tools call CommentService writes directly"
+  },
+  {
+    "module": "mcp/tools/episode.py",
+    "primitive": "notify_after_mutation",
+    "count": 8,
+    "reason": "MCP tools call service writes and notify after the fact through the legacy wrapper"
+  },
+  {
+    "module": "mcp/tools/history.py",
+    "primitive": "notify_after_mutation",
+    "count": 4,
+    "reason": "MCP tools call service writes and notify after the fact through the legacy wrapper"
+  },
+  {
+    "module": "mcp/tools/timeline.py",
+    "primitive": "notify_after_mutation",
+    "count": 15,
+    "reason": "MCP tools call service writes and notify after the fact through the legacy wrapper"
+  },
+  {
+    "module": "mcp/tools/transcript.py",
+    "primitive": "notify_after_mutation",
+    "count": 10,
+    "reason": "MCP tools call service writes and notify after the fact through the legacy wrapper"
+  },
+  {
+    "module": "services/app/review_gate.py",
+    "primitive": "ws.save",
+    "count": 1,
+    "reason": "Review flow writes the project without a document command"
+  },
+  {
+    "module": "services/app/workspace.py",
+    "primitive": "_store.commit",
+    "count": 5,
+    "reason": "Workspace is the single caller of ProjectStore.commit and still serves every legacy writer"
+  },
+  {
+    "module": "services/collaboration/review.py",
+    "primitive": "ws.mutate",
+    "count": 2,
+    "reason": "Review flow writes the project without a document command"
+  },
+  {
+    "module": "services/collaboration/share.py",
+    "primitive": "CommentService.write",
+    "count": 3,
+    "reason": "Guest comment writes are gated by has_capability, a second permission check beside the dispatcher"
+  },
+  {
+    "module": "services/document/analysis.py",
+    "primitive": "ws.mutate",
+    "count": 9,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/bleed_inspection.py",
+    "primitive": "ws.mutate",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/clip.py",
+    "primitive": "ws.mutate",
+    "count": 6,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/clip.py",
+    "primitive": "ws.save",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/comment.py",
+    "primitive": "ws.mutate",
+    "count": 7,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/edit.py",
+    "primitive": "ws.mutate",
+    "count": 13,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/edit_restore.py",
+    "primitive": "ws.mutate",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/effects.py",
+    "primitive": "ws.mutate",
+    "count": 3,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/episode.py",
+    "primitive": "ws.mutate",
+    "count": 10,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/episode.py",
+    "primitive": "ws.save",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/feed.py",
+    "primitive": "ws.mutate",
+    "count": 4,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/history.py",
+    "primitive": "ws.record_snapshot",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/history.py",
+    "primitive": "ws.save",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/history.py",
+    "primitive": "ws.save_merged",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/play_stems.py",
+    "primitive": "ws.save",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/play_stems.py",
+    "primitive": "ws.save_merged",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/room_tone_bed.py",
+    "primitive": "ws.mutate",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/segment_insert.py",
+    "primitive": "ws.mutate",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/service_base.py",
+    "primitive": "ws.mutate",
+    "count": 1,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/session_suggestion.py",
+    "primitive": "ws.mutate",
+    "count": 2,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/timeline.py",
+    "primitive": "ws.mutate",
+    "count": 20,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/transcript.py",
+    "primitive": "ws.mutate",
+    "count": 6,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/document/transcript.py",
+    "primitive": "ws.save",
+    "count": 2,
+    "reason": "Service handler body that runs inside the dispatcher and through legacy callers"
+  },
+  {
+    "module": "services/media/ingest.py",
+    "primitive": "ws.mutate",
+    "count": 1,
+    "reason": "Media job writes the project without a document command"
+  },
+  {
+    "module": "services/media/proxy_media.py",
+    "primitive": "ws.mutate",
+    "count": 2,
+    "reason": "Media job writes the project without a document command"
+  },
+  {
+    "module": "services/media/proxy_variants.py",
+    "primitive": "ws.save",
+    "count": 1,
+    "reason": "Media job writes the project without a document command"
+  },
+  {
+    "module": "services/media/review_media.py",
+    "primitive": "ws.mutate",
+    "count": 3,
+    "reason": "Media job writes the project without a document command"
+  },
+  {
+    "module": "services/media/speaker.py",
+    "primitive": "ws.mutate",
+    "count": 4,
+    "reason": "Media job writes the project without a document command"
+  },
+  {
+    "module": "services/media/transcript_precorrect.py",
+    "primitive": "ws.mutate",
+    "count": 1,
+    "reason": "Media job writes the project without a document command"
+  },
+  {
+    "module": "services/pipeline/service.py",
+    "primitive": "ws.mutate",
+    "count": 2,
+    "reason": "Pipeline stage lands results without a document command"
+  },
+  {
+    "module": "services/pipeline/service.py",
+    "primitive": "ws.save_merged",
+    "count": 5,
+    "reason": "Pipeline stage lands results without a document command"
+  },
+  {
+    "module": "services/record/landing.py",
+    "primitive": "ws.mutate",
+    "count": 4,
+    "reason": "Recording landing writes the project without a document command"
+  },
+  {
+    "module": "services/record/track_choice.py",
+    "primitive": "ws.mutate",
+    "count": 1,
+    "reason": "Recording landing writes the project without a document command"
+  }
+]
