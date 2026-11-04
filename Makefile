@@ -93,12 +93,13 @@ cheatsheet-check:
 	cd gui/web && npx vite-node scripts/generate-keymap-cheatsheet.ts --check
 
 # Every generated artifact and contract check: capability manifest, schemas and docs-site
-# contract, extension caps, progress framework compliance (warn by default;
+# contract, the direct project-writer ratchet, extension caps, progress framework compliance (warn by default;
 # PODCAST_PROGRESS_COMPLIANCE=error to hard-fail) and the decision index. The
 # Biome-formatted exporters need gui/web/node_modules, so CI runs them in the frontend job.
 generated-check:
 	uv run pytest -q --no-cov tests/test_generated_artifacts.py
 	uv run python scripts/export_capabilities_copy.py --check
+	uv run python scripts/check_project_writers.py --base origin/main
 	uv run python scripts/export_timeline_zoom.py --check
 	uv run python scripts/export_limit_contracts.py --check
 	uv run python scripts/export_project_types.py --check
