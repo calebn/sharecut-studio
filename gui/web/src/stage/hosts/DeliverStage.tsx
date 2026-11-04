@@ -4,6 +4,7 @@ import {
   addChapter,
   deleteChapter,
   deleteSocialClip,
+  proposeSocialClips,
   updateChapter,
   updateSocialClip,
   updateSocialClipDetails,
@@ -350,6 +351,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     edits,
     exportOptions.target,
   ]);
+  const [findingClips, setFindingClips] = useState(false);
   const [focusShare, setFocusShare] = useState(false);
   const clearShareFocus = useCallback(() => setFocusShare(false), []);
   useEffect(() => {
@@ -403,6 +405,19 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     if (ops.length === 0) return;
     sendDeliverEdit(projectPath, async (path) => {
       for (const op of ops) await saveClipOp(path, op);
+    });
+  };
+
+  const onFindClips = () => {
+    if (!projectPath || findingClips) return;
+    setFindingClips(true);
+    // The project refreshes through document sync; the body remounts with the new clips.
+    sendDeliverEdit(projectPath, async (path) => {
+      try {
+        await proposeSocialClips(path);
+      } finally {
+        setFindingClips(false);
+      }
     });
   };
 
@@ -573,7 +588,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           onCancel={exportFlow.cancel}
           onPlayFrom={playFrom}
           onPlayClip={playClip}
-          onFindClips={() => runPointerCommand("stage.edit")}
+          findingClips={findingClips}
+          onFindClips={onFindClips}
           onOpenClipInEdit={(id) => {
             playClip(id);
             runPointerCommand("stage.edit");

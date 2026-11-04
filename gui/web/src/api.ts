@@ -62,6 +62,7 @@ export {
   moveClips,
   moveSegment,
   pasteSegment,
+  proposeSocialClips,
   redoHistory,
   rejectEdits,
   removeTrackCommand,

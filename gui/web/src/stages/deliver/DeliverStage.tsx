@@ -115,6 +115,8 @@ export type DeliverStageProps = {
   onPlayFrom: (seconds: number) => void;
   onPlayClip: (id: string) => void;
   onFindClips: () => void;
+  /** True while Find clips runs; the button reads unavailable with the reason. */
+  findingClips?: boolean;
   onOpenClipInEdit: (id: string) => void;
   onGetModel?: () => void;
   onRetry?: () => void;
@@ -169,6 +171,7 @@ export function DeliverStage({
   onPlayFrom,
   onPlayClip,
   onFindClips,
+  findingClips = false,
   onOpenClipInEdit,
   onGetModel,
   onRetry,
@@ -399,6 +402,7 @@ export function DeliverStage({
       onRemove={removeClipWithUndo}
       onOpenInEdit={onOpenClipInEdit}
       onFind={onFindClips}
+      finding={findingClips}
       onTrimGesture={setTrimming}
       commitTitles={clipTitleCommit}
     />

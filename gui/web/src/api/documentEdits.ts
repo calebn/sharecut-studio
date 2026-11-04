@@ -792,6 +792,17 @@ export async function updateSocialClip(
   });
 }
 
+/** Host only. Keeps approved and manual clips and replaces the rest of the candidates. */
+export async function proposeSocialClips(
+  projectPath: string,
+  opts: { platform?: string; maxClips?: number } = {},
+): Promise<void> {
+  await submitDocumentCommand(projectPath, DocumentCommand.ProposeSocialClips, {
+    ...(opts.platform !== undefined && { platform: opts.platform }),
+    ...(opts.maxClips !== undefined && { max_clips: opts.maxClips }),
+  });
+}
+
 /** Host only. An empty title clears it; a field left out stays as it is. */
 export async function updateSocialClipDetails(
   projectPath: string,
