@@ -637,6 +637,15 @@ describe("touch input grammar", () => {
     vi.advanceTimersByTime(LONG_PRESS_MS * 4);
     expect(log).toEqual([]);
     expect(views.at(-1)).toMatchObject({ over: 1, fingerDown: true });
+    press(fade, "pointerup", 236, 53);
+    vi.runAllTimers();
+    expect(views.at(-1)).toBeNull();
+    // Lifting after the long rest picks the target with a tap, in place.
+    expect(log).toEqual([
+      "fade:pointerdown@206,112",
+      "fade:pointerup@206,112",
+      "fade:click@206,112",
+    ]);
     chip.remove();
   });
 

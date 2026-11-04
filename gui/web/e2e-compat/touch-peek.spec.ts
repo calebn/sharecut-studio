@@ -376,6 +376,7 @@ const CHIP_CASES: Record<
       await finger.slide(chip, 8, 16);
       await page.waitForTimeout(HOLD_MS);
       await finger.slide({ x: chip.x + 30, y: chip.y + 20 }, 6, 16);
+      await finger.slide(chip, 6, 16);
       await finger.up();
       await page.waitForTimeout(800);
     },
