@@ -1,0 +1,226 @@
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { rangeActionDescriptors } from "../../commands/rangeActions";
+import { resolveSelectionRange } from "../../edit/rangeSelection";
+import { useDawStore } from "../../state/dawStore";
+import { COMMENTER_CAPABILITIES, clipRow } from "../../test/fixtures";
+import { seedScript } from "../../test/scriptHostKit";
+import { stubViewportShell } from "../../test/viewportShell";
+import { BottomSheet } from "../../ui/BottomSheet";
+import { GuestScriptHost } from "./GuestScriptHost";
+
+const seekTransport = vi.hoisted(() => vi.fn());
+vi.mock("../../commands/seek", () => ({ seekTransport }));
+
+const MOUSE = { pointerId: 1, pointerType: "mouse", isPrimary: true } as const;
+const rectAt = (at: number) =>
+  new DOMRect((at % 5) * 60, Math.floor(at / 5) * 26, 50, 20);
+const rectOf = (el: HTMLElement) => {
+  const at = Number(el.dataset.stop);
+  return Number.isNaN(at) ? new DOMRect(0, 0, 0, 0) : rectAt(at);
+};
+const centre = (index: number) => {
+  const r = rectAt(index);
+  return { clientX: r.x + 25, clientY: r.y + 10 };
+};
+const stop = (index: number) =>
+  document.querySelector(`[data-stop="${index}"]`) as HTMLElement;
+
+function layout() {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    function (this: HTMLElement) {
+      return this.classList.contains("sys-script-body")
+        ? new DOMRect(0, 0, 300, 200)
+        : rectOf(this);
+    },
+  );
+  vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+    function (this: HTMLElement) {
+      return [rectOf(this)] as unknown as DOMRectList;
+    },
+  );
+  document.elementFromPoint = (x: number, y: number) => {
+    const column = Math.floor(x / 60);
+    const at = Math.floor(y / 26) * 5 + column;
+    if (x % 60 >= 50 || y % 26 >= 20 || column > 4) return null;
+    return document.querySelector(`[data-stop="${at}"]`);
+  };
+}
+
+const drag = (from: number, to: number) => {
+  fireEvent.pointerDown(stop(from), { ...MOUSE, ...centre(from) });
+  fireEvent.pointerMove(stop(from), {
+    ...MOUSE,
+    ...centre(from),
+    clientX: 100,
+  });
+  fireEvent.pointerMove(stop(from), { ...MOUSE, ...centre(to) });
+  fireEvent.pointerUp(document.querySelector(".sys-script-body") as Element, {
+    ...MOUSE,
+    ...centre(to),
+  });
+};
+
+const CLIPS = {
+  tracks: {
+    host: [
+      clipRow({
+        id: "ch",
+        track_id: "host",
+        timeline_start: 0,
+        timeline_end: 30,
+        source_start: 0,
+        source_end: 30,
+      }),
+    ],
+    guest: [
+      clipRow({
+        id: "cg",
+        track_id: "guest",
+        timeline_start: 0,
+        timeline_end: 30,
+        source_start: 0,
+        source_end: 30,
+      }),
+    ],
+  },
+  clip_count: 2,
+};
+
+const as = (guestMode: "view" | "comment", shareCapabilities: string[]) =>
+  seedScript({
+    projectPath: "share:abc",
+    guestMode,
+    shareCapabilities,
+    project: { clips: CLIPS },
+  });
+
+beforeEach(() => {
+  stubViewportShell("desktop");
+  seekTransport.mockReset();
+  layout();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete (document as { elementFromPoint?: unknown }).elementFromPoint;
+});
+
+describe("GuestScriptHost range selection", () => {
+  it("a suggesting commenter's drag within one lane sets a transcriptRange that can cut and mute", () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    render(<GuestScriptHost />);
+    drag(0, 3);
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "transcriptRange",
+      trackId: "host",
+      startWordIndex: 0,
+      endWordIndex: 3,
+    });
+    const state = useDawStore.getState();
+    expect(state.selection).not.toBeNull();
+    const [target] = resolveSelectionRange(
+      state.project!,
+      state.selection,
+    ).targets;
+    const reasons = Object.fromEntries(
+      rangeActionDescriptors(state, target ?? null).map((d) => [
+        d.action,
+        d.reason,
+      ]),
+    );
+    expect(reasons.cut).toBeNull();
+    expect(reasons.mute).toBeNull();
+  });
+
+  it("a drag across two lanes sets a range over both tracks", () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    render(<GuestScriptHost />);
+    drag(0, 7);
+    const selection = useDawStore.getState().selection;
+    expect(selection?.kind).toBe("range");
+    if (selection?.kind === "range")
+      expect(selection.target.track_ids.sort()).toEqual(["guest", "host"]);
+  });
+
+  it.each([
+    ["a viewer", "view", ["play", "view"]],
+    ["a comment-only guest", "comment", ["play", "view", "comment"]],
+  ] as const)("%s's drag leaves the selection empty", (_, mode, caps) => {
+    as(mode, [...caps]);
+    render(<GuestScriptHost />);
+    drag(0, 3);
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(document.querySelector("[data-selected]")).toBeNull();
+  });
+
+  it("a click seeks and selects the one word", async () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    render(<GuestScriptHost />);
+    await userEvent.click(screen.getByRole("button", { name: "back" }));
+    expect(seekTransport).toHaveBeenCalledExactlyOnceWith(10.5);
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "transcriptRange",
+      trackId: "host",
+      startWordIndex: 1,
+      endWordIndex: 1,
+    });
+  });
+
+  it("Shift+Arrow extends the selection", async () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    render(<GuestScriptHost />);
+    await userEvent.click(screen.getByRole("button", { name: "back" }));
+    await userEvent.keyboard("{Shift>}{ArrowRight}{/Shift}");
+    expect(useDawStore.getState().selection).toMatchObject({
+      startWordIndex: 1,
+      endWordIndex: 2,
+    });
+  });
+
+  it("Escape clears the selection and a click on a word selects again", async () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    render(<GuestScriptHost />);
+    drag(0, 3);
+    fireEvent.keyDown(stop(1), {
+      key: "Escape",
+    });
+    expect(useDawStore.getState().selection).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "show" }));
+    expect(useDawStore.getState().selection).toMatchObject({
+      startWordIndex: 4,
+      endWordIndex: 4,
+    });
+  });
+
+  it("Escape inside an open sheet clears the selection first and keeps the sheet open", () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    const onClose = vi.fn();
+    function Sheeted() {
+      const [open] = useState(true);
+      return (
+        <BottomSheet
+          open={open}
+          onClose={onClose}
+          title="Script"
+          backgroundPolicy="interactive"
+        >
+          <GuestScriptHost />
+        </BottomSheet>
+      );
+    }
+    render(<Sheeted />);
+    act(() => drag(0, 3));
+    fireEvent.keyDown(stop(1), {
+      key: "Escape",
+    });
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(stop(1), {
+      key: "Escape",
+    });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+});

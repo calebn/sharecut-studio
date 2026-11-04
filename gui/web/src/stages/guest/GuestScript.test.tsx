@@ -40,6 +40,34 @@ describe("GuestScript", () => {
     expect(screen.getByText("Read only · you can comment")).toBeInTheDocument();
   });
 
+  it("reads only without selection props: no selected state", () => {
+    setup({ selection: undefined });
+    expect(document.querySelector("[aria-selected]")).toBeNull();
+    expect(document.querySelector("[data-selected]")).toBeNull();
+  });
+
+  it("forwards selection, select and clear to the pane", async () => {
+    const onSelect = vi.fn();
+    const onClearSelection = vi.fn();
+    setup({
+      selection: { kind: "words", anchor: 1, head: 2 },
+      onSelect,
+      onClearSelection,
+    });
+    expect(
+      document.querySelectorAll("[data-selected].sys-script-word"),
+    ).toHaveLength(2);
+    const third = document.querySelector('[data-stop="3"]') as HTMLElement;
+    fireEvent.keyDown(third, { key: "Escape" });
+    expect(onClearSelection).toHaveBeenCalledOnce();
+    await userEvent.click(third);
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith({
+      kind: "words",
+      anchor: 3,
+      head: 3,
+    });
+  });
+
   it("marks the playing words", () => {
     setup({ playing: [1, 3] });
     expect(document.querySelectorAll("[data-playing]")).toHaveLength(2);

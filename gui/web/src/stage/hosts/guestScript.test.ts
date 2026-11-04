@@ -4,7 +4,12 @@ import type {
   CombinedUtterance,
   TranscriptWordView,
 } from "../../types/project";
-import { guestScriptOf, playingWordsAt } from "./guestScript";
+import { wordsTargetOf } from "../edit/script/scriptModel";
+import {
+  guestScriptModelOf,
+  guestScriptOf,
+  playingWordsAt,
+} from "./guestScript";
 
 const word = (
   text: string,
@@ -79,6 +84,8 @@ describe("guestScriptOf", () => {
       turns: [],
       wordStarts: [],
       words: [],
+      refs: [],
+      times: [],
       empty: "none",
     });
     expect(
@@ -90,6 +97,8 @@ describe("guestScriptOf", () => {
       turns: [],
       wordStarts: [],
       words: [],
+      refs: [],
+      times: [],
       empty: "cut",
     });
   });
@@ -233,5 +242,70 @@ describe("lastStartedWordAt", () => {
 
   it("goes by start time, not index, when overlapping speech reorders starts", () => {
     expect(lastStartedWordAt([10, 14, 12], 13)).toBe(2);
+  });
+});
+
+describe("guestScriptModelOf", () => {
+  const indexed = (
+    text: string,
+    start: number,
+    wordIndex: number | undefined,
+  ): TranscriptWordView => ({
+    ...word(text, start),
+    ...(wordIndex === undefined ? {} : { word_index: wordIndex }),
+  });
+
+  it("keeps refs and times parallel to the words after the time sort", () => {
+    const g = guestScriptOf([
+      utterance("Maya", [indexed("late", 9, 0), indexed("early", 3, 1)]),
+    ]);
+    expect(g.words.map((w) => w.text)).toEqual(["early", "late"]);
+    expect(g.refs).toEqual([
+      { trackId: "t1", sourceId: "s1", wordIndex: 1 },
+      { trackId: "t1", sourceId: "s1", wordIndex: 0 },
+    ]);
+    expect(g.times).toEqual([
+      { start: 3, end: 3.5 },
+      { start: 9, end: 9.5 },
+    ]);
+  });
+
+  it("round-trips a word through indexOf and reads seek, time and cut", () => {
+    const g = guestScriptOf([
+      utterance("Maya", [indexed("a", 1, 4), indexed("b", 2, 5)]),
+    ]);
+    const model = guestScriptModelOf(g);
+    expect(model.indexOf(g.refs[1]!)).toBe(1);
+    expect(model.indexOf({ trackId: "t1", sourceId: "s1", wordIndex: 9 })).toBe(
+      undefined,
+    );
+    expect(model.seekSecOf(1)).toBe(2);
+    expect(model.timeOf(1)).toEqual({ start: 2, end: 2.5 });
+    expect(model.isCut(0)).toBe(false);
+  });
+
+  it("gives a word with no project index a null ref index and no lookup", () => {
+    const g = guestScriptOf([utterance("Maya", [indexed("a", 1, undefined)])]);
+    expect(g.refs[0]?.wordIndex).toBeNull();
+    expect(guestScriptModelOf(g).indexOf(g.refs[0]!)).toBeUndefined();
+  });
+
+  it("feeds wordsTargetOf a track target for one lane and a time target across two", () => {
+    const g = guestScriptOf([
+      utterance("Maya", [indexed("a", 1, 0), indexed("b", 2, 1)]),
+      utterance("Anneke", [indexed("c", 3, 0)], "t2"),
+    ]);
+    const model = guestScriptModelOf(g);
+    expect(wordsTargetOf(model, { anchor: 0, head: 1 })).toMatchObject({
+      kind: "track",
+      trackId: "t1",
+      startWordIndex: 0,
+      endWordIndex: 1,
+    });
+    expect(wordsTargetOf(model, { anchor: 0, head: 2 })).toMatchObject({
+      kind: "time",
+      start: 1,
+      end: 3.5,
+    });
   });
 });

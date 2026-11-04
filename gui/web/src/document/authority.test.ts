@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadDocumentState } from "../api/project";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import { minimalProject, pendingEditView, sampleTrack } from "../test/fixtures";
 import {
   applyDocumentResult,
   applyDocumentSnapshot,
@@ -259,5 +259,72 @@ describe("one document authority", () => {
     expect(moved?.words).toEqual([
       { ...word, timeline_start: 0, timeline_end: 1, mappable: true },
     ]);
+  });
+  it("keeps a suggesting guest's words and selection through a guest shell delta", () => {
+    const word = {
+      text: "Um.",
+      start: 0,
+      end: 1,
+      timeline_start: 2,
+      timeline_end: 3,
+      word_index: 0,
+    };
+    applyDocumentSnapshot({
+      server_seq: 1,
+      state_token: token,
+      file: { mtime_ns: 2, size: 1 },
+      project: {
+        ...initial(),
+        meta: {
+          ...initial().meta,
+          hydration: { transcript_words: true, history_groups: false },
+        },
+        transcript: {
+          utterances: [
+            {
+              track_id: "a",
+              speaker: "A",
+              start: 0,
+              end: 1,
+              text: "Um.",
+              words: [word],
+            },
+          ],
+        },
+      },
+    });
+    const selection = {
+      kind: "transcriptRange" as const,
+      trackId: "a",
+      sourceId: null,
+      startWordIndex: 0,
+      endWordIndex: 0,
+    };
+    useDawStore.getState().setSelection(selection);
+    applyDocumentSnapshot({
+      server_seq: 2,
+      state_token: token,
+      file_before: { mtime_ns: 2, size: 1 },
+      file: { mtime_ns: 3, size: 1 },
+      delta: {
+        base_seq: 1,
+        base_token: token,
+        projection: "shell",
+        audience: "guest",
+        operations: [
+          {
+            type: "replace",
+            section: "pending_edits",
+            parent: null,
+            value: [pendingEditView({ id: "pe1", track_id: "a" })],
+          },
+        ],
+      },
+    });
+    const project = documentAuthority.project;
+    expect(project?.pending_edits.map((e) => e.id)).toEqual(["pe1"]);
+    expect(project?.transcript?.utterances[0]?.words).toEqual([word]);
+    expect(project?.meta.hydration?.transcript_words).toBe(true);
+    expect(useDawStore.getState().selection).toEqual(selection);
   });
 });
